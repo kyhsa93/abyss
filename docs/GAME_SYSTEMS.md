@@ -1,8 +1,18 @@
-# Game Systems
+# GAME SYSTEMS
 
-## Level System
+## Character Progression
 
 Max Level: 100
+
+Level Up Rewards
+- Stat Points +5
+- Skill Points +1
+
+Attributes
+- Strength
+- Dexterity
+- Vitality
+- Energy
 
 Experience Formula
 
@@ -10,15 +20,66 @@ RequiredExp(level) = floor(100 * (1.15 ^ level))
 
 ---
 
-## Damage Formula
+## Combat Rules
 
-Damage = max(1, (Attack * SkillMultiplier) - Defense)
+HitChance = Accuracy / (Accuracy + Evasion)
 
-Critical Damage
+Minimum Hit Chance: 5%
+Maximum Hit Chance: 95%
 
-FinalDamage = Damage * 2
+Damage Formula
 
-Default Critical Chance = 5%
+Damage = max(1, ((Attack * SkillMultiplier) - Defense))
+
+Critical Strike
+
+Critical Damage = Damage × 2
+
+Damage Types
+- Physical
+- Fire
+- Cold
+- Lightning
+- Poison
+
+Resistance Cap = 75%
+
+---
+
+## Item Rules
+
+Rarity
+- Normal
+- Magic
+- Rare
+- Set
+- Unique
+
+Affix Count
+- Normal: 0
+- Magic: 1-2
+- Rare: 3-6
+- Set: Fixed
+- Unique: Fixed
+
+Item Level (ilvl)
+
+Item Level = Monster Level
+
+---
+
+## Loot Rules
+
+Base Drop Chance = 30%
+
+Rarity Distribution
+- Normal 60%
+- Magic 25%
+- Rare 10%
+- Set 4%
+- Unique 1%
+
+Higher Floors increase Rare, Set and Unique chances.
 
 ---
 
@@ -27,59 +88,26 @@ Default Critical Chance = 5%
 Per Floor
 
 HP = BaseHP * (1 + Floor * 0.08)
-
 Attack = BaseAttack * (1 + Floor * 0.05)
-
 Experience = BaseExp * (1 + Floor * 0.06)
+Gold = BaseGold * (1 + Floor * 0.05)
+
+Elite Monsters
+- HP ×5
+- Damage ×2
+
+Boss Monsters
+- HP ×20
+- Guaranteed Reward
 
 ---
 
-## Loot System
+## Infinite Abyss
 
-Base Drop Chance = 30%
+No maximum floor.
 
-Rarity
-
-- Common 60%
-- Magic 25%
-- Rare 10%
-- Epic 4%
-- Legendary 1%
-
-Legendary chance increases every 10 floors.
-
----
-
-## Item Affixes
-
-Common: 1
-Magic: 2
-Rare: 3
-Epic: 4
-Legendary: 5
-
-Possible Affixes
-
-- Attack
-- HP
-- Defense
-- Critical Chance
-- Attack Speed
-- Move Speed
-
----
-
-## Gold Economy
-
-Monster Gold = Floor * 2
-
-Boss Gold = Floor * 25
-
----
-
-## Endgame
-
-- Infinite Dungeon
-- Legendary Farming
-- Floor Progression
+Goals
+- Unique Hunting
+- Set Collection
 - Build Optimization
+- Highest Floor Challenge
