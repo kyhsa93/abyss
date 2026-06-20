@@ -1,49 +1,25 @@
 # Abyss
 
-## Game Design Document (GDD)
+# Diablo II Inspired Browser ARPG
 
-Version: 0.3
+Version: 0.4
 Status: Planning
-Repository: https://github.com/kyhsa93/game
 
 ---
 
 # Vision
 
-Abyss는 디아블로 스타일의 브라우저 기반 핵앤슬래시 액션 RPG이다.
+Abyss는 Diablo II에서 영감을 받은 브라우저 기반 싱글플레이 핵앤슬래시 RPG이다.
 
-핵심 경험
+핵심 목표
 
-- 빠른 전투
-- 의미 있는 아이템 파밍
-- 지속적인 성장
-- 끝없는 던전 도전
+- 클릭 이동
+- 클릭 전투
+- 랜덤 아이템 파밍
+- 캐릭터 빌드 연구
+- 무한 던전 도전
 
 초기 버전은 서버 없이 LocalStorage 기반으로 동작한다.
-
-향후 서버를 추가하여 계정, 시즌, 랭킹, 멀티플레이를 지원한다.
-
----
-
-# Product Goals
-
-## MVP
-
-플레이 가능한 핵앤슬래시 게임 구현
-
-포함 기능
-
-- 캐릭터 이동
-- 몬스터 AI
-- 전투
-- 경험치
-- 레벨업
-- 아이템 드랍
-- 장비 시스템
-- 인벤토리
-- 랜덤 던전
-- 보스 전투
-- 저장 / 불러오기
 
 ---
 
@@ -51,82 +27,65 @@ Abyss는 디아블로 스타일의 브라우저 기반 핵앤슬래시 액션 RP
 
 Town
 → Dungeon
-→ Combat
-→ Loot
-→ Level Up
-→ Equipment Upgrade
-→ Boss Kill
-→ Next Floor
+→ Kill Monsters
+→ Loot Items
+→ Gain Experience
+→ Improve Build
+→ Defeat Boss
+→ Descend Deeper
 → Repeat
 
 ---
 
-# Character Design
+# Controls
 
-## Warrior
+- Left Click : Move
+- Left Click Enemy : Attack
+- Right Click : Skill
+- I : Inventory
+- C : Character
+- ESC : Menu
 
-근접 전투 중심 클래스
+---
 
-### Base Stats
+# Character System
 
-- HP: 100
-- MP: 50
-- Attack: 10
-- Defense: 5
-- Critical Chance: 5%
-- Attack Speed: 1.0
-- Move Speed: 100
+## Initial Class
+
+- Warrior
+
+## Attributes
+
+- Strength
+- Dexterity
+- Vitality
+- Energy
+
+## Level Up Rewards
+
+Every Level:
+
+- Stat Points +5
+- Skill Points +1
 
 ---
 
 # Combat System
 
-## Basic Attack
+## Attack Flow
 
-- 근접 공격
-- 자동 공격 지원 예정
+Target Selection
+→ Move Into Range
+→ Attack
+→ Damage Calculation
 
-## Skills
+## Damage Types
 
-### Whirlwind
-
-- Damage: 150%
-- Radius Attack
-- Cooldown: 5s
-
-### Charge
-
-- Dash Forward
-- Damage On Path
-- Cooldown: 8s
-
----
-
-# Monster System
-
-## Normal Monsters
-
-### Slime
-- Low HP
-- Slow
-
-### Goblin
-- Fast
-- Low Defense
-
-### Skeleton
-- Balanced
-
-## Elite Monsters
-
-- HP x5
-- Damage x2
-- Better Loot
-
-## Boss Monsters
-
-- Unique Mechanics
-- Guaranteed Reward
+- Physical
+- Fire
+- Cold
+- Lightning
+- Poison
 
 ---
 
@@ -142,50 +101,49 @@ Town
 - Ring
 - Necklace
 
-## Rarity
+## Item Rarity
 
-- Common
+- Normal
 - Magic
 - Rare
-- Epic
-- Legendary
+- Set
+- Unique
 
-## Random Affixes
+## Item Generation
 
-- Attack
-- HP
-- Defense
-- Critical Chance
-- Attack Speed
-- Move Speed
+Base Item + Affixes = Final Item
+
+Example:
+
+Long Sword + Attack + Critical Chance
 
 ---
 
 # Dungeon System
 
-Floor Structure
+Town
+↓
+Floor 1
+↓
+Floor 2
+↓
+Floor 3
+↓
+Boss
 
-- Start Room
-- Combat Room
-- Combat Room
-- Elite Room
-- Boss Room
+## Goal
 
-Difficulty increases every floor.
+Infinite Abyss Progression
 
 ---
 
-# Save System
+# Endgame
 
-Storage: LocalStorage
-
-Saved Data
-
-- Character
-- Inventory
-- Equipment
-- Gold
-- Floor Progress
+- Infinite Dungeon
+- Unique Item Hunting
+- Set Collection
+- Build Optimization
+- Highest Floor Challenge
 
 ---
 
@@ -201,55 +159,27 @@ Saved Data
 
 - Phaser 3
 
-## State Management
+## State
 
 - Zustand
 
-## Styling
-
-- TailwindCSS
-
-## Persistence
+## Storage
 
 - LocalStorage
 
 ---
 
-# Future Backend Stack
-
-- NestJS
-- PostgreSQL
-- Redis
-- Docker
-
----
-
-# Roadmap
-
-## Phase 1
-
-MVP Release
-
-## Phase 2
-
-- Skill Tree
-- Additional Classes
-- Set Items
-- More Bosses
-
-## Phase 3
+# Future Online Features
 
 - Account System
-- Ranking
 - Seasons
+- Rankings
 - Multiplayer
 
 ---
 
 # Success Criteria
 
-Player should feel:
+Player should always feel:
 
 One More Run
-
-after every dungeon completion.
