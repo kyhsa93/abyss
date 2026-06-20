@@ -8,6 +8,6 @@ export class PreloadScene extends Phaser.Scene {
   preload() {}
 
   create() {
-    this.scene.start('DungeonScene');
+    this.scene.start('TownScene');
   }
 }
