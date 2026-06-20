@@ -1,6 +1,6 @@
-# Architecture
+# ARCHITECTURE
 
-## Tech Stack
+## Technology
 
 - React 19
 - TypeScript
@@ -8,19 +8,16 @@
 - Phaser 3
 - Zustand
 - TailwindCSS
+- LocalStorage
 
----
+## Architecture Layers
 
-# High Level Architecture
-
-React = UI Layer
-Phaser = Game Layer
+React = UI
+Phaser = Game Runtime
 Zustand = Shared State
 LocalStorage = Persistence
 
----
-
-# Folder Structure
+## Folder Structure
 
 src/
 ├─ app/
@@ -29,16 +26,14 @@ src/
 │  ├─ entities/
 │  ├─ systems/
 │  ├─ managers/
+│  ├─ generators/
 │  └─ data/
 ├─ ui/
 ├─ store/
-├─ hooks/
 ├─ services/
 └─ types/
 
----
-
-# Phaser Scenes
+## Scenes
 
 - BootScene
 - PreloadScene
@@ -46,48 +41,63 @@ src/
 - DungeonScene
 - UIScene
 
----
-
-# Entity Layer
+## Core Entities
 
 - Player
 - Monster
 - EliteMonster
 - BossMonster
-- Projectile
 - ItemDrop
 
----
+## Managers
 
-# System Layer
+- SaveManager
+- DungeonManager
+- SpawnManager
+- ItemManager
+- TargetManager
 
-- CombatSystem
+## Systems
+
+- InputSystem
+- PathfindingSystem
 - MovementSystem
+- CombatSystem
+- SkillSystem
 - LootSystem
 - ExperienceSystem
 - SaveSystem
-- DungeonSystem
 
----
+## Click To Move Flow
 
-# State Management
+Mouse Click
+→ Target Position
+→ Pathfinding
+→ Move
 
-Zustand Stores
+## Combat Flow
+
+Select Target
+→ Move Into Range
+→ Attack
+→ Hit Check
+→ Damage
+→ Loot
+
+## State Stores
 
 - playerStore
 - inventoryStore
 - equipmentStore
-- gameStore
+- dungeonStore
+- settingsStore
 
----
+## Save Strategy
 
-# Save Strategy
+Auto Save Every 30 Seconds
 
-LocalStorage
-
-Keys
-
-- player
-- inventory
-- equipment
-- progress
+Save Triggers
+- Level Up
+- Item Pickup
+- Floor Complete
+- Exit Game
