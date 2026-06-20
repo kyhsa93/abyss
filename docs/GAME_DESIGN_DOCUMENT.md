@@ -2,7 +2,7 @@
 
 ## Game Design Document (GDD)
 
-Version: 0.2
+Version: 0.3
 Status: Planning
 Repository: https://github.com/kyhsa93/game
 
@@ -10,63 +10,54 @@ Repository: https://github.com/kyhsa93/game
 
 # Vision
 
-Abyss는 디아블로에서 영감을 받은 브라우저 기반 핵앤슬래시 RPG이다.
+Abyss는 디아블로 스타일의 브라우저 기반 핵앤슬래시 액션 RPG이다.
 
-핵심 목표는 다음 네 가지 재미를 제공하는 것이다.
+핵심 경험
 
 - 빠른 전투
 - 의미 있는 아이템 파밍
-- 지속적인 캐릭터 성장
+- 지속적인 성장
 - 끝없는 던전 도전
 
-초기 버전은 서버 없이 동작하며 LocalStorage 기반 저장을 사용한다.
+초기 버전은 서버 없이 LocalStorage 기반으로 동작한다.
+
+향후 서버를 추가하여 계정, 시즌, 랭킹, 멀티플레이를 지원한다.
+
+---
+
+# Product Goals
+
+## MVP
+
+플레이 가능한 핵앤슬래시 게임 구현
+
+포함 기능
+
+- 캐릭터 이동
+- 몬스터 AI
+- 전투
+- 경험치
+- 레벨업
+- 아이템 드랍
+- 장비 시스템
+- 인벤토리
+- 랜덤 던전
+- 보스 전투
+- 저장 / 불러오기
 
 ---
 
 # Core Gameplay Loop
 
 Town
--> Dungeon
--> Combat
--> Loot
--> Level Up
--> Equipment Upgrade
--> Boss Kill
--> Next Floor
--> Repeat
-
----
-
-# MVP Scope
-
-## Character
-
-- Warrior 클래스
-- 레벨 시스템
-- 장비 시스템
-- 인벤토리
-
-## Combat
-
-- 이동
-- 기본 공격
-- 스킬
-- 몬스터 AI
-- 데미지 계산
-
-## Content
-
-- 3종 일반 몬스터
-- 엘리트 몬스터
-- 보스 몬스터
-- 무한 던전
-
-## Progression
-
-- 경험치
-- 레벨업
-- 랜덤 아이템
-- 장비 강화 기반 성장
+→ Dungeon
+→ Combat
+→ Loot
+→ Level Up
+→ Equipment Upgrade
+→ Boss Kill
+→ Next Floor
+→ Repeat
 
 ---
 
@@ -74,9 +65,9 @@ Town
 
 ## Warrior
 
-Role: Melee Fighter
+근접 전투 중심 클래스
 
-Base Stats
+### Base Stats
 
 - HP: 100
 - MP: 50
@@ -88,23 +79,26 @@ Base Stats
 
 ---
 
-# Skill System
+# Combat System
 
 ## Basic Attack
 
-근접 단일 공격
+- 근접 공격
+- 자동 공격 지원 예정
 
-## Whirlwind
+## Skills
 
-- Weapon Damage 150%
-- Radius Damage
-- Cooldown 5s
+### Whirlwind
 
-## Charge
+- Damage: 150%
+- Radius Attack
+- Cooldown: 5s
+
+### Charge
 
 - Dash Forward
-- Damage Enemies In Path
-- Cooldown 8s
+- Damage On Path
+- Cooldown: 8s
 
 ---
 
@@ -113,8 +107,8 @@ Base Stats
 ## Normal Monsters
 
 ### Slime
-- Slow
 - Low HP
+- Slow
 
 ### Goblin
 - Fast
@@ -126,12 +120,12 @@ Base Stats
 ## Elite Monsters
 
 - HP x5
-- Attack x2
+- Damage x2
 - Better Loot
 
 ## Boss Monsters
 
-- Unique Pattern
+- Unique Mechanics
 - Guaranteed Reward
 
 ---
@@ -148,7 +142,7 @@ Base Stats
 - Ring
 - Necklace
 
-## Item Rarity
+## Rarity
 
 - Common
 - Magic
@@ -159,8 +153,8 @@ Base Stats
 ## Random Affixes
 
 - Attack
-- Defense
 - HP
+- Defense
 - Critical Chance
 - Attack Speed
 - Move Speed
@@ -169,10 +163,11 @@ Base Stats
 
 # Dungeon System
 
-Each Floor
+Floor Structure
 
 - Start Room
-- Combat Rooms
+- Combat Room
+- Combat Room
 - Elite Room
 - Boss Room
 
@@ -180,26 +175,69 @@ Difficulty increases every floor.
 
 ---
 
-# Technical Stack
+# Save System
 
-- Vue 3
+Storage: LocalStorage
+
+Saved Data
+
+- Character
+- Inventory
+- Equipment
+- Gold
+- Floor Progress
+
+---
+
+# Technology Stack
+
+## Frontend
+
+- React 19
 - TypeScript
+- Vite
+
+## Game Engine
+
 - Phaser 3
-- Pinia
+
+## State Management
+
+- Zustand
+
+## Styling
+
+- TailwindCSS
+
+## Persistence
+
 - LocalStorage
 
 ---
 
-# Future Roadmap
+# Future Backend Stack
 
-Phase 2
+- NestJS
+- PostgreSQL
+- Redis
+- Docker
+
+---
+
+# Roadmap
+
+## Phase 1
+
+MVP Release
+
+## Phase 2
 
 - Skill Tree
 - Additional Classes
 - Set Items
 - More Bosses
 
-Phase 3
+## Phase 3
 
 - Account System
 - Ranking
@@ -210,6 +248,8 @@ Phase 3
 
 # Success Criteria
 
-Player should always feel:
+Player should feel:
 
-"One More Run"
+One More Run
+
+after every dungeon completion.
