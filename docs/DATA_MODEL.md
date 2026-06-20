@@ -1,32 +1,45 @@
-# Data Model
+# DATA MODEL
 
 ## Player
 
 ```ts
+interface Attributes {
+  strength: number;
+  dexterity: number;
+  vitality: number;
+  energy: number;
+}
+
 interface Player {
   id: string;
+  name: string;
   level: number;
   exp: number;
+  attributes: Attributes;
+  statPoints: number;
+  skillPoints: number;
   hp: number;
   maxHp: number;
-  mp: number;
-  maxMp: number;
-  attack: number;
-  defense: number;
-  criticalChance: number;
-  attackSpeed: number;
-  moveSpeed: number;
+  mana: number;
+  maxMana: number;
+  gold: number;
 }
 ```
 
 ## Item
 
 ```ts
-interface Item {
+interface Affix {
   id: string;
   name: string;
-  rarity: ItemRarity;
-  slot: EquipmentSlot;
+  value: number;
+}
+
+interface Item {
+  id: string;
+  baseType: string;
+  rarity: 'Normal'|'Magic'|'Rare'|'Set'|'Unique';
+  itemLevel: number;
   affixes: Affix[];
 }
 ```
@@ -40,7 +53,8 @@ interface Equipment {
   armor?: Item;
   gloves?: Item;
   boots?: Item;
-  ring?: Item;
+  ring1?: Item;
+  ring2?: Item;
   necklace?: Item;
 }
 ```
@@ -51,18 +65,24 @@ interface Equipment {
 interface Monster {
   id: string;
   name: string;
+  level: number;
   hp: number;
   attack: number;
   defense: number;
+  accuracy: number;
   expReward: number;
 }
 ```
 
-## DungeonFloor
+## SaveData
 
 ```ts
-interface DungeonFloor {
+interface SaveData {
+  version: string;
+  player: Player;
+  equipment: Equipment;
+  inventory: Item[];
   floor: number;
-  rooms: Room[];
+  timestamp: number;
 }
 ```
