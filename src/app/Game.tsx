@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { phaserConfig } from '../game/config/phaser';
 import { gameEvents } from '../game/gameEvents';
 import HUD from '../ui/HUD';
+import Joystick from '../ui/Joystick';
 import InventoryWindow from '../ui/InventoryWindow';
 import CharacterWindow from '../ui/CharacterWindow';
 import BlacksmithWindow from '../ui/BlacksmithWindow';
@@ -59,6 +60,7 @@ export default function Game() {
       <div id="game-container" style={{ width: '100%', height: '100%' }} />
 
       <HUD />
+      <Joystick />
 
       {showInventory && (
         <InventoryWindow onClose={() => setShowInventory(false)} />

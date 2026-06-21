@@ -41,3 +41,13 @@ html, body {
     display: flex;
   }
 }
+
+.joystick-base {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .joystick-base {
+    display: block;
+  }
+}

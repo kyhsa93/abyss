@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { useJoystickStore } from '../../store/joystickStore';
 
 export class PlayerEntity extends Phaser.GameObjects.Container {
   private circle: Phaser.GameObjects.Arc;
@@ -47,6 +48,17 @@ export class PlayerEntity extends Phaser.GameObjects.Container {
 
   update(delta: number, onAttack: () => void) {
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
+
+    const joystick = useJoystickStore.getState();
+    if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+      this.targetMonsterRef = null;
+      const step = (this.speed * delta) / 1000;
+      this.x += joystick.dx * step;
+      this.y += joystick.dy * step;
+      this.targetX = this.x;
+      this.targetY = this.y;
+      return;
+    }
 
     if (this.targetMonsterRef) {
       if (this.targetMonsterRef.isDead()) {

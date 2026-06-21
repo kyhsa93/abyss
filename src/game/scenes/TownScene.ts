@@ -4,12 +4,15 @@ import { useDungeonStore } from '../../store/dungeonStore';
 import { SaveService } from '../../services/SaveService';
 import { addPortalSparkle, addVignette } from '../systems/VisualEffects';
 import { gameEvents } from '../gameEvents';
+import { useJoystickStore } from '../../store/joystickStore';
 
 export class TownScene extends Phaser.Scene {
   private playerCircle!: Phaser.GameObjects.Arc;
   private targetX = 0;
   private targetY = 0;
   private speed = 200;
+  private worldW = 0;
+  private worldH = 0;
 
   constructor() {
     super('TownScene');
@@ -21,6 +24,8 @@ export class TownScene extends Phaser.Scene {
 
     const W = this.scale.width;
     const H = this.scale.height;
+    this.worldW = W;
+    this.worldH = H;
 
     // Ground
     this.drawGround(W, H);
@@ -198,13 +203,25 @@ export class TownScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    const dx = this.targetX - this.playerCircle.x;
-    const dy = this.targetY - this.playerCircle.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 3) {
+    const joystick = useJoystickStore.getState();
+    if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
       const step = (this.speed * delta) / 1000;
-      this.playerCircle.x += (dx / dist) * Math.min(step, dist);
-      this.playerCircle.y += (dy / dist) * Math.min(step, dist);
+      this.playerCircle.x += joystick.dx * step;
+      this.playerCircle.y += joystick.dy * step;
+      this.targetX = this.playerCircle.x;
+      this.targetY = this.playerCircle.y;
+    } else {
+      const dx = this.targetX - this.playerCircle.x;
+      const dy = this.targetY - this.playerCircle.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 3) {
+        const step = (this.speed * delta) / 1000;
+        this.playerCircle.x += (dx / dist) * Math.min(step, dist);
+        this.playerCircle.y += (dy / dist) * Math.min(step, dist);
+      }
     }
+
+    this.playerCircle.x = Phaser.Math.Clamp(this.playerCircle.x, 20, this.worldW - 20);
+    this.playerCircle.y = Phaser.Math.Clamp(this.playerCircle.y, 20, this.worldH - 20);
   }
 }
