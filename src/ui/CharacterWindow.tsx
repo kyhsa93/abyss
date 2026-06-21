@@ -44,7 +44,10 @@ export default function CharacterWindow({ onClose }: Props) {
         color: '#ccc',
         fontFamily: 'monospace',
         zIndex: 200,
-        minWidth: 340,
+        minWidth: 320,
+        maxWidth: '95vw',
+        maxHeight: '90vh',
+        overflow: 'auto',
         boxShadow: '0 0 30px rgba(0,0,0,0.9)',
       }}
     >
@@ -153,9 +156,9 @@ export default function CharacterWindow({ onClose }: Props) {
                         onClick={() => equipSkill(i, skill.id)}
                         title={`Assign to slot ${i + 1}`}
                         style={{
-                          width: 18,
-                          height: 18,
-                          fontSize: 10,
+                          width: 26,
+                          height: 26,
+                          fontSize: 11,
                           background: slotIndex === i ? '#446688' : '#1a1a2e',
                           border: '1px solid #446',
                           color: slotIndex === i ? '#fff' : '#777',

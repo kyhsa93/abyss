@@ -147,8 +147,9 @@ export default function BlacksmithWindow({ onClose }: Props) {
         color: '#ccc',
         fontFamily: 'monospace',
         zIndex: 200,
-        minWidth: 420,
-        maxHeight: '80vh',
+        minWidth: 320,
+        maxWidth: '95vw',
+        maxHeight: '85vh',
         overflow: 'auto',
         boxShadow: '0 0 30px rgba(0,0,0,0.9)',
       }}

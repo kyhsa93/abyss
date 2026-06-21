@@ -3,6 +3,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { useDungeonStore } from '../../store/dungeonStore';
 import { SaveService } from '../../services/SaveService';
 import { addPortalSparkle, addVignette } from '../systems/VisualEffects';
+import { gameEvents } from '../gameEvents';
 
 export class TownScene extends Phaser.Scene {
   private playerCircle!: Phaser.GameObjects.Arc;
@@ -57,7 +58,7 @@ export class TownScene extends Phaser.Scene {
     const blacksmithCircle = this.add.circle(600, 200, 90).setInteractive();
     blacksmithCircle.setAlpha(0.01);
     blacksmithCircle.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-      this.game.events.emit('open-blacksmith');
+      gameEvents.emit('open-blacksmith');
       event.stopPropagation();
     });
 
@@ -82,13 +83,13 @@ export class TownScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     this.input.keyboard?.on('keydown-I', () => {
-      this.game.events.emit('toggle-inventory');
+      gameEvents.emit('toggle-inventory');
     });
     this.input.keyboard?.on('keydown-C', () => {
-      this.game.events.emit('toggle-character');
+      gameEvents.emit('toggle-character');
     });
     this.input.keyboard?.on('keydown-ESC', () => {
-      this.game.events.emit('close-windows');
+      gameEvents.emit('close-windows');
     });
 
     // Auto-save on town return

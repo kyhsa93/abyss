@@ -3,6 +3,7 @@ import { usePlayerStore, requiredExp } from '../store/playerStore';
 import { useDungeonStore } from '../store/dungeonStore';
 import { useSkillStore } from '../store/skillStore';
 import { SKILL_DATA } from '../game/data/skills';
+import { gameEvents } from '../game/gameEvents';
 
 const SLOT_KEYS = ['1', '2', '3', '4'];
 
@@ -21,6 +22,7 @@ function SkillSlot({ index, skillId }: { index: number; skillId: string | null }
 
   return (
     <div
+      onClick={() => skillId && gameEvents.emit('use-skill', index)}
       style={{
         width: 50,
         height: 38,
@@ -33,6 +35,8 @@ function SkillSlot({ index, skillId }: { index: number; skillId: string | null }
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
+        pointerEvents: 'auto',
+        cursor: skill ? 'pointer' : 'default',
       }}
     >
       <span style={{ position: 'absolute', top: 1, left: 3, color: '#556', fontSize: 8 }}>{SLOT_KEYS[index]}</span>
@@ -56,6 +60,27 @@ function SkillSlot({ index, skillId }: { index: number; skillId: string | null }
         </div>
       )}
     </div>
+  );
+}
+
+function ActionButton({ label, onTap }: { label: string; onTap: () => void }) {
+  return (
+    <button
+      onClick={onTap}
+      style={{
+        pointerEvents: 'auto',
+        background: '#11111f',
+        border: '1px solid #334',
+        borderRadius: 4,
+        color: '#ccc',
+        fontFamily: 'monospace',
+        fontSize: 12,
+        padding: '6px 14px',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -144,6 +169,11 @@ export default function HUD() {
           ))}
         </div>
       )}
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 6 }}>
+        <ActionButton label="Bag" onTap={() => gameEvents.emit('toggle-inventory')} />
+        <ActionButton label="Char" onTap={() => gameEvents.emit('toggle-character')} />
+      </div>
 
       <div style={{ marginTop: 5, fontSize: 10, color: '#666', textAlign: 'center' }}>
         {scene === 'dungeon'

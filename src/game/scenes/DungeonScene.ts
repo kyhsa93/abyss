@@ -12,6 +12,7 @@ import { useSkillStore } from '../../store/skillStore';
 import { SaveService } from '../../services/SaveService';
 import { addPortalSparkle, addSkillBurst, addTorchGlow, addVignette } from '../systems/VisualEffects';
 import { SKILL_DATA } from '../data/skills';
+import { gameEvents } from '../gameEvents';
 
 const WORLD_W = 2400;
 const WORLD_H = 1600;
@@ -309,13 +310,13 @@ export class DungeonScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     this.input.keyboard?.on('keydown-I', () => {
-      this.game.events.emit('toggle-inventory');
+      gameEvents.emit('toggle-inventory');
     });
     this.input.keyboard?.on('keydown-C', () => {
-      this.game.events.emit('toggle-character');
+      gameEvents.emit('toggle-character');
     });
     this.input.keyboard?.on('keydown-ESC', () => {
-      this.game.events.emit('close-windows');
+      gameEvents.emit('close-windows');
     });
     this.input.keyboard?.on('keydown-T', () => {
       this.returnToTown();
@@ -324,6 +325,11 @@ export class DungeonScene extends Phaser.Scene {
     (['ONE', 'TWO', 'THREE', 'FOUR'] as const).forEach((key, slot) => {
       this.input.keyboard?.on(`keydown-${key}`, () => this.useSkill(slot));
     });
+
+    // Bridge for on-screen mobile skill buttons (React HUD has no direct scene access)
+    const onUseSkillEvent = (slot: number) => this.useSkill(slot);
+    gameEvents.on('use-skill', onUseSkillEvent);
+    this.events.once('shutdown', () => gameEvents.off('use-skill', onUseSkillEvent));
   }
 
   private setupHUD() {

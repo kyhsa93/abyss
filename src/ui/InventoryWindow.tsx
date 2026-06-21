@@ -66,6 +66,7 @@ function ItemSlot({ item, onClick }: { item?: Item; label?: string; onClick?: ()
       style={{ position: 'relative' }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onTouchStart={() => setHover(true)}
     >
       <div
         onClick={onClick}
@@ -121,8 +122,9 @@ export default function InventoryWindow({ onClose }: Props) {
         color: '#ccc',
         fontFamily: 'monospace',
         zIndex: 200,
-        minWidth: 560,
-        maxHeight: '80vh',
+        minWidth: 320,
+        maxWidth: '95vw',
+        maxHeight: '85vh',
         overflow: 'auto',
         boxShadow: '0 0 30px rgba(0,0,0,0.9)',
       }}
@@ -137,7 +139,7 @@ export default function InventoryWindow({ onClose }: Props) {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {/* Equipment */}
         <div>
           <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Equipment</div>

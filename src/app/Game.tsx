@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { phaserConfig } from '../game/config/phaser';
+import { gameEvents } from '../game/gameEvents';
 import HUD from '../ui/HUD';
 import InventoryWindow from '../ui/InventoryWindow';
 import CharacterWindow from '../ui/CharacterWindow';
@@ -15,30 +16,39 @@ export default function Game() {
   useEffect(() => {
     if (!gameRef.current) {
       gameRef.current = new Phaser.Game(phaserConfig);
-
-      gameRef.current.events.on('toggle-inventory', () => {
-        setShowInventory((v) => !v);
-        setShowCharacter(false);
-        setShowBlacksmith(false);
-      });
-      gameRef.current.events.on('toggle-character', () => {
-        setShowCharacter((v) => !v);
-        setShowInventory(false);
-        setShowBlacksmith(false);
-      });
-      gameRef.current.events.on('open-blacksmith', () => {
-        setShowBlacksmith(true);
-        setShowInventory(false);
-        setShowCharacter(false);
-      });
-      gameRef.current.events.on('close-windows', () => {
-        setShowInventory(false);
-        setShowCharacter(false);
-        setShowBlacksmith(false);
-      });
     }
 
+    const onToggleInventory = () => {
+      setShowInventory((v) => !v);
+      setShowCharacter(false);
+      setShowBlacksmith(false);
+    };
+    const onToggleCharacter = () => {
+      setShowCharacter((v) => !v);
+      setShowInventory(false);
+      setShowBlacksmith(false);
+    };
+    const onOpenBlacksmith = () => {
+      setShowBlacksmith(true);
+      setShowInventory(false);
+      setShowCharacter(false);
+    };
+    const onCloseWindows = () => {
+      setShowInventory(false);
+      setShowCharacter(false);
+      setShowBlacksmith(false);
+    };
+
+    gameEvents.on('toggle-inventory', onToggleInventory);
+    gameEvents.on('toggle-character', onToggleCharacter);
+    gameEvents.on('open-blacksmith', onOpenBlacksmith);
+    gameEvents.on('close-windows', onCloseWindows);
+
     return () => {
+      gameEvents.off('toggle-inventory', onToggleInventory);
+      gameEvents.off('toggle-character', onToggleCharacter);
+      gameEvents.off('open-blacksmith', onOpenBlacksmith);
+      gameEvents.off('close-windows', onCloseWindows);
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
@@ -59,6 +69,24 @@ export default function Game() {
       {showBlacksmith && (
         <BlacksmithWindow onClose={() => setShowBlacksmith(false)} />
       )}
+
+      <div
+        className="rotate-hint"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: '#000',
+          color: '#fff',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          zIndex: 9999,
+          fontFamily: 'monospace',
+          padding: 24,
+        }}
+      >
+        Rotate your device to landscape for the best experience
+      </div>
     </div>
   );
 }
