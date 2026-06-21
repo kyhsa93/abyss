@@ -174,12 +174,6 @@ export default function HUD() {
         <ActionButton label="Bag" onTap={() => gameEvents.emit('toggle-inventory')} />
         <ActionButton label="Char" onTap={() => gameEvents.emit('toggle-character')} />
       </div>
-
-      <div style={{ marginTop: 5, fontSize: 10, color: '#666', textAlign: 'center' }}>
-        {scene === 'dungeon'
-          ? 'Click to move  |  Click monster to attack  |  [1-4] Skills  |  [I] Inventory  |  [C] Character  |  [T] Return to Town'
-          : 'Click to move  |  [I] Inventory  |  [C] Character'}
-      </div>
     </div>
   );
 }

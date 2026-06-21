@@ -73,8 +73,6 @@ export class TownScene extends Phaser.Scene {
     const floor = useDungeonStore.getState().floor;
     this.add.text(16, 16, `Town — Next: Floor ${floor}`, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 })
       .setScrollFactor(0).setDepth(20);
-    this.add.text(16, 44, 'Click portal to enter dungeon  |  Click Inn to rest  |  Click Blacksmith to sell/upgrade', { fontSize: '12px', color: '#aaa' })
-      .setScrollFactor(0).setDepth(20);
 
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       this.targetX = ptr.worldX;

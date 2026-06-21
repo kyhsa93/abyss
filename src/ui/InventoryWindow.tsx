@@ -176,10 +176,6 @@ export default function InventoryWindow({ onClose }: Props) {
           </div>
         </div>
       </div>
-
-      <div style={{ marginTop: 10, fontSize: 10, color: '#555' }}>
-        Click equipment slot to unequip · Click item to equip
-      </div>
     </div>
   );
 }
