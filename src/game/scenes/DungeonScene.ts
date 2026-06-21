@@ -326,10 +326,15 @@ export class DungeonScene extends Phaser.Scene {
       this.input.keyboard?.on(`keydown-${key}`, () => this.useSkill(slot));
     });
 
-    // Bridge for on-screen mobile skill buttons (React HUD has no direct scene access)
+    // Bridge for on-screen mobile buttons (React HUD has no direct scene access)
     const onUseSkillEvent = (slot: number) => this.useSkill(slot);
+    const onReturnToTownEvent = () => this.returnToTown();
     gameEvents.on('use-skill', onUseSkillEvent);
-    this.events.once('shutdown', () => gameEvents.off('use-skill', onUseSkillEvent));
+    gameEvents.on('return-to-town', onReturnToTownEvent);
+    this.events.once('shutdown', () => {
+      gameEvents.off('use-skill', onUseSkillEvent);
+      gameEvents.off('return-to-town', onReturnToTownEvent);
+    });
   }
 
   private setupHUD() {
@@ -343,14 +348,6 @@ export class DungeonScene extends Phaser.Scene {
       },
     ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
 
-    const townBtn = this.add.text(this.scale.width - 16, 16, 'Town [T]', {
-      fontSize: '14px', color: '#ffffff', backgroundColor: '#222244', padding: { x: 8, y: 4 },
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true });
-
-    townBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-      this.returnToTown();
-      event.stopPropagation();
-    });
   }
 
   private returnToTown() {

@@ -63,24 +63,90 @@ function SkillSlot({ index, skillId }: { index: number; skillId: string | null }
   );
 }
 
-function ActionButton({ label, onTap }: { label: string; onTap: () => void }) {
+function MenuItem({ label, onTap }: { label: string; onTap: () => void }) {
   return (
     <button
       onClick={onTap}
       style={{
         pointerEvents: 'auto',
-        background: '#11111f',
-        border: '1px solid #334',
-        borderRadius: 4,
+        background: 'none',
+        border: 'none',
         color: '#ccc',
         fontFamily: 'monospace',
-        fontSize: 12,
-        padding: '6px 14px',
+        fontSize: 13,
+        padding: '8px 16px',
+        textAlign: 'left',
         cursor: 'pointer',
+        whiteSpace: 'nowrap',
       }}
     >
       {label}
     </button>
+  );
+}
+
+function HamburgerMenu({ scene }: { scene: 'town' | 'dungeon' }) {
+  const [open, setOpen] = useState(false);
+
+  const act = (action: () => void) => () => {
+    action();
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          position: 'fixed',
+          top: 12,
+          right: 12,
+          width: 40,
+          height: 40,
+          background: '#11111f',
+          border: '1px solid #334',
+          borderRadius: 4,
+          color: '#ccc',
+          fontSize: 18,
+          cursor: 'pointer',
+          pointerEvents: 'auto',
+          zIndex: 30,
+        }}
+      >
+        ☰
+      </button>
+
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 20, pointerEvents: 'auto' }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              top: 56,
+              right: 12,
+              background: '#0d0d1f',
+              border: '1px solid #334',
+              borderRadius: 6,
+              padding: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 30,
+              pointerEvents: 'auto',
+              boxShadow: '0 0 20px rgba(0,0,0,0.8)',
+            }}
+          >
+            <MenuItem label="Inventory" onTap={act(() => gameEvents.emit('toggle-inventory'))} />
+            <MenuItem label="Character" onTap={act(() => gameEvents.emit('toggle-character'))} />
+            {scene === 'dungeon' && (
+              <MenuItem label="Return to Town" onTap={act(() => gameEvents.emit('return-to-town'))} />
+            )}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -170,10 +236,7 @@ export default function HUD() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 6 }}>
-        <ActionButton label="Bag" onTap={() => gameEvents.emit('toggle-inventory')} />
-        <ActionButton label="Char" onTap={() => gameEvents.emit('toggle-character')} />
-      </div>
+      <HamburgerMenu scene={scene} />
     </div>
   );
 }
