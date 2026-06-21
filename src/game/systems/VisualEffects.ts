@@ -26,6 +26,19 @@ export function addDeathBurst(scene: Phaser.Scene, x: number, y: number, tint: n
   scene.time.delayedCall(500, () => emitter.destroy());
 }
 
+export function addSkillBurst(scene: Phaser.Scene, x: number, y: number, tint: number, radius = 160) {
+  const emitter = scene.add.particles(x, y, 'glow', {
+    tint,
+    lifespan: 500,
+    speed: { min: 80, max: radius * 1.2 },
+    scale: { start: 0.5, end: 0 },
+    quantity: 24,
+    blendMode: 'ADD',
+  });
+  emitter.explode(24);
+  scene.time.delayedCall(550, () => emitter.destroy());
+}
+
 export function addTorchGlow(scene: Phaser.Scene, x: number, y: number, tint: number, depth = 1) {
   const glow = scene.add.image(x, y, 'glow')
     .setTint(tint)

@@ -22,6 +22,8 @@ export const SaveService = {
         attributes: player.attributes,
         statPoints: player.statPoints,
         skillPoints: player.skillPoints,
+        learnedSkills: player.learnedSkills,
+        equippedSkills: player.equippedSkills,
         hp: player.hp,
         maxHp: player.maxHp,
         mana: player.mana,

@@ -2,6 +2,7 @@ export type ItemRarity = 'Normal' | 'Magic' | 'Rare' | 'Set' | 'Unique';
 export type EquipSlot = 'weapon' | 'helmet' | 'armor' | 'gloves' | 'boots' | 'ring1' | 'ring2' | 'necklace';
 export type MonsterVariant = 'normal' | 'elite' | 'boss';
 export type AffixStat = 'attack' | 'defense' | 'critChance' | 'maxHp' | 'maxMana' | 'accuracy' | 'evasion' | 'gold';
+export type SkillTarget = 'single' | 'aoe' | 'self';
 
 export interface Attributes {
   strength: number;
@@ -50,6 +51,8 @@ export interface PlayerData {
   attributes: Attributes;
   statPoints: number;
   skillPoints: number;
+  learnedSkills: string[];
+  equippedSkills: (string | null)[];
   hp: number;
   maxHp: number;
   mana: number;
@@ -60,6 +63,21 @@ export interface PlayerData {
   accuracy: number;
   evasion: number;
   critChance: number;
+}
+
+export interface SkillData {
+  id: string;
+  name: string;
+  description: string;
+  requiredLevel: number;
+  manaCost: number;
+  cooldown: number;
+  target: SkillTarget;
+  multiplier: number;
+  range?: number;
+  healPercent?: number;
+  executeThreshold?: number;
+  executeBonusMultiplier?: number;
 }
 
 export interface MonsterBase {

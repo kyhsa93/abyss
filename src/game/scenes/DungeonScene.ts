@@ -8,8 +8,10 @@ import { resolveAttack } from '../systems/CombatSystem';
 import { usePlayerStore } from '../../store/playerStore';
 import { useInventoryStore } from '../../store/inventoryStore';
 import { useDungeonStore } from '../../store/dungeonStore';
+import { useSkillStore } from '../../store/skillStore';
 import { SaveService } from '../../services/SaveService';
-import { addPortalSparkle, addTorchGlow, addVignette } from '../systems/VisualEffects';
+import { addPortalSparkle, addSkillBurst, addTorchGlow, addVignette } from '../systems/VisualEffects';
+import { SKILL_DATA } from '../data/skills';
 
 const WORLD_W = 2400;
 const WORLD_H = 1600;
@@ -318,6 +320,10 @@ export class DungeonScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-T', () => {
       this.returnToTown();
     });
+
+    (['ONE', 'TWO', 'THREE', 'FOUR'] as const).forEach((key, slot) => {
+      this.input.keyboard?.on(`keydown-${key}`, () => this.useSkill(slot));
+    });
   }
 
   private setupHUD() {
@@ -411,6 +417,105 @@ export class DungeonScene extends Phaser.Scene {
 
     const killed = target.takeDamage(result.damage);
     const color = result.isCrit ? '#ffdd00' : '#ffffff';
+    const label = result.isCrit ? `${result.damage}!` : `${result.damage}`;
+    this.spawnFloatingText(target.x, target.y - 20, label, color);
+
+    if (killed) {
+      this.onMonsterDied(target);
+    }
+  }
+
+  private useSkill(slotIndex: number) {
+    const pState = usePlayerStore.getState();
+    const skillId = pState.equippedSkills[slotIndex];
+    if (!skillId) return;
+
+    const skill = SKILL_DATA.find((sk) => sk.id === skillId);
+    if (!skill) return;
+
+    if (!useSkillStore.getState().isReady(skillId)) {
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'Not Ready', '#888888');
+      return;
+    }
+
+    if (skill.target === 'self') {
+      if (!usePlayerStore.getState().spendMana(skill.manaCost)) {
+        this.spawnFloatingText(this.player.x, this.player.y - 40, 'No Mana', '#6688ff');
+        return;
+      }
+      useSkillStore.getState().setCooldown(skillId, skill.cooldown);
+      const healAmount = Math.floor(pState.maxHp * (skill.healPercent ?? 0));
+      usePlayerStore.getState().heal(healAmount);
+      this.spawnFloatingText(this.player.x, this.player.y - 30, `+${healAmount}`, '#66ff88');
+      this.showStatusMessage(`${skill.name}!`, '#66ff88');
+      return;
+    }
+
+    if (skill.target === 'aoe') {
+      const range = skill.range ?? 160;
+      const targets = this.monsters.filter(
+        (m) => !m.isDead() && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= range,
+      );
+      if (targets.length === 0) {
+        this.spawnFloatingText(this.player.x, this.player.y - 40, 'No Target', '#888888');
+        return;
+      }
+      if (!usePlayerStore.getState().spendMana(skill.manaCost)) {
+        this.spawnFloatingText(this.player.x, this.player.y - 40, 'No Mana', '#6688ff');
+        return;
+      }
+      useSkillStore.getState().setCooldown(skillId, skill.cooldown);
+      addSkillBurst(this, this.player.x, this.player.y, 0x66ddff, range);
+      for (const target of targets) {
+        this.resolveSkillHit(target, skill.multiplier);
+      }
+      this.showStatusMessage(`${skill.name}!`, '#66ddff');
+      return;
+    }
+
+    // Single-target skill
+    const target = this.player.targetMonsterRef;
+    if (!target || target.isDead()) {
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'No Target', '#888888');
+      return;
+    }
+    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
+    if (dist > this.player.attackRange) {
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'Out of Range', '#888888');
+      return;
+    }
+    if (!usePlayerStore.getState().spendMana(skill.manaCost)) {
+      this.spawnFloatingText(this.player.x, this.player.y - 40, 'No Mana', '#6688ff');
+      return;
+    }
+    useSkillStore.getState().setCooldown(skillId, skill.cooldown);
+
+    let multiplier = skill.multiplier;
+    if (skill.executeThreshold && target.hp / target.maxHp <= skill.executeThreshold) {
+      multiplier += skill.executeBonusMultiplier ?? 0;
+    }
+    this.resolveSkillHit(target, multiplier);
+    this.showStatusMessage(`${skill.name}!`, '#ffaa44');
+  }
+
+  private resolveSkillHit(target: MonsterEntity, multiplier: number) {
+    const pState = usePlayerStore.getState();
+    const result = resolveAttack({
+      attack: pState.attack,
+      skillMultiplier: multiplier,
+      accuracy: pState.accuracy,
+      critChance: pState.critChance,
+      defense: target.defense,
+      evasion: target.evasion,
+    });
+
+    if (!result.hit) {
+      this.spawnFloatingText(target.x, target.y - 20, 'MISS', '#aaaaaa');
+      return;
+    }
+
+    const killed = target.takeDamage(result.damage);
+    const color = result.isCrit ? '#ffdd00' : '#ffcc66';
     const label = result.isCrit ? `${result.damage}!` : `${result.damage}`;
     this.spawnFloatingText(target.x, target.y - 20, label, color);
 
@@ -558,5 +663,9 @@ export class DungeonScene extends Phaser.Scene {
     // Update HUD
     const pState = usePlayerStore.getState();
     this.floorText.setText(`Floor ${this.floor}  |  Lv.${pState.level}  |  Gold: ${pState.gold}`);
+
+    // Passive mana regen, boosted by Energy
+    const regenPerSecond = 2 + pState.attributes.energy * 0.3;
+    pState.regenMana((regenPerSecond * delta) / 1000);
   }
 }

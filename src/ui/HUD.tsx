@@ -1,5 +1,63 @@
+import { useEffect, useState } from 'react';
 import { usePlayerStore, requiredExp } from '../store/playerStore';
 import { useDungeonStore } from '../store/dungeonStore';
+import { useSkillStore } from '../store/skillStore';
+import { SKILL_DATA } from '../game/data/skills';
+
+const SLOT_KEYS = ['1', '2', '3', '4'];
+
+function SkillSlot({ index, skillId }: { index: number; skillId: string | null }) {
+  const cooldownUntil = useSkillStore((s) => (skillId ? s.cooldownUntil[skillId] : undefined));
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    if (!cooldownUntil || cooldownUntil <= Date.now()) return;
+    const interval = setInterval(() => forceTick((t) => t + 1), 100);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
+
+  const skill = skillId ? SKILL_DATA.find((sk) => sk.id === skillId) : undefined;
+  const remaining = cooldownUntil ? Math.max(0, cooldownUntil - Date.now()) : 0;
+
+  return (
+    <div
+      style={{
+        width: 50,
+        height: 38,
+        background: '#11111f',
+        border: '1px solid #334',
+        borderRadius: 4,
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+      }}
+    >
+      <span style={{ position: 'absolute', top: 1, left: 3, color: '#556', fontSize: 8 }}>{SLOT_KEYS[index]}</span>
+      <span style={{ color: skill ? '#ccc' : '#444', fontSize: 9 }}>{skill ? skill.name.split(' ')[0] : '—'}</span>
+      {skill && <span style={{ color: '#5577aa', fontSize: 8 }}>{skill.manaCost}mp</span>}
+      {remaining > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            color: '#ffaa44',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+            fontSize: 11,
+          }}
+        >
+          {(remaining / 1000).toFixed(1)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Bar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) * 100 : 0;
@@ -20,13 +78,14 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 export default function HUD() {
   const hp = usePlayerStore((s) => s.hp);
   const maxHp = usePlayerStore((s) => s.maxHp);
-  const mana = usePlayerStore((s) => s.mana);
+  const mana = Math.floor(usePlayerStore((s) => s.mana));
   const maxMana = usePlayerStore((s) => s.maxMana);
   const exp = usePlayerStore((s) => s.exp);
   const level = usePlayerStore((s) => s.level);
   const gold = usePlayerStore((s) => s.gold);
   const floor = useDungeonStore((s) => s.floor);
   const scene = useDungeonStore((s) => s.scene);
+  const equippedSkills = usePlayerStore((s) => s.equippedSkills);
 
   const expRequired = requiredExp(level);
 
@@ -78,9 +137,17 @@ export default function HUD() {
         </div>
       </div>
 
+      {scene === 'dungeon' && (
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 6 }}>
+          {equippedSkills.map((id, i) => (
+            <SkillSlot key={i} index={i} skillId={id} />
+          ))}
+        </div>
+      )}
+
       <div style={{ marginTop: 5, fontSize: 10, color: '#666', textAlign: 'center' }}>
         {scene === 'dungeon'
-          ? 'Click to move  |  Click monster to attack  |  [I] Inventory  |  [C] Character  |  [T] Return to Town'
+          ? 'Click to move  |  Click monster to attack  |  [1-4] Skills  |  [I] Inventory  |  [C] Character  |  [T] Return to Town'
           : 'Click to move  |  [I] Inventory  |  [C] Character'}
       </div>
     </div>

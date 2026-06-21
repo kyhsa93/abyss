@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Attributes, Equipment, Item } from '../types';
+import { SKILL_DATA } from '../game/data/skills';
 
 function calcDerivedStats(
   attrs: Attributes,
@@ -40,6 +41,8 @@ interface PlayerStore {
   attributes: Attributes;
   statPoints: number;
   skillPoints: number;
+  learnedSkills: string[];
+  equippedSkills: (string | null)[];
   hp: number;
   maxHp: number;
   mana: number;
@@ -56,12 +59,18 @@ interface PlayerStore {
   spendGold: (amount: number) => boolean;
   takeDamage: (amount: number) => void;
   heal: (amount: number) => void;
+  regenMana: (amount: number) => void;
   fullHeal: () => void;
   spendStatPoint: (attr: keyof Attributes) => void;
+  spendMana: (amount: number) => boolean;
+  learnSkill: (id: string) => boolean;
+  equipSkill: (slotIndex: number, id: string | null) => void;
   recalcStats: (equipment: Equipment) => void;
   loadData: (data: import('../types').PlayerData) => void;
   setName: (name: string) => void;
 }
+
+const SKILL_SLOT_COUNT = 4;
 
 function requiredExp(level: number): number {
   return Math.floor(100 * Math.pow(1.15, level));
@@ -78,6 +87,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   attributes: { strength: 10, dexterity: 5, vitality: 8, energy: 4 },
   statPoints: 0,
   skillPoints: 0,
+  learnedSkills: [],
+  equippedSkills: Array(SKILL_SLOT_COUNT).fill(null),
   hp: BASE_HP + 8 * 10,
   maxHp: BASE_HP + 8 * 10,
   mana: BASE_MANA + 4 * 10,
@@ -130,6 +141,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   heal: (amount) =>
     set((s) => ({ hp: Math.min(s.maxHp, s.hp + amount) })),
 
+  regenMana: (amount) =>
+    set((s) => ({ mana: Math.min(s.maxMana, s.mana + amount) })),
+
   fullHeal: () => set((s) => ({ hp: s.maxHp, mana: s.maxMana })),
 
   spendStatPoint: (attr) => {
@@ -148,6 +162,38 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     });
   },
 
+  spendMana: (amount) => {
+    const s = get();
+    if (s.mana < amount) return false;
+    set({ mana: s.mana - amount });
+    return true;
+  },
+
+  learnSkill: (id) => {
+    const s = get();
+    if (s.learnedSkills.includes(id)) return false;
+    const skill = SKILL_DATA.find((sk) => sk.id === id);
+    if (!skill || s.skillPoints <= 0 || s.level < skill.requiredLevel) return false;
+
+    const learnedSkills = [...s.learnedSkills, id];
+    const equippedSkills = [...s.equippedSkills];
+    const emptySlot = equippedSkills.findIndex((slot) => slot === null);
+    if (emptySlot !== -1) equippedSkills[emptySlot] = id;
+
+    set({ learnedSkills, equippedSkills, skillPoints: s.skillPoints - 1 });
+    return true;
+  },
+
+  equipSkill: (slotIndex, id) => {
+    const s = get();
+    if (id && !s.learnedSkills.includes(id)) return;
+    const equippedSkills = s.equippedSkills.map((slot, i) => {
+      if (i === slotIndex) return id;
+      return slot === id ? null : slot;
+    });
+    set({ equippedSkills });
+  },
+
   recalcStats: (equipment) => {
     const s = get();
     const derived = calcDerivedStats(s.attributes, equipment, BASE_HP, BASE_MANA);
@@ -163,6 +209,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       attributes: data.attributes,
       statPoints: data.statPoints,
       skillPoints: data.skillPoints,
+      learnedSkills: data.learnedSkills ?? [],
+      equippedSkills: data.equippedSkills ?? Array(SKILL_SLOT_COUNT).fill(null),
       hp: data.hp,
       maxHp: data.maxHp,
       mana: data.mana,
