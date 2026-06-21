@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MonsterBase, MonsterVariant } from '../../types';
+import { addDeathBurst } from '../systems/VisualEffects';
 
 export class MonsterEntity extends Phaser.GameObjects.Container {
   private circle: Phaser.GameObjects.Arc;
@@ -113,6 +114,8 @@ export class MonsterEntity extends Phaser.GameObjects.Container {
 
   die() {
     this.dead = true;
+    const tint = this.variant === 'elite' ? 0xffaa00 : this.base.color;
+    addDeathBurst(this.scene, this.x, this.y, tint);
     this.scene.tweens.add({
       targets: this,
       alpha: 0,

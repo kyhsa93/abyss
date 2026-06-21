@@ -9,12 +9,22 @@ import { usePlayerStore } from '../../store/playerStore';
 import { useInventoryStore } from '../../store/inventoryStore';
 import { useDungeonStore } from '../../store/dungeonStore';
 import { SaveService } from '../../services/SaveService';
+import { addPortalSparkle, addTorchGlow, addVignette } from '../systems/VisualEffects';
 
 const WORLD_W = 2400;
 const WORLD_H = 1600;
 const WALL = 48;
 
 interface Rect { x: number; y: number; w: number; h: number }
+
+interface FloorPalette {
+  bg: number;
+  bgAlt: number;
+  tile: number;
+  wall: number;
+  wallBorder: number;
+  glow: number;
+}
 
 export class DungeonScene extends Phaser.Scene {
   private player!: PlayerEntity;
@@ -31,6 +41,7 @@ export class DungeonScene extends Phaser.Scene {
   private monsterCount = 0;
   private deadCount = 0;
   private graphics!: Phaser.GameObjects.Graphics;
+  private palette!: FloorPalette;
 
   constructor() {
     super('DungeonScene');
@@ -64,15 +75,42 @@ export class DungeonScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
   }
 
+  private computePalette(): FloorPalette {
+    // Hue slowly cycles across floors so each stretch of the dungeon reads as a
+    // distinct biome; saturation creeps up every 10 floors to feel more dangerous.
+    const hue = (0.62 + this.floor * 0.015) % 1;
+    const sat = 0.4 + (Math.floor(this.floor / 10) % 3) * 0.12;
+    const c = (s: number, v: number) => Phaser.Display.Color.HSVToRGB(hue, s, v).color;
+    return {
+      bg: c(sat, 0.1),
+      bgAlt: c(sat, 0.14),
+      tile: c(sat + 0.1, 0.22),
+      wall: c(sat, 0.3),
+      wallBorder: c(Math.min(sat + 0.2, 1), 0.58),
+      glow: c(0.7, 0.95),
+    };
+  }
+
   private drawRoom() {
+    this.palette = this.computePalette();
+    const { bg, bgAlt, tile, wall, wallBorder, glow } = this.palette;
+
     this.graphics = this.add.graphics();
 
-    // Floor
-    this.graphics.fillStyle(0x1a1a2e);
+    // Floor base
+    this.graphics.fillStyle(bg);
     this.graphics.fillRect(0, 0, WORLD_W, WORLD_H);
 
+    // Floor blotches to break up the flat fill
+    for (let i = 0; i < 160; i++) {
+      const bx = Phaser.Math.Between(WALL, WORLD_W - WALL);
+      const by = Phaser.Math.Between(WALL, WORLD_H - WALL);
+      this.graphics.fillStyle(bgAlt, 0.25);
+      this.graphics.fillCircle(bx, by, Phaser.Math.Between(20, 60));
+    }
+
     // Tiles pattern
-    this.graphics.lineStyle(1, 0x22223a, 0.4);
+    this.graphics.lineStyle(1, tile, 0.35);
     for (let tx = 0; tx < WORLD_W; tx += 64) {
       this.graphics.lineBetween(tx, 0, tx, WORLD_H);
     }
@@ -81,14 +119,16 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     // Walls
-    this.graphics.fillStyle(0x3a3a5c);
+    this.graphics.fillStyle(wall);
     this.graphics.fillRect(0, 0, WORLD_W, WALL);
     this.graphics.fillRect(0, WORLD_H - WALL, WORLD_W, WALL);
     this.graphics.fillRect(0, 0, WALL, WORLD_H);
     this.graphics.fillRect(WORLD_W - WALL, 0, WALL, WORLD_H);
 
-    // Wall border
-    this.graphics.lineStyle(3, 0x5555aa);
+    // Wall border: soft outer glow + crisp inner line
+    this.graphics.lineStyle(10, wallBorder, 0.15);
+    this.graphics.strokeRect(WALL, WALL, WORLD_W - WALL * 2, WORLD_H - WALL * 2);
+    this.graphics.lineStyle(3, wallBorder, 1);
     this.graphics.strokeRect(WALL, WALL, WORLD_W - WALL * 2, WORLD_H - WALL * 2);
 
     // Floor label
@@ -120,13 +160,34 @@ export class DungeonScene extends Phaser.Scene {
       const ph = Phaser.Math.Between(40, 80);
       this.obstacles.push({ x: px, y: py, w: pw, h: ph });
 
-      this.graphics.fillStyle(0x3a3a5c);
+      // Drop shadow for a pseudo-3D feel
+      this.graphics.fillStyle(0x000000, 0.25);
+      this.graphics.fillEllipse(px + 6, py + ph / 2 + 4, pw * 0.9, ph * 0.35);
+
+      this.graphics.fillStyle(wall);
       this.graphics.fillRect(px - pw / 2, py - ph / 2, pw, ph);
-      this.graphics.lineStyle(2, 0x5555aa);
+
+      // Top-edge highlight
+      this.graphics.fillStyle(wallBorder, 0.3);
+      this.graphics.fillRect(px - pw / 2, py - ph / 2, pw, 4);
+
+      this.graphics.lineStyle(2, wallBorder, 0.9);
       this.graphics.strokeRect(px - pw / 2, py - ph / 2, pw, ph);
     }
 
     this.graphics.setDepth(0);
+
+    this.addTorches(glow);
+    addVignette(this);
+  }
+
+  private addTorches(glowColor: number) {
+    const spacing = 360;
+    const margin = WALL + 36;
+    for (let x = margin + 100; x < WORLD_W - margin; x += spacing) {
+      addTorchGlow(this, x, margin, glowColor);
+      addTorchGlow(this, x, WORLD_H - margin, glowColor);
+    }
   }
 
   private spawnPlayer() {
@@ -157,8 +218,9 @@ export class DungeonScene extends Phaser.Scene {
 
       const monster = new MonsterEntity(this, mx, my, baseData, variant, scaled);
       this.monsters.push(monster);
-      monster.on('pointerdown', () => {
+      monster.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
         if (!monster.isDead()) this.player.setTargetMonster(monster);
+        event.stopPropagation();
       });
     }
   }
@@ -177,8 +239,9 @@ export class DungeonScene extends Phaser.Scene {
     boss.attackInterval = 2000;
     boss.speed = 60;
     this.monsters.push(boss);
-    boss.on('pointerdown', () => {
+    boss.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
       if (!boss.isDead()) this.player.setTargetMonster(boss);
+      event.stopPropagation();
     });
 
     this.showStatusMessage('Boss Appeared! Defeat it to proceed!', '#ff66ff');
@@ -207,6 +270,8 @@ export class DungeonScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
     });
+
+    addPortalSparkle(this, px, py);
 
     this.showStatusMessage('Portal opened! Proceed to next floor!', '#88aaff');
     SaveService.save();
@@ -250,6 +315,9 @@ export class DungeonScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', () => {
       this.game.events.emit('close-windows');
     });
+    this.input.keyboard?.on('keydown-T', () => {
+      this.returnToTown();
+    });
   }
 
   private setupHUD() {
@@ -262,6 +330,20 @@ export class DungeonScene extends Phaser.Scene {
         fontSize: '16px', color: '#ffff88', stroke: '#000', strokeThickness: 3,
       },
     ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
+
+    const townBtn = this.add.text(this.scale.width - 16, 16, 'Town [T]', {
+      fontSize: '14px', color: '#ffffff', backgroundColor: '#222244', padding: { x: 8, y: 4 },
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100).setInteractive({ useHandCursor: true });
+
+    townBtn.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
+      this.returnToTown();
+      event.stopPropagation();
+    });
+  }
+
+  private returnToTown() {
+    SaveService.save();
+    this.scene.start('TownScene');
   }
 
   private showStatusMessage(msg: string, color = '#ffff88') {

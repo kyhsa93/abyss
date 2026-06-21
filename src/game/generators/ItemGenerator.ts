@@ -1,5 +1,6 @@
 import { Item, ItemRarity, Affix } from '../../types';
 import { ITEM_BASES, PREFIXES, SUFFIXES, RARITY_WEIGHTS } from '../data/items';
+import { getItemSellValue } from '../systems/BlacksmithSystem';
 
 function randomFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -95,7 +96,7 @@ export function generateItem(floor: number, forceSlot?: import('../../types').Eq
 
   const name = buildName(base.name, rarity, affixes);
 
-  return {
+  const item: Item = {
     id: crypto.randomUUID(),
     baseType: base.id,
     name,
@@ -105,5 +106,10 @@ export function generateItem(floor: number, forceSlot?: import('../../types').Eq
     affixes,
     baseAttack: base.baseAttack,
     baseDefense: base.baseDefense,
+    value: 0,
+    enhanceLevel: 0,
   };
+  item.value = getItemSellValue(item);
+
+  return item;
 }

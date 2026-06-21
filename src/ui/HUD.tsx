@@ -79,8 +79,9 @@ export default function HUD() {
       </div>
 
       <div style={{ marginTop: 5, fontSize: 10, color: '#666', textAlign: 'center' }}>
-        Click to move &nbsp;|&nbsp; Click monster to attack &nbsp;|&nbsp;
-        [I] Inventory &nbsp;|&nbsp; [C] Character
+        {scene === 'dungeon'
+          ? 'Click to move  |  Click monster to attack  |  [I] Inventory  |  [C] Character  |  [T] Return to Town'
+          : 'Click to move  |  [I] Inventory  |  [C] Character'}
       </div>
     </div>
   );

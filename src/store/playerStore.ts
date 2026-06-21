@@ -53,6 +53,7 @@ interface PlayerStore {
 
   gainExp: (amount: number) => void;
   gainGold: (amount: number) => void;
+  spendGold: (amount: number) => boolean;
   takeDamage: (amount: number) => void;
   heal: (amount: number) => void;
   fullHeal: () => void;
@@ -115,6 +116,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   },
 
   gainGold: (amount) => set((s) => ({ gold: s.gold + amount })),
+
+  spendGold: (amount) => {
+    const s = get();
+    if (s.gold < amount) return false;
+    set({ gold: s.gold - amount });
+    return true;
+  },
 
   takeDamage: (amount) =>
     set((s) => ({ hp: Math.max(0, s.hp - amount) })),

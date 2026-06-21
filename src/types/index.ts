@@ -27,6 +27,8 @@ export interface Item {
   affixes: Affix[];
   baseAttack: number;
   baseDefense: number;
+  value: number;
+  enhanceLevel: number;
 }
 
 export interface Equipment {

@@ -42,7 +42,9 @@ function ItemTooltip({ item }: { item: Item }) {
         boxShadow: `0 0 10px ${color}44`,
       }}
     >
-      <div style={{ color, fontWeight: 'bold', marginBottom: 4 }}>{item.name}</div>
+      <div style={{ color, fontWeight: 'bold', marginBottom: 4 }}>
+        {item.name}{item.enhanceLevel > 0 && <span style={{ color: '#ffdd66' }}> +{item.enhanceLevel}</span>}
+      </div>
       <div style={{ color: '#888', fontSize: 11 }}>{item.rarity} — ilvl {item.itemLevel}</div>
       {item.baseAttack > 0 && <div style={{ color: '#ffccaa' }}>Attack: +{item.baseAttack}</div>}
       {item.baseDefense > 0 && <div style={{ color: '#aaccff' }}>Defense: +{item.baseDefense}</div>}
@@ -51,6 +53,7 @@ function ItemTooltip({ item }: { item: Item }) {
           {a.name}: +{a.value}
         </div>
       ))}
+      <div style={{ color: '#ffd700', fontSize: 11, marginTop: 4 }}>Value: {item.value}g</div>
     </div>
   );
 }
