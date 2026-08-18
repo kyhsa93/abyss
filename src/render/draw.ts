@@ -1,6 +1,6 @@
 import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
-import type { Actor, SimState, Vec2 } from '../sim/types'
+import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
 
 function lerp(a: number, b: number, t: number): number {
@@ -40,6 +40,7 @@ export function drawWorld(
     if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a))
   }
 
+  drawProjectiles(ctx, s, alpha)
   drawFloatingText(ctx, s, alpha)
   drawRaidFlash(ctx, s)
 }
@@ -238,6 +239,56 @@ function drawActor(
     ctx.fillStyle = isBoss ? COLORS.bossCast : COLORS.castBar
     ctx.fillRect(bx, by, w * progress, 5)
   }
+}
+
+interface BoltStyle {
+  core: string
+  glow: string
+  radius: number
+}
+
+const BOLT: Record<ProjectileKind, BoltStyle> = {
+  strike: { core: '#e0f2fe', glow: 'rgba(125, 211, 252, 0.45)', radius: 3.5 },
+  ignite: { core: '#ffedd5', glow: 'rgba(251, 146, 60, 0.5)', radius: 4 },
+  burst: { core: '#f5d0fe', glow: 'rgba(217, 70, 239, 0.5)', radius: 6 },
+  heal: { core: '#bbf7d0', glow: 'rgba(74, 222, 128, 0.5)', radius: 4 },
+}
+
+/**
+ * Ranged abilities resolve instantly; these bolts only show where the damage
+ * came from. Without them a caster standing still is indistinguishable from
+ * one doing nothing at all.
+ */
+function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const p of s.projectiles) {
+    const style = BOLT[p.kind]
+    if (!style) continue
+
+    const x = L.cx + lerp(p.prevPos.x, p.pos.x, alpha) * L.scale
+    const y = L.cy + lerp(p.prevPos.y, p.pos.y, alpha) * L.scale
+    const tailX = L.cx + p.prevPos.x * L.scale
+    const tailY = L.cy + p.prevPos.y * L.scale
+    const r = Math.max(2, style.radius * L.scale)
+
+    ctx.beginPath()
+    ctx.moveTo(tailX, tailY)
+    ctx.lineTo(x, y)
+    ctx.strokeStyle = style.glow
+    ctx.lineWidth = r * 1.5
+    ctx.lineCap = 'round'
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(x, y, r * 1.9, 0, Math.PI * 2)
+    ctx.fillStyle = style.glow
+    ctx.fill()
+
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fillStyle = style.core
+    ctx.fill()
+  }
+  ctx.lineCap = 'butt'
 }
 
 function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {

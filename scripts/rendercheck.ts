@@ -65,6 +65,26 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
 }
 console.log(`rendered ${frames} frames with no exceptions`)
 
+// Ranged casts must actually put bolts in the air; they are simulation state,
+// so a regression here would silently remove them from every replay too.
+{
+  updateLayout(1440, 900)
+  const s = createState(0x51ed, 0)
+  const rng = new Rng(0x51ed)
+  let seen = 0
+  let peak = 0
+  while (s.outcome === 'ongoing' && s.time < 45) {
+    step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+    seen += s.projectiles.length
+    peak = Math.max(peak, s.projectiles.length)
+  }
+  console.log(
+    seen > 0 && peak > 0 ? 'ok  ' : 'FAIL',
+    `  ranged bolts in flight (peak ${peak})`,
+  )
+  if (seen === 0) throw new Error('no projectiles were spawned')
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were

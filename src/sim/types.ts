@@ -106,6 +106,25 @@ export interface GroundEffect {
   detonated: boolean
 }
 
+export type ProjectileKind = 'strike' | 'ignite' | 'burst' | 'heal'
+
+/**
+ * Purely cosmetic, but simulated rather than animated.
+ *
+ * Damage still resolves the instant the ability does; the bolt is a tell, not
+ * a mechanic. It lives in sim state so replays and any future server-side
+ * verification stay identical frame for frame.
+ */
+export interface Projectile {
+  id: number
+  kind: ProjectileKind
+  pos: Vec2
+  prevPos: Vec2
+  targetId: number
+  speed: number
+  arrived: boolean
+}
+
 export interface FloatingText {
   id: number
   text: string
@@ -137,6 +156,7 @@ export interface SimState {
   /** Boss threat table keyed by actor id. */
   threat: Record<number, number>
   ground: GroundEffect[]
+  projectiles: Projectile[]
   texts: FloatingText[]
   chat: ChatLine[]
   outcome: Outcome

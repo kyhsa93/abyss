@@ -2,7 +2,7 @@ import { ABILITIES, type Ability } from './abilities'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
-import type { Actor, Aura, AuraId, SimState } from './types'
+import type { Actor, Aura, AuraId, ProjectileKind, SimState } from './types'
 
 export function actorById(s: SimState, id: number): Actor | undefined {
   return s.actors.find((a) => a.id === id)
@@ -140,6 +140,34 @@ export function detonateSpread(s: SimState, carrier: Actor): void {
   }
 }
 
+/** Anything thrown from further away than melee gets a visible bolt. */
+const PROJECTILE_MIN_RANGE = 120
+
+// Fast enough that the bolt does not lag visibly behind the damage it
+// represents, slow enough to actually read as travelling: roughly 0.2s.
+const PROJECTILE_SPEED: Record<ProjectileKind, number> = {
+  strike: 850,
+  ignite: 780,
+  burst: 700,
+  heal: 820,
+}
+
+function spawnProjectile(s: SimState, from: Actor, targetId: number, abilityId: string): void {
+  const kind = abilityId as ProjectileKind
+  const speed = PROJECTILE_SPEED[kind]
+  if (speed === undefined) return
+
+  s.projectiles.push({
+    id: s.nextObjectId++,
+    kind,
+    pos: { x: from.pos.x, y: from.pos.y },
+    prevPos: { x: from.pos.x, y: from.pos.y },
+    targetId,
+    speed,
+    arrived: false,
+  })
+}
+
 export function canCast(s: SimState, actor: Actor, ability: Ability, targetId: number): boolean {
   if (!actor.alive) return false
   if (actor.castId) return false
@@ -192,6 +220,10 @@ export function resolveAbility(
 ): void {
   const target = actorById(s, targetId)
   if (ability.manaCost > 0) actor.mana = Math.max(0, actor.mana - ability.manaCost)
+
+  if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
+    spawnProjectile(s, actor, target.id, ability.id)
+  }
 
   switch (ability.kind) {
     case 'damage': {

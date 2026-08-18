@@ -208,6 +208,7 @@ export function createState(seed: number, attempt: number): SimState {
     // The tank opens with a threat lead so the pull is not a coin flip.
     threat: { [PLAYER_ID]: 0, [TANK_ID]: 400, [HEALER_ID]: 0, [DPS_A_ID]: 0, [DPS_B_ID]: 0 },
     ground: [],
+    projectiles: [],
     texts: [],
     chat: [],
     outcome: 'ongoing',

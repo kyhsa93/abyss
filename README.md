@@ -68,6 +68,12 @@ Personality is not cosmetic. Kestrel gambles on long casts with a telegraph
 already on the floor and reacts late, so it out-damages the others and is
 reliably the one standing in fire. Wren bails early and overheals.
 
+**Ranged casts throw a visible bolt.** Damage still resolves the instant the
+ability does — the bolt is a tell, not a mechanic, and the balance numbers are
+identical with and without it. It homes on its target and lives in simulation
+state rather than in the renderer, so replays stay frame-identical. Without it
+a caster standing still looks the same whether it is working or idle.
+
 **The simulation is deterministic.** Fixed 30 Hz timestep, seeded PRNG, stable
 iteration order, render interpolation on top. `Math.random()` is never called
 inside `src/sim/`. That is what keeps replays, leaderboard verification and a

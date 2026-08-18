@@ -44,6 +44,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 
   updateBoss(s, rng)
   updateGround(s)
+  updateProjectiles(s)
 
   for (const a of s.actors) advanceCast(s, a, rng)
 
@@ -134,6 +135,37 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
 
   const ability = ABILITIES[castId]
   if (ability && targetId !== null) resolveAbility(s, a, ability, targetId, rng)
+}
+
+/** Homes on the target so a bolt still lands if its victim walks away. */
+function updateProjectiles(s: SimState): void {
+  for (const p of s.projectiles) {
+    p.prevPos.x = p.pos.x
+    p.prevPos.y = p.pos.y
+
+    const target = s.actors.find((a) => a.id === p.targetId)
+    if (!target) {
+      p.arrived = true
+      continue
+    }
+
+    const dx = target.pos.x - p.pos.x
+    const dy = target.pos.y - p.pos.y
+    const d = Math.hypot(dx, dy)
+    const stepLen = p.speed * DT
+
+    if (d <= stepLen + target.radius) {
+      p.pos.x = target.pos.x
+      p.pos.y = target.pos.y
+      p.arrived = true
+      continue
+    }
+
+    p.pos.x += (dx / d) * stepLen
+    p.pos.y += (dy / d) * stepLen
+  }
+
+  s.projectiles = s.projectiles.filter((p) => !p.arrived)
 }
 
 function ageEphemera(s: SimState): void {
