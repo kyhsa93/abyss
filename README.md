@@ -1,5 +1,7 @@
 # Abyss
 
+**[Play it](https://kyhsa93.github.io/abyss/)**
+
 A browser raid-boss prototype. A five-player group — one tank, one healer,
 three damage dealers — takes on a scripted boss. You play one of the dealers;
 the other four are AI. No assets, no server, no network: everything is shapes,
@@ -11,6 +13,10 @@ timers and a deterministic simulation.
 npm install
 npm run dev
 ```
+
+Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
+The workflow runs `npm run check` before building, so a broken encounter or a
+type error blocks the deploy.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again.
 
