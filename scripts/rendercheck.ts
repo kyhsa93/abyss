@@ -85,6 +85,33 @@ console.log(`rendered ${frames} frames with no exceptions`)
   if (seen === 0) throw new Error('no projectiles were spawned')
 }
 
+// --- every mechanic must actually fire ------------------------------------
+//
+// Later-phase mechanics only appear once the boss is low enough, so a change
+// that quietly stops them spawning would not show up as an exception anywhere.
+{
+  const seen = new Set<string>()
+  let maxPhase = 1
+  for (let run = 0; run < 6 && seen.size < 5; run++) {
+    const s = createState(1000 + run * 137, 8)
+    const rng = new Rng(1000 + run * 137)
+    while (s.outcome === 'ongoing' && s.time < 200) {
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const g of s.ground) seen.add(g.kind)
+      if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
+      if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) seen.add('spread')
+      maxPhase = Math.max(maxPhase, s.phase)
+    }
+  }
+  const want = ['puddle', 'breath', 'shockwave', 'adds', 'spread']
+  const missing = want.filter((w) => !seen.has(w))
+  console.log(
+    missing.length === 0 ? 'ok  ' : 'FAIL',
+    `  mechanics fired: ${[...seen].sort().join(', ')} (reached phase ${maxPhase})`,
+  )
+  if (missing.length > 0) throw new Error(`mechanics never fired: ${missing.join(', ')}`)
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were

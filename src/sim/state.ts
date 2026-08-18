@@ -1,7 +1,7 @@
 import { ARENA_RADIUS } from './constants'
 import type { Actor, AiProfile, Personality, Role, SimState } from './types'
 
-const BOSS_MAX_HP = 40000
+const BOSS_MAX_HP = 30000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -98,7 +98,7 @@ export function createState(seed: number, attempt: number): SimState {
       id: PLAYER_ID,
       name: 'You',
       role: 'dps',
-      hp: 2600,
+      hp: 3300,
       mana: 0,
       x: 60,
       y: 120,
@@ -114,7 +114,7 @@ export function createState(seed: number, attempt: number): SimState {
       id: TANK_ID,
       name: 'Bastion',
       role: 'tank',
-      hp: 4200,
+      hp: 5400,
       mana: 0,
       x: 0,
       y: -55,
@@ -130,7 +130,7 @@ export function createState(seed: number, attempt: number): SimState {
       id: HEALER_ID,
       name: 'Wren',
       role: 'healer',
-      hp: 2400,
+      hp: 3000,
       mana: 1000,
       x: -60,
       y: 130,
@@ -146,7 +146,7 @@ export function createState(seed: number, attempt: number): SimState {
       id: DPS_A_ID,
       name: 'Kestrel',
       role: 'dps',
-      hp: 2600,
+      hp: 3300,
       mana: 0,
       x: 95,
       y: 100,
@@ -162,7 +162,7 @@ export function createState(seed: number, attempt: number): SimState {
       id: DPS_B_ID,
       name: 'Vale',
       role: 'dps',
-      hp: 2600,
+      hp: 3300,
       mana: 0,
       x: -100,
       y: 95,
@@ -217,6 +217,10 @@ export function createState(seed: number, attempt: number): SimState {
     nextSpread: 17,
     nextSlam: 13,
     nextRaidHit: 11,
+    nextBreath: 21,
+    nextShockwave: 27,
+    nextAdds: 45,
+    bossFacing: Math.PI / 2,
     raidFlash: 0,
     nextObjectId: 1,
     attempt,

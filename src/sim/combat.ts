@@ -8,8 +8,14 @@ export function actorById(s: SimState, id: number): Actor | undefined {
   return s.actors.find((a) => a.id === id)
 }
 
+/** The boss proper. Summoned adds share its faction but not its id. */
 export function boss(s: SimState): Actor {
-  return s.actors[s.actors.length - 1]!
+  return s.actors.find((a) => a.id === BOSS_ID)!
+}
+
+/** Living summoned adds, nearest first is left to the caller. */
+export function adds(s: SimState): Actor[] {
+  return s.actors.filter((a) => a.faction === 'boss' && a.id !== BOSS_ID && a.alive)
 }
 
 export function party(s: SimState): Actor[] {

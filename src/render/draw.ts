@@ -1,5 +1,6 @@
 import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
+import { BOSS_ID } from '../sim/state'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
 
@@ -36,6 +37,7 @@ export function drawWorld(
   for (const a of s.actors) {
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false)
   }
+
   for (const a of s.actors) {
     if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a))
   }
@@ -95,6 +97,16 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     const p = worldToScreen(g.pos)
     const r = g.radius * L.scale
 
+    if (g.kind === 'breath') {
+      drawBreath(ctx, g, p, r)
+      continue
+    }
+
+    if (g.kind === 'shockwave') {
+      drawShockwave(ctx, g, p, r)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
@@ -130,6 +142,73 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.restore()
     }
   }
+}
+
+/** Frontal cone: fills toward the tip as the cast completes. */
+function drawBreath(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  const firing = g.detonated
+  const progress = firing ? 1 : 1 - g.telegraph / Math.max(0.001, 1.9)
+
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  ctx.arc(p.x, p.y, r, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.closePath()
+  ctx.fillStyle = firing ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.14)'
+  ctx.fill()
+
+  if (!firing) {
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.arc(p.x, p.y, r * progress, g.angle - g.halfWidth, g.angle + g.halfWidth)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.22)'
+    ctx.fill()
+  }
+
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  ctx.arc(p.x, p.y, r, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.closePath()
+  ctx.strokeStyle = firing ? 'rgba(125, 211, 252, 0.95)' : 'rgba(125, 211, 252, 0.7)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+}
+
+/** Expanding ring: lethal band, safe interior. */
+function drawShockwave(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  const band = g.band * L.scale
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(250, 204, 21, 0.30)'
+  ctx.lineWidth = band * 2
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(253, 224, 71, 0.95)'
+  ctx.lineWidth = 3
+  ctx.stroke()
+
+  // Inner edge marks where it is safe to stand.
+  const inner = Math.max(1, r - band)
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, inner, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(74, 222, 128, 0.5)'
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([5, 7])
+  ctx.stroke()
+  ctx.setLineDash([])
 }
 
 function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
@@ -174,8 +253,15 @@ function drawActor(
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
-  const isBoss = a.faction === 'boss'
-  const color = a.alive ? (isBoss ? COLORS.boss : roleColor(a.role, a.isPlayer)) : COLORS.dead
+  const isBoss = a.id === BOSS_ID
+  const isAdd = a.faction === 'boss' && !isBoss
+  const color = a.alive
+    ? isBoss
+      ? COLORS.boss
+      : isAdd
+        ? '#a855f7'
+        : roleColor(a.role, a.isPlayer)
+    : COLORS.dead
 
   if (a.isPlayer && a.alive) {
     // A soft pulse so the player never loses their own token in a crowd.
@@ -214,7 +300,7 @@ function drawActor(
     ctx.stroke()
   }
 
-  const glyph = isBoss ? 'B' : a.role === 'tank' ? 'T' : a.role === 'healer' ? 'H' : 'D'
+  const glyph = isBoss ? 'B' : isAdd ? 'x' : a.role === 'tank' ? 'T' : a.role === 'healer' ? 'H' : 'D'
   ctx.fillStyle = '#0a0a0f'
   ctx.font = font(isBoss ? 16 : 11, true)
   ctx.textAlign = 'center'
@@ -222,8 +308,17 @@ function drawActor(
   ctx.fillText(glyph, p.x, p.y)
   ctx.textBaseline = 'alphabetic'
 
+  // Adds show a health pip instead of a name; there can be several.
+  if (isAdd && a.alive) {
+    const w = r * 2.4
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillRect(p.x - w / 2, p.y - r - 9, w, 4)
+    ctx.fillStyle = '#a855f7'
+    ctx.fillRect(p.x - w / 2, p.y - r - 9, w * (a.hp / a.maxHp), 4)
+  }
+
   // Names cost more than they give on a phone-sized arena.
-  if (!isBoss && a.alive && L.ui > 0.8) {
+  if (!isBoss && !isAdd && a.alive && L.ui > 0.8) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(10)
     ctx.fillText(a.name, p.x, p.y - r - 8)

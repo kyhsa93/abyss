@@ -91,7 +91,7 @@ export interface Actor {
   swingTimer: number
 }
 
-export type GroundKind = 'puddle'
+export type GroundKind = 'puddle' | 'breath' | 'shockwave'
 
 export interface GroundEffect {
   id: number
@@ -104,6 +104,15 @@ export interface GroundEffect {
   lingering: number
   damage: number
   detonated: boolean
+
+  /** breath: centre bearing in radians, and half-width of the cone. */
+  angle: number
+  halfWidth: number
+  /** shockwave: expansion speed and the thickness of the lethal band. */
+  growth: number
+  band: number
+  /** shockwave: ids already caught, so the ring hits each actor once. */
+  caught: number[]
 }
 
 export type ProjectileKind = 'strike' | 'ignite' | 'burst' | 'heal'
@@ -153,6 +162,8 @@ export interface SimState {
   time: number
   tick: number
   actors: Actor[]
+  /** Direction the boss faces, in radians; drives its frontal cone. */
+  bossFacing: number
   /** Boss threat table keyed by actor id. */
   threat: Record<number, number>
   ground: GroundEffect[]
@@ -166,6 +177,9 @@ export interface SimState {
   nextSpread: number
   nextSlam: number
   nextRaidHit: number
+  nextBreath: number
+  nextShockwave: number
+  nextAdds: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */
   raidFlash: number
   /** Monotonic id source for spawned objects. */

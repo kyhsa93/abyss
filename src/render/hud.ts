@@ -1,7 +1,7 @@
 import type { JoystickView } from '../input'
 import { ABILITIES, PLAYER_BAR } from '../sim/abilities'
 import { ENRAGE_AT } from '../sim/constants'
-import { boss } from '../sim/combat'
+import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
 
@@ -71,14 +71,23 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.lineTo(markX, y + 6 + 13 * L.ui)
   ctx.stroke()
 
-  if (b.castId === 'boss_slam') {
+  if (b.castId) {
     const progress = 1 - b.castRemaining / b.castTotal
     const cw = Math.min(220, w * 0.55)
+    const label = b.castId === 'boss_breath' ? 'TIDAL BREATH' : 'ABYSSAL SLAM'
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)
     ctx.textAlign = 'center'
-    ctx.fillText('ABYSSAL SLAM', x + w / 2, y + 30 * L.ui)
+    ctx.fillText(label, x + w / 2, y + 30 * L.ui)
+  }
+
+  const summoned = adds(s)
+  if (summoned.length > 0) {
+    ctx.fillStyle = '#c084fc'
+    ctx.font = font(11, true)
+    ctx.textAlign = 'left'
+    ctx.fillText(`thralls ${summoned.length}`, x, y + 34 * L.ui)
   }
 }
 

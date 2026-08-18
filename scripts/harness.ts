@@ -68,9 +68,14 @@ function run(seed: number, attempt: number): Report {
         if (deaths[a.name] === undefined) deaths[a.name] = Math.round(s.time * 10) / 10
         continue
       }
-      // Only detonated puddles actually hurt; standing in a telegraph is fine.
+      // Puddles only. A shockwave is also "detonated" and its radius grows to
+      // cover the arena, so counting it here marked the whole party as
+      // standing in fire every time one went off.
       const inside = s.ground.some(
-        (g) => g.detonated && Math.hypot(a.pos.x - g.pos.x, a.pos.y - g.pos.y) <= g.radius,
+        (g) =>
+          g.kind === 'puddle' &&
+          g.detonated &&
+          Math.hypot(a.pos.x - g.pos.x, a.pos.y - g.pos.y) <= g.radius,
       )
       if (inside) ticksIn[a.name] = (ticksIn[a.name] ?? 0) + 1
     }

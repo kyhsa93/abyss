@@ -1,6 +1,8 @@
 import { ABILITIES } from './abilities'
-import { ARENA_RADIUS, DT, MELEE_RANGE, SPREAD_RADIUS } from './constants'
+import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH, SPREAD_RADIUS } from './constants'
+import { BREATH_CAST, insideCone } from './boss'
 import {
+  adds,
   beginCast,
   boss,
   dist,
@@ -40,20 +42,27 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
 
   // Reaction time is rolled once per distinct danger, not per tick, so the
   // AI does not "re-notice" the same puddle every frame.
-  if (danger !== ai.reactingTo) {
+  if (danger === null) {
+    ai.reactingTo = null
+    ai.reactionTimer = 0
+    ai.fumbled = false
+  } else if (ai.reactingTo === null) {
+    // Noticing danger at all is what costs reaction time.
     ai.reactingTo = danger
     ai.fumbled = false
-    if (danger) {
-      ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4)
-      // A fumble means it reacts far too late — the AI equivalent of
-      // tunnel-visioning on your rotation.
-      if (rng.chance(ai.mistakeChance)) {
-        ai.fumbled = true
-        ai.reactionTimer += rng.range(0.8, 1.6)
-      }
-    } else {
-      ai.reactionTimer = 0
+    ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4)
+    // A fumble means it reacts far too late — the AI equivalent of
+    // tunnel-visioning on your rotation.
+    if (rng.chance(ai.mistakeChance)) {
+      ai.fumbled = true
+      ai.reactionTimer += rng.range(0.8, 1.6)
     }
+  } else if (danger !== ai.reactingTo) {
+    // Already alert: switching threats does not buy another delay, or a party
+    // caught between two mechanics would freeze between them. The destination
+    // is deliberately kept — isSpotSafe re-validates it against every hazard,
+    // and clearing it here made the AI re-pick every tick and jitter in place.
+    ai.reactingTo = danger
   }
 
   if (ai.reactionTimer > 0) ai.reactionTimer -= DT
@@ -72,7 +81,11 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       const greedy = ai.personality === 'greedy'
       if (!(greedy && nearlyDone)) interruptCast(s, actor, 'moved')
     }
-    if (danger.startsWith('spread')) {
+    if (danger.startsWith('wave')) {
+      say(s, actor, 'Inside, get in!')
+    } else if (danger.startsWith('breath')) {
+      say(s, actor, 'Out of the front')
+    } else if (danger.startsWith('spread')) {
       say(s, actor, 'Spreading out')
     } else if (ai.personality === 'timid') {
       say(s, actor, 'Moving!')
@@ -90,13 +103,44 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   useAbilities(s, actor, rng)
 }
 
-/** A stable key describing what the AI should currently be running from. */
+/**
+ * The single most urgent thing to run from, as a stable key.
+ *
+ * Returning merely the first hazard found meant an AI reacting to the breath
+ * would not notice the puddle detonating under its feet. Rank them instead:
+ * already burning beats about to burn beats everything else.
+ */
 function currentDanger(s: SimState, actor: Actor): string | null {
-  if (getAura(actor, 'spread')) return 'spread:self'
+  let bestKey: string | null = null
+  let bestUrgency = -1
+
+  const consider = (key: string, urgency: number): void => {
+    if (urgency > bestUrgency) {
+      bestUrgency = urgency
+      bestKey = key
+    }
+  }
+
+  if (getAura(actor, 'spread')) consider('spread:self', 62)
 
   for (const g of s.ground) {
-    if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
-      return `puddle:${g.id}`
+    if (g.kind === 'breath') {
+      if (!g.detonated && insideCone(actor.pos, g)) {
+        consider(`breath:${g.id}`, 70 + (BREATH_CAST - g.telegraph) * 8)
+      }
+      continue
+    }
+
+    if (g.kind === 'shockwave') {
+      const d = dist(actor.pos, g.pos)
+      if (d > g.radius - g.band - 12) consider(`wave:${g.id}`, 78)
+      continue
+    }
+
+    const d = dist(actor.pos, g.pos)
+    if (d <= g.radius + DANGER_MARGIN) {
+      // Standing in live fire is the most urgent state there is.
+      consider(`puddle:${g.id}`, g.detonated ? 100 : 80 + (PUDDLE_TELEGRAPH - g.telegraph) * 9)
     }
   }
 
@@ -104,15 +148,24 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   for (const other of livingParty(s)) {
     if (other.id === actor.id) continue
     if (getAura(other, 'spread') && dist(actor.pos, other.pos) <= SPREAD_RADIUS + DANGER_MARGIN) {
-      return `spread:${other.id}`
+      consider(`spread:${other.id}`, 55)
     }
   }
-  return null
+
+  return bestKey
 }
 
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   for (const g of s.ground) {
+    if (g.kind === 'breath') {
+      if (!g.detonated && insideCone(spot, g)) return false
+      continue
+    }
+    if (g.kind === 'shockwave') {
+      if (dist(spot, g.pos) > g.radius - g.band - 12) return false
+      continue
+    }
     if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
   }
 
@@ -175,69 +228,114 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   const b = boss(s)
   const ai = actor.ai!
 
-  let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
-  let bestScore = -Infinity
+  const candidates: Vec2[] = [{ x: actor.pos.x, y: actor.pos.y }]
 
+  // Rings around the actor cover ordinary sidestepping.
   const rings = [70, 130, 200]
   // Rotate the sample ring a little each time so movement is not perfectly grid-like.
   const offset = rng.range(0, Math.PI / 8)
-
   for (let i = 0; i < 16; i++) {
     const angle = offset + (i / 16) * Math.PI * 2
     for (const r of rings) {
-      const candidate: Vec2 = {
+      candidates.push({
         x: actor.pos.x + Math.cos(angle) * r,
         y: actor.pos.y + Math.sin(angle) * r,
+      })
+    }
+  }
+
+  // Some mechanics have their answer somewhere specific and far away, which
+  // sampling around the actor will almost never land on. Offer those directly.
+  for (const g of s.ground) {
+    if (g.kind === 'shockwave') {
+      // The pocket inside the ring.
+      const pocket = Math.max(52, (g.radius - g.band) * 0.62)
+      for (let i = 0; i < 8; i++) {
+        const angle = offset + (i / 8) * Math.PI * 2
+        candidates.push({
+          x: g.pos.x + Math.cos(angle) * pocket,
+          y: g.pos.y + Math.sin(angle) * pocket,
+        })
       }
-      clampToArena(candidate, actor.radius)
-
-      let score = 0
-
-      // 1. Ground danger dominates everything else.
-      for (const g of s.ground) {
-        const d = dist(candidate, g.pos)
-        if (d <= g.radius + DANGER_MARGIN) score -= 1000
-        else score -= Math.max(0, 200 - d) * 0.5
-      }
-
-      // 2. Spread separation.
-      const carryingSpread = getAura(actor, 'spread') !== undefined
-      for (const other of livingParty(s)) {
-        if (other.id === actor.id) continue
-        const d = dist(candidate, other.pos)
-        const otherCarries = getAura(other, 'spread') !== undefined
-        if (carryingSpread || otherCarries) {
-          if (d < SPREAD_RADIUS + DANGER_MARGIN) score -= 900
-          else score += Math.min(d, 260) * 0.4
+    } else if (g.kind === 'breath' && !g.detonated) {
+      // Behind and beside the cone.
+      for (const side of [Math.PI, Math.PI * 0.6, -Math.PI * 0.6]) {
+        for (const r of [120, 190]) {
+          candidates.push({
+            x: g.pos.x + Math.cos(g.angle + side) * r,
+            y: g.pos.y + Math.sin(g.angle + side) * r,
+          })
         }
       }
+    }
+  }
 
-      // 3. Role positioning.
-      const bossDist = dist(candidate, b.pos)
-      if (actor.role === 'tank') {
-        // A tank does not stand in fire to keep melee range; it drags the boss
-        // out instead. The boss chases threat, so walking away relocates it.
-        if (bossDist > 200) score -= (bossDist - 200) * 3
-        else score -= bossDist * 0.35
-      } else {
-        // Casters want to stay in range but out of the boss's lap.
-        if (bossDist < 90) score -= (90 - bossDist) * 4
-        if (bossDist > 280) score -= (bossDist - 280) * 4
+  let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
+  let bestScore = -Infinity
+
+  for (const candidate of candidates) {
+    clampToArena(candidate, actor.radius)
+
+    let score = 0
+
+    // 1. Ground danger dominates everything else.
+    let ringActive = false
+    for (const g of s.ground) {
+      if (g.kind === 'breath') {
+        if (!g.detonated && insideCone(candidate, g)) score -= 1400
+        continue
       }
-
-      // 4. Humanity: drift toward the group.
-      score -= dist(candidate, centroid) * ai.clustering
-
-      // 5. Do not run further than necessary.
-      score -= dist(candidate, actor.pos) * 0.35
-
-      // 6. Hugging the wall is bad; puddles there trap you.
-      score -= Math.max(0, Math.hypot(candidate.x, candidate.y) - (ARENA_RADIUS - 60)) * 2
-
-      if (score > bestScore) {
-        bestScore = score
-        best = candidate
+      if (g.kind === 'shockwave') {
+        ringActive = true
+        const d = dist(candidate, g.pos)
+        // Inside the ring is safe; the band and everything beyond it is not.
+        if (d > g.radius - g.band - 12) score -= 1400
+        else score += Math.min(200, (g.radius - g.band - d) * 2)
+        continue
       }
+      const d = dist(candidate, g.pos)
+      if (d <= g.radius + DANGER_MARGIN) score -= 1000
+      else score -= Math.max(0, 200 - d) * 0.5
+    }
+
+    // 2. Spread separation.
+    const carryingSpread = getAura(actor, 'spread') !== undefined
+    for (const other of livingParty(s)) {
+      if (other.id === actor.id) continue
+      const d = dist(candidate, other.pos)
+      const otherCarries = getAura(other, 'spread') !== undefined
+      if (carryingSpread || otherCarries) {
+        if (d < SPREAD_RADIUS + DANGER_MARGIN) score -= 900
+        else score += Math.min(d, 260) * 0.4
+      }
+    }
+
+    // 3. Role positioning.
+    const bossDist = dist(candidate, b.pos)
+    if (actor.role === 'tank') {
+      // A tank does not stand in fire to keep melee range; it drags the boss
+      // out instead. The boss chases threat, so walking away relocates it.
+      if (bossDist > 200) score -= (bossDist - 200) * 3
+      else score -= bossDist * 0.35
+    } else if (!ringActive) {
+      // Casters want to stay in range but out of the boss's lap. Suspended
+      // while a ring is out, because hugging the boss is then the answer.
+      if (bossDist < 90) score -= (90 - bossDist) * 4
+      if (bossDist > 280) score -= (bossDist - 280) * 4
+    }
+
+    // 4. Humanity: drift toward the group.
+    score -= dist(candidate, centroid) * ai.clustering
+
+    // 5. Do not run further than necessary.
+    score -= dist(candidate, actor.pos) * 0.35
+
+    // 6. Hugging the wall is bad; puddles there trap you.
+    score -= Math.max(0, Math.hypot(candidate.x, candidate.y) - (ARENA_RADIUS - 60)) * 2
+
+    if (score > bestScore) {
+      bestScore = score
+      best = candidate
     }
   }
 
@@ -357,6 +455,14 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   if (!b.alive) return
+
+  // Adds first: they beeline for whoever is closest and shred a healer.
+  const summoned = adds(s)
+  if (summoned.length > 0) {
+    let focus = summoned[0]!
+    for (const a of summoned) if (a.hp < focus.hp) focus = a
+    if (tryCast(s, actor, 'strike', focus.id, rng, moving)) return
+  }
 
   // Keep the dot up, but only refresh near the end so three dealers do not all
   // spend a global on the same debuff.

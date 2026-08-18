@@ -81,16 +81,24 @@ future server-authoritative port possible.
 
 ## Encounter
 
-The Drowned Warden, one phase transition at 70% health, three mechanics:
+The Drowned Warden, phase transitions at 70% and 40% health.
 
 | Mechanic | What it asks of you |
 | --- | --- |
 | Abyssal Slam | Tank cooldown, or the tank takes a large hit |
 | Puddles | Move out fast; the warning is short and they linger |
+| Tidal Breath | A frontal cone — get out of the front, or behind it |
+| Shockwave | An expanding ring. It outruns you, so the answer is **in**, not out |
 | Spread | The target walks away from everyone else |
-| Crushing tide | Unavoidable party damage — the healer's mana is the real timer |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch to them |
+| Crushing tide | Unavoidable party damage — the floor under the healer |
 | The boss itself | Faster than the whole party; you cannot outrun it |
 | Enrage at 180s | A hard damage check |
+
+Each one asks for something different, which is what stops the fight being a
+single dodge repeated: puddles say leave where you stand, the breath says get
+behind, the shockwave says come in, spread says separate, adds say switch
+targets, and the tide asks nothing at all except that the healer kept up.
 
 Only the tide cannot be dodged, and that is deliberate: a party that dodges
 well takes almost nothing else, so without a floor of damage the healer is
@@ -127,9 +135,9 @@ Each member column is `time in a detonated puddle / units walked per second`:
 
 | Attempt | Win rate | Bastion | Wren | Kestrel | Vale |
 | --- | --- | --- | --- | --- | --- |
-| 1st pull | 37% | 0.06% / 10 | 0.15% / 14 | 0.25% / 11 | 0.14% / 12 |
-| 5th pull | 47% | 0.09% / 11 | 0.08% / 15 | 0.25% / 13 | 0.19% / 15 |
-| 9th pull | 60% | 0.02% / 10 | 0.05% / 14 | 0.07% / 13 | 0.07% / 14 |
+| 1st pull | 30% | 0.52% / 13 | 0.49% / 20 | 0.72% / 13 | 0.41% / 17 |
+| 5th pull | 53% | 0.33% / 14 | 0.42% / 20 | 0.41% / 15 | 0.39% / 18 |
+| 9th pull | 50% | 0.16% / 13 | 0.43% / 19 | 0.38% / 15 | 0.45% / 19 |
 
 Two things are being watched here, and neither shows up in the win rate.
 
