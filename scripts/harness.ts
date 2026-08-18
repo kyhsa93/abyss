@@ -75,20 +75,21 @@ function run(seed: number, attempt: number): Report {
 
 
 const ATTEMPTS = [0, 2, 4, 6, 8]
-console.log('attempt  runs  wins  winRate  avgTime  avgBossLeft%  avgPuddle%')
+const NAMES = ['You', 'Bastion', 'Wren', 'Kestrel', 'Vale']
+
+console.log('attempt  runs  wins  winRate  avgTime  bossLeft%  ' + NAMES.map((n) => n.padEnd(8)).join(''))
 for (const attempt of ATTEMPTS) {
   let wins = 0
   let time = 0
   let left = 0
-  let puddle = 0
+  const puddle: Record<string, number> = {}
   const RUNS = 30
   for (let i = 0; i < RUNS; i++) {
     const r = run(1000 + i * 137, attempt)
     if (r.outcome === 'victory') wins++
     time += r.time
     left += r.bossPct
-    const vals = Object.values(r.inPuddle)
-    puddle += vals.reduce((a, b) => a + b, 0) / vals.length
+    for (const n of NAMES) puddle[n] = (puddle[n] ?? 0) + (r.inPuddle[n] ?? 0)
   }
   console.log(
     String(attempt).padEnd(9),
@@ -96,7 +97,7 @@ for (const attempt of ATTEMPTS) {
     String(wins).padEnd(6),
     `${Math.round((wins / RUNS) * 100)}%`.padEnd(9),
     (time / RUNS).toFixed(1).padEnd(9),
-    (left / RUNS).toFixed(1).padEnd(14),
-    (puddle / RUNS).toFixed(2),
+    (left / RUNS).toFixed(1).padEnd(11),
+    NAMES.map((n) => `${(puddle[n]! / RUNS).toFixed(2)}%`.padEnd(8)).join(''),
   )
 }

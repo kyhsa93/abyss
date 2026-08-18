@@ -67,11 +67,11 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
 
 function drawPartyFrames(ctx: CanvasRenderingContext2D, s: SimState): void {
   const members = s.actors.filter((a) => a.faction === 'party')
-  let y = 90
+  let y = 78
 
   for (const m of members) {
-    frame(ctx, m, 12, y, s)
-    y += 74
+    frame(ctx, m, 8, y, s)
+    y += 70
   }
 }
 
@@ -82,7 +82,7 @@ function frame(
   y: number,
   s: SimState,
 ): void {
-  const w = 150
+  const w = 146
 
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(x, y, w, 64)

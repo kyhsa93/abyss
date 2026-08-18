@@ -242,6 +242,7 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   const moving = actor.ai!.moveTarget !== null
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
   else if (actor.role === 'healer') healerRotation(s, actor, rng, moving)
+  else dpsRotation(s, actor, rng, moving)
 }
 
 /** beginCast, but refuses cast-time abilities while the actor is on the move. */
@@ -310,6 +311,30 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
     }
     tryCast(s, actor, 'heal', wounded.id, rng, moving)
   }
+}
+
+function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
+  const b = boss(s)
+  if (!b.alive) return
+
+  // Keep the dot up, but only refresh near the end so three dealers do not all
+  // spend a global on the same debuff.
+  const ignite = getAura(b, 'ignite')
+  if (!ignite || ignite.remaining < 3) {
+    if (tryCast(s, actor, 'ignite', b.id, rng, moving)) return
+  }
+
+  // A long cast roots you. Steady dealers refuse it with a telegraph nearby;
+  // greedy ones gamble roughly half the time, which is where their deaths
+  // come from — and why they read as a specific kind of player.
+  const ai = actor.ai!
+  const dangerNear = s.ground.some(
+    (g) => !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
+  )
+  const willingToStand = !dangerNear || (ai.personality === 'greedy' && rng.chance(0.5))
+  if (willingToStand && tryCast(s, actor, 'burst', b.id, rng, moving)) return
+
+  tryCast(s, actor, 'strike', b.id, rng, moving)
 }
 
 function lowestHealth(s: SimState): Actor | null {

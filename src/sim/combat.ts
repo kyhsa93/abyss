@@ -40,8 +40,9 @@ export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
   const existing = getAura(actor, id)
   const duration = AURA_DURATION[id]
   if (existing) {
+    // Refresh, never stack: with three dealers, stacking Ignite would let the
+    // party triple its own damage-over-time for free.
     existing.remaining = duration
-    existing.stacks = Math.min(existing.stacks + 1, 5)
     return
   }
   actor.auras.push({

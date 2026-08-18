@@ -37,7 +37,9 @@ const list: Ability[] = [
     amount: 90,
     threatMult: 1,
     aura: null,
-    range: 46,
+    // Ranged, like the rest of the dealer kit. A melee filler would force the
+    // dealers into the boss's lap, where they can never use anything else.
+    range: 260,
   },
   {
     id: 'ignite',

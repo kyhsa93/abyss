@@ -1,7 +1,7 @@
 import { ARENA_RADIUS } from './constants'
 import type { Actor, AiProfile, Personality, Role, SimState } from './types'
 
-const BOSS_MAX_HP = 14000
+const BOSS_MAX_HP = 34000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -15,9 +15,11 @@ interface PersonalityTuning {
  * ones bail early and overheal, steady ones sit in between.
  */
 const TUNING: Record<Personality, PersonalityTuning> = {
-  steady: { reactionDelay: 0.3, mistakeChance: 0.06, clustering: 0.35 },
-  greedy: { reactionDelay: 0.45, mistakeChance: 0.1, clustering: 0.2 },
-  timid: { reactionDelay: 0.2, mistakeChance: 0.05, clustering: 0.55 },
+  steady: { reactionDelay: 0.28, mistakeChance: 0.06, clustering: 0.35 },
+  // Greedy reacts noticeably late. That is the whole character: it out-damages
+  // the others and it is the one standing in the fire when you look over.
+  greedy: { reactionDelay: 0.6, mistakeChance: 0.11, clustering: 0.2 },
+  timid: { reactionDelay: 0.18, mistakeChance: 0.05, clustering: 0.55 },
 }
 
 /**
@@ -86,6 +88,8 @@ function makeActor(spec: ActorSpec, attempt: number): Actor {
 export const PLAYER_ID = 1
 export const TANK_ID = 2
 export const HEALER_ID = 3
+export const DPS_A_ID = 4
+export const DPS_B_ID = 5
 export const BOSS_ID = 100
 
 export function createState(seed: number, attempt: number): SimState {
@@ -137,6 +141,38 @@ export function createState(seed: number, attempt: number): SimState {
     attempt,
   )
 
+  const kestrel = makeActor(
+    {
+      id: DPS_A_ID,
+      name: 'Kestrel',
+      role: 'dps',
+      hp: 2600,
+      mana: 0,
+      x: 95,
+      y: 100,
+      speed: 165,
+      isPlayer: false,
+      personality: 'greedy',
+    },
+    attempt,
+  )
+
+  const vale = makeActor(
+    {
+      id: DPS_B_ID,
+      name: 'Vale',
+      role: 'dps',
+      hp: 2600,
+      mana: 0,
+      x: -100,
+      y: 95,
+      speed: 165,
+      isPlayer: false,
+      personality: 'steady',
+    },
+    attempt,
+  )
+
   const boss: Actor = {
     id: BOSS_ID,
     name: 'The Drowned Warden',
@@ -166,9 +202,9 @@ export function createState(seed: number, attempt: number): SimState {
   return {
     time: 0,
     tick: 0,
-    actors: [player, tank, healer, boss],
+    actors: [player, tank, healer, kestrel, vale, boss],
     // The tank opens with a threat lead so the pull is not a coin flip.
-    threat: { [PLAYER_ID]: 0, [TANK_ID]: 400, [HEALER_ID]: 0 },
+    threat: { [PLAYER_ID]: 0, [TANK_ID]: 400, [HEALER_ID]: 0, [DPS_A_ID]: 0, [DPS_B_ID]: 0 },
     ground: [],
     texts: [],
     chat: [],

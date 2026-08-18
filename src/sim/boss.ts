@@ -31,13 +31,13 @@ interface PhaseTiming {
 
 const PHASE: Record<number, PhaseTiming> = {
   1: { swing: 2.0, puddle: 14, spread: 22, slam: 16, puddleCount: 1 },
-  2: { swing: 1.5, puddle: 10, spread: 18, slam: 12, puddleCount: 2 },
+  2: { swing: 1.5, puddle: 12, spread: 18, slam: 12, puddleCount: 2 },
 }
 
 const SLAM_CAST = 2
 const SLAM_DAMAGE = 320
 const SWING_DAMAGE = 140
-const PUDDLE_RADIUS = 78
+const PUDDLE_RADIUS = 70
 const PUDDLE_TELEGRAPH = 2.5
 const PUDDLE_DAMAGE = 900
 
@@ -139,7 +139,7 @@ function spawnPuddle(s: SimState, x: number, y: number, rng: Rng): void {
     pos,
     radius: PUDDLE_RADIUS,
     telegraph: PUDDLE_TELEGRAPH,
-    lingering: 6,
+    lingering: 4.5,
     damage: PUDDLE_DAMAGE,
     detonated: false,
   }

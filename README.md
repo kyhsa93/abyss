@@ -1,8 +1,9 @@
 # Abyss
 
-A browser raid-boss prototype. You play one damage dealer; the tank and healer
-are AI party members that fight alongside you. No assets, no server, no
-network — everything is shapes, timers and a deterministic simulation.
+A browser raid-boss prototype. A five-player group — one tank, one healer,
+three damage dealers — takes on a scripted boss. You play one of the dealers;
+the other four are AI. No assets, no server, no network: everything is shapes,
+timers and a deterministic simulation.
 
 ## Run it
 
@@ -41,6 +42,20 @@ a humanity layer:
 They also get sharper every pull, because real groups learn a fight by
 repeating it.
 
+The party:
+
+| Member | Role | Personality |
+| --- | --- | --- |
+| You | damage | — |
+| Bastion | tank | steady |
+| Wren | healer | timid |
+| Kestrel | damage | greedy |
+| Vale | damage | steady |
+
+Personality is not cosmetic. Kestrel gambles on long casts with a telegraph
+already on the floor and reacts late, so it out-damages the others and is
+reliably the one standing in fire. Wren bails early and overheals.
+
 **The simulation is deterministic.** Fixed 30 Hz timestep, seeded PRNG, stable
 iteration order, render interpolation on top. `Math.random()` is never called
 inside `src/sim/`. That is what keeps replays, leaderboard verification and a
@@ -73,10 +88,15 @@ The harness is the main tool here. Tuning AI or balance without measuring it
 produces party members that feel wrong in ways that are hard to name, so every
 change to `ai.ts`, `boss.ts` or ability numbers should be followed by a run.
 
-Current baseline, with a deliberately mediocre scripted player:
+Current baseline, with a deliberately mediocre scripted player, 30 runs per row:
 
-| Attempt | Win rate | Avg time in a live puddle |
-| --- | --- | --- |
-| 1st pull | 23% | 1.51% |
-| 5th pull | 43% | 1.20% |
-| 9th pull | 70% | 0.80% |
+| Attempt | Win rate | Bastion | Wren | Kestrel | Vale |
+| --- | --- | --- | --- | --- | --- |
+| 1st pull | 33% | 0.96% | 2.88% | 5.72% | 3.63% |
+| 5th pull | 73% | 0.63% | 1.48% | 4.02% | 2.47% |
+| 9th pull | 67% | 0.34% | 1.46% | 3.81% | 2.72% |
+
+The per-member columns are time spent standing in a detonated puddle. The
+ordering across them — tank lowest, greedy dealer highest — is the check that
+personalities still mean something. If they flatten out, the humanity layer has
+stopped working even when the win rate looks fine.
