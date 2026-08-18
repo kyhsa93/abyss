@@ -2,8 +2,11 @@ import {
   CLASSES,
   DIFFICULTIES,
   RAID_SIZES,
+  PARTY_UNIT,
+  ROLE_LIMITS,
   SPEC_OPTIONS,
   countRoles,
+  partyCount,
   makeSlots,
   mitigation,
   specLabel,
@@ -33,6 +36,8 @@ export interface RosterLayout {
   sizes: Rect[]
   difficulties: Rect[]
   slots: Rect[]
+  /** Left-hand party labels, one per group of five. */
+  partyLabels: Rect[]
   classes: Rect[]
   auto: Rect
   random: Rect
@@ -82,25 +87,32 @@ export function rosterLayout(size: number): RosterLayout {
     h: tabH,
   }))
 
-  // Slot grid: wider raids get more columns and shorter chips.
-  const slotCols = size <= 5 ? 5 : L.portrait ? 5 : size <= 10 ? 5 : 7
-  const slotRows = Math.ceil(size / slotCols)
+  // One row per party of five, so the raid reads as its groups.
+  const slotCols = PARTY_UNIT
+  const groups = partyCount(size)
   const gap = Math.max(3, pad * 0.3)
-  const slotW = (L.w - pad * 2 - gap * (slotCols - 1)) / slotCols
-  const slotH = size <= 5 ? Math.min(78, L.h * 0.12) : Math.min(46, L.h * 0.072)
+  const rowGap = gap * 2.2
+  const labelW = groups > 1 ? Math.max(14, L.w * 0.022) : 0
+  const slotW = (L.w - pad * 2 - labelW - gap * (slotCols - 1)) / slotCols
+  const slotH = size <= 5 ? Math.min(78, L.h * 0.12) : Math.min(44, L.h * 0.068)
   const slotTop = tabY + tabH + 10
 
   const slots: Rect[] = []
+  const partyLabels: Rect[] = []
   for (let i = 0; i < size; i++) {
+    const row = Math.floor(i / slotCols)
     slots.push({
-      x: pad + (i % slotCols) * (slotW + gap),
-      y: slotTop + Math.floor(i / slotCols) * (slotH + gap),
+      x: pad + labelW + (i % slotCols) * (slotW + gap),
+      y: slotTop + row * (slotH + rowGap),
       w: slotW,
       h: slotH,
     })
   }
+  for (let g = 0; g < groups && labelW > 0; g++) {
+    partyLabels.push({ x: pad, y: slotTop + g * (slotH + rowGap), w: labelW - 3, h: slotH })
+  }
 
-  const summaryY = slotTop + slotRows * (slotH + gap) + 14
+  const summaryY = slotTop + groups * (slotH + rowGap) + 12
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
   const gridTop = summaryY + 22
@@ -147,6 +159,7 @@ export function rosterLayout(size: number): RosterLayout {
     sizes,
     difficulties,
     slots,
+    partyLabels,
     classes,
     auto: { x: pad, y: buttonY, w: fillW, h: buttonH },
     random: { x: pad + fillW + gapB, y: buttonY, w: fillW, h: buttonH },
@@ -237,6 +250,15 @@ export function drawRoster(
     )
   })
 
+  // Party numbers down the left, so the rows read as groups rather than wrap.
+  ctx.textAlign = 'center'
+  for (let g = 0; g < layout.partyLabels.length; g++) {
+    const r = layout.partyLabels[g]!
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(9, true)
+    ctx.fillText(`${g + 1}`, r.x + r.w / 2, r.y + r.h * 0.6)
+  }
+
   const compact = layout.slots[0]!.h < 60
   for (let i = 0; i < layout.slots.length; i++) {
     const r = layout.slots[i]!
@@ -276,8 +298,12 @@ export function drawRoster(
 
   const roles = countRoles(party)
   const problems: string[] = []
-  if (roles.tank === 0) problems.push('no tank')
-  if (roles.healer === 0) problems.push('no healer')
+  if (roles.tank < ROLE_LIMITS.tank.min) problems.push('no tank')
+  if (roles.tank > ROLE_LIMITS.tank.max) problems.push(`${roles.tank} tanks, max ${ROLE_LIMITS.tank.max}`)
+  if (roles.healer < ROLE_LIMITS.healer.min) problems.push('no healer')
+  if (roles.healer > ROLE_LIMITS.healer.max) {
+    problems.push(`${roles.healer} healers, max ${ROLE_LIMITS.healer.max}`)
+  }
 
   ctx.textAlign = 'center'
   ctx.font = font(11)

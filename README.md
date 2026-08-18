@@ -72,6 +72,19 @@ repeating it.
 
 ## Size and difficulty
 
+A raid is built from parties of five: ten is two parties, twenty-five is five.
+They stand together in the arena and the roster screen lists them one row per
+party, because grouping has consequences — a puddle dropped on one party is a
+puddle on five people.
+
+Support is capped for the whole raid rather than per party: **one or two
+tanks, one to three healers.** More tanks than that is wasted on a
+single-target fight, and the healer ceiling is what stops a larger raid simply
+out-healing the encounter. So a twenty-five man is mostly damage, and it works
+out because the extra damage shortens the fight rather than adding survival —
+25-player normal wins 25% of first pulls rising to 70%, against a five-man's
+35% to 55%.
+
 Mechanics scale with headcount. A fixed number of puddles across twenty-five
 players means any one player is almost never targeted, so without scaling the
 bigger raid would be the easier one — puddles and spread marks both go up with
@@ -91,12 +104,15 @@ healing throughput is exceeded, then collapses.
 
 | | 1st pull | 9th pull |
 | --- | --- | --- |
-| 5-player normal | 45% | 50% |
-| 5-player heroic | 5% | 10% |
-| 10-player normal | 50% | 85% |
-| 10-player heroic | 10% | 40% |
-| 25-player normal | 20% | 60% |
+| 5-player normal | 35% | 55% |
+| 5-player heroic | 5% | 5% |
+| 10-player normal | 60% | 90% |
+| 10-player heroic | 15% | 40% |
+| 25-player normal | 25% | 70% |
 | 25-player heroic | 0% | 15% |
+
+Five-man heroic is the hardest thing in the game: the same difficulty
+multipliers with none of the slack a larger roster brings.
 
 ## Classes and roles
 

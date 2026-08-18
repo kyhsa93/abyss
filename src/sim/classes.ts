@@ -376,6 +376,29 @@ export function specLabel(pick: Pick): string {
 export type RaidSize = 5 | 10 | 25
 export const RAID_SIZES: RaidSize[] = [5, 10, 25]
 
+/** A raid is built from parties of five: 10 is two, 25 is five. */
+export const PARTY_UNIT = 5
+
+export function partyCount(size: number): number {
+  return Math.max(1, Math.ceil(size / PARTY_UNIT))
+}
+
+export function partyIndex(slot: number): number {
+  return Math.floor(slot / PARTY_UNIT)
+}
+
+/**
+ * Role limits for the whole raid, not per party.
+ *
+ * More than two tanks is wasted on a single-target encounter, and the healer
+ * ceiling is what keeps a larger raid from simply out-healing everything.
+ */
+export const ROLE_LIMITS: Record<Role, { min: number; max: number }> = {
+  tank: { min: 1, max: 2 },
+  healer: { min: 1, max: 3 },
+  dps: { min: 0, max: 25 },
+}
+
 export type DifficultyId = 'normal' | 'heroic'
 
 export interface Difficulty {
@@ -448,22 +471,36 @@ const PERSONALITIES: Personality[] = ['steady', 'timid', 'greedy']
  * so swapping a mage for a rogue does not also swap who is reckless.
  */
 export function makeSlots(size: RaidSize): Slot[] {
-  const slots: Slot[] = [{ name: 'You', personality: 'steady', x: 60, y: 150 }]
+  const slots: Slot[] = []
+  const parties = partyCount(size)
 
-  for (let i = 1; i < size; i++) {
-    // Fan the raid out behind the pull point rather than stacking it.
-    const ring = i <= 8 ? 0 : i <= 16 ? 1 : 2
-    const indexInRing = ring === 0 ? i - 1 : ring === 1 ? i - 9 : i - 17
-    const perRing = ring === 0 ? 8 : 8
-    const spread = Math.PI * 1.15
-    const angle = Math.PI / 2 - spread / 2 + (indexInRing / Math.max(1, perRing - 1)) * spread
-    const radius = 140 + ring * 62
+  for (let i = 0; i < size; i++) {
+    if (i === 0) {
+      slots.push({ name: 'You', personality: 'steady', x: 60, y: 150 })
+      continue
+    }
+
+    // Parties stand together and are spread across the back of the arena.
+    // Grouping them matters: a puddle on one party is a puddle on five
+    // people, which is what makes the raid layout worth thinking about.
+    const party = partyIndex(i)
+    const within = i % PARTY_UNIT
+    const partyAngle =
+      parties === 1
+        ? Math.PI / 2
+        : Math.PI / 2 - 0.85 + (party / (parties - 1)) * 1.7
+    const partyRadius = 165 + (party % 2) * 55
+
+    const cx = Math.cos(partyAngle) * partyRadius
+    const cy = Math.sin(partyAngle) * partyRadius
+    const spread = 46
+    const local = within - (PARTY_UNIT - 1) / 2
 
     slots.push({
       name: NAMES[(i - 1) % NAMES.length]!,
       personality: PERSONALITIES[(i - 1) % PERSONALITIES.length]!,
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
+      x: cx + Math.cos(partyAngle + Math.PI / 2) * local * spread,
+      y: cy + Math.sin(partyAngle + Math.PI / 2) * local * spread,
     })
   }
   return slots
@@ -471,11 +508,10 @@ export function makeSlots(size: RaidSize): Slot[] {
 
 /** A balanced composition for a given size: tanks, then healers, then damage. */
 function roleTargets(size: RaidSize): { tanks: number; healers: number } {
-  // Healer ratios follow the damage ratio; three healers in a ten-man made it
-  // strictly easier than a five-man, which defeats the point of the size.
+  // Capped by ROLE_LIMITS: a bigger raid gets more damage, not more support.
   return {
-    tanks: size === 5 ? 1 : size === 10 ? 2 : 3,
-    healers: size === 5 ? 1 : size === 10 ? 2 : 5,
+    tanks: size === 5 ? 1 : 2,
+    healers: size === 5 ? 1 : size === 10 ? 2 : 3,
   }
 }
 

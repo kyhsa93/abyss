@@ -6,8 +6,11 @@ import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
 import {
+  ROLE_LIMITS,
   autoParty,
   countRoles,
+  makeSlots,
+  partyIndex,
   randomParty,
   type Pick,
   type RaidSize,
@@ -282,6 +285,70 @@ console.log(`rendered ${frames} frames with no exceptions`)
         )
       }
     }
+  }
+}
+
+// --- parties must actually stand as parties -------------------------------
+//
+// Grouping is the point of the structure: a puddle dropped on one party is a
+// puddle on five people. If the layout scatters them, the raid is just
+// twenty-five individuals and the party division means nothing.
+{
+  for (const size of [10, 25] as RaidSize[]) {
+    const slots = makeSlots(size)
+    let within = 0
+    let withinCount = 0
+    let across = 0
+    let acrossCount = 0
+
+    // Slot zero is the player, who starts near the pull point on their own.
+    for (let a = 1; a < slots.length; a++) {
+      for (let b = a + 1; b < slots.length; b++) {
+        const d = Math.hypot(slots[a]!.x - slots[b]!.x, slots[a]!.y - slots[b]!.y)
+        if (partyIndex(a) === partyIndex(b)) {
+          within += d
+          withinCount++
+        } else {
+          across += d
+          acrossCount++
+        }
+      }
+    }
+
+    const avgWithin = within / Math.max(1, withinCount)
+    const avgAcross = across / Math.max(1, acrossCount)
+    const grouped = avgWithin < avgAcross * 0.7
+    console.log(
+      grouped ? 'ok  ' : 'FAIL',
+      `  ${size}-player: ${avgWithin.toFixed(0)} apart within a party, ${avgAcross.toFixed(0)} across`,
+    )
+    if (!grouped) throw new Error(`parties are not grouped at ${size} players`)
+  }
+
+  // Role caps hold for every generated roster.
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    const rosters = [autoParty(size, { classId: 'mage', role: 'dps' })]
+    let seed = 7
+    const random = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed / 0x7fffffff
+    }
+    for (let i = 0; i < 100; i++) rosters.push(randomParty(size, random))
+
+    const bad = rosters.filter((r) => {
+      const roles = countRoles(r)
+      return (
+        roles.tank < ROLE_LIMITS.tank.min ||
+        roles.tank > ROLE_LIMITS.tank.max ||
+        roles.healer < ROLE_LIMITS.healer.min ||
+        roles.healer > ROLE_LIMITS.healer.max
+      )
+    })
+    console.log(
+      bad.length === 0 ? 'ok  ' : 'FAIL',
+      `  ${size}-player rosters stay within 1-2 tanks and 1-3 healers`,
+    )
+    if (bad.length > 0) throw new Error(`role caps violated at ${size} players`)
   }
 }
 
