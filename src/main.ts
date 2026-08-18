@@ -13,6 +13,7 @@ import {
   DEFAULT_PARTY,
   RAID_SIZES,
   autoParty,
+  randomParty,
   type ClassId,
   type DifficultyId,
   type RaidSize,
@@ -173,6 +174,10 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     } else if (hit?.kind === 'auto') {
       // Filling 25 slots one tap at a time is nobody's idea of a game.
       party = autoParty(party.length as RaidSize, party[0] ?? 'mage')
+      saveSetup()
+    } else if (hit?.kind === 'random') {
+      party = randomParty(party.length as RaidSize, Math.random)
+      activeSlot = 0
       saveSetup()
     } else if (hit?.kind === 'pull') {
       startFight()

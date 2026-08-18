@@ -6,7 +6,13 @@ import { drawWorld } from '../src/render/draw'
 import { drawHud } from '../src/render/hud'
 import { partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
-import { autoParty, type ClassId } from '../src/sim/classes'
+import {
+  autoParty,
+  countRoles,
+  randomParty,
+  type ClassId,
+  type RaidSize,
+} from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
 
 /** Records every 2D context call so the render path can run outside a browser. */
@@ -114,6 +120,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ...layout.slots.map((r, i) => [`slot ${i}`, r] as const),
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
         ['auto', layout.auto] as const,
+        ['random', layout.random] as const,
         ['pull', layout.pull] as const,
       ]
 
@@ -129,6 +136,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         if (kind === 'size' && hit.kind !== 'size') return true
         if (kind === 'difficulty' && hit.kind !== 'difficulty') return true
         if (kind === 'auto' && hit.kind !== 'auto') return true
+        if (kind === 'random' && hit.kind !== 'random') return true
         if (kind === 'pull' && hit.kind !== 'pull') return true
         return false
       })
@@ -143,6 +151,44 @@ console.log(`rendered ${frames} frames with no exceptions`)
         )
       }
     }
+  }
+}
+
+// --- random raids must still be raids -------------------------------------
+//
+// The point of keeping role counts is that a random pull is a surprise rather
+// than a guaranteed loss; if that ever regresses, half of them become
+// unwinnable before the first global cooldown.
+{
+  let seed = 12345
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    const combos = new Set<string>()
+    let worstTanks = Infinity
+    let worstHealers = Infinity
+    let wrongSize = 0
+
+    for (let trial = 0; trial < 300; trial++) {
+      const party = randomParty(size, random)
+      if (party.length !== size) wrongSize++
+      const roles = countRoles(party)
+      worstTanks = Math.min(worstTanks, roles.tank)
+      worstHealers = Math.min(worstHealers, roles.healer)
+      combos.add(party.join(','))
+    }
+
+    // Varied enough to be worth pressing twice.
+    const varied = combos.size > 30
+    const ok = wrongSize === 0 && worstTanks >= 1 && worstHealers >= 1 && varied
+    console.log(
+      ok ? 'ok  ' : 'FAIL',
+      `  random ${size}-player: min ${worstTanks} tank / ${worstHealers} healer, ${combos.size} distinct`,
+    )
+    if (!ok) throw new Error(`randomParty produced an unfightable ${size}-player raid`)
   }
 }
 

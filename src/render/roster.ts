@@ -33,6 +33,7 @@ export interface RosterLayout {
   slots: Rect[]
   classes: Rect[]
   auto: Rect
+  random: Rect
   pull: Rect
   titleY: number
   summaryY: number
@@ -45,6 +46,7 @@ export type RosterHit =
   | { kind: 'size'; size: RaidSize }
   | { kind: 'difficulty'; id: DifficultyId }
   | { kind: 'auto' }
+  | { kind: 'random' }
   | { kind: 'pull' }
 
 const ROLE_COLOR: Record<string, string> = {
@@ -116,16 +118,20 @@ export function rosterLayout(size: number): RosterLayout {
     })
   }
 
-  const autoW = Math.min(150, (L.w - pad * 2) * 0.32)
-  const pullW = Math.min(320, L.w - pad * 2 - autoW - 8)
+  // Three buttons on one row; the fill buttons share a quarter each and PULL
+  // takes what is left, so it stays the obvious target.
+  const gapB = 6
+  const fillW = Math.min(120, (L.w - pad * 2 - gapB * 2) * 0.26)
+  const pullW = L.w - pad * 2 - gapB * 2 - fillW * 2
   const buttonY = L.h - buttonH - pad
   return {
     sizes,
     difficulties,
     slots,
     classes,
-    auto: { x: pad, y: buttonY, w: autoW, h: buttonH },
-    pull: { x: pad + autoW + 8, y: buttonY, w: pullW, h: buttonH },
+    auto: { x: pad, y: buttonY, w: fillW, h: buttonH },
+    random: { x: pad + fillW + gapB, y: buttonY, w: fillW, h: buttonH },
+    pull: { x: pad + (fillW + gapB) * 2, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
     slotCols,
@@ -140,6 +146,7 @@ export function hitRoster(x: number, y: number, size: number): RosterHit | null 
   const layout = rosterLayout(size)
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
   if (inside(layout.auto, x, y)) return { kind: 'auto' }
+  if (inside(layout.random, x, y)) return { kind: 'random' }
 
   for (let i = 0; i < layout.sizes.length; i++) {
     if (inside(layout.sizes[i]!, x, y)) return { kind: 'size', size: RAID_SIZES[i]! }
@@ -292,7 +299,8 @@ export function drawRoster(
     )
   }
 
-  tab(ctx, layout.auto, 'AUTO FILL', false, COLORS.textDim)
+  tab(ctx, layout.auto, 'AUTO', false, COLORS.textDim)
+  tab(ctx, layout.random, 'RANDOM', false, COLORS.healer)
 
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)
   ctx.fillStyle = `rgba(250, 204, 21, ${(0.14 * pulse).toFixed(2)})`
@@ -303,9 +311,10 @@ export function drawRoster(
   ctx.fillStyle = COLORS.castBar
   ctx.font = font(14, true)
   ctx.textAlign = 'center'
-  ctx.fillText(
-    `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`,
-    layout.pull.x + layout.pull.w / 2,
-    layout.pull.y + layout.pull.h * 0.62,
-  )
+  // The label degrades before the button does on a narrow screen.
+  const label =
+    layout.pull.w > 210
+      ? `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
+      : `PULL ${party.length}`
+  ctx.fillText(label, layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62)
 }

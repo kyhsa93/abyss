@@ -380,6 +380,42 @@ export function abilityBar(classId: ClassId): string[] {
   )
 }
 
+/**
+ * A random raid that is still a raid.
+ *
+ * Drawing all five classes freely leaves you without a tank about half the
+ * time — there is only one tanking class in eight — and a pull that cannot be
+ * won is a penalty, not a surprise. So the role counts are kept and everything
+ * else is rolled: which classes fill them, and where they stand.
+ *
+ * The generator takes its randomness as an argument. Nothing under sim/ is
+ * allowed to reach for Math.random, because the fight itself must stay
+ * reproducible from its seed.
+ */
+export function randomParty(size: RaidSize, random: () => number): ClassId[] {
+  const tanks = size === 5 ? 1 : size === 10 ? 2 : 3
+  const healers = size === 5 ? 1 : size === 10 ? 2 : 5
+
+  const byRole: Record<Role, ClassId[]> = { tank: [], healer: [], dps: [] }
+  for (const id of CLASS_ORDER) byRole[CLASSES[id].role].push(id)
+
+  const roles: Role[] = []
+  for (let i = 0; i < tanks; i++) roles.push('tank')
+  for (let i = 0; i < healers; i++) roles.push('healer')
+  while (roles.length < size) roles.push('dps')
+
+  // Fisher-Yates, so the tank is not always in slot two.
+  for (let i = roles.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[roles[i], roles[j]] = [roles[j]!, roles[i]!]
+  }
+
+  return roles.map((role) => {
+    const pool = byRole[role]
+    return pool[Math.floor(random() * pool.length)] ?? 'mage'
+  })
+}
+
 export interface RoleCount {
   tank: number
   healer: number

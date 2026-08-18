@@ -18,8 +18,16 @@ The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
 The raid screen comes first: pick a size (5, 10 or 25), a difficulty, then
-fill the slots — or hit AUTO FILL, because setting twenty-five one tap at a
-time is nobody's idea of a game. Your party
+fill the slots — or use the fill buttons, because setting twenty-five one tap
+at a time is nobody's idea of a game.
+
+**AUTO** builds the balanced composition for the size. **RANDOM** rolls one:
+the role counts are kept, everything else is chance — which classes fill them
+and where they stand. Drawing all five classes freely would leave you without
+a tank about half the time, since only one class in eight tanks, and a pull
+that cannot be won is a penalty rather than a surprise. Random raids come out
+a little harder than balanced ones and entirely playable: 68% on a first
+five-man pull against AUTO's 65%, 18% rising to 88% at twenty-five. Your party
 is remembered between visits, so a return trip is one tap.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again, `Esc` to go back
