@@ -6,7 +6,7 @@ import { drawWorld } from '../src/render/draw'
 import { drawHud } from '../src/render/hud'
 import { partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
-import type { ClassId } from '../src/sim/classes'
+import { autoParty, type ClassId } from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
 
 /** Records every 2D context call so the render path can run outside a browser. */
@@ -91,35 +91,57 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
 // --- the party screen must draw and stay hit-testable ---------------------
 {
+  // Every raid size has to lay out and stay reachable.
   const parties: ClassId[][] = [
     ['mage', 'warrior', 'priest', 'hunter', 'rogue'],
-    ['rogue', 'rogue', 'rogue', 'rogue', 'rogue'],
+    autoParty(10, 'mage'),
+    autoParty(25, 'warrior'),
   ]
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390]] as const) {
     updateLayout(w, h)
-    for (const party of parties) {
-      for (let slot = 0; slot < party.length; slot++) {
-        drawRoster(stubCtx(), party, slot, 1.5)
-      }
-    }
 
-    // Every drawn control must be reachable by a tap at its own centre.
-    const layout = rosterLayout()
-    const targets = [
-      ...layout.slots.map((r, i) => [`slot ${i}`, r] as const),
-      ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
-      ['pull', layout.pull] as const,
-    ]
-    const unreachable = targets.filter(([, r]) => {
-      const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2)
-      return hit === null
-    })
-    console.log(
-      unreachable.length === 0 ? 'ok  ' : 'FAIL',
-      `  roster ${w}x${h}: ${targets.length} controls hit-testable`,
-    )
-    if (unreachable.length > 0) {
-      throw new Error(`unreachable roster controls: ${unreachable.map(([n]) => n).join(', ')}`)
+    for (const party of parties) {
+      for (let slot = 0; slot < party.length; slot += 3) {
+        drawRoster(stubCtx(), party, slot % 2 === 0 ? 'normal' : 'heroic', slot, 1.5)
+      }
+
+      // Every drawn control must be reachable by a tap at its own centre, at
+      // every raid size — a 25-slot grid is where they start to collide.
+      const layout = rosterLayout(party.length)
+      const targets = [
+        ...layout.sizes.map((r, i) => [`size ${i}`, r] as const),
+        ...layout.difficulties.map((r, i) => [`difficulty ${i}`, r] as const),
+        ...layout.slots.map((r, i) => [`slot ${i}`, r] as const),
+        ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
+        ['auto', layout.auto] as const,
+        ['pull', layout.pull] as const,
+      ]
+
+      const bad = targets.filter(([name, r]) => {
+        if (r.x < 0 || r.y < 0 || r.x + r.w > w || r.y + r.h > h) return true
+        const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2, party.length)
+        if (hit === null) return true
+        // The hit must be the control that was drawn there, not a neighbour
+        // sitting on top of it.
+        const [kind, index] = name.split(' ')
+        if (kind === 'slot' && hit.kind === 'slot') return hit.index !== Number(index)
+        if (kind === 'class' && hit.kind !== 'class') return true
+        if (kind === 'size' && hit.kind !== 'size') return true
+        if (kind === 'difficulty' && hit.kind !== 'difficulty') return true
+        if (kind === 'auto' && hit.kind !== 'auto') return true
+        if (kind === 'pull' && hit.kind !== 'pull') return true
+        return false
+      })
+
+      console.log(
+        bad.length === 0 ? 'ok  ' : 'FAIL',
+        `  roster ${w}x${h} ${party.length}-player: ${targets.length} controls`,
+      )
+      if (bad.length > 0) {
+        throw new Error(
+          `roster ${w}x${h} ${party.length}-player: ${bad.map(([n]) => n).join(', ')}`,
+        )
+      }
     }
   }
 }

@@ -2,7 +2,7 @@ import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { ENRAGE_AT } from '../src/sim/constants'
-import type { ClassId } from '../src/sim/classes'
+import { autoParty, type ClassId, type DifficultyId, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 
 /** Crude stand-in for a competent human: run out of any puddle, else stand still. */
@@ -32,8 +32,13 @@ interface Report {
   deaths: Record<string, number>
 }
 
-function run(seed: number, attempt: number, party?: ClassId[]): Report {
-  const s = createState(seed, attempt, party)
+function run(
+  seed: number,
+  attempt: number,
+  party?: ClassId[],
+  difficulty: DifficultyId = 'normal',
+): Report {
+  const s = createState(seed, attempt, party, difficulty)
   const rng = new Rng(seed + attempt * 7919)
   const ticksIn: Record<string, number> = {}
   const deaths: Record<string, number> = {}
@@ -141,24 +146,33 @@ for (const { label, party } of PARTIES) {
   console.log(label.padEnd(23), cells.join(''), (time / total).toFixed(0))
 }
 
-console.log('\nper-member detail, default composition (puddle% / units walked per second)')
-const AI = ['Bastion', 'Wren', 'Kestrel', 'Vale']
-console.log('attempt  wins  ' + AI.map((n) => n.padEnd(15)).join(''))
-for (const attempt of ATTEMPTS) {
-  let wins = 0
-  const puddle: Record<string, number> = {}
-  const travel: Record<string, number> = {}
-  for (let i = 0; i < RUNS; i++) {
-    const r = run(1000 + i * 137, attempt)
-    if (r.outcome === 'victory') wins++
-    for (const n of AI) {
-      puddle[n] = (puddle[n] ?? 0) + (r.inPuddle[n] ?? 0)
-      travel[n] = (travel[n] ?? 0) + (r.travel[n] ?? 0)
+// --- raid size and difficulty, with a balanced composition each time -------
+const SIZE_RUNS = 20
+const SIZE_ATTEMPTS = [0, 8]
+console.log('\nsize / difficulty      ' + SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  bossHP%')
+for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
+    const party = autoParty(size, 'mage')
+    const cells: string[] = []
+    let time = 0
+    let left = 0
+    let total = 0
+    for (const attempt of SIZE_ATTEMPTS) {
+      let wins = 0
+      for (let i = 0; i < SIZE_RUNS; i++) {
+        const r = run(1000 + i * 137, attempt, party, difficulty)
+        if (r.outcome === 'victory') wins++
+        time += r.time
+        left += r.bossPct
+        total++
+      }
+      cells.push(`${Math.round((wins / SIZE_RUNS) * 100)}%`.padEnd(9))
     }
+    console.log(
+      `${size}-player ${difficulty}`.padEnd(23),
+      cells.join(''),
+      (time / total).toFixed(0).padEnd(9),
+      (left / total).toFixed(0),
+    )
   }
-  console.log(
-    String(attempt).padEnd(9),
-    `${Math.round((wins / RUNS) * 100)}%`.padEnd(6),
-    AI.map((n) => `${(puddle[n]! / RUNS).toFixed(2)}%/${(travel[n]! / RUNS).toFixed(0)}`.padEnd(15)).join(''),
-  )
 }

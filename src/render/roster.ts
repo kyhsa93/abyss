@@ -1,21 +1,23 @@
 import {
   CLASSES,
   CLASS_ORDER,
-  PARTY_SIZE,
-  SLOTS,
+  DIFFICULTIES,
+  RAID_SIZES,
   countRoles,
+  makeSlots,
   mitigation,
   type ClassId,
+  type DifficultyId,
+  type RaidSize,
 } from '../sim/classes'
 import { COLORS, L } from './theme'
 
 /**
- * Party selection.
+ * Raid setup.
  *
  * Drawn on the same canvas as the fight so it inherits the responsive layout
- * and works with touch untouched. Geometry is computed once and shared by the
- * renderer and the hit test, so the two can never disagree about where a
- * button is.
+ * and touch handling. Geometry is computed once and shared by the renderer
+ * and the hit test, so the two can never disagree about where a button is.
  */
 
 export interface Rect {
@@ -26,17 +28,23 @@ export interface Rect {
 }
 
 export interface RosterLayout {
+  sizes: Rect[]
+  difficulties: Rect[]
   slots: Rect[]
   classes: Rect[]
+  auto: Rect
   pull: Rect
   titleY: number
   summaryY: number
-  hintY: number
+  slotCols: number
 }
 
 export type RosterHit =
   | { kind: 'slot'; index: number }
   | { kind: 'class'; classId: ClassId }
+  | { kind: 'size'; size: RaidSize }
+  | { kind: 'difficulty'; id: DifficultyId }
+  | { kind: 'auto' }
   | { kind: 'pull' }
 
 const ROLE_COLOR: Record<string, string> = {
@@ -45,51 +53,82 @@ const ROLE_COLOR: Record<string, string> = {
   dps: COLORS.player,
 }
 
-export function rosterLayout(): RosterLayout {
-  const pad = Math.max(8, L.w * 0.02)
-  const titleY = Math.max(28, L.h * 0.06)
+const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
 
-  const slotGap = pad * 0.5
-  const slotW = (L.w - pad * 2 - slotGap * (PARTY_SIZE - 1)) / PARTY_SIZE
-  const slotH = Math.min(96, Math.max(64, L.h * 0.13))
-  const slotY = titleY + 16
+export function rosterLayout(size: number): RosterLayout {
+  const pad = Math.max(8, L.w * 0.02)
+  const titleY = Math.max(24, L.h * 0.05)
+
+  // Size and difficulty share a row of tabs.
+  const tabH = Math.max(24, Math.min(34, L.h * 0.045))
+  const tabY = titleY + 8
+  const tabW = Math.min(64, (L.w - pad * 2 - 24) / (RAID_SIZES.length + DIFFICULTY_ORDER.length))
+
+  const sizes = RAID_SIZES.map((_, i) => ({
+    x: pad + i * (tabW + 4),
+    y: tabY,
+    w: tabW,
+    h: tabH,
+  }))
+  const diffW = Math.min(88, tabW * 1.5)
+  const difficulties = DIFFICULTY_ORDER.map((_, i) => ({
+    x: L.w - pad - (DIFFICULTY_ORDER.length - i) * (diffW + 4) + 4,
+    y: tabY,
+    w: diffW,
+    h: tabH,
+  }))
+
+  // Slot grid: wider raids get more columns and shorter chips.
+  const slotCols = size <= 5 ? 5 : L.portrait ? 5 : size <= 10 ? 5 : 7
+  const slotRows = Math.ceil(size / slotCols)
+  const gap = Math.max(3, pad * 0.3)
+  const slotW = (L.w - pad * 2 - gap * (slotCols - 1)) / slotCols
+  const slotH = size <= 5 ? Math.min(78, L.h * 0.12) : Math.min(46, L.h * 0.072)
+  const slotTop = tabY + tabH + 10
 
   const slots: Rect[] = []
-  for (let i = 0; i < PARTY_SIZE; i++) {
-    slots.push({ x: pad + i * (slotW + slotGap), y: slotY, w: slotW, h: slotH })
+  for (let i = 0; i < size; i++) {
+    slots.push({
+      x: pad + (i % slotCols) * (slotW + gap),
+      y: slotTop + Math.floor(i / slotCols) * (slotH + gap),
+      w: slotW,
+      h: slotH,
+    })
   }
 
-  const summaryY = slotY + slotH + 20
+  const summaryY = slotTop + slotRows * (slotH + gap) + 14
 
+  const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
   const cols = L.portrait ? 2 : 4
   const rows = Math.ceil(CLASS_ORDER.length / cols)
-  const gridTop = summaryY + 30
-  const pullH = Math.min(58, Math.max(42, L.h * 0.07))
-  const gridBottom = L.h - pullH - pad * 2.2
-  const cellGap = pad * 0.5
-  const cellW = (L.w - pad * 2 - cellGap * (cols - 1)) / cols
-  const cellH = Math.max(46, (gridBottom - gridTop - cellGap * (rows - 1)) / rows)
+  const gridTop = summaryY + 22
+  const gridBottom = L.h - buttonH - pad * 2
+  const cellW = (L.w - pad * 2 - gap * (cols - 1)) / cols
+  const cellH = Math.max(38, (gridBottom - gridTop - gap * (rows - 1)) / rows)
 
   const classes: Rect[] = []
   for (let i = 0; i < CLASS_ORDER.length; i++) {
-    const col = i % cols
-    const row = Math.floor(i / cols)
     classes.push({
-      x: pad + col * (cellW + cellGap),
-      y: gridTop + row * (cellH + cellGap),
+      x: pad + (i % cols) * (cellW + gap),
+      y: gridTop + Math.floor(i / cols) * (cellH + gap),
       w: cellW,
       h: cellH,
     })
   }
 
-  const pullW = Math.min(320, L.w - pad * 2)
+  const autoW = Math.min(150, (L.w - pad * 2) * 0.32)
+  const pullW = Math.min(320, L.w - pad * 2 - autoW - 8)
+  const buttonY = L.h - buttonH - pad
   return {
+    sizes,
+    difficulties,
     slots,
     classes,
-    pull: { x: (L.w - pullW) / 2, y: L.h - pullH - pad, w: pullW, h: pullH },
+    auto: { x: pad, y: buttonY, w: autoW, h: buttonH },
+    pull: { x: pad + autoW + 8, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
-    hintY: summaryY + 2,
+    slotCols,
   }
 }
 
@@ -97,10 +136,19 @@ function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
-export function hitRoster(x: number, y: number): RosterHit | null {
-  const layout = rosterLayout()
+export function hitRoster(x: number, y: number, size: number): RosterHit | null {
+  const layout = rosterLayout(size)
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
+  if (inside(layout.auto, x, y)) return { kind: 'auto' }
 
+  for (let i = 0; i < layout.sizes.length; i++) {
+    if (inside(layout.sizes[i]!, x, y)) return { kind: 'size', size: RAID_SIZES[i]! }
+  }
+  for (let i = 0; i < layout.difficulties.length; i++) {
+    if (inside(layout.difficulties[i]!, x, y)) {
+      return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
+    }
+  }
   for (let i = 0; i < layout.slots.length; i++) {
     if (inside(layout.slots[i]!, x, y)) return { kind: 'slot', index: i }
   }
@@ -114,111 +162,138 @@ function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
 }
 
+function tab(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  label: string,
+  active: boolean,
+  accent: string,
+): void {
+  ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.strokeStyle = active ? accent : COLORS.panelEdge
+  ctx.lineWidth = active ? 2 : 1
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+  ctx.fillStyle = active ? accent : COLORS.textDim
+  ctx.font = font(11, active)
+  ctx.textAlign = 'center'
+  ctx.fillText(label, r.x + r.w / 2, r.y + r.h * 0.66)
+}
+
 export function drawRoster(
   ctx: CanvasRenderingContext2D,
   party: ClassId[],
+  difficulty: DifficultyId,
   activeSlot: number,
   clock: number,
 ): void {
-  const layout = rosterLayout()
+  const layout = rosterLayout(party.length)
+  const slots = makeSlots(party.length as RaidSize)
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
 
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
-  ctx.font = font(19, true)
-  ctx.fillText('FORM YOUR PARTY', L.w / 2, layout.titleY)
+  ctx.font = font(17, true)
+  ctx.fillText('FORM YOUR RAID', L.w / 2, layout.titleY)
 
-  // --- slots ---------------------------------------------------------------
+  RAID_SIZES.forEach((size, i) => {
+    tab(ctx, layout.sizes[i]!, `${size}`, size === party.length, COLORS.castBar)
+  })
+  DIFFICULTY_ORDER.forEach((id, i) => {
+    tab(
+      ctx,
+      layout.difficulties[i]!,
+      DIFFICULTIES[id].name,
+      id === difficulty,
+      id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar,
+    )
+  })
+
+  const compact = layout.slots[0]!.h < 60
   for (let i = 0; i < layout.slots.length; i++) {
     const r = layout.slots[i]!
-    const classId = party[i]!
-    const cls = CLASSES[classId]
+    const cls = CLASSES[party[i]!]
     const active = i === activeSlot
 
-    ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.10)' : COLORS.panel
+    ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
     ctx.strokeStyle = active ? COLORS.castBar : COLORS.panelEdge
     ctx.lineWidth = active ? 2 : 1
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
+    // A colour stripe makes the role balance readable at a glance across 25.
+    ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
+    ctx.fillRect(r.x, r.y, r.w, 3)
+
     const cx = r.x + r.w / 2
     ctx.fillStyle = i === 0 ? COLORS.player : COLORS.textDim
-    ctx.font = font(10, i === 0)
-    ctx.fillText(i === 0 ? 'YOU' : SLOTS[i]!.name, cx, r.y + 16 * L.ui)
+    ctx.font = font(compact ? 8 : 10, i === 0)
+    ctx.fillText(i === 0 ? 'YOU' : slots[i]!.name, cx, r.y + (compact ? 15 : 18) * L.ui)
 
     ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
-    ctx.font = font(12, true)
-    ctx.fillText(cls.name, cx, r.y + r.h * 0.58)
+    ctx.font = font(compact ? 10 : 12, true)
+    ctx.fillText(cls.name, cx, r.y + r.h * (compact ? 0.72 : 0.62))
 
-    ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9)
-    ctx.fillText(
-      `${Math.round(mitigation(cls.armor) * 100)}% phys`,
-      cx,
-      r.y + r.h - 10 * L.ui,
-    )
+    if (!compact) {
+      ctx.fillStyle = COLORS.textDim
+      ctx.font = font(9)
+      ctx.fillText(
+        `${Math.round(mitigation(cls.armor) * 100)}% phys · ${cls.hp} hp`,
+        cx,
+        r.y + r.h - 8 * L.ui,
+      )
+    }
   }
 
-  // --- composition summary -------------------------------------------------
   const roles = countRoles(party)
   const problems: string[] = []
-  if (roles.tank === 0) problems.push('no tank: the boss will chase whoever it likes')
-  if (roles.healer === 0) problems.push('no healer: nothing will out-live the tide')
+  if (roles.tank === 0) problems.push('no tank')
+  if (roles.healer === 0) problems.push('no healer')
 
+  ctx.textAlign = 'center'
   ctx.font = font(11)
   ctx.fillStyle = problems.length > 0 ? COLORS.hpBarLow : COLORS.textDim
   ctx.fillText(
     problems.length > 0
-      ? problems.join('   ·   ')
+      ? `${problems.join(' · ')} — this will not hold`
       : `${roles.tank} tank · ${roles.healer} healer · ${roles.dps} damage`,
     L.w / 2,
     layout.summaryY,
   )
-
-  // Kept on its own line so a composition warning never hides the how-to.
   ctx.fillStyle = COLORS.textDim
-  ctx.font = font(10)
-  ctx.fillText('tap a slot, then a class', L.w / 2, layout.summaryY + 14 * L.ui)
+  ctx.font = font(9)
+  ctx.fillText('tap a slot, then a class', L.w / 2, layout.summaryY + 13 * L.ui)
 
-  // --- class grid ----------------------------------------------------------
   for (let i = 0; i < layout.classes.length; i++) {
     const r = layout.classes[i]!
     const classId = CLASS_ORDER[i]!
     const cls = CLASSES[classId]
     const chosen = party[activeSlot] === classId
-    const used = party.includes(classId)
 
     ctx.fillStyle = chosen ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
-    ctx.strokeStyle = chosen ? COLORS.player : used ? COLORS.panelEdge : 'rgba(107,114,128,0.4)'
+    ctx.strokeStyle = chosen ? COLORS.player : COLORS.panelEdge
     ctx.lineWidth = chosen ? 2 : 1
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
     const cx = r.x + r.w / 2
-    ctx.textAlign = 'center'
     ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
-    ctx.font = font(13, true)
-    ctx.fillText(cls.name, cx, r.y + r.h * 0.42)
+    ctx.font = font(12, true)
+    ctx.fillText(cls.name, cx, r.y + r.h * 0.44)
 
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
     ctx.fillText(
-      `${cls.role}${cls.melee ? ' · melee' : ''}   ${cls.armorType}`,
+      `${cls.role}${cls.melee ? ' · melee' : ''} · ${cls.armorType}`,
       cx,
-      r.y + r.h * 0.68,
-    )
-    // Armour only answers the boss's weapon, so it is the number that decides
-    // who can stand in front of it.
-    ctx.fillText(
-      `${cls.hp} hp   ${Math.round(mitigation(cls.armor) * 100)}% phys${cls.block > 0 ? ` +${cls.block} block` : ''}`,
-      cx,
-      r.y + r.h * 0.87,
+      r.y + r.h * 0.76,
     )
   }
 
-  // --- pull ----------------------------------------------------------------
+  tab(ctx, layout.auto, 'AUTO FILL', false, COLORS.textDim)
+
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)
   ctx.fillStyle = `rgba(250, 204, 21, ${(0.14 * pulse).toFixed(2)})`
   ctx.fillRect(layout.pull.x, layout.pull.y, layout.pull.w, layout.pull.h)
@@ -226,6 +301,11 @@ export function drawRoster(
   ctx.lineWidth = 2
   ctx.strokeRect(layout.pull.x + 0.5, layout.pull.y + 0.5, layout.pull.w - 1, layout.pull.h - 1)
   ctx.fillStyle = COLORS.castBar
-  ctx.font = font(15, true)
-  ctx.fillText('PULL', layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62)
+  ctx.font = font(14, true)
+  ctx.textAlign = 'center'
+  ctx.fillText(
+    `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`,
+    layout.pull.x + layout.pull.w / 2,
+    layout.pull.y + layout.pull.h * 0.62,
+  )
 }

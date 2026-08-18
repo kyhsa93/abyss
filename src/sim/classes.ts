@@ -241,8 +241,56 @@ export const CLASS_ORDER: ClassId[] = [
   'rogue',
 ]
 
-/** Five slots. The first is the one you play; the rest are AI. */
-export const PARTY_SIZE = 5
+export type RaidSize = 5 | 10 | 25
+export const RAID_SIZES: RaidSize[] = [5, 10, 25]
+
+export type DifficultyId = 'normal' | 'heroic'
+
+export interface Difficulty {
+  id: DifficultyId
+  name: string
+  /** Boss health multiplier. */
+  health: number
+  /** Everything the boss does hits this much harder. */
+  damage: number
+  /** Below 1 means mechanics come round faster. */
+  cadence: number
+  /** Heroic doubles up the ground it denies you. */
+  extraPuddle: number
+}
+
+export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
+  normal: { id: 'normal', name: 'Normal', health: 1, damage: 1, cadence: 1, extraPuddle: 0 },
+  // Not just bigger numbers: the floor fills faster, which is what actually
+  // separates a heroic pull from a normal one.
+  // Four multipliers compound fast; these are deliberately mild individually.
+  // An extra puddle per cast turned out to dwarf everything else, especially
+  // once raid-size scaling multiplied it as well. Heroic hits harder and comes
+  // round faster instead.
+  // Cadence is the strongest lever by far: time spent dodging is damage not
+  // dealt, which lengthens the fight, which brings more mechanics. It gets the
+  // gentlest nudge of the three.
+  heroic: { id: 'heroic', name: 'Heroic', health: 1.22, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
+}
+
+/**
+ * Boss health per raid size.
+ *
+ * Not linear with headcount: bigger groups lose proportionally more time to
+ * mechanics and overlap their cooldowns worse, so a flat multiple would make
+ * 25 the easy option.
+ */
+export const SIZE_HEALTH: Record<RaidSize, number> = {
+  5: 1,
+  10: 2.05,
+  25: 5.4,
+}
+
+export function sizeHealth(count: number): number {
+  if (count <= 5) return SIZE_HEALTH[5]
+  if (count <= 10) return SIZE_HEALTH[10]
+  return SIZE_HEALTH[25]
+}
 
 export interface Slot {
   name: string
@@ -251,16 +299,78 @@ export interface Slot {
   y: number
 }
 
-/** Names and temperaments belong to the slot, not the class you put in it. */
-export const SLOTS: Slot[] = [
-  { name: 'You', personality: 'steady', x: 60, y: 130 },
-  { name: 'Bastion', personality: 'steady', x: 0, y: -55 },
-  { name: 'Wren', personality: 'timid', x: -70, y: 150 },
-  { name: 'Kestrel', personality: 'greedy', x: 120, y: 100 },
-  { name: 'Vale', personality: 'steady', x: -120, y: 115 },
+const NAMES = [
+  'Bastion', 'Wren', 'Kestrel', 'Vale', 'Orin',
+  'Nara', 'Elm', 'Pike', 'Rook', 'Sable',
+  'Thane', 'Iris', 'Corvid', 'Ash', 'Bram',
+  'Fen', 'Gale', 'Hollow', 'Juno', 'Lark',
+  'Mire', 'Ovid', 'Quill', 'Reed',
 ]
 
+const PERSONALITIES: Personality[] = ['steady', 'timid', 'greedy']
+
+/**
+ * Slots for a raid of the given size.
+ *
+ * Names and temperaments belong to the slot rather than the class put in it,
+ * so swapping a mage for a rogue does not also swap who is reckless.
+ */
+export function makeSlots(size: RaidSize): Slot[] {
+  const slots: Slot[] = [{ name: 'You', personality: 'steady', x: 60, y: 150 }]
+
+  for (let i = 1; i < size; i++) {
+    // Fan the raid out behind the pull point rather than stacking it.
+    const ring = i <= 8 ? 0 : i <= 16 ? 1 : 2
+    const indexInRing = ring === 0 ? i - 1 : ring === 1 ? i - 9 : i - 17
+    const perRing = ring === 0 ? 8 : 8
+    const spread = Math.PI * 1.15
+    const angle = Math.PI / 2 - spread / 2 + (indexInRing / Math.max(1, perRing - 1)) * spread
+    const radius = 140 + ring * 62
+
+    slots.push({
+      name: NAMES[(i - 1) % NAMES.length]!,
+      personality: PERSONALITIES[(i - 1) % PERSONALITIES.length]!,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    })
+  }
+  return slots
+}
+
+/** A balanced composition for a given size: tanks, then healers, then damage. */
+export function autoParty(size: RaidSize, playerClass: ClassId): ClassId[] {
+  const tanks = size === 5 ? 1 : size === 10 ? 2 : 3
+  // Healer ratios follow the damage ratio; three healers in a ten-man made it
+  // strictly easier than a five-man, which defeats the point of the size.
+  const healers = size === 5 ? 1 : size === 10 ? 2 : 5
+
+  const party: ClassId[] = [playerClass]
+  const tankPool: ClassId[] = ['warrior']
+  const healPool: ClassId[] = ['priest', 'paladin']
+  const dpsPool: ClassId[] = ['rogue', 'mage', 'hunter', 'shaman', 'druid']
+
+  const playerRole = CLASSES[playerClass].role
+  let needTank = tanks - (playerRole === 'tank' ? 1 : 0)
+  let needHeal = healers - (playerRole === 'healer' ? 1 : 0)
+
+  for (let i = 1; i < size; i++) {
+    if (needTank > 0) {
+      party.push(tankPool[(i - 1) % tankPool.length]!)
+      needTank--
+    } else if (needHeal > 0) {
+      party.push(healPool[(i - 1) % healPool.length]!)
+      needHeal--
+    } else {
+      party.push(dpsPool[(i - 1) % dpsPool.length]!)
+    }
+  }
+  return party
+}
+
 export const DEFAULT_PARTY: ClassId[] = ['mage', 'warrior', 'priest', 'hunter', 'rogue']
+
+/** Kept for the five-man default; larger raids build theirs from autoParty. */
+export const SLOTS = makeSlots(5)
 
 /** Action bar for a class, in press order. Three slots at most. */
 export function abilityBar(classId: ClassId): string[] {

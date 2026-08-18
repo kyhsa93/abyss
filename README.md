@@ -17,7 +17,9 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-The party screen comes first: pick a slot, pick a class, hit PULL. Your party
+The raid screen comes first: pick a size (5, 10 or 25), a difficulty, then
+fill the slots — or hit AUTO FILL, because setting twenty-five one tap at a
+time is nobody's idea of a game. Your party
 is remembered between visits, so a return trip is one tap.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again, `Esc` to go back
@@ -58,6 +60,34 @@ a humanity layer:
 
 They also get sharper every pull, because real groups learn a fight by
 repeating it.
+
+## Size and difficulty
+
+Mechanics scale with headcount. A fixed number of puddles across twenty-five
+players means any one player is almost never targeted, so without scaling the
+bigger raid would be the easier one — puddles and spread marks both go up with
+the roster, and adds come in larger waves.
+
+Boss health is not linear with headcount either: larger groups lose
+proportionally more time to mechanics, so a flat multiple per player would
+again make 25 the soft option.
+
+**Heroic raises boss health and nothing else**, which sounds thin and is not.
+Tuning it revealed that fight length *is* the difficulty here: time spent
+dodging is damage not dealt, which lengthens the fight, which brings round
+more mechanics and drains more healer mana. Every attempt to also raise damage
+or mechanic frequency took the win rate from 80% to 0% with nothing in
+between — survival turns out to be a cliff, not a slope. It holds until
+healing throughput is exceeded, then collapses.
+
+| | 1st pull | 9th pull |
+| --- | --- | --- |
+| 5-player normal | 65% | 85% |
+| 5-player heroic | 20% | 55% |
+| 10-player normal | 80% | 85% |
+| 10-player heroic | 25% | 65% |
+| 25-player normal | 20% | 85% |
+| 25-player heroic | 0% | 35% |
 
 ## Classes
 

@@ -1,4 +1,4 @@
-import type { ClassId } from './classes'
+import type { ClassId, DifficultyId } from './classes'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -238,6 +238,7 @@ export interface SimState {
   seed: number
   /** Class of each party slot, in order. */
   party: ClassId[]
+  difficulty: DifficultyId
   /** Keyed by actor id. */
   tally: Record<number, Tally>
   /** Cleared at the top of every tick; purely an output channel. */

@@ -8,7 +8,15 @@ import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
-import { CLASSES, DEFAULT_PARTY, PARTY_SIZE, type ClassId } from './sim/classes'
+import {
+  CLASSES,
+  DEFAULT_PARTY,
+  RAID_SIZES,
+  autoParty,
+  type ClassId,
+  type DifficultyId,
+  type RaidSize,
+} from './sim/classes'
 import { createState } from './sim/state'
 import type { SimState } from './sim/types'
 
@@ -57,14 +65,16 @@ window.addEventListener('orientationchange', onViewportChange)
 // --- party selection --------------------------------------------------------
 
 const PARTY_KEY = 'abyss.party'
+const DIFFICULTY_KEY = 'abyss.difficulty'
 
 function loadParty(): ClassId[] {
   try {
     const raw = localStorage.getItem(PARTY_KEY)
     if (!raw) return [...DEFAULT_PARTY]
     const parsed: unknown = JSON.parse(raw)
-    // Anything unrecognised falls back rather than booting into a broken party.
-    if (!Array.isArray(parsed) || parsed.length !== PARTY_SIZE) return [...DEFAULT_PARTY]
+    // Anything unrecognised falls back rather than booting into a broken raid.
+    if (!Array.isArray(parsed)) return [...DEFAULT_PARTY]
+    if (!RAID_SIZES.includes(parsed.length as RaidSize)) return [...DEFAULT_PARTY]
     if (!parsed.every((id) => typeof id === 'string' && id in CLASSES)) return [...DEFAULT_PARTY]
     return parsed as ClassId[]
   } catch {
@@ -72,32 +82,53 @@ function loadParty(): ClassId[] {
   }
 }
 
-function saveParty(): void {
+function loadDifficulty(): DifficultyId {
+  const raw = (() => {
+    try {
+      return localStorage.getItem(DIFFICULTY_KEY)
+    } catch {
+      return null
+    }
+  })()
+  return raw === 'heroic' ? 'heroic' : 'normal'
+}
+
+function saveSetup(): void {
   try {
     localStorage.setItem(PARTY_KEY, JSON.stringify(party))
+    localStorage.setItem(DIFFICULTY_KEY, difficulty)
   } catch {
     // Private browsing and full quotas are not worth failing over.
   }
 }
 
+/** Keeps the player's own slot and rebuilds the rest around the new size. */
+function resize(size: RaidSize): void {
+  party = autoParty(size, party[0] ?? 'mage')
+  activeSlot = 0
+  saveSetup()
+}
+
 let party = loadParty()
+let difficulty = loadDifficulty()
 let activeSlot = 0
 let screen: 'roster' | 'fight' = 'roster'
 
 let attempt = 0
-let state: SimState = createState(BASE_SEED, attempt, party)
+let state: SimState = createState(BASE_SEED, attempt, party, difficulty)
 // The RNG lives outside the state but is derived from it, so a given
 // (seed, attempt) pair always replays identically.
 let rng = new Rng(BASE_SEED + attempt * 7919)
 
 function restart(): void {
   attempt++
-  state = createState(BASE_SEED, attempt, party)
+  state = createState(BASE_SEED, attempt, party, difficulty)
   rng = new Rng(BASE_SEED + attempt * 7919)
 }
 
 /** The composition the current run was started with. */
 let fightingParty: ClassId[] = [...party]
+let fightingDifficulty: DifficultyId = difficulty
 
 /**
  * A changed party starts its own progression, since the AI's learning is
@@ -105,11 +136,15 @@ let fightingParty: ClassId[] = [...party]
  * changing anything keeps the progress.
  */
 function startFight(): void {
-  const changed = party.some((id, i) => id !== fightingParty[i])
+  const changed =
+    party.length !== fightingParty.length ||
+    difficulty !== fightingDifficulty ||
+    party.some((id, i) => id !== fightingParty[i])
   if (changed || state.outcome !== 'ongoing') {
     attempt = 0
     fightingParty = [...party]
-    state = createState(BASE_SEED, attempt, party)
+    fightingDifficulty = difficulty
+    state = createState(BASE_SEED, attempt, party, difficulty)
     rng = new Rng(BASE_SEED)
   }
   screen = 'fight'
@@ -121,21 +156,30 @@ function inside(r: { x: number; y: number; w: number; h: number }, x: number, y:
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
-    const hit = hitRoster(tap.x, tap.y)
+    const hit = hitRoster(tap.x, tap.y, party.length)
     if (hit?.kind === 'slot') {
       activeSlot = hit.index
     } else if (hit?.kind === 'class') {
       party[activeSlot] = hit.classId
-      saveParty()
-      // Step to the next slot so a whole party can be set by tapping straight
+      saveSetup()
+      // Step to the next slot so a raid can be filled by tapping straight
       // down the class list.
-      activeSlot = (activeSlot + 1) % PARTY_SIZE
+      activeSlot = (activeSlot + 1) % party.length
+    } else if (hit?.kind === 'size') {
+      if (hit.size !== party.length) resize(hit.size)
+    } else if (hit?.kind === 'difficulty') {
+      difficulty = hit.id
+      saveSetup()
+    } else if (hit?.kind === 'auto') {
+      // Filling 25 slots one tap at a time is nobody's idea of a game.
+      party = autoParty(party.length as RaidSize, party[0] ?? 'mage')
+      saveSetup()
     } else if (hit?.kind === 'pull') {
       startFight()
       return
     }
   }
-  drawRoster(ctx, party, activeSlot, clock)
+  drawRoster(ctx, party, difficulty, activeSlot, clock)
 }
 
 let accumulator = 0

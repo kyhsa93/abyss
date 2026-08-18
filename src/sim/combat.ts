@@ -1,5 +1,5 @@
 import { ABILITIES, type Ability } from './abilities'
-import { mitigation } from './classes'
+import { DIFFICULTIES, mitigation } from './classes'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
@@ -212,7 +212,10 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
-      applyDamage(s, a, 760, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      applyDamage(s, a, 760 * DIFFICULTIES[s.difficulty].damage, 'magic', {
+        sourceId: BOSS_ID,
+        mechanic: true,
+      })
     }
   }
 }

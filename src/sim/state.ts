@@ -1,8 +1,18 @@
 import { ARENA_RADIUS } from './constants'
-import { CLASSES, DEFAULT_PARTY, PARTY_SIZE, SLOTS, type ClassId, type Slot } from './classes'
+import {
+  CLASSES,
+  DEFAULT_PARTY,
+  DIFFICULTIES,
+  makeSlots,
+  sizeHealth,
+  type ClassId,
+  type DifficultyId,
+  type RaidSize,
+  type Slot,
+} from './classes'
 import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
 
-const BOSS_MAX_HP = 40000
+const BOSS_MAX_HP = 34000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -95,10 +105,13 @@ export function createState(
   seed: number,
   attempt: number,
   party: ClassId[] = DEFAULT_PARTY,
+  difficulty: DifficultyId = 'normal',
 ): SimState {
-  const members = party
-    .slice(0, PARTY_SIZE)
-    .map((classId, i) => makeMember(i + 1, classId, SLOTS[i]!, i === 0, attempt))
+  const slots = makeSlots(party.length as RaidSize)
+  const members = party.map((classId, i) =>
+    makeMember(i + 1, classId, slots[i]!, i === 0, attempt),
+  )
+  const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
 
   const boss: Actor = {
     id: BOSS_ID,
@@ -113,8 +126,8 @@ export function createState(
     prevPos: { x: 0, y: 0 },
     radius: 50,
     moveSpeed: 175,
-    hp: BOSS_MAX_HP,
-    maxHp: BOSS_MAX_HP,
+    hp: Math.round(BOSS_MAX_HP * scale),
+    maxHp: Math.round(BOSS_MAX_HP * scale),
     mana: 0,
     maxMana: 0,
     alive: true,
@@ -169,6 +182,7 @@ export function createState(
     attempt,
     seed,
     party: [...party],
+    difficulty,
     tally,
     sounds: [],
   }
