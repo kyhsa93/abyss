@@ -132,9 +132,8 @@ export function computeLayout(w: number, h: number): Layout {
     infoX: w - 10,
     infoY: topBand + 22,
     chatY: h - (portrait ? 250 : 120),
-    // The bar carries its name label underneath, so it needs the slot height
-    // plus the caption plus a margin, not a fixed offset.
-    actionY: h - (58 * ui + 12 * ui + 18),
+    // Slot height plus its caption plus a small margin. Nothing sits under it.
+    actionY: h - (58 * ui + 12 * ui + 10),
     castY: h - 30,
 
     joyHomeX: joyBase + 24,

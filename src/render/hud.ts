@@ -403,11 +403,6 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
 
     x += slot + gap
   }
-
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = font(10)
-  ctx.textAlign = 'center'
-  ctx.fillText('WASD move  ·  1/2/3 abilities  ·  R retry', L.w / 2, L.h - 8)
 }
 
 /** Shown in both modes, but clear of the thumb zones on touch. */

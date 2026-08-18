@@ -31,7 +31,8 @@ five-man pull against AUTO's 65%, 18% rising to 88% at twenty-five. Your party
 is remembered between visits, so a return trip is one tap.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again, `Esc` to go back
-to the party screen. On touch there is a `party` button under the fight
+to the party screen. The keys are not printed on screen — the retry button
+names its own shortcut and the rest is a raid game's standard layout. On touch there is a `party` button under the fight
 readout. Leaving without changing anything keeps your pull count, since the
 AI's learning is tied to how many times *these* five have pulled.
 
