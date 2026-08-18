@@ -2,15 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Abyss</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Abyss — Raid Prototype</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #000; overflow: hidden; width: 100vw; height: 100vh; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #0a0a0f;
+        color: #cbd5e1;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        overflow: hidden;
+      }
+      #app {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+      }
+      canvas {
+        display: block;
+        image-rendering: auto;
+        touch-action: none;
+      }
     </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="app"><canvas id="stage"></canvas></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
