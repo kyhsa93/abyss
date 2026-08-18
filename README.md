@@ -172,7 +172,9 @@ and overheals.
 
 **Ranged casts throw a visible bolt.** Damage still resolves the instant the
 ability does — the bolt is a tell, not a mechanic, and the balance numbers are
-identical with and without it. It homes on its target and lives in simulation
+identical with and without it. Its appearance is derived from what the ability
+is (heal, damage-over-time, finisher, filler) rather than from its name, so a
+new spell gets one automatically. It homes on its target and lives in simulation
 state rather than in the renderer, so replays stay frame-identical. Without it
 a caster standing still looks the same whether it is working or idle.
 

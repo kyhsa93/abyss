@@ -135,7 +135,12 @@ export interface GroundEffect {
   caught: number[]
 }
 
-export type ProjectileKind = 'strike' | 'ignite' | 'burst' | 'heal'
+/**
+ * Visual class of a bolt, derived from what the ability is rather than from
+ * its name. Keying this off ability ids meant that renaming the spell list
+ * silently switched the projectiles off for everything but one heal.
+ */
+export type ProjectileKind = 'bolt' | 'dot' | 'heavy' | 'heal'
 
 /**
  * Purely cosmetic, but simulated rather than animated.

@@ -231,21 +231,32 @@ export function detonateSpread(s: SimState, carrier: Actor): void {
 }
 
 /** Anything thrown from further away than melee gets a visible bolt. */
-const PROJECTILE_MIN_RANGE = 120
+export const PROJECTILE_MIN_RANGE = 120
 
 // Fast enough that the bolt does not lag visibly behind the damage it
 // represents, slow enough to actually read as travelling: roughly 0.2s.
 const PROJECTILE_SPEED: Record<ProjectileKind, number> = {
-  strike: 850,
-  ignite: 780,
-  burst: 700,
+  bolt: 850,
+  dot: 780,
+  heavy: 700,
   heal: 820,
 }
 
-function spawnProjectile(s: SimState, from: Actor, targetId: number, abilityId: string): void {
-  const kind = abilityId as ProjectileKind
+/**
+ * What a bolt should look like, from the ability's own shape: heals are heals,
+ * anything applying a lasting effect reads as a dot, and the expensive button
+ * gets the heavy one.
+ */
+export function projectileKind(ability: Ability): ProjectileKind {
+  if (ability.kind === 'heal') return 'heal'
+  if (ability.castTime > 0 || ability.amount >= 300) return 'heavy'
+  if (ability.aura) return 'dot'
+  return 'bolt'
+}
+
+function spawnProjectile(s: SimState, from: Actor, targetId: number, ability: Ability): void {
+  const kind = projectileKind(ability)
   const speed = PROJECTILE_SPEED[kind]
-  if (speed === undefined) return
 
   s.projectiles.push({
     id: s.nextObjectId++,
@@ -314,7 +325,7 @@ export function resolveAbility(
   if (ability.manaCost > 0) actor.mana = Math.max(0, actor.mana - ability.manaCost)
 
   if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
-    spawnProjectile(s, actor, target.id, ability.id)
+    spawnProjectile(s, actor, target.id, ability)
   }
 
   switch (ability.kind) {

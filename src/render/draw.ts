@@ -343,9 +343,9 @@ interface BoltStyle {
 }
 
 const BOLT: Record<ProjectileKind, BoltStyle> = {
-  strike: { core: '#e0f2fe', glow: 'rgba(125, 211, 252, 0.45)', radius: 3.5 },
-  ignite: { core: '#ffedd5', glow: 'rgba(251, 146, 60, 0.5)', radius: 4 },
-  burst: { core: '#f5d0fe', glow: 'rgba(217, 70, 239, 0.5)', radius: 6 },
+  bolt: { core: '#e0f2fe', glow: 'rgba(125, 211, 252, 0.45)', radius: 3.5 },
+  dot: { core: '#ffedd5', glow: 'rgba(251, 146, 60, 0.5)', radius: 4 },
+  heavy: { core: '#f5d0fe', glow: 'rgba(217, 70, 239, 0.5)', radius: 6 },
   heal: { core: '#bbf7d0', glow: 'rgba(74, 222, 128, 0.5)', radius: 4 },
 }
 

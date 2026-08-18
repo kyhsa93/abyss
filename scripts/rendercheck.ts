@@ -1,11 +1,8 @@
-import { Rng } from '../src/sim/rng'
-import { createState } from '../src/sim/state'
-import { step } from '../src/sim/sim'
-import { ENRAGE_AT } from '../src/sim/constants'
 import { drawWorld } from '../src/render/draw'
-import { drawHud } from '../src/render/hud'
-import { partyButton, soundButton } from '../src/render/hud'
+import { drawHud, partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
+import { L, updateLayout } from '../src/render/theme'
+import { ABILITIES } from '../src/sim/abilities'
 import {
   autoParty,
   countRoles,
@@ -13,7 +10,11 @@ import {
   type Pick,
   type RaidSize,
 } from '../src/sim/classes'
-import { L, updateLayout } from '../src/render/theme'
+import { PROJECTILE_MIN_RANGE, projectileKind, resolveAbility } from '../src/sim/combat'
+import { ENRAGE_AT } from '../src/sim/constants'
+import { Rng } from '../src/sim/rng'
+import { step } from '../src/sim/sim'
+import { createState } from '../src/sim/state'
 
 /** Records every 2D context call so the render path can run outside a browser. */
 function stubCtx(): CanvasRenderingContext2D {
@@ -75,24 +76,42 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
 }
 console.log(`rendered ${frames} frames with no exceptions`)
 
-// Ranged casts must actually put bolts in the air; they are simulation state,
-// so a regression here would silently remove them from every replay too.
+// Every ranged ability must put a bolt in the air.
+//
+// This check used to assert only that *some* projectile existed, and duly
+// passed when a rename left thirty-three of the thirty-four ranged abilities
+// silently firing nothing. Assert each one individually instead.
 {
-  updateLayout(1440, 900)
   const s = createState(0x51ed, 0)
   const rng = new Rng(0x51ed)
-  let seen = 0
-  let peak = 0
-  while (s.outcome === 'ongoing' && s.time < 45) {
-    step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
-    seen += s.projectiles.length
-    peak = Math.max(peak, s.projectiles.length)
+  const caster = s.actors[0]!
+  const ally = s.actors.find((a) => a.faction === 'party' && a.id !== caster.id)!
+  const target = s.actors[s.actors.length - 1]!
+
+  const silent: string[] = []
+  for (const ability of Object.values(ABILITIES)) {
+    if (ability.range < PROJECTILE_MIN_RANGE) continue
+    s.projectiles.length = 0
+    // Heals need someone other than the caster, or there is nothing to cross.
+    const victim = ability.kind === 'heal' ? ally : target
+    resolveAbility(s, caster, ability, victim.id, rng)
+    if (s.projectiles.length === 0) silent.push(ability.id)
   }
+
+  const ranged = Object.values(ABILITIES).filter((a) => a.range >= PROJECTILE_MIN_RANGE)
   console.log(
-    seen > 0 && peak > 0 ? 'ok  ' : 'FAIL',
-    `  ranged bolts in flight (peak ${peak})`,
+    silent.length === 0 ? 'ok  ' : 'FAIL',
+    `  all ${ranged.length} ranged abilities fire a bolt`,
   )
-  if (seen === 0) throw new Error('no projectiles were spawned')
+  if (silent.length > 0) throw new Error(`no projectile from: ${silent.join(', ')}`)
+
+  // And every visual class is reachable, so none of them is dead code.
+  const kinds = new Set(ranged.map((a) => projectileKind(a)))
+  console.log(
+    kinds.size === 4 ? 'ok  ' : 'FAIL',
+    `  bolt styles in use: ${[...kinds].sort().join(', ')}`,
+  )
+  if (kinds.size !== 4) throw new Error('a projectile style is unreachable')
 }
 
 // --- the party screen must draw and stay hit-testable ---------------------
