@@ -186,7 +186,11 @@ together. The renderer takes the radius from the simulation rather than
 keeping its own copy, which is the sort of pair that silently drifts.
 
 **The simulation is deterministic.** Fixed 30 Hz timestep, seeded PRNG, stable
-iteration order, render interpolation on top. `Math.random()` is never called
+iteration order, render interpolation on top. A frame that falls behind drops
+the backlog rather than replaying it: catching up is visible as the fight
+running at several times speed, which is worse than losing the time. The clock
+lives in `src/loop.ts` as a pure function so that behaviour can be tested,
+because getting it wrong does not throw — it just runs at the wrong speed. `Math.random()` is never called
 inside `src/sim/`. That is what keeps replays, leaderboard verification and a
 future server-authoritative port possible.
 

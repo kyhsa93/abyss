@@ -1,3 +1,4 @@
+import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
 import { drawHud, partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
@@ -75,6 +76,57 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
 }
 console.log(`rendered ${frames} frames with no exceptions`)
+
+// --- the clock must not bank time on menus --------------------------------
+//
+// This is the bug where a fight opened at several times speed: the frame loop
+// accumulated simulation time while the raid screen was up, and the fight
+// then burned through the backlog the moment it started.
+{
+  const dt = 1 / 30
+  let clock: Clock = { accumulator: 0, elapsedTotal: 0 }
+
+  // A minute on the raid screen at 60fps.
+  for (let i = 0; i < 3600; i++) clock = advance(clock, 1 / 60, false, dt)
+  const banked = clock.accumulator
+  console.log(
+    banked === 0 ? 'ok  ' : 'FAIL',
+    `  a minute of menu banks ${banked.toFixed(3)}s of simulation`,
+  )
+  if (banked !== 0) throw new Error('menu time is accumulating into the fight')
+
+  // Wall-clock time still advances, so animations do not freeze behind menus.
+  console.log(
+    clock.elapsedTotal > 59 ? 'ok  ' : 'FAIL',
+    `  animation clock still runs (${clock.elapsedTotal.toFixed(1)}s)`,
+  )
+  if (clock.elapsedTotal <= 59) throw new Error('animation clock stopped')
+
+  // A stalled frame is dropped rather than replayed at speed.
+  clock = advance({ accumulator: 0, elapsedTotal: 0 }, 30, true, dt)
+  const ticks = Math.floor(clock.accumulator / dt)
+  console.log(
+    ticks <= MAX_CATCHUP_TICKS ? 'ok  ' : 'FAIL',
+    `  a 30s stall queues ${ticks} ticks, not 900`,
+  )
+  if (ticks > MAX_CATCHUP_TICKS) throw new Error('catch-up is unbounded')
+
+  // And normal frames still run at exactly one tick each.
+  clock = { accumulator: 0, elapsedTotal: 0 }
+  let run = 0
+  for (let i = 0; i < 300; i++) {
+    clock = advance(clock, dt, true, dt)
+    while (clock.accumulator >= dt) {
+      clock.accumulator -= dt
+      run++
+    }
+  }
+  console.log(
+    run === 300 ? 'ok  ' : 'FAIL',
+    `  300 frames at the tick rate produce ${run} ticks`,
+  )
+  if (run !== 300) throw new Error('steady-state stepping drifted')
+}
 
 // Every ranged ability must put a bolt in the air.
 //

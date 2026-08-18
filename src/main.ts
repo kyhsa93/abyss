@@ -1,4 +1,5 @@
 import { Input } from './input'
+import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
 import { Hints } from './render/hints'
@@ -160,6 +161,7 @@ function startFight(): void {
     state = createState(BASE_SEED, attempt, party, difficulty)
     rng = new Rng(BASE_SEED)
   }
+  timing = { ...timing, accumulator: 0 }
   screen = 'fight'
 }
 
@@ -199,17 +201,17 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
   drawRoster(ctx, party, difficulty, activeSlot, clock)
 }
 
-let accumulator = 0
+let timing: Clock = { accumulator: 0, elapsedTotal: 0 }
 let last = performance.now()
-let clock = 0
 
 function frame(now: number): void {
-  // Clamping protects against the tab being backgrounded: rAF stops, and
-  // without this the sim would try to catch up on minutes of missed time.
-  const elapsed = Math.min((now - last) / 1000, 0.25)
+  const frameSeconds = (now - last) / 1000
   last = now
-  clock += elapsed
-  accumulator += elapsed
+
+  // Simulation time only accrues while the fight is on screen; see loop.ts.
+  timing = advance(timing, frameSeconds, screen === 'fight', DT)
+  const clock = timing.elapsedTotal
+  const elapsed = Math.min(Math.max(0, frameSeconds), 0.25)
 
   const tap = input.takeTapPoint()
 
@@ -248,16 +250,16 @@ function frame(now: number): void {
   if (input.takeRestart()) restart()
 
   let ticks = 0
-  while (accumulator >= DT && ticks < 6) {
+  while (timing.accumulator >= DT && ticks < MAX_CATCHUP_TICKS) {
     step(state, input.consume(), rng)
     sfx.playAll(state.sounds)
-    accumulator -= DT
+    timing.accumulator -= DT
     ticks++
   }
 
   hints.observe(state, elapsed)
 
-  const alpha = Math.min(1, accumulator / DT)
+  const alpha = Math.min(1, timing.accumulator / DT)
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
