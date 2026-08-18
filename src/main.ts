@@ -94,3 +94,35 @@ function frame(now: number): void {
 }
 
 requestAnimationFrame(frame)
+
+// Offline support. The whole game is static and simulated client-side, so
+// once it is cached there is nothing left to be online for.
+//
+// Freshness is handled in two layers: the worker fetches the page itself
+// network-first, and this reloads once when a new worker takes over, so a
+// launch never leaves you on a build that has already been replaced.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller)
+  let reloading = false
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // On a first visit the worker claims the page immediately; that is not an
+    // update and must not bounce the player.
+    if (!hadController || reloading) return
+    reloading = true
+    window.location.reload()
+  })
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      // updateViaCache: 'none' stops the browser serving sw.js from its own
+      // HTTP cache, which would hide new deploys for up to a day.
+      .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
+      .then((registration) => {
+        void registration.update()
+      })
+      .catch(() => {
+        // A failed registration is not worth interrupting the game over.
+      })
+  })
+}

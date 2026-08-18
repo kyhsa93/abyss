@@ -5,14 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && npm run pwacheck",
     "preview": "vite preview",
     "harness": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && node node_modules/.cache/harness.mjs",
     "rendercheck": "esbuild scripts/rendercheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rendercheck.mjs --log-level=error && node node_modules/.cache/rendercheck.mjs",
     "touchcheck": "esbuild scripts/touchcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/touchcheck.mjs --log-level=error && node node_modules/.cache/touchcheck.mjs",
+    "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",
     "check": "tsc && npm run rendercheck && npm run touchcheck && npm run harness"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"

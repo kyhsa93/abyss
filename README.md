@@ -116,6 +116,26 @@ meaningfully inside, not merely overlapping the edge.
 Your `Burst` has a two-second cast and movement cancels it, so the real
 decision is when you can afford to stand still.
 
+## Installable and offline
+
+The game ships as a PWA. Everything runs client-side, so once it is cached
+there is nothing left to be online for — it is fully playable in airplane mode.
+
+Freshness is handled in two layers, because a cache-first PWA will happily
+serve a build that was replaced weeks ago:
+
+- the worker fetches the page itself network-first, with a 3s timeout falling
+  back to the cached shell, so a launch with any connection at all gets the
+  current build. Hashed assets stay cache-first — a changed file has a
+  different name, so a hit can never be stale.
+- `sw.js` is registered with `updateViaCache: 'none'` and updated on load, and
+  the page reloads once when a new worker takes over. The first visit is
+  excluded, so nobody gets bounced on arrival.
+
+Icons are generated, not drawn: `python3 scripts/make-icons.py` renders them
+from the same shapes the game uses. The PNGs are committed; rerun it only if
+the palette changes.
+
 ## Development
 
 ```bash
@@ -123,6 +143,7 @@ npm run check        # types, then headless render pass, then balance harness
 npm run harness      # win rate and puddle-uptime by attempt number
 npm run rendercheck  # draws every frame against a stub canvas, asserts controls land on screen
 npm run touchcheck   # pointer mapping, joystick vector, multi-touch, layout bounds
+npm run pwacheck     # manifest, icons, precache list and offline shell (runs in build)
 npm run build
 ```
 
