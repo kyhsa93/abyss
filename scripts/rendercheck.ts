@@ -1,5 +1,6 @@
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
+import { allIcons, iconFor } from '../src/render/icons'
 import { drawHud, partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
@@ -150,6 +151,41 @@ console.log(`rendered ${frames} frames with no exceptions`)
     `  results screen queues ${afterwards} sounds per frame (ended with ${atEnd})`,
   )
   if (afterwards !== 0) throw new Error('sound events repeat over the results screen')
+}
+
+// --- every ability needs its own icon -------------------------------------
+//
+// Same failure mode as the projectiles: icons are keyed by ability id, so a
+// renamed spell list would silently fall back to a generic grey orb. And two
+// buttons that look alike are worse than a bar with no icons at all.
+{
+  const defined = new Map(allIcons())
+  const missing = Object.keys(ABILITIES).filter((id) => !defined.has(id))
+  console.log(
+    missing.length === 0 ? 'ok  ' : 'FAIL',
+    `  all ${Object.keys(ABILITIES).length} abilities have an icon`,
+  )
+  if (missing.length > 0) throw new Error(`no icon for: ${missing.join(', ')}`)
+
+  const seen = new Map<string, string>()
+  const clashes: string[] = []
+  for (const id of Object.keys(ABILITIES)) {
+    const spec = iconFor(id)
+    const key = `${spec.shape}/${spec.colour}/${spec.repeat ?? 1}`
+    const owner = seen.get(key)
+    if (owner) clashes.push(`${id} looks like ${owner}`)
+    else seen.set(key, id)
+  }
+  console.log(
+    clashes.length === 0 ? 'ok  ' : 'FAIL',
+    `  ${seen.size} icons are visually distinct`,
+  )
+  if (clashes.length > 0) throw new Error(clashes.join('; '))
+
+  // Icons that belong to no ability are dead weight in the table.
+  const orphans = [...defined.keys()].filter((id) => !(id in ABILITIES))
+  console.log(orphans.length === 0 ? 'ok  ' : 'FAIL', `  no orphaned icons`)
+  if (orphans.length > 0) throw new Error(`icons for missing abilities: ${orphans.join(', ')}`)
 }
 
 // Every ranged ability must put a bolt in the air.
@@ -311,6 +347,24 @@ console.log(`rendered ${frames} frames with no exceptions`)
     `  global cooldown sweeps every slot (${extra} extra arcs while locked)`,
   )
   if (extra < 3) throw new Error('global cooldown is not drawn on the action bar')
+}
+
+// --- the action bar and its captions must fit on screen -------------------
+{
+  for (const [w, h] of [[1440, 900], [1280, 720], [980, 620]] as const) {
+    updateLayout(w, h)
+    const slot = 58 * L.ui
+    // Where drawActionBar puts the caption baseline.
+    const captionY = L.actionY + slot + 11 * L.ui
+    // The bar is an overlay and may sit over the arena; only running off the
+    // bottom of the screen is a problem.
+    const fits = captionY < h - 2 && L.actionY > 0
+    console.log(
+      fits ? 'ok  ' : 'FAIL',
+      `  ${w}x${h}: action bar caption at ${captionY.toFixed(0)} of ${h}`,
+    )
+    if (!fits) throw new Error(`action bar caption off screen at ${w}x${h}`)
+  }
 }
 
 // --- on-screen controls must not overlap ----------------------------------

@@ -4,6 +4,7 @@ import { CLASSES, abilityBar } from '../sim/classes'
 import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
+import { drawIcon } from './icons'
 import { COLORS, L, roleColor } from './theme'
 
 export interface Rect {
@@ -54,6 +55,37 @@ export interface TouchView {
 
 function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+}
+
+/**
+ * Draws centred text that stays inside `maxWidth`.
+ *
+ * Shrinks a couple of steps first, then clips with an ellipsis. Ability names
+ * range from "Rend" to "Shadow Word: Pain" and the long ones used to run
+ * straight out of the button.
+ */
+function fitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  cx: number,
+  y: number,
+  maxWidth: number,
+  baseSize: number,
+): void {
+  for (let size = baseSize; size >= baseSize - 2; size--) {
+    ctx.font = font(size)
+    if (ctx.measureText(text).width <= maxWidth) {
+      ctx.fillText(text, cx, y)
+      return
+    }
+  }
+
+  ctx.font = font(Math.max(6, baseSize - 2))
+  let clipped = text
+  while (clipped.length > 1 && ctx.measureText(`${clipped}…`).width > maxWidth) {
+    clipped = clipped.slice(0, -1)
+  }
+  ctx.fillText(`${clipped}…`, cx, y)
 }
 
 /**
@@ -341,14 +373,12 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.lineWidth = usable ? 2 : 1
     ctx.strokeRect(x + 0.5, y + 0.5, slot - 1, slot - 1)
 
-    ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
-    ctx.font = font(11, true)
-    ctx.textAlign = 'center'
-    ctx.fillText(ability.name, x + slot / 2, y + slot / 2 + 4)
+    drawIcon(ctx, id, x + slot / 2, y + slot / 2, slot * 0.56, !usable)
 
     ctx.font = font(9)
     ctx.fillStyle = COLORS.textDim
-    ctx.fillText(ability.key, x + 8, y + 12 * L.ui)
+    ctx.textAlign = 'left'
+    ctx.fillText(ability.key, x + 5, y + 12 * L.ui)
 
     // The wipe is circular even on a square icon, clipped to the slot.
     const state = slotCooldown(player, id, ability.cooldown)
@@ -360,10 +390,16 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.restore()
 
     if (state.showNumber) {
+      ctx.textAlign = 'center'
       ctx.fillStyle = COLORS.text
       ctx.font = font(14, true)
       ctx.fillText(state.remaining.toFixed(1), x + slot / 2, y + slot / 2 + 5)
     }
+
+    // The name lives under the slot, where it cannot overflow into a neighbour.
+    ctx.textAlign = 'center'
+    ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
+    fitText(ctx, ability.name, x + slot / 2, y + slot + 11 * L.ui, slot + gap - 2, 9)
 
     x += slot + gap
   }
@@ -438,21 +474,19 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.stroke()
 
     const state = slotCooldown(player, id, ability.cooldown)
+
+    // Icon sits above centre so the name has room inside the button.
+    drawIcon(ctx, id, L.btnX, cy - L.btnR * 0.18, L.btnR * 0.92, !usable)
     sweep(ctx, L.btnX, cy, L.btnR, state.remaining, state.total, state.shade)
 
-    ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
-    ctx.font = font(12, true)
     ctx.textAlign = 'center'
-    ctx.fillText(ability.name, L.btnX, cy + 4)
-
     if (state.showNumber) {
       ctx.fillStyle = COLORS.text
       ctx.font = font(15, true)
-      ctx.fillText(state.remaining.toFixed(1), L.btnX, cy + 22 * L.ui)
-    } else if (ability.castTime > 0) {
-      ctx.fillStyle = COLORS.textDim
-      ctx.font = font(9)
-      ctx.fillText(`${ability.castTime}s`, L.btnX, cy + 20 * L.ui)
+      ctx.fillText(state.remaining.toFixed(1), L.btnX, cy + L.btnR * 0.12)
+    } else {
+      ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
+      fitText(ctx, ability.name, L.btnX, cy + L.btnR * 0.62, L.btnR * 1.8, 9)
     }
   }
 }
