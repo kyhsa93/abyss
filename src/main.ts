@@ -1,10 +1,12 @@
 import { Input } from './input'
 import { drawWorld } from './render/draw'
-import { drawHud } from './render/hud'
+import { drawHud, outcomeButtons } from './render/hud'
+import { drawRoster, hitRoster } from './render/roster'
 import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
+import { CLASSES, DEFAULT_PARTY, PARTY_SIZE, type ClassId } from './sim/classes'
 import { createState } from './sim/state'
 import type { SimState } from './sim/types'
 
@@ -43,16 +45,77 @@ function onViewportChange(): void {
 window.addEventListener('resize', onViewportChange)
 window.addEventListener('orientationchange', onViewportChange)
 
+// --- party selection --------------------------------------------------------
+
+const PARTY_KEY = 'abyss.party'
+
+function loadParty(): ClassId[] {
+  try {
+    const raw = localStorage.getItem(PARTY_KEY)
+    if (!raw) return [...DEFAULT_PARTY]
+    const parsed: unknown = JSON.parse(raw)
+    // Anything unrecognised falls back rather than booting into a broken party.
+    if (!Array.isArray(parsed) || parsed.length !== PARTY_SIZE) return [...DEFAULT_PARTY]
+    if (!parsed.every((id) => typeof id === 'string' && id in CLASSES)) return [...DEFAULT_PARTY]
+    return parsed as ClassId[]
+  } catch {
+    return [...DEFAULT_PARTY]
+  }
+}
+
+function saveParty(): void {
+  try {
+    localStorage.setItem(PARTY_KEY, JSON.stringify(party))
+  } catch {
+    // Private browsing and full quotas are not worth failing over.
+  }
+}
+
+let party = loadParty()
+let activeSlot = 0
+let screen: 'roster' | 'fight' = 'roster'
+
 let attempt = 0
-let state: SimState = createState(BASE_SEED, attempt)
+let state: SimState = createState(BASE_SEED, attempt, party)
 // The RNG lives outside the state but is derived from it, so a given
 // (seed, attempt) pair always replays identically.
 let rng = new Rng(BASE_SEED + attempt * 7919)
 
 function restart(): void {
   attempt++
-  state = createState(BASE_SEED, attempt)
+  state = createState(BASE_SEED, attempt, party)
   rng = new Rng(BASE_SEED + attempt * 7919)
+}
+
+/** A changed party starts its own progression; the old pulls do not transfer. */
+function startFight(): void {
+  attempt = 0
+  state = createState(BASE_SEED, attempt, party)
+  rng = new Rng(BASE_SEED)
+  screen = 'fight'
+}
+
+function inside(r: { x: number; y: number; w: number; h: number }, x: number, y: number): boolean {
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
+}
+
+function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
+  if (tap) {
+    const hit = hitRoster(tap.x, tap.y)
+    if (hit?.kind === 'slot') {
+      activeSlot = hit.index
+    } else if (hit?.kind === 'class') {
+      party[activeSlot] = hit.classId
+      saveParty()
+      // Step to the next slot so a whole party can be set by tapping straight
+      // down the class list.
+      activeSlot = (activeSlot + 1) % PARTY_SIZE
+    } else if (hit?.kind === 'pull') {
+      startFight()
+      return
+    }
+  }
+  drawRoster(ctx, party, activeSlot, clock)
 }
 
 let accumulator = 0
@@ -67,10 +130,28 @@ function frame(now: number): void {
   clock += elapsed
   accumulator += elapsed
 
-  // Tapping anywhere on the end-of-fight overlay retries, since a phone has
-  // no R key. takeTap is consumed every frame so it cannot queue up.
-  const tapped = input.takeTap()
-  if (input.takeRestart() || (tapped && state.outcome !== 'ongoing')) restart()
+  const tap = input.takeTapPoint()
+
+  if (screen === 'roster') {
+    input.setMenuMode(true)
+    updateRoster(tap, clock)
+    requestAnimationFrame(frame)
+    return
+  }
+
+  input.setMenuMode(false)
+
+  // The overlay has explicit buttons, since a phone has no R key.
+  if (state.outcome !== 'ongoing' && tap) {
+    const buttons = outcomeButtons()
+    if (inside(buttons.party, tap.x, tap.y)) {
+      screen = 'roster'
+      requestAnimationFrame(frame)
+      return
+    }
+    restart()
+  }
+  if (input.takeRestart()) restart()
 
   let ticks = 0
   while (accumulator >= DT && ticks < 6) {

@@ -1,8 +1,11 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
+import { ENRAGE_AT } from '../src/sim/constants'
 import { drawWorld } from '../src/render/draw'
 import { drawHud } from '../src/render/hud'
+import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
+import type { ClassId } from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
 
 /** Records every 2D context call so the render path can run outside a browser. */
@@ -50,7 +53,7 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   updateLayout(VIEWPORTS[vi]![0], VIEWPORTS[vi]![1])
   const s = createState(0x51ed, attempt)
   const rng = new Rng(0x51ed + attempt * 7919)
-  while (s.outcome === 'ongoing' && s.time < 200) {
+  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
     drawWorld(ctx, s, 0.5, s.time)
     // Alternate modes so both the desktop bar and the touch overlay are drawn.
@@ -85,6 +88,41 @@ console.log(`rendered ${frames} frames with no exceptions`)
   if (seen === 0) throw new Error('no projectiles were spawned')
 }
 
+// --- the party screen must draw and stay hit-testable ---------------------
+{
+  const parties: ClassId[][] = [
+    ['mage', 'warrior', 'priest', 'hunter', 'rogue'],
+    ['rogue', 'rogue', 'rogue', 'rogue', 'rogue'],
+  ]
+  for (const [w, h] of [[1440, 900], [390, 844], [844, 390]] as const) {
+    updateLayout(w, h)
+    for (const party of parties) {
+      for (let slot = 0; slot < party.length; slot++) {
+        drawRoster(stubCtx(), party, slot, 1.5)
+      }
+    }
+
+    // Every drawn control must be reachable by a tap at its own centre.
+    const layout = rosterLayout()
+    const targets = [
+      ...layout.slots.map((r, i) => [`slot ${i}`, r] as const),
+      ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
+      ['pull', layout.pull] as const,
+    ]
+    const unreachable = targets.filter(([, r]) => {
+      const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2)
+      return hit === null
+    })
+    console.log(
+      unreachable.length === 0 ? 'ok  ' : 'FAIL',
+      `  roster ${w}x${h}: ${targets.length} controls hit-testable`,
+    )
+    if (unreachable.length > 0) {
+      throw new Error(`unreachable roster controls: ${unreachable.map(([n]) => n).join(', ')}`)
+    }
+  }
+}
+
 // --- every mechanic must actually fire ------------------------------------
 //
 // Later-phase mechanics only appear once the boss is low enough, so a change
@@ -95,7 +133,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   for (let run = 0; run < 6 && seen.size < 5; run++) {
     const s = createState(1000 + run * 137, 8)
     const rng = new Rng(1000 + run * 137)
-    while (s.outcome === 'ongoing' && s.time < 200) {
+    while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
       for (const g of s.ground) seen.add(g.kind)
       if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')

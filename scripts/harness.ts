@@ -1,6 +1,8 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
+import { ENRAGE_AT } from '../src/sim/constants'
+import type { ClassId } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 
 /** Crude stand-in for a competent human: run out of any puddle, else stand still. */
@@ -30,8 +32,8 @@ interface Report {
   deaths: Record<string, number>
 }
 
-function run(seed: number, attempt: number): Report {
-  const s = createState(seed, attempt)
+function run(seed: number, attempt: number, party?: ClassId[]): Report {
+  const s = createState(seed, attempt, party)
   const rng = new Rng(seed + attempt * 7919)
   const ticksIn: Record<string, number> = {}
   const deaths: Record<string, number> = {}
@@ -39,7 +41,7 @@ function run(seed: number, attempt: number): Report {
   const walkedQuiet: Record<string, number> = {}
   let ticks = 0
 
-  while (s.outcome === 'ongoing' && s.time < 200) {
+  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
     const pressed: number[] = []
     // Fire abilities roughly on cooldown.
     if (ticks % 45 === 0) pressed.push(0)
@@ -108,23 +110,47 @@ function run(seed: number, attempt: number): Report {
 }
 
 
-const ATTEMPTS = [0, 2, 4, 6, 8]
-const AI = ['Bastion', 'Wren', 'Kestrel', 'Vale']
+const ATTEMPTS = [0, 4, 8]
 
-console.log(
-  'attempt  wins  time   ' +
-    AI.map((n) => (n + ' pud/mv').padEnd(16)).join(''),
-)
+/** Compositions a player might actually build, including bad ones. */
+const PARTIES: Array<{ label: string; party: ClassId[] }> = [
+  { label: 'default  1t 1h 3d', party: ['mage', 'warrior', 'priest', 'hunter', 'rogue'] },
+  { label: 'two heals 1t 2h 2d', party: ['mage', 'warrior', 'priest', 'paladin', 'rogue'] },
+  { label: 'no healer 1t 0h 4d', party: ['mage', 'warrior', 'hunter', 'rogue', 'shaman'] },
+  { label: 'no tank   0t 1h 4d', party: ['mage', 'druid', 'priest', 'hunter', 'rogue'] },
+  { label: 'all melee 1t 1h 3d', party: ['rogue', 'warrior', 'priest', 'rogue', 'rogue'] },
+  { label: 'all caster 1t 1h 3d', party: ['mage', 'warrior', 'priest', 'shaman', 'druid'] },
+]
+
+const RUNS = 24
+console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
+for (const { label, party } of PARTIES) {
+  const cells: string[] = []
+  let time = 0
+  let total = 0
+  for (const attempt of ATTEMPTS) {
+    let wins = 0
+    for (let i = 0; i < RUNS; i++) {
+      const r = run(1000 + i * 137, attempt, party)
+      if (r.outcome === 'victory') wins++
+      time += r.time
+      total++
+    }
+    cells.push(`${Math.round((wins / RUNS) * 100)}%`.padEnd(9))
+  }
+  console.log(label.padEnd(23), cells.join(''), (time / total).toFixed(0))
+}
+
+console.log('\nper-member detail, default composition (puddle% / units walked per second)')
+const AI = ['Bastion', 'Wren', 'Kestrel', 'Vale']
+console.log('attempt  wins  ' + AI.map((n) => n.padEnd(15)).join(''))
 for (const attempt of ATTEMPTS) {
   let wins = 0
-  let time = 0
   const puddle: Record<string, number> = {}
   const travel: Record<string, number> = {}
-  const RUNS = 30
   for (let i = 0; i < RUNS; i++) {
     const r = run(1000 + i * 137, attempt)
     if (r.outcome === 'victory') wins++
-    time += r.time
     for (const n of AI) {
       puddle[n] = (puddle[n] ?? 0) + (r.inPuddle[n] ?? 0)
       travel[n] = (travel[n] ?? 0) + (r.travel[n] ?? 0)
@@ -133,9 +159,6 @@ for (const attempt of ATTEMPTS) {
   console.log(
     String(attempt).padEnd(9),
     `${Math.round((wins / RUNS) * 100)}%`.padEnd(6),
-    (time / RUNS).toFixed(0).padEnd(7),
-    AI.map((n) =>
-      `${(puddle[n]! / RUNS).toFixed(2)}%/${(travel[n]! / RUNS).toFixed(0)}`.padEnd(16),
-    ).join(''),
+    AI.map((n) => `${(puddle[n]! / RUNS).toFixed(2)}%/${(travel[n]! / RUNS).toFixed(0)}`.padEnd(15)).join(''),
   )
 }

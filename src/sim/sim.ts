@@ -1,7 +1,9 @@
-import { ABILITIES, PLAYER_BAR } from './abilities'
+import { ABILITIES } from './abilities'
+import { abilityBar } from './classes'
 import { updatePartyAi } from './ai'
 import { resolveBossCast, updateBoss, updateGround } from './boss'
 import {
+  AURA_TICK,
   addThreat,
   applyDamage,
   applyHeal,
@@ -79,12 +81,13 @@ function updateTimers(s: SimState, a: Actor): void {
 
     while (aura.tickTimer >= 1) {
       aura.tickTimer -= 1
-      if (aura.id === 'ignite') {
-        applyDamage(s, a, 55 * aura.stacks, false, true)
-        if (a.id === BOSS_ID) addThreat(s, aura.sourceId, 55 * aura.stacks)
-      } else if (aura.id === 'renew') {
-        applyHeal(s, a, 60, aura.sourceId)
+      const tick = AURA_TICK[aura.id]
+      if (!tick) continue
+      if (tick.damage !== undefined) {
+        applyDamage(s, a, tick.damage, false, true)
+        if (a.faction === 'boss') addThreat(s, aura.sourceId, tick.damage)
       }
+      if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
     }
 
     if (aura.remaining <= 0) {
@@ -108,11 +111,27 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     if (player.castId) interruptCast(s, player, 'moved')
   }
 
+  const bar = abilityBar(player.classId)
   for (const slot of input.pressed) {
-    const abilityId = PLAYER_BAR[slot]
+    const abilityId = bar[slot]
     if (!abilityId) continue
-    beginCast(s, player, abilityId, BOSS_ID, rng)
+    // Target the nearest add if one is up, otherwise the boss.
+    beginCast(s, player, abilityId, playerTarget(s), rng)
   }
+}
+
+/** Adds are the priority target while they are alive. */
+function playerTarget(s: SimState): number {
+  let best: number = BOSS_ID
+  let bestHp = Infinity
+  for (const a of s.actors) {
+    if (a.faction !== 'boss' || !a.alive || a.id === BOSS_ID) continue
+    if (a.hp < bestHp) {
+      bestHp = a.hp
+      best = a.id
+    }
+  }
+  return best
 }
 
 function advanceCast(s: SimState, a: Actor, rng: Rng): void {

@@ -1,5 +1,4 @@
 import { L } from './render/theme'
-import { PLAYER_BAR } from './sim/abilities'
 import type { PlayerInput } from './sim/types'
 
 export interface JoystickView {
@@ -20,7 +19,6 @@ export class Input {
   private held = new Set<string>()
   private queued: number[] = []
   private restartRequested = false
-  private tapped = false
   // Detected up front, not on first touch: otherwise a phone shows no controls
   // at all until the player happens to poke the screen.
   private touchMode = hasTouch()
@@ -34,6 +32,10 @@ export class Input {
   /** pointerId -> action bar slot, so releasing the right finger clears it. */
   private buttonPointers = new Map<number, number>()
   private pressedSlots = new Set<number>()
+
+  /** In menu mode the stick and ability buttons are inert. */
+  private menuMode = false
+  private tapPoint: { x: number; y: number } | null = null
 
   constructor(target: Window, canvas: HTMLCanvasElement) {
     target.addEventListener('keydown', (e) => {
@@ -75,7 +77,9 @@ export class Input {
     const p = this.toCanvas(e, canvas)
 
     if (e.pointerType === 'touch') this.touchMode = true
-    this.tapped = true
+    this.tapPoint = { x: p.x, y: p.y }
+
+    if (this.menuMode) return
 
     const slot = hitButton(p.x, p.y)
     if (slot !== null) {
@@ -170,6 +174,24 @@ export class Input {
     return this.touchMode
   }
 
+  /** Menus need raw taps, not steering. */
+  setMenuMode(on: boolean): void {
+    if (this.menuMode === on) return
+    this.menuMode = on
+    this.joyPointer = null
+    this.buttonPointers.clear()
+    this.pressedSlots.clear()
+    this.queued.length = 0
+    this.recentre()
+  }
+
+  /** Consumes the last tap position, in canvas coordinates. */
+  takeTapPoint(): { x: number; y: number } | null {
+    const p = this.tapPoint
+    this.tapPoint = null
+    return p
+  }
+
   /** Parks the stick at its home position; call after a resize. */
   recentre(): void {
     if (this.joyPointer !== null) return
@@ -189,19 +211,17 @@ export class Input {
     return value
   }
 
-  /** Any tap, used to retry from the end-of-fight overlay without a keyboard. */
-  takeTap(): boolean {
-    const value = this.tapped
-    this.tapped = false
-    return value
-  }
 }
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
-const ABILITY_KEYS = new Map(PLAYER_BAR.map((_, i) => [String(i + 1), i]))
+/** Three action slots; a class with fewer simply leaves the tail empty. */
+export const BAR_SLOTS = 3
+const ABILITY_KEYS = new Map(
+  Array.from({ length: BAR_SLOTS }, (_, i) => [String(i + 1), i] as const),
+)
 
 function hitButton(x: number, y: number): number | null {
-  for (let i = 0; i < PLAYER_BAR.length && i < L.btnYs.length; i++) {
+  for (let i = 0; i < BAR_SLOTS && i < L.btnYs.length; i++) {
     const by = L.btnYs[i]!
     if (Math.hypot(x - L.btnX, y - by) <= L.btnHit) return i
   }

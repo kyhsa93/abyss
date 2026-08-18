@@ -2,10 +2,9 @@
 
 **[Play it](https://kyhsa93.github.io/abyss/)**
 
-A browser raid-boss prototype. A five-player group — one tank, one healer,
-three damage dealers — takes on a scripted boss. You play one of the dealers;
-the other four are AI. No assets, no server, no network: everything is shapes,
-timers and a deterministic simulation.
+A browser raid-boss prototype. You build a party of five from eight classes,
+play one of them, and the other four are AI. No assets, no server, no network:
+everything is shapes, timers and a deterministic simulation.
 
 ## Run it
 
@@ -18,7 +17,8 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-`WASD` to move, `1` `2` `3` for abilities, `R` to pull again.
+Pick a slot, pick a class, hit PULL. `WASD` to move, `1` `2` `3` for
+abilities, `R` to pull again. Your party is remembered between visits.
 
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
@@ -54,19 +54,28 @@ a humanity layer:
 They also get sharper every pull, because real groups learn a fight by
 repeating it.
 
-The party:
+## Classes
 
-| Member | Role | Personality |
+| Class | Role | Notes |
 | --- | --- | --- |
-| You | damage | — |
-| Bastion | tank | steady |
-| Wren | healer | timid |
-| Kestrel | damage | greedy |
-| Vale | damage | steady |
+| Warrior | tank | 45% armour, the only thing that makes a boss swing survivable |
+| Paladin | healer | Slower, bigger heals and a long-cooldown emergency button |
+| Priest | healer | Sustained, leans on a heal-over-time |
+| Druid | damage | Instant dot, one long finisher |
+| Shaman | damage | Middling everything, short-cast finisher |
+| Mage | damage | Highest burst, on a 2.5s cast that fights your movement |
+| Hunter | damage | Entirely instant, so it never stops damaging while moving |
+| Rogue | damage | Highest sustained damage, paid for by standing in melee |
 
-Personality is not cosmetic. Kestrel gambles on long casts with a telegraph
-already on the floor and reacts late, so it out-damages the others and is
-reliably the one standing in fire. Wren bails early and overheals.
+Rotations are shared per role; what differs is the numbers and cast times.
+That is enough to change how a class plays — the hunter keeps damaging while
+it repositions, the mage has to choose between its cast and the puddle, and
+the rogue has to be next to the boss to do anything at all, which is why it is
+reliably the one standing in fire.
+
+Personality belongs to the slot rather than the class. Kestrel gambles on long
+casts with a telegraph already on the floor and reacts late; Wren bails early
+and overheals.
 
 **Ranged casts throw a visible bolt.** Damage still resolves the instant the
 ability does — the bolt is a tell, not a mechanic, and the balance numbers are
@@ -151,14 +160,31 @@ The harness is the main tool here. Tuning AI or balance without measuring it
 produces party members that feel wrong in ways that are hard to name, so every
 change to `ai.ts`, `boss.ts` or ability numbers should be followed by a run.
 
-Current baseline, with a deliberately mediocre scripted player, 30 runs per row.
-Each member column is `time in a detonated puddle / units walked per second`:
+Since the party is now chosen, the harness runs several compositions —
+including bad ones — with a deliberately mediocre scripted player, 24 runs per
+cell:
 
-| Attempt | Win rate | Bastion | Wren | Kestrel | Vale |
-| --- | --- | --- | --- | --- | --- |
-| 1st pull | 30% | 0.52% / 13 | 0.49% / 20 | 0.72% / 13 | 0.41% / 17 |
-| 5th pull | 53% | 0.33% / 14 | 0.42% / 20 | 0.41% / 15 | 0.39% / 18 |
-| 9th pull | 50% | 0.16% / 13 | 0.43% / 19 | 0.38% / 15 | 0.45% / 19 |
+| Composition | 1st pull | 5th | 9th | avg time |
+| --- | --- | --- | --- | --- |
+| 1 tank, 1 healer, 3 damage | 25% | 46% | 42% | 144s |
+| 1 tank, 2 healers, 2 damage | 8% | 21% | 17% | 246s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 82s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 96s |
+| all melee | 0% | 8% | 13% | 158s |
+| all caster | 29% | 42% | 54% | 148s |
+
+Two healers works but grinds: it clears around the 240s enrage rather than
+comfortably inside it. Dropping the tank or the healer entirely does not work
+at all, which is the intended shape — those are the two roles the encounter is
+actually built around.
+
+Per-member detail for the default composition, `puddle uptime / units walked
+per second`:
+
+| Attempt | Bastion | Wren | Kestrel | Vale (rogue) |
+| --- | --- | --- | --- | --- |
+| 1st pull | 0.45% / 16 | 0.60% / 17 | 0.73% / 13 | 1.46% / 26 |
+| 9th pull | 0.19% / 17 | 0.30% / 18 | 0.40% / 16 | 1.11% / 30 |
 
 Two things are being watched here, and neither shows up in the win rate.
 

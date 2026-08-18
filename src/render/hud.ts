@@ -1,9 +1,29 @@
 import type { JoystickView } from '../input'
-import { ABILITIES, PLAYER_BAR } from '../sim/abilities'
+import { ABILITIES } from '../sim/abilities'
+import { abilityBar } from '../sim/classes'
 import { ENRAGE_AT } from '../sim/constants'
 import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
+
+export interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Buttons on the end-of-fight overlay; shared with the hit test in main. */
+export function outcomeButtons(): { retry: Rect; party: Rect } {
+  const w = Math.min(180, L.w * 0.38)
+  const h = Math.max(40, Math.min(54, L.h * 0.07))
+  const gap = 12
+  const y = L.h / 2 + 42
+  return {
+    retry: { x: L.w / 2 - w - gap / 2, y, w, h },
+    party: { x: L.w / 2 + gap / 2, y, w, h },
+  }
+}
 
 export interface TouchView {
   active: boolean
@@ -220,13 +240,14 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return
 
+  const bar = abilityBar(player.classId)
   const slot = 58 * L.ui
   const gap = 8 * L.ui
-  const total = PLAYER_BAR.length * slot + (PLAYER_BAR.length - 1) * gap
+  const total = bar.length * slot + (bar.length - 1) * gap
   let x = (L.w - total) / 2
   const y = L.actionY
 
-  for (const id of PLAYER_BAR) {
+  for (const id of bar) {
     const ability = ABILITIES[id]!
     const cd = player.cooldowns[id] ?? 0
     const usable = cd <= 0 && player.gcd <= 0 && player.alive
@@ -306,8 +327,9 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.stroke()
   }
 
-  for (let i = 0; i < PLAYER_BAR.length && i < L.btnYs.length; i++) {
-    const id = PLAYER_BAR[i]!
+  const bar = abilityBar(player.classId)
+  for (let i = 0; i < bar.length && i < L.btnYs.length; i++) {
+    const id = bar[i]!
     const ability = ABILITIES[id]!
     const cy = L.btnYs[i]!
     const cd = player.cooldowns[id] ?? 0
@@ -387,11 +409,25 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
     L.h / 2 + 22,
   )
 
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = font(12)
-  ctx.fillText(touch ? 'tap to pull again' : 'press R to pull again', L.w / 2, L.h / 2 + 52)
+  const buttons = outcomeButtons()
+  for (const [label, rect, accent] of [
+    [touch ? 'PULL AGAIN' : 'PULL AGAIN  (R)', buttons.retry, COLORS.castBar],
+    ['CHANGE PARTY', buttons.party, COLORS.textDim],
+  ] as const) {
+    ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+    ctx.strokeStyle = accent
+    ctx.lineWidth = 2
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1)
+    ctx.fillStyle = accent
+    ctx.font = font(12, true)
+    ctx.textAlign = 'center'
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h * 0.62)
+  }
 
   if (s.outcome !== 'victory') {
-    ctx.fillText('the party learns a little each attempt', L.w / 2, L.h / 2 + 72)
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(11)
+    ctx.fillText('the party learns a little each attempt', L.w / 2, buttons.retry.y + buttons.retry.h + 22)
   }
 }

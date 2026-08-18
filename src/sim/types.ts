@@ -1,3 +1,5 @@
+import type { ClassId } from './classes'
+
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
 
@@ -7,7 +9,13 @@ export interface Vec2 {
 }
 
 export type AuraId =
-  | 'ignite' // damage over time on the boss
+  // One damage-over-time per class, so five dealers can each keep their own
+  // on the boss without overwriting one another.
+  | 'living_bomb'
+  | 'serpent_sting'
+  | 'rupture'
+  | 'flame_shock'
+  | 'moonfire'
   | 'renew' // heal over time on a party member
   | 'shield' // damage reduction on the tank
   | 'spread' // detonates on expiry, damages everyone nearby
@@ -59,7 +67,12 @@ export interface AiProfile {
 export interface Actor {
   id: number
   name: string
+  classId: ClassId
   role: Role
+  /** Melee classes must close to the boss to use anything. */
+  melee: boolean
+  /** Fraction of boss damage absorbed before shields apply. */
+  armour: number
   faction: Faction
 
   pos: Vec2
@@ -187,4 +200,6 @@ export interface SimState {
   /** Number of pulls so far; AI plays better on later attempts. */
   attempt: number
   seed: number
+  /** Class of each party slot, in order. */
+  party: ClassId[]
 }

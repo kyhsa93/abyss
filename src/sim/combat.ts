@@ -35,11 +35,25 @@ export function getAura(actor: Actor, id: AuraId): Aura | undefined {
 }
 
 const AURA_DURATION: Record<AuraId, number> = {
-  ignite: 12,
+  living_bomb: 12,
+  serpent_sting: 15,
+  rupture: 12,
+  flame_shock: 12,
+  moonfire: 14,
   renew: 12,
   shield: 6,
   spread: 4,
   enrage: 9999,
+}
+
+/** Per-second effect of each periodic aura. */
+export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
+  living_bomb: { damage: 70 },
+  serpent_sting: { damage: 60 },
+  rupture: { damage: 85 },
+  flame_shock: { damage: 65 },
+  moonfire: { damage: 62 },
+  renew: { heal: 60 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -106,6 +120,8 @@ export function applyDamage(
 
   let final = amount
   if (fromBoss) {
+    // Armour first, then active mitigation.
+    final *= 1 - target.armour
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
     const enraged = getAura(boss(s), 'enrage')
@@ -141,7 +157,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
-      applyDamage(s, a, 850, true)
+      applyDamage(s, a, 880, true)
     }
   }
 }

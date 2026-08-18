@@ -58,17 +58,17 @@ const PHASE: Record<number, PhaseTiming> = {
 const PHASE_THREE_HP = 0.4
 
 const SLAM_CAST = 2
-const SLAM_DAMAGE = 420
-const SWING_DAMAGE = 115
-const RAID_DAMAGE = 130
+const SLAM_DAMAGE = 520
+const SWING_DAMAGE = 260
+const RAID_DAMAGE = 150
 
 const PUDDLE_RADIUS = 70
-const PUDDLE_DAMAGE = 1100
+const PUDDLE_DAMAGE = 1150
 
 export const BREATH_CAST = 1.9
 const BREATH_RANGE = 275
 const BREATH_HALF_WIDTH = 0.62
-const BREATH_DAMAGE = 750
+const BREATH_DAMAGE = 850
 
 // The ring expands faster than anyone can run, so escaping outward is not an
 // option and the answer has to be to already be inside it. That only works if
@@ -78,7 +78,7 @@ const SHOCKWAVE_TELEGRAPH = 1.8
 const SHOCKWAVE_START = 150
 const SHOCKWAVE_GROWTH = 190
 const SHOCKWAVE_BAND = 45
-const SHOCKWAVE_DAMAGE = 560
+const SHOCKWAVE_DAMAGE = 720
 
 const ADD_HP = 1200
 const ADD_DAMAGE = 70
@@ -287,7 +287,10 @@ function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
     name: 'Thrall',
+    classId: 'rogue',
     role: 'dps',
+    melee: true,
+    armour: 0,
     faction: 'boss',
     pos: { x, y },
     prevPos: { x, y },

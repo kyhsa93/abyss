@@ -1,7 +1,8 @@
 import { ARENA_RADIUS } from './constants'
-import type { Actor, AiProfile, Personality, Role, SimState } from './types'
+import { CLASSES, DEFAULT_PARTY, PARTY_SIZE, SLOTS, type ClassId, type Slot } from './classes'
+import type { Actor, AiProfile, Personality, SimState } from './types'
 
-const BOSS_MAX_HP = 30000
+const BOSS_MAX_HP = 40000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -44,33 +45,30 @@ function makeAi(personality: Personality, attempt: number): AiProfile {
   }
 }
 
-interface ActorSpec {
-  id: number
-  name: string
-  role: Role
-  hp: number
-  mana: number
-  x: number
-  y: number
-  speed: number
-  isPlayer: boolean
-  personality: Personality | null
-}
-
-function makeActor(spec: ActorSpec, attempt: number): Actor {
+function makeMember(
+  id: number,
+  classId: ClassId,
+  slot: Slot,
+  isPlayer: boolean,
+  attempt: number,
+): Actor {
+  const cls = CLASSES[classId]
   return {
-    id: spec.id,
-    name: spec.name,
-    role: spec.role,
+    id,
+    name: slot.name,
+    classId,
+    role: cls.role,
+    melee: cls.melee,
+    armour: cls.armour,
     faction: 'party',
-    pos: { x: spec.x, y: spec.y },
-    prevPos: { x: spec.x, y: spec.y },
+    pos: { x: slot.x, y: slot.y },
+    prevPos: { x: slot.x, y: slot.y },
     radius: 13,
-    moveSpeed: spec.speed,
-    hp: spec.hp,
-    maxHp: spec.hp,
-    mana: spec.mana,
-    maxMana: spec.mana,
+    moveSpeed: cls.moveSpeed,
+    hp: cls.hp,
+    maxHp: cls.hp,
+    mana: cls.mana,
+    maxMana: cls.mana,
     alive: true,
     gcd: 0,
     cooldowns: {},
@@ -79,8 +77,8 @@ function makeActor(spec: ActorSpec, attempt: number): Actor {
     castRemaining: 0,
     castTotal: 0,
     castTargetId: null,
-    isPlayer: spec.isPlayer,
-    ai: spec.personality ? makeAi(spec.personality, attempt) : null,
+    isPlayer,
+    ai: isPlayer ? null : makeAi(slot.personality, attempt),
     swingTimer: 0,
   }
 }
@@ -92,97 +90,26 @@ export const DPS_A_ID = 4
 export const DPS_B_ID = 5
 export const BOSS_ID = 100
 
-export function createState(seed: number, attempt: number): SimState {
-  const player = makeActor(
-    {
-      id: PLAYER_ID,
-      name: 'You',
-      role: 'dps',
-      hp: 3300,
-      mana: 0,
-      x: 60,
-      y: 120,
-      speed: 165,
-      isPlayer: true,
-      personality: null,
-    },
-    attempt,
-  )
-
-  const tank = makeActor(
-    {
-      id: TANK_ID,
-      name: 'Bastion',
-      role: 'tank',
-      hp: 5400,
-      mana: 0,
-      x: 0,
-      y: -55,
-      speed: 155,
-      isPlayer: false,
-      personality: 'steady',
-    },
-    attempt,
-  )
-
-  const healer = makeActor(
-    {
-      id: HEALER_ID,
-      name: 'Wren',
-      role: 'healer',
-      hp: 3000,
-      mana: 1000,
-      x: -60,
-      y: 130,
-      speed: 155,
-      isPlayer: false,
-      personality: 'timid',
-    },
-    attempt,
-  )
-
-  const kestrel = makeActor(
-    {
-      id: DPS_A_ID,
-      name: 'Kestrel',
-      role: 'dps',
-      hp: 3300,
-      mana: 0,
-      x: 95,
-      y: 100,
-      speed: 165,
-      isPlayer: false,
-      personality: 'greedy',
-    },
-    attempt,
-  )
-
-  const vale = makeActor(
-    {
-      id: DPS_B_ID,
-      name: 'Vale',
-      role: 'dps',
-      hp: 3300,
-      mana: 0,
-      x: -100,
-      y: 95,
-      speed: 165,
-      isPlayer: false,
-      personality: 'steady',
-    },
-    attempt,
-  )
+export function createState(
+  seed: number,
+  attempt: number,
+  party: ClassId[] = DEFAULT_PARTY,
+): SimState {
+  const members = party
+    .slice(0, PARTY_SIZE)
+    .map((classId, i) => makeMember(i + 1, classId, SLOTS[i]!, i === 0, attempt))
 
   const boss: Actor = {
     id: BOSS_ID,
     name: 'The Drowned Warden',
+    classId: 'warrior',
     role: 'tank',
+    melee: true,
+    armour: 0,
     faction: 'boss',
     pos: { x: 0, y: 0 },
     prevPos: { x: 0, y: 0 },
     radius: 38,
-    // Faster than anyone in the party (155-165). You cannot outrun it, only
-    // out-position it, which is what keeps threat and tanking meaningful.
     moveSpeed: 175,
     hp: BOSS_MAX_HP,
     maxHp: BOSS_MAX_HP,
@@ -201,12 +128,17 @@ export function createState(seed: number, attempt: number): SimState {
     swingTimer: 2,
   }
 
+  const threat: Record<number, number> = {}
+  for (const m of members) {
+    // The tank opens with a threat lead so the pull is not a coin flip.
+    threat[m.id] = m.role === 'tank' ? 400 : 0
+  }
+
   return {
     time: 0,
     tick: 0,
-    actors: [player, tank, healer, kestrel, vale, boss],
-    // The tank opens with a threat lead so the pull is not a coin flip.
-    threat: { [PLAYER_ID]: 0, [TANK_ID]: 400, [HEALER_ID]: 0, [DPS_A_ID]: 0, [DPS_B_ID]: 0 },
+    actors: [...members, boss],
+    threat,
     ground: [],
     projectiles: [],
     texts: [],
@@ -225,6 +157,7 @@ export function createState(seed: number, attempt: number): SimState {
     nextObjectId: 1,
     attempt,
     seed,
+    party: [...party],
   }
 }
 

@@ -1,6 +1,7 @@
 import { ABILITIES } from './abilities'
 import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH, SPREAD_RADIUS } from './constants'
 import { BREATH_CAST, insideCone } from './boss'
+import { CLASSES } from './classes'
 import {
   adds,
   beginCast,
@@ -13,7 +14,7 @@ import {
 } from './combat'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
-import type { Actor, SimState, Vec2 } from './types'
+import type { Actor, AuraId, SimState, Vec2 } from './types'
 
 /**
  * Party AI.
@@ -189,7 +190,7 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
   const b = boss(s)
   const d = dist(actor.pos, b.pos)
 
-  if (actor.role === 'tank') return d > MELEE_RANGE + b.radius * 0.6
+  if (actor.role === 'tank' || actor.melee) return d > MELEE_RANGE + b.radius * 0.6
 
   if (d > CASTER_MAX_RANGE || d < CASTER_MIN_RANGE) return true
 
@@ -211,7 +212,7 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
 function idlePosition(s: SimState, actor: Actor): Vec2 {
   const b = boss(s)
   const d = dist(actor.pos, b.pos) || 1
-  const want = actor.role === 'tank' ? MELEE_RANGE * 0.8 : CASTER_IDEAL_RANGE
+  const want = actor.role === 'tank' || actor.melee ? MELEE_RANGE * 0.8 : CASTER_IDEAL_RANGE
 
   const bearingX = (actor.pos.x - b.pos.x) / d
   const bearingY = (actor.pos.y - b.pos.y) / d
@@ -312,7 +313,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 3. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (actor.role === 'tank') {
+    if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.
       if (bossDist > 200) score -= (bossDist - 200) * 3
@@ -402,25 +403,27 @@ function tryCast(
 function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   const ai = actor.ai!
+  const kit = CLASSES[actor.classId].abilities
 
   // Defensive on the incoming slam. The fumble roll is what makes the tank
   // occasionally eat it, which is exactly what a real tank does.
-  if (b.castId === 'boss_slam' && b.castRemaining < 1.2) {
-    const ready = (actor.cooldowns['shield_wall'] ?? 0) <= 0
+  if (kit.defensive && b.castId === 'boss_slam' && b.castRemaining < 1.2) {
+    const ready = (actor.cooldowns[kit.defensive] ?? 0) <= 0
     if (ready && !rng.chance(ai.mistakeChance)) {
-      if (tryCast(s, actor, 'shield_wall', actor.id, rng, moving)) {
+      if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) {
         say(s, actor, 'Wall up')
         return
       }
     }
   }
 
-  if (tryCast(s, actor, 'shield_slam', b.id, rng, moving)) return
-  tryCast(s, actor, 'cleave', b.id, rng, moving)
+  if (kit.threat && tryCast(s, actor, kit.threat, b.id, rng, moving)) return
+  tryCast(s, actor, kit.filler, b.id, rng, moving)
 }
 
 function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const ai = actor.ai!
+  const kit = CLASSES[actor.classId].abilities
   const wounded = lowestHealth(s)
   if (!wounded) return
 
@@ -431,16 +434,19 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   const emergency = ai.personality === 'timid' ? 0.55 : ai.personality === 'greedy' ? 0.35 : 0.45
   const topOff = ai.personality === 'timid' ? 0.95 : 0.82
 
-  if (ratio < emergency && (actor.cooldowns['flash'] ?? 0) <= 0) {
-    if (tryCast(s, actor, 'flash', wounded.id, rng, moving)) {
+  if (kit.finisher && ratio < emergency && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
+    if (tryCast(s, actor, kit.finisher, wounded.id, rng, moving)) {
       say(s, actor, `${wounded.name} is low!`)
       return
     }
   }
 
-  const tank = livingParty(s).find((a) => a.role === 'tank')
-  if (tank && !getAura(tank, 'renew') && tank.hp / tank.maxHp < 0.95 && manaRatio > 0.2) {
-    if (tryCast(s, actor, 'renew', tank.id, rng, moving)) return
+  if (kit.overTime) {
+    const tank = livingParty(s).find((a) => a.role === 'tank')
+    const on = tank ?? wounded
+    if (!getAura(on, kit.overTime as AuraId) && on.hp / on.maxHp < 0.95 && manaRatio > 0.2) {
+      if (tryCast(s, actor, kit.overTime, on.id, rng, moving)) return
+    }
   }
 
   if (ratio < topOff) {
@@ -448,40 +454,55 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
       say(s, actor, 'Low mana')
       return
     }
-    tryCast(s, actor, 'heal', wounded.id, rng, moving)
+    tryCast(s, actor, kit.filler, wounded.id, rng, moving)
+    return
+  }
+
+  // Nobody needs healing: help kill it, but keep enough mana in reserve to
+  // answer the next spike.
+  if (kit.attack && manaRatio > 0.55) {
+    const summoned = adds(s)
+    const target = summoned.length > 0 ? summoned[0]! : boss(s)
+    tryCast(s, actor, kit.attack, target.id, rng, moving)
   }
 }
 
 function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   if (!b.alive) return
+  const kit = CLASSES[actor.classId].abilities
 
   // Adds first: they beeline for whoever is closest and shred a healer.
   const summoned = adds(s)
+  let target = b
   if (summoned.length > 0) {
     let focus = summoned[0]!
     for (const a of summoned) if (a.hp < focus.hp) focus = a
-    if (tryCast(s, actor, 'strike', focus.id, rng, moving)) return
+    target = focus
   }
 
-  // Keep the dot up, but only refresh near the end so three dealers do not all
-  // spend a global on the same debuff.
-  const ignite = getAura(b, 'ignite')
-  if (!ignite || ignite.remaining < 3) {
-    if (tryCast(s, actor, 'ignite', b.id, rng, moving)) return
+  // Keep the dot up, but only refresh near the end so several dealers do not
+  // all spend a global on the same debuff.
+  if (kit.overTime) {
+    const dot = getAura(target, kit.overTime as AuraId)
+    if (!dot || dot.remaining < 3) {
+      if (tryCast(s, actor, kit.overTime, target.id, rng, moving)) return
+    }
   }
 
   // A long cast roots you. Steady dealers refuse it with a telegraph nearby;
   // greedy ones gamble roughly half the time, which is where their deaths
   // come from — and why they read as a specific kind of player.
-  const ai = actor.ai!
-  const dangerNear = s.ground.some(
-    (g) => !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
-  )
-  const willingToStand = !dangerNear || (ai.personality === 'greedy' && rng.chance(0.5))
-  if (willingToStand && tryCast(s, actor, 'burst', b.id, rng, moving)) return
+  if (kit.finisher) {
+    const ai = actor.ai!
+    const dangerNear = s.ground.some(
+      (g) => g.kind === 'puddle' && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
+    )
+    const willingToStand = !dangerNear || (ai.personality === 'greedy' && rng.chance(0.5))
+    if (willingToStand && tryCast(s, actor, kit.finisher, target.id, rng, moving)) return
+  }
 
-  tryCast(s, actor, 'strike', b.id, rng, moving)
+  tryCast(s, actor, kit.filler, target.id, rng, moving)
 }
 
 function lowestHealth(s: SimState): Actor | null {
