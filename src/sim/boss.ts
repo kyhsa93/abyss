@@ -17,7 +17,7 @@ import {
   topThreatTarget,
 } from './combat'
 import type { Rng } from './rng'
-import { clampToArena } from './state'
+import { BOSS_ID, clampToArena } from './state'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -125,6 +125,7 @@ function advancePhase(s: SimState, b: Actor): void {
 
   if (s.phase === 1 && ratio <= PHASE_TWO_HP) {
     s.phase = 2
+    s.sounds.push('phase')
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'The tide rises!', age: 0 })
     s.nextPuddle = Math.min(s.nextPuddle, 3)
     s.nextSlam = Math.min(s.nextSlam, 5)
@@ -135,6 +136,7 @@ function advancePhase(s: SimState, b: Actor): void {
 
   if (s.phase === 2 && ratio <= PHASE_THREE_HP) {
     s.phase = 3
+    s.sounds.push('phase')
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'DROWN WITH ME', age: 0 })
     s.nextBreath = Math.min(s.nextBreath, 4)
     s.nextShockwave = Math.min(s.nextShockwave, 7)
@@ -157,7 +159,7 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
   if (b.swingTimer > 0 || !target || b.castId) return
 
   if (dist(b.pos, target.pos) <= MELEE_RANGE + target.radius) {
-    applyDamage(s, target, SWING_DAMAGE, 'physical')
+    applyDamage(s, target, SWING_DAMAGE, 'physical', { sourceId: b.id })
     b.swingTimer = timing.swing
   } else {
     b.swingTimer = 0.2
@@ -180,6 +182,7 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
   s.nextBreath -= DT
   if (s.nextBreath > 0 || b.castId) return
 
+  s.sounds.push('telegraph')
   b.castId = 'boss_breath'
   b.castRemaining = BREATH_CAST
   b.castTotal = BREATH_CAST
@@ -206,6 +209,7 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (s.nextShockwave > 0) return
 
   s.nextShockwave = timing.shockwave
+  s.sounds.push('shockwave')
   say(s, b, 'The deep exhales')
   s.ground.push({
     ...blankGround(s),
@@ -230,6 +234,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
     const victim = rng.pick(victims)
     const pos = { x: victim.pos.x + rng.range(-20, 20), y: victim.pos.y + rng.range(-20, 20) }
     clampToArena(pos, PUDDLE_RADIUS * 0.5)
+    s.sounds.push('telegraph')
     s.ground.push({
       ...blankGround(s),
       kind: 'puddle',
@@ -247,7 +252,9 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
   s.nextRaidHit -= DT
   if (s.nextRaidHit > 0) return
 
-  for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, 'magic')
+  // Unavoidable, so it is not counted as a mechanic anyone failed.
+  s.sounds.push('raid')
+  for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, 'magic', { sourceId: BOSS_ID })
   s.nextRaidHit = timing.raid
   // Unavoidable damage with no tell reads as a broken hitbox: the player
   // dodges, loses health anyway, and blames the puddle they just left.
@@ -337,7 +344,7 @@ function updateAdds(s: SimState): void {
 
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
-      applyDamage(s, nearest, ADD_DAMAGE, 'physical')
+      applyDamage(s, nearest, ADD_DAMAGE, 'physical', { sourceId: add.id })
       add.swingTimer = ADD_SWING
     }
   }
@@ -371,7 +378,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
   if (castId === 'boss_slam') {
     const target = s.actors.find((a) => a.id === targetId)
     if (target && target.alive && dist(b.pos, target.pos) <= MELEE_RANGE + target.radius + 20) {
-      applyDamage(s, target, SLAM_DAMAGE, 'physical')
+      applyDamage(s, target, SLAM_DAMAGE, 'physical', { sourceId: b.id })
     }
     return
   }
@@ -382,7 +389,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     cone.detonated = true
     cone.lingering = 0.3
     for (const a of livingParty(s)) {
-      if (insideCone(a.pos, cone)) applyDamage(s, a, cone.damage, 'magic')
+      if (insideCone(a.pos, cone)) applyDamage(s, a, cone.damage, 'magic', { sourceId: b.id, mechanic: true })
     }
   }
 }
@@ -416,7 +423,7 @@ export function updateGround(s: SimState): void {
         // ahead of it: run toward the boss, not away.
         if (d >= g.radius - g.band && d <= g.radius + g.band) {
           g.caught.push(a.id)
-          applyDamage(s, a, g.damage, 'magic')
+          applyDamage(s, a, g.damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
         }
       }
       if (g.radius > ARENA_RADIUS + g.band) g.lingering = 0
@@ -436,7 +443,7 @@ export function updateGround(s: SimState): void {
         g.detonated = true
         for (const a of livingParty(s)) {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-            applyDamage(s, a, g.damage, 'magic')
+            applyDamage(s, a, g.damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
           }
         }
       }
@@ -446,7 +453,8 @@ export function updateGround(s: SimState): void {
     g.lingering -= DT
     for (const a of livingParty(s)) {
       if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-        applyDamage(s, a, 110 * DT, 'magic', true)
+        // Per-tick residue: silent, and not a separate "mechanic hit" each frame.
+        applyDamage(s, a, 110 * DT, 'magic', { sourceId: BOSS_ID, silent: true })
       }
     }
   }

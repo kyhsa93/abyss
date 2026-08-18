@@ -120,12 +120,23 @@ export function topThreatTarget(s: SimState): Actor | null {
  */
 export type School = 'physical' | 'magic' | 'none'
 
+export interface DamageOptions {
+  /** Who to credit. Party damage without this is invisible in the report. */
+  sourceId?: number
+  silent?: boolean
+  /**
+   * An avoidable mechanic. Counted per hit rather than per point, because
+   * "ate three puddles" is the thing worth knowing, not the total.
+   */
+  mechanic?: boolean
+}
+
 export function applyDamage(
   s: SimState,
   target: Actor,
   amount: number,
   school: School,
-  silent = false,
+  opts: DamageOptions = {},
 ): void {
   if (!target.alive) return
 
@@ -145,14 +156,34 @@ export function applyDamage(
   final = Math.round(final)
   target.hp = Math.max(0, target.hp - final)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
-  if (!silent) pushText(s, target.pos, `-${final}`, 'damage')
+  if (!opts.silent) pushText(s, target.pos, `-${final}`, 'damage')
+
+  record(s, target, final, opts)
+  // Only the player's own hits are audible; everyone's would be a wall of noise.
+  if (target.isPlayer && final > 0 && !opts.silent) s.sounds.push('hit')
 
   if (target.hp <= 0) {
     target.alive = false
     target.castId = null
     target.auras.length = 0
     pushText(s, target.pos, 'DOWN', 'crit')
+    if (target.faction === 'party') s.sounds.push('death')
+    const tally = s.tally[target.id]
+    if (tally && tally.deathAt === null) tally.deathAt = s.time
   }
+}
+
+function record(s: SimState, target: Actor, final: number, opts: DamageOptions): void {
+  if (target.faction === 'boss') {
+    const credit = opts.sourceId === undefined ? undefined : s.tally[opts.sourceId]
+    if (credit) credit.damage += final
+    return
+  }
+
+  const taken = s.tally[target.id]
+  if (!taken) return
+  taken.damageTaken += final
+  if (opts.mechanic) taken.mechanicHits++
 }
 
 export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: number): void {
@@ -160,7 +191,17 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   const before = target.hp
   target.hp = Math.min(target.maxHp, target.hp + amount)
   const healed = Math.round(target.hp - before)
+
+  const credit = s.tally[sourceId]
+  if (credit) {
+    credit.healing += healed
+    // Casting a big heal on someone barely hurt is the healer equivalent of
+    // standing in fire, so it is tracked separately rather than hidden.
+    credit.overhealing += Math.max(0, Math.round(amount) - healed)
+  }
+
   if (healed > 0) {
+    if (target.isPlayer) s.sounds.push('heal')
     pushText(s, target.pos, `+${healed}`, 'heal')
     // Healing generates threat too, which is why a healer can pull the boss.
     addThreat(s, sourceId, healed * 0.5)
@@ -171,7 +212,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
-      applyDamage(s, a, 760, 'magic')
+      applyDamage(s, a, 760, 'magic', { sourceId: BOSS_ID, mechanic: true })
     }
   }
 }
@@ -227,6 +268,8 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
   if (!ability.offGcd) actor.gcd = GLOBAL_COOLDOWN
   actor.cooldowns[ability.id] = ability.cooldown
 
+  if (actor.isPlayer) s.sounds.push('cast')
+
   if (ability.castTime <= 0) {
     resolveAbility(s, actor, ability, targetId, rng)
     return true
@@ -264,7 +307,7 @@ export function resolveAbility(
   switch (ability.kind) {
     case 'damage': {
       if (!target || !target.alive) return
-      applyDamage(s, target, ability.amount, 'none')
+      applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id })
       if (target.id === BOSS_ID) addThreat(s, actor.id, ability.amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
       break

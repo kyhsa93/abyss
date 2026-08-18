@@ -1,7 +1,9 @@
 import { Input } from './input'
 import { drawWorld } from './render/draw'
-import { drawHud, outcomeButtons, partyButton } from './render/hud'
+import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
+import { Hints } from './render/hints'
 import { drawRoster, hitRoster } from './render/roster'
+import { Sfx } from './sfx'
 import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
@@ -35,6 +37,13 @@ function fitCanvas(): void {
 fitCanvas()
 
 const input = new Input(window, canvas)
+const sfx = new Sfx()
+const hints = new Hints()
+
+// Audio cannot start without a gesture, so the first one unlocks it.
+for (const event of ['pointerdown', 'keydown'] as const) {
+  window.addEventListener(event, () => sfx.unlock(), { once: true })
+}
 
 function onViewportChange(): void {
   fitCanvas()
@@ -152,6 +161,12 @@ function frame(now: number): void {
 
   input.setMenuMode(false)
 
+  if (input.takeMuteRequest() || (tap && inside(soundButton(), tap.x, tap.y))) {
+    sfx.toggleMute()
+    requestAnimationFrame(frame)
+    return
+  }
+
   // Leaving mid-fight is always available: escape, or the corner button.
   if (input.takeMenuRequest() || (tap && inside(partyButton(), tap.x, tap.y))) {
     screen = 'roster'
@@ -174,20 +189,29 @@ function frame(now: number): void {
   let ticks = 0
   while (accumulator >= DT && ticks < 6) {
     step(state, input.consume(), rng)
+    sfx.playAll(state.sounds)
     accumulator -= DT
     ticks++
   }
+
+  hints.observe(state, elapsed)
 
   const alpha = Math.min(1, accumulator / DT)
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
   drawWorld(ctx, state, alpha, clock)
-  drawHud(ctx, state, {
-    active: input.isTouchMode(),
-    joystick: input.joystick(),
-    heldSlots: input.heldSlots(),
-  })
+  drawHud(
+    ctx,
+    state,
+    {
+      active: input.isTouchMode(),
+      joystick: input.joystick(),
+      heldSlots: input.heldSlots(),
+    },
+    sfx.isMuted(),
+  )
+  hints.draw(ctx)
 
   requestAnimationFrame(frame)
 }

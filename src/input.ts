@@ -20,6 +20,7 @@ export class Input {
   private queued: number[] = []
   private restartRequested = false
   private menuRequested = false
+  private muteRequested = false
   // Detected up front, not on first touch: otherwise a phone shows no controls
   // at all until the player happens to poke the screen.
   private touchMode = hasTouch()
@@ -52,6 +53,7 @@ export class Input {
       if (slot !== undefined) this.queued.push(slot)
       if (key === 'r') this.restartRequested = true
       if (key === 'escape' || key === 'p') this.menuRequested = true
+      if (key === 'm') this.muteRequested = true
     })
 
     target.addEventListener('keyup', (e) => this.held.delete(e.key.toLowerCase()))
@@ -205,6 +207,12 @@ export class Input {
 
   heldSlots(): ReadonlySet<number> {
     return this.pressedSlots
+  }
+
+  takeMuteRequest(): boolean {
+    const value = this.muteRequested
+    this.muteRequested = false
+    return value
   }
 
   /** Escape or P: back to party selection. */

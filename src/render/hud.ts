@@ -1,6 +1,6 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
-import { abilityBar } from '../sim/classes'
+import { CLASSES, abilityBar } from '../sim/classes'
 import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
@@ -14,12 +14,24 @@ export interface Rect {
 }
 
 /** Small always-visible control that returns to party selection. */
+/**
+ * Party and mute sit side by side under the fight readout.
+ *
+ * Not stacked: on a landscape phone the column below the readout runs
+ * straight into the top ability button. Not in a corner either — both bottom
+ * corners belong to the stick and the buttons on touch.
+ */
 export function partyButton(): Rect {
-  const w = Math.max(58, Math.min(84, L.w * 0.14))
+  const pair = Math.max(120, Math.min(170, L.w * 0.26))
+  const w = (pair - 6) / 2
   const h = Math.max(22, Math.min(30, L.h * 0.04))
-  // Under the fight readout on the right. The bottom corners belong to the
-  // stick and the ability buttons on touch.
   return { x: L.w - w - 8, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
+}
+
+/** Mute toggle, immediately left of the party button. */
+export function soundButton(): Rect {
+  const p = partyButton()
+  return { x: p.x - p.w - 6, y: p.y, w: p.w, h: p.h }
 }
 
 /** Buttons on the end-of-fight overlay; shared with the hit test in main. */
@@ -27,7 +39,7 @@ export function outcomeButtons(): { retry: Rect; party: Rect } {
   const w = Math.min(180, L.w * 0.38)
   const h = Math.max(40, Math.min(54, L.h * 0.07))
   const gap = 12
-  const y = L.h / 2 + 42
+  const y = L.h - h - Math.max(26, L.h * 0.055)
   return {
     retry: { x: L.w / 2 - w - gap / 2, y, w, h },
     party: { x: L.w / 2 + gap / 2, y, w, h },
@@ -117,7 +129,12 @@ function bar(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 }
 
-export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
+export function drawHud(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  touch: TouchView,
+  muted: boolean,
+): void {
   drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
@@ -127,6 +144,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   drawCastBar(ctx, s, touch.active)
   drawChat(ctx, s)
   drawPartyButton(ctx)
+  drawSoundButton(ctx, muted)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }
 
@@ -452,6 +470,19 @@ function drawPartyButton(ctx: CanvasRenderingContext2D): void {
   ctx.fillText('party', r.x + r.w / 2, r.y + r.h * 0.68)
 }
 
+function drawSoundButton(ctx: CanvasRenderingContext2D, muted: boolean): void {
+  const r = soundButton()
+  ctx.fillStyle = 'rgba(15, 17, 26, 0.7)'
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+  ctx.fillStyle = muted ? COLORS.textDim : COLORS.text
+  ctx.font = font(10)
+  ctx.textAlign = 'center'
+  ctx.fillText(muted ? 'muted' : 'sound', r.x + r.w / 2, r.y + r.h * 0.68)
+}
+
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
   let y = L.chatY
   ctx.textAlign = 'left'
@@ -468,29 +499,128 @@ function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 }
 
+function compact(value: number): string {
+  if (value >= 10000) return `${(value / 1000).toFixed(0)}k`
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`
+  return value.toFixed(0)
+}
+
+/**
+ * After-action report.
+ *
+ * A pull that ends with only "wipe" on screen tells you nothing about why.
+ * The numbers the genre actually argues over are damage, healing, and how
+ * many avoidable mechanics each player ate — so those are the columns.
+ */
+function drawReport(ctx: CanvasRenderingContext2D, s: SimState, top: number, bottom: number): void {
+  const members = s.actors.filter((a) => a.faction === 'party')
+  const seconds = Math.max(1, s.time)
+
+  const rows = members
+    .map((m) => {
+      const t = s.tally[m.id]
+      return {
+        actor: m,
+        dps: (t?.damage ?? 0) / seconds,
+        hps: (t?.healing ?? 0) / seconds,
+        overheal: t?.overhealing ?? 0,
+        healing: t?.healing ?? 0,
+        taken: t?.damageTaken ?? 0,
+        mechanics: t?.mechanicHits ?? 0,
+        deathAt: t?.deathAt ?? null,
+      }
+    })
+    // Whoever contributed most goes on top, damage or healing.
+    .sort((a, b) => b.dps + b.hps - (a.dps + a.hps))
+
+  const peak = Math.max(1, ...rows.map((r) => r.dps + r.hps))
+  const available = bottom - top
+  const rowH = Math.min(30 * L.ui, available / rows.length)
+  const width = Math.min(L.w - 40, 560)
+  const x = (L.w - width) / 2
+
+  ctx.textAlign = 'left'
+  ctx.font = font(9)
+  ctx.fillStyle = COLORS.textDim
+  ctx.fillText('damage / healing per second', x, top - 6)
+  ctx.textAlign = 'right'
+  ctx.fillText('taken      mechanics', x + width, top - 6)
+
+  rows.forEach((row, i) => {
+    const y = top + i * rowH
+    const h = rowH - 4
+    const cls = CLASSES[row.actor.classId]
+    const colour = roleColor(cls.role, row.actor.isPlayer)
+
+    // Contribution bar behind the text, healing shown lighter than damage.
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'
+    ctx.fillRect(x, y, width, h)
+    ctx.fillStyle = colour
+    ctx.globalAlpha = 0.22
+    ctx.fillRect(x, y, (row.dps / peak) * width, h)
+    ctx.globalAlpha = 0.12
+    ctx.fillRect(x + (row.dps / peak) * width, y, (row.hps / peak) * width, h)
+    ctx.globalAlpha = 1
+
+    ctx.textAlign = 'left'
+    ctx.fillStyle = row.actor.isPlayer ? COLORS.player : COLORS.text
+    ctx.font = font(11, row.actor.isPlayer)
+    ctx.fillText(`${row.actor.name}`, x + 6, y + h * 0.68)
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(9)
+    ctx.fillText(cls.name, x + 76 * L.ui, y + h * 0.68)
+
+    if (row.deathAt !== null) {
+      ctx.fillStyle = COLORS.hpBarLow
+      ctx.fillText(`died ${row.deathAt.toFixed(0)}s`, x + 130 * L.ui, y + h * 0.68)
+    }
+
+    ctx.textAlign = 'right'
+    ctx.fillStyle = COLORS.text
+    ctx.font = font(11, true)
+    const contribution =
+      row.hps > row.dps
+        ? `${compact(row.hps)} hps`
+        : `${compact(row.dps)} dps`
+    ctx.fillText(contribution, x + width - 150 * L.ui, y + h * 0.68)
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(10)
+    ctx.fillText(compact(row.taken), x + width - 78 * L.ui, y + h * 0.68)
+
+    // The column people argue about.
+    ctx.fillStyle = row.mechanics > 0 ? COLORS.hpBarLow : COLORS.textDim
+    ctx.font = font(11, row.mechanics > 2)
+    ctx.fillText(String(row.mechanics), x + width - 8, y + h * 0.68)
+  })
+}
+
 function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
-  ctx.fillStyle = 'rgba(5, 5, 10, 0.72)'
+  ctx.fillStyle = 'rgba(5, 5, 10, 0.86)'
   ctx.fillRect(0, 0, L.w, L.h)
 
   const label =
     s.outcome === 'victory' ? 'KILL' : s.outcome === 'enrage' ? 'ENRAGE WIPE' : 'WIPE'
-  const color = s.outcome === 'victory' ? COLORS.hpBar : COLORS.hpBarLow
+  const colour = s.outcome === 'victory' ? COLORS.hpBar : COLORS.hpBarLow
+  const buttons = outcomeButtons()
 
   ctx.textAlign = 'center'
-  ctx.fillStyle = color
-  ctx.font = font(42, true)
-  ctx.fillText(label, L.w / 2, L.h / 2 - 10)
+  ctx.fillStyle = colour
+  ctx.font = font(30, true)
+  ctx.fillText(label, L.w / 2, Math.max(40, L.h * 0.11))
 
   ctx.fillStyle = COLORS.text
-  ctx.font = font(13)
+  ctx.font = font(12)
   ctx.fillText(
-    `${s.time.toFixed(1)}s  ·  boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%`,
+    `${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
     L.w / 2,
-    L.h / 2 + 22,
+    Math.max(62, L.h * 0.16),
   )
 
-  const buttons = outcomeButtons()
-  for (const [label, rect, accent] of [
+  drawReport(ctx, s, Math.max(96, L.h * 0.26), buttons.retry.y - 24)
+
+  for (const [text, rect, accent] of [
     [touch ? 'PULL AGAIN' : 'PULL AGAIN  (R)', buttons.retry, COLORS.castBar],
     ['CHANGE PARTY', buttons.party, COLORS.textDim],
   ] as const) {
@@ -502,12 +632,16 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
     ctx.fillStyle = accent
     ctx.font = font(12, true)
     ctx.textAlign = 'center'
-    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h * 0.62)
+    ctx.fillText(text, rect.x + rect.w / 2, rect.y + rect.h * 0.62)
   }
 
   if (s.outcome !== 'victory') {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(11)
-    ctx.fillText('the party learns a little each attempt', L.w / 2, buttons.retry.y + buttons.retry.h + 22)
+    ctx.fillText(
+      'the party learns a little each attempt',
+      L.w / 2,
+      buttons.retry.y + buttons.retry.h + 20,
+    )
   }
 }

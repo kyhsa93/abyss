@@ -4,7 +4,7 @@ import { step } from '../src/sim/sim'
 import { ENRAGE_AT } from '../src/sim/constants'
 import { drawWorld } from '../src/render/draw'
 import { drawHud } from '../src/render/hud'
-import { partyButton } from '../src/render/hud'
+import { partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import type { ClassId } from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
@@ -58,13 +58,13 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
     drawWorld(ctx, s, 0.5, s.time)
     // Alternate modes so both the desktop bar and the touch overlay are drawn.
-    drawHud(ctx, s, touchView(s.tick % 2 === 0))
+    drawHud(ctx, s, touchView(s.tick % 2 === 0), s.tick % 3 === 0)
     frames++
   }
   // Also render the terminal state, which draws the outcome overlay.
   drawWorld(ctx, s, 1, s.time)
-  drawHud(ctx, s, touchView(true))
-  drawHud(ctx, s, touchView(false))
+  drawHud(ctx, s, touchView(true), true)
+  drawHud(ctx, s, touchView(false), false)
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
 }
 console.log(`rendered ${frames} frames with no exceptions`)
@@ -135,11 +135,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const player = s.actors.find((a) => a.isPlayer)!
 
   const idle: Circle[] = []
-  drawHud(recordingCtx(idle), s, touchView(true))
+  drawHud(recordingCtx(idle), s, touchView(true), false)
 
   player.gcd = 1.2
   const locked: Circle[] = []
-  drawHud(recordingCtx(locked), s, touchView(true))
+  drawHud(recordingCtx(locked), s, touchView(true), false)
 
   // Each button draws its ring; a sweep adds one arc on top of that.
   const extra = locked.length - idle.length
@@ -154,19 +154,22 @@ console.log(`rendered ${frames} frames with no exceptions`)
 {
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
     updateLayout(w, h)
-    const party = partyButton()
-    const overlaps = L.btnYs.some(
-      (y) =>
-        Math.abs(party.x + party.w / 2 - L.btnX) < party.w / 2 + L.btnR &&
-        Math.abs(party.y + party.h / 2 - y) < party.h / 2 + L.btnR,
-    )
-    const onScreen =
-      party.x >= 0 && party.y >= 0 && party.x + party.w <= w && party.y + party.h <= h
-    console.log(
-      !overlaps && onScreen ? 'ok  ' : 'FAIL',
-      `  ${w}x${h}: party button clear of the ability buttons`,
-    )
-    if (overlaps || !onScreen) throw new Error(`party button collides at ${w}x${h}`)
+    for (const [name, rect] of [
+      ['party', partyButton()],
+      ['sound', soundButton()],
+    ] as const) {
+      const overlaps = L.btnYs.some(
+        (y) =>
+          Math.abs(rect.x + rect.w / 2 - L.btnX) < rect.w / 2 + L.btnR &&
+          Math.abs(rect.y + rect.h / 2 - y) < rect.h / 2 + L.btnR,
+      )
+      // Also clear of the fight readout, which sits directly above.
+      const belowReadout = rect.y > L.infoY + 15 * L.ui * 3
+      const onScreen = rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= w && rect.y + rect.h <= h
+      const ok = !overlaps && onScreen && belowReadout
+      console.log(ok ? 'ok  ' : 'FAIL', `  ${w}x${h}: ${name} button placed clear`)
+      if (!ok) throw new Error(`${name} button collides at ${w}x${h}`)
+    }
   }
 }
 
@@ -239,7 +242,7 @@ for (const [label, w, h] of [
   const s = createState(0x51ed, 0)
 
   const circles: Circle[] = []
-  drawHud(recordingCtx(circles), s, touchView(true))
+  drawHud(recordingCtx(circles), s, touchView(true), false)
 
   const onScreen = (c: Circle) => c.x >= 0 && c.x <= w && c.y >= 0 && c.y <= h
 
@@ -252,7 +255,7 @@ for (const [label, w, h] of [
 
   // The desktop bar must not draw those circles when touch is inactive.
   const desktop: Circle[] = []
-  drawHud(recordingCtx(desktop), s, touchView(false))
+  drawHud(recordingCtx(desktop), s, touchView(false), false)
   const strays = desktop.filter((c) => Math.abs(c.r - L.btnR) < 1)
   expect(`${label}: no touch buttons in keyboard mode`, strays.length === 0, `${strays.length}`)
 }

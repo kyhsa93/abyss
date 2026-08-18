@@ -30,6 +30,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 
   s.tick++
   s.time += DT
+  s.sounds.length = 0
 
   for (const a of s.actors) {
     a.prevPos.x = a.pos.x
@@ -84,7 +85,7 @@ function updateTimers(s: SimState, a: Actor): void {
       const tick = AURA_TICK[aura.id]
       if (!tick) continue
       if (tick.damage !== undefined) {
-        applyDamage(s, a, tick.damage, 'none', true)
+        applyDamage(s, a, tick.damage, 'none', { sourceId: aura.sourceId, silent: true })
         if (a.faction === 'boss') addThreat(s, aura.sourceId, tick.damage)
       }
       if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
@@ -200,9 +201,11 @@ function resolveOutcome(s: SimState): void {
   const b = boss(s)
   if (!b.alive || b.hp <= 0) {
     s.outcome = 'victory'
+    s.sounds.push('victory')
     return
   }
   if (livingParty(s).length === 0) {
     s.outcome = b.auras.some((a) => a.id === 'enrage') ? 'enrage' : 'wipe'
+    s.sounds.push('wipe')
   }
 }

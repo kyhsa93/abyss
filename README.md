@@ -72,6 +72,35 @@ repeating it.
 | Hunter | damage | mail | 27% | 3600 | Entirely instant; never stops damaging |
 | Rogue | damage | leather | 20% | 3400 | Highest sustained damage, from melee |
 
+## After the pull
+
+Ending a fight with only "wipe" on screen says nothing about why. Every pull
+now closes with a report: damage and healing per second as a bar, damage
+taken, and the column the genre actually argues over — how many avoidable
+mechanics each player ate. Overhealing is tracked too, since a big heal on
+someone barely hurt is the healer's version of standing in fire.
+
+## Sound
+
+Synthesised, not sampled: oscillators, an envelope and one deterministic
+noise buffer, for the same reason everything else is drawn from shapes.
+
+In a raid, sound is information. A puddle landing behind you is audible before
+it is visible, and the warning tone is deliberately unlike the dull thud of
+unavoidable party damage, so you can tell "move" from "that one was not your
+fault" without looking. Every effect is throttled so a burst cannot stack into
+a drone, and the whole thing is off one keypress (`M`) or a button.
+
+The simulation emits sound events into its own state and the renderer drains
+them each frame, rather than audio diffing state to guess what happened.
+
+## Learning the fight
+
+Each mechanic introduces itself the first time it appears — name, and the one
+thing to do about it — then never again. The encounter is meant to be learned
+by repetition, but a mechanic you have never seen named is just an
+unexplained death.
+
 ## The action bar
 
 The global cooldown is drawn, not just enforced. Pressing anything sweeps

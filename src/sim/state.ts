@@ -1,6 +1,6 @@
 import { ARENA_RADIUS } from './constants'
 import { CLASSES, DEFAULT_PARTY, PARTY_SIZE, SLOTS, type ClassId, type Slot } from './classes'
-import type { Actor, AiProfile, Personality, SimState } from './types'
+import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
 
 const BOSS_MAX_HP = 40000
 
@@ -131,9 +131,18 @@ export function createState(
   }
 
   const threat: Record<number, number> = {}
+  const tally: Record<number, Tally> = {}
   for (const m of members) {
     // The tank opens with a threat lead so the pull is not a coin flip.
     threat[m.id] = m.role === 'tank' ? 400 : 0
+    tally[m.id] = {
+      damage: 0,
+      healing: 0,
+      overhealing: 0,
+      damageTaken: 0,
+      mechanicHits: 0,
+      deathAt: null,
+    }
   }
 
   return {
@@ -160,6 +169,8 @@ export function createState(
     attempt,
     seed,
     party: [...party],
+    tally,
+    sounds: [],
   }
 }
 

@@ -164,6 +164,40 @@ export interface ChatLine {
   age: number
 }
 
+/**
+ * Per-actor totals for the after-action report.
+ *
+ * The simulation already knows all of this; without collecting it the player
+ * finishes a pull knowing only whether it died, not whether they were the
+ * reason.
+ */
+export interface Tally {
+  damage: number
+  healing: number
+  /** Healing past full, which is the difference between busy and useful. */
+  overhealing: number
+  damageTaken: number
+  /** Avoidable mechanics eaten: the number a raider actually argues about. */
+  mechanicHits: number
+  deathAt: number | null
+}
+
+/**
+ * Things worth hearing. Emitted by the simulation and drained by the renderer
+ * each frame, so audio never has to guess at state changes by diffing.
+ */
+export type SoundEvent =
+  | 'telegraph'
+  | 'shockwave'
+  | 'raid'
+  | 'hit'
+  | 'heal'
+  | 'cast'
+  | 'death'
+  | 'phase'
+  | 'victory'
+  | 'wipe'
+
 export type Outcome = 'ongoing' | 'victory' | 'wipe' | 'enrage'
 
 export interface PlayerInput {
@@ -204,4 +238,8 @@ export interface SimState {
   seed: number
   /** Class of each party slot, in order. */
   party: ClassId[]
+  /** Keyed by actor id. */
+  tally: Record<number, Tally>
+  /** Cleared at the top of every tick; purely an output channel. */
+  sounds: SoundEvent[]
 }
