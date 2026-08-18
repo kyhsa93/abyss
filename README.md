@@ -90,6 +90,15 @@ Only the tide cannot be dodged, and that is deliberate: a party that dodges
 well takes almost nothing else, so without a floor of damage the healer is
 never tested and the only failure mode left is the enrage timer.
 
+Because it cannot be dodged it has to be legible, or losing health right after
+stepping out of a puddle reads as a broken hitbox. It gets a countdown above
+the arena, a pulse when it is about to land, and a screen flash when it does.
+Residual puddle damage is silent by design, so anyone standing in fire is
+ringed in red instead.
+
+The puddle hit test allows a little grace at the rim — your token has to be
+meaningfully inside, not merely overlapping the edge.
+
 Your `Burst` has a two-second cast and movement cancels it, so the real
 decision is when you can afford to stand still.
 
@@ -112,8 +121,8 @@ Each member column is `time in a detonated puddle / units walked per second`:
 
 | Attempt | Win rate | Bastion | Wren | Kestrel | Vale |
 | --- | --- | --- | --- | --- | --- |
-| 1st pull | 33% | 0.06% / 10 | 0.15% / 14 | 0.25% / 11 | 0.09% / 12 |
-| 5th pull | 47% | 0.09% / 12 | 0.07% / 15 | 0.22% / 12 | 0.20% / 15 |
+| 1st pull | 37% | 0.06% / 10 | 0.15% / 14 | 0.25% / 11 | 0.14% / 12 |
+| 5th pull | 47% | 0.09% / 11 | 0.08% / 15 | 0.25% / 13 | 0.19% / 15 |
 | 9th pull | 60% | 0.02% / 10 | 0.05% / 14 | 0.07% / 13 | 0.07% / 14 |
 
 Two things are being watched here, and neither shows up in the win rate.

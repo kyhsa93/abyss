@@ -37,6 +37,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
+  drawTideWarning(ctx, s)
   if (touch.active) drawTouchControls(ctx, s, touch)
   else drawActionBar(ctx, s)
   drawCastBar(ctx, s, touch.active)
@@ -78,6 +79,31 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.font = font(10, true)
     ctx.textAlign = 'center'
     ctx.fillText('ABYSSAL SLAM', x + w / 2, y + 30 * L.ui)
+  }
+}
+
+/**
+ * Countdown to the next party-wide hit.
+ *
+ * It cannot be dodged, so the only fair thing is to make it legible: an
+ * unexplained chunk of missing health reads as the last puddle having a broken
+ * hitbox.
+ */
+function drawTideWarning(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const t = s.nextRaidHit
+  const imminent = t < 1.4
+  const y = L.cy - L.arenaR - 8
+
+  ctx.textAlign = 'center'
+  if (imminent) {
+    const pulse = 0.6 + 0.4 * Math.sin(s.time * 14)
+    ctx.fillStyle = `rgba(248, 113, 113, ${pulse.toFixed(2)})`
+    ctx.font = font(14, true)
+    ctx.fillText(`CRUSHING TIDE  ${t.toFixed(1)}`, L.cx, y)
+  } else {
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(11)
+    ctx.fillText(`tide in ${t.toFixed(1)}s`, L.cx, y)
   }
 }
 

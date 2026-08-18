@@ -146,6 +146,8 @@ export interface SimState {
   nextSpread: number
   nextSlam: number
   nextRaidHit: number
+  /** Counts down after party-wide damage lands, purely to drive a screen flash. */
+  raidFlash: number
   /** Monotonic id source for spawned objects. */
   nextObjectId: number
   /** Number of pulls so far; AI plays better on later attempts. */

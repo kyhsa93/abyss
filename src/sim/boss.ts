@@ -124,6 +124,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
   if (s.nextRaidHit <= 0) {
     for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, true)
     s.nextRaidHit = timing.raid
+    // Unavoidable damage with no tell reads as a broken hitbox: the player
+    // dodges, loses health anyway, and blames the puddle they just left.
+    s.raidFlash = 0.45
   }
 
   // --- spread: someone has to walk away from the group ---
@@ -177,7 +180,9 @@ export function updateGround(s: SimState): void {
       if (g.telegraph <= 0) {
         g.detonated = true
         for (const a of livingParty(s)) {
-          if (dist(a.pos, g.pos) <= g.radius) applyDamage(s, a, g.damage, true)
+          if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
+            applyDamage(s, a, g.damage, true)
+          }
         }
       }
       continue

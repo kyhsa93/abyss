@@ -216,6 +216,7 @@ export function createState(seed: number, attempt: number): SimState {
     nextSpread: 17,
     nextSlam: 13,
     nextRaidHit: 11,
+    raidFlash: 0,
     nextObjectId: 1,
     attempt,
     seed,

@@ -137,6 +137,7 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
 }
 
 function ageEphemera(s: SimState): void {
+  s.raidFlash = Math.max(0, s.raidFlash - DT)
   for (const t of s.texts) t.age += DT
   s.texts = s.texts.filter((t) => t.age < 1.1)
 

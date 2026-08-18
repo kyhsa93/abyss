@@ -1,5 +1,5 @@
 import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
-import { getAura } from '../sim/combat'
+import { dist, getAura } from '../sim/combat'
 import type { Actor, SimState, Vec2 } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
 
@@ -34,13 +34,29 @@ export function drawWorld(
   drawSpreadRings(ctx, s, alpha)
 
   for (const a of s.actors) {
-    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock)
+    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false)
   }
   for (const a of s.actors) {
-    if (a.faction === 'party') drawActor(ctx, a, alpha, clock)
+    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a))
   }
 
   drawFloatingText(ctx, s, alpha)
+  drawRaidFlash(ctx, s)
+}
+
+/** The tell for party-wide damage, which is otherwise invisible and unavoidable. */
+function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
+  if (s.raidFlash <= 0) return
+  const a = Math.min(1, s.raidFlash / 0.45)
+
+  ctx.fillStyle = `rgba(239, 68, 68, ${(0.16 * a).toFixed(3)})`
+  ctx.fillRect(0, 0, L.w, L.h)
+
+  ctx.beginPath()
+  ctx.arc(L.cx, L.cy, L.arenaR, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(239, 68, 68, ${(0.85 * a).toFixed(3)})`
+  ctx.lineWidth = 2 + 6 * a
+  ctx.stroke()
 }
 
 function drawArena(ctx: CanvasRenderingContext2D): void {
@@ -97,7 +113,8 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.lineWidth = 2
       ctx.stroke()
     } else {
-      const fade = Math.min(1, g.lingering / 1.5)
+      // Never fade below the point where it still hurts you.
+      const fade = 0.62 + 0.38 * Math.min(1, g.lingering / 1.2)
       ctx.save()
       ctx.globalAlpha = fade
       ctx.beginPath()
@@ -139,11 +156,20 @@ function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
   }
 }
 
+/** Mirrors the simulation's hit test, including the rim grace. */
+function standingInFire(s: SimState, a: Actor): boolean {
+  if (!a.alive) return false
+  return s.ground.some(
+    (g) => g.detonated && dist(a.pos, g.pos) <= g.radius - a.radius * 0.6,
+  )
+}
+
 function drawActor(
   ctx: CanvasRenderingContext2D,
   a: Actor,
   alpha: number,
   clock: number,
+  burning: boolean,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -168,6 +194,16 @@ function drawActor(
   ctx.strokeStyle = '#0a0a0f'
   ctx.lineWidth = 2
   ctx.stroke()
+
+  // Residual puddle damage is silent by design; without this you lose health
+  // with nothing on screen explaining it.
+  if (burning) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r + 3.5, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(248, 113, 113, ${(0.55 + 0.45 * Math.sin(clock * 12)).toFixed(2)})`
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
 
   if (getAura(a, 'shield')) {
     ctx.beginPath()
