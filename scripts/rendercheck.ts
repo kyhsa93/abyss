@@ -4,6 +4,7 @@ import { step } from '../src/sim/sim'
 import { ENRAGE_AT } from '../src/sim/constants'
 import { drawWorld } from '../src/render/draw'
 import { drawHud } from '../src/render/hud'
+import { partyButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import type { ClassId } from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
@@ -120,6 +121,26 @@ console.log(`rendered ${frames} frames with no exceptions`)
     if (unreachable.length > 0) {
       throw new Error(`unreachable roster controls: ${unreachable.map(([n]) => n).join(', ')}`)
     }
+  }
+}
+
+// --- on-screen controls must not overlap ----------------------------------
+{
+  for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
+    updateLayout(w, h)
+    const party = partyButton()
+    const overlaps = L.btnYs.some(
+      (y) =>
+        Math.abs(party.x + party.w / 2 - L.btnX) < party.w / 2 + L.btnR &&
+        Math.abs(party.y + party.h / 2 - y) < party.h / 2 + L.btnR,
+    )
+    const onScreen =
+      party.x >= 0 && party.y >= 0 && party.x + party.w <= w && party.y + party.h <= h
+    console.log(
+      !overlaps && onScreen ? 'ok  ' : 'FAIL',
+      `  ${w}x${h}: party button clear of the ability buttons`,
+    )
+    if (overlaps || !onScreen) throw new Error(`party button collides at ${w}x${h}`)
   }
 }
 

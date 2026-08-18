@@ -59,11 +59,11 @@ export function rosterLayout(): RosterLayout {
     slots.push({ x: pad + i * (slotW + slotGap), y: slotY, w: slotW, h: slotH })
   }
 
-  const summaryY = slotY + slotH + 22
+  const summaryY = slotY + slotH + 20
 
   const cols = L.portrait ? 2 : 4
   const rows = Math.ceil(CLASS_ORDER.length / cols)
-  const gridTop = summaryY + 16
+  const gridTop = summaryY + 30
   const pullH = Math.min(58, Math.max(42, L.h * 0.07))
   const gridBottom = L.h - pullH - pad * 2.2
   const cellGap = pad * 0.5
@@ -168,17 +168,19 @@ export function drawRoster(
   if (roles.healer === 0) problems.push('no healer: nothing will out-live the tide')
 
   ctx.font = font(11)
-  if (problems.length > 0) {
-    ctx.fillStyle = COLORS.hpBarLow
-    ctx.fillText(problems.join('   ·   '), L.w / 2, layout.summaryY)
-  } else {
-    ctx.fillStyle = COLORS.textDim
-    ctx.fillText(
-      `${roles.tank} tank · ${roles.healer} healer · ${roles.dps} damage    —    tap a slot, then a class`,
-      L.w / 2,
-      layout.summaryY,
-    )
-  }
+  ctx.fillStyle = problems.length > 0 ? COLORS.hpBarLow : COLORS.textDim
+  ctx.fillText(
+    problems.length > 0
+      ? problems.join('   ·   ')
+      : `${roles.tank} tank · ${roles.healer} healer · ${roles.dps} damage`,
+    L.w / 2,
+    layout.summaryY,
+  )
+
+  // Kept on its own line so a composition warning never hides the how-to.
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.fillText('tap a slot, then a class', L.w / 2, layout.summaryY + 14 * L.ui)
 
   // --- class grid ----------------------------------------------------------
   for (let i = 0; i < layout.classes.length; i++) {

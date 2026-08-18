@@ -13,6 +13,15 @@ export interface Rect {
   h: number
 }
 
+/** Small always-visible control that returns to party selection. */
+export function partyButton(): Rect {
+  const w = Math.max(58, Math.min(84, L.w * 0.14))
+  const h = Math.max(22, Math.min(30, L.h * 0.04))
+  // Under the fight readout on the right. The bottom corners belong to the
+  // stick and the ability buttons on touch.
+  return { x: L.w - w - 8, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
+}
+
 /** Buttons on the end-of-fight overlay; shared with the hit test in main. */
 export function outcomeButtons(): { retry: Rect; party: Rect } {
   const w = Math.min(180, L.w * 0.38)
@@ -62,6 +71,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   else drawActionBar(ctx, s)
   drawCastBar(ctx, s, touch.active)
   drawChat(ctx, s)
+  drawPartyButton(ctx)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }
 
@@ -370,6 +380,19 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
       ctx.fillText(`${ability.castTime}s`, L.btnX, cy + 20 * L.ui)
     }
   }
+}
+
+function drawPartyButton(ctx: CanvasRenderingContext2D): void {
+  const r = partyButton()
+  ctx.fillStyle = 'rgba(15, 17, 26, 0.7)'
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.textAlign = 'center'
+  ctx.fillText('party', r.x + r.w / 2, r.y + r.h * 0.68)
 }
 
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {

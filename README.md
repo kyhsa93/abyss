@@ -17,8 +17,13 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-Pick a slot, pick a class, hit PULL. `WASD` to move, `1` `2` `3` for
-abilities, `R` to pull again. Your party is remembered between visits.
+The party screen comes first: pick a slot, pick a class, hit PULL. Your party
+is remembered between visits, so a return trip is one tap.
+
+`WASD` to move, `1` `2` `3` for abilities, `R` to pull again, `Esc` to go back
+to the party screen. On touch there is a `party` button under the fight
+readout. Leaving without changing anything keeps your pull count, since the
+AI's learning is tied to how many times *these* five have pulled.
 
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the

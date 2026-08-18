@@ -1,6 +1,6 @@
 import { Input } from './input'
 import { drawWorld } from './render/draw'
-import { drawHud, outcomeButtons } from './render/hud'
+import { drawHud, outcomeButtons, partyButton } from './render/hud'
 import { drawRoster, hitRoster } from './render/roster'
 import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
@@ -87,11 +87,22 @@ function restart(): void {
   rng = new Rng(BASE_SEED + attempt * 7919)
 }
 
-/** A changed party starts its own progression; the old pulls do not transfer. */
+/** The composition the current run was started with. */
+let fightingParty: ClassId[] = [...party]
+
+/**
+ * A changed party starts its own progression, since the AI's learning is
+ * tied to how many times *these* five have pulled. Leaving the screen without
+ * changing anything keeps the progress.
+ */
 function startFight(): void {
-  attempt = 0
-  state = createState(BASE_SEED, attempt, party)
-  rng = new Rng(BASE_SEED)
+  const changed = party.some((id, i) => id !== fightingParty[i])
+  if (changed || state.outcome !== 'ongoing') {
+    attempt = 0
+    fightingParty = [...party]
+    state = createState(BASE_SEED, attempt, party)
+    rng = new Rng(BASE_SEED)
+  }
   screen = 'fight'
 }
 
@@ -140,6 +151,13 @@ function frame(now: number): void {
   }
 
   input.setMenuMode(false)
+
+  // Leaving mid-fight is always available: escape, or the corner button.
+  if (input.takeMenuRequest() || (tap && inside(partyButton(), tap.x, tap.y))) {
+    screen = 'roster'
+    requestAnimationFrame(frame)
+    return
+  }
 
   // The overlay has explicit buttons, since a phone has no R key.
   if (state.outcome !== 'ongoing' && tap) {
