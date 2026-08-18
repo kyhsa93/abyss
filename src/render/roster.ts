@@ -1,13 +1,15 @@
 import {
   CLASSES,
-  CLASS_ORDER,
   DIFFICULTIES,
   RAID_SIZES,
+  SPEC_OPTIONS,
   countRoles,
   makeSlots,
   mitigation,
-  type ClassId,
+  specLabel,
+  specOf,
   type DifficultyId,
+  type Pick,
   type RaidSize,
 } from '../sim/classes'
 import { COLORS, L } from './theme'
@@ -42,7 +44,7 @@ export interface RosterLayout {
 
 export type RosterHit =
   | { kind: 'slot'; index: number }
-  | { kind: 'class'; classId: ClassId }
+  | { kind: 'class'; pick: Pick }
   | { kind: 'size'; size: RaidSize }
   | { kind: 'difficulty'; id: DifficultyId }
   | { kind: 'auto' }
@@ -101,15 +103,32 @@ export function rosterLayout(size: number): RosterLayout {
   const summaryY = slotTop + slotRows * (slotH + gap) + 14
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
-  const cols = L.portrait ? 2 : 4
-  const rows = Math.ceil(CLASS_ORDER.length / cols)
   const gridTop = summaryY + 22
   const gridBottom = L.h - buttonH - pad * 2
+
+  // Fifteen class/role combinations, and on a landscape phone the slot grid
+  // has already eaten most of the height. Widen the grid until its rows fit
+  // rather than letting it run off the bottom.
+  const minCellH = 34
+  const candidates = L.portrait ? [3, 4, 5] : [5, 6, 8, 15]
+  let cols = candidates[candidates.length - 1]!
+  for (const option of candidates) {
+    const needed = Math.ceil(SPEC_OPTIONS.length / option)
+    if (gridTop + needed * (minCellH + gap) <= gridBottom + gap) {
+      cols = option
+      break
+    }
+  }
+
+  const rows = Math.ceil(SPEC_OPTIONS.length / cols)
   const cellW = (L.w - pad * 2 - gap * (cols - 1)) / cols
-  const cellH = Math.max(38, (gridBottom - gridTop - gap * (rows - 1)) / rows)
+  const cellH = Math.max(
+    minCellH,
+    Math.min(64, (gridBottom - gridTop - gap * (rows - 1)) / rows),
+  )
 
   const classes: Rect[] = []
-  for (let i = 0; i < CLASS_ORDER.length; i++) {
+  for (let i = 0; i < SPEC_OPTIONS.length; i++) {
     classes.push({
       x: pad + (i % cols) * (cellW + gap),
       y: gridTop + Math.floor(i / cols) * (cellH + gap),
@@ -160,7 +179,7 @@ export function hitRoster(x: number, y: number, size: number): RosterHit | null 
     if (inside(layout.slots[i]!, x, y)) return { kind: 'slot', index: i }
   }
   for (let i = 0; i < layout.classes.length; i++) {
-    if (inside(layout.classes[i]!, x, y)) return { kind: 'class', classId: CLASS_ORDER[i]! }
+    if (inside(layout.classes[i]!, x, y)) return { kind: 'class', pick: SPEC_OPTIONS[i]! }
   }
   return null
 }
@@ -189,7 +208,7 @@ function tab(
 
 export function drawRoster(
   ctx: CanvasRenderingContext2D,
-  party: ClassId[],
+  party: Pick[],
   difficulty: DifficultyId,
   activeSlot: number,
   clock: number,
@@ -221,7 +240,8 @@ export function drawRoster(
   const compact = layout.slots[0]!.h < 60
   for (let i = 0; i < layout.slots.length; i++) {
     const r = layout.slots[i]!
-    const cls = CLASSES[party[i]!]
+    const pick = party[i]!
+    const spec = specOf(pick)
     const active = i === activeSlot
 
     ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
@@ -231,7 +251,7 @@ export function drawRoster(
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
     // A colour stripe makes the role balance readable at a glance across 25.
-    ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
+    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
     ctx.fillRect(r.x, r.y, r.w, 3)
 
     const cx = r.x + r.w / 2
@@ -239,15 +259,15 @@ export function drawRoster(
     ctx.font = font(compact ? 8 : 10, i === 0)
     ctx.fillText(i === 0 ? 'YOU' : slots[i]!.name, cx, r.y + (compact ? 15 : 18) * L.ui)
 
-    ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
-    ctx.font = font(compact ? 10 : 12, true)
-    ctx.fillText(cls.name, cx, r.y + r.h * (compact ? 0.72 : 0.62))
+    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
+    ctx.font = font(compact ? 9 : 12, true)
+    ctx.fillText(specLabel(pick), cx, r.y + r.h * (compact ? 0.72 : 0.62))
 
     if (!compact) {
       ctx.fillStyle = COLORS.textDim
       ctx.font = font(9)
       ctx.fillText(
-        `${Math.round(mitigation(cls.armor) * 100)}% phys · ${cls.hp} hp`,
+        `${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp`,
         cx,
         r.y + r.h - 8 * L.ui,
       )
@@ -275,9 +295,10 @@ export function drawRoster(
 
   for (let i = 0; i < layout.classes.length; i++) {
     const r = layout.classes[i]!
-    const classId = CLASS_ORDER[i]!
-    const cls = CLASSES[classId]
-    const chosen = party[activeSlot] === classId
+    const option = SPEC_OPTIONS[i]!
+    const spec = specOf(option)
+    const current = party[activeSlot]
+    const chosen = current?.classId === option.classId && current.role === option.role
 
     ctx.fillStyle = chosen ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
@@ -286,14 +307,14 @@ export function drawRoster(
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
     const cx = r.x + r.w / 2
-    ctx.fillStyle = ROLE_COLOR[cls.role] ?? COLORS.text
-    ctx.font = font(12, true)
-    ctx.fillText(cls.name, cx, r.y + r.h * 0.44)
+    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
+    ctx.font = font(11, true)
+    ctx.fillText(specLabel(option), cx, r.y + r.h * 0.44)
 
     ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9)
+    ctx.font = font(8)
     ctx.fillText(
-      `${cls.role}${cls.melee ? ' · melee' : ''} · ${cls.armorType}`,
+      `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
       cx,
       r.y + r.h * 0.76,
     )

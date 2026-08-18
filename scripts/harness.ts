@@ -2,7 +2,12 @@ import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { ENRAGE_AT } from '../src/sim/constants'
-import { autoParty, type ClassId, type DifficultyId, type RaidSize } from '../src/sim/classes'
+import {
+  autoParty,
+  type DifficultyId,
+  type Pick,
+  type RaidSize,
+} from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 
 /** Crude stand-in for a competent human: run out of any puddle, else stand still. */
@@ -35,7 +40,7 @@ interface Report {
 function run(
   seed: number,
   attempt: number,
-  party?: ClassId[],
+  party?: Pick[],
   difficulty: DifficultyId = 'normal',
 ): Report {
   const s = createState(seed, attempt, party, difficulty)
@@ -118,13 +123,18 @@ function run(
 const ATTEMPTS = [0, 4, 8]
 
 /** Compositions a player might actually build, including bad ones. */
-const PARTIES: Array<{ label: string; party: ClassId[] }> = [
-  { label: 'default  1t 1h 3d', party: ['mage', 'warrior', 'priest', 'hunter', 'rogue'] },
-  { label: 'two heals 1t 2h 2d', party: ['mage', 'warrior', 'priest', 'paladin', 'rogue'] },
-  { label: 'no healer 1t 0h 4d', party: ['mage', 'warrior', 'hunter', 'rogue', 'shaman'] },
-  { label: 'no tank   0t 1h 4d', party: ['mage', 'druid', 'priest', 'hunter', 'rogue'] },
-  { label: 'all melee 1t 1h 3d', party: ['rogue', 'warrior', 'priest', 'rogue', 'rogue'] },
-  { label: 'all caster 1t 1h 3d', party: ['mage', 'warrior', 'priest', 'shaman', 'druid'] },
+const dps = (classId: Pick['classId']): Pick => ({ classId, role: 'dps' })
+const heal = (classId: Pick['classId']): Pick => ({ classId, role: 'healer' })
+const tank = (classId: Pick['classId']): Pick => ({ classId, role: 'tank' })
+
+const PARTIES: Array<{ label: string; party: Pick[] }> = [
+  { label: 'default  1t 1h 3d', party: [dps('mage'), tank('warrior'), heal('priest'), dps('hunter'), dps('rogue')] },
+  { label: 'two heals 1t 2h 2d', party: [dps('mage'), tank('warrior'), heal('priest'), heal('paladin'), dps('rogue')] },
+  { label: 'no healer 1t 0h 4d', party: [dps('mage'), tank('warrior'), dps('hunter'), dps('rogue'), dps('shaman')] },
+  { label: 'no tank   0t 1h 4d', party: [dps('mage'), dps('druid'), heal('priest'), dps('hunter'), dps('rogue')] },
+  { label: 'all melee 1t 1h 3d', party: [dps('rogue'), tank('warrior'), heal('priest'), dps('rogue'), dps('warrior')] },
+  { label: 'all caster 1t 1h 3d', party: [dps('mage'), tank('warrior'), heal('priest'), dps('shaman'), dps('druid')] },
+  { label: 'druid tank + shaman', party: [dps('mage'), tank('druid'), heal('shaman'), dps('priest'), dps('paladin')] },
 ]
 
 const RUNS = 60
@@ -152,7 +162,7 @@ const SIZE_ATTEMPTS = [0, 8]
 console.log('\nsize / difficulty      ' + SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  bossHP%')
 for (const size of [5, 10, 25] as RaidSize[]) {
   for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
-    const party = autoParty(size, 'mage')
+    const party = autoParty(size, dps('mage'))
     const cells: string[] = []
     let time = 0
     let left = 0

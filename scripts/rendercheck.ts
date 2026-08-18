@@ -10,7 +10,7 @@ import {
   autoParty,
   countRoles,
   randomParty,
-  type ClassId,
+  type Pick,
   type RaidSize,
 } from '../src/sim/classes'
 import { L, updateLayout } from '../src/render/theme'
@@ -98,10 +98,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // --- the party screen must draw and stay hit-testable ---------------------
 {
   // Every raid size has to lay out and stay reachable.
-  const parties: ClassId[][] = [
-    ['mage', 'warrior', 'priest', 'hunter', 'rogue'],
-    autoParty(10, 'mage'),
-    autoParty(25, 'warrior'),
+  const parties: Pick[][] = [
+    autoParty(5, { classId: 'mage', role: 'dps' }),
+    autoParty(10, { classId: 'druid', role: 'tank' }),
+    autoParty(25, { classId: 'shaman', role: 'healer' }),
   ]
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390]] as const) {
     updateLayout(w, h)
@@ -178,7 +178,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       const roles = countRoles(party)
       worstTanks = Math.min(worstTanks, roles.tank)
       worstHealers = Math.min(worstHealers, roles.healer)
-      combos.add(party.join(','))
+      combos.add(party.map((p) => `${p.classId}:${p.role}`).join(','))
     }
 
     // Varied enough to be worth pressing twice.

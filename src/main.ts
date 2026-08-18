@@ -13,9 +13,10 @@ import {
   DEFAULT_PARTY,
   RAID_SIZES,
   autoParty,
+  canFill,
   randomParty,
-  type ClassId,
   type DifficultyId,
+  type Pick,
   type RaidSize,
 } from './sim/classes'
 import { createState } from './sim/state'
@@ -68,18 +69,27 @@ window.addEventListener('orientationchange', onViewportChange)
 const PARTY_KEY = 'abyss.party'
 const DIFFICULTY_KEY = 'abyss.difficulty'
 
-function loadParty(): ClassId[] {
+function loadParty(): Pick[] {
+  const fallback = () => DEFAULT_PARTY.map((p) => ({ ...p }))
   try {
     const raw = localStorage.getItem(PARTY_KEY)
-    if (!raw) return [...DEFAULT_PARTY]
+    if (!raw) return fallback()
     const parsed: unknown = JSON.parse(raw)
     // Anything unrecognised falls back rather than booting into a broken raid.
-    if (!Array.isArray(parsed)) return [...DEFAULT_PARTY]
-    if (!RAID_SIZES.includes(parsed.length as RaidSize)) return [...DEFAULT_PARTY]
-    if (!parsed.every((id) => typeof id === 'string' && id in CLASSES)) return [...DEFAULT_PARTY]
-    return parsed as ClassId[]
+    // This also covers rosters saved before roles were stored alongside class.
+    if (!Array.isArray(parsed)) return fallback()
+    if (!RAID_SIZES.includes(parsed.length as RaidSize)) return fallback()
+
+    const valid = parsed.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false
+      const { classId, role } = entry as { classId?: unknown; role?: unknown }
+      if (typeof classId !== 'string' || !(classId in CLASSES)) return false
+      if (role !== 'tank' && role !== 'healer' && role !== 'dps') return false
+      return canFill(classId as Pick['classId'], role)
+    })
+    return valid ? (parsed as Pick[]) : fallback()
   } catch {
-    return [...DEFAULT_PARTY]
+    return fallback()
   }
 }
 
@@ -105,7 +115,7 @@ function saveSetup(): void {
 
 /** Keeps the player's own slot and rebuilds the rest around the new size. */
 function resize(size: RaidSize): void {
-  party = autoParty(size, party[0] ?? 'mage')
+  party = autoParty(size, party[0] ?? DEFAULT_PARTY[0]!)
   activeSlot = 0
   saveSetup()
 }
@@ -128,7 +138,7 @@ function restart(): void {
 }
 
 /** The composition the current run was started with. */
-let fightingParty: ClassId[] = [...party]
+let fightingParty: Pick[] = party.map((p) => ({ ...p }))
 let fightingDifficulty: DifficultyId = difficulty
 
 /**
@@ -140,10 +150,12 @@ function startFight(): void {
   const changed =
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
-    party.some((id, i) => id !== fightingParty[i])
+    party.some(
+      (p, i) => p.classId !== fightingParty[i]?.classId || p.role !== fightingParty[i]?.role,
+    )
   if (changed || state.outcome !== 'ongoing') {
     attempt = 0
-    fightingParty = [...party]
+    fightingParty = party.map((p) => ({ ...p }))
     fightingDifficulty = difficulty
     state = createState(BASE_SEED, attempt, party, difficulty)
     rng = new Rng(BASE_SEED)
@@ -161,7 +173,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     if (hit?.kind === 'slot') {
       activeSlot = hit.index
     } else if (hit?.kind === 'class') {
-      party[activeSlot] = hit.classId
+      party[activeSlot] = { ...hit.pick }
       saveSetup()
       // Step to the next slot so a raid can be filled by tapping straight
       // down the class list.
@@ -173,7 +185,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       saveSetup()
     } else if (hit?.kind === 'auto') {
       // Filling 25 slots one tap at a time is nobody's idea of a game.
-      party = autoParty(party.length as RaidSize, party[0] ?? 'mage')
+      party = autoParty(party.length as RaidSize, party[0] ?? DEFAULT_PARTY[0]!)
       saveSetup()
     } else if (hit?.kind === 'random') {
       party = randomParty(party.length as RaidSize, Math.random)

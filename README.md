@@ -90,66 +90,52 @@ healing throughput is exceeded, then collapses.
 
 | | 1st pull | 9th pull |
 | --- | --- | --- |
-| 5-player normal | 65% | 85% |
-| 5-player heroic | 20% | 55% |
-| 10-player normal | 80% | 85% |
-| 10-player heroic | 25% | 65% |
-| 25-player normal | 20% | 85% |
-| 25-player heroic | 0% | 35% |
+| 5-player normal | 45% | 50% |
+| 5-player heroic | 5% | 10% |
+| 10-player normal | 50% | 85% |
+| 10-player heroic | 10% | 40% |
+| 25-player normal | 20% | 60% |
+| 25-player heroic | 0% | 15% |
 
-## Classes
+## Classes and roles
 
-| Class | Role | Armour | Phys. reduction | Health | Notes |
-| --- | --- | --- | --- | --- | --- |
-| Warrior | tank | plate | 50% + 260 block | 6200 | The only thing that survives a swing |
-| Paladin | healer | plate | 42% + 150 block | 4600 | Slower, bigger heals and an emergency button |
-| Priest | healer | cloth | 9% | 2900 | Sustained, leans on a heal-over-time |
-| Druid | damage | leather | 20% | 3400 | Instant dot, one long finisher |
-| Shaman | damage | mail | 27% | 3600 | Middling everything, short-cast finisher |
-| Mage | damage | cloth | 9% | 2900 | Highest burst, on a 2.5s cast |
-| Hunter | damage | mail | 27% | 3600 | Entirely instant; never stops damaging |
-| Rogue | damage | leather | 20% | 3400 | Highest sustained damage, from melee |
+Most classes fill more than one role, and a class in a different role is a
+different character: its own abilities, its own health and its own armour. A
+protection warrior and an arms warrior share nothing but a name.
 
-## After the pull
+| Class | Tank | Heal | Damage |
+| --- | --- | --- | --- |
+| Warrior | ✓ | | ✓ |
+| Paladin | ✓ | ✓ | ✓ |
+| Druid | ✓ | ✓ | ✓ |
+| Priest | | ✓ | ✓ |
+| Shaman | | ✓ | ✓ |
+| Mage | | | ✓ |
+| Hunter | | | ✓ |
+| Rogue | | | ✓ |
 
-Ending a fight with only "wipe" on screen says nothing about why. Every pull
-now closes with a report: damage and healing per second as a bar, damage
-taken, and the column the genre actually argues over — how many avoidable
-mechanics each player ate. Overhealing is tracked too, since a big heal on
-someone barely hurt is the healer's version of standing in fire.
+Fifteen combinations in all, and the raid screen lists them individually
+rather than asking you to pick a class and then a role.
 
-## Sound
+Rotations are shared per role; what differs is the numbers and the cast times.
+That is enough to change how something plays — the hunter is entirely instant
+and keeps damaging while it repositions, the mage's finisher is a 2.5s cast
+that competes directly with dodging, and the rogue has to be next to the boss
+to do anything at all.
 
-Synthesised, not sampled: oscillators, an envelope and one deterministic
-noise buffer, for the same reason everything else is drawn from shapes.
+The three tanks are not interchangeable either:
 
-In a raid, sound is information. A puddle landing behind you is audible before
-it is visible, and the warning tone is deliberately unlike the dull thud of
-unavoidable party damage, so you can tell "move" from "that one was not your
-fault" without looking. Every effect is throttled so a burst cannot stack into
-a drone, and the whole thing is off one keypress (`M`) or a button.
+| | Health | Armour | Block | 540 swing lands as |
+| --- | --- | --- | --- | --- |
+| Warrior | 6200 | 50% | 260 | 138 |
+| Paladin | 5800 | 49% | 240 | 153 |
+| Druid (bear) | 9200 | 56% | — | 237 |
 
-The simulation emits sound events into its own state and the renderer drains
-them each frame, rather than audio diffing state to guess what happened.
-
-## Learning the fight
-
-Each mechanic introduces itself the first time it appears — name, and the one
-thing to do about it — then never again. The encounter is meant to be learned
-by repetition, but a mechanic you have never seen named is just an
-unexplained death.
-
-## The action bar
-
-The global cooldown is drawn, not just enforced. Pressing anything sweeps
-every slot at once with a light radial wipe; a real cooldown sweeps only its
-own slot, darker, with a number on it. At a glance that is the difference
-between "everything is briefly locked" and "this one ability is down", which
-is most of what you read off a bar while playing.
-
-Casting locks the bar as well, abilities you cannot afford outline in blue,
-and defensives sit off the global cooldown, so a tank can answer a telegraphed
-hit without losing the press it already made.
+A flat block is worth a great deal against a fast weapon, so the druid pays
+for having none with a far larger pool: harder to spike down, more of a drain
+on the healers. Tuned to within a few points of each other in practice — a
+druid-tank, shaman-healed five-man wins 58% by the ninth pull against the
+default composition's 72%.
 
 ## Defence
 
@@ -283,12 +269,13 @@ trend:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 25% | 23% | 47% | 142s |
-| 1 tank, 2 healers, 2 damage | 7% | 12% | 18% | 258s |
-| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 81s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 74s |
-| all melee | 0% | 2% | 0% | 148s |
-| all caster | 35% | 57% | 62% | 143s |
+| 1 tank, 1 healer, 3 damage | 38% | 75% | 72% | 131s |
+| 1 tank, 2 healers, 2 damage | 28% | 25% | 38% | 241s |
+| 1 tank, 0 healers, 4 damage | 7% | 5% | 7% | 78s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 75s |
+| all melee | 8% | 28% | 28% | 141s |
+| all caster | 58% | 72% | 77% | 133s |
+| druid tank, shaman healer | 38% | 57% | 58% | 124s |
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is

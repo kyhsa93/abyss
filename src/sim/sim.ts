@@ -112,7 +112,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     if (player.castId) interruptCast(s, player, 'moved')
   }
 
-  const bar = abilityBar(player.classId)
+  const bar = abilityBar({ classId: player.classId, role: player.role })
   for (const slot of input.pressed) {
     const abilityId = bar[slot]
     if (!abilityId) continue

@@ -5,14 +5,15 @@ import {
   DIFFICULTIES,
   makeSlots,
   sizeHealth,
-  type ClassId,
+  specOf,
+  type Pick,
   type DifficultyId,
   type RaidSize,
   type Slot,
 } from './classes'
 import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
 
-const BOSS_MAX_HP = 34000
+const BOSS_MAX_HP = 36000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -57,29 +58,29 @@ function makeAi(personality: Personality, attempt: number): AiProfile {
 
 function makeMember(
   id: number,
-  classId: ClassId,
+  pick: Pick,
   slot: Slot,
   isPlayer: boolean,
   attempt: number,
 ): Actor {
-  const cls = CLASSES[classId]
+  const spec = specOf(pick)
   return {
     id,
     name: slot.name,
-    classId,
-    role: cls.role,
-    melee: cls.melee,
-    armor: cls.armor,
-    block: cls.block,
+    classId: pick.classId,
+    role: spec.role,
+    melee: spec.melee,
+    armor: spec.armor,
+    block: spec.block,
     faction: 'party',
     pos: { x: slot.x, y: slot.y },
     prevPos: { x: slot.x, y: slot.y },
     radius: 17,
-    moveSpeed: cls.moveSpeed,
-    hp: cls.hp,
-    maxHp: cls.hp,
-    mana: cls.mana,
-    maxMana: cls.mana,
+    moveSpeed: CLASSES[pick.classId].moveSpeed,
+    hp: spec.hp,
+    maxHp: spec.hp,
+    mana: spec.mana,
+    maxMana: spec.mana,
     alive: true,
     gcd: 0,
     cooldowns: {},
@@ -104,13 +105,11 @@ export const BOSS_ID = 100
 export function createState(
   seed: number,
   attempt: number,
-  party: ClassId[] = DEFAULT_PARTY,
+  party: Pick[] = DEFAULT_PARTY,
   difficulty: DifficultyId = 'normal',
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
-  const members = party.map((classId, i) =>
-    makeMember(i + 1, classId, slots[i]!, i === 0, attempt),
-  )
+  const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
   const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
 
   const boss: Actor = {
@@ -181,7 +180,7 @@ export function createState(
     nextObjectId: 1,
     attempt,
     seed,
-    party: [...party],
+    party: party.map((p) => ({ ...p })),
     difficulty,
     tally,
     sounds: [],

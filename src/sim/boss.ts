@@ -83,7 +83,7 @@ function hit(s: SimState, amount: number): number {
 const SLAM_CAST = 2
 const SLAM_DAMAGE = 1150
 const SWING_DAMAGE = 540
-const RAID_DAMAGE = 126
+const RAID_DAMAGE = 133
 
 const PUDDLE_RADIUS = 92
 const PUDDLE_DAMAGE = 1000

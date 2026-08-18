@@ -34,6 +34,17 @@ export interface ClassAbilities {
   attack: string | null
 }
 
+export const CLASS_ORDER: ClassId[] = [
+  'warrior',
+  'paladin',
+  'priest',
+  'druid',
+  'shaman',
+  'mage',
+  'hunter',
+  'rogue',
+]
+
 export type ArmorType = 'plate' | 'mail' | 'leather' | 'cloth'
 
 /**
@@ -48,198 +59,319 @@ export function mitigation(armor: number): number {
   return armor / (armor + ARMOR_K)
 }
 
-export interface ClassDef {
-  id: ClassId
-  name: string
+/**
+ * A class filling a particular role.
+ *
+ * A protection warrior and an arms warrior are not the same character: they
+ * carry different abilities and different amounts of health and armour, which
+ * is the whole reason a class can tank at all. So the stats live on the spec,
+ * not the class.
+ */
+export interface Spec {
   role: Role
-  /** Melee classes have to stand next to the boss to do anything. */
+  /** Melee specs have to close to the boss to use anything. */
   melee: boolean
   hp: number
-  mana: number
-  moveSpeed: number
-  armorType: ArmorType
-  /** Flat armour rating, fed through the mitigation curve. */
   armor: number
-  /**
-   * Flat damage removed before mitigation, for classes carrying a shield.
-   * Flat reduction is worth more against many small hits than one big one,
-   * which is exactly the shape of a tank's job.
-   */
   block: number
+  mana: number
   abilities: ClassAbilities
 }
 
-const none = { overTime: null, finisher: null, defensive: null, threat: null, attack: null }
+export interface ClassDef {
+  id: ClassId
+  name: string
+  armorType: ArmorType
+  moveSpeed: number
+  specs: Spec[]
+}
+
+const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities => ({
+  overTime: null,
+  finisher: null,
+  defensive: null,
+  threat: null,
+  attack: null,
+  ...a,
+})
 
 export const CLASSES: Record<ClassId, ClassDef> = {
   warrior: {
     id: 'warrior',
     name: 'Warrior',
-    role: 'tank',
-    melee: true,
-    hp: 6200,
-    mana: 0,
-    moveSpeed: 155,
     armorType: 'plate',
-    armor: 9200,
-    block: 260,
-    abilities: {
-      ...none,
-      filler: 'cleave',
-      threat: 'shield_slam',
-      defensive: 'shield_wall',
-    },
-  },
-
-  priest: {
-    id: 'priest',
-    name: 'Priest',
-    role: 'healer',
-    melee: false,
-    hp: 2900,
-    mana: 1000,
     moveSpeed: 155,
-    armorType: 'cloth',
-    armor: 900,
-    block: 0,
-    abilities: {
-      ...none,
-      filler: 'heal',
-      overTime: 'renew',
-      finisher: 'flash_heal',
-      attack: 'smite',
-    },
+    specs: [
+      {
+        role: 'tank',
+        melee: true,
+        hp: 6200,
+        armor: 9200,
+        block: 260,
+        mana: 0,
+        abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall' }),
+      },
+      {
+        role: 'dps',
+        melee: true,
+        hp: 4200,
+        armor: 5200,
+        block: 0,
+        mana: 0,
+        abilities: kit({ filler: 'mortal_strike', overTime: 'rend', finisher: 'execute' }),
+      },
+    ],
   },
 
   paladin: {
     id: 'paladin',
     name: 'Paladin',
-    role: 'healer',
-    melee: false,
-    hp: 4600,
-    mana: 1100,
-    moveSpeed: 155,
     armorType: 'plate',
-    armor: 6400,
-    block: 150,
-    // Bigger, slower, more expensive heals than the priest, and no HoT.
-    abilities: {
-      ...none,
-      filler: 'holy_light',
-      overTime: null,
-      finisher: 'lay_on_hands',
-      attack: 'holy_shock',
-    },
+    moveSpeed: 155,
+    specs: [
+      {
+        role: 'tank',
+        melee: true,
+        hp: 5800,
+        armor: 8600,
+        block: 240,
+        mana: 0,
+        abilities: kit({
+          filler: 'consecration',
+          threat: 'avengers_shield',
+          defensive: 'divine_protection',
+        }),
+      },
+      {
+        role: 'healer',
+        melee: false,
+        hp: 3400,
+        armor: 4200,
+        block: 0,
+        mana: 1100,
+        abilities: kit({ filler: 'holy_light', finisher: 'lay_on_hands', attack: 'holy_shock' }),
+      },
+      {
+        role: 'dps',
+        melee: true,
+        hp: 4000,
+        armor: 5000,
+        block: 0,
+        mana: 0,
+        abilities: kit({
+          filler: 'crusader_strike',
+          overTime: 'judgement',
+          finisher: 'hammer_of_wrath',
+        }),
+      },
+    ],
   },
 
-  mage: {
-    id: 'mage',
-    name: 'Mage',
-    role: 'dps',
-    melee: false,
-    hp: 2900,
-    mana: 0,
-    moveSpeed: 165,
+  priest: {
+    id: 'priest',
+    name: 'Priest',
     armorType: 'cloth',
-    armor: 900,
-    block: 0,
-    abilities: {
-      ...none,
-      filler: 'frostbolt',
-      overTime: 'living_bomb',
-      finisher: 'pyroblast',
-    },
-  },
-
-  hunter: {
-    id: 'hunter',
-    name: 'Hunter',
-    role: 'dps',
-    melee: false,
-    hp: 3600,
-    mana: 0,
-    moveSpeed: 170,
-    armorType: 'mail',
-    armor: 3300,
-    block: 0,
-    // Everything is instant: the hunter keeps its damage up while moving.
-    abilities: {
-      ...none,
-      filler: 'steady_shot',
-      overTime: 'serpent_sting',
-      finisher: 'aimed_shot',
-    },
-  },
-
-  rogue: {
-    id: 'rogue',
-    name: 'Rogue',
-    role: 'dps',
-    melee: true,
-    hp: 3400,
-    mana: 0,
-    moveSpeed: 175,
-    armorType: 'leather',
-    armor: 2300,
-    block: 0,
-    // Highest sustained damage, paid for by having to stand in melee.
-    abilities: {
-      ...none,
-      filler: 'sinister_strike',
-      overTime: 'rupture',
-      finisher: 'eviscerate',
-    },
-  },
-
-  shaman: {
-    id: 'shaman',
-    name: 'Shaman',
-    role: 'dps',
-    melee: false,
-    hp: 3600,
-    mana: 0,
-    moveSpeed: 165,
-    armorType: 'mail',
-    armor: 3300,
-    block: 0,
-    abilities: {
-      ...none,
-      filler: 'lightning_bolt',
-      overTime: 'flame_shock',
-      finisher: 'chain_lightning',
-    },
+    moveSpeed: 155,
+    specs: [
+      {
+        role: 'healer',
+        melee: false,
+        hp: 3000,
+        armor: 900,
+        block: 0,
+        mana: 1000,
+        abilities: kit({
+          filler: 'heal',
+          overTime: 'renew',
+          finisher: 'flash_heal',
+          attack: 'smite',
+        }),
+      },
+      {
+        role: 'dps',
+        melee: false,
+        hp: 3000,
+        armor: 900,
+        block: 0,
+        mana: 0,
+        abilities: kit({
+          filler: 'mind_flay',
+          overTime: 'shadow_word_pain',
+          finisher: 'mind_blast',
+        }),
+      },
+    ],
   },
 
   druid: {
     id: 'druid',
     name: 'Druid',
-    role: 'dps',
-    melee: false,
-    hp: 3400,
-    mana: 0,
-    moveSpeed: 165,
     armorType: 'leather',
-    armor: 2300,
-    block: 0,
-    abilities: {
-      ...none,
-      filler: 'wrath',
-      overTime: 'moonfire',
-      finisher: 'starfire',
-    },
+    moveSpeed: 165,
+    specs: [
+      {
+        role: 'tank',
+        melee: true,
+        // Bear form has no shield, and a flat block is worth a great deal
+        // against a fast weapon, so it pays for that in a much larger health
+        // pool: harder to spike down, more of a drain on the healers.
+        hp: 9200,
+        armor: 11500,
+        block: 0,
+        mana: 0,
+        abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen' }),
+      },
+      {
+        role: 'healer',
+        melee: false,
+        hp: 3200,
+        armor: 1800,
+        block: 0,
+        mana: 1050,
+        abilities: kit({
+          filler: 'healing_touch',
+          overTime: 'rejuvenation',
+          finisher: 'swiftmend',
+          attack: 'starsurge',
+        }),
+      },
+      {
+        role: 'dps',
+        melee: false,
+        hp: 3300,
+        armor: 2300,
+        block: 0,
+        mana: 0,
+        abilities: kit({ filler: 'wrath', overTime: 'moonfire', finisher: 'starfire' }),
+      },
+    ],
+  },
+
+  shaman: {
+    id: 'shaman',
+    name: 'Shaman',
+    armorType: 'mail',
+    moveSpeed: 165,
+    specs: [
+      {
+        role: 'healer',
+        melee: false,
+        hp: 3300,
+        armor: 2600,
+        block: 0,
+        mana: 1050,
+        abilities: kit({
+          filler: 'healing_wave',
+          overTime: 'riptide',
+          finisher: 'chain_heal',
+          attack: 'lava_burst',
+        }),
+      },
+      {
+        role: 'dps',
+        melee: false,
+        hp: 3200,
+        armor: 3300,
+        block: 0,
+        mana: 0,
+        abilities: kit({
+          filler: 'lightning_bolt',
+          overTime: 'flame_shock',
+          finisher: 'chain_lightning',
+        }),
+      },
+    ],
+  },
+
+  mage: {
+    id: 'mage',
+    name: 'Mage',
+    armorType: 'cloth',
+    moveSpeed: 165,
+    specs: [
+      {
+        role: 'dps',
+        melee: false,
+        hp: 2900,
+        armor: 900,
+        block: 0,
+        mana: 0,
+        abilities: kit({ filler: 'frostbolt', overTime: 'living_bomb', finisher: 'pyroblast' }),
+      },
+    ],
+  },
+
+  hunter: {
+    id: 'hunter',
+    name: 'Hunter',
+    armorType: 'mail',
+    moveSpeed: 170,
+    specs: [
+      {
+        role: 'dps',
+        melee: false,
+        hp: 3600,
+        armor: 3300,
+        block: 0,
+        mana: 0,
+        abilities: kit({
+          filler: 'steady_shot',
+          overTime: 'serpent_sting',
+          finisher: 'aimed_shot',
+        }),
+      },
+    ],
+  },
+
+  rogue: {
+    id: 'rogue',
+    name: 'Rogue',
+    armorType: 'leather',
+    moveSpeed: 175,
+    specs: [
+      {
+        role: 'dps',
+        melee: true,
+        hp: 3400,
+        armor: 2300,
+        block: 0,
+        mana: 0,
+        abilities: kit({
+          filler: 'sinister_strike',
+          overTime: 'rupture',
+          finisher: 'eviscerate',
+        }),
+      },
+    ],
   },
 }
 
-export const CLASS_ORDER: ClassId[] = [
-  'warrior',
-  'paladin',
-  'priest',
-  'druid',
-  'shaman',
-  'mage',
-  'hunter',
-  'rogue',
-]
+/** One class filling one role. */
+export interface Pick {
+  classId: ClassId
+  role: Role
+}
+
+export function specOf(pick: Pick): Spec {
+  const cls = CLASSES[pick.classId]
+  return cls.specs.find((s) => s.role === pick.role) ?? cls.specs[0]!
+}
+
+export function canFill(classId: ClassId, role: Role): boolean {
+  return CLASSES[classId].specs.some((s) => s.role === role)
+}
+
+/** Every class/role combination, in the order the picker lists them. */
+export const SPEC_OPTIONS: Pick[] = CLASS_ORDER.flatMap((classId) =>
+  CLASSES[classId].specs.map((spec) => ({ classId, role: spec.role })),
+)
+
+export function specLabel(pick: Pick): string {
+  const cls = CLASSES[pick.classId]
+  if (cls.specs.length === 1) return cls.name
+  const suffix = pick.role === 'tank' ? 'Tank' : pick.role === 'healer' ? 'Heal' : 'DPS'
+  return `${cls.name} ${suffix}`
+}
 
 export type RaidSize = 5 | 10 | 25
 export const RAID_SIZES: RaidSize[] = [5, 10, 25]
@@ -338,43 +470,70 @@ export function makeSlots(size: RaidSize): Slot[] {
 }
 
 /** A balanced composition for a given size: tanks, then healers, then damage. */
-export function autoParty(size: RaidSize, playerClass: ClassId): ClassId[] {
-  const tanks = size === 5 ? 1 : size === 10 ? 2 : 3
+function roleTargets(size: RaidSize): { tanks: number; healers: number } {
   // Healer ratios follow the damage ratio; three healers in a ten-man made it
   // strictly easier than a five-man, which defeats the point of the size.
-  const healers = size === 5 ? 1 : size === 10 ? 2 : 5
+  return {
+    tanks: size === 5 ? 1 : size === 10 ? 2 : 3,
+    healers: size === 5 ? 1 : size === 10 ? 2 : 5,
+  }
+}
 
-  const party: ClassId[] = [playerClass]
-  const tankPool: ClassId[] = ['warrior']
-  const healPool: ClassId[] = ['priest', 'paladin']
-  const dpsPool: ClassId[] = ['rogue', 'mage', 'hunter', 'shaman', 'druid']
+const POOLS: Record<Role, Pick[]> = {
+  tank: [
+    { classId: 'warrior', role: 'tank' },
+    { classId: 'paladin', role: 'tank' },
+    { classId: 'druid', role: 'tank' },
+  ],
+  healer: [
+    { classId: 'priest', role: 'healer' },
+    { classId: 'paladin', role: 'healer' },
+    { classId: 'druid', role: 'healer' },
+    { classId: 'shaman', role: 'healer' },
+  ],
+  dps: [
+    { classId: 'rogue', role: 'dps' },
+    { classId: 'mage', role: 'dps' },
+    { classId: 'hunter', role: 'dps' },
+    { classId: 'shaman', role: 'dps' },
+    { classId: 'druid', role: 'dps' },
+    { classId: 'warrior', role: 'dps' },
+    { classId: 'paladin', role: 'dps' },
+    { classId: 'priest', role: 'dps' },
+  ],
+}
 
-  const playerRole = CLASSES[playerClass].role
-  let needTank = tanks - (playerRole === 'tank' ? 1 : 0)
-  let needHeal = healers - (playerRole === 'healer' ? 1 : 0)
+export function autoParty(size: RaidSize, player: Pick): Pick[] {
+  const { tanks, healers } = roleTargets(size)
+  const party: Pick[] = [player]
+
+  let needTank = tanks - (player.role === 'tank' ? 1 : 0)
+  let needHeal = healers - (player.role === 'healer' ? 1 : 0)
 
   for (let i = 1; i < size; i++) {
-    if (needTank > 0) {
-      party.push(tankPool[(i - 1) % tankPool.length]!)
-      needTank--
-    } else if (needHeal > 0) {
-      party.push(healPool[(i - 1) % healPool.length]!)
-      needHeal--
-    } else {
-      party.push(dpsPool[(i - 1) % dpsPool.length]!)
-    }
+    const role: Role = needTank > 0 ? 'tank' : needHeal > 0 ? 'healer' : 'dps'
+    if (role === 'tank') needTank--
+    if (role === 'healer') needHeal--
+    const pool = POOLS[role]
+    party.push(pool[(i - 1) % pool.length]!)
   }
   return party
 }
 
-export const DEFAULT_PARTY: ClassId[] = ['mage', 'warrior', 'priest', 'hunter', 'rogue']
+export const DEFAULT_PARTY: Pick[] = [
+  { classId: 'mage', role: 'dps' },
+  { classId: 'warrior', role: 'tank' },
+  { classId: 'priest', role: 'healer' },
+  { classId: 'hunter', role: 'dps' },
+  { classId: 'rogue', role: 'dps' },
+]
 
 /** Kept for the five-man default; larger raids build theirs from autoParty. */
 export const SLOTS = makeSlots(5)
 
-/** Action bar for a class, in press order. Three slots at most. */
-export function abilityBar(classId: ClassId): string[] {
-  const a = CLASSES[classId].abilities
+/** Action bar for a spec, in press order. Three slots at most. */
+export function abilityBar(pick: Pick): string[] {
+  const a = specOf(pick).abilities
   return [a.filler, a.threat, a.overTime, a.finisher, a.defensive].filter(
     (id): id is string => id !== null,
   )
@@ -392,12 +551,8 @@ export function abilityBar(classId: ClassId): string[] {
  * allowed to reach for Math.random, because the fight itself must stay
  * reproducible from its seed.
  */
-export function randomParty(size: RaidSize, random: () => number): ClassId[] {
-  const tanks = size === 5 ? 1 : size === 10 ? 2 : 3
-  const healers = size === 5 ? 1 : size === 10 ? 2 : 5
-
-  const byRole: Record<Role, ClassId[]> = { tank: [], healer: [], dps: [] }
-  for (const id of CLASS_ORDER) byRole[CLASSES[id].role].push(id)
+export function randomParty(size: RaidSize, random: () => number): Pick[] {
+  const { tanks, healers } = roleTargets(size)
 
   const roles: Role[] = []
   for (let i = 0; i < tanks; i++) roles.push('tank')
@@ -411,8 +566,8 @@ export function randomParty(size: RaidSize, random: () => number): ClassId[] {
   }
 
   return roles.map((role) => {
-    const pool = byRole[role]
-    return pool[Math.floor(random() * pool.length)] ?? 'mage'
+    const pool = POOLS[role]
+    return pool[Math.floor(random() * pool.length)] ?? POOLS.dps[0]!
   })
 }
 
@@ -422,8 +577,8 @@ export interface RoleCount {
   dps: number
 }
 
-export function countRoles(party: ClassId[]): RoleCount {
+export function countRoles(party: Pick[]): RoleCount {
   const count: RoleCount = { tank: 0, healer: 0, dps: 0 }
-  for (const id of party) count[CLASSES[id].role]++
+  for (const pick of party) count[pick.role]++
   return count
 }

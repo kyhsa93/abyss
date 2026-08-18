@@ -1,7 +1,7 @@
 import { ABILITIES } from './abilities'
 import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH, SPREAD_RADIUS } from './constants'
 import { BREATH_CAST, insideCone } from './boss'
-import { CLASSES } from './classes'
+import { specOf } from './classes'
 import {
   adds,
   beginCast,
@@ -388,9 +388,14 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   else dpsRotation(s, actor, rng, moving)
 }
 
+/** The spec an actor is playing. */
+function specFor(actor: Actor) {
+  return specOf({ classId: actor.classId, role: actor.role })
+}
+
 /** Is there anything worth pressing that ignores the global cooldown? */
 function canUseOffGcd(s: SimState, actor: Actor): boolean {
-  const kit = CLASSES[actor.classId].abilities
+  const kit = specFor(actor).abilities
   if (!kit.defensive) return false
   const ability = ABILITIES[kit.defensive]
   if (!ability?.offGcd) return false
@@ -417,7 +422,7 @@ function tryCast(
 function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   const ai = actor.ai!
-  const kit = CLASSES[actor.classId].abilities
+  const kit = specFor(actor).abilities
 
   // Defensive on the incoming slam. The fumble roll is what makes the tank
   // occasionally eat it, which is exactly what a real tank does.
@@ -437,7 +442,7 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
 
 function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const ai = actor.ai!
-  const kit = CLASSES[actor.classId].abilities
+  const kit = specFor(actor).abilities
   const wounded = lowestHealth(s)
   if (!wounded) return
 
@@ -484,7 +489,7 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   if (!b.alive) return
-  const kit = CLASSES[actor.classId].abilities
+  const kit = specFor(actor).abilities
 
   // Adds first: they beeline for whoever is closest and shred a healer.
   const summoned = adds(s)

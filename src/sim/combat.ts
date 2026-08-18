@@ -41,7 +41,12 @@ const AURA_DURATION: Record<AuraId, number> = {
   rupture: 12,
   flame_shock: 12,
   moonfire: 14,
+  rend: 12,
+  judgement: 12,
+  shadow_word_pain: 15,
   renew: 12,
+  rejuvenation: 12,
+  riptide: 12,
   shield: 6,
   spread: 4,
   enrage: 9999,
@@ -54,7 +59,12 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   rupture: { damage: 85 },
   flame_shock: { damage: 65 },
   moonfire: { damage: 62 },
+  rend: { damage: 78 },
+  judgement: { damage: 68 },
+  shadow_word_pain: { damage: 58 },
   renew: { heal: 60 },
+  rejuvenation: { heal: 58 },
+  riptide: { heal: 62 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {

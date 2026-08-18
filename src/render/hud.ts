@@ -323,7 +323,7 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return
 
-  const bar = abilityBar(player.classId)
+  const bar = abilityBar({ classId: player.classId, role: player.role })
   const slot = 58 * L.ui
   const gap = 8 * L.ui
   const total = bar.length * slot + (bar.length - 1) * gap
@@ -416,7 +416,7 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.stroke()
   }
 
-  const bar = abilityBar(player.classId)
+  const bar = abilityBar({ classId: player.classId, role: player.role })
   for (let i = 0; i < bar.length && i < L.btnYs.length; i++) {
     const id = bar[i]!
     const ability = ABILITIES[id]!
@@ -550,7 +550,7 @@ function drawReport(ctx: CanvasRenderingContext2D, s: SimState, top: number, bot
     const y = top + i * rowH
     const h = rowH - 4
     const cls = CLASSES[row.actor.classId]
-    const colour = roleColor(cls.role, row.actor.isPlayer)
+    const colour = roleColor(row.actor.role, row.actor.isPlayer)
 
     // Contribution bar behind the text, healing shown lighter than damage.
     ctx.fillStyle = 'rgba(255,255,255,0.04)'

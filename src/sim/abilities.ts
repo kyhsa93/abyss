@@ -67,6 +67,43 @@ const list: Ability[] = [
   { id: 'rupture', name: 'Rupture', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, manaCost: 0, amount: 40, threatMult: 1, aura: 'rupture', range: MELEE },
   { id: 'eviscerate', name: 'Eviscerate', key: '3', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, manaCost: 0, amount: 420, threatMult: 1, aura: null, range: MELEE },
 
+  // --- warrior, as damage: bleeds and an execute -----------------------------
+  { id: 'mortal_strike', name: 'Mortal Strike', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 112, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rend', name: 'Rend', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, manaCost: 0, amount: 35, threatMult: 1, aura: 'rend', range: MELEE },
+  { id: 'execute', name: 'Execute', key: '3', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, manaCost: 0, amount: 400, threatMult: 1, aura: null, range: MELEE },
+
+  // --- paladin, as tank ------------------------------------------------------
+  { id: 'avengers_shield', name: "Avenger's Shield", key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 105, threatMult: 6, aura: null, range: 200 },
+  { id: 'consecration', name: 'Consecration', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 58, threatMult: 4, aura: null, range: MELEE },
+  { id: 'divine_protection', name: 'Divine Protection', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
+
+  // --- paladin, as damage ----------------------------------------------------
+  { id: 'crusader_strike', name: 'Crusader Strike', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 104, threatMult: 1, aura: null, range: MELEE },
+  { id: 'judgement', name: 'Judgement', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, manaCost: 0, amount: 38, threatMult: 1, aura: 'judgement', range: 200 },
+  { id: 'hammer_of_wrath', name: 'Hammer of Wrath', key: '3', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, manaCost: 0, amount: 395, threatMult: 1, aura: null, range: 200 },
+
+  // --- druid, as tank --------------------------------------------------------
+  { id: 'maul', name: 'Maul', key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 118, threatMult: 6, aura: null, range: MELEE },
+  { id: 'swipe', name: 'Swipe', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 62, threatMult: 4, aura: null, range: MELEE },
+  { id: 'frenzied_regen', name: 'Frenzied Regen', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
+
+  // --- druid, as healer: heal-over-time first ---------------------------------
+  { id: 'healing_touch', name: 'Healing Touch', key: '1', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, manaCost: 28, amount: 470, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'rejuvenation', name: 'Rejuvenation', key: '2', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, manaCost: 20, amount: 0, threatMult: 0, aura: 'rejuvenation', range: HEAL_RANGE },
+  { id: 'swiftmend', name: 'Swiftmend', key: '3', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, manaCost: 38, amount: 300, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'starsurge', name: 'Starsurge', key: '4', role: 'healer', kind: 'damage', castTime: 0, cooldown: 8, manaCost: 22, amount: 195, threatMult: 1, aura: null, range: SPELL },
+
+  // --- priest, as damage -----------------------------------------------------
+  { id: 'mind_blast', name: 'Mind Blast', key: '3', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, manaCost: 0, amount: 330, threatMult: 1, aura: null, range: SPELL },
+  { id: 'shadow_word_pain', name: 'Shadow Word: Pain', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, manaCost: 0, amount: 36, threatMult: 1, aura: 'shadow_word_pain', range: SPELL },
+  { id: 'mind_flay', name: 'Mind Flay', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 94, threatMult: 1, aura: null, range: SPELL },
+
+  // --- shaman, as healer -----------------------------------------------------
+  { id: 'healing_wave', name: 'Healing Wave', key: '1', role: 'healer', kind: 'heal', castTime: 2.1, cooldown: 0, manaCost: 27, amount: 450, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'riptide', name: 'Riptide', key: '2', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, manaCost: 21, amount: 0, threatMult: 0, aura: 'riptide', range: HEAL_RANGE },
+  { id: 'chain_heal', name: 'Chain Heal', key: '3', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, manaCost: 42, amount: 320, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'lava_burst', name: 'Lava Burst', key: '4', role: 'healer', kind: 'damage', castTime: 0, cooldown: 7, manaCost: 24, amount: 215, threatMult: 1, aura: null, range: SPELL },
+
   // --- shaman --------------------------------------------------------------
   { id: 'lightning_bolt', name: 'Lightning Bolt', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 92, threatMult: 1, aura: null, range: SPELL },
   { id: 'flame_shock', name: 'Flame Shock', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, manaCost: 0, amount: 45, threatMult: 1, aura: 'flame_shock', range: SPELL },

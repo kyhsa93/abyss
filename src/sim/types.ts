@@ -1,4 +1,4 @@
-import type { ClassId, DifficultyId } from './classes'
+import type { ClassId, DifficultyId, Pick } from './classes'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -16,7 +16,12 @@ export type AuraId =
   | 'rupture'
   | 'flame_shock'
   | 'moonfire'
-  | 'renew' // heal over time on a party member
+  | 'rend'
+  | 'judgement'
+  | 'shadow_word_pain'
+  | 'renew'
+  | 'rejuvenation'
+  | 'riptide' // heal over time on a party member
   | 'shield' // damage reduction on the tank
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'enrage' // boss damage amplifier
@@ -236,8 +241,8 @@ export interface SimState {
   /** Number of pulls so far; AI plays better on later attempts. */
   attempt: number
   seed: number
-  /** Class of each party slot, in order. */
-  party: ClassId[]
+  /** Class and role of each raid slot, in order. */
+  party: Pick[]
   difficulty: DifficultyId
   /** Keyed by actor id. */
   tally: Record<number, Tally>
