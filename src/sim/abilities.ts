@@ -124,7 +124,7 @@ const list: Ability[] = [
     kind: 'heal',
     castTime: 2,
     cooldown: 0,
-    manaCost: 22,
+    manaCost: 26,
     amount: 380,
     threatMult: 0,
     aura: null,

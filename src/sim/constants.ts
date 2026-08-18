@@ -16,7 +16,16 @@ export const SPREAD_RADIUS = 90
 export const ENRAGE_AT = 180
 export const PHASE_TWO_HP = 0.7
 
-export const MANA_REGEN_PER_SEC = 8
+export const MANA_REGEN_PER_SEC = 5
+
+/**
+ * Warning time before a puddle detonates.
+ *
+ * This is the dial that decides whether reaction time matters. Too long and
+ * even a distracted AI strolls out in time, which flattens the personalities
+ * into identical competence.
+ */
+export const PUDDLE_TELEGRAPH = 1.6
 
 /** Melee actors need to be this close to their target to swing. */
 export const MELEE_RANGE = 46

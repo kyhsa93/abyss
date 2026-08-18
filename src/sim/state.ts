@@ -1,7 +1,7 @@
 import { ARENA_RADIUS } from './constants'
 import type { Actor, AiProfile, Personality, Role, SimState } from './types'
 
-const BOSS_MAX_HP = 34000
+const BOSS_MAX_HP = 40000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -181,7 +181,9 @@ export function createState(seed: number, attempt: number): SimState {
     pos: { x: 0, y: 0 },
     prevPos: { x: 0, y: 0 },
     radius: 38,
-    moveSpeed: 95,
+    // Faster than anyone in the party (155-165). You cannot outrun it, only
+    // out-position it, which is what keeps threat and tanking meaningful.
+    moveSpeed: 175,
     hp: BOSS_MAX_HP,
     maxHp: BOSS_MAX_HP,
     mana: 0,
@@ -213,6 +215,7 @@ export function createState(seed: number, attempt: number): SimState {
     nextPuddle: 9,
     nextSpread: 17,
     nextSlam: 13,
+    nextRaidHit: 11,
     nextObjectId: 1,
     attempt,
     seed,

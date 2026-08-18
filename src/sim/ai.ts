@@ -24,6 +24,12 @@ import type { Actor, SimState, Vec2 } from './types'
 
 const DANGER_MARGIN = 14
 
+/** Casters stay inside ability range but out of the boss's lap. */
+const CASTER_MIN_RANGE = 80
+const CASTER_MAX_RANGE = 245
+const CASTER_IDEAL_RANGE = 170
+const HEAL_REACH = 280
+
 export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
   if (!ai || !actor.alive) return
@@ -71,7 +77,12 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     } else if (ai.personality === 'timid') {
       say(s, actor, 'Moving!')
     }
-  } else if (!ai.moveTarget) {
+  } else if (ai.moveTarget && isSpotSafe(s, actor, actor.pos) && !outOfPosition(s, actor)) {
+    // The danger passed and here is fine. Stop; do not walk back to some
+    // nominal home. Chasing a home position that is itself defined relative
+    // to a moving boss is what made the party pace back and forth.
+    ai.moveTarget = null
+  } else if (!ai.moveTarget && outOfPosition(s, actor)) {
     ai.moveTarget = idlePosition(s, actor)
   }
 
@@ -115,13 +126,43 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   return true
 }
 
+/**
+ * True only when the actor genuinely cannot do its job from where it stands.
+ *
+ * Anything looser than this produces fidgeting: a party that drifts back to a
+ * nominal formation every time the floor clears looks busy, not competent.
+ */
+function outOfPosition(s: SimState, actor: Actor): boolean {
+  const b = boss(s)
+  const d = dist(actor.pos, b.pos)
+
+  if (actor.role === 'tank') return d > MELEE_RANGE + b.radius * 0.6
+
+  if (d > CASTER_MAX_RANGE || d < CASTER_MIN_RANGE) return true
+
+  if (actor.role === 'healer') {
+    // A healer also has to be able to reach whoever is hurt.
+    const wounded = lowestHealth(s)
+    if (wounded && wounded.id !== actor.id && dist(actor.pos, wounded.pos) > HEAL_REACH) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * The smallest correction that fixes the problem: keep the actor's current
+ * bearing from the boss and only adjust distance. Returning to a shared home
+ * tile would also stack the whole party on one spot for the next puddle.
+ */
 function idlePosition(s: SimState, actor: Actor): Vec2 {
   const b = boss(s)
-  if (actor.role === 'tank') {
-    // Hold the boss just off centre so casters have room behind.
-    return { x: b.pos.x, y: b.pos.y - MELEE_RANGE * 0.7 }
-  }
-  return { x: b.pos.x - 40, y: b.pos.y + 150 }
+  const d = dist(actor.pos, b.pos) || 1
+  const want = actor.role === 'tank' ? MELEE_RANGE * 0.8 : CASTER_IDEAL_RANGE
+
+  const bearingX = (actor.pos.x - b.pos.x) / d
+  const bearingY = (actor.pos.y - b.pos.y) / d
+  return { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }
 }
 
 /**

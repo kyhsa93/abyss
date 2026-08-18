@@ -145,6 +145,7 @@ export interface SimState {
   nextPuddle: number
   nextSpread: number
   nextSlam: number
+  nextRaidHit: number
   /** Monotonic id source for spawned objects. */
   nextObjectId: number
   /** Number of pulls so far; AI plays better on later attempts. */

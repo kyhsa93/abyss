@@ -135,7 +135,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
-      applyDamage(s, a, 700, true)
+      applyDamage(s, a, 850, true)
     }
   }
 }

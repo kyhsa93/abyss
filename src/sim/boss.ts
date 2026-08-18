@@ -1,4 +1,4 @@
-import { DT, ENRAGE_AT, MELEE_RANGE, PHASE_TWO_HP } from './constants'
+import { DT, ENRAGE_AT, MELEE_RANGE, PHASE_TWO_HP, PUDDLE_TELEGRAPH } from './constants'
 import {
   addAura,
   applyDamage,
@@ -27,19 +27,21 @@ interface PhaseTiming {
   spread: number
   slam: number
   puddleCount: number
+  /** Unavoidable party-wide damage; the healer's actual test. */
+  raid: number
 }
 
 const PHASE: Record<number, PhaseTiming> = {
-  1: { swing: 2.0, puddle: 14, spread: 22, slam: 16, puddleCount: 1 },
-  2: { swing: 1.5, puddle: 12, spread: 18, slam: 12, puddleCount: 2 },
+  1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9 },
+  2: { swing: 1.5, puddle: 8, spread: 15, slam: 12, puddleCount: 2, raid: 7 },
 }
 
 const SLAM_CAST = 2
-const SLAM_DAMAGE = 320
+const SLAM_DAMAGE = 420
 const SWING_DAMAGE = 140
 const PUDDLE_RADIUS = 70
-const PUDDLE_TELEGRAPH = 2.5
-const PUDDLE_DAMAGE = 900
+const PUDDLE_DAMAGE = 1100
+const RAID_DAMAGE = 150
 
 export function updateBoss(s: SimState, rng: Rng): void {
   const b = boss(s)
@@ -113,6 +115,17 @@ export function updateBoss(s: SimState, rng: Rng): void {
     s.nextPuddle = timing.puddle
   }
 
+  // --- unavoidable party damage ---
+  //
+  // Everything else in the fight can be dodged, and a competent party dodges
+  // nearly all of it. Without a floor of damage the healer is never tested and
+  // the encounter has no failure mode except the enrage timer.
+  s.nextRaidHit -= DT
+  if (s.nextRaidHit <= 0) {
+    for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, true)
+    s.nextRaidHit = timing.raid
+  }
+
   // --- spread: someone has to walk away from the group ---
   s.nextSpread -= DT
   if (s.nextSpread <= 0) {
@@ -139,7 +152,7 @@ function spawnPuddle(s: SimState, x: number, y: number, rng: Rng): void {
     pos,
     radius: PUDDLE_RADIUS,
     telegraph: PUDDLE_TELEGRAPH,
-    lingering: 4.5,
+    lingering: 5.5,
     damage: PUDDLE_DAMAGE,
     detonated: false,
   }

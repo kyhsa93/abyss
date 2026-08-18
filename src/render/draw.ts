@@ -1,4 +1,4 @@
-import { SPREAD_RADIUS } from '../sim/constants'
+import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { getAura } from '../sim/combat'
 import type { Actor, SimState, Vec2 } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
@@ -80,7 +80,7 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
-      const progress = 1 - g.telegraph / 2.5
+      const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
       ctx.beginPath()
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.telegraph

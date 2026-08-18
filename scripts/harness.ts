@@ -23,6 +23,10 @@ interface Report {
   time: number
   bossPct: number
   inPuddle: Record<string, number>
+  /** Metres walked per second of fight. */
+  travel: Record<string, number>
+  /** Same, but only while no ground effect exists — pure wasted motion. */
+  idleTravel: Record<string, number>
   deaths: Record<string, number>
 }
 
@@ -31,6 +35,8 @@ function run(seed: number, attempt: number): Report {
   const rng = new Rng(seed + attempt * 7919)
   const ticksIn: Record<string, number> = {}
   const deaths: Record<string, number> = {}
+  const walked: Record<string, number> = {}
+  const walkedQuiet: Record<string, number> = {}
   let ticks = 0
 
   while (s.outcome === 'ongoing' && s.time < 200) {
@@ -40,8 +46,21 @@ function run(seed: number, attempt: number): Report {
     if (ticks % 360 === 0) pressed.push(1)
     if (ticks % 540 === 0) pressed.push(2)
 
+    // A tick with nothing on the floor is a tick nobody should be running.
+    const quiet = s.ground.length === 0
+    const before = new Map(s.actors.map((a) => [a.id, { x: a.pos.x, y: a.pos.y }]))
+
     step(s, playerInput(s, pressed), rng)
     ticks++
+
+    for (const a of s.actors) {
+      if (a.faction !== 'party' || !a.alive) continue
+      const p = before.get(a.id)
+      if (!p) continue
+      const d = Math.hypot(a.pos.x - p.x, a.pos.y - p.y)
+      walked[a.name] = (walked[a.name] ?? 0) + d
+      if (quiet) walkedQuiet[a.name] = (walkedQuiet[a.name] ?? 0) + d
+    }
 
     for (const a of s.actors) {
       if (a.faction !== 'party') continue
@@ -64,40 +83,54 @@ function run(seed: number, attempt: number): Report {
     pct[a.name] = Math.round(((ticksIn[a.name] ?? 0) / ticks) * 1000) / 10
   }
 
+  const travel: Record<string, number> = {}
+  const idleTravel: Record<string, number> = {}
+  for (const a of s.actors) {
+    if (a.faction !== 'party') continue
+    travel[a.name] = (walked[a.name] ?? 0) / Math.max(1, s.time)
+    idleTravel[a.name] = (walkedQuiet[a.name] ?? 0) / Math.max(1, s.time)
+  }
+
   return {
     outcome: s.outcome,
     time: Math.round(s.time * 10) / 10,
     bossPct: Math.round((boss.hp / boss.maxHp) * 1000) / 10,
     inPuddle: pct,
+    travel,
+    idleTravel,
     deaths,
   }
 }
 
 
 const ATTEMPTS = [0, 2, 4, 6, 8]
-const NAMES = ['You', 'Bastion', 'Wren', 'Kestrel', 'Vale']
+const AI = ['Bastion', 'Wren', 'Kestrel', 'Vale']
 
-console.log('attempt  runs  wins  winRate  avgTime  bossLeft%  ' + NAMES.map((n) => n.padEnd(8)).join(''))
+console.log(
+  'attempt  wins  time   ' +
+    AI.map((n) => (n + ' pud/mv').padEnd(16)).join(''),
+)
 for (const attempt of ATTEMPTS) {
   let wins = 0
   let time = 0
-  let left = 0
   const puddle: Record<string, number> = {}
+  const travel: Record<string, number> = {}
   const RUNS = 30
   for (let i = 0; i < RUNS; i++) {
     const r = run(1000 + i * 137, attempt)
     if (r.outcome === 'victory') wins++
     time += r.time
-    left += r.bossPct
-    for (const n of NAMES) puddle[n] = (puddle[n] ?? 0) + (r.inPuddle[n] ?? 0)
+    for (const n of AI) {
+      puddle[n] = (puddle[n] ?? 0) + (r.inPuddle[n] ?? 0)
+      travel[n] = (travel[n] ?? 0) + (r.travel[n] ?? 0)
+    }
   }
   console.log(
     String(attempt).padEnd(9),
-    String(RUNS).padEnd(6),
-    String(wins).padEnd(6),
-    `${Math.round((wins / RUNS) * 100)}%`.padEnd(9),
-    (time / RUNS).toFixed(1).padEnd(9),
-    (left / RUNS).toFixed(1).padEnd(11),
-    NAMES.map((n) => `${(puddle[n]! / RUNS).toFixed(2)}%`.padEnd(8)).join(''),
+    `${Math.round((wins / RUNS) * 100)}%`.padEnd(6),
+    (time / RUNS).toFixed(0).padEnd(7),
+    AI.map((n) =>
+      `${(puddle[n]! / RUNS).toFixed(2)}%/${(travel[n]! / RUNS).toFixed(0)}`.padEnd(16),
+    ).join(''),
   )
 }

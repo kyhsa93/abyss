@@ -80,9 +80,15 @@ The Drowned Warden, one phase transition at 70% health, three mechanics:
 | Mechanic | What it asks of you |
 | --- | --- |
 | Abyssal Slam | Tank cooldown, or the tank takes a large hit |
-| Puddles | Move out; they linger and shrink the usable floor |
+| Puddles | Move out fast; the warning is short and they linger |
 | Spread | The target walks away from everyone else |
+| Crushing tide | Unavoidable party damage — the healer's mana is the real timer |
+| The boss itself | Faster than the whole party; you cannot outrun it |
 | Enrage at 180s | A hard damage check |
+
+Only the tide cannot be dodged, and that is deliberate: a party that dodges
+well takes almost nothing else, so without a floor of damage the healer is
+never tested and the only failure mode left is the enrage timer.
 
 Your `Burst` has a two-second cast and movement cancels it, so the real
 decision is when you can afford to stand still.
@@ -101,15 +107,23 @@ The harness is the main tool here. Tuning AI or balance without measuring it
 produces party members that feel wrong in ways that are hard to name, so every
 change to `ai.ts`, `boss.ts` or ability numbers should be followed by a run.
 
-Current baseline, with a deliberately mediocre scripted player, 30 runs per row:
+Current baseline, with a deliberately mediocre scripted player, 30 runs per row.
+Each member column is `time in a detonated puddle / units walked per second`:
 
 | Attempt | Win rate | Bastion | Wren | Kestrel | Vale |
 | --- | --- | --- | --- | --- | --- |
-| 1st pull | 33% | 0.96% | 2.88% | 5.72% | 3.63% |
-| 5th pull | 73% | 0.63% | 1.48% | 4.02% | 2.47% |
-| 9th pull | 67% | 0.34% | 1.46% | 3.81% | 2.72% |
+| 1st pull | 33% | 0.06% / 10 | 0.15% / 14 | 0.25% / 11 | 0.09% / 12 |
+| 5th pull | 47% | 0.09% / 12 | 0.07% / 15 | 0.22% / 12 | 0.20% / 15 |
+| 9th pull | 60% | 0.02% / 10 | 0.05% / 14 | 0.07% / 13 | 0.07% / 14 |
 
-The per-member columns are time spent standing in a detonated puddle. The
-ordering across them — tank lowest, greedy dealer highest — is the check that
-personalities still mean something. If they flatten out, the humanity layer has
-stopped working even when the win rate looks fine.
+Two things are being watched here, and neither shows up in the win rate.
+
+**Puddle uptime must stay ordered** — tank lowest, greedy dealer highest. If it
+flattens, the humanity layer has stopped mattering and everyone is playing
+identically well.
+
+**Distance walked must stay low.** An earlier version had the party return to a
+fixed home position whenever the floor cleared, and because that home was
+defined relative to a moving boss, they chased it forever: the healer walked 70
+units a second, pacing back and forth all fight. It looked busy and read as
+broken. Movement is now only for danger and for genuinely being out of range.
