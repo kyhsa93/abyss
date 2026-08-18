@@ -56,16 +56,39 @@ repeating it.
 
 ## Classes
 
-| Class | Role | Notes |
+| Class | Role | Armour | Phys. reduction | Health | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Warrior | tank | plate | 50% + 260 block | 6200 | The only thing that survives a swing |
+| Paladin | healer | plate | 42% + 150 block | 4600 | Slower, bigger heals and an emergency button |
+| Priest | healer | cloth | 9% | 2900 | Sustained, leans on a heal-over-time |
+| Druid | damage | leather | 20% | 3400 | Instant dot, one long finisher |
+| Shaman | damage | mail | 27% | 3600 | Middling everything, short-cast finisher |
+| Mage | damage | cloth | 9% | 2900 | Highest burst, on a 2.5s cast |
+| Hunter | damage | mail | 27% | 3600 | Entirely instant; never stops damaging |
+| Rogue | damage | leather | 20% | 3400 | Highest sustained damage, from melee |
+
+## Defence
+
+Armour is a rating run through `armor / (armor + 9000)`, so it diminishes and
+never approaches immunity. Shield carriers also remove a flat amount before
+mitigation, which is worth more against many small hits than one large one —
+the shape of a tank's job.
+
+It only applies to the boss's weapon. Mechanics are magic and ignore armour
+entirely, so a plate tank and a cloth caster take a puddle equally. The tank's
+role is to stand in front of the swings, not to be immune to the fight.
+
+That gap is the whole point:
+
+| | 540 swing lands as | swings to die |
 | --- | --- | --- |
-| Warrior | tank | 45% armour, the only thing that makes a boss swing survivable |
-| Paladin | healer | Slower, bigger heals and a long-cooldown emergency button |
-| Priest | healer | Sustained, leans on a heal-over-time |
-| Druid | damage | Instant dot, one long finisher |
-| Shaman | damage | Middling everything, short-cast finisher |
-| Mage | damage | Highest burst, on a 2.5s cast that fights your movement |
-| Hunter | damage | Entirely instant, so it never stops damaging while moving |
-| Rogue | damage | Highest sustained damage, paid for by standing in melee |
+| Warrior | 138 | 45 |
+| Hunter | 395 | 9 |
+| Mage | 491 | 6 |
+
+A dealer that pulls threat has about ten seconds to live, which is why the
+threat readout is on the party frames.
+
 
 Rotations are shared per role; what differs is the numbers and cast times.
 That is enough to change how a class plays — the hunter keeps damaging while
@@ -166,17 +189,17 @@ cell:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 25% | 46% | 42% | 144s |
-| 1 tank, 2 healers, 2 damage | 8% | 21% | 17% | 246s |
-| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 82s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 96s |
-| all melee | 0% | 8% | 13% | 158s |
-| all caster | 29% | 42% | 54% | 148s |
+| 1 tank, 1 healer, 3 damage | 25% | 42% | 54% | 142s |
+| 1 tank, 2 healers, 2 damage | 8% | 25% | 17% | 264s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 80s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 76s |
+| all melee | 4% | 0% | 4% | 155s |
+| all caster | 33% | 54% | 50% | 142s |
 
-Two healers works but grinds: it clears around the 240s enrage rather than
-comfortably inside it. Dropping the tank or the healer entirely does not work
-at all, which is the intended shape — those are the two roles the encounter is
-actually built around.
+Two healers works but grinds against the 240s enrage. Dropping the tank or the
+healer entirely does not work at all, which is the intended shape. All-melee is
+close to unplayable for the same reason it is a bad idea in the real thing:
+everyone is stacked in the one place the boss is aiming.
 
 Per-member detail for the default composition, `puddle uptime / units walked
 per second`:

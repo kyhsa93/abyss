@@ -1,4 +1,12 @@
-import { CLASSES, CLASS_ORDER, PARTY_SIZE, SLOTS, countRoles, type ClassId } from '../sim/classes'
+import {
+  CLASSES,
+  CLASS_ORDER,
+  PARTY_SIZE,
+  SLOTS,
+  countRoles,
+  mitigation,
+  type ClassId,
+} from '../sim/classes'
 import { COLORS, L } from './theme'
 
 /**
@@ -146,7 +154,11 @@ export function drawRoster(
 
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
-    ctx.fillText(cls.melee ? `${cls.role} · melee` : cls.role, cx, r.y + r.h - 10 * L.ui)
+    ctx.fillText(
+      `${Math.round(mitigation(cls.armor) * 100)}% phys`,
+      cx,
+      r.y + r.h - 10 * L.ui,
+    )
   }
 
   // --- composition summary -------------------------------------------------
@@ -191,9 +203,16 @@ export function drawRoster(
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
     ctx.fillText(
-      `${cls.role}${cls.melee ? ' · melee' : ''}   ${cls.hp} hp`,
+      `${cls.role}${cls.melee ? ' · melee' : ''}   ${cls.armorType}`,
       cx,
-      r.y + r.h * 0.72,
+      r.y + r.h * 0.68,
+    )
+    // Armour only answers the boss's weapon, so it is the number that decides
+    // who can stand in front of it.
+    ctx.fillText(
+      `${cls.hp} hp   ${Math.round(mitigation(cls.armor) * 100)}% phys${cls.block > 0 ? ` +${cls.block} block` : ''}`,
+      cx,
+      r.y + r.h * 0.87,
     )
   }
 

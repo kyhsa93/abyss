@@ -34,6 +34,20 @@ export interface ClassAbilities {
   attack: string | null
 }
 
+export type ArmorType = 'plate' | 'mail' | 'leather' | 'cloth'
+
+/**
+ * Diminishing returns on armour, so stacking it never reaches immunity and
+ * the gap between plate and cloth stays meaningful at every damage level.
+ *
+ *   reduction = armor / (armor + K)
+ */
+export const ARMOR_K = 9000
+
+export function mitigation(armor: number): number {
+  return armor / (armor + ARMOR_K)
+}
+
 export interface ClassDef {
   id: ClassId
   name: string
@@ -43,8 +57,15 @@ export interface ClassDef {
   hp: number
   mana: number
   moveSpeed: number
-  /** Fraction of boss damage absorbed. This is what a tank is for. */
-  armour: number
+  armorType: ArmorType
+  /** Flat armour rating, fed through the mitigation curve. */
+  armor: number
+  /**
+   * Flat damage removed before mitigation, for classes carrying a shield.
+   * Flat reduction is worth more against many small hits than one big one,
+   * which is exactly the shape of a tank's job.
+   */
+  block: number
   abilities: ClassAbilities
 }
 
@@ -56,10 +77,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Warrior',
     role: 'tank',
     melee: true,
-    hp: 5400,
+    hp: 6200,
     mana: 0,
     moveSpeed: 155,
-    armour: 0.45,
+    armorType: 'plate',
+    armor: 9200,
+    block: 260,
     abilities: {
       ...none,
       filler: 'cleave',
@@ -73,10 +96,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Priest',
     role: 'healer',
     melee: false,
-    hp: 3000,
+    hp: 2900,
     mana: 1000,
     moveSpeed: 155,
-    armour: 0,
+    armorType: 'cloth',
+    armor: 900,
+    block: 0,
     abilities: {
       ...none,
       filler: 'heal',
@@ -91,10 +116,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Paladin',
     role: 'healer',
     melee: false,
-    hp: 3400,
+    hp: 4600,
     mana: 1100,
     moveSpeed: 155,
-    armour: 0.2,
+    armorType: 'plate',
+    armor: 6400,
+    block: 150,
     // Bigger, slower, more expensive heals than the priest, and no HoT.
     abilities: {
       ...none,
@@ -110,10 +137,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Mage',
     role: 'dps',
     melee: false,
-    hp: 3000,
+    hp: 2900,
     mana: 0,
     moveSpeed: 165,
-    armour: 0,
+    armorType: 'cloth',
+    armor: 900,
+    block: 0,
     abilities: {
       ...none,
       filler: 'frostbolt',
@@ -127,10 +156,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Hunter',
     role: 'dps',
     melee: false,
-    hp: 3300,
+    hp: 3600,
     mana: 0,
     moveSpeed: 170,
-    armour: 0.08,
+    armorType: 'mail',
+    armor: 3300,
+    block: 0,
     // Everything is instant: the hunter keeps its damage up while moving.
     abilities: {
       ...none,
@@ -145,10 +176,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Rogue',
     role: 'dps',
     melee: true,
-    hp: 3300,
+    hp: 3400,
     mana: 0,
     moveSpeed: 175,
-    armour: 0.1,
+    armorType: 'leather',
+    armor: 2300,
+    block: 0,
     // Highest sustained damage, paid for by having to stand in melee.
     abilities: {
       ...none,
@@ -163,10 +196,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Shaman',
     role: 'dps',
     melee: false,
-    hp: 3200,
+    hp: 3600,
     mana: 0,
     moveSpeed: 165,
-    armour: 0.05,
+    armorType: 'mail',
+    armor: 3300,
+    block: 0,
     abilities: {
       ...none,
       filler: 'lightning_bolt',
@@ -180,10 +215,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Druid',
     role: 'dps',
     melee: false,
-    hp: 3300,
+    hp: 3400,
     mana: 0,
     moveSpeed: 165,
-    armour: 0.05,
+    armorType: 'leather',
+    armor: 2300,
+    block: 0,
     abilities: {
       ...none,
       filler: 'wrath',

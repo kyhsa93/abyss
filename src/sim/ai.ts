@@ -259,9 +259,10 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         })
       }
     } else if (g.kind === 'breath' && !g.detonated) {
-      // Behind and beside the cone.
+      // Behind and beside the cone. The short ring matters for melee, which
+      // has to end up behind the boss rather than away from it.
       for (const side of [Math.PI, Math.PI * 0.6, -Math.PI * 0.6]) {
-        for (const r of [120, 190]) {
+        for (const r of [55, 120, 190]) {
           candidates.push({
             x: g.pos.x + Math.cos(g.angle + side) * r,
             y: g.pos.y + Math.sin(g.angle + side) * r,

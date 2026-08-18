@@ -1,4 +1,5 @@
 import { ABILITIES, type Ability } from './abilities'
+import { mitigation } from './classes'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
@@ -109,19 +110,32 @@ export function topThreatTarget(s: SimState): Actor | null {
   return best
 }
 
+/**
+ * Damage school.
+ *
+ * Armour and shields only answer the boss's weapon. Mechanics are magic and
+ * ignore both, so a cloth caster and a plate tank take a puddle equally — the
+ * tank's job is to stand in front of the swings, not to be immune to the
+ * fight. 'none' is party damage going the other way.
+ */
+export type School = 'physical' | 'magic' | 'none'
+
 export function applyDamage(
   s: SimState,
   target: Actor,
   amount: number,
-  fromBoss: boolean,
+  school: School,
   silent = false,
 ): void {
   if (!target.alive) return
 
   let final = amount
-  if (fromBoss) {
-    // Armour first, then active mitigation.
-    final *= 1 - target.armour
+  if (school === 'physical') {
+    // Block comes off the top, then armour.
+    final = Math.max(0, final - target.block)
+    final *= 1 - mitigation(target.armor)
+  }
+  if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
     const enraged = getAura(boss(s), 'enrage')
@@ -157,7 +171,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
-      applyDamage(s, a, 880, true)
+      applyDamage(s, a, 760, 'magic')
     }
   }
 }
@@ -250,7 +264,7 @@ export function resolveAbility(
   switch (ability.kind) {
     case 'damage': {
       if (!target || !target.alive) return
-      applyDamage(s, target, ability.amount, false)
+      applyDamage(s, target, ability.amount, 'none')
       if (target.id === BOSS_ID) addThreat(s, actor.id, ability.amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
       break

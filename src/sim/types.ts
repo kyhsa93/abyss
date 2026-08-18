@@ -71,8 +71,10 @@ export interface Actor {
   role: Role
   /** Melee classes must close to the boss to use anything. */
   melee: boolean
-  /** Fraction of boss damage absorbed before shields apply. */
-  armour: number
+  /** Flat armour rating; run through the mitigation curve on every boss hit. */
+  armor: number
+  /** Flat reduction applied before mitigation, for shield carriers. */
+  block: number
   faction: Faction
 
   pos: Vec2

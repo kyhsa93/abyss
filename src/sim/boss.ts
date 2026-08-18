@@ -58,17 +58,17 @@ const PHASE: Record<number, PhaseTiming> = {
 const PHASE_THREE_HP = 0.4
 
 const SLAM_CAST = 2
-const SLAM_DAMAGE = 520
-const SWING_DAMAGE = 260
-const RAID_DAMAGE = 150
+const SLAM_DAMAGE = 1150
+const SWING_DAMAGE = 540
+const RAID_DAMAGE = 138
 
 const PUDDLE_RADIUS = 70
-const PUDDLE_DAMAGE = 1150
+const PUDDLE_DAMAGE = 1060
 
 export const BREATH_CAST = 1.9
 const BREATH_RANGE = 275
 const BREATH_HALF_WIDTH = 0.62
-const BREATH_DAMAGE = 850
+const BREATH_DAMAGE = 700
 
 // The ring expands faster than anyone can run, so escaping outward is not an
 // option and the answer has to be to already be inside it. That only works if
@@ -78,7 +78,7 @@ const SHOCKWAVE_TELEGRAPH = 1.8
 const SHOCKWAVE_START = 150
 const SHOCKWAVE_GROWTH = 190
 const SHOCKWAVE_BAND = 45
-const SHOCKWAVE_DAMAGE = 720
+const SHOCKWAVE_DAMAGE = 600
 
 const ADD_HP = 1200
 const ADD_DAMAGE = 70
@@ -157,7 +157,7 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
   if (b.swingTimer > 0 || !target || b.castId) return
 
   if (dist(b.pos, target.pos) <= MELEE_RANGE + target.radius) {
-    applyDamage(s, target, SWING_DAMAGE, true)
+    applyDamage(s, target, SWING_DAMAGE, 'physical')
     b.swingTimer = timing.swing
   } else {
     b.swingTimer = 0.2
@@ -247,7 +247,7 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
   s.nextRaidHit -= DT
   if (s.nextRaidHit > 0) return
 
-  for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, true)
+  for (const a of livingParty(s)) applyDamage(s, a, RAID_DAMAGE, 'magic')
   s.nextRaidHit = timing.raid
   // Unavoidable damage with no tell reads as a broken hitbox: the player
   // dodges, loses health anyway, and blames the puddle they just left.
@@ -290,7 +290,8 @@ function makeAdd(id: number, x: number, y: number): Actor {
     classId: 'rogue',
     role: 'dps',
     melee: true,
-    armour: 0,
+    armor: 0,
+    block: 0,
     faction: 'boss',
     pos: { x, y },
     prevPos: { x, y },
@@ -336,7 +337,7 @@ function updateAdds(s: SimState): void {
 
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
-      applyDamage(s, nearest, ADD_DAMAGE, true)
+      applyDamage(s, nearest, ADD_DAMAGE, 'physical')
       add.swingTimer = ADD_SWING
     }
   }
@@ -370,7 +371,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
   if (castId === 'boss_slam') {
     const target = s.actors.find((a) => a.id === targetId)
     if (target && target.alive && dist(b.pos, target.pos) <= MELEE_RANGE + target.radius + 20) {
-      applyDamage(s, target, SLAM_DAMAGE, true)
+      applyDamage(s, target, SLAM_DAMAGE, 'physical')
     }
     return
   }
@@ -381,7 +382,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     cone.detonated = true
     cone.lingering = 0.3
     for (const a of livingParty(s)) {
-      if (insideCone(a.pos, cone)) applyDamage(s, a, cone.damage, true)
+      if (insideCone(a.pos, cone)) applyDamage(s, a, cone.damage, 'magic')
     }
   }
 }
@@ -415,7 +416,7 @@ export function updateGround(s: SimState): void {
         // ahead of it: run toward the boss, not away.
         if (d >= g.radius - g.band && d <= g.radius + g.band) {
           g.caught.push(a.id)
-          applyDamage(s, a, g.damage, true)
+          applyDamage(s, a, g.damage, 'magic')
         }
       }
       if (g.radius > ARENA_RADIUS + g.band) g.lingering = 0
@@ -435,7 +436,7 @@ export function updateGround(s: SimState): void {
         g.detonated = true
         for (const a of livingParty(s)) {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-            applyDamage(s, a, g.damage, true)
+            applyDamage(s, a, g.damage, 'magic')
           }
         }
       }
@@ -445,7 +446,7 @@ export function updateGround(s: SimState): void {
     g.lingering -= DT
     for (const a of livingParty(s)) {
       if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-        applyDamage(s, a, 110 * DT, true, true)
+        applyDamage(s, a, 110 * DT, 'magic', true)
       }
     }
   }

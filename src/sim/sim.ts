@@ -84,7 +84,7 @@ function updateTimers(s: SimState, a: Actor): void {
       const tick = AURA_TICK[aura.id]
       if (!tick) continue
       if (tick.damage !== undefined) {
-        applyDamage(s, a, tick.damage, false, true)
+        applyDamage(s, a, tick.damage, 'none', true)
         if (a.faction === 'boss') addThreat(s, aura.sourceId, tick.damage)
       }
       if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
