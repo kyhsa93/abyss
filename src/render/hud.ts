@@ -1,7 +1,7 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
 import { abilityBar } from '../sim/classes'
-import { ENRAGE_AT } from '../sim/constants'
+import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { COLORS, L, roleColor } from './theme'
@@ -42,6 +42,61 @@ export interface TouchView {
 
 function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+}
+
+/**
+ * Radial cooldown wipe, clockwise from twelve o'clock.
+ *
+ * The global cooldown runs on every button at once and is drawn lighter than
+ * a real cooldown, so at a glance you can tell "everything is briefly locked"
+ * apart from "this one ability is down" — which is the whole point of how the
+ * bar reads while you are playing.
+ */
+function sweep(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  remaining: number,
+  total: number,
+  shade: number,
+): void {
+  if (remaining <= 0 || total <= 0) return
+  const fraction = Math.max(0, Math.min(1, remaining / total))
+  if (fraction <= 0) return
+
+  ctx.beginPath()
+  ctx.moveTo(cx, cy)
+  ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fraction)
+  ctx.closePath()
+  ctx.fillStyle = `rgba(0, 0, 0, ${shade})`
+  ctx.fill()
+}
+
+/** Casting locks the bar too, exactly as it does in the game this apes. */
+function isUsable(player: Actor, abilityId: string): boolean {
+  if (!player.alive || player.castId) return false
+  if (player.gcd > 0 && !ABILITIES[abilityId]?.offGcd) return false
+  return (player.cooldowns[abilityId] ?? 0) <= 0
+}
+
+/** What a slot should show: its own cooldown if it has one, else the GCD. */
+function slotCooldown(
+  player: Actor,
+  abilityId: string,
+  abilityCooldown: number,
+): { remaining: number; total: number; shade: number; showNumber: boolean } {
+  const own = player.cooldowns[abilityId] ?? 0
+  if (own > 0 && abilityCooldown > 0) {
+    return { remaining: own, total: abilityCooldown, shade: 0.62, showNumber: true }
+  }
+  // Off-GCD abilities stay lit while everything else is swept.
+  if (ABILITIES[abilityId]?.offGcd) {
+    return { remaining: 0, total: 0, shade: 0, showNumber: false }
+  }
+  // The global cooldown never shows a number in the real thing; it is too
+  // short to read and it would flicker on every press.
+  return { remaining: player.gcd, total: GLOBAL_COOLDOWN, shade: 0.34, showNumber: false }
 }
 
 function bar(
@@ -259,12 +314,12 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   for (const id of bar) {
     const ability = ABILITIES[id]!
-    const cd = player.cooldowns[id] ?? 0
-    const usable = cd <= 0 && player.gcd <= 0 && player.alive
+    const poor = player.mana < ability.manaCost
+    const usable = isUsable(player, id) && !poor
 
     ctx.fillStyle = COLORS.panel
     ctx.fillRect(x, y, slot, slot)
-    ctx.strokeStyle = usable ? COLORS.castBar : COLORS.panelEdge
+    ctx.strokeStyle = usable ? COLORS.castBar : poor ? COLORS.manaBar : COLORS.panelEdge
     ctx.lineWidth = usable ? 2 : 1
     ctx.strokeRect(x + 0.5, y + 0.5, slot - 1, slot - 1)
 
@@ -277,13 +332,19 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.fillStyle = COLORS.textDim
     ctx.fillText(ability.key, x + 8, y + 12 * L.ui)
 
-    if (cd > 0) {
-      ctx.fillStyle = 'rgba(0,0,0,0.65)'
-      const h = slot * (cd / ability.cooldown)
-      ctx.fillRect(x, y + slot - h, slot, h)
+    // The wipe is circular even on a square icon, clipped to the slot.
+    const state = slotCooldown(player, id, ability.cooldown)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(x, y, slot, slot)
+    ctx.clip()
+    sweep(ctx, x + slot / 2, y + slot / 2, slot * 0.78, state.remaining, state.total, state.shade)
+    ctx.restore()
+
+    if (state.showNumber) {
       ctx.fillStyle = COLORS.text
       ctx.font = font(14, true)
-      ctx.fillText(cd.toFixed(1), x + slot / 2, y + slot / 2 + 5)
+      ctx.fillText(state.remaining.toFixed(1), x + slot / 2, y + slot / 2 + 5)
     }
 
     x += slot + gap
@@ -342,38 +403,34 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     const id = bar[i]!
     const ability = ABILITIES[id]!
     const cy = L.btnYs[i]!
-    const cd = player.cooldowns[id] ?? 0
-    const usable = cd <= 0 && player.gcd <= 0 && player.alive
+    const poor = player.mana < ability.manaCost
+    const usable = isUsable(player, id) && !poor
     const holding = touch.heldSlots.has(i)
 
     ctx.beginPath()
     ctx.arc(L.btnX, cy, L.btnR, 0, Math.PI * 2)
     ctx.fillStyle = holding ? 'rgba(250, 204, 21, 0.28)' : 'rgba(15, 17, 26, 0.55)'
     ctx.fill()
-    ctx.strokeStyle = usable ? 'rgba(250, 204, 21, 0.9)' : 'rgba(107, 114, 128, 0.6)'
+    ctx.strokeStyle = usable
+      ? 'rgba(250, 204, 21, 0.9)'
+      : poor
+        ? 'rgba(59, 130, 246, 0.8)'
+        : 'rgba(107, 114, 128, 0.6)'
     ctx.lineWidth = usable ? 3 : 2
     ctx.stroke()
 
-    // Cooldown sweeps clockwise from twelve o'clock.
-    if (cd > 0 && ability.cooldown > 0) {
-      const frac = cd / ability.cooldown
-      ctx.beginPath()
-      ctx.moveTo(L.btnX, cy)
-      ctx.arc(L.btnX, cy, L.btnR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac)
-      ctx.closePath()
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.fill()
-    }
+    const state = slotCooldown(player, id, ability.cooldown)
+    sweep(ctx, L.btnX, cy, L.btnR, state.remaining, state.total, state.shade)
 
     ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
     ctx.font = font(12, true)
     ctx.textAlign = 'center'
     ctx.fillText(ability.name, L.btnX, cy + 4)
 
-    if (cd > 0) {
+    if (state.showNumber) {
       ctx.fillStyle = COLORS.text
       ctx.font = font(15, true)
-      ctx.fillText(cd.toFixed(1), L.btnX, cy + 22 * L.ui)
+      ctx.fillText(state.remaining.toFixed(1), L.btnX, cy + 22 * L.ui)
     } else if (ability.castTime > 0) {
       ctx.fillStyle = COLORS.textDim
       ctx.font = font(9)

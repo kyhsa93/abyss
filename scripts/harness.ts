@@ -122,7 +122,7 @@ const PARTIES: Array<{ label: string; party: ClassId[] }> = [
   { label: 'all caster 1t 1h 3d', party: ['mage', 'warrior', 'priest', 'shaman', 'druid'] },
 ]
 
-const RUNS = 24
+const RUNS = 60
 console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
 for (const { label, party } of PARTIES) {
   const cells: string[] = []

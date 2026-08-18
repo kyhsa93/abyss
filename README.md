@@ -72,6 +72,18 @@ repeating it.
 | Hunter | damage | mail | 27% | 3600 | Entirely instant; never stops damaging |
 | Rogue | damage | leather | 20% | 3400 | Highest sustained damage, from melee |
 
+## The action bar
+
+The global cooldown is drawn, not just enforced. Pressing anything sweeps
+every slot at once with a light radial wipe; a real cooldown sweeps only its
+own slot, darker, with a number on it. At a glance that is the difference
+between "everything is briefly locked" and "this one ability is down", which
+is most of what you read off a bar while playing.
+
+Casting locks the bar as well, abilities you cannot afford outline in blue,
+and defensives sit off the global cooldown, so a tank can answer a telegraphed
+hit without losing the press it already made.
+
 ## Defence
 
 Armour is a rating run through `armor / (armor + 9000)`, so it diminishes and
@@ -199,14 +211,17 @@ Since the party is now chosen, the harness runs several compositions —
 including bad ones — with a deliberately mediocre scripted player, 24 runs per
 cell:
 
+60 runs per cell — an earlier 24 was small enough that the noise read as a
+trend:
+
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 29% | 42% | 67% | 140s |
-| 1 tank, 2 healers, 2 damage | 8% | 8% | 13% | 260s |
-| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 78s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 73s |
-| all melee | 0% | 0% | 4% | 145s |
-| all caster | 46% | 50% | 63% | 142s |
+| 1 tank, 1 healer, 3 damage | 25% | 23% | 47% | 142s |
+| 1 tank, 2 healers, 2 damage | 7% | 12% | 18% | 258s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 81s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 74s |
+| all melee | 0% | 2% | 0% | 148s |
+| all caster | 35% | 57% | 62% | 143s |
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is

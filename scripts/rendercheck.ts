@@ -124,6 +124,32 @@ console.log(`rendered ${frames} frames with no exceptions`)
   }
 }
 
+// --- the global cooldown must be visible on every slot --------------------
+//
+// It is the difference between "everything is briefly locked" and "this one
+// ability is down", and it is drawn, not stated: without it the bar looks
+// identical whether you just pressed something or not.
+{
+  updateLayout(1440, 900)
+  const s = createState(0x51ed, 0)
+  const player = s.actors.find((a) => a.isPlayer)!
+
+  const idle: Circle[] = []
+  drawHud(recordingCtx(idle), s, touchView(true))
+
+  player.gcd = 1.2
+  const locked: Circle[] = []
+  drawHud(recordingCtx(locked), s, touchView(true))
+
+  // Each button draws its ring; a sweep adds one arc on top of that.
+  const extra = locked.length - idle.length
+  console.log(
+    extra >= 3 ? 'ok  ' : 'FAIL',
+    `  global cooldown sweeps every slot (${extra} extra arcs while locked)`,
+  )
+  if (extra < 3) throw new Error('global cooldown is not drawn on the action bar')
+}
+
 // --- on-screen controls must not overlap ----------------------------------
 {
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {

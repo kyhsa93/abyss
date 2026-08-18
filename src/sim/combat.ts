@@ -207,7 +207,7 @@ function spawnProjectile(s: SimState, from: Actor, targetId: number, abilityId: 
 export function canCast(s: SimState, actor: Actor, ability: Ability, targetId: number): boolean {
   if (!actor.alive) return false
   if (actor.castId) return false
-  if (actor.gcd > 0) return false
+  if (actor.gcd > 0 && !ability.offGcd) return false
   if ((actor.cooldowns[ability.id] ?? 0) > 0) return false
   if (actor.mana < ability.manaCost) return false
 
@@ -224,7 +224,7 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
   const ability = ABILITIES[abilityId]
   if (!ability || !canCast(s, actor, ability, targetId)) return false
 
-  actor.gcd = GLOBAL_COOLDOWN
+  if (!ability.offGcd) actor.gcd = GLOBAL_COOLDOWN
   actor.cooldowns[ability.id] = ability.cooldown
 
   if (ability.castTime <= 0) {

@@ -376,7 +376,9 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
 // --- ability priorities -----------------------------------------------------
 
 function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
-  if (actor.castId || actor.gcd > 0) return
+  if (actor.castId) return
+  // Off-GCD defensives are still worth checking while the global is running.
+  if (actor.gcd > 0 && !canUseOffGcd(s, actor)) return
   // While relocating, only instants are available — exactly the constraint a
   // human healer plays under. Without this the AI starts a cast every tick and
   // movement cancels it every tick, so it heals for nothing.
@@ -384,6 +386,17 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
   else if (actor.role === 'healer') healerRotation(s, actor, rng, moving)
   else dpsRotation(s, actor, rng, moving)
+}
+
+/** Is there anything worth pressing that ignores the global cooldown? */
+function canUseOffGcd(s: SimState, actor: Actor): boolean {
+  const kit = CLASSES[actor.classId].abilities
+  if (!kit.defensive) return false
+  const ability = ABILITIES[kit.defensive]
+  if (!ability?.offGcd) return false
+  if ((actor.cooldowns[kit.defensive] ?? 0) > 0) return false
+  const b = boss(s)
+  return b.castId === 'boss_slam' && b.castRemaining < 1.2
 }
 
 /** beginCast, but refuses cast-time abilities while the actor is on the move. */

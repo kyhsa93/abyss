@@ -21,6 +21,11 @@ export interface Ability {
   aura: AuraId | null
   /** Maximum distance to the target. */
   range: number
+  /**
+   * Off the global cooldown, like a defensive in the game this apes: it can
+   * be pressed mid-rotation without losing the press you already made.
+   */
+  offGcd?: boolean
 }
 
 const MELEE = 52
@@ -31,7 +36,7 @@ const list: Ability[] = [
   // --- warrior (tank) -------------------------------------------------------
   { id: 'cleave', name: 'Cleave', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 60, threatMult: 4, aura: null, range: MELEE },
   { id: 'shield_slam', name: 'Shield Slam', key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 110, threatMult: 6, aura: null, range: MELEE },
-  { id: 'shield_wall', name: 'Shield Wall', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0 },
+  { id: 'shield_wall', name: 'Shield Wall', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------
   { id: 'heal', name: 'Heal', key: '1', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, manaCost: 26, amount: 430, threatMult: 0, aura: null, range: HEAL_RANGE },
