@@ -208,8 +208,10 @@ function frame(now: number): void {
   const frameSeconds = (now - last) / 1000
   last = now
 
-  // Simulation time only accrues while the fight is on screen; see loop.ts.
-  timing = advance(timing, frameSeconds, screen === 'fight', DT)
+  // Simulation time only accrues while a fight is actually running: not on
+  // menus, and not behind the results screen. See loop.ts.
+  const simulating = screen === 'fight' && state.outcome === 'ongoing'
+  timing = advance(timing, frameSeconds, simulating, DT)
   const clock = timing.elapsedTotal
   const elapsed = Math.min(Math.max(0, frameSeconds), 0.25)
 

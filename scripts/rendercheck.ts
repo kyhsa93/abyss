@@ -128,6 +128,30 @@ console.log(`rendered ${frames} frames with no exceptions`)
   if (run !== 300) throw new Error('steady-state stepping drifted')
 }
 
+// --- the results screen must be silent ------------------------------------
+//
+// Sound events are drained by the renderer each frame. Leaving the final
+// tick's events queued after the fight ended meant they were replayed for as
+// long as the report was on screen.
+{
+  const s = createState(0x51ed, 0)
+  const rng = new Rng(0x51ed)
+  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
+
+  const atEnd = s.sounds.length
+  // Frames keep arriving after the fight resolves.
+  for (let i = 0; i < 20; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const afterwards = s.sounds.length
+
+  console.log(
+    afterwards === 0 ? 'ok  ' : 'FAIL',
+    `  results screen queues ${afterwards} sounds per frame (ended with ${atEnd})`,
+  )
+  if (afterwards !== 0) throw new Error('sound events repeat over the results screen')
+}
+
 // Every ranged ability must put a bolt in the air.
 //
 // This check used to assert only that *some* projectile existed, and duly

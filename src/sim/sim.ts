@@ -26,11 +26,13 @@ import type { Actor, PlayerInput, SimState } from './types'
  * then resolution. Changing the order changes replays.
  */
 export function step(s: SimState, input: PlayerInput, rng: Rng): void {
+  // Drained before the guard, not after: leaving the last tick's events in
+  // place meant the renderer kept replaying them over the results screen.
+  s.sounds.length = 0
   if (s.outcome !== 'ongoing') return
 
   s.tick++
   s.time += DT
-  s.sounds.length = 0
 
   for (const a of s.actors) {
     a.prevPos.x = a.pos.x
