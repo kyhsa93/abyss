@@ -20,6 +20,11 @@ type error blocks the deploy.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again.
 
+On a touch device the controls swap automatically: a translucent stick appears
+wherever you press the left half of the screen, ability buttons sit down the
+right edge, and tapping the end-of-fight overlay pulls again. Landscape is
+worth it — the arena is wider than it is tall.
+
 ## Why it looks like this
 
 Hardcore raiders barely look at boss models. They watch timer bars, debuff
@@ -87,6 +92,7 @@ decision is when you can afford to stand still.
 npm run check        # types, then headless render pass, then balance harness
 npm run harness      # win rate and puddle-uptime by attempt number
 npm run rendercheck  # runs the whole draw path against a stub canvas
+npm run touchcheck   # pointer mapping, joystick vector, multi-touch buttons
 npm run build
 ```
 

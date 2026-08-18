@@ -2,7 +2,14 @@ import { ABILITIES, PLAYER_BAR } from '../sim/abilities'
 import { ENRAGE_AT } from '../sim/constants'
 import { boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
-import { CANVAS_H, CANVAS_W, COLORS, roleColor } from './theme'
+import type { JoystickView } from '../input'
+import { CANVAS_H, CANVAS_W, COLORS, JOYSTICK, TOUCH_BUTTONS, roleColor } from './theme'
+
+export interface TouchView {
+  active: boolean
+  joystick: JoystickView | null
+  heldSlots: ReadonlySet<number>
+}
 
 function bar(
   ctx: CanvasRenderingContext2D,
@@ -22,13 +29,15 @@ function bar(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 }
 
-export function drawHud(ctx: CanvasRenderingContext2D, s: SimState): void {
+export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
   drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
-  drawActionBar(ctx, s)
+  if (touch.active) drawTouchControls(ctx, s, touch)
+  else drawActionBar(ctx, s)
+  drawCastBar(ctx, s, touch.active)
   drawChat(ctx, s)
-  if (s.outcome !== 'ongoing') drawOutcome(ctx, s)
+  if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }
 
 function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
@@ -213,21 +222,102 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
     x += slot + gap
   }
 
-  // Player cast bar, centred under the action bar.
-  if (player.castId && player.castTotal > 0) {
-    const w = 220
-    const progress = 1 - player.castRemaining / player.castTotal
-    bar(ctx, (CANVAS_W - w) / 2, y - 20, w, 12, progress, COLORS.castBar)
-    ctx.fillStyle = '#0a0a0f'
-    ctx.font = 'bold 10px ui-monospace, monospace'
-    ctx.textAlign = 'center'
-    ctx.fillText(ABILITIES[player.castId]?.name ?? '', CANVAS_W / 2, y - 11)
-  }
-
   ctx.fillStyle = COLORS.textDim
   ctx.font = '10px ui-monospace, monospace'
   ctx.textAlign = 'center'
   ctx.fillText('WASD move  ·  1/2/3 abilities  ·  R retry', CANVAS_W / 2, CANVAS_H - 8)
+}
+
+/** Shown in both modes, but clear of the thumb zones on touch. */
+function drawCastBar(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
+  const player = s.actors.find((a) => a.isPlayer)
+  if (!player || !player.castId || player.castTotal <= 0) return
+
+  const w = 220
+  const y = touch ? CANVAS_H - 34 : CANVAS_H - 92
+  const progress = 1 - player.castRemaining / player.castTotal
+  bar(ctx, (CANVAS_W - w) / 2, y, w, 12, progress, COLORS.castBar)
+  ctx.fillStyle = '#0a0a0f'
+  ctx.font = 'bold 10px ui-monospace, monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText(ABILITIES[player.castId]?.name ?? '', CANVAS_W / 2, y + 9)
+}
+
+/**
+ * Virtual stick on the left, ability buttons down the right edge. Everything
+ * is translucent so it never fully hides the arena underneath.
+ */
+function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
+  const player = s.actors.find((a) => a.isPlayer)
+  if (!player) return
+
+  const stick = touch.joystick
+  if (stick) {
+    ctx.beginPath()
+    ctx.arc(stick.originX, stick.originY, JOYSTICK.baseRadius, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(15, 17, 26, 0.35)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(stick.knobX, stick.knobY, JOYSTICK.knobRadius, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.35)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
+  for (let i = 0; i < PLAYER_BAR.length && i < TOUCH_BUTTONS.ys.length; i++) {
+    const id = PLAYER_BAR[i]!
+    const ability = ABILITIES[id]!
+    const cy = TOUCH_BUTTONS.ys[i]!
+    const cd = player.cooldowns[id] ?? 0
+    const usable = cd <= 0 && player.gcd <= 0 && player.alive
+    const holding = touch.heldSlots.has(i)
+
+    ctx.beginPath()
+    ctx.arc(TOUCH_BUTTONS.x, cy, TOUCH_BUTTONS.radius, 0, Math.PI * 2)
+    ctx.fillStyle = holding ? 'rgba(250, 204, 21, 0.28)' : 'rgba(15, 17, 26, 0.55)'
+    ctx.fill()
+    ctx.strokeStyle = usable ? 'rgba(250, 204, 21, 0.9)' : 'rgba(107, 114, 128, 0.6)'
+    ctx.lineWidth = usable ? 3 : 2
+    ctx.stroke()
+
+    // Cooldown sweeps clockwise from twelve o'clock.
+    if (cd > 0 && ability.cooldown > 0) {
+      const frac = cd / ability.cooldown
+      ctx.beginPath()
+      ctx.moveTo(TOUCH_BUTTONS.x, cy)
+      ctx.arc(
+        TOUCH_BUTTONS.x,
+        cy,
+        TOUCH_BUTTONS.radius,
+        -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * frac,
+      )
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+      ctx.fill()
+    }
+
+    ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
+    ctx.font = 'bold 12px ui-monospace, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillText(ability.name, TOUCH_BUTTONS.x, cy + 4)
+
+    if (cd > 0) {
+      ctx.fillStyle = COLORS.text
+      ctx.font = 'bold 15px ui-monospace, monospace'
+      ctx.fillText(cd.toFixed(1), TOUCH_BUTTONS.x, cy + 22)
+    } else if (ability.castTime > 0) {
+      ctx.fillStyle = COLORS.textDim
+      ctx.font = '9px ui-monospace, monospace'
+      ctx.fillText(`${ability.castTime}s cast`, TOUCH_BUTTONS.x, cy + 20)
+    }
+  }
 }
 
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
@@ -246,7 +336,7 @@ function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 }
 
-function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState): void {
+function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
   ctx.fillStyle = 'rgba(5, 5, 10, 0.72)'
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H)
 
@@ -269,7 +359,7 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   ctx.fillStyle = COLORS.textDim
   ctx.font = '12px ui-monospace, monospace'
-  ctx.fillText('press R to pull again', CANVAS_W / 2, CANVAS_H / 2 + 52)
+  ctx.fillText(touch ? 'tap to pull again' : 'press R to pull again', CANVAS_W / 2, CANVAS_H / 2 + 52)
 
   if (s.outcome !== 'victory') {
     ctx.fillText('the party learns a little each attempt', CANVAS_W / 2, CANVAS_H / 2 + 72)

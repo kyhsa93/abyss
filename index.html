@@ -2,12 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Abyss — Raid Prototype</title>
     <style>
       html, body {
         margin: 0;
         height: 100%;
+        /* Stop pull-to-refresh and rubber-banding from fighting the joystick. */
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
         background: #0a0a0f;
         color: #cbd5e1;
         font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;

@@ -13,12 +13,16 @@ const BASE_SEED = 0x51ed
 const canvas = document.getElementById('stage') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
 
+/** The arena is wider than it is tall, so a portrait phone shrinks it badly. */
+let portrait = false
+
 function fitCanvas(): void {
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   canvas.width = CANVAS_W * dpr
   canvas.height = CANVAS_H * dpr
 
   // Letterbox to fit the viewport without distorting the arena.
+  portrait = window.innerHeight > window.innerWidth
   const scale = Math.min(window.innerWidth / CANVAS_W, window.innerHeight / CANVAS_H)
   canvas.style.width = `${CANVAS_W * scale}px`
   canvas.style.height = `${CANVAS_H * scale}px`
@@ -28,7 +32,7 @@ function fitCanvas(): void {
 fitCanvas()
 window.addEventListener('resize', fitCanvas)
 
-const input = new Input(window)
+const input = new Input(window, canvas)
 
 let attempt = 0
 let state: SimState = createState(BASE_SEED, attempt)
@@ -54,7 +58,10 @@ function frame(now: number): void {
   clock += elapsed
   accumulator += elapsed
 
-  if (input.takeRestart()) restart()
+  // Tapping anywhere on the end-of-fight overlay retries, since a phone has
+  // no R key. takeTap is consumed every frame so it cannot queue up.
+  const tapped = input.takeTap()
+  if (input.takeRestart() || (tapped && state.outcome !== 'ongoing')) restart()
 
   let ticks = 0
   while (accumulator >= DT && ticks < 6) {
@@ -68,9 +75,28 @@ function frame(now: number): void {
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H)
   drawWorld(ctx, state, alpha, clock)
-  drawHud(ctx, state)
+  drawHud(ctx, state, {
+    active: input.isTouchMode(),
+    joystick: input.joystick(),
+    heldSlots: input.heldSlots(),
+  })
+
+  if (input.isTouchMode() && portrait) drawRotateHint()
 
   requestAnimationFrame(frame)
+}
+
+function drawRotateHint(): void {
+  const text = 'rotate your device for a larger view'
+  ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'
+  ctx.fillRect(CANVAS_W / 2 - 190, 8, 380, 26)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(CANVAS_W / 2 - 189.5, 8.5, 379, 25)
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = '12px ui-monospace, monospace'
+  ctx.textAlign = 'center'
+  ctx.fillText(text, CANVAS_W / 2, 25)
 }
 
 requestAnimationFrame(frame)

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "harness": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && node node_modules/.cache/harness.mjs",
     "rendercheck": "esbuild scripts/rendercheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rendercheck.mjs --log-level=error && node node_modules/.cache/rendercheck.mjs",
-    "check": "tsc && npm run rendercheck && npm run harness"
+    "touchcheck": "esbuild scripts/touchcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/touchcheck.mjs --log-level=error && node node_modules/.cache/touchcheck.mjs",
+    "check": "tsc && npm run rendercheck && npm run touchcheck && npm run harness"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

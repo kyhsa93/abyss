@@ -20,6 +20,16 @@ function stubCtx(): CanvasRenderingContext2D {
   return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
 }
 
+function touchView(active: boolean) {
+  return {
+    active,
+    joystick: active
+      ? { originX: 128, originY: 628, knobX: 160, knobY: 600 }
+      : null,
+    heldSlots: new Set<number>(active ? [1] : []),
+  }
+}
+
 const ctx = stubCtx()
 let frames = 0
 for (const attempt of [0, 5]) {
@@ -28,12 +38,14 @@ for (const attempt of [0, 5]) {
   while (s.outcome === 'ongoing' && s.time < 200) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
     drawWorld(ctx, s, 0.5, s.time)
-    drawHud(ctx, s)
+    // Alternate modes so both the desktop bar and the touch overlay are drawn.
+    drawHud(ctx, s, touchView(s.tick % 2 === 0))
     frames++
   }
   // Also render the terminal state, which draws the outcome overlay.
   drawWorld(ctx, s, 1, s.time)
-  drawHud(ctx, s)
+  drawHud(ctx, s, touchView(true))
+  drawHud(ctx, s, touchView(false))
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
 }
 console.log(`rendered ${frames} frames with no exceptions`)

@@ -34,6 +34,33 @@ export const COLORS = {
   panelEdge: '#2a2a3a',
 } as const
 
+/**
+ * Touch control layout, in canvas-logical coordinates.
+ *
+ * The joystick has a home position but relocates to wherever the left half of
+ * the screen is first touched, so the player is never reaching for a fixed
+ * spot that does not suit their grip.
+ */
+export const JOYSTICK = {
+  homeX: 128,
+  homeY: 628,
+  baseRadius: 74,
+  knobRadius: 32,
+  /** Fraction of the base radius that still counts as neutral. */
+  deadzone: 0.18,
+} as const
+
+export const TOUCH_BUTTONS = {
+  x: 876,
+  ys: [478, 588, 698],
+  radius: 44,
+  /** Generous hit radius; fingers are imprecise. */
+  hitRadius: 58,
+} as const
+
+/** The left half of the canvas drives movement; the right half is buttons. */
+export const JOYSTICK_ZONE_MAX_X = CANVAS_W / 2
+
 export function roleColor(role: string, isPlayer: boolean): string {
   if (isPlayer) return COLORS.player
   if (role === 'tank') return COLORS.tank
