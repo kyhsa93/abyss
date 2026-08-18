@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { drawWorld } from './render/draw'
 import { drawHud } from './render/hud'
-import { CANVAS_H, CANVAS_W, COLORS } from './render/theme'
+import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
@@ -13,26 +13,35 @@ const BASE_SEED = 0x51ed
 const canvas = document.getElementById('stage') as HTMLCanvasElement
 const ctx = canvas.getContext('2d')!
 
-/** The arena is wider than it is tall, so a portrait phone shrinks it badly. */
-let portrait = false
-
 function fitCanvas(): void {
+  // The canvas fills the viewport instead of being letterboxed at a fixed
+  // aspect ratio. A letterboxed canvas on a portrait phone leaves most of the
+  // screen outside the element, and touches there never reach the game.
+  const w = Math.max(320, window.innerWidth)
+  const h = Math.max(320, window.innerHeight)
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  canvas.width = CANVAS_W * dpr
-  canvas.height = CANVAS_H * dpr
 
-  // Letterbox to fit the viewport without distorting the arena.
-  portrait = window.innerHeight > window.innerWidth
-  const scale = Math.min(window.innerWidth / CANVAS_W, window.innerHeight / CANVAS_H)
-  canvas.style.width = `${CANVAS_W * scale}px`
-  canvas.style.height = `${CANVAS_H * scale}px`
+  canvas.width = Math.round(w * dpr)
+  canvas.height = Math.round(h * dpr)
+  canvas.style.width = `${w}px`
+  canvas.style.height = `${h}px`
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  updateLayout(w, h)
 }
 
 fitCanvas()
-window.addEventListener('resize', fitCanvas)
 
 const input = new Input(window, canvas)
+
+function onViewportChange(): void {
+  fitCanvas()
+  // Layout moved, so the parked stick and buttons have to move with it.
+  input.recentre()
+}
+
+window.addEventListener('resize', onViewportChange)
+window.addEventListener('orientationchange', onViewportChange)
 
 let attempt = 0
 let state: SimState = createState(BASE_SEED, attempt)
@@ -73,7 +82,7 @@ function frame(now: number): void {
   const alpha = Math.min(1, accumulator / DT)
 
   ctx.fillStyle = COLORS.bg
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H)
+  ctx.fillRect(0, 0, L.w, L.h)
   drawWorld(ctx, state, alpha, clock)
   drawHud(ctx, state, {
     active: input.isTouchMode(),
@@ -81,22 +90,7 @@ function frame(now: number): void {
     heldSlots: input.heldSlots(),
   })
 
-  if (input.isTouchMode() && portrait) drawRotateHint()
-
   requestAnimationFrame(frame)
-}
-
-function drawRotateHint(): void {
-  const text = 'rotate your device for a larger view'
-  ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'
-  ctx.fillRect(CANVAS_W / 2 - 190, 8, 380, 26)
-  ctx.strokeStyle = COLORS.panelEdge
-  ctx.lineWidth = 1
-  ctx.strokeRect(CANVAS_W / 2 - 189.5, 8.5, 379, 25)
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = '12px ui-monospace, monospace'
-  ctx.textAlign = 'center'
-  ctx.fillText(text, CANVAS_W / 2, 25)
 }
 
 requestAnimationFrame(frame)

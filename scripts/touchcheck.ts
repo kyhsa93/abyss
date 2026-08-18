@@ -1,12 +1,13 @@
 import { Input } from '../src/input'
-import { CANVAS_H, CANVAS_W, JOYSTICK, TOUCH_BUTTONS } from '../src/render/theme'
+import { L, updateLayout } from '../src/render/theme'
 
-/**
- * Touch input runs through a canvas that is letterboxed to fit the viewport,
- * so every pointer position has to be mapped back into canvas space. This
- * exercises that mapping at a deliberately awkward scale and offset.
- */
-const RECT = { left: 37, top: 91, width: CANVAS_W * 0.42, height: CANVAS_H * 0.42 }
+/** A portrait phone: the case where the controls were unreachable before. */
+const VIEW = { w: 390, h: 844 }
+updateLayout(VIEW.w, VIEW.h)
+
+// The canvas now fills the viewport, but device pixel ratio and browser chrome
+// still mean client coordinates are not canvas coordinates.
+const RECT = { left: 0, top: 0, width: VIEW.w, height: VIEW.h }
 
 type Listener = (e: unknown) => void
 const listeners = new Map<string, Listener[]>()
@@ -32,8 +33,8 @@ function fire(type: string, canvasX: number, canvasY: number, pointerId: number)
     pointerId,
     pointerType: 'touch',
     button: 0,
-    clientX: RECT.left + (canvasX / CANVAS_W) * RECT.width,
-    clientY: RECT.top + (canvasY / CANVAS_H) * RECT.height,
+    clientX: RECT.left + (canvasX / L.w) * RECT.width,
+    clientY: RECT.top + (canvasY / L.h) * RECT.height,
     preventDefault: () => {},
   }
   for (const fn of listeners.get(type) ?? []) fn(e)
@@ -48,32 +49,32 @@ function check(label: string, ok: boolean, detail: string): void {
 const near = (a: number, b: number, tol = 0.02) => Math.abs(a - b) <= tol
 
 // 1. Touching the left half places the stick under the finger, neutral at rest.
-fire('pointerdown', 300, 560, 1)
+fire('pointerdown', 120, 700, 1)
 const stick = input.joystick()
 check(
   'stick relocates to the touch point',
-  stick !== null && near(stick.originX, 300, 1) && near(stick.originY, 560, 1),
+  stick !== null && near(stick.originX, 120, 1) && near(stick.originY, 700, 1),
   JSON.stringify(stick),
 )
 let move = input.consume()
 check('no drift inside the deadzone', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
 
 // 2. Dragging right produces a right-facing unit vector.
-fire('pointermove', 300 + JOYSTICK.baseRadius, 560, 1)
+fire('pointermove', 120 + L.joyBase, 700, 1)
 move = input.consume()
 check('drag right moves right', near(move.moveX, 1) && near(move.moveY, 0), JSON.stringify(move))
 
 // 3. The knob is clamped to the base ring even when the finger runs past it.
-fire('pointermove', 300 + JOYSTICK.baseRadius * 4, 560, 1)
+fire('pointermove', 120 + L.joyBase * 4, 700, 1)
 const clamped = input.joystick()!
 check(
   'knob clamps to the ring',
-  near(Math.hypot(clamped.knobX - clamped.originX, clamped.knobY - clamped.originY), JOYSTICK.baseRadius, 0.5),
+  near(Math.hypot(clamped.knobX - clamped.originX, clamped.knobY - clamped.originY), L.joyBase, 0.5),
   JSON.stringify(clamped),
 )
 
 // 4. A second finger on an ability button fires it without disturbing movement.
-fire('pointerdown', TOUCH_BUTTONS.x, TOUCH_BUTTONS.ys[1]!, 2)
+fire('pointerdown', L.btnX, L.btnYs[1]!, 2)
 move = input.consume()
 check('button press queues its slot', move.pressed.join(',') === '1', JSON.stringify(move.pressed))
 check('movement survives the second finger', near(move.moveX, 1), JSON.stringify(move))
@@ -84,9 +85,9 @@ move = input.consume()
 check('held button does not repeat', move.pressed.length === 0, JSON.stringify(move.pressed))
 
 // 6. Releasing clears the latch so it can fire again.
-fire('pointerup', TOUCH_BUTTONS.x, TOUCH_BUTTONS.ys[1]!, 2)
+fire('pointerup', L.btnX, L.btnYs[1]!, 2)
 check('latch clears on release', !input.heldSlots().has(1), [...input.heldSlots()].join(','))
-fire('pointerdown', TOUCH_BUTTONS.x, TOUCH_BUTTONS.ys[1]!, 3)
+fire('pointerdown', L.btnX, L.btnYs[1]!, 3)
 move = input.consume()
 check('button fires again after release', move.pressed.join(',') === '1', JSON.stringify(move.pressed))
 
@@ -96,9 +97,33 @@ move = input.consume()
 check('release stops movement', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
 
 // 8. Taps on the right half must not steer.
-fire('pointerdown', CANVAS_W - 40, 200, 4)
+fire('pointerdown', L.w - 20, 200, 4)
 move = input.consume()
 check('right half does not steer', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
+
+// 9. Every control must sit inside the viewport, in both orientations. This
+// is the regression that made the joystick unreachable: a letterboxed canvas
+// put the controls outside the element that receives touches.
+for (const [label, w, h] of [
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['small portrait 360x640', 360, 640],
+  ['desktop 1440x900', 1440, 900],
+] as const) {
+  updateLayout(w, h)
+  const inside =
+    L.joyHomeX - L.joyBase >= 0 &&
+    L.joyHomeY + L.joyBase <= h &&
+    L.btnX + L.btnR <= w &&
+    L.btnYs.every((y) => y - L.btnR >= 0 && y + L.btnR <= h)
+  check(`${label}: controls fit on screen`, inside, `joy=${L.joyHomeX},${L.joyHomeY} btn=${L.btnX},${L.btnYs.join('/')}`)
+
+  const buttonsClearOfStick = L.btnX - L.btnR > L.joyZoneMaxX
+  check(`${label}: buttons outside the steering half`, buttonsClearOfStick, `${L.btnX - L.btnR} vs ${L.joyZoneMaxX}`)
+
+  const arenaFits = L.cy + L.arenaR <= h && L.arenaR > 60
+  check(`${label}: arena fits above the controls`, arenaFits, `cy=${L.cy} r=${L.arenaR} h=${h}`)
+}
 
 if (failures > 0) throw new Error(`${failures} touch check(s) failed`)
 console.log('all touch checks passed')

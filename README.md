@@ -20,10 +20,11 @@ type error blocks the deploy.
 
 `WASD` to move, `1` `2` `3` for abilities, `R` to pull again.
 
-On a touch device the controls swap automatically: a translucent stick appears
-wherever you press the left half of the screen, ability buttons sit down the
-right edge, and tapping the end-of-fight overlay pulls again. Landscape is
-worth it — the arena is wider than it is tall.
+On a touch device the controls are there from the start: a translucent stick
+on the left that relocates to wherever you press, ability buttons down the
+right edge, and a tap on the end-of-fight overlay to pull again. The canvas
+fills the viewport and the layout is recomputed per orientation, so portrait
+and landscape both work.
 
 ## Why it looks like this
 
@@ -91,8 +92,8 @@ decision is when you can afford to stand still.
 ```bash
 npm run check        # types, then headless render pass, then balance harness
 npm run harness      # win rate and puddle-uptime by attempt number
-npm run rendercheck  # runs the whole draw path against a stub canvas
-npm run touchcheck   # pointer mapping, joystick vector, multi-touch buttons
+npm run rendercheck  # draws every frame against a stub canvas, asserts controls land on screen
+npm run touchcheck   # pointer mapping, joystick vector, multi-touch, layout bounds
 npm run build
 ```
 

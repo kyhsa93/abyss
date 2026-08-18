@@ -1,4 +1,4 @@
-import { CANVAS_H, CANVAS_W, JOYSTICK, JOYSTICK_ZONE_MAX_X, TOUCH_BUTTONS } from './render/theme'
+import { L } from './render/theme'
 import { PLAYER_BAR } from './sim/abilities'
 import type { PlayerInput } from './sim/types'
 
@@ -21,13 +21,15 @@ export class Input {
   private queued: number[] = []
   private restartRequested = false
   private tapped = false
-  private touchMode = false
+  // Detected up front, not on first touch: otherwise a phone shows no controls
+  // at all until the player happens to poke the screen.
+  private touchMode = hasTouch()
 
   private joyPointer: number | null = null
-  private joyOriginX: number = JOYSTICK.homeX
-  private joyOriginY: number = JOYSTICK.homeY
-  private joyKnobX: number = JOYSTICK.homeX
-  private joyKnobY: number = JOYSTICK.homeY
+  private joyOriginX: number = L.joyHomeX
+  private joyOriginY: number = L.joyHomeY
+  private joyKnobX: number = L.joyHomeX
+  private joyKnobY: number = L.joyHomeY
 
   /** pointerId -> action bar slot, so releasing the right finger clears it. */
   private buttonPointers = new Map<number, number>()
@@ -63,8 +65,8 @@ export class Input {
   private toCanvas(e: PointerEvent, canvas: HTMLCanvasElement): { x: number; y: number } {
     const rect = canvas.getBoundingClientRect()
     return {
-      x: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((e.clientY - rect.top) / rect.height) * CANVAS_H,
+      x: ((e.clientX - rect.left) / rect.width) * L.w,
+      y: ((e.clientY - rect.top) / rect.height) * L.h,
     }
   }
 
@@ -87,7 +89,7 @@ export class Input {
       return
     }
 
-    if (p.x <= JOYSTICK_ZONE_MAX_X && this.joyPointer === null) {
+    if (p.x <= L.joyZoneMaxX && this.joyPointer === null) {
       e.preventDefault()
       canvas.setPointerCapture(e.pointerId)
       this.joyPointer = e.pointerId
@@ -118,10 +120,7 @@ export class Input {
 
     if (e.pointerId === this.joyPointer) {
       this.joyPointer = null
-      this.joyOriginX = JOYSTICK.homeX
-      this.joyOriginY = JOYSTICK.homeY
-      this.joyKnobX = JOYSTICK.homeX
-      this.joyKnobY = JOYSTICK.homeY
+      this.recentre()
     }
   }
 
@@ -139,7 +138,7 @@ export class Input {
       const dx = this.joyKnobX - this.joyOriginX
       const dy = this.joyKnobY - this.joyOriginY
       const len = Math.hypot(dx, dy)
-      if (len > JOYSTICK.baseRadius * JOYSTICK.deadzone) {
+      if (len > L.joyBase * L.joyDeadzone) {
         moveX += dx / len
         moveY += dy / len
       }
@@ -157,7 +156,7 @@ export class Input {
     const dx = this.joyKnobX - this.joyOriginX
     const dy = this.joyKnobY - this.joyOriginY
     const len = Math.hypot(dx, dy)
-    const clamp = len > JOYSTICK.baseRadius ? JOYSTICK.baseRadius / len : 1
+    const clamp = len > L.joyBase ? L.joyBase / len : 1
 
     return {
       originX: this.joyOriginX,
@@ -169,6 +168,15 @@ export class Input {
 
   isTouchMode(): boolean {
     return this.touchMode
+  }
+
+  /** Parks the stick at its home position; call after a resize. */
+  recentre(): void {
+    if (this.joyPointer !== null) return
+    this.joyOriginX = L.joyHomeX
+    this.joyOriginY = L.joyHomeY
+    this.joyKnobX = L.joyHomeX
+    this.joyKnobY = L.joyHomeY
   }
 
   heldSlots(): ReadonlySet<number> {
@@ -193,9 +201,15 @@ const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowlef
 const ABILITY_KEYS = new Map(PLAYER_BAR.map((_, i) => [String(i + 1), i]))
 
 function hitButton(x: number, y: number): number | null {
-  for (let i = 0; i < PLAYER_BAR.length && i < TOUCH_BUTTONS.ys.length; i++) {
-    const by = TOUCH_BUTTONS.ys[i]!
-    if (Math.hypot(x - TOUCH_BUTTONS.x, y - by) <= TOUCH_BUTTONS.hitRadius) return i
+  for (let i = 0; i < PLAYER_BAR.length && i < L.btnYs.length; i++) {
+    const by = L.btnYs[i]!
+    if (Math.hypot(x - L.btnX, y - by) <= L.btnHit) return i
   }
   return null
+}
+
+function hasTouch(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const points = (navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints
+  return typeof points === 'number' && points > 0
 }
