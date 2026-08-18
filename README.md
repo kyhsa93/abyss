@@ -111,6 +111,13 @@ identical with and without it. It homes on its target and lives in simulation
 state rather than in the renderer, so replays stay frame-identical. Without it
 a caster standing still looks the same whether it is working or idle.
 
+**Distances are all relative to the arena.** The floor has a world radius of
+460 and everything else is expressed against it — ability ranges, the AI's
+sampling rings, puddle size, how far out adds spawn. Widening the floor without
+widening those just spreads the party out of range of each other, so they move
+together. The renderer takes the radius from the simulation rather than
+keeping its own copy, which is the sort of pair that silently drifts.
+
 **The simulation is deterministic.** Fixed 30 Hz timestep, seeded PRNG, stable
 iteration order, render interpolation on top. `Math.random()` is never called
 inside `src/sim/`. That is what keeps replays, leaderboard verification and a
@@ -194,12 +201,12 @@ cell:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 25% | 42% | 54% | 142s |
-| 1 tank, 2 healers, 2 damage | 8% | 25% | 17% | 264s |
-| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 80s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 76s |
-| all melee | 4% | 0% | 4% | 155s |
-| all caster | 33% | 54% | 50% | 142s |
+| 1 tank, 1 healer, 3 damage | 29% | 42% | 67% | 140s |
+| 1 tank, 2 healers, 2 damage | 8% | 8% | 13% | 260s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 78s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 73s |
+| all melee | 0% | 0% | 4% | 145s |
+| all caster | 46% | 50% | 63% | 142s |
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is

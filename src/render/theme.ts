@@ -1,5 +1,7 @@
-/** World radius of the arena; must match ARENA_RADIUS in the simulation. */
-export const WORLD_RADIUS = 320
+import { ARENA_RADIUS } from '../sim/constants'
+
+/** World radius of the arena. Taken from the simulation, never redeclared. */
+export const WORLD_RADIUS = ARENA_RADIUS
 
 export const COLORS = {
   bg: '#0a0a0f',

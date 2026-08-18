@@ -28,10 +28,10 @@ import type { Actor, AuraId, SimState, Vec2 } from './types'
 const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
-const CASTER_MIN_RANGE = 80
-const CASTER_MAX_RANGE = 245
-const CASTER_IDEAL_RANGE = 170
-const HEAL_REACH = 280
+const CASTER_MIN_RANGE = 95
+const CASTER_MAX_RANGE = 320
+const CASTER_IDEAL_RANGE = 225
+const HEAL_REACH = 360
 
 export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
@@ -232,7 +232,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   const candidates: Vec2[] = [{ x: actor.pos.x, y: actor.pos.y }]
 
   // Rings around the actor cover ordinary sidestepping.
-  const rings = [70, 130, 200]
+  const rings = [80, 160, 260]
   // Rotate the sample ring a little each time so movement is not perfectly grid-like.
   const offset = rng.range(0, Math.PI / 8)
   for (let i = 0; i < 16; i++) {
@@ -262,7 +262,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
       for (const side of [Math.PI, Math.PI * 0.6, -Math.PI * 0.6]) {
-        for (const r of [55, 120, 190]) {
+        for (const r of [60, 150, 250]) {
           candidates.push({
             x: g.pos.x + Math.cos(g.angle + side) * r,
             y: g.pos.y + Math.sin(g.angle + side) * r,

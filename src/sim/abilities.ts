@@ -23,9 +23,9 @@ export interface Ability {
   range: number
 }
 
-const MELEE = 46
-const SPELL = 260
-const HEAL_RANGE = 300
+const MELEE = 52
+const SPELL = 340
+const HEAL_RANGE = 390
 
 const list: Ability[] = [
   // --- warrior (tank) -------------------------------------------------------

@@ -60,13 +60,13 @@ const PHASE_THREE_HP = 0.4
 const SLAM_CAST = 2
 const SLAM_DAMAGE = 1150
 const SWING_DAMAGE = 540
-const RAID_DAMAGE = 138
+const RAID_DAMAGE = 140
 
-const PUDDLE_RADIUS = 70
-const PUDDLE_DAMAGE = 1060
+const PUDDLE_RADIUS = 92
+const PUDDLE_DAMAGE = 1080
 
 export const BREATH_CAST = 1.9
-const BREATH_RANGE = 275
+const BREATH_RANGE = 390
 const BREATH_HALF_WIDTH = 0.62
 const BREATH_DAMAGE = 700
 
@@ -75,9 +75,9 @@ const BREATH_DAMAGE = 700
 // there is time to get there first, hence the telegraph and the generous
 // starting radius: the safe pocket is everything within START - BAND.
 const SHOCKWAVE_TELEGRAPH = 1.8
-const SHOCKWAVE_START = 150
-const SHOCKWAVE_GROWTH = 190
-const SHOCKWAVE_BAND = 45
+const SHOCKWAVE_START = 200
+const SHOCKWAVE_GROWTH = 250
+const SHOCKWAVE_BAND = 58
 const SHOCKWAVE_DAMAGE = 600
 
 const ADD_HP = 1200
@@ -295,7 +295,7 @@ function makeAdd(id: number, x: number, y: number): Actor {
     faction: 'boss',
     pos: { x, y },
     prevPos: { x, y },
-    radius: 15,
+    radius: 20,
     moveSpeed: 130,
     hp: ADD_HP,
     maxHp: ADD_HP,
