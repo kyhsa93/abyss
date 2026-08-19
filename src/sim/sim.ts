@@ -12,6 +12,7 @@ import {
   interruptCast,
   dist,
   gainPower,
+  pushEffect,
   livingParty,
   pushText,
   spawnBolt,
@@ -34,6 +35,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   // Drained before the guard, not after: leaving the last tick's events in
   // place meant the renderer kept replaying them over the results screen.
   s.sounds.length = 0
+  s.effects.length = 0
   if (s.outcome !== 'ongoing') return
 
   s.tick++
@@ -99,6 +101,13 @@ function updateAutoAttacks(s: SimState): void {
     // boss carries neither, which is a decision it can change without this
     // needing to know.
     applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id })
+
+    // A weapon swing had no picture at all: damage arrived every three
+    // seconds from a token standing still. Melee get an arc where the swing
+    // went, everyone gets the hit landing, and the hunter already has a bolt.
+    const facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x)
+    if (auto.range <= MELEE_RANGE) pushEffect(s, 'swing', a.pos, { angle: facing })
+    pushEffect(s, 'impact', target.pos, { angle: facing, power: auto.damage })
     if (target.id === BOSS_ID) addThreat(s, a.id, auto.damage)
     // Rage is earned here rather than handed out, which is why a warrior
     // that cannot reach anything cannot do anything either.

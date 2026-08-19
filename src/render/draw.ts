@@ -2,6 +2,8 @@ import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { BOSS_ID } from '../sim/state'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
+import { iconFor } from './icons'
+import type { Effects } from './effects'
 import { COLORS, L, roleColor } from './theme'
 
 function lerp(a: number, b: number, t: number): number {
@@ -53,6 +55,7 @@ export function drawWorld(
   s: SimState,
   alpha: number,
   clock: number,
+  effects: Effects,
 ): void {
   updateCamera(s, alpha)
 
@@ -69,6 +72,9 @@ export function drawWorld(
   }
 
   drawProjectiles(ctx, s, alpha)
+  // Above the tokens and below the numbers: a hit should be visible on top of
+  // whoever took it, and never on top of what the fight is telling you.
+  effects.draw(ctx, worldToScreen, L.scale)
   drawFloatingText(ctx, s, alpha)
   drawRaidFlash(ctx, s)
 }
@@ -368,6 +374,15 @@ function drawActor(
   }
 }
 
+/** Six-digit hex to a translucent rgba, for the halo around a bolt's core. */
+function tint(colour: string, alpha: number): string {
+  if (!/^#[0-9a-f]{6}$/i.test(colour)) return colour
+  const r = parseInt(colour.slice(1, 3), 16)
+  const g = parseInt(colour.slice(3, 5), 16)
+  const b = parseInt(colour.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 interface BoltStyle {
   core: string
   glow: string
@@ -391,6 +406,12 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     const style = BOLT[p.kind]
     if (!style) continue
 
+    // The shape and speed come from the kind, the colour from the ability's
+    // own icon: fifty-one spells were flying as four colours of dot, and the
+    // table that tells them apart already existed.
+    const core = p.abilityId ? iconFor(p.abilityId).colour : style.core
+    const glow = p.abilityId ? tint(core, 0.45) : style.glow
+
     const head = worldToScreen({
       x: lerp(p.prevPos.x, p.pos.x, alpha),
       y: lerp(p.prevPos.y, p.pos.y, alpha),
@@ -405,19 +426,19 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     ctx.beginPath()
     ctx.moveTo(tailX, tailY)
     ctx.lineTo(x, y)
-    ctx.strokeStyle = style.glow
+    ctx.strokeStyle = glow
     ctx.lineWidth = r * 1.5
     ctx.lineCap = 'round'
     ctx.stroke()
 
     ctx.beginPath()
     ctx.arc(x, y, r * 1.9, 0, Math.PI * 2)
-    ctx.fillStyle = style.glow
+    ctx.fillStyle = glow
     ctx.fill()
 
     ctx.beginPath()
     ctx.arc(x, y, r, 0, Math.PI * 2)
-    ctx.fillStyle = style.core
+    ctx.fillStyle = core
     ctx.fill()
   }
   ctx.lineCap = 'butt'

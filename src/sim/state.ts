@@ -205,6 +205,7 @@ export function createState(
     difficulty,
     tally,
     sounds: [],
+    effects: [],
   }
 }
 

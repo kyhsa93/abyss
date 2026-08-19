@@ -3,7 +3,15 @@ import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
-import type { Actor, Aura, AuraId, ProjectileKind, SimState } from './types'
+import type {
+  Actor,
+  Aura,
+  AuraId,
+  EffectEvent,
+  ProjectileKind,
+  SimState,
+  Vec2,
+} from './types'
 
 export function actorById(s: SimState, id: number): Actor | undefined {
   return s.actors.find((a) => a.id === id)
@@ -108,6 +116,27 @@ export function say(s: SimState, actor: Actor, text: string): void {
 export function gainPower(a: Actor, amount: number): void {
   if (amount <= 0 || a.maxPower <= 0) return
   a.power = Math.min(a.maxPower, a.power + amount)
+}
+
+/**
+ * Queues something for the renderer to draw.
+ *
+ * Output only, like `sounds`: nothing in the simulation ever reads this back,
+ * so what it contains cannot change how a pull plays out.
+ */
+export function pushEffect(
+  s: SimState,
+  kind: EffectEvent['kind'],
+  pos: Vec2,
+  opts: { angle?: number; abilityId?: string | null; power?: number } = {},
+): void {
+  s.effects.push({
+    kind,
+    pos: { x: pos.x, y: pos.y },
+    angle: opts.angle ?? 0,
+    abilityId: opts.abilityId ?? null,
+    power: opts.power ?? 0,
+  })
 }
 
 export function addThreat(s: SimState, actorId: number, amount: number): void {
@@ -295,12 +324,14 @@ export function spawnBolt(
   from: Actor,
   targetId: number,
   kind: ProjectileKind,
+  abilityId: string | null = null,
 ): void {
   const speed = PROJECTILE_SPEED[kind]
 
   s.projectiles.push({
     id: s.nextObjectId++,
     kind,
+    abilityId,
     pos: { x: from.pos.x, y: from.pos.y },
     prevPos: { x: from.pos.x, y: from.pos.y },
     targetId,
@@ -391,13 +422,14 @@ export function resolveAbility(
   if (ability.cost > 0) actor.power = Math.max(0, actor.power - ability.cost)
 
   if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
-    spawnBolt(s, actor, target.id, projectileKind(ability))
+    spawnBolt(s, actor, target.id, projectileKind(ability), ability.id)
   }
 
   switch (ability.kind) {
     case 'damage': {
       if (!target || !target.alive) return
       applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id })
+      pushEffect(s, 'impact', target.pos, { abilityId: ability.id, power: ability.amount })
       if (target.id === BOSS_ID) addThreat(s, actor.id, ability.amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
       break
@@ -405,6 +437,7 @@ export function resolveAbility(
     case 'heal': {
       if (!target || !target.alive) return
       if (ability.amount > 0) applyHeal(s, target, ability.amount, actor.id)
+      pushEffect(s, 'heal', target.pos, { abilityId: ability.id, power: ability.amount })
       if (ability.aura) addAura(target, ability.aura, actor.id)
       break
     }

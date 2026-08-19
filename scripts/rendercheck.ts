@@ -1,6 +1,7 @@
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
+import { Effects } from '../src/render/effects'
 import { allIcons, iconFor } from '../src/render/icons'
 import {
   drawHud,
@@ -101,13 +102,13 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   const rng = new Rng(0x51ed + attempt * 7919)
   while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
-    drawWorld(ctx, s, 0.5, s.time)
+    drawWorld(ctx, s, 0.5, s.time, new Effects())
     // Alternate modes so both the desktop bar and the touch overlay are drawn.
     drawHud(ctx, s, touchView(s.tick % 2 === 0), s.tick % 3 === 0)
     frames++
   }
   // Also render the terminal state, which draws the outcome overlay.
-  drawWorld(ctx, s, 1, s.time)
+  drawWorld(ctx, s, 1, s.time, new Effects())
   drawHud(ctx, s, touchView(true), true)
   drawHud(ctx, s, touchView(false), false)
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
@@ -609,7 +610,7 @@ for (const [label, w, h] of [
   expect(`${label}: player walked off the origin`, walked > 50, walked.toFixed(1))
 
   const circles: Circle[] = []
-  drawWorld(recordingCtx(circles), s, 1, s.time)
+  drawWorld(recordingCtx(circles), s, 1, s.time, new Effects())
 
   const token = Math.max(4, player.radius * L.scale)
   const centred = circles.some(
@@ -1613,6 +1614,101 @@ for (const [label, w, h] of [
       `${five.h.toFixed(0)} then ${raid.h.toFixed(0)}`,
     )
   }
+}
+
+// --- hits have a picture now ----------------------------------------------
+//
+// A weapon swing landed damage every three seconds from a token standing
+// still, and every ability resolved with nothing on screen but a number. The
+// effects live in the renderer: the simulation says what happened, this
+// decides what it looks like, and a pull still replays from its seed.
+{
+  updateLayout(1440, 900)
+  const s = createState(0x51ed, 0, [
+    { classId: 'rogue', spec: 'assassination' },
+    { classId: 'warrior', spec: 'protection' },
+    { classId: 'priest', spec: 'discipline' },
+    { classId: 'mage', spec: 'frost' },
+    { classId: 'hunter', spec: 'marksmanship' },
+  ])
+  const player = s.actors.find((a) => a.isPlayer)!
+  const rng = new Rng(0x51ed)
+
+  const seen = new Set<string>()
+  const effects = new Effects()
+  let ticks = 0
+  for (let i = 0; i < 30 * 12; i++) {
+    const b = boss(s)
+    player.pos.x = b.pos.x + 20
+    player.pos.y = b.pos.y
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+    for (const e of s.effects) seen.add(e.kind)
+    effects.ingest(s)
+    ticks++
+  }
+
+  expect('an ability landing draws something', seen.has('impact'), [...seen].join(', '))
+  expect('a weapon swing draws something', seen.has('swing'), [...seen].join(', '))
+  expect('and so does a heal', seen.has('heal'), [...seen].join(', '))
+  expect('the effects are on screen', effects.count > 0, `${effects.count}`)
+
+  // The channel is emptied every tick like the sound is, or a frame that
+  // catches up on three ticks would draw one of them and lose two.
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const carried = s.effects.length
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect(
+    'the channel is drained every tick',
+    s.effects.length <= carried + 8 && s.effects.every((e) => e.pos !== undefined),
+    `${s.effects.length} queued`,
+  )
+
+  // They age out rather than piling up for the whole pull.
+  effects.age(3)
+  expect('and they age off the screen', effects.count === 0, `${effects.count} left`)
+
+  // Nothing in the simulation may read them back: a pull has to replay
+  // identically whether or not anything was drawn.
+  const replay = (drain: boolean) => {
+    const run = createState(0x51ed, 3)
+    const r = new Rng(0x51ed + 3 * 7919)
+    while (run.outcome === 'ongoing' && run.time < 60) {
+      step(run, { moveX: 0, moveY: 0, pressed: [] }, r)
+      if (drain) run.effects.length = 0
+    }
+    return `${run.outcome} ${run.time.toFixed(2)} ${boss(run).hp}`
+  }
+  expect('drawing changes nothing about the fight', replay(true) === replay(false), replay(true))
+}
+
+// Every bolt in the air carries the ability that threw it, so it can be
+// coloured like that ability's own icon instead of one of four generic dots.
+{
+  const s = createState(0x51ed, 0)
+  const rng = new Rng(0x51ed)
+  const caster = s.actors[0]!
+  const target = s.actors[s.actors.length - 1]!
+
+  const anonymous: string[] = []
+  for (const ability of Object.values(ABILITIES)) {
+    if (ability.range < PROJECTILE_MIN_RANGE) continue
+    s.projectiles.length = 0
+    const victim = ability.kind === 'heal' ? s.actors[2]! : target
+    resolveAbility(s, caster, ability, victim.id, rng)
+    if (s.projectiles.some((p) => p.abilityId !== ability.id)) anonymous.push(ability.id)
+  }
+  expect('every bolt knows what threw it', anonymous.length === 0, anonymous.join(', '))
+
+  // Which is only worth anything if the icons it reads from are distinct —
+  // that is already checked above, so this checks the join: a colour for
+  // every ability that can put something in the air.
+  const ranged = Object.values(ABILITIES).filter((a) => a.range >= PROJECTILE_MIN_RANGE)
+  const colours = new Set(ranged.map((a) => iconFor(a.id).colour))
+  expect(
+    `${ranged.length} ranged abilities draw on ${colours.size} colours`,
+    colours.size > 4,
+    `${colours.size}`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

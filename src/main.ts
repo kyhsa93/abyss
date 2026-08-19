@@ -2,6 +2,7 @@ import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
+import { Effects } from './render/effects'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster } from './render/roster'
 import { Sfx } from './sfx'
@@ -52,6 +53,7 @@ fitCanvas()
 const input = new Input(window, canvas)
 const sfx = new Sfx()
 const hints = new Hints()
+const effects = new Effects()
 
 // Audio cannot start without a gesture, so the first one unlocks it.
 for (const event of ['pointerdown', 'keydown'] as const) {
@@ -289,17 +291,19 @@ function frame(now: number): void {
   while (timing.accumulator >= DT && ticks < MAX_CATCHUP_TICKS) {
     step(state, input.consume(), rng)
     sfx.playAll(state.sounds)
+    effects.ingest(state)
     timing.accumulator -= DT
     ticks++
   }
 
   hints.observe(state, elapsed)
+  effects.age(elapsed)
 
   const alpha = Math.min(1, timing.accumulator / DT)
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
-  drawWorld(ctx, state, alpha, clock)
+  drawWorld(ctx, state, alpha, clock, effects)
   drawHud(
     ctx,
     state,

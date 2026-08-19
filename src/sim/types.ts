@@ -157,6 +157,8 @@ export type ProjectileKind = 'bolt' | 'dot' | 'heavy' | 'heal'
 export interface Projectile {
   id: number
   kind: ProjectileKind
+  /** What threw it, so the renderer can colour it like its own icon. */
+  abilityId: string | null
   pos: Vec2
   prevPos: Vec2
   targetId: number
@@ -170,6 +172,27 @@ export interface FloatingText {
   pos: Vec2
   age: number
   kind: 'damage' | 'heal' | 'miss' | 'crit'
+}
+
+/**
+ * Something worth drawing that has no state of its own.
+ *
+ * The same arrangement as `sounds`: the simulation says what happened and the
+ * renderer decides what that looks like and for how long. Effects must not
+ * live in the simulation — a pull has to replay identically from its seed,
+ * and particles that aged inside the state would make that untrue.
+ */
+export type EffectKind = 'impact' | 'heal' | 'swing'
+
+export interface EffectEvent {
+  kind: EffectKind
+  pos: Vec2
+  /** Which way it is facing. Only a swing has one. */
+  angle: number
+  /** The ability behind it, for its colour. Null for a weapon. */
+  abilityId: string | null
+  /** How big the hit was, before mitigation. */
+  power: number
 }
 
 export interface ChatLine {
@@ -270,4 +293,6 @@ export interface SimState {
   tally: Record<number, Tally>
   /** Cleared at the top of every tick; purely an output channel. */
   sounds: SoundEvent[]
+  /** The same, for things to draw. See `EffectEvent`. */
+  effects: EffectEvent[]
 }

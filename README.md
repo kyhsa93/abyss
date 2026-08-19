@@ -293,6 +293,31 @@ puddles; a weapon loses none, so white damage lands at nearly full uptime and
 is worth far more per point than it looks. At fifty a swing it is about a
 sixth of an auto-attacker's own output and a seventh of the raid's.
 
+**Hits have a picture.** Every ability that lands and every weapon swing
+queues an effect, and the renderer draws it from three primitives: a ring
+expanding out of the hit, spokes radiating from it, and an arc where a melee
+swing went. Bigger hits reach further, on a square root — a finisher deals ten
+times a filler and drawing that literally would black out the arena. Heals
+close inward instead of detonating.
+
+The effects live in the renderer, not the simulation, for the same reason the
+sound does: a pull replays identically from its seed, and particles ageing
+inside the state would make that untrue. The simulation emits what happened on
+a channel drained every tick, exactly as it does for sound, and the harness
+never sees any of it.
+
+They are drawn additively, which is the one thing that makes flat shapes read
+as energy rather than as paint, and there is a cap on how many can be on
+screen — a twenty-five man swinging and casting at once queues more than
+anyone can read, and the oldest go first so the hit you are looking at is
+never the one dropped.
+
+**Every bolt is the colour of its own ability.** Fifty-one spells were flying
+as four colours of dot; the table that tells them apart already existed, since
+every ability needs a distinct icon. The shape and speed still come from the
+kind of bolt it is, the colour now comes from the icon — thirty-four distinct
+colours across the thirty-six abilities that put anything in the air.
+
 **Ranged casts throw a visible bolt.** Damage still resolves the instant the
 ability does — the bolt is a tell, not a mechanic, and the balance numbers are
 identical with and without it. Its appearance is derived from what the ability
