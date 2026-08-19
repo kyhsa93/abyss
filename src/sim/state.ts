@@ -1,4 +1,4 @@
-import { ARENA_RADIUS } from './constants'
+import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import {
   CLASSES,
   DEFAULT_PARTY,
@@ -196,6 +196,7 @@ export function createState(
     texts: [],
     chat: [],
     outcome: 'ongoing',
+    countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: 9,
     nextSpread: 17,

@@ -243,6 +243,8 @@ export interface Tally {
 export type ResourceId = 'mana' | 'rage' | 'energy' | 'focus'
 
 export type SoundEvent =
+  | 'countdown'
+  | 'pull'
   | 'telegraph'
   | 'shockwave'
   | 'raid'
@@ -277,6 +279,16 @@ export interface SimState {
   texts: FloatingText[]
   chat: ChatLine[]
   outcome: Outcome
+  /**
+   * Ticks left before the pull starts, counting down to zero.
+   *
+   * Ticks rather than seconds because a float subtracted every tick does not
+   * land on zero. Nothing ages while it runs — see `step`. It lives in the
+   * state rather than in the frame loop because the simulation is the thing
+   * that must not start, and a countdown held outside it would be a second
+   * clock to keep honest.
+   */
+  countdown: number
   phase: number
   /** Timers driving the boss script. */
   nextPuddle: number

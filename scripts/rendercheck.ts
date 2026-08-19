@@ -55,6 +55,8 @@ import {
 import {
   ARENA_RADIUS,
   CHARGE_RAGE,
+  COUNTDOWN,
+  COUNTDOWN_TICKS,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   ENRAGE_AT,
@@ -82,7 +84,21 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
-import type { Role } from '../src/sim/types'
+import type { Role, SimState } from '../src/sim/types'
+
+/**
+ * A fight with its opening countdown already spent.
+ *
+ * Everything here is about a pull that is running, and a pull that has not
+ * started drops input on the floor — without this, every ability check below
+ * would be pressing buttons at a boss that cannot hear them yet. The countdown
+ * itself is checked at the bottom of this file, against `createState` direct.
+ */
+function pulled(...args: Parameters<typeof createState>): SimState {
+  const s = createState(...args)
+  s.countdown = 0
+  return s
+}
 
 /** Records every 2D context call so the render path can run outside a browser. */
 function stubCtx(): CanvasRenderingContext2D {
@@ -130,7 +146,7 @@ const VIEWPORTS = [
 
 for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   updateLayout(VIEWPORTS[vi]![0], VIEWPORTS[vi]![1])
-  const s = createState(0x51ed, attempt)
+  const s = pulled(0x51ed, attempt)
   const rng = new Rng(0x51ed + attempt * 7919)
   while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
@@ -204,7 +220,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // tick's events queued after the fight ended meant they were replayed for as
 // long as the report was on screen.
 {
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
   while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -263,7 +279,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // passed when a rename left thirty-three of the thirty-four ranged abilities
 // silently firing nothing. Assert each one individually instead.
 {
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
   const caster = s.actors[0]!
   const ally = s.actors.find((a) => a.faction === 'party' && a.id !== caster.id)!
@@ -467,7 +483,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // identical whether you just pressed something or not.
 {
   updateLayout(1440, 900)
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const player = s.actors.find((a) => a.isPlayer)!
 
   const idle: Circle[] = []
@@ -535,7 +551,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const seen = new Set<string>()
   let maxPhase = 1
   for (let run = 0; run < 6 && seen.size < 5; run++) {
-    const s = createState(1000 + run * 137, 8)
+    const s = pulled(1000 + run * 137, 8)
     const rng = new Rng(1000 + run * 137)
     while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
@@ -605,7 +621,7 @@ for (const [label, w, h] of [
   ['landscape 844x390', 844, 390],
 ] as const) {
   updateLayout(w, h)
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
 
   const circles: Circle[] = []
   drawHud(recordingCtx(circles), s, touchView(true), false)
@@ -639,7 +655,7 @@ for (const [label, w, h] of [
   ['portrait 390x844', 390, 844],
 ] as const) {
   updateLayout(w, h)
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
 
   // Walk off the origin, or a camera that never moved would pass this.
@@ -675,7 +691,7 @@ for (const [label, w, h] of [
 // three of these are load-bearing: the empty start, the taunt itself, and an
 // AI that actually presses it.
 {
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
 
   const start = Object.entries(s.threat)
   expect(
@@ -720,7 +736,7 @@ for (const [label, w, h] of [
 
 // A taunt has to take the boss back off whoever ran away with it.
 {
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
   const tank = s.actors.find((a) => a.role === 'tank')!
   const dealer = s.actors.find((a) => a.faction === 'party' && a.role === 'dps')!
@@ -746,7 +762,7 @@ for (const [label, w, h] of [
 {
   for (const size of [5, 25] as RaidSize[]) {
     const party = autoParty(size, pickFor('mage', 'dps')!)
-    const s = createState(0x51ed, 3, party)
+    const s = pulled(0x51ed, 3, party)
     const rng = new Rng(0x51ed + 3 * 7919)
 
     let onTank = 0
@@ -1024,7 +1040,7 @@ for (const [label, w, h] of [
 {
   updateLayout(1440, 900)
   const party = autoParty(25, pickFor('mage', 'dps')!)
-  const s = createState(0x51ed, 0, party)
+  const s = pulled(0x51ed, 0, party)
   const rng = new Rng(0x51ed)
   // The player never presses anything, so they finish last of twenty-five.
   while (s.outcome === 'ongoing' && s.time < 40) {
@@ -1052,7 +1068,7 @@ for (const [label, w, h] of [
 // Every actor on the floor has to appear on the minimap.
 {
   updateLayout(1440, 900)
-  const s = createState(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
+  const s = pulled(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
   const rng = new Rng(0x51ed)
   for (let i = 0; i < 200; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
 
@@ -1075,7 +1091,7 @@ for (const [label, w, h] of [
 // button being broken.
 {
   const far = () => {
-    const s = createState(0x51ed, 0)
+    const s = pulled(0x51ed, 0)
     const player = s.actors.find((a) => a.isPlayer)!
     // The rim, with the boss on the origin: outside every range in the game.
     player.pos.x = ARENA_RADIUS - 10
@@ -1116,7 +1132,7 @@ for (const [label, w, h] of [
 
   {
     // In range it stays quiet and the cast goes out.
-    const s = createState(0x51ed, 0)
+    const s = pulled(0x51ed, 0)
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
@@ -1166,7 +1182,7 @@ for (const [label, w, h] of [
 // the cheapest play was to stand in the fire and finish the cast.
 {
   const setup = () => {
-    const s = createState(0x51ed, 0)
+    const s = pulled(0x51ed, 0)
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
@@ -1216,7 +1232,7 @@ for (const [label, w, h] of [
 
   {
     // Instants have nothing to break, so their cooldown must survive a step.
-    const s = createState(0x51ed, 0)
+    const s = pulled(0x51ed, 0)
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
@@ -1263,7 +1279,7 @@ for (const [label, w, h] of [
       pickFor('hunter', 'dps')!,
       pickFor('rogue', 'dps')!,
     ]
-    const s = createState(0x51ed, 0, party)
+    const s = pulled(0x51ed, 0, party)
     const player = s.actors.find((a) => a.isPlayer)!
     const rng = new Rng(0x51ed)
     let sawOwnBolt = false
@@ -1327,7 +1343,7 @@ for (const [label, w, h] of [
     // Physical, and the enrage is the boss hitting harder rather than
     // everything hitting harder — which is what it would have meant once the
     // party had a physical attack of its own.
-    const s = createState(0x51ed, 0)
+    const s = pulled(0x51ed, 0)
     const b = boss(s)
     const member = s.actors.find((a) => a.faction === 'party')!
     addAura(b, 'enrage', b.id)
@@ -1345,7 +1361,7 @@ for (const [label, w, h] of [
   {
     // Swinging at the boss is damage on the boss, so it moves the threat
     // table like any other.
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('rogue', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -1419,7 +1435,7 @@ for (const [label, w, h] of [
   // Rage: empty at the pull, earned by swinging, earned by being hit, and
   // never handed over by simply waiting.
   {
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('warrior', 'tank')!,
       pickFor('paladin', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -1469,7 +1485,7 @@ for (const [label, w, h] of [
   // are not quietly getting the same treatment.
   {
     for (const [classId, role] of [['rogue', 'dps'], ['hunter', 'dps'], ['mage', 'dps']] as const) {
-      const s = createState(0x51ed, 0, [
+      const s = pulled(0x51ed, 0, [
         pickFor(classId, role)!,
         pickFor('warrior', 'tank')!,
         pickFor('priest', 'healer')!,
@@ -1491,7 +1507,7 @@ for (const [label, w, h] of [
 
   // Spending: a press takes the resource, and an empty bar stops the press.
   {
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('rogue', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -1565,7 +1581,7 @@ for (const [label, w, h] of [
 
   // The cat has to actually fight: a kit that resolves to nothing would still
   // pass every layout check above.
-  const s = createState(0x51ed, 0, [
+  const s = pulled(0x51ed, 0, [
     { classId: 'druid', spec: 'feral' },
     { classId: 'warrior', spec: 'protection' },
     { classId: 'priest', spec: 'discipline' },
@@ -1681,7 +1697,7 @@ for (const [label, w, h] of [
 // decides what it looks like, and a pull still replays from its seed.
 {
   updateLayout(1440, 900)
-  const s = createState(0x51ed, 0, [
+  const s = pulled(0x51ed, 0, [
     { classId: 'rogue', spec: 'assassination' },
     { classId: 'warrior', spec: 'protection' },
     { classId: 'priest', spec: 'discipline' },
@@ -1727,7 +1743,7 @@ for (const [label, w, h] of [
   // Nothing in the simulation may read them back: a pull has to replay
   // identically whether or not anything was drawn.
   const replay = (drain: boolean) => {
-    const run = createState(0x51ed, 3)
+    const run = pulled(0x51ed, 3)
     const r = new Rng(0x51ed + 3 * 7919)
     while (run.outcome === 'ongoing' && run.time < 60) {
       step(run, { moveX: 0, moveY: 0, pressed: [] }, r)
@@ -1741,7 +1757,7 @@ for (const [label, w, h] of [
 // Every bolt in the air carries the ability that threw it, so it can be
 // coloured like that ability's own icon instead of one of four generic dots.
 {
-  const s = createState(0x51ed, 0)
+  const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
   const caster = s.actors[0]!
   const target = s.actors[s.actors.length - 1]!
@@ -1779,7 +1795,7 @@ for (const [label, w, h] of [
 // counted, a heal was never too late, and range cost nothing.
 {
   const setup = () => {
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       { classId: 'mage', spec: 'frost' },
       { classId: 'warrior', spec: 'protection' },
       { classId: 'priest', spec: 'discipline' },
@@ -1837,7 +1853,7 @@ for (const [label, w, h] of [
   {
     // Melee and self-cast still resolve where they stand: there is nothing
     // in the air to wait for.
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       { classId: 'rogue', spec: 'assassination' },
       { classId: 'warrior', spec: 'protection' },
       { classId: 'priest', spec: 'discipline' },
@@ -1859,7 +1875,7 @@ for (const [label, w, h] of [
     // The hunter's auto shot is drawn after the fact: its damage was already
     // dealt where the hunter stands, so the bolt must not land it a second
     // time when it arrives.
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       { classId: 'hunter', spec: 'marksmanship' },
       { classId: 'warrior', spec: 'protection' },
       { classId: 'priest', spec: 'discipline' },
@@ -1897,7 +1913,7 @@ for (const [label, w, h] of [
 // whose actual state is already on the frames and the meter. Either end
 // counts as yours: what you dealt, and what landed on you.
 {
-  const s = createState(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
+  const s = pulled(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
   const player = s.actors.find((a) => a.isPlayer)!
   const other = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
   const b = boss(s)
@@ -1938,7 +1954,7 @@ for (const [label, w, h] of [
 // And the wall is actually gone: a twenty-five man fought by everyone but the
 // player, whose numbers are the only ones that can appear.
 {
-  const s = createState(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
+  const s = pulled(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
   const rng = new Rng(0x51ed)
   let peak = 0
   for (let i = 0; i < 30 * 20; i++) {
@@ -1956,7 +1972,7 @@ for (const [label, w, h] of [
 // you are looking. A cast now gathers on the caster, goes off when it
 // completes, and comes apart when it breaks.
 {
-  const s = createState(0x51ed, 0, [
+  const s = pulled(0x51ed, 0, [
     { classId: 'mage', spec: 'frost' },
     { classId: 'warrior', spec: 'protection' },
     { classId: 'priest', spec: 'discipline' },
@@ -1996,7 +2012,7 @@ for (const [label, w, h] of [
   expect('finishing it goes off', fired, 'no cast effect')
 
   // And breaking one collapses instead.
-  const again = createState(0x51ed, 0, [
+  const again = pulled(0x51ed, 0, [
     { classId: 'mage', spec: 'frost' },
     { classId: 'warrior', spec: 'protection' },
     { classId: 'priest', spec: 'discipline' },
@@ -2022,7 +2038,7 @@ for (const [label, w, h] of [
 // one. Crits are the party's alone: incoming damage is the healers' problem,
 // and a boss that occasionally hits half again as hard makes that a coin toss.
 {
-  const s = createState(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
+  const s = pulled(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
   const rng = new Rng(0x51ed)
   let crits = 0
   let hits = 0
@@ -2081,7 +2097,7 @@ for (const [label, w, h] of [
 // not appear in a state that has to replay identically.
 {
   updateLayout(1440, 900)
-  const s = createState(0x51ed, 0, [
+  const s = pulled(0x51ed, 0, [
     pickFor('mage', 'dps')!,
     pickFor('warrior', 'tank')!,
     pickFor('priest', 'healer')!,
@@ -2123,7 +2139,7 @@ for (const [label, w, h] of [
 // during a fight and argues about afterwards. It outlives a pull, a party and
 // a page load, so nothing about it lives in the simulation.
 {
-  const s = createState(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
+  const s = pulled(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
   const rng = new Rng(0x51ed)
   expect('a fight in progress records nothing', record(s, 1000) === null, 'recorded early')
 
@@ -2157,7 +2173,7 @@ for (const [label, w, h] of [
 
   // A board is capped, and your own row survives the cap however it placed.
   {
-    const big = createState(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
+    const big = pulled(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
     const r2 = new Rng(0x51ed)
     // Run out, not cut short: a pull still going records nothing at all.
     while (big.outcome === 'ongoing' && big.time < 300) {
@@ -2377,7 +2393,7 @@ for (const [label, w, h] of [
   )
 
   const setup = (gap: number) => {
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('warrior', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -2440,7 +2456,7 @@ for (const [label, w, h] of [
   {
     // And the AI uses it rather than walking: a warrior parked at range
     // should be in melee within a couple of seconds.
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('mage', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -2483,7 +2499,7 @@ for (const [label, w, h] of [
   expect('and nothing else has one', others.length === 0, others.map((a) => a.id).join(', '))
 
   const setup = (gap: number) => {
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('hunter', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -2543,7 +2559,7 @@ for (const [label, w, h] of [
     // And the AI keeps itself outside its own edge rather than standing in a
     // dead zone doing nothing. The party AI's shared idea of far enough is
     // narrower than a bow's, which is what this had to learn.
-    const s = createState(0x51ed, 0, [
+    const s = pulled(0x51ed, 0, [
       pickFor('mage', 'dps')!,
       pickFor('warrior', 'tank')!,
       pickFor('priest', 'healer')!,
@@ -2578,13 +2594,13 @@ for (const [label, w, h] of [
   )
 
   // A wipe earns nothing that is about winning.
-  const wiped = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  const wiped = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
   wiped.outcome = 'wipe'
   const onLoss = AWARDS.filter((a) => a.earned(wiped, []))
   expect('a wipe earns nothing', onLoss.length === 0, onLoss.map((a) => a.id).join(', '))
 
   // A kill earns the ones it should and none of the others.
-  const s = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  const s = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
   const rng = new Rng(0x51ed)
   while (s.outcome === 'ongoing' && s.time < 300) {
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -2646,6 +2662,99 @@ for (const [label, w, h] of [
     )
     expect(`${label}: and answer their own taps`, answers, 'a tab answered as another')
   }
+}
+
+// --- the pull waits, and then it starts -------------------------------------
+//
+// Two opposite failures are silent here. A fight that runs anyway makes the
+// count decoration, and every balance number was measured without three extra
+// seconds of boss script in front of it. A fight that never starts leaves a
+// dead screen with nothing thrown. Both are asserted against the simulation
+// rather than against the drawing, and the number itself against the canvas,
+// since a countdown nobody can see is the third way this goes wrong.
+{
+  const s = createState(0x51ed, 0)
+  const rng = new Rng(0x51ed)
+  const before = boss(s).hp
+  const player = s.actors.find((a) => a.isPlayer)!
+  const start = { x: player.pos.x, y: player.pos.y }
+
+  expect('a pull opens on the countdown', s.countdown === COUNTDOWN_TICKS, `${s.countdown}`)
+
+  // One tick short of the whole count, leaning on the controls throughout.
+  for (let i = 0; i < COUNTDOWN_TICKS - 1; i++) {
+    step(s, { moveX: 1, moveY: 1, pressed: [0, 1, 2] }, rng)
+  }
+
+  expect('no time passes during it', s.time === 0 && s.tick === 0, `${s.time} / ${s.tick}`)
+  expect('the boss script has not run', s.ground.length === 0 && boss(s).hp === before, `${s.ground.length}`)
+  expect(
+    'and the player cannot move off their mark',
+    player.pos.x === start.x && player.pos.y === start.y,
+    `${player.pos.x - start.x}, ${player.pos.y - start.y}`,
+  )
+  expect('the count is still running', s.countdown > 0, `${s.countdown}`)
+
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('it ends on the tick it should', s.countdown === 0, `${s.countdown}`)
+  expect('and says go once', s.sounds.filter((e) => e === 'pull').length === 1, s.sounds.join(','))
+
+  // The tick after is a fight, which is the half that a `return` too high up
+  // would leave permanently frozen.
+  step(s, { moveX: 1, moveY: 0, pressed: [] }, rng)
+  expect('the fight runs from there', s.time > 0 && s.tick === 1, `${s.time} / ${s.tick}`)
+  expect(
+    'and the player moves again',
+    player.pos.x !== start.x || player.pos.y !== start.y,
+    'still on the mark',
+  )
+}
+
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+] as const) {
+  updateLayout(w, h)
+
+  const counting: Label[] = []
+  drawHud(recordingCtx([], counting), createState(0x51ed, 0), touchView(false), false)
+
+  // The same frame with the fight running. Searching the first list for the
+  // text "3" on its own would find an ability slot's own number and pass on a
+  // countdown that drew nothing, so what counts is the difference between the
+  // two: text that is on screen only while the count is.
+  const started = pulled(0x51ed, 0)
+  const running: Label[] = []
+  drawHud(recordingCtx([], running), started, touchView(false), false)
+
+  const added = counting.filter(
+    (c) => !running.some((r) => r.text === c.text && r.x === c.x && r.y === c.y),
+  )
+  const count = added.find((t) => t.text === String(COUNTDOWN))
+  expect(
+    `${label}: the count is drawn on screen`,
+    count !== undefined && count.x >= 0 && count.x <= w && count.y >= 0 && count.y <= h,
+    JSON.stringify(added.map((t) => t.text)),
+  )
+
+  // It is over the world, not over the player's own token: the pause is for
+  // reading where you are, and a number parked on top of you removes it.
+  expect(
+    `${label}: and not on top of the player`,
+    count !== undefined && Math.hypot(count.x - L.cx, count.y - L.cy) > 24,
+    JSON.stringify(count),
+  )
+
+  // And it leaves rather than sitting at zero over the fight.
+  const leftover = running.filter(
+    (r) => !counting.some((c) => c.text === r.text && c.x === r.x && c.y === r.y),
+  )
+  expect(
+    `${label}: and gone once the fight starts`,
+    !running.some((t) => count !== undefined && t.x === count.x && t.y === count.y),
+    JSON.stringify(leftover.map((t) => t.text)),
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

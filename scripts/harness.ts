@@ -47,6 +47,10 @@ function run(
   difficulty: DifficultyId = 'normal',
 ): Report {
   const s = createState(seed, attempt, party, difficulty)
+  // The pull's opening countdown is skipped rather than waited out. No time
+  // passes during it, so the fight is identical either way — this is only
+  // ninety ticks per run of nobody doing anything, times several thousand.
+  s.countdown = 0
   const rng = new Rng(seed + attempt * 7919)
   const ticksIn: Record<string, number> = {}
   const deaths: Record<string, number> = {}

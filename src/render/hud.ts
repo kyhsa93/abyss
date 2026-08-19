@@ -3,7 +3,7 @@ import { ABILITIES } from '../sim/abilities'
 import { standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount } from '../sim/classes'
 import { playerTarget } from '../sim/sim'
-import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
+import { ENRAGE_AT, GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -259,7 +259,48 @@ export function drawHud(
   drawChat(ctx, s)
   drawPartyButton(ctx)
   drawSoundButton(ctx, muted)
+  if (s.countdown > 0) drawCountdown(ctx, s)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
+}
+
+/**
+ * The seconds before the pull.
+ *
+ * Drawn over the world rather than instead of it. The pause exists so that you
+ * can find your own token and read what is around it before anything moves, so
+ * dimming the floor to put a number on it would remove the one thing it is
+ * for. Nothing is hidden and nothing is centred on the player's own token
+ * either — the count sits above it.
+ *
+ * The ring closes inward, which is the rule the cast ring already follows:
+ * anything leaving a token has happened, so anything about to happen has to
+ * come in. It is drawn around the player because the pull is the moment they
+ * have to be somewhere, and the ring says where that is.
+ */
+function drawCountdown(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const left = s.countdown / TICK_RATE
+  const seconds = Math.ceil(left)
+  // 0 at the top of each second, approaching 1 at its end.
+  const through = seconds - left
+  const base = Math.min(L.w, L.h)
+
+  ctx.save()
+  ctx.globalAlpha = 0.85 - through * 0.5
+  ctx.strokeStyle = COLORS.text
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(L.cx, L.cy, base * (0.3 - 0.17 * through), 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.text
+  ctx.font = font(base * 0.12, true)
+  ctx.fillText(String(seconds), L.cx, L.cy - base * 0.14)
+
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(11)
+  ctx.fillText(boss(s).name, L.cx, L.cy - base * 0.1)
 }
 
 /**

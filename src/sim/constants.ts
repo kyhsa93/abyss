@@ -35,6 +35,27 @@ export const CRIT_MULTIPLIER = 1.5
 /** Everyone within this radius of a spread target takes the hit. */
 export const SPREAD_RADIUS = 110
 
+/**
+ * Seconds between arriving on the floor and the pull starting.
+ *
+ * A fight that begins on the frame the screen appears begins before anyone has
+ * found their own token, and the first thing this one asks is where you are
+ * standing. Time does not pass during it: `s.time` and the boss script both
+ * start at zero afterwards, so an encounter is the same length whether or not
+ * a countdown ran in front of it.
+ */
+export const COUNTDOWN = 3
+
+/**
+ * The same, in ticks, which is what the state actually counts.
+ *
+ * Subtracting a thirtieth of a second ninety times leaves six ten-thousandths
+ * of a femtosecond behind rather than zero, so a float count ends a tick late
+ * and the sound that says go lands on the wrong one. Ticks are what the rest
+ * of the simulation is measured in anyway.
+ */
+export const COUNTDOWN_TICKS = COUNTDOWN * TICK_RATE
+
 export const ENRAGE_AT = 240
 export const PHASE_TWO_HP = 0.7
 

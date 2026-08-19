@@ -56,6 +56,20 @@ pressing it anyway prints `Out of range` over your character rather than doing
 nothing, which is what a broken button also does. It costs no cooldown, so the
 answer is to walk in and press again.
 
+**A pull opens with three seconds on the clock.** You arrive on the floor,
+the raid is standing where it starts, and nothing moves until the count runs
+out: no boss script, no timers, and no clock — `s.time` is still zero when the
+fight begins, so an encounter is the same length whether or not a countdown
+ran in front of it. Input is dropped for the same reason the boss is held; the
+position everyone starts from is the one they agreed to.
+
+The count is drawn over the world rather than instead of it, since the reason
+to pause is to find your own token and read what is around it. A ring closes
+inward on the player each second — the same rule the cast ring follows, where
+anything leaving a token has already happened and anything about to happen has
+to come in — and the number sits above it rather than on top of it. A flat
+tone marks each second and one an octave up says go.
+
 The party frames down the left are a grid of parties rather than one long
 column: a party is a column read top to bottom, and the columns run left to
 right three at a time before wrapping, so a ten-man is two columns side by

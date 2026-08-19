@@ -29,6 +29,17 @@ interface Recipe {
 }
 
 const RECIPES: Record<SoundEvent, Recipe> = {
+  // One per second before the pull. Flat, quiet and unhurried: it is a clock,
+  // not a warning, and it must not be mistaken for the telegraph.
+  countdown: {
+    tones: [{ type: 'sine', from: 440, to: 440, duration: 0.09, gain: 0.09 }],
+    throttle: 0.3,
+  },
+  // The one that says go — the same note an octave up, held longer.
+  pull: {
+    tones: [{ type: 'sine', from: 880, to: 880, duration: 0.3, gain: 0.13 }],
+    throttle: 0.5,
+  },
   // Rising two-tone warning: the sound you learn to move on.
   telegraph: {
     tones: [

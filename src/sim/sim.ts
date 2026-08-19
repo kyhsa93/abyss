@@ -21,7 +21,7 @@ import {
   beginCast,
   castBlocker,
 } from './combat'
-import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE } from './constants'
+import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -38,6 +38,23 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   s.sounds.length = 0
   s.effects.length = 0
   if (s.outcome !== 'ongoing') return
+
+  // The pull has not started yet.
+  //
+  // Nothing below this runs: no timers, no boss script, no clock. That is the
+  // point — a countdown that let the fight age would push the first mechanic
+  // three seconds earlier relative to everything the party can do about it,
+  // and every balance number here was measured without one. Input is dropped
+  // for the same reason the boss is: standing still is the position everyone
+  // agreed to start from.
+  if (s.countdown > 0) {
+    s.countdown--
+    // On each whole second, and a different one when it runs out.
+    if (s.countdown % TICK_RATE === 0) {
+      s.sounds.push(s.countdown > 0 ? 'countdown' : 'pull')
+    }
+    return
+  }
 
   s.tick++
   s.time += DT
