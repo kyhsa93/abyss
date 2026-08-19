@@ -2,14 +2,7 @@ import {
   CLASSES,
   DIFFICULTIES,
   RAID_SIZES,
-  PARTY_UNIT,
-  ROLE_LIMITS,
   SPEC_OPTIONS,
-  canSelect,
-  countRoles,
-  isFixedComposition,
-  partyCount,
-  makeSlots,
   mitigation,
   specLabel,
   specOf,
@@ -17,7 +10,7 @@ import {
   type Pick,
   type RaidSize,
 } from '../sim/classes'
-import { COLORS, L } from './theme'
+import { COLORS, L, classColor } from './theme'
 
 /**
  * Raid setup.
@@ -37,38 +30,23 @@ export interface Rect {
 export interface RosterLayout {
   sizes: Rect[]
   difficulties: Rect[]
-  slots: Rect[]
-  /** Left-hand party labels, one per group of five. */
-  partyLabels: Rect[]
   classes: Rect[]
-  auto: Rect
-  random: Rect
   history: Rect
   pull: Rect
   titleY: number
   summaryY: number
-  slotCols: number
 }
 
 export type RosterHit =
-  | { kind: 'slot'; index: number }
   | { kind: 'class'; pick: Pick }
   | { kind: 'size'; size: RaidSize }
   | { kind: 'difficulty'; id: DifficultyId }
-  | { kind: 'auto' }
-  | { kind: 'random' }
   | { kind: 'history' }
   | { kind: 'pull' }
 
-const ROLE_COLOR: Record<string, string> = {
-  tank: COLORS.tank,
-  healer: COLORS.healer,
-  dps: COLORS.player,
-}
-
 const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
 
-export function rosterLayout(size: number): RosterLayout {
+export function rosterLayout(): RosterLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
 
@@ -91,43 +69,21 @@ export function rosterLayout(size: number): RosterLayout {
     h: tabH,
   }))
 
-  // One row per party of five, so the raid reads as its groups.
-  const slotCols = PARTY_UNIT
-  const groups = partyCount(size)
+  // No slot grid: the only pick anyone makes is their own, and the rest of
+  // the raid is rolled at the door. A board of twenty-four strangers you did
+  // not choose and cannot change is a readout nobody needs before a pull.
   const gap = Math.max(3, pad * 0.3)
-  const rowGap = gap * 2.2
-  const labelW = groups > 1 ? Math.max(14, L.w * 0.022) : 0
-  const slotW = (L.w - pad * 2 - labelW - gap * (slotCols - 1)) / slotCols
-  const slotH = size <= 5 ? Math.min(78, L.h * 0.12) : Math.min(44, L.h * 0.068)
-  const slotTop = tabY + tabH + 10
-
-  const slots: Rect[] = []
-  const partyLabels: Rect[] = []
-  for (let i = 0; i < size; i++) {
-    const row = Math.floor(i / slotCols)
-    slots.push({
-      x: pad + labelW + (i % slotCols) * (slotW + gap),
-      y: slotTop + row * (slotH + rowGap),
-      w: slotW,
-      h: slotH,
-    })
-  }
-  for (let g = 0; g < groups && labelW > 0; g++) {
-    partyLabels.push({ x: pad, y: slotTop + g * (slotH + rowGap), w: labelW - 3, h: slotH })
-  }
-
-  const summaryY = slotTop + groups * (slotH + rowGap) + 12
+  const summaryY = tabY + tabH + 26 * L.ui
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
   const gridTop = summaryY + 22
   const gridBottom = L.h - buttonH - pad * 2
 
-  // One tile per spec, and on a landscape phone the slot grid has already
-  // eaten most of the height. Widen the grid until its rows fit rather than
-  // letting it run off the bottom. The last candidate is the spec count
-  // itself, so the fallback is always a single row however many there are —
-  // it was a hard-coded fifteen, and the sixteenth spec pushed the grid off
-  // the bottom of a landscape phone.
+  // One tile per spec, filling the screen the slot grid used to take. Widen
+  // the grid until its rows fit rather than letting it run off the bottom;
+  // the last candidate is the spec count itself, so the fallback is always a
+  // single row however many there are — it was a hard-coded fifteen, and the
+  // sixteenth spec pushed the grid off the bottom of a landscape phone.
   const minCellH = 34
   const candidates = L.portrait ? [3, 4, 5] : [5, 6, 8, SPEC_OPTIONS.length]
   let cols = candidates[candidates.length - 1]!
@@ -156,25 +112,22 @@ export function rosterLayout(size: number): RosterLayout {
     })
   }
 
-  // Four buttons on one row; the three small ones share a fifth each and PULL
-  // takes what is left, so it stays the obvious target.
+  // Two buttons on one row, and PULL takes what is left so it stays the
+  // obvious target. AUTO and REROLL both used to sit here: one filled the
+  // raid deterministically and the other rolled it, and neither means
+  // anything once the raid is neither shown nor chosen.
   const gapB = 6
-  const fillW = Math.min(110, (L.w - pad * 2 - gapB * 3) * 0.2)
-  const pullW = L.w - pad * 2 - gapB * 3 - fillW * 3
+  const fillW = Math.min(120, (L.w - pad * 2 - gapB) * 0.26)
+  const pullW = L.w - pad * 2 - gapB - fillW
   const buttonY = L.h - buttonH - pad
   return {
     sizes,
     difficulties,
-    slots,
-    partyLabels,
     classes,
-    auto: { x: pad, y: buttonY, w: fillW, h: buttonH },
-    random: { x: pad + fillW + gapB, y: buttonY, w: fillW, h: buttonH },
-    history: { x: pad + (fillW + gapB) * 2, y: buttonY, w: fillW, h: buttonH },
-    pull: { x: pad + (fillW + gapB) * 3, y: buttonY, w: pullW, h: buttonH },
+    history: { x: pad, y: buttonY, w: fillW, h: buttonH },
+    pull: { x: pad + fillW + gapB, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
-    slotCols,
   }
 }
 
@@ -182,11 +135,9 @@ function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
-export function hitRoster(x: number, y: number, size: number): RosterHit | null {
-  const layout = rosterLayout(size)
+export function hitRoster(x: number, y: number): RosterHit | null {
+  const layout = rosterLayout()
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
-  if (inside(layout.auto, x, y)) return { kind: 'auto' }
-  if (inside(layout.random, x, y)) return { kind: 'random' }
   if (inside(layout.history, x, y)) return { kind: 'history' }
 
   for (let i = 0; i < layout.sizes.length; i++) {
@@ -197,9 +148,8 @@ export function hitRoster(x: number, y: number, size: number): RosterHit | null 
       return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
     }
   }
-  for (let i = 0; i < layout.slots.length; i++) {
-    if (inside(layout.slots[i]!, x, y)) return { kind: 'slot', index: i }
-  }
+  // Slots are a readout, not a control: the only pick anyone makes is their
+  // own, and that is made from the class list.
   for (let i = 0; i < layout.classes.length; i++) {
     if (inside(layout.classes[i]!, x, y)) return { kind: 'class', pick: SPEC_OPTIONS[i]! }
   }
@@ -232,11 +182,11 @@ export function drawRoster(
   ctx: CanvasRenderingContext2D,
   party: Pick[],
   difficulty: DifficultyId,
-  activeSlot: number,
   clock: number,
 ): void {
-  const layout = rosterLayout(party.length)
-  const slots = makeSlots(party.length as RaidSize)
+  // Slot zero is the player's, and the only one they choose.
+  const activeSlot = 0
+  const layout = rosterLayout()
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
@@ -259,83 +209,29 @@ export function drawRoster(
     )
   })
 
-  // Party numbers down the left, so the rows read as groups rather than wrap.
+  // What you are playing, which is the only thing on this screen you decide.
+  const own = party[activeSlot]
+  const spec = own ? specOf(own) : null
   ctx.textAlign = 'center'
-  for (let g = 0; g < layout.partyLabels.length; g++) {
-    const r = layout.partyLabels[g]!
-    ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9, true)
-    ctx.fillText(`${g + 1}`, r.x + r.w / 2, r.y + r.h * 0.6)
-  }
+  ctx.font = font(13, true)
+  ctx.fillStyle = own ? classColor(own.classId) : COLORS.text
+  ctx.fillText(own ? specLabel(own) : 'pick a class', L.w / 2, layout.summaryY)
 
-  const compact = layout.slots[0]!.h < 60
-  for (let i = 0; i < layout.slots.length; i++) {
-    const r = layout.slots[i]!
-    const pick = party[i]!
-    const spec = specOf(pick)
-    const active = i === activeSlot
-
-    ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
-    ctx.fillRect(r.x, r.y, r.w, r.h)
-    ctx.strokeStyle = active ? COLORS.castBar : COLORS.panelEdge
-    ctx.lineWidth = active ? 2 : 1
-    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
-
-    // A colour stripe makes the role balance readable at a glance across 25.
-    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
-    ctx.fillRect(r.x, r.y, r.w, 3)
-
-    const cx = r.x + r.w / 2
-    ctx.fillStyle = i === 0 ? COLORS.player : COLORS.textDim
-    ctx.font = font(compact ? 8 : 10, i === 0)
-    ctx.fillText(i === 0 ? 'YOU' : slots[i]!.name, cx, r.y + (compact ? 15 : 18) * L.ui)
-
-    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
-    ctx.font = font(compact ? 9 : 12, true)
-    ctx.fillText(specLabel(pick), cx, r.y + r.h * (compact ? 0.72 : 0.62))
-
-    if (!compact) {
-      ctx.fillStyle = COLORS.textDim
-      ctx.font = font(9)
-      ctx.fillText(
-        // The resource is a real difference between two classes that fill the
-        // same role: a rage tank opens a pull with nothing to spend.
-        `${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp · ${spec.resource}`,
-        cx,
-        r.y + r.h - 8 * L.ui,
-      )
-    }
-  }
-
-  const roles = countRoles(party)
-  const problems: string[] = []
-  if (roles.tank < ROLE_LIMITS.tank.min) problems.push('no tank')
-  if (roles.tank > ROLE_LIMITS.tank.max) problems.push(`${roles.tank} tanks, max ${ROLE_LIMITS.tank.max}`)
-  if (roles.healer < ROLE_LIMITS.healer.min) problems.push('no healer')
-  if (roles.healer > ROLE_LIMITS.healer.max) {
-    problems.push(`${roles.healer} healers, max ${ROLE_LIMITS.healer.max}`)
-  }
-
-  ctx.textAlign = 'center'
-  ctx.font = font(11)
-  ctx.fillStyle = problems.length > 0 ? COLORS.hpBarLow : COLORS.textDim
-  ctx.fillText(
-    problems.length > 0
-      ? `${problems.join(' · ')} — this will not hold`
-      : `${roles.tank} tank · ${roles.healer} healer · ${roles.dps} damage`,
-    L.w / 2,
-    layout.summaryY,
-  )
   ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.fillText(
+    spec
+      ? `${spec.role} · ${spec.resource} · ${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp`
+      : '',
+    L.w / 2,
+    layout.summaryY + 15 * L.ui,
+  )
+
   ctx.font = font(9)
   ctx.fillText(
-    // The trade is worth saying out loud: at a fixed size, picking a role
-    // changes two slots, and the second one is not the one you tapped.
-    isFixedComposition(party.length)
-      ? 'tap a slot, then a class — five-man roles are fixed, picking one trades it'
-      : 'tap a slot, then a class',
+    `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`,
     L.w / 2,
-    layout.summaryY + 13 * L.ui,
+    layout.summaryY + 28 * L.ui,
   )
 
   for (let i = 0; i < layout.classes.length; i++) {
@@ -344,12 +240,8 @@ export function drawRoster(
     const spec = specOf(option)
     const current = party[activeSlot]
     const chosen = current?.classId === option.classId && current.spec === option.spec
-    // Past a support cap the pick is not selectable, so it is not offered as
-    // one either.
-    const locked = !canSelect(party, activeSlot, option)
 
     ctx.save()
-    if (locked) ctx.globalAlpha = 0.32
 
     ctx.fillStyle = chosen ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
@@ -358,24 +250,20 @@ export function drawRoster(
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
 
     const cx = r.x + r.w / 2
-    ctx.fillStyle = ROLE_COLOR[spec.role] ?? COLORS.text
+    ctx.fillStyle = classColor(option.classId)
     ctx.font = font(11, true)
     ctx.fillText(specLabel(option), cx, r.y + r.h * 0.44)
 
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(8)
     ctx.fillText(
-      locked
-        ? `max ${ROLE_LIMITS[spec.role].max} ${spec.role === 'dps' ? 'damage' : `${spec.role}s`}`
-        : `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
+      `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
       cx,
       r.y + r.h * 0.76,
     )
     ctx.restore()
   }
 
-  tab(ctx, layout.auto, 'AUTO', false, COLORS.textDim)
-  tab(ctx, layout.random, 'RANDOM', false, COLORS.healer)
   tab(ctx, layout.history, 'RECORD', false, COLORS.text)
 
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)

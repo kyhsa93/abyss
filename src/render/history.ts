@@ -1,5 +1,5 @@
 import { HISTORY_LIMIT, label, totals, type Attempt } from '../history'
-import { COLORS, L, roleColor } from './theme'
+import { COLORS, L, classColor } from './theme'
 
 /**
  * The record screen.
@@ -147,11 +147,11 @@ export function drawHistory(ctx: CanvasRenderingContext2D, entries: Attempt[]): 
     const peak = Math.max(1, ...entry.standings.map((r) => r.dps + r.hps))
     block.rows.forEach((r, j) => {
       const row = entry.standings[j]!
-      const colour = row.isPlayer ? COLORS.player : COLORS.text
+      const colour = classColor(row.classId)
       const baseline = r.y + r.h - 4
 
       ctx.globalAlpha = 0.22
-      ctx.fillStyle = row.isPlayer ? COLORS.player : roleColor('dps', false)
+      ctx.fillStyle = classColor(row.classId)
       ctx.fillRect(r.x, r.y, ((row.dps + row.hps) / peak) * r.w, r.h - 2)
       ctx.globalAlpha = 1
 

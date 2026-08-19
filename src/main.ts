@@ -16,9 +16,8 @@ import {
   CLASSES,
   DEFAULT_PARTY,
   RAID_SIZES,
-  autoParty,
   pickFor,
-  randomParty,
+  randomAround,
   selectInto,
   isLegalComposition,
   type DifficultyId,
@@ -145,16 +144,14 @@ function saveSetup(): void {
   }
 }
 
-/** Keeps the player's own slot and rebuilds the rest around the new size. */
+/** Keeps the player's own pick and rolls the rest around the new size. */
 function resize(size: RaidSize): void {
-  party = autoParty(size, party[0] ?? DEFAULT_PARTY[0]!)
-  activeSlot = 0
+  party = randomAround(size, party[0] ?? DEFAULT_PARTY[0]!, Math.random)
   saveSetup()
 }
 
 let party = loadParty()
 let difficulty = loadDifficulty()
-let activeSlot = 0
 let screen: 'roster' | 'fight' | 'history' = 'roster'
 
 let history: Attempt[] = loadHistory()
@@ -211,46 +208,39 @@ function inside(r: { x: number; y: number; w: number; h: number }, x: number, y:
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
+/**
+ * The only pick anyone makes is their own.
+ *
+ * Everyone else is rolled around it. Kept where it is when the raid it makes
+ * is still a legal one — a five-man reads a role change as a trade with
+ * whoever was holding that role — and rolled again when it is not, which is
+ * what taking a role the raid already has enough of does.
+ */
+function chooseOwn(pick: Pick): void {
+  const traded = selectInto(party, 0, pick)
+  party = traded ?? randomAround(party.length as RaidSize, pick, Math.random)
+  saveSetup()
+}
+
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
-    const hit = hitRoster(tap.x, tap.y, party.length)
-    if (hit?.kind === 'slot') {
-      activeSlot = hit.index
-    } else if (hit?.kind === 'class') {
-      // Rejected when it would break the composition rules, and in a
-      // five-man read as a role trade with the slot already holding it. The
-      // class entry is drawn locked when there is no legal reading, so the
-      // tap doing nothing is the visible answer rather than a silent one.
-      const next = selectInto(party, activeSlot, hit.pick)
-      if (next) {
-        party = next
-        saveSetup()
-        // Step to the next slot so a raid can be filled by tapping straight
-        // down the class list.
-        activeSlot = (activeSlot + 1) % party.length
-      }
+    const hit = hitRoster(tap.x, tap.y)
+    if (hit?.kind === 'class') {
+      chooseOwn(hit.pick)
     } else if (hit?.kind === 'size') {
       if (hit.size !== party.length) resize(hit.size)
     } else if (hit?.kind === 'difficulty') {
       difficulty = hit.id
       saveSetup()
-    } else if (hit?.kind === 'auto') {
-      // Filling 25 slots one tap at a time is nobody's idea of a game.
-      party = autoParty(party.length as RaidSize, party[0] ?? DEFAULT_PARTY[0]!)
-      saveSetup()
     } else if (hit?.kind === 'history') {
       screen = 'history'
       return
-    } else if (hit?.kind === 'random') {
-      party = randomParty(party.length as RaidSize, Math.random)
-      activeSlot = 0
-      saveSetup()
     } else if (hit?.kind === 'pull') {
       startFight()
       return
     }
   }
-  drawRoster(ctx, party, difficulty, activeSlot, clock)
+  drawRoster(ctx, party, difficulty, clock)
 }
 
 let timing: Clock = { accumulator: 0, elapsedTotal: 0 }

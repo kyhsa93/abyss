@@ -4,7 +4,7 @@ import { BOSS_ID } from '../sim/state'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { COLORS, L, roleColor } from './theme'
+import { COLORS, L, classColor } from './theme'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -350,12 +350,14 @@ function drawActor(
   const r = Math.max(4, a.radius * L.scale)
   const isBoss = a.id === BOSS_ID
   const isAdd = a.faction === 'boss' && !isBoss
+  // Colour says the class, the glyph says the role. You are still the one
+  // with a ring around you, which is what picks you out of twenty-five.
   const color = a.alive
     ? isBoss
       ? COLORS.boss
       : isAdd
         ? '#a855f7'
-        : roleColor(a.role, a.isPlayer)
+        : classColor(a.classId)
     : COLORS.dead
 
   if (a.isPlayer && a.alive) {

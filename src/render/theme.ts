@@ -212,6 +212,29 @@ export function updateLayout(w: number, h: number): void {
   Object.assign(L, computeLayout(w, h))
 }
 
+/**
+ * One colour per class.
+ *
+ * The world says what everyone is playing by colour, and the letter on the
+ * token still says what they are doing: colour is the class, the glyph is the
+ * role. Without this a raid was three shades of blue and pink and you could
+ * not tell a mage from a shaman on the floor.
+ */
+export const CLASS_COLORS: Record<string, string> = {
+  warrior: '#c79c6e',
+  paladin: '#f58cba',
+  priest: '#f0f0f0',
+  druid: '#ff7d0a',
+  shaman: '#0f8fe8',
+  mage: '#40c7eb',
+  hunter: '#abd473',
+  rogue: '#fff569',
+}
+
+export function classColor(classId: string): string {
+  return CLASS_COLORS[classId] ?? COLORS.text
+}
+
 /** A resource is read by colour before it is read by number. */
 export function resourceColor(resource: string): string {
   if (resource === 'rage') return COLORS.rageBar
@@ -220,9 +243,3 @@ export function resourceColor(resource: string): string {
   return COLORS.manaBar
 }
 
-export function roleColor(role: string, isPlayer: boolean): string {
-  if (isPlayer) return COLORS.player
-  if (role === 'tank') return COLORS.tank
-  if (role === 'healer') return COLORS.healer
-  return COLORS.player
-}

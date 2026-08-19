@@ -850,6 +850,41 @@ export function abilityBar(pick: Pick): string[] {
  * allowed to reach for Math.random, because the fight itself must stay
  * reproducible from its seed.
  */
+/**
+ * A random raid built around one fixed pick.
+ *
+ * The player chooses what they are playing and nothing else; everyone else is
+ * rolled. Their role comes out of the raid's target counts first, so a raid
+ * that already needs one tank does not end up with two because the player
+ * wanted to be it.
+ */
+export function randomAround(size: RaidSize, player: Pick, random: () => number): Pick[] {
+  const { tanks, healers } = roleTargets(size)
+
+  const roles: Role[] = []
+  for (let i = 0; i < tanks; i++) roles.push('tank')
+  for (let i = 0; i < healers; i++) roles.push('healer')
+  while (roles.length < size) roles.push('dps')
+
+  // The player takes one of the slots the raid was going to need anyway.
+  // Damage is always available, since it is whatever the counts did not use.
+  const taken = roles.indexOf(roleOf(player))
+  roles.splice(taken >= 0 ? taken : roles.indexOf('dps'), 1)
+
+  for (let i = roles.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[roles[i], roles[j]] = [roles[j]!, roles[i]!]
+  }
+
+  return [
+    { ...player },
+    ...roles.map((role) => {
+      const pool = POOLS[role]
+      return pool[Math.floor(random() * pool.length)] ?? POOLS.dps[0]!
+    }),
+  ]
+}
+
 export function randomParty(size: RaidSize, random: () => number): Pick[] {
   const { tanks, healers } = roleTargets(size)
 

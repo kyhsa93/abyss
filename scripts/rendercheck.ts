@@ -12,7 +12,7 @@ import {
   soundButton,
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
-import { L, updateLayout } from '../src/render/theme'
+import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
 import {
   abilityBar,
@@ -27,6 +27,7 @@ import {
   mitigation,
   partyIndex,
   pickFor,
+  randomAround,
   randomParty,
   RESOURCES,
   ROLE_LIMITS,
@@ -298,48 +299,46 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
     for (const party of parties) {
       for (let slot = 0; slot < party.length; slot += 3) {
-        drawRoster(stubCtx(), party, slot % 2 === 0 ? 'normal' : 'heroic', slot, 1.5)
+        drawRoster(stubCtx(), party, slot % 2 === 0 ? 'normal' : 'heroic', 1.5)
       }
 
       // Every drawn control must be reachable by a tap at its own centre, at
       // every raid size — a 25-slot grid is where they start to collide.
-      const layout = rosterLayout(party.length)
+      const layout = rosterLayout()
       const targets = [
         ...layout.sizes.map((r, i) => [`size ${i}`, r] as const),
         ...layout.difficulties.map((r, i) => [`difficulty ${i}`, r] as const),
-        ...layout.slots.map((r, i) => [`slot ${i}`, r] as const),
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
-        ['auto', layout.auto] as const,
-        ['random', layout.random] as const,
         ['history', layout.history] as const,
         ['pull', layout.pull] as const,
       ]
 
       const bad = targets.filter(([name, r]) => {
         if (r.x < 0 || r.y < 0 || r.x + r.w > w || r.y + r.h > h) return true
-        const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2, party.length)
+        const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2)
         if (hit === null) return true
         // The hit must be the control that was drawn there, not a neighbour
         // sitting on top of it.
-        const [kind, index] = name.split(' ')
-        if (kind === 'slot' && hit.kind === 'slot') return hit.index !== Number(index)
+        const [kind] = name.split(' ')
         if (kind === 'class' && hit.kind !== 'class') return true
         if (kind === 'size' && hit.kind !== 'size') return true
         if (kind === 'difficulty' && hit.kind !== 'difficulty') return true
-        if (kind === 'auto' && hit.kind !== 'auto') return true
-        if (kind === 'random' && hit.kind !== 'random') return true
         if (kind === 'history' && hit.kind !== 'history') return true
         if (kind === 'pull' && hit.kind !== 'pull') return true
         return false
       })
 
+      // No slot grid at all any more: the raid is neither chosen nor shown.
+      const slotProblems: string[] = []
+      if ('slots' in layout) slotProblems.push('the roster still draws slots')
+
       console.log(
-        bad.length === 0 ? 'ok  ' : 'FAIL',
+        bad.length === 0 && slotProblems.length === 0 ? 'ok  ' : 'FAIL',
         `  roster ${w}x${h} ${party.length}-player: ${targets.length} controls`,
       )
-      if (bad.length > 0) {
+      if (bad.length > 0 || slotProblems.length > 0) {
         throw new Error(
-          `roster ${w}x${h} ${party.length}-player: ${bad.map(([n]) => n).join(', ')}`,
+          `roster ${w}x${h} ${party.length}-player: ${[...bad.map(([n]) => n), ...slotProblems].join(', ')}`,
         )
       }
     }
@@ -2211,6 +2210,124 @@ for (const [label, w, h] of [
       expect(`${label} ${count}: nothing is under the button`, clear, 'a row overlaps the button')
     }
   }
+}
+
+// --- you pick yourself, the raid is rolled --------------------------------
+//
+// The party screen used to fill twenty-five slots one tap at a time. The only
+// pick anyone makes now is their own, and everyone else is rolled around it —
+// which has to hold for every spec, at every size, without ever producing a
+// raid that would be refused at the door.
+{
+  let seed = 4242
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+
+  const illegal: string[] = []
+  const misplaced: string[] = []
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const own of SPEC_OPTIONS) {
+      for (let trial = 0; trial < 12; trial++) {
+        const raid = randomAround(size, own, random)
+        if (raid.length !== size) illegal.push(`${size} came out ${raid.length}`)
+        if (!isLegalComposition(raid)) {
+          illegal.push(`${size} ${own.classId} ${own.spec}: ${JSON.stringify(countRoles(raid))}`)
+        }
+        const first = raid[0]!
+        if (first.classId !== own.classId || first.spec !== own.spec) {
+          misplaced.push(`${own.classId} ${own.spec} became ${first.classId} ${first.spec}`)
+        }
+      }
+    }
+  }
+  expect('every rolled raid is a legal one', illegal.length === 0, illegal.slice(0, 3).join('; '))
+  expect('and yours is the one it was built around', misplaced.length === 0, misplaced.slice(0, 3).join('; '))
+
+  // Including when what you picked is the role the raid only needs one of.
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    const asTank = randomAround(size, pickFor('warrior', 'tank')!, random)
+    const roles = countRoles(asTank)
+    expect(
+      `${size}: taking the tank spot does not add a tank`,
+      roles.tank <= ROLE_LIMITS.tank.max && isLegalComposition(asTank),
+      JSON.stringify(roles),
+    )
+  }
+
+  // Rolling again keeps you and changes the rest, rather than the reverse.
+  {
+    const own = pickFor('priest', 'healer')!
+    const before = randomAround(25, own, random)
+    let changed = false
+    for (let i = 0; i < 8 && !changed; i++) {
+      const after = randomAround(25, own, random)
+      expect(
+        'a reroll keeps you where you are',
+        after[0]!.classId === own.classId && after[0]!.spec === own.spec,
+        `${after[0]!.classId}`,
+      )
+      changed = after
+        .slice(1)
+        .some((p, j) => p.classId !== before[j + 1]!.classId || p.spec !== before[j + 1]!.spec)
+    }
+    expect('and changes everybody else', changed, 'eight rolls came out identical')
+  }
+
+  // The whole roster is still reachable as a choice for yourself: nothing is
+  // locked out any more, because a pick the raid cannot hold rolls the raid
+  // again instead of being refused.
+  const unreachable = SPEC_OPTIONS.filter((own) => {
+    const raid = randomAround(5, own, random)
+    return !isLegalComposition(raid) || raid[0]!.spec !== own.spec
+  })
+  expect(
+    `all ${SPEC_OPTIONS.length} specs can be played in a five-man`,
+    unreachable.length === 0,
+    unreachable.map((p) => `${p.classId} ${p.spec}`).join(', '),
+  )
+}
+
+// --- colour says the class -------------------------------------------------
+//
+// A raid was three shades of blue and pink: role colours told you what people
+// were doing and nothing told you what they were. Colour is the class now and
+// the glyph on the token is still the role, so both are readable at once.
+{
+  const classes = CLASS_ORDER
+  const missing = classes.filter((id) => classColor(id) === COLORS.text)
+  expect('every class has a colour', missing.length === 0, missing.join(', '))
+
+  const used = new Set(classes.map((id) => classColor(id)))
+  expect(
+    `all ${classes.length} of them are different`,
+    used.size === classes.length,
+    `${used.size} colours`,
+  )
+
+  // Far enough apart to tell apart. Two classes a few points of brightness
+  // from each other is the same problem as sharing a colour.
+  const rgb = (hex: string) => [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ]
+  const tooClose: string[] = []
+  for (let i = 0; i < classes.length; i++) {
+    for (let j = i + 1; j < classes.length; j++) {
+      const a = rgb(classColor(classes[i]!))
+      const b = rgb(classColor(classes[j]!))
+      const apart = Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)
+      if (apart < 60) tooClose.push(`${classes[i]} and ${classes[j]} (${apart.toFixed(0)})`)
+    }
+  }
+  expect('and none of them are near neighbours', tooClose.length === 0, tooClose.join(', '))
+
+  // Nothing on the floor may wear a class colour that is not a party member's.
+  const boss = [COLORS.boss, '#a855f7', COLORS.dead]
+  const clashes = classes.filter((id) => boss.includes(classColor(id)))
+  expect('and none of them is the boss', clashes.length === 0, clashes.join(', '))
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

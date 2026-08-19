@@ -7,7 +7,7 @@ import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, WORLD_RADIUS, resourceColor, roleColor } from './theme'
+import { COLORS, L, WORLD_RADIUS, classColor, resourceColor } from './theme'
 
 export interface Rect {
   x: number
@@ -337,7 +337,7 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.beginPath()
     ctx.arc(p.x, p.y, dot, 0, Math.PI * 2)
     ctx.fillStyle =
-      a.faction === 'boss' ? (isBoss ? COLORS.boss : '#a855f7') : roleColor(a.role, a.isPlayer)
+      a.faction === 'boss' ? (isBoss ? COLORS.boss : '#a855f7') : classColor(a.classId)
     ctx.fill()
 
     // Your own token gets a ring; on a map this size a colour alone is not
@@ -406,7 +406,7 @@ function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
   y += line
 
   for (const row of shown) {
-    const colour = row.isPlayer ? COLORS.player : COLORS.text
+    const colour = classColor(row.classId)
     const total = row.dps + row.hps
 
     // Damage and healing stack in one bar, healing lighter, exactly as the
@@ -617,7 +617,7 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
   ctx.lineWidth = 1
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 
-  ctx.fillStyle = a.alive ? roleColor(a.role, a.isPlayer) : COLORS.dead
+  ctx.fillStyle = a.alive ? classColor(a.classId) : COLORS.dead
   ctx.font = font(11 * k, true)
   ctx.textAlign = 'left'
   ctx.fillText(a.name, x + 5, y + 12 * L.ui * k)
@@ -924,7 +924,7 @@ function drawReport(ctx: CanvasRenderingContext2D, s: SimState, top: number, bot
     const y = top + i * rowH
     const h = rowH - 4
     const cls = CLASSES[row.actor.classId]
-    const colour = roleColor(row.actor.role, row.actor.isPlayer)
+    const colour = classColor(row.actor.classId)
 
     // Contribution bar behind the text, healing shown lighter than damage.
     ctx.fillStyle = 'rgba(255,255,255,0.04)'

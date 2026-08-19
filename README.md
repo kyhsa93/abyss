@@ -17,18 +17,28 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-The raid screen comes first: pick a size (5, 10 or 25), a difficulty, then
-fill the slots — or use the fill buttons, because setting twenty-five one tap
-at a time is nobody's idea of a game.
+The raid screen comes first: pick a size (5, 10 or 25), a difficulty, and what
+you are playing. That last one is the only pick you make, and the screen shows
+nothing else — you show up to a raid, you do not build one, and a board of
+twenty-four strangers you did not choose and cannot change is a readout nobody
+needs before a pull. Pick a class and hit PULL.
 
-**AUTO** builds the balanced composition for the size. **RANDOM** rolls one:
-the role counts are kept, everything else is chance — which classes fill them
-and where they stand. Drawing all five classes freely would leave you without
-a tank about half the time, since only one class in eight tanks, and a pull
-that cannot be won is a penalty rather than a surprise. Random raids come out
-a little harder than balanced ones and entirely playable: 68% on a first
-five-man pull against AUTO's 65%, 18% rising to 88% at twenty-five. Your party
-is remembered between visits, so a return trip is one tap.
+The rest is rolled around you. The roll keeps the role counts and leaves
+everything else to chance: which classes fill them and where they stand.
+Drawing freely would leave you without a tank about half the time, since only
+one class in eight tanks, and a pull that cannot be won is a penalty rather
+than a surprise. Your own role comes out of the counts the raid needed anyway,
+so taking the tank spot in a five-man means the raid rolls one fewer tank
+rather than fielding two. Your pick is remembered between visits, so a return
+trip is one tap.
+
+**Colour is the class, the glyph is the role.** Every class has its own colour
+and wears it everywhere it appears: the token on the floor, the dot on the
+minimap, the name on its party frame, its row on the meter and in the record,
+its tile on the pick screen. The letter on the token still says T, H or D, so
+both readings are available at once. Before this a raid was three shades of
+blue and pink — you could see who was tanking and never see that half the
+damage was mages.
 
 `WASD` to move — `Q` and `E` strafe left and right alongside `A` and `D`, since
 there is no facing here for them to turn — `1` `2` `3` `4` for abilities, `R`
