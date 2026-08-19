@@ -2,8 +2,15 @@ import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
+import {
+  check as checkAwards,
+  load as loadAwards,
+  save as saveAwards,
+  type Award,
+  type Earned,
+} from './achievements'
 import { append, load as loadHistory, record, save as saveHistory, type Attempt } from './history'
-import { drawHistory, hitHistory } from './render/history'
+import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
 import { Effects } from './render/effects'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster } from './render/roster'
@@ -155,6 +162,16 @@ let difficulty = loadDifficulty()
 let screen: 'roster' | 'fight' | 'history' = 'roster'
 
 let history: Attempt[] = loadHistory()
+let awards: Earned = loadAwards()
+let historyTab: HistoryTab = 'pulls'
+
+/**
+ * Awards earned by the pull just finished, waiting to be read.
+ *
+ * Announced over the results rather than mid-fight: an award is something you
+ * did, and the moment to be told is when the doing has stopped.
+ */
+let announced: { award: Award; age: number }[] = []
 /**
  * One row per pull, not one per frame.
  *
@@ -172,6 +189,7 @@ let rng = new Rng(BASE_SEED + attempt * 7919)
 function restart(): void {
   attempt++
   recorded = false
+  announced = []
   state = createState(BASE_SEED, attempt, party, difficulty)
   rng = new Rng(BASE_SEED + attempt * 7919)
 }
@@ -268,8 +286,12 @@ function frame(now: number): void {
 
   if (screen === 'history') {
     input.setMenuMode(true)
-    if (tap && hitHistory(tap.x, tap.y, history.map((e) => e.standings.length))) screen = 'roster'
-    drawHistory(ctx, history)
+    if (tap) {
+      const hit = hitHistory(tap.x, tap.y, history.map((e) => e.standings.length))
+      if (hit === 'back') screen = 'roster'
+      else if (hit) historyTab = hit
+    }
+    drawHistory(ctx, history, awards, historyTab)
     requestAnimationFrame(frame)
     return
   }
@@ -313,15 +335,26 @@ function frame(now: number): void {
   // The moment a pull resolves, once.
   if (state.outcome !== 'ongoing' && !recorded) {
     recorded = true
-    const entry = record(state, Date.now())
+    const at = Date.now()
+    const entry = record(state, at)
     if (entry) {
       history = append(history, entry)
       saveHistory(history)
+    }
+
+    // Judged after the record is written, since some of them are about the
+    // record rather than about the pull.
+    const fresh = checkAwards(state, history, awards, at)
+    if (fresh.length > 0) {
+      saveAwards(awards)
+      announced = fresh.map((award) => ({ award, age: 0 }))
     }
   }
 
   hints.observe(state, elapsed)
   effects.age(elapsed)
+  for (const item of announced) item.age += elapsed
+  announced = announced.filter((item) => item.age < 6)
 
   const alpha = Math.min(1, timing.accumulator / DT)
 
@@ -339,6 +372,7 @@ function frame(now: number): void {
     sfx.isMuted(),
   )
   hints.draw(ctx)
+  drawAwardBanners(ctx, announced)
 
   requestAnimationFrame(frame)
 }

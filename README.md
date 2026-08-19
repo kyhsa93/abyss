@@ -469,6 +469,28 @@ back the moment it breaks. Charging for a spell that never went off made
 standing in the fire the cheaper play, which is the opposite of the decision
 the cast time is there to create.
 
+## Awards
+
+Twelve of them, on the second tab of `RECORD`. Some are about a pull — kill
+it, kill it heroic, kill it with twenty-five, kill it without losing anyone,
+kill it without standing in anything, kill it inside a hundred and ten
+seconds, finish a kill top of the meter, finish one holding the threat, finish
+one having healed more than anybody dealt. Some are about the record — ten
+pulls in, five classes played, all eight.
+
+Each is one pure function of the pull that just ended and the record kept
+before it, so an award is a rule you can read rather than a flag somebody
+remembered to set. They are judged after the record is written, since several
+of them are about the record rather than about the pull, and the simulation
+does not know they exist — which is what stops one from ever changing how a
+pull plays out.
+
+The locked ones are drawn too, saying what they want. An award you cannot see
+the shape of is not something to go and do; it is a surprise you either had or
+did not. A newly earned one is announced over the results screen and fades on
+its own, because the only input on that screen is the two buttons and a banner
+that needed dismissing would be a third.
+
 ## The record
 
 `RECORD` on the party screen keeps the meter, pull by pull. Newest at the top:

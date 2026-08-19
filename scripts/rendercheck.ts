@@ -65,6 +65,7 @@ import {
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
+import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
   HISTORY_LIMIT,
   STANDING_LIMIT,
@@ -74,7 +75,12 @@ import {
   totals,
   type Attempt,
 } from '../src/history'
-import { drawHistory, historyLayout, hitHistory } from '../src/render/history'
+import {
+  HISTORY_TABS,
+  drawHistory,
+  historyLayout,
+  hitHistory,
+} from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
 import type { Role } from '../src/sim/types'
 
@@ -2200,7 +2206,7 @@ for (const [label, w, h] of [
       const rows = Array.from({ length: count }, (_, i) => ({ ...entry, at: i }))
       const counts = rows.map((e) => e.standings.length)
       const layout = historyLayout(counts)
-      drawHistory(stubCtx(), rows)
+      for (const tab of HISTORY_TABS) drawHistory(stubCtx(), rows, {}, tab)
 
       const every = layout.blocks.flatMap((b) => [b.header, ...b.rows])
       const fits = every.every((r) => r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h)
@@ -2554,6 +2560,91 @@ for (const [label, w, h] of [
       (s.tally[hunter.id]?.damage ?? 0) > 0,
       'it never fired a shot',
     )
+  }
+}
+
+// --- awards ----------------------------------------------------------------
+//
+// Judged from the pull that just ended plus the record kept before it, one
+// pure rule each. The simulation does not know they exist, which is what
+// stops one from ever changing how a pull plays out.
+{
+  const ids = AWARDS.map((a) => a.id)
+  expect('every award has its own id', new Set(ids).size === ids.length, ids.join(', '))
+  expect(
+    'and says what it wants',
+    AWARDS.every((a) => a.name.length > 0 && a.detail.length > 0),
+    AWARDS.filter((a) => !a.detail).map((a) => a.id).join(', '),
+  )
+
+  // A wipe earns nothing that is about winning.
+  const wiped = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  wiped.outcome = 'wipe'
+  const onLoss = AWARDS.filter((a) => a.earned(wiped, []))
+  expect('a wipe earns nothing', onLoss.length === 0, onLoss.map((a) => a.id).join(', '))
+
+  // A kill earns the ones it should and none of the others.
+  const s = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  const rng = new Rng(0x51ed)
+  while (s.outcome === 'ongoing' && s.time < 300) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
+  s.outcome = 'victory'
+  const held: Earned = {}
+  const first = checkAwards(s, [], held, 1000)
+  expect('a kill earns first blood', first.some((a) => a.id === 'first_kill'), first.map((a) => a.id).join(', '))
+  expect('and it is written down', held.first_kill === 1000, JSON.stringify(held))
+
+  // And only once: the second kill earns nothing it already holds.
+  const again = checkAwards(s, [], held, 2000)
+  expect('the same kill does not earn it twice', !again.some((a) => a.id === 'first_kill'), again.map((a) => a.id).join(', '))
+
+  // The ones about the record read the record, not the pull.
+  const board = (classId: string) => ({
+    at: 1,
+    size: 5,
+    difficulty: 'normal' as const,
+    outcome: 'wipe' as const,
+    standings: [{ name: 'You', classId, spec: 'frost', dps: 1, hps: 0, isPlayer: true }],
+  })
+  const five = ['mage', 'rogue', 'priest', 'druid', 'shaman'].map(board)
+  const tourist = AWARDS.find((a) => a.id === 'tourist')!
+  expect('five classes earns the tourist', tourist.earned(wiped, five), 'not earned')
+  expect('four does not', !tourist.earned(wiped, five.slice(0, 4)), 'earned too early')
+
+  const persistent = AWARDS.find((a) => a.id === 'persistent')!
+  expect(
+    'ten pulls earns the tenth',
+    persistent.earned(wiped, Array.from({ length: 10 }, () => board('mage'))),
+    'not earned',
+  )
+
+  // Storage drops an award that no longer exists rather than keeping a ghost.
+  const kept = { first_kill: 1, no_such_award: 2 } as Record<string, number>
+  const known = new Set(ids)
+  const survivors = Object.keys(kept).filter((id) => known.has(id))
+  expect('an unknown award is dropped on load', survivors.length === 1, survivors.join(', '))
+
+  // The screen shows them, locked ones included, and the tabs answer taps.
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+    const layout = historyLayout([])
+    const onScreen = (r: { x: number; y: number; w: number; h: number }) =>
+      r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h
+
+    expect(`${label}: the award rows fit`, layout.awards.every(onScreen), JSON.stringify(layout.awards[layout.awards.length - 1]))
+    expect(`${label}: nothing is under the button`, layout.awards.every((r) => r.y + r.h <= layout.back.y), 'a row overlaps the button')
+    expect(`${label}: both tabs are on screen`, layout.tabs.every(onScreen), JSON.stringify(layout.tabs))
+
+    const answers = HISTORY_TABS.every(
+      (id, i) => hitHistory(layout.tabs[i]!.x + 4, layout.tabs[i]!.y + 4, []) === id,
+    )
+    expect(`${label}: and answer their own taps`, answers, 'a tab answered as another')
   }
 }
 
