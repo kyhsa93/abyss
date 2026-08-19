@@ -326,6 +326,7 @@ function makeAdd(id: number, x: number, y: number): Actor {
     id,
     name: 'Thrall',
     classId: 'rogue',
+    spec: 'assassination',
     role: 'dps',
     melee: true,
     armor: 0,

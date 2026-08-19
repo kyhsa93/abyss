@@ -99,7 +99,32 @@ export interface AutoAttack {
 const SWING: AutoAttack = { damage: 50, speed: 3, range: MELEE_RANGE }
 const SHOT: AutoAttack = { damage: 48, speed: 3, range: SPELL_RANGE }
 
+/**
+ * Which of a class's specs, by name.
+ *
+ * Names repeat across classes — two of them protect, two restore — which is
+ * fine because a pick always carries the class alongside. What it can never
+ * be is the role: the druid deals damage two different ways, so "druid, dps"
+ * stopped being an answer.
+ */
+export type SpecId =
+  | 'protection'
+  | 'arms'
+  | 'holy'
+  | 'retribution'
+  | 'discipline'
+  | 'shadow'
+  | 'guardian'
+  | 'restoration'
+  | 'balance'
+  | 'feral'
+  | 'elemental'
+  | 'frost'
+  | 'marksmanship'
+  | 'assassination'
+
 export interface Spec {
+  id: SpecId
   role: Role
   /**
    * What this spec spends.
@@ -180,6 +205,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 155,
     specs: [
       {
+        id: 'protection',
         role: 'tank',
         resource: 'rage',
         melee: true,
@@ -191,6 +217,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall', taunt: 'taunt' }),
       },
       {
+        id: 'arms',
         role: 'dps',
         resource: 'rage',
         melee: true,
@@ -211,6 +238,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 155,
     specs: [
       {
+        id: 'protection',
         role: 'tank',
         resource: 'mana',
         melee: true,
@@ -227,6 +255,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         }),
       },
       {
+        id: 'holy',
         role: 'healer',
         resource: 'mana',
         melee: false,
@@ -237,6 +266,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         abilities: kit({ filler: 'holy_light', finisher: 'lay_on_hands', attack: 'holy_shock' }),
       },
       {
+        id: 'retribution',
         role: 'dps',
         resource: 'mana',
         melee: true,
@@ -261,6 +291,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 155,
     specs: [
       {
+        id: 'discipline',
         role: 'healer',
         resource: 'mana',
         melee: false,
@@ -276,6 +307,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         }),
       },
       {
+        id: 'shadow',
         role: 'dps',
         resource: 'mana',
         melee: false,
@@ -299,6 +331,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 165,
     specs: [
       {
+        id: 'guardian',
         role: 'tank',
         resource: 'rage',
         melee: true,
@@ -313,6 +346,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen', taunt: 'growl' }),
       },
       {
+        id: 'restoration',
         role: 'healer',
         resource: 'mana',
         melee: false,
@@ -328,6 +362,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         }),
       },
       {
+        id: 'balance',
         role: 'dps',
         resource: 'mana',
         melee: false,
@@ -336,6 +371,21 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         block: 0,
         power: 950,
         abilities: kit({ filler: 'wrath', overTime: 'moonfire', finisher: 'starfire' }),
+      },
+      {
+        // The other half of the same role. Cat form trades the spell list and
+        // its range for a weapon and a rogue's economy, which is the reason
+        // the resource lives on the spec rather than the class.
+        id: 'feral',
+        role: 'dps',
+        resource: 'energy',
+        melee: true,
+        auto: SWING,
+        hp: 3500,
+        armor: 2400,
+        block: 0,
+        power: 100,
+        abilities: kit({ filler: 'shred', overTime: 'rake', finisher: 'ferocious_bite' }),
       },
     ],
   },
@@ -347,6 +397,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 165,
     specs: [
       {
+        id: 'restoration',
         role: 'healer',
         resource: 'mana',
         melee: false,
@@ -362,6 +413,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         }),
       },
       {
+        id: 'elemental',
         role: 'dps',
         resource: 'mana',
         melee: false,
@@ -385,6 +437,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 165,
     specs: [
       {
+        id: 'frost',
         role: 'dps',
         resource: 'mana',
         melee: false,
@@ -404,6 +457,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 170,
     specs: [
       {
+        id: 'marksmanship',
         role: 'dps',
         resource: 'focus',
         melee: false,
@@ -428,6 +482,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     moveSpeed: 175,
     specs: [
       {
+        id: 'assassination',
         role: 'dps',
         resource: 'energy',
         melee: true,
@@ -449,27 +504,45 @@ export const CLASSES: Record<ClassId, ClassDef> = {
 /** One class filling one role. */
 export interface Pick {
   classId: ClassId
-  role: Role
+  spec: SpecId
 }
 
 export function specOf(pick: Pick): Spec {
   const cls = CLASSES[pick.classId]
-  return cls.specs.find((s) => s.role === pick.role) ?? cls.specs[0]!
+  return cls.specs.find((s) => s.id === pick.spec) ?? cls.specs[0]!
+}
+
+/** The role a pick fills. Derived, never stored: the two cannot drift apart. */
+export function roleOf(pick: Pick): Role {
+  return specOf(pick).role
+}
+
+/** The pick for a class's first spec in a role, for callers that only care about the role. */
+export function pickFor(classId: ClassId, role: Role): Pick | null {
+  const spec = CLASSES[classId].specs.find((s) => s.role === role)
+  return spec ? { classId, spec: spec.id } : null
 }
 
 export function canFill(classId: ClassId, role: Role): boolean {
   return CLASSES[classId].specs.some((s) => s.role === role)
 }
 
-/** Every class/role combination, in the order the picker lists them. */
+/** Every spec, in the order the picker lists them. */
 export const SPEC_OPTIONS: Pick[] = CLASS_ORDER.flatMap((classId) =>
-  CLASSES[classId].specs.map((spec) => ({ classId, role: spec.role })),
+  CLASSES[classId].specs.map((spec) => ({ classId, spec: spec.id })),
 )
 
 export function specLabel(pick: Pick): string {
   const cls = CLASSES[pick.classId]
   if (cls.specs.length === 1) return cls.name
-  const suffix = pick.role === 'tank' ? 'Tank' : pick.role === 'healer' ? 'Heal' : 'DPS'
+  const spec = specOf(pick)
+  // Role is what the label is for, until a class fills the same role twice —
+  // then "Druid DPS" names two different characters and the spec has to.
+  const sameRole = cls.specs.filter((other) => other.role === spec.role)
+  if (sameRole.length > 1) {
+    return `${cls.name} ${spec.id[0]!.toUpperCase()}${spec.id.slice(1)}`
+  }
+  const suffix = spec.role === 'tank' ? 'Tank' : spec.role === 'healer' ? 'Heal' : 'DPS'
   return `${cls.name} ${suffix}`
 }
 
@@ -552,8 +625,8 @@ export function selectInto(party: Pick[], slot: number, pick: Pick): Pick[] | nu
   const swapped = party.map((p, i) => (i === slot ? { ...pick } : p))
   if (isLegalComposition(swapped)) return swapped
 
-  if (isFixedComposition(party.length) && current.role !== pick.role) {
-    const donor = party.findIndex((p, i) => i !== slot && p.role === pick.role)
+  if (isFixedComposition(party.length) && roleOf(current) !== roleOf(pick)) {
+    const donor = party.findIndex((p, i) => i !== slot && roleOf(p) === roleOf(pick))
     if (donor >= 0) {
       const traded = party.map((p, i) =>
         i === slot ? { ...pick } : i === donor ? { ...current } : p,
@@ -690,27 +763,36 @@ function roleTargets(size: RaidSize): { tanks: number; healers: number } {
   }
 }
 
+/**
+ * What AUTO and RANDOM draw from, listed by spec.
+ *
+ * Named one by one rather than derived from the class list, so a new spec is
+ * something a generated roster fields on purpose. Deriving it by role would
+ * have quietly picked whichever spec happened to be written first and left
+ * the other one reachable only by hand.
+ */
 const POOLS: Record<Role, Pick[]> = {
   tank: [
-    { classId: 'warrior', role: 'tank' },
-    { classId: 'paladin', role: 'tank' },
-    { classId: 'druid', role: 'tank' },
+    { classId: 'warrior', spec: 'protection' },
+    { classId: 'paladin', spec: 'protection' },
+    { classId: 'druid', spec: 'guardian' },
   ],
   healer: [
-    { classId: 'priest', role: 'healer' },
-    { classId: 'paladin', role: 'healer' },
-    { classId: 'druid', role: 'healer' },
-    { classId: 'shaman', role: 'healer' },
+    { classId: 'priest', spec: 'discipline' },
+    { classId: 'paladin', spec: 'holy' },
+    { classId: 'druid', spec: 'restoration' },
+    { classId: 'shaman', spec: 'restoration' },
   ],
   dps: [
-    { classId: 'rogue', role: 'dps' },
-    { classId: 'mage', role: 'dps' },
-    { classId: 'hunter', role: 'dps' },
-    { classId: 'shaman', role: 'dps' },
-    { classId: 'druid', role: 'dps' },
-    { classId: 'warrior', role: 'dps' },
-    { classId: 'paladin', role: 'dps' },
-    { classId: 'priest', role: 'dps' },
+    { classId: 'rogue', spec: 'assassination' },
+    { classId: 'mage', spec: 'frost' },
+    { classId: 'hunter', spec: 'marksmanship' },
+    { classId: 'shaman', spec: 'elemental' },
+    { classId: 'druid', spec: 'balance' },
+    { classId: 'druid', spec: 'feral' },
+    { classId: 'warrior', spec: 'arms' },
+    { classId: 'paladin', spec: 'retribution' },
+    { classId: 'priest', spec: 'shadow' },
   ],
 }
 
@@ -718,8 +800,8 @@ export function autoParty(size: RaidSize, player: Pick): Pick[] {
   const { tanks, healers } = roleTargets(size)
   const party: Pick[] = [player]
 
-  let needTank = tanks - (player.role === 'tank' ? 1 : 0)
-  let needHeal = healers - (player.role === 'healer' ? 1 : 0)
+  let needTank = tanks - (roleOf(player) === 'tank' ? 1 : 0)
+  let needHeal = healers - (roleOf(player) === 'healer' ? 1 : 0)
 
   for (let i = 1; i < size; i++) {
     const role: Role = needTank > 0 ? 'tank' : needHeal > 0 ? 'healer' : 'dps'
@@ -732,11 +814,11 @@ export function autoParty(size: RaidSize, player: Pick): Pick[] {
 }
 
 export const DEFAULT_PARTY: Pick[] = [
-  { classId: 'mage', role: 'dps' },
-  { classId: 'warrior', role: 'tank' },
-  { classId: 'priest', role: 'healer' },
-  { classId: 'hunter', role: 'dps' },
-  { classId: 'rogue', role: 'dps' },
+  pickFor('mage', 'dps')!,
+  pickFor('warrior', 'tank')!,
+  pickFor('priest', 'healer')!,
+  pickFor('hunter', 'dps')!,
+  pickFor('rogue', 'dps')!,
 ]
 
 /** Kept for the five-man default; larger raids build theirs from autoParty. */
@@ -796,6 +878,6 @@ export interface RoleCount {
 
 export function countRoles(party: Pick[]): RoleCount {
   const count: RoleCount = { tank: 0, healer: 0, dps: 0 }
-  for (const pick of party) count[pick.role]++
+  for (const pick of party) count[roleOf(pick)]++
   return count
 }

@@ -1,4 +1,4 @@
-import type { ClassId, DifficultyId, Pick } from './classes'
+import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -17,6 +17,7 @@ export type AuraId =
   | 'flame_shock'
   | 'moonfire'
   | 'rend'
+  | 'rake'
   | 'judgement'
   | 'shadow_word_pain'
   | 'renew'
@@ -73,6 +74,8 @@ export interface Actor {
   id: number
   name: string
   classId: ClassId
+  /** Which of the class's specs, since one class can fill a role two ways. */
+  spec: SpecId
   role: Role
   /** Melee classes must close to the boss to use anything. */
   melee: boolean

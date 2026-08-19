@@ -233,10 +233,18 @@ casts with a telegraph already on the floor and reacts late; Wren bails early
 and overheals.
 
 **Classes run on four different resources.** Warriors and bear druids on rage,
-rogues on energy, hunters on focus, everyone else on mana, and every ability
-is paid for out of it. The resource sits on the spec rather than the class,
-because a druid tanking runs on rage while the same druid healing runs on
-mana: what you are playing decides it, not what you picked on the roster.
+rogues and cat druids on energy, hunters on focus, everyone else on mana, and
+every ability is paid for out of it. The resource sits on the spec rather than
+the class, because one druid answers four different ways: rage in bear form,
+mana as a caster, energy as a cat, mana again healing. What you are playing
+decides it, not what you picked on the roster.
+
+That is also why a pick names a spec rather than a role. The druid deals
+damage two ways — Balance casts at range on mana, Feral swings a weapon on
+energy — so "druid, dps" stopped being an answer to which character you meant.
+Rosters saved before specs had names are migrated on load rather than thrown
+away: a class and a role still identify the spec that existed when they were
+saved.
 
 They are three different problems, not one bar in three colours. Mana is a
 budget for the whole fight: a caster spends faster than it regenerates and the

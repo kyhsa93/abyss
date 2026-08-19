@@ -391,7 +391,7 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
 
 /** The spec an actor is playing. */
 function specFor(actor: Actor) {
-  return specOf({ classId: actor.classId, role: actor.role })
+  return specOf({ classId: actor.classId, spec: actor.spec })
 }
 
 /** Is there anything worth pressing that ignores the global cooldown? */

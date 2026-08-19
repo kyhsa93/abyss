@@ -14,7 +14,7 @@ import {
   DEFAULT_PARTY,
   RAID_SIZES,
   autoParty,
-  canFill,
+  pickFor,
   randomParty,
   selectInto,
   isLegalComposition,
@@ -83,17 +83,39 @@ function loadParty(): Pick[] {
     if (!Array.isArray(parsed)) return fallback()
     if (!RAID_SIZES.includes(parsed.length as RaidSize)) return fallback()
 
-    const valid = parsed.every((entry) => {
-      if (typeof entry !== 'object' || entry === null) return false
-      const { classId, role } = entry as { classId?: unknown; role?: unknown }
-      if (typeof classId !== 'string' || !(classId in CLASSES)) return false
-      if (role !== 'tank' && role !== 'healer' && role !== 'dps') return false
-      return canFill(classId as Pick['classId'], role)
-    })
-    if (!valid) return fallback()
+    const restored: Pick[] = []
+    for (const entry of parsed) {
+      if (typeof entry !== 'object' || entry === null) return fallback()
+      const { classId, spec, role } = entry as {
+        classId?: unknown
+        spec?: unknown
+        role?: unknown
+      }
+      if (typeof classId !== 'string' || !(classId in CLASSES)) return fallback()
+      const cls = classId as Pick['classId']
+
+      if (typeof spec === 'string' && CLASSES[cls].specs.some((sp) => sp.id === spec)) {
+        restored.push({ classId: cls, spec: spec as Pick['spec'] })
+        continue
+      }
+
+      // Saved before specs had names, when a class and a role were enough to
+      // say which one you meant. The first spec in the role is the one that
+      // existed at the time, so a roster survives the change rather than
+      // being thrown away for a field it could not have had.
+      if (role === 'tank' || role === 'healer' || role === 'dps') {
+        const migrated = pickFor(cls, role)
+        if (migrated) {
+          restored.push(migrated)
+          continue
+        }
+      }
+      return fallback()
+    }
+
     // A roster saved before the composition rules existed is not one we will
     // pull with, so it falls back like any other unrecognised save.
-    return isLegalComposition(parsed as Pick[]) ? (parsed as Pick[]) : fallback()
+    return isLegalComposition(restored) ? restored : fallback()
   } catch {
     return fallback()
   }
@@ -157,7 +179,7 @@ function startFight(): void {
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
     party.some(
-      (p, i) => p.classId !== fightingParty[i]?.classId || p.role !== fightingParty[i]?.role,
+      (p, i) => p.classId !== fightingParty[i]?.classId || p.spec !== fightingParty[i]?.spec,
     )
   if (changed || state.outcome !== 'ongoing') {
     attempt = 0

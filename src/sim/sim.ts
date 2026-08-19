@@ -78,7 +78,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 function updateAutoAttacks(s: SimState): void {
   for (const a of s.actors) {
     if (a.faction !== 'party' || !a.alive) continue
-    const auto = specOf({ classId: a.classId, role: a.role }).auto
+    const auto = specOf({ classId: a.classId, spec: a.spec }).auto
     if (!auto) continue
 
     if (a.swingTimer > 0) {
@@ -181,7 +181,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     if (player.castId) interruptCast(s, player, 'moved')
   }
 
-  const bar = abilityBar({ classId: player.classId, role: player.role })
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
   for (const slot of input.pressed) {
     const abilityId = bar[slot]
     const ability = ABILITIES[abilityId ?? '']

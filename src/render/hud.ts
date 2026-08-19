@@ -649,7 +649,7 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return
 
-  const bar = abilityBar({ classId: player.classId, role: player.role })
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
   const slot = 58 * L.ui
   const gap = 8 * L.ui
   const total = bar.length * slot + (bar.length - 1) * gap
@@ -741,7 +741,7 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.stroke()
   }
 
-  const bar = abilityBar({ classId: player.classId, role: player.role })
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
   for (let i = 0; i < bar.length && i < L.btnPos.length; i++) {
     const id = bar[i]!
     const ability = ABILITIES[id]!

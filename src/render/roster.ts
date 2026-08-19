@@ -120,11 +120,14 @@ export function rosterLayout(size: number): RosterLayout {
   const gridTop = summaryY + 22
   const gridBottom = L.h - buttonH - pad * 2
 
-  // Fifteen class/role combinations, and on a landscape phone the slot grid
-  // has already eaten most of the height. Widen the grid until its rows fit
-  // rather than letting it run off the bottom.
+  // One tile per spec, and on a landscape phone the slot grid has already
+  // eaten most of the height. Widen the grid until its rows fit rather than
+  // letting it run off the bottom. The last candidate is the spec count
+  // itself, so the fallback is always a single row however many there are —
+  // it was a hard-coded fifteen, and the sixteenth spec pushed the grid off
+  // the bottom of a landscape phone.
   const minCellH = 34
-  const candidates = L.portrait ? [3, 4, 5] : [5, 6, 8, 15]
+  const candidates = L.portrait ? [3, 4, 5] : [5, 6, 8, SPEC_OPTIONS.length]
   let cols = candidates[candidates.length - 1]!
   for (const option of candidates) {
     const needed = Math.ceil(SPEC_OPTIONS.length / option)
@@ -336,7 +339,7 @@ export function drawRoster(
     const option = SPEC_OPTIONS[i]!
     const spec = specOf(option)
     const current = party[activeSlot]
-    const chosen = current?.classId === option.classId && current.role === option.role
+    const chosen = current?.classId === option.classId && current.spec === option.spec
     // Past a support cap the pick is not selectable, so it is not offered as
     // one either.
     const locked = !canSelect(party, activeSlot, option)

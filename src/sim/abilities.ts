@@ -142,6 +142,9 @@ const list: Ability[] = [
   // --- druid ---------------------------------------------------------------
   { id: 'wrath', name: 'Wrath', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 20, amount: 90, threatMult: 1, aura: null, range: SPELL },
   { id: 'moonfire', name: 'Moonfire', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 24, amount: 42, threatMult: 1, aura: 'moonfire', range: SPELL },
+  { id: 'shred', name: 'Shred', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 35, amount: 106, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rake', name: 'Rake', key: '2', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 26, amount: 38, threatMult: 1, aura: 'rake', range: MELEE },
+  { id: 'ferocious_bite', name: 'Ferocious Bite', key: '3', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 38, amount: 405, threatMult: 1, aura: null, range: MELEE },
   { id: 'starfire', name: 'Starfire', key: '3', role: 'dps', kind: 'damage', castTime: 2, cooldown: 18, cost: 55, amount: 560, threatMult: 1, aura: null, range: SPELL },
 ]
 

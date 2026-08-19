@@ -4,6 +4,7 @@ import { step } from '../src/sim/sim'
 import { ENRAGE_AT } from '../src/sim/constants'
 import {
   autoParty,
+  pickFor,
   type DifficultyId,
   type Pick,
   type RaidSize,
@@ -123,9 +124,9 @@ function run(
 const ATTEMPTS = [0, 4, 8]
 
 /** Compositions a player might actually build, including bad ones. */
-const dps = (classId: Pick['classId']): Pick => ({ classId, role: 'dps' })
-const heal = (classId: Pick['classId']): Pick => ({ classId, role: 'healer' })
-const tank = (classId: Pick['classId']): Pick => ({ classId, role: 'tank' })
+const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
+const heal = (classId: Pick['classId']): Pick => pickFor(classId, 'healer')!
+const tank = (classId: Pick['classId']): Pick => pickFor(classId, 'tank')!
 
 const PARTIES: Array<{ label: string; party: Pick[] }> = [
   { label: 'default  1t 1h 3d', party: [dps('mage'), tank('warrior'), heal('priest'), dps('hunter'), dps('rogue')] },

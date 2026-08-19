@@ -7,24 +7,26 @@ import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
 import {
-  CLASSES,
-  CLASS_ORDER,
-  RESOURCES,
-  ROLE_LIMITS,
-  SPEC_OPTIONS,
-  mitigation,
-  specOf,
   abilityBar,
   autoParty,
   canSelect,
-  selectInto,
+  CLASS_ORDER,
+  CLASSES,
+  countRoles,
   FIVE_MAN,
   isLegalComposition,
-  countRoles,
   makeSlots,
+  mitigation,
   partyIndex,
+  pickFor,
   randomParty,
+  RESOURCES,
+  ROLE_LIMITS,
+  roleOf,
+  selectInto,
+  SPEC_OPTIONS,
   specLabel,
+  specOf,
   type Pick,
   type RaidSize,
 } from '../src/sim/classes'
@@ -257,9 +259,9 @@ console.log(`rendered ${frames} frames with no exceptions`)
 {
   // Every raid size has to lay out and stay reachable.
   const parties: Pick[][] = [
-    autoParty(5, { classId: 'mage', role: 'dps' }),
-    autoParty(10, { classId: 'druid', role: 'tank' }),
-    autoParty(25, { classId: 'shaman', role: 'healer' }),
+    autoParty(5, pickFor('mage', 'dps')!),
+    autoParty(10, pickFor('druid', 'tank')!),
+    autoParty(25, pickFor('shaman', 'healer')!),
   ]
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390]] as const) {
     updateLayout(w, h)
@@ -351,7 +353,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
   // Role caps hold for every generated roster.
   for (const size of [5, 10, 25] as RaidSize[]) {
-    const rosters = [autoParty(size, { classId: 'mage', role: 'dps' })]
+    const rosters = [autoParty(size, pickFor('mage', 'dps')!)]
     let seed = 7
     const random = () => {
       seed = (seed * 1103515245 + 12345) & 0x7fffffff
@@ -400,7 +402,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       const roles = countRoles(party)
       worstTanks = Math.min(worstTanks, roles.tank)
       worstHealers = Math.min(worstHealers, roles.healer)
-      combos.add(party.map((p) => `${p.classId}:${p.role}`).join(','))
+      combos.add(party.map((p) => `${p.classId}:${roleOf(p)}`).join(','))
     }
 
     // Varied enough to be worth pressing twice.
@@ -655,7 +657,7 @@ for (const [label, w, h] of [
   const mislabelled: string[] = []
   for (const id of CLASS_ORDER) {
     for (const spec of CLASSES[id].specs) {
-      const bar = abilityBar({ classId: id, role: spec.role })
+      const bar = abilityBar({ classId: id, spec: spec.id })
       if (bar.length > BAR_SLOTS) mislabelled.push(`${id} ${spec.role}: ${bar.length} slots`)
       bar.forEach((abilityId: string, i: number) => {
         const key = ABILITIES[abilityId]!.key
@@ -691,7 +693,7 @@ for (const [label, w, h] of [
 // line for the whole fight.
 {
   for (const size of [5, 25] as RaidSize[]) {
-    const party = autoParty(size, { classId: 'mage', role: 'dps' })
+    const party = autoParty(size, pickFor('mage', 'dps')!)
     const s = createState(0x51ed, 3, party)
     const rng = new Rng(0x51ed + 3 * 7919)
 
@@ -735,13 +737,13 @@ for (const [label, w, h] of [
   ]
 
   for (const { role, cap } of CAPPED) {
-    const options = SPEC_OPTIONS.filter((o) => o.role === role)
+    const options = SPEC_OPTIONS.filter((o) => roleOf(o) === role)
     expect(`there are ${role} specs to over-fill with`, options.length >= 3, `${options.length}`)
 
     for (const size of [10, 25] as RaidSize[]) {
       // Tapping the same role into every slot in turn, which is exactly what
       // the party screen does with a finger held on the class list.
-      let party = autoParty(size, { classId: 'mage', role: 'dps' })
+      let party = autoParty(size, pickFor('mage', 'dps')!)
       let rejected = 0
       for (let slot = 0; slot < size; slot++) {
         const pick = options[slot % options.length]!
@@ -761,16 +763,16 @@ for (const [label, w, h] of [
 
     // Swapping one for another is not an extra one, or a raid at the cap
     // could never change who fills the role at all.
-    const party = autoParty(25, { classId: 'mage', role: 'dps' })
+    const party = autoParty(25, pickFor('mage', 'dps')!)
     expect(`the 25-player default fields ${cap} ${role}s`, countRoles(party)[role] === cap, `${countRoles(party)[role]}`)
 
-    const held = party.findIndex((p) => p.role === role)
+    const held = party.findIndex((p) => roleOf(p) === role)
     const swap = selectInto(party, held, options[options.length - 1]!)
     expect(`a ${role} can be swapped for another ${role}`, swap !== null && countRoles(swap)[role] === cap, `${swap && countRoles(swap)[role]}`)
 
-    const dpsSlot = party.findIndex((p) => p.role === 'dps')
+    const dpsSlot = party.findIndex((p) => roleOf(p) === 'dps')
     expect(`one ${role} past the cap is refused`, !canSelect(party, dpsSlot, options[0]!), `slot ${dpsSlot}`)
-    expect(`a dealer is still fine alongside ${role}s`, canSelect(party, dpsSlot, { classId: 'mage', role: 'dps' }), `slot ${dpsSlot}`)
+    expect(`a dealer is still fine alongside ${role}s`, canSelect(party, dpsSlot, pickFor('mage', 'dps')!), `slot ${dpsSlot}`)
     expect(`selectInto refuses the extra ${role} too`, selectInto(party, dpsSlot, options[0]!) === null, 'returned a party')
   }
 
@@ -787,7 +789,7 @@ for (const [label, w, h] of [
 
     // Every tap the class list can produce, on every slot, from a party that
     // is itself the result of the previous tap.
-    let party = autoParty(5, { classId: 'mage', role: 'dps' })
+    let party = autoParty(5, pickFor('mage', 'dps')!)
     expect('the five-man default is the fixed shape', shape(party) === wanted, shape(party))
 
     const wrong: string[] = []
@@ -810,19 +812,19 @@ for (const [label, w, h] of [
 
     // The trade is what keeps it usable: the player in slot zero has to be
     // able to become the tank, which costs the current tank its role.
-    const before = autoParty(5, { classId: 'mage', role: 'dps' })
-    const tanked = selectInto(before, 0, { classId: 'warrior', role: 'tank' })
-    expect('the player can take the tank slot', tanked !== null && tanked[0]!.role === 'tank', `${tanked && tanked[0]!.role}`)
+    const before = autoParty(5, pickFor('mage', 'dps')!)
+    const tanked = selectInto(before, 0, pickFor('warrior', 'tank')!)
+    expect('the player can take the tank slot', tanked !== null && roleOf(tanked[0]!) === 'tank', `${tanked && roleOf(tanked[0]!)}`)
     expect('and the raid is still 1t 1h 3d', tanked !== null && shape(tanked) === wanted, `${tanked && shape(tanked)}`)
     expect(
       'the displaced tank keeps the role it was handed',
-      tanked !== null && tanked.filter((p) => p.role === 'dps').length === FIVE_MAN.dps,
+      tanked !== null && tanked.filter((p) => roleOf(p) === 'dps').length === FIVE_MAN.dps,
       `${tanked && shape(tanked)}`,
     )
 
     // Bigger raids keep their slack: this trade must not leak into them.
-    const ten = autoParty(10, { classId: 'mage', role: 'dps' })
-    const third = selectInto(ten, 9, { classId: 'warrior', role: 'tank' })
+    const ten = autoParty(10, pickFor('mage', 'dps')!)
+    const third = selectInto(ten, 9, pickFor('warrior', 'tank')!)
     expect('a ten-man still refuses a third tank outright', third === null, 'traded instead')
   }
 
@@ -845,32 +847,32 @@ for (const [label, w, h] of [
   // And a save from before the rules must not smuggle one back in.
   const stored: Array<[string, Pick[]]> = [
     ['three tanks', [
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'paladin', role: 'tank' },
-      { classId: 'druid', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'mage', role: 'dps' },
+      pickFor('warrior', 'tank')!,
+      pickFor('paladin', 'tank')!,
+      pickFor('druid', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
     ]],
     ['four healers', [
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'paladin', role: 'healer' },
-      { classId: 'druid', role: 'healer' },
-      { classId: 'shaman', role: 'healer' },
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('paladin', 'healer')!,
+      pickFor('druid', 'healer')!,
+      pickFor('shaman', 'healer')!,
     ]],
     ['a five-man with two healers', [
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'paladin', role: 'healer' },
-      { classId: 'mage', role: 'dps' },
-      { classId: 'rogue', role: 'dps' },
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('paladin', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('rogue', 'dps')!,
     ]],
     ['a five-man with no tank', [
-      { classId: 'mage', role: 'dps' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'hunter', role: 'dps' },
-      { classId: 'rogue', role: 'dps' },
-      { classId: 'shaman', role: 'dps' },
+      pickFor('mage', 'dps')!,
+      pickFor('priest', 'healer')!,
+      pickFor('hunter', 'dps')!,
+      pickFor('rogue', 'dps')!,
+      pickFor('shaman', 'dps')!,
     ]],
   ]
   for (const [label, party] of stored) {
@@ -966,7 +968,7 @@ for (const [label, w, h] of [
 // case it exists for: a board you drop off the bottom of answers nothing.
 {
   updateLayout(1440, 900)
-  const party = autoParty(25, { classId: 'mage', role: 'dps' })
+  const party = autoParty(25, pickFor('mage', 'dps')!)
   const s = createState(0x51ed, 0, party)
   const rng = new Rng(0x51ed)
   // The player never presses anything, so they finish last of twenty-five.
@@ -995,7 +997,7 @@ for (const [label, w, h] of [
 // Every actor on the floor has to appear on the minimap.
 {
   updateLayout(1440, 900)
-  const s = createState(0x51ed, 0, autoParty(10, { classId: 'mage', role: 'dps' }))
+  const s = createState(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
   const rng = new Rng(0x51ed)
   for (let i = 0; i < 200; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
 
@@ -1029,7 +1031,7 @@ for (const [label, w, h] of [
   {
     const { s, player } = far()
     const rng = new Rng(0x51ed)
-    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    const filler = abilityBar({ classId: player.classId, spec: player.spec })[0]!
 
     expect(
       'the slot reads as out of range before it is pressed',
@@ -1063,7 +1065,7 @@ for (const [label, w, h] of [
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
-    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    const filler = abilityBar({ classId: player.classId, spec: player.spec })[0]!
 
     expect('in range the slot reads ready', slotStatus(s, player, filler) === 'ready', slotStatus(s, player, filler))
     step(s, { moveX: 0, moveY: 0, pressed: [0] }, new Rng(0x51ed))
@@ -1079,7 +1081,7 @@ for (const [label, w, h] of [
     // A reason the button already shows wins, or walking closer would look
     // like the fix for a cooldown.
     const { s, player } = far()
-    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    const filler = abilityBar({ classId: player.classId, spec: player.spec })[0]!
     player.cooldowns[filler] = 5
     expect(
       'a cooldown outranks the distance',
@@ -1113,7 +1115,7 @@ for (const [label, w, h] of [
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
-    const bar = abilityBar({ classId: player.classId, role: player.role })
+    const bar = abilityBar({ classId: player.classId, spec: player.spec })
     const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0)
     return { s, player, slot, id: bar[slot]! }
   }
@@ -1163,7 +1165,7 @@ for (const [label, w, h] of [
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 80
     player.pos.y = 0
-    const bar = abilityBar({ classId: player.classId, role: player.role })
+    const bar = abilityBar({ classId: player.classId, spec: player.spec })
     const slot = bar.findIndex((id) => ABILITIES[id]!.castTime === 0 && ABILITIES[id]!.cooldown > 0)
     const id = bar[slot]!
     const rng = new Rng(0x51ed)
@@ -1191,8 +1193,8 @@ for (const [label, w, h] of [
   })
   expect(
     `${armed.length} specs carry a weapon, and only the right ones`,
-    wrong.length === 0 && armed.length === 7,
-    wrong.map((p) => `${p.classId} ${p.role}`).join(', ') || `${armed.length} armed`,
+    wrong.length === 0 && armed.length === 8,
+    wrong.map((p) => `${p.classId} ${roleOf(p)}`).join(', ') || `${armed.length} armed`,
   )
 
   // A melee player who never touches a button still contributes, purely by
@@ -1201,10 +1203,10 @@ for (const [label, w, h] of [
   const swinging = (pick: Pick, gap: number) => {
     const party: Pick[] = [
       pick,
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'hunter', role: 'dps' },
-      { classId: 'rogue', role: 'dps' },
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('hunter', 'dps')!,
+      pickFor('rogue', 'dps')!,
     ]
     const s = createState(0x51ed, 0, party)
     const player = s.actors.find((a) => a.isPlayer)!
@@ -1225,8 +1227,8 @@ for (const [label, w, h] of [
   }
 
   {
-    const auto = specOf({ classId: 'rogue', role: 'dps' }).auto!
-    const { dealt } = swinging({ classId: 'rogue', role: 'dps' }, 20)
+    const auto = specOf(pickFor('rogue', 'dps')!).auto!
+    const { dealt } = swinging(pickFor('rogue', 'dps')!, 20)
     const swings = dealt / auto.damage
     expect(
       'a melee player who presses nothing still swings',
@@ -1238,8 +1240,8 @@ for (const [label, w, h] of [
   {
     // The hunter is the one ranged weapon, and it has to put something in
     // the air or it reads as standing still doing nothing.
-    const auto = specOf({ classId: 'hunter', role: 'dps' }).auto!
-    const { dealt, sawOwnBolt } = swinging({ classId: 'hunter', role: 'dps' }, 300)
+    const auto = specOf(pickFor('hunter', 'dps')!).auto!
+    const { dealt, sawOwnBolt } = swinging(pickFor('hunter', 'dps')!, 300)
     const swings = dealt / auto.damage
     expect(
       'the hunter shoots from outside melee',
@@ -1251,9 +1253,9 @@ for (const [label, w, h] of [
 
   {
     // Casters have no weapon, and nothing swings from out of reach.
-    const { dealt: caster } = swinging({ classId: 'mage', role: 'dps' }, 20)
+    const { dealt: caster } = swinging(pickFor('mage', 'dps')!, 20)
     expect('a caster in melee swings nothing', caster === 0, `${caster} damage`)
-    const { dealt: away } = swinging({ classId: 'rogue', role: 'dps' }, 300)
+    const { dealt: away } = swinging(pickFor('rogue', 'dps')!, 300)
     expect('and a melee weapon does not reach across the floor', away === 0, `${away} damage`)
   }
 
@@ -1280,11 +1282,11 @@ for (const [label, w, h] of [
     // Swinging at the boss is damage on the boss, so it moves the threat
     // table like any other.
     const s = createState(0x51ed, 0, [
-      { classId: 'rogue', role: 'dps' },
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'hunter', role: 'dps' },
-      { classId: 'mage', role: 'dps' },
+      pickFor('rogue', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('hunter', 'dps')!,
+      pickFor('mage', 'dps')!,
     ])
     const player = s.actors.find((a) => a.isPlayer)!
     const rng = new Rng(0x51ed)
@@ -1309,23 +1311,31 @@ for (const [label, w, h] of [
   // druid healing runs on mana, which is the whole reason the resource sits
   // on the spec.
   const EXPECTED: Record<string, string> = {
-    'warrior tank': 'rage',
-    'warrior dps': 'rage',
-    'druid tank': 'rage',
-    'rogue dps': 'energy',
-    'hunter dps': 'focus',
+    'warrior protection': 'rage',
+    'warrior arms': 'rage',
+    'druid guardian': 'rage',
+    'rogue assassination': 'energy',
+    'druid feral': 'energy',
+    'hunter marksmanship': 'focus',
   }
-  const wrong = SPEC_OPTIONS.filter(
-    (pick) => specOf(pick).resource !== (EXPECTED[`${pick.classId} ${pick.role}`] ?? 'mana'),
+  const wrongRes = SPEC_OPTIONS.filter(
+    (pick) => specOf(pick).resource !== (EXPECTED[`${pick.classId} ${pick.spec}`] ?? 'mana'),
   )
-  expect('every spec runs on its own resource', wrong.length === 0, wrong.map((p) => `${p.classId} ${p.role} is ${specOf(p).resource}`).join(', '))
+  expect('every spec runs on its own resource', wrongRes.length === 0, wrongRes.map((p) => `${p.classId} ${p.spec} is ${specOf(p).resource}`).join(', '))
 
   // And a class that fills three roles is allowed three answers.
+  // Two dps specs, and they do not run on the same thing: the caster spends
+  // mana, the cat spends energy. That is the case the spec-level resource
+  // exists for.
   const druid = CLASSES.druid.specs.map((spec) => `${spec.role}:${spec.resource}`).join(' ')
-  expect('a druid changes resource with its role', druid === 'tank:rage healer:mana dps:mana', druid)
+  expect(
+    'a druid answers four different ways',
+    druid === 'tank:rage healer:mana dps:mana dps:energy',
+    druid,
+  )
 
   const poolless = SPEC_OPTIONS.filter((pick) => specOf(pick).power <= 0)
-  expect('and every spec has a pool to spend', poolless.length === 0, poolless.map((p) => `${p.classId} ${p.role}`).join(', '))
+  expect('and every spec has a pool to spend', poolless.length === 0, poolless.map((p) => `${p.classId} ${p.spec}`).join(', '))
 
   // Everything but the answers to a mechanic costs something. A defensive or
   // a taunt that is sometimes unaffordable is a mechanic you cannot answer
@@ -1342,11 +1352,11 @@ for (const [label, w, h] of [
   // never handed over by simply waiting.
   {
     const s = createState(0x51ed, 0, [
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'paladin', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'mage', role: 'dps' },
-      { classId: 'rogue', role: 'dps' },
+      pickFor('warrior', 'tank')!,
+      pickFor('paladin', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('rogue', 'dps')!,
     ])
     const warrior = s.actors.find((a) => a.classId === 'warrior')!
     const caster = s.actors.find((a) => a.classId === 'mage')!
@@ -1392,11 +1402,11 @@ for (const [label, w, h] of [
   {
     for (const [classId, role] of [['rogue', 'dps'], ['hunter', 'dps'], ['mage', 'dps']] as const) {
       const s = createState(0x51ed, 0, [
-        { classId, role },
-        { classId: 'warrior', role: 'tank' },
-        { classId: 'priest', role: 'healer' },
-        { classId: 'mage', role: 'dps' },
-        { classId: 'rogue', role: 'dps' },
+        pickFor(classId, role)!,
+        pickFor('warrior', 'tank')!,
+        pickFor('priest', 'healer')!,
+        pickFor('mage', 'dps')!,
+        pickFor('rogue', 'dps')!,
       ])
       const player = s.actors.find((a) => a.isPlayer)!
       const rules = RESOURCES[player.resource]
@@ -1414,16 +1424,16 @@ for (const [label, w, h] of [
   // Spending: a press takes the resource, and an empty bar stops the press.
   {
     const s = createState(0x51ed, 0, [
-      { classId: 'rogue', role: 'dps' },
-      { classId: 'warrior', role: 'tank' },
-      { classId: 'priest', role: 'healer' },
-      { classId: 'mage', role: 'dps' },
-      { classId: 'hunter', role: 'dps' },
+      pickFor('rogue', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('hunter', 'dps')!,
     ])
     const player = s.actors.find((a) => a.isPlayer)!
     player.pos.x = 20
     player.pos.y = 0
-    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    const filler = abilityBar({ classId: player.classId, spec: player.spec })[0]!
     const cost = ABILITIES[filler]!.cost
     expect('the rogue filler costs energy', cost > 0, `${cost}`)
 
@@ -1442,6 +1452,82 @@ for (const [label, w, h] of [
     )
     expect('which the slot says out loud', slotStatus(s, player, filler) === 'resource', slotStatus(s, player, filler))
   }
+}
+
+// --- one class, two ways to deal damage -----------------------------------
+//
+// The druid fills the same role twice, which is what a pick naming a role
+// could not express and why it names a spec instead.
+{
+  const dps = CLASSES.druid.specs.filter((spec) => spec.role === 'dps')
+  expect('the druid has two damage specs', dps.length === 2, `${dps.length}`)
+
+  const caster = dps.find((spec) => !spec.melee)
+  const cat = dps.find((spec) => spec.melee)
+  expect(
+    'one casts on mana, the other swings on energy',
+    caster?.resource === 'mana' && cat?.resource === 'energy' && cat?.auto !== undefined,
+    `${caster?.id}:${caster?.resource} ${cat?.id}:${cat?.resource}`,
+  )
+
+  // Two picks that differ only by spec have to stay two different picks all
+  // the way through: same class, same role, different everything else.
+  const picks = SPEC_OPTIONS.filter((p) => p.classId === 'druid' && roleOf(p) === 'dps')
+  expect('and the picker offers both', picks.length === 2, picks.map((p) => p.spec).join(', '))
+  const labels = new Set(SPEC_OPTIONS.map((p) => specLabel(p)))
+  expect(
+    `all ${SPEC_OPTIONS.length} specs are named apart`,
+    labels.size === SPEC_OPTIONS.length,
+    `${labels.size} labels`,
+  )
+
+  // A spec nothing can roll is a spec nobody sees. AUTO and RANDOM draw from
+  // an explicit list, so this is the check that it was added to it.
+  let seed = 31
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+  const rolled = new Set<string>()
+  for (let i = 0; i < 400; i++) {
+    for (const pick of randomParty(25, random)) rolled.add(`${pick.classId}:${pick.spec}`)
+  }
+  const missing = SPEC_OPTIONS.filter((p) => !rolled.has(`${p.classId}:${p.spec}`))
+  expect('every spec can be rolled', missing.length === 0, missing.map((p) => `${p.classId} ${p.spec}`).join(', '))
+
+  // The cat has to actually fight: a kit that resolves to nothing would still
+  // pass every layout check above.
+  const s = createState(0x51ed, 0, [
+    { classId: 'druid', spec: 'feral' },
+    { classId: 'warrior', spec: 'protection' },
+    { classId: 'priest', spec: 'discipline' },
+    { classId: 'mage', spec: 'frost' },
+    { classId: 'rogue', spec: 'assassination' },
+  ])
+  const player = s.actors.find((a) => a.isPlayer)!
+  expect('a feral player is a melee on energy', player.resource === 'energy' && player.melee, `${player.resource}`)
+
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
+  expect('with three buttons of its own', bar.length === 3, bar.join(', '))
+  // Eight seconds, which is before the first thralls arrive: the player's own
+  // targeting prefers an add, and an add that dies takes the bleed with it.
+  const rng = new Rng(0x51ed)
+  for (let i = 0; i < 30 * 8; i++) {
+    const b = boss(s)
+    player.pos.x = b.pos.x + 20
+    player.pos.y = b.pos.y
+    // Bleed first, filler second — the priority a player would press, and
+    // one that leaves the bleed a window. A fixed cadence of one slot every
+    // 45 ticks does not: 45 ticks is exactly the global cooldown, so the
+    // filler took every one of them and the bleed never went out.
+    step(s, { moveX: 0, moveY: 0, pressed: [1, 0] }, rng)
+  }
+  expect('and damage on the board', (s.tally[player.id]?.damage ?? 0) > 0, `${s.tally[player.id]?.damage}`)
+  expect(
+    'including its own bleed',
+    boss(s).auras.some((a) => a.id === 'rake'),
+    boss(s).auras.map((a) => a.id).join(', '),
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
