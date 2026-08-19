@@ -90,8 +90,10 @@ export interface Actor {
 
   hp: number
   maxHp: number
-  mana: number
-  maxMana: number
+  /** What this actor spends to act. */
+  resource: ResourceId
+  power: number
+  maxPower: number
   alive: boolean
 
   /** Global cooldown remaining. */
@@ -196,6 +198,17 @@ export interface Tally {
  * Things worth hearing. Emitted by the simulation and drained by the renderer
  * each frame, so audio never has to guess at state changes by diffing.
  */
+/**
+ * What a class runs on.
+ *
+ * Mana is a budget for the whole fight and runs out. Energy and focus refill
+ * on their own and are a pacing problem rather than an economy — you are
+ * never short of them for long, only right now. Rage is neither: it starts at
+ * nothing and is earned by hitting and being hit, so a warrior opens a pull
+ * unable to do anything and a tank mid-fight can barely spend it fast enough.
+ */
+export type ResourceId = 'mana' | 'rage' | 'energy' | 'focus'
+
 export type SoundEvent =
   | 'telegraph'
   | 'shockwave'

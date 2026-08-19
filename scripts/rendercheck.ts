@@ -9,6 +9,7 @@ import { ABILITIES } from '../src/sim/abilities'
 import {
   CLASSES,
   CLASS_ORDER,
+  RESOURCES,
   ROLE_LIMITS,
   SPEC_OPTIONS,
   mitigation,
@@ -41,6 +42,7 @@ import { ARENA_RADIUS, ENRAGE_AT, MELEE_RANGE, SPELL_RANGE } from '../src/sim/co
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { createState } from '../src/sim/state'
+import { gainPower } from '../src/sim/combat'
 import type { Role } from '../src/sim/types'
 
 /** Records every 2D context call so the render path can run outside a browser. */
@@ -1293,6 +1295,152 @@ for (const [label, w, h] of [
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
     expect('a weapon builds threat', (s.threat[player.id] ?? 0) > 0, `${s.threat[player.id]}`)
+  }
+}
+
+// --- classes run on different resources -----------------------------------
+//
+// Mana is a budget for the fight, energy and focus refill on their own, and
+// rage is neither: it starts at nothing and is earned by hitting and being
+// hit. A resource that never moves is a bar, not a system, so the shape of
+// each one is checked rather than just its presence.
+{
+  // Keyed by spec, not by class: a bear tank runs on rage while the same
+  // druid healing runs on mana, which is the whole reason the resource sits
+  // on the spec.
+  const EXPECTED: Record<string, string> = {
+    'warrior tank': 'rage',
+    'warrior dps': 'rage',
+    'druid tank': 'rage',
+    'rogue dps': 'energy',
+    'hunter dps': 'focus',
+  }
+  const wrong = SPEC_OPTIONS.filter(
+    (pick) => specOf(pick).resource !== (EXPECTED[`${pick.classId} ${pick.role}`] ?? 'mana'),
+  )
+  expect('every spec runs on its own resource', wrong.length === 0, wrong.map((p) => `${p.classId} ${p.role} is ${specOf(p).resource}`).join(', '))
+
+  // And a class that fills three roles is allowed three answers.
+  const druid = CLASSES.druid.specs.map((spec) => `${spec.role}:${spec.resource}`).join(' ')
+  expect('a druid changes resource with its role', druid === 'tank:rage healer:mana dps:mana', druid)
+
+  const poolless = SPEC_OPTIONS.filter((pick) => specOf(pick).power <= 0)
+  expect('and every spec has a pool to spend', poolless.length === 0, poolless.map((p) => `${p.classId} ${p.role}`).join(', '))
+
+  // Everything but the answers to a mechanic costs something. A defensive or
+  // a taunt that is sometimes unaffordable is a mechanic you cannot answer
+  // for a reason the button never showed.
+  const free = Object.values(ABILITIES).filter((a) => a.cost === 0)
+  const shouldBeFree = free.every((a) => a.kind === 'defensive' || a.kind === 'taunt')
+  expect(
+    `only the ${free.length} defensives and taunts are free`,
+    shouldBeFree && free.length === 6,
+    free.map((a) => a.id).join(', '),
+  )
+
+  // Rage: empty at the pull, earned by swinging, earned by being hit, and
+  // never handed over by simply waiting.
+  {
+    const s = createState(0x51ed, 0, [
+      { classId: 'warrior', role: 'tank' },
+      { classId: 'paladin', role: 'tank' },
+      { classId: 'priest', role: 'healer' },
+      { classId: 'mage', role: 'dps' },
+      { classId: 'rogue', role: 'dps' },
+    ])
+    const warrior = s.actors.find((a) => a.classId === 'warrior')!
+    const caster = s.actors.find((a) => a.classId === 'mage')!
+    expect('a warrior opens the pull with no rage', warrior.power === 0, `${warrior.power}`)
+    expect('and a caster opens it with a full bar', caster.power === caster.maxPower, `${caster.power}`)
+
+    // Parked out of everyone's reach so nothing but the clock can touch it.
+    const rng = new Rng(0x51ed)
+    warrior.pos.x = ARENA_RADIUS - 5
+    warrior.pos.y = 0
+    for (let i = 0; i < 30 * 5; i++) {
+      warrior.pos.x = ARENA_RADIUS - 5
+      warrior.pos.y = 0
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('waiting earns none of it', warrior.power === 0, `${warrior.power} after five seconds`)
+
+    const swing = RESOURCES.rage.onSwing
+    applyDamage(s, boss(s), 10, 'physical', { sourceId: warrior.id, silent: true })
+    expect('nor does dealing damage on its own', warrior.power === 0, `${warrior.power}`)
+
+    gainPower(warrior, swing)
+    expect('a landed swing does', warrior.power === swing, `${warrior.power}`)
+
+    // Big enough to get past a tank's block, since damage that never landed
+    // is not a hit taken.
+    applyDamage(s, warrior, 900, 'physical', { sourceId: boss(s).id })
+    expect(
+      'and so does being hit',
+      warrior.power === swing + RESOURCES.rage.onHit,
+      `${warrior.power}`,
+    )
+
+    // Ground ticks are silent and land thirty times a second; paying for
+    // those would hand a tank a full bar for standing in fire.
+    const before = warrior.power
+    for (let i = 0; i < 30; i++) applyDamage(s, warrior, 20, 'magic', { silent: true })
+    expect('standing in fire earns nothing', warrior.power === before, `${warrior.power} vs ${before}`)
+  }
+
+  // Energy and focus refill on their own, at their own rates, and mana users
+  // are not quietly getting the same treatment.
+  {
+    for (const [classId, role] of [['rogue', 'dps'], ['hunter', 'dps'], ['mage', 'dps']] as const) {
+      const s = createState(0x51ed, 0, [
+        { classId, role },
+        { classId: 'warrior', role: 'tank' },
+        { classId: 'priest', role: 'healer' },
+        { classId: 'mage', role: 'dps' },
+        { classId: 'rogue', role: 'dps' },
+      ])
+      const player = s.actors.find((a) => a.isPlayer)!
+      const rules = RESOURCES[player.resource]
+      player.power = 0
+      const rng = new Rng(0x51ed)
+      for (let i = 0; i < 30; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      expect(
+        `${classId} regains ${rules.regen} ${player.resource} a second`,
+        Math.abs(player.power - rules.regen) < 0.5,
+        `${player.power.toFixed(1)} after a second`,
+      )
+    }
+  }
+
+  // Spending: a press takes the resource, and an empty bar stops the press.
+  {
+    const s = createState(0x51ed, 0, [
+      { classId: 'rogue', role: 'dps' },
+      { classId: 'warrior', role: 'tank' },
+      { classId: 'priest', role: 'healer' },
+      { classId: 'mage', role: 'dps' },
+      { classId: 'hunter', role: 'dps' },
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = 20
+    player.pos.y = 0
+    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    const cost = ABILITIES[filler]!.cost
+    expect('the rogue filler costs energy', cost > 0, `${cost}`)
+
+    const before = player.power
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, new Rng(0x51ed))
+    // A tick of regen lands in the same step, so the check is that the cost
+    // came off rather than that the bar reads a particular number.
+    expect('pressing it spends that energy', player.power < before, `${player.power} of ${before}`)
+
+    player.power = cost - 1
+    player.gcd = 0
+    expect(
+      'and an empty bar is what stops the press',
+      castBlocker(s, player, ABILITIES[filler]!, boss(s).id) === 'resource',
+      `${castBlocker(s, player, ABILITIES[filler]!, boss(s).id)}`,
+    )
+    expect('which the slot says out loud', slotStatus(s, player, filler) === 'resource', slotStatus(s, player, filler))
   }
 }
 

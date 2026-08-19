@@ -26,6 +26,9 @@ export const COLORS = {
   hpBar: '#22c55e',
   hpBarLow: '#ef4444',
   manaBar: '#3b82f6',
+  rageBar: '#dc2626',
+  energyBar: '#facc15',
+  focusBar: '#f97316',
   castBar: '#facc15',
   bossCast: '#f97316',
   panel: 'rgba(15, 17, 26, 0.9)',
@@ -204,6 +207,14 @@ export const L: Layout = computeLayout(960, 760)
 
 export function updateLayout(w: number, h: number): void {
   Object.assign(L, computeLayout(w, h))
+}
+
+/** A resource is read by colour before it is read by number. */
+export function resourceColor(resource: string): string {
+  if (resource === 'rage') return COLORS.rageBar
+  if (resource === 'energy') return COLORS.energyBar
+  if (resource === 'focus') return COLORS.focusBar
+  return COLORS.manaBar
 }
 
 export function roleColor(role: string, isPlayer: boolean): string {

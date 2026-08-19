@@ -2,6 +2,7 @@ import { ARENA_RADIUS } from './constants'
 import {
   CLASSES,
   DEFAULT_PARTY,
+  RESOURCES,
   DIFFICULTIES,
   makeSlots,
   sizeHealth,
@@ -75,6 +76,7 @@ function makeMember(
   attempt: number,
 ): Actor {
   const spec = specOf(pick)
+  const resource = spec.resource
   return {
     id,
     name: slot.name,
@@ -90,8 +92,11 @@ function makeMember(
     moveSpeed: CLASSES[pick.classId].moveSpeed,
     hp: spec.hp,
     maxHp: spec.hp,
-    mana: spec.mana,
-    maxMana: spec.mana,
+    resource,
+    // Rage is the one you are not handed: a warrior opens a pull with an
+    // empty bar and has to hit something before it can do anything.
+    power: RESOURCES[resource].startsFull ? spec.power : 0,
+    maxPower: spec.power,
     alive: true,
     gcd: 0,
     cooldowns: {},
@@ -138,8 +143,9 @@ export function createState(
     moveSpeed: 175,
     hp: Math.round(BOSS_MAX_HP * scale),
     maxHp: Math.round(BOSS_MAX_HP * scale),
-    mana: 0,
-    maxMana: 0,
+    resource: 'mana',
+    power: 0,
+    maxPower: 0,
     alive: true,
     gcd: 0,
     cooldowns: {},

@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { abilityBar, specOf } from './classes'
+import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
 import { resolveBossCast, updateBoss, updateGround } from './boss'
 import {
@@ -11,6 +11,7 @@ import {
   detonateSpread,
   interruptCast,
   dist,
+  gainPower,
   livingParty,
   pushText,
   spawnBolt,
@@ -18,7 +19,7 @@ import {
   beginCast,
   castBlocker,
 } from './combat'
-import { DT, MANA_REGEN_PER_SEC, MELEE_RANGE } from './constants'
+import { DT, MELEE_RANGE } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -99,6 +100,9 @@ function updateAutoAttacks(s: SimState): void {
     // needing to know.
     applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id })
     if (target.id === BOSS_ID) addThreat(s, a.id, auto.damage)
+    // Rage is earned here rather than handed out, which is why a warrior
+    // that cannot reach anything cannot do anything either.
+    gainPower(a, RESOURCES[a.resource].onSwing)
     // A shot with nothing in the air between the two of them reads as the
     // hunter standing still doing nothing, same as the ranged abilities.
     if (auto.range > MELEE_RANGE) spawnBolt(s, a, target.id, 'bolt')
@@ -128,8 +132,9 @@ function updateTimers(s: SimState, a: Actor): void {
     if (value > 0) a.cooldowns[key] = Math.max(0, value - DT)
   }
 
-  if (a.maxMana > 0) {
-    a.mana = Math.min(a.maxMana, a.mana + MANA_REGEN_PER_SEC * DT)
+  const regen = RESOURCES[a.resource].regen
+  if (a.maxPower > 0 && regen > 0) {
+    a.power = Math.min(a.maxPower, a.power + regen * DT)
   }
 
   // Iterate backwards so expiry removal does not skip entries. A tick can

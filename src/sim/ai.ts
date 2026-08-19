@@ -464,7 +464,7 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   if (!wounded) return
 
   const ratio = wounded.hp / wounded.maxHp
-  const manaRatio = actor.mana / actor.maxMana
+  const powerLeft = actor.maxPower > 0 ? actor.power / actor.maxPower : 1
 
   // Timid healers panic earlier and burn mana; greedy ones let people ride low.
   const emergency = ai.personality === 'timid' ? 0.55 : ai.personality === 'greedy' ? 0.35 : 0.45
@@ -480,13 +480,13 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   if (kit.overTime) {
     const tank = livingParty(s).find((a) => a.role === 'tank')
     const on = tank ?? wounded
-    if (!getAura(on, kit.overTime as AuraId) && on.hp / on.maxHp < 0.95 && manaRatio > 0.2) {
+    if (!getAura(on, kit.overTime as AuraId) && on.hp / on.maxHp < 0.95 && powerLeft > 0.2) {
       if (tryCast(s, actor, kit.overTime, on.id, rng, moving)) return
     }
   }
 
   if (ratio < topOff) {
-    if (manaRatio < 0.15 && ratio > 0.6) {
+    if (powerLeft < 0.15 && ratio > 0.6) {
       say(s, actor, 'Low mana')
       return
     }
@@ -496,7 +496,7 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 
   // Nobody needs healing: help kill it, but keep enough mana in reserve to
   // answer the next spike.
-  if (kit.attack && manaRatio > 0.55) {
+  if (kit.attack && powerLeft > 0.55) {
     const summoned = adds(s)
     const target = summoned.length > 0 ? summoned[0]! : boss(s)
     tryCast(s, actor, kit.attack, target.id, rng, moving)

@@ -291,7 +291,9 @@ export function drawRoster(
       ctx.fillStyle = COLORS.textDim
       ctx.font = font(9)
       ctx.fillText(
-        `${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp`,
+        // The resource is a real difference between two classes that fill the
+        // same role: a rage tank opens a pull with nothing to spend.
+        `${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp · ${spec.resource}`,
         cx,
         r.y + r.h - 8 * L.ui,
       )

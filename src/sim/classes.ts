@@ -1,5 +1,5 @@
 import { MELEE_RANGE, SPELL_RANGE } from './constants'
-import type { Personality, Role } from './types'
+import type { Personality, ResourceId, Role } from './types'
 
 /**
  * The eight classes.
@@ -101,6 +101,14 @@ const SHOT: AutoAttack = { damage: 48, speed: 3, range: SPELL_RANGE }
 
 export interface Spec {
   role: Role
+  /**
+   * What this spec spends.
+   *
+   * On the spec rather than the class because a bear tank runs on rage while
+   * the same druid healing runs on mana: what you are playing decides it, not
+   * what you picked on the roster.
+   */
+  resource: ResourceId
   /** Melee specs have to close to the boss to use anything. */
   melee: boolean
   /** Absent for the classes that fight entirely through their spell list. */
@@ -108,7 +116,8 @@ export interface Spec {
   hp: number
   armor: number
   block: number
-  mana: number
+  /** Size of the class's resource pool. */
+  power: number
   abilities: ClassAbilities
 }
 
@@ -118,6 +127,39 @@ export interface ClassDef {
   armorType: ArmorType
   moveSpeed: number
   specs: Spec[]
+}
+
+/**
+ * How each resource behaves.
+ *
+ * The three non-mana ones are the reason this is a table rather than a flag:
+ * energy and focus tick back on their own and rage does not tick at all, so
+ * "can I press this" is a different question for a rogue, a hunter and a
+ * warrior even when the number on the bar is the same.
+ */
+export interface ResourceRules {
+  /** Per second, on its own. */
+  regen: number
+  /** Earned when one of your own weapon swings lands. */
+  onSwing: number
+  /** Earned when something lands on you. */
+  onHit: number
+  /** Mana is a budget you start with; rage is earned from an empty bar. */
+  startsFull: boolean
+}
+
+export const RESOURCES: Record<ResourceId, ResourceRules> = {
+  // A budget for the whole fight: the healer's real constraint is the 240s
+  // enrage arriving before the mana does not.
+  mana: { regen: 9, onSwing: 0, onHit: 0, startsFull: true },
+  // Earned, never given. Twenty a swing is a third of a filler, so a warrior
+  // opens a pull with nothing and a tank being hit every couple of seconds
+  // ends up with more than it can spend — which is the point of the resource.
+  rage: { regen: 0, onSwing: 30, onHit: 12, startsFull: false },
+  // Fast enough to cover a filler roughly every global cooldown, so the
+  // question is never "can I afford anything" but "can I afford the big one".
+  energy: { regen: 25, onSwing: 0, onHit: 0, startsFull: true },
+  focus: { regen: 19, onSwing: 0, onHit: 0, startsFull: true },
 }
 
 const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities => ({
@@ -139,22 +181,24 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'tank',
+        resource: 'rage',
         melee: true,
         auto: SWING,
         hp: 6200,
         armor: 9200,
         block: 260,
-        mana: 0,
+        power: 100,
         abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall', taunt: 'taunt' }),
       },
       {
         role: 'dps',
+        resource: 'rage',
         melee: true,
         auto: SWING,
         hp: 4200,
         armor: 5200,
         block: 0,
-        mana: 0,
+        power: 100,
         abilities: kit({ filler: 'mortal_strike', overTime: 'rend', finisher: 'execute' }),
       },
     ],
@@ -168,12 +212,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'tank',
+        resource: 'mana',
         melee: true,
         auto: SWING,
         hp: 5800,
         armor: 8600,
         block: 240,
-        mana: 0,
+        power: 1000,
         abilities: kit({
           filler: 'consecration',
           threat: 'avengers_shield',
@@ -183,21 +228,23 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       },
       {
         role: 'healer',
+        resource: 'mana',
         melee: false,
         hp: 3400,
         armor: 4200,
         block: 0,
-        mana: 1100,
+        power: 1100,
         abilities: kit({ filler: 'holy_light', finisher: 'lay_on_hands', attack: 'holy_shock' }),
       },
       {
         role: 'dps',
+        resource: 'mana',
         melee: true,
         auto: SWING,
         hp: 4000,
         armor: 5000,
         block: 0,
-        mana: 0,
+        power: 900,
         abilities: kit({
           filler: 'crusader_strike',
           overTime: 'judgement',
@@ -215,11 +262,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'healer',
+        resource: 'mana',
         melee: false,
         hp: 3000,
         armor: 900,
         block: 0,
-        mana: 1000,
+        power: 1050,
         abilities: kit({
           filler: 'heal',
           overTime: 'renew',
@@ -229,11 +277,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       },
       {
         role: 'dps',
+        resource: 'mana',
         melee: false,
         hp: 3000,
         armor: 900,
         block: 0,
-        mana: 0,
+        power: 950,
         abilities: kit({
           filler: 'mind_flay',
           overTime: 'shadow_word_pain',
@@ -251,6 +300,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'tank',
+        resource: 'rage',
         melee: true,
         auto: SWING,
         // Bear form has no shield, and a flat block is worth a great deal
@@ -259,16 +309,17 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         hp: 9200,
         armor: 11500,
         block: 0,
-        mana: 0,
+        power: 100,
         abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen', taunt: 'growl' }),
       },
       {
         role: 'healer',
+        resource: 'mana',
         melee: false,
         hp: 3200,
         armor: 1800,
         block: 0,
-        mana: 1050,
+        power: 1000,
         abilities: kit({
           filler: 'healing_touch',
           overTime: 'rejuvenation',
@@ -278,11 +329,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       },
       {
         role: 'dps',
+        resource: 'mana',
         melee: false,
         hp: 3300,
         armor: 2300,
         block: 0,
-        mana: 0,
+        power: 950,
         abilities: kit({ filler: 'wrath', overTime: 'moonfire', finisher: 'starfire' }),
       },
     ],
@@ -296,11 +348,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'healer',
+        resource: 'mana',
         melee: false,
         hp: 3300,
         armor: 2600,
         block: 0,
-        mana: 1050,
+        power: 1050,
         abilities: kit({
           filler: 'healing_wave',
           overTime: 'riptide',
@@ -310,11 +363,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       },
       {
         role: 'dps',
+        resource: 'mana',
         melee: false,
         hp: 3200,
         armor: 3300,
         block: 0,
-        mana: 0,
+        power: 950,
         abilities: kit({
           filler: 'lightning_bolt',
           overTime: 'flame_shock',
@@ -332,11 +386,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'dps',
+        resource: 'mana',
         melee: false,
         hp: 2900,
         armor: 900,
         block: 0,
-        mana: 0,
+        power: 1000,
         abilities: kit({ filler: 'frostbolt', overTime: 'living_bomb', finisher: 'pyroblast' }),
       },
     ],
@@ -350,12 +405,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'dps',
+        resource: 'focus',
         melee: false,
         auto: SHOT,
         hp: 3600,
         armor: 3300,
         block: 0,
-        mana: 0,
+        power: 100,
         abilities: kit({
           filler: 'steady_shot',
           overTime: 'serpent_sting',
@@ -373,12 +429,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     specs: [
       {
         role: 'dps',
+        resource: 'energy',
         melee: true,
         auto: SWING,
         hp: 3400,
         armor: 2300,
         block: 0,
-        mana: 0,
+        power: 100,
         abilities: kit({
           filler: 'sinister_strike',
           overTime: 'rupture',

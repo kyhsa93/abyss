@@ -1,5 +1,5 @@
 import { ABILITIES, type Ability } from './abilities'
-import { DIFFICULTIES, mitigation } from './classes'
+import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
@@ -102,6 +102,12 @@ export function say(s: SimState, actor: Actor, text: string): void {
   if (s.chat.length > 5) s.chat.shift()
 }
 
+/** Tops a resource up without ever going past the bar. */
+export function gainPower(a: Actor, amount: number): void {
+  if (amount <= 0 || a.maxPower <= 0) return
+  a.power = Math.min(a.maxPower, a.power + amount)
+}
+
 export function addThreat(s: SimState, actorId: number, amount: number): void {
   s.threat[actorId] = (s.threat[actorId] ?? 0) + amount
 }
@@ -190,6 +196,11 @@ export function applyDamage(
   target.hp = Math.max(0, target.hp - final)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
   if (!opts.silent) pushText(s, target.pos, `-${final}`, 'damage')
+
+  // Rage is earned by being hit as much as by hitting. Ground ticks are
+  // silent and land thirty times a second, so letting those pay would hand a
+  // tank a full bar for standing in fire — exactly backwards.
+  if (final > 0 && !opts.silent) gainPower(target, RESOURCES[target.resource].onHit)
 
   record(s, target, final, opts)
   // Only the player's own hits are audible; everyone's would be a wall of noise.
@@ -303,7 +314,7 @@ export function spawnBolt(
  * visible on the button first, so the one thing the button cannot show —
  * whether you are close enough — is what gets reported.
  */
-export type CastBlock = 'locked' | 'mana' | 'target' | 'range'
+export type CastBlock = 'locked' | 'resource' | 'target' | 'range'
 
 export function castBlocker(
   s: SimState,
@@ -314,7 +325,7 @@ export function castBlocker(
   if (!actor.alive || actor.castId) return 'locked'
   if (actor.gcd > 0 && !ability.offGcd) return 'locked'
   if ((actor.cooldowns[ability.id] ?? 0) > 0) return 'locked'
-  if (actor.mana < ability.manaCost) return 'mana'
+  if (actor.power < ability.cost) return 'resource'
 
   if (ability.range > 0) {
     const target = actorById(s, targetId)
@@ -375,7 +386,7 @@ export function resolveAbility(
   _rng: Rng,
 ): void {
   const target = actorById(s, targetId)
-  if (ability.manaCost > 0) actor.mana = Math.max(0, actor.mana - ability.manaCost)
+  if (ability.cost > 0) actor.power = Math.max(0, actor.power - ability.cost)
 
   if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
     spawnBolt(s, actor, target.id, projectileKind(ability))

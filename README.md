@@ -232,6 +232,28 @@ Personality belongs to the slot rather than the class. Kestrel gambles on long
 casts with a telegraph already on the floor and reacts late; Wren bails early
 and overheals.
 
+**Classes run on four different resources.** Warriors and bear druids on rage,
+rogues on energy, hunters on focus, everyone else on mana, and every ability
+is paid for out of it. The resource sits on the spec rather than the class,
+because a druid tanking runs on rage while the same druid healing runs on
+mana: what you are playing decides it, not what you picked on the roster.
+
+They are three different problems, not one bar in three colours. Mana is a
+budget for the whole fight: a caster spends faster than it regenerates and the
+question is whether it lasts to the kill. Energy and focus refill on their own
+at a rate that covers roughly a filler per global cooldown, so you are never
+short of them for long, only right now — the question is whether you can
+afford the expensive button as well. Rage is neither. It starts at zero and is
+earned by landing weapon swings and by being hit, so a warrior opens a pull
+able to do nothing at all, a tank being hit every couple of seconds ends up
+with more than it can spend, and a warrior who cannot reach anything stays
+poor. Ground damage is silent and lands thirty times a second, so it pays
+nothing: standing in fire is not a rage generator.
+
+Defensives and taunts are free. They are the answer to a mechanic, and an
+answer that is sometimes unaffordable for a reason the button cannot show is
+worse than having no resource at all.
+
 **Weapons swing on their own.** Melee specs hit whatever is in reach every
 three seconds and the hunter shoots from spell range, as physical damage, on
 no global cooldown and with no press — white damage is what happens while you

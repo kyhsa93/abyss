@@ -6,7 +6,7 @@ import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, WORLD_RADIUS, roleColor } from './theme'
+import { COLORS, L, WORLD_RADIUS, resourceColor, roleColor } from './theme'
 
 export interface Rect {
   x: number
@@ -167,13 +167,13 @@ function isUsable(player: Actor, abilityId: string): boolean {
  * how the touch layout ended up able to disagree with the keyboard one about
  * whether a button was live.
  */
-export type SlotStatus = 'ready' | 'range' | 'mana' | 'locked'
+export type SlotStatus = 'ready' | 'range' | 'resource' | 'locked'
 
 export function slotStatus(s: SimState, player: Actor, abilityId: string): SlotStatus {
   const ability = ABILITIES[abilityId]
   if (!ability) return 'locked'
   if (!isUsable(player, abilityId)) return 'locked'
-  if (player.mana < ability.manaCost) return 'mana'
+  if (player.power < ability.cost) return 'resource'
 
   const target = ability.kind === 'taunt' ? boss(s).id : playerTarget(s)
   return castBlocker(s, player, ability, target) === 'range' ? 'range' : 'ready'
@@ -182,15 +182,23 @@ export function slotStatus(s: SimState, player: Actor, abilityId: string): SlotS
 const SLOT_BORDER: Record<SlotStatus, string> = {
   ready: COLORS.castBar,
   range: COLORS.hpBarLow,
-  mana: COLORS.manaBar,
+  // Filled in per player: what "cannot afford it" looks like depends on what
+  // they are short of.
+  resource: COLORS.manaBar,
   locked: COLORS.panelEdge,
 }
 
 const SLOT_RING: Record<SlotStatus, string> = {
   ready: 'rgba(250, 204, 21, 0.9)',
   range: 'rgba(248, 113, 113, 0.85)',
-  mana: 'rgba(59, 130, 246, 0.8)',
+  resource: 'rgba(107, 114, 128, 0.6)',
   locked: 'rgba(107, 114, 128, 0.6)',
+}
+
+/** The border a slot wears, with the resource colours filled in. */
+function slotBorder(player: Actor, status: SlotStatus, ring: boolean): string {
+  if (status === 'resource') return resourceColor(player.resource)
+  return ring ? SLOT_RING[status] : SLOT_BORDER[status]
 }
 
 /** What a slot should show: its own cooldown if it has one, else the GCD. */
@@ -563,8 +571,16 @@ function frame(
   const barY = y + h * 0.36
   bar(ctx, x + 6, barY, w - 12, Math.max(6, h * 0.2), hpRatio, hpRatio < 0.35 ? COLORS.hpBarLow : COLORS.hpBar)
 
-  if (a.maxMana > 0) {
-    bar(ctx, x + 6, barY + h * 0.24, w - 12, Math.max(3, h * 0.09), a.mana / a.maxMana, COLORS.manaBar)
+  if (a.maxPower > 0) {
+    bar(
+      ctx,
+      x + 6,
+      barY + h * 0.24,
+      w - 12,
+      Math.max(3, h * 0.09),
+      a.power / a.maxPower,
+      resourceColor(a.resource),
+    )
   }
 
   // Aura chips along the bottom.
@@ -647,7 +663,7 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
 
     ctx.fillStyle = COLORS.panel
     ctx.fillRect(x, y, slot, slot)
-    ctx.strokeStyle = SLOT_BORDER[status]
+    ctx.strokeStyle = slotBorder(player, status, false)
     ctx.lineWidth = usable ? 2 : 1
     ctx.strokeRect(x + 0.5, y + 0.5, slot - 1, slot - 1)
 
@@ -738,7 +754,7 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.arc(bx, cy, L.btnR, 0, Math.PI * 2)
     ctx.fillStyle = holding ? 'rgba(250, 204, 21, 0.28)' : 'rgba(15, 17, 26, 0.55)'
     ctx.fill()
-    ctx.strokeStyle = SLOT_RING[status]
+    ctx.strokeStyle = slotBorder(player, status, true)
     ctx.lineWidth = usable ? 3 : 2
     ctx.stroke()
 

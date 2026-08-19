@@ -18,8 +18,6 @@ export const SPREAD_RADIUS = 110
 export const ENRAGE_AT = 240
 export const PHASE_TWO_HP = 0.7
 
-export const MANA_REGEN_PER_SEC = 9
-
 /**
  * Warning time before a puddle detonates.
  *
