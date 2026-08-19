@@ -43,6 +43,7 @@ export interface RosterLayout {
   classes: Rect[]
   auto: Rect
   random: Rect
+  history: Rect
   pull: Rect
   titleY: number
   summaryY: number
@@ -56,6 +57,7 @@ export type RosterHit =
   | { kind: 'difficulty'; id: DifficultyId }
   | { kind: 'auto' }
   | { kind: 'random' }
+  | { kind: 'history' }
   | { kind: 'pull' }
 
 const ROLE_COLOR: Record<string, string> = {
@@ -154,11 +156,11 @@ export function rosterLayout(size: number): RosterLayout {
     })
   }
 
-  // Three buttons on one row; the fill buttons share a quarter each and PULL
+  // Four buttons on one row; the three small ones share a fifth each and PULL
   // takes what is left, so it stays the obvious target.
   const gapB = 6
-  const fillW = Math.min(120, (L.w - pad * 2 - gapB * 2) * 0.26)
-  const pullW = L.w - pad * 2 - gapB * 2 - fillW * 2
+  const fillW = Math.min(110, (L.w - pad * 2 - gapB * 3) * 0.2)
+  const pullW = L.w - pad * 2 - gapB * 3 - fillW * 3
   const buttonY = L.h - buttonH - pad
   return {
     sizes,
@@ -168,7 +170,8 @@ export function rosterLayout(size: number): RosterLayout {
     classes,
     auto: { x: pad, y: buttonY, w: fillW, h: buttonH },
     random: { x: pad + fillW + gapB, y: buttonY, w: fillW, h: buttonH },
-    pull: { x: pad + (fillW + gapB) * 2, y: buttonY, w: pullW, h: buttonH },
+    history: { x: pad + (fillW + gapB) * 2, y: buttonY, w: fillW, h: buttonH },
+    pull: { x: pad + (fillW + gapB) * 3, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
     slotCols,
@@ -184,6 +187,7 @@ export function hitRoster(x: number, y: number, size: number): RosterHit | null 
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
   if (inside(layout.auto, x, y)) return { kind: 'auto' }
   if (inside(layout.random, x, y)) return { kind: 'random' }
+  if (inside(layout.history, x, y)) return { kind: 'history' }
 
   for (let i = 0; i < layout.sizes.length; i++) {
     if (inside(layout.sizes[i]!, x, y)) return { kind: 'size', size: RAID_SIZES[i]! }
@@ -372,6 +376,7 @@ export function drawRoster(
 
   tab(ctx, layout.auto, 'AUTO', false, COLORS.textDim)
   tab(ctx, layout.random, 'RANDOM', false, COLORS.healer)
+  tab(ctx, layout.history, 'RECORD', false, COLORS.text)
 
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)
   ctx.fillStyle = `rgba(250, 204, 21, ${(0.14 * pulse).toFixed(2)})`

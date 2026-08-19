@@ -1,5 +1,6 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
+import { standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount } from '../sim/classes'
 import { playerTarget } from '../sim/sim'
 import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
@@ -373,24 +374,14 @@ function short(n: number): string {
  */
 function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
   const rect = meterRect(touch)
-  const seconds = Math.max(1, s.time)
 
-  const ranked = s.actors
-    .filter((a) => a.faction === 'party')
-    .map((a) => {
-      const t = s.tally[a.id]
-      return {
-        actor: a,
-        dps: (t?.damage ?? 0) / seconds,
-        hps: (t?.healing ?? 0) / seconds,
-      }
-    })
-    .sort((a, b) => b.dps + b.hps - (a.dps + a.hps))
-    .map((row, i) => ({ ...row, rank: i + 1 }))
+  // The same ranking the record keeps, from the same function: two of them
+  // would eventually be two different answers to the same question.
+  const ranked = standings(s).map((row, i) => ({ ...row, rank: i + 1 }))
 
   const limit = rect.rows ?? 5
   const shown = ranked.slice(0, limit)
-  const playerRow = ranked.find((r) => r.actor.isPlayer)
+  const playerRow = ranked.find((r) => r.isPlayer)
   if (playerRow && !shown.includes(playerRow)) shown[shown.length - 1] = playerRow
 
   const line = 13 * L.ui
@@ -415,7 +406,7 @@ function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
   y += line
 
   for (const row of shown) {
-    const colour = roleColor(row.actor.role, row.actor.isPlayer)
+    const colour = row.isPlayer ? COLORS.player : COLORS.text
     const total = row.dps + row.hps
 
     // Damage and healing stack in one bar, healing lighter, exactly as the
@@ -433,9 +424,9 @@ function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
     ctx.globalAlpha = 1
 
     ctx.textAlign = 'left'
-    ctx.font = font(9, row.actor.isPlayer)
-    ctx.fillStyle = row.actor.isPlayer ? COLORS.player : COLORS.text
-    fitLeft(ctx, `${row.rank} ${row.actor.name}`, rect.x + pad + 2, y, inner - 40 * L.ui)
+    ctx.font = font(9, row.isPlayer)
+    ctx.fillStyle = row.isPlayer ? COLORS.player : COLORS.text
+    fitLeft(ctx, `${row.rank} ${row.name}`, rect.x + pad + 2, y, inner - 40 * L.ui)
 
     ctx.textAlign = 'right'
     ctx.fillStyle = row.hps > row.dps ? '#4ade80' : COLORS.textDim

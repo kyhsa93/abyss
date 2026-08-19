@@ -426,6 +426,27 @@ back the moment it breaks. Charging for a spell that never went off made
 standing in the fire the cheaper play, which is the opposite of the decision
 the cast time is there to create.
 
+## The record
+
+`RECORD` on the party screen keeps the meter, pull by pull. Newest at the top:
+a line saying whether it was a kill and what raid it was, and under it the
+board exactly as it stood when the fight ended — ranked, with the bars, your
+own row picked out. Above them is the night rather than the pull: how many
+pulls, how many kills, the best you have personally managed and the best
+anybody has.
+
+The meter is the thing anyone actually reads during a fight and the thing they
+argue about afterwards, so the record is the meter. It writes itself at the
+moment a pull resolves and there is nothing to press.
+
+The ranking lives in one place and both use it, because a record that
+disagreed with the meter it came from would eventually be two different
+answers to the same question. Nine rows a pull and twenty pulls kept — your
+own row survives the cap however it placed, since a board you dropped off the
+bottom of does not answer the question you opened it for. A row that does not
+parse is dropped and the rest still reads, and nothing in a fight can see any
+of it.
+
 ## Installable and offline
 
 The game ships as a PWA. Everything runs client-side, so once it is cached

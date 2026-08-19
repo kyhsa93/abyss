@@ -2,6 +2,8 @@ import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
+import { append, load as loadHistory, record, save as saveHistory, type Attempt } from './history'
+import { drawHistory, hitHistory } from './render/history'
 import { Effects } from './render/effects'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster } from './render/roster'
@@ -153,7 +155,16 @@ function resize(size: RaidSize): void {
 let party = loadParty()
 let difficulty = loadDifficulty()
 let activeSlot = 0
-let screen: 'roster' | 'fight' = 'roster'
+let screen: 'roster' | 'fight' | 'history' = 'roster'
+
+let history: Attempt[] = loadHistory()
+/**
+ * One row per pull, not one per frame.
+ *
+ * The frame loop sees a finished fight on every frame it draws the results
+ * over, so without this the record would fill with the same pull forever.
+ */
+let recorded = false
 
 let attempt = 0
 let state: SimState = createState(BASE_SEED, attempt, party, difficulty)
@@ -163,6 +174,7 @@ let rng = new Rng(BASE_SEED + attempt * 7919)
 
 function restart(): void {
   attempt++
+  recorded = false
   state = createState(BASE_SEED, attempt, party, difficulty)
   rng = new Rng(BASE_SEED + attempt * 7919)
 }
@@ -190,6 +202,7 @@ function startFight(): void {
     state = createState(BASE_SEED, attempt, party, difficulty)
     rng = new Rng(BASE_SEED)
   }
+  recorded = false
   timing = { ...timing, accumulator: 0 }
   screen = 'fight'
 }
@@ -225,6 +238,9 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       // Filling 25 slots one tap at a time is nobody's idea of a game.
       party = autoParty(party.length as RaidSize, party[0] ?? DEFAULT_PARTY[0]!)
       saveSetup()
+    } else if (hit?.kind === 'history') {
+      screen = 'history'
+      return
     } else if (hit?.kind === 'random') {
       party = randomParty(party.length as RaidSize, Math.random)
       activeSlot = 0
@@ -256,6 +272,14 @@ function frame(now: number): void {
   if (screen === 'roster') {
     input.setMenuMode(true)
     updateRoster(tap, clock)
+    requestAnimationFrame(frame)
+    return
+  }
+
+  if (screen === 'history') {
+    input.setMenuMode(true)
+    if (tap && hitHistory(tap.x, tap.y, history.map((e) => e.standings.length))) screen = 'roster'
+    drawHistory(ctx, history)
     requestAnimationFrame(frame)
     return
   }
@@ -294,6 +318,16 @@ function frame(now: number): void {
     effects.ingest(state)
     timing.accumulator -= DT
     ticks++
+  }
+
+  // The moment a pull resolves, once.
+  if (state.outcome !== 'ongoing' && !recorded) {
+    recorded = true
+    const entry = record(state, Date.now())
+    if (entry) {
+      history = append(history, entry)
+      saveHistory(history)
+    }
   }
 
   hints.observe(state, elapsed)

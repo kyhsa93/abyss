@@ -61,6 +61,16 @@ import {
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
+import {
+  HISTORY_LIMIT,
+  STANDING_LIMIT,
+  append,
+  record,
+  standings,
+  totals,
+  type Attempt,
+} from '../src/history'
+import { drawHistory, historyLayout, hitHistory } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
 import type { Role } from '../src/sim/types'
 
@@ -301,6 +311,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
         ['auto', layout.auto] as const,
         ['random', layout.random] as const,
+        ['history', layout.history] as const,
         ['pull', layout.pull] as const,
       ]
 
@@ -317,6 +328,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         if (kind === 'difficulty' && hit.kind !== 'difficulty') return true
         if (kind === 'auto' && hit.kind !== 'auto') return true
         if (kind === 'random' && hit.kind !== 'random') return true
+        if (kind === 'history' && hit.kind !== 'history') return true
         if (kind === 'pull' && hit.kind !== 'pull') return true
         return false
       })
@@ -2080,6 +2092,125 @@ for (const [label, w, h] of [
     s.projectiles.length === 0 || second.length >= first.length,
     `${first.length} then ${second.length}`,
   )
+}
+
+// --- the record screen ----------------------------------------------------
+//
+// The record is the meter, pull by pull: the thing anyone actually reads
+// during a fight and argues about afterwards. It outlives a pull, a party and
+// a page load, so nothing about it lives in the simulation.
+{
+  const s = createState(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!))
+  const rng = new Rng(0x51ed)
+  expect('a fight in progress records nothing', record(s, 1000) === null, 'recorded early')
+
+  while (s.outcome === 'ongoing' && s.time < 300) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
+
+  // What the meter says and what the record keeps have to be the same board.
+  const live = standings(s)
+  const entry = record(s, 1234)!
+  expect('a finished pull records', entry !== null && entry.standings.length > 0, 'nothing recorded')
+  // Every row but the last, which is where a player outside the cap is put
+  // back: the board is the meter's, in the meter's order.
+  expect(
+    'the record is the meter, in the meter order',
+    entry.standings
+      .slice(0, STANDING_LIMIT - 1)
+      .every((row, i) => row.name === live[i]!.name && row.dps === live[i]!.dps),
+    entry.standings.map((r) => r.name).join(', '),
+  )
+  expect(
+    'ranked by damage and healing together',
+    live.every((row, i) => i === 0 || live[i - 1]!.dps + live[i - 1]!.hps >= row.dps + row.hps),
+    live.map((r) => r.dps + r.hps).join(', '),
+  )
+  expect(
+    'with the pull it belongs to',
+    entry.outcome === s.outcome && entry.size === 10 && entry.difficulty === s.difficulty,
+    JSON.stringify({ outcome: entry.outcome, size: entry.size }),
+  )
+
+  // A board is capped, and your own row survives the cap however it placed.
+  {
+    const big = createState(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
+    const r2 = new Rng(0x51ed)
+    // Run out, not cut short: a pull still going records nothing at all.
+    while (big.outcome === 'ongoing' && big.time < 300) {
+      step(big, { moveX: 0, moveY: 0, pressed: [] }, r2)
+    }
+    const board = record(big, 1)!
+    expect(
+      `a twenty-five man keeps ${STANDING_LIMIT} rows`,
+      board.standings.length === STANDING_LIMIT,
+      `${board.standings.length}`,
+    )
+    // The player pressed nothing all fight, so they placed last of
+    // twenty-five and are exactly the row a cap would drop.
+    expect('and yours is one of them', board.standings.some((r) => r.isPlayer), 'the player fell off')
+  }
+
+  // Newest first, and it never grows without bound.
+  let kept: Attempt[] = []
+  for (let i = 0; i < HISTORY_LIMIT + 15; i++) kept = append(kept, { ...entry, at: i })
+  expect(`the record stops at ${HISTORY_LIMIT}`, kept.length === HISTORY_LIMIT, `${kept.length}`)
+  expect('newest at the top', kept[0]!.at === HISTORY_LIMIT + 14, `${kept[0]!.at}`)
+
+  // Totals over a night rather than over a pull.
+  const you = (dps: number) => ({ name: 'You', classId: 'mage', spec: 'frost', dps, hps: 0, isPlayer: true })
+  const them = (dps: number) => ({ name: 'Vale', classId: 'rogue', spec: 'assassination', dps, hps: 0, isPlayer: false })
+  const night: Attempt[] = [
+    { ...entry, outcome: 'victory', standings: [them(500), you(300)] },
+    { ...entry, outcome: 'wipe', standings: [them(410), you(380)] },
+  ]
+  const t = totals(night)
+  expect(
+    'the totals read the night',
+    t.pulls === 2 && t.kills === 1 && t.bestOwn === 380 && t.bestAny === 500,
+    JSON.stringify(t),
+  )
+
+  // The screen itself: reachable, on screen, and drawing at every size.
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+    for (const count of [0, 2, HISTORY_LIMIT]) {
+      const rows = Array.from({ length: count }, (_, i) => ({ ...entry, at: i }))
+      const counts = rows.map((e) => e.standings.length)
+      const layout = historyLayout(counts)
+      drawHistory(stubCtx(), rows)
+
+      const every = layout.blocks.flatMap((b) => [b.header, ...b.rows])
+      const fits = every.every((r) => r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h)
+      expect(`${label} ${count}: every row fits`, fits, JSON.stringify(every[every.length - 1]))
+      expect(
+        `${label} ${count}: it shows what it has room for`,
+        layout.blocks.length <= count,
+        `${layout.blocks.length} blocks of ${count} pulls`,
+      )
+      expect(
+        `${label} ${count}: a block is a whole board`,
+        layout.blocks.every((b, i) => b.rows.length === counts[i]),
+        'a pull was drawn with rows missing',
+      )
+
+      const back = layout.back
+      const onScreen = back.x >= 0 && back.y >= 0 && back.x + back.w <= w && back.y + back.h <= h
+      expect(`${label} ${count}: the way out is on screen`, onScreen, JSON.stringify(back))
+      expect(
+        `${label} ${count}: and answers a tap`,
+        hitHistory(back.x + back.w / 2, back.y + back.h / 2, counts) === 'back',
+        'back did not answer',
+      )
+      const clear = every.every((r) => r.y + r.h <= back.y)
+      expect(`${label} ${count}: nothing is under the button`, clear, 'a row overlaps the button')
+    }
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
