@@ -290,6 +290,19 @@ Defensives and taunts are free. They are the answer to a mechanic, and an
 answer that is sometimes unaffordable for a reason the button cannot show is
 worse than having no resource at all.
 
+**A hunter needs the distance.** Every shot it has — the bow included — has a
+near edge at ninety units, so a hunter with something standing on it cannot
+shoot that thing. Pressing anyway says `Too close`, the same words and the
+same red slot a charge from melee gets, and costs nothing. The bow shoots past
+what is in its face at whatever it can reach instead, so a thrall on a hunter
+costs it a target rather than its whole rotation.
+
+The party AI had to learn it too. Its shared idea of far enough — ninety-five
+units from the boss's centre — is inside a bow's edge measured from the boss's
+edge, so a hunter would have stood at a distance the AI was happy with and
+fired nothing. A shooter is asked about its own rule now. It is only asked
+about the boss: running from a thrall costs more uptime than the thrall does.
+
 **A warrior charges.** Both specs carry it: it crosses up to 260 units to
 whatever it is aimed at, stops at swinging distance rather than inside it, and
 arrives with 25 rage — which is the answer to a resource that starts at

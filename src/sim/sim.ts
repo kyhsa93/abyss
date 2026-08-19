@@ -94,7 +94,9 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // at" are the same thing nearly all the time, and picking by distance
     // means a tank never stands beside the boss swinging at nothing because
     // its target was a thrall across the floor.
-    const target = nearestHostile(s, a, auto.range)
+    // Nearest thing the weapon can actually be used on. A bow shoots past
+    // whatever is standing on the hunter rather than at it.
+    const target = nearestHostile(s, a, auto.range, auto.minRange ?? 0)
     if (!target) continue
 
     a.swingTimer = auto.speed
@@ -125,13 +127,22 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
   }
 }
 
-function nearestHostile(s: SimState, from: Actor, range: number): Actor | null {
+function nearestHostile(
+  s: SimState,
+  from: Actor,
+  range: number,
+  minRange: number,
+): Actor | null {
   let best: Actor | null = null
   let bestGap = Infinity
   for (const other of s.actors) {
     if (other.faction !== 'boss' || !other.alive) continue
-    const gap = dist(from.pos, other.pos) - other.radius
-    if (gap <= range && gap < bestGap) {
+    // Clamped at zero: standing inside something's radius is a gap of none,
+    // not a negative one. Without this every melee stopped swinging the
+    // moment a near edge existed anywhere, because a melee stands closer to
+    // the boss's centre than the boss's own radius.
+    const gap = Math.max(0, dist(from.pos, other.pos) - other.radius)
+    if (gap >= minRange && gap <= range && gap < bestGap) {
       bestGap = gap
       best = other
     }

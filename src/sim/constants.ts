@@ -51,6 +51,15 @@ export const PUDDLE_TELEGRAPH = 1.6
 export const MELEE_RANGE = 52
 
 /**
+ * How far away a bow needs its target.
+ *
+ * A drawn bow has a near edge that a spell does not: the hunter is the one
+ * ranged class that cannot simply stand on what it is shooting. Just outside
+ * melee, and just inside where the party AI already keeps its ranged.
+ */
+export const SHOT_MIN_RANGE = 90
+
+/**
  * Reach of everything cast from a distance, and of the hunter's bow.
  *
  * One number rather than two: a band where a hunter's shots land but its

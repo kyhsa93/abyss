@@ -1,4 +1,4 @@
-import { MELEE_RANGE, SPELL_RANGE } from './constants'
+import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { Personality, ResourceId, Role } from './types'
 
 /**
@@ -85,6 +85,8 @@ export interface AutoAttack {
   /** Seconds between swings. */
   speed: number
   range: number
+  /** A bow cannot be drawn on something standing on top of you. */
+  minRange?: number
 }
 
 /**
@@ -99,7 +101,12 @@ export interface AutoAttack {
  * second rotation running itself.
  */
 const SWING: AutoAttack = { damage: 50, speed: 3, range: MELEE_RANGE }
-const SHOT: AutoAttack = { damage: 48, speed: 3, range: SPELL_RANGE }
+const SHOT: AutoAttack = {
+  damage: 48,
+  speed: 3,
+  range: SPELL_RANGE,
+  minRange: SHOT_MIN_RANGE,
+}
 
 /**
  * Which of a class's specs, by name.

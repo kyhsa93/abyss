@@ -1,4 +1,4 @@
-import { SPELL_RANGE } from './constants'
+import { SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { AuraId, Role } from './types'
 
 export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge'
@@ -32,8 +32,11 @@ export interface Ability {
   /** Maximum distance to the target. */
   range: number
   /**
-   * Minimum distance, for the one ability that exists to cross a gap. Being
-   * already there is not a reason to spend a cooldown.
+   * Minimum distance.
+   *
+   * Two things need one, for opposite reasons: a charge because being already
+   * there is not worth a cooldown, and a bow because it cannot be drawn on
+   * something standing on top of you.
    */
   minRange?: number
   /**
@@ -96,9 +99,9 @@ const list: Ability[] = [
   { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 20, cost: 60, amount: 700, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
-  { id: 'steady_shot', name: 'Steady Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 88, threatMult: 1, aura: null, range: SPELL },
-  { id: 'serpent_sting', name: 'Serpent Sting', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 30, threatMult: 1, aura: 'serpent_sting', range: SPELL },
-  { id: 'aimed_shot', name: 'Aimed Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 12, cost: 35, amount: 380, threatMult: 1, aura: null, range: SPELL },
+  { id: 'steady_shot', name: 'Steady Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 88, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'serpent_sting', name: 'Serpent Sting', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 30, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'aimed_shot', name: 'Aimed Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 12, cost: 35, amount: 380, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
   // --- rogue: highest sustained damage, paid for in melee range ------------
   { id: 'sinister_strike', name: 'Sinister Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 40, amount: 115, threatMult: 1, aura: null, range: MELEE },

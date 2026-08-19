@@ -59,6 +59,7 @@ import {
   CRIT_MULTIPLIER,
   ENRAGE_AT,
   MELEE_RANGE,
+  SHOT_MIN_RANGE,
   SPELL_RANGE,
 } from '../src/sim/constants'
 import { Rng } from '../src/sim/rng'
@@ -2450,6 +2451,109 @@ for (const [label, w, h] of [
       charged = s.effects.some((e) => e.kind === 'dash')
     }
     expect('an AI warrior charges rather than walks', charged, 'it walked the whole way')
+  }
+}
+
+// --- a bow has a near edge ------------------------------------------------
+//
+// The hunter is the one ranged class that cannot stand on what it is
+// shooting. Same machinery as the charge's near edge, for the opposite
+// reason: one exists to cross a gap, the other needs one.
+{
+  const shots = ['steady_shot', 'serpent_sting', 'aimed_shot']
+  const missing = shots.filter((id) => (ABILITIES[id]!.minRange ?? 0) < SHOT_MIN_RANGE)
+  expect('every shot needs the distance', missing.length === 0, missing.join(', '))
+  expect(
+    'and so does the bow itself',
+    (specOf(pickFor('hunter', 'dps')!).auto?.minRange ?? 0) === SHOT_MIN_RANGE,
+    `${specOf(pickFor('hunter', 'dps')!).auto?.minRange}`,
+  )
+
+  // Nobody else picked one up by accident. A charge is the only other thing
+  // with a near edge, and it has one to cross rather than to keep.
+  const others = Object.values(ABILITIES).filter(
+    (a) => (a.minRange ?? 0) > 0 && a.kind !== 'charge' && !shots.includes(a.id),
+  )
+  expect('and nothing else has one', others.length === 0, others.map((a) => a.id).join(', '))
+
+  const setup = (gap: number) => {
+    const s = createState(0x51ed, 0, [
+      pickFor('hunter', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('rogue', 'dps')!,
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = boss(s).pos.x + gap
+    player.pos.y = boss(s).pos.y
+    return { s, player }
+  }
+
+  {
+    // On top of it: refused, and told the truth about why.
+    const { s, player } = setup(70)
+    const shot = ABILITIES.steady_shot!
+    expect(
+      'standing on the boss, a shot is blocked for being close',
+      castBlocker(s, player, shot, boss(s).id) === 'close',
+      `${castBlocker(s, player, shot, boss(s).id)}`,
+    )
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, new Rng(0x51ed))
+    expect('and says so', s.texts.some((t) => t.text === 'Too close'), s.texts.map((t) => t.text).join(', '))
+    expect('the slot is red', slotStatus(s, player, 'steady_shot') === 'range', slotStatus(s, player, 'steady_shot'))
+    expect('and no shot went out', (s.tally[player.id]?.damage ?? 0) === 0, `${s.tally[player.id]?.damage}`)
+  }
+
+  {
+    // Backed off: fine, exactly as before.
+    const { s, player } = setup(220)
+    expect(
+      'from range it is a shot like any other',
+      castBlocker(s, player, ABILITIES.steady_shot!, boss(s).id) === null,
+      `${castBlocker(s, player, ABILITIES.steady_shot!, boss(s).id)}`,
+    )
+  }
+
+  {
+    // The bow shoots past what is standing on it rather than at it: a hunter
+    // with a thrall in its face still puts its damage on the boss.
+    const { s, player } = setup(200)
+    const auto = specOf(pickFor('hunter', 'dps')!).auto!
+    const rng = new Rng(0x51ed)
+    let shotSomething = false
+    for (let i = 0; i < 30 * 8; i++) {
+      const b = boss(s)
+      player.pos.x = b.pos.x + 200
+      player.pos.y = b.pos.y
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      shotSomething ||= (s.tally[player.id]?.damage ?? 0) > 0
+    }
+    const dealt = s.tally[player.id]?.damage ?? 0
+    expect('a hunter held at range keeps shooting', shotSomething && dealt >= auto.damage, `${dealt}`)
+  }
+
+  {
+    // And the AI keeps itself outside its own edge rather than standing in a
+    // dead zone doing nothing. The party AI's shared idea of far enough is
+    // narrower than a bow's, which is what this had to learn.
+    const s = createState(0x51ed, 0, [
+      pickFor('mage', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('hunter', 'dps')!,
+      pickFor('rogue', 'dps')!,
+    ])
+    const hunter = s.actors.find((a) => a.classId === 'hunter')!
+    hunter.pos.x = boss(s).pos.x + 70
+    hunter.pos.y = boss(s).pos.y
+    const rng = new Rng(0x51ed)
+    for (let i = 0; i < 30 * 20; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    expect(
+      'an AI hunter does not stand in its own dead zone',
+      (s.tally[hunter.id]?.damage ?? 0) > 0,
+      'it never fired a shot',
+    )
   }
 }
 

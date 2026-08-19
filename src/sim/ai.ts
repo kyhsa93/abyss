@@ -195,6 +195,14 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
 
   if (d > CASTER_MAX_RANGE || d < CASTER_MIN_RANGE) return true
 
+  // Its own near edge is wider than the distance a caster is happy at, so a
+  // shooter has to be asked about its own rule rather than the shared one.
+  //
+  // Only about the boss. A thrall standing on a hunter is not worth running
+  // from: it shoots past it at the boss instead, and running would cost more
+  // uptime than the thrall does.
+  if (tooClose(actor, b)) return true
+
   if (actor.role === 'healer') {
     // A healer also has to be able to reach whoever is hurt.
     const wounded = lowestHealth(s)
@@ -421,6 +429,20 @@ function tryCast(
 }
 
 /**
+ * Inside the near edge of everything this actor could point at it.
+ *
+ * Read off the kit rather than the class: whatever the widest near edge among
+ * its abilities is, that is the distance at which it is useless.
+ */
+function tooClose(actor: Actor, target: Actor): boolean {
+  const kit = specFor(actor).abilities
+  const ids = [kit.filler, kit.overTime, kit.finisher].filter((id): id is string => id !== null)
+  const near = Math.max(0, ...ids.map((id) => ABILITIES[id]?.minRange ?? 0))
+  if (near === 0) return false
+  return dist(actor.pos, target.pos) < near + target.radius
+}
+
+/**
  * Closing a gap the class can close itself.
  *
  * Melee spend the opening seconds walking, and a warrior has a button for
@@ -531,6 +553,11 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
     for (const a of summoned) if (a.hp < focus.hp) focus = a
     target = focus
   }
+
+  // A bow has a near edge, and a thrall's whole plan is to stand on you. The
+  // one it cannot shoot is not a target, so it shoots past it at the boss
+  // rather than standing there doing nothing at all.
+  if (tooClose(actor, target)) target = tooClose(actor, b) ? target : b
 
   if (tryCharge(s, actor, target, rng, moving)) return
 
