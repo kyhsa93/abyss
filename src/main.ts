@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
-import { drawHud, outcomeButtons, partyButton, soundButton } from './render/hud'
+import { drawHud, hitOutcome, partyButton, soundButton } from './render/hud'
 import {
   check as checkAwards,
   load as loadAwards,
@@ -311,15 +311,17 @@ function frame(now: number): void {
     return
   }
 
-  // The overlay has explicit buttons, since a phone has no R key.
+  // The overlay has explicit buttons, since a phone has no R key. Only those
+  // two answer: a tap anywhere else is somebody reading the report, and it
+  // used to pull again under them.
   if (state.outcome !== 'ongoing' && tap) {
-    const buttons = outcomeButtons()
-    if (inside(buttons.party, tap.x, tap.y)) {
+    const hit = hitOutcome(tap.x, tap.y)
+    if (hit === 'party') {
       screen = 'roster'
       requestAnimationFrame(frame)
       return
     }
-    restart()
+    if (hit === 'retry') restart()
   }
   if (input.takeRestart()) restart()
 

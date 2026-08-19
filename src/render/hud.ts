@@ -52,6 +52,22 @@ export function outcomeButtons(): { retry: Rect; party: Rect } {
 }
 
 /**
+ * What a tap on the end-of-fight overlay landed on, if anything.
+ *
+ * A miss is a miss. Every tap that was not CHANGE PARTY used to read as PULL
+ * AGAIN, so reading the report — which is the whole of what that screen is
+ * for — started the next pull out from under you, and on a phone there was no
+ * other way to look at it.
+ */
+export function hitOutcome(x: number, y: number): 'retry' | 'party' | null {
+  const buttons = outcomeButtons()
+  for (const [id, r] of [['retry', buttons.retry], ['party', buttons.party]] as const) {
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return id
+  }
+  return null
+}
+
+/**
  * Live meter, bottom right.
  *
  * Where "bottom right" is depends on what is already there. In portrait the

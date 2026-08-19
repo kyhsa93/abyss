@@ -88,7 +88,9 @@ off the bottom.
 
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
-right edge, and a tap on the end-of-fight overlay to pull again. The canvas
+right edge, and the two buttons on the end-of-fight overlay. Only those two
+answer a tap there — the rest of that screen is the report, and reading it
+used to start the next pull. The canvas
 fills the viewport and the layout is recomputed per orientation, so portrait
 and landscape both work.
 

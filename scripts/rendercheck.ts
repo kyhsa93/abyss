@@ -5,7 +5,9 @@ import { Effects } from '../src/render/effects'
 import { allIcons, iconFor } from '../src/render/icons'
 import {
   drawHud,
+  hitOutcome,
   meterRect,
+  outcomeButtons,
   partyButton,
   partyFrames,
   slotStatus,
@@ -2755,6 +2757,54 @@ for (const [label, w, h] of [
     !running.some((t) => count !== undefined && t.x === count.x && t.y === count.y),
     JSON.stringify(leftover.map((t) => t.text)),
   )
+}
+
+// --- the results screen answers its own buttons and nothing else ------------
+//
+// The overlay is mostly report: what everyone dealt, what they took, how the
+// pull ended. Reading it is the point of the screen, and a tap anywhere on it
+// used to be read as PULL AGAIN — so on a phone, where there is no other way
+// to look at anything, looking started the next pull.
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['small portrait 360x640', 360, 640],
+] as const) {
+  updateLayout(w, h)
+  const b = outcomeButtons()
+  const middle = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x + r.w / 2,
+    y: r.y + r.h / 2,
+  })
+
+  const retry = middle(b.retry)
+  const party = middle(b.party)
+  expect(`${label}: PULL AGAIN answers`, hitOutcome(retry.x, retry.y) === 'retry', `${hitOutcome(retry.x, retry.y)}`)
+  expect(`${label}: CHANGE PARTY answers`, hitOutcome(party.x, party.y) === 'party', `${hitOutcome(party.x, party.y)}`)
+
+  // Every corner of each button counts, or a tap on the edge of the one you
+  // aimed at falls through to the other outcome.
+  const corners = [b.retry, b.party].every((r) =>
+    [
+      [r.x, r.y],
+      [r.x + r.w, r.y],
+      [r.x, r.y + r.h],
+      [r.x + r.w, r.y + r.h],
+    ].every(([x, y]) => hitOutcome(x!, y!) !== null),
+  )
+  expect(`${label}: their edges count as hits`, corners, 'an edge fell through')
+
+  for (const [where, x, y] of [
+    ['the report', L.w / 2, L.h * 0.4],
+    ['the outcome title', L.w / 2, Math.max(40, L.h * 0.11)],
+    ['the gap between the buttons', L.w / 2, b.retry.y + b.retry.h / 2],
+    ['the line under them', L.w / 2, b.retry.y + b.retry.h + 20],
+    ['a corner of the screen', 3, 3],
+    ['below everything', L.w / 2, L.h - 2],
+  ] as const) {
+    expect(`${label}: ${where} does not`, hitOutcome(x, y) === null, `${hitOutcome(x, y)}`)
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
