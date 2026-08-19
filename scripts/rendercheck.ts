@@ -1582,7 +1582,26 @@ for (const [label, w, h] of [
       // And they stay out of the middle, where the player is pinned.
       const right = Math.max(...rects.map((r) => r.x + r.w))
       expect(`${label} ${size}: clear of the player`, right < L.cx - 10, `${right.toFixed(0)} vs ${L.cx}`)
+
+      // The block is capped at half the screen however many frames it holds.
+      const top = Math.min(...rects.map((r) => r.y))
+      const block = Math.max(...rects.map((r) => r.y + r.h)) - top
+      expect(
+        `${label} ${size}: the block is at most half the screen tall`,
+        block <= h / 2 + 0.01,
+        `${block.toFixed(0)} of ${(h / 2).toFixed(0)}`,
+      )
     }
+
+    // Width is not chosen on its own: one shape at every raid size and every
+    // viewport, so a frame is never long and thin here and square there.
+    const ratios = [5, 10, 25].flatMap((size) => partyFrames(size).map((r) => r.w / r.h))
+    const spread = Math.max(...ratios) - Math.min(...ratios)
+    expect(
+      `${label}: every frame is the same shape`,
+      spread < 0.01 && ratios[0]! > 2.5 && ratios[0]! < 3.5,
+      `${ratios[0]!.toFixed(2)} to ${Math.max(...ratios).toFixed(2)}`,
+    )
 
     // Smaller than they were: the old frames were a flat 108-150 wide and
     // 46-70 tall whatever the screen or the raid.

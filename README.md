@@ -46,10 +46,18 @@ answer is to walk in and press again.
 The party frames down the left are a grid of parties rather than one long
 column: a party is a column read top to bottom, and the columns run left to
 right three at a time before wrapping, so a ten-man is two columns side by
-side and a twenty-five man is three and then two underneath. Everything is
-sized off the viewport — they used to be a flat 108-150 by 46-70 whatever the
-screen and whatever the raid, which was a five-man's frames at twenty-five and
-ran two screens off the bottom.
+side and a twenty-five man is three and then two underneath.
+
+The block is capped at half the screen height, and everything else follows
+from that — the frames are as tall as half a screen divided by the rows they
+have to hold, and as wide as that height allows at a fixed shape, so a frame
+is never long and thin on one screen and square on another. Narrower than
+three columns is only considered once three has been squeezed past legibility,
+and then only if it actually comes out bigger: on a short screen fewer columns
+means more rows, which is worse in the direction that is already binding. They
+used to be a flat 108-150 by 46-70 whatever the screen and whatever the raid,
+which was a five-man's frames worn by a twenty-five man and ran two screens
+off the bottom.
 
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the

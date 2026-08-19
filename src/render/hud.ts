@@ -6,7 +6,7 @@ import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, WORLD_RADIUS, clamp, resourceColor, roleColor } from './theme'
+import { COLORS, L, WORLD_RADIUS, resourceColor, roleColor } from './theme'
 
 export interface Rect {
   x: number
@@ -553,35 +553,53 @@ function drawTideWarning(ctx: CanvasRenderingContext2D, s: SimState): void {
 export function partyFrames(count: number): Rect[] {
   const gap = 4
   const parties = partyCount(count)
-
-  // Three columns at most, and fewer when three would not leave a frame wide
-  // enough to read. The left band is the budget; the middle of the screen
-  // belongs to the fight.
-  const budget = L.w * (L.portrait ? 0.44 : 0.34)
-  const minW = 70
-  const cols = Math.max(1, Math.min(3, parties, Math.floor(budget / (minW + gap))))
-  // Proportional to the viewport, and capped well under what these used to
-  // be: a flat 108-150 by 46-70 was built for five frames and stayed that
-  // size at twenty-five, which is most of a phone screen of raid frames.
-  const w = Math.max(minW, Math.min(budget / cols - gap, clamp(L.w * 0.085, minW, 116)))
-
-  // Every column is a full party tall, and the rows of columns stack.
   const deep = Math.min(count, PARTY_UNIT)
-  const rows = Math.ceil(parties / cols) * deep
-  const room = L.h * (L.portrait ? 0.66 : 0.84) - L.partyY
-  const h = Math.max(22, Math.min(clamp(L.h * 0.05, 26, 40), room / rows - gap))
+
+  // The whole block fits in the top half of the screen. Everything else is
+  // derived from that: the frames are as tall as half a screen divided by the
+  // rows it has to hold, and as wide as that height allows.
+  const ceiling = L.h * 0.5
+  const budget = L.w * (L.portrait ? 0.44 : 0.34)
+
+  // One shape, three columns wide at most. Width follows height rather than
+  // being chosen on its own, so a frame never ends up long and thin on one
+  // screen and square on another.
+  const ASPECT = 2.9
+
+  const sized = (cols: number) => {
+    const rows = Math.ceil(parties / cols) * deep
+    const byHeight = (ceiling - gap * (rows - 1)) / rows
+    const byWidth = (budget - gap * (cols - 1)) / cols / ASPECT
+    const h = Math.max(14, Math.min(40, byHeight, byWidth))
+    return { cols, rows, h, w: h * ASPECT }
+  }
+
+  // Parties go side by side, three at a time, because that is what the frames
+  // are for: a ten-man is two groups and reads as two. Narrower is only
+  // considered when three has been squeezed below the point of legibility,
+  // and then only if it actually comes out bigger — on a short screen fewer
+  // columns means more rows, which is worse in the direction that is already
+  // the binding one.
+  const legible = 48
+  let best = sized(Math.min(3, parties))
+  if (best.w < legible) {
+    for (let cols = best.cols - 1; cols >= 1; cols--) {
+      const option = sized(cols)
+      if (option.w > best.w) best = option
+    }
+  }
 
   const rects: Rect[] = []
   for (let i = 0; i < count; i++) {
     const party = Math.floor(i / PARTY_UNIT)
-    const col = party % cols
-    const bandRow = Math.floor(party / cols)
+    const col = party % best.cols
+    const bandRow = Math.floor(party / best.cols)
     const withinParty = i % PARTY_UNIT
     rects.push({
-      x: L.partyX + col * (w + gap),
-      y: L.partyY + (bandRow * deep + withinParty) * (h + gap),
-      w,
-      h,
+      x: L.partyX + col * (best.w + gap),
+      y: L.partyY + (bandRow * deep + withinParty) * (best.h + gap),
+      w: best.w,
+      h: best.h,
     })
   }
   return rects
