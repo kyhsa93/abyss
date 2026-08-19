@@ -13,7 +13,7 @@ import {
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
-import { ABILITIES } from '../src/sim/abilities'
+import { ABILITIES, type Ability } from '../src/sim/abilities'
 import {
   abilityBar,
   autoParty,
@@ -46,6 +46,7 @@ import {
   applyHeal,
   boss,
   castBlocker,
+  dist,
   landAbility,
   projectileKind,
   resolveAbility,
@@ -53,6 +54,7 @@ import {
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
+  CHARGE_RAGE,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   ENRAGE_AT,
@@ -261,8 +263,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const target = s.actors[s.actors.length - 1]!
 
   const silent: string[] = []
+  // A charge has a range and throws nothing: it is the caster crossing the
+  // gap rather than something crossing it for them.
+  const thrown = (a: Ability) => a.range >= PROJECTILE_MIN_RANGE && a.kind !== 'charge'
+
   for (const ability of Object.values(ABILITIES)) {
-    if (ability.range < PROJECTILE_MIN_RANGE) continue
+    if (!thrown(ability)) continue
     s.projectiles.length = 0
     // Heals need someone other than the caster, or there is nothing to cross.
     const victim = ability.kind === 'heal' ? ally : target
@@ -270,7 +276,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
     if (s.projectiles.length === 0) silent.push(ability.id)
   }
 
-  const ranged = Object.values(ABILITIES).filter((a) => a.range >= PROJECTILE_MIN_RANGE)
+  const ranged = Object.values(ABILITIES).filter(thrown)
   console.log(
     silent.length === 0 ? 'ok  ' : 'FAIL',
     `  all ${ranged.length} ranged abilities fire a bolt`,
@@ -686,20 +692,23 @@ for (const [label, w, h] of [
     untaunted.map((t) => t.id).join(', '),
   )
 
-  // The bar order is a contract with the keyboard: slot i is key i+1. A new
-  // ability appended in the wrong place relabels every button after it.
+  // The bar order is a contract with the keyboard: slot i is pressed with key
+  // i+1, and the label on the slot is that index. It used to be a field on
+  // the ability, which could not survive one ability sitting in different
+  // slots in two specs — a warrior's charge is the fifth button as
+  // protection and the fourth as arms.
   const mislabelled: string[] = []
   for (const id of CLASS_ORDER) {
     for (const spec of CLASSES[id].specs) {
       const bar = abilityBar({ classId: id, spec: spec.id })
       if (bar.length > BAR_SLOTS) mislabelled.push(`${id} ${spec.role}: ${bar.length} slots`)
-      bar.forEach((abilityId: string, i: number) => {
-        const key = ABILITIES[abilityId]!.key
-        if (key !== String(i + 1)) mislabelled.push(`${id} ${spec.role}: ${abilityId} says ${key}, is slot ${i + 1}`)
-      })
+      if (new Set(bar).size !== bar.length) mislabelled.push(`${id} ${spec.role}: a repeated ability`)
+      if (bar.some((abilityId) => 'key' in ABILITIES[abilityId]!)) {
+        mislabelled.push(`${id} ${spec.role}: an ability still carries its own key`)
+      }
     }
   }
-  expect('every bar slot is labelled with the key that fires it', mislabelled.length === 0, mislabelled.join('; '))
+  expect('no ability carries a key of its own', mislabelled.length === 0, mislabelled.join('; '))
 }
 
 // A taunt has to take the boss back off whoever ran away with it.
@@ -1387,12 +1396,16 @@ for (const [label, w, h] of [
 
   // Everything but the answers to a mechanic costs something. A defensive or
   // a taunt that is sometimes unaffordable is a mechanic you cannot answer
-  // for a reason the button never showed.
+  // for a reason the button never showed. A charge is free for the opposite
+  // reason: it is where a warrior's rage comes from at the start of a pull,
+  // and charging to earn rage you needed to charge would be a circle.
   const free = Object.values(ABILITIES).filter((a) => a.cost === 0)
-  const shouldBeFree = free.every((a) => a.kind === 'defensive' || a.kind === 'taunt')
+  const shouldBeFree = free.every(
+    (a) => a.kind === 'defensive' || a.kind === 'taunt' || a.kind === 'charge',
+  )
   expect(
-    `only the ${free.length} defensives and taunts are free`,
-    shouldBeFree && free.length === 6,
+    `only the ${free.length} defensives, taunts and charges are free`,
+    shouldBeFree && free.length === 7,
     free.map((a) => a.id).join(', '),
   )
 
@@ -1727,8 +1740,12 @@ for (const [label, w, h] of [
   const target = s.actors[s.actors.length - 1]!
 
   const anonymous: string[] = []
+  // A charge has a range and throws nothing: it is the caster crossing the
+  // gap rather than something crossing it for them.
+  const thrown = (a: Ability) => a.range >= PROJECTILE_MIN_RANGE && a.kind !== 'charge'
+
   for (const ability of Object.values(ABILITIES)) {
-    if (ability.range < PROJECTILE_MIN_RANGE) continue
+    if (!thrown(ability)) continue
     s.projectiles.length = 0
     const victim = ability.kind === 'heal' ? s.actors[2]! : target
     resolveAbility(s, caster, ability, victim.id, rng)
@@ -1739,7 +1756,7 @@ for (const [label, w, h] of [
   // Which is only worth anything if the icons it reads from are distinct —
   // that is already checked above, so this checks the join: a colour for
   // every ability that can put something in the air.
-  const ranged = Object.values(ABILITIES).filter((a) => a.range >= PROJECTILE_MIN_RANGE)
+  const ranged = Object.values(ABILITIES).filter(thrown)
   const colours = new Set(ranged.map((a) => iconFor(a.id).colour))
   expect(
     `${ranged.length} ranged abilities draw on ${colours.size} colours`,
@@ -2328,6 +2345,112 @@ for (const [label, w, h] of [
   const boss = [COLORS.boss, '#a855f7', COLORS.dead]
   const clashes = classes.filter((id) => boss.includes(classColor(id)))
   expect('and none of them is the boss', clashes.length === 0, clashes.join(', '))
+}
+
+// --- a warrior closes its own gap -----------------------------------------
+//
+// Melee spend the opening seconds walking. A charge crosses that gap, earns
+// the rage a warrior otherwise opens a pull without, and is the one ability
+// with a near edge: being already there is not a reason to spend it.
+{
+  const charge = ABILITIES.charge!
+  expect('a charge reaches further than a swing', charge.range > MELEE_RANGE * 3, `${charge.range}`)
+  expect('and has a near edge', (charge.minRange ?? 0) > MELEE_RANGE, `${charge.minRange}`)
+  expect('and costs nothing', charge.cost === 0, `${charge.cost}`)
+
+  const warriors = SPEC_OPTIONS.filter((p) => p.classId === 'warrior')
+  const armed = warriors.filter((p) => specOf(p).abilities.mobility === 'charge')
+  expect('both warrior specs carry it', armed.length === warriors.length, `${armed.length}`)
+
+  const bars = warriors.map((p) => abilityBar(p))
+  expect(
+    'and it sits in a different slot in each',
+    bars[0]!.indexOf('charge') !== bars[1]!.indexOf('charge'),
+    bars.map((b) => b.indexOf('charge')).join(' and '),
+  )
+
+  const setup = (gap: number) => {
+    const s = createState(0x51ed, 0, [
+      pickFor('warrior', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('rogue', 'dps')!,
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = boss(s).pos.x + gap
+    player.pos.y = boss(s).pos.y
+    player.power = 0
+    return { s, player, slot: abilityBar(pickFor('warrior', 'dps')!).indexOf('charge') }
+  }
+
+  {
+    const { s, player, slot } = setup(220)
+    const before = dist(player.pos, boss(s).pos)
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, new Rng(0x51ed))
+    const after = dist(player.pos, boss(s).pos)
+    expect('charging crosses the gap', after < MELEE_RANGE + boss(s).radius + 5, `${after.toFixed(0)} from ${before.toFixed(0)}`)
+    expect('and arrives with rage to spend', player.power >= CHARGE_RAGE - 1, `${player.power}`)
+    expect('and draws the run', s.effects.some((e) => e.kind === 'dash'), s.effects.map((e) => e.kind).join(', '))
+  }
+
+  {
+    // Already there: refused, and told why in the words that fit.
+    const { s, player, slot } = setup(30)
+    expect(
+      'standing on it, the charge is blocked for being close',
+      castBlocker(s, player, charge, boss(s).id) === 'close',
+      `${castBlocker(s, player, charge, boss(s).id)}`,
+    )
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, new Rng(0x51ed))
+    expect('which is not the same thing as out of range', s.texts.some((t) => t.text === 'Too close'), s.texts.map((t) => t.text).join(', '))
+    expect('and costs no cooldown', (player.cooldowns.charge ?? 0) === 0, `${player.cooldowns.charge}`)
+  }
+
+  {
+    // Across the arena: still out of range, and still says so.
+    const { s, player } = setup(ARENA_RADIUS - 20)
+    expect(
+      'from across the floor it is out of range',
+      castBlocker(s, player, charge, boss(s).id) === 'range',
+      `${castBlocker(s, player, charge, boss(s).id)}`,
+    )
+  }
+
+  {
+    // The button reads as unusable at both edges, since from either one the
+    // answer is the same: not from here.
+    const near = setup(30)
+    const far = setup(ARENA_RADIUS - 20)
+    expect(
+      'the slot is red at both edges',
+      slotStatus(near.s, near.player, 'charge') === 'range' &&
+        slotStatus(far.s, far.player, 'charge') === 'range',
+      `${slotStatus(near.s, near.player, 'charge')} and ${slotStatus(far.s, far.player, 'charge')}`,
+    )
+  }
+
+  {
+    // And the AI uses it rather than walking: a warrior parked at range
+    // should be in melee within a couple of seconds.
+    const s = createState(0x51ed, 0, [
+      pickFor('mage', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('warrior', 'dps')!,
+      pickFor('rogue', 'dps')!,
+    ])
+    const arms = s.actors.find((a) => a.classId === 'warrior' && a.spec === 'arms')!
+    arms.pos.x = boss(s).pos.x + 200
+    arms.pos.y = boss(s).pos.y
+    const rng = new Rng(0x51ed)
+    let charged = false
+    for (let i = 0; i < 30 * 3 && !charged; i++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      charged = s.effects.some((e) => e.kind === 'dash')
+    }
+    expect('an AI warrior charges rather than walks', charged, 'it walked the whole way')
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

@@ -290,6 +290,26 @@ Defensives and taunts are free. They are the answer to a mechanic, and an
 answer that is sometimes unaffordable for a reason the button cannot show is
 worse than having no resource at all.
 
+**A warrior charges.** Both specs carry it: it crosses up to 260 units to
+whatever it is aimed at, stops at swinging distance rather than inside it, and
+arrives with 25 rage — which is the answer to a resource that starts at
+nothing, since a warrior otherwise opens a pull unable to press anything. It
+costs nothing itself, because charging to earn the rage you needed to charge
+would be a circle.
+
+It is the one ability with a near edge. Standing on top of something is not a
+reason to spend a cooldown, so a charge from melee is refused and says `Too
+close` rather than `Out of range`, which would be exactly the wrong thing to
+say. The button reads as unusable at both edges, since from either one the
+answer is the same.
+
+Adding it took the key labels off the abilities. Each one carried the number
+it was pressed with, which worked only while an ability sat in the same slot
+for everybody: charge is the fifth button as protection and the fourth as
+arms. The slot is the label now, and the bar grew to five — a second column
+beside the first rather than a taller stack, since four rows already reach
+back into the arena on a phone.
+
 **Weapons swing on their own.** Melee specs hit whatever is in reach every
 three seconds and the hunter shoots from spell range, as physical damage, on
 no global cooldown and with no press — white damage is what happens while you

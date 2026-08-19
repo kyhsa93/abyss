@@ -148,16 +148,17 @@ export function computeLayout(w: number, h: number): Layout {
   const btnGap = btnR * 2.35
   const btnBottom = h - btnR - (portrait ? 26 : 18)
 
-  // Three up the right edge, and the fourth beside the bottom one instead of
-  // continuing the column. A fourth row reaches back up into the arena on a
-  // phone — the stack is already nine button-radii tall — and the corner is
-  // the easiest place for a thumb to get to anyway. It still has to clear the
-  // left half of the screen, which belongs to the stick.
+  // Three up the right edge, then a second column beside them rather than a
+  // taller stack. Four rows would reach back up into the arena on a phone —
+  // the column is already nine button-radii tall — and the corner is the
+  // easiest place for a thumb to get to anyway. The inner column still has to
+  // clear the left half of the screen, which belongs to the stick.
   const btnPos = [
     { x: btnX, y: btnBottom - btnGap * 2 },
     { x: btnX, y: btnBottom - btnGap },
     { x: btnX, y: btnBottom },
     { x: btnX - btnGap, y: btnBottom },
+    { x: btnX - btnGap, y: btnBottom - btnGap },
   ]
 
   return {

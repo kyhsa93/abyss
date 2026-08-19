@@ -21,6 +21,14 @@ export const GLOBAL_COOLDOWN = 1.5
  * hits a reason to sometimes look bigger than they are, and the floating text
  * has had a `crit` kind waiting for one since before there were crits.
  */
+/**
+ * Rage for arriving.
+ *
+ * A charge is how a warrior opens a pull with something to spend, which is
+ * the answer to a resource that starts at nothing.
+ */
+export const CHARGE_RAGE = 25
+
 export const CRIT_CHANCE = 0.15
 export const CRIT_MULTIPLIER = 1.5
 

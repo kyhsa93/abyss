@@ -187,7 +187,7 @@ export interface FloatingText {
  * live in the simulation — a pull has to replay identically from its seed,
  * and particles that aged inside the state would make that untrue.
  */
-export type EffectKind = 'impact' | 'heal' | 'swing' | 'cast' | 'fizzle'
+export type EffectKind = 'impact' | 'heal' | 'swing' | 'cast' | 'fizzle' | 'dash'
 
 export interface EffectEvent {
   kind: EffectKind

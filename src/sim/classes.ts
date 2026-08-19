@@ -33,6 +33,8 @@ export interface ClassAbilities {
   threat: string | null
   /** Tanks only: takes the boss back off whoever it wandered to. */
   taunt: string | null
+  /** Closing a gap the class is expected to close on its own. */
+  mobility: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
 }
@@ -193,6 +195,7 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   defensive: null,
   threat: null,
   taunt: null,
+  mobility: null,
   attack: null,
   ...a,
 })
@@ -214,7 +217,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 9200,
         block: 260,
         power: 100,
-        abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall', taunt: 'taunt' }),
+        abilities: kit({
+          filler: 'cleave',
+          threat: 'shield_slam',
+          defensive: 'shield_wall',
+          taunt: 'taunt',
+          mobility: 'charge',
+        }),
       },
       {
         id: 'arms',
@@ -226,7 +235,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 5200,
         block: 0,
         power: 100,
-        abilities: kit({ filler: 'mortal_strike', overTime: 'rend', finisher: 'execute' }),
+        abilities: kit({ filler: 'mortal_strike', overTime: 'rend', finisher: 'execute', mobility: 'charge' }),
       },
     ],
   },
@@ -833,7 +842,7 @@ export const SLOTS = makeSlots(5)
  */
 export function abilityBar(pick: Pick): string[] {
   const a = specOf(pick).abilities
-  return [a.filler, a.threat, a.overTime, a.finisher, a.defensive, a.taunt].filter(
+  return [a.filler, a.threat, a.overTime, a.finisher, a.defensive, a.taunt, a.mobility].filter(
     (id): id is string => id !== null,
   )
 }

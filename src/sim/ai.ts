@@ -420,10 +420,25 @@ function tryCast(
   return beginCast(s, actor, id, targetId, rng)
 }
 
+/**
+ * Closing a gap the class can close itself.
+ *
+ * Melee spend the opening seconds walking, and a warrior has a button for
+ * exactly that. Tried before the rotation, since nothing else it presses will
+ * land from out there anyway.
+ */
+function tryCharge(s: SimState, actor: Actor, target: Actor, rng: Rng, moving: boolean): boolean {
+  const kit = specFor(actor).abilities
+  if (!kit.mobility) return false
+  return tryCast(s, actor, kit.mobility, target.id, rng, moving)
+}
+
 function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   const ai = actor.ai!
   const kit = specFor(actor).abilities
+
+  if (tryCharge(s, actor, b, rng, moving)) return
 
   // Defensive on the incoming slam. The fumble roll is what makes the tank
   // occasionally eat it, which is exactly what a real tank does.
@@ -516,6 +531,8 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
     for (const a of summoned) if (a.hp < focus.hp) focus = a
     target = focus
   }
+
+  if (tryCharge(s, actor, target, rng, moving)) return
 
   // Keep the dot up, but only refresh near the end so several dealers do not
   // all spend a global on the same debuff.

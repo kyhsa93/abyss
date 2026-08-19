@@ -210,8 +210,11 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     // A press that goes nowhere used to be silent, which reads as the button
     // being broken. Cooldowns and empty mana are already on the button; being
     // too far away is the one reason nothing on screen was saying.
-    if (castBlocker(s, player, ability, target) === 'range') {
-      reportOutOfRange(s, player)
+    const blocked = castBlocker(s, player, ability, target)
+    if (blocked === 'range' || blocked === 'close') {
+      // A charge is the one ability with a near edge, and "out of range" is
+      // exactly the wrong thing to say about being on top of something.
+      reportReach(s, player, blocked === 'close' ? TOO_CLOSE : OUT_OF_RANGE)
       continue
     }
     beginCast(s, player, abilityId, target, rng)
@@ -219,6 +222,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
 }
 
 const OUT_OF_RANGE = 'Out of range'
+const TOO_CLOSE = 'Too close'
 
 /**
  * One notice at a time.
@@ -227,9 +231,9 @@ const OUT_OF_RANGE = 'Out of range'
  * three copies of the same words on top of each other is how you make a
  * message unreadable.
  */
-function reportOutOfRange(s: SimState, player: Actor): void {
-  if (s.texts.some((t) => t.text === OUT_OF_RANGE && t.age < 0.5)) return
-  pushText(s, player.pos, OUT_OF_RANGE, 'miss')
+function reportReach(s: SimState, player: Actor, text: string): void {
+  if (s.texts.some((t) => t.text === text && t.age < 0.5)) return
+  pushText(s, player.pos, text, 'miss')
   s.sounds.push('blocked')
 }
 

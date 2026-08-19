@@ -38,6 +38,7 @@ const ICONS: Record<string, IconSpec> = {
   shield_slam: { shape: 'shield', colour: '#60a5fa' },
   shield_wall: { shape: 'shield', colour: '#fbbf24' },
   taunt: { shape: 'burst', colour: '#f97316' },
+  charge: { shape: 'arrow', colour: '#c79c6e' },
   mortal_strike: { shape: 'blade', colour: '#ef4444' },
   rend: { shape: 'blade', colour: '#b91c1c', repeat: 3 },
   execute: { shape: 'blade', colour: '#fde047' },

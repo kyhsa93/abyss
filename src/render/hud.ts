@@ -177,7 +177,9 @@ export function slotStatus(s: SimState, player: Actor, abilityId: string): SlotS
   if (player.power < ability.cost) return 'resource'
 
   const target = ability.kind === 'taunt' ? boss(s).id : playerTarget(s)
-  return castBlocker(s, player, ability, target) === 'range' ? 'range' : 'ready'
+  // Too far and too close are the same answer on a button: not from here.
+  const blocked = castBlocker(s, player, ability, target)
+  return blocked === 'range' || blocked === 'close' ? 'range' : 'ready'
 }
 
 const SLOT_BORDER: Record<SlotStatus, string> = {
@@ -727,7 +729,9 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.font = font(9)
     ctx.fillStyle = COLORS.textDim
     ctx.textAlign = 'left'
-    ctx.fillText(ability.key, x + 5, y + 12 * L.ui)
+    // The slot is the key. It used to be a field on the ability, which could
+    // not survive one ability sitting in different slots in two specs.
+    ctx.fillText(`${bar.indexOf(id) + 1}`, x + 5, y + 12 * L.ui)
 
     // The wipe is circular even on a square icon, clipped to the slot.
     const state = slotCooldown(player, id, ability.cooldown)

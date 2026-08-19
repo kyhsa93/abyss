@@ -23,7 +23,7 @@ interface Burst {
   reach: number
   spokes: number
   angle: number
-  /** Half-width of the arc, or zero for a full ring. */
+  /** Half-width of the arc, zero for a full ring, negative for a streak. */
   arc: number
   /** Fills rather than outlines: a heal reads as arriving, not detonating. */
   inward: boolean
@@ -132,6 +132,24 @@ export class Effects {
       return
     }
 
+    // A charge: a streak along the ground where the warrior went, drawn as an
+    // arc squashed flat rather than as a ring, since it has a direction and a
+    // length rather than a centre.
+    if (event.kind === 'dash') {
+      this.bursts.push({
+        pos: event.pos,
+        age: 0,
+        life: 0.32,
+        colour: WEAPON,
+        reach: Math.max(20, event.power),
+        spokes: 0,
+        angle: event.angle,
+        arc: -1,
+        inward: false,
+      })
+      return
+    }
+
     if (event.kind === 'swing') {
       this.bursts.push({
         pos: event.pos,
@@ -185,7 +203,19 @@ export class Effects {
       ctx.strokeStyle = rgba(burst.colour, 0.85 * fade)
       ctx.lineWidth = Math.max(1, 4 * fade * scale)
       ctx.beginPath()
-      if (burst.arc > 0) {
+      if (burst.arc < 0) {
+        // The dash: a line from where it started to where it ended, fading
+        // and thinning from the tail.
+        const run = burst.reach * scale
+        const head = { x: p.x + Math.cos(burst.angle) * run, y: p.y + Math.sin(burst.angle) * run }
+        const tail = {
+          x: p.x + Math.cos(burst.angle) * run * t,
+          y: p.y + Math.sin(burst.angle) * run * t,
+        }
+        ctx.moveTo(tail.x, tail.y)
+        ctx.lineTo(head.x, head.y)
+        ctx.lineWidth = Math.max(1, 5 * fade * scale)
+      } else if (burst.arc > 0) {
         ctx.arc(p.x, p.y, r, burst.angle - burst.arc, burst.angle + burst.arc)
       } else {
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2)

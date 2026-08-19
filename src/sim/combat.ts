@@ -1,6 +1,13 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
-import { CRIT_CHANCE, CRIT_MULTIPLIER, GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
+import {
+  CHARGE_RAGE,
+  CRIT_CHANCE,
+  CRIT_MULTIPLIER,
+  GLOBAL_COOLDOWN,
+  MELEE_RANGE,
+  SPREAD_RADIUS,
+} from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
@@ -382,7 +389,7 @@ export function spawnBolt(
  * visible on the button first, so the one thing the button cannot show —
  * whether you are close enough — is what gets reported.
  */
-export type CastBlock = 'locked' | 'resource' | 'target' | 'range'
+export type CastBlock = 'locked' | 'resource' | 'target' | 'range' | 'close'
 
 export function castBlocker(
   s: SimState,
@@ -398,7 +405,11 @@ export function castBlocker(
   if (ability.range > 0) {
     const target = actorById(s, targetId)
     if (!target || !target.alive) return 'target'
-    if (dist(actor.pos, target.pos) > ability.range + target.radius) return 'range'
+    const gap = dist(actor.pos, target.pos)
+    if (gap > ability.range + target.radius) return 'range'
+    // Only a charge has a near edge: being already there is not a reason to
+    // spend its cooldown.
+    if (ability.minRange && gap < ability.minRange + target.radius) return 'close'
   }
   return null
 }
@@ -465,7 +476,13 @@ export function resolveAbility(
   // Anything thrown lands when it gets there. The bolt used to be scenery
   // travelling after damage that had already happened, which meant a shot at
   // something about to die always counted and a heal was never too late.
-  if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
+  // A charge is the caster crossing the gap, not something thrown across it.
+  if (
+    ability.kind !== 'charge' &&
+    ability.range >= PROJECTILE_MIN_RANGE &&
+    target &&
+    target.id !== actor.id
+  ) {
     spawnBolt(s, actor, target.id, projectileKind(ability), ability.id, actor.id)
     return
   }
@@ -523,6 +540,24 @@ export function landAbility(
     }
     case 'defensive': {
       if (ability.aura) addAura(actor, ability.aura, actor.id)
+      break
+    }
+    case 'charge': {
+      if (!target || !target.alive) return
+      const dx = target.pos.x - actor.pos.x
+      const dy = target.pos.y - actor.pos.y
+      const gap = Math.max(0.001, Math.hypot(dx, dy))
+      // Stops at swinging distance rather than inside them, so the charge
+      // ends where the rotation can carry on.
+      const landing = Math.max(0, gap - (target.radius + MELEE_RANGE * 0.7))
+      const from = { x: actor.pos.x, y: actor.pos.y }
+      actor.pos.x += (dx / gap) * landing
+      actor.pos.y += (dy / gap) * landing
+
+      // Running at something is the other way a warrior earns rage, and the
+      // reason a charge opens a pull rather than waiting one out.
+      gainPower(actor, CHARGE_RAGE)
+      pushEffect(s, 'dash', from, { angle: Math.atan2(dy, dx), power: landing })
       break
     }
   }

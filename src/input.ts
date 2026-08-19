@@ -251,10 +251,10 @@ const MOVE_KEYS = new Set([
   'arrowright',
 ])
 /**
- * Four action slots: tanks fill all of them, and a class with fewer simply
- * leaves the tail empty.
+ * Five action slots: a protection warrior fills all of them, and a class with
+ * fewer simply leaves the tail empty.
  */
-export const BAR_SLOTS = 4
+export const BAR_SLOTS = 5
 const ABILITY_KEYS = new Map(
   Array.from({ length: BAR_SLOTS }, (_, i) => [String(i + 1), i] as const),
 )
