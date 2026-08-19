@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { abilityBar } from './classes'
+import { abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
 import { resolveBossCast, updateBoss, updateGround } from './boss'
 import {
@@ -10,11 +10,15 @@ import {
   boss,
   detonateSpread,
   interruptCast,
+  dist,
   livingParty,
+  pushText,
+  spawnBolt,
   resolveAbility,
   beginCast,
+  castBlocker,
 } from './combat'
-import { DT, MANA_REGEN_PER_SEC } from './constants'
+import { DT, MANA_REGEN_PER_SEC, MELEE_RANGE } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -47,6 +51,8 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
     if (a.faction === 'party' && a.ai) updatePartyAi(s, a, rng)
   }
 
+  updateAutoAttacks(s)
+
   updateBoss(s, rng)
   updateGround(s)
   updateProjectiles(s)
@@ -55,6 +61,62 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 
   ageEphemera(s)
   resolveOutcome(s)
+}
+
+/**
+ * Weapons, swinging on their own.
+ *
+ * The boss and its thralls have always had this; the party fought with
+ * nothing but its spell list, so a rogue standing in melee doing nothing was
+ * a rogue doing literally nothing. Melee specs swing, the hunter shoots, and
+ * everyone else has no weapon to speak of.
+ *
+ * It costs no global cooldown and asks for no press: the whole point of white
+ * damage is that it is what happens while you are busy deciding.
+ */
+function updateAutoAttacks(s: SimState): void {
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const auto = specOf({ classId: a.classId, role: a.role }).auto
+    if (!auto) continue
+
+    if (a.swingTimer > 0) {
+      a.swingTimer -= DT
+      continue
+    }
+
+    // Whatever the weapon can actually reach, nearest first. Adds walk into
+    // the melee on their own, so "closest" and "what the rotation is aimed
+    // at" are the same thing nearly all the time, and picking by distance
+    // means a tank never stands beside the boss swinging at nothing because
+    // its target was a thrall across the floor.
+    const target = nearestHostile(s, a, auto.range)
+    if (!target) continue
+
+    a.swingTimer = auto.speed
+    // Physical, so it answers armour and block the way a weapon should. The
+    // boss carries neither, which is a decision it can change without this
+    // needing to know.
+    applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id })
+    if (target.id === BOSS_ID) addThreat(s, a.id, auto.damage)
+    // A shot with nothing in the air between the two of them reads as the
+    // hunter standing still doing nothing, same as the ranged abilities.
+    if (auto.range > MELEE_RANGE) spawnBolt(s, a, target.id, 'bolt')
+  }
+}
+
+function nearestHostile(s: SimState, from: Actor, range: number): Actor | null {
+  let best: Actor | null = null
+  let bestGap = Infinity
+  for (const other of s.actors) {
+    if (other.faction !== 'boss' || !other.alive) continue
+    const gap = dist(from.pos, other.pos) - other.radius
+    if (gap <= range && gap < bestGap) {
+      bestGap = gap
+      best = other
+    }
+  }
+  return best
 }
 
 function updateTimers(s: SimState, a: Actor): void {
@@ -117,18 +179,47 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   const bar = abilityBar({ classId: player.classId, role: player.role })
   for (const slot of input.pressed) {
     const abilityId = bar[slot]
-    if (!abilityId) continue
+    const ability = ABILITIES[abilityId ?? '']
+    if (!abilityId || !ability) continue
     // Target the nearest add if one is up, otherwise the boss. A taunt is the
     // exception: adds keep no threat table, so aiming one at an add would be
     // a wasted cooldown on the button whose whole job is the boss.
-    const target =
-      ABILITIES[abilityId]?.kind === 'taunt' ? BOSS_ID : playerTarget(s)
+    const target = ability.kind === 'taunt' ? BOSS_ID : playerTarget(s)
+
+    // A press that goes nowhere used to be silent, which reads as the button
+    // being broken. Cooldowns and empty mana are already on the button; being
+    // too far away is the one reason nothing on screen was saying.
+    if (castBlocker(s, player, ability, target) === 'range') {
+      reportOutOfRange(s, player)
+      continue
+    }
     beginCast(s, player, abilityId, target, rng)
   }
 }
 
-/** Adds are the priority target while they are alive. */
-function playerTarget(s: SimState): number {
+const OUT_OF_RANGE = 'Out of range'
+
+/**
+ * One notice at a time.
+ *
+ * Three fingers on three buttons is three presses in a tick, and stacking
+ * three copies of the same words on top of each other is how you make a
+ * message unreadable.
+ */
+function reportOutOfRange(s: SimState, player: Actor): void {
+  if (s.texts.some((t) => t.text === OUT_OF_RANGE && t.age < 0.5)) return
+  pushText(s, player.pos, OUT_OF_RANGE, 'miss')
+  s.sounds.push('blocked')
+}
+
+/**
+ * Adds are the priority target while they are alive.
+ *
+ * Exported because the action bar has to answer the same question to know
+ * whether a slot is in range of anything, and two answers to "what are you
+ * aiming at" is one too many.
+ */
+export function playerTarget(s: SimState): number {
   let best: number = BOSS_ID
   let bestHp = Infinity
   for (const a of s.actors) {

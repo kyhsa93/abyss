@@ -12,9 +12,6 @@ export const ARENA_RADIUS = 460
 
 export const GLOBAL_COOLDOWN = 1.5
 
-/** Cast bars break if the caster moves further than this while casting. */
-export const CAST_MOVE_TOLERANCE = 2
-
 /** Everyone within this radius of a spread target takes the hit. */
 export const SPREAD_RADIUS = 110
 
@@ -34,3 +31,11 @@ export const PUDDLE_TELEGRAPH = 1.6
 
 /** Melee actors need to be this close to their target to swing. */
 export const MELEE_RANGE = 52
+
+/**
+ * Reach of everything cast from a distance, and of the hunter's bow.
+ *
+ * One number rather than two: a band where a hunter's shots land but its
+ * weapon does not would read as a bug, not as a rule.
+ */
+export const SPELL_RANGE = 340

@@ -62,6 +62,12 @@ const RECIPES: Record<SoundEvent, Recipe> = {
     tones: [{ type: 'triangle', from: 900, to: 900, duration: 0.035, gain: 0.03 }],
     throttle: 0.05,
   },
+  // A press that did not happen. Falling, dull, and nothing like `cast`, so
+  // "that went out" and "that did not" are never mistaken for each other.
+  blocked: {
+    tones: [{ type: 'square', from: 260, to: 150, duration: 0.09, gain: 0.05 }],
+    throttle: 0.35,
+  },
   death: {
     tones: [{ type: 'sawtooth', from: 330, to: 70, duration: 0.7, gain: 0.16 }],
     throttle: 0.25,

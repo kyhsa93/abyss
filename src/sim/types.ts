@@ -203,6 +203,7 @@ export type SoundEvent =
   | 'hit'
   | 'heal'
   | 'cast'
+  | 'blocked'
   | 'death'
   | 'phase'
   | 'victory'

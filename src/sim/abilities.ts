@@ -1,3 +1,4 @@
+import { SPELL_RANGE } from './constants'
 import type { AuraId, Role } from './types'
 
 export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt'
@@ -33,7 +34,7 @@ export interface Ability {
 }
 
 const MELEE = 52
-const SPELL = 340
+const SPELL = SPELL_RANGE
 const HEAL_RANGE = 390
 
 /**

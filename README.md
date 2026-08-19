@@ -36,6 +36,13 @@ names its own shortcut and the rest is a raid game's standard layout. On touch t
 readout. Leaving without changing anything keeps your pull count, since the
 AI's learning is tied to how many times *these* five have pulled.
 
+A press that cannot go out says why. Cooldowns and empty mana are already
+drawn on the button, so the one reason nothing on screen was giving is being
+too far away: the slot turns red while the target is out of reach, and
+pressing it anyway prints `Out of range` over your character rather than doing
+nothing, which is what a broken button also does. It costs no cooldown, so the
+answer is to walk in and press again.
+
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
 right edge, and a tap on the end-of-fight overlay to pull again. The canvas
@@ -109,10 +116,11 @@ damage.** There is no arrangement of five slots that plays, so picking a role
 there is read as a trade — tap a tank into your own slot and the slot that was
 tanking takes the one you gave up. Refusing it instead would freeze the
 composition, since a fixed shape has no legal intermediate state to pass
-through and the player could never move off the role they started on. So a twenty-five man is mostly damage, and it works
-out because the extra damage shortens the fight rather than adding survival —
-25-player normal wins 25% of first pulls rising to 70%, against a five-man's
-35% to 55%.
+through and the player could never move off the role they started on.
+
+So a twenty-five man is mostly damage, and it works out because the extra
+damage shortens the fight rather than adding survival — 25-player normal wins
+25% of first pulls rising to 70%, against a five-man's 45% to 65%.
 
 Mechanics scale with headcount. A fixed number of puddles across twenty-five
 players means any one player is almost never targeted, so without scaling the
@@ -224,6 +232,19 @@ Personality belongs to the slot rather than the class. Kestrel gambles on long
 casts with a telegraph already on the floor and reacts late; Wren bails early
 and overheals.
 
+**Weapons swing on their own.** Melee specs hit whatever is in reach every
+three seconds and the hunter shoots from spell range, as physical damage, on
+no global cooldown and with no press — white damage is what happens while you
+are busy deciding, and without it a rogue standing in melee between presses
+was doing literally nothing. Casters have none: a wand plink is not the
+fantasy and not worth the numbers it would put on screen.
+
+It is sized against what the party actually does rather than against the
+ability tooltips. The AI loses damage to reaction delay and to walking out of
+puddles; a weapon loses none, so white damage lands at nearly full uptime and
+is worth far more per point than it looks. At fifty a swing it is about a
+sixth of an auto-attacker's own output and a seventh of the raid's.
+
 **Ranged casts throw a visible bolt.** Damage still resolves the instant the
 ability does — the bolt is a tell, not a mechanic, and the balance numbers are
 identical with and without it. Its appearance is derived from what the ability
@@ -283,7 +304,11 @@ The puddle hit test allows a little grace at the rim — your token has to be
 meaningfully inside, not merely overlapping the edge.
 
 Your `Burst` has a two-second cast and movement cancels it, so the real
-decision is when you can afford to stand still.
+decision is when you can afford to stand still. A cancelled cast costs
+nothing: mana is only spent when a cast resolves, and the cooldown is handed
+back the moment it breaks. Charging for a spell that never went off made
+standing in the fire the cheaper play, which is the opposite of the decision
+the cast time is there to create.
 
 ## Installable and offline
 
@@ -329,18 +354,21 @@ trend:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 38% | 75% | 72% | 131s |
-| 1 tank, 2 healers, 2 damage | 28% | 25% | 38% | 241s |
-| 1 tank, 0 healers, 4 damage | 7% | 5% | 7% | 78s |
+| 1 tank, 1 healer, 3 damage | 62% | 78% | 87% | 122s |
+| 1 tank, 2 healers, 2 damage | 40% | 43% | 53% | 226s |
+| 1 tank, 0 healers, 4 damage | 7% | 13% | 10% | 79s |
 | 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 75s |
-| all melee | 8% | 28% | 28% | 141s |
-| all caster | 58% | 72% | 77% | 133s |
-| druid tank, shaman healer | 38% | 57% | 58% | 124s |
+| all melee | 23% | 42% | 50% | 129s |
+| all caster | 48% | 68% | 78% | 132s |
+| druid tank, shaman healer | 28% | 52% | 57% | 124s |
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is
-close to unplayable for the same reason it is a bad idea in the real thing:
-everyone is stacked in the one place the boss is aiming.
+still the worst real composition, for the same reason it is a bad idea in the
+real thing — everyone is stacked in the one place the boss is aiming — but it
+is no longer close to unplayable: weapons swing whether or not you are in
+position to press anything, and melee are the ones carrying them, so the gap
+to all-caster closed from fifty points on a first pull to twenty-five.
 
 Per-member detail for the default composition, `puddle uptime / units walked
 per second`:

@@ -1,3 +1,4 @@
+import { MELEE_RANGE, SPELL_RANGE } from './constants'
 import type { Personality, Role } from './types'
 
 /**
@@ -69,10 +70,41 @@ export function mitigation(armor: number): number {
  * is the whole reason a class can tank at all. So the stats live on the spec,
  * not the class.
  */
+/**
+ * The weapon, swinging on its own.
+ *
+ * Abilities are the decisions; this is the damage that happens while you make
+ * them. Only classes that carry a weapon into range have one — a caster
+ * plinking with a wand is neither the fantasy nor worth the numbers it would
+ * put on screen.
+ */
+export interface AutoAttack {
+  damage: number
+  /** Seconds between swings. */
+  speed: number
+  range: number
+}
+
+/**
+ * Everyone in melee swings the same weapon; the hunter shoots instead.
+ *
+ * Sized against what the party actually does rather than against the ability
+ * tooltips: the AI loses damage to reaction delay and to walking out of
+ * puddles, a weapon loses none, so white damage lands at close to a hundred
+ * percent uptime and is worth far more per point than it looks. At a swing
+ * every three seconds this is about a sixth of an auto-attacker's own output
+ * and a seventh of the raid's — a real reason to stand in range, and not a
+ * second rotation running itself.
+ */
+const SWING: AutoAttack = { damage: 50, speed: 3, range: MELEE_RANGE }
+const SHOT: AutoAttack = { damage: 48, speed: 3, range: SPELL_RANGE }
+
 export interface Spec {
   role: Role
   /** Melee specs have to close to the boss to use anything. */
   melee: boolean
+  /** Absent for the classes that fight entirely through their spell list. */
+  auto?: AutoAttack
   hp: number
   armor: number
   block: number
@@ -108,6 +140,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'tank',
         melee: true,
+        auto: SWING,
         hp: 6200,
         armor: 9200,
         block: 260,
@@ -117,6 +150,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'dps',
         melee: true,
+        auto: SWING,
         hp: 4200,
         armor: 5200,
         block: 0,
@@ -135,6 +169,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'tank',
         melee: true,
+        auto: SWING,
         hp: 5800,
         armor: 8600,
         block: 240,
@@ -158,6 +193,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'dps',
         melee: true,
+        auto: SWING,
         hp: 4000,
         armor: 5000,
         block: 0,
@@ -216,6 +252,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'tank',
         melee: true,
+        auto: SWING,
         // Bear form has no shield, and a flat block is worth a great deal
         // against a fast weapon, so it pays for that in a much larger health
         // pool: harder to spike down, more of a drain on the healers.
@@ -314,6 +351,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'dps',
         melee: false,
+        auto: SHOT,
         hp: 3600,
         armor: 3300,
         block: 0,
@@ -336,6 +374,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         role: 'dps',
         melee: true,
+        auto: SWING,
         hp: 3400,
         armor: 2300,
         block: 0,

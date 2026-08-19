@@ -1,8 +1,9 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
 import { CLASSES, abilityBar } from '../sim/classes'
+import { playerTarget } from '../sim/sim'
 import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
-import { adds, boss } from '../sim/combat'
+import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
 import { COLORS, L, WORLD_RADIUS, roleColor } from './theme'
@@ -157,6 +158,39 @@ function isUsable(player: Actor, abilityId: string): boolean {
   if (!player.alive || player.castId) return false
   if (player.gcd > 0 && !ABILITIES[abilityId]?.offGcd) return false
   return (player.cooldowns[abilityId] ?? 0) <= 0
+}
+
+/**
+ * What a slot should look like right now.
+ *
+ * Both bars draw from this rather than working it out themselves, which is
+ * how the touch layout ended up able to disagree with the keyboard one about
+ * whether a button was live.
+ */
+export type SlotStatus = 'ready' | 'range' | 'mana' | 'locked'
+
+export function slotStatus(s: SimState, player: Actor, abilityId: string): SlotStatus {
+  const ability = ABILITIES[abilityId]
+  if (!ability) return 'locked'
+  if (!isUsable(player, abilityId)) return 'locked'
+  if (player.mana < ability.manaCost) return 'mana'
+
+  const target = ability.kind === 'taunt' ? boss(s).id : playerTarget(s)
+  return castBlocker(s, player, ability, target) === 'range' ? 'range' : 'ready'
+}
+
+const SLOT_BORDER: Record<SlotStatus, string> = {
+  ready: COLORS.castBar,
+  range: COLORS.hpBarLow,
+  mana: COLORS.manaBar,
+  locked: COLORS.panelEdge,
+}
+
+const SLOT_RING: Record<SlotStatus, string> = {
+  ready: 'rgba(250, 204, 21, 0.9)',
+  range: 'rgba(248, 113, 113, 0.85)',
+  mana: 'rgba(59, 130, 246, 0.8)',
+  locked: 'rgba(107, 114, 128, 0.6)',
 }
 
 /** What a slot should show: its own cooldown if it has one, else the GCD. */
@@ -608,12 +642,12 @@ function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   for (const id of bar) {
     const ability = ABILITIES[id]!
-    const poor = player.mana < ability.manaCost
-    const usable = isUsable(player, id) && !poor
+    const status = slotStatus(s, player, id)
+    const usable = status === 'ready'
 
     ctx.fillStyle = COLORS.panel
     ctx.fillRect(x, y, slot, slot)
-    ctx.strokeStyle = usable ? COLORS.castBar : poor ? COLORS.manaBar : COLORS.panelEdge
+    ctx.strokeStyle = SLOT_BORDER[status]
     ctx.lineWidth = usable ? 2 : 1
     ctx.strokeRect(x + 0.5, y + 0.5, slot - 1, slot - 1)
 
@@ -696,19 +730,15 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     const id = bar[i]!
     const ability = ABILITIES[id]!
     const { x: bx, y: cy } = L.btnPos[i]!
-    const poor = player.mana < ability.manaCost
-    const usable = isUsable(player, id) && !poor
+    const status = slotStatus(s, player, id)
+    const usable = status === 'ready'
     const holding = touch.heldSlots.has(i)
 
     ctx.beginPath()
     ctx.arc(bx, cy, L.btnR, 0, Math.PI * 2)
     ctx.fillStyle = holding ? 'rgba(250, 204, 21, 0.28)' : 'rgba(15, 17, 26, 0.55)'
     ctx.fill()
-    ctx.strokeStyle = usable
-      ? 'rgba(250, 204, 21, 0.9)'
-      : poor
-        ? 'rgba(59, 130, 246, 0.8)'
-        : 'rgba(107, 114, 128, 0.6)'
+    ctx.strokeStyle = SLOT_RING[status]
     ctx.lineWidth = usable ? 3 : 2
     ctx.stroke()
 

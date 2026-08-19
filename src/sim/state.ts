@@ -13,7 +13,18 @@ import {
 } from './classes'
 import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
 
-const BOSS_MAX_HP = 36000
+/**
+ * Raised from 36,000 when the party got weapons.
+ *
+ * Auto-attacks add about eleven percent to what the raid actually lands —
+ * measured rather than assumed, because their theoretical uptime is nothing
+ * like their real one: melee walk out of puddles, lose range and die. Left
+ * alone that turned a 43% first pull into a 73% one. The health follows the
+ * damage, and it follows it by the same fraction at five, ten and
+ * twenty-five, so one number covers every size. What the weapons changed is
+ * who contributes, not how long the boss lives.
+ */
+const BOSS_MAX_HP = 40000
 
 interface PersonalityTuning {
   reactionDelay: number

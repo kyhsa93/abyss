@@ -178,7 +178,11 @@ export function applyDamage(
   if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
-    const enraged = getAura(boss(s), 'enrage')
+    // The enrage is a boss damage amplifier, so it only doubles what the raid
+    // is taking. Before the party had a physical attack of its own nothing
+    // else reached this line, and reading it as "everything doubles" would
+    // now hand the melee a free second wind at the four minute mark.
+    const enraged = target.faction === 'party' && getAura(boss(s), 'enrage')
     if (enraged) final *= 2
   }
 
@@ -273,8 +277,12 @@ export function projectileKind(ability: Ability): ProjectileKind {
   return 'bolt'
 }
 
-function spawnProjectile(s: SimState, from: Actor, targetId: number, ability: Ability): void {
-  const kind = projectileKind(ability)
+export function spawnBolt(
+  s: SimState,
+  from: Actor,
+  targetId: number,
+  kind: ProjectileKind,
+): void {
   const speed = PROJECTILE_SPEED[kind]
 
   s.projectiles.push({
@@ -288,19 +296,36 @@ function spawnProjectile(s: SimState, from: Actor, targetId: number, ability: Ab
   })
 }
 
-export function canCast(s: SimState, actor: Actor, ability: Ability, targetId: number): boolean {
-  if (!actor.alive) return false
-  if (actor.castId) return false
-  if (actor.gcd > 0 && !ability.offGcd) return false
-  if ((actor.cooldowns[ability.id] ?? 0) > 0) return false
-  if (actor.mana < ability.manaCost) return false
+/**
+ * Why a cast will not go out, or null if it will.
+ *
+ * The reasons are ordered the way a player reads them: the ones already
+ * visible on the button first, so the one thing the button cannot show —
+ * whether you are close enough — is what gets reported.
+ */
+export type CastBlock = 'locked' | 'mana' | 'target' | 'range'
+
+export function castBlocker(
+  s: SimState,
+  actor: Actor,
+  ability: Ability,
+  targetId: number,
+): CastBlock | null {
+  if (!actor.alive || actor.castId) return 'locked'
+  if (actor.gcd > 0 && !ability.offGcd) return 'locked'
+  if ((actor.cooldowns[ability.id] ?? 0) > 0) return 'locked'
+  if (actor.mana < ability.manaCost) return 'mana'
 
   if (ability.range > 0) {
     const target = actorById(s, targetId)
-    if (!target || !target.alive) return false
-    if (dist(actor.pos, target.pos) > ability.range + target.radius) return false
+    if (!target || !target.alive) return 'target'
+    if (dist(actor.pos, target.pos) > ability.range + target.radius) return 'range'
   }
-  return true
+  return null
+}
+
+export function canCast(s: SimState, actor: Actor, ability: Ability, targetId: number): boolean {
+  return castBlocker(s, actor, ability, targetId) === null
 }
 
 /** Starts a cast, or resolves it immediately for instant abilities. */
@@ -327,6 +352,15 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
 
 export function interruptCast(s: SimState, actor: Actor, reason: string): void {
   if (!actor.castId) return
+
+  // A cast that never landed costs nothing.
+  //
+  // Mana is only spent when a cast resolves, so the cooldown was the one
+  // charge that survived being broken: stepping out of a puddle a quarter of
+  // the way into a Pyroblast took twenty seconds of an ability you never got
+  // to use, and the only winning move was to stand in the fire.
+  actor.cooldowns[actor.castId] = 0
+
   actor.castId = null
   actor.castRemaining = 0
   actor.castTargetId = null
@@ -344,7 +378,7 @@ export function resolveAbility(
   if (ability.manaCost > 0) actor.mana = Math.max(0, actor.mana - ability.manaCost)
 
   if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
-    spawnProjectile(s, actor, target.id, ability)
+    spawnBolt(s, actor, target.id, projectileKind(ability))
   }
 
   switch (ability.kind) {

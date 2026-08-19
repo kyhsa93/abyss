@@ -2,7 +2,7 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
 import { allIcons, iconFor } from '../src/render/icons'
-import { drawHud, meterRect, partyButton, soundButton } from '../src/render/hud'
+import { drawHud, meterRect, partyButton, slotStatus, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
@@ -11,6 +11,8 @@ import {
   CLASS_ORDER,
   ROLE_LIMITS,
   SPEC_OPTIONS,
+  mitigation,
+  specOf,
   abilityBar,
   autoParty,
   canSelect,
@@ -27,12 +29,15 @@ import {
 } from '../src/sim/classes'
 import {
   PROJECTILE_MIN_RANGE,
+  addAura,
+  applyDamage,
   boss,
+  castBlocker,
   projectileKind,
   resolveAbility,
   topThreatTarget,
 } from '../src/sim/combat'
-import { ENRAGE_AT } from '../src/sim/constants'
+import { ARENA_RADIUS, ENRAGE_AT, MELEE_RANGE, SPELL_RANGE } from '../src/sim/constants'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { createState } from '../src/sim/state'
@@ -1002,6 +1007,293 @@ for (const [label, w, h] of [
   expect(`all ${living} living actors are on the minimap`, dots.length >= living, `${dots.length} dots`)
   const frame = circles.filter((c) => Math.abs(c.r - L.mapR) < 0.01)
   expect('the minimap is drawn at its own radius', frame.length >= 2, `${frame.length}`)
+}
+
+// --- a press that goes nowhere has to say so ------------------------------
+//
+// Cooldowns and empty mana are drawn on the button. Being too far away was
+// not, so pressing from across the arena did nothing at all and read as the
+// button being broken.
+{
+  const far = () => {
+    const s = createState(0x51ed, 0)
+    const player = s.actors.find((a) => a.isPlayer)!
+    // The rim, with the boss on the origin: outside every range in the game.
+    player.pos.x = ARENA_RADIUS - 10
+    player.pos.y = 0
+    return { s, player }
+  }
+
+  {
+    const { s, player } = far()
+    const rng = new Rng(0x51ed)
+    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+
+    expect(
+      'the slot reads as out of range before it is pressed',
+      slotStatus(s, player, filler) === 'range',
+      slotStatus(s, player, filler),
+    )
+
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+    const notices = s.texts.filter((t) => t.text === 'Out of range')
+    expect('pressing it says so', notices.length === 1, `${notices.length} notices`)
+    expect('and it is audible', s.sounds.includes('blocked'), s.sounds.join(','))
+    // The press cost nothing, so it can be answered by walking in and
+    // pressing again rather than waiting out a cooldown you never used.
+    expect('the press costs no global cooldown', player.gcd === 0, `${player.gcd}`)
+    expect('and no cooldown', (player.cooldowns[filler] ?? 0) === 0, `${player.cooldowns[filler]}`)
+  }
+
+  {
+    // Three fingers is three presses in one tick, and three copies of the
+    // same words on top of each other is unreadable.
+    const { s } = far()
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [0, 1, 2] }, rng)
+    const notices = s.texts.filter((t) => t.text === 'Out of range')
+    expect('three blocked presses say it once', notices.length === 1, `${notices.length} notices`)
+  }
+
+  {
+    // In range it stays quiet and the cast goes out.
+    const s = createState(0x51ed, 0)
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = 80
+    player.pos.y = 0
+    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+
+    expect('in range the slot reads ready', slotStatus(s, player, filler) === 'ready', slotStatus(s, player, filler))
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, new Rng(0x51ed))
+    expect(
+      'and nothing is reported',
+      s.texts.every((t) => t.text !== 'Out of range'),
+      s.texts.map((t) => t.text).join(','),
+    )
+    expect('the cast went out', player.gcd > 0, `${player.gcd}`)
+  }
+
+  {
+    // A reason the button already shows wins, or walking closer would look
+    // like the fix for a cooldown.
+    const { s, player } = far()
+    const filler = abilityBar({ classId: player.classId, role: player.role })[0]!
+    player.cooldowns[filler] = 5
+    expect(
+      'a cooldown outranks the distance',
+      slotStatus(s, player, filler) === 'locked' &&
+        castBlocker(s, player, ABILITIES[filler]!, boss(s).id) === 'locked',
+      slotStatus(s, player, filler),
+    )
+  }
+
+  {
+    // Self-cast abilities have no range and must never report one.
+    const { s, player } = far()
+    const defensives = Object.values(ABILITIES).filter((a) => a.range === 0)
+    expect('there are rangeless abilities to check', defensives.length > 0, `${defensives.length}`)
+    const reported = defensives.filter(
+      (a) => castBlocker(s, player, a, player.id) === 'range',
+    )
+    expect('nothing rangeless reports a range', reported.length === 0, reported.map((a) => a.id).join(','))
+  }
+}
+
+// --- a broken cast costs nothing ------------------------------------------
+//
+// Moving cancels your cast, which is the core tension of the fight. It used
+// to also eat the cooldown, so stepping out of a puddle a quarter of the way
+// into a Pyroblast cost twenty seconds of an ability that never went off, and
+// the cheapest play was to stand in the fire and finish the cast.
+{
+  const setup = () => {
+    const s = createState(0x51ed, 0)
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = 80
+    player.pos.y = 0
+    const bar = abilityBar({ classId: player.classId, role: player.role })
+    const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0)
+    return { s, player, slot, id: bar[slot]! }
+  }
+
+  const { id: castId } = setup()
+  expect('the player has a cast-time ability to break', ABILITIES[castId]!.castTime > 0, castId)
+  expect('and it is worth refunding', ABILITIES[castId]!.cooldown > 0, `${ABILITIES[castId]!.cooldown}`)
+
+  {
+    const { s, player, slot, id } = setup()
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, rng)
+    expect('the cast starts', player.castId === id, `${player.castId}`)
+    expect('and takes the cooldown while it runs', (player.cooldowns[id] ?? 0) > 0, `${player.cooldowns[id]}`)
+
+    step(s, { moveX: 1, moveY: 0, pressed: [] }, rng)
+    expect('moving breaks it', player.castId === null, `${player.castId}`)
+    expect('the break is reported', s.texts.some((t) => t.text === 'moved'), s.texts.map((t) => t.text).join(','))
+    expect('and hands the cooldown back', (player.cooldowns[id] ?? 0) === 0, `${player.cooldowns[id]}`)
+
+    // Which has to mean it is pressable again, not merely zero on paper.
+    while (player.gcd > 0) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, rng)
+    expect('so it can be started again straight away', player.castId === id, `${player.castId}`)
+  }
+
+  {
+    // The refund must not leak into casts that actually land.
+    const { s, player, slot, id } = setup()
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, rng)
+    const cast = ABILITIES[id]!.castTime
+    for (let i = 0; i < Math.ceil(cast / (1 / 30)) + 2; i++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('a finished cast resolves', player.castId === null, `${player.castId}`)
+    expect(
+      'and stays on cooldown',
+      (player.cooldowns[id] ?? 0) > ABILITIES[id]!.cooldown - cast - 1,
+      `${player.cooldowns[id]}`,
+    )
+  }
+
+  {
+    // Instants have nothing to break, so their cooldown must survive a step.
+    const s = createState(0x51ed, 0)
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = 80
+    player.pos.y = 0
+    const bar = abilityBar({ classId: player.classId, role: player.role })
+    const slot = bar.findIndex((id) => ABILITIES[id]!.castTime === 0 && ABILITIES[id]!.cooldown > 0)
+    const id = bar[slot]!
+    const rng = new Rng(0x51ed)
+
+    step(s, { moveX: 0, moveY: 0, pressed: [slot] }, rng)
+    step(s, { moveX: 1, moveY: 0, pressed: [] }, rng)
+    expect('an instant keeps its cooldown through a move', (player.cooldowns[id] ?? 0) > 0, `${player.cooldowns[id]}`)
+  }
+}
+
+// --- weapons swing on their own -------------------------------------------
+//
+// The boss and its thralls always had auto-attacks; the party fought with
+// nothing but its spell list, so a rogue standing in melee between presses
+// was doing literally nothing.
+{
+  const armed = SPEC_OPTIONS.filter((pick) => specOf(pick).auto !== undefined)
+  const wrong = SPEC_OPTIONS.filter((pick) => {
+    const spec = specOf(pick)
+    const shoots = pick.classId === 'hunter'
+    const shouldHave = spec.melee || shoots
+    if (!shouldHave) return spec.auto !== undefined
+    if (!spec.auto) return true
+    return spec.auto.range !== (spec.melee ? MELEE_RANGE : SPELL_RANGE)
+  })
+  expect(
+    `${armed.length} specs carry a weapon, and only the right ones`,
+    wrong.length === 0 && armed.length === 7,
+    wrong.map((p) => `${p.classId} ${p.role}`).join(', ') || `${armed.length} armed`,
+  )
+
+  // A melee player who never touches a button still contributes, purely by
+  // being in range. Pinned to the boss each tick so the count is exact
+  // rather than a function of where the boss wandered.
+  const swinging = (pick: Pick, gap: number) => {
+    const party: Pick[] = [
+      pick,
+      { classId: 'warrior', role: 'tank' },
+      { classId: 'priest', role: 'healer' },
+      { classId: 'hunter', role: 'dps' },
+      { classId: 'rogue', role: 'dps' },
+    ]
+    const s = createState(0x51ed, 0, party)
+    const player = s.actors.find((a) => a.isPlayer)!
+    const rng = new Rng(0x51ed)
+    let sawOwnBolt = false
+
+    for (let i = 0; i < 30 * 12; i++) {
+      const b = boss(s)
+      player.pos.x = b.pos.x + gap
+      player.pos.y = b.pos.y
+      s.projectiles.length = 0
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      sawOwnBolt ||= s.projectiles.some(
+        (p) => p.prevPos.x === player.pos.x && p.prevPos.y === player.pos.y,
+      )
+    }
+    return { dealt: s.tally[player.id]?.damage ?? 0, sawOwnBolt, player }
+  }
+
+  {
+    const auto = specOf({ classId: 'rogue', role: 'dps' }).auto!
+    const { dealt } = swinging({ classId: 'rogue', role: 'dps' }, 20)
+    const swings = dealt / auto.damage
+    expect(
+      'a melee player who presses nothing still swings',
+      Number.isInteger(swings) && swings >= 12 / auto.speed,
+      `${dealt} damage, ${swings} swings`,
+    )
+  }
+
+  {
+    // The hunter is the one ranged weapon, and it has to put something in
+    // the air or it reads as standing still doing nothing.
+    const auto = specOf({ classId: 'hunter', role: 'dps' }).auto!
+    const { dealt, sawOwnBolt } = swinging({ classId: 'hunter', role: 'dps' }, 300)
+    const swings = dealt / auto.damage
+    expect(
+      'the hunter shoots from outside melee',
+      Number.isInteger(swings) && swings >= 12 / auto.speed,
+      `${dealt} damage at 300 units`,
+    )
+    expect('and the shot is visible', sawOwnBolt, 'no bolt from the hunter')
+  }
+
+  {
+    // Casters have no weapon, and nothing swings from out of reach.
+    const { dealt: caster } = swinging({ classId: 'mage', role: 'dps' }, 20)
+    expect('a caster in melee swings nothing', caster === 0, `${caster} damage`)
+    const { dealt: away } = swinging({ classId: 'rogue', role: 'dps' }, 300)
+    expect('and a melee weapon does not reach across the floor', away === 0, `${away} damage`)
+  }
+
+  {
+    // Physical, and the enrage is the boss hitting harder rather than
+    // everything hitting harder — which is what it would have meant once the
+    // party had a physical attack of its own.
+    const s = createState(0x51ed, 0)
+    const b = boss(s)
+    const member = s.actors.find((a) => a.faction === 'party')!
+    addAura(b, 'enrage', b.id)
+
+    const before = b.hp
+    applyDamage(s, b, 100, 'physical', { sourceId: member.id, silent: true })
+    expect('an enraged boss does not amplify what it is taking', before - b.hp === 100, `${before - b.hp}`)
+
+    const took = member.hp
+    applyDamage(s, member, 100, 'physical', { sourceId: b.id, silent: true })
+    const expected = Math.round(Math.max(0, 100 - member.block) * (1 - mitigation(member.armor)) * 2)
+    expect('but still amplifies what it deals', took - member.hp === expected, `${took - member.hp} vs ${expected}`)
+  }
+
+  {
+    // Swinging at the boss is damage on the boss, so it moves the threat
+    // table like any other.
+    const s = createState(0x51ed, 0, [
+      { classId: 'rogue', role: 'dps' },
+      { classId: 'warrior', role: 'tank' },
+      { classId: 'priest', role: 'healer' },
+      { classId: 'hunter', role: 'dps' },
+      { classId: 'mage', role: 'dps' },
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    const rng = new Rng(0x51ed)
+    for (let i = 0; i < 30 * 4; i++) {
+      const b = boss(s)
+      player.pos.x = b.pos.x + 20
+      player.pos.y = b.pos.y
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('a weapon builds threat', (s.threat[player.id] ?? 0) > 0, `${s.threat[player.id]}`)
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
