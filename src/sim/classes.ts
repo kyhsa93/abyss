@@ -30,6 +30,8 @@ export interface ClassAbilities {
   defensive: string | null
   /** Tanks only: the high-threat strike. */
   threat: string | null
+  /** Tanks only: takes the boss back off whoever it wandered to. */
+  taunt: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
 }
@@ -91,6 +93,7 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   finisher: null,
   defensive: null,
   threat: null,
+  taunt: null,
   attack: null,
   ...a,
 })
@@ -109,7 +112,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 9200,
         block: 260,
         mana: 0,
-        abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall' }),
+        abilities: kit({ filler: 'cleave', threat: 'shield_slam', defensive: 'shield_wall', taunt: 'taunt' }),
       },
       {
         role: 'dps',
@@ -139,6 +142,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         abilities: kit({
           filler: 'consecration',
           threat: 'avengers_shield',
+          taunt: 'hand_of_reckoning',
           defensive: 'divine_protection',
         }),
       },
@@ -219,7 +223,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 11500,
         block: 0,
         mana: 0,
-        abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen' }),
+        abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen', taunt: 'growl' }),
       },
       {
         role: 'healer',
@@ -399,6 +403,81 @@ export const ROLE_LIMITS: Record<Role, { min: number; max: number }> = {
   dps: { min: 0, max: 25 },
 }
 
+/**
+ * The one composition a five-man may field.
+ *
+ * Bigger raids have slack — a second tank or a third healer is a real choice
+ * there — but at five slots there is exactly one arrangement that works, and
+ * every other one is a wipe wearing a costume. So the five-man is exact
+ * rather than capped.
+ */
+export const FIVE_MAN: RoleCount = { tank: 1, healer: 1, dps: 3 }
+
+export function isFixedComposition(size: number): boolean {
+  return size === 5
+}
+
+/**
+ * Whether a hand-built raid is one we will pull with.
+ *
+ * The generated rosters have always honoured this, but the party screen did
+ * not: it warned about a wall of tanks and then pulled with it anyway. Three
+ * tanks is not a composition, it is a raid that cannot kill anything before
+ * the enrage, and a raid that is mostly healers just outlasts the encounter
+ * without ever beating it.
+ */
+export function isLegalComposition(party: Pick[]): boolean {
+  const roles = countRoles(party)
+  if (roles.tank > ROLE_LIMITS.tank.max || roles.healer > ROLE_LIMITS.healer.max) return false
+  if (isFixedComposition(party.length)) {
+    return (
+      roles.tank === FIVE_MAN.tank &&
+      roles.healer === FIVE_MAN.healer &&
+      roles.dps === FIVE_MAN.dps
+    )
+  }
+  return true
+}
+
+/**
+ * The party screen's only way to change a slot, so the rules cannot be
+ * enforced in the drawing and forgotten in the input.
+ *
+ * At a fixed size a tap that changes a slot's *role* is read as a trade: the
+ * slot that was holding that role takes the one being given up. Refusing it
+ * instead would leave the composition unchangeable — there is no legal
+ * intermediate state to pass through, so the player in slot one could never
+ * become the tank without rolling a random raid until it happened.
+ */
+export function selectInto(party: Pick[], slot: number, pick: Pick): Pick[] | null {
+  const current = party[slot]
+  if (!current) return null
+
+  const swapped = party.map((p, i) => (i === slot ? { ...pick } : p))
+  if (isLegalComposition(swapped)) return swapped
+
+  if (isFixedComposition(party.length) && current.role !== pick.role) {
+    const donor = party.findIndex((p, i) => i !== slot && p.role === pick.role)
+    if (donor >= 0) {
+      const traded = party.map((p, i) =>
+        i === slot ? { ...pick } : i === donor ? { ...current } : p,
+      )
+      if (isLegalComposition(traded)) return traded
+    }
+  }
+  return null
+}
+
+/**
+ * Whether `slot` may be changed to `pick`.
+ *
+ * Answered by asking for the change, so the party screen can never draw an
+ * entry as available that the tap then refuses.
+ */
+export function canSelect(party: Pick[], slot: number, pick: Pick): boolean {
+  return selectInto(party, slot, pick) !== null
+}
+
 export type DifficultyId = 'normal' | 'heroic'
 
 export interface Difficulty {
@@ -567,10 +646,16 @@ export const DEFAULT_PARTY: Pick[] = [
 /** Kept for the five-man default; larger raids build theirs from autoParty. */
 export const SLOTS = makeSlots(5)
 
-/** Action bar for a spec, in press order. Three slots at most. */
+/**
+ * Action bar for a spec, in press order.
+ *
+ * The order is the contract: slot i is pressed with key i+1, and each
+ * ability's own `key` has to agree with where it lands here. A tank fills all
+ * four; everyone else leaves the tail empty.
+ */
 export function abilityBar(pick: Pick): string[] {
   const a = specOf(pick).abilities
-  return [a.filler, a.threat, a.overTime, a.finisher, a.defensive].filter(
+  return [a.filler, a.threat, a.overTime, a.finisher, a.defensive, a.taunt].filter(
     (id): id is string => id !== null,
   )
 }

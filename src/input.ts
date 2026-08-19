@@ -231,16 +231,19 @@ export class Input {
 }
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
-/** Three action slots; a class with fewer simply leaves the tail empty. */
-export const BAR_SLOTS = 3
+/**
+ * Four action slots: tanks fill all of them, and a class with fewer simply
+ * leaves the tail empty.
+ */
+export const BAR_SLOTS = 4
 const ABILITY_KEYS = new Map(
   Array.from({ length: BAR_SLOTS }, (_, i) => [String(i + 1), i] as const),
 )
 
 function hitButton(x: number, y: number): number | null {
-  for (let i = 0; i < BAR_SLOTS && i < L.btnYs.length; i++) {
-    const by = L.btnYs[i]!
-    if (Math.hypot(x - L.btnX, y - by) <= L.btnHit) return i
+  for (let i = 0; i < BAR_SLOTS && i < L.btnPos.length; i++) {
+    const b = L.btnPos[i]!
+    if (Math.hypot(x - b.x, y - b.y) <= L.btnHit) return i
   }
   return null
 }

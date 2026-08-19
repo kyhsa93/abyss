@@ -145,8 +145,10 @@ export function createState(
   const threat: Record<number, number> = {}
   const tally: Record<number, Tally> = {}
   for (const m of members) {
-    // The tank opens with a threat lead so the pull is not a coin flip.
-    threat[m.id] = m.role === 'tank' ? 400 : 0
+    // Nobody opens with a lead. The boss goes to whoever earns it, which on
+    // the first tick of a pull means the tank has to take it with a taunt
+    // instead of being handed it.
+    threat[m.id] = 0
     tally[m.id] = {
       damage: 0,
       healing: 0,

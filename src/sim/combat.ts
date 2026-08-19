@@ -106,6 +106,25 @@ export function addThreat(s: SimState, actorId: number, amount: number): void {
   s.threat[actorId] = (s.threat[actorId] ?? 0) + amount
 }
 
+/**
+ * A taunt buys the lead, not the fight.
+ *
+ * It puts the caster a nose in front of whoever the boss is currently looking
+ * at rather than handing out a pile of threat, so taking the boss back costs
+ * nothing but has to be followed by actually holding it. The flat term is
+ * what makes it work from a standing start, where every threat value in the
+ * table is still zero and a percentage of nothing is nothing.
+ */
+const TAUNT_LEAD = 1.1
+const TAUNT_FLOOR = 40
+
+export function taunt(s: SimState, actor: Actor): void {
+  const leader = topThreatTarget(s)
+  const top = leader ? (s.threat[leader.id] ?? 0) : 0
+  const own = s.threat[actor.id] ?? 0
+  s.threat[actor.id] = Math.max(own, top * TAUNT_LEAD + TAUNT_FLOOR)
+}
+
 /** Highest-threat living party member. Ties break by id so it stays deterministic. */
 export function topThreatTarget(s: SimState): Actor | null {
   let best: Actor | null = null
@@ -340,6 +359,11 @@ export function resolveAbility(
       if (!target || !target.alive) return
       if (ability.amount > 0) applyHeal(s, target, ability.amount, actor.id)
       if (ability.aura) addAura(target, ability.aura, actor.id)
+      break
+    }
+    case 'taunt': {
+      taunt(s, actor)
+      pushText(s, actor.pos, ability.name, 'miss')
       break
     }
     case 'defensive': {

@@ -74,7 +74,7 @@ check(
 )
 
 // 4. A second finger on an ability button fires it without disturbing movement.
-fire('pointerdown', L.btnX, L.btnYs[1]!, 2)
+fire('pointerdown', L.btnPos[1]!.x, L.btnPos[1]!.y, 2)
 move = input.consume()
 check('button press queues its slot', move.pressed.join(',') === '1', JSON.stringify(move.pressed))
 check('movement survives the second finger', near(move.moveX, 1), JSON.stringify(move))
@@ -85,9 +85,9 @@ move = input.consume()
 check('held button does not repeat', move.pressed.length === 0, JSON.stringify(move.pressed))
 
 // 6. Releasing clears the latch so it can fire again.
-fire('pointerup', L.btnX, L.btnYs[1]!, 2)
+fire('pointerup', L.btnPos[1]!.x, L.btnPos[1]!.y, 2)
 check('latch clears on release', !input.heldSlots().has(1), [...input.heldSlots()].join(','))
-fire('pointerdown', L.btnX, L.btnYs[1]!, 3)
+fire('pointerdown', L.btnPos[1]!.x, L.btnPos[1]!.y, 3)
 move = input.consume()
 check('button fires again after release', move.pressed.join(',') === '1', JSON.stringify(move.pressed))
 
@@ -114,15 +114,44 @@ for (const [label, w, h] of [
   const inside =
     L.joyHomeX - L.joyBase >= 0 &&
     L.joyHomeY + L.joyBase <= h &&
-    L.btnX + L.btnR <= w &&
-    L.btnYs.every((y) => y - L.btnR >= 0 && y + L.btnR <= h)
-  check(`${label}: controls fit on screen`, inside, `joy=${L.joyHomeX},${L.joyHomeY} btn=${L.btnX},${L.btnYs.join('/')}`)
+    L.btnPos.every(
+      (b) =>
+        b.x - L.btnR >= 0 && b.x + L.btnR <= w && b.y - L.btnR >= 0 && b.y + L.btnR <= h,
+    )
+  const where = L.btnPos.map((b) => `${b.x.toFixed(0)},${b.y.toFixed(0)}`).join(' ')
+  check(`${label}: controls fit on screen`, inside, `joy=${L.joyHomeX},${L.joyHomeY} btn=${where}`)
 
-  const buttonsClearOfStick = L.btnX - L.btnR > L.joyZoneMaxX
-  check(`${label}: buttons outside the steering half`, buttonsClearOfStick, `${L.btnX - L.btnR} vs ${L.joyZoneMaxX}`)
+  // Every button, not just the column: the fourth slot sits further left than
+  // the rest and is the one that can reach into the steering half.
+  const leftmost = Math.min(...L.btnPos.map((b) => b.x - L.btnR))
+  check(`${label}: buttons outside the steering half`, leftmost > L.joyZoneMaxX, `${leftmost.toFixed(0)} vs ${L.joyZoneMaxX}`)
 
-  const arenaFits = L.cy + L.arenaR <= h && L.arenaR > 60
-  check(`${label}: arena fits above the controls`, arenaFits, `cy=${L.cy} r=${L.arenaR} h=${h}`)
+  // And no two of them may sit on top of each other, or one is unpressable.
+  const collisions = L.btnPos.flatMap((a, i) =>
+    L.btnPos.slice(i + 1).filter((b) => Math.hypot(a.x - b.x, a.y - b.y) < L.btnR * 2),
+  )
+  check(`${label}: ${L.btnPos.length} buttons do not overlap`, collisions.length === 0, where)
+
+  // The camera follows the player, so the arena is no longer pinned anywhere
+  // and "does the floor fit" is not the question any more. What has to hold
+  // is that the player's own token is drawn at the middle of the viewport,
+  // clear of both the top band and the thumbs.
+  const centred = L.cx === w / 2 && L.cy === h / 2
+  check(`${label}: the player is pinned to the middle of the screen`, centred, `${L.cx},${L.cy} of ${w}x${h}`)
+
+  // Nothing may sit on top of the player's own token, and there has to be
+  // room above it for the banner that hangs off the top band.
+  const nearestButton = Math.min(
+    ...L.btnPos.map((b) => Math.hypot(b.x - L.cx, b.y - L.cy) - L.btnR),
+  )
+  const stickGap = Math.hypot(L.joyHomeX - L.cx, L.joyHomeY - L.cy) - L.joyBase
+  const clearOfControls =
+    nearestButton > 24 && stickGap > 24 && L.cy > L.bannerY + 24 && L.arenaR > 60
+  check(
+    `${label}: nothing is drawn on top of the pin`,
+    clearOfControls,
+    `button ${nearestButton.toFixed(0)}px, stick ${stickGap.toFixed(0)}px, banner ${(L.cy - L.bannerY).toFixed(0)}px`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} touch check(s) failed`)

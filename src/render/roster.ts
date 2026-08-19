@@ -5,7 +5,9 @@ import {
   PARTY_UNIT,
   ROLE_LIMITS,
   SPEC_OPTIONS,
+  canSelect,
   countRoles,
+  isFixedComposition,
   partyCount,
   makeSlots,
   mitigation,
@@ -317,7 +319,15 @@ export function drawRoster(
   )
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(9)
-  ctx.fillText('tap a slot, then a class', L.w / 2, layout.summaryY + 13 * L.ui)
+  ctx.fillText(
+    // The trade is worth saying out loud: at a fixed size, picking a role
+    // changes two slots, and the second one is not the one you tapped.
+    isFixedComposition(party.length)
+      ? 'tap a slot, then a class — five-man roles are fixed, picking one trades it'
+      : 'tap a slot, then a class',
+    L.w / 2,
+    layout.summaryY + 13 * L.ui,
+  )
 
   for (let i = 0; i < layout.classes.length; i++) {
     const r = layout.classes[i]!
@@ -325,6 +335,12 @@ export function drawRoster(
     const spec = specOf(option)
     const current = party[activeSlot]
     const chosen = current?.classId === option.classId && current.role === option.role
+    // Past a support cap the pick is not selectable, so it is not offered as
+    // one either.
+    const locked = !canSelect(party, activeSlot, option)
+
+    ctx.save()
+    if (locked) ctx.globalAlpha = 0.32
 
     ctx.fillStyle = chosen ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
@@ -340,10 +356,13 @@ export function drawRoster(
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(8)
     ctx.fillText(
-      `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
+      locked
+        ? `max ${ROLE_LIMITS[spec.role].max} ${spec.role === 'dps' ? 'damage' : `${spec.role}s`}`
+        : `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
       cx,
       r.y + r.h * 0.76,
     )
+    ctx.restore()
   }
 
   tab(ctx, layout.auto, 'AUTO', false, COLORS.textDim)

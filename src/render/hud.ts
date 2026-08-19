@@ -236,7 +236,7 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
 function drawTideWarning(ctx: CanvasRenderingContext2D, s: SimState): void {
   const t = s.nextRaidHit
   const imminent = t < 1.4
-  const y = L.cy - L.arenaR - 8
+  const y = L.bannerY
 
   ctx.textAlign = 'center'
   if (imminent) {
@@ -448,16 +448,16 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
   }
 
   const bar = abilityBar({ classId: player.classId, role: player.role })
-  for (let i = 0; i < bar.length && i < L.btnYs.length; i++) {
+  for (let i = 0; i < bar.length && i < L.btnPos.length; i++) {
     const id = bar[i]!
     const ability = ABILITIES[id]!
-    const cy = L.btnYs[i]!
+    const { x: bx, y: cy } = L.btnPos[i]!
     const poor = player.mana < ability.manaCost
     const usable = isUsable(player, id) && !poor
     const holding = touch.heldSlots.has(i)
 
     ctx.beginPath()
-    ctx.arc(L.btnX, cy, L.btnR, 0, Math.PI * 2)
+    ctx.arc(bx, cy, L.btnR, 0, Math.PI * 2)
     ctx.fillStyle = holding ? 'rgba(250, 204, 21, 0.28)' : 'rgba(15, 17, 26, 0.55)'
     ctx.fill()
     ctx.strokeStyle = usable
@@ -471,17 +471,17 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     const state = slotCooldown(player, id, ability.cooldown)
 
     // Icon sits above centre so the name has room inside the button.
-    drawIcon(ctx, id, L.btnX, cy - L.btnR * 0.18, L.btnR * 0.92, !usable)
-    sweep(ctx, L.btnX, cy, L.btnR, state.remaining, state.total, state.shade)
+    drawIcon(ctx, id, bx, cy - L.btnR * 0.18, L.btnR * 0.92, !usable)
+    sweep(ctx, bx, cy, L.btnR, state.remaining, state.total, state.shade)
 
     ctx.textAlign = 'center'
     if (state.showNumber) {
       ctx.fillStyle = COLORS.text
       ctx.font = font(15, true)
-      ctx.fillText(state.remaining.toFixed(1), L.btnX, cy + L.btnR * 0.12)
+      ctx.fillText(state.remaining.toFixed(1), bx, cy + L.btnR * 0.12)
     } else {
       ctx.fillStyle = usable ? COLORS.text : COLORS.textDim
-      fitText(ctx, ability.name, L.btnX, cy + L.btnR * 0.62, L.btnR * 1.8, 9)
+      fitText(ctx, ability.name, bx, cy + L.btnR * 0.62, L.btnR * 1.8, 9)
     }
   }
 }

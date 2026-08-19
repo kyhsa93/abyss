@@ -1,6 +1,6 @@
 import type { AuraId, Role } from './types'
 
-export type AbilityKind = 'damage' | 'heal' | 'defensive'
+export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt'
 
 export interface Ability {
   id: string
@@ -15,7 +15,11 @@ export interface Ability {
   manaCost: number
   /** Direct damage or heal, before modifiers. */
   amount: number
-  /** Threat multiplier applied on top of the damage dealt. */
+  /**
+   * Threat multiplier applied on top of the damage dealt.
+   *
+   * Taunts ignore this: they do not scale off a number they never deal.
+   */
   threatMult: number
   /** Aura applied to the target on a successful cast. */
   aura: AuraId | null
@@ -32,11 +36,27 @@ const MELEE = 52
 const SPELL = 340
 const HEAL_RANGE = 390
 
+/**
+ * Taunts reach further than a swing.
+ *
+ * A taunt that only worked in melee would be useless for the case it exists
+ * for: the boss has already walked off to eat somebody else, and the tank is
+ * the one thing that is not next to it.
+ */
+const TAUNT_RANGE = 260
+
+/**
+ * Long enough that losing the boss twice in a row is a real failure rather
+ * than a button press, short enough to answer one bad pull.
+ */
+const TAUNT_COOLDOWN = 10
+
 const list: Ability[] = [
   // --- warrior (tank) -------------------------------------------------------
   { id: 'cleave', name: 'Cleave', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 60, threatMult: 4, aura: null, range: MELEE },
   { id: 'shield_slam', name: 'Shield Slam', key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 110, threatMult: 6, aura: null, range: MELEE },
   { id: 'shield_wall', name: 'Shield Wall', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
+  { id: 'taunt', name: 'Taunt', key: '4', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, manaCost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------
   { id: 'heal', name: 'Heal', key: '1', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, manaCost: 26, amount: 430, threatMult: 0, aura: null, range: HEAL_RANGE },
@@ -45,7 +65,7 @@ const list: Ability[] = [
 
   // --- paladin (healer): slower, bigger, with a panic button ---------------
   { id: 'holy_light', name: 'Holy Light', key: '1', role: 'healer', kind: 'heal', castTime: 2.5, cooldown: 0, manaCost: 32, amount: 620, threatMult: 0, aura: null, range: HEAL_RANGE },
-  { id: 'lay_on_hands', name: 'Lay on Hands', key: '3', role: 'healer', kind: 'heal', castTime: 0, cooldown: 45, manaCost: 90, amount: 1500, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'lay_on_hands', name: 'Lay on Hands', key: '2', role: 'healer', kind: 'heal', castTime: 0, cooldown: 45, manaCost: 90, amount: 1500, threatMult: 0, aura: null, range: HEAL_RANGE },
 
   // Healers contribute damage when nobody needs them, which is the only thing
   // that makes a two-healer party viable rather than a slow loss.
@@ -76,6 +96,7 @@ const list: Ability[] = [
   { id: 'avengers_shield', name: "Avenger's Shield", key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 105, threatMult: 6, aura: null, range: 200 },
   { id: 'consecration', name: 'Consecration', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 58, threatMult: 4, aura: null, range: MELEE },
   { id: 'divine_protection', name: 'Divine Protection', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
+  { id: 'hand_of_reckoning', name: 'Hand of Reckoning', key: '4', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, manaCost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- paladin, as damage ----------------------------------------------------
   { id: 'crusader_strike', name: 'Crusader Strike', key: '1', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 104, threatMult: 1, aura: null, range: MELEE },
@@ -86,6 +107,7 @@ const list: Ability[] = [
   { id: 'maul', name: 'Maul', key: '2', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, manaCost: 0, amount: 118, threatMult: 6, aura: null, range: MELEE },
   { id: 'swipe', name: 'Swipe', key: '1', role: 'tank', kind: 'damage', castTime: 0, cooldown: 0, manaCost: 0, amount: 62, threatMult: 4, aura: null, range: MELEE },
   { id: 'frenzied_regen', name: 'Frenzied Regen', key: '3', role: 'tank', kind: 'defensive', castTime: 0, cooldown: 40, manaCost: 0, amount: 0, threatMult: 0, aura: 'shield', range: 0, offGcd: true },
+  { id: 'growl', name: 'Growl', key: '4', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, manaCost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- druid, as healer: heal-over-time first ---------------------------------
   { id: 'healing_touch', name: 'Healing Touch', key: '1', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, manaCost: 28, amount: 470, threatMult: 0, aura: null, range: HEAL_RANGE },

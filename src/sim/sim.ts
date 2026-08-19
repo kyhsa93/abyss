@@ -118,8 +118,12 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   for (const slot of input.pressed) {
     const abilityId = bar[slot]
     if (!abilityId) continue
-    // Target the nearest add if one is up, otherwise the boss.
-    beginCast(s, player, abilityId, playerTarget(s), rng)
+    // Target the nearest add if one is up, otherwise the boss. A taunt is the
+    // exception: adds keep no threat table, so aiming one at an add would be
+    // a wasted cooldown on the button whose whole job is the boss.
+    const target =
+      ABILITIES[abilityId]?.kind === 'taunt' ? BOSS_ID : playerTarget(s)
+    beginCast(s, player, abilityId, target, rng)
   }
 }
 

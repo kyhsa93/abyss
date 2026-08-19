@@ -47,9 +47,25 @@ export interface Layout {
 
   /** World units to screen pixels. */
   scale: number
+  /**
+   * Where the camera is pinned, and so where the player's own token is drawn.
+   *
+   * The middle of the viewport, not the middle of the arena: the two used to
+   * be the same thing because the arena was laid out to fill whatever was
+   * left between the top band and the thumbs, which on a portrait phone put
+   * its centre in the upper third of the screen.
+   */
   cx: number
   cy: number
   arenaR: number
+  /**
+   * Baseline for the banners that used to hang off the top of the arena.
+   *
+   * With the camera following the player there is no fixed screen position
+   * for the arena's edge to hang them from, so they anchor to the top band
+   * instead — which is where they were being drawn anyway.
+   */
+  bannerY: number
   /** Multiplier for fonts and panel sizes on small screens. */
   ui: number
 
@@ -75,8 +91,8 @@ export interface Layout {
   joyZoneMaxX: number
   joyDeadzone: number
 
-  btnX: number
-  btnYs: number[]
+  /** Centre of every action button, in press order. */
+  btnPos: Array<{ x: number; y: number }>
   btnR: number
   btnHit: number
 }
@@ -89,17 +105,16 @@ export function computeLayout(w: number, h: number): Layout {
 
   const topBand = 54 * ui
   let arenaR: number
-  let cy: number
 
   if (portrait) {
-    // Reserve the bottom third for thumbs, then fit the arena above it.
+    // Reserve the bottom third for thumbs, then size the arena to what is
+    // left. This sets the zoom, not the position: the camera follows the
+    // player, so the floor is free to run off the edges.
     const controlBand = clamp(h * 0.3, 190, 320)
     arenaR = Math.max(90, Math.min((w - 20) / 2, (h - topBand - controlBand) / 2))
-    cy = topBand + arenaR + 6
   } else {
     // Landscape keeps the party frames on the left and buttons on the right.
     arenaR = Math.max(90, Math.min((h - topBand - 28) / 2, (w - 300 * ui) / 2))
-    cy = topBand + arenaR + 4
   }
 
   const btnR = clamp(Math.min(w, h) * 0.062, 34, 52)
@@ -108,7 +123,18 @@ export function computeLayout(w: number, h: number): Layout {
   const btnX = w - btnR - 14
   const btnGap = btnR * 2.35
   const btnBottom = h - btnR - (portrait ? 26 : 18)
-  const btnYs = [btnBottom - btnGap * 2, btnBottom - btnGap, btnBottom]
+
+  // Three up the right edge, and the fourth beside the bottom one instead of
+  // continuing the column. A fourth row reaches back up into the arena on a
+  // phone — the stack is already nine button-radii tall — and the corner is
+  // the easiest place for a thumb to get to anyway. It still has to clear the
+  // left half of the screen, which belongs to the stick.
+  const btnPos = [
+    { x: btnX, y: btnBottom - btnGap * 2 },
+    { x: btnX, y: btnBottom - btnGap },
+    { x: btnX, y: btnBottom },
+    { x: btnX - btnGap, y: btnBottom },
+  ]
 
   return {
     w,
@@ -116,8 +142,9 @@ export function computeLayout(w: number, h: number): Layout {
     portrait,
     scale: arenaR / WORLD_RADIUS,
     cx: w / 2,
-    cy,
+    cy: h / 2,
     arenaR,
+    bannerY: topBand - 3,
     ui,
 
     bossX: Math.max(12, w / 2 - Math.min(w * 0.42, 320)),
@@ -143,8 +170,7 @@ export function computeLayout(w: number, h: number): Layout {
     joyZoneMaxX: w * 0.5,
     joyDeadzone: 0.18,
 
-    btnX,
-    btnYs,
+    btnPos,
     btnR,
     btnHit: btnR * 1.32,
   }

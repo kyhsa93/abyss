@@ -82,7 +82,7 @@ export class Hints {
     const w = Math.min(L.w - 32, 420)
     const h = 52 * L.ui
     const x = (L.w - w) / 2
-    const y = L.cy - L.arenaR - h - 14
+    const y = L.bannerY - h - 11
 
     ctx.save()
     ctx.globalAlpha = fade

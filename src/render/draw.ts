@@ -8,16 +8,40 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
-/** Interpolated screen position: 30Hz simulation, 60fps rendering. */
-function screenPos(a: Actor, alpha: number): Vec2 {
+/**
+ * Camera centre, in world units.
+ *
+ * The view follows the player rather than the arena, so their own token stays
+ * pinned to the middle of the play area and everything else — the floor, the
+ * boss, the puddles — moves around it. Recomputed once per frame from the
+ * same interpolated position the player token is drawn at, so the token lands
+ * exactly on the centre with no sub-pixel drift.
+ */
+const cam: Vec2 = { x: 0, y: 0 }
+
+function actorPos(a: Actor, alpha: number): Vec2 {
   return {
-    x: L.cx + lerp(a.prevPos.x, a.pos.x, alpha) * L.scale,
-    y: L.cy + lerp(a.prevPos.y, a.pos.y, alpha) * L.scale,
+    x: lerp(a.prevPos.x, a.pos.x, alpha),
+    y: lerp(a.prevPos.y, a.pos.y, alpha),
   }
 }
 
+function updateCamera(s: SimState, alpha: number): void {
+  const player = s.actors.find((a) => a.isPlayer)
+  // With no player in the fight there is nothing to follow, so fall back to
+  // the arena centre and the view behaves exactly as it did before.
+  const p = player ? actorPos(player, alpha) : { x: 0, y: 0 }
+  cam.x = p.x
+  cam.y = p.y
+}
+
 function worldToScreen(p: Vec2): Vec2 {
-  return { x: L.cx + p.x * L.scale, y: L.cy + p.y * L.scale }
+  return { x: L.cx + (p.x - cam.x) * L.scale, y: L.cy + (p.y - cam.y) * L.scale }
+}
+
+/** Interpolated screen position: 30Hz simulation, 60fps rendering. */
+function screenPos(a: Actor, alpha: number): Vec2 {
+  return worldToScreen(actorPos(a, alpha))
 }
 
 function font(size: number, bold = false): string {
@@ -30,6 +54,8 @@ export function drawWorld(
   alpha: number,
   clock: number,
 ): void {
+  updateCamera(s, alpha)
+
   drawArena(ctx)
   drawGround(ctx, s, clock)
   drawSpreadRings(ctx, s, alpha)
@@ -55,17 +81,23 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.fillStyle = `rgba(239, 68, 68, ${(0.16 * a).toFixed(3)})`
   ctx.fillRect(0, 0, L.w, L.h)
 
+  const c = worldToScreen({ x: 0, y: 0 })
   ctx.beginPath()
-  ctx.arc(L.cx, L.cy, L.arenaR, 0, Math.PI * 2)
+  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(239, 68, 68, ${(0.85 * a).toFixed(3)})`
   ctx.lineWidth = 2 + 6 * a
   ctx.stroke()
 }
 
 function drawArena(ctx: CanvasRenderingContext2D): void {
+  // The arena is centred on the world origin; the camera decides where that
+  // lands on screen. The grid is drawn in world space too, so it slides past
+  // the player and makes their own movement readable.
+  const c = worldToScreen({ x: 0, y: 0 })
+
   ctx.save()
   ctx.beginPath()
-  ctx.arc(L.cx, L.cy, L.arenaR, 0, Math.PI * 2)
+  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
@@ -75,18 +107,18 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
   const step = 64 * L.scale
   for (let g = -L.arenaR; g <= L.arenaR; g += step) {
     ctx.beginPath()
-    ctx.moveTo(L.cx + g, L.cy - L.arenaR)
-    ctx.lineTo(L.cx + g, L.cy + L.arenaR)
+    ctx.moveTo(c.x + g, c.y - L.arenaR)
+    ctx.lineTo(c.x + g, c.y + L.arenaR)
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(L.cx - L.arenaR, L.cy + g)
-    ctx.lineTo(L.cx + L.arenaR, L.cy + g)
+    ctx.moveTo(c.x - L.arenaR, c.y + g)
+    ctx.lineTo(c.x + L.arenaR, c.y + g)
     ctx.stroke()
   }
   ctx.restore()
 
   ctx.beginPath()
-  ctx.arc(L.cx, L.cy, L.arenaR, 0, Math.PI * 2)
+  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.strokeStyle = COLORS.floorEdge
   ctx.lineWidth = 2
   ctx.stroke()
@@ -359,10 +391,15 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     const style = BOLT[p.kind]
     if (!style) continue
 
-    const x = L.cx + lerp(p.prevPos.x, p.pos.x, alpha) * L.scale
-    const y = L.cy + lerp(p.prevPos.y, p.pos.y, alpha) * L.scale
-    const tailX = L.cx + p.prevPos.x * L.scale
-    const tailY = L.cy + p.prevPos.y * L.scale
+    const head = worldToScreen({
+      x: lerp(p.prevPos.x, p.pos.x, alpha),
+      y: lerp(p.prevPos.y, p.pos.y, alpha),
+    })
+    const tail = worldToScreen(p.prevPos)
+    const x = head.x
+    const y = head.y
+    const tailX = tail.x
+    const tailY = tail.y
     const r = Math.max(2, style.radius * L.scale)
 
     ctx.beginPath()

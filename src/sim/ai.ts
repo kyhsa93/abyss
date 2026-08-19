@@ -11,6 +11,7 @@ import {
   interruptCast,
   livingParty,
   say,
+  topThreatTarget,
 } from './combat'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
@@ -431,6 +432,22 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
     if (ready && !rng.chance(ai.mistakeChance)) {
       if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) {
         say(s, actor, 'Wall up')
+        return
+      }
+    }
+  }
+
+  // Take the boss back off whoever it wandered to.
+  //
+  // Only when the holder is not a tank: with two tanks in a raid, a rule that
+  // says "taunt whenever you are not the target" makes them trade the boss
+  // back and forth on cooldown for the whole fight, which drags it through
+  // the melee and looks like a bug.
+  if (kit.taunt) {
+    const holder = topThreatTarget(s)
+    if (holder && holder.id !== actor.id && holder.role !== 'tank') {
+      if (!rng.chance(ai.mistakeChance) && tryCast(s, actor, kit.taunt, b.id, rng, moving)) {
+        say(s, actor, `Taunting off ${holder.name}`)
         return
       }
     }

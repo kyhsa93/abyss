@@ -16,6 +16,8 @@ import {
   autoParty,
   canFill,
   randomParty,
+  selectInto,
+  isLegalComposition,
   type DifficultyId,
   type Pick,
   type RaidSize,
@@ -88,7 +90,10 @@ function loadParty(): Pick[] {
       if (role !== 'tank' && role !== 'healer' && role !== 'dps') return false
       return canFill(classId as Pick['classId'], role)
     })
-    return valid ? (parsed as Pick[]) : fallback()
+    if (!valid) return fallback()
+    // A roster saved before the composition rules existed is not one we will
+    // pull with, so it falls back like any other unrecognised save.
+    return isLegalComposition(parsed as Pick[]) ? (parsed as Pick[]) : fallback()
   } catch {
     return fallback()
   }
@@ -175,11 +180,18 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     if (hit?.kind === 'slot') {
       activeSlot = hit.index
     } else if (hit?.kind === 'class') {
-      party[activeSlot] = { ...hit.pick }
-      saveSetup()
-      // Step to the next slot so a raid can be filled by tapping straight
-      // down the class list.
-      activeSlot = (activeSlot + 1) % party.length
+      // Rejected when it would break the composition rules, and in a
+      // five-man read as a role trade with the slot already holding it. The
+      // class entry is drawn locked when there is no legal reading, so the
+      // tap doing nothing is the visible answer rather than a silent one.
+      const next = selectInto(party, activeSlot, hit.pick)
+      if (next) {
+        party = next
+        saveSetup()
+        // Step to the next slot so a raid can be filled by tapping straight
+        // down the class list.
+        activeSlot = (activeSlot + 1) % party.length
+      }
     } else if (hit?.kind === 'size') {
       if (hit.size !== party.length) resize(hit.size)
     } else if (hit?.kind === 'difficulty') {

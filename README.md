@@ -30,7 +30,7 @@ a little harder than balanced ones and entirely playable: 68% on a first
 five-man pull against AUTO's 65%, 18% rising to 88% at twenty-five. Your party
 is remembered between visits, so a return trip is one tap.
 
-`WASD` to move, `1` `2` `3` for abilities, `R` to pull again, `Esc` to go back
+`WASD` to move, `1` `2` `3` `4` for abilities, `R` to pull again, `Esc` to go back
 to the party screen. The keys are not printed on screen — the retry button
 names its own shortcut and the rest is a raid game's standard layout. On touch there is a `party` button under the fight
 readout. Leaving without changing anything keeps your pull count, since the
@@ -41,6 +41,14 @@ on the left that relocates to wherever you press, ability buttons down the
 right edge, and a tap on the end-of-fight overlay to pull again. The canvas
 fills the viewport and the layout is recomputed per orientation, so portrait
 and landscape both work.
+
+The camera is locked to your own character rather than to the arena: your
+token stays in the middle of the viewport and the floor scrolls under it. In
+a twenty-five player pull, finding yourself was the slowest thing on screen.
+The middle of the viewport is not the middle of the arena — the arena is laid
+out to fit between the top band and the thumbs, which on a portrait phone put
+its centre in the upper third of the screen — so the arena's size now sets the
+zoom and nothing else.
 
 ## Why it looks like this
 
@@ -80,7 +88,17 @@ puddle on five people.
 Support is capped for the whole raid rather than per party: **one or two
 tanks, one to three healers.** More tanks than that is wasted on a
 single-target fight, and the healer ceiling is what stops a larger raid simply
-out-healing the encounter. So a twenty-five man is mostly damage, and it works
+out-healing the encounter. Both caps are enforced rather than advised: a
+third tank or a fourth healer cannot be selected on the party screen at all —
+the entry is drawn locked — and a roster saved before the caps existed falls
+back to the default instead of loading.
+
+**A five-man is exact rather than capped: one tank, one healer, three
+damage.** There is no arrangement of five slots that plays, so picking a role
+there is read as a trade — tap a tank into your own slot and the slot that was
+tanking takes the one you gave up. Refusing it instead would freeze the
+composition, since a fixed shape has no legal intermediate state to pass
+through and the player could never move off the role they started on. So a twenty-five man is mostly damage, and it works
 out because the extra damage shortens the fight rather than adding survival —
 25-player normal wins 25% of first pulls rising to 70%, against a five-man's
 35% to 55%.
@@ -175,6 +193,14 @@ That gap is the whole point:
 
 A dealer that pulls threat has about ten seconds to live, which is why the
 threat readout is on the party frames.
+
+**Threat is taken, not handed out.** The table starts at zero for everyone,
+including the tank, so the first thing a pull needs is somebody to take the
+boss: every tank carries a taunt on its fourth slot — Taunt, Hand of
+Reckoning, Growl — and it sets you a nose ahead of whoever the boss is
+currently looking at rather than granting a pile of threat. Taking it back is
+free; keeping it is the job. Tanks only taunt off a non-tank, so two of them
+in a raid do not trade the boss back and forth across the melee on cooldown.
 
 
 Rotations are shared per role; what differs is the numbers and cast times.
