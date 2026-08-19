@@ -298,13 +298,20 @@ export function detonateSpread(s: SimState, carrier: Actor): void {
 /** Anything thrown from further away than melee gets a visible bolt. */
 export const PROJECTILE_MIN_RANGE = 120
 
-// Fast enough that the bolt does not lag visibly behind the damage it
-// represents, slow enough to actually read as travelling: roughly 0.2s.
+/**
+ * Halved, to roughly 0.4s across a spell's range.
+ *
+ * These were tuned to arrive almost with the damage they represent. Damage
+ * still resolves the instant the ability does, so at half speed the bolt is
+ * visibly behind its own number — it reads as the shot travelling rather than
+ * as the shot being the hit, which is a different thing to look at and worth
+ * the mismatch.
+ */
 const PROJECTILE_SPEED: Record<ProjectileKind, number> = {
-  bolt: 850,
-  dot: 780,
-  heavy: 700,
-  heal: 820,
+  bolt: 425,
+  dot: 390,
+  heavy: 350,
+  heal: 410,
 }
 
 /**
