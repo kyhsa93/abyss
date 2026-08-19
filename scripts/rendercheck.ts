@@ -44,6 +44,7 @@ import {
   applyDamage,
   boss,
   castBlocker,
+  landAbility,
   projectileKind,
   resolveAbility,
   topThreatTarget,
@@ -686,8 +687,10 @@ for (const [label, w, h] of [
   s.threat[dealer.id] = 5000
   expect('a dealer can out-threat the tank', topThreatTarget(s)?.id === dealer.id, `${topThreatTarget(s)?.name}`)
 
+  // Landed rather than cast: a taunt is thrown, so casting it only puts it
+  // in the air. What it does when it arrives is what is being checked here.
   const taunt = ABILITIES[CLASSES.warrior.specs.find((sp) => sp.role === 'tank')!.abilities.taunt!]!
-  resolveAbility(s, tank, taunt, boss(s).id, rng)
+  landAbility(s, tank, taunt, boss(s).id, rng)
   expect('the taunt takes it back', topThreatTarget(s)?.id === tank.id, `${topThreatTarget(s)?.name}`)
 
   // But only just: it buys the lead, it does not end the fight. A dealer that
@@ -1709,6 +1712,119 @@ for (const [label, w, h] of [
     colours.size > 4,
     `${colours.size}`,
   )
+}
+
+// --- a bolt has to arrive before it counts --------------------------------
+//
+// Damage used to resolve the instant the ability did, with the bolt flying
+// after it as scenery. That meant a shot at something about to die always
+// counted, a heal was never too late, and range cost nothing.
+{
+  const setup = () => {
+    const s = createState(0x51ed, 0, [
+      { classId: 'mage', spec: 'frost' },
+      { classId: 'warrior', spec: 'protection' },
+      { classId: 'priest', spec: 'discipline' },
+      { classId: 'hunter', spec: 'marksmanship' },
+      { classId: 'rogue', spec: 'assassination' },
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    // Out at the rim, so the flight is long enough to watch.
+    player.pos.x = 300
+    player.pos.y = 0
+    return { s, player }
+  }
+
+  {
+    const { s, player } = setup()
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+
+    const mine = s.projectiles.filter((p) => p.sourceId === player.id)
+    expect('casting at range only puts a bolt in the air', mine.length === 1, `${mine.length} bolts`)
+    expect('and nothing has landed yet', (s.tally[player.id]?.damage ?? 0) === 0, `${s.tally[player.id]?.damage}`)
+
+    let ticks = 0
+    while (s.projectiles.some((p) => p.sourceId === player.id) && ticks < 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      ticks++
+    }
+    expect('the bolt takes real time to get there', ticks > 3, `${ticks} ticks`)
+    expect('and lands its damage on arrival', (s.tally[player.id]?.damage ?? 0) > 0, `${s.tally[player.id]?.damage}`)
+  }
+
+  {
+    // Something that dies while the shot is in the air takes nothing, which
+    // is the cost of a travel time existing at all.
+    const { s } = setup()
+    const rng = new Rng(0x51ed)
+    const victim = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+
+    const heal = ABILITIES.heal!
+    const healer = s.actors.find((a) => a.role === 'healer')!
+    victim.hp = 100
+    resolveAbility(s, healer, heal, victim.id, rng)
+    expect('the heal is in the air', s.projectiles.some((p) => p.targetId === victim.id), 'no heal bolt')
+
+    victim.alive = false
+    victim.hp = 0
+    let ticks = 0
+    while (s.projectiles.some((p) => p.targetId === victim.id) && ticks < 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      ticks++
+    }
+    expect('a heal arriving too late does nothing', victim.hp === 0 && !victim.alive, `${victim.hp}`)
+  }
+
+  {
+    // Melee and self-cast still resolve where they stand: there is nothing
+    // in the air to wait for.
+    const s = createState(0x51ed, 0, [
+      { classId: 'rogue', spec: 'assassination' },
+      { classId: 'warrior', spec: 'protection' },
+      { classId: 'priest', spec: 'discipline' },
+      { classId: 'mage', spec: 'frost' },
+      { classId: 'hunter', spec: 'marksmanship' },
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    player.pos.x = 20
+    player.pos.y = 0
+    step(s, { moveX: 0, moveY: 0, pressed: [0] }, new Rng(0x51ed))
+    expect(
+      'a melee ability lands on the press',
+      (s.tally[player.id]?.damage ?? 0) > 0,
+      `${s.tally[player.id]?.damage}`,
+    )
+  }
+
+  {
+    // The hunter's auto shot is drawn after the fact: its damage was already
+    // dealt where the hunter stands, so the bolt must not land it a second
+    // time when it arrives.
+    const s = createState(0x51ed, 0, [
+      { classId: 'hunter', spec: 'marksmanship' },
+      { classId: 'warrior', spec: 'protection' },
+      { classId: 'priest', spec: 'discipline' },
+      { classId: 'mage', spec: 'frost' },
+      { classId: 'rogue', spec: 'assassination' },
+    ])
+    const player = s.actors.find((a) => a.isPlayer)!
+    const auto = specOf({ classId: player.classId, spec: player.spec }).auto!
+    const rng = new Rng(0x51ed)
+
+    for (let i = 0; i < 30 * 10; i++) {
+      const b = boss(s)
+      player.pos.x = b.pos.x + 250
+      player.pos.y = b.pos.y
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    const dealt = s.tally[player.id]?.damage ?? 0
+    expect(
+      'a scenery bolt does not deal its damage twice',
+      dealt > 0 && dealt % auto.damage === 0,
+      `${dealt} is not a whole number of ${auto.damage} swings`,
+    )
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

@@ -13,6 +13,7 @@ import {
   dist,
   gainPower,
   pushEffect,
+  landAbility,
   livingParty,
   pushText,
   spawnBolt,
@@ -58,7 +59,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 
   updateBoss(s, rng)
   updateGround(s)
-  updateProjectiles(s)
+  updateProjectiles(s, rng)
 
   for (const a of s.actors) advanceCast(s, a, rng)
 
@@ -269,13 +270,30 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
 }
 
 /** Homes on the target so a bolt still lands if its victim walks away. */
-function updateProjectiles(s: SimState): void {
+/**
+ * A bolt arriving.
+ *
+ * Only the ones carrying something resolve: a hunter's auto shot is drawn
+ * after the fact and has nothing left to do. The caster is not required to
+ * still be alive — a shot that was in the air when its owner died still
+ * lands, which is the same rule every game this apes uses.
+ */
+function land(s: SimState, p: SimState['projectiles'][number], rng: Rng): void {
+  if (!p.abilityId || p.sourceId === null) return
+  const ability = ABILITIES[p.abilityId]
+  const source = s.actors.find((a) => a.id === p.sourceId)
+  if (!ability || !source) return
+  landAbility(s, source, ability, p.targetId, rng)
+}
+
+function updateProjectiles(s: SimState, rng: Rng): void {
   for (const p of s.projectiles) {
     p.prevPos.x = p.pos.x
     p.prevPos.y = p.pos.y
 
     const target = s.actors.find((a) => a.id === p.targetId)
     if (!target) {
+      // Whatever it was aimed at is gone. A carried ability goes with it.
       p.arrived = true
       continue
     }
@@ -289,6 +307,7 @@ function updateProjectiles(s: SimState): void {
       p.pos.x = target.pos.x
       p.pos.y = target.pos.y
       p.arrived = true
+      land(s, p, rng)
       continue
     }
 

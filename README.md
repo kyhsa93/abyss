@@ -318,13 +318,21 @@ every ability needs a distinct icon. The shape and speed still come from the
 kind of bolt it is, the colour now comes from the icon — thirty-four distinct
 colours across the thirty-six abilities that put anything in the air.
 
-**Ranged casts throw a visible bolt.** Damage still resolves the instant the
-ability does — the bolt is a tell, not a mechanic, and the balance numbers are
-identical with and without it. Its appearance is derived from what the ability
-is (heal, damage-over-time, finisher, filler) rather than from its name, so a
-new spell gets one automatically. It homes on its target and lives in simulation
-state rather than in the renderer, so replays stay frame-identical. Without it
-a caster standing still looks the same whether it is working or idle.
+**Ranged casts throw a bolt, and the bolt is the hit.** It leaves on the press
+and resolves where it lands, roughly four tenths of a second later across a
+spell's range, so range costs something now: a shot at a thrall about to die
+is wasted, a heal can arrive after the person it was for, and two healers can
+both be mid-flight on the same target. It used to resolve the instant the
+ability did, with the bolt flying after damage that had already happened —
+scenery rather than a mechanic. Its shape and speed still come from what the
+ability is (heal, damage-over-time, finisher, filler) so a new spell gets one
+automatically, its colour comes from the ability's own icon, and it lives in
+simulation state rather than in the renderer, so replays stay frame-identical.
+
+Anything used in melee or on yourself still lands on the press: there is
+nothing in the air to wait for. A hunter's auto shot is the exception that
+proves the rule — its damage happens where the hunter stands and the bolt is
+drawn after the fact, so it carries no payload and lands nothing.
 
 **Distances are all relative to the arena.** The floor has a world radius of
 460 and everything else is expressed against it — ability ranges, the AI's

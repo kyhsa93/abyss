@@ -159,6 +159,11 @@ export interface Projectile {
   kind: ProjectileKind
   /** What threw it, so the renderer can colour it like its own icon. */
   abilityId: string | null
+  /**
+   * Who threw it, when the bolt is carrying the ability rather than
+   * illustrating one that already happened. Null means it is scenery.
+   */
+  sourceId: number | null
   pos: Vec2
   prevPos: Vec2
   targetId: number

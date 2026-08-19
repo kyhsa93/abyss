@@ -326,12 +326,20 @@ export function projectileKind(ability: Ability): ProjectileKind {
   return 'bolt'
 }
 
+/**
+ * Puts a bolt in the air.
+ *
+ * With a `sourceId` it carries the ability and resolves it on arrival; with
+ * none it is scenery, which is what a hunter's auto shot is — the weapon has
+ * already dealt its damage where it stands.
+ */
 export function spawnBolt(
   s: SimState,
   from: Actor,
   targetId: number,
   kind: ProjectileKind,
   abilityId: string | null = null,
+  sourceId: number | null = null,
 ): void {
   const speed = PROJECTILE_SPEED[kind]
 
@@ -339,6 +347,7 @@ export function spawnBolt(
     id: s.nextObjectId++,
     kind,
     abilityId,
+    sourceId,
     pos: { x: from.pos.x, y: from.pos.y },
     prevPos: { x: from.pos.x, y: from.pos.y },
     targetId,
@@ -423,17 +432,45 @@ export function resolveAbility(
   actor: Actor,
   ability: Ability,
   targetId: number,
+  rng: Rng,
+): void {
+  const target = actorById(s, targetId)
+  // Paid on the press, not on arrival: the cost is what the cast took out of
+  // you, and it took it when you cast.
+  if (ability.cost > 0) actor.power = Math.max(0, actor.power - ability.cost)
+
+  // Anything thrown lands when it gets there. The bolt used to be scenery
+  // travelling after damage that had already happened, which meant a shot at
+  // something about to die always counted and a heal was never too late.
+  if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
+    spawnBolt(s, actor, target.id, projectileKind(ability), ability.id, actor.id)
+    return
+  }
+
+  landAbility(s, actor, ability, targetId, rng)
+}
+
+/**
+ * What an ability does where it lands.
+ *
+ * Called straight away for anything used in melee or on yourself, and by the
+ * projectile when one was thrown. Everything that reads as the hit is in
+ * here: the damage, the threat it earns, the aura it leaves and the picture
+ * of it arriving.
+ */
+export function landAbility(
+  s: SimState,
+  actor: Actor,
+  ability: Ability,
+  targetId: number,
   _rng: Rng,
 ): void {
   const target = actorById(s, targetId)
-  if (ability.cost > 0) actor.power = Math.max(0, actor.power - ability.cost)
-
-  if (ability.range >= PROJECTILE_MIN_RANGE && target && target.id !== actor.id) {
-    spawnBolt(s, actor, target.id, projectileKind(ability), ability.id)
-  }
 
   switch (ability.kind) {
     case 'damage': {
+      // A target that died while the bolt was in the air takes nothing. The
+      // shot is wasted, which is the cost of it having a travel time at all.
       if (!target || !target.alive) return
       applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id })
       pushEffect(s, 'impact', target.pos, { abilityId: ability.id, power: ability.amount })
