@@ -1,4 +1,5 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
+import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import {
   CLASSES,
   DEFAULT_PARTY,
@@ -14,23 +15,6 @@ import {
 } from './classes'
 import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
 
-/**
- * Raised from 36,000 when the party got weapons.
- *
- * Auto-attacks add about eleven percent to what the raid actually lands —
- * measured rather than assumed, because their theoretical uptime is nothing
- * like their real one: melee walk out of puddles, lose range and die. Left
- * alone that turned a 43% first pull into a 73% one. The health follows the
- * damage, and it follows it by the same fraction at five, ten and
- * twenty-five, so one number covers every size. What the weapons changed is
- * who contributes, not how long the boss lives.
- *
- * Raised again from 40,000 for crits, which add about seven and a half
- * percent on the party's side at a chance of fifteen and a multiplier of one
- * and a half. Same reasoning: the encounter should be the length it was, and
- * what a crit changes is how a hit looks, not how long the fight runs.
- */
-const BOSS_MAX_HP = 43000
 
 interface PersonalityTuning {
   reactionDelay: number
@@ -132,14 +116,17 @@ export function createState(
   attempt: number,
   party: Pick[] = DEFAULT_PARTY,
   difficulty: DifficultyId = 'normal',
+  encounter: number = FIRST_ENCOUNTER,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
   const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
+  const fight = encounterAt(encounter)
+  const opening = fight.opening
 
   const boss: Actor = {
     id: BOSS_ID,
-    name: 'The Drowned Warden',
+    name: fight.name,
     classId: 'warrior',
     spec: 'protection',
     role: 'tank',
@@ -151,8 +138,8 @@ export function createState(
     prevPos: { x: 0, y: 0 },
     radius: 50,
     moveSpeed: 175,
-    hp: Math.round(BOSS_MAX_HP * scale),
-    maxHp: Math.round(BOSS_MAX_HP * scale),
+    hp: Math.round(fight.hp * scale),
+    maxHp: Math.round(fight.hp * scale),
     resource: 'mana',
     power: 0,
     maxPower: 0,
@@ -196,15 +183,16 @@ export function createState(
     texts: [],
     chat: [],
     outcome: 'ongoing',
+    encounter: encounterIndex(encounter),
     countdown: COUNTDOWN_TICKS,
     phase: 1,
-    nextPuddle: 9,
-    nextSpread: 17,
-    nextSlam: 13,
-    nextRaidHit: 11,
-    nextBreath: 21,
-    nextShockwave: 27,
-    nextAdds: 45,
+    nextPuddle: opening.puddle,
+    nextSpread: opening.spread,
+    nextSlam: opening.slam,
+    nextRaidHit: opening.raid,
+    nextBreath: opening.breath,
+    nextShockwave: opening.shockwave,
+    nextAdds: opening.adds,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
     nextObjectId: 1,

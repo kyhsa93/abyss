@@ -1,11 +1,4 @@
-import {
-  ARENA_RADIUS,
-  DT,
-  ENRAGE_AT,
-  MELEE_RANGE,
-  PHASE_TWO_HP,
-  PUDDLE_TELEGRAPH,
-} from './constants'
+import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH } from './constants'
 import {
   addAura,
   adds,
@@ -20,6 +13,7 @@ import {
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
+import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -35,29 +29,15 @@ import type { Actor, GroundEffect, SimState } from './types'
  * breath asks you to get behind, the shockwave asks you to come *in*, spread
  * asks you to separate, adds ask the dealers to switch targets, and the tide
  * asks nothing of you at all except that the healer kept up.
+ *
+ * Which of them a given boss leans on, and how hard, is the table in
+ * `encounters.ts`. This file stays the one copy of what each mechanic does:
+ * a second boss written as a second script would be a second shockwave rule
+ * to keep correct, and that one took three attempts.
  */
-
-interface PhaseTiming {
-  swing: number
-  puddle: number
-  spread: number
-  slam: number
-  puddleCount: number
-  /** Unavoidable party-wide damage; the healer's actual test. */
-  raid: number
-  /** 0 disables the mechanic for that phase. */
-  breath: number
-  shockwave: number
-  adds: number
+function fight(s: SimState): Encounter {
+  return encounterAt(s.encounter)
 }
-
-const PHASE: Record<number, PhaseTiming> = {
-  1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0 },
-  2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50 },
-  3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42 },
-}
-
-const PHASE_THREE_HP = 0.4
 
 /** Applies the difficulty's cadence to a phase's timers. */
 function scaled(timing: PhaseTiming, s: SimState): PhaseTiming {
@@ -80,10 +60,12 @@ function hit(s: SimState, amount: number): number {
   return amount * DIFFICULTIES[s.difficulty].damage
 }
 
+/** The same, for anything the floor does. */
+function mechanic(s: SimState, amount: number): number {
+  return hit(s, amount * fight(s).mechanicDamage)
+}
+
 const SLAM_CAST = 2
-const SLAM_DAMAGE = 1150
-const SWING_DAMAGE = 540
-const RAID_DAMAGE = 133
 
 const PUDDLE_RADIUS = 92
 const PUDDLE_DAMAGE = 1000
@@ -111,10 +93,11 @@ export function updateBoss(s: SimState, rng: Rng): void {
   const b = boss(s)
   if (!b.alive) return
 
+  const encounter = fight(s)
   advancePhase(s, b)
-  const timing = scaled(PHASE[s.phase]!, s)
+  const timing = scaled(encounter.phases[s.phase]!, s)
 
-  if (s.time >= ENRAGE_AT && !b.auras.some((a) => a.id === 'enrage')) {
+  if (s.time >= encounter.enrage && !b.auras.some((a) => a.id === 'enrage')) {
     addAura(b, 'enrage', b.id)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'ENRAGE', age: 0 })
   }
@@ -144,25 +127,31 @@ export function updateBoss(s: SimState, rng: Rng): void {
 }
 
 function advancePhase(s: SimState, b: Actor): void {
+  const encounter = fight(s)
   const ratio = b.hp / b.maxHp
 
-  if (s.phase === 1 && ratio <= PHASE_TWO_HP) {
+  if (s.phase === 1 && ratio <= encounter.phaseTwoHp) {
     s.phase = 2
     s.sounds.push('phase')
-    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'The tide rises!', age: 0 })
+    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseTwo, age: 0 })
+    // Pulled in rather than reset: a phase break whose new cadence waits out
+    // the old timers is a phase break nobody notices.
     s.nextPuddle = Math.min(s.nextPuddle, 3)
     s.nextSlam = Math.min(s.nextSlam, 5)
-    s.nextShockwave = 8
-    s.nextAdds = 16
+    // Only for what this boss actually does. Handing a shockwave timer to a
+    // boss with no shockwave is harmless today, since the scheduler checks the
+    // cadence, and is exactly the kind of thing that stops being harmless.
+    if (encounter.phases[2]!.shockwave > 0) s.nextShockwave = 8
+    if (encounter.phases[2]!.adds > 0) s.nextAdds = 16
     return
   }
 
-  if (s.phase === 2 && ratio <= PHASE_THREE_HP) {
+  if (s.phase === 2 && ratio <= encounter.phaseThreeHp) {
     s.phase = 3
     s.sounds.push('phase')
-    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'DROWN WITH ME', age: 0 })
-    s.nextBreath = Math.min(s.nextBreath, 4)
-    s.nextShockwave = Math.min(s.nextShockwave, 7)
+    s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
+    if (encounter.phases[3]!.breath > 0) s.nextBreath = Math.min(s.nextBreath, 4)
+    if (encounter.phases[3]!.shockwave > 0) s.nextShockwave = Math.min(s.nextShockwave, 7)
   }
 }
 
@@ -182,7 +171,7 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
   if (b.swingTimer > 0 || !target || b.castId) return
 
   if (dist(b.pos, target.pos) <= MELEE_RANGE + target.radius) {
-    applyDamage(s, target, hit(s, SWING_DAMAGE), 'physical', { sourceId: b.id })
+    applyDamage(s, target, hit(s, fight(s).swingDamage), 'physical', { sourceId: b.id })
     b.swingTimer = timing.swing
   } else {
     b.swingTimer = 0.2
@@ -190,6 +179,7 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
 }
 
 function scheduleSlam(s: SimState, b: Actor, target: Actor | null, timing: PhaseTiming): void {
+  if (timing.slam <= 0) return
   s.nextSlam -= DT
   if (s.nextSlam > 0 || b.castId) return
 
@@ -233,7 +223,7 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.nextShockwave = timing.shockwave
   s.sounds.push('shockwave')
-  say(s, b, 'The deep exhales')
+  say(s, b, fight(s).lines.shockwave)
   s.ground.push({
     ...blankGround(s),
     kind: 'shockwave',
@@ -249,6 +239,7 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
 }
 
 function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.puddle <= 0) return
   s.nextPuddle -= DT
   if (s.nextPuddle > 0) return
 
@@ -277,12 +268,14 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
 }
 
 function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
+  if (timing.raid <= 0) return
   s.nextRaidHit -= DT
   if (s.nextRaidHit > 0) return
 
   // Unavoidable, so it is not counted as a mechanic anyone failed.
   s.sounds.push('raid')
-  for (const a of livingParty(s)) applyDamage(s, a, hit(s, RAID_DAMAGE), 'magic', { sourceId: BOSS_ID })
+  const damage = hit(s, fight(s).raidDamage)
+  for (const a of livingParty(s)) applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID })
   s.nextRaidHit = timing.raid
   // Unavoidable damage with no tell reads as a broken hitbox: the player
   // dodges, loses health anyway, and blames the puddle they just left.
@@ -290,6 +283,7 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
 }
 
 function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.spread <= 0) return
   s.nextSpread -= DT
   if (s.nextSpread > 0) return
 
@@ -310,7 +304,7 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   if (s.nextAdds > 0) return
 
   s.nextAdds = timing.adds
-  say(s, b, 'Rise, drowned ones')
+  say(s, b, fight(s).lines.adds)
 
   const waves = livingParty(s).length >= 20 ? 5 : livingParty(s).length >= 8 ? 3 : 2
   for (let i = 0; i < waves; i++) {
@@ -411,7 +405,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
   if (castId === 'boss_slam') {
     const target = s.actors.find((a) => a.id === targetId)
     if (target && target.alive && dist(b.pos, target.pos) <= MELEE_RANGE + target.radius + 20) {
-      applyDamage(s, target, hit(s, SLAM_DAMAGE), 'physical', { sourceId: b.id })
+      applyDamage(s, target, hit(s, fight(s).slamDamage), 'physical', { sourceId: b.id })
     }
     return
   }
@@ -422,7 +416,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     cone.detonated = true
     cone.lingering = 0.3
     for (const a of livingParty(s)) {
-      if (insideCone(a.pos, cone)) applyDamage(s, a, hit(s, cone.damage), 'magic', { sourceId: b.id, mechanic: true })
+      if (insideCone(a.pos, cone)) applyDamage(s, a, mechanic(s, cone.damage), 'magic', { sourceId: b.id, mechanic: true })
     }
   }
 }
@@ -456,7 +450,7 @@ export function updateGround(s: SimState): void {
         // ahead of it: run toward the boss, not away.
         if (d >= g.radius - g.band && d <= g.radius + g.band) {
           g.caught.push(a.id)
-          applyDamage(s, a, hit(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
+          applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
         }
       }
       if (g.radius > ARENA_RADIUS + g.band) g.lingering = 0
@@ -476,7 +470,7 @@ export function updateGround(s: SimState): void {
         g.detonated = true
         for (const a of livingParty(s)) {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-            applyDamage(s, a, hit(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
+            applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
           }
         }
       }
@@ -487,7 +481,7 @@ export function updateGround(s: SimState): void {
     for (const a of livingParty(s)) {
       if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
         // Per-tick residue: silent, and not a separate "mechanic hit" each frame.
-        applyDamage(s, a, hit(s, 110 * DT), 'magic', { sourceId: BOSS_ID, silent: true })
+        applyDamage(s, a, mechanic(s, 110 * DT), 'magic', { sourceId: BOSS_ID, silent: true })
       }
     }
   }

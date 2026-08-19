@@ -32,6 +32,7 @@ import {
   type RaidSize,
 } from './sim/classes'
 import { createState } from './sim/state'
+import { encounterIndex, hasNext } from './sim/encounters'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -81,6 +82,8 @@ window.addEventListener('orientationchange', onViewportChange)
 
 const PARTY_KEY = 'abyss.party'
 const DIFFICULTY_KEY = 'abyss.difficulty'
+const ENCOUNTER_KEY = 'abyss.encounter'
+const UNLOCKED_KEY = 'abyss.unlocked'
 
 function loadParty(): Pick[] {
   const fallback = () => DEFAULT_PARTY.map((p) => ({ ...p }))
@@ -131,6 +134,42 @@ function loadParty(): Pick[] {
   }
 }
 
+/**
+ * Which boss you are on.
+ *
+ * Kept so a return visit opens where you left off rather than back at the
+ * first boss, which is the whole point of there being an order. Clamped on
+ * load: an index saved when the list was longer must not open a fight that
+ * does not exist.
+ */
+function loadEncounter(): number {
+  try {
+    const raw = localStorage.getItem(ENCOUNTER_KEY)
+    const parsed = raw === null ? NaN : Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? encounterIndex(parsed) : 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * The furthest boss reached.
+ *
+ * Kept apart from which one you are on, because they answer different
+ * questions: the first is progress and only ever goes up, the second is where
+ * you are standing right now and can go back. Without the split, going back to
+ * the first boss to farm it would lock the rest away again.
+ */
+function loadUnlocked(): number {
+  try {
+    const raw = localStorage.getItem(UNLOCKED_KEY)
+    const parsed = raw === null ? NaN : Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) ? encounterIndex(parsed) : 0
+  } catch {
+    return 0
+  }
+}
+
 function loadDifficulty(): DifficultyId {
   const raw = (() => {
     try {
@@ -146,6 +185,8 @@ function saveSetup(): void {
   try {
     localStorage.setItem(PARTY_KEY, JSON.stringify(party))
     localStorage.setItem(DIFFICULTY_KEY, difficulty)
+    localStorage.setItem(ENCOUNTER_KEY, String(encounter))
+    localStorage.setItem(UNLOCKED_KEY, String(unlocked))
   } catch {
     // Private browsing and full quotas are not worth failing over.
   }
@@ -159,6 +200,8 @@ function resize(size: RaidSize): void {
 
 let party = loadParty()
 let difficulty = loadDifficulty()
+let encounter = loadEncounter()
+let unlocked = Math.max(loadUnlocked(), encounter)
 let screen: 'roster' | 'fight' | 'history' = 'roster'
 
 let history: Attempt[] = loadHistory()
@@ -181,7 +224,7 @@ let announced: { award: Award; age: number }[] = []
 let recorded = false
 
 let attempt = 0
-let state: SimState = createState(BASE_SEED, attempt, party, difficulty)
+let state: SimState = createState(BASE_SEED, attempt, party, difficulty, encounter)
 // The RNG lives outside the state but is derived from it, so a given
 // (seed, attempt) pair always replays identically.
 let rng = new Rng(BASE_SEED + attempt * 7919)
@@ -190,13 +233,35 @@ function restart(): void {
   attempt++
   recorded = false
   announced = []
-  state = createState(BASE_SEED, attempt, party, difficulty)
+  state = createState(BASE_SEED, attempt, party, difficulty, encounter)
   rng = new Rng(BASE_SEED + attempt * 7919)
+}
+
+/**
+ * On to the next boss.
+ *
+ * The pull count goes back to zero with it. The AI's learning is learning
+ * *this* fight — a party that has killed the first boss nine times has not
+ * seen the second one's opening, and carrying the progress over would hand
+ * them a ninth-pull execution of a script they have never watched.
+ */
+function nextBoss(): void {
+  if (!hasNext(encounter)) return
+  encounter = encounterIndex(encounter + 1)
+  unlocked = Math.max(unlocked, encounter)
+  attempt = 0
+  recorded = false
+  announced = []
+  fightingEncounter = encounter
+  state = createState(BASE_SEED, attempt, party, difficulty, encounter)
+  rng = new Rng(BASE_SEED)
+  saveSetup()
 }
 
 /** The composition the current run was started with. */
 let fightingParty: Pick[] = party.map((p) => ({ ...p }))
 let fightingDifficulty: DifficultyId = difficulty
+let fightingEncounter: number = encounter
 
 /**
  * A changed party starts its own progression, since the AI's learning is
@@ -207,6 +272,7 @@ function startFight(): void {
   const changed =
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
+    encounter !== fightingEncounter ||
     party.some(
       (p, i) => p.classId !== fightingParty[i]?.classId || p.spec !== fightingParty[i]?.spec,
     )
@@ -214,7 +280,8 @@ function startFight(): void {
     attempt = 0
     fightingParty = party.map((p) => ({ ...p }))
     fightingDifficulty = difficulty
-    state = createState(BASE_SEED, attempt, party, difficulty)
+    fightingEncounter = encounter
+    state = createState(BASE_SEED, attempt, party, difficulty, encounter)
     rng = new Rng(BASE_SEED)
   }
   recorded = false
@@ -250,6 +317,13 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     } else if (hit?.kind === 'difficulty') {
       difficulty = hit.id
       saveSetup()
+    } else if (hit?.kind === 'encounter') {
+      // A locked boss is drawn locked and does nothing when pressed, rather
+      // than being absent: what is left down there is worth knowing.
+      if (hit.index <= unlocked) {
+        encounter = hit.index
+        saveSetup()
+      }
     } else if (hit?.kind === 'history') {
       screen = 'history'
       return
@@ -258,7 +332,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock)
+  drawRoster(ctx, party, difficulty, clock, encounter, unlocked)
 }
 
 let timing: Clock = { accumulator: 0, elapsedTotal: 0 }
@@ -315,13 +389,14 @@ function frame(now: number): void {
   // two answer: a tap anywhere else is somebody reading the report, and it
   // used to pull again under them.
   if (state.outcome !== 'ongoing' && tap) {
-    const hit = hitOutcome(tap.x, tap.y)
+    const hit = hitOutcome(tap.x, tap.y, state)
     if (hit === 'party') {
       screen = 'roster'
       requestAnimationFrame(frame)
       return
     }
-    if (hit === 'retry') restart()
+    if (hit === 'next') nextBoss()
+    else if (hit === 'retry') restart()
   }
   if (input.takeRestart()) restart()
 
@@ -337,6 +412,13 @@ function frame(now: number): void {
   // The moment a pull resolves, once.
   if (state.outcome !== 'ongoing' && !recorded) {
     recorded = true
+    // Pressing NEXT BOSS is not what opens the next boss; killing this one
+    // is. Leaving through CHANGE PARTY after a kill must not cost the
+    // progress that kill earned.
+    if (state.outcome === 'victory' && hasNext(state.encounter)) {
+      unlocked = Math.max(unlocked, encounterIndex(state.encounter + 1))
+      saveSetup()
+    }
     const at = Date.now()
     const entry = record(state, at)
     if (entry) {

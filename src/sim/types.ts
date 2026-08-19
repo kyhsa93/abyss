@@ -279,6 +279,8 @@ export interface SimState {
   texts: FloatingText[]
   chat: ChatLine[]
   outcome: Outcome
+  /** Which boss this is, as an index into `ENCOUNTERS`. */
+  encounter: number
   /**
    * Ticks left before the pull starts, counting down to zero.
    *

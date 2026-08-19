@@ -10,6 +10,7 @@ import {
   type Pick,
   type RaidSize,
 } from '../sim/classes'
+import { ENCOUNTERS } from '../sim/encounters'
 import { COLORS, L, classColor } from './theme'
 
 /**
@@ -30,6 +31,7 @@ export interface Rect {
 export interface RosterLayout {
   sizes: Rect[]
   difficulties: Rect[]
+  encounters: Rect[]
   classes: Rect[]
   history: Rect
   pull: Rect
@@ -41,6 +43,7 @@ export type RosterHit =
   | { kind: 'class'; pick: Pick }
   | { kind: 'size'; size: RaidSize }
   | { kind: 'difficulty'; id: DifficultyId }
+  | { kind: 'encounter'; index: number }
   | { kind: 'history' }
   | { kind: 'pull' }
 
@@ -69,11 +72,22 @@ export function rosterLayout(): RosterLayout {
     h: tabH,
   }))
 
+  // The bosses get their own row: three names do not fit beside five tabs,
+  // and this is the one choice on the screen that is not about your own raid.
+  const bossY = tabY + tabH + 6
+  const bossW = (L.w - pad * 2 - 4 * (ENCOUNTERS.length - 1)) / ENCOUNTERS.length
+  const encounters = ENCOUNTERS.map((_, i) => ({
+    x: pad + i * (bossW + 4),
+    y: bossY,
+    w: bossW,
+    h: tabH,
+  }))
+
   // No slot grid: the only pick anyone makes is their own, and the rest of
   // the raid is rolled at the door. A board of twenty-four strangers you did
   // not choose and cannot change is a readout nobody needs before a pull.
   const gap = Math.max(3, pad * 0.3)
-  const summaryY = tabY + tabH + 26 * L.ui
+  const summaryY = bossY + tabH + 26 * L.ui
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
   const gridTop = summaryY + 22
@@ -123,6 +137,7 @@ export function rosterLayout(): RosterLayout {
   return {
     sizes,
     difficulties,
+    encounters,
     classes,
     history: { x: pad, y: buttonY, w: fillW, h: buttonH },
     pull: { x: pad + fillW + gapB, y: buttonY, w: pullW, h: buttonH },
@@ -147,6 +162,11 @@ export function hitRoster(x: number, y: number): RosterHit | null {
     if (inside(layout.difficulties[i]!, x, y)) {
       return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
     }
+  }
+  // Whether the boss is reachable yet is the caller's business: the hit test
+  // says what was pressed, not what is allowed.
+  for (let i = 0; i < layout.encounters.length; i++) {
+    if (inside(layout.encounters[i]!, x, y)) return { kind: 'encounter', index: i }
   }
   // Slots are a readout, not a control: the only pick anyone makes is their
   // own, and that is made from the class list.
@@ -183,6 +203,9 @@ export function drawRoster(
   party: Pick[],
   difficulty: DifficultyId,
   clock: number,
+  encounter: number,
+  /** Highest boss reached; anything past it is drawn locked and refuses taps. */
+  unlocked: number,
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
@@ -209,6 +232,26 @@ export function drawRoster(
     )
   })
 
+  ENCOUNTERS.forEach((fight, i) => {
+    const locked = i > unlocked
+    const r = layout.encounters[i]!
+    if (locked) {
+      // Named rather than hidden. A boss you cannot reach yet is information;
+      // an empty slot where one will appear is a puzzle.
+      ctx.fillStyle = COLORS.panel
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+      ctx.strokeStyle = COLORS.panelEdge
+      ctx.lineWidth = 1
+      ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+      ctx.fillStyle = COLORS.dead
+      ctx.font = font(11)
+      ctx.textAlign = 'center'
+      ctx.fillText(`${fight.short} 🔒`, r.x + r.w / 2, r.y + r.h * 0.66)
+      return
+    }
+    tab(ctx, r, fight.short, i === encounter, COLORS.boss)
+  })
+
   // What you are playing, which is the only thing on this screen you decide.
   const own = party[activeSlot]
   const spec = own ? specOf(own) : null
@@ -233,6 +276,13 @@ export function drawRoster(
     L.w / 2,
     layout.summaryY + 28 * L.ui,
   )
+
+  const fight = ENCOUNTERS[encounter]
+  if (fight) {
+    ctx.fillStyle = COLORS.boss
+    ctx.font = font(10, true)
+    ctx.fillText(`${fight.name} — ${fight.demand}`, L.w / 2, layout.summaryY + 41 * L.ui)
+  }
 
   for (let i = 0; i < layout.classes.length; i++) {
     const r = layout.classes[i]!

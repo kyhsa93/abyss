@@ -3,7 +3,8 @@ import { ABILITIES } from '../sim/abilities'
 import { standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount } from '../sim/classes'
 import { playerTarget } from '../sim/sim'
-import { ENRAGE_AT, GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
+import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
+import { encounterAt, hasNext } from '../sim/encounters'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -39,16 +40,29 @@ export function soundButton(): Rect {
   return { x: p.x - p.w - 6, y: p.y, w: p.w, h: p.h }
 }
 
-/** Buttons on the end-of-fight overlay; shared with the hit test in main. */
-export function outcomeButtons(): { retry: Rect; party: Rect } {
-  const w = Math.min(180, L.w * 0.38)
-  const h = Math.max(40, Math.min(54, L.h * 0.07))
+/**
+ * Buttons on the end-of-fight overlay; shared with the hit test in main.
+ *
+ * A kill with something after it grows a third button, to the left of PULL
+ * AGAIN — the row is ordered by what it does to the boss you just fought:
+ * leave it behind, do it again, or go and change who you brought.
+ *
+ * The width comes from how many there are rather than being fixed, since three
+ * buttons at a five-man's width run off a 360-pixel phone.
+ */
+export function outcomeButtons(next = false): { next: Rect | null; retry: Rect; party: Rect } {
+  const count = next ? 3 : 2
   const gap = 12
+  const w = Math.min(180, (L.w - 24 - gap * (count - 1)) / count)
+  const h = Math.max(40, Math.min(54, L.h * 0.07))
   const y = L.h - h - Math.max(26, L.h * 0.055)
-  return {
-    retry: { x: L.w / 2 - w - gap / 2, y, w, h },
-    party: { x: L.w / 2 + gap / 2, y, w, h },
-  }
+  const row = w * count + gap * (count - 1)
+  const left = L.w / 2 - row / 2
+
+  const at = (i: number): Rect => ({ x: left + i * (w + gap), y, w, h })
+  return next
+    ? { next: at(0), retry: at(1), party: at(2) }
+    : { next: null, retry: at(0), party: at(1) }
 }
 
 /**
@@ -59,12 +73,30 @@ export function outcomeButtons(): { retry: Rect; party: Rect } {
  * for — started the next pull out from under you, and on a phone there was no
  * other way to look at it.
  */
-export function hitOutcome(x: number, y: number): 'retry' | 'party' | null {
-  const buttons = outcomeButtons()
-  for (const [id, r] of [['retry', buttons.retry], ['party', buttons.party]] as const) {
-    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return id
+export function hitOutcome(
+  x: number,
+  y: number,
+  s: SimState,
+): 'next' | 'retry' | 'party' | null {
+  // The state rather than a flag, so the hit test cannot be asked a different
+  // question than the drawing was. On a narrow screen the three-button row and
+  // the two-button one overlap, and a screen drawn with three buttons but read
+  // with two would send the NEXT BOSS press to PULL AGAIN.
+  const buttons = outcomeButtons(canAdvance(s))
+  const row = [
+    ['next', buttons.next],
+    ['retry', buttons.retry],
+    ['party', buttons.party],
+  ] as const
+  for (const [id, r] of row) {
+    if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return id
   }
   return null
+}
+
+/** Whether this pull earned the way out of this boss. */
+export function canAdvance(s: SimState): boolean {
+  return s.outcome === 'victory' && hasNext(s.encounter)
 }
 
 /**
@@ -124,16 +156,17 @@ function fitText(
   y: number,
   maxWidth: number,
   baseSize: number,
+  bold = false,
 ): void {
   for (let size = baseSize; size >= baseSize - 2; size--) {
-    ctx.font = font(size)
+    ctx.font = font(size, bold)
     if (ctx.measureText(text).width <= maxWidth) {
       ctx.fillText(text, cx, y)
       return
     }
   }
 
-  ctx.font = font(Math.max(6, baseSize - 2))
+  ctx.font = font(Math.max(6, baseSize - 2), bold)
   let clipped = text
   while (clipped.length > 1 && ctx.measureText(`${clipped}…`).width > maxWidth) {
     clipped = clipped.slice(0, -1)
@@ -741,7 +774,7 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
 }
 
 function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
-  const enrageIn = Math.max(0, ENRAGE_AT - s.time)
+  const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
   const line = 15 * L.ui
   let y = L.infoY
 
@@ -1038,7 +1071,8 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   const label =
     s.outcome === 'victory' ? 'KILL' : s.outcome === 'enrage' ? 'ENRAGE WIPE' : 'WIPE'
   const colour = s.outcome === 'victory' ? COLORS.hpBar : COLORS.hpBarLow
-  const buttons = outcomeButtons()
+  const advance = canAdvance(s)
+  const buttons = outcomeButtons(advance)
 
   ctx.textAlign = 'center'
   ctx.fillStyle = colour
@@ -1048,31 +1082,48 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillStyle = COLORS.text
   ctx.font = font(12)
   ctx.fillText(
-    `${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
+    `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )
 
   drawReport(ctx, s, Math.max(96, L.h * 0.26), buttons.retry.y - 24)
 
-  for (const [text, rect, accent] of [
-    [touch ? 'PULL AGAIN' : 'PULL AGAIN  (R)', buttons.retry, COLORS.castBar],
-    ['CHANGE PARTY', buttons.party, COLORS.textDim],
-  ] as const) {
+  // The kill's own button is the bright one: after a kill, going on is the
+  // thing you came for, and PULL AGAIN steps back to what you already did.
+  const row: Array<readonly [string, Rect, string]> = []
+  if (buttons.next) row.push(['NEXT BOSS', buttons.next, COLORS.hpBar] as const)
+  row.push([
+    touch || advance ? 'PULL AGAIN' : 'PULL AGAIN  (R)',
+    buttons.retry,
+    advance ? COLORS.textDim : COLORS.castBar,
+  ] as const)
+  row.push(['CHANGE PARTY', buttons.party, COLORS.textDim] as const)
+
+  for (const [text, rect, accent] of row) {
     ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
     ctx.strokeStyle = accent
     ctx.lineWidth = 2
     ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1)
     ctx.fillStyle = accent
-    ctx.font = font(12, true)
     ctx.textAlign = 'center'
-    ctx.fillText(text, rect.x + rect.w / 2, rect.y + rect.h * 0.62)
+    fitText(ctx, text, rect.x + rect.w / 2, rect.y + rect.h * 0.62, rect.w - 12, 12, true)
   }
 
-  if (s.outcome !== 'victory') {
-    ctx.fillStyle = COLORS.textDim
-    ctx.font = font(11)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(11)
+  if (advance) {
+    const next = encounterAt(s.encounter + 1)
+    ctx.fillText(
+      `next: ${next.name} — ${next.demand}`,
+      L.w / 2,
+      buttons.retry.y + buttons.retry.h + 20,
+    )
+  } else if (s.outcome === 'victory') {
+    ctx.fillText('nothing left down here', L.w / 2, buttons.retry.y + buttons.retry.h + 20)
+  } else {
     ctx.fillText(
       'the party learns a little each attempt',
       L.w / 2,

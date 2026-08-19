@@ -88,9 +88,10 @@ off the bottom.
 
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
-right edge, and the two buttons on the end-of-fight overlay. Only those two
-answer a tap there — the rest of that screen is the report, and reading it
-used to start the next pull. The canvas
+right edge, and the buttons on the end-of-fight overlay — two of them, or
+three after a kill with a boss still to come. Only those answer a tap there:
+the rest of that screen is the report, and reading it used to start the next
+pull. The canvas
 fills the viewport and the layout is recomputed per orientation, so portrait
 and landscape both work.
 
@@ -439,24 +440,62 @@ because getting it wrong does not throw — it just runs at the wrong speed. `Ma
 inside `src/sim/`. That is what keeps replays, leaderboard verification and a
 future server-authoritative port possible.
 
-## Encounter
+## The bosses
 
-The Drowned Warden, phase transitions at 70% and 40% health.
+Three of them, fought in order. A kill puts a **NEXT BOSS** button on the
+results screen, to the left of PULL AGAIN, and taking it moves you on with the
+pull count back at zero — the party's learning is learning *this* fight, and a
+group that killed the first boss nine times has never seen the second one's
+opening.
 
-| Mechanic | What it asks of you |
-| --- | --- |
-| Abyssal Slam | Tank cooldown, or the tank takes a large hit |
-| Puddles | Move out fast; the warning is short and they linger |
-| Tidal Breath | A frontal cone — get out of the front, or behind it |
-| Shockwave | An expanding ring. It outruns you, so the answer is **in**, not out |
-| Spread | The target walks away from everyone else |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch to them |
-| Crushing tide | Unavoidable party damage — the floor under the healer |
-| The boss itself | Faster than the whole party; you cannot outrun it |
-| Enrage at 180s | A hard damage check |
+Killing a boss is what opens the next, not pressing the button: leaving
+through CHANGE PARTY after a kill keeps the progress. Where you are and how
+far you have got are stored apart, so going back to farm an earlier boss does
+not lock the later ones away again. The party screen carries a row of them and
+draws the ones you have not reached locked but named — what is left down there
+is worth knowing.
 
-Each one asks for something different, which is what stops the fight being a
-single dodge repeated: puddles say leave where you stand, the breath says get
+| Boss | Asks for | Leans on |
+| --- | --- | --- |
+| The Drowned Warden | every mechanic, none of them often | all of them, gently |
+| The Choir Beneath | stay apart, and out-heal the singing | spread, puddles, unavoidable damage |
+| The Tidebreaker | come in, get behind, change target | shockwave, breath, adds |
+
+They are one script and three tables (`src/sim/encounters.ts`). A second boss
+written as a second timeline would be a second copy of what a shockwave does,
+and that rule — the ring outruns you, so the answer is to already be inside —
+took three attempts to get right. It is not being written twice.
+
+What separates them is which mechanics they lean on and how hard the floor
+hits. The Choir has no cone, no ring and no adds at all: its floor is busy and
+its damage never stops, so it ends on healer mana. The Tidebreaker is the
+opposite — almost nothing to stand in, and almost no time standing anywhere,
+with a ring to run into, a cone to get behind and something new to hit every
+time you have settled on a target. Its floor hits more than twice as hard as
+the Warden's, because a mechanic you have room to dodge has to be worth
+dodging.
+
+| Mechanic | What it asks of you | Warden | Choir | Tidebreaker |
+| --- | --- | --- | --- | --- |
+| Slam | Tank cooldown, or the tank takes a large hit | ✓ | ✓ | ✓ |
+| Puddles | Move out fast; the warning is short and they linger | ✓ | ✓ | rarely |
+| Tidal Breath | A frontal cone — get out of the front, or behind it | ✓ | | ✓ |
+| Shockwave | An expanding ring. It outruns you, so the answer is **in**, not out | ✓ | | ✓ |
+| Spread | The target walks away from everyone else | ✓ | ✓ | |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch to them | ✓ | | ✓ |
+| Crushing tide | Unavoidable party damage — the floor under the healer | ✓ | ✓ | ✓ |
+| The boss itself | Faster than the whole party; you cannot outrun it | ✓ | ✓ | ✓ |
+| Enrage | A hard damage check | 240s | 230s | 250s |
+
+A cadence of zero disables a mechanic, which is how the table says a boss does
+not have one. That is also where it went wrong first: the schedulers counted
+down from zero and fired every tick instead of never, so the Tidebreaker
+marked the whole raid for spread thirty times a second. Every scheduler checks
+its own cadence now, and the render check plays each boss through to the end
+and asserts that what reached the floor is what the table claims.
+
+Each mechanic asks for something different, which is what stops a fight being
+a single dodge repeated: puddles say leave where you stand, the breath says get
 behind, the shockwave says come in, spread says separate, adds say switch
 targets, and the tide asks nothing at all except that the healer kept up.
 
@@ -579,6 +618,26 @@ real thing — everyone is stacked in the one place the boss is aiming — but i
 is no longer close to unplayable: weapons swing whether or not you are in
 position to press anything, and melee are the ones carrying them, so a gap
 that was fifty points on a first pull is thirty-three.
+
+One row per boss, same party, forty runs a cell. A boss inherits nothing from
+the one before it — different mechanics land at different rates, so each has to
+be measured rather than assumed to be in range:
+
+| Boss | 1st pull | 5th | 9th | avg time | lost to enrage |
+| --- | --- | --- | --- | --- | --- |
+| The Drowned Warden | 33% | 50% | 73% | 126s | 0% |
+| The Choir Beneath | 28% | 50% | 68% | 118s | 0% |
+| The Tidebreaker | 13% | 43% | 68% | 203s | 22% |
+
+The order is the point: a first pull gets harder down the list while a ninth
+stays winnable, so each boss is a wall you learn rather than one you cannot
+pass. The Tidebreaker is the only one that loses pulls to the enrage, which is
+what the fight is — it has the most to dodge, and time spent dodging is damage
+not dealt.
+
+Tuning them showed the same cliff the difficulties did. Six thousand health on
+the Choir, about a tenth, moved its first pull from 43% to 5%: it is a fight
+that ends on healer mana, and mana either lasts to the kill or it does not.
 
 Per-member detail for the default composition, `puddle uptime / units walked
 per second`:

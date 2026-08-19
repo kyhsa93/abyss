@@ -1,7 +1,7 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
-import { ENRAGE_AT } from '../src/sim/constants'
+import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import {
   autoParty,
   pickFor,
@@ -45,8 +45,9 @@ function run(
   attempt: number,
   party?: Pick[],
   difficulty: DifficultyId = 'normal',
+  encounter = 0,
 ): Report {
-  const s = createState(seed, attempt, party, difficulty)
+  const s = createState(seed, attempt, party, difficulty, encounter)
   // The pull's opening countdown is skipped rather than waited out. No time
   // passes during it, so the fight is identical either way — this is only
   // ninety ticks per run of nobody doing anything, times several thousand.
@@ -58,7 +59,7 @@ function run(
   const walkedQuiet: Record<string, number> = {}
   let ticks = 0
 
-  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     const pressed: number[] = []
     // Fire abilities roughly on cooldown.
     if (ticks % 45 === 0) pressed.push(0)
@@ -161,6 +162,38 @@ for (const { label, party } of PARTIES) {
     cells.push(`${Math.round((wins / RUNS) * 100)}%`.padEnd(9))
   }
   console.log(label.padEnd(23), cells.join(''), (time / total).toFixed(0))
+}
+
+// --- one row per boss ------------------------------------------------------
+//
+// Each one leans on different mechanics, so each one has to be tuned against
+// the same party rather than assumed to inherit the first one's numbers. The
+// mechanic columns are what says they are actually different fights: a boss
+// whose puddle count and raid damage match the last one is a reskin.
+const BOSS_RUNS = 40
+console.log('\nboss                   ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  enrage%')
+for (let i = 0; i < ENCOUNTERS.length; i++) {
+  const cells: string[] = []
+  let time = 0
+  let total = 0
+  let enraged = 0
+  for (const attempt of ATTEMPTS) {
+    let wins = 0
+    for (let n = 0; n < BOSS_RUNS; n++) {
+      const r = run(1000 + n * 137, attempt, PARTIES[0]!.party, 'normal', i)
+      if (r.outcome === 'victory') wins++
+      if (r.outcome === 'enrage') enraged++
+      time += r.time
+      total++
+    }
+    cells.push(`${Math.round((wins / BOSS_RUNS) * 100)}%`.padEnd(9))
+  }
+  console.log(
+    ENCOUNTERS[i]!.name.padEnd(23),
+    cells.join(''),
+    (time / total).toFixed(0).padEnd(9),
+    `${Math.round((enraged / total) * 100)}%`,
+  )
 }
 
 // --- raid size and difficulty, with a balanced composition each time -------

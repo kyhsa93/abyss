@@ -4,6 +4,7 @@ import { drawWorld } from '../src/render/draw'
 import { Effects } from '../src/render/effects'
 import { allIcons, iconFor } from '../src/render/icons'
 import {
+  canAdvance,
   drawHud,
   hitOutcome,
   meterRect,
@@ -61,11 +62,11 @@ import {
   COUNTDOWN_TICKS,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
-  ENRAGE_AT,
   MELEE_RANGE,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
 } from '../src/sim/constants'
+import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/encounters'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
@@ -150,7 +151,7 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   updateLayout(VIEWPORTS[vi]![0], VIEWPORTS[vi]![1])
   const s = pulled(0x51ed, attempt)
   const rng = new Rng(0x51ed + attempt * 7919)
-  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
     drawWorld(ctx, s, 0.5, s.time, new Effects())
     // Alternate modes so both the desktop bar and the touch overlay are drawn.
@@ -224,7 +225,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 {
   const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
-  while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
   }
 
@@ -330,7 +331,18 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
     for (const party of parties) {
       for (let slot = 0; slot < party.length; slot += 3) {
-        drawRoster(stubCtx(), party, slot % 2 === 0 ? 'normal' : 'heroic', 1.5)
+        // Drawn at every point of progress, since a locked boss and an
+        // unlocked one take different paths through the tab.
+        for (let unlocked = 0; unlocked < ENCOUNTERS.length; unlocked++) {
+          drawRoster(
+            stubCtx(),
+            party,
+            slot % 2 === 0 ? 'normal' : 'heroic',
+            1.5,
+            Math.min(slot % ENCOUNTERS.length, unlocked),
+            unlocked,
+          )
+        }
       }
 
       // Every drawn control must be reachable by a tap at its own centre, at
@@ -339,6 +351,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       const targets = [
         ...layout.sizes.map((r, i) => [`size ${i}`, r] as const),
         ...layout.difficulties.map((r, i) => [`difficulty ${i}`, r] as const),
+        ...layout.encounters.map((r, i) => [`encounter ${i}`, r] as const),
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
         ['history', layout.history] as const,
         ['pull', layout.pull] as const,
@@ -555,7 +568,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   for (let run = 0; run < 6 && seen.size < 5; run++) {
     const s = pulled(1000 + run * 137, 8)
     const rng = new Rng(1000 + run * 137)
-    while (s.outcome === 'ongoing' && s.time < ENRAGE_AT + 60) {
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
       for (const g of s.ground) seen.add(g.kind)
       if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
@@ -2772,6 +2785,9 @@ for (const [label, w, h] of [
   ['small portrait 360x640', 360, 640],
 ] as const) {
   updateLayout(w, h)
+  // A wipe, which is the two-button case.
+  const ended = pulled(0x51ed, 0)
+  ended.outcome = 'wipe'
   const b = outcomeButtons()
   const middle = (r: { x: number; y: number; w: number; h: number }) => ({
     x: r.x + r.w / 2,
@@ -2780,8 +2796,8 @@ for (const [label, w, h] of [
 
   const retry = middle(b.retry)
   const party = middle(b.party)
-  expect(`${label}: PULL AGAIN answers`, hitOutcome(retry.x, retry.y) === 'retry', `${hitOutcome(retry.x, retry.y)}`)
-  expect(`${label}: CHANGE PARTY answers`, hitOutcome(party.x, party.y) === 'party', `${hitOutcome(party.x, party.y)}`)
+  expect(`${label}: PULL AGAIN answers`, hitOutcome(retry.x, retry.y, ended) === 'retry', `${hitOutcome(retry.x, retry.y, ended)}`)
+  expect(`${label}: CHANGE PARTY answers`, hitOutcome(party.x, party.y, ended) === 'party', `${hitOutcome(party.x, party.y, ended)}`)
 
   // Every corner of each button counts, or a tap on the edge of the one you
   // aimed at falls through to the other outcome.
@@ -2791,7 +2807,7 @@ for (const [label, w, h] of [
       [r.x + r.w, r.y],
       [r.x, r.y + r.h],
       [r.x + r.w, r.y + r.h],
-    ].every(([x, y]) => hitOutcome(x!, y!) !== null),
+    ].every(([x, y]) => hitOutcome(x!, y!, ended) !== null),
   )
   expect(`${label}: their edges count as hits`, corners, 'an edge fell through')
 
@@ -2803,8 +2819,150 @@ for (const [label, w, h] of [
     ['a corner of the screen', 3, 3],
     ['below everything', L.w / 2, L.h - 2],
   ] as const) {
-    expect(`${label}: ${where} does not`, hitOutcome(x, y) === null, `${hitOutcome(x, y)}`)
+    expect(`${label}: ${where} does not`, hitOutcome(x, y, ended) === null, `${hitOutcome(x, y, ended)}`)
   }
+}
+
+// --- the bosses are different fights, and each one is survivable ------------
+//
+// A table of numbers is easy to get wrong in a way that types cannot catch: a
+// cadence of zero disables a mechanic, and a scheduler that does not check for
+// it fires that mechanic every tick instead of never. That is what happened to
+// spread the first time this ran — every party member marked, thirty times a
+// second — so what each boss actually puts on the floor is asserted here
+// rather than read off the table it came from.
+{
+  const seen = new Map<string, Set<string>>()
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const kinds = new Set<string>()
+    let spreads = 0
+    let adds = 0
+    const s = pulled(0x51ed, 8, undefined, 'normal', i)
+    const rng = new Rng(0x51ed)
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const g of s.ground) kinds.add(g.kind)
+      for (const a of s.actors) {
+        if (a.faction === 'party' && a.auras.some((aura) => aura.id === 'spread')) spreads++
+      }
+      adds += s.actors.filter((a) => a.faction === 'boss' && a.id !== boss(s).id).length
+    }
+    if (spreads > 0) kinds.add('spread')
+    if (adds > 0) kinds.add('adds')
+    seen.set(ENCOUNTERS[i]!.id, kinds)
+
+    const encounter = ENCOUNTERS[i]!
+    const label = encounter.name
+
+    // Whatever the table says it does, it does — and whatever it says it does
+    // not do, it never does.
+    for (const key of ['breath', 'shockwave', 'adds', 'spread'] as const) {
+      const wanted = Object.values(encounter.phases).some((p) => p[key] > 0)
+      const happened = kinds.has(key)
+      // A mechanic can be scheduled and still not reach the floor inside one
+      // pull, so only the negative is asserted in both directions.
+      if (!wanted) {
+        expect(`${label}: no ${key}`, !happened, `${key} fired on a boss with none`)
+      } else if (key === 'spread' || key === 'adds') {
+        expect(`${label}: ${key} happens`, happened, `${key} never fired`)
+      }
+    }
+
+    expect(
+      `${label}: the pull resolves`,
+      s.outcome !== 'ongoing',
+      `still running at ${s.time.toFixed(0)}s`,
+    )
+  }
+
+  // And they are not the same fight with a different name on it.
+  const ids = [...seen.keys()]
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const a = seen.get(ids[i]!)!
+      const b = seen.get(ids[j]!)!
+      const same = a.size === b.size && [...a].every((k) => b.has(k))
+      expect(`${ids[i]} and ${ids[j]} ask for different things`, !same, [...a].join(','))
+    }
+  }
+
+  // An index from a save older than the list must not open a fight that is
+  // not there.
+  expect('a wild index clamps', encounterIndex(99) === ENCOUNTERS.length - 1, `${encounterIndex(99)}`)
+  expect('and so does a negative one', encounterIndex(-5) === 0, `${encounterIndex(-5)}`)
+  expect('the last boss has no next', !hasNext(ENCOUNTERS.length - 1), 'it claims one')
+}
+
+// --- NEXT BOSS appears exactly when there is one ----------------------------
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['small portrait 360x640', 360, 640],
+] as const) {
+  updateLayout(w, h)
+
+  const two = outcomeButtons(false)
+  const three = outcomeButtons(true)
+  expect(`${label}: two buttons without a next boss`, two.next === null, 'a third appeared')
+  expect(`${label}: three with one`, three.next !== null, 'the third is missing')
+
+  // Left of PULL AGAIN, which is what was asked for and also the order the
+  // three read in: leave this boss, repeat it, or go change the raid.
+  expect(
+    `${label}: NEXT BOSS sits left of PULL AGAIN`,
+    three.next !== null && three.next.x + three.next.w <= three.retry.x,
+    JSON.stringify(three),
+  )
+
+  const row = [three.next!, three.retry, three.party]
+  expect(
+    `${label}: all three fit on screen`,
+    row.every((r) => r.x >= 0 && r.x + r.w <= w && r.y >= 0 && r.y + r.h <= h),
+    JSON.stringify(row),
+  )
+  expect(
+    `${label}: and do not overlap`,
+    row.every((r, i) => i === 0 || r.x >= row[i - 1]!.x + row[i - 1]!.w),
+    JSON.stringify(row),
+  )
+
+  // The hit test has to be asked the same question the drawing was, or the
+  // third button is drawn and answers as PULL AGAIN.
+  // Asked with the state, which is what makes the two layouts impossible to
+  // mix up: a kill on a boss with a successor is exactly the case that draws
+  // three, so it is the case that must read three.
+  const killed = pulled(0x51ed, 0, undefined, 'normal', 0)
+  killed.outcome = 'victory'
+  const wiped = pulled(0x51ed, 0, undefined, 'normal', 0)
+  wiped.outcome = 'wipe'
+
+  const at = (r: { x: number; y: number; w: number; h: number }) => [r.x + r.w / 2, r.y + r.h / 2] as const
+  expect(`${label}: NEXT BOSS answers`, hitOutcome(...at(three.next!), killed) === 'next', 'it did not')
+  expect(`${label}: PULL AGAIN still answers`, hitOutcome(...at(three.retry), killed) === 'retry', 'it did not')
+  expect(`${label}: CHANGE PARTY still answers`, hitOutcome(...at(three.party), killed) === 'party', 'it did not')
+  expect(
+    `${label}: a wipe reads the two-button row`,
+    hitOutcome(...at(two.retry), wiped) === 'retry' && hitOutcome(...at(two.party), wiped) === 'party',
+    'a wipe read the wrong row',
+  )
+}
+
+// A kill on the last boss offers no way on, and a wipe never does.
+{
+  updateLayout(1440, 900)
+  const last = pulled(0x51ed, 0, undefined, 'normal', ENCOUNTERS.length - 1)
+  last.outcome = 'victory'
+  expect('the last kill has nowhere to go', !canAdvance(last), 'it offered one')
+
+  const first = pulled(0x51ed, 0, undefined, 'normal', 0)
+  first.outcome = 'victory'
+  expect('an earlier kill does', canAdvance(first), 'it did not')
+
+  first.outcome = 'wipe'
+  expect('a wipe does not', !canAdvance(first), 'a wipe offered the next boss')
+  first.outcome = 'enrage'
+  expect('nor an enrage', !canAdvance(first), 'an enrage offered the next boss')
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

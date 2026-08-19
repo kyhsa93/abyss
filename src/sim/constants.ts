@@ -56,9 +56,6 @@ export const COUNTDOWN = 3
  */
 export const COUNTDOWN_TICKS = COUNTDOWN * TICK_RATE
 
-export const ENRAGE_AT = 240
-export const PHASE_TWO_HP = 0.7
-
 /**
  * Warning time before a puddle detonates.
  *
