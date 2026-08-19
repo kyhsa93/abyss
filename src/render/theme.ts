@@ -78,6 +78,18 @@ export interface Layout {
   partyW: number
   partyRow: number
 
+  /**
+   * Minimap: a scaled copy of the arena, top right.
+   *
+   * It earns its place because the camera follows the player — standing near
+   * the rim puts half the floor off screen, and "where is everyone" stops
+   * being answerable by looking.
+   */
+  mapX: number
+  mapY: number
+  mapR: number
+
+  /** Right edge of the fight readout, which now stops short of the minimap. */
   infoX: number
   infoY: number
   chatY: number
@@ -116,6 +128,10 @@ export function computeLayout(w: number, h: number): Layout {
     // Landscape keeps the party frames on the left and buttons on the right.
     arenaR = Math.max(90, Math.min((h - topBand - 28) / 2, (w - 300 * ui) / 2))
   }
+
+  const mapR = clamp(Math.min(w, h) * 0.082, 30, 62)
+  const mapX = w - mapR - 10
+  const mapY = topBand + 8 + mapR
 
   const btnR = clamp(Math.min(w, h) * 0.062, 34, 52)
   const joyBase = clamp(Math.min(w, h) * 0.105, 58, 92)
@@ -156,7 +172,14 @@ export function computeLayout(w: number, h: number): Layout {
     partyW: clamp(w * 0.19, 108, 150),
     partyRow: clamp(h * 0.085, 46, 70),
 
-    infoX: w - 10,
+    mapX,
+    mapY,
+    mapR,
+
+    // Right-aligned against the minimap rather than the screen edge; the
+    // party and mute buttons hang off this too, so the whole readout column
+    // moves left together.
+    infoX: mapX - mapR - 12,
     infoY: topBand + 22,
     chatY: h - (portrait ? 250 : 120),
     // Slot height plus its caption plus a small margin. Nothing sits under it.

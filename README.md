@@ -42,6 +42,17 @@ right edge, and a tap on the end-of-fight overlay to pull again. The canvas
 fills the viewport and the layout is recomputed per orientation, so portrait
 and landscape both work.
 
+The top right corner carries a minimap and the bottom right a live meter. The
+minimap is the whole floor at map scale — fire, boss, thralls, everyone else —
+with a box marking the part of it currently on screen, which is the only thing
+that tells you how much of the arena the camera is not showing you. The meter
+ranks the raid on damage plus healing, the same way the after-action report
+does so a healer is not permanently last, and your own row is always on it
+even when you are twenty-fifth of twenty-five. Where the meter sits depends on
+what is already in the corner: the thumbs own it on touch, and the centred
+action bar reaches it in portrait without them, so it sits above whichever is
+on screen and takes the corner itself only on a wide keyboard layout.
+
 The camera is locked to your own character rather than to the arena: your
 token stays in the middle of the viewport and the floor scrolls under it. In
 a twenty-five player pull, finding yourself was the slowest thing on screen.

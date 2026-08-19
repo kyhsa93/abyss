@@ -5,13 +5,15 @@ import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, roleColor } from './theme'
+import { COLORS, L, WORLD_RADIUS, roleColor } from './theme'
 
 export interface Rect {
   x: number
   y: number
   w: number
   h: number
+  /** Meter only: how many party members its list has room for. */
+  rows?: number
 }
 
 /** Small always-visible control that returns to party selection. */
@@ -26,7 +28,7 @@ export function partyButton(): Rect {
   const pair = Math.max(120, Math.min(170, L.w * 0.26))
   const w = (pair - 6) / 2
   const h = Math.max(22, Math.min(30, L.h * 0.04))
-  return { x: L.w - w - 8, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
+  return { x: L.infoX - w, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
 }
 
 /** Mute toggle, immediately left of the party button. */
@@ -45,6 +47,39 @@ export function outcomeButtons(): { retry: Rect; party: Rect } {
     retry: { x: L.w / 2 - w - gap / 2, y, w, h },
     party: { x: L.w / 2 + gap / 2, y, w, h },
   }
+}
+
+/**
+ * Live meter, bottom right.
+ *
+ * Where "bottom right" is depends on what is already there. In portrait the
+ * stick owns the bottom left and the buttons the bottom right, and without
+ * them the centred action bar is wide enough to reach the corner anyway, so
+ * the meter sits above whichever of the two is on screen. In landscape the
+ * buttons are a column against the right edge and the room is beside them,
+ * above the cast bar. On a wide screen with no touch controls it takes the
+ * corner it is named after.
+ */
+export function meterRect(touch: boolean): Rect {
+  const w = Math.max(132, Math.min(210, L.w * 0.24))
+  // A short screen cannot spare seven lines, and a meter that runs off the
+  // bottom is worse than a shorter one.
+  const rows = L.h > 560 ? 5 : 3
+  const h = (rows + 2) * 13 * L.ui + 10
+
+  const buttonTop = Math.min(...L.btnPos.map((b) => b.y)) - L.btnR
+  const buttonLeft = Math.min(...L.btnPos.map((b) => b.x)) - L.btnR
+
+  const right = touch && !L.portrait ? buttonLeft - 10 : L.w - 10
+  const bottom = L.portrait
+    ? // Portrait has no free bottom corner in either mode: the thumbs take it
+      // on touch, and the action bar is wide enough to reach it without them.
+      (touch ? buttonTop : L.actionY) - 10
+    : touch
+      ? L.castY - 8
+      : L.h - 10
+
+  return { x: right - w, y: bottom - h, w, h, rows }
 }
 
 export interface TouchView {
@@ -171,6 +206,8 @@ export function drawHud(
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
   drawTideWarning(ctx, s)
+  drawMinimap(ctx, s)
+  drawMeter(ctx, s, touch.active)
   if (touch.active) drawTouchControls(ctx, s, touch)
   else drawActionBar(ctx, s)
   drawCastBar(ctx, s, touch.active)
@@ -178,6 +215,213 @@ export function drawHud(
   drawPartyButton(ctx)
   drawSoundButton(ctx, muted)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
+}
+
+/**
+ * Minimap.
+ *
+ * The whole floor at a glance: where the fire is, where the boss is looking,
+ * and which way the party went. It draws the same world the arena does, at
+ * arena-radius-to-map-radius, with a box marking the part of it currently on
+ * screen — with a camera that follows the player, that box is the only thing
+ * telling you how much of the floor you cannot see.
+ */
+function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const { mapX: cx, mapY: cy, mapR: r } = L
+  const k = r / WORLD_RADIUS
+  const at = (p: { x: number; y: number }) => ({ x: cx + p.x * k, y: cy + p.y * k })
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(10, 10, 15, 0.82)'
+  ctx.fill()
+  ctx.clip()
+
+  // Ground first, so nobody standing in it is hidden by it.
+  for (const g of s.ground) {
+    const p = at(g.pos)
+    const gr = Math.max(1, g.radius * k)
+
+    if (g.kind === 'breath') {
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y)
+      ctx.arc(p.x, p.y, gr, g.angle - g.halfWidth, g.angle + g.halfWidth)
+      ctx.closePath()
+      ctx.fillStyle = g.detonated ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.2)'
+      ctx.fill()
+      continue
+    }
+
+    if (g.kind === 'shockwave') {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, gr, 0, Math.PI * 2)
+      ctx.strokeStyle = 'rgba(253, 224, 71, 0.9)'
+      ctx.lineWidth = Math.max(1, g.band * k)
+      ctx.stroke()
+      continue
+    }
+
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, gr, 0, Math.PI * 2)
+    ctx.fillStyle = g.detonated ? COLORS.puddle : COLORS.telegraph
+    ctx.fill()
+    if (!g.detonated) {
+      ctx.strokeStyle = COLORS.telegraphEdge
+      ctx.lineWidth = 1
+      ctx.stroke()
+    }
+  }
+
+  // The slice of the floor actually on screen. Drawn under the tokens so it
+  // never hides one.
+  const player = s.actors.find((a) => a.isPlayer)
+  if (player) {
+    const halfW = L.w / 2 / L.scale
+    const halfH = L.h / 2 / L.scale
+    const view = at(player.pos)
+    ctx.strokeStyle = 'rgba(203, 213, 225, 0.35)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(view.x - halfW * k, view.y - halfH * k, halfW * 2 * k, halfH * 2 * k)
+  }
+
+  for (const a of s.actors) {
+    if (!a.alive) continue
+    const p = at(a.pos)
+    const isBoss = a.id === boss(s).id
+    const dot = isBoss ? Math.max(3, r * 0.11) : Math.max(2, r * 0.055)
+
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, dot, 0, Math.PI * 2)
+    ctx.fillStyle =
+      a.faction === 'boss' ? (isBoss ? COLORS.boss : '#a855f7') : roleColor(a.role, a.isPlayer)
+    ctx.fill()
+
+    // Your own token gets a ring; on a map this size a colour alone is not
+    // enough to pick yourself out of twenty-five dots.
+    if (a.isPlayer) {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, dot + 2.5, 0, Math.PI * 2)
+      ctx.strokeStyle = COLORS.player
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+}
+
+function short(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n)}`
+}
+
+/**
+ * Live contribution meter.
+ *
+ * Ranked on damage plus healing, the same way the after-action report ranks,
+ * so a healer is not permanently last on a board that only counts damage. The
+ * player's own row is always on it: the question the meter answers during a
+ * pull is "am I pulling my weight", and a row that drops off the bottom at
+ * rank six answers nothing.
+ */
+function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
+  const rect = meterRect(touch)
+  const seconds = Math.max(1, s.time)
+
+  const ranked = s.actors
+    .filter((a) => a.faction === 'party')
+    .map((a) => {
+      const t = s.tally[a.id]
+      return {
+        actor: a,
+        dps: (t?.damage ?? 0) / seconds,
+        hps: (t?.healing ?? 0) / seconds,
+      }
+    })
+    .sort((a, b) => b.dps + b.hps - (a.dps + a.hps))
+    .map((row, i) => ({ ...row, rank: i + 1 }))
+
+  const limit = rect.rows ?? 5
+  const shown = ranked.slice(0, limit)
+  const playerRow = ranked.find((r) => r.actor.isPlayer)
+  if (playerRow && !shown.includes(playerRow)) shown[shown.length - 1] = playerRow
+
+  const line = 13 * L.ui
+  const peak = Math.max(1, ...ranked.map((r) => r.dps + r.hps))
+
+  ctx.fillStyle = COLORS.panel
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1)
+
+  const pad = 5
+  const inner = rect.w - pad * 2
+  let y = rect.y + pad + line * 0.8
+
+  ctx.textAlign = 'left'
+  ctx.font = font(9)
+  ctx.fillStyle = COLORS.textDim
+  ctx.fillText('per second', rect.x + pad, y)
+  ctx.textAlign = 'right'
+  ctx.fillText(`${s.time.toFixed(0)}s`, rect.x + rect.w - pad, y)
+  y += line
+
+  for (const row of shown) {
+    const colour = roleColor(row.actor.role, row.actor.isPlayer)
+    const total = row.dps + row.hps
+
+    // Damage and healing stack in one bar, healing lighter, exactly as the
+    // after-action report draws them.
+    ctx.globalAlpha = 0.24
+    ctx.fillStyle = colour
+    ctx.fillRect(rect.x + pad, y - line * 0.72, (row.dps / peak) * inner, line * 0.86)
+    ctx.globalAlpha = 0.13
+    ctx.fillRect(
+      rect.x + pad + (row.dps / peak) * inner,
+      y - line * 0.72,
+      (row.hps / peak) * inner,
+      line * 0.86,
+    )
+    ctx.globalAlpha = 1
+
+    ctx.textAlign = 'left'
+    ctx.font = font(9, row.actor.isPlayer)
+    ctx.fillStyle = row.actor.isPlayer ? COLORS.player : COLORS.text
+    fitLeft(ctx, `${row.rank} ${row.actor.name}`, rect.x + pad + 2, y, inner - 40 * L.ui)
+
+    ctx.textAlign = 'right'
+    ctx.fillStyle = row.hps > row.dps ? '#4ade80' : COLORS.textDim
+    ctx.fillText(short(total), rect.x + rect.w - pad - 2, y)
+    y += line
+  }
+
+  const raidDps = ranked.reduce((sum, r) => sum + r.dps, 0)
+  const raidHps = ranked.reduce((sum, r) => sum + r.hps, 0)
+  ctx.textAlign = 'left'
+  ctx.font = font(9)
+  ctx.fillStyle = COLORS.textDim
+  ctx.fillText(`raid ${short(raidDps)} · heal ${short(raidHps)}`, rect.x + pad, y)
+}
+
+/** Left-aligned counterpart to fitText: clips rather than shrinking. */
+function fitLeft(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+): void {
+  let clipped = text
+  while (clipped.length > 1 && ctx.measureText(clipped).width > maxWidth) {
+    clipped = clipped.slice(0, -1)
+  }
+  ctx.fillText(clipped, x, y)
 }
 
 function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {

@@ -2,7 +2,7 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
 import { allIcons, iconFor } from '../src/render/icons'
-import { drawHud, partyButton, soundButton } from '../src/render/hud'
+import { drawHud, meterRect, partyButton, soundButton } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
@@ -513,12 +513,21 @@ interface Circle {
   r: number
 }
 
-function recordingCtx(circles: Circle[]): CanvasRenderingContext2D {
+interface Label {
+  text: string
+  x: number
+  y: number
+}
+
+function recordingCtx(circles: Circle[], labels: Label[] = []): CanvasRenderingContext2D {
   const noop = () => {}
   const handler: ProxyHandler<Record<string, unknown>> = {
     get(_t, prop) {
       if (prop === 'arc') {
         return (x: number, y: number, r: number) => circles.push({ x, y, r })
+      }
+      if (prop === 'fillText') {
+        return (text: string, x: number, y: number) => labels.push({ text, x, y })
       }
       if (prop === 'measureText') return () => ({ width: 10 })
       if (prop === 'canvas') return { width: L.w, height: L.h }
@@ -860,6 +869,139 @@ for (const [label, w, h] of [
   for (const [label, party] of stored) {
     expect(`a stored roster with ${label} is rejected`, !isLegalComposition(party), 'accepted')
   }
+}
+
+// --- the minimap and the meter must fit, and stay out of the way ----------
+//
+// Both are corner furniture on a screen that already has a stick, four
+// buttons, two frames and a readout on it. Where they land is the whole
+// question, so it is checked at every viewport in both control modes.
+{
+  const overlap = (a: { x: number; y: number; w: number; h: number }, b: typeof a) =>
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+
+    const map = { x: L.mapX - L.mapR, y: L.mapY - L.mapR, w: L.mapR * 2, h: L.mapR * 2 }
+    const onScreen = (r: typeof map) =>
+      r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h
+
+    expect(`${label}: the minimap is on screen`, onScreen(map), JSON.stringify(map))
+    expect(
+      `${label}: the minimap clears the boss frame`,
+      map.y > L.bossY + 36 * L.ui,
+      `map top ${map.y.toFixed(0)} vs boss ${(L.bossY + 36 * L.ui).toFixed(0)}`,
+    )
+    expect(
+      `${label}: the minimap clears the party frames`,
+      map.x > L.partyX + L.partyW,
+      `map left ${map.x.toFixed(0)} vs frames ${(L.partyX + L.partyW).toFixed(0)}`,
+    )
+    for (const [name, rect] of [['party', partyButton()], ['sound', soundButton()]] as const) {
+      expect(`${label}: the minimap clears the ${name} button`, !overlap(map, rect), JSON.stringify(rect))
+    }
+
+    for (const touch of [false, true]) {
+      const mode = touch ? 'touch' : 'keyboard'
+      const meter = meterRect(touch)
+      expect(`${label} ${mode}: the meter is on screen`, onScreen(meter), JSON.stringify(meter))
+      expect(`${label} ${mode}: the meter clears the minimap`, !overlap(meter, map), JSON.stringify(meter))
+      for (const [name, rect] of [['party', partyButton()], ['sound', soundButton()]] as const) {
+        expect(`${label} ${mode}: the meter clears the ${name} button`, !overlap(meter, rect), JSON.stringify(meter))
+      }
+
+      if (touch) {
+        // The controls are round, so a rectangle overlap test on their
+        // bounding boxes is the strict version of the question.
+        const buttons = L.btnPos.map((b) => ({
+          x: b.x - L.btnR,
+          y: b.y - L.btnR,
+          w: L.btnR * 2,
+          h: L.btnR * 2,
+        }))
+        expect(
+          `${label} ${mode}: the meter clears every ability button`,
+          buttons.every((b) => !overlap(meter, b)),
+          JSON.stringify(meter),
+        )
+        const stick = {
+          x: L.joyHomeX - L.joyBase,
+          y: L.joyHomeY - L.joyBase,
+          w: L.joyBase * 2,
+          h: L.joyBase * 2,
+        }
+        expect(`${label} ${mode}: the meter clears the stick`, !overlap(meter, stick), JSON.stringify(stick))
+        // The stick relocates to wherever a thumb lands in the left half, so
+        // the meter has to be clear of that whole zone, not just its home.
+        expect(
+          `${label} ${mode}: the meter stays out of the steering half`,
+          meter.x > L.joyZoneMaxX,
+          `${meter.x.toFixed(0)} vs ${L.joyZoneMaxX}`,
+        )
+      } else {
+        // The action bar is centred along the bottom in keyboard mode.
+        const slot = 58 * L.ui
+        const barW = 4 * slot + 3 * 8 * L.ui
+        const bar = { x: (w - barW) / 2, y: L.actionY, w: barW, h: slot + 14 * L.ui }
+        expect(`${label} ${mode}: the meter clears the action bar`, !overlap(meter, bar), JSON.stringify(meter))
+      }
+    }
+  }
+}
+
+// The meter has to carry your own row even when you are last, which is the
+// case it exists for: a board you drop off the bottom of answers nothing.
+{
+  updateLayout(1440, 900)
+  const party = autoParty(25, { classId: 'mage', role: 'dps' })
+  const s = createState(0x51ed, 0, party)
+  const rng = new Rng(0x51ed)
+  // The player never presses anything, so they finish last of twenty-five.
+  while (s.outcome === 'ongoing' && s.time < 40) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
+
+  const player = s.actors.find((a) => a.isPlayer)!
+  const labels: Label[] = []
+  drawHud(recordingCtx([], labels), s, touchView(false), false)
+
+  const meter = meterRect(false)
+  const inMeter = labels.filter(
+    (t) => t.x >= meter.x - 2 && t.x <= meter.x + meter.w + 2 && t.y >= meter.y && t.y <= meter.y + meter.h,
+  )
+  const own = inMeter.find((t) => t.text.endsWith(player.name))
+  expect('the meter lists the player', own !== undefined, inMeter.map((t) => t.text).join(' | '))
+  expect(
+    'and shows the rank they actually hold',
+    own !== undefined && /^\d+ /.test(own.text) && Number(own.text.split(' ')[0]) > 5,
+    `${own?.text}`,
+  )
+  expect('the meter fits its rows', inMeter.length >= (meter.rows ?? 5), `${inMeter.length} labels`)
+}
+
+// Every actor on the floor has to appear on the minimap.
+{
+  updateLayout(1440, 900)
+  const s = createState(0x51ed, 0, autoParty(10, { classId: 'mage', role: 'dps' }))
+  const rng = new Rng(0x51ed)
+  for (let i = 0; i < 200; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+
+  const circles: Circle[] = []
+  drawHud(recordingCtx(circles), s, touchView(false), false)
+
+  const living = s.actors.filter((a) => a.alive).length
+  const dots = circles.filter(
+    (c) => Math.hypot(c.x - L.mapX, c.y - L.mapY) <= L.mapR && c.r < L.mapR * 0.5,
+  )
+  expect(`all ${living} living actors are on the minimap`, dots.length >= living, `${dots.length} dots`)
+  const frame = circles.filter((c) => Math.abs(c.r - L.mapR) < 0.01)
+  expect('the minimap is drawn at its own radius', frame.length >= 2, `${frame.length}`)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
