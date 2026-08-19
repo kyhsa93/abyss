@@ -198,6 +198,8 @@ export interface EffectEvent {
   abilityId: string | null
   /** How big the hit was, before mitigation. */
   power: number
+  /** Worth drawing bigger, and worth a shove of the camera. */
+  crit: boolean
 }
 
 export interface ChatLine {

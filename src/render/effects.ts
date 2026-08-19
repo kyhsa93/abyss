@@ -59,8 +59,13 @@ function colourOf(abilityId: string | null): string {
   return iconFor(abilityId).colour
 }
 
+/** How hard the biggest hit is allowed to shove the view, in world units. */
+const MAX_SHAKE = 7
+
 export class Effects {
   private bursts: Burst[] = []
+  private shakeMag = 0
+  private clock = 0
 
   /**
    * Takes one tick's worth of events.
@@ -76,6 +81,12 @@ export class Effects {
 
   /** Ages what is on screen. Once a frame, in wall-clock seconds. */
   age(elapsed: number): void {
+    this.clock += elapsed
+    // Falls off fast: a shove that outlasts the hit that caused it reads as
+    // the game stuttering rather than as the hit landing.
+    this.shakeMag *= Math.max(0, 1 - elapsed * 9)
+    if (this.shakeMag < 0.05) this.shakeMag = 0
+
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const burst = this.bursts[i]!
       burst.age += elapsed
@@ -90,6 +101,14 @@ export class Effects {
     if (this.bursts.length >= MAX_BURSTS) this.bursts.shift()
 
     const colour = colourOf(event.abilityId)
+
+    // Only the hits worth feeling: a crit, or something on the scale of a
+    // finisher. Every swing shoving the camera would be unplayable.
+    if (event.kind === 'impact' && (event.crit || event.power >= 300)) {
+      const shove = event.crit ? 2.2 : 0
+      const size = Math.min(4.5, event.power / 140)
+      this.shakeMag = Math.min(MAX_SHAKE, this.shakeMag + shove + size)
+    }
     // Big hits reach further, but only just: the finishers deal ten times a
     // filler and drawing that literally would black out the arena.
     const weight = Math.min(1.6, 0.6 + Math.sqrt(Math.max(0, event.power)) / 22)
@@ -131,10 +150,10 @@ export class Effects {
     this.bursts.push({
       pos: event.pos,
       age: 0,
-      life: event.kind === 'heal' ? 0.5 : 0.34,
+      life: event.kind === 'heal' ? 0.5 : event.crit ? 0.44 : 0.34,
       colour,
-      reach: REACH * weight,
-      spokes: event.kind === 'heal' ? 0 : 6,
+      reach: REACH * weight * (event.crit ? 1.35 : 1),
+      spokes: event.kind === 'heal' ? 0 : event.crit ? 10 : 6,
       angle: event.angle,
       arc: 0,
       inward: event.kind === 'heal',
@@ -190,8 +209,28 @@ export class Effects {
     ctx.lineCap = 'butt'
   }
 
+  /**
+   * How far to shove the view this frame, in world units.
+   *
+   * Two frequencies that do not divide into each other, so it reads as a jolt
+   * rather than as a wobble, and it is applied to the world alone — a heads-up
+   * display that shakes is a heads-up display nobody can read.
+   */
+  offset(): Vec2 {
+    if (this.shakeMag === 0) return { x: 0, y: 0 }
+    return {
+      x: Math.sin(this.clock * 61) * this.shakeMag,
+      y: Math.cos(this.clock * 47) * this.shakeMag,
+    }
+  }
+
   /** How much is on screen. Only the checks ask. */
   get count(): number {
     return this.bursts.length
+  }
+
+  /** Current shove, for the checks. */
+  get shake(): number {
+    return this.shakeMag
   }
 }

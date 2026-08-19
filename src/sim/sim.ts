@@ -21,7 +21,7 @@ import {
   beginCast,
   castBlocker,
 } from './combat'
-import { DT, MELEE_RANGE } from './constants'
+import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -55,7 +55,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
     if (a.faction === 'party' && a.ai) updatePartyAi(s, a, rng)
   }
 
-  updateAutoAttacks(s)
+  updateAutoAttacks(s, rng)
 
   updateBoss(s, rng)
   updateGround(s)
@@ -78,7 +78,7 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
  * It costs no global cooldown and asks for no press: the whole point of white
  * damage is that it is what happens while you are busy deciding.
  */
-function updateAutoAttacks(s: SimState): void {
+function updateAutoAttacks(s: SimState, rng: Rng): void {
   for (const a of s.actors) {
     if (a.faction !== 'party' || !a.alive) continue
     const auto = specOf({ classId: a.classId, spec: a.spec }).auto
@@ -101,14 +101,20 @@ function updateAutoAttacks(s: SimState): void {
     // Physical, so it answers armour and block the way a weapon should. The
     // boss carries neither, which is a decision it can change without this
     // needing to know.
-    applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id })
+    // A weapon crits like anything else the party throws.
+    const crit = rng.chance(CRIT_CHANCE)
+    applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id, crit })
 
     // A weapon swing had no picture at all: damage arrived every three
     // seconds from a token standing still. Melee get an arc where the swing
     // went, everyone gets the hit landing, and the hunter already has a bolt.
     const facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x)
     if (auto.range <= MELEE_RANGE) pushEffect(s, 'swing', a.pos, { angle: facing })
-    pushEffect(s, 'impact', target.pos, { angle: facing, power: auto.damage })
+    pushEffect(s, 'impact', target.pos, {
+      angle: facing,
+      power: auto.damage * (crit ? CRIT_MULTIPLIER : 1),
+      crit,
+    })
     if (target.id === BOSS_ID) addThreat(s, a.id, auto.damage)
     // Rage is earned here rather than handed out, which is why a warrior
     // that cannot reach anything cannot do anything either.

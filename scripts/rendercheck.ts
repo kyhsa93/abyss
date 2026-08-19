@@ -50,10 +50,17 @@ import {
   resolveAbility,
   topThreatTarget,
 } from '../src/sim/combat'
-import { ARENA_RADIUS, ENRAGE_AT, MELEE_RANGE, SPELL_RANGE } from '../src/sim/constants'
+import {
+  ARENA_RADIUS,
+  CRIT_CHANCE,
+  CRIT_MULTIPLIER,
+  ENRAGE_AT,
+  MELEE_RANGE,
+  SPELL_RANGE,
+} from '../src/sim/constants'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
-import { createState } from '../src/sim/state'
+import { PLAYER_ID, createState } from '../src/sim/state'
 import { gainPower } from '../src/sim/combat'
 import type { Role } from '../src/sim/types'
 
@@ -63,6 +70,9 @@ function stubCtx(): CanvasRenderingContext2D {
   const handler: ProxyHandler<Record<string, unknown>> = {
     get(_t, prop) {
       if (prop === 'measureText') return () => ({ width: 10 })
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+        return () => ({ addColorStop: noop })
+      }
       if (prop === 'canvas') return { width: 960, height: 760 }
       return noop
     },
@@ -549,6 +559,9 @@ function recordingCtx(circles: Circle[], labels: Label[] = []): CanvasRenderingC
         return (text: string, x: number, y: number) => labels.push({ text, x, y })
       }
       if (prop === 'measureText') return () => ({ width: 10 })
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+        return () => ({ addColorStop: noop })
+      }
       if (prop === 'canvas') return { width: L.w, height: L.h }
       return noop
     },
@@ -1241,14 +1254,23 @@ for (const [label, w, h] of [
     return { dealt: s.tally[player.id]?.damage ?? 0, sawOwnBolt, player }
   }
 
+  // Swings land at zero and every `speed` seconds after, each worth its
+  // damage or half again on a crit, and whether the last one falls inside the
+  // window is a matter of tick alignment — so the total sits in a band rather
+  // than on a number.
+  const band = (auto: { damage: number; speed: number }, seconds: number) => {
+    const swings = Math.floor(seconds / auto.speed)
+    return { swings, low: swings * auto.damage, high: (swings + 1) * auto.damage * 1.5 }
+  }
+
   {
     const auto = specOf(pickFor('rogue', 'dps')!).auto!
     const { dealt } = swinging(pickFor('rogue', 'dps')!, 20)
-    const swings = dealt / auto.damage
+    const { swings, low, high } = band(auto, 12)
     expect(
       'a melee player who presses nothing still swings',
-      Number.isInteger(swings) && swings >= 12 / auto.speed,
-      `${dealt} damage, ${swings} swings`,
+      dealt >= low && dealt <= high,
+      `${dealt} damage, outside ${low}-${high} for ${swings} swings`,
     )
   }
 
@@ -1257,11 +1279,11 @@ for (const [label, w, h] of [
     // the air or it reads as standing still doing nothing.
     const auto = specOf(pickFor('hunter', 'dps')!).auto!
     const { dealt, sawOwnBolt } = swinging(pickFor('hunter', 'dps')!, 300)
-    const swings = dealt / auto.damage
+    const { low, high } = band(auto, 12)
     expect(
       'the hunter shoots from outside melee',
-      Number.isInteger(swings) && swings >= 12 / auto.speed,
-      `${dealt} damage at 300 units`,
+      dealt >= low && dealt <= high,
+      `${dealt} damage at 300 units, outside ${low}-${high}`,
     )
     expect('and the shot is visible', sawOwnBolt, 'no bolt from the hunter')
   }
@@ -1820,10 +1842,16 @@ for (const [label, w, h] of [
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
     const dealt = s.tally[player.id]?.damage ?? 0
+    // Ten seconds of shooting is a known number of swings, each worth its
+    // damage or half again. Landing them twice would put the total clean
+    // outside that band.
+    const swings = Math.floor(10 / auto.speed)
+    const low = swings * auto.damage
+    const high = (swings + 1) * auto.damage * 1.5
     expect(
       'a scenery bolt does not deal its damage twice',
-      dealt > 0 && dealt % auto.damage === 0,
-      `${dealt} is not a whole number of ${auto.damage} swings`,
+      dealt >= low && dealt <= high,
+      `${dealt} against ${swings} swings of ${auto.damage}, band ${low}-${high}`,
     )
   }
 }
@@ -1950,6 +1978,107 @@ for (const [label, w, h] of [
     'breaking one comes apart',
     again.effects.some((e) => e.kind === 'fizzle') && caster.castId === null,
     again.effects.map((e) => e.kind).join(', '),
+  )
+}
+
+// --- crits, and the shove they give the view ------------------------------
+//
+// The floating text has had a `crit` kind since long before anything emitted
+// one. Crits are the party's alone: incoming damage is the healers' problem,
+// and a boss that occasionally hits half again as hard makes that a coin toss.
+{
+  const s = createState(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
+  const rng = new Rng(0x51ed)
+  let crits = 0
+  let hits = 0
+  for (let i = 0; i < 30 * 40; i++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const e of s.effects) {
+      if (e.kind !== 'impact') continue
+      hits++
+      if (e.crit) crits++
+    }
+  }
+  const rate = crits / Math.max(1, hits)
+  expect(
+    `crits land at about ${(CRIT_CHANCE * 100).toFixed(0)}%`,
+    hits > 200 && Math.abs(rate - CRIT_CHANCE) < 0.06,
+    `${(rate * 100).toFixed(1)}% of ${hits} hits`,
+  )
+
+  // A crit is worth exactly its multiplier, and a mechanic never crits.
+  const target = boss(s)
+  const member = s.actors.find((a) => a.faction === 'party')!
+  const before = target.hp
+  applyDamage(s, target, 200, 'none', { sourceId: member.id, silent: true })
+  const plain = before - target.hp
+  const mid = target.hp
+  applyDamage(s, target, 200, 'none', { sourceId: member.id, silent: true, crit: true })
+  const big = mid - target.hp
+  expect(
+    'and hit for the multiplier',
+    Math.abs(big - plain * CRIT_MULTIPLIER) < 1,
+    `${plain} then ${big}`,
+  )
+
+  // Your own crit reads as one rather than as a bigger number.
+  s.texts.length = 0
+  applyDamage(s, target, 200, 'none', { sourceId: PLAYER_ID, crit: true })
+  expect('a crit is marked as one', s.texts.some((t) => t.kind === 'crit'), s.texts.map((t) => t.kind).join(', '))
+
+  // The view is shoved by the hits worth feeling and nothing else.
+  const effects = new Effects()
+  expect('nothing shakes on its own', effects.shake === 0 && effects.offset().x === 0, `${effects.shake}`)
+
+  effects.ingest({ effects: [{ kind: 'impact', pos: { x: 0, y: 0 }, angle: 0, abilityId: null, power: 50, crit: false }] } as never)
+  expect('a filler does not shake the view', effects.shake === 0, `${effects.shake}`)
+
+  effects.ingest({ effects: [{ kind: 'impact', pos: { x: 0, y: 0 }, angle: 0, abilityId: null, power: 50, crit: true }] } as never)
+  const shoved = effects.shake
+  expect('a crit does', shoved > 0, `${shoved}`)
+  expect('and it moves the view off centre', effects.offset().x !== 0 || effects.offset().y !== 0, 'no offset')
+
+  effects.age(0.5)
+  expect('and it settles quickly', effects.shake === 0, `${effects.shake} after half a second`)
+}
+
+// A bolt leaves a trail behind it, and the trail is renderer-side: it must
+// not appear in a state that has to replay identically.
+{
+  updateLayout(1440, 900)
+  const s = createState(0x51ed, 0, [
+    pickFor('mage', 'dps')!,
+    pickFor('warrior', 'tank')!,
+    pickFor('priest', 'healer')!,
+    pickFor('hunter', 'dps')!,
+    pickFor('rogue', 'dps')!,
+  ])
+  const player = s.actors.find((a) => a.isPlayer)!
+  player.pos.x = 300
+  player.pos.y = 0
+  const rng = new Rng(0x51ed)
+  step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+
+  const bolt = s.projectiles.find((p) => p.sourceId === player.id)
+  expect('there is a bolt to trail', bolt !== undefined, 'no bolt')
+  expect(
+    'and it carries no trail of its own',
+    bolt !== undefined && !('trail' in bolt) && !('history' in bolt),
+    Object.keys(bolt ?? {}).join(', '),
+  )
+
+  // Drawn twice with the bolt moving between: the second frame has more line
+  // work than the first, which is the trail behind it.
+  const effects = new Effects()
+  const first: Circle[] = []
+  drawWorld(recordingCtx(first), s, 1, s.time, effects)
+  for (let i = 0; i < 4; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const second: Circle[] = []
+  drawWorld(recordingCtx(second), s, 1, s.time, effects)
+  expect(
+    'a bolt in flight draws something behind it',
+    s.projectiles.length === 0 || second.length >= first.length,
+    `${first.length} then ${second.length}`,
   )
 }
 

@@ -293,6 +293,26 @@ puddles; a weapon loses none, so white damage lands at nearly full uptime and
 is worth far more per point than it looks. At fifty a swing it is about a
 sixth of an auto-attacker's own output and a seventh of the raid's.
 
+**Hits crit.** Fifteen percent of the time, for half again as much, marked as
+a crit in the floating text — a kind the text has carried since long before
+anything emitted one. They are the party's alone: incoming damage is the
+healers' problem, and a boss that occasionally hits half again as hard makes
+that a coin toss rather than a job. Mechanics never crit either, for the same
+reason. A crit throws a wider burst with more spokes and shoves the view,
+which is the only thing on screen that moves the camera; it falls off inside a
+fifth of a second, because a shove that outlasts the hit reads as the game
+stuttering. The world is shoved and the interface is not — a heads-up display
+that shakes is one nobody can read.
+
+Boss health went up seven and a half percent with them, the same as the damage
+they add, so the encounter is the length it was.
+
+**Bolts have a trail and a halo.** The trail is the last few places the bolt
+was, thinning toward where it came from, and it lives in the renderer keyed by
+projectile id — decoration has no business in a state that has to replay
+identically. The halo is a radial gradient rather than a flat disc, which is
+the difference between light and a circle of paint.
+
 **A cast is drawn on the caster.** A ring gathers inward as it runs and a dial
 fills clockwise around the token, which is the same number as the cast bar on
 the party frame put where you are actually looking. Gathering rather than

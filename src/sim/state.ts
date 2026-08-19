@@ -24,8 +24,13 @@ import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
  * damage, and it follows it by the same fraction at five, ten and
  * twenty-five, so one number covers every size. What the weapons changed is
  * who contributes, not how long the boss lives.
+ *
+ * Raised again from 40,000 for crits, which add about seven and a half
+ * percent on the party's side at a chance of fifteen and a multiplier of one
+ * and a half. Same reasoning: the encounter should be the length it was, and
+ * what a crit changes is how a hit looks, not how long the fight runs.
  */
-const BOSS_MAX_HP = 40000
+const BOSS_MAX_HP = 43000
 
 interface PersonalityTuning {
   reactionDelay: number

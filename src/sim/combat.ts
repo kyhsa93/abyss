@@ -1,6 +1,6 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
-import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
+import { CRIT_CHANCE, CRIT_MULTIPLIER, GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
@@ -140,7 +140,7 @@ export function pushEffect(
   s: SimState,
   kind: EffectEvent['kind'],
   pos: Vec2,
-  opts: { angle?: number; abilityId?: string | null; power?: number } = {},
+  opts: { angle?: number; abilityId?: string | null; power?: number; crit?: boolean } = {},
 ): void {
   s.effects.push({
     kind,
@@ -148,6 +148,7 @@ export function pushEffect(
     angle: opts.angle ?? 0,
     abilityId: opts.abilityId ?? null,
     power: opts.power ?? 0,
+    crit: opts.crit ?? false,
   })
 }
 
@@ -202,6 +203,8 @@ export interface DamageOptions {
   /** Who to credit. Party damage without this is invisible in the report. */
   sourceId?: number
   silent?: boolean
+  /** Rolled by the caller, which is the only place with the rng. */
+  crit?: boolean
   /**
    * An avoidable mechanic. Counted per hit rather than per point, because
    * "ate three puddles" is the thing worth knowing, not the total.
@@ -235,11 +238,13 @@ export function applyDamage(
     if (enraged) final *= 2
   }
 
+  if (opts.crit) final *= CRIT_MULTIPLIER
+
   final = Math.round(final)
   target.hp = Math.max(0, target.hp - final)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
   if (!opts.silent && mine(target, opts.sourceId)) {
-    pushText(s, target.pos, `-${final}`, 'damage')
+    pushText(s, target.pos, `-${final}`, opts.crit ? 'crit' : 'damage')
   }
 
   // Rage is earned by being hit as much as by hitting. Ground ticks are
@@ -481,17 +486,25 @@ export function landAbility(
   actor: Actor,
   ability: Ability,
   targetId: number,
-  _rng: Rng,
+  rng: Rng,
 ): void {
   const target = actorById(s, targetId)
+  // Rolled here rather than inside applyDamage, because this is where the rng
+  // is and because a mechanic must never crit: a puddle that sometimes hits
+  // for half again as much is not a thing anyone can play around.
+  const crit = actor.faction === 'party' && rng.chance(CRIT_CHANCE)
 
   switch (ability.kind) {
     case 'damage': {
       // A target that died while the bolt was in the air takes nothing. The
       // shot is wasted, which is the cost of it having a travel time at all.
       if (!target || !target.alive) return
-      applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id })
-      pushEffect(s, 'impact', target.pos, { abilityId: ability.id, power: ability.amount })
+      applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id, crit })
+      pushEffect(s, 'impact', target.pos, {
+        abilityId: ability.id,
+        power: ability.amount * (crit ? CRIT_MULTIPLIER : 1),
+        crit,
+      })
       if (target.id === BOSS_ID) addThreat(s, actor.id, ability.amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
       break

@@ -12,6 +12,18 @@ export const ARENA_RADIUS = 460
 
 export const GLOBAL_COOLDOWN = 1.5
 
+/**
+ * A crit, on the party's own damage only.
+ *
+ * Not on what the boss deals: incoming damage is the healers' problem, and a
+ * boss that occasionally hits for half again as much makes that a coin toss
+ * rather than a job. On the party's side it is the opposite — it gives the
+ * hits a reason to sometimes look bigger than they are, and the floating text
+ * has had a `crit` kind waiting for one since before there were crits.
+ */
+export const CRIT_CHANCE = 0.15
+export const CRIT_MULTIPLIER = 1.5
+
 /** Everyone within this radius of a spread target takes the hit. */
 export const SPREAD_RADIUS = 110
 

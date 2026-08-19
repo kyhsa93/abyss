@@ -59,6 +59,12 @@ export function drawWorld(
 ): void {
   updateCamera(s, alpha)
 
+  // The shove goes on the world and nowhere else: a heads-up display that
+  // shakes is a heads-up display nobody can read.
+  const shove = effects.offset()
+  ctx.save()
+  ctx.translate(shove.x * L.scale, shove.y * L.scale)
+
   drawArena(ctx)
   drawGround(ctx, s, clock)
   drawSpreadRings(ctx, s, alpha)
@@ -77,6 +83,8 @@ export function drawWorld(
   // whoever took it, and never on top of what the fight is telling you.
   effects.draw(ctx, worldToScreen, L.scale)
   drawFloatingText(ctx, s, alpha)
+  ctx.restore()
+
   drawRaidFlash(ctx, s)
 }
 
@@ -450,7 +458,35 @@ const BOLT: Record<ProjectileKind, BoltStyle> = {
  * came from. Without them a caster standing still is indistinguishable from
  * one doing nothing at all.
  */
+/**
+ * Where each bolt has been, in world space.
+ *
+ * Renderer-side and keyed by projectile id, like the camera: a trail is
+ * decoration and has no business in a state that has to replay identically.
+ * Only appended when the bolt has actually moved, so its length is a number
+ * of ticks rather than a number of frames.
+ */
+const TRAIL = 5
+const trails = new Map<number, Vec2[]>()
+
+function updateTrails(s: SimState): void {
+  const live = new Set<number>()
+  for (const p of s.projectiles) {
+    live.add(p.id)
+    const path = trails.get(p.id) ?? []
+    const last = path[path.length - 1]
+    if (!last || last.x !== p.pos.x || last.y !== p.pos.y) {
+      path.push({ x: p.pos.x, y: p.pos.y })
+      if (path.length > TRAIL) path.shift()
+      trails.set(p.id, path)
+    }
+  }
+  for (const id of [...trails.keys()]) if (!live.has(id)) trails.delete(id)
+}
+
 function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  updateTrails(s)
+
   for (const p of s.projectiles) {
     const style = BOLT[p.kind]
     if (!style) continue
@@ -472,6 +508,23 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     const tailY = tail.y
     const r = Math.max(2, style.radius * L.scale)
 
+    // The trail behind it, thinning and fading toward where it came from.
+    const path = trails.get(p.id)
+    if (path && path.length > 1) {
+      ctx.lineCap = 'round'
+      for (let i = 1; i < path.length; i++) {
+        const from = worldToScreen(path[i - 1]!)
+        const to = worldToScreen(path[i]!)
+        const fade = i / path.length
+        ctx.beginPath()
+        ctx.moveTo(from.x, from.y)
+        ctx.lineTo(to.x, to.y)
+        ctx.strokeStyle = tint(core, 0.35 * fade)
+        ctx.lineWidth = Math.max(1, r * 1.2 * fade)
+        ctx.stroke()
+      }
+    }
+
     ctx.beginPath()
     ctx.moveTo(tailX, tailY)
     ctx.lineTo(x, y)
@@ -480,9 +533,15 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     ctx.lineCap = 'round'
     ctx.stroke()
 
+    // A halo that actually falls off, rather than a flat disc with a hard
+    // edge pretending to be one.
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2)
+    halo.addColorStop(0, tint(core, 0.5))
+    halo.addColorStop(0.45, tint(core, 0.22))
+    halo.addColorStop(1, tint(core, 0))
     ctx.beginPath()
-    ctx.arc(x, y, r * 1.9, 0, Math.PI * 2)
-    ctx.fillStyle = glow
+    ctx.arc(x, y, r * 3.2, 0, Math.PI * 2)
+    ctx.fillStyle = halo
     ctx.fill()
 
     ctx.beginPath()
