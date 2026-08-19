@@ -40,6 +40,20 @@ function fire(type: string, canvasX: number, canvasY: number, pointerId: number)
   for (const fn of listeners.get(type) ?? []) fn(e)
 }
 
+/** A keyboard event, as the browser would report it. */
+function key(type: string, k: string): boolean {
+  let prevented = false
+  const e = {
+    key: k,
+    repeat: false,
+    preventDefault: () => {
+      prevented = true
+    },
+  }
+  for (const fn of listeners.get(type) ?? []) fn(e)
+  return prevented
+}
+
 let failures = 0
 function check(label: string, ok: boolean, detail: string): void {
   if (!ok) failures++
@@ -153,6 +167,42 @@ for (const [label, w, h] of [
     `button ${nearestButton.toFixed(0)}px, stick ${stickGap.toFixed(0)}px, banner ${(L.cy - L.bannerY).toFixed(0)}px`,
   )
 }
+
+
+// 10. Keyboard steering, including the strafe pair.
+//
+// `q` and `e` sit beside the ability keys on the hand that is already there,
+// and there is no facing in this game for them to turn, so they move sideways
+// like `a` and `d`.
+input.consume()
+for (const [k, axis] of [['q', -1], ['e', 1], ['a', -1], ['d', 1]] as const) {
+  const prevented = key('keydown', k)
+  const move = input.consume()
+  check(`${k} steers ${axis < 0 ? 'left' : 'right'}`, near(move.moveX, axis) && move.moveY === 0, JSON.stringify(move))
+  check(`${k} does not scroll the page`, prevented, 'preventDefault was not called')
+  key('keyup', k)
+}
+
+check('releasing them stops the player', input.consume().moveX === 0, 'still moving')
+
+// Doubling up on the same direction is still one direction.
+key('keydown', 'q')
+key('keydown', 'a')
+check('q and a do not stack', near(input.consume().moveX, -1), JSON.stringify(input.consume()))
+key('keyup', 'q')
+key('keyup', 'a')
+
+// And opposite keys cancel, rather than the last one winning.
+key('keydown', 'q')
+key('keydown', 'e')
+check('q and e cancel', input.consume().moveX === 0, JSON.stringify(input.consume()))
+key('keyup', 'q')
+key('keyup', 'e')
+
+// The keys they sit next to must still do their own jobs.
+key('keydown', '1')
+check('the ability keys are untouched', input.consume().pressed.join(',') === '0', 'slot 1 did not fire')
+key('keyup', '1')
 
 if (failures > 0) throw new Error(`${failures} touch check(s) failed`)
 console.log('all touch checks passed')

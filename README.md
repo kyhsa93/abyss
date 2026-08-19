@@ -30,7 +30,9 @@ a little harder than balanced ones and entirely playable: 68% on a first
 five-man pull against AUTO's 65%, 18% rising to 88% at twenty-five. Your party
 is remembered between visits, so a return trip is one tap.
 
-`WASD` to move, `1` `2` `3` `4` for abilities, `R` to pull again, `Esc` to go back
+`WASD` to move — `Q` and `E` strafe left and right alongside `A` and `D`, since
+there is no facing here for them to turn — `1` `2` `3` `4` for abilities, `R`
+to pull again, `Esc` to go back
 to the party screen. The keys are not printed on screen — the retry button
 names its own shortcut and the rest is a raid game's standard layout. On touch there is a `party` button under the fight
 readout. Leaving without changing anything keeps your pull count, since the
@@ -382,7 +384,7 @@ the palette changes.
 npm run check        # types, then headless render pass, then balance harness
 npm run harness      # win rate and puddle-uptime by attempt number
 npm run rendercheck  # draws every frame against a stub canvas, asserts controls land on screen
-npm run touchcheck   # pointer mapping, joystick vector, multi-touch, layout bounds
+npm run touchcheck   # pointer and key mapping, joystick vector, multi-touch, layout bounds
 npm run pwacheck     # manifest, icons, precache list and offline shell (runs in build)
 npm run build
 ```

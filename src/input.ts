@@ -137,8 +137,8 @@ export class Input {
     let moveX = 0
     let moveY = 0
 
-    if (this.held.has('a') || this.held.has('arrowleft')) moveX -= 1
-    if (this.held.has('d') || this.held.has('arrowright')) moveX += 1
+    if (this.held.has('a') || this.held.has('q') || this.held.has('arrowleft')) moveX -= 1
+    if (this.held.has('d') || this.held.has('e') || this.held.has('arrowright')) moveX += 1
     if (this.held.has('w') || this.held.has('arrowup')) moveY -= 1
     if (this.held.has('s') || this.held.has('arrowdown')) moveY += 1
 
@@ -230,7 +230,26 @@ export class Input {
 
 }
 
-const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'])
+/**
+ * Everything that steers.
+ *
+ * `q` and `e` strafe alongside `a` and `d`. The game this apes puts turning
+ * on those two, but there is no facing here — a token slides in the direction
+ * you push it — so the pair that reads as "sideways" is worth having on the
+ * hand that is already there.
+ */
+const MOVE_KEYS = new Set([
+  'w',
+  'a',
+  's',
+  'd',
+  'q',
+  'e',
+  'arrowup',
+  'arrowdown',
+  'arrowleft',
+  'arrowright',
+])
 /**
  * Four action slots: tanks fill all of them, and a class with fewer simply
  * leaves the tail empty.
