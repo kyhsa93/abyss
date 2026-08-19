@@ -435,6 +435,10 @@ export function interruptCast(s: SimState, actor: Actor, reason: string): void {
   // to use, and the only winning move was to stand in the fire.
   actor.cooldowns[actor.castId] = 0
 
+  // A cast that collapses rather than going off, so it reads as coming apart
+  // instead of firing.
+  pushEffect(s, 'fizzle', actor.pos, { abilityId: actor.castId })
+
   actor.castId = null
   actor.castRemaining = 0
   actor.castTargetId = null

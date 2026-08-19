@@ -36,6 +36,13 @@ const MAX_BURSTS = 90
 /** Steel, for a weapon that has no ability behind it to take a colour from. */
 const WEAPON = '#e2e8f0'
 
+/**
+ * The boss's casts are not in the ability table and cannot be — the icon
+ * check rejects an icon with no ability behind it — so they take the colour
+ * their own cast bar already uses.
+ */
+const BOSS_CAST = '#f97316'
+
 function rgba(colour: string, alpha: number): string {
   // The icon table is all six-digit hex, which is the only form this has to
   // read. Anything else falls through as-is and simply does not fade.
@@ -47,7 +54,9 @@ function rgba(colour: string, alpha: number): string {
 }
 
 function colourOf(abilityId: string | null): string {
-  return abilityId ? iconFor(abilityId).colour : WEAPON
+  if (!abilityId) return WEAPON
+  if (abilityId.startsWith('boss_')) return BOSS_CAST
+  return iconFor(abilityId).colour
 }
 
 export class Effects {
@@ -84,6 +93,25 @@ export class Effects {
     // Big hits reach further, but only just: the finishers deal ten times a
     // filler and drawing that literally would black out the arena.
     const weight = Math.min(1.6, 0.6 + Math.sqrt(Math.max(0, event.power)) / 22)
+
+    // A cast going off throws a ring out of the caster; one coming apart
+    // collapses back into them. Neither has spokes: they are not hits, and
+    // the hit that follows a cast is drawn where it lands.
+    if (event.kind === 'cast' || event.kind === 'fizzle') {
+      const fizzled = event.kind === 'fizzle'
+      this.bursts.push({
+        pos: event.pos,
+        age: 0,
+        life: fizzled ? 0.3 : 0.26,
+        colour: fizzled ? WEAPON : colour,
+        reach: fizzled ? 30 : 44,
+        spokes: 0,
+        angle: 0,
+        arc: 0,
+        inward: fizzled,
+      })
+      return
+    }
 
     if (event.kind === 'swing') {
       this.bursts.push({

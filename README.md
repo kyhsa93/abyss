@@ -293,6 +293,15 @@ puddles; a weapon loses none, so white damage lands at nearly full uptime and
 is worth far more per point than it looks. At fifty a swing it is about a
 sixth of an auto-attacker's own output and a seventh of the raid's.
 
+**A cast is drawn on the caster.** A ring gathers inward as it runs and a dial
+fills clockwise around the token, which is the same number as the cast bar on
+the party frame put where you are actually looking. Gathering rather than
+expanding is the rule that keeps it readable: everything that leaves a token
+is something that already happened, so something about to happen has to close
+in. Completing it throws the ring off in the caster's colour; breaking it
+collapses the ring back into them instead, so a cast that came apart never
+looks like one that went off.
+
 **Only your own numbers float.** What you dealt and what landed on you —
 either end counts as yours. Twenty-four other people trading hits is a wall of
 numbers over a fight whose actual state is already on the party frames and the

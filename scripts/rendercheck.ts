@@ -1887,5 +1887,71 @@ for (const [label, w, h] of [
   expect('a raid does not bury the screen in numbers', peak <= 6, `${peak} at once`)
 }
 
+// --- a cast has a picture too ---------------------------------------------
+//
+// The cast bar on the party frame is the far side of the screen from where
+// you are looking. A cast now gathers on the caster, goes off when it
+// completes, and comes apart when it breaks.
+{
+  const s = createState(0x51ed, 0, [
+    { classId: 'mage', spec: 'frost' },
+    { classId: 'warrior', spec: 'protection' },
+    { classId: 'priest', spec: 'discipline' },
+    { classId: 'hunter', spec: 'marksmanship' },
+    { classId: 'rogue', spec: 'assassination' },
+  ])
+  const player = s.actors.find((a) => a.isPlayer)!
+  player.pos.x = 200
+  player.pos.y = 0
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
+  const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0)
+  const rng = new Rng(0x51ed)
+
+  // Cast it through, watching the ring while it runs.
+  step(s, { moveX: 0, moveY: 0, pressed: [slot] }, rng)
+  expect('the cast is running', player.castId !== null, `${player.castId}`)
+
+  const circles: Circle[] = []
+  drawWorld(recordingCtx(circles), s, 1, s.time, new Effects())
+  const around = circles.filter(
+    (c) => Math.abs(c.x - L.cx) < 0.01 && Math.abs(c.y - L.cy) < 0.01,
+  )
+  // The player is pinned at the centre, so a ring gathering on them is a
+  // circle drawn there that is bigger than their own token.
+  const token = Math.max(4, player.radius * L.scale)
+  expect(
+    'something is gathering on the caster',
+    around.some((c) => c.r > token + 1),
+    around.map((c) => c.r.toFixed(0)).join(', '),
+  )
+
+  let fired = false
+  for (let i = 0; i < 30 * 4 && player.castId; i++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    fired ||= s.effects.some((e) => e.kind === 'cast')
+  }
+  expect('finishing it goes off', fired, 'no cast effect')
+
+  // And breaking one collapses instead.
+  const again = createState(0x51ed, 0, [
+    { classId: 'mage', spec: 'frost' },
+    { classId: 'warrior', spec: 'protection' },
+    { classId: 'priest', spec: 'discipline' },
+    { classId: 'hunter', spec: 'marksmanship' },
+    { classId: 'rogue', spec: 'assassination' },
+  ])
+  const caster = again.actors.find((a) => a.isPlayer)!
+  caster.pos.x = 200
+  caster.pos.y = 0
+  const r2 = new Rng(0x51ed)
+  step(again, { moveX: 0, moveY: 0, pressed: [slot] }, r2)
+  step(again, { moveX: 1, moveY: 0, pressed: [] }, r2)
+  expect(
+    'breaking one comes apart',
+    again.effects.some((e) => e.kind === 'fizzle') && caster.castId === null,
+    again.effects.map((e) => e.kind).join(', '),
+  )
+}
+
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
 console.log('all render checks passed')

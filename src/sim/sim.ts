@@ -255,6 +255,10 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
 
   const castId = a.castId
   const targetId = a.castTargetId
+  // The moment it goes off, at the caster. What the ability then does to
+  // whoever it was aimed at is drawn where that lands, which for anything
+  // thrown is a bolt-flight later.
+  pushEffect(s, 'cast', a.pos, { abilityId: castId })
   a.castId = null
   a.castRemaining = 0
   a.castTotal = 0

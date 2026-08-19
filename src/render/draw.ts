@@ -62,6 +62,7 @@ export function drawWorld(
   drawArena(ctx)
   drawGround(ctx, s, clock)
   drawSpreadRings(ctx, s, alpha)
+  drawCasts(ctx, s, alpha)
 
   for (const a of s.actors) {
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false)
@@ -272,6 +273,54 @@ function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     ctx.textAlign = 'center'
     ctx.fillText(aura.remaining.toFixed(1), p.x, p.y - a.radius * L.scale - 22 * L.ui)
   }
+}
+
+/**
+ * A cast in progress, on the caster.
+ *
+ * Drawn under the tokens, and gathering rather than expanding: everything
+ * that leaves a token is something that already happened, so a cast has to
+ * close in to read as something about to. The arc is the same number as the
+ * cast bar on the frame, put where you are actually looking.
+ */
+function drawCasts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  ctx.save()
+  ctx.lineCap = 'round'
+
+  for (const a of s.actors) {
+    if (!a.alive || !a.castId || a.castTotal <= 0) continue
+
+    const p = screenPos(a, alpha)
+    const progress = Math.max(0, Math.min(1, 1 - a.castRemaining / a.castTotal))
+    const colour = castColour(a.castId)
+    const base = Math.max(4, a.radius * L.scale)
+
+    // Closes from a way out to the edge of the token as the cast completes.
+    const gather = base + (1 - progress) * 34 * L.scale
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, gather, 0, Math.PI * 2)
+    ctx.strokeStyle = tint(colour, 0.2 + 0.5 * progress)
+    ctx.lineWidth = Math.max(1, 2 * L.scale)
+    ctx.setLineDash([5, 6])
+    ctx.lineDashOffset = -progress * 40
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // And a dial around the token, filling clockwise from noon.
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, base + 5 * L.scale, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
+    ctx.strokeStyle = tint(colour, 0.9)
+    ctx.lineWidth = Math.max(1.5, 3 * L.scale)
+    ctx.stroke()
+  }
+
+  ctx.restore()
+  ctx.lineCap = 'butt'
+}
+
+/** The boss's casts are not abilities, so they wear its own cast colour. */
+function castColour(castId: string): string {
+  return castId.startsWith('boss_') ? COLORS.bossCast : iconFor(castId).colour
 }
 
 /** Mirrors the simulation's hit test, including the rim grace. */
