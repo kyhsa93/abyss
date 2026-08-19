@@ -8,6 +8,8 @@ import {
   type DifficultyId,
   type Pick,
   type RaidSize,
+  SLOTS,
+  specLabel,
 } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 
@@ -67,7 +69,7 @@ function run(
     ticks++
 
     for (const a of s.actors) {
-      if (a.faction !== 'party' || !a.alive) continue
+      if (a.faction !== 'party' || a.isPlayer || !a.alive) continue
       const p = before.get(a.id)
       if (!p) continue
       const d = Math.hypot(a.pos.x - p.x, a.pos.y - p.y)
@@ -76,7 +78,7 @@ function run(
     }
 
     for (const a of s.actors) {
-      if (a.faction !== 'party') continue
+      if (a.faction !== 'party' || a.isPlayer) continue
       if (!a.alive) {
         if (deaths[a.name] === undefined) deaths[a.name] = Math.round(s.time * 10) / 10
         continue
@@ -97,14 +99,14 @@ function run(
   const boss = s.actors[s.actors.length - 1]!
   const pct: Record<string, number> = {}
   for (const a of s.actors) {
-    if (a.faction !== 'party') continue
+    if (a.faction !== 'party' || a.isPlayer) continue
     pct[a.name] = Math.round(((ticksIn[a.name] ?? 0) / ticks) * 1000) / 10
   }
 
   const travel: Record<string, number> = {}
   const idleTravel: Record<string, number> = {}
   for (const a of s.actors) {
-    if (a.faction !== 'party') continue
+    if (a.faction !== 'party' || a.isPlayer) continue
     travel[a.name] = (walked[a.name] ?? 0) / Math.max(1, s.time)
     idleTravel[a.name] = (walkedQuiet[a.name] ?? 0) / Math.max(1, s.time)
   }
@@ -186,4 +188,57 @@ for (const size of [5, 10, 25] as RaidSize[]) {
       (left / total).toFixed(0),
     )
   }
+}
+
+// --- per member, which is the only place AI bugs actually surface ----------
+//
+// The win rate hides them. A dealer whose weapon never reaches anything still
+// gets the boss killed by everyone else, and a tank that spends a fifth of the
+// fight in fire still wins whenever the healer keeps up. Both were found by
+// reading these two columns, so they are printed per member rather than
+// averaged: an average over five people is exactly the thing that hid them.
+//
+// Two orderings are what the numbers are read for. Puddle uptime should sort
+// melee above ranged, because standing next to the boss is standing where it
+// aims, and within a reach it should sort greedy above timid — that second
+// spread *is* the humanity layer, and if it flattens, personality has stopped
+// reaching the simulation. And travel should stay low, since a party that
+// paces is one chasing a target that moves.
+const DETAIL_RUNS = 20
+const DETAIL_ATTEMPTS = [0, 8]
+const detailParty = PARTIES[0]!.party
+
+console.log('\nper member, default composition, puddle% / units walked per s')
+console.log(
+  'member                       ' +
+    DETAIL_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(17)).join(''),
+)
+
+const detail = new Map<number, { puddle: Record<string, number>; travel: Record<string, number> }>()
+for (const attempt of DETAIL_ATTEMPTS) {
+  const puddle: Record<string, number> = {}
+  const travel: Record<string, number> = {}
+  for (let i = 0; i < DETAIL_RUNS; i++) {
+    const r = run(1000 + i * 137, attempt, detailParty)
+    for (const name of Object.keys(r.inPuddle)) {
+      puddle[name] = (puddle[name] ?? 0) + r.inPuddle[name]!
+      travel[name] = (travel[name] ?? 0) + (r.travel[name] ?? 0)
+    }
+  }
+  detail.set(attempt, { puddle, travel })
+}
+
+// Slot one is the player, who is a scripted stand-in here rather than the AI
+// under test, and whose puddle time would read as somebody's bad decision.
+for (let i = 1; i < detailParty.length; i++) {
+  const slot = SLOTS[i]!
+  const pick = detailParty[i]!
+  const label = `${slot.name} ${specLabel(pick)}, ${slot.personality}`
+  const cells = DETAIL_ATTEMPTS.map((attempt) => {
+    const d = detail.get(attempt)!
+    const puddle = (d.puddle[slot.name] ?? 0) / DETAIL_RUNS
+    const travel = (d.travel[slot.name] ?? 0) / DETAIL_RUNS
+    return `${puddle.toFixed(2)}% / ${travel.toFixed(0)}`.padEnd(17)
+  })
+  console.log(label.padEnd(29) + cells.join(''))
 }

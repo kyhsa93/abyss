@@ -2,9 +2,10 @@
 
 **[Play it](https://kyhsa93.github.io/abyss/)**
 
-A browser raid-boss prototype. You build a party of five from eight classes,
-play one of them, and the other four are AI. No assets, no server, no network:
-everything is shapes, timers and a deterministic simulation.
+A browser raid-boss prototype. You pick one of fifteen specs, the rest of a
+five, ten or twenty-five player raid is rolled around you, and everybody in it
+but you is AI. No assets, no server, no network: everything is shapes, timers
+and a deterministic simulation.
 
 ## Run it
 
@@ -148,7 +149,7 @@ through and the player could never move off the role they started on.
 
 So a twenty-five man is mostly damage, and it works out because the extra
 damage shortens the fight rather than adding survival — 25-player normal wins
-25% of first pulls rising to 70%, against a five-man's 45% to 65%.
+10% of first pulls rising to 70%, against a five-man's 30% to 60%.
 
 Mechanics scale with headcount. A fixed number of puddles across twenty-five
 players means any one player is almost never targeted, so without scaling the
@@ -169,15 +170,16 @@ healing throughput is exceeded, then collapses.
 
 | | 1st pull | 9th pull |
 | --- | --- | --- |
-| 5-player normal | 35% | 55% |
-| 5-player heroic | 5% | 5% |
-| 10-player normal | 60% | 90% |
-| 10-player heroic | 15% | 40% |
-| 25-player normal | 25% | 70% |
-| 25-player heroic | 0% | 15% |
+| 5-player normal | 30% | 60% |
+| 5-player heroic | 0% | 0% |
+| 10-player normal | 65% | 95% |
+| 10-player heroic | 10% | 75% |
+| 25-player normal | 10% | 70% |
+| 25-player heroic | 0% | 20% |
 
-Five-man heroic is the hardest thing in the game: the same difficulty
-multipliers with none of the slack a larger roster brings.
+Five-man heroic is the hardest thing in the game, and the harness has never
+won one: the same difficulty multipliers with none of the slack a larger
+roster brings.
 
 ## Classes and roles
 
@@ -203,7 +205,7 @@ Rotations are shared per role; what differs is the numbers and the cast times.
 That is enough to change how something plays — the hunter is entirely instant
 and keeps damaging while it repositions, the mage's finisher is a 2.5s cast
 that competes directly with dodging, and the rogue has to be next to the boss
-to do anything at all.
+to do anything at all, which is why it is reliably the one standing in fire.
 
 The three tanks are not interchangeable either:
 
@@ -216,8 +218,8 @@ The three tanks are not interchangeable either:
 A flat block is worth a great deal against a fast weapon, so the druid pays
 for having none with a far larger pool: harder to spike down, more of a drain
 on the healers. Tuned to within a few points of each other in practice — a
-druid-tank, shaman-healed five-man wins 58% by the ninth pull against the
-default composition's 72%.
+druid-tank, shaman-healed five-man wins 53% by the ninth pull against the
+default composition's 73%.
 
 ## Defence
 
@@ -248,13 +250,6 @@ Reckoning, Growl — and it sets you a nose ahead of whoever the boss is
 currently looking at rather than granting a pile of threat. Taking it back is
 free; keeping it is the job. Tanks only taunt off a non-tank, so two of them
 in a raid do not trade the boss back and forth across the melee on cooldown.
-
-
-Rotations are shared per role; what differs is the numbers and cast times.
-That is enough to change how a class plays — the hunter keeps damaging while
-it repositions, the mage has to choose between its cast and the puddle, and
-the rogue has to be next to the boss to do anything at all, which is why it is
-reliably the one standing in fire.
 
 Personality belongs to the slot rather than the class. Kestrel gambles on long
 casts with a telegraph already on the floor and reacts late; Wren bails early
@@ -548,43 +543,53 @@ produces party members that feel wrong in ways that are hard to name, so every
 change to `ai.ts`, `boss.ts` or ability numbers should be followed by a run.
 
 Since the party is now chosen, the harness runs several compositions —
-including bad ones — with a deliberately mediocre scripted player, 24 runs per
-cell:
-
-60 runs per cell — an earlier 24 was small enough that the noise read as a
-trend:
+including bad ones — with a deliberately mediocre scripted player, 60 runs per
+cell. An earlier 24 was small enough that the noise read as a trend:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 62% | 78% | 87% | 122s |
-| 1 tank, 2 healers, 2 damage | 40% | 43% | 53% | 226s |
-| 1 tank, 0 healers, 4 damage | 7% | 13% | 10% | 79s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 75s |
-| all melee | 23% | 42% | 50% | 129s |
-| all caster | 48% | 68% | 78% | 132s |
-| druid tank, shaman healer | 28% | 52% | 57% | 124s |
+| 1 tank, 1 healer, 3 damage | 37% | 53% | 73% | 126s |
+| 1 tank, 2 healers, 2 damage | 28% | 60% | 67% | 224s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 2% | 80s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 78s |
+| all melee | 17% | 50% | 43% | 133s |
+| all caster | 50% | 60% | 68% | 141s |
+| druid tank, shaman healer | 17% | 43% | 53% | 127s |
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is
 still the worst real composition, for the same reason it is a bad idea in the
 real thing — everyone is stacked in the one place the boss is aiming — but it
 is no longer close to unplayable: weapons swing whether or not you are in
-position to press anything, and melee are the ones carrying them, so the gap
-to all-caster closed from fifty points on a first pull to twenty-five.
+position to press anything, and melee are the ones carrying them, so a gap
+that was fifty points on a first pull is thirty-three.
 
 Per-member detail for the default composition, `puddle uptime / units walked
 per second`:
 
-| Attempt | Bastion | Wren | Kestrel | Vale (rogue) |
+| Attempt | Bastion (warrior tank) | Wren (priest heal, timid) | Kestrel (hunter, greedy) | Vale (rogue, steady) |
 | --- | --- | --- | --- | --- |
-| 1st pull | 0.45% / 16 | 0.60% / 17 | 0.73% / 13 | 1.46% / 26 |
-| 9th pull | 0.19% / 17 | 0.30% / 18 | 0.40% / 16 | 1.11% / 30 |
+| 1st pull | 1.07% / 18 | 0.71% / 22 | 0.78% / 20 | 2.24% / 30 |
+| 9th pull | 0.51% / 20 | 0.64% / 25 | 0.38% / 25 | 1.41% / 32 |
+
+The player is not in the table. It is a scripted stand-in here rather than the
+AI under test, and its puddle time would read as somebody's bad decision.
 
 Two things are being watched here, and neither shows up in the win rate.
 
-**Puddle uptime must stay ordered** — tank lowest, greedy dealer highest. If it
-flattens, the humanity layer has stopped mattering and everyone is playing
-identically well.
+**Puddle uptime must stay ordered, on two axes.** Melee above ranged, since
+standing next to the boss is standing where it aims — the rogue is reliably
+the worst and always has been. Then, within a reach, greedy above timid: that
+spread *is* the humanity layer, and if it flattens, personality has stopped
+reaching the simulation.
+
+The tank used to be lowest of anybody, which was true when it was the only
+melee in the party and the rule was written from that. Classes gave the party
+a rogue, weapons gave everybody a reason to stay in reach, and a threat table
+made the tank hold a position rather than kite from it, so the tank now sits
+where a melee sits — above both ranged, below the rogue. It still drags the
+boss off a puddle rather than eating one to keep melee range (`ai.ts`, role
+positioning), which is what keeps it under the rogue at half the uptime.
 
 **Distance walked must stay low.** An earlier version had the party return to a
 fixed home position whenever the floor cleared, and because that home was
