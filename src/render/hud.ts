@@ -1,12 +1,12 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
-import { CLASSES, abilityBar } from '../sim/classes'
+import { CLASSES, PARTY_UNIT, abilityBar, partyCount } from '../sim/classes'
 import { playerTarget } from '../sim/sim'
 import { ENRAGE_AT, GLOBAL_COOLDOWN } from '../sim/constants'
 import { adds, boss, castBlocker } from '../sim/combat'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, WORLD_RADIUS, resourceColor, roleColor } from './theme'
+import { COLORS, L, WORLD_RADIUS, clamp, resourceColor, roleColor } from './theme'
 
 export interface Rect {
   x: number
@@ -537,24 +537,70 @@ function drawTideWarning(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 }
 
-function drawPartyFrames(ctx: CanvasRenderingContext2D, s: SimState): void {
-  let y = L.partyY
-  for (const m of s.actors) {
-    if (m.faction !== 'party') continue
-    frame(ctx, m, L.partyX, y, s)
-    y += L.partyRow
+/**
+ * Where every party frame goes.
+ *
+ * A party is a column, read top to bottom, and the columns run left to right
+ * three at a time before wrapping — so a five-man is one column, a ten-man is
+ * two side by side, and a twenty-five man is three columns and then two more
+ * underneath. Stacking all twenty-five in one column, which is what this used
+ * to do, ran two full screens off the bottom.
+ *
+ * Everything is sized off the viewport rather than clamped to a fixed pixel
+ * range: the frames were built for a five-man and stayed that size when the
+ * raid did not.
+ */
+export function partyFrames(count: number): Rect[] {
+  const gap = 4
+  const parties = partyCount(count)
+
+  // Three columns at most, and fewer when three would not leave a frame wide
+  // enough to read. The left band is the budget; the middle of the screen
+  // belongs to the fight.
+  const budget = L.w * (L.portrait ? 0.44 : 0.34)
+  const minW = 70
+  const cols = Math.max(1, Math.min(3, parties, Math.floor(budget / (minW + gap))))
+  // Proportional to the viewport, and capped well under what these used to
+  // be: a flat 108-150 by 46-70 was built for five frames and stayed that
+  // size at twenty-five, which is most of a phone screen of raid frames.
+  const w = Math.max(minW, Math.min(budget / cols - gap, clamp(L.w * 0.085, minW, 116)))
+
+  // Every column is a full party tall, and the rows of columns stack.
+  const deep = Math.min(count, PARTY_UNIT)
+  const rows = Math.ceil(parties / cols) * deep
+  const room = L.h * (L.portrait ? 0.66 : 0.84) - L.partyY
+  const h = Math.max(22, Math.min(clamp(L.h * 0.05, 26, 40), room / rows - gap))
+
+  const rects: Rect[] = []
+  for (let i = 0; i < count; i++) {
+    const party = Math.floor(i / PARTY_UNIT)
+    const col = party % cols
+    const bandRow = Math.floor(party / cols)
+    const withinParty = i % PARTY_UNIT
+    rects.push({
+      x: L.partyX + col * (w + gap),
+      y: L.partyY + (bandRow * deep + withinParty) * (h + gap),
+      w,
+      h,
+    })
   }
+  return rects
 }
 
-function frame(
-  ctx: CanvasRenderingContext2D,
-  a: Actor,
-  x: number,
-  y: number,
-  s: SimState,
-): void {
-  const w = L.partyW
-  const h = L.partyRow - 6
+function drawPartyFrames(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const members = s.actors.filter((a) => a.faction === 'party')
+  const rects = partyFrames(members.length)
+  members.forEach((m, i) => {
+    const r = rects[i]
+    if (r) frame(ctx, m, r, s)
+  })
+}
+
+function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState): void {
+  const { x, y, w, h } = rect
+  // Text shrinks with the frame. At twenty-five players a name written for a
+  // five-man frame is wider than the frame it is in.
+  const k = Math.min(1, h / 44)
 
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(x, y, w, h)
@@ -563,46 +609,46 @@ function frame(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 
   ctx.fillStyle = a.alive ? roleColor(a.role, a.isPlayer) : COLORS.dead
-  ctx.font = font(11, true)
+  ctx.font = font(11 * k, true)
   ctx.textAlign = 'left'
-  ctx.fillText(a.name, x + 6, y + 13 * L.ui)
+  ctx.fillText(a.name, x + 5, y + 12 * L.ui * k)
 
   const hpRatio = a.hp / a.maxHp
   const barY = y + h * 0.36
-  bar(ctx, x + 6, barY, w - 12, Math.max(6, h * 0.2), hpRatio, hpRatio < 0.35 ? COLORS.hpBarLow : COLORS.hpBar)
+  bar(ctx, x + 5, barY, w - 10, Math.max(4, h * 0.2), hpRatio, hpRatio < 0.35 ? COLORS.hpBarLow : COLORS.hpBar)
 
   if (a.maxPower > 0) {
     bar(
       ctx,
-      x + 6,
+      x + 5,
       barY + h * 0.24,
-      w - 12,
-      Math.max(3, h * 0.09),
+      w - 10,
+      Math.max(2, h * 0.09),
       a.power / a.maxPower,
       resourceColor(a.resource),
     )
   }
 
   // Aura chips along the bottom.
-  const chip = Math.max(9, h * 0.2)
-  let ax = x + 6
+  const chip = Math.max(7, h * 0.2)
+  let ax = x + 5
   for (const aura of a.auras) {
     const color =
       aura.id === 'spread' ? COLORS.spread : aura.id === 'shield' ? '#93c5fd' : '#4ade80'
     ctx.fillStyle = color
     ctx.fillRect(ax, y + h - chip - 4, chip, chip)
     ctx.fillStyle = '#0a0a0f'
-    ctx.font = font(9, true)
+    ctx.font = font(9 * k, true)
     ctx.textAlign = 'center'
-    ctx.fillText(aura.id[0]!.toUpperCase(), ax + chip / 2, y + h - 6)
+    ctx.fillText(aura.id[0]!.toUpperCase(), ax + chip / 2, y + h - 5)
     ax += chip + 3
   }
 
   if (a.castId && a.castTotal > 0) {
     const progress = 1 - a.castRemaining / a.castTotal
-    bar(ctx, x + 6, y + h - chip - 4, w - 12, chip, progress, COLORS.castBar)
+    bar(ctx, x + 5, y + h - chip - 4, w - 10, chip, progress, COLORS.castBar)
     ctx.fillStyle = '#0a0a0f'
-    ctx.font = font(8, true)
+    ctx.font = font(8 * k, true)
     ctx.textAlign = 'center'
     ctx.fillText(ABILITIES[a.castId]?.name ?? a.castId, x + w / 2, y + h - 6)
   }
@@ -611,18 +657,18 @@ function frame(
     ctx.fillStyle = 'rgba(0,0,0,0.55)'
     ctx.fillRect(x, y, w, h)
     ctx.fillStyle = COLORS.hpBarLow
-    ctx.font = font(12, true)
+    ctx.font = font(12 * k, true)
     ctx.textAlign = 'center'
-    ctx.fillText('DEAD', x + w / 2, y + h / 2 + 4)
+    ctx.fillText('DEAD', x + w / 2, y + h / 2 + 4 * k)
   }
 
   // Threat readout: the tank losing the lead is the classic failure mode.
   const threat = s.threat[a.id]
-  if (threat !== undefined && a.alive && L.ui > 0.8) {
+  if (threat !== undefined && a.alive && L.ui > 0.8 && k > 0.7) {
     ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9)
+    ctx.font = font(9 * k)
     ctx.textAlign = 'right'
-    ctx.fillText(`${Math.round(threat)}`, x + w - 6, y + 13 * L.ui)
+    ctx.fillText(`${Math.round(threat)}`, x + w - 5, y + 12 * L.ui * k)
   }
 }
 

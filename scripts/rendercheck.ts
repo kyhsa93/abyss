@@ -2,7 +2,14 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
 import { allIcons, iconFor } from '../src/render/icons'
-import { drawHud, meterRect, partyButton, slotStatus, soundButton } from '../src/render/hud'
+import {
+  drawHud,
+  meterRect,
+  partyButton,
+  partyFrames,
+  slotStatus,
+  soundButton,
+} from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { L, updateLayout } from '../src/render/theme'
 import { ABILITIES } from '../src/sim/abilities'
@@ -907,10 +914,13 @@ for (const [label, w, h] of [
       map.y > L.bossY + 36 * L.ui,
       `map top ${map.y.toFixed(0)} vs boss ${(L.bossY + 36 * L.ui).toFixed(0)}`,
     )
+    // Measured against the widest raid, which is the one that reaches
+    // furthest right.
+    const framesRight = Math.max(...partyFrames(25).map((r) => r.x + r.w))
     expect(
       `${label}: the minimap clears the party frames`,
-      map.x > L.partyX + L.partyW,
-      `map left ${map.x.toFixed(0)} vs frames ${(L.partyX + L.partyW).toFixed(0)}`,
+      map.x > framesRight,
+      `map left ${map.x.toFixed(0)} vs frames ${framesRight.toFixed(0)}`,
     )
     for (const [name, rect] of [['party', partyButton()], ['sound', soundButton()]] as const) {
       expect(`${label}: the minimap clears the ${name} button`, !overlap(map, rect), JSON.stringify(rect))
@@ -1528,6 +1538,62 @@ for (const [label, w, h] of [
     boss(s).auras.some((a) => a.id === 'rake'),
     boss(s).auras.map((a) => a.id).join(', '),
   )
+}
+
+// --- party frames are a grid of parties, not one long column --------------
+//
+// Twenty-five frames stacked in a single column ran two screens off the
+// bottom, and every frame was sized for a five-man whatever the raid was.
+{
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+
+    for (const size of [5, 10, 25] as RaidSize[]) {
+      const rects = partyFrames(size)
+      expect(`${label} ${size}: one frame each`, rects.length === size, `${rects.length}`)
+
+      const onScreen = rects.every((r) => r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h)
+      const bottom = Math.max(...rects.map((r) => r.y + r.h))
+      expect(`${label} ${size}: all of them fit on screen`, onScreen, `bottom ${bottom.toFixed(0)} of ${h}`)
+
+      // Three columns at most, and a party is a column: every five
+      // consecutive members share an x and descend.
+      const columns = new Set(rects.map((r) => r.x.toFixed(1)))
+      expect(`${label} ${size}: at most three across`, columns.size <= 3, `${columns.size} columns`)
+
+      const stacked = rects.every((r, i) => {
+        if (i % 5 === 0) return true
+        const prev = rects[i - 1]!
+        return r.x === prev.x && r.y > prev.y
+      })
+      expect(`${label} ${size}: a party reads top to bottom`, stacked, 'a party is not a column')
+
+      // Nothing may sit on top of anything else.
+      const overlapping = rects.some((a, i) =>
+        rects.slice(i + 1).some((b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h),
+      )
+      expect(`${label} ${size}: no two frames overlap`, !overlapping, 'frames collide')
+
+      // And they stay out of the middle, where the player is pinned.
+      const right = Math.max(...rects.map((r) => r.x + r.w))
+      expect(`${label} ${size}: clear of the player`, right < L.cx - 10, `${right.toFixed(0)} vs ${L.cx}`)
+    }
+
+    // Smaller than they were: the old frames were a flat 108-150 wide and
+    // 46-70 tall whatever the screen or the raid.
+    const five = partyFrames(5)[0]!
+    const raid = partyFrames(25)[0]!
+    expect(
+      `${label}: a raid frame is no taller than a party frame`,
+      raid.h <= five.h && five.h <= 46,
+      `${five.h.toFixed(0)} then ${raid.h.toFixed(0)}`,
+    )
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

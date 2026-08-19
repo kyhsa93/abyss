@@ -43,6 +43,14 @@ pressing it anyway prints `Out of range` over your character rather than doing
 nothing, which is what a broken button also does. It costs no cooldown, so the
 answer is to walk in and press again.
 
+The party frames down the left are a grid of parties rather than one long
+column: a party is a column read top to bottom, and the columns run left to
+right three at a time before wrapping, so a ten-man is two columns side by
+side and a twenty-five man is three and then two underneath. Everything is
+sized off the viewport — they used to be a flat 108-150 by 46-70 whatever the
+screen and whatever the raid, which was a five-man's frames at twenty-five and
+ran two screens off the bottom.
+
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
 right edge, and a tap on the end-of-fight overlay to pull again. The canvas

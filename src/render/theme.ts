@@ -76,10 +76,15 @@ export interface Layout {
   bossY: number
   bossW: number
 
+  /**
+   * Top-left corner of the party frames.
+   *
+   * Their size is not here: how many frames there are, and so how small each
+   * one has to be, depends on the raid, which the layout does not know about.
+   * See `partyFrames` in the HUD.
+   */
   partyX: number
   partyY: number
-  partyW: number
-  partyRow: number
 
   /**
    * Minimap: a scaled copy of the arena, top right.
@@ -112,7 +117,7 @@ export interface Layout {
   btnHit: number
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 export function computeLayout(w: number, h: number): Layout {
   const portrait = h > w
@@ -172,8 +177,6 @@ export function computeLayout(w: number, h: number): Layout {
 
     partyX: 6,
     partyY: topBand + 8,
-    partyW: clamp(w * 0.19, 108, 150),
-    partyRow: clamp(h * 0.085, 46, 70),
 
     mapX,
     mapY,
