@@ -42,6 +42,7 @@ import {
   PROJECTILE_MIN_RANGE,
   addAura,
   applyDamage,
+  applyHeal,
   boss,
   castBlocker,
   landAbility,
@@ -1825,6 +1826,65 @@ for (const [label, w, h] of [
       `${dealt} is not a whole number of ${auto.damage} swings`,
     )
   }
+}
+
+// --- only your own numbers ------------------------------------------------
+//
+// Twenty-five people trading hits put a wall of floating numbers over a fight
+// whose actual state is already on the frames and the meter. Either end
+// counts as yours: what you dealt, and what landed on you.
+{
+  const s = createState(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
+  const player = s.actors.find((a) => a.isPlayer)!
+  const other = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+  const b = boss(s)
+
+  const numbers = () => s.texts.filter((t) => t.kind === 'damage' || t.kind === 'heal').length
+
+  s.texts.length = 0
+  applyDamage(s, b, 100, 'none', { sourceId: player.id })
+  expect('what you deal shows', numbers() === 1, `${numbers()}`)
+
+  s.texts.length = 0
+  applyDamage(s, player, 100, 'physical', { sourceId: b.id })
+  expect('what lands on you shows', numbers() === 1, `${numbers()}`)
+
+  s.texts.length = 0
+  applyDamage(s, b, 100, 'none', { sourceId: other.id })
+  expect('somebody else hitting the boss does not', numbers() === 0, `${numbers()}`)
+
+  s.texts.length = 0
+  applyDamage(s, other, 100, 'physical', { sourceId: b.id })
+  expect('nor the boss hitting somebody else', numbers() === 0, `${numbers()}`)
+
+  s.texts.length = 0
+  other.hp = other.maxHp * 0.5
+  applyHeal(s, other, 200, player.id)
+  expect('a heal you cast shows', numbers() === 1, `${numbers()}`)
+
+  s.texts.length = 0
+  applyHeal(s, other, 200, other.id)
+  expect('a heal between two other people does not', numbers() === 0, `${numbers()}`)
+
+  s.texts.length = 0
+  player.hp = player.maxHp * 0.5
+  applyHeal(s, player, 200, other.id)
+  expect('a heal on you does', numbers() === 1, `${numbers()}`)
+}
+
+// And the wall is actually gone: a twenty-five man fought by everyone but the
+// player, whose numbers are the only ones that can appear.
+{
+  const s = createState(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
+  const rng = new Rng(0x51ed)
+  let peak = 0
+  for (let i = 0; i < 30 * 20; i++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    peak = Math.max(peak, s.texts.filter((t) => t.kind === 'damage' || t.kind === 'heal').length)
+  }
+  // Numbers live about a second, and twenty-four people hitting things would
+  // stack dozens of them in that time.
+  expect('a raid does not bury the screen in numbers', peak <= 6, `${peak} at once`)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

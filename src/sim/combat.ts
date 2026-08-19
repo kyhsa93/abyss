@@ -2,7 +2,7 @@ import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
 import { GLOBAL_COOLDOWN, SPREAD_RADIUS } from './constants'
 import type { Rng } from './rng'
-import { BOSS_ID } from './state'
+import { BOSS_ID, PLAYER_ID } from './state'
 import type {
   Actor,
   Aura,
@@ -94,6 +94,18 @@ export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
     sourceId,
     tickTimer: 0,
   })
+}
+
+/**
+ * Whether a number belongs to the player.
+ *
+ * Either end counts: what you dealt, and what landed on you. Twenty-four
+ * other people trading hits is a wall of numbers over a fight whose actual
+ * state is already on the frames and the meter — the same reason only your
+ * own hits make a sound.
+ */
+function mine(target: Actor, sourceId: number | undefined): boolean {
+  return target.isPlayer || sourceId === PLAYER_ID
 }
 
 export function pushText(
@@ -226,7 +238,9 @@ export function applyDamage(
   final = Math.round(final)
   target.hp = Math.max(0, target.hp - final)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
-  if (!opts.silent) pushText(s, target.pos, `-${final}`, 'damage')
+  if (!opts.silent && mine(target, opts.sourceId)) {
+    pushText(s, target.pos, `-${final}`, 'damage')
+  }
 
   // Rage is earned by being hit as much as by hitting. Ground ticks are
   // silent and land thirty times a second, so letting those pay would hand a
@@ -277,7 +291,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 
   if (healed > 0) {
     if (target.isPlayer) s.sounds.push('heal')
-    pushText(s, target.pos, `+${healed}`, 'heal')
+    if (mine(target, sourceId)) pushText(s, target.pos, `+${healed}`, 'heal')
     // Healing generates threat too, which is why a healer can pull the boss.
     addThreat(s, sourceId, healed * 0.5)
   }

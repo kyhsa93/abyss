@@ -112,11 +112,14 @@ function makeMember(
   }
 }
 
+/**
+ * The player is always the first slot, and the first slot is always id one.
+ *
+ * A constant rather than a search, because the damage path asks who is
+ * involved on every hit — several times a tick with twenty-five people
+ * fighting.
+ */
 export const PLAYER_ID = 1
-export const TANK_ID = 2
-export const HEALER_ID = 3
-export const DPS_A_ID = 4
-export const DPS_B_ID = 5
 export const BOSS_ID = 100
 
 export function createState(

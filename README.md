@@ -293,6 +293,12 @@ puddles; a weapon loses none, so white damage lands at nearly full uptime and
 is worth far more per point than it looks. At fifty a swing it is about a
 sixth of an auto-attacker's own output and a seventh of the raid's.
 
+**Only your own numbers float.** What you dealt and what landed on you —
+either end counts as yours. Twenty-four other people trading hits is a wall of
+numbers over a fight whose actual state is already on the party frames and the
+meter, which is the same reason only your own hits make a sound. The report at
+the end still counts everything.
+
 **Hits have a picture.** Every ability that lands and every weapon swing
 queues an effect, and the renderer draws it from three primitives: a ring
 expanding out of the hit, spokes radiating from it, and an arc where a melee
