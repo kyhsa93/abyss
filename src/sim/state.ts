@@ -1,11 +1,14 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
+import { createBattleground, spawnPoint } from './battleground'
+import { Rng } from './rng'
 import {
   CLASSES,
   DEFAULT_PARTY,
   RESOURCES,
   DIFFICULTIES,
   makeSlots,
+  randomParty,
   sizeHealth,
   specOf,
   type Pick,
@@ -13,7 +16,7 @@ import {
   type RaidSize,
   type Slot,
 } from './classes'
-import type { Actor, AiProfile, Personality, SimState, Tally } from './types'
+import type { Actor, AiProfile, BgKind, Personality, SimState, Tally } from './types'
 
 
 interface PersonalityTuning {
@@ -174,6 +177,8 @@ export function createState(
   }
 
   return {
+    mode: 'raid',
+    bg: null,
     time: 0,
     tick: 0,
     actors: [...members, boss],
@@ -200,6 +205,102 @@ export function createState(
     seed,
     party: party.map((p) => ({ ...p })),
     difficulty,
+    tally,
+    sounds: [],
+    effects: [],
+  }
+}
+
+/** Names for the other side, so a battleground reads as people. */
+const RED_NAMES = ['Corvin', 'Sable', 'Thane', 'Ember', 'Grimsby']
+
+/**
+ * A battleground: five of yours against five rolled ones.
+ *
+ * Everything the raid path builds is reused — the same members, the same
+ * classes, the same damage numbers. What changes is who is standing opposite
+ * and what the tick loop does with them: no boss, no script, no encounter.
+ *
+ * The other side is rolled from the seed rather than mirrored. A mirror match
+ * is the fairest possible test and the least interesting one, since every
+ * answer is "the same thing they have".
+ */
+export function createBattlegroundState(
+  seed: number,
+  kind: BgKind,
+  party: Pick[] = DEFAULT_PARTY,
+  /** The other side, when a caller needs it fixed rather than rolled. */
+  enemy?: Pick[],
+): SimState {
+  const rng = new Rng(seed)
+  const size = 5
+  const slots = makeSlots(size)
+  const bg = createBattleground(kind)
+
+  const blue = party.slice(0, size).map((pick, i) => {
+    const actor = makeMember(i + 1, pick, slots[i]!, i === 0, 0)
+    const at = spawnPoint(bg, 'blue', i)
+    actor.pos = { ...at }
+    actor.prevPos = { ...at }
+    return actor
+  })
+
+  const enemyPicks = enemy?.slice(0, size) ?? randomParty(size, () => rng.range(0, 1))
+  const red = enemyPicks.map((pick, i) => {
+    const actor = makeMember(BOSS_ID + i, pick, slots[i]!, false, 0)
+    actor.faction = 'boss'
+    actor.name = RED_NAMES[i] ?? `Red ${i + 1}`
+    const at = spawnPoint(bg, 'red', i)
+    actor.pos = { ...at }
+    actor.prevPos = { ...at }
+    return actor
+  })
+
+  const threat: Record<number, number> = {}
+  const tally: Record<number, Tally> = {}
+  // Both sides are tallied here, unlike a raid where only the party is: the
+  // report is a scoreboard and half a scoreboard is not one.
+  for (const m of [...blue, ...red]) {
+    threat[m.id] = 0
+    tally[m.id] = {
+      damage: 0,
+      healing: 0,
+      overhealing: 0,
+      damageTaken: 0,
+      mechanicHits: 0,
+      deathAt: null,
+    }
+  }
+
+  return {
+    mode: 'battleground',
+    bg,
+    time: 0,
+    tick: 0,
+    actors: [...blue, ...red],
+    threat,
+    ground: [],
+    projectiles: [],
+    texts: [],
+    chat: [],
+    outcome: 'ongoing',
+    encounter: FIRST_ENCOUNTER,
+    countdown: COUNTDOWN_TICKS,
+    phase: 1,
+    nextPuddle: 0,
+    nextSpread: 0,
+    nextSlam: 0,
+    nextRaidHit: 0,
+    nextBreath: 0,
+    nextShockwave: 0,
+    nextAdds: 0,
+    bossFacing: Math.PI,
+    raidFlash: 0,
+    nextObjectId: 1,
+    attempt: 0,
+    seed,
+    party: party.slice(0, size).map((p) => ({ ...p })),
+    difficulty: 'normal',
     tally,
     sounds: [],
     effects: [],

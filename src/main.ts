@@ -13,7 +13,7 @@ import { append, load as loadHistory, record, save as saveHistory, type Attempt 
 import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
 import { Effects } from './render/effects'
 import { Hints } from './render/hints'
-import { drawRoster, hitRoster } from './render/roster'
+import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import { Sfx } from './sfx'
 import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
@@ -31,7 +31,7 @@ import {
   type Pick,
   type RaidSize,
 } from './sim/classes'
-import { createState } from './sim/state'
+import { createBattlegroundState, createState } from './sim/state'
 import { encounterIndex, hasNext } from './sim/encounters'
 import type { SimState } from './sim/types'
 
@@ -84,6 +84,7 @@ const PARTY_KEY = 'abyss.party'
 const DIFFICULTY_KEY = 'abyss.difficulty'
 const ENCOUNTER_KEY = 'abyss.encounter'
 const UNLOCKED_KEY = 'abyss.unlocked'
+const MODE_KEY = 'abyss.mode'
 
 function loadParty(): Pick[] {
   const fallback = () => DEFAULT_PARTY.map((p) => ({ ...p }))
@@ -170,6 +171,17 @@ function loadUnlocked(): number {
   }
 }
 
+/** Raid, or one of the battlegrounds. Remembered like everything else here. */
+function loadMode(): RosterMode {
+  try {
+    const raw = localStorage.getItem(MODE_KEY)
+    if (raw === 'conquest' || raw === 'flags') return { kind: 'bg', bg: raw }
+    return { kind: 'raid' }
+  } catch {
+    return { kind: 'raid' }
+  }
+}
+
 function loadDifficulty(): DifficultyId {
   const raw = (() => {
     try {
@@ -187,6 +199,7 @@ function saveSetup(): void {
     localStorage.setItem(DIFFICULTY_KEY, difficulty)
     localStorage.setItem(ENCOUNTER_KEY, String(encounter))
     localStorage.setItem(UNLOCKED_KEY, String(unlocked))
+    localStorage.setItem(MODE_KEY, mode.kind === 'raid' ? 'raid' : mode.bg)
   } catch {
     // Private browsing and full quotas are not worth failing over.
   }
@@ -202,6 +215,7 @@ let party = loadParty()
 let difficulty = loadDifficulty()
 let encounter = loadEncounter()
 let unlocked = Math.max(loadUnlocked(), encounter)
+let mode: RosterMode = loadMode()
 let screen: 'roster' | 'fight' | 'history' = 'roster'
 
 let history: Attempt[] = loadHistory()
@@ -222,9 +236,19 @@ let announced: { award: Award; age: number }[] = []
  * over, so without this the record would fill with the same pull forever.
  */
 let recorded = false
+/** The same, for the half of it that only a raid does. */
+let graded = false
 
 let attempt = 0
-let state: SimState = createState(BASE_SEED, attempt, party, difficulty, encounter)
+/** Every pull and every match is its own seed, so a rematch is not a replay. */
+function newState(): SimState {
+  if (mode.kind === 'bg') {
+    return createBattlegroundState(BASE_SEED + attempt * 7919, mode.bg, party)
+  }
+  return createState(BASE_SEED, attempt, party, difficulty, encounter)
+}
+
+let state: SimState = newState()
 // The RNG lives outside the state but is derived from it, so a given
 // (seed, attempt) pair always replays identically.
 let rng = new Rng(BASE_SEED + attempt * 7919)
@@ -232,8 +256,9 @@ let rng = new Rng(BASE_SEED + attempt * 7919)
 function restart(): void {
   attempt++
   recorded = false
+  graded = false
   announced = []
-  state = createState(BASE_SEED, attempt, party, difficulty, encounter)
+  state = newState()
   rng = new Rng(BASE_SEED + attempt * 7919)
 }
 
@@ -251,9 +276,10 @@ function nextBoss(): void {
   unlocked = Math.max(unlocked, encounter)
   attempt = 0
   recorded = false
+  graded = false
   announced = []
   fightingEncounter = encounter
-  state = createState(BASE_SEED, attempt, party, difficulty, encounter)
+  state = newState()
   rng = new Rng(BASE_SEED)
   saveSetup()
 }
@@ -262,6 +288,7 @@ function nextBoss(): void {
 let fightingParty: Pick[] = party.map((p) => ({ ...p }))
 let fightingDifficulty: DifficultyId = difficulty
 let fightingEncounter: number = encounter
+let fightingMode: RosterMode = mode
 
 /**
  * A changed party starts its own progression, since the AI's learning is
@@ -273,6 +300,7 @@ function startFight(): void {
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
     encounter !== fightingEncounter ||
+    !sameMode(mode, fightingMode) ||
     party.some(
       (p, i) => p.classId !== fightingParty[i]?.classId || p.spec !== fightingParty[i]?.spec,
     )
@@ -281,10 +309,12 @@ function startFight(): void {
     fightingParty = party.map((p) => ({ ...p }))
     fightingDifficulty = difficulty
     fightingEncounter = encounter
-    state = createState(BASE_SEED, attempt, party, difficulty, encounter)
+    fightingMode = mode
+    state = newState()
     rng = new Rng(BASE_SEED)
   }
   recorded = false
+  graded = false
   timing = { ...timing, accumulator: 0 }
   screen = 'fight'
 }
@@ -310,7 +340,13 @@ function chooseOwn(pick: Pick): void {
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
     const hit = hitRoster(tap.x, tap.y)
-    if (hit?.kind === 'class') {
+    if (hit?.kind === 'mode') {
+      mode = hit.mode
+      // A battleground is five a side, so a twenty-five man roster cannot walk
+      // into one. The player's own pick survives; the rest is rolled again.
+      if (mode.kind === 'bg' && party.length !== 5) resize(5)
+      saveSetup()
+    } else if (hit?.kind === 'class') {
       chooseOwn(hit.pick)
     } else if (hit?.kind === 'size') {
       if (hit.size !== party.length) resize(hit.size)
@@ -332,7 +368,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, unlocked)
+  drawRoster(ctx, party, difficulty, clock, encounter, unlocked, mode)
 }
 
 let timing: Clock = { accumulator: 0, elapsedTotal: 0 }
@@ -410,8 +446,16 @@ function frame(now: number): void {
   }
 
   // The moment a pull resolves, once.
+  // The record and the awards are about killing bosses — placing on a raid
+  // meter, a pull under a hundred and ten seconds. A battleground has no boss
+  // to grade against, so it keeps its result on its own screen rather than
+  // filing a pull that never happened. Note the outcome either way, or the
+  // block runs again on every frame the results are drawn over.
   if (state.outcome !== 'ongoing' && !recorded) {
     recorded = true
+  }
+  if (state.outcome !== 'ongoing' && !graded && state.mode === 'raid') {
+    graded = true
     // Pressing NEXT BOSS is not what opens the next boss; killing this one
     // is. Leaving through CHANGE PARTY after a kill must not cost the
     // progress that kill earned.

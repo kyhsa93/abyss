@@ -2,6 +2,10 @@ import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
+import { BATTLEGROUNDS } from '../src/sim/battleground'
+import { aiGoal } from '../src/sim/bgai'
+import { createBattlegroundState } from '../src/sim/state'
+import type { BgKind } from '../src/sim/types'
 import {
   autoParty,
   pickFor,
@@ -278,4 +282,95 @@ for (let i = 1; i < detailParty.length; i++) {
     return `${puddle.toFixed(2)}% / ${travel.toFixed(0)}`.padEnd(17)
   })
   console.log(label.padEnd(29) + cells.join(''))
+}
+
+
+// --- battlegrounds ----------------------------------------------------------
+//
+// Two questions, and they are not the same one. First, are the rules even:
+// with the player's slot driven by the same reasoning everyone else uses, both
+// sides should win about half. A lopsided number there is a rule that favours
+// a side, not a party that played better. Second, does playing well matter:
+// the same match with the player walking objectives should come out ahead of
+// the same match with the player standing at the spawn reading the score.
+const BG_RUNS = 30
+
+function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
+  const s = createBattlegroundState(seed, kind)
+  s.countdown = 0
+  const rng = new Rng(seed)
+  let ticks = 0
+  let deaths = 0
+  const alive = new Map(s.actors.map((a) => [a.id, a.alive]))
+
+  while (s.outcome === 'ongoing' && s.time < s.bg!.timeLimit + 30) {
+    const player = s.actors.find((a) => a.isPlayer)!
+    const pressed: number[] = []
+    if (ticks % 45 === 0) pressed.push(0)
+    if (ticks % 300 === 0) pressed.push(1)
+
+    let moveX = 0
+    let moveY = 0
+    if (drive !== 'idle' && player.alive) {
+      const goal = drive === 'ai' ? aiGoal(s, player) : objectiveGoal(s)
+      if (goal) {
+        const dx = goal.x - player.pos.x
+        const dy = goal.y - player.pos.y
+        const d = Math.hypot(dx, dy)
+        if (d > 12) {
+          moveX = dx / d
+          moveY = dy / d
+        }
+      }
+    }
+
+    step(s, { moveX, moveY, pressed }, rng)
+    ticks++
+    for (const a of s.actors) {
+      if (alive.get(a.id) && !a.alive) deaths++
+      alive.set(a.id, a.alive)
+    }
+  }
+
+  return { outcome: s.outcome, time: s.time, deaths, state: s }
+}
+
+/** A human who understands the objective and nothing else about the fight. */
+function objectiveGoal(s: SimState) {
+  const bg = s.bg!
+  const player = s.actors.find((a) => a.isPlayer)!
+  if (bg.kind === 'flags') {
+    const theirs = bg.flags.red
+    return theirs.carrierId === player.id ? bg.bases.blue : theirs.pos
+  }
+  const wanted = bg.nodes.filter((n) => n.owner !== 'blue')
+  const list = wanted.length > 0 ? wanted : bg.nodes
+  let best = list[0]!
+  for (const n of list) {
+    const d = Math.hypot(player.pos.x - n.pos.x, player.pos.y - n.pos.y)
+    if (d < Math.hypot(player.pos.x - best.pos.x, player.pos.y - best.pos.y)) best = n
+  }
+  return best.pos
+}
+
+console.log('\nbattleground           player     win%     avgTime  deaths')
+for (const bg of BATTLEGROUNDS) {
+  for (const drive of ['ai', 'objective', 'idle'] as const) {
+    let wins = 0
+    let time = 0
+    let deaths = 0
+    for (let n = 0; n < BG_RUNS; n++) {
+      const r = bgRun(500 + n * 91, bg.kind, drive)
+      if (r.outcome === 'victory') wins++
+      time += r.time
+      deaths += r.deaths
+    }
+    console.log(
+      `${bg.name}`.padEnd(23),
+      drive.padEnd(11),
+      `${Math.round((wins / BG_RUNS) * 100)}%`.padEnd(9),
+      (time / BG_RUNS).toFixed(0).padEnd(9),
+      (deaths / BG_RUNS).toFixed(1),
+    )
+  }
 }

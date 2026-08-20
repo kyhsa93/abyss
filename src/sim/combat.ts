@@ -275,11 +275,13 @@ export function applyDamage(
 }
 
 function record(s: SimState, target: Actor, final: number, opts: DamageOptions): void {
-  if (target.faction === 'boss') {
-    const credit = opts.sourceId === undefined ? undefined : s.tally[opts.sourceId]
-    if (credit) credit.damage += final
-    return
-  }
+  const credit = opts.sourceId === undefined ? undefined : s.tally[opts.sourceId]
+  if (credit) credit.damage += final
+
+  // In a raid only the party has a row, so a hit on the boss is credit and
+  // nothing else. In a battleground everyone has one, and half a scoreboard
+  // is not a scoreboard: what the other team took is what your team dealt.
+  if (s.mode === 'raid' && target.faction === 'boss') return
 
   const taken = s.tally[target.id]
   if (!taken) return
@@ -509,7 +511,14 @@ export function landAbility(
   // Rolled here rather than inside applyDamage, because this is where the rng
   // is and because a mechanic must never crit: a puddle that sometimes hits
   // for half again as much is not a thing anyone can play around.
-  const crit = actor.faction === 'party' && rng.chance(CRIT_CHANCE)
+  //
+  // In a raid that means the party alone, since a boss that occasionally hits
+  // half again as hard makes healing a coin toss. In a battleground both sides
+  // are the party — the other team is five of the same classes, and denying
+  // them crits is a seven percent damage tax that decided every mirror match
+  // before anyone pressed anything.
+  const crit =
+    (s.mode === 'battleground' || actor.faction === 'party') && rng.chance(CRIT_CHANCE)
 
   switch (ability.kind) {
     case 'damage': {

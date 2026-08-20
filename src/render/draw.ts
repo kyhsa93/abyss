@@ -66,18 +66,21 @@ export function drawWorld(
   ctx.translate(shove.x * L.scale, shove.y * L.scale)
 
   drawArena(ctx)
+  drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawSpreadRings(ctx, s, alpha)
   drawCasts(ctx, s, alpha)
 
+  const bg = s.mode === 'battleground'
   for (const a of s.actors) {
-    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false)
+    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg)
   }
 
   for (const a of s.actors) {
-    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a))
+    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
   }
 
+  drawCarriedFlags(ctx, s, alpha)
   drawProjectiles(ctx, s, alpha)
   // Above the tokens and below the numbers: a hit should be visible on top of
   // whoever took it, and never on top of what the fight is telling you.
@@ -88,7 +91,102 @@ export function drawWorld(
   drawRaidFlash(ctx, s)
 }
 
+/**
+ * Points, bases and flags — the parts of a battleground that are not people.
+ *
+ * Drawn under everything else, on the floor, because that is what they are:
+ * places. A capture point reads as a ring whose colour says who holds it and
+ * whose fill says how far the other team has got with taking it, which is one
+ * number the score alone never shows — a point at 90% looks exactly like a
+ * point at 10% until the moment it flips.
+ */
+function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  const bg = s.bg
+  if (!bg) return
+
+  for (const node of bg.nodes) {
+    const at = worldToScreen(node.pos)
+    const r = node.radius * L.scale
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = node.owner ? tint(teamColour(node.owner), 0.1) : 'rgba(120, 130, 150, 0.07)'
+    ctx.fill()
+    ctx.strokeStyle = node.owner ? teamColour(node.owner) : COLORS.floorEdge
+    // Contested points pulse, since "nobody is taking this" and "both teams
+    // are standing on it" are otherwise the same still picture.
+    ctx.lineWidth = node.contested ? 2 + Math.sin(clock * 8) : 2
+    ctx.stroke()
+
+    // The capture bar, drawn as an arc from the top so it reads as a dial.
+    if (node.progress !== 0) {
+      const toward = node.progress > 0 ? 'blue' : 'red'
+      ctx.beginPath()
+      ctx.arc(at.x, at.y, r - 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.abs(node.progress))
+      ctx.strokeStyle = teamColour(toward)
+      ctx.lineWidth = 4
+      ctx.stroke()
+    }
+  }
+
+  if (bg.kind !== 'flags') return
+
+  for (const team of ['blue', 'red'] as const) {
+    const base = worldToScreen(bg.bases[team])
+    ctx.beginPath()
+    ctx.arc(base.x, base.y, 80 * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = tint(teamColour(team), 0.5)
+    ctx.setLineDash([6, 6])
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Only a flag that is not being carried is drawn here; a carried one is
+    // drawn on its carrier, where the eye is already looking.
+    const flag = bg.flags[team]
+    if (flag.state === 'carried') continue
+    const at = worldToScreen(flag.pos)
+    const lift = flag.state === 'home' ? 0 : Math.sin(clock * 4) * 3
+    ctx.fillStyle = teamColour(team)
+    ctx.fillRect(at.x - 1.5, at.y - 20 + lift, 3, 20)
+    ctx.beginPath()
+    ctx.moveTo(at.x + 1.5, at.y - 20 + lift)
+    ctx.lineTo(at.x + 16, at.y - 15 + lift)
+    ctx.lineTo(at.x + 1.5, at.y - 10 + lift)
+    ctx.closePath()
+    ctx.fill()
+  }
+}
+
+export function teamColour(team: 'blue' | 'red'): string {
+  return team === 'blue' ? COLORS.tank : COLORS.boss
+}
+
 /** The tell for party-wide damage, which is otherwise invisible and unavoidable. */
+/** A flag in someone's hands, drawn over them so the carrier is unmistakable. */
+function drawCarriedFlags(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  const bg = s.bg
+  if (!bg || bg.kind !== 'flags') return
+
+  for (const team of ['blue', 'red'] as const) {
+    const flag = bg.flags[team]
+    if (flag.state !== 'carried') continue
+    const carrier = s.actors.find((a) => a.id === flag.carrierId)
+    if (!carrier || !carrier.alive) continue
+
+    const at = screenPos(carrier, alpha)
+    const top = at.y - carrier.radius * L.scale - 26
+    ctx.fillStyle = teamColour(team)
+    ctx.fillRect(at.x - 1.5, top, 3, 22)
+    ctx.beginPath()
+    ctx.moveTo(at.x + 1.5, top)
+    ctx.lineTo(at.x + 15, top + 5)
+    ctx.lineTo(at.x + 1.5, top + 10)
+    ctx.closePath()
+    ctx.fill()
+  }
+}
+
 function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
   if (s.raidFlash <= 0) return
   const a = Math.min(1, s.raidFlash / 0.45)
@@ -345,11 +443,15 @@ function drawActor(
   alpha: number,
   clock: number,
   burning: boolean,
+  battleground = false,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
-  const isBoss = a.id === BOSS_ID
-  const isAdd = a.faction === 'boss' && !isBoss
+  // In a battleground the other side is five people, not a boss and its
+  // thralls: they keep their class colours and are told apart by a ring.
+  const isBoss = a.id === BOSS_ID && !battleground
+  const isAdd = a.faction === 'boss' && !isBoss && !battleground
+  const hostile = battleground && a.faction === 'boss'
   // Colour says the class, the glyph says the role. You are still the one
   // with a ring around you, which is what picks you out of twenty-five.
   const color = a.alive
@@ -365,6 +467,16 @@ function drawActor(
     ctx.beginPath()
     ctx.arc(p.x, p.y, r + 7 + Math.sin(clock * 4) * 1.5, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
+  // Whose side, before whose class. Ten class colours on one screen say what
+  // everyone is playing and nothing about who is about to hit you.
+  if (hostile && a.alive) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2)
+    ctx.strokeStyle = COLORS.boss
     ctx.lineWidth = 2
     ctx.stroke()
   }

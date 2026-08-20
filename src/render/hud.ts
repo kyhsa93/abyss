@@ -6,6 +6,8 @@ import { playerTarget } from '../sim/sim'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt, hasNext } from '../sim/encounters'
 import { adds, boss, castBlocker } from '../sim/combat'
+import { BATTLEGROUNDS, living } from '../sim/battleground'
+import { teamColour } from './draw'
 import type { Actor, SimState } from '../sim/types'
 import { drawIcon } from './icons'
 import { COLORS, L, WORLD_RADIUS, classColor, resourceColor } from './theme'
@@ -96,7 +98,7 @@ export function hitOutcome(
 
 /** Whether this pull earned the way out of this boss. */
 export function canAdvance(s: SimState): boolean {
-  return s.outcome === 'victory' && hasNext(s.encounter)
+  return s.mode === 'raid' && s.outcome === 'victory' && hasNext(s.encounter)
 }
 
 /**
@@ -296,10 +298,11 @@ export function drawHud(
   touch: TouchView,
   muted: boolean,
 ): void {
-  drawBossFrame(ctx, s)
+  if (s.mode === 'battleground') drawScoreboard(ctx, s)
+  else drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
-  drawTideWarning(ctx, s)
+  if (s.mode === 'raid') drawTideWarning(ctx, s)
   drawMinimap(ctx, s)
   drawMeter(ctx, s, touch.active)
   if (touch.active) drawTouchControls(ctx, s, touch)
@@ -361,6 +364,88 @@ function drawCountdown(ctx: CanvasRenderingContext2D, s: SimState): void {
  * screen — with a camera that follows the player, that box is the only thing
  * telling you how much of the floor you cannot see.
  */
+/**
+ * The score, where the boss's health bar goes.
+ *
+ * It is the same question in the same place: how far through is this, and who
+ * is winning it. A capture match reads as two bars growing toward a line; a
+ * flag match as two counts, since three captures do not fill a bar in any
+ * useful way.
+ */
+function drawScoreboard(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const bg = s.bg
+  if (!bg) return
+
+  const w = Math.min(420, L.w * 0.62)
+  const x = L.w / 2 - w / 2
+  const y = L.bannerY - 20
+  const h = 12
+
+  ctx.textAlign = 'center'
+  ctx.font = font(11, true)
+  ctx.fillStyle = COLORS.textDim
+  const left = Math.max(0, bg.timeLimit - s.time)
+  ctx.fillText(`${bgName(bg.kind)}   ·   ${left.toFixed(0)}s left`, L.w / 2, y - 6)
+
+  if (bg.kind === 'conquest') {
+    for (const [i, team] of (['blue', 'red'] as const).entries()) {
+      const row = y + i * (h + 4)
+      ctx.fillStyle = COLORS.panel
+      ctx.fillRect(x, row, w, h)
+      const filled = Math.min(1, bg.score[team] / bg.target)
+      ctx.fillStyle = teamColour(team)
+      ctx.fillRect(x, row, w * filled, h)
+      ctx.strokeStyle = COLORS.panelEdge
+      ctx.lineWidth = 1
+      ctx.strokeRect(x + 0.5, row + 0.5, w - 1, h - 1)
+
+      ctx.fillStyle = COLORS.text
+      ctx.font = font(9, true)
+      ctx.textAlign = 'left'
+      const owned = bg.nodes.filter((n) => n.owner === team).length
+      ctx.fillText(`${Math.floor(bg.score[team])}`, x + 4, row + h - 3)
+      ctx.textAlign = 'right'
+      ctx.fillText(`${owned} of ${bg.nodes.length}`, x + w - 4, row + h - 3)
+      ctx.textAlign = 'center'
+    }
+    return
+  }
+
+  ctx.font = font(20, true)
+  ctx.fillStyle = teamColour('blue')
+  ctx.textAlign = 'right'
+  ctx.fillText(`${Math.floor(bg.score.blue)}`, L.w / 2 - 16, y + 18)
+  ctx.fillStyle = teamColour('red')
+  ctx.textAlign = 'left'
+  ctx.fillText(`${Math.floor(bg.score.red)}`, L.w / 2 + 16, y + 18)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.fillText(`first to ${bg.target}`, L.w / 2, y + 18)
+
+  // Where each flag is, which is the whole state of a flag match.
+  const notes: string[] = []
+  for (const team of ['blue', 'red'] as const) {
+    const flag = bg.flags[team]
+    const whose = team === 'blue' ? 'ours' : 'theirs'
+    if (flag.state === 'home') continue
+    if (flag.state === 'dropped') notes.push(`${whose} dropped, ${flag.dropTimer.toFixed(0)}s`)
+    else {
+      const carrier = s.actors.find((a) => a.id === flag.carrierId)
+      notes.push(`${whose} taken${carrier ? ` by ${carrier.name}` : ''}`)
+    }
+  }
+  if (notes.length > 0) {
+    ctx.fillStyle = COLORS.castBar
+    ctx.font = font(10, true)
+    ctx.fillText(notes.join('   ·   '), L.w / 2, y + 34)
+  }
+}
+
+function bgName(kind: 'conquest' | 'flags'): string {
+  return BATTLEGROUNDS.find((b) => b.kind === kind)?.name ?? 'Battleground'
+}
+
 function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   const { mapX: cx, mapY: cy, mapR: r } = L
   const k = r / WORLD_RADIUS
@@ -372,6 +457,26 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.fillStyle = 'rgba(10, 10, 15, 0.82)'
   ctx.fill()
   ctx.clip()
+
+  // Objectives first: they are the map in a battleground, and everything else
+  // on it is somebody on their way to one.
+  if (s.bg) {
+    for (const node of s.bg.nodes) {
+      const p = at(node.pos)
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, Math.max(2, node.radius * k), 0, Math.PI * 2)
+      ctx.strokeStyle = node.owner ? teamColour(node.owner) : COLORS.floorEdge
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+    for (const team of ['blue', 'red'] as const) {
+      if (s.bg.kind !== 'flags') break
+      const flag = s.bg.flags[team]
+      const p = at(flag.pos)
+      ctx.fillStyle = teamColour(team)
+      ctx.fillRect(p.x - 2, p.y - 5, 4, 8)
+    }
+  }
 
   // Ground first, so nobody standing in it is hidden by it.
   for (const g of s.ground) {
@@ -774,13 +879,33 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
 }
 
 function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
-  const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
   const line = 15 * L.ui
   let y = L.infoY
 
   ctx.textAlign = 'right'
   ctx.font = font(11)
   ctx.fillStyle = COLORS.textDim
+
+  if (s.mode === 'battleground') {
+    const bg = s.bg
+    ctx.fillText(`${s.time.toFixed(1)}s`, L.infoX, y)
+    y += line
+    ctx.fillText(`${living(s, 'blue').length} v ${living(s, 'red').length}`, L.infoX, y)
+    y += line
+
+    // Your own respawn, which is the only clock that matters while you are on
+    // your back and the one thing the scoreboard cannot tell you.
+    const player = s.actors.find((a) => a.isPlayer)
+    if (player && !player.alive && bg) {
+      const left = bg.respawn[player.id]
+      ctx.fillStyle = COLORS.hpBarLow
+      ctx.font = font(12, true)
+      ctx.fillText(`up in ${Math.max(0, left ?? 0).toFixed(0)}s`, L.infoX, y)
+    }
+    return
+  }
+
+  const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
   ctx.fillText(`pull ${s.attempt + 1}`, L.infoX, y)
   y += line
   ctx.fillText(`phase ${s.phase}`, L.infoX, y)
@@ -1069,7 +1194,15 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillRect(0, 0, L.w, L.h)
 
   const label =
-    s.outcome === 'victory' ? 'KILL' : s.outcome === 'enrage' ? 'ENRAGE WIPE' : 'WIPE'
+    s.mode === 'battleground'
+      ? s.outcome === 'victory'
+        ? 'VICTORY'
+        : 'DEFEAT'
+      : s.outcome === 'victory'
+        ? 'KILL'
+        : s.outcome === 'enrage'
+          ? 'ENRAGE WIPE'
+          : 'WIPE'
   const colour = s.outcome === 'victory' ? COLORS.hpBar : COLORS.hpBarLow
   const advance = canAdvance(s)
   const buttons = outcomeButtons(advance)
@@ -1081,8 +1214,11 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
 
   ctx.fillStyle = COLORS.text
   ctx.font = font(12)
+  const bg = s.bg
   ctx.fillText(
-    `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
+    bg
+      ? `${bgName(bg.kind)}   ·   ${s.time.toFixed(0)}s   ·   ${Math.floor(bg.score.blue)} — ${Math.floor(bg.score.red)}`
+      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )
@@ -1114,7 +1250,13 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(11)
-  if (advance) {
+  if (s.mode === 'battleground') {
+    ctx.fillText(
+      s.outcome === 'victory' ? 'the other five go home' : 'the other five hold it',
+      L.w / 2,
+      buttons.retry.y + buttons.retry.h + 20,
+    )
+  } else if (advance) {
     const next = encounterAt(s.encounter + 1)
     ctx.fillText(
       `next: ${next.name} — ${next.demand}`,

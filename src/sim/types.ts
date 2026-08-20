@@ -257,7 +257,62 @@ export type SoundEvent =
   | 'victory'
   | 'wipe'
 
-export type Outcome = 'ongoing' | 'victory' | 'wipe' | 'enrage'
+export type Outcome = 'ongoing' | 'victory' | 'wipe' | 'enrage' | 'defeat'
+
+/**
+ * What is being played.
+ *
+ * The two share everything below the rules: the same classes, the same damage
+ * path, the same renderer. What differs is who is on the other side and what
+ * ends it — a boss on a script, or five of the same classes you brought.
+ */
+export type Mode = 'raid' | 'battleground'
+
+export type Team = 'blue' | 'red'
+
+export type BgKind = 'conquest' | 'flags'
+
+/** A capture point. Held by standing on it and nobody else standing on it. */
+export interface BgNode {
+  id: number
+  pos: Vec2
+  radius: number
+  /**
+   * -1 is fully red, +1 fully blue, 0 neutral.
+   *
+   * A single number rather than an owner plus a timer, because taking a point
+   * off the other team is the same act as taking a neutral one — it just
+   * starts further away.
+   */
+  progress: number
+  owner: Team | null
+  /** Both teams standing on it; progress is frozen rather than fought over. */
+  contested: boolean
+}
+
+export interface BgFlag {
+  team: Team
+  state: 'home' | 'carried' | 'dropped'
+  pos: Vec2
+  carrierId: number | null
+  /** Seconds a dropped flag waits before returning itself. */
+  dropTimer: number
+}
+
+export interface BgState {
+  kind: BgKind
+  score: Record<Team, number>
+  target: number
+  /** Seconds before the higher score wins outright. */
+  timeLimit: number
+  nodes: BgNode[]
+  flags: Record<Team, BgFlag>
+  bases: Record<Team, Vec2>
+  /** Seconds until each downed actor is back on their feet, keyed by id. */
+  respawn: Record<number, number>
+  /** Captures and returns, for the report. */
+  objectives: Record<number, number>
+}
 
 export interface PlayerInput {
   moveX: number
@@ -267,6 +322,9 @@ export interface PlayerInput {
 }
 
 export interface SimState {
+  mode: Mode
+  /** Present only in a battleground; `mode` is what says which to read. */
+  bg: BgState | null
   time: number
   tick: number
   actors: Actor[]

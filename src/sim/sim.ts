@@ -1,6 +1,8 @@
 import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
+import { updateBattlegroundAi } from './bgai'
+import { teamOf, other as otherTeam, updateBattleground } from './battleground'
 import { resolveBossCast, updateBoss, updateGround } from './boss'
 import {
   AURA_TICK,
@@ -68,20 +70,27 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
 
   updatePlayer(s, input, rng)
 
-  for (const a of s.actors) {
-    if (a.faction === 'party' && a.ai) updatePartyAi(s, a, rng)
+  // Both sides run in the same pass. The direction alternates by tick, because
+  // acting first is worth something — reaching a flag, standing on a point —
+  // and a fixed order hands that to whichever team happens to be built first.
+  const thinkers = s.mode === 'battleground' && s.tick % 2 === 1 ? [...s.actors].reverse() : s.actors
+  for (const a of thinkers) {
+    if (!a.ai) continue
+    if (s.mode === 'battleground') updateBattlegroundAi(s, a, rng)
+    else if (a.faction === 'party') updatePartyAi(s, a, rng)
   }
 
   updateAutoAttacks(s, rng)
 
-  updateBoss(s, rng)
+  if (s.mode === 'battleground') updateBattleground(s)
+  else updateBoss(s, rng)
   updateGround(s)
   updateProjectiles(s, rng)
 
   for (const a of s.actors) advanceCast(s, a, rng)
 
   ageEphemera(s)
-  resolveOutcome(s)
+  if (s.mode === 'raid') resolveOutcome(s)
 }
 
 /**
@@ -97,7 +106,10 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
  */
 function updateAutoAttacks(s: SimState, rng: Rng): void {
   for (const a of s.actors) {
-    if (a.faction !== 'party' || !a.alive) continue
+    if (!a.alive) continue
+    // In a raid the boss swings on its own script, so only the party's
+    // weapons are handled here. In a battleground both sides are the party.
+    if (s.mode === 'raid' ? a.faction !== 'party' : a.ai === null && !a.isPlayer) continue
     const auto = specOf({ classId: a.classId, spec: a.spec }).auto
     if (!auto) continue
 
@@ -152,8 +164,12 @@ function nearestHostile(
 ): Actor | null {
   let best: Actor | null = null
   let bestGap = Infinity
+  const hostile =
+    s.mode === 'battleground'
+      ? (a: Actor) => teamOf(a) === otherTeam(teamOf(from))
+      : (a: Actor) => a.faction === 'boss'
   for (const other of s.actors) {
-    if (other.faction !== 'boss' || !other.alive) continue
+    if (!hostile(other) || !other.alive) continue
     // Clamped at zero: standing inside something's radius is a gap of none,
     // not a negative one. Without this every melee stopped swinging the
     // moment a near edge existed anywhere, because a melee stands closer to
@@ -273,6 +289,25 @@ function reportReach(s: SimState, player: Actor, text: string): void {
  * aiming at" is one too many.
  */
 export function playerTarget(s: SimState): number {
+  const player = s.actors.find((a) => a.isPlayer)
+
+  // A battleground has no boss to fall back on, so the target is whoever is
+  // nearest on the other side — the same thing the weapon already swings at,
+  // rather than a second answer to the same question.
+  if (s.mode === 'battleground') {
+    let best = BOSS_ID
+    let bestGap = Infinity
+    for (const a of s.actors) {
+      if (!a.alive || a.faction !== 'boss') continue
+      const gap = player ? dist(player.pos, a.pos) : 0
+      if (gap < bestGap) {
+        bestGap = gap
+        best = a.id
+      }
+    }
+    return best
+  }
+
   let best: number = BOSS_ID
   let bestHp = Infinity
   for (const a of s.actors) {
@@ -302,7 +337,11 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
   a.castTotal = 0
   a.castTargetId = null
 
-  if (a.faction === 'boss') {
+  // Only in a raid does that side cast boss abilities. In a battleground the
+  // faction means "the other team", and sending their finished casts here
+  // dropped every one of them on the floor: they were playing instants only,
+  // which is most of a caster's damage gone.
+  if (s.mode === 'raid' && a.faction === 'boss') {
     resolveBossCast(s, castId, targetId)
     return
   }

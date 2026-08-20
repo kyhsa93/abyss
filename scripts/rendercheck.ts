@@ -67,6 +67,10 @@ import {
   SPELL_RANGE,
 } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/encounters'
+import { BATTLEGROUNDS, held, living, teamOf } from '../src/sim/battleground'
+import { aiGoal } from '../src/sim/bgai'
+import { createBattlegroundState } from '../src/sim/state'
+import type { BgKind } from '../src/sim/types'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
@@ -2963,6 +2967,200 @@ for (const [label, w, h] of [
   expect('a wipe does not', !canAdvance(first), 'a wipe offered the next boss')
   first.outcome = 'enrage'
   expect('nor an enrage', !canAdvance(first), 'an enrage offered the next boss')
+}
+
+// --- battlegrounds ----------------------------------------------------------
+//
+// The other team stands where the boss did, in the faction sense, and that is
+// exactly the kind of reuse that goes wrong quietly: two rules keyed off
+// `faction === 'party'` were handing blue a seven percent damage advantage and
+// deleting every cast red ever finished. Neither threw. So what is asserted
+// here is symmetry — a side that wins because it is that side.
+for (const bg of BATTLEGROUNDS) {
+  const s = createBattlegroundState(0x51ed, bg.kind)
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+
+  expect(`${bg.name}: five a side`, living(s, 'blue').length === 5 && living(s, 'red').length === 5,
+    `${living(s, 'blue').length} v ${living(s, 'red').length}`)
+  expect(`${bg.name}: the player is on blue`,
+    s.actors.filter((a) => a.isPlayer).every((a) => teamOf(a) === 'blue'), 'player is not blue')
+  expect(`${bg.name}: everyone else is driven`,
+    s.actors.every((a) => a.isPlayer || a.ai !== null), 'somebody has no AI')
+
+  let deaths = 0
+  let respawns = 0
+  const alive = new Map(s.actors.map((a) => [a.id, a.alive]))
+  let ticks = 0
+  while (s.outcome === 'ongoing' && s.time < s.bg!.timeLimit + 30) {
+    const player = s.actors.find((a) => a.isPlayer)!
+    const goal = player.alive ? aiGoal(s, player) : null
+    let moveX = 0
+    let moveY = 0
+    if (goal) {
+      const dx = goal.x - player.pos.x
+      const dy = goal.y - player.pos.y
+      const d = Math.hypot(dx, dy)
+      if (d > 12) {
+        moveX = dx / d
+        moveY = dy / d
+      }
+    }
+    step(s, { moveX, moveY, pressed: ticks % 45 === 0 ? [0] : [] }, rng)
+    ticks++
+    for (const a of s.actors) {
+      const was = alive.get(a.id)
+      if (was && !a.alive) deaths++
+      if (was === false && a.alive) respawns++
+      alive.set(a.id, a.alive)
+    }
+  }
+
+  expect(`${bg.name}: it ends`, s.outcome === 'victory' || s.outcome === 'defeat',
+    `${s.outcome} at ${s.time.toFixed(0)}s`)
+  expect(`${bg.name}: somebody died`, deaths > 0, 'nobody died in a whole match')
+  // A battleground where the dead stay down is a deathmatch with extra
+  // reading: the first team to win a fight wins the match.
+  expect(`${bg.name}: and got back up`, respawns > 0, `${deaths} deaths, no respawns`)
+
+  // Both sides fight. Red's finished casts used to be routed into the boss
+  // script and dropped on the floor, which no test could see except this one.
+  const redDamage = s.actors
+    .filter((a) => teamOf(a) === 'red')
+    .reduce((sum, a) => sum + (s.tally[a.id]?.damageTaken ?? 0), 0)
+  const blueDamage = s.actors
+    .filter((a) => teamOf(a) === 'blue')
+    .reduce((sum, a) => sum + (s.tally[a.id]?.damageTaken ?? 0), 0)
+  expect(`${bg.name}: blue lands damage`, redDamage > 0, `${redDamage}`)
+  expect(`${bg.name}: red lands damage`, blueDamage > 0, `${blueDamage}`)
+  expect(
+    `${bg.name}: and neither by a landslide`,
+    Math.max(redDamage, blueDamage) < Math.min(redDamage, blueDamage) * 3,
+    `blue took ${blueDamage}, red took ${redDamage}`,
+  )
+}
+
+// The rules themselves, checked directly rather than through a whole match.
+{
+  const s = createBattlegroundState(0x51ed, 'conquest')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  const bg = s.bg!
+  const node = bg.nodes[0]!
+
+  // Nobody on it: nothing happens, however long you wait.
+  node.progress = 0.5
+  for (const a of s.actors) {
+    a.pos.x = 900
+    a.pos.y = 900
+  }
+  for (let i = 0; i < 60; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('an empty point does not drift', Math.abs(node.progress - 0.5) < 0.001, `${node.progress}`)
+
+  // Both teams on it: frozen and marked, rather than one of them winning.
+  const blue = s.actors.find((a) => teamOf(a) === 'blue')!
+  const red = s.actors.find((a) => teamOf(a) === 'red')!
+  for (const a of [blue, red]) {
+    a.pos.x = node.pos.x
+    a.pos.y = node.pos.y
+  }
+  const before = node.progress
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('a contested point is marked', node.contested, 'not contested')
+  expect('and does not move', Math.abs(node.progress - before) < 0.001, `${node.progress}`)
+
+  // One team alone takes it, and only pays once it is all the way over.
+  red.alive = false
+  const scoreBefore = bg.score.blue
+  // Long enough to cross the whole bar: a point pays only once it is all the
+  // way over, and it starts this test half way.
+  for (let i = 0; i < 120; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('a held point pays', bg.score.blue > scoreBefore, `${bg.score.blue}`)
+  expect('and is owned', held(bg, 'blue') >= 1, `${held(bg, 'blue')}`)
+}
+
+{
+  const s = createBattlegroundState(0x51ed, 'flags')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  const bg = s.bg!
+  const runner = s.actors.find((a) => teamOf(a) === 'blue' && !a.isPlayer)!
+
+  // Standing on their flag takes it; standing on your own does not.
+  runner.pos = { ...bg.flags.red.pos }
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('their flag can be taken', bg.flags.red.carrierId === runner.id, `${bg.flags.red.carrierId}`)
+  expect('and rides its carrier', bg.flags.red.state === 'carried', bg.flags.red.state)
+
+  // Carrying it home scores, but only while your own flag is still standing.
+  bg.flags.blue.state = 'dropped'
+  bg.flags.blue.dropTimer = 10
+  bg.flags.blue.pos = { x: 0, y: 0 }
+  runner.pos = { ...bg.bases.blue }
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('a cap is refused while yours is out', bg.score.blue === 0, `${bg.score.blue}`)
+
+  bg.flags.blue.state = 'home'
+  bg.flags.blue.pos = { ...bg.bases.blue }
+  runner.pos = { ...bg.bases.blue }
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('and allowed once it is home', bg.score.blue === 1, `${bg.score.blue}`)
+  expect('the flag goes back', bg.flags.red.state === 'home', bg.flags.red.state)
+
+  // A carrier that dies drops it where they fell rather than teleporting it.
+  runner.pos = { ...bg.flags.red.pos }
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  runner.pos = { x: 40, y: 40 }
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const where = { ...bg.flags.red.pos }
+  runner.alive = false
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('a dead carrier drops it', bg.flags.red.state === 'dropped', bg.flags.red.state)
+  expect(
+    'where they fell',
+    Math.hypot(bg.flags.red.pos.x - where.x, bg.flags.red.pos.y - where.y) < 1,
+    JSON.stringify(bg.flags.red.pos),
+  )
+}
+
+// The screens: a battleground draws its own readouts and none of the raid's.
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+] as const) {
+  updateLayout(w, h)
+  for (const kind of ['conquest', 'flags'] as BgKind[]) {
+    const s = createBattlegroundState(0x51ed, kind)
+    s.countdown = 0
+    const rng = new Rng(0x51ed)
+    for (let i = 0; i < 300; i++) step(s, { moveX: 1, moveY: 0.3, pressed: [0] }, rng)
+
+    // It has to draw at all, mid-match and over the result.
+    drawWorld(stubCtx(), s, 0.5, 1.5, new Effects())
+    drawHud(stubCtx(), s, touchView(true), false)
+    s.outcome = 'defeat'
+    drawHud(stubCtx(), s, touchView(false), false)
+    s.outcome = 'ongoing'
+
+    const labels: Label[] = []
+    drawHud(recordingCtx([], labels), s, touchView(false), false)
+    const text = labels.map((t) => t.text).join(' | ')
+    expect(`${label} ${kind}: the score is on screen`, text.includes(BATTLEGROUNDS.find((b) => b.kind === kind)!.name), text.slice(0, 80))
+    expect(`${label} ${kind}: no enrage clock`, !text.includes('enrage'), text.slice(0, 80))
+    expect(`${label} ${kind}: no phase readout`, !/phase \d/.test(text), text.slice(0, 80))
+  }
+
+  // And the party screen offers the modes, with the raid's dials hidden.
+  const layout = rosterLayout()
+  expect(`${label}: a tab per mode`, layout.modes.length === BATTLEGROUNDS.length + 1, `${layout.modes.length}`)
+  const answers = layout.modes.every((r, i) => {
+    const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2)
+    if (hit?.kind !== 'mode') return false
+    return i === 0 ? hit.mode.kind === 'raid' : hit.mode.kind === 'bg'
+  })
+  expect(`${label}: and they answer their own taps`, answers, 'a mode tab answered as something else')
+  drawRoster(stubCtx(), autoParty(5, pickFor('mage', 'dps')!), 'normal', 1.5, 0, 0, { kind: 'bg', bg: 'flags' })
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

@@ -89,7 +89,8 @@ off the bottom.
 On a touch device the controls are there from the start: a translucent stick
 on the left that relocates to wherever you press, ability buttons down the
 right edge, and the buttons on the end-of-fight overlay — two of them, or
-three after a kill with a boss still to come. Only those answer a tap there:
+three after a kill with a boss still to come (a battleground has no third
+button: there is nothing after it to go on to). Only those answer a tap there:
 the rest of that screen is the report, and reading it used to start the next
 pull. The canvas
 fills the viewport and the layout is recomputed per orientation, so portrait
@@ -197,6 +198,76 @@ healing throughput is exceeded, then collapses.
 Five-man heroic is the hardest thing in the game, and the harness has never
 won one: the same difficulty multipliers with none of the slack a larger
 roster brings.
+
+## Battlegrounds
+
+Two of them, five against five, on the same floor with the same classes. The
+party screen's first row picks what PULL does: the raid, or one of these.
+
+| | Winning is | Ends at |
+| --- | --- | --- |
+| The Three Cairns | hold ground, and the clock does the rest | 400 points, or 300s |
+| Ebb and Flow | carry theirs home while yours is still standing | 3 captures, or 360s |
+
+A point is taken by standing on it with nobody else standing on it, four
+seconds from neutral and eight from the other team's. It pays only at the far
+end of that bar, so pulling one back off them costs the whole thing and a
+defender left behind is worth leaving. Both teams on it freezes it rather than
+fighting over it — the fight on top of it decides who is still standing, which
+is the same answer arrived at honestly.
+
+A flag is taken by walking onto it and scored by carrying it to your own base,
+**and only while your own flag is still at home.** Otherwise two carriers pass
+each other in the middle and the match is a footrace. A carrier who dies drops
+it where they fell; your own dropped flag goes back the moment a teammate
+touches it, and returns itself after fifteen seconds if nobody does.
+
+The dead come back after twelve seconds at their own base. A battleground
+where they do not is a deathmatch with extra reading — the first team to win a
+fight wins the match, and every objective after that is a formality.
+
+**The other team is not a boss.** It is five of the same fifteen specs, rolled
+at the door like yours, running the same AI file — because a battleground
+where the other side plays worse than yours is a training dummy that takes
+longer. That AI is a separate file from the raid's (`bgai.ts`), since the two
+answer different questions: a raid AI scores tiles by how survivable they are,
+because a boss puts hazards on the floor and the job is being somewhere else.
+A battleground has no hazards and no threat table. It has somewhere you are
+meant to be standing, and five people who would rather you were not.
+
+The one rule that took rewriting is a leash. Left alone, defenders chased
+kiting casters off the point they were defending — which concedes the point
+and costs the caster nothing — so a goal now carries a radius, and inside a
+capture circle the fight happens on the circle. A flag has no such radius:
+whoever is carrying it *is* the objective, and following them across the map
+is the correct play.
+
+### Making it fair was most of the work
+
+Three bugs, none of which threw anything, all found by playing the same two
+compositions from both sides and asking whether the *side* won:
+
+**Only the party could crit.** A raid gives crits to the party alone, since a
+boss that occasionally hits half again as hard makes healing a coin toss. In a
+battleground both sides are the party, so that rule was a seven percent damage
+tax on red.
+
+**Every cast red finished was thrown away.** The other team shares the boss's
+faction, and finished casts on that faction were routed into the boss script,
+which knows two abilities and silently drops everything else. Red was playing
+instants only.
+
+**Blue was checked first, everywhere.** Whoever is checked first wins every
+tie, and in a symmetric match ties are not rare — both teams leave at the same
+moment and reach the flag on the same tick. Blue took it first, and since you
+cannot capture while your own flag is out, red spent the match carrying
+something it could never score with. Ninety percent of matches went to
+whichever side the loops happened to name first. Team order now alternates by
+tick, which keeps replays deterministic while making "first" a coin that is
+not always the same coin.
+
+With all three fixed, ten AI and nobody driving comes out at 52% and 58% over
+sixty matches a side.
 
 ## Classes and roles
 
@@ -618,6 +689,29 @@ real thing — everyone is stacked in the one place the boss is aiming — but i
 is no longer close to unplayable: weapons swing whether or not you are in
 position to press anything, and melee are the ones carrying them, so a gap
 that was fifty points on a first pull is thirty-three.
+
+Battlegrounds are measured three ways, thirty matches each, because "is it
+fair" and "does playing well matter" are different questions:
+
+| | player | win% | avg time |
+| --- | --- | --- | --- |
+| The Three Cairns | driven by the AI | 47% | 121s |
+| The Three Cairns | walks objectives, presses its filler | 20% | 125s |
+| The Three Cairns | stands at the spawn | 0% | 117s |
+| Ebb and Flow | driven by the AI | 27% | 187s |
+| Ebb and Flow | walks objectives, presses its filler | 37% | 176s |
+| Ebb and Flow | stands at the spawn | 17% | 188s |
+
+The first row is the fairness check — the player's slot reasoning like
+everyone else, so anything far from even is a rule that favours a side rather
+than a party that played better. The rest is the point of the mode: standing
+at the spawn loses The Three Cairns every single time, because a point pays
+nobody while nobody is on it.
+
+Ebb and Flow reads lower across the board because the scripted player is a
+worse duellist than the AI it replaces — it presses one button on a loop — and
+a flag match is decided by fights far more than a capture match is. Ten AI with
+nobody in the player's slot come out at 52% and 58%.
 
 One row per boss, same party, forty runs a cell. A boss inherits nothing from
 the one before it — different mechanics land at different rates, so each has to

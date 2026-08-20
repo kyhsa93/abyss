@@ -11,6 +11,8 @@ import {
   type RaidSize,
 } from '../sim/classes'
 import { ENCOUNTERS } from '../sim/encounters'
+import { BATTLEGROUNDS } from '../sim/battleground'
+import type { BgKind } from '../sim/types'
 import { COLORS, L, classColor } from './theme'
 
 /**
@@ -29,6 +31,7 @@ export interface Rect {
 }
 
 export interface RosterLayout {
+  modes: Rect[]
   sizes: Rect[]
   difficulties: Rect[]
   encounters: Rect[]
@@ -40,6 +43,7 @@ export interface RosterLayout {
 }
 
 export type RosterHit =
+  | { kind: 'mode'; mode: RosterMode }
   | { kind: 'class'; pick: Pick }
   | { kind: 'size'; size: RaidSize }
   | { kind: 'difficulty'; id: DifficultyId }
@@ -49,13 +53,44 @@ export type RosterHit =
 
 const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
 
+/**
+ * What you are queueing for.
+ *
+ * A raid and the two battlegrounds sit on one row because they answer the same
+ * question — what happens when you press PULL — and because the rest of the
+ * screen means different things depending on the answer.
+ */
+export type RosterMode = { kind: 'raid' } | { kind: 'bg'; bg: BgKind }
+
+export const MODE_OPTIONS: RosterMode[] = [
+  { kind: 'raid' },
+  ...BATTLEGROUNDS.map((b) => ({ kind: 'bg' as const, bg: b.kind })),
+]
+
+export function modeLabel(mode: RosterMode): string {
+  if (mode.kind === 'raid') return 'RAID'
+  return BATTLEGROUNDS.find((b) => b.kind === mode.bg)?.name ?? 'Battleground'
+}
+
+export function sameMode(a: RosterMode, b: RosterMode): boolean {
+  return a.kind === b.kind && (a.kind !== 'bg' || b.kind !== 'bg' || a.bg === b.bg)
+}
+
 export function rosterLayout(): RosterLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
 
   // Size and difficulty share a row of tabs.
   const tabH = Math.max(24, Math.min(34, L.h * 0.045))
-  const tabY = titleY + 8
+  const modeY = titleY + 8
+  const modeW = (L.w - pad * 2 - 4 * (MODE_OPTIONS.length - 1)) / MODE_OPTIONS.length
+  const modes = MODE_OPTIONS.map((_, i) => ({
+    x: pad + i * (modeW + 4),
+    y: modeY,
+    w: modeW,
+    h: tabH,
+  }))
+  const tabY = modeY + tabH + 6
   const tabW = Math.min(64, (L.w - pad * 2 - 24) / (RAID_SIZES.length + DIFFICULTY_ORDER.length))
 
   const sizes = RAID_SIZES.map((_, i) => ({
@@ -135,6 +170,7 @@ export function rosterLayout(): RosterLayout {
   const pullW = L.w - pad * 2 - gapB - fillW
   const buttonY = L.h - buttonH - pad
   return {
+    modes,
     sizes,
     difficulties,
     encounters,
@@ -153,6 +189,10 @@ function inside(r: Rect, x: number, y: number): boolean {
 export function hitRoster(x: number, y: number): RosterHit | null {
   const layout = rosterLayout()
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
+
+  for (let i = 0; i < layout.modes.length; i++) {
+    if (inside(layout.modes[i]!, x, y)) return { kind: 'mode', mode: MODE_OPTIONS[i]! }
+  }
   if (inside(layout.history, x, y)) return { kind: 'history' }
 
   for (let i = 0; i < layout.sizes.length; i++) {
@@ -206,6 +246,7 @@ export function drawRoster(
   encounter: number,
   /** Highest boss reached; anything past it is drawn locked and refuses taps. */
   unlocked: number,
+  mode: RosterMode = { kind: 'raid' },
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
@@ -217,12 +258,42 @@ export function drawRoster(
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
   ctx.font = font(17, true)
-  ctx.fillText('FORM YOUR RAID', L.w / 2, layout.titleY)
+  ctx.fillText(mode.kind === 'raid' ? 'FORM YOUR RAID' : 'PICK YOUR FIGHT', L.w / 2, layout.titleY)
 
-  RAID_SIZES.forEach((size, i) => {
+  MODE_OPTIONS.forEach((option, i) => {
+    tab(
+      ctx,
+      layout.modes[i]!,
+      option.kind === 'raid' ? 'RAID' : modeLabel(option),
+      sameMode(option, mode),
+      option.kind === 'raid' ? COLORS.castBar : COLORS.tank,
+    )
+  })
+
+  // Size, difficulty and the boss list are the raid's dials. A battleground is
+  // five against five at one difficulty, so drawing them there would be three
+  // controls that do nothing.
+  if (mode.kind !== 'raid') {
+    const fight = BATTLEGROUNDS.find((b) => b.kind === mode.bg)
+    if (fight) {
+      ctx.fillStyle = COLORS.text
+      ctx.font = font(13, true)
+      ctx.fillText(fight.name, L.w / 2, layout.summaryY - 26 * L.ui)
+      ctx.fillStyle = COLORS.textDim
+      ctx.font = font(10)
+      ctx.fillText(fight.demand, L.w / 2, layout.summaryY - 13 * L.ui)
+      ctx.fillText(
+        'five against five — the other five are rolled at the door',
+        L.w / 2,
+        layout.summaryY,
+      )
+    }
+  }
+
+  if (mode.kind === 'raid') RAID_SIZES.forEach((size, i) => {
     tab(ctx, layout.sizes[i]!, `${size}`, size === party.length, COLORS.castBar)
   })
-  DIFFICULTY_ORDER.forEach((id, i) => {
+  if (mode.kind === 'raid') DIFFICULTY_ORDER.forEach((id, i) => {
     tab(
       ctx,
       layout.difficulties[i]!,
@@ -232,7 +303,7 @@ export function drawRoster(
     )
   })
 
-  ENCOUNTERS.forEach((fight, i) => {
+  if (mode.kind === 'raid') ENCOUNTERS.forEach((fight, i) => {
     const locked = i > unlocked
     const r = layout.encounters[i]!
     if (locked) {
@@ -271,13 +342,15 @@ export function drawRoster(
   )
 
   ctx.font = font(9)
-  ctx.fillText(
-    `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`,
-    L.w / 2,
-    layout.summaryY + 28 * L.ui,
-  )
+  if (mode.kind === 'raid') {
+    ctx.fillText(
+      `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`,
+      L.w / 2,
+      layout.summaryY + 28 * L.ui,
+    )
+  }
 
-  const fight = ENCOUNTERS[encounter]
+  const fight = mode.kind === 'raid' ? ENCOUNTERS[encounter] : null
   if (fight) {
     ctx.fillStyle = COLORS.boss
     ctx.font = font(10, true)
@@ -327,8 +400,12 @@ export function drawRoster(
   ctx.textAlign = 'center'
   // The label degrades before the button does on a narrow screen.
   const label =
-    layout.pull.w > 210
-      ? `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
-      : `PULL ${party.length}`
+    mode.kind !== 'raid'
+      ? layout.pull.w > 210
+        ? `ENTER — ${modeLabel(mode).toUpperCase()}`
+        : 'ENTER'
+      : layout.pull.w > 210
+        ? `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
+        : `PULL ${party.length}`
   ctx.fillText(label, layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62)
 }
