@@ -23,6 +23,9 @@ export type AuraId =
   | 'renew'
   | 'rejuvenation'
   | 'riptide' // heal over time on a party member
+  | 'combo' // rogue and cat: builds on the filler, spent by the finisher
+  | 'momentum' // mage: stacks while it stands and casts, gone the moment it moves
+  | 'eclipse' // balance druid: the window a finisher opens for its filler
   | 'shield' // damage reduction on the tank
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'enrage' // boss damage amplifier

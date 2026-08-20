@@ -42,11 +42,12 @@ export function autoPress(s: SimState): number[] {
     // with damage at this point, but that ability is not on the player's bar
     // at all (`abilityBar`), and autocast presses the bar — it does not reach
     // for buttons the screen never offered.
+  } else if (player.role === 'tank') {
+    order.push(slotOf(kit.taunt), slotOf(kit.overTime), slotOf(kit.finisher))
+    order.push(slotOf(kit.threat), slotOf(kit.filler))
   } else {
-    if (player.role === 'tank') order.push(slotOf(kit.taunt))
-    order.push(slotOf(kit.overTime), slotOf(kit.finisher))
-    if (player.role === 'tank') order.push(slotOf(kit.threat))
-    order.push(slotOf(kit.filler))
+    const target = s.actors.find((a) => a.id === playerTarget(s)) ?? null
+    for (const id of damageOrder(player, target)) order.push(slotOf(id))
   }
 
   for (const slot of order) {
@@ -68,6 +69,57 @@ export function autoPress(s: SimState): number[] {
     return [slot]
   }
   return []
+}
+
+/**
+ * What a damage spec should press, best first, as ability ids.
+ *
+ * Shared with the party AI on purpose. The order *is* the trait — bank the
+ * points and spend a full bank, open the window before filling it, keep the
+ * mark up because everything under it is worth more — and a spec whose
+ * priority the AI does not know is a spec the AI plays as though it were any
+ * other. Nine dealers all pressing filler-dot-finisher is what made them one
+ * spec with nine names in the first place.
+ */
+export function damageOrder(actor: Actor, target: Actor | null): string[] {
+  const spec = specOf({ classId: actor.classId, spec: actor.spec })
+  const kit = spec.abilities
+  const order: Array<string | null> = []
+
+  switch (spec.trait) {
+    case 'combo': {
+      // A finisher at two points is most of a finisher thrown away.
+      const points = getAura(actor, 'combo')?.stacks ?? 0
+      if (points >= 4) order.push(kit.finisher)
+      order.push(kit.overTime, kit.filler, kit.finisher)
+      break
+    }
+    case 'eclipse':
+      // The finisher opens the window; the filler is what the window is for.
+      order.push(kit.finisher, kit.overTime, kit.filler)
+      break
+    case 'affliction': {
+      const dot = kit.overTime && target ? getAura(target, kit.overTime as AuraId) : undefined
+      if (!dot) order.push(kit.overTime)
+      // Above the filler even though the filler is what the mark improves: a
+      // filler with no cooldown is always available, so anything under it is
+      // never reached.
+      order.push(kit.finisher, kit.filler, kit.overTime)
+      break
+    }
+    case 'overflow':
+      // Rage near the top is rage about to be wasted, and only the filler
+      // spends it fast enough.
+      if (actor.power >= actor.maxPower * 0.8) order.push(kit.filler)
+      order.push(kit.overTime, kit.finisher, kit.filler)
+      break
+    case 'momentum':
+    default:
+      order.push(kit.overTime, kit.finisher, kit.filler)
+      break
+  }
+
+  return order.filter((id): id is string => id !== null)
 }
 
 function healing(kind: string): boolean {

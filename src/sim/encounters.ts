@@ -103,7 +103,7 @@ export const ENCOUNTERS: Encounter[] = [
      * encounter should be the length it was: what a crit changes is how a hit
      * looks, not how long the fight runs.
      */
-    hp: 43000,
+    hp: 45000,
     enrage: 240,
     phaseTwoHp: 0.7,
     phaseThreeHp: 0.4,
@@ -131,7 +131,7 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Choir Beneath',
     short: 'Choir',
     demand: 'stay apart, and out-heal the singing',
-    hp: 51000,
+    hp: 53000,
     enrage: 230,
     phaseTwoHp: 0.65,
     phaseThreeHp: 0.35,
@@ -160,7 +160,7 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Tidebreaker',
     short: 'Tidebreaker',
     demand: 'come in, get behind, change target',
-    hp: 46000,
+    hp: 47000,
     enrage: 250,
     phaseTwoHp: 0.75,
     phaseThreeHp: 0.4,

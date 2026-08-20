@@ -453,11 +453,56 @@ protection warrior and an arms warrior share nothing but a name.
 Fifteen combinations in all, and the raid screen lists them individually
 rather than asking you to pick a class and then a role.
 
-Rotations are shared per role; what differs is the numbers and the cast times.
-That is enough to change how something plays — the hunter is entirely instant
-and keeps damaging while it repositions, the mage's finisher is a 2.5s cast
-that competes directly with dodging, and the rogue has to be next to the boss
-to do anything at all, which is why it is reliably the one standing in fire.
+**Every damage spec has one rule that is its own.** They used to share a
+rotation and differ only in numbers, which measured out as nine names for one
+spec: filler, dot, finisher, the same three presses in the same order, the
+numbers within thirteen percent of each other. Picking a class chose a colour.
+
+| Spec | Its rule |
+| --- | --- |
+| Rogue, Feral | **Combo** — the filler banks a point, the finisher spends the bank. Five points is double |
+| Mage | **Momentum** — casting without moving compounds, and moving spends the compound |
+| Balance | **Eclipse** — the finisher opens a window its filler hits half again as hard inside |
+| Hunter | **Distance** — paid for the range it keeps, up to a third more at the far edge |
+| Shadow, Retribution | **Affliction** — the filler is worth 40% more on a target already marked |
+| Arms | **Overflow** — rage near the top makes the next swing land half again as hard |
+| Elemental | **Chain** — the finisher jumps to two more bodies for a third each, and to nothing on a lone boss |
+
+Each one is drawn where you are already looking, above the cast bar: a rogue
+banking points it cannot see is a rogue pressing the same three buttons as
+everybody else.
+
+The rhythms differ too, which is the other half of it. Playing a spec for a
+minute, with the rotation pressed for you:
+
+| | presses/min | cast-locked | damage is |
+| --- | --- | --- | --- |
+| Paladin | 28 | 0% | steady (0.68) |
+| Feral | 24 | 0% | steady (0.68) |
+| Rogue | 22 | 0% | steady (0.90) |
+| Shaman | 21 | 10% | lumpy (1.20) |
+| Mage | 19 | **37%** | lumpy (1.14) |
+| Priest | 18 | 0% | lumpy (1.08) |
+| Balance | 18 | 10% | lumpiest (1.27) |
+| Warrior | 16 | 0% | lumpy (1.18) |
+| Hunter | 10 | 0% | lumpy (1.33) |
+
+A mage spends over a third of a fight rooted in a cast; a paladin presses
+something nearly three times as often as a hunter and its damage barely moves.
+Same damage per second, different job.
+
+The traits are checked directly rather than inferred — five combo points
+against none, an eclipse window open against closed, a mark up against not,
+rage full against empty, a hunter far against near — because a trait that only
+exists in the tuning notes is a comment. The chain is measured in a
+battleground, where a crowd exists: a raid opens with a boss and nothing else,
+and the first version of that check quietly skipped itself.
+
+Rotations still share a shape per role; what differs is the rule, the numbers
+and the cast times. The hunter is entirely instant and keeps damaging while it
+repositions, the mage's finisher is a 2.5s cast that competes directly with
+dodging, and the rogue has to be next to the boss to do anything at all, which
+is why it is reliably the one standing in fire.
 
 The three tanks are not interchangeable either:
 

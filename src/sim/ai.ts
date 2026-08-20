@@ -2,6 +2,7 @@ import { ABILITIES } from './abilities'
 import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH, SPREAD_RADIUS } from './constants'
 import { BREATH_CAST, insideCone } from './boss'
 import { specOf } from './classes'
+import { damageOrder } from './autocast'
 import {
   adds,
   beginCast,
@@ -561,28 +562,35 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
 
   if (tryCharge(s, actor, target, rng, moving)) return
 
-  // Keep the dot up, but only refresh near the end so several dealers do not
-  // all spend a global on the same debuff.
-  if (kit.overTime) {
-    const dot = getAura(target, kit.overTime as AuraId)
-    if (!dot || dot.remaining < 3) {
-      if (tryCast(s, actor, kit.overTime, target.id, rng, moving)) return
+  // The priority comes from the spec's trait, and it is the same one the
+  // player's autocast uses: an AI that does not know a rogue banks points
+  // plays a rogue as a warrior with different words on the buttons.
+  const ai = actor.ai!
+  const dangerNear = s.ground.some(
+    (g) => g.kind === 'puddle' && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
+  )
+
+  for (const id of damageOrder(actor, target)) {
+    // Keep the dot up, but only refresh near the end so several dealers do not
+    // all spend a global on the same debuff.
+    if (id === kit.overTime) {
+      const dot = getAura(target, kit.overTime as AuraId)
+      if (dot && dot.remaining >= 3) continue
     }
-  }
 
-  // A long cast roots you. Steady dealers refuse it with a telegraph nearby;
-  // greedy ones gamble roughly half the time, which is where their deaths
-  // come from — and why they read as a specific kind of player.
-  if (kit.finisher) {
-    const ai = actor.ai!
-    const dangerNear = s.ground.some(
-      (g) => g.kind === 'puddle' && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
-    )
-    const willingToStand = !dangerNear || (ai.personality === 'greedy' && rng.chance(0.5))
-    if (willingToStand && tryCast(s, actor, kit.finisher, target.id, rng, moving)) return
-  }
+    // A long cast roots you. Steady dealers refuse it with a telegraph nearby;
+    // greedy ones gamble roughly half the time, which is where their deaths
+    // come from — and why they read as a specific kind of player.
+    // Only a long cast is a gamble worth refusing. A mage's filler is a cast
+    // now, and refusing every cast near a telegraph left it pressing nothing
+    // at all for the parts of a fight that have anything on the floor.
+    const ability = ABILITIES[id]
+    if (ability && ability.castTime > 1.5 && dangerNear) {
+      if (!(ai.personality === 'greedy' && rng.chance(0.5))) continue
+    }
 
-  tryCast(s, actor, kit.filler, target.id, rng, moving)
+    if (tryCast(s, actor, id, target.id, rng, moving)) return
+  }
 }
 
 function lowestHealth(s: SimState): Actor | null {

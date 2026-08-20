@@ -132,9 +132,35 @@ export type SpecId =
   | 'marksmanship'
   | 'assassination'
 
+/**
+ * The one rule that is this spec's and nobody else's.
+ *
+ * Every damage spec used to be filler + dot + finisher with the numbers moved
+ * ten percent, which is fifteen names for three specs. A trait is what makes a
+ * rotation have an opinion: something to build, something to keep up, or
+ * somewhere to stand.
+ */
+export type Trait =
+  /** Rogue, feral: the filler banks a point, the finisher spends the bank. */
+  | 'combo'
+  /** Mage: casting without moving compounds; moving spends the compound. */
+  | 'momentum'
+  /** Balance: the finisher opens a window its filler hits harder inside. */
+  | 'eclipse'
+  /** Hunter: paid for the distance it keeps. */
+  | 'distance'
+  /** Priest, paladin: the filler is worth more on a target already marked. */
+  | 'affliction'
+  /** Warrior: rage past the point of spending it makes the next swing land harder. */
+  | 'overflow'
+  /** Shaman: the finisher jumps to whatever else is standing near. */
+  | 'chain'
+
 export interface Spec {
   id: SpecId
   role: Role
+  /** See `Trait`. Tanks and healers have none: their job is the trait. */
+  trait?: Trait
   /**
    * What this spec spends.
    *
@@ -235,6 +261,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'arms',
         role: 'dps',
+        trait: 'overflow',
         resource: 'rage',
         melee: true,
         auto: SWING,
@@ -284,6 +311,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'retribution',
         role: 'dps',
+        trait: 'affliction',
         resource: 'mana',
         melee: true,
         auto: SWING,
@@ -325,6 +353,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'shadow',
         role: 'dps',
+        trait: 'affliction',
         resource: 'mana',
         melee: false,
         hp: 3000,
@@ -380,6 +409,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'balance',
         role: 'dps',
+        trait: 'eclipse',
         resource: 'mana',
         melee: false,
         hp: 3300,
@@ -394,6 +424,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         // the resource lives on the spec rather than the class.
         id: 'feral',
         role: 'dps',
+        trait: 'combo',
         resource: 'energy',
         melee: true,
         auto: SWING,
@@ -431,6 +462,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'elemental',
         role: 'dps',
+        trait: 'chain',
         resource: 'mana',
         melee: false,
         hp: 3200,
@@ -455,6 +487,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'frost',
         role: 'dps',
+        trait: 'momentum',
         resource: 'mana',
         melee: false,
         hp: 2900,
@@ -475,6 +508,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'marksmanship',
         role: 'dps',
+        trait: 'distance',
         resource: 'focus',
         melee: false,
         auto: SHOT,
@@ -500,6 +534,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'assassination',
         role: 'dps',
+        trait: 'combo',
         resource: 'energy',
         melee: true,
         auto: SWING,

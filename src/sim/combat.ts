@@ -1,5 +1,5 @@
 import { ABILITIES, type Ability } from './abilities'
-import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
+import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import {
   CHARGE_RAGE,
@@ -67,6 +67,41 @@ const AURA_DURATION: Record<AuraId, number> = {
   shield: 6,
   spread: 4,
   enrage: 9999,
+  // Bookkeeping for the spec traits. Long enough that a rotation keeps them
+  // between presses, short enough that they are gone by the next pull.
+  combo: 20,
+  momentum: 6,
+  eclipse: 8,
+}
+
+/**
+ * How high a trait's counter can go.
+ *
+ * `addAura` refreshes rather than stacking — several dealers keeping one
+ * debuff on a boss must not multiply it — so anything that is meant to count
+ * says so here and counts through `stackAura`.
+ */
+const AURA_MAX: Partial<Record<AuraId, number>> = {
+  combo: 5,
+  momentum: 3,
+  eclipse: 1,
+}
+
+/** Adds one to a counting aura, up to its cap, and refreshes its clock. */
+export function stackAura(actor: Actor, id: AuraId, sourceId: number): void {
+  const cap = AURA_MAX[id] ?? 1
+  const existing = getAura(actor, id)
+  if (!existing) {
+    addAura(actor, id, sourceId)
+    return
+  }
+  existing.stacks = Math.min(cap, existing.stacks + 1)
+  existing.remaining = AURA_DURATION[id]
+}
+
+export function clearAura(actor: Actor, id: AuraId): void {
+  const at = actor.auras.findIndex((au) => au.id === id)
+  if (at >= 0) actor.auras.splice(at, 1)
 }
 
 /** Per-second effect of each periodic aura. */
@@ -530,14 +565,19 @@ export function landAbility(
       // A target that died while the bolt was in the air takes nothing. The
       // shot is wasted, which is the cost of it having a travel time at all.
       if (!target || !target.alive) return
-      applyDamage(s, target, ability.amount, 'none', { sourceId: actor.id, crit })
+      // The spec's own rule decides what this press was worth. Read before it
+      // lands, spent after, because a finisher has to be paid at the value it
+      // was read at.
+      const amount = Math.round(ability.amount * traitBonus(actor, ability, target))
+      applyDamage(s, target, amount, 'none', { sourceId: actor.id, crit })
       pushEffect(s, 'impact', target.pos, {
         abilityId: ability.id,
-        power: ability.amount * (crit ? CRIT_MULTIPLIER : 1),
+        power: amount * (crit ? CRIT_MULTIPLIER : 1),
         crit,
       })
-      if (target.id === BOSS_ID) addThreat(s, actor.id, ability.amount * ability.threatMult)
+      if (target.id === BOSS_ID) addThreat(s, actor.id, amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
+      spendTrait(s, actor, ability, target, crit)
       break
     }
     case 'heal': {
@@ -578,5 +618,121 @@ export function landAbility(
       pushEffect(s, 'dash', from, { angle: Math.atan2(dy, dx), power: landing })
       break
     }
+  }
+}
+
+/**
+ * The spec's own rule, as a multiplier on what it just landed.
+ *
+ * Read here rather than baked into the ability numbers, because the whole
+ * point is that the same press is worth different amounts depending on what
+ * the player did before it. Nine damage specs used to be one rotation with the
+ * numbers moved ten percent; this is where they stop being that.
+ */
+function traitBonus(actor: Actor, ability: Ability, target: Actor): number {
+  const spec = specOf({ classId: actor.classId, spec: actor.spec })
+  const kit = spec.abilities
+  const isFiller = ability.id === kit.filler
+  const isFinisher = ability.id === kit.finisher
+
+  switch (spec.trait) {
+    case 'combo': {
+      // Five points is double. Spending them is the decision; the filler is
+      // just how you get there.
+      if (!isFinisher) return 1
+      const points = getAura(actor, 'combo')?.stacks ?? 0
+      return 1 + points * 0.2
+    }
+    case 'momentum': {
+      // Compounds while it stands still and casts. Everything about a mage is
+      // the argument between that and the floor.
+      const stacks = getAura(actor, 'momentum')?.stacks ?? 0
+      return 1 + stacks * 0.18
+    }
+    case 'eclipse': {
+      // The finisher opens a window; the filler is what the window is for.
+      if (!isFiller) return 1
+      return getAura(actor, 'eclipse') ? 1.55 : 1
+    }
+    case 'distance': {
+      // Paid for the range it keeps, which is also the range that makes it
+      // useless the moment something walks onto it.
+      const gap = dist(actor.pos, target.pos)
+      const far = Math.min(1, Math.max(0, (gap - 150) / 180))
+      return 1 + far * 0.35
+    }
+    case 'affliction': {
+      // Worth more on something already marked, so the debuff is a setup
+      // rather than a tax paid once and forgotten.
+      if (!isFiller || !kit.overTime) return 1
+      return getAura(target, kit.overTime as AuraId) ? 1.4 : 1
+    }
+    case 'overflow': {
+      // Rage past the point of spending it. A warrior opens a fight unable to
+      // do anything and ends it unable to spend fast enough.
+      if (!isFiller) return 1
+      return actor.power >= actor.maxPower * 0.8 ? 1.5 : 1
+    }
+    case 'chain':
+      return 1
+    default:
+      return 1
+  }
+}
+
+/**
+ * What the press did to the spec's own counter, after it landed.
+ *
+ * Separate from the bonus because spending is not the same as reading: the
+ * finisher has to be paid at the value it was read at.
+ */
+function spendTrait(
+  s: SimState,
+  actor: Actor,
+  ability: Ability,
+  target: Actor,
+  crit: boolean,
+): void {
+  const spec = specOf({ classId: actor.classId, spec: actor.spec })
+  const kit = spec.abilities
+  const isFiller = ability.id === kit.filler
+  const isFinisher = ability.id === kit.finisher
+
+  switch (spec.trait) {
+    case 'combo':
+      if (isFiller) stackAura(actor, 'combo', actor.id)
+      else if (isFinisher) clearAura(actor, 'combo')
+      break
+    case 'momentum':
+      // Only a real cast compounds. An instant is not standing still.
+      if (ability.castTime > 0) stackAura(actor, 'momentum', actor.id)
+      break
+    case 'eclipse':
+      if (isFinisher) stackAura(actor, 'eclipse', actor.id)
+      else if (isFiller) clearAura(actor, 'eclipse')
+      break
+    case 'chain': {
+      // Jumps to whatever else is standing near, for a third each hop. Worth
+      // nothing on a lone boss and worth a great deal in a crowd, which is the
+      // whole personality.
+      if (!isFinisher) break
+      const hostile = s.actors.filter(
+        (a) =>
+          a.alive &&
+          a.id !== target.id &&
+          a.faction !== actor.faction &&
+          dist(target.pos, a.pos) < 190,
+      )
+      let power = ability.amount * 0.34
+      for (const next of hostile.slice(0, 2)) {
+        applyDamage(s, next, Math.round(power), 'none', { sourceId: actor.id, crit })
+        pushEffect(s, 'impact', next.pos, { abilityId: ability.id, power, crit })
+        if (next.id === BOSS_ID) addThreat(s, actor.id, power * ability.threatMult)
+        power *= 0.6
+      }
+      break
+    }
+    default:
+      break
   }
 }

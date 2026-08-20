@@ -1,14 +1,14 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
 import { standings } from '../history'
-import { CLASSES, PARTY_UNIT, abilityBar, partyCount } from '../sim/classes'
+import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
 import { playerTarget } from '../sim/sim'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt, hasNext } from '../sim/encounters'
-import { adds, boss, castBlocker } from '../sim/combat'
+import { adds, boss, castBlocker, dist, getAura } from '../sim/combat'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { teamColour } from './draw'
-import type { Actor, SimState } from '../sim/types'
+import type { Actor, AuraId, SimState } from '../sim/types'
 import { drawIcon } from './icons'
 import { COLORS, L, WORLD_RADIUS, classColor, resourceColor } from './theme'
 
@@ -303,6 +303,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   if (touch.active) drawTouchControls(ctx, s, touch)
   else drawActionBar(ctx, s)
   drawCastBar(ctx, s, touch.active)
+  drawTrait(ctx, s, touch.active)
   drawChat(ctx, s)
   drawPartyButton(ctx)
   if (s.countdown > 0) drawCountdown(ctx, s)
@@ -987,6 +988,94 @@ function drawCastBar(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.font = font(10, true)
   ctx.textAlign = 'center'
   ctx.fillText(ABILITIES[player.castId]?.name ?? '', L.w / 2, y + 9)
+}
+
+/**
+ * The spec's own rule, drawn where you are already looking.
+ *
+ * A trait that only exists in the damage numbers is a trait nobody can play
+ * around — the whole complaint that started this was that the classes felt the
+ * same, and a rogue banking points it cannot see is a rogue pressing the same
+ * three buttons as everyone else. So each one gets a readout that says what it
+ * has and what it is for.
+ */
+function drawTrait(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
+  const player = s.actors.find((a) => a.isPlayer)
+  if (!player || !player.alive) return
+  const spec = specOf({ classId: player.classId, spec: player.spec })
+  const trait = spec.trait
+  if (!trait) return
+
+  // Above the cast bar, which is the other thing that says what is happening
+  // to you right now.
+  const y = (touch ? L.castY : L.actionY - 20) - 16
+  const cx = L.w / 2
+
+  const pip = (index: number, total: number, filled: boolean, colour: string) => {
+    const size = 9
+    const gap = 5
+    const width = total * size + (total - 1) * gap
+    const x = cx - width / 2 + index * (size + gap)
+    ctx.beginPath()
+    ctx.arc(x + size / 2, y, size / 2, 0, Math.PI * 2)
+    ctx.fillStyle = filled ? colour : 'rgba(30, 33, 45, 0.9)'
+    ctx.fill()
+    ctx.strokeStyle = filled ? colour : COLORS.panelEdge
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
+
+  const label = (text: string, colour: string) => {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = colour
+    ctx.font = font(9, true)
+    ctx.fillText(text, cx, y + 4)
+  }
+
+  switch (trait) {
+    case 'combo': {
+      const points = getAura(player, 'combo')?.stacks ?? 0
+      for (let i = 0; i < 5; i++) pip(i, 5, i < points, points >= 5 ? COLORS.hpBar : COLORS.energyBar)
+      break
+    }
+    case 'momentum': {
+      const stacks = getAura(player, 'momentum')?.stacks ?? 0
+      for (let i = 0; i < 3; i++) pip(i, 3, i < stacks, COLORS.manaBar)
+      break
+    }
+    case 'eclipse':
+      label(getAura(player, 'eclipse') ? 'ECLIPSE — WRATH HITS HARDER' : 'STARFIRE OPENS THE WINDOW', getAura(player, 'eclipse') ? COLORS.hpBar : COLORS.textDim)
+      break
+    case 'affliction': {
+      const kit = spec.abilities
+      const target = s.actors.find((a) => a.id === playerTarget(s))
+      const marked = kit.overTime && target ? getAura(target, kit.overTime as AuraId) : undefined
+      label(marked ? 'MARKED — FILLER HITS HARDER' : 'MARK IT FIRST', marked ? COLORS.hpBar : COLORS.textDim)
+      break
+    }
+    case 'overflow': {
+      const full = player.power >= player.maxPower * 0.8
+      label(full ? 'OVERFLOWING — SPEND IT' : 'RAGE BUILDS AS YOU FIGHT', full ? COLORS.rageBar : COLORS.textDim)
+      break
+    }
+    case 'distance': {
+      const target = s.actors.find((a) => a.id === playerTarget(s))
+      const gap = target ? dist(player.pos, target.pos) : 0
+      const bonus = Math.round(Math.min(1, Math.max(0, (gap - 150) / 180)) * 35)
+      label(`+${bonus}% AT RANGE`, bonus > 20 ? COLORS.hpBar : COLORS.textDim)
+      break
+    }
+    case 'chain': {
+      const target = s.actors.find((a) => a.id === playerTarget(s))
+      const near = target
+        ? s.actors.filter(
+            (a) => a.alive && a.id !== target.id && a.faction !== player.faction && dist(target.pos, a.pos) < 190,
+          ).length
+        : 0
+      label(near > 0 ? `CHAIN JUMPS TO ${Math.min(2, near)}` : 'CHAIN NEEDS A CROWD', near > 0 ? COLORS.hpBar : COLORS.textDim)
+      break
+    }
+  }
 }
 
 /**

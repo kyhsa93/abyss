@@ -59,6 +59,7 @@ import {
 import {
   PROJECTILE_MIN_RANGE,
   addAura,
+  stackAura,
   applyDamage,
   applyHeal,
   boss,
@@ -117,7 +118,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
-import type { Role, SimState, Vec2 } from '../src/sim/types'
+import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
  * A fight with its opening countdown already spent.
@@ -1222,7 +1223,9 @@ for (const [label, w, h] of [
     player.pos.x = 80
     player.pos.y = 0
     const bar = abilityBar({ classId: player.classId, spec: player.spec })
-    const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0)
+    // With a cooldown: a mage's filler is a cast now, and a refund check needs
+    // something that has anything to refund.
+    const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0 && ABILITIES[id]!.cooldown > 0)
     return { s, player, slot, id: bar[slot]! }
   }
 
@@ -1844,10 +1847,20 @@ for (const [label, w, h] of [
     return { s, player }
   }
 
+  // Slot zero is a cast for a mage now, so the bolt appears when the cast
+  // lands rather than on the press.
+  const finishCast = (fight: SimState, castRng: Rng, slot: number): void => {
+    const caster = fight.actors.find((a) => a.isPlayer)!
+    const bar = abilityBar({ classId: caster.classId, spec: caster.spec })
+    const wait = Math.ceil((ABILITIES[bar[slot]!]?.castTime ?? 0) * 30) + 1
+    step(fight, { moveX: 0, moveY: 0, pressed: [slot] }, castRng)
+    for (let i = 0; i < wait; i++) step(fight, { moveX: 0, moveY: 0, pressed: [] }, castRng)
+  }
+
   {
     const { s, player } = setup()
     const rng = new Rng(0x51ed)
-    step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+    finishCast(s, rng, 0)
 
     const mine = s.projectiles.filter((p) => p.sourceId === player.id)
     expect('casting at range only puts a bolt in the air', mine.length === 1, `${mine.length} bolts`)
@@ -2018,7 +2031,7 @@ for (const [label, w, h] of [
   player.pos.x = 200
   player.pos.y = 0
   const bar = abilityBar({ classId: player.classId, spec: player.spec })
-  const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0)
+  const slot = bar.findIndex((id) => ABILITIES[id]!.castTime > 0 && ABILITIES[id]!.cooldown > 0)
   const rng = new Rng(0x51ed)
 
   // Cast it through, watching the ring while it runs.
@@ -2143,7 +2156,12 @@ for (const [label, w, h] of [
   player.pos.x = 300
   player.pos.y = 0
   const rng = new Rng(0x51ed)
+  // A mage's filler is a cast, so the bolt leaves when the cast lands.
   step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+  for (let i = 0; i < 45; i++) {
+    if (s.projectiles.some((p) => p.sourceId === player.id)) break
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
 
   const bolt = s.projectiles.find((p) => p.sourceId === player.id)
   expect('there is a bolt to trail', bolt !== undefined, 'no bolt')
@@ -3579,6 +3597,177 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     flips < freshTicks / 10,
     `${flips} changes over ${freshTicks} ticks`,
   )
+}
+
+// --- the damage specs have to stay different from each other -----------------
+//
+// They were nine names for one spec: filler, dot, finisher, with the numbers
+// moved ten percent and the same three presses in the same order. Nothing was
+// broken about it, which is why it survived so long — it just meant picking a
+// class chose a colour.
+//
+// A training dummy rather than a pull: an encounter measures the walk, the
+// dodging and the dying as much as the rotation, and five runs of one swung a
+// hunter between 32 and 177 dps, which no tuning could converge against.
+{
+  const SECONDS = 60
+  const profiles: Array<{ name: string; dps: number; presses: number; mix: number[]; cast: number }> = []
+
+  for (const pick of SPEC_OPTIONS) {
+    if (roleOf(pick) !== 'dps') continue
+    const spec = specOf(pick)
+    const s = pulled(0x51ed, 8, autoParty(5, pick))
+    const rng = new Rng(0x51ed)
+    const player = s.actors.find((a) => a.isPlayer)!
+    const boss = s.actors[s.actors.length - 1]!
+    const bar = abilityBar(pick)
+    const range = spec.melee ? 40 : 260
+
+    const counts = new Array(bar.length).fill(0)
+    let presses = 0
+    let castTicks = 0
+
+    for (let tick = 0; tick < SECONDS * 30; tick++) {
+      // Nothing is allowed to move, die or end the fight.
+      boss.hp = boss.maxHp
+      boss.pos.x = 0
+      boss.pos.y = 0
+      for (const a of s.actors) if (a.faction === 'party') a.hp = a.maxHp
+      player.pos.x = range + boss.radius
+      player.pos.y = 0
+      s.ground.length = 0
+
+      const pressed = autoPress(s)
+      for (const slot of pressed) {
+        counts[slot]++
+        presses++
+      }
+      if (player.castId) castTicks++
+      step(s, { moveX: 0, moveY: 0, pressed }, rng)
+    }
+
+    profiles.push({
+      name: specLabel(pick),
+      dps: (s.tally[player.id]?.damage ?? 0) / SECONDS,
+      presses: presses / SECONDS,
+      mix: counts.map((c) => c / Math.max(1, presses)),
+      cast: castTicks / (SECONDS * 30),
+    })
+  }
+
+  // Even, because a spec nobody would pick is a spec that does not exist.
+  const best = Math.max(...profiles.map((p) => p.dps))
+  const worst = Math.min(...profiles.map((p) => p.dps))
+  expect(
+    'no damage spec is the obvious one',
+    best < worst * 1.25,
+    profiles.map((p) => `${p.name} ${p.dps.toFixed(0)}`).join(', '),
+  )
+
+  // Even is half of it. The other half is that the traits actually do
+  // something, which is asserted directly rather than inferred from a play
+  // profile: on a dummy every spec presses once a global and splits its
+  // presses by its cooldowns, so two specs that play nothing alike come out
+  // identical there. What separates them is what the same press is worth
+  // after what you did before it, and that is what these measure.
+  const hit = (
+    build: (fight: SimState, actor: Actor) => void,
+    pick: Pick,
+    slotOf: 'filler' | 'finisher',
+  ): number => {
+    const fight = pulled(0x51ed, 0, autoParty(5, pick))
+    const actor = fight.actors.find((a) => a.isPlayer)!
+    const boss = fight.actors[fight.actors.length - 1]!
+    boss.pos = { x: 0, y: 0 }
+    actor.pos = { x: (specOf(pick).melee ? 40 : 240) + boss.radius, y: 0 }
+    boss.hp = boss.maxHp
+    build(fight, actor)
+
+    const id = specOf(pick).abilities[slotOf]!
+    const before = boss.hp
+    landAbility(fight, actor, ABILITIES[id]!, boss.id, new Rng(1))
+    return before - boss.hp
+  }
+
+  const rogue = pickFor('rogue', 'dps')!
+  const empty = hit(() => {}, rogue, 'finisher')
+  const banked = hit((_fight, actor) => {
+    for (let i = 0; i < 5; i++) stackAura(actor, 'combo', actor.id)
+  }, rogue, 'finisher')
+  expect('combo points are worth spending', banked > empty * 1.7, `${empty} -> ${banked}`)
+
+  const balance = pickFor('druid', 'dps')!
+  const closed = hit(() => {}, balance, 'filler')
+  const open = hit((_fight, actor) => stackAura(actor, 'eclipse', actor.id), balance, 'filler')
+  expect('an eclipse window is worth filling', open > closed * 1.3, `${closed} -> ${open}`)
+
+  const shadow = pickFor('priest', 'dps')!
+  const unmarked = hit(() => {}, shadow, 'filler')
+  const marked = hit((fight, actor) => {
+    const boss = fight.actors[fight.actors.length - 1]!
+    addAura(boss, specOf(shadow).abilities.overTime as AuraId, actor.id)
+  }, shadow, 'filler')
+  expect('a mark is worth keeping up', marked > unmarked * 1.25, `${unmarked} -> ${marked}`)
+
+  const arms = pickFor('warrior', 'dps')!
+  const poor = hit((_fight, actor) => { actor.power = 0 }, arms, 'filler')
+  const rich = hit((_fight, actor) => { actor.power = actor.maxPower }, arms, 'filler')
+  expect('overflowing rage is worth spending', rich > poor * 1.3, `${poor} -> ${rich}`)
+
+  const hunter = pickFor('hunter', 'dps')!
+  const close = hit((_fight, actor) => { actor.pos.x = 150 }, hunter, 'filler')
+  const far = hit((_fight, actor) => { actor.pos.x = 340 }, hunter, 'filler')
+  expect('a hunter is paid for its distance', far > close * 1.15, `${close} -> ${far}`)
+
+  const mage = pickFor('mage', 'dps')!
+  const cold = hit(() => {}, mage, 'filler')
+  const rolling = hit((_fight, actor) => {
+    for (let i = 0; i < 3; i++) stackAura(actor, 'momentum', actor.id)
+  }, mage, 'filler')
+  expect('momentum compounds', rolling > cold * 1.3, `${cold} -> ${rolling}`)
+
+  // The chain is the one that pays in a crowd rather than on its target, so it
+  // is measured where a crowd exists. A raid opens with a boss and nothing
+  // else, which is why the first version of this check quietly skipped itself.
+  {
+    const shaman = pickFor('shaman', 'dps')!
+    const fight = createBattlegroundState(0x51ed, 'conquest', autoParty(5, shaman))
+    fight.countdown = 0
+    const actor = fight.actors.find((a) => a.isPlayer)!
+    const enemies = fight.actors.filter((a) => a.faction === 'boss')
+    const target = enemies[0]!
+
+    target.pos = { x: 0, y: 0 }
+    actor.pos = { x: 240, y: 0 }
+    for (const [i, extra] of enemies.slice(1, 3).entries()) {
+      extra.pos = { x: 70 * (i + 1), y: 0 }
+      extra.alive = true
+      extra.hp = extra.maxHp
+    }
+
+    const before = enemies.slice(1, 3).reduce((sum, a) => sum + a.hp, 0)
+    landAbility(fight, actor, ABILITIES[specOf(shaman).abilities.finisher!]!, target.id, new Rng(1))
+    const after = enemies.slice(1, 3).reduce((sum, a) => sum + a.hp, 0)
+    expect('the chain reaches what is standing near', after < before, `${before} -> ${after}`)
+
+    // And not what is standing near on your own side.
+    const friends = fight.actors.filter((a) => a.faction === 'party' && !a.isPlayer)
+    for (const friend of friends) {
+      friend.pos = { x: 40, y: 0 }
+      friend.hp = friend.maxHp
+    }
+    const friendlyBefore = friends.reduce((sum, a) => sum + a.hp, 0)
+    landAbility(fight, actor, ABILITIES[specOf(shaman).abilities.finisher!]!, target.id, new Rng(1))
+    const friendlyAfter = friends.reduce((sum, a) => sum + a.hp, 0)
+    expect('and never your own side', friendlyAfter === friendlyBefore, `${friendlyBefore} -> ${friendlyAfter}`)
+  }
+
+  // Every trait has to actually do something, or it is a comment.
+  for (const pick of SPEC_OPTIONS) {
+    const spec = specOf(pick)
+    if (roleOf(pick) !== 'dps') continue
+    expect(`${specLabel(pick)} has a trait`, spec.trait !== undefined, 'none')
+  }
 }
 
 // --- autocast ---------------------------------------------------------------
