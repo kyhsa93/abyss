@@ -43,7 +43,7 @@ export function aiGoal(s: SimState, actor: Actor): Vec2 | null {
   if (!bg || !actor.alive) return null
   const enemies = living(s, other(teamOf(actor)))
   const target = pickTarget(s, actor, enemies)
-  return approach(actor, objective(s, bg, actor, target), target)
+  return approach(actor, objective(s, bg, actor), target)
 }
 
 /**
@@ -70,7 +70,7 @@ export function updateBattlegroundAi(s: SimState, actor: Actor, rng: Rng): void 
   const team = teamOf(actor)
   const enemies = living(s, other(team))
   const target = pickTarget(s, actor, enemies)
-  const goal = objective(s, bg, actor, target)
+  const goal = objective(s, bg, actor)
 
   // Standing on the objective is the job; the fight is what happens there. So
   // position comes from the goal, and only the last stretch is about the
@@ -89,7 +89,7 @@ export function updateBattlegroundAi(s: SimState, actor: Actor, rng: Rng): void 
  * board alone, which is stable enough that five of them do not thrash between
  * the same two points.
  */
-function objective(s: SimState, bg: BgState, actor: Actor, target: Actor | null): Goal {
+function objective(s: SimState, bg: BgState, actor: Actor): Goal {
   const team = teamOf(actor)
   const free = (pos: Vec2): Goal => ({ pos, hold: 0 })
   // Inside two thirds of the circle, so a leashed fight still has room to
@@ -137,27 +137,33 @@ function objective(s: SimState, bg: BgState, actor: Actor, target: Actor | null)
     return free(theirs.state === 'home' ? bg.bases[other(team)] : theirs.pos)
   }
 
-  // Conquest. Defend what is nearly lost, else take what is not ours.
-  const mine = bg.nodes.filter((n) => n.owner === team)
-  const threatened = mine.find((n) => n.contested)
-  if (threatened) return point(threatened.pos)
+  // Conquest.
+  //
+  // Every actor is assigned a point and stays on it, whoever owns it. Holding
+  // one is defending it, and defending it is how it keeps paying — so there is
+  // no separate "go and defend" rule, which is the shape that broke this
+  // twice.
+  //
+  // First it sorted the points by distance from the actor and indexed into
+  // that list, so a step toward one reordered the list, reassigned the actor
+  // and sent it back: ten AI pacing between two points for whole matches,
+  // covering four percent of the ground they walked. Committing to a point
+  // fixed the pacing and introduced the opposite failure — a contested point
+  // called the whole team to it, both teams answered, and nine people stood on
+  // one circle for three minutes while the other two sat unattended.
+  //
+  // A fixed split has neither problem. Five people over three points is
+  // two-two-one and stays that way, so nothing is ever unattended and nobody
+  // walks anywhere to find that out.
+  const ordered = [...bg.nodes].sort(
+    (a, b) => dist(bg.bases[team], a.pos) - dist(bg.bases[team], b.pos),
+  )
+  if (ordered.length === 0) return free(actor.pos)
 
-  const takeable = bg.nodes
-    .filter((n) => n.owner !== team)
-    .sort((a, b) => dist(actor.pos, a.pos) - dist(actor.pos, b.pos))
-
-  // Nothing left to take: hold the one nearest whoever is coming.
-  if (takeable.length === 0) {
-    const enemy = target ?? null
-    const nodes = [...bg.nodes]
-    if (enemy) nodes.sort((a, b) => dist(enemy.pos, a.pos) - dist(enemy.pos, b.pos))
-    return nodes[0] ? point(nodes[0].pos) : free(actor.pos)
-  }
-
-  // Split by index rather than all-in on the closest, or five people take one
-  // point at a time and the other team owns the other two all match.
-  const index = s.actors.filter((a) => teamOf(a) === teamOf(actor)).indexOf(actor)
-  return point(takeable[index % takeable.length]!.pos)
+  const index = s.actors.filter((a) => teamOf(a) === team).indexOf(actor)
+  const chosen = ordered[index % ordered.length]!
+  bg.assignment[actor.id] = chosen.id
+  return point(chosen.pos)
 }
 
 /**

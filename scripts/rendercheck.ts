@@ -107,7 +107,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
-import type { Role, SimState } from '../src/sim/types'
+import type { Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
  * A fight with its opening countdown already spent.
@@ -3348,6 +3348,83 @@ for (const [label, w, h] of [
       }) &&
       hitSettings(...middle(settings.back))?.kind === 'back',
     'a setting answered as something else',
+  )
+}
+
+// --- a battleground AI has to actually get somewhere -------------------------
+//
+// Walking is not the same as travelling. The capture-point assignment used to
+// sort the points by distance from the actor and then index into that list, so
+// one step toward a point reordered it, handed the actor a different point,
+// and sent it back — for whole matches. Nothing threw, the AI looked busy, and
+// win rates stayed even because both teams did it. What it cost was the ground
+// they covered: four percent of what they walked.
+{
+  const s = createBattlegroundState(0x51ed, 'conquest')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+
+  const WINDOW = 150
+  const track = new Map<number, { walked: number; from: Vec2; ratios: number[] }>()
+  for (const a of s.actors) if (a.ai) track.set(a.id, { walked: 0, from: { ...a.pos }, ratios: [] })
+
+  let ticks = 0
+  while (s.outcome === 'ongoing' && s.time < 120) {
+    const before = new Map(s.actors.map((a) => [a.id, { ...a.pos }]))
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    ticks++
+
+    for (const a of s.actors) {
+      const t = track.get(a.id)
+      if (!t || !a.alive) continue
+      const p = before.get(a.id)!
+      t.walked += Math.hypot(a.pos.x - p.x, a.pos.y - p.y)
+      if (ticks % WINDOW !== 0) continue
+      // Only windows with real walking in them: standing on a point you hold
+      // is the correct thing to be doing and would read as a ratio of zero.
+      if (t.walked > 120) {
+        t.ratios.push(Math.hypot(a.pos.x - t.from.x, a.pos.y - t.from.y) / t.walked)
+      }
+      t.walked = 0
+      t.from = { ...a.pos }
+    }
+  }
+
+  const scored = [...track.values()].filter((t) => t.ratios.length > 0)
+  const average =
+    scored.reduce((sum, t) => sum + t.ratios.reduce((a, b) => a + b, 0) / t.ratios.length, 0) /
+    Math.max(1, scored.length)
+  expect(
+    'a battleground AI covers the ground it walks',
+    average > 0.45,
+    `net over walked averaged ${average.toFixed(2)} across ${scored.length} actors`,
+  )
+
+  // And the commitment itself: an actor's point may not change every tick.
+  const changes = new Map<number, number>()
+  const last = new Map<number, number | null>()
+  const fresh = createBattlegroundState(0x51ed, 'conquest')
+  fresh.countdown = 0
+  const freshRng = new Rng(0x51ed)
+  let freshTicks = 0
+  while (fresh.outcome === 'ongoing' && fresh.time < 60) {
+    step(fresh, { moveX: 0, moveY: 0, pressed: [] }, freshRng)
+    freshTicks++
+    for (const a of fresh.actors) {
+      const now = fresh.bg!.assignment[a.id] ?? null
+      const before = last.get(a.id)
+      if (before !== undefined && before !== now) {
+        changes.set(a.id, (changes.get(a.id) ?? 0) + 1)
+      }
+      last.set(a.id, now)
+    }
+  }
+  const flips = [...changes.values()].reduce((a, b) => a + b, 0)
+  // A minute of play, ten actors: a handful of real decisions, not hundreds.
+  expect(
+    'and does not change its mind every tick',
+    flips < freshTicks / 10,
+    `${flips} changes over ${freshTicks} ticks`,
   )
 }
 

@@ -275,6 +275,13 @@ export type BgKind = 'conquest' | 'flags'
 /** A capture point. Held by standing on it and nobody else standing on it. */
 export interface BgNode {
   id: number
+  /**
+   * Seconds this point has been contested without a break.
+   *
+   * A defender should not turn round every time somebody clips the edge of the
+   * circle, so the AI waits for this rather than for the flag itself.
+   */
+  contestedFor: number
   pos: Vec2
   radius: number
   /**
@@ -310,6 +317,21 @@ export interface BgState {
   bases: Record<Team, Vec2>
   /** Seconds until each downed actor is back on their feet, keyed by id. */
   respawn: Record<number, number>
+  /**
+   * The capture point each actor is committed to, by node id, keyed by actor.
+   *
+   * Kept until it is taken, lost, or the actor dies, because an objective is a
+   * decision rather than a preference: recomputing "which point is nearest"
+   * every tick made walking toward one reorder the list, which reassigned the
+   * actor to another, which sent it back — a loop that paced people between
+   * two points for whole matches.
+   *
+   * It lives here rather than on the AI profile so that the player's own slot
+   * plays by the same rule. It has none, and giving one side a member that
+   * re-decides every tick while the other side commits is a difference between
+   * the teams that has nothing to do with who is playing.
+   */
+  assignment: Record<number, number>
   /** Captures and returns, for the report. */
   objectives: Record<number, number>
 }

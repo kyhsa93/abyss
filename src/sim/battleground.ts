@@ -110,6 +110,7 @@ export function createBattleground(kind: BgKind): BgState {
             progress: 0,
             owner: null,
             contested: false,
+            contestedFor: 0,
           }))
         : [],
     flags:
@@ -121,6 +122,7 @@ export function createBattleground(kind: BgKind): BgState {
         : { blue: flagAtHome('blue'), red: flagAtHome('red') },
     bases: { blue: { ...BASES.blue }, red: { ...BASES.red } },
     respawn: {},
+    assignment: {},
     objectives: {},
   }
 }
@@ -194,6 +196,9 @@ function updateRespawns(s: SimState, bg: BgState): void {
     const index = s.actors.filter((o) => teamOf(o) === team).indexOf(a)
     const at = spawnPoint(bg, team, Math.max(0, index))
     a.alive = true
+    // A fresh body has no unfinished business: whatever it was walking to is
+    // half a map away and probably resolved without it.
+    delete bg.assignment[a.id]
     a.hp = a.maxHp
     a.power = a.maxPower
     a.auras.length = 0
@@ -214,6 +219,7 @@ function updateNodes(s: SimState, bg: BgState): void {
     const red = living(s, 'red').filter((a) => dist(a.pos, node.pos) <= node.radius).length
 
     node.contested = blue > 0 && red > 0
+    node.contestedFor = node.contested ? node.contestedFor + DT : 0
     if (blue === 0 && red === 0) continue
 
     // Numbers count on a contested point rather than freezing it. Freezing it

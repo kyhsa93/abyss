@@ -335,6 +335,25 @@ because a boss puts hazards on the floor and the job is being somewhere else.
 A battleground has no hazards and no threat table. It has somewhere you are
 meant to be standing, and five people who would rather you were not.
 
+**Everyone is assigned a point and stays on it**, whoever owns it — holding
+one is defending it, so there is no separate "go and defend" rule. Five people
+over three points is two-two-one and stays that way.
+
+That shape is the third attempt. The first sorted the points by distance from
+the actor and indexed into the list, so a step toward one reordered the list,
+reassigned the actor, and sent it back: ten AI pacing between two points for
+entire matches, covering **four percent** of the ground they walked. Nothing
+threw, both teams did it, and the win rates stayed level — what it cost was
+visible only as people stuck in the middle of the map.
+
+Committing to a point fixed the pacing and produced the opposite failure. A
+contested point called the whole team to it, both teams answered, and nine
+people stood on one circle for three minutes while the other two sat
+unattended and paid out to whoever had taken them first. A fixed split has
+neither problem, and the check for it now measures distance covered against
+distance walked — 0.04 before, 0.89 after — and counts how often an actor
+changes its mind.
+
 The one rule that took rewriting is a leash. Left alone, defenders chased
 kiting casters off the point they were defending — which concedes the point
 and costs the caster nothing — so a goal now carries a radius, and inside a
@@ -795,9 +814,9 @@ fair" and "does playing well matter" are different questions:
 
 | | player | win% | avg time |
 | --- | --- | --- | --- |
-| The Three Cairns | driven by the AI | 47% | 100s |
-| The Three Cairns | walks objectives, presses its filler | 20% | 113s |
-| The Three Cairns | stands at the spawn | 0% | 96s |
+| The Three Cairns | driven by the AI | 57% | 198s |
+| The Three Cairns | walks objectives, presses its filler | 37% | 215s |
+| The Three Cairns | stands at the spawn | 20% | 192s |
 | Ebb and Flow | driven by the AI | 27% | 85s |
 | Ebb and Flow | walks objectives, presses its filler | 33% | 95s |
 | Ebb and Flow | stands at the spawn | 10% | 69s |
