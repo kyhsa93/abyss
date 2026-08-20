@@ -18,7 +18,20 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-The raid screen comes first: pick a size (5, 10 or 25), a difficulty, and what
+The party screen comes first, and its top row picks what PULL does: the raid,
+or one of the two battlegrounds. The screen changes with it — size, difficulty
+and the boss list are the raid's dials, so a battleground does not draw them
+and does not reserve their rows either, which gave its grid back a tenth of
+the screen.
+
+The four lines between the tabs and the spec grid are counted rather than
+placed by hand, and the grid starts under the last of them. Adding the boss
+name as a fourth line without moving the grid is how it came to be drawn
+across the first row of specs on every screen, twenty-five pixels into them on
+a desktop. Every check passed at the time: the layout checks compare
+rectangles, and text is not a rectangle. They read the drawn labels now.
+
+For a raid: pick a size (5, 10 or 25), a difficulty, and what
 you are playing. That last one is the only pick you make, and the screen shows
 nothing else — you show up to a raid, you do not build one, and a board of
 twenty-four strangers you did not choose and cannot change is a readout nobody

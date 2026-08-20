@@ -3190,6 +3190,72 @@ for (const [label, w, h] of [
     expect(`${label} ${kind}: no phase readout`, !/phase \d/.test(text), text.slice(0, 80))
   }
 
+  // Nothing in the summary may be drawn over the grid.
+  //
+  // The rect checks above cannot see this: text is not a rect, and the boss
+  // name went in as a fourth summary line under a grid whose top had been a
+  // fixed step below the *first* line since there were two. It was drawn
+  // across the first row of specs on every screen — 25 pixels into them on a
+  // desktop — and every check passed.
+  for (const mode of [
+    { kind: 'raid' } as const,
+    { kind: 'bg', bg: 'flags' } as const,
+  ]) {
+    const layout = rosterLayout(mode)
+    const labels: Label[] = []
+    drawRoster(
+      recordingCtx([], labels),
+      autoParty(5, pickFor('mage', 'dps')!),
+      'normal',
+      1.5,
+      0,
+      ENCOUNTERS.length - 1,
+      mode,
+    )
+
+    const headlineName =
+      mode.kind === 'raid'
+        ? ENCOUNTERS[0]!.name
+        : BATTLEGROUNDS.find((b) => b.kind === mode.bg)!.name
+    const headline = labels.find((t) => t.text.includes(headlineName))
+    expect(
+      `${label} ${mode.kind}: the headline is above the grid`,
+      headline !== undefined && headline.y < layout.gridTop,
+      `${headline?.y.toFixed(0)} vs grid at ${layout.gridTop.toFixed(0)}`,
+    )
+
+    const rolled = labels.find((t) => t.text.includes('rolled at the door'))
+    expect(
+      `${label} ${mode.kind}: and so is the composition line`,
+      rolled !== undefined && rolled.y < layout.gridTop,
+      `${rolled?.y.toFixed(0)} vs grid at ${layout.gridTop.toFixed(0)}`,
+    )
+
+    // A battleground is five a side at one difficulty, so those rows do not
+    // exist rather than being drawn blank — and the grid takes the room.
+    if (mode.kind === 'bg') {
+      expect(
+        `${label}: a battleground has no size or boss rows`,
+        layout.sizes.length === 0 && layout.difficulties.length === 0 && layout.encounters.length === 0,
+        `${layout.sizes.length}/${layout.difficulties.length}/${layout.encounters.length}`,
+      )
+      expect(
+        `${label}: and starts its grid higher than a raid does`,
+        layout.gridTop < rosterLayout({ kind: 'raid' }).gridTop,
+        `${layout.gridTop} vs ${rosterLayout({ kind: 'raid' }).gridTop}`,
+      )
+      // The hit test has to be asked the same question, or a tap in a
+      // battleground lands on a size tab that is no longer drawn.
+      const raidSizes = rosterLayout({ kind: 'raid' }).sizes[0]!
+      const stray = hitRoster(raidSizes.x + raidSizes.w / 2, raidSizes.y + raidSizes.h / 2, mode)
+      expect(
+        `${label}: and a tap where sizes used to be is not a size`,
+        stray?.kind !== 'size',
+        `${stray?.kind}`,
+      )
+    }
+  }
+
   // And the party screen offers the modes, with the raid's dials hidden.
   const layout = rosterLayout()
   expect(`${label}: a tab per mode`, layout.modes.length === BATTLEGROUNDS.length + 1, `${layout.modes.length}`)

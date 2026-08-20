@@ -32,6 +32,7 @@ export interface Rect {
 
 export interface RosterLayout {
   modes: Rect[]
+  /** Empty in a battleground: it is five a side at one difficulty. */
   sizes: Rect[]
   difficulties: Rect[]
   encounters: Rect[]
@@ -39,8 +40,20 @@ export interface RosterLayout {
   history: Rect
   pull: Rect
   titleY: number
+  /** Baseline of the first summary line; the rest step down by `summaryLine`. */
   summaryY: number
+  summaryLine: number
+  /** Top of the spec grid. Always below the last summary line. */
+  gridTop: number
 }
+
+/**
+ * How many lines of text sit between the tabs and the grid.
+ *
+ * Counted rather than assumed, because the grid starts under the last of them
+ * and a fifth line added without touching this would be drawn over the specs.
+ */
+const SUMMARY_LINES = 4
 
 export type RosterHit =
   | { kind: 'mode'; mode: RosterMode }
@@ -76,7 +89,20 @@ export function sameMode(a: RosterMode, b: RosterMode): boolean {
   return a.kind === b.kind && (a.kind !== 'bg' || b.kind !== 'bg' || a.bg === b.bg)
 }
 
-export function rosterLayout(): RosterLayout {
+/**
+ * Where everything on the party screen goes.
+ *
+ * It takes the mode because the mode decides what exists. Size, difficulty and
+ * the boss list are the raid's dials; a battleground is five a side at one
+ * difficulty, so drawing them there would be three controls that do nothing —
+ * and reserving their rows anyway, which is what this used to do, left a
+ * tenth of the screen blank above a grid that had nowhere to go.
+ *
+ * The summary lines are counted rather than placed by hand. Adding the boss
+ * name as a fourth line without moving the grid down is how it ended up drawn
+ * across the first row of specs.
+ */
+export function rosterLayout(mode: RosterMode = { kind: 'raid' }): RosterLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
 
@@ -90,42 +116,52 @@ export function rosterLayout(): RosterLayout {
     w: modeW,
     h: tabH,
   }))
+  const raid = mode.kind === 'raid'
   const tabY = modeY + tabH + 6
   const tabW = Math.min(64, (L.w - pad * 2 - 24) / (RAID_SIZES.length + DIFFICULTY_ORDER.length))
 
-  const sizes = RAID_SIZES.map((_, i) => ({
-    x: pad + i * (tabW + 4),
-    y: tabY,
-    w: tabW,
-    h: tabH,
-  }))
+  const sizes = raid
+    ? RAID_SIZES.map((_, i) => ({
+        x: pad + i * (tabW + 4),
+        y: tabY,
+        w: tabW,
+        h: tabH,
+      }))
+    : []
   const diffW = Math.min(88, tabW * 1.5)
-  const difficulties = DIFFICULTY_ORDER.map((_, i) => ({
-    x: L.w - pad - (DIFFICULTY_ORDER.length - i) * (diffW + 4) + 4,
-    y: tabY,
-    w: diffW,
-    h: tabH,
-  }))
+  const difficulties = raid
+    ? DIFFICULTY_ORDER.map((_, i) => ({
+        x: L.w - pad - (DIFFICULTY_ORDER.length - i) * (diffW + 4) + 4,
+        y: tabY,
+        w: diffW,
+        h: tabH,
+      }))
+    : []
 
   // The bosses get their own row: three names do not fit beside five tabs,
   // and this is the one choice on the screen that is not about your own raid.
   const bossY = tabY + tabH + 6
   const bossW = (L.w - pad * 2 - 4 * (ENCOUNTERS.length - 1)) / ENCOUNTERS.length
-  const encounters = ENCOUNTERS.map((_, i) => ({
-    x: pad + i * (bossW + 4),
-    y: bossY,
-    w: bossW,
-    h: tabH,
-  }))
+  const encounters = raid
+    ? ENCOUNTERS.map((_, i) => ({
+        x: pad + i * (bossW + 4),
+        y: bossY,
+        w: bossW,
+        h: tabH,
+      }))
+    : []
 
   // No slot grid: the only pick anyone makes is their own, and the rest of
   // the raid is rolled at the door. A board of twenty-four strangers you did
   // not choose and cannot change is a readout nobody needs before a pull.
   const gap = Math.max(3, pad * 0.3)
-  const summaryY = bossY + tabH + 26 * L.ui
+  const rowsAbove = raid ? bossY + tabH : modeY + tabH
+  const summaryY = rowsAbove + 26 * L.ui
+  const summaryLine = 13 * L.ui
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
-  const gridTop = summaryY + 22
+  // Below the last summary line rather than a fixed step below the first one.
+  const gridTop = summaryY + (SUMMARY_LINES - 1) * summaryLine + 14
   const gridBottom = L.h - buttonH - pad * 2
 
   // One tile per spec, filling the screen the slot grid used to take. Widen
@@ -179,6 +215,8 @@ export function rosterLayout(): RosterLayout {
     pull: { x: pad + fillW + gapB, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
+    summaryLine,
+    gridTop,
   }
 }
 
@@ -186,8 +224,8 @@ function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
-export function hitRoster(x: number, y: number): RosterHit | null {
-  const layout = rosterLayout()
+export function hitRoster(x: number, y: number, mode: RosterMode = { kind: 'raid' }): RosterHit | null {
+  const layout = rosterLayout(mode)
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
 
   for (let i = 0; i < layout.modes.length; i++) {
@@ -250,7 +288,7 @@ export function drawRoster(
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
-  const layout = rosterLayout()
+  const layout = rosterLayout(mode)
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
@@ -269,26 +307,6 @@ export function drawRoster(
       option.kind === 'raid' ? COLORS.castBar : COLORS.tank,
     )
   })
-
-  // Size, difficulty and the boss list are the raid's dials. A battleground is
-  // five against five at one difficulty, so drawing them there would be three
-  // controls that do nothing.
-  if (mode.kind !== 'raid') {
-    const fight = BATTLEGROUNDS.find((b) => b.kind === mode.bg)
-    if (fight) {
-      ctx.fillStyle = COLORS.text
-      ctx.font = font(13, true)
-      ctx.fillText(fight.name, L.w / 2, layout.summaryY - 26 * L.ui)
-      ctx.fillStyle = COLORS.textDim
-      ctx.font = font(10)
-      ctx.fillText(fight.demand, L.w / 2, layout.summaryY - 13 * L.ui)
-      ctx.fillText(
-        'five against five — the other five are rolled at the door',
-        L.w / 2,
-        layout.summaryY,
-      )
-    }
-  }
 
   if (mode.kind === 'raid') RAID_SIZES.forEach((size, i) => {
     tab(ctx, layout.sizes[i]!, `${size}`, size === party.length, COLORS.castBar)
@@ -323,13 +341,16 @@ export function drawRoster(
     tab(ctx, r, fight.short, i === encounter, COLORS.boss)
   })
 
-  // What you are playing, which is the only thing on this screen you decide.
+  // What you are playing, which is the only thing on this screen you decide,
+  // and then what you are walking into. Four lines, stepping down from the
+  // same baseline the grid was placed under.
+  const line = (n: number) => layout.summaryY + n * layout.summaryLine
   const own = party[activeSlot]
   const spec = own ? specOf(own) : null
   ctx.textAlign = 'center'
   ctx.font = font(13, true)
   ctx.fillStyle = own ? classColor(own.classId) : COLORS.text
-  ctx.fillText(own ? specLabel(own) : 'pick a class', L.w / 2, layout.summaryY)
+  ctx.fillText(own ? specLabel(own) : 'pick a class', L.w / 2, line(0))
 
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(10)
@@ -338,23 +359,26 @@ export function drawRoster(
       ? `${spec.role} · ${spec.resource} · ${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp`
       : '',
     L.w / 2,
-    layout.summaryY + 15 * L.ui,
+    line(1),
   )
 
-  ctx.font = font(9)
-  if (mode.kind === 'raid') {
-    ctx.fillText(
-      `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`,
-      L.w / 2,
-      layout.summaryY + 28 * L.ui,
-    )
-  }
-
   const fight = mode.kind === 'raid' ? ENCOUNTERS[encounter] : null
-  if (fight) {
-    ctx.fillStyle = COLORS.boss
+  const bg = mode.kind === 'bg' ? BATTLEGROUNDS.find((b) => b.kind === mode.bg) : null
+
+  ctx.font = font(9)
+  ctx.fillText(
+    mode.kind === 'raid'
+      ? `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`
+      : 'five against five — the other five are rolled at the door',
+    L.w / 2,
+    line(2),
+  )
+
+  const headline = fight ?? bg
+  if (headline) {
+    ctx.fillStyle = mode.kind === 'raid' ? COLORS.boss : COLORS.tank
     ctx.font = font(10, true)
-    ctx.fillText(`${fight.name} — ${fight.demand}`, L.w / 2, layout.summaryY + 41 * L.ui)
+    ctx.fillText(`${headline.name} — ${headline.demand}`, L.w / 2, line(3))
   }
 
   for (let i = 0; i < layout.classes.length; i++) {

@@ -339,7 +339,7 @@ function chooseOwn(pick: Pick): void {
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
-    const hit = hitRoster(tap.x, tap.y)
+    const hit = hitRoster(tap.x, tap.y, mode)
     if (hit?.kind === 'mode') {
       mode = hit.mode
       // A battleground is five a side, so a twenty-five man roster cannot walk
