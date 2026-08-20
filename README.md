@@ -335,6 +335,27 @@ because a boss puts hazards on the floor and the job is being somewhere else.
 A battleground has no hazards and no threat table. It has somewhere you are
 meant to be standing, and five people who would rather you were not.
 
+**There is terrain.** Rocks, drawn as raised discs, on both maps and neither
+raid — a boss fight puts its hazards on the floor and a second thing to walk
+around would only get in the way of them. On the capture map one sits between
+each pair of points, so crossing between them commits you to a side. On the
+flag map two blocks split the middle into three lanes, which is the difference
+between a carrier being chased and a carrier being cut off.
+
+They are circles, and that is a decision rather than a shortcut. Everything
+here walks straight at what it wants, so the shape has to be one that a body
+slides around on its own; a concave one needs path-finding, and an AI stuck on
+scenery is the failure this game has already had twice.
+
+Sliding is the whole of it: walk into a rock, get put back on its surface, and
+the part of the step that was spent being pushed out comes back along the
+surface instead — whichever way round the step already leaned. A step aimed
+dead at the centre has no lean and takes one fixed side, because that tie has
+to be broken or it is a wall. It was a wall in the first version: pushing
+without sliding left a body re-walking into the same rock for thirty seconds,
+a quarter of the way to where it was going. The check walks something straight
+through a rock and fails if it does not come out the other side.
+
 **Everyone is assigned a point and stays on it**, whoever owns it — holding
 one is defending it, so there is no separate "go and defend" rule. Five people
 over three points is two-two-one and stays that way.

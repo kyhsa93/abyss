@@ -5,6 +5,7 @@ import { updateBattlegroundAi } from './bgai'
 import {
   CARRIER_SPEED,
   carrying,
+  clearTerrain,
   teamOf,
   other as otherTeam,
   updateBattleground,
@@ -240,9 +241,12 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   const len = Math.hypot(input.moveX, input.moveY)
   if (len > 0.01) {
     const stepLen = player.moveSpeed * DT * (carrying(s, player) ? CARRIER_SPEED : 1)
-    player.pos.x += (input.moveX / len) * stepLen
-    player.pos.y += (input.moveY / len) * stepLen
+    const stepX = (input.moveX / len) * stepLen
+    const stepY = (input.moveY / len) * stepLen
+    player.pos.x += stepX
+    player.pos.y += stepY
     clampToArena(player.pos, player.radius)
+    clearTerrain(s.bg, player.pos, player.radius, stepX, stepY)
     // Moving breaks your own cast — the core tension with Burst.
     if (player.castId) interruptCast(s, player, 'moved')
   }

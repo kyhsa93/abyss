@@ -104,6 +104,28 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
   const bg = s.bg
   if (!bg) return
 
+  // Terrain first, under the objectives: a rock beside a point is scenery, and
+  // the point is the thing being read.
+  for (const rock of bg.obstacles) {
+    const at = worldToScreen(rock.pos)
+    const r = rock.radius * L.scale
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.floorEdge
+    ctx.fill()
+    // A lighter rim, so it reads as something standing up off the floor rather
+    // than a hole in it. Everything else here is drawn as a flat disc.
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(at.x - r * 0.18, at.y - r * 0.18, r * 0.62, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
+
   for (const node of bg.nodes) {
     const at = worldToScreen(node.pos)
     const r = node.radius * L.scale

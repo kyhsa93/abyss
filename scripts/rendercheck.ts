@@ -82,7 +82,16 @@ import {
   SPELL_RANGE,
 } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/encounters'
-import { BATTLEGROUNDS, carrying, held, living, teamOf } from '../src/sim/battleground'
+import {
+  BASE_RADIUS,
+  BATTLEGROUNDS,
+  carrying,
+  held,
+  inTerrain,
+  living,
+  spawnPoint,
+  teamOf,
+} from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
@@ -3348,6 +3357,77 @@ for (const [label, w, h] of [
       }) &&
       hitSettings(...middle(settings.back))?.kind === 'back',
     'a setting answered as something else',
+  )
+}
+
+// --- terrain ----------------------------------------------------------------
+//
+// Everything in a battleground walks straight at what it wants, so terrain is
+// the one thing on the map that can make a body stop making progress. That is
+// the failure this game has already had twice, and both times it looked like
+// standing still rather than like a bug.
+for (const kind of ['conquest', 'flags'] as BgKind[]) {
+  const s = createBattlegroundState(0x51ed, kind)
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  const bg = s.bg!
+
+  expect(`${kind}: the map has terrain`, bg.obstacles.length > 0, `${bg.obstacles.length}`)
+
+  // Nothing may be placed on top of anything that has to be stood on.
+  const onObjective = bg.obstacles.some(
+    (rock) =>
+      bg.nodes.some((n) => dist(rock.pos, n.pos) < rock.radius + n.radius) ||
+      (['blue', 'red'] as const).some(
+        (team) => dist(rock.pos, bg.bases[team]) < rock.radius + BASE_RADIUS,
+      ),
+  )
+  expect(`${kind}: and none of it sits on a point or a base`, !onObjective, 'terrain covers an objective')
+
+  const spawnsClear = (['blue', 'red'] as const).every((team) =>
+    [0, 1, 2, 3, 4].every((i) => !inTerrain(bg, spawnPoint(bg, team, i), 18)),
+  )
+  expect(`${kind}: nor on a spawn`, spawnsClear, 'somebody spawns inside a rock')
+
+  // Play it out. Nobody may end a tick inside terrain, and the match still has
+  // to reach an end rather than deadlocking against a rock.
+  let inside = 0
+  while (s.outcome === 'ongoing' && s.time < bg.timeLimit + 30) {
+    step(s, { moveX: 0.6, moveY: 0.4, pressed: [] }, rng)
+    for (const a of s.actors) {
+      if (a.alive && inTerrain(bg, a.pos, a.radius * 0.9)) inside++
+    }
+  }
+  expect(`${kind}: nobody walks through it`, inside === 0, `${inside} actor-ticks inside terrain`)
+  expect(`${kind}: and the match still ends`, s.outcome !== 'ongoing', `${s.outcome}`)
+}
+
+// A body aimed straight through a rock has to come out the other side.
+{
+  const s = createBattlegroundState(0x51ed, 'conquest')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  const bg = s.bg!
+  const rock = bg.obstacles[0]!
+  const walker = s.actors.find((a) => a.isPlayer)!
+
+  // Lined up so the straight route is blocked by the middle of the rock.
+  walker.pos = { x: rock.pos.x - rock.radius - 120, y: rock.pos.y }
+  walker.prevPos = { ...walker.pos }
+  const goal = { x: rock.pos.x + rock.radius + 120, y: rock.pos.y }
+
+  let ticks = 0
+  while (ticks < 900 && dist(walker.pos, goal) > 40) {
+    const dx = goal.x - walker.pos.x
+    const dy = goal.y - walker.pos.y
+    const gap = Math.hypot(dx, dy) || 1
+    step(s, { moveX: dx / gap, moveY: dy / gap, pressed: [] }, rng)
+    ticks++
+  }
+  expect(
+    'walking into a rock goes around it',
+    dist(walker.pos, goal) <= 40,
+    `stopped ${dist(walker.pos, goal).toFixed(0)} away after ${ticks} ticks`,
   )
 }
 

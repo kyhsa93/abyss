@@ -2,7 +2,16 @@ import { ABILITIES } from './abilities'
 import { specOf } from './classes'
 import { beginCast, dist, getAura, interruptCast } from './combat'
 import { DT, MELEE_RANGE, SPELL_RANGE } from './constants'
-import { CARRIER_SPEED, NODE_RADIUS, carrying, living, other, teamOf } from './battleground'
+import {
+  CARRIER_SPEED,
+  NODE_RADIUS,
+  carrying,
+  clearTerrain,
+  inTerrain,
+  living,
+  other,
+  teamOf,
+} from './battleground'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
 import type { Actor, AuraId, BgState, SimState, Team, Vec2 } from './types'
@@ -43,7 +52,7 @@ export function aiGoal(s: SimState, actor: Actor): Vec2 | null {
   if (!bg || !actor.alive) return null
   const enemies = living(s, other(teamOf(actor)))
   const target = pickTarget(s, actor, enemies)
-  return approach(actor, objective(s, bg, actor), target)
+  return approach(bg, actor, objective(s, bg, actor), target)
 }
 
 /**
@@ -75,7 +84,7 @@ export function updateBattlegroundAi(s: SimState, actor: Actor, rng: Rng): void 
   // Standing on the objective is the job; the fight is what happens there. So
   // position comes from the goal, and only the last stretch is about the
   // target — a dealer that chases a kite across the map has left the point.
-  const want = approach(actor, goal, target)
+  const want = approach(bg, actor, goal, target)
   moveToward(s, actor, want)
 
   useAbilities(s, actor, target, rng)
@@ -173,8 +182,8 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
  * up when the objective is far away, since a point nobody is standing on
  * scores for nobody.
  */
-function approach(actor: Actor, goal: Goal, target: Actor | null): Vec2 {
-  const want = wander(actor, goal, target)
+function approach(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): Vec2 {
+  const want = wander(bg, actor, goal, target)
   if (goal.hold <= 0) return want
 
   // Leashed. Whatever the fight wanted, it happens on the point: a defender
@@ -189,7 +198,7 @@ function approach(actor: Actor, goal: Goal, target: Actor | null): Vec2 {
   }
 }
 
-function wander(actor: Actor, goal: Goal, target: Actor | null): Vec2 {
+function wander(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): Vec2 {
   const toGoal = dist(actor.pos, goal.pos)
   if (!target) return toGoal > ARRIVED ? goal.pos : actor.pos
 
@@ -210,6 +219,10 @@ function wander(actor: Actor, goal: Goal, target: Actor | null): Vec2 {
     const away = Math.atan2(actor.pos.y - target.pos.y, actor.pos.x - target.pos.x)
     const out = { x: target.pos.x + Math.cos(away) * (near + 40), y: target.pos.y + Math.sin(away) * (near + 40) }
     clampToArena(out, actor.radius)
+    // Backing into a rock is backing into a corner: the push-out would hold
+    // the actor against it while it kept trying. Stand where you are instead
+    // and let the rock be cover.
+    if (inTerrain(bg, out, actor.radius)) return actor.pos
     return out
   }
   if (range > SPELL_RANGE * 0.9) return target.pos
@@ -273,9 +286,12 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   ai.moveTarget = { x: target.x, y: target.y }
 
   const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1)
-  actor.pos.x += ((target.x - actor.pos.x) / d) * step
-  actor.pos.y += ((target.y - actor.pos.y) / d) * step
+  const stepX = ((target.x - actor.pos.x) / d) * step
+  const stepY = ((target.y - actor.pos.y) / d) * step
+  actor.pos.x += stepX
+  actor.pos.y += stepY
   clampToArena(actor.pos, actor.radius)
+  clearTerrain(s.bg, actor.pos, actor.radius, stepX, stepY)
 
   if (actor.castId) interruptCast(s, actor, 'moved')
 }

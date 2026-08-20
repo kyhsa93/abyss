@@ -306,6 +306,20 @@ export interface BgFlag {
   dropTimer: number
 }
 
+/**
+ * A lump of terrain nobody can walk through.
+ *
+ * Circles rather than walls, and that is a decision rather than a shortcut:
+ * everything that moves here walks straight at what it wants, so a shape that
+ * pushes a body sideways as it slides along is a shape that gets walked around
+ * on its own. A concave one would need path-finding, and an AI that gets stuck
+ * on scenery is the bug this game has already had twice.
+ */
+export interface Obstacle {
+  pos: Vec2
+  radius: number
+}
+
 export interface BgState {
   kind: BgKind
   score: Record<Team, number>
@@ -313,6 +327,8 @@ export interface BgState {
   /** Seconds before the higher score wins outright. */
   timeLimit: number
   nodes: BgNode[]
+  /** Terrain. Empty in a raid, where the floor is the mechanic. */
+  obstacles: Obstacle[]
   flags: Record<Team, BgFlag>
   bases: Record<Team, Vec2>
   /** Seconds until each downed actor is back on their feet, keyed by id. */

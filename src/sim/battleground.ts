@@ -1,6 +1,6 @@
 import { ARENA_RADIUS, DT } from './constants'
 import { dist } from './combat'
-import type { Actor, BgFlag, BgKind, BgState, SimState, Team, Vec2 } from './types'
+import type { Actor, BgFlag, BgKind, BgState, Obstacle, SimState, Team, Vec2 } from './types'
 
 /**
  * The battlegrounds.
@@ -82,6 +82,100 @@ export function carrying(s: SimState, actor: Actor): boolean {
 export const CARRIER_SPEED = 0.82
 export const CARRIER_FRAGILITY = 1.25
 
+/**
+ * The terrain, per battleground.
+ *
+ * Placed to make a straight line the wrong answer without making any route
+ * long: on the capture map a rock sits between each pair of points, so walking
+ * from one to another commits you to a side and lets a defender see you choose
+ * it. On the flag map two blocks split the middle into three lanes, which is
+ * the difference between a carrier being chased and a carrier being cut off.
+ *
+ * Nothing sits on a point, a base, or a spawn — a body that starts inside
+ * terrain gets pushed out of it, and pushing five people out of one rock is a
+ * scrum nobody asked for.
+ */
+const TERRAIN: Record<BgKind, Obstacle[]> = {
+  conquest: [
+    { pos: { x: -130, y: -30 }, radius: 62 },
+    { pos: { x: 130, y: -30 }, radius: 62 },
+    { pos: { x: 0, y: 210 }, radius: 54 },
+  ],
+  flags: [
+    { pos: { x: 0, y: -140 }, radius: 76 },
+    { pos: { x: 0, y: 140 }, radius: 76 },
+    { pos: { x: -190, y: 0 }, radius: 44 },
+    { pos: { x: 190, y: 0 }, radius: 44 },
+  ],
+}
+
+/**
+ * Puts a body back outside any terrain it has walked into, and slides it.
+ *
+ * Pushing it back to the surface is not enough on its own. Pushing is along
+ * the radius, so a body walking straight at the centre of a rock loses its
+ * whole step to the push and stands there re-walking into it: thirty seconds
+ * of that, in the check, without covering a quarter of the distance.
+ *
+ * So the leftover part of the step is redirected along the surface. Whichever
+ * way round the rock the step already leaned wins, and dead-on ties go one
+ * fixed way rather than nowhere — an arbitrary choice, but it has to be made
+ * or the tie is a wall. That is the whole of the path-finding, and it is
+ * enough because every rock here is convex: sliding along one always ends.
+ */
+export function clearTerrain(
+  bg: BgState | null,
+  pos: Vec2,
+  radius: number,
+  moveX = 0,
+  moveY = 0,
+): void {
+  if (!bg) return
+  for (const rock of bg.obstacles) {
+    const dx = pos.x - rock.pos.x
+    const dy = pos.y - rock.pos.y
+    const gap = Math.hypot(dx, dy)
+    const least = rock.radius + radius
+    if (gap >= least) continue
+
+    // Dead centre has no direction to be pushed in; pick one rather than
+    // dividing by zero.
+    if (gap < 0.001) {
+      pos.x = rock.pos.x + least
+      continue
+    }
+
+    const nx = dx / gap
+    const ny = dy / gap
+    pos.x = rock.pos.x + nx * least
+    pos.y = rock.pos.y + ny * least
+
+    const step = Math.hypot(moveX, moveY)
+    if (step < 0.0001) continue
+
+    // The surface, at right angles to the push. Sign by which way the step was
+    // already going; a step straight at the centre has no lean, and takes the
+    // positive one.
+    const tx = -ny
+    const ty = nx
+    const lean = moveX * tx + moveY * ty
+    const dir = lean >= 0 ? 1 : -1
+    // How much of the step was spent being pushed back out, returned along the
+    // surface instead of thrown away.
+    const spent = Math.min(step, least - gap)
+    pos.x += tx * dir * spent
+    pos.y += ty * dir * spent
+  }
+}
+
+/** Whether a point is inside terrain, for placement and for checks. */
+export function inTerrain(bg: BgState | null, pos: Vec2, radius = 0): boolean {
+  if (!bg) return false
+  return bg.obstacles.some(
+    (rock) => Math.hypot(pos.x - rock.pos.x, pos.y - rock.pos.y) < rock.radius + radius,
+  )
+}
+
 export function teamOf(actor: Actor): Team {
   return actor.faction === 'party' ? 'blue' : 'red'
 }
@@ -101,6 +195,7 @@ export function createBattleground(kind: BgKind): BgState {
     score: { blue: 0, red: 0 },
     target: kind === 'conquest' ? CONQUEST_TARGET : FLAG_TARGET,
     timeLimit: kind === 'conquest' ? CONQUEST_LIMIT : FLAG_LIMIT,
+    obstacles: TERRAIN[kind].map((rock) => ({ pos: { ...rock.pos }, radius: rock.radius })),
     nodes:
       kind === 'conquest'
         ? NODE_POSITIONS.map((pos, i) => ({
