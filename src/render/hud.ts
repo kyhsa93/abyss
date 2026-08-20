@@ -36,12 +36,6 @@ export function partyButton(): Rect {
   return { x: L.infoX - w, y: L.infoY + 15 * L.ui * 4 + 6, w, h }
 }
 
-/** Mute toggle, immediately left of the party button. */
-export function soundButton(): Rect {
-  const p = partyButton()
-  return { x: p.x - p.w - 6, y: p.y, w: p.w, h: p.h }
-}
-
 /**
  * Buttons on the end-of-fight overlay; shared with the hit test in main.
  *
@@ -292,12 +286,7 @@ function bar(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 }
 
-export function drawHud(
-  ctx: CanvasRenderingContext2D,
-  s: SimState,
-  touch: TouchView,
-  muted: boolean,
-): void {
+export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
   else drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
@@ -310,7 +299,6 @@ export function drawHud(
   drawCastBar(ctx, s, touch.active)
   drawChat(ctx, s)
   drawPartyButton(ctx)
-  drawSoundButton(ctx, muted)
   if (s.countdown > 0) drawCountdown(ctx, s)
   if (s.outcome !== 'ongoing') drawOutcome(ctx, s, touch.active)
 }
@@ -1061,19 +1049,6 @@ function drawPartyButton(ctx: CanvasRenderingContext2D): void {
   ctx.font = font(10)
   ctx.textAlign = 'center'
   ctx.fillText('party', r.x + r.w / 2, r.y + r.h * 0.68)
-}
-
-function drawSoundButton(ctx: CanvasRenderingContext2D, muted: boolean): void {
-  const r = soundButton()
-  ctx.fillStyle = 'rgba(15, 17, 26, 0.7)'
-  ctx.fillRect(r.x, r.y, r.w, r.h)
-  ctx.strokeStyle = COLORS.panelEdge
-  ctx.lineWidth = 1
-  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
-  ctx.fillStyle = muted ? COLORS.textDim : COLORS.text
-  ctx.font = font(10)
-  ctx.textAlign = 'center'
-  ctx.fillText(muted ? 'muted' : 'sound', r.x + r.w / 2, r.y + r.h * 0.68)
 }
 
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {

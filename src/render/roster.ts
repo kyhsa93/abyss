@@ -1,14 +1,12 @@
 import {
   CLASSES,
   DIFFICULTIES,
-  RAID_SIZES,
   SPEC_OPTIONS,
   mitigation,
   specLabel,
   specOf,
   type DifficultyId,
   type Pick,
-  type RaidSize,
 } from '../sim/classes'
 import { ENCOUNTERS } from '../sim/encounters'
 import { BATTLEGROUNDS } from '../sim/battleground'
@@ -31,11 +29,6 @@ export interface Rect {
 }
 
 export interface RosterLayout {
-  modes: Rect[]
-  /** Empty in a battleground: it is five a side at one difficulty. */
-  sizes: Rect[]
-  difficulties: Rect[]
-  encounters: Rect[]
   classes: Rect[]
   history: Rect
   pull: Rect
@@ -55,16 +48,7 @@ export interface RosterLayout {
  */
 const SUMMARY_LINES = 4
 
-export type RosterHit =
-  | { kind: 'mode'; mode: RosterMode }
-  | { kind: 'class'; pick: Pick }
-  | { kind: 'size'; size: RaidSize }
-  | { kind: 'difficulty'; id: DifficultyId }
-  | { kind: 'encounter'; index: number }
-  | { kind: 'history' }
-  | { kind: 'pull' }
-
-const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
+export type RosterHit = { kind: 'class'; pick: Pick } | { kind: 'back' } | { kind: 'pull' }
 
 /**
  * What you are queueing for.
@@ -74,11 +58,6 @@ const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
  * screen means different things depending on the answer.
  */
 export type RosterMode = { kind: 'raid' } | { kind: 'bg'; bg: BgKind }
-
-export const MODE_OPTIONS: RosterMode[] = [
-  { kind: 'raid' },
-  ...BATTLEGROUNDS.map((b) => ({ kind: 'bg' as const, bg: b.kind })),
-]
 
 export function modeLabel(mode: RosterMode): string {
   if (mode.kind === 'raid') return 'RAID'
@@ -102,61 +81,22 @@ export function sameMode(a: RosterMode, b: RosterMode): boolean {
  * name as a fourth line without moving the grid down is how it ended up drawn
  * across the first row of specs.
  */
-export function rosterLayout(mode: RosterMode = { kind: 'raid' }): RosterLayout {
+/**
+ * Where the class grid and its summary go.
+ *
+ * This screen asks one question now — who are you playing — so it has no tabs
+ * on it. What kind of fight, which boss, what size and what difficulty are all
+ * answered before you get here, on their own screens.
+ */
+export function rosterLayout(): RosterLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
-
-  // Size and difficulty share a row of tabs.
-  const tabH = Math.max(24, Math.min(34, L.h * 0.045))
-  const modeY = titleY + 8
-  const modeW = (L.w - pad * 2 - 4 * (MODE_OPTIONS.length - 1)) / MODE_OPTIONS.length
-  const modes = MODE_OPTIONS.map((_, i) => ({
-    x: pad + i * (modeW + 4),
-    y: modeY,
-    w: modeW,
-    h: tabH,
-  }))
-  const raid = mode.kind === 'raid'
-  const tabY = modeY + tabH + 6
-  const tabW = Math.min(64, (L.w - pad * 2 - 24) / (RAID_SIZES.length + DIFFICULTY_ORDER.length))
-
-  const sizes = raid
-    ? RAID_SIZES.map((_, i) => ({
-        x: pad + i * (tabW + 4),
-        y: tabY,
-        w: tabW,
-        h: tabH,
-      }))
-    : []
-  const diffW = Math.min(88, tabW * 1.5)
-  const difficulties = raid
-    ? DIFFICULTY_ORDER.map((_, i) => ({
-        x: L.w - pad - (DIFFICULTY_ORDER.length - i) * (diffW + 4) + 4,
-        y: tabY,
-        w: diffW,
-        h: tabH,
-      }))
-    : []
-
-  // The bosses get their own row: three names do not fit beside five tabs,
-  // and this is the one choice on the screen that is not about your own raid.
-  const bossY = tabY + tabH + 6
-  const bossW = (L.w - pad * 2 - 4 * (ENCOUNTERS.length - 1)) / ENCOUNTERS.length
-  const encounters = raid
-    ? ENCOUNTERS.map((_, i) => ({
-        x: pad + i * (bossW + 4),
-        y: bossY,
-        w: bossW,
-        h: tabH,
-      }))
-    : []
 
   // No slot grid: the only pick anyone makes is their own, and the rest of
   // the raid is rolled at the door. A board of twenty-four strangers you did
   // not choose and cannot change is a readout nobody needs before a pull.
   const gap = Math.max(3, pad * 0.3)
-  const rowsAbove = raid ? bossY + tabH : modeY + tabH
-  const summaryY = rowsAbove + 26 * L.ui
+  const summaryY = titleY + 26 * L.ui
   const summaryLine = 13 * L.ui
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
@@ -206,11 +146,9 @@ export function rosterLayout(mode: RosterMode = { kind: 'raid' }): RosterLayout 
   const pullW = L.w - pad * 2 - gapB - fillW
   const buttonY = L.h - buttonH - pad
   return {
-    modes,
-    sizes,
-    difficulties,
-    encounters,
     classes,
+    // Named for what it does rather than where it goes: this is the way out
+    // of the screen, and the record lives on the front page now.
     history: { x: pad, y: buttonY, w: fillW, h: buttonH },
     pull: { x: pad + fillW + gapB, y: buttonY, w: pullW, h: buttonH },
     titleY,
@@ -224,28 +162,11 @@ function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
-export function hitRoster(x: number, y: number, mode: RosterMode = { kind: 'raid' }): RosterHit | null {
-  const layout = rosterLayout(mode)
+export function hitRoster(x: number, y: number): RosterHit | null {
+  const layout = rosterLayout()
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
+  if (inside(layout.history, x, y)) return { kind: 'back' }
 
-  for (let i = 0; i < layout.modes.length; i++) {
-    if (inside(layout.modes[i]!, x, y)) return { kind: 'mode', mode: MODE_OPTIONS[i]! }
-  }
-  if (inside(layout.history, x, y)) return { kind: 'history' }
-
-  for (let i = 0; i < layout.sizes.length; i++) {
-    if (inside(layout.sizes[i]!, x, y)) return { kind: 'size', size: RAID_SIZES[i]! }
-  }
-  for (let i = 0; i < layout.difficulties.length; i++) {
-    if (inside(layout.difficulties[i]!, x, y)) {
-      return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
-    }
-  }
-  // Whether the boss is reachable yet is the caller's business: the hit test
-  // says what was pressed, not what is allowed.
-  for (let i = 0; i < layout.encounters.length; i++) {
-    if (inside(layout.encounters[i]!, x, y)) return { kind: 'encounter', index: i }
-  }
   // Slots are a readout, not a control: the only pick anyone makes is their
   // own, and that is made from the class list.
   for (let i = 0; i < layout.classes.length; i++) {
@@ -282,13 +203,11 @@ export function drawRoster(
   difficulty: DifficultyId,
   clock: number,
   encounter: number,
-  /** Highest boss reached; anything past it is drawn locked and refuses taps. */
-  unlocked: number,
   mode: RosterMode = { kind: 'raid' },
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
-  const layout = rosterLayout(mode)
+  const layout = rosterLayout()
 
   ctx.fillStyle = COLORS.bg
   ctx.fillRect(0, 0, L.w, L.h)
@@ -296,50 +215,7 @@ export function drawRoster(
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
   ctx.font = font(17, true)
-  ctx.fillText(mode.kind === 'raid' ? 'FORM YOUR RAID' : 'PICK YOUR FIGHT', L.w / 2, layout.titleY)
-
-  MODE_OPTIONS.forEach((option, i) => {
-    tab(
-      ctx,
-      layout.modes[i]!,
-      option.kind === 'raid' ? 'RAID' : modeLabel(option),
-      sameMode(option, mode),
-      option.kind === 'raid' ? COLORS.castBar : COLORS.tank,
-    )
-  })
-
-  if (mode.kind === 'raid') RAID_SIZES.forEach((size, i) => {
-    tab(ctx, layout.sizes[i]!, `${size}`, size === party.length, COLORS.castBar)
-  })
-  if (mode.kind === 'raid') DIFFICULTY_ORDER.forEach((id, i) => {
-    tab(
-      ctx,
-      layout.difficulties[i]!,
-      DIFFICULTIES[id].name,
-      id === difficulty,
-      id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar,
-    )
-  })
-
-  if (mode.kind === 'raid') ENCOUNTERS.forEach((fight, i) => {
-    const locked = i > unlocked
-    const r = layout.encounters[i]!
-    if (locked) {
-      // Named rather than hidden. A boss you cannot reach yet is information;
-      // an empty slot where one will appear is a puzzle.
-      ctx.fillStyle = COLORS.panel
-      ctx.fillRect(r.x, r.y, r.w, r.h)
-      ctx.strokeStyle = COLORS.panelEdge
-      ctx.lineWidth = 1
-      ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
-      ctx.fillStyle = COLORS.dead
-      ctx.font = font(11)
-      ctx.textAlign = 'center'
-      ctx.fillText(`${fight.short} 🔒`, r.x + r.w / 2, r.y + r.h * 0.66)
-      return
-    }
-    tab(ctx, r, fight.short, i === encounter, COLORS.boss)
-  })
+  ctx.fillText('PICK YOUR CLASS', L.w / 2, layout.titleY)
 
   // What you are playing, which is the only thing on this screen you decide,
   // and then what you are walking into. Four lines, stepping down from the
@@ -411,7 +287,7 @@ export function drawRoster(
     ctx.restore()
   }
 
-  tab(ctx, layout.history, 'RECORD', false, COLORS.text)
+  tab(ctx, layout.history, 'BACK', false, COLORS.text)
 
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)
   ctx.fillStyle = `rgba(250, 204, 21, ${(0.14 * pulse).toFixed(2)})`

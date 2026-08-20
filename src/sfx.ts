@@ -108,6 +108,26 @@ const RECIPES: Record<SoundEvent, Recipe> = {
 }
 
 const MUTE_KEY = 'abyss.muted'
+const VOLUME_KEY = 'abyss.volume'
+
+/**
+ * How loud, in three steps.
+ *
+ * Three rather than a slider: a slider on a canvas is a drag to implement and
+ * a drag to use, and nobody has ever wanted 0.63 of this.
+ */
+export const VOLUME_STEPS = [0.4, 0.75, 1.15] as const
+export const VOLUME_NAMES = ['quiet', 'normal', 'loud'] as const
+
+function readVolume(): number {
+  try {
+    const raw = localStorage.getItem(VOLUME_KEY)
+    const parsed = raw === null ? NaN : Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) && parsed >= 0 && parsed < VOLUME_STEPS.length ? parsed : 1
+  } catch {
+    return 1
+  }
+}
 
 export class Sfx {
   private ctx: AudioContext | null = null
@@ -115,9 +135,11 @@ export class Sfx {
   private noiseBuffer: AudioBuffer | null = null
   private lastPlayed = new Map<SoundEvent, number>()
   private muted: boolean
+  private level: number
 
   constructor() {
     this.muted = readMuted()
+    this.level = readVolume()
   }
 
   /**
@@ -134,7 +156,7 @@ export class Sfx {
 
     this.ctx = new Ctor()
     this.master = this.ctx.createGain()
-    this.master.gain.value = this.muted ? 0 : 1
+    this.master.gain.value = this.muted ? 0 : VOLUME_STEPS[this.level]!
     this.master.connect(this.ctx.destination)
 
     const length = Math.floor(this.ctx.sampleRate * 0.3)
@@ -154,9 +176,28 @@ export class Sfx {
     return this.muted
   }
 
+  /** Index into `VOLUME_STEPS`, not a gain: the settings screen shows names. */
+  volume(): number {
+    return this.level
+  }
+
+  setVolume(level: number): void {
+    this.level = Math.max(0, Math.min(VOLUME_STEPS.length - 1, Math.round(level)))
+    this.applyGain()
+    try {
+      localStorage.setItem(VOLUME_KEY, String(this.level))
+    } catch {
+      // Not worth failing over.
+    }
+  }
+
+  private applyGain(): void {
+    if (this.master) this.master.gain.value = this.muted ? 0 : VOLUME_STEPS[this.level]!
+  }
+
   toggleMute(): boolean {
     this.muted = !this.muted
-    if (this.master) this.master.gain.value = this.muted ? 0 : 1
+    this.applyGain()
     try {
       localStorage.setItem(MUTE_KEY, this.muted ? '1' : '0')
     } catch {

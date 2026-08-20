@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
-import { drawHud, hitOutcome, partyButton, soundButton } from './render/hud'
+import { drawHud, hitOutcome, partyButton } from './render/hud'
 import {
   check as checkAwards,
   load as loadAwards,
@@ -14,6 +14,16 @@ import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './re
 import { Effects } from './render/effects'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
+import {
+  drawBgSetup,
+  drawHome,
+  drawRaidSetup,
+  drawSettings,
+  hitBgSetup,
+  hitHome,
+  hitRaidSetup,
+  hitSettings,
+} from './render/menu'
 import { Sfx } from './sfx'
 import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
@@ -216,7 +226,17 @@ let difficulty = loadDifficulty()
 let encounter = loadEncounter()
 let unlocked = Math.max(loadUnlocked(), encounter)
 let mode: RosterMode = loadMode()
-let screen: 'roster' | 'fight' | 'history' = 'roster'
+/**
+ * One question per screen.
+ *
+ * `home` asks what kind of thing you are doing, `raid` and `battleground` ask
+ * the settings that kind has, `roster` asks who you are playing, and only then
+ * is there a fight. All of it used to be on one screen, which meant a
+ * battleground was chosen on a page that also offered a raid's difficulty and
+ * a boss list, half of it hidden depending on what you had already picked.
+ */
+let screen: 'home' | 'raid' | 'battleground' | 'roster' | 'settings' | 'fight' | 'history' =
+  'home'
 
 let history: Attempt[] = loadHistory()
 let awards: Earned = loadAwards()
@@ -337,38 +357,114 @@ function chooseOwn(pick: Pick): void {
   saveSetup()
 }
 
-function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
+function updateHome(tap: { x: number; y: number } | null, clock: number): void {
   if (tap) {
-    const hit = hitRoster(tap.x, tap.y, mode)
-    if (hit?.kind === 'mode') {
-      mode = hit.mode
-      // A battleground is five a side, so a twenty-five man roster cannot walk
-      // into one. The player's own pick survives; the rest is rolled again.
-      if (mode.kind === 'bg' && party.length !== 5) resize(5)
+    const hit = hitHome(tap.x, tap.y)
+    if (hit === 'raid') {
+      mode = { kind: 'raid' }
       saveSetup()
-    } else if (hit?.kind === 'class') {
-      chooseOwn(hit.pick)
-    } else if (hit?.kind === 'size') {
+      screen = 'raid'
+      return
+    }
+    if (hit === 'battleground') {
+      screen = 'battleground'
+      return
+    }
+    if (hit === 'settings') {
+      screen = 'settings'
+      return
+    }
+    if (hit === 'record') {
+      screen = 'history'
+      return
+    }
+  }
+  drawHome(ctx, clock)
+}
+
+function updateRaidSetup(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const hit = hitRaidSetup(tap.x, tap.y)
+    if (hit?.kind === 'back') {
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'next') {
+      screen = 'roster'
+      return
+    }
+    if (hit?.kind === 'size') {
       if (hit.size !== party.length) resize(hit.size)
+      saveSetup()
     } else if (hit?.kind === 'difficulty') {
       difficulty = hit.id
       saveSetup()
-    } else if (hit?.kind === 'encounter') {
+    } else if (hit?.kind === 'boss') {
       // A locked boss is drawn locked and does nothing when pressed, rather
       // than being absent: what is left down there is worth knowing.
       if (hit.index <= unlocked) {
         encounter = hit.index
         saveSetup()
       }
-    } else if (hit?.kind === 'history') {
-      screen = 'history'
+    }
+  }
+  drawRaidSetup(ctx, encounter, unlocked, party.length, difficulty)
+}
+
+function updateBgSetup(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const hit = hitBgSetup(tap.x, tap.y)
+    if (hit?.kind === 'back') {
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'map') {
+      mode = { kind: 'bg', bg: hit.map }
+      // A battleground is five a side, so a twenty-five man roster cannot walk
+      // into one. The player's own pick survives; the rest is rolled again.
+      if (party.length !== 5) resize(5)
+      saveSetup()
+      screen = 'roster'
+      return
+    }
+  }
+  drawBgSetup(ctx, mode.kind === 'bg' ? mode.bg : null)
+}
+
+function updateSettings(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const hit = hitSettings(tap.x, tap.y)
+    if (hit?.kind === 'back') {
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'sound') {
+      sfx.toggleMute()
+    } else if (hit?.kind === 'volume') {
+      // Picking a level while muted is a request to hear it, and the sound it
+      // plays is the answer: a setting you cannot hear is one you cannot set.
+      if (sfx.isMuted()) sfx.toggleMute()
+      sfx.setVolume(hit.level)
+      sfx.play('countdown')
+    }
+  }
+  drawSettings(ctx, sfx.isMuted(), sfx.volume())
+}
+
+function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
+  if (tap) {
+    const hit = hitRoster(tap.x, tap.y)
+    if (hit?.kind === 'class') {
+      chooseOwn(hit.pick)
+    } else if (hit?.kind === 'back') {
+      screen = mode.kind === 'raid' ? 'raid' : 'battleground'
       return
     } else if (hit?.kind === 'pull') {
       startFight()
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, unlocked, mode)
+  drawRoster(ctx, party, difficulty, clock, encounter, mode)
 }
 
 let timing: Clock = { accumulator: 0, elapsedTotal: 0 }
@@ -387,9 +483,13 @@ function frame(now: number): void {
 
   const tap = input.takeTapPoint()
 
-  if (screen === 'roster') {
+  if (screen !== 'fight' && screen !== 'history') {
     input.setMenuMode(true)
-    updateRoster(tap, clock)
+    if (screen === 'home') updateHome(tap, clock)
+    else if (screen === 'raid') updateRaidSetup(tap)
+    else if (screen === 'battleground') updateBgSetup(tap)
+    else if (screen === 'settings') updateSettings(tap)
+    else updateRoster(tap, clock)
     requestAnimationFrame(frame)
     return
   }
@@ -398,7 +498,7 @@ function frame(now: number): void {
     input.setMenuMode(true)
     if (tap) {
       const hit = hitHistory(tap.x, tap.y, history.map((e) => e.standings.length))
-      if (hit === 'back') screen = 'roster'
+      if (hit === 'back') screen = 'home'
       else if (hit) historyTab = hit
     }
     drawHistory(ctx, history, awards, historyTab)
@@ -408,7 +508,9 @@ function frame(now: number): void {
 
   input.setMenuMode(false)
 
-  if (input.takeMuteRequest() || (tap && inside(soundButton(), tap.x, tap.y))) {
+  // Mute lives on the settings screen now, but the key still works mid-fight:
+  // the reason to reach for it is usually something that just happened.
+  if (input.takeMuteRequest()) {
     sfx.toggleMute()
     requestAnimationFrame(frame)
     return
@@ -497,7 +599,6 @@ function frame(now: number): void {
       joystick: input.joystick(),
       heldSlots: input.heldSlots(),
     },
-    sfx.isMuted(),
   )
   hints.draw(ctx)
   drawAwardBanners(ctx, announced)

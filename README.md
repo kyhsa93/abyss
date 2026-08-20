@@ -18,20 +18,41 @@ Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 The workflow runs `npm run check` before building, so a broken encounter or a
 type error blocks the deploy.
 
-The party screen comes first, and its top row picks what PULL does: the raid,
-or one of the two battlegrounds. The screen changes with it — size, difficulty
-and the boss list are the raid's dials, so a battleground does not draw them
-and does not reserve their rows either, which gave its grid back a tenth of
-the screen.
+## Getting in
 
-The four lines between the tabs and the spec grid are counted rather than
-placed by hand, and the grid starts under the last of them. Adding the boss
-name as a fourth line without moving the grid is how it came to be drawn
-across the first row of specs on every screen, twenty-five pixels into them on
-a desktop. Every check passed at the time: the layout checks compare
-rectangles, and text is not a rectangle. They read the drawn labels now.
+**One question per screen.** The front page asks what kind of thing you are
+doing — RAID, BATTLEGROUND or SETTINGS — and each answer leads to the settings
+that kind of thing actually has:
 
-For a raid: pick a size (5, 10 or 25), a difficulty, and what
+```
+            ┌──────────────┐
+            │     ABYSS    │
+            └──────┬───────┘
+       ┌───────────┼────────────┐
+     RAID    BATTLEGROUND    SETTINGS
+       │           │             │
+  boss, size,  which map      sound, volume
+  difficulty       │
+       └─────┬─────┘
+        pick your class
+             │
+           PULL
+```
+
+All of it used to be one screen. That meant a battleground was chosen on a
+page that also offered a raid's difficulty and a list of bosses, with half the
+controls hidden depending on what you had already picked — and the hiding was
+its own bug, since the hidden rows still reserved their space.
+
+The four summary lines above the class grid are counted rather than placed by
+hand, and the grid starts under the last of them. Adding the boss name as a
+fourth line without moving the grid is how it came to be drawn across the first
+row of specs on every screen, twenty-five pixels into them on a desktop. Every
+check passed at the time: the layout checks compare rectangles, and text is not
+a rectangle. They read the drawn labels now.
+
+On the raid screen: pick a boss, a size (5, 10 or 25) and a difficulty. Then
+the class screen asks what
 you are playing. That last one is the only pick you make, and the screen shows
 nothing else — you show up to a raid, you do not build one, and a board of
 twenty-four strangers you did not choose and cannot change is a readout nobody
@@ -56,11 +77,18 @@ damage was mages.
 
 `WASD` to move — `Q` and `E` strafe left and right alongside `A` and `D`, since
 there is no facing here for them to turn — `1` `2` `3` `4` for abilities, `R`
-to pull again, `Esc` to go back
-to the party screen. The keys are not printed on screen — the retry button
-names its own shortcut and the rest is a raid game's standard layout. On touch there is a `party` button under the fight
-readout. Leaving without changing anything keeps your pull count, since the
-AI's learning is tied to how many times *these* five have pulled.
+to pull again, `M` to mute, `Esc` to go back to the class screen. The keys are
+not printed on screen — the retry button names its own shortcut and the rest is
+a raid game's standard layout. On touch there is a `party` button under the
+fight readout. Leaving without changing anything keeps your pull count, since
+the AI's learning is tied to how many times *these* five have pulled.
+
+Sound lives on the settings screen rather than in the corner of the fight:
+on/off, and a volume in three steps, which plays a note as you pick it because
+a setting you cannot hear is one you cannot set. The `M` key still works
+mid-fight — the reason to reach for it is usually something that just
+happened — and taking the button out of the corner also settled a collision
+where it sat on the party frames on a 320-pixel phone.
 
 A press that cannot go out says why. Cooldowns and empty mana are already
 drawn on the button, so the one reason nothing on screen was giving is being
@@ -644,7 +672,7 @@ the cast time is there to create.
 
 ## Awards
 
-Twelve of them, on the second tab of `RECORD`. Some are about a pull — kill
+Twelve of them, on the second tab of `RECORD`, which is on the front page. Some are about a pull — kill
 it, kill it heroic, kill it with twenty-five, kill it without losing anyone,
 kill it without standing in anything, kill it inside a hundred and ten
 seconds, finish a kill top of the meter, finish one holding the threat, finish
@@ -666,7 +694,7 @@ that needed dismissing would be a third.
 
 ## The record
 
-`RECORD` on the party screen keeps the meter, pull by pull. Newest at the top:
+`RECORD` on the front page keeps the meter, pull by pull. Newest at the top:
 a line saying whether it was a kill and what raid it was, and under it the
 board exactly as it stood when the fight ended — ranked, with the bars, your
 own row picked out. Above them is the night rather than the pull: how many

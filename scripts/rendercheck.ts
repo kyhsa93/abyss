@@ -12,9 +12,23 @@ import {
   partyButton,
   partyFrames,
   slotStatus,
-  soundButton,
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
+import {
+  bgSetupLayout,
+  drawBgSetup,
+  drawHome,
+  drawRaidSetup,
+  drawSettings,
+  hitBgSetup,
+  hitHome,
+  hitRaidSetup,
+  hitSettings,
+  homeLayout,
+  raidSetupLayout,
+  settingsLayout,
+} from '../src/render/menu'
+import { VOLUME_NAMES } from '../src/sfx'
 import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
 import { ABILITIES, type Ability } from '../src/sim/abilities'
 import {
@@ -159,13 +173,13 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
     step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
     drawWorld(ctx, s, 0.5, s.time, new Effects())
     // Alternate modes so both the desktop bar and the touch overlay are drawn.
-    drawHud(ctx, s, touchView(s.tick % 2 === 0), s.tick % 3 === 0)
+    drawHud(ctx, s, touchView(s.tick % 2 === 0))
     frames++
   }
   // Also render the terminal state, which draws the outcome overlay.
   drawWorld(ctx, s, 1, s.time, new Effects())
-  drawHud(ctx, s, touchView(true), true)
-  drawHud(ctx, s, touchView(false), false)
+  drawHud(ctx, s, touchView(true))
+  drawHud(ctx, s, touchView(false))
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
 }
 console.log(`rendered ${frames} frames with no exceptions`)
@@ -335,16 +349,14 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
     for (const party of parties) {
       for (let slot = 0; slot < party.length; slot += 3) {
-        // Drawn at every point of progress, since a locked boss and an
-        // unlocked one take different paths through the tab.
-        for (let unlocked = 0; unlocked < ENCOUNTERS.length; unlocked++) {
+        for (const mode of [{ kind: 'raid' } as const, { kind: 'bg', bg: 'flags' } as const]) {
           drawRoster(
             stubCtx(),
             party,
             slot % 2 === 0 ? 'normal' : 'heroic',
             1.5,
-            Math.min(slot % ENCOUNTERS.length, unlocked),
-            unlocked,
+            slot % ENCOUNTERS.length,
+            mode,
           )
         }
       }
@@ -353,11 +365,8 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // every raid size — a 25-slot grid is where they start to collide.
       const layout = rosterLayout()
       const targets = [
-        ...layout.sizes.map((r, i) => [`size ${i}`, r] as const),
-        ...layout.difficulties.map((r, i) => [`difficulty ${i}`, r] as const),
-        ...layout.encounters.map((r, i) => [`encounter ${i}`, r] as const),
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
-        ['history', layout.history] as const,
+        ['back', layout.history] as const,
         ['pull', layout.pull] as const,
       ]
 
@@ -369,9 +378,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         // sitting on top of it.
         const [kind] = name.split(' ')
         if (kind === 'class' && hit.kind !== 'class') return true
-        if (kind === 'size' && hit.kind !== 'size') return true
-        if (kind === 'difficulty' && hit.kind !== 'difficulty') return true
-        if (kind === 'history' && hit.kind !== 'history') return true
+        if (kind === 'back' && hit.kind !== 'back') return true
         if (kind === 'pull' && hit.kind !== 'pull') return true
         return false
       })
@@ -506,11 +513,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const player = s.actors.find((a) => a.isPlayer)!
 
   const idle: Circle[] = []
-  drawHud(recordingCtx(idle), s, touchView(true), false)
+  drawHud(recordingCtx(idle), s, touchView(true))
 
   player.gcd = 1.2
   const locked: Circle[] = []
-  drawHud(recordingCtx(locked), s, touchView(true), false)
+  drawHud(recordingCtx(locked), s, touchView(true))
 
   // Each button draws its ring; a sweep adds one arc on top of that.
   const extra = locked.length - idle.length
@@ -543,10 +550,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 {
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
     updateLayout(w, h)
-    for (const [name, rect] of [
-      ['party', partyButton()],
-      ['sound', soundButton()],
-    ] as const) {
+    for (const [name, rect] of [['party', partyButton()]] as const) {
       const overlaps = L.btnPos.some(
         (b) =>
           Math.abs(rect.x + rect.w / 2 - b.x) < rect.w / 2 + L.btnR &&
@@ -643,7 +647,7 @@ for (const [label, w, h] of [
   const s = pulled(0x51ed, 0)
 
   const circles: Circle[] = []
-  drawHud(recordingCtx(circles), s, touchView(true), false)
+  drawHud(recordingCtx(circles), s, touchView(true))
 
   const onScreen = (c: Circle) => c.x >= 0 && c.x <= w && c.y >= 0 && c.y <= h
 
@@ -658,7 +662,7 @@ for (const [label, w, h] of [
 
   // The desktop bar must not draw those circles when touch is inactive.
   const desktop: Circle[] = []
-  drawHud(recordingCtx(desktop), s, touchView(false), false)
+  drawHud(recordingCtx(desktop), s, touchView(false))
   const strays = desktop.filter((c) => Math.abs(c.r - L.btnR) < 1)
   expect(`${label}: no touch buttons in keyboard mode`, strays.length === 0, `${strays.length}`)
 }
@@ -1002,7 +1006,7 @@ for (const [label, w, h] of [
       map.x > framesRight,
       `map left ${map.x.toFixed(0)} vs frames ${framesRight.toFixed(0)}`,
     )
-    for (const [name, rect] of [['party', partyButton()], ['sound', soundButton()]] as const) {
+    for (const [name, rect] of [['party', partyButton()]] as const) {
       expect(`${label}: the minimap clears the ${name} button`, !overlap(map, rect), JSON.stringify(rect))
     }
 
@@ -1011,7 +1015,7 @@ for (const [label, w, h] of [
       const meter = meterRect(touch)
       expect(`${label} ${mode}: the meter is on screen`, onScreen(meter), JSON.stringify(meter))
       expect(`${label} ${mode}: the meter clears the minimap`, !overlap(meter, map), JSON.stringify(meter))
-      for (const [name, rect] of [['party', partyButton()], ['sound', soundButton()]] as const) {
+      for (const [name, rect] of [['party', partyButton()]] as const) {
         expect(`${label} ${mode}: the meter clears the ${name} button`, !overlap(meter, rect), JSON.stringify(meter))
       }
 
@@ -1068,7 +1072,7 @@ for (const [label, w, h] of [
 
   const player = s.actors.find((a) => a.isPlayer)!
   const labels: Label[] = []
-  drawHud(recordingCtx([], labels), s, touchView(false), false)
+  drawHud(recordingCtx([], labels), s, touchView(false))
 
   const meter = meterRect(false)
   const inMeter = labels.filter(
@@ -1092,7 +1096,7 @@ for (const [label, w, h] of [
   for (let i = 0; i < 200; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
 
   const circles: Circle[] = []
-  drawHud(recordingCtx(circles), s, touchView(false), false)
+  drawHud(recordingCtx(circles), s, touchView(false))
 
   const living = s.actors.filter((a) => a.alive).length
   const dots = circles.filter(
@@ -2737,7 +2741,7 @@ for (const [label, w, h] of [
   updateLayout(w, h)
 
   const counting: Label[] = []
-  drawHud(recordingCtx([], counting), createState(0x51ed, 0), touchView(false), false)
+  drawHud(recordingCtx([], counting), createState(0x51ed, 0), touchView(false))
 
   // The same frame with the fight running. Searching the first list for the
   // text "3" on its own would find an ability slot's own number and pass on a
@@ -2745,7 +2749,7 @@ for (const [label, w, h] of [
   // two: text that is on screen only while the count is.
   const started = pulled(0x51ed, 0)
   const running: Label[] = []
-  drawHud(recordingCtx([], running), started, touchView(false), false)
+  drawHud(recordingCtx([], running), started, touchView(false))
 
   const added = counting.filter(
     (c) => !running.some((r) => r.text === c.text && r.x === c.x && r.y === c.y),
@@ -3177,13 +3181,13 @@ for (const [label, w, h] of [
 
     // It has to draw at all, mid-match and over the result.
     drawWorld(stubCtx(), s, 0.5, 1.5, new Effects())
-    drawHud(stubCtx(), s, touchView(true), false)
+    drawHud(stubCtx(), s, touchView(true))
     s.outcome = 'defeat'
-    drawHud(stubCtx(), s, touchView(false), false)
+    drawHud(stubCtx(), s, touchView(false))
     s.outcome = 'ongoing'
 
     const labels: Label[] = []
-    drawHud(recordingCtx([], labels), s, touchView(false), false)
+    drawHud(recordingCtx([], labels), s, touchView(false))
     const text = labels.map((t) => t.text).join(' | ')
     expect(`${label} ${kind}: the score is on screen`, text.includes(BATTLEGROUNDS.find((b) => b.kind === kind)!.name), text.slice(0, 80))
     expect(`${label} ${kind}: no enrage clock`, !text.includes('enrage'), text.slice(0, 80))
@@ -3201,7 +3205,7 @@ for (const [label, w, h] of [
     { kind: 'raid' } as const,
     { kind: 'bg', bg: 'flags' } as const,
   ]) {
-    const layout = rosterLayout(mode)
+    const layout = rosterLayout()
     const labels: Label[] = []
     drawRoster(
       recordingCtx([], labels),
@@ -3209,7 +3213,6 @@ for (const [label, w, h] of [
       'normal',
       1.5,
       0,
-      ENCOUNTERS.length - 1,
       mode,
     )
 
@@ -3230,42 +3233,120 @@ for (const [label, w, h] of [
       rolled !== undefined && rolled.y < layout.gridTop,
       `${rolled?.y.toFixed(0)} vs grid at ${layout.gridTop.toFixed(0)}`,
     )
-
-    // A battleground is five a side at one difficulty, so those rows do not
-    // exist rather than being drawn blank — and the grid takes the room.
-    if (mode.kind === 'bg') {
-      expect(
-        `${label}: a battleground has no size or boss rows`,
-        layout.sizes.length === 0 && layout.difficulties.length === 0 && layout.encounters.length === 0,
-        `${layout.sizes.length}/${layout.difficulties.length}/${layout.encounters.length}`,
-      )
-      expect(
-        `${label}: and starts its grid higher than a raid does`,
-        layout.gridTop < rosterLayout({ kind: 'raid' }).gridTop,
-        `${layout.gridTop} vs ${rosterLayout({ kind: 'raid' }).gridTop}`,
-      )
-      // The hit test has to be asked the same question, or a tap in a
-      // battleground lands on a size tab that is no longer drawn.
-      const raidSizes = rosterLayout({ kind: 'raid' }).sizes[0]!
-      const stray = hitRoster(raidSizes.x + raidSizes.w / 2, raidSizes.y + raidSizes.h / 2, mode)
-      expect(
-        `${label}: and a tap where sizes used to be is not a size`,
-        stray?.kind !== 'size',
-        `${stray?.kind}`,
-      )
-    }
   }
+}
 
-  // And the party screen offers the modes, with the raid's dials hidden.
-  const layout = rosterLayout()
-  expect(`${label}: a tab per mode`, layout.modes.length === BATTLEGROUNDS.length + 1, `${layout.modes.length}`)
-  const answers = layout.modes.every((r, i) => {
-    const hit = hitRoster(r.x + r.w / 2, r.y + r.h / 2)
-    if (hit?.kind !== 'mode') return false
-    return i === 0 ? hit.mode.kind === 'raid' : hit.mode.kind === 'bg'
-  })
-  expect(`${label}: and they answer their own taps`, answers, 'a mode tab answered as something else')
-  drawRoster(stubCtx(), autoParty(5, pickFor('mage', 'dps')!), 'normal', 1.5, 0, 0, { kind: 'bg', bg: 'flags' })
+// --- the menu ---------------------------------------------------------------
+//
+// One question per screen, and every one of them has to be drawable and
+// answerable at every size. A control that draws but does not answer its own
+// tap is the failure this catches: the two come from one layout function so
+// they cannot disagree, and this is what holds that arrangement in place.
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+const collides = (a: Box, b: Box) =>
+  Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)) >
+  1
+
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['small portrait 360x640', 360, 640],
+  ['tiny portrait 320x568', 320, 568],
+] as const) {
+  updateLayout(w, h)
+  const onScreen = (r: Box) => r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h
+  const middle = (r: { x: number; y: number; w: number; h: number }) =>
+    [r.x + r.w / 2, r.y + r.h / 2] as const
+
+  // Home: three ways in, plus the record.
+  drawHome(stubCtx(), 1.5)
+  const home = homeLayout()
+  const homeRects = [...home.choices, home.record]
+  expect(`${label}: the front page fits`, homeRects.every(onScreen), JSON.stringify(homeRects))
+  expect(
+    `${label}: and nothing on it overlaps`,
+    homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
+    'two choices share space',
+  )
+  const answers = ['raid', 'battleground', 'settings'] as const
+  expect(
+    `${label}: each choice answers as itself`,
+    answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
+      hitHome(...middle(home.record)) === 'record',
+    `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
+  )
+
+  // Raid setup: boss, size, difficulty, and the way on.
+  drawRaidSetup(stubCtx(), 0, ENCOUNTERS.length - 1, 5, 'heroic')
+  drawRaidSetup(stubCtx(), 0, 0, 25, 'normal')
+  const raid = raidSetupLayout()
+  const raidRects = [...raid.bosses, ...raid.sizes, ...raid.difficulties, raid.back, raid.next]
+  expect(`${label}: the raid setup fits`, raidRects.every(onScreen), JSON.stringify(raidRects.filter((r) => !onScreen(r))))
+  expect(
+    `${label}: and its rows do not collide`,
+    raidRects.every((r, i) => raidRects.every((o, j) => i === j || !collides(r, o))),
+    'two raid controls share space',
+  )
+  expect(
+    `${label}: every raid control answers as itself`,
+    raid.bosses.every((r, i) => {
+      const hit = hitRaidSetup(...middle(r))
+      return hit?.kind === 'boss' && hit.index === i
+    }) &&
+      raid.sizes.every((r) => hitRaidSetup(...middle(r))?.kind === 'size') &&
+      raid.difficulties.every((r) => hitRaidSetup(...middle(r))?.kind === 'difficulty') &&
+      hitRaidSetup(...middle(raid.back))?.kind === 'back' &&
+      hitRaidSetup(...middle(raid.next))?.kind === 'next',
+    'a raid control answered as something else',
+  )
+
+  // Battleground: pick a map, and that is the whole screen.
+  drawBgSetup(stubCtx(), 'flags')
+  const bg = bgSetupLayout()
+  const bgRects = [...bg.maps, bg.back]
+  expect(`${label}: the battleground list fits`, bgRects.every(onScreen), JSON.stringify(bgRects))
+  expect(
+    `${label}: a map answers as that map`,
+    bg.maps.every((r, i) => {
+      const hit = hitBgSetup(...middle(r))
+      return hit?.kind === 'map' && hit.map === BATTLEGROUNDS[i]!.kind
+    }) && hitBgSetup(...middle(bg.back))?.kind === 'back',
+    'a map answered as something else',
+  )
+
+  // Settings: sound, and the volume it plays at.
+  drawSettings(stubCtx(), false, 1)
+  drawSettings(stubCtx(), true, 0)
+  const settings = settingsLayout()
+  const settingsRects = [settings.sound, ...settings.volumes, settings.back]
+  expect(`${label}: the settings fit`, settingsRects.every(onScreen), JSON.stringify(settingsRects))
+  expect(
+    `${label}: and do not collide`,
+    settingsRects.every((r, i) => settingsRects.every((o, j) => i === j || !collides(r, o))),
+    'two settings share space',
+  )
+  expect(
+    `${label}: one button per volume level`,
+    settings.volumes.length === VOLUME_NAMES.length,
+    `${settings.volumes.length}`,
+  )
+  expect(
+    `${label}: sound and volume answer as themselves`,
+    hitSettings(...middle(settings.sound))?.kind === 'sound' &&
+      settings.volumes.every((r, i) => {
+        const hit = hitSettings(...middle(r))
+        return hit?.kind === 'volume' && hit.level === i
+      }) &&
+      hitSettings(...middle(settings.back))?.kind === 'back',
+    'a setting answered as something else',
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
