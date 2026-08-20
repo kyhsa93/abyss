@@ -262,17 +262,40 @@ let graded = false
 
 let attempt = 0
 /** Every pull and every match is its own seed, so a rematch is not a replay. */
+/**
+ * How many battlegrounds have been started this session.
+ *
+ * A raid keys its seed off the pull count, because a raid is the same
+ * encounter learned over attempts and the ninth pull has to be the same fight
+ * as the first. A battleground is not learned — the terrain is rolled from the
+ * seed, and a map you have already walked is not the point of rolling one. So
+ * this counts entries rather than attempts, and going back to the party screen
+ * and pulling again gets a new map rather than the same one.
+ */
+let bgRolls = 0
+
 function newState(): SimState {
   if (mode.kind === 'bg') {
-    return createBattlegroundState(BASE_SEED + attempt * 7919, mode.bg, party)
+    return createBattlegroundState(BASE_SEED + bgRolls++ * 7919, mode.bg, party)
   }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
 }
 
 let state: SimState = newState()
-// The RNG lives outside the state but is derived from it, so a given
-// (seed, attempt) pair always replays identically.
-let rng = new Rng(BASE_SEED + attempt * 7919)
+/**
+ * The RNG lives outside the state but is derived from it, so a given
+ * (seed, attempt) pair always replays identically.
+ *
+ * A raid is keyed off the pull count and a battleground off its own seed,
+ * which is the seed its map was rolled from — otherwise the map and the fight
+ * on it would come from two different numbers and neither would reproduce the
+ * other.
+ */
+function rngFor(fight: SimState): Rng {
+  return new Rng(fight.mode === 'battleground' ? fight.seed : BASE_SEED + attempt * 7919)
+}
+
+let rng = rngFor(state)
 
 function restart(): void {
   attempt++
@@ -280,7 +303,7 @@ function restart(): void {
   graded = false
   announced = []
   state = newState()
-  rng = new Rng(BASE_SEED + attempt * 7919)
+  rng = rngFor(state)
 }
 
 /**
@@ -301,7 +324,7 @@ function nextBoss(): void {
   announced = []
   fightingEncounter = encounter
   state = newState()
-  rng = new Rng(BASE_SEED)
+  rng = rngFor(state)
   saveSetup()
 }
 
@@ -332,7 +355,7 @@ function startFight(): void {
     fightingEncounter = encounter
     fightingMode = mode
     state = newState()
-    rng = new Rng(BASE_SEED)
+    rng = rngFor(state)
   }
   recorded = false
   graded = false

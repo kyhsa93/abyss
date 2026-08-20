@@ -85,6 +85,7 @@ import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/enc
 import {
   BASE_RADIUS,
   BATTLEGROUNDS,
+  NODE_RADIUS,
   carrying,
   held,
   inTerrain,
@@ -3373,6 +3374,78 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const bg = s.bg!
 
   expect(`${kind}: the map has terrain`, bg.obstacles.length > 0, `${bg.obstacles.length}`)
+
+  // Rolled per match, so what has to hold is every roll rather than this one.
+  // Sixty of them: placement, spacing, symmetry, and that the map is still a
+  // map — a pair of rocks a body cannot fit between is a wall, and nothing
+  // here can path around a wall.
+  {
+    let bad = 0
+    let identical = 0
+    const shapes = new Set<string>()
+    for (let n = 0; n < 60; n++) {
+      const rolled = createBattlegroundState(2000 + n * 137, kind)
+      const map = rolled.bg!
+      shapes.add(map.obstacles.map((r) => `${r.pos.x.toFixed(0)},${r.pos.y.toFixed(0)},${r.radius.toFixed(0)}`).join('|'))
+
+      for (const rock of map.obstacles) {
+        if (Math.hypot(rock.pos.x, rock.pos.y) + rock.radius > ARENA_RADIUS - 10) bad++
+        if (map.nodes.some((node) => dist(rock.pos, node.pos) < NODE_RADIUS + rock.radius)) bad++
+        for (const team of ['blue', 'red'] as const) {
+          if (dist(rock.pos, map.bases[team]) < BASE_RADIUS + rock.radius) bad++
+          for (let i = 0; i < 5; i++) if (inTerrain(map, spawnPoint(map, team, i), 18)) bad++
+        }
+        // Mirrored, or one team has cover the other does not.
+        const twin = map.obstacles.find(
+          (o) =>
+            Math.abs(o.pos.x + rock.pos.x) < 0.01 &&
+            Math.abs(o.pos.y - rock.pos.y) < 0.01 &&
+            Math.abs(o.radius - rock.radius) < 0.01,
+        )
+        if (!twin) bad++
+      }
+      for (let i = 0; i < map.obstacles.length; i++) {
+        for (let j = i + 1; j < map.obstacles.length; j++) {
+          const a = map.obstacles[i]!
+          const b = map.obstacles[j]!
+          if (dist(a.pos, b.pos) - a.radius - b.radius < 40) bad++
+        }
+      }
+    }
+    if (shapes.size < 30) identical++
+
+    expect(`${kind}: every roll is a legal map`, bad === 0, `${bad} faults over 60 rolls`)
+    expect(`${kind}: and they are not the same map`, identical === 0, `${shapes.size} distinct layouts in 60`)
+  }
+
+  // Reachable, on rolls that are not this one: a body walking from its base
+  // has to arrive at every objective rather than leaning on a rock forever.
+  {
+    let stuck = 0
+    for (let n = 0; n < 12; n++) {
+      const rolled = createBattlegroundState(3000 + n * 137, kind)
+      rolled.countdown = 0
+      const walkRng = new Rng(3000 + n)
+      const map = rolled.bg!
+      const walker = rolled.actors.find((a) => a.isPlayer)!
+      const targets = kind === 'conquest' ? map.nodes.map((node) => node.pos) : [map.bases.red]
+
+      for (const target of targets) {
+        walker.pos = { ...map.bases.blue }
+        walker.prevPos = { ...walker.pos }
+        let ticks = 0
+        while (ticks < 1200 && dist(walker.pos, target) > 30) {
+          const dx = target.x - walker.pos.x
+          const dy = target.y - walker.pos.y
+          const gap = Math.hypot(dx, dy) || 1
+          step(rolled, { moveX: dx / gap, moveY: dy / gap, pressed: [] }, walkRng)
+          ticks++
+        }
+        if (dist(walker.pos, target) > 30) stuck++
+      }
+    }
+    expect(`${kind}: every objective stays reachable`, stuck === 0, `${stuck} unreachable objectives`)
+  }
 
   // Nothing may be placed on top of anything that has to be stood on.
   const onObjective = bg.obstacles.some(

@@ -1,4 +1,5 @@
 import { ARENA_RADIUS, DT } from './constants'
+import type { Rng } from './rng'
 import { dist } from './combat'
 import type { Actor, BgFlag, BgKind, BgState, Obstacle, SimState, Team, Vec2 } from './types'
 
@@ -83,30 +84,86 @@ export const CARRIER_SPEED = 0.82
 export const CARRIER_FRAGILITY = 1.25
 
 /**
- * The terrain, per battleground.
+ * The terrain, rolled per match.
  *
- * Placed to make a straight line the wrong answer without making any route
- * long: on the capture map a rock sits between each pair of points, so walking
- * from one to another commits you to a side and lets a defender see you choose
- * it. On the flag map two blocks split the middle into three lanes, which is
- * the difference between a carrier being chased and a carrier being cut off.
+ * Mirrored across the vertical axis rather than scattered freely. Both maps
+ * are left-right symmetric — two bases facing each other, three points in an
+ * isosceles triangle — so a rock that exists on one side and not the other is
+ * a rock that favours a team, and no amount of measuring afterwards would tell
+ * you which match it decided. A pair either side costs nothing and settles it.
  *
- * Nothing sits on a point, a base, or a spawn — a body that starts inside
- * terrain gets pushed out of it, and pushing five people out of one rock is a
- * scrum nobody asked for.
+ * The gaps are the part that matters. Rocks are kept apart from each other by
+ * more than a body is wide, and away from the arena wall by the same, because
+ * two rocks that touch make a concave shape and concave shapes need
+ * path-finding — which nothing here has. Sliding round a circle always ends;
+ * sliding into the crease between two of them does not.
  */
-const TERRAIN: Record<BgKind, Obstacle[]> = {
-  conquest: [
-    { pos: { x: -130, y: -30 }, radius: 62 },
-    { pos: { x: 130, y: -30 }, radius: 62 },
-    { pos: { x: 0, y: 210 }, radius: 54 },
-  ],
-  flags: [
-    { pos: { x: 0, y: -140 }, radius: 76 },
-    { pos: { x: 0, y: 140 }, radius: 76 },
-    { pos: { x: -190, y: 0 }, radius: 44 },
-    { pos: { x: 190, y: 0 }, radius: 44 },
-  ],
+const ROCK_MIN = 38
+const ROCK_MAX = 74
+
+/** A body is 17 across, so this is comfortably more than one abreast. */
+const LANE = 64
+
+function rollTerrain(kind: BgKind, bases: Record<Team, Vec2>, nodes: Vec2[], rng: Rng): Obstacle[] {
+  const rocks: Obstacle[] = []
+  // A flag map is mostly a corridor and wants fewer, larger blocks; a capture
+  // map has three places to be and can carry more between them.
+  const pairs = kind === 'flags' ? 2 : 2 + rng.int(2)
+  const centre = rng.chance(0.6)
+
+  const fits = (pos: Vec2, radius: number): boolean => {
+    // Inside the floor, with a lane to spare against the wall.
+    if (Math.hypot(pos.x, pos.y) + radius > ARENA_RADIUS - LANE) return false
+    // Never on something that has to be stood on.
+    for (const node of nodes) {
+      if (dist(pos, node) < NODE_RADIUS + radius + 24) return false
+    }
+    for (const team of ['blue', 'red'] as const) {
+      if (dist(pos, bases[team]) < BASE_RADIUS + radius + LANE) return false
+    }
+    // And a lane between it and everything already placed.
+    for (const rock of rocks) {
+      if (dist(pos, rock.pos) < rock.radius + radius + LANE) return false
+    }
+    return true
+  }
+
+  const place = (pos: Vec2, radius: number): boolean => {
+    if (!fits(pos, radius)) return false
+    rocks.push({ pos: { x: pos.x, y: pos.y }, radius })
+    return true
+  }
+
+  if (centre) {
+    for (let tries = 0; tries < 12; tries++) {
+      const radius = rng.range(ROCK_MIN, ROCK_MAX)
+      if (place({ x: 0, y: rng.range(-260, 260) }, radius)) break
+    }
+  }
+
+  for (let pair = 0; pair < pairs; pair++) {
+    for (let tries = 0; tries < 24; tries++) {
+      const radius = rng.range(ROCK_MIN, ROCK_MAX)
+      // Off the axis by at least a lane, or the pair would overlap itself.
+      const x = rng.range(LANE, ARENA_RADIUS - LANE * 2)
+      const y = rng.range(-ARENA_RADIUS + LANE, ARENA_RADIUS - LANE)
+      const right = { x, y }
+      const left = { x: -x, y }
+      if (!fits(right, radius) || !fits(left, radius)) continue
+      if (dist(right, left) < radius * 2 + LANE) continue
+      place(right, radius)
+      place(left, radius)
+      break
+    }
+  }
+
+  // A map with nothing on it is a fine roll; one with a wall across it is not,
+  // and the lane rules above are what stop the second from happening.
+  //
+  // Nothing is trimmed after the fact. Capping the list once meant cutting a
+  // pair in half, which left a rock on one side of the map with nothing facing
+  // it — the exact thing the mirroring is for.
+  return rocks
 }
 
 /**
@@ -189,13 +246,19 @@ export function living(s: SimState, team: Team): Actor[] {
   return s.actors.filter((a) => a.alive && teamOf(a) === team)
 }
 
-export function createBattleground(kind: BgKind): BgState {
+export function createBattleground(kind: BgKind, rng: Rng): BgState {
+  const bases: Record<Team, Vec2> = {
+    blue: { ...BASES.blue },
+    red: { ...BASES.red },
+  }
+  const nodes = kind === 'conquest' ? NODE_POSITIONS : []
+
   return {
     kind,
     score: { blue: 0, red: 0 },
     target: kind === 'conquest' ? CONQUEST_TARGET : FLAG_TARGET,
     timeLimit: kind === 'conquest' ? CONQUEST_LIMIT : FLAG_LIMIT,
-    obstacles: TERRAIN[kind].map((rock) => ({ pos: { ...rock.pos }, radius: rock.radius })),
+    obstacles: rollTerrain(kind, bases, nodes, rng),
     nodes:
       kind === 'conquest'
         ? NODE_POSITIONS.map((pos, i) => ({
@@ -215,7 +278,7 @@ export function createBattleground(kind: BgKind): BgState {
             red: flagAtHome('red'),
           }
         : { blue: flagAtHome('blue'), red: flagAtHome('red') },
-    bases: { blue: { ...BASES.blue }, red: { ...BASES.red } },
+    bases,
     respawn: {},
     assignment: {},
     objectives: {},

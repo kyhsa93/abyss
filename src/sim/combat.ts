@@ -1,6 +1,6 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
-import { CARRIER_FRAGILITY, carrying } from './battleground'
+import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
@@ -567,6 +567,10 @@ export function landAbility(
       const from = { x: actor.pos.x, y: actor.pos.y }
       actor.pos.x += (dx / gap) * landing
       actor.pos.y += (dy / gap) * landing
+      // A charge crosses the gap rather than walking it, so it is the one move
+      // that can end inside a rock. It stops against one instead: terrain that
+      // a cooldown ignores is terrain nobody has to respect.
+      clearTerrain(s.bg, actor.pos, actor.radius, (dx / gap) * landing, (dy / gap) * landing)
 
       // Running at something is the other way a warrior earns rage, and the
       // reason a charge opens a pull rather than waiting one out.

@@ -235,7 +235,9 @@ export function createBattlegroundState(
   const rng = new Rng(seed)
   const size = 5
   const slots = makeSlots(size)
-  const bg = createBattleground(kind)
+  // The terrain is rolled from the same seed as everything else, so a match
+  // replays with the map it was played on.
+  const bg = createBattleground(kind, rng)
 
   const blue = party.slice(0, size).map((pick, i) => {
     const actor = makeMember(i + 1, pick, slots[i]!, i === 0, 0)

@@ -335,12 +335,31 @@ because a boss puts hazards on the floor and the job is being somewhere else.
 A battleground has no hazards and no threat table. It has somewhere you are
 meant to be standing, and five people who would rather you were not.
 
-**There is terrain.** Rocks, drawn as raised discs, on both maps and neither
-raid — a boss fight puts its hazards on the floor and a second thing to walk
-around would only get in the way of them. On the capture map one sits between
-each pair of points, so crossing between them commits you to a side. On the
-flag map two blocks split the middle into three lanes, which is the difference
-between a carrier being chased and a carrier being cut off.
+**There is terrain, and it is rolled per match.** Rocks, drawn as raised
+discs, on both maps and neither raid — a boss fight puts its hazards on the
+floor and a second thing to walk around would only get in the way of them. A
+capture map gets four to seven, a flag map four or five, in a new arrangement
+every time you enter one.
+
+They are **mirrored across the vertical axis**, always. Both maps are
+left-right symmetric — two bases facing each other, three points in an
+isosceles triangle — so a rock on one side and not the other is a rock that
+favours a team, and nothing measured afterwards would tell you which match it
+decided. A pair either side costs nothing and settles it. Capping the list to
+a fixed count broke this the first time round: the cap cut a pair in half and
+left a block on one side of the map with nothing facing it.
+
+The gaps are the part that has to be right. Rocks are kept a lane apart from
+each other, from the arena wall, and from anything that has to be stood on,
+because two rocks that touch make a concave shape — and sliding round a circle
+always ends, while sliding into the crease between two of them does not. The
+check rolls sixty maps per battleground and asserts placement, spacing,
+symmetry and that the layouts actually differ, then walks a body from its base
+to every objective on twelve more and fails if it does not arrive.
+
+A battleground's seed counts entries rather than pulls, because a raid is the
+same encounter learned over attempts while a map you have already walked is
+not the point of rolling one.
 
 They are circles, and that is a decision rather than a shortcut. Everything
 here walks straight at what it wants, so the shape has to be one that a body
@@ -355,6 +374,11 @@ to be broken or it is a wall. It was a wall in the first version: pushing
 without sliding left a body re-walking into the same rock for thirty seconds,
 a quarter of the way to where it was going. The check walks something straight
 through a rock and fails if it does not come out the other side.
+
+A charge is the one move that crosses the gap rather than walking it, so it is
+the one that can end up inside a rock. It stops against one now: terrain a
+cooldown ignores is terrain nobody has to respect. That was two actor-ticks
+inside a block over one match, and only the check saw it.
 
 **Everyone is assigned a point and stays on it**, whoever owns it — holding
 one is defending it, so there is no separate "go and defend" rule. Five people
