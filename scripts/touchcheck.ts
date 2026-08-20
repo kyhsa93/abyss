@@ -205,6 +205,54 @@ key('keydown', '1')
 check('the ability keys are untouched', input.consume().pressed.join(',') === '0', 'slot 1 did not fire')
 key('keyup', '1')
 
+// --- the autocast toggle ----------------------------------------------------
+//
+// It sits above the rotation cluster, so it has to be reachable without being
+// in the way of the buttons a thumb is actually going for.
+for (const [label, w, h] of [
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['small portrait 360x640', 360, 640],
+  ['tiny portrait 320x568', 320, 568],
+] as const) {
+  updateLayout(w, h)
+  input.setMenuMode(false)
+
+  const auto = L.autoPos
+  const onScreen =
+    auto.x - L.autoR >= 0 && auto.x + L.autoR <= w && auto.y - L.autoR >= 0 && auto.y + L.autoR <= h
+  check(`${label}: the autocast toggle is on screen`, onScreen, `${auto.x.toFixed(0)},${auto.y.toFixed(0)} r=${L.autoR.toFixed(0)}`)
+  check(
+    `${label}: and clear of the steering half`,
+    auto.x - L.autoR > L.joyZoneMaxX,
+    `${(auto.x - L.autoR).toFixed(0)} vs ${L.joyZoneMaxX}`,
+  )
+  check(
+    `${label}: and clear of the rotation buttons`,
+    L.btnPos.every((b) => Math.hypot(b.x - auto.x, b.y - auto.y) > L.btnR + L.autoR),
+    'it sits on a rotation button',
+  )
+}
+
+// Pressing it toggles, and does not also press an ability.
+updateLayout(VIEW.w, VIEW.h)
+input.setMenuMode(false)
+{
+  const before = input.isAuto()
+  const heldBefore = new Set(input.heldSlots())
+  fire('pointerdown', L.autoPos.x, L.autoPos.y, 77)
+  const toggled = input.isAuto() !== before
+  const stray = [...input.heldSlots()].filter((slot) => !heldBefore.has(slot))
+  fire('pointerup', L.autoPos.x, L.autoPos.y, 77)
+
+  check('pressing autocast toggles it', toggled, `${before} -> ${input.isAuto()}`)
+  check('and does not press an ability', stray.length === 0, stray.join(','))
+
+  fire('pointerdown', L.autoPos.x, L.autoPos.y, 78)
+  fire('pointerup', L.autoPos.x, L.autoPos.y, 78)
+  check('and pressing it again turns it back', input.isAuto() === before, `${input.isAuto()}`)
+}
+
 // --- the corner cluster shares its hit radii --------------------------------
 //
 // The hit radius is wider than the button, so a thumb landing beside one still

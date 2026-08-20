@@ -74,6 +74,7 @@ import {
   CHARGE_RAGE,
   COUNTDOWN,
   COUNTDOWN_TICKS,
+  GLOBAL_COOLDOWN,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   MELEE_RANGE,
@@ -85,6 +86,7 @@ import { BATTLEGROUNDS, carrying, held, living, teamOf } from '../src/sim/battle
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
+import { autoPress } from '../src/sim/autocast'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
@@ -3347,6 +3349,155 @@ for (const [label, w, h] of [
       hitSettings(...middle(settings.back))?.kind === 'back',
     'a setting answered as something else',
   )
+}
+
+// --- autocast ---------------------------------------------------------------
+//
+// It presses the player's own bar for them, so the one thing it must never do
+// is press something the bar would have drawn as unusable — a rotation that
+// fires through cooldowns is not help, it is a different game.
+{
+  const s = pulled(0x51ed, 8, autoParty(5, pickFor('mage', 'dps')!))
+  const rng = new Rng(0x51ed)
+  const player = s.actors.find((a) => a.isPlayer)!
+  const bar = abilityBar({ classId: player.classId, spec: player.spec })
+
+  // Nothing before the pull starts.
+  const waiting = pulled(0x51ed, 0)
+  waiting.countdown = 30
+  expect('autocast waits for the pull', autoPress(waiting).length === 0, `${autoPress(waiting)}`)
+
+  let presses = 0
+  let illegal = 0
+  let ticks = 0
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+    const pressed = autoPress(s)
+    presses += pressed.length
+
+    for (const slot of pressed) {
+      const id = bar[slot]
+      const ability = id ? ABILITIES[id] : undefined
+      // Every press has to be one the bar itself would light up.
+      if (!ability) illegal++
+      else if (slotStatus(s, player, ability.id) !== 'ready') illegal++
+    }
+    // Never more than one thing per tick: the global cooldown makes the second
+    // one a wasted press, and two heals on one tick is two heals paid for.
+    if (pressed.length > 1) illegal++
+
+    // Walked toward the boss rather than left at the spawn: autocast refuses
+    // anything out of range, and a caster standing where it started is out of
+    // range for most of a fight. Standing still measures the walk, not the
+    // rotation.
+    const boss = s.actors[s.actors.length - 1]!
+    const dx = boss.pos.x - player.pos.x
+    const dy = boss.pos.y - player.pos.y
+    const gap = Math.hypot(dx, dy)
+    const closing = gap > 200
+    step(
+      s,
+      { moveX: closing ? dx / gap : 0, moveY: closing ? dy / gap : 0, pressed },
+      rng,
+    )
+    ticks++
+  }
+
+  // Roughly a press per global cooldown, allowing for the ones spent moving,
+  // dead or waiting on a cast.
+  const globals = ticks / (GLOBAL_COOLDOWN * 30)
+  expect(
+    'autocast presses on most globals',
+    presses > globals * 0.5,
+    `${presses} presses over ${globals.toFixed(0)} globals`,
+  )
+  expect('and never an unusable one', illegal === 0, `${illegal} illegal presses`)
+  expect(
+    'and the fight resolves',
+    s.outcome !== 'ongoing',
+    `${s.outcome} at ${s.time.toFixed(0)}s`,
+  )
+
+  // It has to be worth turning on. The same seeds, the same party, against the
+  // stand-in that presses one button on a loop.
+  const played = (auto: boolean) => {
+    let damage = 0
+    for (let n = 0; n < 6; n++) {
+      const seed = 1000 + n * 137
+      const run = pulled(seed, 8, autoParty(5, pickFor('mage', 'dps')!))
+      const runRng = new Rng(seed)
+      let tick = 0
+      while (run.outcome === 'ongoing' && run.time < encounterAt(run.encounter).enrage + 60) {
+        const pressed = auto ? autoPress(run) : tick % 45 === 0 ? [0] : []
+        // Both sides walk the same way, so the comparison is about the presses.
+        const own = run.actors.find((a) => a.isPlayer)!
+        const target = run.actors[run.actors.length - 1]!
+        const dx = target.pos.x - own.pos.x
+        const dy = target.pos.y - own.pos.y
+        const gap = Math.hypot(dx, dy) || 1
+        const closing = gap > 200
+        step(
+          run,
+          { moveX: closing ? dx / gap : 0, moveY: closing ? dy / gap : 0, pressed },
+          runRng,
+        )
+        tick++
+      }
+      const own = run.actors.find((a) => a.isPlayer)!
+      damage += run.tally[own.id]?.damage ?? 0
+    }
+    return damage
+  }
+  const manual = played(false)
+  const auto = played(true)
+  expect('and beats mashing one button', auto > manual * 1.2, `${auto} vs ${manual}`)
+
+  // A healer, asked directly rather than by playing a whole fight: a scripted
+  // healer that never dodges is dead twenty seconds in, and what that measures
+  // is standing still.
+  {
+    const healed = pulled(0x51ed, 0, autoParty(5, pickFor('priest', 'healer')!))
+    healed.countdown = 0
+    const medic = healed.actors.find((a) => a.isPlayer)!
+    const bar = abilityBar({ classId: medic.classId, spec: medic.spec })
+    const kit = specOf({ classId: medic.classId, spec: medic.spec }).abilities
+    const patient = healed.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+    patient.pos = { ...medic.pos }
+
+    expect('a healer with nobody hurt presses nothing', autoPress(healed).length === 0, `${autoPress(healed)}`)
+
+    patient.hp = patient.maxHp * 0.7
+    const routine = autoPress(healed)
+    expect(
+      'a hurt ally gets the routine heal',
+      routine.length === 1 && bar[routine[0]!] === kit.filler,
+      `${routine.map((i) => bar[i]).join(',')}`,
+    )
+
+    patient.hp = patient.maxHp * 0.2
+    const urgent = autoPress(healed)
+    expect(
+      'and a dying one gets the big one',
+      urgent.length === 1 && bar[urgent[0]!] === kit.finisher,
+      `${urgent.map((i) => bar[i]).join(',')}`,
+    )
+
+    // Whatever it wants, it cannot press through a cooldown.
+    medic.cooldowns[kit.finisher!] = 8
+    const afterCooldown = autoPress(healed)
+    expect(
+      'a cooldown is not pressed through',
+      afterCooldown.every((i) => bar[i] !== kit.finisher),
+      `${afterCooldown.map((i) => bar[i]).join(',')}`,
+    )
+
+    medic.gcd = 1
+    expect('nor a global', autoPress(healed).length === 0, `${autoPress(healed)}`)
+    medic.gcd = 0
+
+    // Out of range is out of range, even for a heal.
+    patient.pos = { x: 4000, y: 4000 }
+    expect('and not across the map', autoPress(healed).length === 0, `${autoPress(healed)}`)
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

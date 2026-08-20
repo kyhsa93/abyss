@@ -113,8 +113,10 @@ export function meterRect(touch: boolean): Rect {
   const rows = L.h > 560 ? 5 : 3
   const h = (rows + 2) * 13 * L.ui + 10
 
-  const buttonTop = Math.min(...L.btnPos.map((b) => b.y)) - L.btnR
-  const buttonLeft = Math.min(...L.btnPos.map((b) => b.x)) - L.btnR
+  // The autocast toggle counts as a control: it sits above the cluster, so
+  // reading only the cluster would put the meter on top of it.
+  const buttonTop = Math.min(L.autoPos.y - L.autoR, ...L.btnPos.map((b) => b.y - L.btnR))
+  const buttonLeft = Math.min(L.autoPos.x - L.autoR, ...L.btnPos.map((b) => b.x - L.btnR))
 
   const right = touch && !L.portrait ? buttonLeft - 10 : L.w - 10
   const bottom = L.portrait
@@ -132,6 +134,10 @@ export interface TouchView {
   active: boolean
   joystick: JoystickView | null
   heldSlots: ReadonlySet<number>
+  /** Whether the rotation is being pressed for the player. */
+  auto?: boolean
+  /** The slot autocast is pressing this instant, for the button's own glow. */
+  autoSlot?: number | null
 }
 
 function font(size: number, bold = false): string {
@@ -1003,6 +1009,8 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
     ctx.stroke()
   }
 
+  drawAutoButton(ctx, touch.auto === true)
+
   const bar = abilityBar({ classId: player.classId, spec: player.spec })
   for (let i = 0; i < bar.length && i < L.btnPos.length; i++) {
     const id = bar[i]!
@@ -1036,6 +1044,31 @@ function drawTouchControls(ctx: CanvasRenderingContext2D, s: SimState, touch: To
       fitText(ctx, ability.name, bx, cy + L.btnR * 0.62, L.btnR * 1.8, 9)
     }
   }
+}
+
+/**
+ * The autocast toggle.
+ *
+ * Above the rotation cluster and a little smaller, because it is set once a
+ * fight rather than pressed during one. Lit when it is on, since a control
+ * that is quietly doing your rotation for you had better say so.
+ */
+function drawAutoButton(ctx: CanvasRenderingContext2D, on: boolean): void {
+  const { x, y } = L.autoPos
+  const r = L.autoR
+
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.fillStyle = on ? 'rgba(74, 222, 128, 0.22)' : 'rgba(15, 17, 26, 0.6)'
+  ctx.fill()
+  ctx.strokeStyle = on ? COLORS.player : 'rgba(148, 163, 184, 0.5)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = on ? COLORS.player : COLORS.textDim
+  ctx.font = font(9, true)
+  ctx.fillText('AUTO', x, y + r * 0.12)
 }
 
 function drawPartyButton(ctx: CanvasRenderingContext2D): void {

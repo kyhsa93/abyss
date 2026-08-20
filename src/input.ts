@@ -21,6 +21,7 @@ export class Input {
   private restartRequested = false
   private menuRequested = false
   private muteRequested = false
+  private auto = readAuto()
   // Detected up front, not on first touch: otherwise a phone shows no controls
   // at all until the player happens to poke the screen.
   private touchMode = hasTouch()
@@ -84,6 +85,14 @@ export class Input {
     this.tapPoint = { x: p.x, y: p.y }
 
     if (this.menuMode) return
+
+    // The autocast toggle is checked before the rotation buttons: it sits
+    // above them and a thumb that lands on it wanted it.
+    if (this.touchMode && Math.hypot(p.x - L.autoPos.x, p.y - L.autoPos.y) <= L.autoR * 1.3) {
+      e.preventDefault()
+      this.setAuto(!this.auto)
+      return
+    }
 
     const slot = hitButton(p.x, p.y)
     if (slot !== null) {
@@ -209,6 +218,20 @@ export class Input {
     return this.pressedSlots
   }
 
+  /** Whether the rotation is being pressed for the player. */
+  isAuto(): boolean {
+    return this.auto
+  }
+
+  setAuto(on: boolean): void {
+    this.auto = on
+    try {
+      localStorage.setItem(AUTO_KEY, on ? '1' : '0')
+    } catch {
+      // Private browsing is not worth failing over.
+    }
+  }
+
   takeMuteRequest(): boolean {
     const value = this.muteRequested
     this.muteRequested = false
@@ -281,6 +304,16 @@ function hitButton(x: number, y: number): number | null {
     }
   }
   return best
+}
+
+const AUTO_KEY = 'abyss.autocast'
+
+function readAuto(): boolean {
+  try {
+    return localStorage.getItem(AUTO_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 function hasTouch(): boolean {

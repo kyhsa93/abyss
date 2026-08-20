@@ -114,6 +114,9 @@ export interface Layout {
   /** Centre of every action button, in press order. */
   btnPos: Array<{ x: number; y: number }>
   btnR: number
+  /** The autocast toggle, above the cluster. Touch only. */
+  autoPos: { x: number; y: number }
+  autoR: number
   btnHit: number
 }
 
@@ -162,6 +165,11 @@ export function computeLayout(w: number, h: number): Layout {
    * itself — the easiest place on a phone to reach.
    */
   const row = btnGap * 0.87
+  // Above the cluster and slightly smaller: it is a thing you set once a
+  // fight, not a thing you press, so it should not sit in the path of a thumb
+  // going for its rotation.
+  const autoR = btnR * 0.82
+  const autoPos = { x: btnX - btnGap, y: btnBottom - row * 2 - 4 }
   const btnPos = [
     { x: btnX, y: btnBottom },
     { x: btnX - btnGap, y: btnBottom },
@@ -211,6 +219,8 @@ export function computeLayout(w: number, h: number): Layout {
 
     btnPos,
     btnR,
+    autoPos,
+    autoR,
     btnHit: btnR * 1.32,
   }
 }

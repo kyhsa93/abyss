@@ -83,6 +83,26 @@ a raid game's standard layout. On touch there is a `party` button under the
 fight readout. Leaving without changing anything keeps your pull count, since
 the AI's learning is tied to how many times *these* five have pulled.
 
+**`AUTO` presses your rotation for you.** A toggle above the ability cluster,
+touch only, remembered between visits. On a phone both thumbs are already
+spoken for — one steers, the other is on the buttons — and a fight that asks
+you to dodge a ring *and* keep a three-button rotation going is a fight where
+one of the two quietly stops happening. With it on, the other thumb is about
+position, which is the half of the game the screen is actually showing.
+
+It reads the same state the buttons draw from, so it can never press something
+the bar would have shown as unusable: nothing through a cooldown, nothing on a
+global, nothing mid-cast, nothing out of range, and one press per tick rather
+than two. It also presses only what is *on* the bar — the party AI's healers
+fill spare globals with damage, but that ability is not on a player's bar at
+all, so a healer with nobody hurt presses nothing rather than reaching for a
+button the screen never offered.
+
+Against the harness's old stand-in, which mashes one button on a loop, at the
+ninth pull: a mage deals 7.6k rather than 4.4k and wins 67% of pulls rather
+than 42%; a rogue deals 2.9k rather than 0.4k. It is worse than playing well
+and much better than a thumb that is busy steering.
+
 Sound lives on the settings screen rather than in the corner of the fight:
 on/off, and a volume in three steps, which plays a note as you pick it because
 a setting you cannot hear is one you cannot set. The `M` key still works

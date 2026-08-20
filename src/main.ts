@@ -29,6 +29,7 @@ import { COLORS, L, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
+import { autoPress } from './sim/autocast'
 import {
   CLASSES,
   DEFAULT_PARTY,
@@ -540,7 +541,12 @@ function frame(now: number): void {
 
   let ticks = 0
   while (timing.accumulator >= DT && ticks < MAX_CATCHUP_TICKS) {
-    step(state, input.consume(), rng)
+    const player = input.consume()
+    // Autocast adds to what was pressed rather than replacing it: a thumb on a
+    // button while it is on should still get that button, and pressing the
+    // same slot twice in a tick is not a thing the simulation minds.
+    if (input.isAuto()) player.pressed = [...player.pressed, ...autoPress(state)]
+    step(state, player, rng)
     sfx.playAll(state.sounds)
     effects.ingest(state)
     timing.accumulator -= DT
@@ -598,6 +604,7 @@ function frame(now: number): void {
       active: input.isTouchMode(),
       joystick: input.joystick(),
       heldSlots: input.heldSlots(),
+      auto: input.isAuto(),
     },
   )
   hints.draw(ctx)
