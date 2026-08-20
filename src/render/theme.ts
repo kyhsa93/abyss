@@ -141,24 +141,33 @@ export function computeLayout(w: number, h: number): Layout {
   const mapX = w - mapR - 10
   const mapY = topBand + 8 + mapR
 
-  const btnR = clamp(Math.min(w, h) * 0.062, 34, 52)
+  const btnR = clamp(Math.min(w, h) * 0.031, 17, 26)
   const joyBase = clamp(Math.min(w, h) * 0.105, 58, 92)
 
   const btnX = w - btnR - 14
-  const btnGap = btnR * 2.35
+  const btnGap = btnR * 2.2
   const btnBottom = h - btnR - (portrait ? 26 : 18)
 
-  // Three up the right edge, then a second column beside them rather than a
-  // taller stack. Four rows would reach back up into the arena on a phone —
-  // the column is already nine button-radii tall — and the corner is the
-  // easiest place for a thumb to get to anyway. The inner column still has to
-  // clear the left half of the screen, which belongs to the stick.
+  /**
+   * Five buttons gathered into the bottom right corner, in two offset rows.
+   *
+   * They used to run up the right edge — three in a column with two beside
+   * them — which is a shape a thumb travels rather than covers: the column
+   * alone stood nine button-radii tall and the top of it was most of the way
+   * up the arena. Two rows of a hexagonal cluster keep every button inside one
+   * thumb's arc, and the offset is what stops it reading as a row of buttons
+   * you have to aim along.
+   *
+   * The order is the order they are pressed in, so slot one is the corner
+   * itself — the easiest place on a phone to reach.
+   */
+  const row = btnGap * 0.87
   const btnPos = [
-    { x: btnX, y: btnBottom - btnGap * 2 },
-    { x: btnX, y: btnBottom - btnGap },
     { x: btnX, y: btnBottom },
     { x: btnX - btnGap, y: btnBottom },
-    { x: btnX - btnGap, y: btnBottom - btnGap },
+    { x: btnX - btnGap * 2, y: btnBottom },
+    { x: btnX - btnGap * 0.5, y: btnBottom - row },
+    { x: btnX - btnGap * 1.5, y: btnBottom - row },
   ]
 
   return {

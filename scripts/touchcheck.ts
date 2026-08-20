@@ -146,6 +146,7 @@ for (const [label, w, h] of [
   )
   check(`${label}: ${L.btnPos.length} buttons do not overlap`, collisions.length === 0, where)
 
+
   // The camera follows the player, so the arena is no longer pinned anywhere
   // and "does the floor fit" is not the question any more. What has to hold
   // is that the player's own token is drawn at the middle of the viewport,
@@ -203,6 +204,44 @@ key('keyup', 'e')
 key('keydown', '1')
 check('the ability keys are untouched', input.consume().pressed.join(',') === '0', 'slot 1 did not fire')
 key('keyup', '1')
+
+// --- the corner cluster shares its hit radii --------------------------------
+//
+// The hit radius is wider than the button, so a thumb landing beside one still
+// counts. Gathered into a corner those radii overlap each other, and the hit
+// test used to return the first match — which handed every shared pixel to the
+// lowest slot, so slot one ate the inner edge of its neighbours.
+updateLayout(VIEW.w, VIEW.h)
+input.setMenuMode(false)
+{
+  const sorted = L.btnPos.map((b, i) => ({ b, i })).sort((p, q) => q.b.x - p.b.x)
+  const first = sorted[0]!
+  const second = sorted[1]!
+  const shared = Math.hypot(first.b.x - second.b.x, first.b.y - second.b.y) < L.btnHit * 2
+
+  // The difference this press makes, not everything held: earlier checks in
+  // this file leave a slot down, and reading the whole set would report theirs.
+  const press = (t: number): number | undefined => {
+    const x = first.b.x + (second.b.x - first.b.x) * t
+    const y = first.b.y + (second.b.y - first.b.y) * t
+    const before = new Set(input.heldSlots())
+    fire('pointerdown', x, y, 90)
+    const added = [...input.heldSlots()].filter((slot) => !before.has(slot))
+    fire('pointerup', x, y, 90)
+    return added[0]
+  }
+
+  // Both fractions have to land where the two radii actually overlap, or the
+  // check proves nothing: outside it only one button is in reach and taking
+  // the first match gives the same answer as taking the nearest.
+  const gap = Math.hypot(first.b.x - second.b.x, first.b.y - second.b.y)
+  const both = (t: number) => gap * t <= L.btnHit && gap * (1 - t) <= L.btnHit
+
+  check('the two nearest buttons share hit radii', shared, 'they do not, so this proves nothing')
+  check('and the test presses land in the shared part', both(0.45) && both(0.55), `gap ${gap.toFixed(0)}, hit ${L.btnHit.toFixed(0)}`)
+  check('a press just past halfway goes to the far one', press(0.55) === second.i, `${press(0.55)} wanted ${second.i}`)
+  check('and just short of it stays with the near one', press(0.45) === first.i, `${press(0.45)} wanted ${first.i}`)
+}
 
 if (failures > 0) throw new Error(`${failures} touch check(s) failed`)
 console.log('all touch checks passed')

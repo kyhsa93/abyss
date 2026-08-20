@@ -259,12 +259,28 @@ const ABILITY_KEYS = new Map(
   Array.from({ length: BAR_SLOTS }, (_, i) => [String(i + 1), i] as const),
 )
 
+/**
+ * Nearest button, not the first one that fits.
+ *
+ * The hit radius is wider than the buttons are, so that a thumb landing beside
+ * one still counts — and once they were gathered into a corner cluster those
+ * radii started to overlap each other. Taking the first match meant the
+ * lowest-numbered button won every shared pixel, so slot one ate the edge of
+ * its neighbours. Nearest puts the boundary halfway between them, which is
+ * where a person would expect it.
+ */
 function hitButton(x: number, y: number): number | null {
+  let best: number | null = null
+  let bestGap = Infinity
   for (let i = 0; i < BAR_SLOTS && i < L.btnPos.length; i++) {
     const b = L.btnPos[i]!
-    if (Math.hypot(x - b.x, y - b.y) <= L.btnHit) return i
+    const gap = Math.hypot(x - b.x, y - b.y)
+    if (gap <= L.btnHit && gap < bestGap) {
+      bestGap = gap
+      best = i
+    }
   }
-  return null
+  return best
 }
 
 function hasTouch(): boolean {

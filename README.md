@@ -99,9 +99,27 @@ used to be a flat 108-150 by 46-70 whatever the screen and whatever the raid,
 which was a five-man's frames worn by a twenty-five man and ran two screens
 off the bottom.
 
+**The ability buttons are a corner cluster, not a column.** Five of them in
+two offset rows, half the size they were, tucked into the bottom right — the
+whole group is 109 by 67 pixels and every one of them is inside a single
+thumb's arc. They used to run up the right edge, three in a column with two
+beside it, which is a shape a thumb travels rather than covers: the column
+alone stood nine button-radii tall and its top reached most of the way up the
+arena. The offset second row is what keeps it from reading as a line of
+buttons you have to aim along.
+
+Small buttons need a hit radius wider than they are, and once they were this
+close together those radii started to overlap. A press goes to the *nearest*
+button rather than the first one it lands inside — taking the first match
+handed every shared pixel to the lowest-numbered slot, so slot one quietly ate
+the inner edge of its neighbours. The touch check presses either side of the
+midpoint between the two closest buttons, and first asserts that both presses
+land where the radii actually overlap, since outside it the two rules give the
+same answer and the check would prove nothing.
+
 On a touch device the controls are there from the start: a translucent stick
-on the left that relocates to wherever you press, ability buttons down the
-right edge, and the buttons on the end-of-fight overlay — two of them, or
+on the left that relocates to wherever you press, the ability buttons gathered
+into the bottom right corner, and the buttons on the end-of-fight overlay — two of them, or
 three after a kill with a boss still to come (a battleground has no third
 button: there is nothing after it to go on to). Only those answer a tap there:
 the rest of that screen is the report, and reading it used to start the next
