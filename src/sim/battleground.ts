@@ -45,7 +45,14 @@ const CONQUEST_LIMIT = 300
 
 export const BASE_RADIUS = 80
 const FLAG_PICKUP = 46
-const FLAG_RESET = 15
+/**
+ * How long a dropped flag waits before returning itself.
+ *
+ * Was fifteen, which is a long time to spend unable to score when the rule is
+ * that you cannot score while yours is out. Five keeps a dropped flag worth
+ * running to without letting one loose flag lock the match.
+ */
+const FLAG_RESET = 5
 const FLAG_TARGET = 3
 const FLAG_LIMIT = 360
 
@@ -56,6 +63,24 @@ const BASES: Record<Team, Vec2> = {
   blue: { x: -ARENA_RADIUS + 90, y: 0 },
   red: { x: ARENA_RADIUS - 90, y: 0 },
 }
+
+/** Whether this actor is currently carrying the other team's flag. */
+export function carrying(s: SimState, actor: Actor): boolean {
+  const bg = s.bg
+  if (!bg || bg.kind !== 'flags') return false
+  return bg.flags.blue.carrierId === actor.id || bg.flags.red.carrierId === actor.id
+}
+
+/**
+ * What carrying it costs.
+ *
+ * Nothing, before this — so a carrier was no easier to catch than anyone else,
+ * and with both flags out almost permanently neither side could ever score.
+ * A carrier is slower and takes more, which is what turns "kill the carrier"
+ * from a suggestion into something that happens.
+ */
+export const CARRIER_SPEED = 0.82
+export const CARRIER_FRAGILITY = 1.25
 
 export function teamOf(actor: Actor): Team {
   return actor.faction === 'party' ? 'blue' : 'red'
@@ -189,11 +214,22 @@ function updateNodes(s: SimState, bg: BgState): void {
     const red = living(s, 'red').filter((a) => dist(a.pos, node.pos) <= node.radius).length
 
     node.contested = blue > 0 && red > 0
-    if (node.contested || (blue === 0 && red === 0)) continue
+    if (blue === 0 && red === 0) continue
 
-    const crowd = Math.max(blue, red) - 1
-    const rate = CAPTURE_RATE + Math.min(CAPTURE_CROWD_MAX, crowd * CAPTURE_CROWD)
-    const toward = blue > 0 ? 1 : -1
+    // Numbers count on a contested point rather than freezing it. Freezing it
+    // meant a fight on the circle stopped the circle, and with a healer on
+    // each side those fights do not resolve: the bar sat still for a third of
+    // every match and pushing harder changed nothing anybody could see.
+    // Even numbers still stop it — that is a fight, not a capture — but three
+    // against one moves, at half speed, because bringing more people is
+    // supposed to be the answer to a point you do not hold.
+    const lead = blue - red
+    if (lead === 0) continue
+
+    const crowd = Math.abs(lead) - 1
+    let rate = CAPTURE_RATE + Math.min(CAPTURE_CROWD_MAX, crowd * CAPTURE_CROWD)
+    if (node.contested) rate *= 0.5
+    const toward = lead > 0 ? 1 : -1
     node.progress = Math.max(-1, Math.min(1, node.progress + toward * rate * DT))
 
     // A point pays only at the extreme, so taking one off the other team

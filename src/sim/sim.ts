@@ -2,7 +2,13 @@ import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
 import { updateBattlegroundAi } from './bgai'
-import { teamOf, other as otherTeam, updateBattleground } from './battleground'
+import {
+  CARRIER_SPEED,
+  carrying,
+  teamOf,
+  other as otherTeam,
+  updateBattleground,
+} from './battleground'
 import { resolveBossCast, updateBoss, updateGround } from './boss'
 import {
   AURA_TICK,
@@ -233,7 +239,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
 
   const len = Math.hypot(input.moveX, input.moveY)
   if (len > 0.01) {
-    const stepLen = player.moveSpeed * DT
+    const stepLen = player.moveSpeed * DT * (carrying(s, player) ? CARRIER_SPEED : 1)
     player.pos.x += (input.moveX / len) * stepLen
     player.pos.y += (input.moveY / len) * stepLen
     clampToArena(player.pos, player.radius)

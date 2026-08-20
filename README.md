@@ -209,18 +209,39 @@ party screen's first row picks what PULL does: the raid, or one of these.
 | The Three Cairns | hold ground, and the clock does the rest | 400 points, or 300s |
 | Ebb and Flow | carry theirs home while yours is still standing | 3 captures, or 360s |
 
-A point is taken by standing on it with nobody else standing on it, four
-seconds from neutral and eight from the other team's. It pays only at the far
-end of that bar, so pulling one back off them costs the whole thing and a
-defender left behind is worth leaving. Both teams on it freezes it rather than
-fighting over it — the fight on top of it decides who is still standing, which
-is the same answer arrived at honestly.
+A point is taken by standing on it, four seconds from neutral and eight from
+the other team's. It pays only at the far end of that bar, so pulling one back
+off them costs the whole thing and a defender left behind is worth leaving.
+
+Even numbers on a point stop it — that is a fight, not a capture — but three
+against one still moves it, at half speed. Freezing a contested point outright
+was the first thing that had to go: a fight on the circle stopped the circle,
+and with a healer on each side those fights do not resolve, so the bar sat
+still through a third of every match and pushing harder changed nothing
+anybody could see.
 
 A flag is taken by walking onto it and scored by carrying it to your own base,
 **and only while your own flag is still at home.** Otherwise two carriers pass
 each other in the middle and the match is a footrace. A carrier who dies drops
 it where they fell; your own dropped flag goes back the moment a teammate
-touches it, and returns itself after fifteen seconds if nobody does.
+touches it, and returns itself after five seconds if nobody does.
+
+That rule locks a match solid unless something breaks the tie, and the first
+version had nothing that did. Both flags were out 89% of the time — neither
+side able to score, for stretches of nearly four minutes — because both teams
+leave at the same moment, both take a flag, and then nothing changes: a
+carrier was no easier to catch than anyone else, only the tank and the healer
+went to fetch ours back, and three dealers escorted a carrier who had nowhere
+to score. Three things fixed it. **Carrying it is a handicap** — eighteen
+percent slower and a quarter more damage taken, so killing a carrier is
+something that happens rather than something you suggest. **A dropped flag
+returns in five seconds** rather than fifteen. And when both flags are out,
+**everyone but one escort goes to get ours back**, since standing still is a
+loss for both sides.
+
+Both flags out is still the usual state, at 76%, but it is now a state a match
+passes through rather than sits in: the longest anybody goes without scoring
+fell from 235 seconds to 74, and an average match from 181 seconds to 81.
 
 The dead come back after twelve seconds at their own base. A battleground
 where they do not is a deathmatch with extra reading — the first team to win a
@@ -695,12 +716,12 @@ fair" and "does playing well matter" are different questions:
 
 | | player | win% | avg time |
 | --- | --- | --- | --- |
-| The Three Cairns | driven by the AI | 47% | 121s |
-| The Three Cairns | walks objectives, presses its filler | 20% | 125s |
-| The Three Cairns | stands at the spawn | 0% | 117s |
-| Ebb and Flow | driven by the AI | 27% | 187s |
-| Ebb and Flow | walks objectives, presses its filler | 37% | 176s |
-| Ebb and Flow | stands at the spawn | 17% | 188s |
+| The Three Cairns | driven by the AI | 47% | 100s |
+| The Three Cairns | walks objectives, presses its filler | 20% | 113s |
+| The Three Cairns | stands at the spawn | 0% | 96s |
+| Ebb and Flow | driven by the AI | 27% | 85s |
+| Ebb and Flow | walks objectives, presses its filler | 33% | 95s |
+| Ebb and Flow | stands at the spawn | 10% | 69s |
 
 The first row is the fairness check — the player's slot reasoning like
 everyone else, so anything far from even is a rule that favours a side rather

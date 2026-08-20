@@ -2,7 +2,7 @@ import { ABILITIES } from './abilities'
 import { specOf } from './classes'
 import { beginCast, dist, getAura, interruptCast } from './combat'
 import { DT, MELEE_RANGE, SPELL_RANGE } from './constants'
-import { NODE_RADIUS, living, other, teamOf } from './battleground'
+import { CARRIER_SPEED, NODE_RADIUS, carrying, living, other, teamOf } from './battleground'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
 import type { Actor, AuraId, BgState, SimState, Team, Vec2 } from './types'
@@ -103,17 +103,27 @@ function objective(s: SimState, bg: BgState, actor: Actor, target: Actor | null)
     // Carrying it: go home, and nothing else matters.
     if (theirs.carrierId === actor.id) return free(bg.bases[team])
 
-    // Our flag is out. Somebody has to go and get it, and a team that all
-    // goes is a team with nobody on offence — so it is the tank's job when
-    // there is one up, and everyone's when there is not.
+    // Our flag is out, so nothing we do on offence can score until it is
+    // back. Who goes depends on whether we are also holding theirs.
     if (ours.state !== 'home') {
       const carrier = ours.carrierId
         ? s.actors.find((a) => a.id === ours.carrierId && a.alive)
         : null
-      const chaseIsMine = actor.role === 'tank' || actor.role === 'healer'
+
+      // Both flags out is the state that used to lock a match solid: neither
+      // side can cap, and only the tank and the healer were going to do
+      // anything about it while three dealers escorted a carrier who had
+      // nowhere to score. Standing still is a loss for both sides, so when we
+      // already hold theirs, everyone but one escort goes to get ours back.
+      const weHoldTheirs =
+        theirs.state === 'carried' &&
+        s.actors.some((a) => a.id === theirs.carrierId && a.alive && teamOf(a) === team)
+      const escort = weHoldTheirs && actor.role === 'healer'
+      const chaseIsMine = weHoldTheirs ? !escort : actor.role === 'tank' || actor.role === 'healer'
+
       if (carrier) {
         if (chaseIsMine) return free(carrier.pos)
-      } else if (ours.state === 'dropped') {
+      } else if (ours.state === 'dropped' && chaseIsMine) {
         return free(ours.pos)
       }
     }
@@ -256,7 +266,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   }
   ai.moveTarget = { x: target.x, y: target.y }
 
-  const step = actor.moveSpeed * DT
+  const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1)
   actor.pos.x += ((target.x - actor.pos.x) / d) * step
   actor.pos.y += ((target.y - actor.pos.y) / d) * step
   clampToArena(actor.pos, actor.radius)

@@ -67,7 +67,7 @@ import {
   SPELL_RANGE,
 } from '../src/sim/constants'
 import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/encounters'
-import { BATTLEGROUNDS, held, living, teamOf } from '../src/sim/battleground'
+import { BATTLEGROUNDS, carrying, held, living, teamOf } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
@@ -3067,7 +3067,25 @@ for (const bg of BATTLEGROUNDS) {
   const before = node.progress
   step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
   expect('a contested point is marked', node.contested, 'not contested')
-  expect('and does not move', Math.abs(node.progress - before) < 0.001, `${node.progress}`)
+  expect('even numbers do not move it', Math.abs(node.progress - before) < 0.001, `${node.progress}`)
+
+  // But numbers do. Freezing a contested point outright meant a fight on the
+  // circle stopped the circle, and with a healer a side those fights do not
+  // resolve — the bar sat still for a third of every match.
+  const second = s.actors.filter((a) => teamOf(a) === 'blue')[1]!
+  const third = s.actors.filter((a) => teamOf(a) === 'blue')[2]!
+  for (const a of [second, third]) {
+    a.pos.x = node.pos.x
+    a.pos.y = node.pos.y
+  }
+  const outnumbered = node.progress
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('but being outnumbered does', node.progress > outnumbered, `${node.progress}`)
+  expect('and it is still contested', node.contested, 'stopped being contested')
+  for (const a of [second, third]) {
+    a.pos.x = 900
+    a.pos.y = 900
+  }
 
   // One team alone takes it, and only pays once it is all the way over.
   red.alive = false
@@ -3107,6 +3125,24 @@ for (const bg of BATTLEGROUNDS) {
   expect('and allowed once it is home', bg.score.blue === 1, `${bg.score.blue}`)
   expect('the flag goes back', bg.flags.red.state === 'home', bg.flags.red.state)
 
+  // Carrying it costs something, or nobody ever catches a carrier and both
+  // flags stay out for the whole match — which is what happened.
+  {
+    const other = s.actors.find((a) => teamOf(a) === 'red')!
+    runner.pos = { ...bg.flags.red.pos }
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    expect('carrying it is a handicap', carrying(s, runner) && !carrying(s, other), 'wrong carrier')
+
+    const hp = runner.hp
+    const otherHp = other.hp
+    applyDamage(s, runner, 1000, 'none', { sourceId: other.id })
+    applyDamage(s, other, 1000, 'none', { sourceId: runner.id })
+    const carrierTook = hp - runner.hp
+    const plainTook = otherHp - other.hp
+    expect('and a carrier takes more', carrierTook > plainTook, `${carrierTook} vs ${plainTook}`)
+
+  }
+
   // A carrier that dies drops it where they fell rather than teleporting it.
   runner.pos = { ...bg.flags.red.pos }
   step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -3121,6 +3157,9 @@ for (const bg of BATTLEGROUNDS) {
     Math.hypot(bg.flags.red.pos.x - where.x, bg.flags.red.pos.y - where.y) < 1,
     JSON.stringify(bg.flags.red.pos),
   )
+  // And it does not sit there long. Fifteen seconds of nobody able to score
+  // is most of why a match locked up.
+  expect('and returns itself soon', bg.flags.red.dropTimer <= 6, `${bg.flags.red.dropTimer}`)
 }
 
 // The screens: a battleground draws its own readouts and none of the raid's.

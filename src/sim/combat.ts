@@ -1,5 +1,6 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation } from './classes'
+import { CARRIER_FRAGILITY, carrying } from './battleground'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
@@ -234,6 +235,10 @@ export function applyDamage(
     final = Math.max(0, final - target.block)
     final *= 1 - mitigation(target.armor)
   }
+  // Carrying their flag makes you easier to bring down, whatever hit you.
+  // Outside a battleground this is never true.
+  if (carrying(s, target)) final *= CARRIER_FRAGILITY
+
   if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
