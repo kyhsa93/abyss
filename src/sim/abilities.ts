@@ -80,13 +80,13 @@ const list: Ability[] = [
   { id: 'taunt', name: 'Taunt', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- priest (healer): sustained, leans on its heal-over-time -------------
-  { id: 'heal', name: 'Heal', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, cost: 26, amount: 430, threatMult: 0, aura: null, range: HEAL_RANGE },
-  { id: 'renew', name: 'Renew', role: 'healer', kind: 'heal', castTime: 0, cooldown: 10, cost: 18, amount: 0, threatMult: 0, aura: 'renew', range: HEAL_RANGE },
-  { id: 'flash_heal', name: 'Flash Heal', role: 'healer', kind: 'heal', castTime: 0, cooldown: 7, cost: 40, amount: 280, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'heal', name: 'Heal', role: 'healer', kind: 'heal', castTime: 2, cooldown: 0, cost: 40, amount: 473, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'renew', name: 'Renew', role: 'healer', kind: 'heal', castTime: 0, cooldown: 10, cost: 27, amount: 0, threatMult: 0, aura: 'renew', range: HEAL_RANGE },
+  { id: 'flash_heal', name: 'Flash Heal', role: 'healer', kind: 'heal', castTime: 0, cooldown: 7, cost: 56, amount: 308, threatMult: 0, aura: null, range: HEAL_RANGE },
 
   // --- paladin (healer): slower, bigger, with a panic button ---------------
-  { id: 'holy_light', name: 'Holy Light', role: 'healer', kind: 'heal', castTime: 2.5, cooldown: 0, cost: 32, amount: 620, threatMult: 0, aura: null, range: HEAL_RANGE },
-  { id: 'lay_on_hands', name: 'Lay on Hands', role: 'healer', kind: 'heal', castTime: 0, cooldown: 45, cost: 90, amount: 1500, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'holy_light', name: 'Holy Light', role: 'healer', kind: 'heal', castTime: 2.5, cooldown: 0, cost: 50, amount: 484, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'lay_on_hands', name: 'Lay on Hands', role: 'healer', kind: 'heal', castTime: 0, cooldown: 45, cost: 126, amount: 1173, threatMult: 0, aura: null, range: HEAL_RANGE },
 
   // Healers contribute damage when nobody needs them, which is the only thing
   // that makes a two-healer party viable rather than a slow loss.
@@ -104,15 +104,15 @@ const list: Ability[] = [
   { id: 'aimed_shot', name: 'Aimed Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 369, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
   // --- rogue: highest sustained damage, paid for in melee range ------------
-  { id: 'sinister_strike', name: 'Sinister Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 32, amount: 83, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rupture', name: 'Rupture', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 40, threatMult: 1, aura: 'rupture', range: MELEE },
-  { id: 'eviscerate', name: 'Eviscerate', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 35, amount: 172, threatMult: 1, aura: null, range: MELEE },
+  { id: 'sinister_strike', name: 'Sinister Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 32, amount: 93, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rupture', name: 'Rupture', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 45, threatMult: 1, aura: 'rupture', range: MELEE },
+  { id: 'eviscerate', name: 'Eviscerate', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 35, amount: 193, threatMult: 1, aura: null, range: MELEE },
 
   // --- warrior, as damage: bleeds and an execute -----------------------------
   { id: 'charge', name: 'Charge', role: 'dps', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
-  { id: 'mortal_strike', name: 'Mortal Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 96, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rend', name: 'Rend', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 10, amount: 36, threatMult: 1, aura: 'rend', range: MELEE },
-  { id: 'execute', name: 'Execute', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 424, threatMult: 1, aura: null, range: MELEE },
+  { id: 'mortal_strike', name: 'Mortal Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 108, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rend', name: 'Rend', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 10, amount: 40, threatMult: 1, aura: 'rend', range: MELEE },
+  { id: 'execute', name: 'Execute', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 475, threatMult: 1, aura: null, range: MELEE },
 
   // --- paladin, as tank ------------------------------------------------------
   { id: 'avengers_shield', name: "Avenger's Shield", role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 28, amount: 105, threatMult: 6, aura: null, range: 200 },
@@ -121,9 +121,9 @@ const list: Ability[] = [
   { id: 'hand_of_reckoning', name: 'Hand of Reckoning', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- paladin, as damage ----------------------------------------------------
-  { id: 'crusader_strike', name: 'Crusader Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 71, threatMult: 1, aura: null, range: MELEE },
-  { id: 'judgement', name: 'Judgement', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 14, amount: 23, threatMult: 1, aura: 'judgement', range: 200 },
-  { id: 'hammer_of_wrath', name: 'Hammer of Wrath', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 45, amount: 269, threatMult: 1, aura: null, range: 200 },
+  { id: 'crusader_strike', name: 'Crusader Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 80, threatMult: 1, aura: null, range: MELEE },
+  { id: 'judgement', name: 'Judgement', role: 'dps', kind: 'damage', castTime: 0, cooldown: 8, cost: 14, amount: 26, threatMult: 1, aura: 'judgement', range: 200 },
+  { id: 'hammer_of_wrath', name: 'Hammer of Wrath', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 45, amount: 301, threatMult: 1, aura: null, range: 200 },
 
   // --- druid, as tank --------------------------------------------------------
   { id: 'maul', name: 'Maul', role: 'tank', kind: 'damage', castTime: 0, cooldown: 6, cost: 22, amount: 118, threatMult: 6, aura: null, range: MELEE },
@@ -132,9 +132,9 @@ const list: Ability[] = [
   { id: 'growl', name: 'Growl', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- druid, as healer: heal-over-time first ---------------------------------
-  { id: 'healing_touch', name: 'Healing Touch', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, cost: 28, amount: 470, threatMult: 0, aura: null, range: HEAL_RANGE },
-  { id: 'rejuvenation', name: 'Rejuvenation', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 20, amount: 0, threatMult: 0, aura: 'rejuvenation', range: HEAL_RANGE },
-  { id: 'swiftmend', name: 'Swiftmend', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 38, amount: 300, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'healing_touch', name: 'Healing Touch', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, cost: 42, amount: 385, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'rejuvenation', name: 'Rejuvenation', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 30, amount: 0, threatMult: 0, aura: 'rejuvenation', range: HEAL_RANGE },
+  { id: 'swiftmend', name: 'Swiftmend', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 54, amount: 246, threatMult: 0, aura: null, range: HEAL_RANGE },
   { id: 'starsurge', name: 'Starsurge', role: 'healer', kind: 'damage', castTime: 0, cooldown: 8, cost: 22, amount: 195, threatMult: 1, aura: null, range: SPELL },
 
   // --- priest, as damage -----------------------------------------------------
@@ -143,9 +143,9 @@ const list: Ability[] = [
   { id: 'mind_flay', name: 'Mind Flay', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 100, threatMult: 1, aura: null, range: SPELL },
 
   // --- shaman, as healer -----------------------------------------------------
-  { id: 'healing_wave', name: 'Healing Wave', role: 'healer', kind: 'heal', castTime: 2.1, cooldown: 0, cost: 27, amount: 450, threatMult: 0, aura: null, range: HEAL_RANGE },
-  { id: 'riptide', name: 'Riptide', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 21, amount: 0, threatMult: 0, aura: 'riptide', range: HEAL_RANGE },
-  { id: 'chain_heal', name: 'Chain Heal', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 42, amount: 320, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'healing_wave', name: 'Healing Wave', role: 'healer', kind: 'heal', castTime: 2.1, cooldown: 0, cost: 41, amount: 422, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'riptide', name: 'Riptide', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 31, amount: 0, threatMult: 0, aura: 'riptide', range: HEAL_RANGE },
+  { id: 'chain_heal', name: 'Chain Heal', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 58, amount: 300, threatMult: 0, aura: null, range: HEAL_RANGE },
   { id: 'lava_burst', name: 'Lava Burst', role: 'healer', kind: 'damage', castTime: 0, cooldown: 7, cost: 24, amount: 215, threatMult: 1, aura: null, range: SPELL },
 
   // --- shaman --------------------------------------------------------------
@@ -156,9 +156,9 @@ const list: Ability[] = [
   // --- druid ---------------------------------------------------------------
   { id: 'wrath', name: 'Wrath', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 106, threatMult: 1, aura: null, range: SPELL },
   { id: 'moonfire', name: 'Moonfire', role: 'dps', kind: 'damage', castTime: 0, cooldown: 15, cost: 24, amount: 58, threatMult: 1, aura: 'moonfire', range: SPELL },
-  { id: 'shred', name: 'Shred', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 73, threatMult: 1, aura: null, range: MELEE },
-  { id: 'rake', name: 'Rake', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 26, amount: 33, threatMult: 1, aura: 'rake', range: MELEE },
-  { id: 'ferocious_bite', name: 'Ferocious Bite', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 33, amount: 156, threatMult: 1, aura: null, range: MELEE },
+  { id: 'shred', name: 'Shred', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 30, amount: 82, threatMult: 1, aura: null, range: MELEE },
+  { id: 'rake', name: 'Rake', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 26, amount: 37, threatMult: 1, aura: 'rake', range: MELEE },
+  { id: 'ferocious_bite', name: 'Ferocious Bite', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 33, amount: 175, threatMult: 1, aura: null, range: MELEE },
   { id: 'starfire', name: 'Starfire', role: 'dps', kind: 'damage', castTime: 2, cooldown: 9, cost: 38, amount: 412, threatMult: 1, aura: null, range: SPELL },
 ]
 

@@ -37,6 +37,18 @@ export function autoPress(s: SimState): number[] {
     const hurt = mostHurt(s)
     const dire = hurt !== null && hurt.hp / hurt.maxHp < 0.45
     if (dire) order.push(slotOf(kit.finisher))
+    // The over-time heal, which this never pressed at all: it was on the bar,
+    // it was in the kit, and the priority list simply had no line for it.
+    // Three of the four healers were playing with a button switched off and
+    // nothing on screen said which one.
+    if (
+      hurt !== null &&
+      hurt.hp / hurt.maxHp < 0.95 &&
+      kit.overTime &&
+      !getAura(hurt, kit.overTime as AuraId)
+    ) {
+      order.push(slotOf(kit.overTime))
+    }
     if (hurt !== null && hurt.hp / hurt.maxHp < 0.9) order.push(slotOf(kit.filler))
     // A healer with nobody to heal presses nothing. The AI's healers fill
     // with damage at this point, but that ability is not on the player's bar
@@ -50,11 +62,19 @@ export function autoPress(s: SimState): number[] {
     for (const id of damageOrder(player, target)) order.push(slotOf(id))
   }
 
+  // Whether the player is on the move, read off the last tick rather than
+  // taken as an argument: a cast started while walking is cancelled by the
+  // walking, and starting one every tick to cancel it every tick is how an AI
+  // healer once healed for nothing at all. Instants only, while moving.
+  const walking =
+    Math.hypot(player.pos.x - player.prevPos.x, player.pos.y - player.prevPos.y) > 0.5
+
   for (const slot of order) {
     if (slot < 0) continue
     const id = bar[slot]
     const ability = id ? ABILITIES[id] : undefined
     if (!id || !ability) continue
+    if (walking && ability.castTime > 0) continue
 
     // A dot is worth a global only when it is nearly gone; several presses of
     // the same debuff is the classic way an autocast wastes a rotation.

@@ -437,6 +437,21 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 }
 
+/** Whoever on your own side is furthest from full. */
+function mostHurtAlly(s: SimState, actor: Actor): Actor | undefined {
+  let best: Actor | undefined
+  let ratio = Infinity
+  for (const a of s.actors) {
+    if (a.faction !== actor.faction || !a.alive) continue
+    const r = a.hp / a.maxHp
+    if (r < ratio) {
+      ratio = r
+      best = a
+    }
+  }
+  return best
+}
+
 function bgName(kind: 'conquest' | 'flags'): string {
   return BATTLEGROUNDS.find((b) => b.kind === kind)?.name ?? 'Battleground'
 }
@@ -1066,13 +1081,62 @@ function drawTrait(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
       break
     }
     case 'chain': {
-      const target = s.actors.find((a) => a.id === playerTarget(s))
+      // The healing chain jumps to your own side; the damage one to theirs.
+      const healer = player.role === 'healer'
+      const target = healer ? mostHurtAlly(s, player) : s.actors.find((a) => a.id === playerTarget(s))
       const near = target
         ? s.actors.filter(
-            (a) => a.alive && a.id !== target.id && a.faction !== player.faction && dist(target.pos, a.pos) < 190,
+            (a) =>
+              a.alive &&
+              a.id !== target.id &&
+              (healer ? a.faction === player.faction : a.faction !== player.faction) &&
+              dist(target.pos, a.pos) < (healer ? 160 : 190),
           ).length
         : 0
-      label(near > 0 ? `CHAIN JUMPS TO ${Math.min(2, near)}` : 'CHAIN NEEDS A CROWD', near > 0 ? COLORS.hpBar : COLORS.textDim)
+      label(
+        near > 0 ? `CHAIN JUMPS TO ${Math.min(2, near)}` : 'CHAIN NEEDS THEM CLOSE',
+        near > 0 ? COLORS.hpBar : COLORS.textDim,
+      )
+      break
+    }
+    case 'ward': {
+      const kit = spec.abilities
+      const warded = s.actors.filter((a) => a.faction === 'party' && a.alive && getAura(a, 'ward')).length
+      void kit
+      label(
+        warded > 0 ? `${warded} WARDED — PUT IT ON BEFORE THE HIT` : 'WARD BEFORE THE HIT, NOT AFTER',
+        warded > 0 ? COLORS.hpBar : COLORS.textDim,
+      )
+      break
+    }
+    case 'bloom': {
+      const kit = spec.abilities
+      const hurt = mostHurtAlly(s, player)
+      const mending = hurt && kit.overTime ? getAura(hurt, kit.overTime as AuraId) : undefined
+      label(mending ? 'ALREADY MENDING — HEAL BLOOMS' : 'MEND FIRST, THEN HEAL', mending ? COLORS.hpBar : COLORS.textDim)
+      break
+    }
+    case 'anchor': {
+      const tank = s.actors.find((a) => a.faction === 'party' && a.alive && a.role === 'tank')
+      const low = tank ? tank.hp / tank.maxHp < 0.85 : false
+      label(low ? 'THE TANK NEEDS YOU' : 'WORTH MOST ON THE TANK', low ? COLORS.hpBar : COLORS.textDim)
+      break
+    }
+    case 'guard': {
+      const guarding = player.power >= player.maxPower * 0.6
+      label(guarding ? 'GUARDED — RAGE IS ARMOUR' : 'RAGE BUILDS AS YOU ARE HIT', guarding ? COLORS.tank : COLORS.textDim)
+      break
+    }
+    case 'cadence': {
+      const phase = s.time % 8
+      const open = phase < 2.5
+      // A clock rather than a decision, so it is drawn as one.
+      for (let i = 0; i < 4; i++) pip(i, 4, open && i < Math.ceil((2.5 - phase) * 1.6), COLORS.castBar)
+      break
+    }
+    case 'thick': {
+      const mending = getAura(player, 'mending')
+      label(mending ? 'MENDING — WHAT YOU TAKE COMES BACK' : 'TAKE A HIT TO START MENDING', mending ? COLORS.hpBar : COLORS.textDim)
       break
     }
   }

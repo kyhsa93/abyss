@@ -72,6 +72,8 @@ const AURA_DURATION: Record<AuraId, number> = {
   combo: 20,
   momentum: 6,
   eclipse: 8,
+  ward: 10,
+  mending: 6,
 }
 
 /**
@@ -115,9 +117,12 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   rake: { damage: 96 },
   judgement: { damage: 68 },
   shadow_word_pain: { damage: 58 },
-  renew: { heal: 60 },
-  rejuvenation: { heal: 58 },
-  riptide: { heal: 62 },
+  renew: { heal: 66 },
+  rejuvenation: { heal: 47 },
+  riptide: { heal: 58 },
+  // The bear's own trickle, refreshed by every hit it takes. Small, constant,
+  // and the reason its healer is topping up rather than catching spikes.
+  mending: { heal: 62 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -274,6 +279,8 @@ export function applyDamage(
   // Outside a battleground this is never true.
   if (carrying(s, target)) final *= CARRIER_FRAGILITY
 
+  final *= tankTrait(s, target, school)
+
   if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
@@ -298,6 +305,7 @@ export function applyDamage(
   // silent and land thirty times a second, so letting those pay would hand a
   // tank a full bar for standing in fire — exactly backwards.
   if (final > 0 && !opts.silent) gainPower(target, RESOURCES[target.resource].onHit)
+  if (final > 0) mendAfterHit(target, final)
 
   record(s, target, final, opts)
   // Only the player's own hits are audible; everyone's would be a wall of noise.
@@ -582,9 +590,11 @@ export function landAbility(
     }
     case 'heal': {
       if (!target || !target.alive) return
-      if (ability.amount > 0) applyHeal(s, target, ability.amount, actor.id)
-      pushEffect(s, 'heal', target.pos, { abilityId: ability.id, power: ability.amount })
+      const healed = Math.round(ability.amount * healTrait(actor, target))
+      if (healed > 0) applyHeal(s, target, healed, actor.id)
+      pushEffect(s, 'heal', target.pos, { abilityId: ability.id, power: healed })
       if (ability.aura) addAura(target, ability.aura, actor.id)
+      spendHealTrait(s, actor, ability, target, healed)
       break
     }
     case 'taunt': {
@@ -735,4 +745,116 @@ function spendTrait(
     default:
       break
   }
+}
+
+/**
+ * A healer's own rule, as a multiplier on what it just healed.
+ *
+ * The four of them used to be one healer: a cast heal, an over-time and an
+ * instant, within ten percent of each other on every number. What separates
+ * them now is who the heal is for and what it needs you to have done first.
+ */
+function healTrait(actor: Actor, target: Actor): number {
+  const spec = specOf({ classId: actor.classId, spec: actor.spec })
+  switch (spec.trait) {
+    case 'anchor':
+      // Everything is worth more on the tank and less on everybody else. The
+      // one healer that is a tank healer rather than a raid healer.
+      return target.role === 'tank' ? 1.45 : 0.85
+    case 'bloom': {
+      // A direct heal on somebody already mending bursts. The over-time is the
+      // setup rather than a trickle you top up between real heals.
+      const kit = spec.abilities
+      if (!kit.overTime) return 1
+      return getAura(target, kit.overTime as AuraId) ? 1.5 : 0.9
+    }
+    default:
+      return 1
+  }
+}
+
+/** What the heal did afterwards: the chain hop, and the ward. */
+function spendHealTrait(
+  s: SimState,
+  actor: Actor,
+  ability: Ability,
+  target: Actor,
+  healed: number,
+): void {
+  const spec = specOf({ classId: actor.classId, spec: actor.spec })
+
+  if (spec.trait === 'chain' && ability.id === spec.abilities.finisher) {
+    // Jumps to whoever is standing near the target, for a third each hop —
+    // worth everything on a stacked party and nothing on a spread one.
+    const near = s.actors
+      .filter(
+        (a) =>
+          a.alive &&
+          a.faction === actor.faction &&
+          a.id !== target.id &&
+          dist(target.pos, a.pos) < 160,
+      )
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)
+    let power = healed * 0.4
+    for (const next of near.slice(0, 2)) {
+      applyHeal(s, next, Math.round(power), actor.id)
+      pushEffect(s, 'heal', next.pos, { abilityId: ability.id, power })
+      power *= 0.6
+    }
+  }
+
+  if (spec.trait === 'ward' && ability.id === spec.abilities.overTime) {
+    // The reduction goes on before the hit rather than the heal after it: the
+    // one healer that has to know what the boss does next.
+    addAura(target, 'ward', actor.id)
+  }
+}
+
+/**
+ * A tank's own rule, as a multiplier on what is about to land on it.
+ *
+ * The three of them had different health and armour and the same job. This is
+ * where they stop having the same job: one spends rage on not being hit, one
+ * runs a reduction on a clock a healer can plan around, and one takes it and
+ * gives a slice of it back.
+ */
+function tankTrait(s: SimState, target: Actor, school: School): number {
+  // A boss and its thralls borrow a class and a spec for their name and their
+  // colour; they are not playing one. Without this the raid boss inherited the
+  // warrior tank's trait — and since it has no rage bar at all, `power >= 0`
+  // was always true and it quietly took a quarter less damage from everything
+  // for as long as the trait existed. Every balance number measured in that
+  // window was measured against a boss with free armour.
+  if (s.mode === 'raid' && target.faction === 'boss') return 1
+
+  const spec = specOf({ classId: target.classId, spec: target.spec })
+
+  if (getAura(target, 'ward')) {
+    // Not a tank trait, but it lands here: a ward put on before the hit.
+    return 0.65
+  }
+
+  switch (spec.trait) {
+    case 'guard':
+      // Rage is earned by being hit, and spent on being hit less. A warrior
+      // that has been in the fight is a warrior that is hard to move.
+      return school === 'physical' && target.maxPower > 0 && target.power >= target.maxPower * 0.6
+        ? 0.75
+        : 1
+    case 'cadence': {
+      // On a clock rather than on a decision, so the healer can see it coming.
+      // Two seconds in every eight.
+      const phase = s.time % 8
+      return phase < 2.5 ? 0.58 : 1
+    }
+    default:
+      return 1
+  }
+}
+
+/** The druid tank's slice of what it just took, handed back over time. */
+export function mendAfterHit(target: Actor, amount: number): void {
+  const spec = specOf({ classId: target.classId, spec: target.spec })
+  if (spec.trait !== 'thick' || amount <= 0) return
+  addAura(target, 'mending', target.id)
 }

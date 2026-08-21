@@ -153,8 +153,20 @@ export type Trait =
   | 'affliction'
   /** Warrior: rage past the point of spending it makes the next swing land harder. */
   | 'overflow'
-  /** Shaman: the finisher jumps to whatever else is standing near. */
+  /** Shaman: the finisher, damage or healing, jumps to whatever is near. */
   | 'chain'
+  /** Priest: puts the reduction on before the hit rather than the heal after. */
+  | 'ward'
+  /** Druid healer: a direct heal on somebody already mending bursts. */
+  | 'bloom'
+  /** Paladin healer: everything it does is worth more on the tank. */
+  | 'anchor'
+  /** Warrior tank: rage is spent being hit less rather than hitting more. */
+  | 'guard'
+  /** Paladin tank: a small reduction on a clock, so a healer can plan around it. */
+  | 'cadence'
+  /** Druid tank: gives back a slice of what it takes, over time. */
+  | 'thick'
 
 export interface Spec {
   id: SpecId
@@ -243,6 +255,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'protection',
         role: 'tank',
+        trait: 'guard',
         resource: 'rage',
         melee: true,
         auto: SWING,
@@ -283,10 +296,11 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'protection',
         role: 'tank',
+        trait: 'cadence',
         resource: 'mana',
         melee: true,
         auto: SWING,
-        hp: 5800,
+        hp: 6100,
         armor: 8600,
         block: 240,
         power: 1000,
@@ -300,6 +314,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'holy',
         role: 'healer',
+        trait: 'anchor',
         resource: 'mana',
         melee: false,
         hp: 3400,
@@ -337,6 +352,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'discipline',
         role: 'healer',
+        trait: 'ward',
         resource: 'mana',
         melee: false,
         hp: 3000,
@@ -378,6 +394,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'guardian',
         role: 'tank',
+        trait: 'thick',
         resource: 'rage',
         melee: true,
         auto: SWING,
@@ -393,6 +410,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'restoration',
         role: 'healer',
+        trait: 'bloom',
         resource: 'mana',
         melee: false,
         hp: 3200,
@@ -446,6 +464,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       {
         id: 'restoration',
         role: 'healer',
+        trait: 'chain',
         resource: 'mana',
         melee: false,
         hp: 3300,
