@@ -1,6 +1,7 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type RaidSize } from '../sim/classes'
 import { ENCOUNTERS } from '../sim/encounters'
+import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
 import { COLORS, L } from './theme'
@@ -26,9 +27,12 @@ export interface Rect {
   h: number
 }
 
-export type MenuScreen = 'home' | 'raid' | 'battleground' | 'settings'
+export type MenuScreen = 'home' | 'raid' | 'battleground' | 'daily' | 'settings'
 
-export type HomeChoice = 'raid' | 'battleground' | 'settings' | 'record'
+/** How many specs the class grid has to hold. */
+const SPEC_COUNT = SPEC_OPTIONS.length
+
+export type HomeChoice = 'raid' | 'battleground' | 'daily' | 'settings' | 'record'
 
 function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
@@ -129,11 +133,11 @@ export interface HomeLayout {
 
 export function homeLayout(): HomeLayout {
   const record = backRect()
-  const choices = column(3, titleY() + 34 * L.ui, record.y - 16)
+  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui, record.y - 16)
   return { choices, record: { ...record, x: L.w / 2 - record.w / 2 } }
 }
 
-const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'settings']
+const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
 
 export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
   backdrop(ctx)
@@ -143,6 +147,7 @@ export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
   const labels: Array<[string, string, string]> = [
     ['RAID', `${ENCOUNTERS.length} bosses · 5, 10 or 25 players`, COLORS.castBar],
     ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
+    ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
     ['SETTINGS', 'sound', COLORS.textDim],
   ]
   labels.forEach(([label, detail, accent], i) => {
@@ -287,6 +292,92 @@ export function hitRaidSetup(x: number, y: number): RaidSetupHit | null {
     if (inside(layout.difficulties[i]!, x, y)) {
       return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
     }
+  }
+  return null
+}
+
+// --- today's run ------------------------------------------------------------
+
+export interface DailyLayout {
+  classes: Rect[]
+  start: Rect
+  back: Rect
+  headingY: number
+  summaryY: number
+}
+
+export function dailyLayout(): DailyLayout {
+  const p = pad()
+  const back = backRect()
+  const headingY = titleY() + 26 * L.ui
+  const summaryY = headingY + 44 * L.ui
+  const top = summaryY + 22 * L.ui
+
+  // The one thing the day leaves you: which class to bring.
+  const gap = Math.max(3, p * 0.3)
+  const cols = L.portrait ? 3 : 5
+  const rows = Math.ceil(SPEC_COUNT / cols)
+  const cellW = (L.w - p * 2 - gap * (cols - 1)) / cols
+  const cellH = Math.max(30, Math.min(52, (back.y - 14 - top - gap * (rows - 1)) / rows))
+  const classes: Rect[] = []
+  for (let i = 0; i < SPEC_COUNT; i++) {
+    classes.push({
+      x: p + (i % cols) * (cellW + gap),
+      y: top + Math.floor(i / cols) * (cellH + gap),
+      w: cellW,
+      h: cellH,
+    })
+  }
+
+  return { classes, start: primaryRect(), back, headingY, summaryY }
+}
+
+export type DailyHit = { kind: 'class'; index: number } | { kind: 'start' } | { kind: 'back' }
+
+export function drawDaily(
+  ctx: CanvasRenderingContext2D,
+  today: { label: string; key: number },
+  best: { line: string; attempts: number } | null,
+  chosen: number,
+  labelFor: (index: number) => { text: string; colour: string },
+): void {
+  backdrop(ctx)
+  screenTitle(ctx, "TODAY'S RUN", 'the same fight for everybody, until midnight')
+
+  const layout = dailyLayout()
+  ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.hpBar
+  ctx.font = font(12, true)
+  ctx.fillText(today.label, L.w / 2, layout.headingY)
+
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.fillText(
+    best
+      ? `${best.line}   ·   ${best.attempts} attempt${best.attempts === 1 ? '' : 's'}`
+      : 'no attempt yet today',
+    L.w / 2,
+    layout.headingY + 16 * L.ui,
+  )
+
+  ctx.font = font(9)
+  ctx.fillText('THE DAY PICKS THE FIGHT — YOU PICK THE CLASS', L.w / 2, layout.summaryY)
+
+  for (let i = 0; i < layout.classes.length; i++) {
+    const { text, colour } = labelFor(i)
+    button(ctx, layout.classes[i]!, text, '', colour, i === chosen)
+  }
+
+  button(ctx, layout.back, 'BACK', '', COLORS.textDim)
+  button(ctx, layout.start, 'PULL', '', COLORS.castBar, true)
+}
+
+export function hitDaily(x: number, y: number): DailyHit | null {
+  const layout = dailyLayout()
+  if (inside(layout.back, x, y)) return { kind: 'back' }
+  if (inside(layout.start, x, y)) return { kind: 'start' }
+  for (let i = 0; i < layout.classes.length; i++) {
+    if (inside(layout.classes[i]!, x, y)) return { kind: 'class', index: i }
   }
   return null
 }

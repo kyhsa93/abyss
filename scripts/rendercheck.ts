@@ -101,6 +101,8 @@ import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
+import { dailyFor, dailyKey } from '../src/sim/daily'
+import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
 import { PLAYER_ID, createState } from '../src/sim/state'
@@ -3341,7 +3343,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'battleground', 'settings'] as const
+  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -3922,6 +3924,83 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const spec = specOf(pick)
     if (roleOf(pick) !== 'dps') continue
     expect(`${specLabel(pick)} has a trait`, spec.trait !== undefined, 'none')
+  }
+}
+
+// --- today's run -------------------------------------------------------------
+//
+// The whole value of a daily is that somebody else played the same one, which
+// makes reproducibility a feature rather than a testing property. So what is
+// asserted is that a date fixes everything except the class, that it fixes it
+// the same way twice, and that neighbouring dates are not neighbouring fights.
+{
+  const at = new Date(Date.UTC(2026, 7, 21, 13, 45))
+  const key = dailyKey(at)
+  expect('the key is the date', key === 20260821, `${key}`)
+
+  // Same date, same everything, however many times it is asked.
+  const mage = pickFor('mage', 'dps')!
+  const first = dailyFor(key, mage)
+  const again = dailyFor(key, mage)
+  expect(
+    'the same day is the same run',
+    first.seed === again.seed &&
+      first.encounter === again.encounter &&
+      first.size === again.size &&
+      first.difficulty === again.difficulty &&
+      JSON.stringify(first.party) === JSON.stringify(again.party),
+    `${first.seed} vs ${again.seed}`,
+  )
+
+  // The time of day must not enter into it, or two people in one country get
+  // different fights depending on when they opened the page.
+  const evening = dailyFor(dailyKey(new Date(Date.UTC(2026, 7, 21, 23, 59))), mage)
+  expect('and any hour of it', evening.seed === first.seed, `${evening.seed}`)
+
+  // Different days must not be neighbouring fights: the date is a poor seed on
+  // its own, since consecutive days differ by one.
+  const tomorrow = dailyFor(dailyKey(new Date(Date.UTC(2026, 7, 22))), mage)
+  expect('a different day is a different run', tomorrow.seed !== first.seed, `${tomorrow.seed}`)
+  const spread = new Set<string>()
+  for (let day = 1; day <= 28; day++) {
+    const d = dailyFor(dailyKey(new Date(Date.UTC(2026, 7, day))), mage)
+    spread.add(`${d.encounter}/${d.size}/${d.difficulty}`)
+  }
+  expect('and a month is not one fight', spread.size >= 6, `${spread.size} distinct in 28 days`)
+
+  // The class is the player's, and the rest of the party is the day's.
+  const asRogue = dailyFor(key, pickFor('rogue', 'dps')!)
+  expect(
+    'the day picks the party, you pick the class',
+    asRogue.party[0]!.classId === 'rogue' &&
+      JSON.stringify(asRogue.party.slice(1)) === JSON.stringify(first.party.slice(1)),
+    `${asRogue.party.map((p) => p.classId).join(',')}`,
+  )
+  expect('and the party is the size the day chose', first.party.length === first.size, `${first.party.length} of ${first.size}`)
+
+  // The record keeps the best answer to a day rather than the last one.
+  {
+    const run = pulled(first.seed, 0, first.party, first.difficulty, first.encounter)
+    run.outcome = 'victory'
+    run.time = 140
+    let record = foldDaily([], key, run, 'Warden', 'Mage')
+    expect('a first attempt is kept', record.length === 1 && record[0]!.time === 140, JSON.stringify(record[0]))
+
+    run.time = 175
+    record = foldDaily(record, key, run, 'Warden', 'Mage')
+    expect('a slower kill does not replace it', record[0]!.time === 140, `${record[0]!.time}`)
+    expect('but it still counts as an attempt', record[0]!.attempts === 2, `${record[0]!.attempts}`)
+
+    run.time = 121
+    record = foldDaily(record, key, run, 'Warden', 'Mage')
+    expect('a faster kill does', record[0]!.time === 121, `${record[0]!.time}`)
+
+    // A loss never displaces a kill, however close it came.
+    run.outcome = 'wipe'
+    run.time = 40
+    record = foldDaily(record, key, run, 'Warden', 'Mage')
+    expect('and a loss never displaces a kill', record[0]!.outcome === 'victory' && record[0]!.time === 121, JSON.stringify(record[0]))
+    expect('while still counting', record[0]!.attempts === 4, `${record[0]!.attempts}`)
   }
 }
 

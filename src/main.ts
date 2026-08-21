@@ -16,16 +16,18 @@ import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import {
   drawBgSetup,
+  drawDaily,
   drawHome,
   drawRaidSetup,
   drawSettings,
   hitBgSetup,
+  hitDaily,
   hitHome,
   hitRaidSetup,
   hitSettings,
 } from './render/menu'
 import { Sfx } from './sfx'
-import { COLORS, L, updateLayout } from './render/theme'
+import { COLORS, L, classColor, updateLayout } from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
@@ -43,7 +45,16 @@ import {
   type RaidSize,
 } from './sim/classes'
 import { createBattlegroundState, createState } from './sim/state'
-import { encounterIndex, hasNext } from './sim/encounters'
+import { ENCOUNTERS, encounterIndex, hasNext } from './sim/encounters'
+import { dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
+import {
+  fold as foldDaily,
+  load as loadDaily,
+  save as saveDaily,
+  todays,
+  type DailyResult,
+} from './daily-record'
+import { SPEC_OPTIONS, specLabel } from './sim/classes'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -227,6 +238,17 @@ let difficulty = loadDifficulty()
 let encounter = loadEncounter()
 let unlocked = Math.max(loadUnlocked(), encounter)
 let mode: RosterMode = loadMode()
+
+/**
+ * Today's run, and what has been made of it so far.
+ *
+ * A daily is a raid with everything but the class already decided, so it rides
+ * the raid path rather than being a mode of its own — what marks it is that
+ * the seed, the boss and the party all came from the date.
+ */
+let dailyResults: DailyResult[] = loadDaily()
+let playingDaily = false
+let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
  *
@@ -236,8 +258,15 @@ let mode: RosterMode = loadMode()
  * battleground was chosen on a page that also offered a raid's difficulty and
  * a boss list, half of it hidden depending on what you had already picked.
  */
-let screen: 'home' | 'raid' | 'battleground' | 'roster' | 'settings' | 'fight' | 'history' =
-  'home'
+let screen:
+  | 'home'
+  | 'raid'
+  | 'battleground'
+  | 'daily'
+  | 'roster'
+  | 'settings'
+  | 'fight'
+  | 'history' = 'home'
 
 let history: Attempt[] = loadHistory()
 let awards: Earned = loadAwards()
@@ -316,6 +345,8 @@ function restart(): void {
  */
 function nextBoss(): void {
   if (!hasNext(encounter)) return
+  // Moving on is leaving today's fight behind; a retry is not.
+  playingDaily = false
   encounter = encounterIndex(encounter + 1)
   unlocked = Math.max(unlocked, encounter)
   attempt = 0
@@ -340,6 +371,9 @@ let fightingMode: RosterMode = mode
  * changing anything keeps the progress.
  */
 function startFight(): void {
+  // Anything started from the class screen is a normal pull, whatever was
+  // played before it.
+  playingDaily = false
   const changed =
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
@@ -394,6 +428,14 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       screen = 'battleground'
       return
     }
+    if (hit === 'daily') {
+      // Rolled fresh each time it is opened, so a session left running over
+      // midnight offers the new day rather than yesterday's.
+      daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
+      dailyResults = loadDaily()
+      screen = 'daily'
+      return
+    }
     if (hit === 'settings') {
       screen = 'settings'
       return
@@ -404,6 +446,74 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
     }
   }
   drawHome(ctx, clock)
+}
+
+/**
+ * Today's run.
+ *
+ * The day fixes the boss, the size, the difficulty, the seed and the four
+ * people around you; the only thing left is what you bring. Retries are
+ * allowed and counted — there is no server to cheat against, and a run you
+ * cannot practise is one you only ever see once.
+ */
+function updateDaily(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const hit = hitDaily(tap.x, tap.y)
+    if (hit?.kind === 'back') {
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'class') {
+      const pick = SPEC_OPTIONS[hit.index]
+      if (pick) {
+        party = [{ ...pick }, ...party.slice(1)]
+        daily = dailyFor(daily.key, pick)
+        saveSetup()
+      }
+    }
+    if (hit?.kind === 'start') {
+      playingDaily = true
+      mode = { kind: 'raid' }
+      party = daily.party.map((p) => ({ ...p }))
+      difficulty = daily.difficulty
+      encounter = daily.encounter
+      attempt = 0
+      recorded = false
+      graded = false
+      announced = []
+      state = newState()
+      rng = rngFor(state)
+      fightingParty = party.map((p) => ({ ...p }))
+      fightingDifficulty = difficulty
+      fightingEncounter = encounter
+      fightingMode = mode
+      timing = { ...timing, accumulator: 0 }
+      screen = 'fight'
+      return
+    }
+  }
+
+  const best = todays(dailyResults, daily.key)
+  drawDaily(
+    ctx,
+    { label: dailyLabel(daily), key: daily.key },
+    best
+      ? {
+          line:
+            best.outcome === 'victory'
+              ? `best kill ${best.time.toFixed(1)}s as ${best.spec}`
+              : `best attempt left the boss at ${best.bossLeft}%`,
+          attempts: best.attempts,
+        }
+      : null,
+    SPEC_OPTIONS.findIndex(
+      (option) => option.classId === party[0]?.classId && option.spec === party[0]?.spec,
+    ),
+    (index) => {
+      const option = SPEC_OPTIONS[index]!
+      return { text: specLabel(option), colour: classColor(option.classId) }
+    },
+  )
 }
 
 function updateRaidSetup(tap: { x: number; y: number } | null): void {
@@ -512,6 +622,7 @@ function frame(now: number): void {
     if (screen === 'home') updateHome(tap, clock)
     else if (screen === 'raid') updateRaidSetup(tap)
     else if (screen === 'battleground') updateBgSetup(tap)
+    else if (screen === 'daily') updateDaily(tap)
     else if (screen === 'settings') updateSettings(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)
@@ -587,6 +698,18 @@ function frame(now: number): void {
   }
   if (state.outcome !== 'ongoing' && !graded && state.mode === 'raid') {
     graded = true
+
+    // A daily keeps its own row: the best answer to the day, not every answer.
+    if (playingDaily) {
+      dailyResults = foldDaily(
+        dailyResults,
+        daily.key,
+        state,
+        ENCOUNTERS[state.encounter]?.name ?? 'Unknown',
+        specLabel(party[0] ?? DEFAULT_PARTY[0]!),
+      )
+      saveDaily(dailyResults)
+    }
     // Pressing NEXT BOSS is not what opens the next boss; killing this one
     // is. Leaving through CHANGE PARTY after a kill must not cost the
     // progress that kill earned.

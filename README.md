@@ -278,6 +278,32 @@ Five-man heroic is the hardest thing in the game, and the harness has never
 won one: the same difficulty multipliers with none of the slack a larger
 roster brings.
 
+## Today's run
+
+One fight a day, the same one for everybody. The date picks the boss, the raid
+size, the difficulty, the seed the fight runs on and the four people rolled
+around you; the only thing left to you is which class you bring — that is the
+choice the game is about, and taking it away to make the comparison tidier
+would be trading the game for the scoreboard.
+
+This is the first thing here that uses reproducibility as a *feature* rather
+than as a testing property. The simulation has always replayed exactly from a
+seed — that is what the harness leans on — and keyed off the date instead it
+becomes the one thing a game with no server can still offer: a run somebody
+else played too, on the same boss with the same rolls, where the only
+difference is how it was played.
+
+The date is not the seed. Consecutive days differ by one, and neighbouring
+seeds make neighbouring fights, so the key is multiplied out first; the check
+draws twenty-eight days and fails if they are not at least six distinct
+setups. It is keyed in UTC so two people in different places get the same day.
+
+Retries are allowed and counted. There is no server to cheat against, and a
+run you cannot practise is one you only ever see once. The record keeps the
+best answer to a day rather than the last: a kill always beats a loss, a
+faster kill beats a slower one, and between two losses the one that left the
+boss lower.
+
 ## Battlegrounds
 
 Two of them, five against five, on the same floor with the same classes. The
