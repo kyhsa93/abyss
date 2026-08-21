@@ -339,6 +339,9 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
 function objectiveGoal(s: SimState) {
   const bg = s.bg!
   const player = s.actors.find((a) => a.isPlayer)!
+  // Walks with their own cart, which is the simplest thing a person can do
+  // on this map and therefore the right thing for the stand-in to do.
+  if (bg.kind === 'escort' && bg.carts) return bg.carts.blue.pos
   if (bg.kind === 'flags') {
     const theirs = bg.flags.red
     return theirs.carrierId === player.id ? bg.bases.blue : theirs.pos

@@ -3237,6 +3237,89 @@ for (const bg of BATTLEGROUNDS) {
   expect('and returns itself soon', bg.flags.red.dropTimer <= 6, `${bg.flags.red.dropTimer}`)
 }
 
+// The escort's own rules: a thing that rolls while you keep it company.
+{
+  const s = createBattlegroundState(0x51ed, 'escort')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  const bg = s.bg!
+  expect('an escort has two carts', bg.carts !== null, 'none')
+  if (bg.carts) {
+    const ours = bg.carts.blue
+    const theirs = bg.carts.red
+
+    expect(
+      'each starts at its own base',
+      dist(ours.pos, bg.bases.blue) < 1 && dist(theirs.pos, bg.bases.red) < 1,
+      `${ours.pos.x.toFixed(0)} / ${theirs.pos.x.toFixed(0)}`,
+    )
+    expect('and they start level', ours.progress === 0 && theirs.progress === 0, 'not at zero')
+
+    // Nobody near it: it does not move, however long you wait.
+    //
+    // The AI is switched off for this: left on, it walks whoever is planted on
+    // a cart straight back off it, and what the test then measures is the
+    // walking rather than the rule.
+    for (const a of s.actors) {
+      a.ai = null
+      a.pos = { x: 900, y: 900 }
+    }
+    for (let i = 0; i < 90; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    expect('an abandoned cart stops', ours.progress === 0, `${ours.progress.toFixed(3)}`)
+
+    // Your side alone: it rolls.
+    const pusher = s.actors.find((a) => teamOf(a) === 'blue')!
+    pusher.pos = { ...ours.pos }
+    for (let i = 0; i < 60; i++) {
+      pusher.pos = { ...ours.pos }
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    const pushed = ours.progress
+    expect('one of yours pushes it', pushed > 0, `${pushed.toFixed(3)}`)
+
+    // Theirs turns up in equal number: it stops and says so.
+    const blocker = s.actors.find((a) => teamOf(a) === 'red')!
+    for (let i = 0; i < 60; i++) {
+      pusher.pos = { ...ours.pos }
+      blocker.pos = { ...ours.pos }
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    // Even numbers creep rather than freeze: a single missing body used to be
+    // the whole match, since five against four was one cart moving and one
+    // standing still.
+    const contestedGain = ours.progress - pushed
+    expect('one of theirs nearly stops it', contestedGain > 0 && contestedGain < pushed * 0.5, `${contestedGain.toFixed(3)} vs ${pushed.toFixed(3)}`)
+    expect('and it is marked as held', ours.contested, 'not contested')
+
+    // Outnumbered on your own cart costs ground rather than freezing it: two
+    // of theirs against one of yours moves nothing, three of yours moves it.
+    const second = s.actors.filter((a) => teamOf(a) === 'blue')[1]!
+    const third = s.actors.filter((a) => teamOf(a) === 'blue')[2]!
+    const held = ours.progress
+    for (let i = 0; i < 60; i++) {
+      for (const a of [pusher, second, third]) a.pos = { ...ours.pos }
+      blocker.pos = { ...ours.pos }
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('numbers move it again', ours.progress > held, `${held.toFixed(3)} -> ${ours.progress.toFixed(3)}`)
+
+    // Arriving ends the match, for whichever side arrives.
+    ours.progress = 1
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    expect('arriving wins it', s.outcome === 'victory', s.outcome)
+  }
+}
+
+{
+  // And the other way round, so the rule is not written for one side.
+  const s = createBattlegroundState(0x51ed, 'escort')
+  s.countdown = 0
+  const rng = new Rng(0x51ed)
+  s.bg!.carts!.red.progress = 1
+  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect('and theirs arriving loses it', s.outcome === 'defeat', s.outcome)
+}
+
 // The screens: a battleground draws its own readouts and none of the raid's.
 for (const [label, w, h] of [
   ['desktop 1440x900', 1440, 900],

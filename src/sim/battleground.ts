@@ -1,7 +1,17 @@
 import { ARENA_RADIUS, DT } from './constants'
 import type { Rng } from './rng'
 import { dist } from './combat'
-import type { Actor, BgFlag, BgKind, BgState, Obstacle, SimState, Team, Vec2 } from './types'
+import type {
+  Actor,
+  BgCart,
+  BgFlag,
+  BgKind,
+  BgState,
+  Obstacle,
+  SimState,
+  Team,
+  Vec2,
+} from './types'
 
 /**
  * The battlegrounds.
@@ -246,6 +256,43 @@ export function living(s: SimState, team: Team): Actor[] {
   return s.actors.filter((a) => a.alive && teamOf(a) === team)
 }
 
+/** How close you have to be to push, and how close they have to be to stop it. */
+export const CART_RADIUS = 105
+
+/**
+ * Units a second with one person on it.
+ *
+ * Slow enough that the match is the fight rather than the walk: at the first
+ * figure a cart crossed the whole map in thirty-five seconds and a game ended
+ * inside a minute, which is a footrace with some hitting in it.
+ */
+const CART_SPEED = 8
+/** Each extra body adds this much, up to a cap: a crowd is faster, not instant. */
+const CART_CROWD = 1.6
+const CART_CROWD_MAX = 5
+
+const ESCORT_LIMIT = 300
+
+function cartFor(team: Team, bases: Record<Team, Vec2>): BgCart {
+  return {
+    team,
+    pos: { ...bases[team] },
+    progress: 0,
+    contested: false,
+    pushers: 0,
+  }
+}
+
+/** Where a cart sits at a given progress: a straight line between the bases. */
+function cartPath(bg: BgState, team: Team, progress: number): Vec2 {
+  const from = bg.bases[team]
+  const to = bg.bases[other(team)]
+  return {
+    x: from.x + (to.x - from.x) * progress,
+    y: from.y + (to.y - from.y) * progress,
+  }
+}
+
 export function createBattleground(kind: BgKind, rng: Rng): BgState {
   const bases: Record<Team, Vec2> = {
     blue: { ...BASES.blue },
@@ -256,9 +303,14 @@ export function createBattleground(kind: BgKind, rng: Rng): BgState {
   return {
     kind,
     score: { blue: 0, red: 0 },
-    target: kind === 'conquest' ? CONQUEST_TARGET : FLAG_TARGET,
-    timeLimit: kind === 'conquest' ? CONQUEST_LIMIT : FLAG_LIMIT,
+    target: kind === 'conquest' ? CONQUEST_TARGET : kind === 'flags' ? FLAG_TARGET : 1,
+    timeLimit:
+      kind === 'conquest' ? CONQUEST_LIMIT : kind === 'flags' ? FLAG_LIMIT : ESCORT_LIMIT,
     obstacles: rollTerrain(kind, bases, nodes, rng),
+    carts:
+      kind === 'escort'
+        ? { blue: cartFor('blue', bases), red: cartFor('red', bases) }
+        : null,
     nodes:
       kind === 'conquest'
         ? NODE_POSITIONS.map((pos, i) => ({
@@ -308,6 +360,7 @@ export function updateBattleground(s: SimState): void {
 
   updateRespawns(s, bg)
   if (bg.kind === 'conquest') updateNodes(s, bg)
+  else if (bg.kind === 'escort') updateCarts(s, bg)
   else updateFlags(s, bg)
 
   resolve(s, bg)
@@ -479,9 +532,70 @@ function updateFlags(s: SimState, bg: BgState): void {
   }
 }
 
+/**
+ * Both carts, rolling.
+ *
+ * Symmetric on purpose — each side has its own to push and the other's to
+ * stop, so there is no attacker and no defender and nobody is handed the
+ * better half of an asymmetric map. Standing with it is the whole input;
+ * everything else is the fight that decides who gets to.
+ */
+function updateCarts(s: SimState, bg: BgState): void {
+  const carts = bg.carts
+  if (!carts) return
+
+  for (const team of order(s)) {
+    const cart = carts[team]
+    const near = (side: Team) =>
+      living(s, side).filter((a) => dist(a.pos, cart.pos) <= CART_RADIUS).length
+
+    const mine = near(team)
+    const theirs = near(other(team))
+    cart.pushers = mine
+    cart.contested = mine > 0 && theirs > 0
+
+    // Even numbers still roll, slowly; being outnumbered stops it.
+    //
+    // Freezing on a tie made a single missing body decisive: five against four
+    // is one cart moving and one standing still, so the side that lost one
+    // fight lost the match, and the harness's weaker stand-in never won a
+    // single game. A tie creeping forward keeps a bad minute from being the
+    // whole story.
+    // Nobody on it at all is not a tie: an empty cart sits where it is. Zero
+    // against zero counted as even numbers for one round of this and carts
+    // rolled across an empty map on their own.
+    if (mine === 0) continue
+
+    const lead = mine - theirs
+    if (lead < 0) continue
+
+    const speed =
+      lead === 0
+        ? CART_SPEED * 0.4
+        : CART_SPEED + Math.min(CART_CROWD_MAX, (lead - 1) * CART_CROWD)
+    const span = dist(bg.bases[team], bg.bases[other(team)])
+    cart.progress = Math.min(1, cart.progress + (speed * DT) / span)
+    cart.pos = cartPath(bg, team, cart.progress)
+  }
+}
+
 function resolve(s: SimState, bg: BgState): void {
   const blue = Math.floor(bg.score.blue)
   const red = Math.floor(bg.score.red)
+
+  if (bg.kind === 'escort' && bg.carts) {
+    const home = bg.carts.blue.progress
+    const away = bg.carts.red.progress
+    if (home >= 1 || away >= 1) {
+      s.outcome = home >= away ? 'victory' : 'defeat'
+      return
+    }
+    if (s.time >= bg.timeLimit) {
+      // Whoever pushed theirs further, and the player on a dead heat.
+      s.outcome = home >= away ? 'victory' : 'defeat'
+    }
+    return
+  }
 
   if (blue >= bg.target || red >= bg.target) {
     s.outcome = blue >= red ? 'victory' : 'defeat'
@@ -500,6 +614,11 @@ export function held(bg: BgState, team: Team): number {
 }
 
 export const BATTLEGROUNDS: Array<{ kind: BgKind; name: string; demand: string }> = [
+  {
+    kind: 'escort',
+    name: 'The Long Haul',
+    demand: 'walk yours forward, and stand in front of theirs',
+  },
   {
     kind: 'conquest',
     name: 'The Three Cairns',

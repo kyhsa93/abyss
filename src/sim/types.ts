@@ -278,7 +278,26 @@ export type Mode = 'raid' | 'battleground'
 
 export type Team = 'blue' | 'red'
 
-export type BgKind = 'conquest' | 'flags'
+export type BgKind = 'conquest' | 'flags' | 'escort'
+
+/**
+ * A thing that rolls forward while your side is near it and nobody else is.
+ *
+ * A capture point is somewhere to stand and a flag is something to carry; this
+ * is neither. It moves on its own as long as you keep it company, so the fight
+ * follows it rather than the other way round, and losing the fight for ten
+ * seconds costs you ten seconds of ground rather than an objective.
+ */
+export interface BgCart {
+  team: Team
+  pos: Vec2
+  /** 0 at its own base, 1 at the other one. */
+  progress: number
+  /** Both sides in reach: it stops rather than being fought over. */
+  contested: boolean
+  /** How many of the owning side are pushing right now, for the readout. */
+  pushers: number
+}
 
 /** A capture point. Held by standing on it and nobody else standing on it. */
 export interface BgNode {
@@ -335,6 +354,8 @@ export interface BgState {
   /** Seconds before the higher score wins outright. */
   timeLimit: number
   nodes: BgNode[]
+  /** One per side in an escort, empty otherwise. */
+  carts: Record<Team, BgCart> | null
   /** Terrain. Empty in a raid, where the floor is the mechanic. */
   obstacles: Obstacle[]
   flags: Record<Team, BgFlag>

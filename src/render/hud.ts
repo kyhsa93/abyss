@@ -8,7 +8,7 @@ import { encounterAt, hasNext } from '../sim/encounters'
 import { adds, boss, castBlocker, dist, getAura } from '../sim/combat'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { teamColour } from './draw'
-import type { Actor, AuraId, SimState } from '../sim/types'
+import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
 import { COLORS, L, WORLD_RADIUS, classColor, resourceColor } from './theme'
 
@@ -384,6 +384,34 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, s: SimState): void {
   const left = Math.max(0, bg.timeLimit - s.time)
   ctx.fillText(`${bgName(bg.kind)}   ·   ${left.toFixed(0)}s left`, L.w / 2, y - 6)
 
+  if (bg.kind === 'escort' && bg.carts) {
+    // Two bars racing the same length of track, which is what the match is.
+    for (const [i, team] of (['blue', 'red'] as const).entries()) {
+      const cart = bg.carts[team]
+      const row = y + i * (h + 4)
+      ctx.fillStyle = COLORS.panel
+      ctx.fillRect(x, row, w, h)
+      ctx.fillStyle = teamColour(team)
+      ctx.fillRect(x, row, w * Math.min(1, cart.progress), h)
+      ctx.strokeStyle = cart.contested ? COLORS.hpBarLow : COLORS.panelEdge
+      ctx.lineWidth = cart.contested ? 2 : 1
+      ctx.strokeRect(x + 0.5, row + 0.5, w - 1, h - 1)
+
+      ctx.fillStyle = COLORS.text
+      ctx.font = font(9, true)
+      ctx.textAlign = 'left'
+      ctx.fillText(`${Math.round(cart.progress * 100)}%`, x + 4, row + h - 3)
+      ctx.textAlign = 'right'
+      ctx.fillText(
+        cart.contested ? 'held' : cart.pushers > 0 ? `${cart.pushers} pushing` : 'stopped',
+        x + w - 4,
+        row + h - 3,
+      )
+      ctx.textAlign = 'center'
+    }
+    return
+  }
+
   if (bg.kind === 'conquest') {
     for (const [i, team] of (['blue', 'red'] as const).entries()) {
       const row = y + i * (h + 4)
@@ -454,7 +482,7 @@ function mostHurtAlly(s: SimState, actor: Actor): Actor | undefined {
   return best
 }
 
-function bgName(kind: 'conquest' | 'flags'): string {
+function bgName(kind: BgKind): string {
   return BATTLEGROUNDS.find((b) => b.kind === kind)?.name ?? 'Battleground'
 }
 
@@ -479,6 +507,14 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
       ctx.arc(p.x, p.y, Math.max(1, rock.radius * k), 0, Math.PI * 2)
       ctx.fillStyle = 'rgba(148, 163, 184, 0.35)'
       ctx.fill()
+    }
+    if (s.bg.carts) {
+      for (const team of ['blue', 'red'] as const) {
+        const cart = s.bg.carts[team]
+        const p = at(cart.pos)
+        ctx.fillStyle = teamColour(team)
+        ctx.fillRect(p.x - 3, p.y - 3, 6, 6)
+      }
     }
     for (const node of s.bg.nodes) {
       const p = at(node.pos)

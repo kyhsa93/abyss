@@ -4,6 +4,7 @@ import { beginCast, dist, getAura, hasteOf, interruptCast } from './combat'
 import { DT, MELEE_RANGE, SPELL_RANGE } from './constants'
 import {
   CARRIER_SPEED,
+  CART_RADIUS,
   NODE_RADIUS,
   carrying,
   clearTerrain,
@@ -144,6 +145,24 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
     if (friendlyCarrier && actor.role === 'healer') return free(friendlyCarrier.pos)
 
     return free(theirs.state === 'home' ? bg.bases[other(team)] : theirs.pos)
+  }
+
+  if (bg.kind === 'escort' && bg.carts) {
+    // Three walk with ours, two stand in front of theirs. Split by place in
+    // the team rather than by anything that changes, because an assignment
+    // that moves is an assignment that paces — which is how the capture map
+    // broke twice.
+    const index = s.actors.filter((a) => teamOf(a) === team).indexOf(actor)
+    const ours = bg.carts[team]
+    const theirs = bg.carts[other(team)]
+
+    // Whoever is ahead can spare somebody to block; whoever is behind cannot.
+    const behind = ours.progress < theirs.progress - 0.08
+    const blocking = index < (behind ? 1 : 2)
+
+    // The objective moves, so the leash goes around the cart rather than
+    // around a fixed circle on the floor.
+    return { pos: blocking ? theirs.pos : ours.pos, hold: CART_RADIUS * 0.72 }
   }
 
   // Conquest.

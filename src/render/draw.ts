@@ -1,5 +1,6 @@
 import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
+import { CART_RADIUS } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
@@ -148,6 +149,41 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
       ctx.strokeStyle = teamColour(toward)
       ctx.lineWidth = 4
       ctx.stroke()
+    }
+  }
+
+  // The carts, and the line each one is walking.
+  if (bg.carts) {
+    for (const team of ['blue', 'red'] as const) {
+      const cart = bg.carts[team]
+      const from = worldToScreen(bg.bases[team])
+      const to = worldToScreen(bg.bases[team === 'blue' ? 'red' : 'blue'])
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.lineTo(to.x, to.y)
+      ctx.strokeStyle = tint(teamColour(team), 0.18)
+      ctx.setLineDash([8, 10])
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      const at = worldToScreen(cart.pos)
+      const r = CART_RADIUS * L.scale
+      // The circle you have to be inside to push it, drawn faintly, and the
+      // cart itself as a solid square — the one thing on the floor that is not
+      // a person and not a hazard.
+      ctx.beginPath()
+      ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+      ctx.strokeStyle = cart.contested ? COLORS.hpBarLow : tint(teamColour(team), 0.45)
+      ctx.lineWidth = cart.contested ? 2 + Math.sin(clock * 8) : 1.5
+      ctx.stroke()
+
+      const size = Math.max(7, 16 * L.scale)
+      ctx.fillStyle = teamColour(team)
+      ctx.fillRect(at.x - size / 2, at.y - size / 2, size, size)
+      ctx.strokeStyle = '#0a0a0f'
+      ctx.lineWidth = 2
+      ctx.strokeRect(at.x - size / 2, at.y - size / 2, size, size)
     }
   }
 
