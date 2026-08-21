@@ -26,6 +26,8 @@ export type AuraId =
   | 'combo' // rogue and cat: builds on the filler, spent by the finisher
   | 'momentum' // mage: stacks while it stands and casts, gone the moment it moves
   | 'eclipse' // balance druid: the window a finisher opens for its filler
+  | 'rot' // boss: a stacking magic dot, the healer's slow problem
+  | 'sprint' // leather melee: brief, expensive speed, for getting out and back
   | 'ward' // priest: damage taken down, applied before the damage arrives
   | 'mending' // druid tank: a slice of what it just took, given back over time
   | 'shield' // damage reduction on the tank
@@ -401,6 +403,10 @@ export interface SimState {
   nextBreath: number
   nextShockwave: number
   nextAdds: number
+  /** Physical damage to everyone in reach, which armour actually answers. */
+  nextSweep: number
+  /** A magic dot on somebody, which armour does not. */
+  nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */
   raidFlash: number
   /** Monotonic id source for spawned objects. */

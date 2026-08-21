@@ -24,6 +24,7 @@ import {
   pushEffect,
   landAbility,
   livingParty,
+  hasteOf,
   pushText,
   spawnBolt,
   resolveAbility,
@@ -240,7 +241,8 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
 
   const len = Math.hypot(input.moveX, input.moveY)
   if (len > 0.01) {
-    const stepLen = player.moveSpeed * DT * (carrying(s, player) ? CARRIER_SPEED : 1)
+    const stepLen =
+      player.moveSpeed * DT * (carrying(s, player) ? CARRIER_SPEED : 1) * hasteOf(player)
     const stepX = (input.moveX / len) * stepLen
     const stepY = (input.moveY / len) * stepLen
     player.pos.x += stepX

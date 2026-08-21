@@ -28,6 +28,16 @@ export interface PhaseTiming {
   breath: number
   shockwave: number
   adds: number
+  /**
+   * Physical damage to everyone standing in reach.
+   *
+   * The only thing the boss does that armour answers — everything else it
+   * throws is magic, which is why plate on a melee dealer was a line in a
+   * table rather than a reason to bring one.
+   */
+  sweep: number
+  /** A dot on somebody. Slow, unavoidable, and the healer's to solve. */
+  rot: number
 }
 
 export interface Encounter {
@@ -73,6 +83,8 @@ export interface Encounter {
     breath: number
     shockwave: number
     adds: number
+    sweep: number
+    rot: number
   }
   lines: {
     phaseTwo: string
@@ -103,20 +115,20 @@ export const ENCOUNTERS: Encounter[] = [
      * encounter should be the length it was: what a crit changes is how a hit
      * looks, not how long the fight runs.
      */
-    hp: 50500,
+    hp: 47000,
     enrage: 240,
     phaseTwoHp: 0.7,
     phaseThreeHp: 0.4,
     swingDamage: 621,
     slamDamage: 1322,
-    raidDamage: 157,
+    raidDamage: 129,
     mechanicDamage: 1,
     phases: {
-      1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0 },
-      2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50 },
-      3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42 },
+      1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0, sweep: 42, rot: 33 },
+      2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50, sweep: 35, rot: 27 },
+      3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42, sweep: 30, rot: 22 },
     },
-    opening: { puddle: 9, spread: 17, slam: 13, raid: 11, breath: 21, shockwave: 27, adds: 45 },
+    opening: { puddle: 9, spread: 17, slam: 13, raid: 11, breath: 21, shockwave: 27, adds: 45, sweep: 30, rot: 22 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -131,20 +143,20 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Choir Beneath',
     short: 'Choir',
     demand: 'stay apart, and out-heal the singing',
-    hp: 59000,
+    hp: 55000,
     enrage: 230,
     phaseTwoHp: 0.65,
     phaseThreeHp: 0.35,
     swingDamage: 540,
     slamDamage: 1127,
-    raidDamage: 219,
+    raidDamage: 180,
     mechanicDamage: 1.1,
     phases: {
-      1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0 },
-      2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0 },
-      3: { swing: 1.8, puddle: 6, spread: 8, slam: 14, puddleCount: 3, raid: 5.5, breath: 0, shockwave: 0, adds: 0 },
+      1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 20 },
+      2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 16 },
+      3: { swing: 1.8, puddle: 6, spread: 8, slam: 14, puddleCount: 3, raid: 5.5, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 14 },
     },
-    opening: { puddle: 7, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 0 },
+    opening: { puddle: 7, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 12 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -160,20 +172,20 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Tidebreaker',
     short: 'Tidebreaker',
     demand: 'come in, get behind, change target',
-    hp: 52000,
+    hp: 48500,
     enrage: 250,
     phaseTwoHp: 0.75,
     phaseThreeHp: 0.4,
     swingDamage: 690,
     slamDamage: 1438,
-    raidDamage: 132,
+    raidDamage: 108,
     mechanicDamage: 2.3,
     phases: {
-      1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30 },
-      2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26 },
-      3: { swing: 1.5, puddle: 11, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 22 },
+      1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30, sweep: 32, rot: 0 },
+      2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26, sweep: 28, rot: 0 },
+      3: { swing: 1.5, puddle: 11, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 22, sweep: 23, rot: 0 },
     },
-    opening: { puddle: 14, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 28 },
+    opening: { puddle: 14, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 28, sweep: 23, rot: 0 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',

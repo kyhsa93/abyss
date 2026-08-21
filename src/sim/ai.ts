@@ -9,6 +9,7 @@ import {
   boss,
   dist,
   getAura,
+  hasteOf,
   interruptCast,
   livingParty,
   say,
@@ -375,7 +376,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
     return
   }
 
-  const stepLen = actor.moveSpeed * DT
+  const stepLen = actor.moveSpeed * DT * hasteOf(actor)
   actor.pos.x += ((target.x - actor.pos.x) / d) * stepLen
   actor.pos.y += ((target.y - actor.pos.y) / d) * stepLen
   clampToArena(actor.pos, actor.radius)

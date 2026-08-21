@@ -3,6 +3,7 @@ import {
   addAura,
   adds,
   getAura,
+  pushEffect,
   applyDamage,
   boss,
   dist,
@@ -85,6 +86,18 @@ const SHOCKWAVE_GROWTH = 250
 const SHOCKWAVE_BAND = 58
 const SHOCKWAVE_DAMAGE = 600
 
+/**
+ * How far a sweep reaches past the boss's own edge.
+ *
+ * Wide enough to catch the ranged as well, which is the whole point of it:
+ * a melee-only physical hit is a tax on the people whose armour was supposed
+ * to be the reward. Everybody takes it and armour decides what it costs, so
+ * plate is finally worth the walk rather than a line in a table.
+ */
+const SWEEP_RANGE = 300
+/** As a share of the boss's weapon swing, which armour already answers. */
+const SWEEP_SHARE = 0.34
+
 const ADD_HP = 1200
 const ADD_DAMAGE = 70
 const ADD_SWING = 1.8
@@ -122,6 +135,8 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleBreath(s, b, timing)
   scheduleShockwave(s, b, timing)
   scheduleAdds(s, b, rng, timing)
+  scheduleSweep(s, b, timing)
+  scheduleRot(s, rng, timing)
 
   updateAdds(s)
 }
@@ -313,6 +328,61 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     clampToArena(pos, 16)
     s.actors.push(makeAdd(s.nextObjectId++, pos.x, pos.y))
   }
+}
+
+/**
+ * Physical damage to everyone standing in reach.
+ *
+ * The only thing a boss throws that armour answers. Everything else it does is
+ * magic and ignores armour entirely, which meant a melee dealer's plate was a
+ * line in a table: it took the same mechanic damage as a mage in cloth, died
+ * at the same rate, and paid for the privilege by standing where the boss was
+ * aiming. This is what makes the armour worth the walk.
+ *
+ * It is telegraphed by the swing itself rather than by a circle on the floor:
+ * being in reach is the tell, and getting out is the answer.
+ */
+function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.sweep <= 0) return
+  s.nextSweep -= DT
+  if (s.nextSweep > 0) return
+
+  s.nextSweep = timing.sweep
+  s.sounds.push('raid')
+  say(s, b, 'Sweeping')
+
+  const reach = SWEEP_RANGE + b.radius
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, b.pos) > reach) continue
+    // Physical, so armour and block both answer it. A tank barely notices; a
+    // caster that wandered into melee should not survive making a habit of it.
+    applyDamage(s, a, hit(s, fight(s).swingDamage * SWEEP_SHARE), 'physical', {
+      sourceId: b.id,
+      mechanic: true,
+    })
+  }
+  pushEffect(s, 'swing', b.pos, { power: SWEEP_RANGE, angle: 0 })
+}
+
+/**
+ * A dot on somebody, which armour does not answer.
+ *
+ * The counterweight to the sweep: one mechanic that plate solves and one it
+ * cannot touch, so no single stat block is the right answer to the fight.
+ */
+function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.rot <= 0) return
+  s.nextRot -= DT
+  if (s.nextRot > 0) return
+
+  s.nextRot = timing.rot
+  const victims = livingParty(s).filter((a) => !getAura(a, 'rot'))
+  if (victims.length === 0) return
+
+  const victim = rng.pick(victims)
+  addAura(victim, 'rot', BOSS_ID)
+  s.sounds.push('telegraph')
+  if (victim.ai) say(s, victim, 'Rotting — need a heal')
 }
 
 function makeAdd(id: number, x: number, y: number): Actor {

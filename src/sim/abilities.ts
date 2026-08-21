@@ -103,6 +103,20 @@ const list: Ability[] = [
   { id: 'serpent_sting', name: 'Serpent Sting', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 44, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
   { id: 'aimed_shot', name: 'Aimed Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 369, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
+  // --- leather melee: brief speed on a long cooldown -----------------------
+  //
+  // A rogue and a cat pay for their damage by standing where the boss is
+  // aiming, and pay again every time something lands on the floor: melee range
+  // is 52 units, so walking out is walking out of the fight entirely, while a
+  // caster keeps working from 340. Plate melee answer that with armour they
+  // can afford to eat a hit through. Leather cannot, so they get the other
+  // answer — leave sooner and come back faster.
+  //
+  // Five seconds and forty-five of cooldown: enough for one exit and one
+  // return, not enough to play the whole fight at speed.
+  { id: 'sprint', name: 'Sprint', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: 'sprint', range: 0, offGcd: true },
+  { id: 'dash', name: 'Dash', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: 'sprint', range: 0, offGcd: true },
+
   // --- rogue: highest sustained damage, paid for in melee range ------------
   { id: 'sinister_strike', name: 'Sinister Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 32, amount: 93, threatMult: 1, aura: null, range: MELEE },
   { id: 'rupture', name: 'Rupture', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 45, threatMult: 1, aura: 'rupture', range: MELEE },

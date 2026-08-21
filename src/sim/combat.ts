@@ -74,6 +74,9 @@ const AURA_DURATION: Record<AuraId, number> = {
   eclipse: 8,
   ward: 10,
   mending: 6,
+  rot: 15,
+  // Short on purpose: it is for one exit and one return, not for a fight.
+  sprint: 5,
 }
 
 /**
@@ -123,6 +126,9 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
   mending: { heal: 62 },
+  // The boss's own dot. Unavoidable, slow, and the reason a healer cannot
+  // spend a whole fight watching one health bar.
+  rot: { damage: 36 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -857,4 +863,16 @@ export function mendAfterHit(target: Actor, amount: number): void {
   const spec = specOf({ classId: target.classId, spec: target.spec })
   if (spec.trait !== 'thick' || amount <= 0) return
   addAura(target, 'mending', target.id)
+}
+
+/**
+ * How fast this actor is moving right now, as a multiplier.
+ *
+ * One aura for now, and deliberately large: a sprint that shaves ten percent
+ * off a walk is a sprint nobody notices. Half again for five seconds is a
+ * button that visibly gets a rogue out of a puddle and back onto the boss,
+ * which is what it is for.
+ */
+export function hasteOf(actor: Actor): number {
+  return getAura(actor, 'sprint') ? 1.5 : 1
 }

@@ -624,6 +624,14 @@ edge, so a hunter would have stood at a distance the AI was happy with and
 fired nothing. A shooter is asked about its own rule now. It is only asked
 about the boss: running from a thrall costs more uptime than the thrall does.
 
+**Leather melee carry a way out.** A rogue's Sprint and a cat's Dash: half
+again the speed for five seconds, free, on a forty-five second cooldown. Melee
+range is 52 units, so walking out of a puddle is walking out of the fight,
+while a caster keeps working from 340 — plate answers that with armour it can
+afford to eat a hit through, and leather could not answer it at all. It is one
+exit and one return rather than a way to play the whole fight at speed, which
+is what the five seconds are for.
+
 **A warrior charges.** Both specs carry it: it crosses up to 260 units to
 whatever it is aimed at, stops at swinging distance rather than inside it, and
 arrives with 25 rage — which is the answer to a resource that starts at
@@ -784,6 +792,19 @@ time you have settled on a target. Its floor hits more than twice as hard as
 the Warden's, because a mechanic you have room to dodge has to be worth
 dodging.
 
+| Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
+| Rot | A magic dot on somebody; armour is no help at all |
+
+Those two are a pair, and they exist because everything a boss threw was magic
+except its weapon. Magic ignores armour entirely, so a plate dealer took the
+same mechanic damage as a mage in cloth: over thirty pulls both died at the
+same rate, took the same number of mechanic hits, and the melee paid for the
+privilege by standing where the boss was aiming. Plate was a line in a table.
+The sweep is wide enough to catch the ranged as well — a melee-only physical
+hit would be a tax on exactly the people whose armour was supposed to be the
+reward — and the rot is the counterweight, so no stat block is the whole answer
+to a fight.
+
 | Mechanic | What it asks of you | Warden | Choir | Tidebreaker |
 | --- | --- | --- | --- | --- |
 | Slam | Tank cooldown, or the tank takes a large hit | ✓ | ✓ | ✓ |
@@ -794,6 +815,8 @@ dodging.
 | Thralls | Summoned adds beeline for the nearest body; dealers switch to them | ✓ | | ✓ |
 | Crushing tide | Unavoidable party damage — the floor under the healer | ✓ | ✓ | ✓ |
 | The boss itself | Faster than the whole party; you cannot outrun it | ✓ | ✓ | ✓ |
+| Sweep | Get out of reach, or wear something | ✓ | | often |
+| Rot | Nothing — it is the healer's to answer | ✓ | ✓ | |
 | Enrage | A hard damage check | 240s | 230s | 250s |
 
 A cadence of zero disables a mechanic, which is how the table says a boss does

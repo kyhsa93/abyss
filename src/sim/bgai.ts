@@ -1,6 +1,6 @@
 import { ABILITIES } from './abilities'
 import { specOf } from './classes'
-import { beginCast, dist, getAura, interruptCast } from './combat'
+import { beginCast, dist, getAura, hasteOf, interruptCast } from './combat'
 import { DT, MELEE_RANGE, SPELL_RANGE } from './constants'
 import {
   CARRIER_SPEED,
@@ -285,7 +285,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   }
   ai.moveTarget = { x: target.x, y: target.y }
 
-  const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1)
+  const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1) * hasteOf(actor)
   const stepX = ((target.x - actor.pos.x) / d) * step
   const stepY = ((target.y - actor.pos.y) / d) * step
   actor.pos.x += stepX
