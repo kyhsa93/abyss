@@ -453,6 +453,28 @@ protection warrior and an arms warrior share nothing but a name.
 Fifteen combinations in all, and the raid screen lists them individually
 rather than asking you to pick a class and then a role.
 
+**Every spec has one rule that is its own** — healers and tanks included.
+
+| Healer | Its rule |
+| --- | --- |
+| Priest | **Ward** — puts the reduction on *before* the hit, which needs you to know what the boss does next |
+| Druid | **Bloom** — a direct heal on somebody already mending bursts; the over-time is the setup, not a trickle |
+| Shaman | **Chain** — the heal jumps to whoever is standing near, and to nobody when the raid is spread |
+| Paladin | **Anchor** — worth half again on the tank and less on everybody else |
+
+| Tank | Its rule |
+| --- | --- |
+| Warrior | **Guard** — rage is earned by being hit and spent on being hit less |
+| Paladin | **Cadence** — a reduction on a clock, two and a half seconds in every eight, so a healer can plan around it |
+| Druid | **Thick** — gives back a slice of whatever lands, over time; the healer tops up rather than catching spikes |
+
+Three of the four healers were also playing with a button switched off:
+autocast's priority list had no line for the over-time heal at all, so Renew,
+Rejuvenation and Riptide were pressed **zero percent** of the time. Pressing
+them took healing from 72 to 112 a second. Healing costs enough to be a budget
+now — at the old prices a healer at half uptime spent exactly what it
+regenerated and never had a decision to make.
+
 **Every damage spec has one rule that is its own.** They used to share a
 rotation and differ only in numbers, which measured out as nine names for one
 spec: filler, dot, finisher, the same three presses in the same order, the
@@ -490,6 +512,13 @@ minute, with the rotation pressed for you:
 A mage spends over a third of a fight rooted in a cast; a paladin presses
 something nearly three times as often as a hunter and its damage barely moves.
 Same damage per second, different job.
+
+One of these checks caught the boss itself wearing a tank's trait. A boss
+borrows a class and a spec for its name and its colour, and the warrior tank's
+rule is "rage near the top means a quarter less damage taken" — a boss has no
+rage bar at all, so the comparison was always true and it quietly took a
+quarter less from everything. Every balance number measured while that was live
+was measured against a boss with free armour.
 
 The traits are checked directly rather than inferred — five combo points
 against none, an eclipse window open against closed, a mark up against not,
@@ -883,13 +912,21 @@ cell. An earlier 24 was small enough that the noise read as a trend:
 
 | Composition | 1st pull | 5th | 9th | avg time |
 | --- | --- | --- | --- | --- |
-| 1 tank, 1 healer, 3 damage | 37% | 53% | 73% | 126s |
-| 1 tank, 2 healers, 2 damage | 28% | 60% | 67% | 224s |
-| 1 tank, 0 healers, 4 damage | 0% | 0% | 2% | 80s |
-| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 78s |
-| all melee | 17% | 50% | 43% | 133s |
-| all caster | 50% | 60% | 68% | 141s |
-| druid tank, shaman healer | 17% | 43% | 53% | 127s |
+| 1 tank, 1 healer, 3 damage | 35% | 60% | 68% | 150s |
+| 1 tank, 2 healers, 2 damage | 0% | 3% | 8% | 238s |
+| 1 tank, 0 healers, 4 damage | 0% | 0% | 0% | 77s |
+| 0 tanks, 1 healer, 4 damage | 0% | 0% | 0% | 83s |
+| all melee | 3% | 12% | 20% | 161s |
+| all caster | 60% | 77% | 78% | 137s |
+| druid tank, shaman healer | 37% | 58% | 73% | 143s |
+
+Two of these are further apart than they should be, and are named here rather
+than quietly left. **All-caster now beats all-melee by a wide margin**, because
+melee pay for their range in ways a training dummy cannot see — they walk out
+of puddles mid-rotation, lose uptime to it and die more — and the traits did
+not change that. And **two healers no longer clears**: with healers answering
+half again as much as they used to, what beat that composition was never the
+healing, it was the damage check, and two dealers cannot make the enrage.
 
 Two healers works but grinds against the 240s enrage. Dropping the tank or the
 healer entirely does not work at all, which is the intended shape. All-melee is
