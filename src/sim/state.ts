@@ -1,6 +1,7 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
+import { descentHealth } from './descent'
 import { Rng } from './rng'
 import {
   CLASSES,
@@ -122,10 +123,12 @@ export function createState(
   difficulty: DifficultyId = 'normal',
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,
+  depth = 0,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
-  const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
+  const scale =
+    sizeHealth(party.length) * DIFFICULTIES[difficulty].health * descentHealth(depth)
   const fight = encounterAt(encounter)
   const opening = fight.opening
 
@@ -192,6 +195,7 @@ export function createState(
     outcome: 'ongoing',
     encounter: encounterIndex(encounter),
     affix,
+    depth,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: opening.puddle,
@@ -293,6 +297,7 @@ export function createBattlegroundState(
     outcome: 'ongoing',
     encounter: FIRST_ENCOUNTER,
     affix: null,
+    depth: 0,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: 0,

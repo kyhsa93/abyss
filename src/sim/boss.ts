@@ -16,6 +16,7 @@ import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
+import { descentDamage } from './descent'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -59,7 +60,7 @@ function scaled(timing: PhaseTiming, s: SimState): PhaseTiming {
 
 /** Every point of boss damage passes through here. */
 function hit(s: SimState, amount: number): number {
-  return amount * DIFFICULTIES[s.difficulty].damage
+  return amount * DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth)
 }
 
 /** The same, for anything the floor does. */

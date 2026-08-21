@@ -104,6 +104,7 @@ import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
 import { AFFIXES, type AffixId } from '../src/sim/affix'
+import { descentDamage, descentEncounter, descentHealth } from '../src/sim/descent'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
@@ -3345,7 +3346,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
+  const answers = ['raid', 'battleground', 'daily', 'descent', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -4004,6 +4005,57 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     expect('and a loss never displaces a kill', record[0]!.outcome === 'victory' && record[0]!.time === 121, JSON.stringify(record[0]))
     expect('while still counting', record[0]!.attempts === 4, `${record[0]!.attempts}`)
   }
+}
+
+// --- the descent -------------------------------------------------------------
+//
+// One attempt, boss after boss, each harder than the last. The rules that
+// matter: it gets harder, it starts easier than a raid, the bosses come round
+// rather than running out, and a floor cleared always has another below it.
+{
+  expect(
+    'each floor is harder than the one above',
+    [1, 2, 3, 5, 8, 12].every((d, i, all) => i === 0 || descentHealth(d) > descentHealth(all[i - 1]!)) &&
+      [1, 2, 3, 5, 8, 12].every((d, i, all) => i === 0 || descentDamage(d) > descentDamage(all[i - 1]!)),
+    `${[1, 5, 12].map((d) => descentHealth(d).toFixed(2)).join(', ')}`,
+  )
+
+  // The first floors are below an ordinary pull on purpose: a run that ends on
+  // floor one most of the time is a raid with the retry button taken away.
+  expect('and the first is easier than a raid', descentHealth(1) < 0.8, `${descentHealth(1).toFixed(2)}`)
+  expect('while the fifth is not', descentHealth(5) >= 1, `${descentHealth(5).toFixed(2)}`)
+
+  // The bosses come round rather than running out.
+  const floors = Array.from({ length: 9 }, (_, i) => descentEncounter(i + 1))
+  expect(
+    'the bosses come round',
+    new Set(floors).size === ENCOUNTERS.length && floors[0] === floors[ENCOUNTERS.length],
+    floors.join(','),
+  )
+
+  // A cleared floor always has another below it, however deep — where a raid
+  // eventually runs out of bosses and stops offering.
+  const deep = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', ENCOUNTERS.length - 1, null, 7)
+  deep.outcome = 'victory'
+  expect('a descent always goes deeper', canAdvance(deep), 'it offered no floor')
+  const lastRaid = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', ENCOUNTERS.length - 1)
+  lastRaid.outcome = 'victory'
+  expect('a raid still runs out', !canAdvance(lastRaid), 'the last boss offered another')
+
+  // Depth is carried by the fight rather than by the screen, and an ordinary
+  // pull has none.
+  expect('a descent knows its floor', deep.depth === 7, `${deep.depth}`)
+  expect('an ordinary pull has no floor', lastRaid.depth === 0, `${lastRaid.depth}`)
+
+  // The boss at a depth is actually bigger, which is what the multiplier is
+  // for — read off the actor rather than the function.
+  const shallow = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 1)
+  const deeper = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 9)
+  expect(
+    'and it is built with more health',
+    boss(deeper).maxHp > boss(shallow).maxHp * 1.5,
+    `${boss(shallow).maxHp} -> ${boss(deeper).maxHp}`,
+  )
 }
 
 // --- affixes -----------------------------------------------------------------

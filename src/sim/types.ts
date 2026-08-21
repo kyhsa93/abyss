@@ -394,6 +394,12 @@ export interface SimState {
    */
   affix: AffixId | null
   /**
+   * How far down this fight is, or zero for one that is not a descent.
+   *
+   * The boss reads it for its health and its damage; nothing else does.
+   */
+  depth: number
+  /**
    * Ticks left before the pull starts, counting down to zero.
    *
    * Ticks rather than seconds because a float subtracted every tick does not

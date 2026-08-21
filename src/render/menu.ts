@@ -32,7 +32,7 @@ export type MenuScreen = 'home' | 'raid' | 'battleground' | 'daily' | 'settings'
 /** How many specs the class grid has to hold. */
 const SPEC_COUNT = SPEC_OPTIONS.length
 
-export type HomeChoice = 'raid' | 'battleground' | 'daily' | 'settings' | 'record'
+export type HomeChoice = 'raid' | 'battleground' | 'daily' | 'descent' | 'settings' | 'record'
 
 function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
@@ -137,7 +137,7 @@ export function homeLayout(): HomeLayout {
   return { choices, record: { ...record, x: L.w / 2 - record.w / 2 } }
 }
 
-const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
+const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'descent', 'settings']
 
 export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
   backdrop(ctx)
@@ -148,6 +148,7 @@ export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
     ['RAID', `${ENCOUNTERS.length} bosses · 5, 10 or 25 players`, COLORS.castBar],
     ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
     ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
+    ['THE DESCENT', 'boss after boss, no second try', COLORS.hpBarLow],
     ['SETTINGS', 'sound', COLORS.textDim],
   ]
   labels.forEach(([label, detail, accent], i) => {

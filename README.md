@@ -333,6 +333,36 @@ best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
 
+## The descent
+
+One attempt, boss after boss, each floor harder than the last, and the party
+arrives at the next one in whatever state it left the last. No retry: pressing
+it starts a fresh run from the first floor, which is the point of there being
+a depth to lose. What is kept between runs is one number — how deep you got.
+
+Nothing is gained on the way down. That is the same rule the rest of the game
+keeps: what improves between attempts is you, not a number on a character.
+What the depth buys is a sentence worth saying — eleven floors is a different
+story from four.
+
+The floors start *below* an ordinary pull and pass it around the fifth: a run
+that ends on floor one most of the time is a raid with the retry button taken
+away. Between floors the survivors get a little over half their health back
+and one of the fallen gets up. A full heal would make every floor the first
+floor; nothing at all would mean a party that finished at ten percent had
+already lost the next one and was only being told a minute later.
+
+The party gets better as it goes, too — they are the same five people who have
+now been through several fights together — so the AI's learning is tied to the
+floor rather than to a pull count that a descent never has.
+
+Tuning it took four rounds against the harness, which kept ending runs on the
+first or second floor, and the fix in the middle of that was the interesting
+one: reading the depth multiplier as `depth || 1` gave **every ordinary raid
+in the game the first floor's numbers** — a boss with 42% of its health. The
+harness caught it because the boss stopped holding threat, and no amount of
+looking at the screen would have.
+
 ## Battlegrounds
 
 Two of them, five against five, on the same floor with the same classes. The

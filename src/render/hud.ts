@@ -92,7 +92,9 @@ export function hitOutcome(
 
 /** Whether this pull earned the way out of this boss. */
 export function canAdvance(s: SimState): boolean {
-  return s.mode === 'raid' && s.outcome === 'victory' && hasNext(s.encounter)
+  if (s.mode !== 'raid' || s.outcome !== 'victory') return false
+  // A descent always has another floor; a raid eventually runs out of bosses.
+  return s.depth > 0 || hasNext(s.encounter)
 }
 
 /**
@@ -923,7 +925,8 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 
   const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
-  ctx.fillText(`pull ${s.attempt + 1}`, L.infoX, y)
+  // A descent counts floors rather than attempts: there is only ever one.
+  ctx.fillText(s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`, L.infoX, y)
   y += line
   ctx.fillText(`phase ${s.phase}`, L.infoX, y)
   y += line
@@ -1386,7 +1389,7 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillText(
     bg
       ? `${bgName(bg.kind)}   ·   ${s.time.toFixed(0)}s   ·   ${Math.floor(bg.score.blue)} — ${Math.floor(bg.score.red)}`
-      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
+      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   ${s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`}`,
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )
@@ -1396,7 +1399,9 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   // The kill's own button is the bright one: after a kill, going on is the
   // thing you came for, and PULL AGAIN steps back to what you already did.
   const row: Array<readonly [string, Rect, string]> = []
-  if (buttons.next) row.push(['NEXT BOSS', buttons.next, COLORS.hpBar] as const)
+  if (buttons.next) {
+    row.push([s.depth > 0 ? 'GO DEEPER' : 'NEXT BOSS', buttons.next, COLORS.hpBar] as const)
+  }
   row.push([
     touch || advance ? 'PULL AGAIN' : 'PULL AGAIN  (R)',
     buttons.retry,
@@ -1421,6 +1426,14 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   if (s.mode === 'battleground') {
     ctx.fillText(
       s.outcome === 'victory' ? 'the other five go home' : 'the other five hold it',
+      L.w / 2,
+      buttons.retry.y + buttons.retry.h + 20,
+    )
+  } else if (s.depth > 0) {
+    ctx.fillText(
+      s.outcome === 'victory'
+        ? `floor ${s.depth} cleared — you take what is left of you into the next one`
+        : `the descent ended on floor ${s.depth}`,
       L.w / 2,
       buttons.retry.y + buttons.retry.h + 20,
     )
