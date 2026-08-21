@@ -2,7 +2,6 @@ import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import { affixHealing, affixSpread } from './affix'
-import { boonCost, boonCrit, boonDamage, boonHealing, boonMitigation } from './boon'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
@@ -294,14 +293,6 @@ export function applyDamage(
   // Outside a battleground this is never true.
   if (carrying(s, target)) final *= CARRIER_FRAGILITY
 
-  // Anything picked up on the way down. Party-side only: a boon is the run's,
-  // not the fight's, so it must not soften what the party is dealing out.
-  if (target.faction === 'party') final *= boonMitigation(s.boons)
-  else if (opts.sourceId !== undefined) {
-    const source = actorById(s, opts.sourceId)
-    if (source?.faction === 'party') final *= boonDamage(s.boons)
-  }
-
   final *= tankTrait(s, target, school)
 
   if (school !== 'none') {
@@ -365,10 +356,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   const before = target.hp
   // The day's twist, applied where every heal passes rather than at each of
   // the dozen places one is cast.
-  target.hp = Math.min(
-    target.maxHp,
-    target.hp + amount * affixHealing(s.affix) * boonHealing(s.boons),
-  )
+  target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix))
   const healed = Math.round(target.hp - before)
 
   const credit = s.tally[sourceId]
@@ -549,10 +537,7 @@ export function resolveAbility(
   const target = actorById(s, targetId)
   // Paid on the press, not on arrival: the cost is what the cast took out of
   // you, and it took it when you cast.
-  if (ability.cost > 0) {
-    const cost = actor.faction === 'party' ? ability.cost * boonCost(s.boons) : ability.cost
-    actor.power = Math.max(0, actor.power - cost)
-  }
+  if (ability.cost > 0) actor.power = Math.max(0, actor.power - ability.cost)
 
   // Anything thrown lands when it gets there. The bolt used to be scenery
   // travelling after damage that had already happened, which meant a shot at
@@ -597,8 +582,7 @@ export function landAbility(
   // them crits is a seven percent damage tax that decided every mirror match
   // before anyone pressed anything.
   const crit =
-    (s.mode === 'battleground' || actor.faction === 'party') &&
-    rng.chance(CRIT_CHANCE * (actor.faction === 'party' ? boonCrit(s.boons) : 1))
+    (s.mode === 'battleground' || actor.faction === 'party') && rng.chance(CRIT_CHANCE)
 
   switch (ability.kind) {
     case 'damage': {

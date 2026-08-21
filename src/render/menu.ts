@@ -392,57 +392,6 @@ export function hitDaily(x: number, y: number): DailyHit | null {
   return null
 }
 
-// --- what you pick up on the way down ---------------------------------------
-
-export interface BoonLayout {
-  choices: Rect[]
-  headingY: number
-  heldY: number
-}
-
-export function boonLayout(): BoonLayout {
-  const headingY = titleY() + 30 * L.ui
-  const heldY = L.h - Math.max(26, L.h * 0.055) - 12
-  return {
-    choices: column(3, headingY + 24 * L.ui, heldY - 26, 400),
-    headingY,
-    heldY,
-  }
-}
-
-export function drawBoonOffer(
-  ctx: CanvasRenderingContext2D,
-  floor: number,
-  offer: Array<{ name: string; detail: string }>,
-  held: string,
-): void {
-  backdrop(ctx)
-  screenTitle(ctx, `FLOOR ${floor} CLEARED`, 'take one down with you')
-
-  const layout = boonLayout()
-  ctx.textAlign = 'center'
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = font(9)
-  ctx.fillText('IT LASTS AS LONG AS THE RUN DOES', L.w / 2, layout.headingY)
-
-  offer.forEach((boon, i) => {
-    const rect = layout.choices[i]
-    if (rect) button(ctx, rect, boon.name.toUpperCase(), boon.detail, COLORS.hpBar, i === 0)
-  })
-
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = font(10)
-  ctx.fillText(held === '' ? 'carrying nothing yet' : `carrying: ${held}`, L.w / 2, layout.heldY)
-}
-
-export function hitBoonOffer(x: number, y: number): number | null {
-  const layout = boonLayout()
-  for (let i = 0; i < layout.choices.length; i++) {
-    if (inside(layout.choices[i]!, x, y)) return i
-  }
-  return null
-}
-
 // --- battleground pick ------------------------------------------------------
 
 export interface BgSetupLayout {

@@ -1,6 +1,5 @@
 import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
-import type { BoonId } from './boon'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -429,15 +428,6 @@ export interface SimState {
    * The boss reads it for its health and its damage; nothing else does.
    */
   depth: number
-  /**
-   * What was picked up on the way down, in the order it was taken.
-   *
-   * Empty everywhere but a descent. They are strong and they are temporary —
-   * the run ends, the boons go, nothing is banked — which is what lets this
-   * game have power growth at all without giving up the rule that a fight you
-   * failed is not a fight you can wait out.
-   */
-  boons: BoonId[]
   /**
    * Ticks left before the pull starts, counting down to zero.
    *

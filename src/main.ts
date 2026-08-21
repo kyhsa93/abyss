@@ -24,13 +24,11 @@ import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import {
   drawBgSetup,
-  drawBoonOffer,
   drawDaily,
   drawHome,
   drawRaidSetup,
   drawSettings,
   hitBgSetup,
-  hitBoonOffer,
   hitDaily,
   hitHome,
   hitRaidSetup,
@@ -66,7 +64,6 @@ import {
 } from './daily-record'
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
 import { DESCENT_RECOVERY, DESCENT_REVIVE, descentEncounter } from './sim/descent'
-import { boonById, offerFor, type BoonId } from './sim/boon'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -292,16 +289,6 @@ let depth = 0
 let deepest = loadDeepest()
 /** Set while the class screen is being used to start a descent rather than a pull. */
 let startingDescent = false
-/**
- * What this run has picked up, and what it is being offered.
- *
- * Boons live here rather than in storage on purpose: they are the run's, and
- * the run ends. Nothing about them is banked, which is what lets this game
- * have power growth at all without giving up the rule that a fight you failed
- * is not a fight you can wait out.
- */
-let boons: BoonId[] = []
-let offered: BoonId[] = []
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
@@ -317,7 +304,6 @@ let screen:
   | 'raid'
   | 'battleground'
   | 'daily'
-  | 'boon'
   | 'roster'
   | 'settings'
   | 'fight'
@@ -390,7 +376,6 @@ function newState(): SimState {
       encounter,
       null,
       depth,
-      boons,
     )
   }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
@@ -406,8 +391,6 @@ function newState(): SimState {
  * next one and is only being told a minute later.
  */
 function descendTo(floor: number, carry: SimState | null): void {
-  // A fresh run carries nothing: the boons went down with the last one.
-  if (floor === 1) boons = []
   depth = floor
   encounter = descentEncounter(floor)
   playingDaily = false
@@ -681,32 +664,6 @@ function updateDaily(tap: { x: number; y: number } | null): void {
   )
 }
 
-/** The state the last floor ended in, held while its reward is chosen. */
-let carried: SimState | null = null
-
-function updateBoon(tap: { x: number; y: number } | null): void {
-  if (tap) {
-    const picked = hitBoonOffer(tap.x, tap.y)
-    if (picked !== null) {
-      const boon = offered[picked]
-      if (boon) boons = [...boons, boon]
-      const from = carried
-      carried = null
-      descendTo(depth + 1, from)
-      return
-    }
-  }
-
-  drawBoonOffer(
-    ctx,
-    depth,
-    offered.map((id) => boonById(id) ?? { name: id, detail: '' }),
-    boons
-      .map((id) => boonById(id)?.name ?? id)
-      .join(', '),
-  )
-}
-
 function updateRaidSetup(tap: { x: number; y: number } | null): void {
   if (tap) {
     const hit = hitRaidSetup(tap.x, tap.y)
@@ -817,7 +774,6 @@ function frame(now: number): void {
     else if (screen === 'raid') updateRaidSetup(tap)
     else if (screen === 'battleground') updateBgSetup(tap)
     else if (screen === 'daily') updateDaily(tap)
-    else if (screen === 'boon') updateBoon(tap)
     else if (screen === 'settings') updateSettings(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)
@@ -864,13 +820,8 @@ function frame(now: number): void {
       return
     }
     if (hit === 'next') {
-      if (depth > 0) {
-        // A floor is not left empty-handed: three offered, one taken, and the
-        // next floor starts once it has been.
-        offered = offerFor(BASE_SEED + depth * 7919, depth)
-        carried = state
-        screen = 'boon'
-      } else nextBoss()
+      if (depth > 0) descendTo(depth + 1, state)
+      else nextBoss()
     }
     else if (hit === 'retry') restart()
   }

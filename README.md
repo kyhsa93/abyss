@@ -340,25 +340,7 @@ arrives at the next one in whatever state it left the last. No retry: pressing
 it starts a fresh run from the first floor, which is the point of there being
 a depth to lose. What is kept between runs is one number — how deep you got.
 
-**Something is picked up on every floor** — three offered, one taken, and it
-lasts exactly as long as the run does. More health, harder hits, faster
-cooldowns, cheaper abilities, more crits; they stack, so taking Edge twice is
-twice the edge.
-
-This is the only power growth in the game, and it is allowed here for one
-reason: the whole run is a single attempt. A boon is strong for twenty minutes
-and gone the moment you die, so it can be felt without ever being banked — the
-rule it would otherwise break is that a fight you failed must not become a
-fight you can wait out. Nothing about them touches an ordinary raid or a
-battleground, and the check fails if it ever does.
-
-The stacking has floors under it: cost can never reach nothing and mitigation
-can never reach immunity, however many of one thing a long run piles up.
-Taking the first thing offered every time — the least informed choice anybody
-could make — moves a typical descent from four floors to five, and the best of
-twelve from five to seven.
-
-Nothing else is gained on the way down. That is the same rule the rest of the game
+Nothing is gained on the way down. That is the same rule the rest of the game
 keeps: what improves between attempts is you, not a number on a character.
 What the depth buys is a sentence worth saying — eleven floors is a different
 story from four.

@@ -975,12 +975,6 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
   const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
   // A descent counts floors rather than attempts: there is only ever one.
   ctx.fillText(s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`, L.infoX, y)
-  if (s.boons.length > 0) {
-    y += 15 * L.ui
-    ctx.fillStyle = COLORS.hpBar
-    ctx.fillText(`${s.boons.length} carried`, L.infoX, y)
-    ctx.fillStyle = COLORS.textDim
-  }
   y += line
   ctx.fillText(`phase ${s.phase}`, L.infoX, y)
   y += line
