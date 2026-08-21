@@ -1,6 +1,7 @@
 import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
+import { affixRot } from './affix'
 import { updateBattlegroundAi } from './bgai'
 import {
   CARRIER_SPEED,
@@ -222,8 +223,11 @@ function updateTimers(s: SimState, a: Actor): void {
       const tick = AURA_TICK[aura.id]
       if (!tick) continue
       if (tick.damage !== undefined) {
-        applyDamage(s, a, tick.damage, 'none', { sourceId: aura.sourceId, silent: true })
-        if (a.faction === 'boss') addThreat(s, aura.sourceId, tick.damage)
+        // The boss's own dot is the one an affix can sharpen; the party's are
+        // theirs and stay as they are.
+        const bite = aura.id === 'rot' ? tick.damage * affixRot(s.affix) : tick.damage
+        applyDamage(s, a, bite, 'none', { sourceId: aura.sourceId, silent: true })
+        if (a.faction === 'boss') addThreat(s, aura.sourceId, bite)
       }
       if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
     }

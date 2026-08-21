@@ -46,7 +46,7 @@ import {
 } from './sim/classes'
 import { createBattlegroundState, createState } from './sim/state'
 import { ENCOUNTERS, encounterIndex, hasNext } from './sim/encounters'
-import { dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
+import { dailyAffix, dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
 import {
   fold as foldDaily,
   load as loadDaily,
@@ -307,6 +307,12 @@ function newState(): SimState {
   if (mode.kind === 'bg') {
     return createBattlegroundState(BASE_SEED + bgRolls++ * 7919, mode.bg, party)
   }
+  // A daily runs on the day's seed and carries the day's twist; an ordinary
+  // pull runs on the house seed and carries none, because a fight you are
+  // learning has to be the same fight on the ninth attempt as on the first.
+  if (playingDaily) {
+    return createState(daily.seed, 0, party, difficulty, encounter, daily.affix)
+  }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
 }
 
@@ -496,7 +502,7 @@ function updateDaily(tap: { x: number; y: number } | null): void {
   const best = todays(dailyResults, daily.key)
   drawDaily(
     ctx,
-    { label: dailyLabel(daily), key: daily.key },
+    { label: dailyLabel(daily), key: daily.key, affix: dailyAffix(daily) },
     best
       ? {
           line:

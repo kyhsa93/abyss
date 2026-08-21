@@ -82,6 +82,7 @@ import {
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   MELEE_RANGE,
+  SPREAD_RADIUS,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
 } from '../src/sim/constants'
@@ -102,6 +103,7 @@ import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
+import { AFFIXES, type AffixId } from '../src/sim/affix'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
@@ -4002,6 +4004,120 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     expect('and a loss never displaces a kill', record[0]!.outcome === 'victory' && record[0]!.time === 121, JSON.stringify(record[0]))
     expect('while still counting', record[0]!.attempts === 4, `${record[0]!.attempts}`)
   }
+}
+
+// --- affixes -----------------------------------------------------------------
+//
+// Each one has to change the fight, and none of them may touch a fight that
+// did not ask for one: a raid being learned has to be the same on the ninth
+// pull as on the first, so an affix that leaked into ordinary play would undo
+// the reason the boss is a script at all.
+{
+  const play = (affix: AffixId | null, seconds: number) => {
+    const fight = createState(0x51ed, 8, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, affix)
+    fight.countdown = 0
+    const rng = new Rng(0x51ed)
+    let adds = 0
+    let lingerTicks = 0
+    let healing = 0
+    let rotDamage = 0
+    let enraged = false
+    let spreadReach = 0
+
+    while (fight.outcome === 'ongoing' && fight.time < seconds) {
+      const before = new Map(fight.actors.map((a) => [a.id, a.hp]))
+      step(fight, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      adds = Math.max(adds, fight.actors.filter((a) => a.faction === 'boss' && a.alive).length - 1)
+      lingerTicks += fight.ground.filter((g) => g.kind === 'puddle' && g.detonated).length
+      if (boss(fight).auras.some((a) => a.id === 'enrage')) enraged = true
+      for (const a of fight.actors) {
+        const was = before.get(a.id)
+        if (was === undefined) continue
+        if (a.hp > was) healing += a.hp - was
+        if (a.hp < was && getAura(a, 'rot')) rotDamage += was - a.hp
+      }
+      const carrier = fight.actors.find((a) => getAura(a, 'spread'))
+      if (carrier) {
+        spreadReach = Math.max(
+          spreadReach,
+          fight.actors.filter(
+            (a) => a.faction === 'party' && a.alive && dist(a.pos, carrier.pos) <= SPREAD_RADIUS * 1.5,
+          ).length,
+        )
+      }
+    }
+    return { adds, lingerTicks, healing, rotDamage, enraged, spreadReach }
+  }
+
+  const plain = play(null, 150)
+
+  expect('swarming brings more', play('swarming', 150).adds > plain.adds, `${plain.adds}`)
+  expect(
+    'lingering leaves more on the floor',
+    play('lingering', 150).lingerTicks > plain.lingerTicks * 1.3,
+    `${plain.lingerTicks}`,
+  )
+  expect('faltering heals for less', play('faltering', 120).healing < plain.healing * 0.95, `${plain.healing}`)
+  // Measured on its own rather than inside a pull: everything else the boss
+  // does lands on the same health bar, and a whole fight's worth of that
+  // drowned the difference the first time this was written.
+  {
+    const rotOnly = (affix: AffixId | null): number => {
+      const fight = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, affix)
+      fight.countdown = 0
+      const victim = fight.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+      // Far from anything the boss can reach, so the only thing touching this
+      // health bar is the dot.
+      victim.pos = { x: 0, y: -430 }
+      victim.hp = victim.maxHp
+      addAura(victim, 'rot', boss(fight).id)
+
+      const before = victim.hp
+      const rng = new Rng(1)
+      for (let i = 0; i < 30 * 6; i++) {
+        victim.pos = { x: 0, y: -430 }
+        step(fight, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      }
+      return before - victim.hp
+    }
+    const bare = rotOnly(null)
+    const festering = rotOnly('festering')
+    // Half again, not double: the affixes are levelled against each other and
+    // this one was the heaviest of the eight before it came down.
+    expect('festering bites harder', festering > bare * 1.4, `${bare} -> ${festering}`)
+  }
+
+  // The enrage lands early enough to be the thing that ends a slow pull.
+  const hastened = createState(0x51ed, 8, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, 'hastened')
+  hastened.countdown = 0
+  hastened.time = encounterAt(hastened.encounter).enrage - 20
+  step(hastened, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+  expect(
+    'hastened brings the enrage forward',
+    boss(hastened).auras.some((a) => a.id === 'enrage'),
+    'not enraged twenty seconds early',
+  )
+  expect('and an ordinary pull is not enraged there', !plain.enraged, 'enraged without an affix')
+
+  // Every affix in the list has to be reachable and say what it does.
+  for (const affix of AFFIXES) {
+    expect(`${affix.name} explains itself`, affix.detail.length > 8, affix.detail)
+  }
+
+  // Nothing carries an affix unless it was asked for.
+  const ordinary = pulled(0x51ed, 0)
+  expect('an ordinary pull has none', ordinary.affix === null, `${ordinary.affix}`)
+  const bg = createBattlegroundState(0x51ed, 'conquest')
+  expect('nor does a battleground', bg.affix === null, `${bg.affix}`)
+
+  // And a daily always has one, drawn from the same day as everything else.
+  const today = dailyFor(20260821, pickFor('mage', 'dps')!)
+  expect('a daily always has one', AFFIXES.some((a) => a.id === today.affix), `${today.affix}`)
+  expect(
+    'the same day is the same affix',
+    dailyFor(20260821, pickFor('rogue', 'dps')!).affix === today.affix,
+    'it moved with the class',
+  )
 }
 
 // --- a bar over the hurt, and over nobody else -------------------------------

@@ -15,6 +15,7 @@ import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
+import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -108,9 +109,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
 
   const encounter = fight(s)
   advancePhase(s, b)
-  const timing = scaled(encounter.phases[s.phase]!, s)
+  // The day's twist lands on the timers before anything reads them, so every
+  // mechanic downstream sees one set of numbers rather than each remembering
+  // to ask.
+  const timing = affixTiming(scaled(encounter.phases[s.phase]!, s), s.affix)
 
-  if (s.time >= encounter.enrage && !b.auras.some((a) => a.id === 'enrage')) {
+  const enrageAt = encounter.enrage - affixEnrage(s.affix)
+  if (s.time >= enrageAt && !b.auras.some((a) => a.id === 'enrage')) {
     addAura(b, 'enrage', b.id)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'ENRAGE', age: 0 })
   }
@@ -275,7 +280,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
       pos,
       radius: PUDDLE_RADIUS,
       telegraph: PUDDLE_TELEGRAPH,
-      lingering: 5.5,
+      lingering: 5.5 * affixLinger(s.affix),
       damage: PUDDLE_DAMAGE,
     })
   }
@@ -321,7 +326,9 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   s.nextAdds = timing.adds
   say(s, b, fight(s).lines.adds)
 
-  const waves = livingParty(s).length >= 20 ? 5 : livingParty(s).length >= 8 ? 3 : 2
+  const waves =
+    (livingParty(s).length >= 20 ? 5 : livingParty(s).length >= 8 ? 3 : 2) *
+    affixAddWave(s.affix)
   for (let i = 0; i < waves; i++) {
     const angle = rng.range(0, Math.PI * 2)
     const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }

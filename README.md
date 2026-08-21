@@ -298,6 +298,35 @@ seeds make neighbouring fights, so the key is multiplied out first; the check
 draws twenty-eight days and fails if they are not at least six distinct
 setups. It is keyed in UTC so two people in different places get the same day.
 
+**Every day carries a twist.** One affix, drawn from the same date as the rest
+of it:
+
+| | |
+| --- | --- |
+| Lingering | puddles stay twice as long |
+| Swarming | twice as many thralls |
+| Faltering | healing lands for a quarter less |
+| Restless | shockwaves and breaths come round about twice as fast |
+| Quickened | the boss swings faster |
+| Festering | the rot bites half again as hard |
+| Scattering | spread marks reach further |
+| Hastened | the enrage arrives more than two minutes early |
+
+The boss stays a script — that rule is the genre and nothing here touches it.
+An affix changes a number the script already had, so everything learned last
+week still applies and has to be applied a little differently.
+
+They ride the daily and nothing else. A raid you are learning has to be the
+same fight on the ninth pull as on the first, and the check fails if an
+ordinary pull or a battleground ever carries one.
+
+Levelling them took measuring: each costs between five and nine points of win
+rate now, but the first cut had Quickened and Festering at thirteen while
+**Restless made the fight easier** — the shockwave asks people to come in, and
+asking more often was doing them a favour. Hastened did nothing at all through
+two rounds of tuning, because an ordinary pull ends well inside the timer and
+moving it by forty seconds moved no fights whatever.
+
 Retries are allowed and counted. There is no server to cheat against, and a
 run you cannot practise is one you only ever see once. The record keeps the
 best answer to a day rather than the last: a kill always beats a loss, a

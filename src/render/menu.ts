@@ -310,7 +310,8 @@ export function dailyLayout(): DailyLayout {
   const p = pad()
   const back = backRect()
   const headingY = titleY() + 26 * L.ui
-  const summaryY = headingY + 44 * L.ui
+  // Room for the fight line, the record line and the affix's two.
+  const summaryY = headingY + 68 * L.ui
   const top = summaryY + 22 * L.ui
 
   // The one thing the day leaves you: which class to bring.
@@ -336,7 +337,7 @@ export type DailyHit = { kind: 'class'; index: number } | { kind: 'start' } | { 
 
 export function drawDaily(
   ctx: CanvasRenderingContext2D,
-  today: { label: string; key: number },
+  today: { label: string; key: number; affix: { name: string; detail: string } },
   best: { line: string; attempts: number } | null,
   chosen: number,
   labelFor: (index: number) => { text: string; colour: string },
@@ -360,7 +361,15 @@ export function drawDaily(
     layout.headingY + 16 * L.ui,
   )
 
+  // The twist, given its own line and its own colour: it is the thing that
+  // makes today different from the same boss yesterday.
+  ctx.fillStyle = COLORS.castBar
+  ctx.font = font(11, true)
+  ctx.fillText(today.affix.name, L.w / 2, layout.headingY + 34 * L.ui)
+  ctx.fillStyle = COLORS.textDim
   ctx.font = font(9)
+  ctx.fillText(today.affix.detail, L.w / 2, layout.headingY + 47 * L.ui)
+
   ctx.fillText('THE DAY PICKS THE FIGHT — YOU PICK THE CLASS', L.w / 2, layout.summaryY)
 
   for (let i = 0; i < layout.classes.length; i++) {

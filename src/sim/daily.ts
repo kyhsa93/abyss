@@ -1,4 +1,5 @@
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type Pick, type RaidSize, randomParty } from './classes'
+import { AFFIXES, affixById, type AffixId } from './affix'
 import { ENCOUNTERS } from './encounters'
 import { Rng } from './rng'
 
@@ -18,6 +19,8 @@ import { Rng } from './rng'
  */
 
 export interface Daily {
+  /** The day's twist. Every daily has one; ordinary raids have none. */
+  affix: AffixId
   /** YYYYMMDD in UTC, which is also the key the record is stored under. */
   key: number
   seed: number
@@ -49,8 +52,11 @@ export function dailyFor(key: number, player: Pick): Daily {
   // that a bad draw is not most of the month.
   const difficulty: DifficultyId = rng.chance(0.34) ? 'heroic' : 'normal'
   const party = randomParty(size, () => rng.range(0, 1))
+  // Drawn last, so adding an affix does not change which boss past dates were.
+  const affix = AFFIXES[rng.int(AFFIXES.length)]!.id
 
   return {
+    affix,
     key,
     // Not the key itself: a date makes a poor seed, since consecutive days
     // differ by one and would produce neighbouring fights.
@@ -66,4 +72,12 @@ export function dailyFor(key: number, player: Pick): Daily {
 export function dailyLabel(daily: Daily): string {
   const boss = ENCOUNTERS[daily.encounter]
   return `${boss?.name ?? 'Unknown'} · ${daily.size} player · ${DIFFICULTIES[daily.difficulty].name.toLowerCase()}`
+}
+
+/** The twist, as two lines: what it is called and what it does. */
+export function dailyAffix(daily: Daily): { name: string; detail: string } {
+  const affix = affixById(daily.affix)
+  return affix
+    ? { name: affix.name.toUpperCase(), detail: affix.detail }
+    : { name: '', detail: '' }
 }

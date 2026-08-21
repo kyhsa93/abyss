@@ -17,6 +17,7 @@ import {
   type Slot,
 } from './classes'
 import type { Actor, AiProfile, BgKind, Personality, SimState, Tally } from './types'
+import type { AffixId } from './affix'
 
 
 interface PersonalityTuning {
@@ -120,6 +121,7 @@ export function createState(
   party: Pick[] = DEFAULT_PARTY,
   difficulty: DifficultyId = 'normal',
   encounter: number = FIRST_ENCOUNTER,
+  affix: AffixId | null = null,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
@@ -189,6 +191,7 @@ export function createState(
     chat: [],
     outcome: 'ongoing',
     encounter: encounterIndex(encounter),
+    affix,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: opening.puddle,
@@ -289,6 +292,7 @@ export function createBattlegroundState(
     chat: [],
     outcome: 'ongoing',
     encounter: FIRST_ENCOUNTER,
+    affix: null,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: 0,

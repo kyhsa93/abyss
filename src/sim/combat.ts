@@ -1,6 +1,7 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
+import { affixHealing, affixSpread } from './affix'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
@@ -346,7 +347,9 @@ function record(s: SimState, target: Actor, final: number, opts: DamageOptions):
 export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: number): void {
   if (!target.alive) return
   const before = target.hp
-  target.hp = Math.min(target.maxHp, target.hp + amount)
+  // The day's twist, applied where every heal passes rather than at each of
+  // the dozen places one is cast.
+  target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix))
   const healed = Math.round(target.hp - before)
 
   const credit = s.tally[sourceId]
@@ -368,7 +371,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 /** Everything a spread debuff hits when it expires on someone. */
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
-    if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS) {
+    if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS * affixSpread(s.affix)) {
       applyDamage(s, a, 760 * DIFFICULTIES[s.difficulty].damage, 'magic', {
         sourceId: BOSS_ID,
         mechanic: true,

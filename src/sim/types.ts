@@ -1,4 +1,5 @@
 import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
+import type { AffixId } from './affix'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -384,6 +385,14 @@ export interface SimState {
   outcome: Outcome
   /** Which boss this is, as an index into `ENCOUNTERS`. */
   encounter: number
+  /**
+   * The day's twist, or none.
+   *
+   * Only a daily carries one: a raid you are learning has to be the same fight
+   * on the ninth pull as on the first, and the daily is the one that is meant
+   * to be new.
+   */
+  affix: AffixId | null
   /**
    * Ticks left before the pull starts, counting down to zero.
    *
