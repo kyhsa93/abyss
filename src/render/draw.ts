@@ -539,17 +539,37 @@ function drawActor(
   ctx.fillText(glyph, p.x, p.y)
   ctx.textBaseline = 'alphabetic'
 
-  // Adds show a health pip instead of a name; there can be several.
-  if (isAdd && a.alive) {
-    const w = r * 2.4
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'
-    ctx.fillRect(p.x - w / 2, p.y - r - 9, w, 4)
-    ctx.fillStyle = '#a855f7'
-    ctx.fillRect(p.x - w / 2, p.y - r - 9, w * (a.hp / a.maxHp), 4)
+  // A bar over anybody who is hurt, and over nobody who is not.
+  //
+  // Always-on bars would be twenty-seven of them in a twenty-five man, which
+  // is wallpaper rather than information — the party frames already carry that
+  // in a grid you can read. Showing them only below full turns the arena
+  // itself into the readout exactly when it matters, and leaves it clean when
+  // it does not. One line, no name, no number: at seven pixels a token on a
+  // portrait phone, colour and length are the only things that survive.
+  const hurt = a.alive && a.hp < a.maxHp * 0.95
+  if (hurt) {
+    const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp))
+    const w = Math.max(14, r * 2.4)
+    const bx = p.x - w / 2
+    const by = p.y - r - 9
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.62)'
+    ctx.fillRect(bx - 1, by - 1, w + 2, 5)
+    // Red once it is genuinely dangerous, so a glance sorts "chipped" from
+    // "about to die" without reading a number that is not there.
+    ctx.fillStyle = isAdd
+      ? '#a855f7'
+      : ratio < 0.35
+        ? COLORS.hpBarLow
+        : hostile || isBoss
+          ? COLORS.boss
+          : COLORS.hpBar
+    ctx.fillRect(bx, by, w * ratio, 3)
   }
 
-  // Names cost more than they give on a phone-sized arena.
-  if (!isBoss && !isAdd && a.alive && L.ui > 0.8) {
+  // Names cost more than they give on a phone-sized arena, and a hurt body is
+  // already carrying a bar where the name would go.
+  if (!isBoss && !isAdd && a.alive && !hurt && L.ui > 0.8) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(10)
     ctx.fillText(a.name, p.x, p.y - r - 8)

@@ -703,6 +703,20 @@ in. Completing it throws the ring off in the caster's colour; breaking it
 collapses the ring back into them instead, so a cast that came apart never
 looks like one that went off.
 
+**A bar appears over anybody who is hurt.** One line, no name, no number, and
+nothing at all over somebody at full health. Always-on bars would be
+twenty-seven of them in a twenty-five man — wallpaper rather than information,
+and the party frames already carry exactly that in a grid built to be read at a
+glance. Showing them only below full turns the arena itself into a readout at
+the moment it matters and leaves it clean the rest of the time.
+
+It goes red below a third, so a glance sorts "chipped" from "about to die"
+without reading a number that is not there. On a portrait phone a token is
+seven pixels across, and colour and length are the only two things that
+survive at that size — which is why there is no name and no number on it. The
+name is drawn there instead when somebody is *not* hurt, so the two never
+stack.
+
 **Only your own numbers float.** What you dealt and what landed on you —
 either end counts as yours. Twenty-four other people trading hits is a wall of
 numbers over a fight whose actual state is already on the party frames and the

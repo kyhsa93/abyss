@@ -627,6 +627,35 @@ interface Label {
   y: number
 }
 
+interface BarBox {
+  kind: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Records filled and stroked rectangles, for things drawn as bars. */
+function recordingBoxes(boxes: BarBox[]): CanvasRenderingContext2D {
+  const noop = () => {}
+  const handler: ProxyHandler<Record<string, unknown>> = {
+    get(_t, prop) {
+      if (prop === 'fillRect' || prop === 'strokeRect') {
+        return (x: number, y: number, w: number, h: number) =>
+          boxes.push({ kind: String(prop), x, y, w, h })
+      }
+      if (prop === 'measureText') return () => ({ width: 10 })
+      if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+        return () => ({ addColorStop: noop })
+      }
+      if (prop === 'canvas') return { width: L.w, height: L.h }
+      return noop
+    },
+    set: () => true,
+  }
+  return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+}
+
 function recordingCtx(circles: Circle[], labels: Label[] = []): CanvasRenderingContext2D {
   const noop = () => {}
   const handler: ProxyHandler<Record<string, unknown>> = {
@@ -3894,6 +3923,47 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     if (roleOf(pick) !== 'dps') continue
     expect(`${specLabel(pick)} has a trait`, spec.trait !== undefined, 'none')
   }
+}
+
+// --- a bar over the hurt, and over nobody else -------------------------------
+//
+// Always-on bars are twenty-seven of them in a twenty-five man, which is
+// wallpaper: the party frames already carry that in a grid. What is asserted
+// here is that the bar appears when somebody drops below full and not before,
+// because "shows up exactly when it matters" is the whole of its value.
+{
+  updateLayout(1440, 900)
+  const s = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  const player = s.actors.find((a) => a.isPlayer)!
+
+  // A frame drawn with everyone at full: no bar anywhere.
+  for (const a of s.actors) a.hp = a.maxHp
+  const healthy: BarBox[] = []
+  drawWorld(recordingBoxes(healthy), s, 1, 1.5, new Effects())
+  const bars = (boxes: BarBox[]) => boxes.filter((b) => b.kind === 'fillRect' && b.h === 3)
+  expect('nobody at full health carries a bar', bars(healthy).length === 0, `${bars(healthy).length}`)
+
+  // One of them hurt: exactly one bar.
+  const patient = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+  patient.hp = Math.round(patient.maxHp * 0.5)
+  const oneHurt: BarBox[] = []
+  drawWorld(recordingBoxes(oneHurt), s, 1, 1.5, new Effects())
+  expect('one hurt body carries one bar', bars(oneHurt).length === 1, `${bars(oneHurt).length}`)
+
+  // And its length tracks the health rather than being decoration.
+  const half = bars(oneHurt)[0]!
+  patient.hp = Math.round(patient.maxHp * 0.2)
+  const nearlyDead: BarBox[] = []
+  drawWorld(recordingBoxes(nearlyDead), s, 1, 1.5, new Effects())
+  const short = bars(nearlyDead)[0]!
+  expect('and the bar is shorter when the health is', short.w < half.w * 0.6, `${half.w.toFixed(0)} -> ${short.w.toFixed(0)}`)
+
+  // The dead do not carry one either.
+  patient.alive = false
+  const dead: BarBox[] = []
+  drawWorld(recordingBoxes(dead), s, 1, 1.5, new Effects())
+  expect('the dead carry none', bars(dead).length === 0, `${bars(dead).length}`)
+  void player
 }
 
 // --- the boss throws more than one kind of thing -----------------------------
