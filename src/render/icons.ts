@@ -39,6 +39,7 @@ const ICONS: Record<string, IconSpec> = {
   shield_wall: { shape: 'shield', colour: '#fbbf24' },
   taunt: { shape: 'burst', colour: '#f97316' },
   charge: { shape: 'arrow', colour: '#c79c6e' },
+  wild_charge: { shape: 'arrow', colour: '#b5651d' },
   // Leather's answer to the same problem the charge solves for plate: not a
   // way in, a way out and back.
   sprint: { shape: 'arrow', colour: '#fff569' },

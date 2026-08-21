@@ -1472,7 +1472,7 @@ for (const [label, w, h] of [
     // Nine now: leather melee carry a free way out of a puddle, for the same
     // reason a charge is free — it is the answer to the floor, and an answer
     // you sometimes cannot afford is worse than not having one.
-    shouldBeFree && free.length === 9,
+    shouldBeFree && free.length === 10,
     free.map((a) => a.id).join(', '),
   )
 
@@ -3967,6 +3967,48 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     return before - cloth.hp
   })()
   expect('and the rot does not care about armour', rotOnPlate === rotOnCloth, `${rotOnPlate} vs ${rotOnCloth}`)
+}
+
+// --- everything that has to reach the boss can -------------------------------
+//
+// A tank that cannot get back to what wandered off is a tank whose raid is
+// being eaten while it jogs. Both rage tanks carry a charge; both refuse to
+// spend it from inside melee, where it would buy nothing.
+{
+  const chargers = SPEC_OPTIONS.filter((option) => {
+    const spec = specOf(option)
+    return spec.role === 'tank' && spec.resource === 'rage'
+  })
+  expect('the rage tanks are the ones that charge', chargers.length >= 2, `${chargers.length}`)
+
+  for (const pick of chargers) {
+    const spec = specOf(pick)
+    const mobility = spec.abilities.mobility
+    expect(`${specLabel(pick)} carries a charge`, mobility !== null, 'none')
+    if (!mobility) continue
+
+    const ability = ABILITIES[mobility]!
+    expect(`${specLabel(pick)}: it is a charge`, ability.kind === 'charge', ability.kind)
+    expect(`${specLabel(pick)}: it is free`, ability.cost === 0, `${ability.cost}`)
+    expect(
+      `${specLabel(pick)}: and refuses to fire from melee`,
+      (ability.minRange ?? 0) > MELEE_RANGE,
+      `${ability.minRange}`,
+    )
+
+    // It has to actually close the gap, and pay for itself in rage.
+    const fight = pulled(0x51ed, 0, autoParty(5, pick))
+    const runner = fight.actors.find((a) => a.isPlayer)!
+    const boss = fight.actors[fight.actors.length - 1]!
+    boss.pos = { x: 0, y: 0 }
+    runner.pos = { x: 260, y: 0 }
+    runner.power = 0
+    const gapBefore = dist(runner.pos, boss.pos)
+    landAbility(fight, runner, ability, boss.id, new Rng(1))
+    const gapAfter = dist(runner.pos, boss.pos)
+    expect(`${specLabel(pick)}: it crosses the gap`, gapAfter < gapBefore * 0.5, `${gapBefore.toFixed(0)} -> ${gapAfter.toFixed(0)}`)
+    expect(`${specLabel(pick)}: and arrives with rage`, runner.power >= CHARGE_RAGE, `${runner.power}`)
+  }
 }
 
 // --- leather melee carry their own way out -----------------------------------

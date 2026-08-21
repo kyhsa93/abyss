@@ -124,6 +124,11 @@ const list: Ability[] = [
 
   // --- warrior, as damage: bleeds and an execute -----------------------------
   { id: 'charge', name: 'Charge', role: 'dps', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
+  // The bear's own. Same rule as the warrior's — it crosses a gap it could not
+  // walk, arrives with rage to spend, and refuses to fire from inside melee —
+  // because a tank that cannot reach what wandered off is a tank whose raid is
+  // being eaten while it jogs.
+  { id: 'wild_charge', name: 'Wild Charge', role: 'tank', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
   { id: 'mortal_strike', name: 'Mortal Strike', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 18, amount: 108, threatMult: 1, aura: null, range: MELEE },
   { id: 'rend', name: 'Rend', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 10, amount: 40, threatMult: 1, aura: 'rend', range: MELEE },
   { id: 'execute', name: 'Execute', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 475, threatMult: 1, aura: null, range: MELEE },

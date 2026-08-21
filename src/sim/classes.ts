@@ -405,7 +405,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 11500,
         block: 0,
         power: 100,
-        abilities: kit({ filler: 'swipe', threat: 'maul', defensive: 'frenzied_regen', taunt: 'growl' }),
+        abilities: kit({
+          filler: 'swipe',
+          threat: 'maul',
+          defensive: 'frenzied_regen',
+          taunt: 'growl',
+          mobility: 'wild_charge',
+        }),
       },
       {
         id: 'restoration',

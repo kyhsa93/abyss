@@ -632,7 +632,16 @@ afford to eat a hit through, and leather could not answer it at all. It is one
 exit and one return rather than a way to play the whole fight at speed, which
 is what the five seconds are for.
 
-**A warrior charges.** Both specs carry it: it crosses up to 260 units to
+**A warrior charges, and so does a bear.** Both warrior specs carry it and the
+guardian druid carries Wild Charge, which is the same rule under another name:
+a tank that cannot get back to whatever wandered off is a tank whose raid is
+being eaten while it jogs. Every rage tank has one, and the check asks for them
+by resource rather than by name so a fourth one cannot quietly ship without.
+
+Measured rather than assumed, the same way the warrior's was: 2.3 uses a pull,
+never spent from inside melee, average gap 111 units.
+
+Both specs carry it: it crosses up to 260 units to
 whatever it is aimed at, stops at swinging distance rather than inside it, and
 arrives with 25 rage — which is the answer to a resource that starts at
 nothing, since a warrior otherwise opens a pull unable to press anything. It
