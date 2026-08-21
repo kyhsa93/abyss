@@ -371,6 +371,7 @@ party screen's first row picks what PULL does: the raid, or one of these.
 | | Winning is | Ends at |
 | --- | --- | --- |
 | The Three Cairns | hold ground, and the clock does the rest | 400 points, or 300s |
+| The Long Haul | walk yours forward, and stand in front of theirs | a cart arriving, or 300s |
 | Ebb and Flow | carry theirs home while yours is still standing | 3 captures, or 360s |
 
 A point is taken by standing on it, four seconds from neutral and eight from
@@ -383,6 +384,27 @@ was the first thing that had to go: a fight on the circle stopped the circle,
 and with a healer on each side those fights do not resolve, so the bar sat
 still through a third of every match and pushing harder changed nothing
 anybody could see.
+
+**A cart is neither of the other two.** A capture point is somewhere to stand
+and a flag is something to carry; a cart rolls forward on its own for as long
+as your side keeps it company, so the fight follows it rather than the other
+way round, and losing a minute costs you a minute of ground rather than an
+objective. Both sides push one down the same length of track in opposite
+directions, so there is no attacker and no defender and neither is handed the
+better half of an asymmetric map.
+
+Even numbers on a cart creep it forward; being outnumbered stops it. Freezing
+on a tie was the first rule and it made one missing body decisive — five
+against four is one cart moving and one standing still, so a side that lost a
+single fight lost the match, and the harness's weaker stand-in never won a
+game. The tie creeping keeps a bad minute from being the whole story. Nobody
+on it at all is not a tie, which the check caught immediately: for one round
+of tuning zero against zero counted as even numbers and empty carts rolled
+across an empty map on their own.
+
+It is also the map where individual fighting matters most, because numbers on
+the cart convert straight into ground — which is why the harness's one-button
+stand-in reads far lower here than on the other two.
 
 A flag is taken by walking onto it and scored by carrying it to your own base,
 **and only while your own flag is still at home.** Otherwise two carriers pass
