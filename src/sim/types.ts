@@ -208,6 +208,14 @@ export interface EffectEvent {
   power: number
   /** Worth drawing bigger, and worth a shove of the camera. */
   crit: boolean
+  /**
+   * The spec's own rule was paying when this landed — a spent bank of combo
+   * points, a filler inside an eclipse, a swing with the rage bar near full.
+   *
+   * Without it the trait exists only in the numbers: a rogue's finisher at
+   * five points deals double and looks exactly like one at zero.
+   */
+  empowered: boolean
 }
 
 export interface ChatLine {

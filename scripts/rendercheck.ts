@@ -2,7 +2,7 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld } from '../src/render/draw'
 import { Effects } from '../src/render/effects'
-import { allIcons, iconFor } from '../src/render/icons'
+import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
   canAdvance,
   drawHud,
@@ -4088,6 +4088,102 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     expect('and a loss never displaces a kill', record[0]!.outcome === 'victory' && record[0]!.time === 121, JSON.stringify(record[0]))
     expect('while still counting', record[0]!.attempts === 4, `${record[0]!.attempts}`)
   }
+}
+
+// --- hits look like what threw them ------------------------------------------
+//
+// Every damaging ability used to produce one expanding ring with six spokes in
+// the ability's colour: a fireball, a dagger and an arrow were one picture
+// tinted three ways. The picture is what anybody is actually looking at during
+// a fight — nobody watches the buttons — so it is the thing that has to say
+// which class is hitting.
+{
+  // Each style has to be reachable from somebody's bar, or it is a table
+  // entry nothing uses.
+  const styles = new Map<string, string[]>()
+  for (const option of SPEC_OPTIONS) {
+    for (const id of abilityBar(option)) {
+      const ability = ABILITIES[id]!
+      if (ability.kind !== 'damage') continue
+      const style = hitStyleFor(id)
+      styles.set(style, [...(styles.get(style) ?? []), specLabel(option)])
+    }
+  }
+  for (const style of ['burst', 'cleave', 'pierce', 'crush', 'wither'] as const) {
+    expect(`somebody hits with a ${style}`, (styles.get(style) ?? []).length > 0, 'nobody does')
+  }
+
+  // And the classes are not all drawing the same one.
+  const perSpec = new Map<string, Set<string>>()
+  for (const option of SPEC_OPTIONS) {
+    if (roleOf(option) !== 'dps') continue
+    const set = new Set<string>()
+    for (const id of abilityBar(option)) {
+      if (ABILITIES[id]!.kind === 'damage') set.add(hitStyleFor(id))
+    }
+    perSpec.set(specLabel(option), set)
+  }
+  const signatures = new Set([...perSpec.values()].map((set) => [...set].sort().join('+')))
+  expect(
+    'the damage specs do not all hit alike',
+    signatures.size >= 4,
+    `${signatures.size} distinct hit signatures across ${perSpec.size} specs`,
+  )
+
+  // The picture actually changes: two styles must not draw the same shapes.
+  const shapesFor = (abilityId: string, empowered: boolean): string => {
+    const effects = new Effects()
+    effects.ingest({
+      effects: [
+        {
+          kind: 'impact' as const,
+          pos: { x: 0, y: 0 },
+          angle: 0.4,
+          abilityId,
+          power: 200,
+          crit: false,
+          empowered,
+        },
+      ],
+    } as unknown as SimState)
+    const boxes: BarBox[] = []
+    const strokes: string[] = []
+    const ctx = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'arc') {
+            return (_x: number, _y: number, r: number, from: number, to: number) =>
+              strokes.push(`arc ${r.toFixed(0)} ${(to - from).toFixed(2)}`)
+          }
+          if (prop === 'moveTo' || prop === 'lineTo') {
+            return (x: number, y: number) => strokes.push(`line ${x.toFixed(0)},${y.toFixed(0)}`)
+          }
+          return () => {}
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D
+    effects.age(0.05)
+    effects.draw(ctx, (p) => p, 1)
+    void boxes
+    return strokes.join('|')
+  }
+
+  const cleave = shapesFor('sinister_strike', false)
+  const pierce = shapesFor('steady_shot', false)
+  const burst = shapesFor('frostbolt', false)
+  expect('a blade does not draw what a bolt draws', cleave !== pierce, cleave.slice(0, 60))
+  expect('nor what a spell draws', cleave !== burst, burst.slice(0, 60))
+  expect('and a bolt does not draw a spell', pierce !== burst, pierce.slice(0, 60))
+
+  // An empowered hit is visibly more than an ordinary one, which is the whole
+  // of what the traits were missing: a finisher on five combo points deals
+  // double and looked exactly like one on none.
+  const plainHit = shapesFor('eviscerate', false)
+  const paidHit = shapesFor('eviscerate', true)
+  expect('a hit the trait paid for looks different', plainHit !== paidHit, `${plainHit.length} vs ${paidHit.length}`)
+  expect('and it is more rather than less', paidHit.length > plainHit.length, `${plainHit.length} -> ${paidHit.length}`)
 }
 
 // --- the descent -------------------------------------------------------------

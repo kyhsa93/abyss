@@ -195,7 +195,13 @@ export function pushEffect(
   s: SimState,
   kind: EffectEvent['kind'],
   pos: Vec2,
-  opts: { angle?: number; abilityId?: string | null; power?: number; crit?: boolean } = {},
+  opts: {
+    angle?: number
+    abilityId?: string | null
+    power?: number
+    crit?: boolean
+    empowered?: boolean
+  } = {},
 ): void {
   s.effects.push({
     kind,
@@ -204,6 +210,7 @@ export function pushEffect(
     abilityId: opts.abilityId ?? null,
     power: opts.power ?? 0,
     crit: opts.crit ?? false,
+    empowered: opts.empowered ?? false,
   })
 }
 
@@ -585,12 +592,18 @@ export function landAbility(
       // The spec's own rule decides what this press was worth. Read before it
       // lands, spent after, because a finisher has to be paid at the value it
       // was read at.
-      const amount = Math.round(ability.amount * traitBonus(actor, ability, target))
+      const bonus = traitBonus(actor, ability, target)
+      const amount = Math.round(ability.amount * bonus)
       applyDamage(s, target, amount, 'none', { sourceId: actor.id, crit })
       pushEffect(s, 'impact', target.pos, {
         abilityId: ability.id,
         power: amount * (crit ? CRIT_MULTIPLIER : 1),
         crit,
+        // A tenth over is rounding; a fifth over is the trait paying, and that
+        // is what the extra ring is for.
+        empowered: bonus > 1.2,
+        // Along the line of the blow, so a cleave falls the way the swing did.
+        angle: Math.atan2(target.pos.y - actor.pos.y, target.pos.x - actor.pos.x),
       })
       if (target.id === BOSS_ID) addThreat(s, actor.id, amount * ability.threatMult)
       if (ability.aura) addAura(target, ability.aura, actor.id)
@@ -599,9 +612,14 @@ export function landAbility(
     }
     case 'heal': {
       if (!target || !target.alive) return
-      const healed = Math.round(ability.amount * healTrait(actor, target))
+      const healBonus = healTrait(actor, target)
+      const healed = Math.round(ability.amount * healBonus)
       if (healed > 0) applyHeal(s, target, healed, actor.id)
-      pushEffect(s, 'heal', target.pos, { abilityId: ability.id, power: healed })
+      pushEffect(s, 'heal', target.pos, {
+        abilityId: ability.id,
+        power: healed,
+        empowered: healBonus > 1.2,
+      })
       if (ability.aura) addAura(target, ability.aura, actor.id)
       spendHealTrait(s, actor, ability, target, healed)
       break

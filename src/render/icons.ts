@@ -110,6 +110,60 @@ const ICONS: Record<string, IconSpec> = {
   eviscerate: { shape: 'dagger', colour: '#f43f5e', repeat: 2 },
 }
 
+/**
+ * What a hit from this ability looks like where it lands.
+ *
+ * Every damaging ability in the game used to produce the same expanding ring
+ * with the same six spokes, in the ability's colour. A mage's fireball, a
+ * rogue's dagger and a hunter's arrow were one picture tinted three ways —
+ * and the picture is what you are actually looking at during a fight, since
+ * nobody watches the buttons.
+ *
+ * The shapes come from the same three primitives the effects already use, so
+ * this is a table of parameters rather than a new renderer.
+ */
+export type HitStyle =
+  /** A ring that pushes out. Spells, and anything without an edge or a point. */
+  | 'burst'
+  /** An arc across the target, along the line of the swing. Blades and claws. */
+  | 'cleave'
+  /** A streak through it, and a little spray behind. Arrows and bolts. */
+  | 'pierce'
+  /** Short, wide, and downward. Hammers and shields. */
+  | 'crush'
+  /** Closes inward instead of leaving. Shadow, poison, anything that sinks in. */
+  | 'wither'
+
+/**
+ * Read off the icon rather than listed separately: a blade already draws a
+ * blade on its button, so a blade cleaves. The mapping only has to name the
+ * exceptions.
+ */
+const STYLE_BY_SHAPE: Record<IconShape, HitStyle> = {
+  blade: 'cleave',
+  dagger: 'cleave',
+  arrow: 'pierce',
+  bolt: 'pierce',
+  hammer: 'crush',
+  shield: 'crush',
+  cross: 'crush',
+  flame: 'burst',
+  orb: 'burst',
+  burst: 'burst',
+  star: 'burst',
+  wave: 'burst',
+  spiral: 'wither',
+  moon: 'wither',
+  leaf: 'wither',
+  droplet: 'wither',
+}
+
+export function hitStyleFor(abilityId: string | null): HitStyle {
+  if (!abilityId) return 'cleave'
+  if (abilityId.startsWith('boss_')) return 'crush'
+  return STYLE_BY_SHAPE[iconFor(abilityId).shape]
+}
+
 export function iconFor(abilityId: string): IconSpec {
   return ICONS[abilityId] ?? { shape: 'orb', colour: '#94a3b8' }
 }

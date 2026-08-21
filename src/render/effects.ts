@@ -1,4 +1,4 @@
-import { iconFor } from './icons'
+import { hitStyleFor, iconFor } from './icons'
 import type { EffectEvent, SimState, Vec2 } from '../sim/types'
 
 /**
@@ -165,16 +165,138 @@ export class Effects {
       return
     }
 
+    // A heal is its own shape and always was: it closes on whoever it landed
+    // on rather than leaving them.
+    if (event.kind === 'heal') {
+      this.bursts.push({
+        pos: event.pos,
+        age: 0,
+        life: 0.5,
+        colour,
+        reach: REACH * weight,
+        spokes: 0,
+        angle: event.angle,
+        arc: 0,
+        inward: true,
+      })
+      if (event.empowered) this.empower(event, colour, weight, true)
+      return
+    }
+
+    // What the hit looks like comes from what threw it. Every damaging
+    // ability used to make the same ring with the same six spokes, tinted:
+    // one picture for a fireball, a dagger and an arrow, and the picture is
+    // the thing anybody is actually looking at during a fight.
+    const style = hitStyleFor(event.abilityId)
+    const reach = REACH * weight * (event.crit ? 1.35 : 1)
+    const spokes = event.crit ? 10 : 6
+
+    switch (style) {
+      case 'cleave':
+        // An arc across the target, along the line the blow came in on.
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: event.crit ? 0.34 : 0.26,
+          colour,
+          reach: reach * 1.15,
+          spokes: Math.round(spokes / 3),
+          angle: event.angle,
+          arc: 0.6,
+          inward: false,
+        })
+        break
+      case 'pierce':
+        // A streak straight through, and a short spray out the back.
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: 0.24,
+          colour,
+          reach: reach * 1.5,
+          spokes: 0,
+          angle: event.angle,
+          arc: -1,
+          inward: false,
+        })
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: 0.3,
+          colour,
+          reach: reach * 0.5,
+          spokes: Math.round(spokes / 2),
+          angle: event.angle,
+          arc: 0,
+          inward: false,
+        })
+        break
+      case 'crush':
+        // Short, wide and heavy: it does not travel, it arrives.
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: event.crit ? 0.4 : 0.3,
+          colour,
+          reach: reach * 0.72,
+          spokes,
+          angle: event.angle,
+          arc: 1.1,
+          inward: false,
+        })
+        break
+      case 'wither':
+        // Sinks in rather than pushing out, which is the same rule a heal
+        // follows and reads as something arriving on a body.
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: 0.42,
+          colour,
+          reach: reach * 0.9,
+          spokes: Math.round(spokes / 2),
+          angle: event.angle,
+          arc: 0,
+          inward: true,
+        })
+        break
+      default:
+        this.bursts.push({
+          pos: event.pos,
+          age: 0,
+          life: event.crit ? 0.44 : 0.34,
+          colour,
+          reach,
+          spokes,
+          angle: event.angle,
+          arc: 0,
+          inward: false,
+        })
+        break
+    }
+
+    if (event.empowered) this.empower(event, colour, weight, false)
+  }
+
+  /**
+   * A second ring, for a hit the spec's own rule was paying for.
+   *
+   * A rogue's finisher on five combo points deals double and looked exactly
+   * like one on none. This is the difference being visible: a wider ring
+   * arriving a moment behind the hit, so the eye reads "that one counted"
+   * without anything having to be written on screen.
+   */
+  private empower(event: EffectEvent, colour: string, weight: number, inward: boolean): void {
     this.bursts.push({
       pos: event.pos,
-      age: 0,
-      life: event.kind === 'heal' ? 0.5 : event.crit ? 0.44 : 0.34,
+      age: -0.05,
+      life: 0.46,
       colour,
-      reach: REACH * weight * (event.crit ? 1.35 : 1),
-      spokes: event.kind === 'heal' ? 0 : event.crit ? 10 : 6,
-      angle: event.angle,
+      reach: REACH * weight * 1.9,
+      spokes: 4,
+      angle: event.angle + Math.PI / 4,
       arc: 0,
-      inward: event.kind === 'heal',
+      inward,
     })
   }
 
@@ -193,6 +315,10 @@ export class Effects {
     ctx.lineCap = 'round'
 
     for (const burst of this.bursts) {
+      // A burst can be queued with a negative age to arrive a moment late —
+      // the empowered ring does, so it reads as a second beat rather than a
+      // thicker first one. Nothing is drawn until it has started.
+      if (burst.age < 0) continue
       const t = Math.min(1, burst.age / burst.life)
       const fade = 1 - t
       const p = project(burst.pos)

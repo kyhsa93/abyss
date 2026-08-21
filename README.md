@@ -830,6 +830,32 @@ numbers over a fight whose actual state is already on the party frames and the
 meter, which is the same reason only your own hits make a sound. The report at
 the end still counts everything.
 
+**A hit looks like whatever threw it.** Every damaging ability used to make
+the same expanding ring with the same six spokes in the ability's colour — a
+fireball, a dagger and an arrow were one picture tinted three ways, and the
+picture is what anybody is actually looking at during a fight, since nobody
+watches the buttons.
+
+| | |
+| --- | --- |
+| **cleave** | an arc across the target, along the line the blow came in on — warrior, rogue, cat |
+| **pierce** | a streak straight through and a short spray behind — hunter, elemental |
+| **crush** | short, wide and heavy: it does not travel, it arrives — paladin |
+| **wither** | closes inward instead of pushing out — shadow, moonfire |
+| **burst** | the ring, for anything without an edge or a point — mage, balance |
+
+The style is read off the icon rather than listed separately: a blade already
+draws a blade on its button, so a blade cleaves. It comes out of the same
+three primitives the effects already had, so it is a table of parameters
+rather than a second renderer.
+
+**A hit the spec's own rule paid for is drawn as more.** A rogue's finisher on
+five combo points deals double and looked exactly like one on none; the trait
+existed in the numbers and nowhere else. Now a second, wider ring arrives a
+beat behind it — queued with a negative age so it reads as a second beat
+rather than a thicker first one. The simulation says whether the rule was
+paying, because that is the one thing the renderer cannot work out for itself.
+
 **Hits have a picture.** Every ability that lands and every weapon swing
 queues an effect, and the renderer draws it from three primitives: a ring
 expanding out of the hit, spokes radiating from it, and an arc where a melee
