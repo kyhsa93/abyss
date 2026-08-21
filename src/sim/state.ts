@@ -19,6 +19,7 @@ import {
 } from './classes'
 import type { Actor, AiProfile, BgKind, Personality, SimState, Tally } from './types'
 import type { AffixId } from './affix'
+import { applyBoons, type BoonId } from './boon'
 
 
 interface PersonalityTuning {
@@ -124,9 +125,11 @@ export function createState(
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,
   depth = 0,
+  boons: BoonId[] = [],
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
+  for (const member of members) applyBoons(member, boons)
   const scale =
     sizeHealth(party.length) * DIFFICULTIES[difficulty].health * descentHealth(depth)
   const fight = encounterAt(encounter)
@@ -196,6 +199,7 @@ export function createState(
     encounter: encounterIndex(encounter),
     affix,
     depth,
+    boons: [...boons],
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: opening.puddle,
@@ -298,6 +302,7 @@ export function createBattlegroundState(
     encounter: FIRST_ENCOUNTER,
     affix: null,
     depth: 0,
+    boons: [],
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     nextPuddle: 0,

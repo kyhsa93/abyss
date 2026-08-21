@@ -2,6 +2,7 @@ import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
 import { affixRot } from './affix'
+import { boonCooldown } from './boon'
 import { updateBattlegroundAi } from './bgai'
 import {
   CARRIER_SPEED,
@@ -195,10 +196,13 @@ function nearestHostile(
 function updateTimers(s: SimState, a: Actor): void {
   if (!a.alive) return
 
-  a.gcd = Math.max(0, a.gcd - DT)
+  // Boons speed the clock rather than shortening each cooldown, so stacking
+  // them can never divide anything by zero.
+  const tick = a.faction === 'party' ? DT * boonCooldown(s.boons) : DT
+  a.gcd = Math.max(0, a.gcd - tick)
   for (const key of Object.keys(a.cooldowns)) {
     const value = a.cooldowns[key]!
-    if (value > 0) a.cooldowns[key] = Math.max(0, value - DT)
+    if (value > 0) a.cooldowns[key] = Math.max(0, value - tick)
   }
 
   const regen = RESOURCES[a.resource].regen

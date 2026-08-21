@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
-import { drawHud, hitOutcome, partyButton } from './render/hud'
+import { drawHud, hitOutcome, partyButton, setTrendLine } from './render/hud'
 import {
   check as checkAwards,
   load as loadAwards,
@@ -9,18 +9,28 @@ import {
   type Award,
   type Earned,
 } from './achievements'
-import { append, load as loadHistory, record, save as saveHistory, type Attempt } from './history'
+import {
+  append,
+  load as loadHistory,
+  record,
+  save as saveHistory,
+  trend,
+  type Attempt,
+} from './history'
 import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
+import { beat, load as loadBests, save as saveBests, type Bests } from './bests'
 import { Effects } from './render/effects'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import {
   drawBgSetup,
+  drawBoonOffer,
   drawDaily,
   drawHome,
   drawRaidSetup,
   drawSettings,
   hitBgSetup,
+  hitBoonOffer,
   hitDaily,
   hitHome,
   hitRaidSetup,
@@ -56,6 +66,7 @@ import {
 } from './daily-record'
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
 import { DESCENT_RECOVERY, DESCENT_REVIVE, descentEncounter } from './sim/descent'
+import { boonById, offerFor, type BoonId } from './sim/boon'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -281,6 +292,16 @@ let depth = 0
 let deepest = loadDeepest()
 /** Set while the class screen is being used to start a descent rather than a pull. */
 let startingDescent = false
+/**
+ * What this run has picked up, and what it is being offered.
+ *
+ * Boons live here rather than in storage on purpose: they are the run's, and
+ * the run ends. Nothing about them is banked, which is what lets this game
+ * have power growth at all without giving up the rule that a fight you failed
+ * is not a fight you can wait out.
+ */
+let boons: BoonId[] = []
+let offered: BoonId[] = []
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
@@ -296,6 +317,7 @@ let screen:
   | 'raid'
   | 'battleground'
   | 'daily'
+  | 'boon'
   | 'roster'
   | 'settings'
   | 'fight'
@@ -303,6 +325,14 @@ let screen:
 
 let history: Attempt[] = loadHistory()
 let awards: Earned = loadAwards()
+/**
+ * Personal bests, which are the only thing in this game that gets stronger.
+ *
+ * Nothing on the character does, by design — so the evidence that anything is
+ * improving has to be the record, and a record you only see on a screen opened
+ * afterwards is one nobody notices beating.
+ */
+let bests: Bests = loadBests()
 let historyTab: HistoryTab = 'pulls'
 
 /**
@@ -360,6 +390,7 @@ function newState(): SimState {
       encounter,
       null,
       depth,
+      boons,
     )
   }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
@@ -375,6 +406,8 @@ function newState(): SimState {
  * next one and is only being told a minute later.
  */
 function descendTo(floor: number, carry: SimState | null): void {
+  // A fresh run carries nothing: the boons went down with the last one.
+  if (floor === 1) boons = []
   depth = floor
   encounter = descentEncounter(floor)
   playingDaily = false
@@ -648,6 +681,32 @@ function updateDaily(tap: { x: number; y: number } | null): void {
   )
 }
 
+/** The state the last floor ended in, held while its reward is chosen. */
+let carried: SimState | null = null
+
+function updateBoon(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const picked = hitBoonOffer(tap.x, tap.y)
+    if (picked !== null) {
+      const boon = offered[picked]
+      if (boon) boons = [...boons, boon]
+      const from = carried
+      carried = null
+      descendTo(depth + 1, from)
+      return
+    }
+  }
+
+  drawBoonOffer(
+    ctx,
+    depth,
+    offered.map((id) => boonById(id) ?? { name: id, detail: '' }),
+    boons
+      .map((id) => boonById(id)?.name ?? id)
+      .join(', '),
+  )
+}
+
 function updateRaidSetup(tap: { x: number; y: number } | null): void {
   if (tap) {
     const hit = hitRaidSetup(tap.x, tap.y)
@@ -758,6 +817,7 @@ function frame(now: number): void {
     else if (screen === 'raid') updateRaidSetup(tap)
     else if (screen === 'battleground') updateBgSetup(tap)
     else if (screen === 'daily') updateDaily(tap)
+    else if (screen === 'boon') updateBoon(tap)
     else if (screen === 'settings') updateSettings(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)
@@ -804,8 +864,13 @@ function frame(now: number): void {
       return
     }
     if (hit === 'next') {
-      if (depth > 0) descendTo(depth + 1, state)
-      else nextBoss()
+      if (depth > 0) {
+        // A floor is not left empty-handed: three offered, one taken, and the
+        // next floor starts once it has been.
+        offered = offerFor(BASE_SEED + depth * 7919, depth)
+        carried = state
+        screen = 'boon'
+      } else nextBoss()
     }
     else if (hit === 'retry') restart()
   }
@@ -869,6 +934,19 @@ function frame(now: number): void {
     if (entry) {
       history = append(history, entry)
       saveHistory(history)
+
+      // Read after the record is written, so this pull is the latest one in it.
+      const boss = ENCOUNTERS[state.encounter]
+      const moving = boss ? trend(history, boss.id, state.difficulty) : null
+      setTrendLine(
+        moving
+          ? moving.delta < -0.5
+            ? `${Math.abs(moving.delta).toFixed(1)}s faster than your last kill — ${moving.kills} kills on this one`
+            : moving.delta > 0.5
+              ? `${moving.delta.toFixed(1)}s slower than your last kill — ${moving.kills} kills on this one`
+              : `same pace as your last kill — ${moving.kills} kills on this one`
+          : null,
+      )
     }
 
     // Judged after the record is written, since some of them are about the
@@ -877,6 +955,21 @@ function frame(now: number): void {
     if (fresh.length > 0) {
       saveAwards(awards)
       announced = fresh.map((award) => ({ award, age: 0 }))
+    }
+
+    // And anything that just beat its old number, announced the same way: the
+    // difference between a record and a thing you notice is being told.
+    const moved = beat(bests, state, depth)
+    bests = moved.bests
+    if (moved.beaten.length > 0) {
+      saveBests(bests)
+      announced = [
+        ...announced,
+        ...moved.beaten.map((item) => ({
+          award: { id: item.name, name: item.name, detail: item.detail, earned: () => false },
+          age: 0,
+        })),
+      ]
     }
   }
 

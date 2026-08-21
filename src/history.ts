@@ -1,4 +1,5 @@
 import { CLASSES, type DifficultyId, type Pick, type SpecId } from './sim/classes'
+import { ENCOUNTERS } from './sim/encounters'
 import type { Outcome, SimState } from './sim/types'
 
 /**
@@ -27,6 +28,16 @@ export interface Attempt {
   outcome: Outcome
   /** Ranked the way the meter ranks, best first. */
   standings: Standing[]
+  /**
+   * Which boss, how long it took, and what you ate doing it.
+   *
+   * A log of who out-damaged whom says nothing about whether you are getting
+   * better at this; these three do, and they are what a trend is read off.
+   * Optional because a record written before they existed is still a record.
+   */
+  boss?: string
+  seconds?: number
+  mechanics?: number
 }
 
 const KEY = 'abyss.history'
@@ -75,12 +86,16 @@ export function record(s: SimState, at: number): Attempt | null {
   const own = board.find((row) => row.isPlayer)
   if (own && !top.includes(own)) top[top.length - 1] = own
 
+  const player = s.actors.find((a) => a.isPlayer)
   return {
     at,
     size: board.length,
     difficulty: s.difficulty,
     outcome: s.outcome,
     standings: top,
+    boss: ENCOUNTERS[s.encounter]?.id,
+    seconds: Math.round(s.time * 10) / 10,
+    mechanics: player ? (s.tally[player.id]?.mechanicHits ?? 0) : 0,
   }
 }
 
@@ -132,6 +147,48 @@ export interface Totals {
   bestOwn: number
   /** And the best anybody managed, which is usually not the same number. */
   bestAny: number
+}
+
+/**
+ * How the last few goes at one boss are trending.
+ *
+ * Kills only, and the same boss at the same difficulty — a wipe has no time to
+ * compare and a heroic pull is not the same question as a normal one. Two is
+ * the fewest that can have a direction.
+ */
+export interface Trend {
+  boss: string
+  kills: number
+  latest: number
+  previous: number
+  /** Negative is faster, which is better; in seconds. */
+  delta: number
+  mechanics: number
+  mechanicsBefore: number
+}
+
+export function trend(entries: Attempt[], boss: string, difficulty: DifficultyId): Trend | null {
+  const kills = entries.filter(
+    (entry) =>
+      entry.outcome === 'victory' &&
+      entry.boss === boss &&
+      entry.difficulty === difficulty &&
+      typeof entry.seconds === 'number',
+  )
+  if (kills.length < 2) return null
+
+  // Newest first, which is the order the record is kept in.
+  const latest = kills[0]!
+  const previous = kills[1]!
+  return {
+    boss,
+    kills: kills.length,
+    latest: latest.seconds!,
+    previous: previous.seconds!,
+    delta: latest.seconds! - previous.seconds!,
+    mechanics: latest.mechanics ?? 0,
+    mechanicsBefore: previous.mechanics ?? 0,
+  }
 }
 
 export function totals(entries: Attempt[]): Totals {

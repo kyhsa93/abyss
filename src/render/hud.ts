@@ -294,6 +294,18 @@ function bar(
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
 }
 
+/**
+ * How this pull compares with the last one against the same boss.
+ *
+ * Set by the page after a pull is recorded, and read by the results screen.
+ * The renderer does not own the history and must not go looking for it.
+ */
+let trendLine: string | null = null
+
+export function setTrendLine(line: string | null): void {
+  trendLine = line
+}
+
 export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
   else drawBossFrame(ctx, s)
@@ -963,6 +975,12 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
   const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
   // A descent counts floors rather than attempts: there is only ever one.
   ctx.fillText(s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`, L.infoX, y)
+  if (s.boons.length > 0) {
+    y += 15 * L.ui
+    ctx.fillStyle = COLORS.hpBar
+    ctx.fillText(`${s.boons.length} carried`, L.infoX, y)
+    ctx.fillStyle = COLORS.textDim
+  }
   y += line
   ctx.fillText(`phase ${s.phase}`, L.infoX, y)
   y += line
@@ -1429,6 +1447,16 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )
+
+  // Whether you are getting better at this, which is the one thing nothing in
+  // the game was saying: no stat on the character moves, so the record is the
+  // only evidence there is.
+  if (trendLine) {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = COLORS.hpBar
+    ctx.font = font(11, true)
+    ctx.fillText(trendLine, L.w / 2, Math.max(80, L.h * 0.205))
+  }
 
   drawReport(ctx, s, Math.max(96, L.h * 0.26), buttons.retry.y - 24)
 

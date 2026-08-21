@@ -105,6 +105,18 @@ import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
 import { AFFIXES, type AffixId } from '../src/sim/affix'
 import { descentDamage, descentEncounter, descentHealth } from '../src/sim/descent'
+import {
+  boonCooldown,
+  boonCost,
+  boonCrit,
+  boonDamage,
+  boonHealing,
+  boonHealth,
+  boonMitigation,
+  boonSpeed,
+  offerFor,
+  type BoonId,
+} from '../src/sim/boon'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
@@ -4235,6 +4247,69 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     boss(deeper).maxHp > boss(shallow).maxHp * 1.5,
     `${boss(shallow).maxHp} -> ${boss(deeper).maxHp}`,
   )
+}
+
+// --- what you pick up on the way down ----------------------------------------
+//
+// The rest of the game refuses power growth: what improves between attempts is
+// the player. A descent is the one place the argument does not hold, because
+// the whole run is a single attempt — so a boon may be strong, and must never
+// be banked. What is checked is that each one does something, that an offer is
+// a real choice, and that nothing outside a descent ever carries one.
+{
+  const offer = offerFor(12345, 3)
+  expect('three are offered', offer.length === 3, `${offer.length}`)
+  expect('and never the same one twice', new Set(offer).size === 3, offer.join(','))
+  expect(
+    'the same floor offers the same three',
+    offerFor(12345, 3).join(',') === offer.join(','),
+    'the offer moved',
+  )
+  expect('a later floor offers different ones', offerFor(12345, 4).join(',') !== offer.join(','), 'identical')
+
+  // Every boon has to move the number it claims to.
+  const held = (id: BoonId) => [id]
+  expect('vigour is health', boonHealth(held('vigour')) > 1, `${boonHealth(held('vigour'))}`)
+  expect('edge is damage', boonDamage(held('edge')) > 1, `${boonDamage(held('edge'))}`)
+  expect('mending is healing', boonHealing(held('mending')) > 1, `${boonHealing(held('mending'))}`)
+  expect('quickstep is speed', boonSpeed(held('quickstep')) > 1, `${boonSpeed(held('quickstep'))}`)
+  expect('readiness is cooldowns', boonCooldown(held('readiness')) > 1, `${boonCooldown(held('readiness'))}`)
+  expect('thrift is cost', boonCost(held('thrift')) < 1, `${boonCost(held('thrift'))}`)
+  expect('ward is what you take', boonMitigation(held('ward')) < 1, `${boonMitigation(held('ward'))}`)
+  expect('fervour is crit', boonCrit(held('fervour')) > 1, `${boonCrit(held('fervour'))}`)
+
+  // They stack, and nothing they stack into can reach zero or turn negative —
+  // a cost of nothing or a cooldown that never ticks is a run that stops being
+  // a game.
+  const piled = Array.from({ length: 20 }, () => 'thrift' as BoonId)
+  expect('cost never reaches nothing', boonCost(piled) > 0.2, `${boonCost(piled)}`)
+  const walled = Array.from({ length: 20 }, () => 'ward' as BoonId)
+  expect('mitigation never reaches immunity', boonMitigation(walled) > 0.3, `${boonMitigation(walled)}`)
+
+  // And they actually land in a fight: more health on the bodies, and more
+  // damage out of the same ability.
+  const bare = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 3)
+  const blessed = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 3, [
+    'vigour',
+    'edge',
+  ])
+  const bareBody = bare.actors.find((a) => a.faction === 'party')!
+  const blessedBody = blessed.actors.find((a) => a.faction === 'party')!
+  expect('vigour reaches the bodies', blessedBody.maxHp > bareBody.maxHp, `${bareBody.maxHp} -> ${blessedBody.maxHp}`)
+
+  const hitFor = (fight: SimState): number => {
+    const actor = fight.actors.find((a) => a.isPlayer)!
+    const target = fight.actors[fight.actors.length - 1]!
+    target.hp = target.maxHp
+    const before = target.hp
+    landAbility(fight, actor, ABILITIES[specOf(pickFor('mage', 'dps')!).abilities.filler]!, target.id, new Rng(1))
+    return before - target.hp
+  }
+  expect('edge reaches the damage', hitFor(blessed) > hitFor(bare), `${hitFor(bare)} -> ${hitFor(blessed)}`)
+
+  // Nothing outside a descent carries any of this.
+  expect('an ordinary pull carries none', pulled(0x51ed, 0).boons.length === 0, 'it carried some')
+  expect('nor does a battleground', createBattlegroundState(0x51ed, 'conquest').boons.length === 0, 'it carried some')
 }
 
 // --- affixes -----------------------------------------------------------------
