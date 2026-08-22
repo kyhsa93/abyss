@@ -140,6 +140,10 @@ export function computeLayout(w: number, h: number): Layout {
     arenaR = Math.max(90, Math.min((h - topBand - 28) / 2, (w - 300 * ui) / 2))
   }
 
+  // The camera setting, applied to the fitted radius. Everything in world
+  // units is drawn through `scale`, so one multiplication moves all of it.
+  arenaR *= ZOOM_STEPS[zoomStep] ?? 1
+
   const mapR = clamp(Math.min(w, h) * 0.082, 30, 62)
   const mapX = w - mapR - 10
   const mapY = topBand + 8 + mapR
@@ -226,6 +230,63 @@ export function computeLayout(w: number, h: number): Layout {
 }
 
 /** Live layout. Mutated in place on resize so modules can hold a reference. */
+/**
+ * How close the camera sits, as a multiple of the fit-to-screen distance.
+ *
+ * One is the arena drawn as large as the space allows, which is the framing
+ * every layout number here was worked out against. Above that the floor runs
+ * off the edges — the portrait layout already assumes it can — and the trade
+ * is legibility for warning: the minimap is what is left saying where the
+ * things you cannot see are.
+ *
+ * A multiplier on the fitted radius rather than a separate transform, so
+ * everything drawn in world units moves together and nothing has to know the
+ * camera exists.
+ */
+export const ZOOM_STEPS = [1, 1.25, 1.5, 1.8] as const
+export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER'] as const
+
+const ZOOM_KEY = 'abyss.zoom'
+
+let zoomStep = load()
+
+function load(): number {
+  try {
+    const raw = localStorage.getItem(ZOOM_KEY)
+    const level = raw === null ? 0 : Number.parseInt(raw, 10)
+    return Number.isFinite(level) ? Math.max(0, Math.min(ZOOM_STEPS.length - 1, level)) : 0
+  } catch {
+    // No storage is not an error; it is the default framing.
+    return 0
+  }
+}
+
+export function saveZoom(level: number): void {
+  try {
+    localStorage.setItem(ZOOM_KEY, String(level))
+  } catch {
+    // As everywhere else: private browsing is not worth failing over.
+  }
+}
+
+export function zoomLevel(): number {
+  return zoomStep
+}
+
+/** What the camera setting multiplies the fitted arena by. */
+export function zoomFactor(): number {
+  return ZOOM_STEPS[zoomStep] ?? 1
+}
+
+/** Returns whether it moved, so a caller knows to redraw. */
+export function setZoomLevel(level: number, w: number, h: number): boolean {
+  const next = Math.max(0, Math.min(ZOOM_STEPS.length - 1, Math.round(level)))
+  if (next === zoomStep) return false
+  zoomStep = next
+  updateLayout(w, h)
+  return true
+}
+
 export const L: Layout = computeLayout(960, 760)
 
 export function updateLayout(w: number, h: number): void {

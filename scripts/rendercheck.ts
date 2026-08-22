@@ -15,6 +15,7 @@ import {
   slotStatus,
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
+import { ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
 import {
   bgSetupLayout,
   drawBgSetup,
@@ -4134,10 +4135,16 @@ for (const [label, w, h] of [
   )
 
   // Settings: sound, the volume it plays at, and the fight behind the menus.
-  drawSettings(stubCtx(), false, 1, true)
-  drawSettings(stubCtx(), true, 0, false)
+  drawSettings(stubCtx(), false, 1, true, 0)
+  drawSettings(stubCtx(), true, 0, false, 3)
   const settings = settingsLayout()
-  const settingsRects = [settings.sound, ...settings.volumes, settings.backdrop, settings.back]
+  const settingsRects = [
+    settings.sound,
+    ...settings.volumes,
+    ...settings.cameras,
+    settings.backdrop,
+    settings.back,
+  ]
   expect(`${label}: the settings fit`, settingsRects.every(onScreen), JSON.stringify(settingsRects))
   expect(
     `${label}: and do not collide`,
@@ -4152,6 +4159,10 @@ for (const [label, w, h] of [
   expect(
     `${label}: sound and volume answer as themselves`,
     hitSettings(...middle(settings.backdrop))?.kind === 'backdrop' &&
+      settings.cameras.every((r, i) => {
+        const hit = hitSettings(...middle(r))
+        return hit?.kind === 'camera' && hit.level === i
+      }) &&
       hitSettings(...middle(settings.sound))?.kind === 'sound' &&
       settings.volumes.every((r, i) => {
         const hit = hitSettings(...middle(r))
@@ -5874,6 +5885,87 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   expect('a number holds while it can be read', middle.alpha >= 0.99, `${middle.alpha}`)
   expect('and is gone by the end', old.alpha < 0.3, `${old.alpha}`)
   expect('and starts solid', young.alpha >= 0.99, `${young.alpha}`)
+}
+
+// --- the camera setting ----------------------------------------------------
+//
+// A multiplier on the fitted arena radius rather than a transform of its own,
+// so everything drawn in world units moves together and nothing else has to
+// know the camera exists. What it trades is warning for legibility: the floor
+// runs off the edges, and the minimap — which is not affected — is what is
+// left saying where the things off screen are.
+{
+  updateLayout(1440, 900)
+  const at = (level: number) => {
+    setZoomLevel(level, 1440, 900)
+    return { scale: L.scale, arena: L.arenaR, map: L.mapR }
+  }
+
+  const far = at(0)
+  const near = at(1)
+  const closest = at(ZOOM_STEPS.length - 1)
+
+  expect('the default is the fitted framing', ZOOM_STEPS[0] === 1, `${ZOOM_STEPS[0]}`)
+  expect('a step in draws the world larger', near.scale > far.scale, `${far.scale} then ${near.scale}`)
+  expect('and every step after it', closest.scale > near.scale, `${near.scale} then ${closest.scale}`)
+  expect(
+    'the arena keeps up with the world',
+    Math.abs(closest.arena / closest.scale - far.arena / far.scale) < 0.001,
+    'the floor and its edge disagree',
+  )
+  expect(
+    'the minimap does not move with it',
+    closest.map === far.map,
+    `${far.map} then ${closest.map}`,
+  )
+  expect('one name per step', ZOOM_NAMES.length === ZOOM_STEPS.length, `${ZOOM_NAMES.length}`)
+
+  // Out of range on either side is the framing it already had, not a crash or
+  // a blank screen.
+  setZoomLevel(99, 1440, 900)
+  expect('a wild level clamps', zoomLevel() === ZOOM_STEPS.length - 1, `${zoomLevel()}`)
+  setZoomLevel(-5, 1440, 900)
+  expect('and so does a negative one', zoomLevel() === 0, `${zoomLevel()}`)
+
+  // The menus are drawn behind their own camera, and it must not compound
+  // with this one: at the closest setting a background multiplied rather than
+  // divided would sit at three and a half times, where both teams walk out of
+  // frame.
+  // Measured off what the scene actually applies rather than off what it is
+  // supposed to apply: asking the check to compute the intended factor is
+  // asking it to agree with the bug.
+  const worldScale = (level: number): number => {
+    setZoomLevel(level, 1440, 900)
+    const applied: number[] = []
+    const spy = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'scale') return (x: number) => applied.push(x)
+          if (prop === 'measureText') return () => ({ width: 10 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+            return () => ({ addColorStop: () => {} })
+          }
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return () => {}
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D
+    const scene = new Ambience()
+    scene.draw(spy)
+    return L.scale * applied.reduce((a, b) => a * b, 1)
+  }
+
+  const loose = worldScale(0)
+  const tight = worldScale(ZOOM_STEPS.length - 1)
+  expect(
+    'the background sits at the same distance whatever the camera is set to',
+    Math.abs(loose - tight) < 0.0001,
+    `${loose.toFixed(4)} against ${tight.toFixed(4)}`,
+  )
+
+  setZoomLevel(0, 1440, 900)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

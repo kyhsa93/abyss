@@ -249,6 +249,29 @@ It can be turned off in settings, and it defaults to off where the device has
 asked for reduced motion. A running battle behind every screen is precisely
 what that setting is about.
 
+## How close the camera sits
+
+Four settings, from the arena fitted to the screen out to nearly twice that.
+One is the framing every layout number in the game was worked out against; the
+steps in are for reading your own tokens and numbers rather than for seeing
+more.
+
+It is a multiplier on the fitted arena radius, not a transform of its own, so
+everything drawn in world units moves together and nothing else has to know
+the camera exists — the same reason the arena's edge keeps up with the floor
+inside it without being told to. The minimap deliberately does not move: what
+the setting trades is warning for legibility, and the minimap is what is left
+saying where the things off the edges are.
+
+The one interaction worth catching was with the fight running behind the
+menus, which has a camera of its own at twice the fitted distance. Multiplied
+rather than divided by the setting, a player who likes the game close would
+get the menus at three and a half times, which is past the point where both
+teams walk out of frame and the background goes empty. The check measures what
+the scene *applies* rather than what it is supposed to apply — asking a check
+to compute the intended factor is asking it to agree with the bug — and it
+catches the compounding version at 5.70 against 1.76.
+
 ## Reading your own numbers
 
 Four things were wrong with the floating damage and healing numbers, and all

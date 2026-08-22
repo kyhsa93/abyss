@@ -5,7 +5,7 @@ import { Rng } from '../sim/rng'
 import { SPEC_OPTIONS, randomAround } from '../sim/classes'
 import { createBattlegroundState, createState, unattended } from '../sim/state'
 import { step } from '../sim/sim'
-import { COLORS, L } from './theme'
+import { COLORS, L, zoomFactor } from './theme'
 import { Effects } from './effects'
 import { drawWorld } from './draw'
 import type { PlayerInput, SimState } from '../sim/types'
@@ -288,9 +288,14 @@ export class Ambience {
 
     // Zoomed about the middle of the screen, and inside a save: the menu drawn
     // over the top has to land in screen coordinates like everything else.
+    // Divided by the player's own camera setting, so the background is the
+    // same distance away whatever the fight is set to. Left multiplied, a
+    // player who likes the game close would get the menus at three and a half
+    // times, which is past the point where both teams walk out of frame.
+    const close = ZOOM / zoomFactor()
     ctx.save()
     ctx.translate(L.cx, L.cy)
-    ctx.scale(ZOOM, ZOOM)
+    ctx.scale(close, close)
     ctx.translate(-L.cx, -L.cy)
     ctx.globalAlpha = 0.55
     drawWorld(ctx, this.state, 1, this.clock, this.effects)

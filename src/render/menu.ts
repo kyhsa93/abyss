@@ -4,7 +4,7 @@ import { ENCOUNTERS } from '../sim/encounters'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
-import { COLORS, L } from './theme'
+import { COLORS, L, ZOOM_NAMES } from './theme'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -477,12 +477,14 @@ export type SettingsHit =
   | { kind: 'sound' }
   | { kind: 'volume'; level: number }
   | { kind: 'backdrop' }
+  | { kind: 'camera'; level: number }
   | { kind: 'back' }
 
 export interface SettingsLayout {
   sound: Rect
   volumes: Rect[]
   backdrop: Rect
+  cameras: Rect[]
   back: Rect
   headings: number[]
 }
@@ -495,24 +497,36 @@ export function settingsLayout(): SettingsLayout {
   const w = Math.min(340, L.w - p * 2)
   const gap = 6
 
-  const sound = { x: L.w / 2 - w / 2, y: top + 14 * L.ui, w, h: rowH }
-  const volumeY = sound.y + rowH + 34 * L.ui
-  const vw = (w - gap * (VOLUME_NAMES.length - 1)) / VOLUME_NAMES.length
-  const volumes = VOLUME_NAMES.map((_, i) => ({
-    x: L.w / 2 - w / 2 + i * (vw + gap),
-    y: volumeY,
-    w: vw,
-    h: rowH,
-  }))
-  const backdropY = volumeY + rowH + 34 * L.ui
-  const backdrop = { x: L.w / 2 - w / 2, y: backdropY, w, h: rowH }
+  // Four labelled rows now, so the space between them is what gives rather
+  // than the rows themselves: a settings screen that runs off the bottom of a
+  // small phone is worse than a cramped one.
+  const rows = 4
+  const spare = back.y - 14 - (top + 14 * L.ui) - rowH * rows
+  const step = rowH + Math.max(18 * L.ui, Math.min(34 * L.ui, spare / (rows - 1)))
+
+  const rowY = (i: number): number => top + 14 * L.ui + step * i
+  const spread = (count: number, y: number): Rect[] => {
+    const cw = (w - gap * (count - 1)) / count
+    return Array.from({ length: count }, (_, i) => ({
+      x: L.w / 2 - w / 2 + i * (cw + gap),
+      y,
+      w: cw,
+      h: rowH,
+    }))
+  }
+
+  const sound = { x: L.w / 2 - w / 2, y: rowY(0), w, h: rowH }
+  const volumes = spread(VOLUME_NAMES.length, rowY(1))
+  const cameras = spread(ZOOM_NAMES.length, rowY(2))
+  const backdrop = { x: L.w / 2 - w / 2, y: rowY(3), w, h: rowH }
 
   return {
     sound,
     volumes,
+    cameras,
     backdrop,
     back,
-    headings: [sound.y - 10 * L.ui, volumeY - 10 * L.ui, backdropY - 10 * L.ui],
+    headings: [0, 1, 2, 3].map((i) => rowY(i) - 10 * L.ui),
   }
 }
 
@@ -523,6 +537,7 @@ export function drawSettings(
   /** Whether the fight behind the menus is on. Named for the setting, not for
    *  the local `backdrop()`, which is the thing it draws through. */
   scene: boolean,
+  camera: number,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'SETTINGS')
@@ -558,7 +573,12 @@ export function drawSettings(
     )
   })
 
-  heading('BACKDROP', layout.headings[2]!)
+  heading('CAMERA', layout.headings[2]!)
+  ZOOM_NAMES.forEach((name, i) => {
+    button(ctx, layout.cameras[i]!, name, '', COLORS.hpBar, i === camera)
+  })
+
+  heading('BACKDROP', layout.headings[3]!)
   button(
     ctx,
     layout.backdrop,
@@ -576,6 +596,9 @@ export function hitSettings(x: number, y: number): SettingsHit | null {
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.sound, x, y)) return { kind: 'sound' }
   if (inside(layout.backdrop, x, y)) return { kind: 'backdrop' }
+  for (let i = 0; i < layout.cameras.length; i++) {
+    if (inside(layout.cameras[i]!, x, y)) return { kind: 'camera', level: i }
+  }
   for (let i = 0; i < layout.volumes.length; i++) {
     if (inside(layout.volumes[i]!, x, y)) return { kind: 'volume', level: i }
   }

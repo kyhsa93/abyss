@@ -36,7 +36,15 @@ import {
   hitSettings,
 } from './render/menu'
 import { Sfx } from './sfx'
-import { COLORS, L, classColor, updateLayout } from './render/theme'
+import {
+  COLORS,
+  L,
+  classColor,
+  saveZoom,
+  setZoomLevel,
+  updateLayout,
+  zoomLevel,
+} from './render/theme'
 import { DT } from './sim/constants'
 import { Rng } from './sim/rng'
 import { step } from './sim/sim'
@@ -769,13 +777,22 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       if (sfx.isMuted()) sfx.toggleMute()
       sfx.setVolume(hit.level)
       sfx.play('countdown')
+    } else if (hit?.kind === 'camera') {
+      // The canvas is not resized, so the layout has to be recomputed against
+      // the size it already is.
+      // The viewport has not changed, so the layout is recomputed against the
+      // size it already has rather than through fitCanvas, which would also
+      // reset the canvas backing store for nothing.
+      if (setZoomLevel(hit.level, Math.max(320, window.innerWidth), Math.max(320, window.innerHeight))) {
+        saveZoom(hit.level)
+      }
     } else if (hit?.kind === 'backdrop') {
       const on = !ambience.isEnabled()
       ambience.setEnabled(on)
       saveBackdrop(on)
     }
   }
-  drawSettings(ctx, sfx.isMuted(), sfx.volume(), ambience.isEnabled())
+  drawSettings(ctx, sfx.isMuted(), sfx.volume(), ambience.isEnabled(), zoomLevel())
 }
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
