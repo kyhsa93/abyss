@@ -7,6 +7,10 @@ import {
   SOAK_EACH,
   SOAK_MAX_SHARE,
   SOAK_TELEGRAPH,
+  STALKER_DAMAGE,
+  STALKER_HP,
+  STALKER_SPEED,
+  STALKER_SWING,
 } from './constants'
 import {
   addAura,
@@ -26,7 +30,7 @@ import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
-import { descentDamage, descentSoak } from './descent'
+import { descentDamage, descentHunt, descentSoak } from './descent'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -155,6 +159,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
   scheduleSoak(s, b, rng, timing)
+  scheduleHunt(s, b, rng, timing)
 
   updateAdds(s)
 }
@@ -603,6 +608,59 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (victim.ai) say(s, victim, fight(s).lines.rot)
 }
 
+/**
+ * Something picks one of you and walks after it.
+ *
+ * The only mechanic here aimed at one person, and the only one with two
+ * answers at once. The one it picked has to keep moving, which costs them
+ * every cast they would have made standing still; everybody else has to
+ * decide whether to break off and kill it or leave them to it. Every other
+ * hostile in this game goes for whoever is nearest — a rule the party answers
+ * by standing somewhere else, which is no answer at all here.
+ *
+ * Never the tank. A tank that runs takes the boss with it, and a mechanic
+ * whose answer is "drag the fight across the arena" is a mechanic that breaks
+ * every other one at the same time.
+ */
+function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  // No boss on the ladder asks for this one either. See `descentHunt`.
+  const every = timing.hunt > 0 ? timing.hunt : descentHunt(s.depth)
+  if (every <= 0) return
+  s.nextHunt -= DT
+  if (s.nextHunt > 0) return
+  s.nextHunt = every
+
+  // Never a tank, and never a healer.
+  //
+  // A tank that runs takes the boss with it. A healer that runs stops
+  // healing, and in this party that is the whole fight — measured, hunting
+  // the healer one pull in four raised deaths across every role, including
+  // the tank, who is never picked. What is left is a damage dealer, which is
+  // the role that can afford to spend a while doing nothing but walking.
+  const quarry = livingParty(s).filter((a) => a.role === 'dps' && !getAura(a, 'hunted'))
+  if (quarry.length === 0) return
+  const victim = rng.pick(quarry)
+
+  // Spawned on the far side of the arena from whoever it wants, so the first
+  // thing that happens is a walk rather than a hit.
+  const away = Math.atan2(victim.pos.y, victim.pos.x) + Math.PI
+  const pos = { x: Math.cos(away) * ARENA_RADIUS * 0.8, y: Math.sin(away) * ARENA_RADIUS * 0.8 }
+  clampToArena(pos, 20)
+
+  const stalker = makeAdd(s.nextObjectId++, pos.x, pos.y)
+  stalker.name = 'Stalker'
+  stalker.hp = STALKER_HP
+  stalker.maxHp = STALKER_HP
+  stalker.moveSpeed = STALKER_SPEED
+  stalker.hunting = victim.id
+  s.actors.push(stalker)
+
+  addAura(victim, 'hunted', stalker.id)
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.hunt)
+  pushEffect(s, 'cast', pos, { abilityId: 'boss_stalk' })
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -634,6 +692,7 @@ function makeAdd(id: number, x: number, y: number): Actor {
     isPlayer: false,
     ai: null,
     swingTimer: 1.5,
+    hunting: null,
   }
 }
 
@@ -642,11 +701,26 @@ function updateAdds(s: SimState): void {
   for (const add of adds(s)) {
     let nearest: Actor | null = null
     let best = Infinity
-    for (const p of livingParty(s)) {
-      const d = dist(add.pos, p.pos)
-      if (d < best) {
-        best = d
-        nearest = p
+
+    // A stalker has already chosen. It walks past everybody else to get to
+    // the one it wants, and stops existing when that one is no longer marked
+    // — killed, or simply outlasted it.
+    if (add.hunting !== null) {
+      const quarry = s.actors.find((a) => a.id === add.hunting)
+      if (!quarry || !quarry.alive || !getAura(quarry, 'hunted')) {
+        add.alive = false
+        pushEffect(s, 'impact', add.pos, { abilityId: 'boss_stalk', power: 300 })
+        continue
+      }
+      nearest = quarry
+      best = dist(add.pos, quarry.pos)
+    } else {
+      for (const p of livingParty(s)) {
+        const d = dist(add.pos, p.pos)
+        if (d < best) {
+          best = d
+          nearest = p
+        }
       }
     }
     if (!nearest) continue
@@ -657,16 +731,21 @@ function updateAdds(s: SimState): void {
       clampToArena(add.pos, add.radius)
     }
 
+    const stalking = add.hunting !== null
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
-      const damage = hit(s, ADD_DAMAGE)
-      applyDamage(s, nearest, damage, 'physical', { sourceId: add.id })
+      const damage = hit(s, stalking ? STALKER_DAMAGE : ADD_DAMAGE)
+      applyDamage(s, nearest, damage, 'physical', {
+        sourceId: add.id,
+        // Being caught by the thing following you is a mistake with a name.
+        mechanic: stalking,
+      })
       pushEffect(s, 'impact', nearest.pos, {
-        abilityId: 'boss_thrall',
+        abilityId: stalking ? 'boss_stalk' : 'boss_thrall',
         power: damage,
         angle: Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x),
       })
-      add.swingTimer = ADD_SWING
+      add.swingTimer = stalking ? STALKER_SWING : ADD_SWING
     }
   }
 

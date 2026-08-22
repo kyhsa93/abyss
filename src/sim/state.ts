@@ -1,7 +1,7 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
-import { descentHealth, descentSoak } from './descent'
+import { descentHealth, descentHunt, descentSoak } from './descent'
 import { Rng } from './rng'
 import {
   CLASSES,
@@ -103,6 +103,7 @@ function makeMember(
     isPlayer,
     ai: isPlayer ? null : makeAi(slot.personality, attempt),
     swingTimer: 0,
+    hunting: null,
   }
 }
 
@@ -162,6 +163,7 @@ export function createState(
     isPlayer: false,
     ai: null,
     swingTimer: 2,
+    hunting: null,
   }
 
   const threat: Record<number, number> = {}
@@ -210,6 +212,7 @@ export function createState(
     // A descent floor asks for the circle even where the boss's own table
     // does not, so the first one is scheduled rather than left at zero.
     nextSoak: opening.soak > 0 ? opening.soak : descentSoak(depth),
+    nextHunt: opening.hunt > 0 ? opening.hunt : descentHunt(depth),
     nextRot: opening.rot,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
@@ -314,6 +317,7 @@ export function createBattlegroundState(
     nextSweep: 0,
     nextSunder: 0,
     nextSoak: 0,
+    nextHunt: 0,
     nextRot: 0,
     bossFacing: Math.PI,
     raidFlash: 0,

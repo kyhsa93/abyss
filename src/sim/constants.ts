@@ -57,6 +57,23 @@ export const SOAK_TELEGRAPH = 5
  * nobody reached is a disaster rather than an extinction.
  */
 export const SOAK_EACH = 80
+
+/**
+ * The thing that picks somebody and walks after them.
+ *
+ * Slower than anybody it hunts, so it is always kiteable and never a death
+ * sentence; heavy enough on contact that being caught is a real mistake; and
+ * carrying enough health that killing it is a decision rather than a formality
+ * — which is the other half of the mechanic, since the rest of the party has
+ * to choose between the boss and the thing chasing their healer.
+ */
+export const STALKER_HP = 1400
+export const STALKER_SPEED = 118
+export const STALKER_DAMAGE = 240
+export const STALKER_SWING = 1.4
+
+/** How long it keeps looking before it gives up and comes apart. */
+export const HUNT_DURATION = 16
 export const SOAK_MAX_SHARE = 4
 
 /**

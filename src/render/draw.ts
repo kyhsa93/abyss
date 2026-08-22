@@ -95,6 +95,7 @@ export function drawWorld(
   drawArena(ctx)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
+  drawHunts(ctx, s, alpha)
   drawSpreadRings(ctx, s, alpha)
   drawCasts(ctx, s, alpha)
 
@@ -530,6 +531,34 @@ function drawShockwave(
   ctx.setLineDash([])
 }
 
+/**
+ * A line from the thing that is hunting somebody to whoever it is hunting.
+ *
+ * Drawn under the tokens with the rest of the floor, because it is a fact
+ * about the fight rather than a thing on a person: at a glance it says which
+ * one of the circles on screen is coming for which one of you, which is the
+ * whole of what the mechanic asks.
+ */
+function drawHunts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const a of s.actors) {
+    if (a.hunting === null || !a.alive) continue
+    const quarry = s.actors.find((other) => other.id === a.hunting)
+    if (!quarry || !quarry.alive) continue
+
+    const from = screenPos(a, alpha)
+    const to = screenPos(quarry, alpha)
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([7, 7])
+    ctx.lineDashOffset = -s.time * 40
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+}
+
 function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   for (const a of s.actors) {
     if (a.faction !== 'party' || !a.alive) continue
@@ -688,6 +717,23 @@ function drawActor(
     ctx.strokeStyle = '#93c5fd'
     ctx.lineWidth = 3
     ctx.stroke()
+  }
+
+  // Whatever picked this one, drawn as a line to it.
+  //
+  // A stalker looks like every other add on the floor, and the mechanic is
+  // entirely about which one of you it is coming for — so the answer is drawn
+  // rather than left to be worked out from six moving circles.
+  const hunted = getAura(a, 'hunted')
+  if (hunted && a.alive) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r + 9 + Math.sin(clock * 7) * 2, 0, Math.PI * 2)
+    ctx.strokeStyle = '#fb923c'
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 5])
+    ctx.lineDashOffset = -clock * 30
+    ctx.stroke()
+    ctx.setLineDash([])
   }
 
   // The armour break, as arcs around whoever is holding the boss. A stack is

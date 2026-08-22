@@ -134,6 +134,15 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
   if (getAura(actor, 'spread')) consider('spread:self', 62)
 
+  // Something is walking over. It is slower than anyone it picks, so the
+  // answer is simply to keep moving — but only for the one it picked, and
+  // only while it is close enough to matter. Urgency below a puddle: fire on
+  // the floor kills faster than a thing that is still ten paces away.
+  const stalker = hunterOf(s, actor)
+  if (stalker && dist(actor.pos, stalker.pos) < STALK_ROOM) {
+    consider(`hunted:${stalker.id}`, 66)
+  }
+
   for (const g of s.ground) {
     if (g.kind === 'breath') {
       if (!g.detonated && insideCone(actor.pos, g)) {
@@ -176,6 +185,22 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   return bestKey
 }
 
+/**
+ * The thing following this actor, if anything is.
+ *
+ * Read off the aura rather than searched for by proximity: a stalker that has
+ * walked past somebody else is still not their problem.
+ */
+function hunterOf(s: SimState, actor: Actor): Actor | null {
+  const mark = getAura(actor, 'hunted')
+  if (!mark) return null
+  const stalker = s.actors.find((a) => a.id === mark.sourceId)
+  return stalker && stalker.alive ? stalker : null
+}
+
+/** How close the thing chasing you has to be before it is worth running. */
+const STALK_ROOM = 110
+
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   for (const g of s.ground) {
@@ -195,6 +220,9 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     }
     if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
   }
+
+  const chaser = hunterOf(s, actor)
+  if (chaser && dist(spot, chaser.pos) < STALK_ROOM * 0.8) return false
 
   const carrying = getAura(actor, 'spread') !== undefined
   for (const other of livingParty(s)) {
@@ -318,6 +346,8 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     }
   }
 
+  const chasing = hunterOf(s, actor)
+
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
   let bestScore = -Infinity
 
@@ -357,7 +387,21 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       else score -= Math.max(0, 200 - d) * 0.5
     }
 
-    // 2. Spread separation.
+    // 2. Whatever is chasing this one. Distance is the whole answer, but
+    // only up to a point — running to the far wall to escape something that
+    // walks costs more uptime than the thing does.
+    if (chasing) {
+      const d = dist(candidate, chasing.pos)
+      // Below what fire costs, deliberately. The first version weighted this
+      // above the floor, so the one being chased would stand in a puddle to
+      // put eight paces between itself and something walking — and the
+      // mechanic's real damage turned out to be the deaths that caused, not
+      // anything the stalker landed itself.
+      if (d < STALK_ROOM * 0.8) score -= 700
+      else score += Math.min(180, (d - STALK_ROOM * 0.8) * 1.2)
+    }
+
+    // 3. Spread separation.
     const carryingSpread = getAura(actor, 'spread') !== undefined
     for (const other of livingParty(s)) {
       if (other.id === actor.id) continue
@@ -369,7 +413,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       }
     }
 
-    // 3. Role positioning.
+    // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
     if (soakActive) {
       // Standing in it beats standing in range of anything. Suspended the
@@ -387,13 +431,13 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       if (bossDist > 280) score -= (bossDist - 280) * 4
     }
 
-    // 4. Humanity: drift toward the group.
+    // 5. Humanity: drift toward the group.
     score -= dist(candidate, centroid) * ai.clustering
 
-    // 5. Do not run further than necessary.
+    // 6. Do not run further than necessary.
     score -= dist(candidate, actor.pos) * 0.35
 
-    // 6. Hugging the wall is bad; puddles there trap you.
+    // 7. Hugging the wall is bad; puddles there trap you.
     score -= Math.max(0, Math.hypot(candidate.x, candidate.y) - (ARENA_RADIUS - 60)) * 2
 
     if (score > bestScore) {

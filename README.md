@@ -466,6 +466,43 @@ tuned to: all three sit on their old numbers to the point. A mechanic that
 costs thirty points of win rate is not a bad mechanic, it is a mechanic that
 needs somewhere its cost is the intention rather than the damage.
 
+## The thing that follows one of you
+
+The only mechanic here aimed at a single person, and the only one with two
+answers at the same time. Something walks out of the dark, picks a damage
+dealer, and goes after them and nobody else — slower than they are, so it is
+always kiteable, but heavy enough on contact that being caught is a real
+mistake. The one it picked has to keep moving, which costs them every cast
+they would have made standing still; everyone else has to decide whether to
+break off and kill it or leave them to it.
+
+Never a tank, and never a healer. A tank that runs takes the boss with it. A
+healer that runs stops healing, and in this party that is the whole fight:
+hunting the healer one pull in four raised deaths in *every* role, including
+the tank, who is never picked at all.
+
+It is on the descent, from the second floor down, and finding out why was the
+most useful measurement of the round. A stalker with its damage turned down to
+**one point of damage** and less health than an ordinary thrall still took the
+Warden from 65% to 8%. Nothing it does is dangerous; what it costs is 16% of
+the party's damage output, because three dealers break off to kill it and the
+one it picked walks instead of casting. Sixteen percent is most of the margin
+a tuned fight has.
+
+That is the finding, and it is not a fact about stalkers. **This ladder is
+balanced on a party that stands still and casts, so movement and
+target-switching are the expensive currency here — not damage.** The armour
+break was affordable on the ladder because it moves nobody. The circle and the
+stalker both cost a third of a fight's margin, so both live on the descent,
+where every floor being worse than the last is the design rather than a
+regression. All three tuned encounters still sit on the exact numbers they
+were tuned to: 18/55/65, 43/65/68, 8/13/15.
+
+One AI weighting had to be measured too. The first version scored a chaser as
+worse than fire, so the one being hunted would stand in a puddle to put eight
+paces between itself and something walking. Its deaths were the mechanic's
+real damage, not anything it landed.
+
 ## Sharing
 
 There is no server, no account and no replay sitting in a database, so there

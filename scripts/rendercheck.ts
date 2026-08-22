@@ -141,8 +141,19 @@ import {
 import { gainPower } from '../src/sim/combat'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SUNDER_MAX } from '../src/sim/boss'
-import { DESCENT_SOAK_FLOOR, descentSoak } from '../src/sim/descent'
-import { DT, SOAK_EACH, SOAK_MAX_SHARE, SOAK_RADIUS } from '../src/sim/constants'
+import {
+  DESCENT_HUNT_FLOOR,
+  DESCENT_SOAK_FLOOR,
+  descentHunt,
+  descentSoak,
+} from '../src/sim/descent'
+import {
+  DT,
+  SOAK_EACH,
+  SOAK_MAX_SHARE,
+  SOAK_RADIUS,
+  STALKER_SPEED,
+} from '../src/sim/constants'
 import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
@@ -3352,6 +3363,96 @@ for (const [label, w, h] of [
       'a party that has lost people does not pay for them',
       Math.abs(short - all) <= all * 0.1,
       `${all} at full strength, ${short} with two down`,
+    )
+  }
+
+  // --- the thing that follows one of you -----------------------------------
+  //
+  // The only mechanic here aimed at a single person, and the only one with
+  // two answers at once: the one it picked runs, and everybody else decides
+  // whether to break off and kill it. Like the circle it lives on the
+  // descent, and for a sharper version of the same reason — with its damage
+  // turned down to one point it still cost the Warden most of its win rate,
+  // because the party's output is what it spends, not anybody's health.
+  {
+    for (const encounter of ENCOUNTERS) {
+      const asks = Object.values(encounter.phases).some((p) => p.hunt > 0)
+      expect(`${encounter.name}: sends nothing after anybody`, !asks, 'it does')
+    }
+    expect('a shallow floor does not either', descentHunt(1) === 0, `${descentHunt(1)}`)
+    expect('and a deeper one does', descentHunt(DESCENT_HUNT_FLOOR) > 0, 'it does not')
+
+    let sent = 0
+    let onTank = 0
+    let onHealer = 0
+    let orphaned = 0
+    let closest = Infinity
+    const seen = new Set<number>()
+    // Several pulls rather than one. Who gets picked is a roll, and a single
+    // fight throws three or four of these — enough to pass a rule it does not
+    // actually keep.
+    for (let run = 0; run < 6; run++) {
+    const s = pulled(0x51ed + run * 7919, 8, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, DESCENT_HUNT_FLOOR)
+    s.countdown = 0
+    const rng = new Rng(0x51ed + run * 7919)
+    while (s.outcome === 'ongoing' && s.time < 150) {
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const a of s.actors) {
+        if (a.name !== 'Stalker' || seen.has(a.id)) continue
+        seen.add(a.id)
+        sent++
+        const quarry = s.actors.find((x) => x.id === a.hunting)
+        if (quarry?.role === 'tank') onTank++
+        if (quarry?.role === 'healer') onHealer++
+      }
+      for (const a of s.actors) {
+        if (a.name !== 'Stalker' || !a.alive) continue
+        const quarry = s.actors.find((x) => x.id === a.hunting)
+        // It follows the one it picked and nobody else, so the nearest party
+        // member is allowed to be somebody it walks straight past.
+        if (!quarry || !quarry.alive || !getAura(quarry, 'hunted')) orphaned++
+        else closest = Math.min(closest, dist(a.pos, quarry.pos))
+      }
+    }
+    }
+
+    expect('a deep floor sends them', sent > 5, `${sent} in six pulls`)
+    // A tank that runs takes the boss with it; a healer that runs stops
+    // healing, which measured as more deaths in every role including the
+    // tank, who is never picked at all.
+    expect('never after a tank', onTank === 0, `${onTank} of ${sent}`)
+    expect('nor after a healer', onHealer === 0, `${onHealer} of ${sent}`)
+    expect('and none outlives what it was following', orphaned === 0, `${orphaned} ticks orphaned`)
+    expect('it does close on the one it picked', closest < 200, `${closest.toFixed(0)} units at best`)
+
+    // And it goes when its mark does. Asked directly: a stalker whose quarry
+    // is no longer marked has nothing to follow, and one left walking after
+    // an expired aura is a permanent add nobody was told about.
+    {
+      const fight = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_HUNT_FLOOR)
+      fight.countdown = 0
+      fight.nextHunt = 0
+      const dice = new Rng(3)
+      step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
+      const stalker = fight.actors.find((a) => a.name === 'Stalker')
+      expect('one is sent on demand', stalker !== undefined, 'none appeared')
+      if (stalker) {
+        const quarry = fight.actors.find((a) => a.id === stalker.hunting)!
+        clearAura(quarry, 'hunted')
+        step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
+        expect('and it goes when the mark does', !stalker.alive, 'it kept walking')
+      }
+    }
+
+    // Slower than anybody it can pick, which is what makes it kiteable rather
+    // than a death sentence.
+    const anyone = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_HUNT_FLOOR).actors.filter(
+      (a) => a.faction === 'party',
+    )
+    expect(
+      'slower than everyone it hunts',
+      anyone.every((a) => a.role !== 'dps' || a.moveSpeed > STALKER_SPEED),
+      `${STALKER_SPEED} against ${anyone.map((a) => a.moveSpeed).join(',')}`,
     )
   }
 

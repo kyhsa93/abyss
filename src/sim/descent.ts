@@ -79,3 +79,27 @@ export function descentSoak(depth: number): number {
   // nothing else, and a fight that is one mechanic is not a fight.
   return Math.max(22, 40 - (depth - DESCENT_SOAK_FLOOR) * 2)
 }
+
+/**
+ * The floor from which something starts following one of you.
+ *
+ * Here for the same reason the circle is, and the measurement is sharper.
+ * A stalker with its damage turned down to one point and less health than an
+ * ordinary thrall still took the Warden from sixty-five percent to eight: the
+ * cost is not what it lands, it is that the party's damage dealers break off
+ * to kill it and the one it picked stops casting to walk. Sixteen percent of
+ * the party's output, measured — which is most of the margin a tuned fight
+ * has.
+ *
+ * That is the finding of this round rather than a fact about this mechanic.
+ * The ladder is balanced on a party that stands still and casts, so movement
+ * and target-switching are the expensive currency, and a mechanic that spends
+ * them belongs where escalating cost is the intention.
+ */
+export const DESCENT_HUNT_FLOOR = 2
+
+/** How often the descent sends one, by floor. Zero above ground. */
+export function descentHunt(depth: number): number {
+  if (depth < DESCENT_HUNT_FLOOR) return 0
+  return Math.max(26, 44 - (depth - DESCENT_HUNT_FLOOR) * 2)
+}

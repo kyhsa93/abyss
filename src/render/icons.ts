@@ -197,6 +197,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The one the party answers together, so it arrives on everybody at once
   // and reads as something settling rather than something thrown.
   boss_soak: { colour: '#2dd4bf', style: 'wither' },
+  // The thing that followed you, in a colour nothing else uses: whatever else
+  // is happening, this one is about you specifically.
+  boss_stalk: { colour: '#fb923c', style: 'cleave' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

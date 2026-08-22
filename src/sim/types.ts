@@ -33,6 +33,7 @@ export type AuraId =
   | 'mending' // druid tank: a slice of what it just took, given back over time
   | 'shield' // damage reduction on the tank
   | 'sunder' // boss: stacks on whoever is holding it, and makes them softer
+  | 'hunted' // boss: something has picked you, and it is walking over
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'enrage' // boss damage amplifier
 
@@ -123,6 +124,15 @@ export interface Actor {
 
   /** Autoattack timer (boss and AI melee). */
   swingTimer: number
+
+  /**
+   * Who this one is following, ignoring everything else.
+   *
+   * Only a stalker has it. Every other hostile in the game goes for whoever
+   * is nearest, which is a rule the party answers by standing somewhere else
+   * — this one answers by walking after you.
+   */
+  hunting: number | null
 }
 
 export type GroundKind = 'puddle' | 'breath' | 'shockwave' | 'soak'
@@ -454,6 +464,8 @@ export interface SimState {
   nextSunder: number
   /** Next circle the whole party has to stand in. */
   nextSoak: number
+  /** Next thing that picks somebody and follows them. */
+  nextHunt: number
   /** A magic dot on somebody, which armour does not. */
   nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */

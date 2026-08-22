@@ -7,6 +7,7 @@ import {
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   GLOBAL_COOLDOWN,
+  HUNT_DURATION,
   MELEE_RANGE,
   SPREAD_RADIUS,
 } from './constants'
@@ -70,6 +71,7 @@ const AURA_DURATION: Record<AuraId, number> = {
   // Long enough that a second tank has to take it, short enough that a party
   // with only one tank gets it back off eventually.
   sunder: 16,
+  hunted: HUNT_DURATION,
   enrage: 9999,
   // Bookkeeping for the spec traits. Long enough that a rotation keeps them
   // between presses, short enough that they are gone by the next pull.
