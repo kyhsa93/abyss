@@ -1031,12 +1031,77 @@ take back, and the rally's loser walks twice as far while its penalty lasts.
 The fight's centroid now travels 81, 76 and 92 against 32, 35 and 61, and the
 escort map's turnovers doubled.
 
-One thing this has not fixed: the party AI still holds a fixed, index-assigned
-objective for the whole match and never reconsiders it, which a stand-in that
-knows only "walk at whatever we do not own" beats on every map. That assignment
-is deliberately blunt — it is what stopped the AI pacing between two points —
-but blunt has turned out to mean the match has no macro layer at all. Making it
-reconsider on discrete events, with a cooldown, is the next thing.
+### A side that decides things
+
+The rally gave the match a clock. What it still did not have was anybody making
+a decision on it: every actor answered "where should I be" from its own index
+in the team and never asked again. Nothing in that read the score, the clock,
+or where anybody was standing. It was written to stop the AI pacing between two
+points — which it did — but stable turned out to mean a match with no macro
+layer at all, and a stand-in that knew only "walk at whatever we do not own"
+beat the real thing on all three maps.
+
+The pacing came from recomputing a *continuous* quantity. Sorting the points by
+distance from the actor meant a step toward one reordered the list, reassigned
+the actor and sent it back. So the plan recomputes a **discrete** one instead —
+who owns what, how many of us are standing, what the flags are doing, roughly
+how far the carts have got — and only when it changes, never more often than
+every four seconds. Anything that flickers is deliberately left out of that
+reading, because a reading that changes every tick plans every tick, which is
+the old bug wearing a hat.
+
+On the capture map a side holds **one body on each point it has** and puts
+everything spare on **one point it does not**. Holding is worth exactly one
+body — a point pays while it is held and a second defender adds nothing — while
+the capture rate climbs with numbers, so a four-stack takes a point in a third
+of the time one does. The target is kept until it is taken: both sides pick the
+nearest thing they do not own, both flip one at about the same moment, and
+re-choosing on every flip pointed everybody at the far end of the map before
+anybody had arrived at this one.
+
+Jobs go to whoever is **nearest**, not to whoever comes first in the team. Team
+order means nothing on the floor, and blue's first slot is always the player's
+— so the player was posted to a quiet corner of every capture map they ever
+played while the other four went and had the match. Posts keep their incumbent
+even so: re-picking a flag guard by "closest to home" every time the board moved
+handed the job to whoever happened to be walking back, took it off them the
+moment somebody else was nearer, and left the flag unwatched in between.
+
+### A flag you can actually defend
+
+None of that helped the flag map, because a flag came off on touch. A guard
+could not guard: standing there was worth nothing unless it had already killed
+the four people arriving, and one defender does not. Eight pickups a match,
+four captures, and the whole thing over in forty-odd seconds against a limit of
+three hundred and sixty.
+
+A flag at home is **stood on** now, the way a capture point is, and anybody
+defending it in reach stops the clock rather than having to win the fight
+first. Progress is lost twice as fast as it is earned, so trading the circle
+back and forth is not a way of taking a flag one second at a time. A flag lying
+in a field is still picked up on touch — the fight that dropped it has already
+happened, and making the winner stand over it is making them win it twice.
+
+Three captures and a three-hundred-and-sixty-second limit became four and a
+hundred and eighty, because that limit was not a limit: no match ever reached
+it, and a clock nobody can run out is no reason to hurry. Matches run to 86
+seconds of 180 now, with twice the deaths in them.
+
+### What the numbers say now
+
+The fight's centroid travels 80, 119 and 111 where it travelled 32, 35 and 61
+before this work started, and the capture map's objectives change hands 33
+times a match against 8. The AI beats the objective-only stand-in by 25 points
+on the capture map and is level with it on the other two — level being the
+right answer, since that stand-in is what a person who understands the
+objective and nothing else would do.
+
+One instrument note, which is the more useful finding. These rows were sampled
+thirty matches deep, which puts two standard errors at about eighteen points —
+wider than most of the differences they were being read for, including by the
+round that added the rally. They run ninety deep now and print their own margin
+in the header. A win rate is a coin flip counted a few times, and it is worth
+acting on when it moves further than that and not before.
 
 ### Making it fair was most of the work
 
