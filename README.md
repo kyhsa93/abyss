@@ -965,9 +965,78 @@ changes its mind.
 The one rule that took rewriting is a leash. Left alone, defenders chased
 kiting casters off the point they were defending — which concedes the point
 and costs the caster nothing — so a goal now carries a radius, and inside a
-capture circle the fight happens on the circle. A flag has no such radius:
-whoever is carrying it *is* the objective, and following them across the map
-is the correct play.
+capture circle the fight happens on the circle.
+
+The flag map was given no radius at all, on the reasoning that a carrier is a
+moving objective and following one across the map is the correct play. That is
+true of following one and of nothing else. With the leash at zero, the combat
+positioning overrode every flag goal there is: a ranged actor whose nearest
+enemy stood beyond its spell range walked at the enemy instead of the flag, and
+a melee one chased anybody who strayed near where it was going. Carriers spent
+a quarter of their time being sent *away* from their own base, which is the one
+place a flag has to reach. It is half a percent now, and a carrier is leashed
+tighter than anybody, because carrying is the one state in this game where
+there is nothing to be won by turning round.
+
+### The rally, and why every second used to be the same second
+
+A boss is a script. Phases at known health, a telegraph before every hit, an
+enrage at a known second — and learning one is almost entirely learning *when*
+things happen. The battlegrounds were supposed to have the rules supply the
+shape the script used to, and they did not: three hundred seconds in which
+every second was worth what every other second was worth.
+
+Win rate cannot see that. A lead taken in the first ten seconds and held reads
+the same hundred percent as one that changed hands four times, and a formality
+and a war both end at the time limit. So the harness counts three more things
+now — how often the lead changed, how often the thing that scores changed
+hands, and the spread of the fight's own centroid, sampled once a second. That
+last one is what said it out loud: on a floor nine hundred across, the fight
+wandered inside a radius of about thirty-five. On all three maps.
+
+So every mode has one scheduled contest. It sits on the perpendicular bisector
+of the two bases, which makes it exactly as far from one as from the other, and
+never at the origin, because the fight already happens in the middle and a
+contest for ground everybody is standing on is not a contest. It warns for nine
+seconds, it is held the way a capture point is held, and it pays once. Everyone
+but the last of the five is called to it, and a flag carrier is excused —
+everything a rally is worth is worth less than the flag already in your hands.
+
+Three things had to change before it was a decision rather than a decoration,
+and the harness found all three:
+
+**It was timed as a fraction of the time limit.** Two of the three limits are
+not what their matches run to — a flag match finishes around forty-five seconds
+against a limit of three hundred and sixty — so the rally landed a hundred and
+twenty seconds after the match it was meant to interrupt had ended. It was in
+the build, in the state and in the AI, and the only thing the numbers showed
+was that nothing had changed. The schedule is seconds per mode now, read off
+measured match lengths.
+
+**It paid only in respawn time.** A stand-in that ignored the rally entirely
+and kept playing the objective won more than eight matches in ten: one extra
+body on the board for thirty seconds beats making the other side walk further
+later. A mechanic whose correct answer is to ignore it is not a decision, it is
+a tax on whoever reads the screen. It pays in the currency each mode already
+counts now — points, cart progress, a capture — and the respawn penalty is what
+it pays on top.
+
+**It had to be taken outright.** Four against four never produces the numbers
+advantage a capture bar moves on, so half of all rallies expired untouched at
+dead level. It settles on a lean instead, with a deadband wide enough that a
+genuine standstill still pays nobody.
+
+Respawns grow with the clock as well, so a death late is the one you cannot
+take back, and the rally's loser walks twice as far while its penalty lasts.
+The fight's centroid now travels 81, 76 and 92 against 32, 35 and 61, and the
+escort map's turnovers doubled.
+
+One thing this has not fixed: the party AI still holds a fixed, index-assigned
+objective for the whole match and never reconsiders it, which a stand-in that
+knows only "walk at whatever we do not own" beats on every map. That assignment
+is deliberately blunt — it is what stopped the AI pacing between two points —
+but blunt has turned out to mean the match has no macro layer at all. Making it
+reconsider on discrete events, with a cooldown, is the next thing.
 
 ### Making it fair was most of the work
 
