@@ -138,6 +138,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
+import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
@@ -3051,6 +3052,75 @@ for (const [label, w, h] of [
       [...painted].join(','),
     )
   }
+
+  // And they leave a mark when they land.
+  //
+  // The party's abilities have drawn their own hit since there were hit
+  // styles at all. The boss's drew nothing: the slam, the cone, the ring, the
+  // floor going off and the party-wide hit pushed no effect of any kind, so
+  // the whole of what a boss does arrived as numbers over people's heads and
+  // a shape on the floor changing state. Only its sweep ever made a picture.
+  const thrown = new Map<string, Set<string>>()
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const ids = new Set<string>()
+    // Kept with the kind attached. A cast that gathers and a hit that lands
+    // are different pictures, and the slam pushes both — asking only whether
+    // the id appeared would pass on a slam that winds up and then connects
+    // with nothing at all, which is the exact bug being fixed.
+    const landed = new Set<string>()
+    const s = pulled(0x51ed, 8, undefined, 'normal', i)
+    const rng = new Rng(0x51ed)
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of s.effects) {
+        if (!event.abilityId?.startsWith('boss_')) continue
+        ids.add(event.abilityId)
+        if (event.kind === 'impact') landed.add(event.abilityId)
+      }
+    }
+    thrown.set(ENCOUNTERS[i]!.id, ids)
+
+    const encounter = ENCOUNTERS[i]!
+    const uses = (key: 'breath' | 'shockwave' | 'adds' | 'sweep' | 'rot') =>
+      Object.values(encounter.phases).some((p) => p[key] > 0)
+    for (const [key, id] of [
+      ['breath', 'boss_breath'],
+      ['shockwave', 'boss_shockwave'],
+      ['adds', 'boss_thrall'],
+      ['sweep', 'boss_sweep'],
+      ['rot', 'boss_rot'],
+    ] as const) {
+      if (!uses(key)) {
+        expect(`${encounter.name}: nothing draws a ${key}`, !ids.has(id), `${id} was drawn anyway`)
+      }
+    }
+    // These three every boss does, so every boss has to show them landing.
+    for (const id of ['boss_slam', 'boss_puddle', 'boss_raid'] as const) {
+      expect(`${encounter.name}: its ${id.slice(5)} lands visibly`, landed.has(id), 'it drew nothing')
+    }
+    expect(
+      `${encounter.name}: and its casts wind up`,
+      ids.has('boss_slam'),
+      'no cast was ever drawn',
+    )
+  }
+
+  // A mechanic with no entry falls back to one orange ring shared with every
+  // other boss cast, and an entry nothing throws is a colour for a mechanic
+  // that does not exist. Both are the same rot the names had.
+  const everything = new Set([...thrown.values()].flatMap((set) => [...set]))
+  for (const id of everything) {
+    expect(`${id} has a look of its own`, bossEffect(id) !== null, 'it falls back to the shared one')
+  }
+  for (const id of bossEffectIds()) {
+    expect(`${id} is something a boss actually does`, everything.has(id), 'nothing ever threw it')
+  }
+  const shades = bossEffectIds().map((id) => bossEffect(id)!.colour)
+  expect(
+    'and no two mechanics share a colour',
+    new Set(shades).size === shades.length,
+    shades.join(','),
+  )
 
   // An index from a save older than the list must not open a fight that is
   // not there.

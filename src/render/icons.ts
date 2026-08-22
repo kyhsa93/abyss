@@ -158,9 +158,53 @@ const STYLE_BY_SHAPE: Record<IconShape, HitStyle> = {
   droplet: 'wither',
 }
 
+/**
+ * What the boss's own mechanics look like when they land.
+ *
+ * They are not in the ability table and cannot be — that table is what the
+ * player presses, and the icon check rejects an entry with no ability behind
+ * it — so they are listed here instead. Before this they were not listed
+ * anywhere: the slam, the cone, the ring, the floor and the party-wide hit
+ * drew nothing at all, and the only thing the boss did that left a mark on
+ * the screen was its sweep. Three fights' worth of mechanics arrived as
+ * numbers over people's heads.
+ *
+ * The colours follow what each mechanic already looks like on the floor, so
+ * the hit and the thing that threw it are recognisably the same event.
+ */
+const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
+  // The tank's problem: heavy, close, and it arrives rather than travels.
+  boss_slam: { colour: '#f97316', style: 'crush' },
+  // The cone, in the cone's own blue, thrown along the way it was facing.
+  boss_breath: { colour: '#38bdf8', style: 'pierce' },
+  // The ring, in the ring's amber.
+  boss_shockwave: { colour: '#facc15', style: 'pierce' },
+  // The floor, in the floor's magenta, sinking in rather than pushing out.
+  boss_puddle: { colour: '#be185d', style: 'wither' },
+  // The one thing armour answers, so it is drawn as steel.
+  boss_sweep: { colour: '#e2e8f0', style: 'cleave' },
+  // Everyone at once, which is the healer's whole fight.
+  boss_raid: { colour: '#a78bfa', style: 'burst' },
+  boss_rot: { colour: '#65a30d', style: 'wither' },
+  // The fight changing under you. Its own id rather than borrowed from the
+  // slam, because a check that asks whether the slam ever landed must not be
+  // answerable by the phase break.
+  boss_phase: { colour: '#fb7185', style: 'burst' },
+  boss_thrall: { colour: '#a855f7', style: 'cleave' },
+}
+
+export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {
+  return BOSS_EFFECTS[abilityId] ?? null
+}
+
+/** Every boss mechanic that has a look, for the checks. */
+export function bossEffectIds(): string[] {
+  return Object.keys(BOSS_EFFECTS)
+}
+
 export function hitStyleFor(abilityId: string | null): HitStyle {
   if (!abilityId) return 'cleave'
-  if (abilityId.startsWith('boss_')) return 'crush'
+  if (abilityId.startsWith('boss_')) return bossEffect(abilityId)?.style ?? 'crush'
   return STYLE_BY_SHAPE[iconFor(abilityId).shape]
 }
 

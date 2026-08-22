@@ -1063,11 +1063,51 @@ different, so the names and the colour moved into the table with the numbers:
 the Choir's `DISCORDANT CHORD`, the Tidebreaker's `SHATTERING BLOW` and
 `RIPTIDE BREATH`, a line each for the sweep and the rot, and an accent apiece.
 
+They also had to *land* like different things, and until now they did not
+land like anything. Every damaging ability the party owns has drawn its own
+hit since there were hit styles at all — an arc for a blade, a streak for an
+arrow, something that sinks in for poison. The boss's arsenal pushed no effect
+of any kind: the slam, the cone, the ring, the floor going off and the
+party-wide hit all arrived as a number over somebody's head and a shape on the
+floor changing state, and the only thing a boss did that made a picture was
+its sweep.
+
+So each mechanic got a look, taken from what it already is on the floor: the
+slam crushes in orange, the cone streaks through you in the cone's own blue,
+the ring runs you down in amber and along the line it caught you on, the floor
+sinks in in magenta and throws a ring the size it went off at, the sweep is
+steel because it is the one thing armour answers, the party-wide hit bursts on
+all of you at once, and a phase break throws a ring off the boss. The casts
+gather a ring on the wind-up like every other caster in the game — the boss
+was setting its cast bar by hand and never got one.
+
+The floor got the same treatment: the puddle has a core that breathes, the
+ring drags three fading rings of wake behind its edge so it reads as
+travelling rather than being redrawn bigger, and the cone runs arcs out along
+itself while it is actually firing, which is the one thing its shape never
+said.
+
+None of it touches the fight. Effects live in the renderer for the same reason
+sound does — a pull replays exactly from its seed, and particles that aged
+inside the state would make that untrue — so the simulation only says what
+happened. The harness agrees: every win rate in the table above is the number
+it was before this went in.
+
 The checks now assert that a boss names a cast exactly when it uses one and
 announces a mechanic exactly when it has one — a nameless mechanic and a line
 for a mechanic that never fires are both table rot — that no two bosses say
 the same thing or share a colour, and that the colour reaches the screen,
 which is asked of the renderer by recording what it actually painted.
+
+For the effects the pair is the same shape: every mechanic a boss throws must
+have a look of its own, or it falls back to one orange ring shared with every
+other boss cast; and every look in the table must be thrown by some boss, or
+it is a colour for a mechanic that does not exist. Each boss's slam, puddle
+and party-wide hit have to be seen *landing* — recorded by kind, not just by
+name, because a slam that winds up and connects with nothing would otherwise
+pass on the strength of its own cast. That hole was real: the first version of
+the check passed with the slam's impact deleted, because the phase break was
+borrowing the slam's id. The phase break has its own now.
 
 Three of them, fought in order. A kill puts a **NEXT BOSS** button on the
 results screen, to the left of PULL AGAIN, and taking it moves you on with the

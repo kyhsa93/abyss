@@ -362,6 +362,15 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.puddle
       ctx.fill()
+
+      // A core that breathes. Flat colour reads as a hole in the floor; this
+      // reads as something still burning in it, and it is the same shape and
+      // the same edge, so what is safe has not moved.
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, r * (0.52 + 0.06 * Math.sin(clock * 3 + g.id)), 0, Math.PI * 2)
+      ctx.fillStyle = COLORS.puddle
+      ctx.fill()
+
       ctx.strokeStyle = COLORS.puddleEdge
       ctx.lineWidth = 2
       ctx.setLineDash([6, 6])
@@ -405,6 +414,20 @@ function drawBreath(
   ctx.strokeStyle = firing ? 'rgba(125, 211, 252, 0.95)' : 'rgba(125, 211, 252, 0.7)'
   ctx.lineWidth = 2
   ctx.stroke()
+
+  // While it is actually going off, three arcs running out along the cone.
+  // The shape says where it reaches; this says which way it is going, which
+  // the shape alone never did.
+  if (!firing) return
+  const run = 1 - g.lingering / 0.3
+  for (let i = 0; i < 3; i++) {
+    const at = ((run + i / 3) % 1) * 0.9 + 0.1
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r * at, g.angle - g.halfWidth * 0.85, g.angle + g.halfWidth * 0.85)
+    ctx.strokeStyle = `rgba(224, 242, 254, ${(0.5 * (1 - at)).toFixed(3)})`
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
 }
 
 /** Expanding ring: lethal band, safe interior. */
@@ -415,6 +438,17 @@ function drawShockwave(
   r: number,
 ): void {
   const band = g.band * L.scale
+
+  // Three rings of wake behind the edge, so the ring reads as travelling
+  // rather than as a circle that keeps being redrawn bigger.
+  for (let i = 3; i >= 1; i--) {
+    const behind = Math.max(1, r - band * i * 0.9)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, behind, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(250, 204, 21, ${(0.16 / i).toFixed(3)})`
+    ctx.lineWidth = band
+    ctx.stroke()
+  }
 
   ctx.beginPath()
   ctx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2)

@@ -1,4 +1,4 @@
-import { hitStyleFor, iconFor } from './icons'
+import { bossEffect, hitStyleFor, iconFor } from './icons'
 import type { EffectEvent, SimState, Vec2 } from '../sim/types'
 
 /**
@@ -55,7 +55,7 @@ function rgba(colour: string, alpha: number): string {
 
 function colourOf(abilityId: string | null): string {
   if (!abilityId) return WEAPON
-  if (abilityId.startsWith('boss_')) return BOSS_CAST
+  if (abilityId.startsWith('boss_')) return bossEffect(abilityId)?.colour ?? BOSS_CAST
   return iconFor(abilityId).colour
 }
 

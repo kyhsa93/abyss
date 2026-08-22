@@ -147,6 +147,18 @@ export function updateBoss(s: SimState, rng: Rng): void {
   updateAdds(s)
 }
 
+/**
+ * What a phase break looks like.
+ *
+ * It had a line and a sound and nothing else, which made the moment the fight
+ * changes the quietest thing in it. A crit-weight ring off the boss, in the
+ * boss's own colour by way of its cast.
+ */
+function phaseBreak(s: SimState, b: Actor): void {
+  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_phase', power: 900, crit: true })
+  s.raidFlash = 0.5
+}
+
 function advancePhase(s: SimState, b: Actor): void {
   const encounter = fight(s)
   const ratio = b.hp / b.maxHp
@@ -154,6 +166,7 @@ function advancePhase(s: SimState, b: Actor): void {
   if (s.phase === 1 && ratio <= encounter.phaseTwoHp) {
     s.phase = 2
     s.sounds.push('phase')
+    phaseBreak(s, b)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseTwo, age: 0 })
     // Pulled in rather than reset: a phase break whose new cadence waits out
     // the old timers is a phase break nobody notices.
@@ -170,6 +183,7 @@ function advancePhase(s: SimState, b: Actor): void {
   if (s.phase === 2 && ratio <= encounter.phaseThreeHp) {
     s.phase = 3
     s.sounds.push('phase')
+    phaseBreak(s, b)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
     if (encounter.phases[3]!.breath > 0) s.nextBreath = Math.min(s.nextBreath, 4)
     if (encounter.phases[3]!.shockwave > 0) s.nextShockwave = Math.min(s.nextShockwave, 7)
@@ -192,7 +206,14 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
   if (b.swingTimer > 0 || !target || b.castId) return
 
   if (dist(b.pos, target.pos) <= MELEE_RANGE + target.radius) {
-    applyDamage(s, target, hit(s, fight(s).swingDamage), 'physical', { sourceId: b.id })
+    const damage = hit(s, fight(s).swingDamage)
+    applyDamage(s, target, damage, 'physical', { sourceId: b.id })
+    // The party's weapons have always drawn their swing and their landing.
+    // The boss's did neither, which is most of why a fight it was winning
+    // looked like nothing was happening.
+    const facing = Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x)
+    pushEffect(s, 'swing', b.pos, { angle: facing })
+    pushEffect(s, 'impact', target.pos, { power: damage, angle: facing })
     b.swingTimer = timing.swing
   } else {
     b.swingTimer = 0.2
@@ -205,6 +226,9 @@ function scheduleSlam(s: SimState, b: Actor, target: Actor | null, timing: Phase
   if (s.nextSlam > 0 || b.castId) return
 
   b.castId = 'boss_slam'
+  // The same gathering ring every caster in the game gets when it starts a
+  // cast. The boss was setting its cast bar by hand and never got one.
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_slam' })
   b.castRemaining = SLAM_CAST
   b.castTotal = SLAM_CAST
   b.castTargetId = target ? target.id : null
@@ -218,6 +242,7 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.sounds.push('telegraph')
   b.castId = 'boss_breath'
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_breath' })
   b.castRemaining = BREATH_CAST
   b.castTotal = BREATH_CAST
   b.castTargetId = null
@@ -296,7 +321,10 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
   // Unavoidable, so it is not counted as a mechanic anyone failed.
   s.sounds.push('raid')
   const damage = hit(s, fight(s).raidDamage)
-  for (const a of livingParty(s)) applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID })
+  for (const a of livingParty(s)) {
+    applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_raid', power: damage })
+  }
   s.nextRaidHit = timing.raid
   // Unavoidable damage with no tell reads as a broken hitbox: the player
   // dodges, loses health anyway, and blames the puddle they just left.
@@ -364,9 +392,12 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
     if (dist(a.pos, b.pos) > reach) continue
     // Physical, so armour and block both answer it. A tank barely notices; a
     // caster that wandered into melee should not survive making a habit of it.
-    applyDamage(s, a, hit(s, fight(s).swingDamage * SWEEP_SHARE), 'physical', {
-      sourceId: b.id,
-      mechanic: true,
+    const damage = hit(s, fight(s).swingDamage * SWEEP_SHARE)
+    applyDamage(s, a, damage, 'physical', { sourceId: b.id, mechanic: true })
+    pushEffect(s, 'impact', a.pos, {
+      abilityId: 'boss_sweep',
+      power: damage,
+      angle: Math.atan2(a.pos.y - b.pos.y, a.pos.x - b.pos.x),
     })
   }
   pushEffect(s, 'swing', b.pos, { power: SWEEP_RANGE, angle: 0 })
@@ -389,6 +420,7 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
 
   const victim = rng.pick(victims)
   addAura(victim, 'rot', BOSS_ID)
+  pushEffect(s, 'impact', victim.pos, { abilityId: 'boss_rot', power: 220 })
   s.sounds.push('telegraph')
   if (victim.ai) say(s, victim, fight(s).lines.rot)
 }
@@ -449,7 +481,13 @@ function updateAdds(s: SimState): void {
 
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
-      applyDamage(s, nearest, hit(s, ADD_DAMAGE), 'physical', { sourceId: add.id })
+      const damage = hit(s, ADD_DAMAGE)
+      applyDamage(s, nearest, damage, 'physical', { sourceId: add.id })
+      pushEffect(s, 'impact', nearest.pos, {
+        abilityId: 'boss_thrall',
+        power: damage,
+        angle: Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x),
+      })
       add.swingTimer = ADD_SWING
     }
   }
@@ -483,7 +521,13 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
   if (castId === 'boss_slam') {
     const target = s.actors.find((a) => a.id === targetId)
     if (target && target.alive && dist(b.pos, target.pos) <= MELEE_RANGE + target.radius + 20) {
-      applyDamage(s, target, hit(s, fight(s).slamDamage), 'physical', { sourceId: b.id })
+      const damage = hit(s, fight(s).slamDamage)
+      applyDamage(s, target, damage, 'physical', { sourceId: b.id })
+      pushEffect(s, 'impact', target.pos, {
+        abilityId: 'boss_slam',
+        power: damage,
+        angle: Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x),
+      })
     }
     return
   }
@@ -494,8 +538,24 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     cone.detonated = true
     cone.lingering = 0.3
     for (const a of livingParty(s)) {
-      if (insideCone(a.pos, cone)) applyDamage(s, a, mechanic(s, cone.damage), 'magic', { sourceId: b.id, mechanic: true })
+      if (!insideCone(a.pos, cone)) continue
+      const damage = mechanic(s, cone.damage)
+      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: true })
+      // Along the cone rather than along the line to the boss, so the streak
+      // reads as the breath going through them.
+      pushEffect(s, 'impact', a.pos, {
+        abilityId: 'boss_breath',
+        power: damage,
+        angle: cone.angle,
+      })
     }
+    // And the mouth it came out of.
+    pushEffect(s, 'impact', b.pos, {
+      abilityId: 'boss_breath',
+      power: cone.damage,
+      angle: cone.angle,
+      crit: true,
+    })
   }
 }
 
@@ -528,7 +588,15 @@ export function updateGround(s: SimState): void {
         // ahead of it: run toward the boss, not away.
         if (d >= g.radius - g.band && d <= g.radius + g.band) {
           g.caught.push(a.id)
-          applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
+          const damage = mechanic(s, g.damage)
+          applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+          // Outward from the centre, which is the direction it ran them down
+          // from — and the opposite of the way they should have gone.
+          pushEffect(s, 'impact', a.pos, {
+            abilityId: 'boss_shockwave',
+            power: damage,
+            angle: Math.atan2(a.pos.y - g.pos.y, a.pos.x - g.pos.x),
+          })
         }
       }
       if (g.radius > ARENA_RADIUS + g.band) g.lingering = 0
@@ -546,9 +614,18 @@ export function updateGround(s: SimState): void {
       g.telegraph -= DT
       if (g.telegraph <= 0) {
         g.detonated = true
+        // The floor going off, at the size it went off at. Everything that
+        // followed used to be the only sign it had.
+        pushEffect(s, 'impact', g.pos, {
+          abilityId: 'boss_puddle',
+          power: g.radius * 12,
+          crit: true,
+        })
         for (const a of livingParty(s)) {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
-            applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: true })
+            const damage = mechanic(s, g.damage)
+            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+            pushEffect(s, 'impact', a.pos, { abilityId: 'boss_puddle', power: damage })
           }
         }
       }
