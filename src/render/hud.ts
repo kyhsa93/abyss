@@ -62,6 +62,21 @@ export function outcomeButtons(next = false): { next: Rect | null; retry: Rect; 
 }
 
 /**
+ * The share, when there is a kill worth sharing.
+ *
+ * Off in the corner rather than in the button row: the row is already three
+ * wide on a kill and a phone cannot hold a fourth without every button
+ * shrinking below a thumb. This one is also not a way off the screen, which
+ * the other three all are, so it does not belong among them.
+ */
+export function shareRect(s: SimState): Rect | null {
+  if (s.mode !== 'raid' || s.outcome !== 'victory') return null
+  const w = Math.max(74, Math.min(104, L.w * 0.2))
+  const h = Math.max(28, Math.min(36, L.h * 0.05))
+  return { x: L.w - w - 12, y: 12, w, h }
+}
+
+/**
  * What a tap on the end-of-fight overlay landed on, if anything.
  *
  * A miss is a miss. Every tap that was not CHANGE PARTY used to read as PULL
@@ -73,11 +88,15 @@ export function hitOutcome(
   x: number,
   y: number,
   s: SimState,
-): 'next' | 'retry' | 'party' | null {
+): 'next' | 'retry' | 'party' | 'share' | null {
   // The state rather than a flag, so the hit test cannot be asked a different
   // question than the drawing was. On a narrow screen the three-button row and
   // the two-button one overlap, and a screen drawn with three buttons but read
   // with two would send the NEXT BOSS press to PULL AGAIN.
+  const sharing = shareRect(s)
+  if (sharing && x >= sharing.x && x <= sharing.x + sharing.w && y >= sharing.y && y <= sharing.y + sharing.h) {
+    return 'share'
+  }
   const buttons = outcomeButtons(canAdvance(s))
   const row = [
     ['next', buttons.next],
@@ -304,6 +323,13 @@ let trendLine: string | null = null
 
 export function setTrendLine(line: string | null): void {
   trendLine = line
+}
+
+/** Confirms a share on the button itself; the clipboard says nothing on its own. */
+let shareLabel: string | null = null
+
+export function setShareLabel(label: string | null): void {
+  shareLabel = label
 }
 
 export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
@@ -1466,6 +1492,8 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
     advance ? COLORS.textDim : COLORS.castBar,
   ] as const)
   row.push(['CHANGE PARTY', buttons.party, COLORS.textDim] as const)
+  const sharing = shareRect(s)
+  if (sharing) row.push([shareLabel ?? 'SHARE', sharing, COLORS.tank] as const)
 
   for (const [text, rect, accent] of row) {
     ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'

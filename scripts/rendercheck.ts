@@ -7,6 +7,7 @@ import {
   canAdvance,
   drawHud,
   hitOutcome,
+  shareRect as outcomeShareRect,
   meterRect,
   outcomeButtons,
   partyButton,
@@ -27,7 +28,17 @@ import {
   homeLayout,
   raidSetupLayout,
   settingsLayout,
+  dailyLayout,
+  drawDaily,
+  hitDaily,
 } from '../src/render/menu'
+import {
+  dailyLink,
+  fightLink,
+  dailyMessage,
+  killMessage,
+  parseInvite,
+} from '../src/share'
 import { VOLUME_NAMES } from '../src/sfx'
 import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
 import { ABILITIES, type Ability } from '../src/sim/abilities'
@@ -4696,6 +4707,127 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     // Out of range is out of range, even for a heal.
     patient.pos = { x: 4000, y: 4000 }
     expect('and not across the map', autoPress(healed).length === 0, `${autoPress(healed)}`)
+  }
+}
+
+// --- a share is an invitation, so the link has to survive the trip ----------
+//
+// There is no server here: the fight is not stored anywhere, it is rebuilt
+// from the seed. That makes a link the whole of what is shared, and a link
+// that decodes to a different fight than it encoded is worse than no share at
+// all — two people compare times on what they think is the same boss.
+{
+  updateLayout(1440, 900)
+
+  const day = parseInvite(dailyLink(20260820))
+  expect('a daily link comes back as its day', day?.day === 20260820, JSON.stringify(day))
+
+  for (const size of [5, 10, 25] as const) {
+    for (const difficulty of ['normal', 'heroic'] as const) {
+      const id = ENCOUNTERS[1]!.id
+      const back = parseInvite(fightLink(id, size, difficulty))
+      expect(
+        `a ${size}-player ${difficulty} link comes back whole`,
+        back?.boss === id && back.size === size && back.difficulty === difficulty,
+        JSON.stringify(back),
+      )
+    }
+  }
+
+  // Anything a stranger can type is something a stranger will type. A link
+  // that decodes to nothing sends you to the front page, which is fine; one
+  // that decodes to a boss that does not exist crashes the lookup.
+  for (const junk of ['', '#', '#nonsense', '#b=notaboss', '#d=17', '#d=99999999', '#s=7']) {
+    expect(`"${junk}" invites nobody anywhere`, parseInvite(junk) === null, JSON.stringify(parseInvite(junk)))
+  }
+
+  // A size the game cannot field, alongside a boss it can, must not become a
+  // party of seven.
+  const odd = parseInvite('#b=' + ENCOUNTERS[0]!.id + '&s=7&h=2')
+  expect('an impossible size is dropped, not honoured', odd?.boss !== undefined && odd.size === undefined, JSON.stringify(odd))
+
+  // The message is what somebody else reads. It has to carry the link, or the
+  // invitation is only a boast.
+  const today = dailyFor(20260820, { classId: 'mage', spec: 'frost' })
+  const message = dailyMessage(today, undefined)
+  expect('the daily message carries its link', message.includes(dailyLink(20260820)), message)
+  expect('and says it is unattempted', message.includes('not attempted'), message)
+
+  const kill = killMessage('Aphotic Warden', ENCOUNTERS[0]!.id, 25, 'normal', 132.4, 'Mage DPS', 0)
+  expect('a kill message carries its link', kill.includes(fightLink(ENCOUNTERS[0]!.id, 25, 'normal')), kill)
+  expect('and the time it took', kill.includes('132.4s'), kill)
+}
+
+// --- the share button answers for itself, on both screens ------------------
+{
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+
+    // Today's screen: SHARE was carved out of PULL's width, so the two must
+    // not overlap. A share that also pulls starts the run you meant to send.
+    const daily = dailyLayout()
+    expect(
+      `${label}: SHARE and PULL do not overlap`,
+      daily.share.x + daily.share.w <= daily.start.x,
+      JSON.stringify([daily.share, daily.start]),
+    )
+    expect(
+      `${label}: both stay on screen`,
+      [daily.share, daily.start, daily.back].every((r) => r.x >= 0 && r.x + r.w <= w && r.y + r.h <= h),
+      JSON.stringify([daily.share, daily.start, daily.back]),
+    )
+    const mid = (r: { x: number; y: number; w: number; h: number }) => [r.x + r.w / 2, r.y + r.h / 2] as const
+    expect(`${label}: SHARE answers`, hitDaily(...mid(daily.share))?.kind === 'share', JSON.stringify(hitDaily(...mid(daily.share))))
+    expect(`${label}: PULL still answers`, hitDaily(...mid(daily.start))?.kind === 'start', JSON.stringify(hitDaily(...mid(daily.start))))
+    expect(`${label}: BACK still answers`, hitDaily(...mid(daily.back))?.kind === 'back', JSON.stringify(hitDaily(...mid(daily.back))))
+
+    // It draws what it is told to say, so a copy that says nothing on its own
+    // still says something.
+    const labels: Label[] = []
+    drawDaily(
+      recordingCtx([], labels),
+      { label: 'Wednesday', key: 20260820, affix: { name: 'Thin Air', detail: 'less healing' } },
+      null,
+      0,
+      () => ({ text: 'Mage DPS', colour: '#fff' }),
+      'COPIED',
+    )
+    expect(
+      `${label}: a pressed share says so`,
+      labels.some((l) => l.text.includes('COPIED')),
+      labels.map((l) => l.text).join('|'),
+    )
+
+    // The results screen: only a kill offers one, and it must not be sitting
+    // on top of any of the three ways off the screen.
+    const killed = pulled(0x51ed, 0, undefined, 'normal', 0)
+    killed.outcome = 'victory'
+    const wiped = pulled(0x51ed, 0, undefined, 'normal', 0)
+    wiped.outcome = 'wipe'
+    const rect = outcomeShareRect(killed)
+    expect(`${label}: a kill offers a share`, rect !== null, 'it did not')
+    expect(`${label}: a wipe does not`, outcomeShareRect(wiped) === null, 'it did')
+    if (rect) {
+      expect(
+        `${label}: the outcome share answers`,
+        hitOutcome(rect.x + rect.w / 2, rect.y + rect.h / 2, killed) === 'share',
+        `${hitOutcome(rect.x + rect.w / 2, rect.y + rect.h / 2, killed)}`,
+      )
+      const three = outcomeButtons(canAdvance(killed))
+      const clash = [three.next, three.retry, three.party].some(
+        (r) => r && r.x < rect.x + rect.w && rect.x < r.x + r.w && r.y < rect.y + rect.h && rect.y < r.y + r.h,
+      )
+      expect(`${label}: and sits clear of the button row`, !clash, JSON.stringify(rect))
+      expect(`${label}: and stays on screen`, rect.x >= 0 && rect.x + rect.w <= w && rect.y + rect.h <= h, JSON.stringify(rect))
+    }
+
+    // A wipe's corner is still nothing, which the older check assumed.
+    expect(`${label}: a wipe's top right is empty`, hitOutcome(w - 20, 20, wiped) === null, `${hitOutcome(w - 20, 20, wiped)}`)
   }
 }
 

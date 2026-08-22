@@ -302,6 +302,7 @@ export function hitRaidSetup(x: number, y: number): RaidSetupHit | null {
 export interface DailyLayout {
   classes: Rect[]
   start: Rect
+  share: Rect
   back: Rect
   headingY: number
   summaryY: number
@@ -331,10 +332,26 @@ export function dailyLayout(): DailyLayout {
     })
   }
 
-  return { classes, start: primaryRect(), back, headingY, summaryY }
+  // The share sits between BACK and PULL: it is about the run you have had
+  // rather than the one you are about to have, so it does not take the corner
+  // the way out already owns.
+  const start = primaryRect()
+  const shareW = Math.min(96, start.w * 0.32)
+  return {
+    classes,
+    start: { ...start, x: start.x + shareW + 8, w: start.w - shareW - 8 },
+    share: { ...start, w: shareW },
+    back,
+    headingY,
+    summaryY,
+  }
 }
 
-export type DailyHit = { kind: 'class'; index: number } | { kind: 'start' } | { kind: 'back' }
+export type DailyHit =
+  | { kind: 'class'; index: number }
+  | { kind: 'start' }
+  | { kind: 'share' }
+  | { kind: 'back' }
 
 export function drawDaily(
   ctx: CanvasRenderingContext2D,
@@ -342,6 +359,8 @@ export function drawDaily(
   best: { line: string; attempts: number } | null,
   chosen: number,
   labelFor: (index: number) => { text: string; colour: string },
+  /** Replaces the share button's label after a press, to confirm what happened. */
+  shareLabel?: string,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, "TODAY'S RUN", 'the same fight for everybody, until midnight')
@@ -379,12 +398,14 @@ export function drawDaily(
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
+  button(ctx, layout.share, shareLabel ?? 'SHARE', '', COLORS.tank)
   button(ctx, layout.start, 'PULL', '', COLORS.castBar, true)
 }
 
 export function hitDaily(x: number, y: number): DailyHit | null {
   const layout = dailyLayout()
   if (inside(layout.back, x, y)) return { kind: 'back' }
+  if (inside(layout.share, x, y)) return { kind: 'share' }
   if (inside(layout.start, x, y)) return { kind: 'start' }
   for (let i = 0; i < layout.classes.length; i++) {
     if (inside(layout.classes[i]!, x, y)) return { kind: 'class', index: i }

@@ -333,6 +333,48 @@ best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
 
+## Sharing
+
+There is no server, no account and no replay sitting in a database, so there
+is nothing to link *to*. What there is instead is the same reproducibility the
+daily run is built on: the fight is not stored anywhere, it is rebuilt from a
+seed. A link can therefore carry the fight itself rather than a picture of it,
+and sharing here means an invitation rather than a screenshot — which is the
+only shape worth having when the thing being compared is how it was played.
+
+Two places offer one. Today's screen shares the day, with whatever you have
+made of it so far attached; the results screen shares a kill, with the boss,
+the size, the difficulty and the time. Both hand the text to `navigator.share`
+where the device has a share sheet and to the clipboard where it does not, and
+the button says `COPIED` for a moment afterwards, because a clipboard write is
+otherwise completely silent and a button that appears to do nothing is a
+button people press twice.
+
+The link is a fragment — `#d=20260820` for a day, `#b=warden&s=10&h=1` for a
+fight — read once at startup and then cleared out of the address bar. Leaving
+it there would mean every reload for the rest of the session dragged you back
+to somebody else's fight.
+
+An invitation is a stranger's text, so it is read as one: a boss id that is
+not a boss, a raid size the game cannot field, a day that is not a date, and
+anything else that arrives in a URL is dropped rather than honoured, and a
+link that decodes to nothing simply opens the front page. The checks round
+trip every size and difficulty through the encoder, and feed it seven kinds of
+junk. A day link opens *today's* run rather than the day it names — a daily
+ends at midnight and so does the comparison it was shared for. A fight link
+unlocks the boss it points at and keeps it unlocked: the boss ladder is there
+so a new player meets them in order, not to stop somebody being invited past
+it.
+
+The share button sits in the corner of the results screen rather than in the
+button row, which was already three wide after a kill and could not hold a
+fourth on a phone without every button shrinking below a thumb. It is also the
+only thing on that screen that is not a way off it. The checks assert at four
+screen sizes that it does not overlap the row, that it answers its own tap,
+that a wipe offers none, and — on today's screen, where `SHARE` was carved out
+of `PULL`'s width — that the two do not overlap, since a share that also pulls
+would start the run you meant to send.
+
 ## The descent
 
 One attempt, boss after boss, each floor harder than the last, and the party

@@ -1,7 +1,7 @@
 import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
-import { drawHud, hitOutcome, partyButton, setTrendLine } from './render/hud'
+import { drawHud, hitOutcome, partyButton, setShareLabel, setTrendLine } from './render/hud'
 import {
   check as checkAwards,
   load as loadAwards,
@@ -55,6 +55,7 @@ import {
 import { createBattlegroundState, createState } from './sim/state'
 import { ENCOUNTERS, encounterIndex, hasNext } from './sim/encounters'
 import { dailyAffix, dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
+import { dailyMessage, killMessage, parseInvite, share } from './share'
 import {
   fold as foldDaily,
   load as loadDaily,
@@ -276,6 +277,14 @@ let mode: RosterMode = loadMode()
  * the seed, the boss and the party all came from the date.
  */
 let dailyResults: DailyResult[] = loadDaily()
+/**
+ * What the share button last did, shown on the button for a moment.
+ *
+ * A share sheet says its own piece; a clipboard copy says nothing at all, and
+ * a button that appears to do nothing is a button people press twice.
+ */
+let shareSaid: string | null = null
+let shareSaidAt = 0
 let playingDaily = false
 
 /**
@@ -619,6 +628,13 @@ function updateDaily(tap: { x: number; y: number } | null): void {
         saveSetup()
       }
     }
+    if (hit?.kind === 'share') {
+      void share(dailyMessage(daily, todays(dailyResults, daily.key))).then((how) => {
+        shareSaid = how === 'copied' ? 'COPIED' : how === 'shared' ? 'SHARED' : 'NO LUCK'
+        shareSaidAt = performance.now()
+      })
+      return
+    }
     if (hit?.kind === 'start') {
       playingDaily = true
       mode = { kind: 'raid' }
@@ -661,6 +677,7 @@ function updateDaily(tap: { x: number; y: number } | null): void {
       const option = SPEC_OPTIONS[index]!
       return { text: specLabel(option), colour: classColor(option.classId) }
     },
+    shareSaid !== null && performance.now() - shareSaidAt < 2000 ? shareSaid : undefined,
   )
 }
 
@@ -752,6 +769,47 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
   drawRoster(ctx, party, difficulty, clock, encounter, mode)
 }
 
+/**
+ * Somebody else's fight, arriving in the address bar.
+ *
+ * The simulation reproduces from a seed, so a link does not have to point at a
+ * recording — it carries the fight itself, and opening one drops you straight
+ * onto the screen that starts it rather than on the front page.
+ */
+{
+  const invite = parseInvite(typeof window === 'undefined' ? '' : window.location.hash)
+  if (invite?.day !== undefined) {
+    // A day's run ends at midnight, and so does the comparison it was shared
+    // for. An old link still opens the daily screen — it just opens today's,
+    // which is the only one anybody can still be beaten at.
+    daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
+    screen = 'daily'
+  } else if (invite?.boss !== undefined) {
+    const at = ENCOUNTERS.findIndex((e) => e.id === invite.boss)
+    if (at >= 0) {
+      encounter = at
+      // Following an invitation unlocks the boss it points at, and keeps it.
+      // The ladder is there so a new player meets the bosses in order, not to
+      // stop somebody being invited past it — and locking the retry button
+      // after they have already fought it once would only be a puzzle.
+      unlocked = Math.max(unlocked, at)
+      mode = { kind: 'raid' }
+      if (invite.size && invite.size !== party.length) resize(invite.size)
+      if (invite.difficulty) difficulty = invite.difficulty
+      saveSetup()
+      screen = 'roster'
+    }
+  }
+  // Spent once it has been read. The link decides where the game opens, not
+  // where it lives: leaving it in the bar means every reload for the rest of
+  // the session drags you back to somebody else's fight.
+  // `history` here is the game's own attempt log, so the browser's is reached
+  // through the window rather than by its bare name.
+  if (invite && typeof window !== 'undefined' && window.history?.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }
+}
+
 let timing: Clock = { accumulator: 0, elapsedTotal: 0 }
 let last = performance.now()
 
@@ -814,6 +872,27 @@ function frame(now: number): void {
   // used to pull again under them.
   if (state.outcome !== 'ongoing' && tap) {
     const hit = hitOutcome(tap.x, tap.y, state)
+    if (hit === 'share') {
+      const boss = ENCOUNTERS[state.encounter]
+      const you = state.actors.find((a) => a.isPlayer)
+
+      void share(
+        killMessage(
+          boss?.name ?? 'Unknown',
+          boss?.id ?? '',
+          party.length as RaidSize,
+          difficulty,
+          state.time,
+          specLabel(party[0] ?? DEFAULT_PARTY[0]!),
+          you ? (state.tally[you.id]?.mechanicHits ?? 0) : 0,
+        ),
+      ).then((how) => {
+        shareSaid = how === 'copied' ? 'COPIED' : how === 'shared' ? 'SHARED' : 'NO LUCK'
+        shareSaidAt = performance.now()
+      })
+      requestAnimationFrame(frame)
+      return
+    }
     if (hit === 'party') {
       screen = 'roster'
       requestAnimationFrame(frame)
@@ -923,6 +1002,8 @@ function frame(now: number): void {
       ]
     }
   }
+
+  setShareLabel(shareSaid !== null && performance.now() - shareSaidAt < 2000 ? shareSaid : null)
 
   hints.observe(state, elapsed)
   effects.age(elapsed)
