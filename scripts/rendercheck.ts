@@ -15,7 +15,7 @@ import {
   slotStatus,
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
-import { ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
+import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
 import {
   bgSetupLayout,
   drawBgSetup,
@@ -157,7 +157,7 @@ import {
   SOAK_RADIUS,
   STALKER_SPEED,
 } from '../src/sim/constants'
-import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
+import { Ambience, ZOOM, backdropZoom, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
@@ -5643,7 +5643,7 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   const seen: number[] = []
   for (let i = 0; i < 60 * 200; i++) {
     scene.advance(1 / 60)
-    if (i % 30 === 0) seen.push(onScreenShare(scene, ZOOM))
+    if (i % 30 === 0) seen.push(onScreenShare(scene, backdropZoom()))
     if (scene.showing.outcome !== 'ongoing') ended++
     const boss = scene.showing.actors.find((a) => a.faction === 'boss')
     const mark = boss?.maxHp ?? 0
@@ -5727,7 +5727,7 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   expect('the scene is drawn closer than the game', ZOOM > 1, `${ZOOM}`)
   expect(
     'at the scale it says it is',
-    transforms.some(([x, y]) => x === ZOOM && y === ZOOM),
+    transforms.some(([x, y]) => x === backdropZoom() && y === backdropZoom()),
     JSON.stringify(transforms),
   )
   let depth = 0
@@ -5748,7 +5748,7 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   let tightest = 1
   for (let i = 0; i < 60 * 90; i++) {
     portrait.advance(1 / 60)
-    if (i % 30 === 0) tightest = Math.min(tightest, onScreenShare(portrait, ZOOM))
+    if (i % 30 === 0) tightest = Math.min(tightest, onScreenShare(portrait, backdropZoom()))
   }
   expect('and does not empty a phone either', tightest > 0, `${(tightest * 100).toFixed(0)}% at its worst`)
   updateLayout(1440, 900)
@@ -5915,7 +5915,12 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   const near = at(1)
   const closest = at(ZOOM_STEPS.length - 1)
 
-  expect('the default is the fitted framing', ZOOM_STEPS[0] === 1, `${ZOOM_STEPS[0]}`)
+  expect('the first step is the fitted framing', ZOOM_STEPS[0] === 1, `${ZOOM_STEPS[0]}`)
+  // Not the default, though. Fitting the whole arena on screen is the wrong
+  // framing for what the game asks you to do — read your own token, your own
+  // numbers and the shape under your feet — and the arena's edges are what
+  // the minimap is for.
+  expect('but not where the camera starts', DEFAULT_ZOOM > 0, `${DEFAULT_ZOOM}`)
   expect('a step in draws the world larger', near.scale > far.scale, `${far.scale} then ${near.scale}`)
   expect('and every step after it', closest.scale > near.scale, `${near.scale} then ${closest.scale}`)
   expect(
@@ -5975,7 +5980,9 @@ function onScreenShare(scene: Ambience, zoom: number): number {
     `${loose.toFixed(4)} against ${tight.toFixed(4)}`,
   )
 
-  setZoomLevel(0, 1440, 900)
+  // Put back to what a player actually gets, so everything checked after this
+  // point is checked at the framing the game ships with.
+  setZoomLevel(DEFAULT_ZOOM, 1440, 900)
 }
 
 // --- what the fight says, at a size somebody can read ----------------------

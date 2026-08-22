@@ -246,6 +246,17 @@ export function computeLayout(w: number, h: number): Layout {
 export const ZOOM_STEPS = [1, 1.25, 1.5, 1.8] as const
 export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER'] as const
 
+/**
+ * Where the camera starts.
+ *
+ * The closest step rather than the fitted one. Fitting the whole arena on
+ * screen is the framing every layout number here was worked out against, and
+ * it is the wrong default for the thing the game actually asks you to do:
+ * read your own token, your own numbers and the shape under your feet. The
+ * arena's edges are what the minimap is for.
+ */
+export const DEFAULT_ZOOM = ZOOM_STEPS.length - 1
+
 const ZOOM_KEY = 'abyss.zoom'
 
 let zoomStep = load()
@@ -253,11 +264,13 @@ let zoomStep = load()
 function load(): number {
   try {
     const raw = localStorage.getItem(ZOOM_KEY)
-    const level = raw === null ? 0 : Number.parseInt(raw, 10)
-    return Number.isFinite(level) ? Math.max(0, Math.min(ZOOM_STEPS.length - 1, level)) : 0
+    const level = raw === null ? DEFAULT_ZOOM : Number.parseInt(raw, 10)
+    return Number.isFinite(level)
+      ? Math.max(0, Math.min(ZOOM_STEPS.length - 1, level))
+      : DEFAULT_ZOOM
   } catch {
     // No storage is not an error; it is the default framing.
-    return 0
+    return DEFAULT_ZOOM
   }
 }
 

@@ -102,6 +102,22 @@ const IDLE: PlayerInput = { moveX: 0, moveY: 0, pressed: [] }
  */
 export const ZOOM = 2
 
+/**
+ * What the scene multiplies the current world scale by.
+ *
+ * Divided by the player's own camera setting, so the background sits the same
+ * distance away whatever the fight is set to. Left multiplied, somebody who
+ * likes the game close would get the menus at three and a half times, which
+ * is past the point where both teams walk out of frame.
+ *
+ * Exported because the checks have to measure this rather than assume it: an
+ * assumption that the background is at ZOOM times the world scale was true
+ * only while the world scale had no camera in it.
+ */
+export function backdropZoom(): number {
+  return ZOOM / zoomFactor()
+}
+
 /** A scene being got ready off screen. */
 interface Pending {
   state: SimState
@@ -288,11 +304,7 @@ export class Ambience {
 
     // Zoomed about the middle of the screen, and inside a save: the menu drawn
     // over the top has to land in screen coordinates like everything else.
-    // Divided by the player's own camera setting, so the background is the
-    // same distance away whatever the fight is set to. Left multiplied, a
-    // player who likes the game close would get the menus at three and a half
-    // times, which is past the point where both teams walk out of frame.
-    const close = ZOOM / zoomFactor()
+    const close = backdropZoom()
     ctx.save()
     ctx.translate(L.cx, L.cy)
     ctx.scale(close, close)

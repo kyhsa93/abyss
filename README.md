@@ -252,9 +252,11 @@ what that setting is about.
 ## How close the camera sits
 
 Four settings, from the arena fitted to the screen out to nearly twice that.
-One is the framing every layout number in the game was worked out against; the
-steps in are for reading your own tokens and numbers rather than for seeing
-more.
+One is the framing every layout number in the game was worked out against —
+but it is not where the camera starts. **The default is the closest step**,
+because fitting the whole arena on screen is the wrong framing for what the
+game actually asks you to do: read your own token, your own numbers and the
+shape under your feet. The arena's edges are what the minimap is for.
 
 It is a multiplier on the fitted arena radius, not a transform of its own, so
 everything drawn in world units moves together and nothing else has to know
@@ -271,6 +273,11 @@ teams walk out of frame and the background goes empty. The check measures what
 the scene *applies* rather than what it is supposed to apply — asking a check
 to compute the intended factor is asking it to agree with the bug — and it
 catches the compounding version at 5.70 against 1.76.
+
+Moving the default surfaced the same class of mistake in two older checks,
+which had encoded "the background sits at twice the world scale" — true only
+while the world scale had no camera in it. They ask the scene for its own
+factor now.
 
 ## Reading your own numbers
 
