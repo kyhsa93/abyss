@@ -5,7 +5,7 @@ import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import { BATTLEGROUNDS } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import type { BgKind, BgState, Vec2 } from '../src/sim/types'
+import type { Actor, BgKind, BgState, Vec2 } from '../src/sim/types'
 import {
   autoParty,
   pickFor,
@@ -481,7 +481,57 @@ function spreadOf(samples: Vec2[]): number {
   return Math.sqrt(sum / samples.length)
 }
 
-function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
+/**
+ * The drivers, worst to best, as a ladder rather than a set.
+ *
+ * The three that were here answered "do the rules work" — a side with nobody
+ * in it loses, a side with somebody in it does not — and they all landed in
+ * the same place above `idle`, which says nothing about whether playing *well*
+ * is worth anything. `sharp` is the top of the ladder: it does the two things
+ * a good player does in a game with no hazards to dodge, which are to be on
+ * the objective and to not die for nothing.
+ */
+type Drive = 'idle' | 'objective' | 'ai' | 'sharp'
+const DRIVES: Drive[] = ['idle', 'objective', 'ai', 'sharp']
+
+/**
+ * Below this the sharp driver leaves, and above this it comes back.
+ *
+ * A death is worth ten to seventeen seconds of walking, which is the largest
+ * single thing a person in a battleground can avoid: everything else they can
+ * do is worth a fraction of one body's presence, and dying is worth all of it
+ * for a sixth of a match.
+ */
+const SHARP_FLEE = 0.35
+const SHARP_RETURN = 0.7
+
+/**
+ * Where a good player goes when it is losing a fight.
+ *
+ * Directly away from the nearest enemy rather than home: the point is to
+ * break contact and come back, and walking to your own base to heal is
+ * conceding the objective for the whole round trip.
+ */
+function sharpGoal(s: SimState, fleeing: boolean): Vec2 | null {
+  const player = s.actors.find((a) => a.isPlayer)!
+  if (!fleeing) return aiGoal(s, player)
+
+  let nearest: Actor | null = null
+  let gap = Infinity
+  for (const a of s.actors) {
+    if (!a.alive || a.faction !== 'boss') continue
+    const d = Math.hypot(a.pos.x - player.pos.x, a.pos.y - player.pos.y)
+    if (d < gap) {
+      gap = d
+      nearest = a
+    }
+  }
+  if (!nearest) return aiGoal(s, player)
+  const away = Math.atan2(player.pos.y - nearest.pos.y, player.pos.x - nearest.pos.x)
+  return { x: player.pos.x + Math.cos(away) * 200, y: player.pos.y + Math.sin(away) * 200 }
+}
+
+function bgRun(seed: number, kind: BgKind, drive: Drive) {
   // Both sides rolled, and rolled the same way.
   //
   // Blue used to be handed DEFAULT_PARTY while red was rolled, so every
@@ -500,6 +550,7 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
   let deaths = 0
   const alive = new Map(s.actors.map((a) => [a.id, a.alive]))
 
+  let fleeing = false
   let leadChanges = 0
   let lastLead = 0
   let turnovers = 0
@@ -517,10 +568,23 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
     // are comparing, and it can only be compared by someone who is fighting.
     const pressed = autoPress(s)
 
+    // Hysteresis on the retreat, or a player at exactly the threshold spends
+    // the fight turning round on the spot.
+    if (drive === 'sharp' && player.alive) {
+      const share = player.hp / player.maxHp
+      if (share < SHARP_FLEE) fleeing = true
+      else if (share > SHARP_RETURN) fleeing = false
+    }
+
     let moveX = 0
     let moveY = 0
     if (drive !== 'idle' && player.alive) {
-      const goal = drive === 'ai' ? aiGoal(s, player) : objectiveGoal(s)
+      const goal =
+        drive === 'sharp'
+          ? sharpGoal(s, fleeing)
+          : drive === 'ai'
+            ? aiGoal(s, player)
+            : objectiveGoal(s)
       if (goal) {
         const dx = goal.x - player.pos.x
         const dy = goal.y - player.pos.y
@@ -606,7 +670,7 @@ console.log(
     `${(2 * Math.sqrt(0.25 / BG_RUNS) * 100).toFixed(0)} points)`,
 )
 for (const bg of BATTLEGROUNDS) {
-  for (const drive of ['ai', 'objective', 'idle'] as const) {
+  for (const drive of DRIVES) {
     let wins = 0
     let time = 0
     let deaths = 0
