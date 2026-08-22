@@ -100,15 +100,12 @@ export function drawWorld(
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
-  const names = nameable(s)
   for (const a of s.actors) {
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
   for (const a of s.actors) {
-    if (a.faction === 'party') {
-      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, names)
-    }
+    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -643,19 +640,6 @@ function standingInFire(s: SimState, a: Actor): boolean {
   )
 }
 
-/**
- * Whether names go over the tokens.
- *
- * Twenty-five of them on a phone is mush rather than information, and the
- * party frames already say who everyone is in a grid built for reading. So
- * the question is how many there are against how much room there is: a
- * five-man is legible anywhere, a raid needs a screen.
- */
-function nameable(s: SimState): boolean {
-  const party = s.actors.filter((a) => a.faction === 'party').length
-  return party <= 10 || L.ui > 0.9
-}
-
 /** What colour this fight's boss is. A battleground has none. */
 function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
@@ -670,8 +654,6 @@ function drawActor(
   battleground = false,
   /** The boss's own colour. Three bosses in the same red read as one boss. */
   accent: string = COLORS.boss,
-  /** Whether there is room to say who this is. See `nameable`. */
-  named = false,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -812,7 +794,13 @@ function drawActor(
   // go — which meant a name vanished the moment its owner became worth
   // looking at. It sits above the bar instead, and the bar keeps the place it
   // had.
-  if (named && a.faction === 'party' && a.alive) {
+  //
+  // Everyone, at every size and on every screen. There was a rule here that
+  // withheld them from a twenty-five man on a small screen, on the grounds
+  // that twenty-five names is mush — but a name you cannot rely on being
+  // there is worse than a crowded one, and picking a particular body out of
+  // the crowd is exactly what the raid size makes hard.
+  if (a.faction === 'party' && a.alive) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
     ctx.fillText(a.name, p.x, p.y - r - (hurt ? 15 : 8))

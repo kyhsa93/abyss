@@ -6179,29 +6179,29 @@ for (const [label, w, h] of [
   // one of a crowd and has nothing worth saying.
   expect('the boss is not labelled twice', !said.includes(boss(s).name), said.join(' | '))
 
-  // Twenty-five names on a phone is mush rather than information.
+  // Everyone, at every size and on every screen. There was a rule that
+  // withheld names from a twenty-five man on a small screen on the grounds
+  // that twenty-five of them is mush — but a name you cannot rely on being
+  // there is worse than a crowded one, and picking a particular body out of
+  // the crowd is exactly what the raid size makes hard.
   const raid = pulled(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
-  updateLayout(360, 640)
-  const crowded: Label[] = []
-  drawWorld(recordingCtx([], crowded), raid, 1, 0, new Effects(false))
-  const shown = raid.actors.filter((a) => a.faction === 'party' && crowded.some((l) => l.text === a.name))
-  expect('a raid on a phone says none of them', shown.length === 0, `${shown.length} names`)
-
-  updateLayout(1440, 900)
-  const roomy: Label[] = []
-  drawWorld(recordingCtx([], roomy), raid, 1, 0, new Effects(false))
-  const onDesktop = raid.actors.filter((a) => a.faction === 'party' && roomy.some((l) => l.text === a.name))
-  expect('and on a screen with room it says all of them', onDesktop.length >= 20, `${onDesktop.length}`)
-
-  // A five-man is legible anywhere, which is the size most of them are.
-  updateLayout(360, 640)
-  const five: Label[] = []
-  drawWorld(recordingCtx([], five), s, 1, 0, new Effects(false))
-  expect(
-    'a five-man is named on a phone too',
-    party.every((a) => five.some((l) => l.text === a.name)),
-    five.map((l) => l.text).join(' | '),
-  )
+  for (const [label, w, h] of [
+    ['a phone', 360, 640],
+    ['a desktop', 1440, 900],
+  ] as const) {
+    updateLayout(w, h)
+    for (const [size, fight] of [
+      ['a five-man', s],
+      ['a twenty-five man', raid],
+    ] as const) {
+      const drawn: Label[] = []
+      drawWorld(recordingCtx([], drawn), fight, 1, 0, new Effects(false))
+      const missing = fight.actors.filter(
+        (a) => a.faction === 'party' && !drawn.some((l) => l.text === a.name),
+      )
+      expect(`${size} on ${label} names everybody`, missing.length === 0, `${missing.length} unnamed`)
+    }
+  }
   updateLayout(1440, 900)
 }
 

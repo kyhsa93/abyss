@@ -290,12 +290,13 @@ where the name would go. Which meant a name vanished at the exact moment its
 owner became worth looking at. The bar keeps the place it had and the name
 moves up over it.
 
-Whether names are drawn at all is a question of how many against how much
-room. Twenty-five of them on a phone is mush rather than information, and the
-party frames already say who everyone is in a grid built for reading — so a
-five-man is named on any screen, and a raid needs a desktop. The boss is not
-named over its token either, since it has a frame across the top of the
-screen, and a thrall is one of a crowd with nothing to say.
+Everyone, at every raid size and on every screen. There was briefly a rule
+withholding them from a twenty-five man on a small screen, on the grounds that
+twenty-five names is mush rather than information — but a name you cannot rely
+on being there is worse than a crowded one, and picking a particular body out
+of a crowd is exactly what the raid size makes hard. The boss is not named
+over its token, since it has a frame across the top of the screen, and a
+thrall is one of a crowd with nothing to say.
 
 ## Every press aimed at the boss, including the heals
 
