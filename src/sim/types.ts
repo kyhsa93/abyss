@@ -125,7 +125,7 @@ export interface Actor {
   swingTimer: number
 }
 
-export type GroundKind = 'puddle' | 'breath' | 'shockwave'
+export type GroundKind = 'puddle' | 'breath' | 'shockwave' | 'soak'
 
 export interface GroundEffect {
   id: number
@@ -452,6 +452,8 @@ export interface SimState {
   nextSweep: number
   /** Next stack of the boss's armour break on whoever is holding it. */
   nextSunder: number
+  /** Next circle the whole party has to stand in. */
+  nextSoak: number
   /** A magic dot on somebody, which armour does not. */
   nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */

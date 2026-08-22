@@ -54,3 +54,28 @@ export const DESCENT_RECOVERY = 0.55
 
 /** One of the fallen comes back on each floor, at a fraction of their health. */
 export const DESCENT_REVIVE = 0.45
+
+/**
+ * The floor from which the descent starts asking the party to gather.
+ *
+ * The circle is the one mechanic here that is not on any boss's table, and
+ * that is deliberate. Measured against the raid ladder it costs about thirty
+ * points of win rate wherever it is put — not through its damage, which is
+ * small, but because this party heals by standing still and casting, so any
+ * mechanic that moves all five of them at once takes the healer's output away
+ * in the same seconds it takes health off everybody. A fight that was already
+ * balanced cannot absorb that without being retuned into a different fight.
+ *
+ * The descent can. It has no fixed difficulty to preserve — every floor is
+ * meant to be worse than the last — so the mechanic lands here first, and the
+ * ladder keeps the shape it was tuned to.
+ */
+export const DESCENT_SOAK_FLOOR = 3
+
+/** How often the descent calls for the circle, by floor. Zero above ground. */
+export function descentSoak(depth: number): number {
+  if (depth < DESCENT_SOAK_FLOOR) return 0
+  // Tightens with the floor, to a limit: at some point it is every gather and
+  // nothing else, and a fight that is one mechanic is not a fight.
+  return Math.max(22, 40 - (depth - DESCENT_SOAK_FLOOR) * 2)
+}

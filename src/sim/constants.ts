@@ -36,6 +36,30 @@ export const CRIT_MULTIPLIER = 1.5
 export const SPREAD_RADIUS = 110
 
 /**
+ * The circle the whole party has to be standing in, and how long it gives.
+ *
+ * Wide enough that twenty-five people fit and small enough that getting there
+ * costs the melee their uptime and the casters a cast. Five seconds is about
+ * two of those, which is the price of the mechanic.
+ */
+export const SOAK_RADIUS = 135
+export const SOAK_TELEGRAPH = 5
+
+/**
+ * What the circle costs each of you when all of you stand in it.
+ *
+ * Per person rather than a flat total divided by the soakers, which is how it
+ * was first written and which spirals: a flat total keeps its size as people
+ * die, so a party down to two takes half of it each, which kills them, which
+ * makes it worse for whoever is left. The share is measured against how many
+ * are *alive* instead — everybody in is this number whatever the size of the
+ * raid, half in is double it, and the multiplier stops at four so a circle
+ * nobody reached is a disaster rather than an extinction.
+ */
+export const SOAK_EACH = 80
+export const SOAK_MAX_SHARE = 4
+
+/**
  * Seconds between arriving on the floor and the pull starting.
  *
  * A fight that begins on the frame the screen appears begins before anyone has

@@ -1,5 +1,12 @@
 import { ABILITIES } from './abilities'
-import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH, SPREAD_RADIUS } from './constants'
+import {
+  ARENA_RADIUS,
+  DT,
+  MELEE_RANGE,
+  PUDDLE_TELEGRAPH,
+  SOAK_TELEGRAPH,
+  SPREAD_RADIUS,
+} from './constants'
 import { BREATH_CAST, insideCone } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -141,6 +148,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // Being outside the circle is the danger, and it gets worse as the timer
+    // runs down. Urgency above the cone's: everything else here costs the one
+    // who got it wrong, and this one costs everybody who got it right.
+    if (g.kind === 'soak') {
+      if (!g.detonated && dist(actor.pos, g.pos) > g.radius - actor.radius) {
+        consider(`soak:${g.id}`, 84 + (SOAK_TELEGRAPH - g.telegraph) * 6)
+      }
+      continue
+    }
+
     const d = dist(actor.pos, g.pos)
     if (d <= g.radius + DANGER_MARGIN) {
       // Standing in live fire is the most urgent state there is.
@@ -168,6 +185,12 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     }
     if (g.kind === 'shockwave') {
       if (dist(spot, g.pos) > g.radius - g.band - 12) return false
+      continue
+    }
+    // Inverted: this is the one piece of ground that is only safe from the
+    // inside.
+    if (g.kind === 'soak') {
+      if (!g.detonated && dist(spot, g.pos) > g.radius - actor.radius) return false
       continue
     }
     if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
@@ -269,6 +292,18 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           y: g.pos.y + Math.sin(angle) * pocket,
         })
       }
+    } else if (g.kind === 'soak' && !g.detonated) {
+      // Sampling around the actor will not find a circle two hundred units
+      // away, so it is offered directly — the same problem the ring's pocket
+      // has, and the same answer.
+      candidates.push({ x: g.pos.x, y: g.pos.y })
+      for (let i = 0; i < 8; i++) {
+        const angle = offset + (i / 8) * Math.PI * 2
+        candidates.push({
+          x: g.pos.x + Math.cos(angle) * g.radius * 0.55,
+          y: g.pos.y + Math.sin(angle) * g.radius * 0.55,
+        })
+      }
     } else if (g.kind === 'breath' && !g.detonated) {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
@@ -293,9 +328,20 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 1. Ground danger dominates everything else.
     let ringActive = false
+    let soakActive = false
     for (const g of s.ground) {
       if (g.kind === 'breath') {
         if (!g.detonated && insideCone(candidate, g)) score -= 1400
+        continue
+      }
+      if (g.kind === 'soak') {
+        if (g.detonated) continue
+        soakActive = true
+        const d = dist(candidate, g.pos)
+        // Worth more than the cone is worth avoiding: a party that trickles
+        // in one at a time divides the hit by one and takes it five times.
+        if (d > g.radius - actor.radius) score -= 1600
+        else score += Math.min(240, (g.radius - d) * 2)
         continue
       }
       if (g.kind === 'shockwave') {
@@ -325,7 +371,11 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 3. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (actor.role === 'tank' || actor.melee) {
+    if (soakActive) {
+      // Standing in it beats standing in range of anything. Suspended the
+      // same way the ring suspends the casters' spacing, and for melee too:
+      // the boss is not going anywhere in five seconds.
+    } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.
       if (bossDist > 200) score -= (bossDist - 200) * 3

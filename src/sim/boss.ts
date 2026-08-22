@@ -1,4 +1,13 @@
-import { ARENA_RADIUS, DT, MELEE_RANGE, PUDDLE_TELEGRAPH } from './constants'
+import {
+  ARENA_RADIUS,
+  DT,
+  MELEE_RANGE,
+  PUDDLE_TELEGRAPH,
+  SOAK_RADIUS,
+  SOAK_EACH,
+  SOAK_MAX_SHARE,
+  SOAK_TELEGRAPH,
+} from './constants'
 import {
   addAura,
   adds,
@@ -17,7 +26,7 @@ import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
-import { descentDamage } from './descent'
+import { descentDamage, descentSoak } from './descent'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -145,6 +154,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleSweep(s, b, timing)
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
+  scheduleSoak(s, b, rng, timing)
 
   updateAdds(s)
 }
@@ -291,6 +301,23 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
   s.nextPuddle -= DT
   if (s.nextPuddle > 0) return
 
+  // Not onto a party that has been told to stand in one place.
+  //
+  // Puddles are dropped on people, so a raid gathered into a circle gets the
+  // whole set inside it — and then the floor says leave and the circle says
+  // stay. That is not a hard mechanic, it is two mechanics cancelling, and it
+  // took the Choir from a fight to a wipe at seventy seconds. The timer is
+  // held rather than skipped: the puddles land the moment the circle does.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    // A tick's grace rather than the spread's three. Puddles telegraph before
+    // they hurt anyone, so they only have to miss the moment the raid is
+    // standing still — and holding the whole floor for eight seconds of every
+    // twenty-four turned out to be a bigger gift than the mechanic was a
+    // cost, worth thirty-seven points of first-pull win rate on its own.
+    s.nextPuddle = FLOOR_AFTER_SOAK
+    return
+  }
+
   const victims = livingParty(s)
   // Mechanics scale with the raid. A fixed number of puddles across a
   // twenty-five man means any given player is almost never targeted, so the
@@ -337,6 +364,20 @@ function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   if (timing.spread <= 0) return
   s.nextSpread -= DT
   if (s.nextSpread > 0) return
+
+  // And never into a circle the party is already running to — nor into the
+  // second after one resolves.
+  //
+  // The tick's grace is the whole of it. A spread detonates on its carrier
+  // and catches everyone within a hundred and ten units, and a party that has
+  // just been told to stand inside a circle of a hundred and thirty five is
+  // every one of them. Deferring only while the circle was live moved the
+  // contradiction one tick later instead of removing it, and the Choir wiped
+  // at ninety seconds every single pull.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextSpread = AFTER_SOAK
+    return
+  }
 
   const victims = livingParty(s)
   const marks = Math.max(1, Math.round(s.party.length / 6))
@@ -403,6 +444,89 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
     })
   }
   pushEffect(s, 'swing', b.pos, { power: SWEEP_RANGE, angle: 0 })
+}
+
+/**
+ * The circle the whole party has to be standing in.
+ *
+ * The inverse of spread, and the only thing here that asks the party to do
+ * something together rather than each get themselves out of the way. What
+ * lands is divided by however many stood in it and then dealt to everybody,
+ * so being outside is not an escape — it is a cost passed to the people who
+ * went.
+ *
+ * Placed away from the boss on purpose. Dropped on the party it would already
+ * be solved, and dropped on the boss it would be free for the melee and a
+ * long walk for everyone else.
+ */
+/**
+ * How long the party gets to break up again before the floor resumes.
+ *
+ * Long enough to be out of each other's spread radius at a walk, which is the
+ * only thing this number has to buy.
+ */
+const AFTER_SOAK = 3
+const FLOOR_AFTER_SOAK = 0.6
+
+function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  // No boss on the ladder asks for this one; a deep enough descent floor
+  // does. See `descentSoak` for why it lives there.
+  const every = timing.soak > 0 ? timing.soak : descentSoak(s.depth)
+  if (every <= 0) return
+  s.nextSoak -= DT
+  if (s.nextSoak > 0) return
+
+  // Never on top of a spread. One says get apart and the other says get
+  // together, and a party asked both at once is not being asked a question,
+  // it is being handed a contradiction — the spread would detonate into the
+  // stack. The soak waits; the spread is the shorter timer.
+  if (livingParty(s).some((a) => getAura(a, 'spread'))) return
+
+  s.nextSoak = every
+
+  // Placed near the party rather than out in the arena.
+  //
+  // Two hundred and fifty units from the boss was the first version, and it
+  // did not cost what it looked like it cost. Healing in this game is cast at
+  // range from a standing position, so a mechanic that walks the whole raid
+  // across the floor takes the healer's output away in the same seconds it
+  // deals damage to everybody — the party arrived, took it, and had nobody
+  // casting. Measured, that was the difference between a boss killed at 154s
+  // and a wipe at 167s with the boss still at 39%.
+  //
+  // Close in, the cost is what it should be: everyone has to be in one place
+  // at one moment, and the floor is held while they do it.
+  const party = livingParty(s)
+  const centre = party.reduce(
+    (acc, a) => ({ x: acc.x + a.pos.x / party.length, y: acc.y + a.pos.y / party.length }),
+    { x: 0, y: 0 },
+  )
+  const angle = rng.range(0, Math.PI * 2)
+  const away = rng.range(90, 170)
+  const pos = { x: centre.x + Math.cos(angle) * away, y: centre.y + Math.sin(angle) * away }
+  clampToArena(pos, SOAK_RADIUS)
+
+  s.ground.push({
+    id: s.nextObjectId++,
+    kind: 'soak',
+    pos,
+    radius: SOAK_RADIUS,
+    telegraph: SOAK_TELEGRAPH,
+    lingering: 0,
+    // Flat, where every other mechanic here is multiplied by the difficulty.
+    // The circle is a positional demand with a tax attached, and multiplying
+    // the tax compounds with the one thing heroic has none of — a healer with
+    // room to spare. Left scaling, it took heroic from twelve percent to two.
+    damage: SOAK_EACH,
+    detonated: false,
+    angle: 0,
+    halfWidth: 0,
+    growth: 0,
+    band: 0,
+    caught: [],
+  })
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.soak)
 }
 
 /**
@@ -657,6 +781,37 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    if (g.kind === 'soak') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+
+      // Divided by however many stood in it, and then dealt to everyone. A
+      // party that sends nobody pays the whole thing each, which is what
+      // makes it a decision rather than an optional errand.
+      const party = livingParty(s)
+      const inside = party.filter((a) => dist(a.pos, g.pos) <= g.radius)
+      // Against the living headcount, not a flat pool: see SOAK_EACH.
+      const missing = party.length / Math.max(1, inside.length)
+      const share = mechanic(s, g.damage * Math.min(SOAK_MAX_SHARE, missing))
+      for (const a of party) {
+        applyDamage(s, a, share, 'magic', {
+          sourceId: BOSS_ID,
+          // Only the ones who were not there failed anything.
+          mechanic: !inside.includes(a),
+        })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_soak', power: share })
+      }
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_soak',
+        power: g.radius * 9,
+        crit: true,
+      })
+      s.sounds.push('raid')
+      continue
+    }
+
     if (g.kind === 'breath') {
       // Purely a telegraph; the damage lands when the cast resolves.
       if (!g.detonated) g.telegraph -= DT
@@ -696,6 +851,9 @@ export function updateGround(s: SimState): void {
   }
 
   s.ground = s.ground.filter((g) => {
+    // Nothing to linger: it is a place to be at a moment, not a place to
+    // avoid afterwards.
+    if (g.kind === 'soak') return !g.detonated
     if (g.kind === 'breath') return !g.detonated || g.lingering > 0
     if (g.kind === 'shockwave') return g.lingering > 0
     return !g.detonated || g.lingering > 0

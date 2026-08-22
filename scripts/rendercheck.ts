@@ -141,6 +141,8 @@ import {
 import { gainPower } from '../src/sim/combat'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SUNDER_MAX } from '../src/sim/boss'
+import { DESCENT_SOAK_FLOOR, descentSoak } from '../src/sim/descent'
+import { DT, SOAK_EACH, SOAK_MAX_SHARE, SOAK_RADIUS } from '../src/sim/constants'
 import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
@@ -3110,6 +3112,25 @@ for (const [label, w, h] of [
     )
   }
 
+  // One mechanic is not on any boss's table — the circle the party stands in
+  // lives on the descent — so a floor deep enough to ask for it is collected
+  // too. Otherwise the "nothing ever threw it" rule below would be right for
+  // the wrong reason.
+  {
+    const deep = pulled(0x51ed, 8, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, DESCENT_SOAK_FLOOR)
+    deep.countdown = 0
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (deep.outcome === 'ongoing' && deep.time < 150) {
+      step(deep, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of deep.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a deep floor draws its circle', ids.has('boss_soak'), 'it drew nothing')
+    thrown.set('descent', ids)
+  }
+
   // A mechanic with no entry falls back to one orange ring shared with every
   // other boss cast, and an entry nothing throws is a colour for a mechanic
   // that does not exist. Both are the same rot the names had.
@@ -3186,6 +3207,152 @@ for (const [label, w, h] of [
     clearAura(tank, 'sunder')
     applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
     expect('and magic does not care', tank.maxHp - tank.hp === magic, `${magic}`)
+  }
+
+  // --- the circle the whole party stands in ---------------------------------
+  //
+  // The inverse of spread, and the only mechanic here that asks the party to
+  // do something together. It is also the only one that is not on any boss's
+  // table: measured against the ladder it costs about thirty points of win
+  // rate wherever it is put — not through its damage, which is small, but
+  // because this party heals by standing still and casting, so moving all
+  // five at once takes the healer's output away in the same seconds it takes
+  // health off everybody. The descent has no fixed difficulty to protect, so
+  // it lands there.
+  {
+    for (const encounter of ENCOUNTERS) {
+      const asks = Object.values(encounter.phases).some((p) => p.soak > 0)
+      expect(`${encounter.name}: does not call for the circle`, !asks, 'it does')
+    }
+    expect('the shallow floors do not either', descentSoak(1) === 0, `${descentSoak(1)}`)
+    expect('and the deep ones do', descentSoak(DESCENT_SOAK_FLOOR) > 0, 'they do not')
+    expect(
+      'more often the deeper it goes',
+      descentSoak(DESCENT_SOAK_FLOOR + 6) < descentSoak(DESCENT_SOAK_FLOOR),
+      `${descentSoak(DESCENT_SOAK_FLOOR)} then ${descentSoak(DESCENT_SOAK_FLOOR + 6)}`,
+    )
+
+    // The party has to actually go. An unanswerable mechanic is a tax, and
+    // the AI reaching it is what makes it a decision instead.
+    const s = pulled(0x51ed, 8, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
+    s.countdown = 0
+    const rng = new Rng(0x51ed)
+    let circles = 0
+    let full = 0
+    let clashes = 0
+    while (s.outcome === 'ongoing' && s.time < 150) {
+      // A tick and a half of slack: the timer is decremented by DT and the
+      // circle is gone inside the same tick it fires, so the last frame it
+      // can be seen on is a floating-point hair away from exactly DT.
+      const about = s.ground.filter(
+        (g) => g.kind === 'soak' && !g.detonated && g.telegraph <= DT * 1.5,
+      )
+      for (const g of about) {
+        circles++
+        const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
+        const inside = alive.filter((a) => dist(a.pos, g.pos) <= g.radius)
+        if (inside.length >= alive.length - 1) full++
+      }
+      // Two mechanics that cancel are not a hard fight, they are a broken
+      // one: a spread detonates on its carrier and catches everyone within a
+      // hundred and ten units, which is every one of a party standing in a
+      // circle of a hundred and thirty five.
+      if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+        if (s.actors.some((a) => getAura(a, 'spread'))) clashes++
+        if (s.ground.some((g) => g.kind === 'puddle' && !g.detonated)) clashes++
+      }
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+    }
+    expect('a deep floor calls for it', circles > 0, 'it never did')
+    expect('and the party gets there', full >= circles - 1, `${full} of ${circles}`)
+    expect('never against a spread or the floor', clashes === 0, `${clashes} contradictions`)
+
+    // Asked directly rather than waited for. Two timers coinciding inside one
+    // sampled pull is luck; what matters is that the boss refuses when it is
+    // due, so the refusal is put on the spot.
+    {
+      const forced = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
+      forced.countdown = 0
+      forced.nextSoak = 0
+      const dice = new Rng(7)
+      step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
+      expect(
+        'the circle is out',
+        forced.ground.some((g) => g.kind === 'soak'),
+        'it never appeared',
+      )
+      forced.nextSpread = 0
+      forced.nextPuddle = 0
+      for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
+      expect(
+        'and nothing is marked while it is',
+        !forced.actors.some((a) => getAura(a, 'spread')),
+        'a spread landed on a gathered party',
+      )
+      expect(
+        'nor is the floor lit',
+        !forced.ground.some((g) => g.kind === 'puddle'),
+        'a puddle landed under one',
+      )
+    }
+
+    // What it costs is divided by however many stood in it, measured against
+    // the living headcount rather than a flat pool — a flat pool keeps its
+    // size as people die, so a party down to two takes half of it each, which
+    // kills them, which makes it worse for whoever is left.
+    const took = (present: number, buried = 0): number => {
+      const fight = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
+      fight.countdown = 0
+      const party = fight.actors.filter((a) => a.faction === 'party')
+      const spot = { x: 300, y: 300 }
+      party.forEach((a, i) => {
+        a.pos = i < present ? { ...spot } : { x: -600, y: -600 }
+        a.hp = a.maxHp
+      })
+      // Taken off the back of the party, so the ones being measured are the
+      // ones standing in it.
+      for (let i = 0; i < buried; i++) {
+        const gone = party[party.length - 1 - i]!
+        gone.alive = false
+      }
+      fight.ground = [
+        {
+          id: 1,
+          kind: 'soak',
+          pos: spot,
+          radius: SOAK_RADIUS,
+          telegraph: 0,
+          lingering: 0,
+          damage: SOAK_EACH,
+          detonated: false,
+          angle: 0,
+          halfWidth: 0,
+          growth: 0,
+          band: 0,
+          caught: [],
+        },
+      ]
+      const marked = party[0]!
+      const before = marked.hp
+      step(fight, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+      return before - marked.hp
+    }
+
+    const all = took(5)
+    const half = took(2)
+    const none = took(1)
+    // The same circle with two of the party already dead. A flat pool divided
+    // by the soakers keeps its size as people die, so the survivors take more
+    // each for being fewer — which kills them, which makes it worse again.
+    const short = took(3, 2)
+    expect('everyone in is the cheapest it gets', all > 0 && all <= SOAK_EACH * 1.4, `${all}`)
+    expect('fewer in costs those who went more', half > all * 1.5, `${all} then ${half}`)
+    expect('and it stops rather than spiralling', none <= SOAK_EACH * SOAK_MAX_SHARE * 1.4, `${none}`)
+    expect(
+      'a party that has lost people does not pay for them',
+      Math.abs(short - all) <= all * 0.1,
+      `${all} at full strength, ${short} with two down`,
+    )
   }
 
   // An index from a save older than the list must not open a fight that is

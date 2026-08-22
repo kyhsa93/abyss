@@ -194,6 +194,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Armour coming apart: the same steel as the sweep would say "physical",
   // but this is the thing that makes physical hurt, so it is rust.
   boss_sunder: { colour: '#b45309', style: 'crush' },
+  // The one the party answers together, so it arrives on everybody at once
+  // and reads as something settling rather than something thrown.
+  boss_soak: { colour: '#2dd4bf', style: 'wither' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

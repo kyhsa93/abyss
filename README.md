@@ -422,6 +422,50 @@ spend its wall on a heavy stack, which meant the wall was on cooldown when the
 slam landed — the swap already answers the stack, and the wall is the answer
 to the slam. Tanks with a partner now trade instead.
 
+## The circle, and where a mechanic can afford to live
+
+Spread says separate. The circle says the opposite: everyone stands in one
+place at one moment, what lands is divided by however many did, and then it is
+dealt to *everybody* — so staying out is not an escape, it is a cost passed to
+the people who went. It is the only thing here the party answers together.
+
+Three things had to be measured rather than assumed.
+
+**The damage had to be per head, not a flat pool.** A pool divided by the
+soakers keeps its size as people die, so a party down to two takes half of it
+each, which kills them, which makes it worse for whoever is left. Measured, a
+late circle in a five-man was dealing 2,922 to people with 2,900 health. The
+share is taken against the living headcount instead: everybody in is the same
+number whatever the size of the raid, half in is double, and the multiplier
+stops at four so a circle nobody reached is a disaster rather than an
+extinction.
+
+**Two mechanics that cancel are not a hard fight.** Puddles are dropped on
+people, so a party gathered into a circle got the whole set inside it and was
+then told to leave; a spread detonates on its carrier and catches everyone
+within 110 units, which is every one of a party standing in a circle of 135.
+Both are held while the circle is out — the spread for three seconds past it,
+long enough to walk out of each other's radius, the floor for barely half a
+second, because holding the whole floor for eight seconds of every twenty-four
+turned out to be a bigger gift than the mechanic was a cost. That one was
+worth 37 points of first-pull win rate on its own.
+
+**And its real price is not damage.** With the damage turned down to nothing
+the Warden still lost thirty points of win rate: this party heals by standing
+still and casting, so a mechanic that moves all five of them at once takes the
+healer's output away in the same seconds it takes health off everybody. Moving
+the circle from 250 units away to just outside the party helped; it did not
+fix it. At a cost small enough for the ladder to absorb, the mechanic was not
+worth having.
+
+So it does not go on the ladder. **No boss's table asks for it** — it belongs
+to the descent, from the third floor down, tightening as it goes. The descent
+has no fixed difficulty to protect, since every floor is meant to be worse
+than the last, and the three tuned encounters keep the exact shape they were
+tuned to: all three sit on their old numbers to the point. A mechanic that
+costs thirty points of win rate is not a bad mechanic, it is a mechanic that
+needs somewhere its cost is the intention rather than the damage.
+
 ## Sharing
 
 There is no server, no account and no replay sitting in a database, so there

@@ -1,7 +1,7 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
-import { descentHealth } from './descent'
+import { descentHealth, descentSoak } from './descent'
 import { Rng } from './rng'
 import {
   CLASSES,
@@ -207,6 +207,9 @@ export function createState(
     nextAdds: opening.adds,
     nextSweep: opening.sweep,
     nextSunder: opening.sunder,
+    // A descent floor asks for the circle even where the boss's own table
+    // does not, so the first one is scheduled rather than left at zero.
+    nextSoak: opening.soak > 0 ? opening.soak : descentSoak(depth),
     nextRot: opening.rot,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
@@ -310,6 +313,7 @@ export function createBattlegroundState(
     nextAdds: 0,
     nextSweep: 0,
     nextSunder: 0,
+    nextSoak: 0,
     nextRot: 0,
     bossFacing: Math.PI,
     raidFlash: 0,

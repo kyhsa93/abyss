@@ -1,4 +1,4 @@
-import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
+import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
@@ -336,6 +336,11 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'soak') {
+      drawSoak(ctx, s, g, p, r, clock)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
@@ -429,6 +434,57 @@ function drawBreath(
     ctx.lineWidth = 3
     ctx.stroke()
   }
+}
+
+/**
+ * The circle to be standing in, and how many are.
+ *
+ * Drawn as the one piece of ground that fills from the outside in, because
+ * everything else on this floor fills outward as it becomes dangerous and
+ * this one becomes safe. The headcount is the mechanic: what lands is divided
+ * by it, so a number that is not yet everybody is the whole tell.
+ */
+function drawSoak(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+  clock: number,
+): void {
+  const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+  const inside = party.filter((a) => dist(a.pos, g.pos) <= g.radius).length
+  const ready = inside >= party.length
+  const closing = 1 - g.telegraph / SOAK_TELEGRAPH
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = ready ? 'rgba(45, 212, 191, 0.16)' : 'rgba(45, 212, 191, 0.10)'
+  ctx.fill()
+
+  // The rim closes in as the timer runs down, so the shape says how long is
+  // left without anybody reading a number.
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(2, r * (1 - closing * 0.55)), 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(94, 234, 212, 0.55)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([5, 6])
+  ctx.lineDashOffset = clock * 26
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.strokeStyle = ready ? '#5eead4' : 'rgba(94, 234, 212, 0.8)'
+  ctx.lineWidth = ready ? 3 : 2
+  ctx.stroke()
+
+  ctx.fillStyle = ready ? '#5eead4' : '#e2e8f0'
+  ctx.font = font(15, true)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(`${inside}/${party.length}`, p.x, p.y)
+  ctx.textBaseline = 'alphabetic'
 }
 
 /** Expanding ring: lethal band, safe interior. */
