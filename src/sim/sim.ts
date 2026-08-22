@@ -2,7 +2,7 @@ import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
 import { updatePartyAi } from './ai'
 import { affixRot } from './affix'
-import { updateBattlegroundAi } from './bgai'
+import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
 import {
   CARRIER_SPEED,
   carrying,
@@ -80,6 +80,10 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   for (const a of s.actors) updateTimers(s, a)
 
   updatePlayer(s, input, rng)
+
+  // What each side is trying to do, before anybody acts on it. A plan belongs
+  // to the team, so it is made once rather than five times.
+  if (s.mode === 'battleground') updateBattlegroundPlans(s)
 
   // Both sides run in the same pass. The direction alternates by tick, because
   // acting first is worth something — reaching a flag, standing on a point —

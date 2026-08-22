@@ -1,6 +1,6 @@
 import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
-import { CART_RADIUS, RALLY_TELEGRAPH } from '../sim/battleground'
+import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
 import { SUNDER_MAX } from '../sim/boss'
@@ -237,6 +237,23 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     const flag = bg.flags[team]
     if (flag.state === 'carried') continue
     const at = worldToScreen(flag.pos)
+
+    // Somebody is lifting it. Without this the rule is invisible: a flag being
+    // taken and a flag standing there are the same picture right up until the
+    // moment it leaves, which gives a defender nothing to answer.
+    if (flag.taking > 0) {
+      ctx.beginPath()
+      ctx.arc(
+        at.x,
+        at.y,
+        FLAG_PICKUP * L.scale,
+        -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * Math.min(1, flag.taking / FLAG_TAKE),
+      )
+      ctx.strokeStyle = COLORS.telegraphEdge
+      ctx.lineWidth = 3
+      ctx.stroke()
+    }
     const lift = flag.state === 'home' ? 0 : Math.sin(clock * 4) * 3
     ctx.fillStyle = teamColour(team)
     ctx.fillRect(at.x - 1.5, at.y - 20 + lift, 3, 20)

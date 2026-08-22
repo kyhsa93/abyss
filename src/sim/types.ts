@@ -399,6 +399,21 @@ export interface BgFlag {
   carrierId: number | null
   /** Seconds a dropped flag waits before returning itself. */
   dropTimer: number
+  /**
+   * How long an enemy has been standing on it, while it is at home.
+   *
+   * A flag used to leave the instant anybody touched it, which meant a guard
+   * could not guard: being there was worth nothing unless it had already
+   * killed the person arriving, and one defender does not kill four attackers.
+   * Standing on it long enough is the same act a capture point already asks
+   * for, and it answers the same way — anybody defending it in reach stops the
+   * clock rather than having to win the fight first.
+   *
+   * Only at home. A flag lying in a field is picked up on touch, because the
+   * fight that dropped it has already happened and making the winner stand
+   * over it for three seconds is making them win it twice.
+   */
+  taking: number
 }
 
 /**
@@ -413,6 +428,49 @@ export interface BgFlag {
 export interface Obstacle {
   pos: Vec2
   radius: number
+}
+
+/**
+ * What one side has decided to do, and when it may decide again.
+ *
+ * The alternative to this is what was here before: every actor answered "where
+ * should I be" from its own index in the team, forever. That is stable — it was
+ * written to stop the AI pacing between two points, and it did — but stable
+ * turned out to mean the match had no decisions in it at all. Nothing in the
+ * assignment read the score, the clock, or where anybody was; ten people walked
+ * to fixed spots and hit each other until a timer ran out. A stand-in that knew
+ * only "walk at whatever we do not own" beat the real thing on every map.
+ *
+ * The pacing bug came from recomputing a *continuous* quantity — distance —
+ * every tick, so a step toward a point reordered the list and sent the actor
+ * back. This recomputes a discrete one, and only when it changes: a point
+ * changing hands, a flag taken or returned, somebody dying. `cooldown` is the
+ * floor on how often that may happen at all, and `target` is what keeps a plan
+ * from swapping the thing it is halfway to reaching.
+ */
+export interface BgPlan {
+  /** Seconds before this side may reconsider, whatever happens. */
+  cooldown: number
+  /**
+   * The board as it was when this plan was made, coarsely.
+   *
+   * Compared as a string against the board now. Deliberately coarse — cart
+   * progress in tenths, no raw contested flag — because a reading that changes
+   * every tick is a reading that plans every tick, which is the bug this
+   * replaces wearing a different hat.
+   */
+  reading: string
+  /**
+   * What this side is currently trying to take, by node id, or -1.
+   *
+   * Held until it is taken rather than re-chosen each time the plan runs. Two
+   * sides that both pick the nearest thing they do not own will each flip a
+   * point, and without this the flip re-points everybody at the other one
+   * before anybody has arrived — the pacing bug again, at one third the speed.
+   */
+  target: number
+  /** How many are held back rather than sent forward. Read by the flag map. */
+  defenders: number
 }
 
 export interface BgState {
@@ -441,8 +499,15 @@ export interface BgState {
   bases: Record<Team, Vec2>
   /** Seconds until each downed actor is back on their feet, keyed by id. */
   respawn: Record<number, number>
+  /** See `BgPlan`. One per side; the enemy plans exactly as you do. */
+  plan: Record<Team, BgPlan>
   /**
-   * The capture point each actor is committed to, by node id, keyed by actor.
+   * What each actor has been given to do, keyed by actor.
+   *
+   * A node id on the capture map. On the other two it is a job rather than a
+   * place — see `JOB_FORWARD` and `JOB_HOME` — because a flag map's two useful
+   * answers are "go and get theirs" and "ours is the one that has to be here",
+   * and neither of those is a fixed point on the floor.
    *
    * Kept until it is taken, lost, or the actor dies, because an objective is a
    * decision rather than a preference: recomputing "which point is nearest"

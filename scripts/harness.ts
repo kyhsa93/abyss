@@ -414,7 +414,18 @@ for (let i = 1; i < detailParty.length; i++) {
 // a side, not a party that played better. Second, does playing well matter:
 // the same match with the player walking objectives should come out ahead of
 // the same match with the player standing at the spawn reading the score.
-const BG_RUNS = 30
+/**
+ * Matches per row below.
+ *
+ * Thirty put two standard errors at about eighteen points, which is wider than
+ * most of the differences these rows are read for — and they were read for
+ * them anyway, including by the round that added the rally. A win rate is a
+ * coin flip counted a few times; at this width, "43% against 57%" is one
+ * sample of the same number twice. Ninety brings it to about ten points, which
+ * is still not small, so a row is worth acting on when it moves further than
+ * that and not before.
+ */
+const BG_RUNS = 90
 
 /**
  * Which way the match is going, as a sign.
@@ -590,7 +601,9 @@ function objectiveGoal(s: SimState) {
 // the lead changed, how often the thing that scores changed hands, and how far
 // around the map the fight actually went.
 console.log(
-  '\nbattleground           player     win%     avgTime  deaths  leadChg  turnover  spread',
+  `\nbattleground           player     win%     avgTime  deaths  leadChg  turnover  spread` +
+    `\n(${BG_RUNS} matches a row; two standard errors on win% is about ` +
+    `${(2 * Math.sqrt(0.25 / BG_RUNS) * 100).toFixed(0)} points)`,
 )
 for (const bg of BATTLEGROUNDS) {
   for (const drive of ['ai', 'objective', 'idle'] as const) {

@@ -56,7 +56,7 @@ const CONQUEST_TARGET = 400
 const CONQUEST_LIMIT = 300
 
 export const BASE_RADIUS = 80
-const FLAG_PICKUP = 46
+export const FLAG_PICKUP = 46
 /**
  * How long a dropped flag waits before returning itself.
  *
@@ -65,8 +65,27 @@ const FLAG_PICKUP = 46
  * running to without letting one loose flag lock the match.
  */
 const FLAG_RESET = 5
-const FLAG_TARGET = 3
-const FLAG_LIMIT = 360
+
+/**
+ * How long an enemy has to stand on a flag at home before it comes off.
+ *
+ * See `BgFlag.taking`. Short enough that an undefended flag is still gone —
+ * this is not a second capture point — and long enough that somebody standing
+ * there is a reason to bring more people.
+ */
+export const FLAG_TAKE = 2.5
+
+/**
+ * How many captures win it, and how long before the score decides.
+ *
+ * Three and three hundred and sixty, until the harness was asked how long a
+ * match actually took: forty-five seconds. The limit was not a limit, it was a
+ * number no match ever reached, and a map with a clock nobody can run out is a
+ * map with no reason to hurry. Four and a hundred and eighty are both reachable
+ * — a side that cannot cap has to stop the other one before the clock does.
+ */
+const FLAG_TARGET = 4
+const FLAG_LIMIT = 180
 
 /**
  * Seconds on your back before you are up again at your own base.
@@ -104,7 +123,7 @@ const SLOWED_MULTIPLIER = 2
 const RALLY_SCHEDULE: Record<BgKind, { at: number; window: number }> = {
   conquest: { at: 85, window: 30 },
   escort: { at: 50, window: 26 },
-  flags: { at: 20, window: 16 },
+  flags: { at: 38, window: 20 },
 }
 
 /**
@@ -462,6 +481,10 @@ export function createBattleground(kind: BgKind, rng: Rng): BgState {
         : { blue: flagAtHome('blue'), red: flagAtHome('red') },
     bases,
     respawn: {},
+    plan: {
+      blue: { cooldown: 0, reading: '', target: -1, defenders: 0 },
+      red: { cooldown: 0, reading: '', target: -1, defenders: 0 },
+    },
     assignment: {},
     objectives: {},
   }
@@ -474,6 +497,7 @@ function flagAtHome(team: Team): BgFlag {
     pos: { ...BASES[team] },
     carrierId: null,
     dropTimer: 0,
+    taking: 0,
   }
 }
 
@@ -701,29 +725,53 @@ function updateFlags(s: SimState, bg: BgState): void {
       if (flag.dropTimer <= 0) {
         flag.state = 'home'
         flag.pos = { ...bg.bases[team] }
+        flag.taking = 0
         continue
       }
     }
 
-    if (flag.state === 'home' || flag.state === 'dropped') {
+    if (flag.state === 'dropped') {
       for (const a of living(s, teams[0]).concat(living(s, teams[1]))) {
         if (dist(a.pos, flag.pos) > FLAG_PICKUP) continue
-        const mine = teamOf(a) === team
 
-        // Your own flag on the floor goes straight back; theirs gets picked up.
-        if (mine) {
-          if (flag.state === 'dropped') {
-            flag.state = 'home'
-            flag.pos = { ...bg.bases[team] }
-            bg.objectives[a.id] = (bg.objectives[a.id] ?? 0) + 1
-          }
-          continue
+        // Your own flag on the floor goes straight back; theirs is picked up
+        // on touch, because whoever is standing over it has already won the
+        // fight that put it there.
+        if (teamOf(a) === team) {
+          flag.state = 'home'
+          flag.pos = { ...bg.bases[team] }
+          flag.taking = 0
+          bg.objectives[a.id] = (bg.objectives[a.id] ?? 0) + 1
+          break
         }
         flag.state = 'carried'
         flag.carrierId = a.id
         flag.pos.x = a.pos.x
         flag.pos.y = a.pos.y
         break
+      }
+    } else if (flag.state === 'home') {
+      // At home it has to be stood on, and anybody defending it stops that.
+      const reach = living(s, teams[0])
+        .concat(living(s, teams[1]))
+        .filter((a) => dist(a.pos, flag.pos) <= FLAG_PICKUP)
+      const takers = reach.filter((a) => teamOf(a) !== team)
+      const guards = reach.length - takers.length
+
+      if (takers.length === 0 || guards > 0) {
+        // Lost faster than it is earned, so trading the circle back and forth
+        // is not a way of taking a flag one second at a time.
+        flag.taking = Math.max(0, flag.taking - DT * 2)
+      } else {
+        flag.taking += DT
+        if (flag.taking >= FLAG_TAKE) {
+          const taker = takers[0]!
+          flag.state = 'carried'
+          flag.carrierId = taker.id
+          flag.pos.x = taker.pos.x
+          flag.pos.y = taker.pos.y
+          flag.taking = 0
+        }
       }
     }
   }
@@ -744,6 +792,7 @@ function updateFlags(s: SimState, bg: BgState): void {
     bg.objectives[carrier.id] = (bg.objectives[carrier.id] ?? 0) + 1
     theirs.state = 'home'
     theirs.carrierId = null
+    theirs.taking = 0
     theirs.pos = { ...bg.bases[other(team)] }
   }
 }

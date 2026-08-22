@@ -106,6 +106,8 @@ import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/enc
 import {
   BASE_RADIUS,
   BATTLEGROUNDS,
+  FLAG_PICKUP,
+  FLAG_TAKE,
   NODE_RADIUS,
   RALLY_RADIUS,
   RALLY_TELEGRAPH,
@@ -3851,11 +3853,51 @@ for (const bg of BATTLEGROUNDS) {
   const bg = s.bg!
   const runner = s.actors.find((a) => teamOf(a) === 'blue' && !a.isPlayer)!
 
-  // Standing on their flag takes it; standing on your own does not.
-  runner.pos = { ...bg.flags.red.pos }
-  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  // A flag at home is lifted by standing on it rather than by touching it, so
+  // every one of these has to hold the runner there while the clock runs. Red
+  // is held away from its own base throughout, since the whole team spawns on
+  // top of the flag it defends and one of them in reach is enough to stop it.
+  const clearRed = (): void => {
+    for (const a of s.actors) {
+      if (teamOf(a) !== 'red') continue
+      a.pos.x = -300
+      a.pos.y = 300
+    }
+  }
+
+  /** Ticks it took, or -1 if it never came off. */
+  const lift = (): number => {
+    for (let tick = 0; tick < 150; tick++) {
+      clearRed()
+      runner.pos = { ...bg.flags.red.pos }
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      if (bg.flags.red.state === 'carried') return tick
+    }
+    return -1
+  }
+
+  // Defended first, because the undefended case leaves it carried.
+  {
+    const guard = s.actors.find((a) => teamOf(a) === 'red')!
+    for (let tick = 0; tick < 120; tick++) {
+      clearRed()
+      guard.pos = { ...bg.flags.red.pos }
+      runner.pos = { ...bg.flags.red.pos }
+      // Held up rather than fought out: what is being asserted is the rule,
+      // not who wins a duel over four seconds.
+      guard.hp = guard.maxHp
+      runner.hp = runner.maxHp
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('a defended flag stays put', bg.flags.red.state === 'home', bg.flags.red.state)
+    expect('and the taker is still there', runner.alive && guard.alive, 'somebody died')
+  }
+
+  const lifted = lift()
   expect('their flag can be taken', bg.flags.red.carrierId === runner.id, `${bg.flags.red.carrierId}`)
   expect('and rides its carrier', bg.flags.red.state === 'carried', bg.flags.red.state)
+  // The point of the whole rule: undefended it still goes, but not for free.
+  expect('but not on touch', lifted > 30, `${lifted} ticks`)
 
   // Carrying it home scores, but only while your own flag is still standing.
   bg.flags.blue.state = 'dropped'
@@ -3876,8 +3918,7 @@ for (const bg of BATTLEGROUNDS) {
   // flags stay out for the whole match — which is what happened.
   {
     const other = s.actors.find((a) => teamOf(a) === 'red')!
-    runner.pos = { ...bg.flags.red.pos }
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    lift()
     expect('carrying it is a handicap', carrying(s, runner) && !carrying(s, other), 'wrong carrier')
 
     const hp = runner.hp
@@ -3891,8 +3932,7 @@ for (const bg of BATTLEGROUNDS) {
   }
 
   // A carrier that dies drops it where they fell rather than teleporting it.
-  runner.pos = { ...bg.flags.red.pos }
-  step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  lift()
   runner.pos = { x: 40, y: 40 }
   step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
   const where = { ...bg.flags.red.pos }
@@ -3907,6 +3947,27 @@ for (const bg of BATTLEGROUNDS) {
   // And it does not sit there long. Fifteen seconds of nobody able to score
   // is most of why a match locked up.
   expect('and returns itself soon', bg.flags.red.dropTimer <= 6, `${bg.flags.red.dropTimer}`)
+}
+
+// A flag being lifted has to look different from a flag standing there, or the
+// rule that makes a defender worth anything is one a defender cannot see.
+{
+  const s = createBattlegroundState(0x51ed, 'flags')
+  s.countdown = 0
+  const bg = s.bg!
+  const wanted = FLAG_PICKUP * L.scale
+
+  const rings = (): number => {
+    const circles: Circle[] = []
+    drawWorld(recordingCtx(circles), s, 1, s.time, new Effects())
+    return circles.filter((c) => Math.abs(c.r - wanted) < wanted * 0.2).length
+  }
+
+  const quiet = rings()
+  bg.flags.red.taking = FLAG_TAKE * 0.5
+  expect('a flag being lifted shows it', rings() === quiet + 1, `${quiet} then ${rings()}`)
+  bg.flags.red.taking = 0
+  expect('and stops when it is let go', rings() === quiet, `${quiet} then ${rings()}`)
 }
 
 // --- the rally ---------------------------------------------------------------

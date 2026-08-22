@@ -16,7 +16,7 @@ import {
 } from './battleground'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
-import type { Actor, AuraId, BgState, SimState, Team, Vec2 } from './types'
+import type { Actor, AuraId, BgPlan, BgState, SimState, Team, Vec2 } from './types'
 
 /**
  * Everyone in a battleground who is not the player, on both sides.
@@ -65,6 +65,260 @@ const CARRY_LEASH = 30
 
 /** A dealer will cross the map for someone this hurt. */
 const FINISHABLE = 0.35
+
+/**
+ * The two jobs a plan can hand out where there is no point to stand on.
+ *
+ * Negative so they can never collide with a node id, which is what
+ * `assignment` holds on the capture map.
+ */
+export const JOB_FORWARD = -1
+export const JOB_HOME = -2
+
+/**
+ * The floor on how often a side may change its mind.
+ *
+ * Long enough that a plan survives being walked to. The failure this guards
+ * against is not planning badly, it is planning again before the last plan has
+ * had time to happen — an actor sent to a point twelve seconds away and
+ * re-sent somewhere else after four has spent the whole match travelling.
+ */
+const REPLAN_COOLDOWN = 4
+
+/**
+ * Both sides' plans, once a tick.
+ *
+ * Called from `step` rather than from the per-actor update, because a plan is
+ * the team's and running it five times would be five plans. The enemy plans on
+ * exactly the same code, for the reason everything else here does: a
+ * battleground where the other team plays worse than yours is a slower version
+ * of a training dummy.
+ */
+export function updateBattlegroundPlans(s: SimState): void {
+  const bg = s.bg
+  if (!bg) return
+  for (const team of ['blue', 'red'] as const) replan(s, bg, team)
+}
+
+/**
+ * The board, coarsely, as something to compare against last time.
+ *
+ * Everything in here is discrete and slow: who owns what, how many of us are
+ * standing, what the flags are doing, roughly how far the carts have got. What
+ * is deliberately *not* in here is anything that flickers — whether a point is
+ * contested this tick, exact positions, exact progress — because a reading
+ * that changes every tick plans every tick, and planning every tick is the bug
+ * this whole arrangement exists to avoid.
+ */
+function reading(s: SimState, bg: BgState, team: Team): string {
+  const parts: string[] = [`n${living(s, team).length}`, `e${living(s, other(team)).length}`]
+  if (bg.kind === 'conquest') parts.push(bg.nodes.map((n) => n.owner ?? '-').join(''))
+  if (bg.kind === 'flags') {
+    parts.push(
+      (['blue', 'red'] as const)
+        .map((t) => `${bg.flags[t].state[0]}${bg.flags[t].carrierId === null ? '' : 'c'}`)
+        .join(''),
+      `s${Math.floor(bg.score[team])}${Math.floor(bg.score[other(team)])}`,
+    )
+  }
+  if (bg.kind === 'escort' && bg.carts) {
+    parts.push(
+      (['blue', 'red'] as const).map((t) => Math.floor(bg.carts![t].progress * 10)).join(''),
+    )
+  }
+  parts.push(bg.rally.settled ? 'r-' : bg.rally.telegraph <= RALLY_TELEGRAPH ? 'r+' : 'r.')
+  return parts.join('|')
+}
+
+/**
+ * Takes the nearest of the pool to a place, and removes it.
+ *
+ * Jobs used to go out in team order, which is an order that means nothing on
+ * the floor: whoever happened to be built first drew the first job whether
+ * they were standing on it or across the map from it. Worse on blue, where the
+ * first slot is always the player's — so the player was posted to a quiet
+ * corner of every capture map they ever played while the other four went and
+ * had the match.
+ *
+ * Ties go to whoever comes first in the pool, which keeps this reproducible
+ * from the seed like everything else here.
+ */
+function claimNearest(pool: Actor[], to: Vec2): Actor | null {
+  let best: Actor | null = null
+  let bestGap = Infinity
+  for (const a of pool) {
+    const gap = dist(a.pos, to)
+    if (gap < bestGap) {
+      bestGap = gap
+      best = a
+    }
+  }
+  if (best) pool.splice(pool.indexOf(best), 1)
+  return best
+}
+
+/**
+ * Fills a number of posts, keeping whoever is already standing one.
+ *
+ * Proximity alone is right for choosing a post and wrong for keeping one. A
+ * flag map re-picking its guard by "closest to home" every time the board
+ * moved handed the job to whoever happened to be walking back at that instant,
+ * took it off them the moment somebody else was nearer, and left the flag
+ * unwatched between the two — which cost more than the old fixed order it was
+ * meant to improve on. Keeping the incumbent is what makes the job a post
+ * rather than a description of where somebody is standing.
+ */
+function fillPosts(
+  bg: BgState,
+  pool: Actor[],
+  count: number,
+  near: Vec2,
+  was: Map<number, number | undefined>,
+): void {
+  let filled = 0
+  for (const a of [...pool]) {
+    if (filled >= count) break
+    if (was.get(a.id) !== JOB_HOME) continue
+    bg.assignment[a.id] = JOB_HOME
+    pool.splice(pool.indexOf(a), 1)
+    filled++
+  }
+  while (filled < count) {
+    const chosen = claimNearest(pool, near)
+    if (!chosen) break
+    bg.assignment[chosen.id] = JOB_HOME
+    filled++
+  }
+}
+
+function replan(s: SimState, bg: BgState, team: Team): void {
+  const plan = bg.plan[team]
+  plan.cooldown = Math.max(0, plan.cooldown - DT)
+  if (plan.cooldown > 0) return
+
+  const now = reading(s, bg, team)
+  if (now === plan.reading) return
+  plan.reading = now
+  plan.cooldown = REPLAN_COOLDOWN
+
+  if (bg.kind === 'conquest') planConquest(s, bg, team, plan)
+  else if (bg.kind === 'flags') planFlags(s, bg, team, plan)
+  else planEscort(s, bg, team, plan)
+}
+
+/**
+ * One body on each point we hold, and everybody else on one point we do not.
+ *
+ * The rule it replaces spread the team evenly over all three points forever,
+ * whoever owned them, which meant a side that already held a point kept two
+ * people standing on something nobody was contesting while a neutral one went
+ * untaken. Holding is worth exactly one body — a point pays while it is held
+ * and a second defender adds nothing to that — and everything spare is worth
+ * more where the bar is not yet over, because the capture rate goes up with
+ * numbers and a four-stack takes a point in a third of the time one does.
+ *
+ * The target is kept until it is ours. Both sides pick the nearest thing they
+ * do not own, so both flip one at about the same moment, and re-choosing on
+ * every flip pointed everybody at the other end of the map before anybody had
+ * arrived at this one.
+ */
+function planConquest(s: SimState, bg: BgState, team: Team, plan: BgPlan): void {
+  const mine = living(s, team)
+  if (mine.length === 0) return
+
+  const byDistance = [...bg.nodes].sort(
+    (a, b) => dist(bg.bases[team], a.pos) - dist(bg.bases[team], b.pos),
+  )
+  const held = byDistance.filter((n) => n.owner === team)
+
+  const current = bg.nodes.find((n) => n.id === plan.target)
+  const wanted =
+    current && current.owner !== team
+      ? current
+      : (byDistance.find((n) => n.owner !== team) ?? byDistance[0]!)
+  plan.target = wanted.id
+
+  // A garrison never larger than the team, or nobody would ever go anywhere,
+  // and each post filled by whoever is already closest to it.
+  const garrison = Math.min(held.length, Math.max(0, mine.length - 1))
+  const pool = [...mine]
+  for (let i = 0; i < garrison; i++) {
+    const post = held[i]!
+    const keeper = claimNearest(pool, post.pos)
+    if (keeper) bg.assignment[keeper.id] = post.id
+  }
+  for (const actor of pool) bg.assignment[actor.id] = wanted.id
+}
+
+/**
+ * Somebody stays home.
+ *
+ * Nobody ever did. Both sides ran the whole way to the other base, passed each
+ * other in the middle, and ran back, so a carrier was intercepted almost only
+ * by accident: eight pickups a match, four captures, and a match that finished
+ * in forty-odd seconds against a limit of three hundred and sixty. A flag map
+ * where the flag cannot be defended is a relay race.
+ *
+ * More of them when ahead, because a side that is ahead wins by the clock and
+ * a side that is behind cannot afford anybody standing still — which is the
+ * first thing on any of these maps that the score itself decides.
+ */
+function planFlags(s: SimState, bg: BgState, team: Team, plan: BgPlan): void {
+  const mine = living(s, team)
+  if (mine.length === 0) return
+
+  const ours = bg.flags[team]
+  const theirs = bg.flags[other(team)]
+  const weHoldTheirs =
+    theirs.state === 'carried' &&
+    s.actors.some((a) => a.id === theirs.carrierId && a.alive && teamOf(a) === team)
+
+  let home: number
+  if (ours.state !== 'home') {
+    // Ours is out and nothing scores until it is back. When theirs is already
+    // in our hands that makes recovery the whole team's job bar the escort;
+    // when it is not, some of us still go and take theirs, because the two
+    // halves of a capture are "get ours back" and "have theirs when it lands",
+    // and a side that only ever does the first one has to do the second from a
+    // standing start every time.
+    home = weHoldTheirs ? mine.length - 1 : Math.ceil(mine.length * 0.6)
+  } else {
+    home = Math.floor(bg.score[team]) > Math.floor(bg.score[other(team)]) ? 2 : 1
+  }
+  plan.defenders = Math.max(0, Math.min(mine.length, home))
+
+  // A carrier is nobody's defender: what it is holding outranks the plan.
+  const was = new Map(mine.map((a) => [a.id, bg.assignment[a.id]]))
+  const pool = mine.filter((a) => !carrying(s, a))
+  for (const a of mine) bg.assignment[a.id] = JOB_FORWARD
+  fillPosts(bg, pool, plan.defenders, bg.bases[team], was)
+}
+
+/**
+ * Push or block, decided by which cart is winning rather than by seniority.
+ *
+ * The split itself is the one that was here — most of the team with its own
+ * cart, a couple in front of the other — but it is chosen once per event now
+ * instead of read off each actor's index, so being one body down changes it and
+ * being ahead frees somebody to go and stop theirs.
+ */
+function planEscort(s: SimState, bg: BgState, team: Team, plan: BgPlan): void {
+  const carts = bg.carts
+  const mine = living(s, team)
+  if (!carts || mine.length === 0) return
+
+  const ours = carts[team]
+  const theirs = carts[other(team)]
+  const behind = ours.progress < theirs.progress - 0.08
+  const ahead = ours.progress > theirs.progress + 0.08
+  const blockers = Math.min(mine.length - 1, behind ? 1 : ahead ? 3 : 2)
+  plan.defenders = Math.max(0, blockers)
+
+  const was = new Map(mine.map((a) => [a.id, bg.assignment[a.id]]))
+  const pool = [...mine]
+  for (const a of mine) bg.assignment[a.id] = JOB_FORWARD
+  fillPosts(bg, pool, plan.defenders, theirs.pos, was)
+}
 
 /**
  * Where the AI would take this actor, exposed for the harness.
@@ -152,6 +406,10 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
     !carrying(s, actor)
   if (called) return { pos: rally.pos, hold: rally.radius * 0.66 }
 
+  // What the plan gave this one. See `updateBattlegroundPlans`.
+  const job = bg.assignment[actor.id]
+  const held = job === JOB_HOME
+
   if (bg.kind === 'flags') {
     // An errand on the flag map: go there, and let the fight happen there
     // rather than wherever the nearest enemy has wandered off to.
@@ -164,29 +422,24 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
       return { pos: bg.bases[team], hold: CARRY_LEASH }
     }
 
-    // Our flag is out, so nothing we do on offence can score until it is
-    // back. Who goes depends on whether we are also holding theirs.
     if (ours.state !== 'home') {
+      // Ours is out and nothing this side does scores until it is back, so
+      // whoever the plan held back goes and gets it. Both flags out is the
+      // state that used to lock a match solid — neither side able to cap while
+      // three dealers escorted a carrier with nowhere to score — and the plan
+      // answers it by holding back all but the escort.
       const carrier = ours.carrierId
         ? s.actors.find((a) => a.id === ours.carrierId && a.alive)
         : null
-
-      // Both flags out is the state that used to lock a match solid: neither
-      // side can cap, and only the tank and the healer were going to do
-      // anything about it while three dealers escorted a carrier who had
-      // nowhere to score. Standing still is a loss for both sides, so when we
-      // already hold theirs, everyone but one escort goes to get ours back.
-      const weHoldTheirs =
-        theirs.state === 'carried' &&
-        s.actors.some((a) => a.id === theirs.carrierId && a.alive && teamOf(a) === team)
-      const escort = weHoldTheirs && actor.role === 'healer'
-      const chaseIsMine = weHoldTheirs ? !escort : actor.role === 'tank' || actor.role === 'healer'
-
-      if (carrier) {
-        if (chaseIsMine) return errand(carrier.pos)
-      } else if (ours.state === 'dropped' && chaseIsMine) {
-        return errand(ours.pos)
+      if (held) {
+        if (carrier) return errand(carrier.pos)
+        if (ours.state === 'dropped') return errand(ours.pos)
       }
+    } else if (held) {
+      // Ours is home and this one is what keeps it that way. On it rather than
+      // near it: a flag is taken by touching it, so a guard standing off to one
+      // side is a guard watching it leave.
+      return errand(ours.pos)
     }
 
     // Healers stay with whoever is carrying ours forward.
@@ -199,47 +452,33 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
   }
 
   if (bg.kind === 'escort' && bg.carts) {
-    // Three walk with ours, two stand in front of theirs. Split by place in
-    // the team rather than by anything that changes, because an assignment
-    // that moves is an assignment that paces — which is how the capture map
-    // broke twice.
-    const ours = bg.carts[team]
-    const theirs = bg.carts[other(team)]
-
-    // Whoever is ahead can spare somebody to block; whoever is behind cannot.
-    const behind = ours.progress < theirs.progress - 0.08
-    const blocking = index < (behind ? 1 : 2)
-
+    // Most of the team with its own cart, the rest in front of the other one.
+    // Which of the two this is comes from the plan rather than from this
+    // actor's place in the team, so being a body down changes it and being
+    // ahead frees somebody to go and stop theirs.
+    //
     // The objective moves, so the leash goes around the cart rather than
     // around a fixed circle on the floor.
-    return { pos: blocking ? theirs.pos : ours.pos, hold: CART_RADIUS * 0.72 }
+    const pos = held ? bg.carts[other(team)].pos : bg.carts[team].pos
+    return { pos, hold: CART_RADIUS * 0.72 }
   }
 
-  // Conquest.
+  // Conquest. The plan names a point; this walks to it.
   //
-  // Every actor is assigned a point and stays on it, whoever owns it. Holding
-  // one is defending it, and defending it is how it keeps paying — so there is
-  // no separate "go and defend" rule, which is the shape that broke this
-  // twice.
-  //
-  // First it sorted the points by distance from the actor and indexed into
-  // that list, so a step toward one reordered the list, reassigned the actor
-  // and sent it back: ten AI pacing between two points for whole matches,
-  // covering four percent of the ground they walked. Committing to a point
-  // fixed the pacing and introduced the opposite failure — a contested point
-  // called the whole team to it, both teams answered, and nine people stood on
-  // one circle for three minutes while the other two sat unattended.
-  //
-  // A fixed split has neither problem. Five people over three points is
-  // two-two-one and stays that way, so nothing is ever unattended and nobody
-  // walks anywhere to find that out.
-  const ordered = [...bg.nodes].sort(
-    (a, b) => dist(bg.bases[team], a.pos) - dist(bg.bases[team], b.pos),
-  )
-  if (ordered.length === 0) return free(actor.pos)
-
-  const chosen = ordered[index % ordered.length]!
-  bg.assignment[actor.id] = chosen.id
+  // What it used to do was index into the points sorted by distance, which is
+  // stable and answers nothing: a side already holding a point kept two people
+  // standing on something nobody was contesting while a neutral one went
+  // untaken. Two earlier versions did read the board, and both thrashed —
+  // sorting by distance from the actor meant a step toward a point reordered
+  // the list and sent it back, and calling everybody to a contested point put
+  // nine people on one circle while the other two sat unattended. The plan is
+  // where that judgement lives now, on a cooldown and off discrete events.
+  const chosen =
+    bg.nodes.find((n) => n.id === job) ??
+    [...bg.nodes].sort(
+      (a, b) => dist(bg.bases[team], a.pos) - dist(bg.bases[team], b.pos),
+    )[0]
+  if (!chosen) return free(actor.pos)
   return point(chosen.pos)
 }
 
