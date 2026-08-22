@@ -107,6 +107,8 @@ import {
   BASE_RADIUS,
   BATTLEGROUNDS,
   NODE_RADIUS,
+  RALLY_RADIUS,
+  RALLY_TELEGRAPH,
   carrying,
   held,
   inTerrain,
@@ -3823,7 +3825,17 @@ for (const bg of BATTLEGROUNDS) {
   }
 
   // One team alone takes it, and only pays once it is all the way over.
-  red.alive = false
+  //
+  // Every red is moved off rather than one being killed. The other four are
+  // driven, and red's own distance ordering assigns one of them to this very
+  // point, so whether anybody arrives to contest it came down to which classes
+  // that match happened to roll — which made this check pass or fail on a roll
+  // it never meant to depend on.
+  for (const a of s.actors.filter((o) => teamOf(o) === 'red')) {
+    a.alive = false
+    a.pos.x = 900
+    a.pos.y = 900
+  }
   const scoreBefore = bg.score.blue
   // Long enough to cross the whole bar: a point pays only once it is all the
   // way over, and it starts this test half way.
@@ -3895,6 +3907,82 @@ for (const bg of BATTLEGROUNDS) {
   // And it does not sit there long. Fifteen seconds of nobody able to score
   // is most of why a match locked up.
   expect('and returns itself soon', bg.flags.red.dropTimer <= 6, `${bg.flags.red.dropTimer}`)
+}
+
+// --- the rally ---------------------------------------------------------------
+//
+// The one thing on a battleground's clock, and therefore the one thing on a
+// battleground that can be built, wired into the AI and shipped without ever
+// appearing: it spends most of a match not existing, so "nothing was drawn" is
+// its resting state and a stub context has nothing to throw. The circles are
+// recorded and asserted at each of the three states it has.
+for (const kind of ['conquest', 'escort', 'flags'] as const) {
+  const s = createBattlegroundState(0x51ed, kind)
+  s.countdown = 0
+  const bg = s.bg!
+
+  expect(
+    `${kind} rally: on the fair axis`,
+    Math.abs(bg.rally.pos.x) < 0.001,
+    `x = ${bg.rally.pos.x}`,
+  )
+  expect(
+    `${kind} rally: and off the middle`,
+    Math.abs(bg.rally.pos.y) > RALLY_RADIUS,
+    `y = ${bg.rally.pos.y}`,
+  )
+  expect(
+    `${kind} rally: no rock on it`,
+    bg.obstacles.every(
+      (rock) =>
+        Math.hypot(rock.pos.x - bg.rally.pos.x, rock.pos.y - bg.rally.pos.y) >
+        rock.radius + RALLY_RADIUS,
+    ),
+    'a rock is standing in the rally',
+  )
+
+  const at = (telegraph: number, settled: boolean): Circle[] => {
+    bg.rally.telegraph = telegraph
+    bg.rally.settled = settled
+    const circles: Circle[] = []
+    drawWorld(recordingCtx(circles), s, 1, s.time, new Effects())
+    return circles
+  }
+
+  // Counted rather than located. A capture point is 105 across and a cart's
+  // circle the same, so a radius-only match calls every conquest and escort
+  // map a rally — including in the two states where the right answer is that
+  // nothing was drawn at all — and the position it would have to be matched
+  // against is behind a camera this file cannot reach.
+  //
+  // Counting works because nothing else differs: the same state is rendered
+  // four times over and the only fields touched between renders are the
+  // rally's own two. So the ring it puts on the floor is exactly one more
+  // circle of its own size than the renders where it is not there.
+  const wanted = RALLY_RADIUS * L.scale
+  const rings = (circles: Circle[]): number =>
+    circles.filter((c) => Math.abs(c.r - wanted) < wanted * 0.25).length
+
+  const quiet = rings(at(RALLY_TELEGRAPH + 20, false))
+  const warning = rings(at(RALLY_TELEGRAPH * 0.5, false))
+  const live = rings(at(0, false))
+  const done = rings(at(0, true))
+
+  expect(
+    `${kind} rally: the warning is drawn`,
+    warning === quiet + 1,
+    `${quiet} rings without it, ${warning} with the warning up`,
+  )
+  expect(
+    `${kind} rally: and it is drawn live`,
+    live === quiet + 1,
+    `${quiet} rings without it, ${live} live`,
+  )
+  expect(
+    `${kind} rally: nothing once it settles`,
+    done === quiet,
+    `${quiet} rings before it exists, ${done} after it is over`,
+  )
 }
 
 // The escort's own rules: a thing that rolls while you keep it company.

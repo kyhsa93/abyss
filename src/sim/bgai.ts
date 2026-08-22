@@ -6,6 +6,7 @@ import {
   CARRIER_SPEED,
   CART_RADIUS,
   NODE_RADIUS,
+  RALLY_TELEGRAPH,
   carrying,
   clearTerrain,
   inTerrain,
@@ -131,6 +132,25 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
   // Inside two thirds of the circle, so a leashed fight still has room to
   // move rather than everyone standing on the same pixel.
   const point = (pos: Vec2): Goal => ({ pos, hold: NODE_RADIUS * 0.66 })
+  const index = s.actors.filter((a) => teamOf(a) === team).indexOf(actor)
+
+  // The rally outranks whatever the map itself is asking for, while it is up.
+  //
+  // Not everybody: the last of the five stays on the map, because a rally that
+  // empties both sides of the board is thirty seconds in which the match it
+  // interrupts does not exist. The one left behind is the last index rather
+  // than the first, since blue's first is the player's slot and a mechanic the
+  // player is quietly excused from is a mechanic they never see.
+  //
+  // A carrier is excused too, and only a carrier. Everything a rally is worth
+  // is worth less than the flag already in your hands.
+  const rally = bg.rally
+  const called =
+    !rally.settled &&
+    rally.telegraph <= RALLY_TELEGRAPH &&
+    index < s.actors.filter((a) => teamOf(a) === team).length - 1 &&
+    !carrying(s, actor)
+  if (called) return { pos: rally.pos, hold: rally.radius * 0.66 }
 
   if (bg.kind === 'flags') {
     // An errand on the flag map: go there, and let the fight happen there
@@ -183,7 +203,6 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
     // the team rather than by anything that changes, because an assignment
     // that moves is an assignment that paces — which is how the capture map
     // broke twice.
-    const index = s.actors.filter((a) => teamOf(a) === team).indexOf(actor)
     const ours = bg.carts[team]
     const theirs = bg.carts[other(team)]
 
@@ -219,7 +238,6 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
   )
   if (ordered.length === 0) return free(actor.pos)
 
-  const index = s.actors.filter((a) => teamOf(a) === team).indexOf(actor)
   const chosen = ordered[index % ordered.length]!
   bg.assignment[actor.id] = chosen.id
   return point(chosen.pos)

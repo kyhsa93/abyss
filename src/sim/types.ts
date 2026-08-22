@@ -357,6 +357,41 @@ export interface BgNode {
   contested: boolean
 }
 
+/**
+ * The one thing on a battleground's clock.
+ *
+ * A boss is a script: phases at known health, a telegraph before every hit, an
+ * enrage at a known second, and the whole of learning one is learning when
+ * things happen. A battleground had none of that — five people you cannot
+ * predict, a scoring formula, and three hundred seconds in which every second
+ * was the same as every other. The file that runs them says the rules have to
+ * supply the shape the script used to; this is that shape.
+ *
+ * It arrives at a fixed fraction of the match, warns before it counts, and
+ * lasts a fixed window. Both sides know where and when, which is what makes it
+ * a decision rather than an event: everything you leave to come here is
+ * something the other side can take while you do.
+ *
+ * It sits on the perpendicular bisector of the two bases — always x = 0, never
+ * the centre — so it is exactly as far from one base as the other, and far
+ * enough off the middle that answering it moves the fight somewhere it would
+ * not otherwise have gone.
+ */
+export interface BgRally {
+  pos: Vec2
+  radius: number
+  /** Seconds until it counts. Above zero it is a warning and nothing else. */
+  telegraph: number
+  /** Seconds left of the window, once it is live. */
+  remaining: number
+  /** -1 fully red, +1 fully blue, exactly as a capture point reads. */
+  progress: number
+  owner: Team | null
+  contested: boolean
+  /** Set when the window closes and the payout has been handed out, once. */
+  settled: boolean
+}
+
 export interface BgFlag {
   team: Team
   state: 'home' | 'carried' | 'dropped'
@@ -386,6 +421,17 @@ export interface BgState {
   target: number
   /** Seconds before the higher score wins outright. */
   timeLimit: number
+  /** See `BgRally`. Every mode has one; it is the same mechanic in all three. */
+  rally: BgRally
+  /**
+   * Seconds of doubled respawn each side still owes, for losing the rally.
+   *
+   * The payout is time rather than score because the three modes do not score
+   * alike — a capture point pays by the second, a flag pays in whole caps —
+   * and a reward that has to be denominated three ways is three mechanics
+   * wearing one name. Bodies are the currency all three actually run on.
+   */
+  slowed: Record<Team, number>
   nodes: BgNode[]
   /** One per side in an escort, empty otherwise. */
   carts: Record<Team, BgCart> | null

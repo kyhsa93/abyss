@@ -6,6 +6,7 @@ import type {
   BgCart,
   BgFlag,
   BgKind,
+  BgRally,
   BgState,
   Obstacle,
   SimState,
@@ -67,8 +68,110 @@ const FLAG_RESET = 5
 const FLAG_TARGET = 3
 const FLAG_LIMIT = 360
 
-/** Seconds on your back before you are up again at your own base. */
-const RESPAWN = 12
+/**
+ * Seconds on your back before you are up again at your own base.
+ *
+ * It grows across the match rather than sitting still. Every second of a
+ * battleground used to cost exactly what every other second cost, which is
+ * what made the last minute of one indistinguishable from the first: a fight
+ * lost at ten seconds and the same fight lost at two hundred and ninety were
+ * both worth twelve seconds of walking. A death late is meant to be the one
+ * you cannot take back.
+ */
+const RESPAWN_EARLY = 10
+const RESPAWN_LATE = 17
+
+/** What losing the rally does to a respawn, while the penalty lasts. */
+const SLOWED_MULTIPLIER = 2
+
+/**
+ * When the rally lands, and how long it is worth standing there, per mode.
+ *
+ * Seconds rather than a fraction of the time limit, because two of the three
+ * limits are not what their matches run to. A flag match finishes around
+ * forty-five seconds against a limit of three hundred and sixty, so a rally
+ * placed at forty-five percent of the limit landed a hundred and twenty
+ * seconds after the match it was supposed to interrupt had already ended —
+ * the mechanic was in the build, in the state and in the AI, and the only
+ * thing the numbers showed was that nothing had changed.
+ *
+ * These come off the harness's own match lengths: a little before the halfway
+ * point of a typical one, with a window sized so that it is an interruption
+ * rather than the match. They are worth re-reading whenever a mode's pace
+ * moves, and the reason they are one table instead of one number is that
+ * these three paces have never been alike.
+ */
+const RALLY_SCHEDULE: Record<BgKind, { at: number; window: number }> = {
+  conquest: { at: 85, window: 30 },
+  escort: { at: 50, window: 26 },
+  flags: { at: 20, window: 16 },
+}
+
+/**
+ * How long before it counts that it can be seen and answered.
+ *
+ * `telegraph` on the rally counts all the way down from the start of the
+ * match, because it is one clock and a second one would be a second thing to
+ * keep honest. This is the part of that countdown that is the warning: below
+ * it the circle is drawn and the AI starts walking, above it there is nothing
+ * on the floor at all. Long enough to cross the map, which is the point of it.
+ */
+export const RALLY_TELEGRAPH = 9
+
+export const RALLY_RADIUS = 120
+
+/**
+ * How far the bar has to lean before it counts as somebody's.
+ *
+ * A capture point has to be taken outright, because it pays by the second for
+ * as long as it is held and a point that paid for being nearly held would pay
+ * both sides at once. The rally pays once, at the end, so what it has to
+ * answer is a different question — not "who owns this" but "who had the better
+ * of it" — and requiring the full bar answered neither: four against four
+ * never produces the numbers advantage the bar moves on, so half of all
+ * rallies expired untouched at dead level and the mechanic did nothing at all.
+ *
+ * A deadband rather than a bare sign, so that a genuine standstill still pays
+ * nobody. Two sides that spent the window holding each other off have bought
+ * the same nothing, and that is the price of not winning rather than a bug.
+ */
+const RALLY_DECIDED = 0.12
+
+/** Seconds of doubled respawn the losing side owes afterwards. */
+const RALLY_PENALTY = 45
+
+/**
+ * What winning it is worth, in the currency the mode already counts.
+ *
+ * The respawn penalty alone was not worth leaving the map for, and the harness
+ * said so plainly: a stand-in that ignored the rally entirely and kept playing
+ * the objective won more than eight matches in ten, because one extra body on
+ * the board for thirty seconds beats making the other side walk further later.
+ * A mechanic whose correct answer is to ignore it is not a decision, it is a
+ * tax on whoever reads the screen.
+ *
+ * So it pays now, and the penalty is what it pays on top. Sized against what
+ * the thirty seconds cost: a conquest board pays 4.8 a second with everything
+ * held, so seventy is about fifteen seconds of a full board; a cart moves
+ * about 1.1% of its track a second, so 0.18 is sixteen seconds of pushing.
+ * A flag match has no rate to compare against — a capture is the only unit it
+ * has — so it pays one, and a third of a match is what a scheduled fight in
+ * the middle of a short one is worth.
+ */
+const RALLY_POINTS = 70
+const RALLY_PUSH = 0.18
+
+/**
+ * How far off the middle it sits.
+ *
+ * On x = 0 so it is the same walk for both sides, and never at the origin: the
+ * fight already happens in the middle of these maps — the harness measures the
+ * centroid of everyone standing wandering inside a radius of about forty on a
+ * floor nine hundred across — so a contest placed there would be a contest for
+ * the ground everybody was on anyway.
+ */
+const RALLY_OFFSET_MIN = 170
+const RALLY_OFFSET_MAX = 285
 
 const BASES: Record<Team, Vec2> = {
   blue: { x: -ARENA_RADIUS + 90, y: 0 },
@@ -114,7 +217,13 @@ const ROCK_MAX = 74
 /** A body is 17 across, so this is comfortably more than one abreast. */
 const LANE = 64
 
-function rollTerrain(kind: BgKind, bases: Record<Team, Vec2>, nodes: Vec2[], rng: Rng): Obstacle[] {
+function rollTerrain(
+  kind: BgKind,
+  bases: Record<Team, Vec2>,
+  nodes: Vec2[],
+  rally: Vec2,
+  rng: Rng,
+): Obstacle[] {
   const rocks: Obstacle[] = []
   // A flag map is mostly a corridor and wants fewer, larger blocks; a capture
   // map has three places to be and can carry more between them.
@@ -128,6 +237,7 @@ function rollTerrain(kind: BgKind, bases: Record<Team, Vec2>, nodes: Vec2[], rng
     for (const node of nodes) {
       if (dist(pos, node) < NODE_RADIUS + radius + 24) return false
     }
+    if (dist(pos, rally) < RALLY_RADIUS + radius + 24) return false
     for (const team of ['blue', 'red'] as const) {
       if (dist(pos, bases[team]) < BASE_RADIUS + radius + LANE) return false
     }
@@ -299,14 +409,34 @@ export function createBattleground(kind: BgKind, rng: Rng): BgState {
     red: { ...BASES.red },
   }
   const nodes = kind === 'conquest' ? NODE_POSITIONS : []
+  const timeLimit =
+    kind === 'conquest' ? CONQUEST_LIMIT : kind === 'flags' ? FLAG_LIMIT : ESCORT_LIMIT
+
+  // Rolled before the terrain, so the terrain can be told to keep off it. The
+  // other way round would put a rock in the middle of the one circle both
+  // teams are about to be told to stand in.
+  const rally: BgRally = {
+    pos: {
+      x: 0,
+      y: (rng.chance(0.5) ? 1 : -1) * rng.range(RALLY_OFFSET_MIN, RALLY_OFFSET_MAX),
+    },
+    radius: RALLY_RADIUS,
+    telegraph: RALLY_SCHEDULE[kind].at,
+    remaining: RALLY_SCHEDULE[kind].window,
+    progress: 0,
+    owner: null,
+    contested: false,
+    settled: false,
+  }
 
   return {
     kind,
     score: { blue: 0, red: 0 },
     target: kind === 'conquest' ? CONQUEST_TARGET : kind === 'flags' ? FLAG_TARGET : 1,
-    timeLimit:
-      kind === 'conquest' ? CONQUEST_LIMIT : kind === 'flags' ? FLAG_LIMIT : ESCORT_LIMIT,
-    obstacles: rollTerrain(kind, bases, nodes, rng),
+    timeLimit,
+    rally,
+    slowed: { blue: 0, red: 0 },
+    obstacles: rollTerrain(kind, bases, nodes, rally.pos, rng),
     carts:
       kind === 'escort'
         ? { blue: cartFor('blue', bases), red: cartFor('red', bases) }
@@ -359,6 +489,7 @@ export function updateBattleground(s: SimState): void {
   if (!bg) return
 
   updateRespawns(s, bg)
+  updateRally(s, bg)
   if (bg.kind === 'conquest') updateNodes(s, bg)
   else if (bg.kind === 'escort') updateCarts(s, bg)
   else updateFlags(s, bg)
@@ -390,6 +521,91 @@ function order(s: SimState): readonly [Team, Team] {
  * win a fight wins the match, and every objective after that is a formality —
  * which is a deathmatch with extra reading.
  */
+/**
+ * How long this one stays down.
+ *
+ * Two things move it. The clock, so that the same death costs more the later
+ * it happens and the last fight of a match is the one worth winning; and the
+ * rally, whose loser walks twice as far for as long as the penalty lasts.
+ */
+function respawnDelay(s: SimState, bg: BgState, team: Team): number {
+  const through = Math.min(1, s.time / bg.timeLimit)
+  const base = RESPAWN_EARLY + (RESPAWN_LATE - RESPAWN_EARLY) * through
+  return bg.slowed[team] > 0 ? base * SLOWED_MULTIPLIER : base
+}
+
+/**
+ * The rally, counting down and then counting bodies.
+ *
+ * Held exactly as a capture point is — numbers on the circle, a crowd is
+ * faster, an even fight freezes it — because it is the same act and the player
+ * has already learned that one on the capture map. What differs is that it is
+ * on a clock everybody can see, it is somewhere nobody would otherwise be, and
+ * it pays once.
+ */
+function updateRally(s: SimState, bg: BgState): void {
+  for (const team of ['blue', 'red'] as const) {
+    if (bg.slowed[team] > 0) bg.slowed[team] = Math.max(0, bg.slowed[team] - DT)
+  }
+
+  const rally = bg.rally
+  if (rally.settled) return
+
+  if (rally.telegraph > 0) {
+    rally.telegraph -= DT
+    // The same warning a boss gives before it puts something on the floor.
+    if (rally.telegraph <= 0) s.sounds.push('telegraph')
+    return
+  }
+
+  const near = (team: Team): number =>
+    living(s, team).filter((a) => dist(a.pos, rally.pos) <= rally.radius).length
+  const blue = near('blue')
+  const red = near('red')
+
+  rally.contested = blue > 0 && red > 0
+  const lead = blue - red
+  if (lead !== 0) {
+    const crowd = Math.abs(lead) - 1
+    let rate = CAPTURE_RATE + Math.min(CAPTURE_CROWD_MAX, crowd * CAPTURE_CROWD)
+    if (rally.contested) rate *= 0.5
+    const toward = lead > 0 ? 1 : -1
+    rally.progress = Math.max(-1, Math.min(1, rally.progress + toward * rate * DT))
+  }
+
+  rally.owner =
+    rally.progress >= RALLY_DECIDED ? 'blue' : rally.progress <= -RALLY_DECIDED ? 'red' : null
+
+  rally.remaining -= DT
+  if (rally.remaining > 0) return
+
+  // It pays whoever finished holding it, and pays nobody if it ended level.
+  // Nobody is a real outcome here: two sides that fought each other to a
+  // standstill on it have spent the same thirty seconds and bought the same
+  // nothing, which is the price of not winning rather than a bug.
+  rally.settled = true
+  if (rally.owner) {
+    bg.slowed[other(rally.owner)] = RALLY_PENALTY
+    award(bg, rally.owner)
+    s.sounds.push('phase')
+  }
+}
+
+/** The rally's payout, in whatever the mode counts. */
+function award(bg: BgState, team: Team): void {
+  if (bg.kind === 'conquest') {
+    bg.score[team] += RALLY_POINTS
+    return
+  }
+  if (bg.kind === 'escort' && bg.carts) {
+    const cart = bg.carts[team]
+    cart.progress = Math.min(1, cart.progress + RALLY_PUSH)
+    cart.pos = cartPath(bg, team, cart.progress)
+    return
+  }
+  bg.score[team] += 1
+}
+
 function updateRespawns(s: SimState, bg: BgState): void {
   for (const a of s.actors) {
     if (a.alive) {
@@ -397,7 +613,7 @@ function updateRespawns(s: SimState, bg: BgState): void {
       continue
     }
     if (bg.respawn[a.id] === undefined) {
-      bg.respawn[a.id] = RESPAWN
+      bg.respawn[a.id] = respawnDelay(s, bg, teamOf(a))
       continue
     }
     bg.respawn[a.id]! -= DT

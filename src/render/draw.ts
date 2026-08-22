@@ -1,10 +1,10 @@
 import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
-import { CART_RADIUS } from '../sim/battleground'
+import { CART_RADIUS, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
 import { SUNDER_MAX } from '../sim/boss'
-import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
+import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
@@ -214,6 +214,12 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     }
   }
 
+  // Above the early return below, which is the flag map's and not everybody's.
+  // Every mode has a rally; putting this after that line drew it on one map in
+  // three and left the other two with a mechanic that ran, paid out and never
+  // appeared.
+  drawRally(ctx, bg, clock)
+
   if (bg.kind !== 'flags') return
 
   for (const team of ['blue', 'red'] as const) {
@@ -240,6 +246,73 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     ctx.lineTo(at.x + 1.5, at.y - 10 + lift)
     ctx.closePath()
     ctx.fill()
+  }
+}
+
+/**
+ * The rally: the one thing on a battleground that arrives on a clock.
+ *
+ * Drawn in two states, because they ask for different things. During the
+ * warning it is a dashed ring that closes as the countdown runs out — a shape
+ * that says *not yet* and says how long — and the seconds are printed inside
+ * it, since "go now" and "go in eight seconds" are different instructions and
+ * a ring alone cannot tell them apart. Once it is live it reads as a capture
+ * point, dial and all, because that is exactly what it is by then and the
+ * player has already learned to read one of those on the other map.
+ *
+ * Nothing at all before the warning, and nothing after it settles. A circle
+ * that is always on the floor is scenery, and the whole of this mechanic is
+ * that it is not there and then it is.
+ */
+function drawRally(ctx: CanvasRenderingContext2D, bg: BgState, clock: number): void {
+  const rally = bg.rally
+  if (rally.settled) return
+  if (rally.telegraph > RALLY_TELEGRAPH) return
+
+  const at = worldToScreen(rally.pos)
+  const r = rally.radius * L.scale
+
+  if (rally.telegraph > 0) {
+    // The ring tightens as the countdown runs down, so the shape carries the
+    // same number the text does for anyone not reading it.
+    const through = 1 - rally.telegraph / RALLY_TELEGRAPH
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r * (1 - through * 0.18), 0, Math.PI * 2)
+    ctx.strokeStyle = COLORS.telegraphEdge
+    ctx.setLineDash([10, 8])
+    ctx.lineWidth = 2 + Math.sin(clock * 6)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    ctx.fillStyle = COLORS.telegraphEdge
+    ctx.font = font(18, true)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(Math.ceil(rally.telegraph).toString(), at.x, at.y)
+    return
+  }
+
+  ctx.beginPath()
+  ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = rally.owner ? tint(teamColour(rally.owner), 0.12) : COLORS.telegraph
+  ctx.fill()
+  ctx.strokeStyle = rally.owner ? teamColour(rally.owner) : COLORS.telegraphEdge
+  ctx.lineWidth = rally.contested ? 2 + Math.sin(clock * 8) : 2
+  ctx.stroke()
+
+  if (rally.progress !== 0) {
+    const toward = rally.progress > 0 ? 'blue' : 'red'
+    ctx.beginPath()
+    ctx.arc(
+      at.x,
+      at.y,
+      r - 5,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * Math.abs(rally.progress),
+    )
+    ctx.strokeStyle = teamColour(toward)
+    ctx.lineWidth = 4
+    ctx.stroke()
   }
 }
 
