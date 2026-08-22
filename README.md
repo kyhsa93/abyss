@@ -279,6 +279,24 @@ which had encoded "the background sits at twice the world scale" — true only
 while the world scale had no camera in it. They ask the scene for its own
 factor now.
 
+## Names over the tokens
+
+Everyone on your side carries their name above their head, in nine pixels of
+dim grey, over the top of the health bar rather than instead of it.
+
+Instead of was what it used to be: the name was drawn only while somebody was
+at full health, on the grounds that a hurt body is already carrying a bar
+where the name would go. Which meant a name vanished at the exact moment its
+owner became worth looking at. The bar keeps the place it had and the name
+moves up over it.
+
+Whether names are drawn at all is a question of how many against how much
+room. Twenty-five of them on a phone is mush rather than information, and the
+party frames already say who everyone is in a grid built for reading — so a
+five-man is named on any screen, and a raid needs a desktop. The boss is not
+named over its token either, since it has a frame across the top of the
+screen, and a thrall is one of a crowd with nothing to say.
+
 ## Every press aimed at the boss, including the heals
 
 Reported as a visual oddity — heal bolts flying at the boss — and it was not

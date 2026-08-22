@@ -100,12 +100,15 @@ export function drawWorld(
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
+  const names = nameable(s)
   for (const a of s.actors) {
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
   for (const a of s.actors) {
-    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+    if (a.faction === 'party') {
+      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, names)
+    }
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -640,6 +643,19 @@ function standingInFire(s: SimState, a: Actor): boolean {
   )
 }
 
+/**
+ * Whether names go over the tokens.
+ *
+ * Twenty-five of them on a phone is mush rather than information, and the
+ * party frames already say who everyone is in a grid built for reading. So
+ * the question is how many there are against how much room there is: a
+ * five-man is legible anywhere, a raid needs a screen.
+ */
+function nameable(s: SimState): boolean {
+  const party = s.actors.filter((a) => a.faction === 'party').length
+  return party <= 10 || L.ui > 0.9
+}
+
 /** What colour this fight's boss is. A battleground has none. */
 function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
@@ -654,6 +670,8 @@ function drawActor(
   battleground = false,
   /** The boss's own colour. Three bosses in the same red read as one boss. */
   accent: string = COLORS.boss,
+  /** Whether there is room to say who this is. See `nameable`. */
+  named = false,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -765,8 +783,8 @@ function drawActor(
   // is wallpaper rather than information — the party frames already carry that
   // in a grid you can read. Showing them only below full turns the arena
   // itself into the readout exactly when it matters, and leaves it clean when
-  // it does not. One line, no name, no number: at seven pixels a token on a
-  // portrait phone, colour and length are the only things that survive.
+  // it does not. One line, no number: at seven pixels a token on a portrait
+  // phone, colour and length are the only things that survive.
   const hurt = a.alive && a.hp < a.maxHp * 0.95
   if (hurt) {
     const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp))
@@ -787,12 +805,17 @@ function drawActor(
     ctx.fillRect(bx, by, w * ratio, 3)
   }
 
-  // Names cost more than they give on a phone-sized arena, and a hurt body is
-  // already carrying a bar where the name would go.
-  if (!isBoss && !isAdd && a.alive && !hurt && L.ui > 0.8) {
+  // The name, above whatever else is up there.
+  //
+  // It used to be drawn only while somebody was at full health, on the
+  // grounds that a hurt body is already carrying a bar where the name would
+  // go — which meant a name vanished the moment its owner became worth
+  // looking at. It sits above the bar instead, and the bar keeps the place it
+  // had.
+  if (named && a.faction === 'party' && a.alive) {
     ctx.fillStyle = COLORS.textDim
-    ctx.font = font(10)
-    ctx.fillText(a.name, p.x, p.y - r - 8)
+    ctx.font = font(9)
+    ctx.fillText(a.name, p.x, p.y - r - (hurt ? 15 : 8))
   }
 
   if (a.castId && a.castTotal > 0) {

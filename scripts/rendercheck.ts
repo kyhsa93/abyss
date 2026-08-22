@@ -6132,5 +6132,78 @@ for (const [label, w, h] of [
   }
 }
 
+// --- who is who, over the tokens -------------------------------------------
+//
+// The name used to be drawn only while somebody was at full health, because a
+// hurt body already carries a bar where the name would go. That meant a name
+// disappeared at the exact moment its owner became worth looking at.
+{
+  updateLayout(1440, 900)
+  const s = pulled(0x51ed, 0)
+  s.countdown = 0
+  const party = s.actors.filter((a) => a.faction === 'party')
+  const wounded = party[1]!
+  wounded.hp = Math.round(wounded.maxHp * 0.4)
+
+  const labels: Label[] = []
+  drawWorld(recordingCtx([], labels), s, 1, 0, new Effects(false))
+  const said = labels.map((l) => l.text)
+
+  expect(
+    'everyone on your side is named',
+    party.every((a) => said.includes(a.name)),
+    said.join(' | '),
+  )
+  expect(
+    'including whoever is hurt',
+    said.includes(wounded.name),
+    'the name went when the health did',
+  )
+
+  // Above the bar rather than instead of it: the bar keeps the place it had,
+  // and the name goes over the top of it. Measured on one person either side
+  // of taking damage rather than on two people, who are standing in different
+  // places and would be compared on where they stand.
+  const whereName = (): number => {
+    const drawn: Label[] = []
+    drawWorld(recordingCtx([], drawn), s, 1, 0, new Effects(false))
+    return drawn.find((l) => l.text === wounded.name)!.y
+  }
+  const low = whereName()
+  wounded.hp = wounded.maxHp
+  const high = whereName()
+  expect('a hurt name moves up to make room for the bar', low < high, `${low} against ${high}`)
+  wounded.hp = Math.round(wounded.maxHp * 0.4)
+
+  // The boss has a frame of its own across the top of the screen; a thrall is
+  // one of a crowd and has nothing worth saying.
+  expect('the boss is not labelled twice', !said.includes(boss(s).name), said.join(' | '))
+
+  // Twenty-five names on a phone is mush rather than information.
+  const raid = pulled(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!))
+  updateLayout(360, 640)
+  const crowded: Label[] = []
+  drawWorld(recordingCtx([], crowded), raid, 1, 0, new Effects(false))
+  const shown = raid.actors.filter((a) => a.faction === 'party' && crowded.some((l) => l.text === a.name))
+  expect('a raid on a phone says none of them', shown.length === 0, `${shown.length} names`)
+
+  updateLayout(1440, 900)
+  const roomy: Label[] = []
+  drawWorld(recordingCtx([], roomy), raid, 1, 0, new Effects(false))
+  const onDesktop = raid.actors.filter((a) => a.faction === 'party' && roomy.some((l) => l.text === a.name))
+  expect('and on a screen with room it says all of them', onDesktop.length >= 20, `${onDesktop.length}`)
+
+  // A five-man is legible anywhere, which is the size most of them are.
+  updateLayout(360, 640)
+  const five: Label[] = []
+  drawWorld(recordingCtx([], five), s, 1, 0, new Effects(false))
+  expect(
+    'a five-man is named on a phone too',
+    party.every((a) => five.some((l) => l.text === a.name)),
+    five.map((l) => l.text).join(' | '),
+  )
+  updateLayout(1440, 900)
+}
+
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
 console.log('all render checks passed')
