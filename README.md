@@ -293,6 +293,21 @@ empty.
   of ten, so the only way to tell a big hit from a small one was to stop and
   read it. Size now follows the hit.
 
+Then all of it went up again by about a third — 18 to 27 pixels for a hit, 22
+to 34 for a crit — along with the two things that had been left behind at the
+bottom of the scale. A message about why a press did nothing (out of range,
+out of mana, on cooldown) is a sentence rather than a number and was the
+smallest thing on the screen at eleven pixels; and the chat, which is where
+the tells live — a phase break, a call for a heal, the line before the ring —
+was eleven pixels of dim grey in a corner, which is a thing nobody reads
+during a pull. The lanes the numbers fan into widened to match, since bigger
+numbers thirteen pixels apart stop being separated by being fanned.
+
+Sizes drift back down unless something holds them, so the checks assert a
+floor on each rather than just a difference, and a taller chat has to still
+fit five lines above where it starts on every screen — which the mutation test
+confirms by pushing the line spacing until the top ones leave the screen.
+
 And one thing was missing rather than wrong: what you dealt and what landed on
 you were the same red. They are different colours now — your own damage in
 near-white, what hits you in red, healing in green — which is the whole point

@@ -958,12 +958,19 @@ function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: num
     // hands out in order, so consecutive hits take consecutive lanes and a
     // burst of four reads as four numbers instead of one smudge.
     const lane = (t.id % 4) - 1.5
-    const drift = lane * 13 * L.ui
-    const rise = 22 + Math.abs(lane) * 5
+    // The lanes widen with the type. Bigger numbers need more room between
+    // them or fanning them out stops separating anything.
+    const drift = lane * 19 * L.ui
+    const rise = 30 + Math.abs(lane) * 7
 
     const heavy = Math.min(1, t.power / BIG_HIT)
     const size =
-      t.kind === 'miss' ? 11 : (t.kind === 'crit' ? 16 : 13) + heavy * (t.kind === 'crit' ? 9 : 7)
+      t.kind === 'miss'
+        ? // Why a press did nothing — out of range, out of mana, on cooldown.
+          // It is a sentence rather than a number, and it was the smallest
+          // thing on the screen.
+          16
+        : (t.kind === 'crit' ? 22 : 18) + heavy * (t.kind === 'crit' ? 12 : 9)
 
     const colour =
       t.kind === 'heal'

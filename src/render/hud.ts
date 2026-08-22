@@ -1342,7 +1342,9 @@ function drawPartyButton(ctx: CanvasRenderingContext2D): void {
 function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
   let y = L.chatY
   ctx.textAlign = 'left'
-  ctx.font = font(11)
+  // What the boss and the party are saying, which is where the tells live:
+  // eleven pixels of dim grey in the corner is a thing nobody reads mid-pull.
+  ctx.font = font(13)
 
   for (let i = s.chat.length - 1; i >= 0; i--) {
     const line = s.chat[i]!
@@ -1351,7 +1353,7 @@ function drawChat(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.fillStyle = COLORS.textDim
     ctx.fillText(`[${line.speaker}] ${line.text}`, 10, y)
     ctx.globalAlpha = 1
-    y -= 16 * L.ui
+    y -= 19 * L.ui
   }
 }
 

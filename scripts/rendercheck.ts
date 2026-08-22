@@ -5850,7 +5850,17 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   const small = drawn.find((row) => row.text === '-120')!
   const big = drawn.find((row) => row.text === '-1400')!
   expect('a big hit is drawn bigger', sized(big) > sized(small) + 3, `${sized(small)} then ${sized(big)}`)
-  expect('and a small one is still legible', sized(small) >= 13, `${sized(small)}`)
+  // The floor is what stops these drifting back down. They were twelve
+  // pixels once, which over a floor full of colour is texture rather than a
+  // number.
+  expect('and a small one is still legible', sized(small) >= 17, `${sized(small)}`)
+
+  const status = (() => {
+    s.texts.length = 0
+    pushText(s, player.pos, 'Too close', 'miss', 0)
+    return paint(s).find((row) => row.text === 'Too close')!
+  })()
+  expect('and a message about why a press did nothing is too', sized(status) >= 15, `${sized(status)}`)
 
   const dealt = drawn.find((row) => row.text === '-1400')!
   const taken = drawn.find((row) => row.text === '-300')!
@@ -5966,6 +5976,42 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   )
 
   setZoomLevel(0, 1440, 900)
+}
+
+// --- what the fight says, at a size somebody can read ----------------------
+//
+// The chat is where the tells live — a phase break, a call for a heal, the
+// line before the ring. It was eleven pixels of dim grey in a corner, which
+// is a thing nobody reads during a pull. Bigger lines need more room, so the
+// five of them have to still fit above where they start.
+for (const [label, w, h] of [
+  ['desktop 1440x900', 1440, 900],
+  ['portrait 390x844', 390, 844],
+  ['landscape 844x390', 844, 390],
+  ['tiny portrait 320x568', 320, 568],
+] as const) {
+  updateLayout(w, h)
+  const s = pulled(0x51ed, 0)
+  s.countdown = 0
+  for (let i = 0; i < 5; i++) {
+    s.chat.push({ id: i, speaker: 'The Drowned Warden', text: 'The tide rises!', age: 0 })
+  }
+
+  const labels: Label[] = []
+  drawHud(recordingCtx([], labels), s, touchView(false))
+  const lines = labels.filter((l) => l.text.includes('The tide rises!'))
+  expect(`${label}: every line of it is drawn`, lines.length === 5, `${lines.length}`)
+  expect(
+    `${label}: and all of them on the screen`,
+    lines.every((l) => l.y > 0 && l.y < h),
+    JSON.stringify(lines.map((l) => Math.round(l.y))),
+  )
+  // Below the party frames, which is the other thing down the left side.
+  expect(
+    `${label}: below what is already there`,
+    lines.every((l) => l.y > L.partyY),
+    `${L.partyY} against ${Math.min(...lines.map((l) => l.y))}`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
