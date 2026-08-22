@@ -138,7 +138,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
-import { Ambience, drawBackdrop, setAmbience } from '../src/render/ambience'
+import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
@@ -4867,6 +4867,25 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   }
 }
 
+/**
+ * How much of a living fight the zoomed background actually shows.
+ *
+ * The camera has nobody to follow in an unattended fight, so it sits at the
+ * middle of the arena and the visible half-width is the screen over the scale
+ * over the zoom. Measured rather than eyeballed, because there is no browser
+ * here to look at and the difference between two and two and a half turns out
+ * to be the difference between a busy background and an occasionally empty
+ * one.
+ */
+function onScreenShare(scene: Ambience, zoom: number): number {
+  const alive = scene.showing.actors.filter((a) => a.alive)
+  if (alive.length === 0) return 1
+  const on = alive.filter(
+    (a) => Math.abs(a.pos.x * L.scale * zoom) < L.w / 2 && Math.abs(a.pos.y * L.scale * zoom) < L.h / 2,
+  )
+  return on.length / alive.length
+}
+
 // --- the fight behind the menus --------------------------------------------
 //
 // Not a video and not a loop of sprites: an actual pull, stepped at the same
@@ -4911,8 +4930,14 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   let ended = 0
   let cold = 0
   let lastBoss = bossBefore?.maxHp ?? 0
+  // What the zoom costs. Drawn twice as close, the arena's edges go off the
+  // screen — which is the point, since there is nothing at the edges worth
+  // keeping behind a menu — but a background that is briefly empty because
+  // both teams walked out of frame is a background that looks broken.
+  const seen: number[] = []
   for (let i = 0; i < 60 * 200; i++) {
     scene.advance(1 / 60)
+    if (i % 30 === 0) seen.push(onScreenShare(scene, ZOOM))
     if (scene.showing.outcome !== 'ongoing') ended++
     const boss = scene.showing.actors.find((a) => a.faction === 'boss')
     const mark = boss?.maxHp ?? 0
@@ -4927,6 +4952,14 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     lastBoss = mark
   }
   expect('and cuts to a fight already under way', cold === 0, `${cold} of ${cuts} started cold`)
+  const emptiest = Math.min(...seen)
+  const typical = seen.reduce((a, b) => a + b, 0) / seen.length
+  expect('the zoom never empties the screen', emptiest > 0, `${(emptiest * 100).toFixed(0)}% at its worst`)
+  expect(
+    'and keeps most of the fight in frame',
+    typical > 0.7,
+    `${(typical * 100).toFixed(0)}% on average`,
+  )
   expect('it never shows a finished fight', ended === 0, `${ended} frames of one`)
   expect('and cuts to another in its own time', cuts > 0, 'it showed one fight for ever')
 
@@ -4957,6 +4990,49 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     boxes.length > 0 && boxes[boxes.length - 1] === full[full.length - 1],
     'something was drawn over the wash',
   )
+
+  // The scene sits closer than the game does, and the zoom stays behind the
+  // menu: a transform left open here would put every button on the screen at
+  // twice the size and half of them off the edge of it.
+  const moves: string[] = []
+  const transforms: number[][] = []
+  const spy = new Proxy(
+    {},
+    {
+      get(_t, prop) {
+        if (prop === 'save' || prop === 'restore') return () => moves.push(String(prop))
+        if (prop === 'scale') {
+          return (x: number, y: number) => {
+            moves.push('scale')
+            transforms.push([x, y])
+          }
+        }
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: () => {} })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return () => {}
+      },
+      set: () => true,
+    },
+  ) as unknown as CanvasRenderingContext2D
+  scene.draw(spy)
+  expect('the scene is drawn closer than the game', ZOOM > 1, `${ZOOM}`)
+  expect(
+    'at the scale it says it is',
+    transforms.some(([x, y]) => x === ZOOM && y === ZOOM),
+    JSON.stringify(transforms),
+  )
+  let depth = 0
+  let lowest = 0
+  for (const move of moves) {
+    if (move === 'save') depth++
+    if (move === 'restore') depth--
+    if (move === 'scale' && depth === 0) lowest++
+  }
+  expect('and the zoom is put away afterwards', depth === 0, `${depth} saves left open`)
+  expect('and never applied outside one', lowest === 0, `${lowest} scales at the top level`)
 
   // With none installed the menus fill flat, which is what every check that
   // does not ask for a fight has been drawing against all along.

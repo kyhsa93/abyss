@@ -91,6 +91,17 @@ const SLICE = 30
 
 const IDLE: PlayerInput = { moveX: 0, moveY: 0, pressed: [] }
 
+/**
+ * How much closer the background sits than the game does.
+ *
+ * At the playing scale the whole arena fits on screen, which is right when you
+ * are the one dodging and wrong here: dimmed to a third and read out of the
+ * corner of an eye, a party at that size is a scatter of moving dots. Twice in
+ * gives up the edges of the arena — there is nothing there to lose behind a
+ * menu — and gets back figures that are recognisably swinging at something.
+ */
+export const ZOOM = 2
+
 /** A scene being got ready off screen. */
 interface Pending {
   state: SimState
@@ -275,7 +286,12 @@ export class Ambience {
     ctx.fillRect(0, 0, L.w, L.h)
     if (!this.enabled) return
 
+    // Zoomed about the middle of the screen, and inside a save: the menu drawn
+    // over the top has to land in screen coordinates like everything else.
     ctx.save()
+    ctx.translate(L.cx, L.cy)
+    ctx.scale(ZOOM, ZOOM)
+    ctx.translate(-L.cx, -L.cy)
     ctx.globalAlpha = 0.55
     drawWorld(ctx, this.state, 1, this.clock, this.effects)
     ctx.restore()

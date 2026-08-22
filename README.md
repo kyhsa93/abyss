@@ -219,6 +219,17 @@ the wash covers the screen and goes on last — anything drawn over it would be
 a fight instead of a menu. Hits do not shove the view either: a background
 that jolts every time somebody crits drags the eye off the thing being read.
 
+It also sits twice as close as the game does. At the playing scale the whole
+arena fits on screen, which is right when you are the one dodging and wrong
+dimmed to a third behind text, where a party at that size is a scatter of
+moving dots. Twice in gives up the edges of the arena — there is nothing there
+worth keeping behind a menu — and gets back figures that are recognisably
+swinging at something. Two is also about as far as it goes: measured over
+several fights, 2× keeps 92% of the living party in frame and never empties
+the screen, while 2.5× and 3× both have moments with nobody on it at all. The
+check measures that rather than trusting it, and the zoom is applied inside a
+`save`, since a transform left open would draw the menu itself at double size.
+
 **And it must never hitch.** Each scene skips its first twenty-two seconds,
 because the opening of a pull is five people walking in and that is the part a
 background would otherwise show most of. Running that skip on the frame the
