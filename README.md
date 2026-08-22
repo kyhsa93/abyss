@@ -279,6 +279,35 @@ which had encoded "the background sits at twice the world scale" — true only
 while the world scale had no camera in it. They ask the scene for its own
 factor now.
 
+## A name of your own
+
+Set in settings, and it is the one place in the game that asks for text.
+
+Everything else here is a canvas and a thumb, and a canvas cannot be typed
+into: on a phone there is no keyboard without a focused form element, so an
+on-canvas field would be a field only a desktop could use. So a real `input`
+is laid over the row it belongs to and taken away the moment it is done — the
+native keyboard, the native caret and the paste menu, none of which are worth
+reimplementing badly. It is deliberately not left in the page: a stray focused
+input under a canvas swallows the keys the fight is played with, and the tap
+that closes it by blurring it must not also press whatever is under it.
+
+**The simulation is never told.** A name changes nothing about a fight, the
+harness must not depend on what is in storage, and a replay from a seed has to
+be the same fight whoever is playing it — so the slot is still built as `You`
+and the actor is renamed on the way out.
+
+The part worth checking is what a typed name *becomes*, since anything at all
+can be typed into a text field and all of it ends up drawn over a token and
+written into a record that outlives the session. Empty and whitespace-only
+fall back to the default rather than leaving a nameless body on the floor;
+newlines and tabs become spaces rather than vanishing, so `a\nb` stays two
+words; runs of whitespace collapse; and it is cut to twelve *characters*
+rather than twelve code units, or a name of emoji comes out cut literally in
+half, into an unpaired surrogate. That last check was wrong the first time —
+it tested whether the string ended in a surrogate, which every well-formed
+emoji does.
+
 ## Names over the tokens
 
 Everyone on your side carries their name above their head, in nine pixels of

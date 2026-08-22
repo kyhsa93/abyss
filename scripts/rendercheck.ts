@@ -142,6 +142,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
+import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SUNDER_MAX } from '../src/sim/boss'
 import {
@@ -4136,10 +4137,11 @@ for (const [label, w, h] of [
   )
 
   // Settings: sound, the volume it plays at, and the fight behind the menus.
-  drawSettings(stubCtx(), false, 1, true, 0)
-  drawSettings(stubCtx(), true, 0, false, 3)
+  drawSettings(stubCtx(), false, 1, true, 0, 'You')
+  drawSettings(stubCtx(), true, 0, false, 3, 'Somebody')
   const settings = settingsLayout()
   const settingsRects = [
+    settings.name,
     settings.sound,
     ...settings.volumes,
     ...settings.cameras,
@@ -4159,7 +4161,8 @@ for (const [label, w, h] of [
   )
   expect(
     `${label}: sound and volume answer as themselves`,
-    hitSettings(...middle(settings.backdrop))?.kind === 'backdrop' &&
+    hitSettings(...middle(settings.name))?.kind === 'name' &&
+      hitSettings(...middle(settings.backdrop))?.kind === 'backdrop' &&
       settings.cameras.every((r, i) => {
         const hit = hitSettings(...middle(r))
         return hit?.kind === 'camera' && hit.level === i
@@ -6203,6 +6206,86 @@ for (const [label, w, h] of [
     }
   }
   updateLayout(1440, 900)
+}
+
+// --- a name of your own ----------------------------------------------------
+//
+// Anything at all can be typed into a text field, and all of it ends up drawn
+// over a token and written into a record that outlives the session: control
+// characters, a hundred spaces, an empty string, a line longer than the
+// arena. So what a typed name becomes is the part worth checking.
+{
+  expect('an ordinary name survives', cleanName('Bramble') === 'Bramble', cleanName('Bramble'))
+  expect('nothing at all is the default', cleanName('') === DEFAULT_NAME, cleanName(''))
+  expect('and so is a field of spaces', cleanName('     ') === DEFAULT_NAME, cleanName('     '))
+  expect(
+    'the ends are trimmed',
+    cleanName('  Wren  ') === 'Wren',
+    `"${cleanName('  Wren  ')}"`,
+  )
+  expect(
+    'a long one is cut to what fits over a token',
+    cleanName('Bartholomewthelongwinded').length === NAME_MAX,
+    `${cleanName('Bartholomewthelongwinded').length}`,
+  )
+  const broken = cleanName('a\nb\tc')
+  expect('newlines and tabs become spaces rather than vanishing', broken === 'a b c', `"${broken}"`)
+  expect(
+    'and a run of whitespace collapses',
+    cleanName('a       b') === 'a b',
+    `"${cleanName('a       b')}"`,
+  )
+  // Counted in characters rather than in code units, or a name of emoji comes
+  // out cut in half — literally, into an unpaired surrogate.
+  const wide = cleanName('🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟🐟')
+  expect('a wide name is cut where a character ends', [...wide].length === NAME_MAX, `${[...wide].length}`)
+  // A lone surrogate is what a cut through the middle of a character leaves.
+  // Testing the last code unit would fail on every well-formed emoji, since
+  // that is a low surrogate too — the question is whether any of them stands
+  // by itself.
+  expect(
+    'and is not left broken in half',
+    [...wide].every((ch) => {
+      const code = ch.codePointAt(0) ?? 0
+      return code < 0xd800 || code > 0xdfff
+    }),
+    wide,
+  )
+
+  // It reaches the fight, and only the player.
+  const s = pulled(0x51ed, 0)
+  s.countdown = 0
+  nameThePlayer(s, 'Bramble')
+  const player = s.actors.find((a) => a.isPlayer)!
+  expect('the player wears it', player.name === 'Bramble', player.name)
+  expect(
+    'and nobody else is renamed',
+    s.actors.filter((a) => a.name === 'Bramble').length === 1,
+    s.actors.map((a) => a.name).join(','),
+  )
+
+  // Including over the token, which is where it is for.
+  updateLayout(1440, 900)
+  const labels: Label[] = []
+  drawWorld(recordingCtx([], labels), s, 1, 0, new Effects(false))
+  expect(
+    'it is drawn over the token',
+    labels.some((l) => l.text === 'Bramble'),
+    labels.map((l) => l.text).join(' | '),
+  )
+
+  // And a name typed as nothing does not leave a nameless body on the floor.
+  nameThePlayer(s, '   ')
+  expect('an empty name falls back rather than blanking', player.name === DEFAULT_NAME, `"${player.name}"`)
+
+  // The simulation is not told. A fight has to replay identically from its
+  // seed whoever is playing it, and the harness must not depend on storage.
+  const fresh = createState(0x51ed, 0)
+  expect(
+    'the simulation builds the slot as it always did',
+    fresh.actors.find((a) => a.isPlayer)?.name === DEFAULT_NAME,
+    `${fresh.actors.find((a) => a.isPlayer)?.name}`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

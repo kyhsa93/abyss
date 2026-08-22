@@ -20,6 +20,8 @@ import {
 import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
 import { beat, load as loadBests, save as saveBests, type Bests } from './bests'
 import { Effects } from './render/effects'
+import { loadName, nameThePlayer, saveName } from './name'
+import { editName, isEditingName } from './render/nameinput'
 import { Ambience, loadBackdrop, saveBackdrop, setAmbience } from './render/ambience'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
@@ -34,6 +36,7 @@ import {
   hitHome,
   hitRaidSetup,
   hitSettings,
+  settingsLayout,
 } from './render/menu'
 import { Sfx } from './sfx'
 import {
@@ -112,6 +115,8 @@ const effects = new Effects()
  * shared by all of them: walking from the front page to the party screen
  * carries on the pull that was already going.
  */
+let playerName = loadName()
+
 const ambience = new Ambience()
 ambience.setEnabled(loadBackdrop())
 setAmbience(ambience)
@@ -387,6 +392,17 @@ let attempt = 0
 let bgRolls = 0
 
 function newState(): SimState {
+  // The name goes on afterwards rather than into the simulation: it changes
+  // nothing about a fight, the harness must not depend on what is in storage,
+  // and a replay from a seed has to be the same fight whoever is playing it.
+  const named = (s: SimState): SimState => {
+    nameThePlayer(s, playerName)
+    return s
+  }
+  return named(buildState())
+}
+
+function buildState(): SimState {
   if (mode.kind === 'bg') {
     return createBattlegroundState(BASE_SEED + bgRolls++ * 7919, mode.bg, party)
   }
@@ -769,6 +785,18 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       screen = 'home'
       return
     }
+    if (hit?.kind === 'name') {
+      editName(settingsLayout().name, playerName, (value) => {
+        if (value === null) return
+        playerName = value
+        saveName(value)
+        // The fight already running behind the menus has a stranger in it
+        // wearing the old name, and so does whatever pull is paused on the
+        // results screen.
+        nameThePlayer(state, playerName)
+      })
+      return
+    }
     if (hit?.kind === 'sound') {
       sfx.toggleMute()
     } else if (hit?.kind === 'volume') {
@@ -792,7 +820,14 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       saveBackdrop(on)
     }
   }
-  drawSettings(ctx, sfx.isMuted(), sfx.volume(), ambience.isEnabled(), zoomLevel())
+  drawSettings(
+    ctx,
+    sfx.isMuted(),
+    sfx.volume(),
+    ambience.isEnabled(),
+    zoomLevel(),
+    playerName,
+  )
 }
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
@@ -869,7 +904,11 @@ function frame(now: number): void {
   const clock = timing.elapsedTotal
   const elapsed = Math.min(Math.max(0, frameSeconds), 0.25)
 
-  const tap = input.takeTapPoint()
+  // Taken either way so it cannot be delivered late, and dropped while the
+  // name field is open: the tap that closes the field by blurring it would
+  // otherwise also press whatever is under it.
+  const tapped = input.takeTapPoint()
+  const tap = isEditingName() ? null : tapped
 
   // The fight behind the menus is stepped here rather than inside each screen,
   // so every screen that is not the game gets the same one at the same point

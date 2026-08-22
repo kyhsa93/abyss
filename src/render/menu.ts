@@ -478,9 +478,11 @@ export type SettingsHit =
   | { kind: 'volume'; level: number }
   | { kind: 'backdrop' }
   | { kind: 'camera'; level: number }
+  | { kind: 'name' }
   | { kind: 'back' }
 
 export interface SettingsLayout {
+  name: Rect
   sound: Rect
   volumes: Rect[]
   backdrop: Rect
@@ -500,7 +502,7 @@ export function settingsLayout(): SettingsLayout {
   // Four labelled rows now, so the space between them is what gives rather
   // than the rows themselves: a settings screen that runs off the bottom of a
   // small phone is worse than a cramped one.
-  const rows = 4
+  const rows = 5
   const spare = back.y - 14 - (top + 14 * L.ui) - rowH * rows
   const step = rowH + Math.max(18 * L.ui, Math.min(34 * L.ui, spare / (rows - 1)))
 
@@ -515,18 +517,20 @@ export function settingsLayout(): SettingsLayout {
     }))
   }
 
-  const sound = { x: L.w / 2 - w / 2, y: rowY(0), w, h: rowH }
-  const volumes = spread(VOLUME_NAMES.length, rowY(1))
-  const cameras = spread(ZOOM_NAMES.length, rowY(2))
-  const backdrop = { x: L.w / 2 - w / 2, y: rowY(3), w, h: rowH }
+  const name = { x: L.w / 2 - w / 2, y: rowY(0), w, h: rowH }
+  const sound = { x: L.w / 2 - w / 2, y: rowY(1), w, h: rowH }
+  const volumes = spread(VOLUME_NAMES.length, rowY(2))
+  const cameras = spread(ZOOM_NAMES.length, rowY(3))
+  const backdrop = { x: L.w / 2 - w / 2, y: rowY(4), w, h: rowH }
 
   return {
+    name,
     sound,
     volumes,
     cameras,
     backdrop,
     back,
-    headings: [0, 1, 2, 3].map((i) => rowY(i) - 10 * L.ui),
+    headings: [0, 1, 2, 3, 4].map((i) => rowY(i) - 10 * L.ui),
   }
 }
 
@@ -538,6 +542,7 @@ export function drawSettings(
    *  the local `backdrop()`, which is the thing it draws through. */
   scene: boolean,
   camera: number,
+  name: string,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'SETTINGS')
@@ -550,7 +555,10 @@ export function drawSettings(
     ctx.fillText(text, L.w / 2, y)
   }
 
-  heading('SOUND', layout.headings[0]!)
+  heading('NAME', layout.headings[0]!)
+  button(ctx, layout.name, name, 'what the rest of them call you', COLORS.text)
+
+  heading('SOUND', layout.headings[1]!)
   button(
     ctx,
     layout.sound,
@@ -560,7 +568,7 @@ export function drawSettings(
     !muted,
   )
 
-  heading('VOLUME', layout.headings[1]!)
+  heading('VOLUME', layout.headings[2]!)
   VOLUME_NAMES.forEach((name, i) => {
     const dim = muted
     button(
@@ -573,12 +581,12 @@ export function drawSettings(
     )
   })
 
-  heading('CAMERA', layout.headings[2]!)
+  heading('CAMERA', layout.headings[3]!)
   ZOOM_NAMES.forEach((name, i) => {
     button(ctx, layout.cameras[i]!, name, '', COLORS.hpBar, i === camera)
   })
 
-  heading('BACKDROP', layout.headings[3]!)
+  heading('BACKDROP', layout.headings[4]!)
   button(
     ctx,
     layout.backdrop,
@@ -594,6 +602,7 @@ export function drawSettings(
 export function hitSettings(x: number, y: number): SettingsHit | null {
   const layout = settingsLayout()
   if (inside(layout.back, x, y)) return { kind: 'back' }
+  if (inside(layout.name, x, y)) return { kind: 'name' }
   if (inside(layout.sound, x, y)) return { kind: 'sound' }
   if (inside(layout.backdrop, x, y)) return { kind: 'backdrop' }
   for (let i = 0; i < layout.cameras.length; i++) {
