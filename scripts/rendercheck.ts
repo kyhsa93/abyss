@@ -138,6 +138,7 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
+import { Ambience, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
@@ -3488,11 +3489,11 @@ for (const [label, w, h] of [
     'a map answered as something else',
   )
 
-  // Settings: sound, and the volume it plays at.
-  drawSettings(stubCtx(), false, 1)
-  drawSettings(stubCtx(), true, 0)
+  // Settings: sound, the volume it plays at, and the fight behind the menus.
+  drawSettings(stubCtx(), false, 1, true)
+  drawSettings(stubCtx(), true, 0, false)
   const settings = settingsLayout()
-  const settingsRects = [settings.sound, ...settings.volumes, settings.back]
+  const settingsRects = [settings.sound, ...settings.volumes, settings.backdrop, settings.back]
   expect(`${label}: the settings fit`, settingsRects.every(onScreen), JSON.stringify(settingsRects))
   expect(
     `${label}: and do not collide`,
@@ -3506,7 +3507,8 @@ for (const [label, w, h] of [
   )
   expect(
     `${label}: sound and volume answer as themselves`,
-    hitSettings(...middle(settings.sound))?.kind === 'sound' &&
+    hitSettings(...middle(settings.backdrop))?.kind === 'backdrop' &&
+      hitSettings(...middle(settings.sound))?.kind === 'sound' &&
       settings.volumes.every((r, i) => {
         const hit = hitSettings(...middle(r))
         return hit?.kind === 'volume' && hit.level === i
@@ -4863,6 +4865,111 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     // A wipe's corner is still nothing, which the older check assumed.
     expect(`${label}: a wipe's top right is empty`, hitOutcome(w - 20, 20, wiped) === null, `${hitOutcome(w - 20, 20, wiped)}`)
   }
+}
+
+// --- the fight behind the menus --------------------------------------------
+//
+// Not a video and not a loop of sprites: an actual pull, stepped at the same
+// rate as a real one, with the player's slot handed to the AI. That is only
+// affordable because the simulation already runs without a screen — but it
+// also means every way a real fight can go wrong is a way the front page can
+// go wrong, so the things worth asserting are that it is really running, that
+// it never sits on a finished fight, and that it stays behind the menu.
+{
+  updateLayout(1440, 900)
+  const scene = new Ambience()
+
+  // It opens in the middle of something. The first twenty seconds of a pull
+  // are five people walking in, which is the least interesting footage in the
+  // game and the part a background would otherwise show most of.
+  expect('a scene opens mid-fight', scene.showing.time > 15, `${scene.showing.time}`)
+  expect('and is already ongoing', scene.showing.outcome === 'ongoing', scene.showing.outcome)
+
+  const bossBefore = scene.showing.actors.find((a) => a.faction === 'boss')
+  const before = scene.showing.time
+  for (let i = 0; i < 120; i++) scene.advance(1 / 60)
+  expect('and then runs', scene.showing.time > before, `${before} -> ${scene.showing.time}`)
+
+  // Nobody is playing it, so the party has to be playing itself: if the
+  // player's slot were still waiting for input the fight would still progress,
+  // but this is the assertion that the AI took the slot over.
+  const player = scene.showing.actors.find((a) => a.isPlayer)
+  expect('with nobody in it', player === undefined, 'somebody was still the player')
+  expect(
+    'and everyone in it acting',
+    scene.showing.actors.filter((a) => a.faction === 'party').every((a) => a.ai !== null),
+    'someone had no ai',
+  )
+
+  // A fight nobody is watching makes no sound. Nothing drains the channel on
+  // this state, so anything pushed unconditionally would also pile up in it.
+  expect('and makes no sound', scene.showing.sounds.length === 0, `${scene.showing.sounds.length}`)
+
+  // Long enough to end several fights and cut past them. A background stuck on
+  // a corpse is worse than no background.
+  let cuts = 0
+  let ended = 0
+  let cold = 0
+  let lastBoss = bossBefore?.maxHp ?? 0
+  for (let i = 0; i < 60 * 200; i++) {
+    scene.advance(1 / 60)
+    if (scene.showing.outcome !== 'ongoing') ended++
+    const boss = scene.showing.actors.find((a) => a.faction === 'boss')
+    const mark = boss?.maxHp ?? 0
+    if (mark !== lastBoss) {
+      cuts++
+      // The incoming fight was warmed up while the outgoing one was still on
+      // screen. Doing that on the frame of the cut is twenty-two seconds of
+      // simulation in one frame, which is a hitch in whatever menu is being
+      // read at the time.
+      if (scene.showing.time < 15) cold++
+    }
+    lastBoss = mark
+  }
+  expect('and cuts to a fight already under way', cold === 0, `${cold} of ${cuts} started cold`)
+  expect('it never shows a finished fight', ended === 0, `${ended} frames of one`)
+  expect('and cuts to another in its own time', cuts > 0, 'it showed one fight for ever')
+
+  // Off is off: no stepping, and a flat fill rather than a dimmed one.
+  scene.setEnabled(false)
+  const still = scene.showing.time
+  for (let i = 0; i < 60; i++) scene.advance(1 / 60)
+  expect('switched off, it stops', scene.showing.time === still, `${still} -> ${scene.showing.time}`)
+
+  const circles: Circle[] = []
+  scene.draw(recordingCtx(circles))
+  expect('and draws nothing', circles.length === 0, `${circles.length} circles`)
+
+  scene.setEnabled(true)
+  const lit: Circle[] = []
+  scene.draw(recordingCtx(lit))
+  expect('switched on, it draws the fight', lit.length > 0, 'the scene was empty')
+
+  // The wash is the whole reason this is usable: the menu is read, and a fight
+  // at full brightness behind text is a fight instead of a menu. It has to
+  // cover the screen and it has to come last.
+  const boxes: BarBox[] = []
+  scene.draw(recordingBoxes(boxes))
+  const full = boxes.filter((b) => b.x <= 0 && b.y <= 0 && b.w >= L.w && b.h >= L.h)
+  expect('the scene is washed out', full.length >= 2, `${full.length} full-screen fills`)
+  expect(
+    'and the wash goes on last',
+    boxes.length > 0 && boxes[boxes.length - 1] === full[full.length - 1],
+    'something was drawn over the wash',
+  )
+
+  // With none installed the menus fill flat, which is what every check that
+  // does not ask for a fight has been drawing against all along.
+  setAmbience(null)
+  const bare: Circle[] = []
+  drawBackdrop(recordingCtx(bare))
+  expect('no scene means a flat page', bare.length === 0, `${bare.length} circles`)
+
+  setAmbience(scene)
+  const dressed: Circle[] = []
+  drawHome(recordingCtx(dressed), 1.5)
+  expect('an installed scene reaches the front page', dressed.length > 0, 'the page was flat')
+  setAmbience(null)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

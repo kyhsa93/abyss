@@ -194,6 +194,50 @@ out to fit between the top band and the thumbs, which on a portrait phone put
 its centre in the upper third of the screen — so the arena's size now sets the
 zoom and nothing else.
 
+## The fight behind the menus
+
+Every screen that is not the game has a real fight going on behind it. Not a
+video and not a loop of sprites: an actual pull, stepped at the same rate as a
+real one, with the player's slot handed to the AI. The party is rolled fresh
+each time, the boss or the map is drawn from a shuffled round so the same one
+never follows itself, and the AI does what it does in a pull — which means it
+is never quite the same scene twice and none of it had to be animated.
+
+It costs almost nothing because the pieces were already there. The simulation
+runs without a screen, which is what the harness has always leaned on; the
+renderer draws a state rather than a session; and every lookup of the player
+inside the simulation is already written to cope with there being none,
+because a battleground's other five never had one. Handing the slot over is
+five lines, and the rest is a fight.
+
+Two things had to be got right for it to be usable rather than clever.
+
+**It has to stay behind the menu.** The scene is drawn at just over half
+opacity and then washed most of the way back to the background colour, so what
+survives is movement and colour at the edge of attention. The check asserts
+the wash covers the screen and goes on last — anything drawn over it would be
+a fight instead of a menu. Hits do not shove the view either: a background
+that jolts every time somebody crits drags the eye off the thing being read.
+
+**And it must never hitch.** Each scene skips its first twenty-two seconds,
+because the opening of a pull is five people walking in and that is the part a
+background would otherwise show most of. Running that skip on the frame the
+scene changes costs eight milliseconds on this desktop and several times that
+on a phone — a dropped frame or three, in a menu somebody is reading, every
+forty seconds. So the next fight is prepared a second at a time while the
+current one is still on screen: five minutes of menu now costs 0.012ms a frame
+on average and 3.5ms at its worst, and a cut is free. The check fails if a cut
+ever lands on a fight that has not been warmed up.
+
+The first version also showed one frozen frame of a corpse every time a fight
+ended, because it asked whether to cut *before* stepping rather than after —
+found by a check written to assert exactly that, on the grounds that a
+background stuck on a dead boss is worse than no background.
+
+It can be turned off in settings, and it defaults to off where the device has
+asked for reduced motion. A running battle behind every screen is precisely
+what that setting is about.
+
 ## Why it looks like this
 
 Hardcore raiders barely look at boss models. They watch timer bars, debuff

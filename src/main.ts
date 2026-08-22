@@ -20,6 +20,7 @@ import {
 import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
 import { beat, load as loadBests, save as saveBests, type Bests } from './bests'
 import { Effects } from './render/effects'
+import { Ambience, loadBackdrop, saveBackdrop, setAmbience } from './render/ambience'
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import {
@@ -95,6 +96,17 @@ const input = new Input(window, canvas)
 const sfx = new Sfx()
 const hints = new Hints()
 const effects = new Effects()
+
+/**
+ * The fight behind the menus.
+ *
+ * Owned here rather than by the screens that show it, because it is one fight
+ * shared by all of them: walking from the front page to the party screen
+ * carries on the pull that was already going.
+ */
+const ambience = new Ambience()
+ambience.setEnabled(loadBackdrop())
+setAmbience(ambience)
 
 // Audio cannot start without a gesture, so the first one unlocks it.
 for (const event of ['pointerdown', 'keydown'] as const) {
@@ -757,9 +769,13 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       if (sfx.isMuted()) sfx.toggleMute()
       sfx.setVolume(hit.level)
       sfx.play('countdown')
+    } else if (hit?.kind === 'backdrop') {
+      const on = !ambience.isEnabled()
+      ambience.setEnabled(on)
+      saveBackdrop(on)
     }
   }
-  drawSettings(ctx, sfx.isMuted(), sfx.volume())
+  drawSettings(ctx, sfx.isMuted(), sfx.volume(), ambience.isEnabled())
 }
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
@@ -837,6 +853,12 @@ function frame(now: number): void {
   const elapsed = Math.min(Math.max(0, frameSeconds), 0.25)
 
   const tap = input.takeTapPoint()
+
+  // The fight behind the menus is stepped here rather than inside each screen,
+  // so every screen that is not the game gets the same one at the same point
+  // in it: walking from the front page into the party screen carries on the
+  // pull that was already going rather than starting another.
+  if (screen !== 'fight') ambience.advance(elapsed)
 
   if (screen !== 'fight' && screen !== 'history') {
     input.setMenuMode(true)

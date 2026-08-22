@@ -5,6 +5,7 @@ import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
 import { COLORS, L } from './theme'
+import { drawBackdrop } from './ambience'
 
 /**
  * The screens before the fight.
@@ -127,8 +128,7 @@ function screenTitle(ctx: CanvasRenderingContext2D, text: string, sub = ''): voi
 }
 
 function backdrop(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = COLORS.bg
-  ctx.fillRect(0, 0, L.w, L.h)
+  drawBackdrop(ctx)
 }
 
 // --- home -------------------------------------------------------------------
@@ -473,9 +473,16 @@ export function hitBgSetup(x: number, y: number): { kind: 'map'; map: BgKind } |
 
 // --- settings ---------------------------------------------------------------
 
+export type SettingsHit =
+  | { kind: 'sound' }
+  | { kind: 'volume'; level: number }
+  | { kind: 'backdrop' }
+  | { kind: 'back' }
+
 export interface SettingsLayout {
   sound: Rect
   volumes: Rect[]
+  backdrop: Rect
   back: Rect
   headings: number[]
 }
@@ -497,12 +504,15 @@ export function settingsLayout(): SettingsLayout {
     w: vw,
     h: rowH,
   }))
+  const backdropY = volumeY + rowH + 34 * L.ui
+  const backdrop = { x: L.w / 2 - w / 2, y: backdropY, w, h: rowH }
 
   return {
     sound,
     volumes,
+    backdrop,
     back,
-    headings: [sound.y - 10 * L.ui, volumeY - 10 * L.ui],
+    headings: [sound.y - 10 * L.ui, volumeY - 10 * L.ui, backdropY - 10 * L.ui],
   }
 }
 
@@ -510,6 +520,9 @@ export function drawSettings(
   ctx: CanvasRenderingContext2D,
   muted: boolean,
   volume: number,
+  /** Whether the fight behind the menus is on. Named for the setting, not for
+   *  the local `backdrop()`, which is the thing it draws through. */
+  scene: boolean,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'SETTINGS')
@@ -545,16 +558,24 @@ export function drawSettings(
     )
   })
 
+  heading('BACKDROP', layout.headings[2]!)
+  button(
+    ctx,
+    layout.backdrop,
+    scene ? 'ON' : 'OFF',
+    scene ? 'a real fight, running itself behind the menus' : 'the menus sit on nothing',
+    scene ? COLORS.tank : COLORS.dead,
+    scene,
+  )
+
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
 }
 
-export function hitSettings(
-  x: number,
-  y: number,
-): { kind: 'sound' } | { kind: 'volume'; level: number } | { kind: 'back' } | null {
+export function hitSettings(x: number, y: number): SettingsHit | null {
   const layout = settingsLayout()
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.sound, x, y)) return { kind: 'sound' }
+  if (inside(layout.backdrop, x, y)) return { kind: 'backdrop' }
   for (let i = 0; i < layout.volumes.length; i++) {
     if (inside(layout.volumes[i]!, x, y)) return { kind: 'volume', level: i }
   }

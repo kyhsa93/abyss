@@ -1,6 +1,7 @@
 import { AWARDS, type Earned } from '../achievements'
 import { HISTORY_LIMIT, label, totals, type Attempt } from '../history'
 import { COLORS, L, classColor } from './theme'
+import { drawBackdrop } from './ambience'
 
 /**
  * The record screen.
@@ -138,8 +139,7 @@ export function drawHistory(
   const layout = historyLayout(entries.map((e) => e.standings.length))
   const pad = Math.max(8, L.w * 0.02)
 
-  ctx.fillStyle = COLORS.bg
-  ctx.fillRect(0, 0, L.w, L.h)
+  drawBackdrop(ctx)
 
   ctx.textAlign = 'left'
   ctx.fillStyle = COLORS.text

@@ -322,6 +322,23 @@ export function createBattlegroundState(
   }
 }
 
+/**
+ * Hands the player's slot over to the AI.
+ *
+ * For a fight nobody is playing — the one running behind the menus. Every
+ * lookup of the player in the simulation is already written to cope with there
+ * being none, because a battleground's other five never had one, so the whole
+ * fight simply runs itself.
+ */
+export function unattended(s: SimState, attempt = 6): SimState {
+  const player = s.actors.find((a) => a.isPlayer)
+  if (player) {
+    player.isPlayer = false
+    player.ai = makeAi('steady', attempt)
+  }
+  return s
+}
+
 export function clampToArena(pos: { x: number; y: number }, radius: number): void {
   const limit = ARENA_RADIUS - radius
   const dist = Math.hypot(pos.x, pos.y)

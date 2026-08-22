@@ -68,6 +68,15 @@ export class Effects {
   private clock = 0
 
   /**
+   * Whether hits are allowed to shove the view.
+   *
+   * On behind a fight, off behind a menu: a background that jolts every time
+   * somebody lands a crit drags the eye off the thing being read, and the
+   * whole point of a background is that it can be ignored.
+   */
+  constructor(private readonly shoves = true) {}
+
+  /**
    * Takes one tick's worth of events.
    *
    * Called per tick rather than per frame, because the channel is emptied at
@@ -104,7 +113,7 @@ export class Effects {
 
     // Only the hits worth feeling: a crit, or something on the scale of a
     // finisher. Every swing shoving the camera would be unplayable.
-    if (event.kind === 'impact' && (event.crit || event.power >= 300)) {
+    if (this.shoves && event.kind === 'impact' && (event.crit || event.power >= 300)) {
       const shove = event.crit ? 2.2 : 0
       const size = Math.min(4.5, event.power / 140)
       this.shakeMag = Math.min(MAX_SHAKE, this.shakeMag + shove + size)

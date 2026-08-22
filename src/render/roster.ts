@@ -12,6 +12,7 @@ import { ENCOUNTERS } from '../sim/encounters'
 import { BATTLEGROUNDS } from '../sim/battleground'
 import type { BgKind } from '../sim/types'
 import { COLORS, L, classColor } from './theme'
+import { drawBackdrop } from './ambience'
 
 /**
  * Raid setup.
@@ -209,8 +210,7 @@ export function drawRoster(
   const activeSlot = 0
   const layout = rosterLayout()
 
-  ctx.fillStyle = COLORS.bg
-  ctx.fillRect(0, 0, L.w, L.h)
+  drawBackdrop(ctx)
 
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
