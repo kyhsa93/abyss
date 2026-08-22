@@ -1,5 +1,6 @@
 import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
+import type { FloorPlan } from './floor'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -466,6 +467,15 @@ export interface SimState {
   nextSoak: number
   /** Next thing that picks somebody and follows them. */
   nextHunt: number
+  /**
+   * What this floor was rolled to ask for, on a descent.
+   *
+   * Null on the ladder and in a battleground, where the fight is whatever the
+   * boss's own table says it is. On a floor it replaces those cadences
+   * entirely: the boss lends its shape, its health and its damage, and the
+   * plan decides what it does with them.
+   */
+  plan: FloorPlan | null
   /** A magic dot on somebody, which armour does not. */
   nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */

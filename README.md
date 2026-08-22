@@ -388,6 +388,61 @@ best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
 
+## A floor rolls its own fight
+
+The three bosses on the ladder are sentences written by hand out of a fixed
+vocabulary — the Choir throws no cone and no ring, the Tidebreaker no spread
+and no rot. The descent used to run those same three in a loop, `(depth - 1) %
+3`, so floor four was the first boss again with more health and floor seven was
+it a third time.
+
+Now a floor takes a boss for its shape, its health and its damage, and rolls
+what it *asks for*: a budget that grows with the depth, spent on mechanics from
+the same vocabulary. The boss's swing and slam survive, since that is what
+makes one hit differently from another; everything else the plan decides, and
+anything it does not buy is switched off.
+
+**The prices are measured, and they are not what they look like.** A
+mechanic's cost here is not the damage it deals, it is what it takes out of
+the party's output — this party heals by standing still and casting, so
+anything that moves people is expensive and anything that only hurts them is
+cheap. The gathering costs six and the stalker five, because they were measured
+at thirty points of win rate and sixteen percent of the raid's damage; the
+armour break, the sweep and the rot cost two apiece, because they move nobody
+at all.
+
+| | cost | from floor |
+| --- | --- | --- |
+| pools, the sweep, rot | 2 | 1 |
+| marks, the cone | 3 | 1 |
+| the armour break | 2 | 3 |
+| the ring, thralls | 4 | 2 |
+| the stalker | 5 | 2 |
+| the gathering | 6 | 3 |
+
+Two rules keep a roll from being a lottery. Every floor buys something that
+asks the party to *be somewhere* before it buys anything else, because a roll
+of nothing but a sweep, a rot and an armour break is a fight where nobody ever
+has to move — not a cheap fight, a damage meter. And the budget has a ceiling,
+because a floor that can afford every mechanic at once asks for everything and
+therefore for nothing: there is no room left to answer any of it.
+
+The floor says what it rolled during the three-second countdown, next to the
+boss's name. A fight assembled by a die is only interesting if you can see what
+it was assembled out of, and unlike a raid boss — learned by repeating it — a
+floor is met once.
+
+**What is checked is the budget, not any one floor.** Nothing here is authored,
+so there is nothing to hand-tune: the checks sample seven hundred rolls across
+twelve depths and assert that none overspends, none is empty, none is
+motionless, the whole vocabulary is reachable, the expensive things are gated
+by depth as well as by price, and the same seed is the same floor twice. The
+harness samples floors for a win-rate curve, and then walks whole runs the way
+the game does — half a health bar back between floors, one of the fallen up per
+floor — because the difficulty of a descent is the product of its floors
+rather than the hardest one. Runs currently end at a median of floor five, with
+the harness's deliberately mediocre player.
+
 ## The armour break, and the second tank
 
 Every mechanic in this game is answered by moving. Puddles say leave where you

@@ -28,13 +28,13 @@ export function descentHealth(depth: number): number {
   // every raid in the game the first floor's numbers — a boss with 42% of its
   // health, which the harness would have caught and the eye would not.
   if (depth <= 0) return 1
-  return 0.58 + (depth - 1) * 0.105
+  return 0.7 + (depth - 1) * 0.085
 }
 
 /** And what it hits for. Softer than the health: a wall is not a lesson. */
 export function descentDamage(depth: number): number {
   if (depth <= 0) return 1
-  return 0.8 + (depth - 1) * 0.042
+  return 0.82 + (depth - 1) * 0.025
 }
 
 /** Which boss a floor holds. They come round in order and keep coming. */
@@ -54,52 +54,3 @@ export const DESCENT_RECOVERY = 0.55
 
 /** One of the fallen comes back on each floor, at a fraction of their health. */
 export const DESCENT_REVIVE = 0.45
-
-/**
- * The floor from which the descent starts asking the party to gather.
- *
- * The circle is the one mechanic here that is not on any boss's table, and
- * that is deliberate. Measured against the raid ladder it costs about thirty
- * points of win rate wherever it is put — not through its damage, which is
- * small, but because this party heals by standing still and casting, so any
- * mechanic that moves all five of them at once takes the healer's output away
- * in the same seconds it takes health off everybody. A fight that was already
- * balanced cannot absorb that without being retuned into a different fight.
- *
- * The descent can. It has no fixed difficulty to preserve — every floor is
- * meant to be worse than the last — so the mechanic lands here first, and the
- * ladder keeps the shape it was tuned to.
- */
-export const DESCENT_SOAK_FLOOR = 3
-
-/** How often the descent calls for the circle, by floor. Zero above ground. */
-export function descentSoak(depth: number): number {
-  if (depth < DESCENT_SOAK_FLOOR) return 0
-  // Tightens with the floor, to a limit: at some point it is every gather and
-  // nothing else, and a fight that is one mechanic is not a fight.
-  return Math.max(22, 40 - (depth - DESCENT_SOAK_FLOOR) * 2)
-}
-
-/**
- * The floor from which something starts following one of you.
- *
- * Here for the same reason the circle is, and the measurement is sharper.
- * A stalker with its damage turned down to one point and less health than an
- * ordinary thrall still took the Warden from sixty-five percent to eight: the
- * cost is not what it lands, it is that the party's damage dealers break off
- * to kill it and the one it picked stops casting to walk. Sixteen percent of
- * the party's output, measured — which is most of the margin a tuned fight
- * has.
- *
- * That is the finding of this round rather than a fact about this mechanic.
- * The ladder is balanced on a party that stands still and casts, so movement
- * and target-switching are the expensive currency, and a mechanic that spends
- * them belongs where escalating cost is the intention.
- */
-export const DESCENT_HUNT_FLOOR = 2
-
-/** How often the descent sends one, by floor. Zero above ground. */
-export function descentHunt(depth: number): number {
-  if (depth < DESCENT_HUNT_FLOOR) return 0
-  return Math.max(26, 44 - (depth - DESCENT_HUNT_FLOOR) * 2)
-}

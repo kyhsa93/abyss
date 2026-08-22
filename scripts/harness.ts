@@ -16,6 +16,8 @@ import {
   specLabel,
 } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
+import { rollFloor } from '../src/sim/floor'
+import { DESCENT_RECOVERY, DESCENT_REVIVE } from '../src/sim/descent'
 
 /** Crude stand-in for a competent human: run out of any puddle, else stand still. */
 function playerInput(s: SimState, pressed: number[]): PlayerInput {
@@ -50,8 +52,9 @@ function run(
   party?: Pick[],
   difficulty: DifficultyId = 'normal',
   encounter = 0,
+  depth = 0,
 ): Report {
-  const s = createState(seed, attempt, party, difficulty, encounter)
+  const s = createState(seed, attempt, party, difficulty, encounter, null, depth)
   // The pull's opening countdown is skipped rather than waited out. No time
   // passes during it, so the fight is identical either way — this is only
   // ninety ticks per run of nobody doing anything, times several thousand.
@@ -229,6 +232,121 @@ for (const size of [5, 10, 25] as RaidSize[]) {
       (left / total).toFixed(0),
     )
   }
+}
+
+// --- the descent, which rolls its own fight every floor --------------------
+//
+// The floors are not authored, so there is nothing to hand-tune and nothing
+// to hand-check: what is measured here is the *budget*, by sampling floors
+// rather than by looking at any one of them. A curve that stays high is a
+// descent with no bottom; one that collapses at floor three is a raid with
+// the retry button taken away. Somewhere around half at the top and a tenth
+// by floor ten is the shape being aimed at.
+const FLOOR_RUNS = 24
+console.log('\nfloor    win%     avgTime  bossHP%  bought')
+for (const depth of [1, 2, 3, 4, 6, 8, 10, 12]) {
+  let wins = 0
+  let time = 0
+  let left = 0
+  const bought: Record<string, number> = {}
+  for (let i = 0; i < FLOOR_RUNS; i++) {
+    const seed = 5000 + i * 7919
+    const plan = rollFloor(seed, depth)
+    for (const id of Object.keys(plan.every)) bought[id] = (bought[id] ?? 0) + 1
+    const r = run(seed, Math.min(8, depth + 1), undefined, 'normal', (depth - 1) % 3, depth)
+    if (r.outcome === 'victory') wins++
+    time += r.time
+    left += r.bossPct
+  }
+  const common = Object.entries(bought)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id, n]) => `${id} ${Math.round((n / FLOOR_RUNS) * 100)}%`)
+    .join('  ')
+  console.log(
+    `${depth}`.padEnd(9),
+    `${Math.round((wins / FLOOR_RUNS) * 100)}%`.padEnd(9),
+    (time / FLOOR_RUNS).toFixed(0).padEnd(9),
+    (left / FLOOR_RUNS).toFixed(0).padEnd(9),
+    common,
+  )
+}
+
+// --- and the run itself, which is the number the player sees ---------------
+//
+// The table above measures floors in isolation, which is not the fight anyone
+// has: a descent carries its damage forward, so the difficulty of a run is
+// the product of its floors rather than the hardest one. This walks whole
+// runs the way the game does — half a health bar back between floors, one of
+// the fallen up per floor — and reports where they end.
+const DESCENT_RUNS = 40
+{
+  const reached: number[] = []
+  for (let n = 0; n < DESCENT_RUNS; n++) {
+    let carried: SimState | null = null
+    let depth = 0
+    for (;;) {
+      depth++
+      const seed = 9000 + n * 7919 + depth * 137
+      const s = createState(
+        seed,
+        Math.min(8, depth + 1),
+        undefined,
+        'normal',
+        (depth - 1) % 3,
+        null,
+        depth,
+      )
+      s.countdown = 0
+
+      if (carried) {
+        const before = carried.actors.filter((a) => a.faction === 'party')
+        let revived = false
+        s.actors
+          .filter((a) => a.faction === 'party')
+          .forEach((a, i) => {
+            const was = before[i]
+            if (!was) return
+            if (was.alive) {
+              a.hp = Math.min(a.maxHp, Math.round(was.hp + a.maxHp * DESCENT_RECOVERY))
+              a.power = was.power
+              return
+            }
+            if (!revived) {
+              revived = true
+              a.hp = Math.round(a.maxHp * DESCENT_REVIVE)
+            } else {
+              a.alive = false
+              a.hp = 0
+            }
+          })
+      }
+
+      const rng = new Rng(seed + 13)
+      let ticks = 0
+      while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+        const pressed: number[] = []
+        if (ticks % 45 === 0) pressed.push(0)
+        if (ticks % 360 === 0) pressed.push(1)
+        if (ticks % 540 === 0) pressed.push(2)
+        step(s, playerInput(s, pressed), rng)
+        ticks++
+      }
+      if (s.outcome !== 'victory') break
+      carried = s
+      if (depth > 40) break
+    }
+    reached.push(depth)
+  }
+
+  reached.sort((a, b) => a - b)
+  const median = reached[Math.floor(reached.length / 2)]!
+  const best = reached[reached.length - 1]!
+  const worst = reached[0]!
+  const mean = reached.reduce((a, b) => a + b, 0) / reached.length
+  console.log(
+    `\ndescent runs: median floor ${median}, mean ${mean.toFixed(1)}, worst ${worst}, best ${best}`,
+  )
 }
 
 // --- per member, which is the only place AI bugs actually surface ----------

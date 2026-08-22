@@ -1,7 +1,8 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
-import { descentHealth, descentHunt, descentSoak } from './descent'
+import { descentHealth } from './descent'
+import { plannedOpening, rollFloor } from './floor'
 import { Rng } from './rng'
 import {
   CLASSES,
@@ -131,7 +132,10 @@ export function createState(
   const scale =
     sizeHealth(party.length) * DIFFICULTIES[difficulty].health * descentHealth(depth)
   const fight = encounterAt(encounter)
-  const opening = fight.opening
+  // A floor rolls its own fight out of the same vocabulary the bosses are
+  // written in; the ladder gets the boss exactly as it was authored.
+  const plan = depth > 0 ? rollFloor(seed, depth) : null
+  const opening = plan ? { ...fight.opening, ...plannedOpening(plan) } : fight.opening
 
   const boss: Actor = {
     id: BOSS_ID,
@@ -209,10 +213,9 @@ export function createState(
     nextAdds: opening.adds,
     nextSweep: opening.sweep,
     nextSunder: opening.sunder,
-    // A descent floor asks for the circle even where the boss's own table
-    // does not, so the first one is scheduled rather than left at zero.
-    nextSoak: opening.soak > 0 ? opening.soak : descentSoak(depth),
-    nextHunt: opening.hunt > 0 ? opening.hunt : descentHunt(depth),
+    nextSoak: opening.soak,
+    nextHunt: opening.hunt,
+    plan,
     nextRot: opening.rot,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
@@ -318,6 +321,7 @@ export function createBattlegroundState(
     nextSunder: 0,
     nextSoak: 0,
     nextHunt: 0,
+    plan: null,
     nextRot: 0,
     bossFacing: Math.PI,
     raidFlash: 0,

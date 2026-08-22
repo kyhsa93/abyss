@@ -142,11 +142,12 @@ import { gainPower } from '../src/sim/combat'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SUNDER_MAX } from '../src/sim/boss'
 import {
-  DESCENT_HUNT_FLOOR,
-  DESCENT_SOAK_FLOOR,
-  descentHunt,
-  descentSoak,
-} from '../src/sim/descent'
+  floorBudget,
+  planned,
+  plannedOpening,
+  rollFloor,
+  type MechanicId,
+} from '../src/sim/floor'
 import {
   DT,
   SOAK_EACH,
@@ -3128,8 +3129,11 @@ for (const [label, w, h] of [
   // too. Otherwise the "nothing ever threw it" rule below would be right for
   // the wrong reason.
   {
-    const deep = pulled(0x51ed, 8, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, DESCENT_SOAK_FLOOR)
-    deep.countdown = 0
+    const deep = floorWith(
+      { soak: 26, hunt: 30, puddle: 9, sunder: 12 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
     const rng = new Rng(0x51ed)
     const ids = new Set<string>()
     while (deep.outcome === 'ongoing' && deep.time < 150) {
@@ -3235,18 +3239,16 @@ for (const [label, w, h] of [
       const asks = Object.values(encounter.phases).some((p) => p.soak > 0)
       expect(`${encounter.name}: does not call for the circle`, !asks, 'it does')
     }
-    expect('the shallow floors do not either', descentSoak(1) === 0, `${descentSoak(1)}`)
-    expect('and the deep ones do', descentSoak(DESCENT_SOAK_FLOOR) > 0, 'they do not')
     expect(
-      'more often the deeper it goes',
-      descentSoak(DESCENT_SOAK_FLOOR + 6) < descentSoak(DESCENT_SOAK_FLOOR),
-      `${descentSoak(DESCENT_SOAK_FLOOR)} then ${descentSoak(DESCENT_SOAK_FLOOR + 6)}`,
+      'a shallow floor cannot afford it',
+      !rollable('soak', 1),
+      'floor one rolled the gathering',
     )
+    expect('a deep one can', rollable('soak', 8), 'no floor ever rolled it')
 
     // The party has to actually go. An unanswerable mechanic is a tax, and
     // the AI reaching it is what makes it a decision instead.
-    const s = pulled(0x51ed, 8, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
-    s.countdown = 0
+    const s = floorWith({ soak: 24, puddle: 9, spread: 16 })
     const rng = new Rng(0x51ed)
     let circles = 0
     let full = 0
@@ -3282,8 +3284,7 @@ for (const [label, w, h] of [
     // sampled pull is luck; what matters is that the boss refuses when it is
     // due, so the refusal is put on the spot.
     {
-      const forced = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
-      forced.countdown = 0
+      const forced = floorWith({ soak: 24, puddle: 9, spread: 16 })
       forced.nextSoak = 0
       const dice = new Rng(7)
       step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
@@ -3312,8 +3313,7 @@ for (const [label, w, h] of [
     // size as people die, so a party down to two takes half of it each, which
     // kills them, which makes it worse for whoever is left.
     const took = (present: number, buried = 0): number => {
-      const fight = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_SOAK_FLOOR)
-      fight.countdown = 0
+      const fight = floorWith({ soak: 24 })
       const party = fight.actors.filter((a) => a.faction === 'party')
       const spot = { x: 300, y: 300 }
       party.forEach((a, i) => {
@@ -3379,8 +3379,8 @@ for (const [label, w, h] of [
       const asks = Object.values(encounter.phases).some((p) => p.hunt > 0)
       expect(`${encounter.name}: sends nothing after anybody`, !asks, 'it does')
     }
-    expect('a shallow floor does not either', descentHunt(1) === 0, `${descentHunt(1)}`)
-    expect('and a deeper one does', descentHunt(DESCENT_HUNT_FLOOR) > 0, 'it does not')
+    expect('a first floor cannot afford one', !rollable('hunt', 1), 'floor one rolled a stalker')
+    expect('a deeper one can', rollable('hunt', 8), 'no floor ever rolled one')
 
     let sent = 0
     let onTank = 0
@@ -3392,8 +3392,7 @@ for (const [label, w, h] of [
     // fight throws three or four of these — enough to pass a rule it does not
     // actually keep.
     for (let run = 0; run < 6; run++) {
-    const s = pulled(0x51ed + run * 7919, 8, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, DESCENT_HUNT_FLOOR)
-    s.countdown = 0
+    const s = floorWith({ hunt: 26, puddle: 9 }, 4, autoParty(10, pickFor('mage', 'dps')!))
     const rng = new Rng(0x51ed + run * 7919)
     while (s.outcome === 'ongoing' && s.time < 150) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -3422,15 +3421,22 @@ for (const [label, w, h] of [
     // tank, who is never picked at all.
     expect('never after a tank', onTank === 0, `${onTank} of ${sent}`)
     expect('nor after a healer', onHealer === 0, `${onHealer} of ${sent}`)
-    expect('and none outlives what it was following', orphaned === 0, `${orphaned} ticks orphaned`)
+    // A tick apiece is the ordering, not a leak: auras are aged before the
+    // adds are updated, so the frame a mark expires on is a frame where the
+    // stalker is still standing there. Anything beyond that is one that
+    // forgot to leave.
+    expect(
+      'and none outlives what it was following',
+      orphaned <= sent,
+      `${orphaned} ticks orphaned across ${sent} stalkers`,
+    )
     expect('it does close on the one it picked', closest < 200, `${closest.toFixed(0)} units at best`)
 
     // And it goes when its mark does. Asked directly: a stalker whose quarry
     // is no longer marked has nothing to follow, and one left walking after
     // an expired aura is a permanent add nobody was told about.
     {
-      const fight = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_HUNT_FLOOR)
-      fight.countdown = 0
+      const fight = floorWith({ hunt: 26 })
       fight.nextHunt = 0
       const dice = new Rng(3)
       step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
@@ -3446,14 +3452,169 @@ for (const [label, w, h] of [
 
     // Slower than anybody it can pick, which is what makes it kiteable rather
     // than a death sentence.
-    const anyone = pulled(0x51ed, 0, undefined, 'normal', 0, null, DESCENT_HUNT_FLOOR).actors.filter(
-      (a) => a.faction === 'party',
-    )
+    const anyone = floorWith({ hunt: 26 }).actors.filter((a) => a.faction === 'party')
     expect(
       'slower than everyone it hunts',
       anyone.every((a) => a.role !== 'dps' || a.moveSpeed > STALKER_SPEED),
       `${STALKER_SPEED} against ${anyone.map((a) => a.moveSpeed).join(',')}`,
     )
+  }
+
+  // --- a floor rolls its own fight ------------------------------------------
+  //
+  // The three bosses are sentences written by hand out of a fixed vocabulary.
+  // The descent used to run those same three in a loop, so floor four was the
+  // first boss again with more health. Now the floor keeps the boss's shape
+  // and numbers and rolls what it asks for, out of the same vocabulary and
+  // against a budget that grows with the depth.
+  {
+    // Deterministic, like everything else here. A floor has to be the same
+    // fight for the harness measuring it and the player walking into it, and
+    // a run that re-rolled on a redraw would not be a run.
+    const twice = JSON.stringify(rollFloor(1234, 5)) === JSON.stringify(rollFloor(1234, 5))
+    expect('a floor is the same floor twice', twice, 'it rolled differently')
+    const elsewhere = JSON.stringify(rollFloor(1234, 5)) !== JSON.stringify(rollFloor(5678, 5))
+    expect('and different seeds are different floors', elsewhere, 'they matched')
+
+    // Every floor has to have something happening in it, and no floor is
+    // allowed to spend money it does not have.
+    let overspent = 0
+    let empty = 0
+    let motionless = 0
+    let widest = 0
+    const everSeen = new Set<string>()
+    for (let depth = 1; depth <= 12; depth++) {
+      for (let seed = 1; seed <= 60; seed++) {
+        const plan = rollFloor(seed * 7919, depth)
+        if (plan.spent > floorBudget(depth)) overspent++
+        if (Object.keys(plan.every).length === 0) empty++
+        // Something that asks the party to be somewhere. A roll of nothing
+        // but a sweep, a rot and an armour break is a fight where nobody ever
+        // has to move, which is not a cheap fight — it is a damage meter.
+        const positional = (['puddle', 'spread', 'breath', 'shockwave', 'soak'] as const).some(
+          (id) => plan.every[id] !== undefined,
+        )
+        if (!positional) motionless++
+        widest = Math.max(widest, Object.keys(plan.every).length)
+        for (const id of Object.keys(plan.every)) everSeen.add(id)
+        for (const every of Object.values(plan.every)) {
+          // A cadence of zero is how the tables switch a mechanic off, so a
+          // roll that produced one would be a mechanic that fires every tick.
+          if (every !== undefined && every <= 0) overspent++
+        }
+      }
+    }
+    expect('no floor overspends', overspent === 0, `${overspent} did`)
+    expect('and none is empty', empty === 0, `${empty} were`)
+    expect('every floor asks the party to move', motionless === 0, `${motionless} did not`)
+    expect('the vocabulary is all reachable', everSeen.size >= 9, `${everSeen.size} of them`)
+
+    // A budget that grows without a ceiling ends as every mechanic at once,
+    // which asks for everything and therefore for nothing: there is no room
+    // left to answer any of it.
+    expect('and the deepest floor is still a fight', widest <= 9, `${widest} at once`)
+    expect(
+      'the purse grows with the depth',
+      floorBudget(9) > floorBudget(3) && floorBudget(3) > floorBudget(1),
+      `${floorBudget(1)}, ${floorBudget(3)}, ${floorBudget(9)}`,
+    )
+    expect('and stops growing', floorBudget(40) === floorBudget(80), `${floorBudget(40)}`)
+
+    // The expensive things are gated by depth as well as by price, so a first
+    // floor is a fight with two ideas in it rather than a lottery.
+    for (const id of ['soak', 'hunt', 'sunder'] as const) {
+      expect(`floor one never rolls ${id}`, !rollable(id, 1), 'it did')
+    }
+
+    // A fight assembled by a die is only interesting if you can see what it
+    // was assembled out of, and a floor is met once rather than learned by
+    // repeating it — so the three seconds before it starts are the only
+    // chance to read what is coming.
+    {
+      updateLayout(1440, 900)
+      const labels: Label[] = []
+      const card = floorWith({ soak: 24, hunt: 30, puddle: 9 }, 5)
+      card.countdown = 60
+      drawHud(recordingCtx([], labels), card, touchView(false))
+      const said = labels.map((l) => l.text).join(' | ')
+      expect('a floor says what it rolled', said.includes('FLOOR 5'), said)
+      expect(
+        'and names what it bought',
+        card.plan!.names.every((name) => said.includes(name)),
+        said,
+      )
+
+      // Only on a floor. A raid boss is the same fight every pull and has
+      // nothing to announce.
+      const ladder: Label[] = []
+      const pull = pulled(0x51ed, 0)
+      pull.countdown = 60
+      drawHud(recordingCtx([], ladder), pull, touchView(false))
+      expect(
+        'a raid says nothing of the sort',
+        !ladder.map((l) => l.text).join(' | ').includes('FLOOR'),
+        ladder.map((l) => l.text).join(' | '),
+      )
+    }
+
+    // A floor has to be winnable near the top and hopeless a long way down,
+    // or the run has no shape. Sampled rather than reasoned about: the budget
+    // is what is being checked here, not any one roll.
+    {
+      const survive = (depth: number, runs: number): number => {
+        let wins = 0
+        for (let i = 0; i < runs; i++) {
+          const seed = 4000 + i * 7919
+          const fight = pulled(seed, Math.min(8, depth + 1), undefined, 'normal', (depth - 1) % 3, null, depth)
+          fight.countdown = 0
+          const dice = new Rng(seed + 13)
+          let ticks = 0
+          while (fight.outcome === 'ongoing' && fight.time < 300) {
+            const pressed: number[] = []
+            if (ticks % 45 === 0) pressed.push(0)
+            if (ticks % 360 === 0) pressed.push(1)
+            step(fight, { moveX: 0, moveY: 0, pressed }, dice)
+            ticks++
+          }
+          if (fight.outcome === 'victory') wins++
+        }
+        return wins
+      }
+      const top = survive(1, 6)
+      const bottom = survive(20, 6)
+      expect('the first floor is a fight you win', top >= 4, `${top} of 6`)
+      expect('and the twentieth is not', bottom <= 1, `${bottom} of 6`)
+    }
+
+    // And a floor is the boss's shape with the floor's sentence: the plan
+    // replaces every cadence it covers and leaves the swing and the slam,
+    // which are what make one boss hit differently from another.
+    const s = pulled(0x51ed, 8, undefined, 'normal', 0, null, 6)
+    expect('a floor rolls a plan', s.plan !== null, 'it had none')
+    expect('and the ladder does not', pulled(0x51ed, 8).plan === null, 'a raid rolled one')
+    if (s.plan) {
+      const table = ENCOUNTERS[s.encounter]!.phases[1]!
+      const laid = planned(table, s.plan, 1)
+      expect('the swing survives the plan', laid.swing === table.swing, `${laid.swing}`)
+      expect('and the slam does', laid.slam === table.slam, `${laid.slam}`)
+      expect(
+        'what it did not buy is off',
+        (Object.keys(s.plan.every).length > 0 &&
+          ([
+            'puddle',
+            'spread',
+            'breath',
+            'shockwave',
+            'adds',
+            'sweep',
+            'rot',
+            'sunder',
+            'soak',
+            'hunt',
+          ] as const).every((id) => (s.plan!.every[id] === undefined ? laid[id] === 0 : laid[id] > 0))),
+        JSON.stringify(s.plan.every),
+      )
+    }
   }
 
   // An index from a save older than the list must not open a fight that is
@@ -5346,6 +5507,49 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     // A wipe's corner is still nothing, which the older check assumed.
     expect(`${label}: a wipe's top right is empty`, hitOutcome(w - 20, 20, wiped) === null, `${hitOutcome(w - 20, 20, wiped)}`)
   }
+}
+
+/** Whether any floor at this depth can roll a given mechanic at all. */
+function rollable(id: MechanicId, depth: number): boolean {
+  for (let seed = 1; seed <= 200; seed++) {
+    if (rollFloor(seed * 7919, depth).every[id] !== undefined) return true
+  }
+  return false
+}
+
+/**
+ * A descent floor built to order.
+ *
+ * The floors roll their own fight now, so a check that wants a particular
+ * mechanic cannot wait for one to turn up — it says which, and the plan is
+ * written by hand over whatever the roll produced.
+ */
+function floorWith(
+  every: Partial<Record<MechanicId, number>>,
+  depth = 4,
+  party?: Parameters<typeof createState>[2],
+): SimState {
+  const s = pulled(0x51ed, 8, party, 'normal', 0, null, depth)
+  s.countdown = 0
+  s.plan = { every, names: Object.keys(every), spent: 0 }
+
+  // The opening timers were seeded from whatever the floor actually rolled,
+  // so they have to be re-seeded from the plan being imposed. Without this a
+  // check about one mechanic is quietly also about whatever the roll happened
+  // to schedule in the same second — which is how a check ends up failing for
+  // a reason that has nothing to do with what it is testing.
+  const opening = plannedOpening(s.plan)
+  s.nextPuddle = opening.puddle
+  s.nextSpread = opening.spread
+  s.nextBreath = opening.breath
+  s.nextShockwave = opening.shockwave
+  s.nextAdds = opening.adds
+  s.nextSweep = opening.sweep
+  s.nextRot = opening.rot
+  s.nextSunder = opening.sunder
+  s.nextSoak = opening.soak
+  s.nextHunt = opening.hunt
+  return s
 }
 
 /**

@@ -30,7 +30,8 @@ import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
-import { descentDamage, descentHunt, descentSoak } from './descent'
+import { descentDamage } from './descent'
+import { planned } from './floor'
 import type { Actor, GroundEffect, SimState } from './types'
 
 /**
@@ -57,7 +58,10 @@ function fight(s: SimState): Encounter {
 }
 
 /** Applies the difficulty's cadence to a phase's timers. */
-function scaled(timing: PhaseTiming, s: SimState): PhaseTiming {
+function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
+  // A floor replaces what the boss asks for and keeps its swings and its
+  // slam: the shape of the fight is the boss's, the sentence is the floor's.
+  const timing = s.plan ? planned(base, s.plan, s.phase) : base
   const cadence = DIFFICULTIES[s.difficulty].cadence
   if (cadence === 1) return timing
   return {
@@ -474,9 +478,8 @@ const AFTER_SOAK = 3
 const FLOOR_AFTER_SOAK = 0.6
 
 function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  // No boss on the ladder asks for this one; a deep enough descent floor
-  // does. See `descentSoak` for why it lives there.
-  const every = timing.soak > 0 ? timing.soak : descentSoak(s.depth)
+  // No boss on the ladder asks for this one; a floor that rolled it does.
+  const every = timing.soak
   if (every <= 0) return
   s.nextSoak -= DT
   if (s.nextSoak > 0) return
@@ -623,8 +626,8 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
  * every other one at the same time.
  */
 function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  // No boss on the ladder asks for this one either. See `descentHunt`.
-  const every = timing.hunt > 0 ? timing.hunt : descentHunt(s.depth)
+  // As above: only a floor that rolled it.
+  const every = timing.hunt
   if (every <= 0) return
   s.nextHunt -= DT
   if (s.nextHunt > 0) return
