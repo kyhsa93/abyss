@@ -32,7 +32,14 @@ export type MenuScreen = 'home' | 'raid' | 'battleground' | 'daily' | 'settings'
 /** How many specs the class grid has to hold. */
 const SPEC_COUNT = SPEC_OPTIONS.length
 
-export type HomeChoice = 'raid' | 'battleground' | 'daily' | 'descent' | 'settings' | 'record'
+export type HomeChoice =
+  | 'raid'
+  | 'battleground'
+  | 'daily'
+  | 'descent'
+  | 'settings'
+  | 'record'
+  | 'share'
 
 function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
@@ -129,17 +136,31 @@ function backdrop(ctx: CanvasRenderingContext2D): void {
 export interface HomeLayout {
   choices: Rect[]
   record: Rect
+  share: Rect
 }
 
 export function homeLayout(): HomeLayout {
-  const record = backRect()
-  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui, record.y - 16)
-  return { choices, record: { ...record, x: L.w / 2 - record.w / 2 } }
+  // Two of the same size, centred as a pair. Neither is a way into a fight,
+  // which is why they sit under the column rather than in it.
+  const base = backRect()
+  const gap = 8
+  const left = L.w / 2 - base.w - gap / 2
+  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui, base.y - 16)
+  return {
+    choices,
+    record: { ...base, x: left },
+    share: { ...base, x: left + base.w + gap },
+  }
 }
 
 const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'descent', 'settings']
 
-export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
+export function drawHome(
+  ctx: CanvasRenderingContext2D,
+  clock: number,
+  /** Replaces the share button's label after a press, to confirm what happened. */
+  shareLabel?: string,
+): void {
   backdrop(ctx)
   screenTitle(ctx, 'ABYSS', 'a raid boss, or five people who would rather you left')
 
@@ -162,6 +183,7 @@ export function drawHome(ctx: CanvasRenderingContext2D, clock: number): void {
   })
 
   button(ctx, layout.record, 'RECORD', '', COLORS.textDim)
+  button(ctx, layout.share, shareLabel ?? 'SHARE', '', COLORS.tank)
 }
 
 export function hitHome(x: number, y: number): HomeChoice | null {
@@ -170,6 +192,7 @@ export function hitHome(x: number, y: number): HomeChoice | null {
     if (inside(layout.choices[i]!, x, y)) return HOME_ORDER[i]!
   }
   if (inside(layout.record, x, y)) return 'record'
+  if (inside(layout.share, x, y)) return 'share'
   return null
 }
 

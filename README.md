@@ -342,13 +342,22 @@ seed. A link can therefore carry the fight itself rather than a picture of it,
 and sharing here means an invitation rather than a screenshot — which is the
 only shape worth having when the thing being compared is how it was played.
 
-Two places offer one. Today's screen shares the day, with whatever you have
+Three places offer one. Today's screen shares the day, with whatever you have
 made of it so far attached; the results screen shares a kill, with the boss,
-the size, the difficulty and the time. Both hand the text to `navigator.share`
-where the device has a share sheet and to the clipboard where it does not, and
-the button says `COPIED` for a moment afterwards, because a clipboard write is
+the size, the difficulty and the time; and the front page shares the game
+itself, next to the record. All three hand the text to `navigator.share` where
+the device has a share sheet and to the clipboard where it does not, and the
+button says `COPIED` for a moment afterwards, because a clipboard write is
 otherwise completely silent and a button that appears to do nothing is a
 button people press twice.
+
+The front page's is the odd one out: it is about the game rather than about a
+fight, so its link carries no fragment at all — there is nothing to reproduce,
+only somewhere to arrive. What makes it worth sending rather than a bare URL
+is the line under it, which counts the bosses down, the deepest floor reached
+and the fastest kill of the furthest boss. One best rather than a table: a
+list of three is a spreadsheet. A player who has done nothing yet claims
+nothing, and the check fails if that message ever grows a number.
 
 The link is a fragment — `#d=20260820` for a day, `#b=warden&s=10&h=1` for a
 fight — read once at startup and then cleared out of the address bar. Leaving

@@ -3,6 +3,7 @@ import { affixById } from './sim/affix'
 import { ENCOUNTERS } from './sim/encounters'
 import type { Daily } from './sim/daily'
 import type { DailyResult } from './daily-record'
+import type { Bests } from './bests'
 
 /**
  * Sharing, for a game with no server.
@@ -117,6 +118,32 @@ export function killMessage(
     `as ${spec}, ${mechanics === 0 ? 'without eating a single mechanic' : `${mechanics} mechanics eaten`}`,
     fightLink(bossId, size, difficulty),
   ].join('\n')
+}
+
+/**
+ * The game itself, with whatever you have to show for it.
+ *
+ * The other two shares are about a fight. This one is about the game, which
+ * means the link carries no fragment at all — there is nothing to reproduce,
+ * only somewhere to arrive. What makes it worth sending rather than a bare URL
+ * is the second line: a record is only a boast if somebody else can read it.
+ */
+export function gameMessage(bests: Bests): string {
+  const lines = ['Abyss — a raid boss, or five people who would rather you left']
+
+  const killed = ENCOUNTERS.filter((e) => bests.kills[e.id] !== undefined)
+  const done: string[] = []
+  if (killed.length > 0) done.push(`${killed.length} of ${ENCOUNTERS.length} bosses down`)
+  if (bests.depth > 0) done.push(`deepest floor ${bests.depth}`)
+  if (done.length > 0) lines.push(done.join(' · '))
+
+  // One best rather than a table: the fastest kill of the furthest boss is the
+  // one that says the most, and a list of three is a spreadsheet.
+  const furthest = killed[killed.length - 1]
+  if (furthest) lines.push(`${furthest.name} in ${bests.kills[furthest.id]!.toFixed(1)}s`)
+
+  lines.push(origin())
+  return lines.join('\n')
 }
 
 /**

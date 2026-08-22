@@ -55,7 +55,7 @@ import {
 import { createBattlegroundState, createState } from './sim/state'
 import { ENCOUNTERS, encounterIndex, hasNext } from './sim/encounters'
 import { dailyAffix, dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
-import { dailyMessage, killMessage, parseInvite, share } from './share'
+import { dailyMessage, gameMessage, killMessage, parseInvite, share } from './share'
 import {
   fold as foldDaily,
   load as loadDaily,
@@ -285,6 +285,11 @@ let dailyResults: DailyResult[] = loadDaily()
  */
 let shareSaid: string | null = null
 let shareSaidAt = 0
+
+/** The confirmation is a moment, not a state: two seconds and it is gone. */
+function fresh(said: string | null, at: number): string | undefined {
+  return said !== null && performance.now() - at < 2000 ? said : undefined
+}
 let playingDaily = false
 
 /**
@@ -601,8 +606,15 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       screen = 'history'
       return
     }
+    if (hit === 'share') {
+      void share(gameMessage(bests)).then((how) => {
+        shareSaid = how === 'copied' ? 'COPIED' : how === 'shared' ? 'SHARED' : 'NO LUCK'
+        shareSaidAt = performance.now()
+      })
+      return
+    }
   }
-  drawHome(ctx, clock)
+  drawHome(ctx, clock, fresh(shareSaid, shareSaidAt))
 }
 
 /**
@@ -677,7 +689,7 @@ function updateDaily(tap: { x: number; y: number } | null): void {
       const option = SPEC_OPTIONS[index]!
       return { text: specLabel(option), colour: classColor(option.classId) }
     },
-    shareSaid !== null && performance.now() - shareSaidAt < 2000 ? shareSaid : undefined,
+    fresh(shareSaid, shareSaidAt),
   )
 }
 
@@ -1003,7 +1015,7 @@ function frame(now: number): void {
     }
   }
 
-  setShareLabel(shareSaid !== null && performance.now() - shareSaidAt < 2000 ? shareSaid : null)
+  setShareLabel(fresh(shareSaid, shareSaidAt) ?? null)
 
   hints.observe(state, elapsed)
   effects.age(elapsed)

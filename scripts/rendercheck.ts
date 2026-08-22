@@ -36,6 +36,7 @@ import {
   dailyLink,
   fightLink,
   dailyMessage,
+  gameMessage,
   killMessage,
   parseInvite,
 } from '../src/share'
@@ -3430,10 +3431,10 @@ for (const [label, w, h] of [
   const middle = (r: { x: number; y: number; w: number; h: number }) =>
     [r.x + r.w / 2, r.y + r.h / 2] as const
 
-  // Home: three ways in, plus the record.
+  // Home: the ways in, plus the record and the share.
   drawHome(stubCtx(), 1.5)
   const home = homeLayout()
-  const homeRects = [...home.choices, home.record]
+  const homeRects = [...home.choices, home.record, home.share]
   expect(`${label}: the front page fits`, homeRects.every(onScreen), JSON.stringify(homeRects))
   expect(
     `${label}: and nothing on it overlaps`,
@@ -3444,7 +3445,8 @@ for (const [label, w, h] of [
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
-      hitHome(...middle(home.record)) === 'record',
+      hitHome(...middle(home.record)) === 'record' &&
+      hitHome(...middle(home.share)) === 'share',
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
   )
 
@@ -4753,6 +4755,29 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   expect('the daily message carries its link', message.includes(dailyLink(20260820)), message)
   expect('and says it is unattempted', message.includes('not attempted'), message)
 
+  // The front page's share is about the game rather than a fight, so it has no
+  // fragment to decode — but it must not claim a record that is not there.
+  const nothing = gameMessage({ kills: {}, clean: {}, depth: 0, damage: 0 })
+  expect(
+    'a first-time share claims nothing',
+    !nothing.includes('bosses down') && !nothing.includes('floor'),
+    nothing,
+  )
+  const some = gameMessage({
+    kills: { [ENCOUNTERS[0]!.id]: 118.4, [ENCOUNTERS[1]!.id]: 204.25 },
+    clean: {},
+    depth: 7,
+    damage: 0,
+  })
+  expect('a played share counts the bosses', some.includes(`2 of ${ENCOUNTERS.length} bosses down`), some)
+  expect('and the descent', some.includes('deepest floor 7'), some)
+  expect(
+    'and names the furthest one it has killed',
+    some.includes(`${ENCOUNTERS[1]!.name} in 204.3s`),
+    some,
+  )
+  expect('and invites nobody to a fragment', parseInvite(some.split('\n').pop()!) === null, some)
+
   const kill = killMessage('Aphotic Warden', ENCOUNTERS[0]!.id, 25, 'normal', 132.4, 'Mage DPS', 0)
   expect('a kill message carries its link', kill.includes(fightLink(ENCOUNTERS[0]!.id, 25, 'normal')), kill)
   expect('and the time it took', kill.includes('132.4s'), kill)
@@ -4801,6 +4826,15 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       `${label}: a pressed share says so`,
       labels.some((l) => l.text.includes('COPIED')),
       labels.map((l) => l.text).join('|'),
+    )
+
+    // The front page says what its share did, the same as the other two.
+    const homeLabels: Label[] = []
+    drawHome(recordingCtx([], homeLabels), 1.5, 'SHARED')
+    expect(
+      `${label}: the front page share says so too`,
+      homeLabels.some((l) => l.text.includes('SHARED')),
+      homeLabels.map((l) => l.text).join('|'),
     )
 
     // The results screen: only a kill offers one, and it must not be sitting
