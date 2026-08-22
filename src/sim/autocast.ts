@@ -1,7 +1,7 @@
 import { ABILITIES } from './abilities'
 import { abilityBar, specOf } from './classes'
-import { canCast, getAura, livingParty } from './combat'
-import { playerTarget } from './sim'
+import { canCast, getAura, mostHurt } from './combat'
+import { playerTarget, pressTarget } from './sim'
 import type { Actor, AuraId, SimState } from './types'
 
 /**
@@ -84,7 +84,10 @@ export function autoPress(s: SimState): number[] {
       if (dot && dot.remaining > 3) continue
     }
 
-    const targetId = healing(ability.kind) ? (mostHurt(s)?.id ?? player.id) : playerTarget(s)
+    // The same answer the press will use, rather than a second copy of the
+    // rule: the autocast decided correctly where a heal should go and then
+    // the press aimed it at the boss anyway.
+    const targetId = pressTarget(s, ability, player)
     if (!canCast(s, player, ability, targetId)) continue
     return [slot]
   }
@@ -140,21 +143,4 @@ export function damageOrder(actor: Actor, target: Actor | null): string[] {
   }
 
   return order.filter((id): id is string => id !== null)
-}
-
-function healing(kind: string): boolean {
-  return kind === 'heal'
-}
-
-function mostHurt(s: SimState): Actor | null {
-  let best: Actor | null = null
-  let ratio = Infinity
-  for (const a of livingParty(s)) {
-    const r = a.hp / a.maxHp
-    if (r < ratio) {
-      ratio = r
-      best = a
-    }
-  }
-  return best
 }

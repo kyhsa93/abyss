@@ -19,6 +19,7 @@ import {
   hasteOf,
   interruptCast,
   livingParty,
+  mostHurt,
   say,
   topThreatTarget,
 } from './combat'
@@ -258,7 +259,7 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
 
   if (actor.role === 'healer') {
     // A healer also has to be able to reach whoever is hurt.
-    const wounded = lowestHealth(s)
+    const wounded = mostHurt(s)
     if (wounded && wounded.id !== actor.id && dist(actor.pos, wounded.pos) > HEAL_REACH) {
       return true
     }
@@ -616,7 +617,7 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
 function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const ai = actor.ai!
   const kit = specFor(actor).abilities
-  const wounded = lowestHealth(s)
+  const wounded = mostHurt(s)
   if (!wounded) return
 
   const ratio = wounded.hp / wounded.maxHp
@@ -709,17 +710,4 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
 
     if (tryCast(s, actor, id, target.id, rng, moving)) return
   }
-}
-
-function lowestHealth(s: SimState): Actor | null {
-  let best: Actor | null = null
-  let bestRatio = Infinity
-  for (const a of livingParty(s)) {
-    const ratio = a.hp / a.maxHp
-    if (ratio < bestRatio) {
-      bestRatio = ratio
-      best = a
-    }
-  }
-  return best
 }

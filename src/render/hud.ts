@@ -2,10 +2,10 @@ import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
 import { standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
-import { playerTarget } from '../sim/sim'
+import { playerTarget, pressTarget } from '../sim/sim'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt, hasNext } from '../sim/encounters'
-import { adds, boss, castBlocker, dist, getAura } from '../sim/combat'
+import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
@@ -248,7 +248,10 @@ export function slotStatus(s: SimState, player: Actor, abilityId: string): SlotS
   if (!isUsable(player, abilityId)) return 'locked'
   if (player.power < ability.cost) return 'resource'
 
-  const target = ability.kind === 'taunt' ? boss(s).id : playerTarget(s)
+  // The same question the press asks. A light that answers a different one is
+  // a light about something else: a healer's buttons were lit against the
+  // distance to the boss, which is not where any of them were going.
+  const target = pressTarget(s, ability, player)
   // Too far and too close are the same answer on a button: not from here.
   const blocked = castBlocker(s, player, ability, target)
   return blocked === 'range' || blocked === 'close' ? 'range' : 'ready'
@@ -521,20 +524,6 @@ function drawScoreboard(ctx: CanvasRenderingContext2D, s: SimState): void {
 }
 
 /** Whoever on your own side is furthest from full. */
-function mostHurtAlly(s: SimState, actor: Actor): Actor | undefined {
-  let best: Actor | undefined
-  let ratio = Infinity
-  for (const a of s.actors) {
-    if (a.faction !== actor.faction || !a.alive) continue
-    const r = a.hp / a.maxHp
-    if (r < ratio) {
-      ratio = r
-      best = a
-    }
-  }
-  return best
-}
-
 function bgName(kind: BgKind): string {
   return BATTLEGROUNDS.find((b) => b.kind === kind)?.name ?? 'Battleground'
 }
@@ -1178,7 +1167,7 @@ function drawTrait(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
     case 'chain': {
       // The healing chain jumps to your own side; the damage one to theirs.
       const healer = player.role === 'healer'
-      const target = healer ? mostHurtAlly(s, player) : s.actors.find((a) => a.id === playerTarget(s))
+      const target = healer ? (mostHurt(s, player.faction) ?? undefined) : s.actors.find((a) => a.id === playerTarget(s))
       const near = target
         ? s.actors.filter(
             (a) =>
@@ -1206,7 +1195,7 @@ function drawTrait(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
     }
     case 'bloom': {
       const kit = spec.abilities
-      const hurt = mostHurtAlly(s, player)
+      const hurt = mostHurt(s, player.faction) ?? undefined
       const mending = hurt && kit.overTime ? getAura(hurt, kit.overTime as AuraId) : undefined
       label(mending ? 'ALREADY MENDING — HEAL BLOOMS' : 'MEND FIRST, THEN HEAL', mending ? COLORS.hpBar : COLORS.textDim)
       break

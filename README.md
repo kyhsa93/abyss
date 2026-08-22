@@ -279,6 +279,42 @@ which had encoded "the background sits at twice the world scale" — true only
 while the world scale had no camera in it. They ask the scene for its own
 factor now.
 
+## Every press aimed at the boss, including the heals
+
+Reported as a visual oddity — heal bolts flying at the boss — and it was not
+visual. Playing a healer, **every heal you cast healed the boss.**
+
+One line did it. Targeting for a press read
+
+```ts
+const target = ability.kind === 'taunt' ? BOSS_ID : playerTarget(s)
+```
+
+which is right for everything that hurts something and wrong for the one kind
+that does not. The heal was aimed at the boss, so the bolt flew there, the
+landing code healed whatever it arrived at, and the player was credited with
+the healing on their own meter. Measured at 473 health handed to the Drowned
+Warden per press of a discipline priest's filler, with the party getting
+nothing.
+
+The autocast had already worked this out and had the right rule — the wrong
+one downstream simply overwrote its answer — and the action bar had the same
+wrong rule, so a healer's buttons were lit against the distance to the boss,
+which is not where any of them were going. There is now one function that
+answers "what does this press aim at", used by the press, the bar and the
+autocast: taunts to the boss, heals to whoever is furthest from full, anything
+else to what is being hit.
+
+Underneath it there were **three** copies of "who is most hurt" — one in the
+autocast, one in the party AI, one in the action bar. They agreed, but only by
+coincidence, and the one place that needed the answer most did not ask any of
+them. There is one now.
+
+The checks press every healing button of every healing spec and follow it the
+whole way: what it aims at, where the bolt goes, that the boss gains nothing,
+and that the player is credited with healing that actually landed on the
+party.
+
 ## Reading your own numbers
 
 Four things were wrong with the floating damage and healing numbers, and all

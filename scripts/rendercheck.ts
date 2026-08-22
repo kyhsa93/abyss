@@ -47,6 +47,7 @@ import { ABILITIES, type Ability } from '../src/sim/abilities'
 import {
   abilityBar,
   autoParty,
+  DEFAULT_PARTY,
   canSelect,
   CLASS_ORDER,
   CLASSES,
@@ -122,7 +123,7 @@ import { AFFIXES, type AffixId } from '../src/sim/affix'
 import { descentDamage, descentEncounter, descentHealth } from '../src/sim/descent'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
-import { step } from '../src/sim/sim'
+import { pressTarget, step } from '../src/sim/sim'
 import { BOSS_ID, PLAYER_ID, createState } from '../src/sim/state'
 import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
@@ -6019,6 +6020,116 @@ for (const [label, w, h] of [
     lines.every((l) => l.y > L.partyY),
     `${L.partyY} against ${Math.min(...lines.map((l) => l.y))}`,
   )
+}
+
+// --- a heal goes to somebody who needs one ---------------------------------
+//
+// Every press aimed at `playerTarget`, with one exception carved out for a
+// taunt. That is right for everything that hurts something and wrong for the
+// one kind that does not: a healer's every button was aimed at the boss, so
+// the bolt flew at it, the heal landed on it, and the player was credited
+// with the healing. A discipline priest's filler handed the Drowned Warden
+// 473 health a press.
+{
+  const healers = [
+    pickFor('priest', 'healer')!,
+    pickFor('druid', 'healer')!,
+    pickFor('paladin', 'healer')!,
+    pickFor('shaman', 'healer')!,
+  ].filter(Boolean)
+  expect('there are healers to check', healers.length >= 2, `${healers.length}`)
+
+  for (const healer of healers) {
+    const label = specLabel(healer)
+    const s = pulled(0x51ed, 0, [healer, ...DEFAULT_PARTY.slice(1)])
+    s.countdown = 0
+    const player = s.actors.find((a) => a.isPlayer)!
+    const b = boss(s)
+    const mate = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+    mate.hp = Math.round(mate.maxHp * 0.35)
+
+    const bar = abilityBar({ classId: player.classId, spec: player.spec })
+    const bossBefore = b.hp
+
+    // Every healing button on the bar, not just the filler.
+    let pressed = 0
+    for (let slot = 0; slot < bar.length; slot++) {
+      const ability = ABILITIES[bar[slot] ?? '']
+      if (!ability || ability.kind !== 'heal') continue
+      pressed++
+
+      const aimed = pressTarget(s, ability, player)
+      const at = s.actors.find((a) => a.id === aimed)
+      expect(
+        `${label}: ${ability.name} is aimed at somebody on your side`,
+        at !== undefined && at.faction === 'party',
+        `${at?.name ?? 'nobody'}`,
+      )
+    }
+    expect(`${label}: has heals on the bar`, pressed > 0, 'none of its buttons heal')
+
+    // And the whole way through: press, cast, bolt, landing.
+    const rng = new Rng(7)
+    const slot = bar.findIndex((id) => ABILITIES[id ?? '']?.kind === 'heal')
+    let flew: string | null = null
+    for (let i = 0; i < 150; i++) {
+      step(s, { moveX: 0, moveY: 0, pressed: i === 0 ? [slot] : [] }, rng)
+      for (const p of s.projectiles) {
+        if (p.sourceId !== player.id) continue
+        flew = s.actors.find((a) => a.id === p.targetId)?.faction ?? 'gone'
+      }
+    }
+    expect(`${label}: and the bolt goes the same way`, flew !== 'boss', `${flew}`)
+    expect(
+      `${label}: the boss gains nothing from it`,
+      b.hp <= bossBefore,
+      `${bossBefore} -> ${b.hp}`,
+    )
+    const credited = s.tally[player.id]?.healing ?? 0
+    expect(`${label}: and the healing lands on the party`, credited > 0, `${credited}`)
+  }
+
+  // The button's light has to answer the same question the press does, or it
+  // is a light about something else: a healer's buttons were lit against the
+  // distance to the boss, which is not where any of them were going.
+  {
+    const s = pulled(0x51ed, 0, [pickFor('priest', 'healer')!, ...DEFAULT_PARTY.slice(1)])
+    s.countdown = 0
+    const player = s.actors.find((a) => a.isPlayer)!
+    const mate = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+    mate.hp = Math.round(mate.maxHp * 0.3)
+    // Everybody where they can be reached, and the boss a long way off.
+    player.pos = { x: 0, y: 0 }
+    mate.pos = { x: 40, y: 0 }
+    boss(s).pos = { x: 900, y: 0 }
+    const bar = abilityBar({ classId: player.classId, spec: player.spec })
+    const heal = bar.find((id) => ABILITIES[id ?? '']?.kind === 'heal')!
+    expect(
+      'a heal is ready when its target is in reach',
+      slotStatus(s, player, heal) === 'ready',
+      slotStatus(s, player, heal),
+    )
+    mate.pos = { x: 900, y: 40 }
+    expect(
+      'and out of range when they are not',
+      slotStatus(s, player, heal) === 'range',
+      slotStatus(s, player, heal),
+    )
+  }
+
+  // A taunt still goes to the boss, and everything that hurts still goes to
+  // whatever is being hit.
+  {
+    const s = pulled(0x51ed, 0, autoParty(10, pickFor('warrior', 'tank')!))
+    const player = s.actors.find((a) => a.isPlayer)!
+    const taunt = ABILITIES['taunt']!
+    expect('a taunt still goes to the boss', pressTarget(s, taunt, player) === BOSS_ID, 'it did not')
+    const swing = ABILITIES['shield_slam'] ?? ABILITIES['strike']
+    if (swing) {
+      const at = s.actors.find((a) => a.id === pressTarget(s, swing, player))
+      expect('and a swing still goes at something hostile', at?.faction === 'boss', `${at?.name}`)
+    }
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

@@ -386,6 +386,27 @@ function record(s: SimState, target: Actor, final: number, opts: DamageOptions):
   if (opts.mechanic) taken.mechanicHits++
 }
 
+/**
+ * Whoever is furthest from full on a side, which is what every heal aims at.
+ *
+ * There were three of these — one in the autocast, one in the party AI and
+ * one in the action bar — which is two more than there are answers to the
+ * question. They agreed, but only by coincidence.
+ */
+export function mostHurt(s: SimState, faction: Actor['faction'] = 'party'): Actor | null {
+  let best: Actor | null = null
+  let ratio = Infinity
+  for (const a of s.actors) {
+    if (a.faction !== faction || !a.alive) continue
+    const r = a.hp / a.maxHp
+    if (r < ratio) {
+      ratio = r
+      best = a
+    }
+  }
+  return best
+}
+
 export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: number): void {
   if (!target.alive) return
   const before = target.hp

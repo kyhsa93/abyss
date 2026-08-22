@@ -25,6 +25,7 @@ import {
   pushEffect,
   landAbility,
   livingParty,
+  mostHurt,
   hasteOf,
   pushText,
   spawnBolt,
@@ -35,6 +36,7 @@ import {
 import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
+import type { Ability } from './abilities'
 import type { Actor, PlayerInput, SimState } from './types'
 
 /**
@@ -262,10 +264,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     const abilityId = bar[slot]
     const ability = ABILITIES[abilityId ?? '']
     if (!abilityId || !ability) continue
-    // Target the nearest add if one is up, otherwise the boss. A taunt is the
-    // exception: adds keep no threat table, so aiming one at an add would be
-    // a wasted cooldown on the button whose whole job is the boss.
-    const target = ability.kind === 'taunt' ? BOSS_ID : playerTarget(s)
+    const target = pressTarget(s, ability, player)
 
     // A press that goes nowhere used to be silent, which reads as the button
     // being broken. Cooldowns and empty mana are already on the button; being
@@ -295,6 +294,31 @@ function reportReach(s: SimState, player: Actor, text: string): void {
   if (s.texts.some((t) => t.text === text && t.age < 0.5)) return
   pushText(s, player.pos, text, 'miss')
   s.sounds.push('blocked')
+}
+
+/**
+ * What a press aims at.
+ *
+ * Every press used to aim at `playerTarget`, with one exception carved out
+ * for a taunt. That is right for everything that hurts something and wrong
+ * for the one kind that does not: a healer's every button was aimed at the
+ * boss, so the bolt flew at it, `landAbility` healed it on arrival, and the
+ * player was credited for the healing. Measured at 473 health handed to the
+ * Drowned Warden per press of a discipline priest's filler.
+ *
+ * Kept here, next to the press it answers for, and used by the action bar as
+ * well — the light that says whether a button can reach has to be asking the
+ * same question the press does, or it is a light about something else.
+ */
+export function pressTarget(s: SimState, ability: Ability, player: Actor): number {
+  // Adds keep no threat table, so aiming a taunt at one is a wasted cooldown
+  // on the button whose whole job is the boss.
+  if (ability.kind === 'taunt') return BOSS_ID
+  // A heal goes where the AI healers send theirs: whoever is furthest from
+  // full. There is no friendly targeting in this game and there should not
+  // be — the whole thing is one button and no target frame.
+  if (ability.kind === 'heal') return mostHurt(s)?.id ?? player.id
+  return playerTarget(s)
 }
 
 /**
