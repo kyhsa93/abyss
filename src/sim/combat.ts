@@ -67,6 +67,9 @@ const AURA_DURATION: Record<AuraId, number> = {
   riptide: 12,
   shield: 6,
   spread: 4,
+  // Long enough that a second tank has to take it, short enough that a party
+  // with only one tank gets it back off eventually.
+  sunder: 16,
   enrage: 9999,
   // Bookkeeping for the spec traits. Long enough that a rotation keeps them
   // between presses, short enough that they are gone by the next pull.
@@ -91,7 +94,25 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   combo: 5,
   momentum: 3,
   eclipse: 1,
+  sunder: 5,
 }
+
+/**
+ * What each stack of a sunder takes off the armour it broke.
+ *
+ * Armour rather than a damage multiplier, which is what it was first written
+ * as. The two are not the same mechanic wearing different names: a multiplier
+ * compounds with everything else that is already scaling — heroic's damage,
+ * the enrage — and it did exactly that, taking a ten-man heroic from
+ * seventeen percent to three while normal barely moved. Run through the
+ * armour curve instead, the same curve plate and cloth already sit on, it
+ * bites hardest on the target that had the most to lose and cannot take more
+ * than there was.
+ *
+ * Physical only either way, so it stays the tank's problem rather than the
+ * raid's.
+ */
+const SUNDER_ARMOR = 1200
 
 /** Adds one to a counting aura, up to its cap, and refreshes its clock. */
 export function stackAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -290,7 +311,8 @@ export function applyDamage(
   if (school === 'physical') {
     // Block comes off the top, then armour.
     final = Math.max(0, final - target.block)
-    final *= 1 - mitigation(target.armor)
+    const broken = (getAura(target, 'sunder')?.stacks ?? 0) * SUNDER_ARMOR
+    final *= 1 - mitigation(Math.max(0, target.armor - broken))
   }
   // Carrying their flag makes you easier to bring down, whatever hit you.
   // Outside a battleground this is never true.

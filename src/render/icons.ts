@@ -191,6 +191,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // answerable by the phase break.
   boss_phase: { colour: '#fb7185', style: 'burst' },
   boss_thrall: { colour: '#a855f7', style: 'cleave' },
+  // Armour coming apart: the same steel as the sweep would say "physical",
+  // but this is the thing that makes physical hurt, so it is rust.
+  boss_sunder: { colour: '#b45309', style: 'crush' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

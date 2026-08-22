@@ -388,6 +388,40 @@ best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
 
+## The armour break, and the second tank
+
+Every mechanic in this game is answered by moving. Puddles say leave where you
+stand, the cone says get behind, the ring says come in, spread says separate.
+That is one verb, and a fight built entirely out of it asks the party exactly
+one kind of question.
+
+The armour break asks a different one: it stacks on whoever is holding the
+boss, takes twelve hundred armour off them a stack, and lasts sixteen seconds.
+Nothing about it is dodgeable. The answer is to decide who is standing there —
+the other tank takes it at three stacks and the first one's falls off while
+they hold — which is a decision about composition rather than about position,
+and the only one in the game so far.
+
+**A five-man never sees it.** A party of five fields one tank and one healer,
+so it cannot answer the question, and asking anyway measured as a straight tax
+on the size least able to pay it: five-man heroic fell from 12% to 5% over
+sixty pulls a cell. So the mechanic is what the second tank is *for*, and the
+fight does not have it without one — asserted in the checks, not left to the
+table. The five-man rows in the harness are unchanged to the point.
+
+It also had to be armour rather than a damage multiplier, which is what it was
+first written as. The two are not the same mechanic under different names: a
+multiplier compounds with everything else already scaling — heroic's damage,
+the enrage — and it did, taking ten-man heroic from 17% to 3% while normal
+barely moved. Run through the same curve plate and cloth already sit on, it
+bites hardest on the target that had the most armour to lose, cannot take more
+than there was, and lands near half again rather than near double.
+
+One AI rule had to be measured the same way. The first version let any tank
+spend its wall on a heavy stack, which meant the wall was on cooldown when the
+slam landed — the swap already answers the stack, and the wall is the answer
+to the slam. Tanks with a partner now trade instead.
+
 ## Sharing
 
 There is no server, no account and no replay sitting in a database, so there

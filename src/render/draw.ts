@@ -3,6 +3,7 @@ import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
+import { SUNDER_MAX } from '../sim/boss'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -631,6 +632,21 @@ function drawActor(
     ctx.strokeStyle = '#93c5fd'
     ctx.lineWidth = 3
     ctx.stroke()
+  }
+
+  // The armour break, as arcs around whoever is holding the boss. A stack is
+  // a decision — swap, or hold it — and a decision that is only visible as
+  // the health bar dropping faster is not one anybody gets to make.
+  const sunder = getAura(a, 'sunder')
+  if (sunder) {
+    for (let i = 0; i < sunder.stacks; i++) {
+      const from = -Math.PI / 2 + (i * Math.PI * 2) / SUNDER_MAX
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, r + 6, from + 0.12, from + (Math.PI * 2) / SUNDER_MAX - 0.12)
+      ctx.strokeStyle = '#b45309'
+      ctx.lineWidth = 3
+      ctx.stroke()
+    }
   }
 
   const glyph = isBoss ? 'B' : isAdd ? 'x' : a.role === 'tank' ? 'T' : a.role === 'healer' ? 'H' : 'D'

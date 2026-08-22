@@ -457,12 +457,35 @@ function tryCharge(s: SimState, actor: Actor, target: Actor, rng: Rng, moving: b
   return tryCast(s, actor, kit.mobility, target.id, rng, moving)
 }
 
+/** Stacks of armour break that make handing the boss over the right call. */
+const SWAP_AT = 3
+
 function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const b = boss(s)
   const ai = actor.ai!
   const kit = specFor(actor).abilities
 
   if (tryCharge(s, actor, b, rng, moving)) return
+
+  // The swap.
+  //
+  // The rule below deliberately refuses to taunt off another tank, because a
+  // pair that trades on cooldown drags the boss through the melee all fight.
+  // A stack of armour breaks is the one reason to do it anyway: the holder is
+  // taking nearly double by the top of it, and the answer is the other tank,
+  // not the healer. Only downward — taunting a fresher stack onto a heavier
+  // one is the trade backwards.
+  const mine = getAura(actor, 'sunder')?.stacks ?? 0
+  if (kit.taunt && mine < SWAP_AT) {
+    const holder = topThreatTarget(s)
+    const theirs = holder ? (getAura(holder, 'sunder')?.stacks ?? 0) : 0
+    if (holder && holder.id !== actor.id && holder.role === 'tank' && theirs >= SWAP_AT && theirs > mine) {
+      if (!rng.chance(ai.mistakeChance) && tryCast(s, actor, kit.taunt, b.id, rng, moving)) {
+        say(s, actor, `Swapping — you are at ${theirs}`)
+        return
+      }
+    }
+  }
 
   // Defensive on the incoming slam. The fumble roll is what makes the tank
   // occasionally eat it, which is exactly what a real tank does.

@@ -9,6 +9,7 @@ import {
   dist,
   livingParty,
   say,
+  stackAura,
   topThreatTarget,
 } from './combat'
 import type { Rng } from './rng'
@@ -142,6 +143,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleShockwave(s, b, timing)
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
+  scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
 
   updateAdds(s)
@@ -401,6 +403,58 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
     })
   }
   pushEffect(s, 'swing', b.pos, { power: SWEEP_RANGE, angle: 0 })
+}
+
+/**
+ * The armour break, on whoever is holding the boss.
+ *
+ * The only mechanic here aimed at the tanks rather than at the raid. Every
+ * other one is answered by moving; this one is answered by deciding who is
+ * standing there, which is a decision a party of five does not get to make —
+ * so at five it is a healing problem that gets worse for sixteen seconds, and
+ * at ten and twenty-five it is the reason to bring a second tank.
+ */
+/** How deep the break goes. */
+export const SUNDER_MAX = 5
+
+function scheduleSunder(s: SimState, b: Actor, target: Actor | null, timing: PhaseTiming): void {
+  if (timing.sunder <= 0) return
+  s.nextSunder -= DT
+  if (s.nextSunder > 0) return
+
+  s.nextSunder = timing.sunder
+  // A party that brought one tank never sees it.
+  //
+  // The mechanic is a question about who is standing there, and a five-man is
+  // not allowed to answer it — it fields one tank and one healer, and asking
+  // anyway is not a decision, it is a tax on the size that can least afford
+  // one. Measured: the same break that a ten-man answers by swapping took
+  // five-man heroic from twelve percent to five. So it is what the second
+  // tank is *for*, and the fight simply does not have it without one.
+  // Counted from the roster rather than from who is still alive, so losing
+  // the second tank does not switch the mechanic off at the worst moment.
+  const tanks = s.actors.filter((a) => a.faction === 'party' && a.role === 'tank').length
+  if (tanks < 2) return
+
+  // Nobody in reach is nobody to break: it lands on the melee target rather
+  // than on whoever happens to lead threat from across the arena.
+  if (!target || !target.alive) return
+  if (dist(b.pos, target.pos) > MELEE_RANGE + target.radius + 20) return
+
+  const held = getAura(target, 'sunder')
+  if (held && held.stacks >= SUNDER_MAX) {
+    // Refreshed rather than deepened: it stays on, it stops growing.
+    held.remaining = held.duration
+  } else {
+    stackAura(target, 'sunder', b.id)
+  }
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.sunder)
+  pushEffect(s, 'impact', target.pos, {
+    abilityId: 'boss_sunder',
+    power: 260,
+    angle: Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x),
+  })
 }
 
 /**

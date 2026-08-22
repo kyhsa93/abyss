@@ -32,6 +32,7 @@ export type AuraId =
   | 'ward' // priest: damage taken down, applied before the damage arrives
   | 'mending' // druid tank: a slice of what it just took, given back over time
   | 'shield' // damage reduction on the tank
+  | 'sunder' // boss: stacks on whoever is holding it, and makes them softer
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'enrage' // boss damage amplifier
 
@@ -449,6 +450,8 @@ export interface SimState {
   nextAdds: number
   /** Physical damage to everyone in reach, which armour actually answers. */
   nextSweep: number
+  /** Next stack of the boss's armour break on whoever is holding it. */
+  nextSunder: number
   /** A magic dot on somebody, which armour does not. */
   nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */

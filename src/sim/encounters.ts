@@ -38,6 +38,16 @@ export interface PhaseTiming {
   sweep: number
   /** A dot on somebody. Slow, unavoidable, and the healer's to solve. */
   rot: number
+  /**
+   * How often the armour break lands on whoever is holding the boss.
+   *
+   * The one mechanic aimed at the tanks rather than at the raid: it stacks on
+   * the current target and makes everything physical hurt more, so a party
+   * with two of them trades the boss and a party with one has to survive the
+   * top of the stack. Every other mechanic here is answered by moving; this
+   * one is answered by deciding who is standing there.
+   */
+  sunder: number
 }
 
 export interface Encounter {
@@ -85,6 +95,7 @@ export interface Encounter {
     adds: number
     sweep: number
     rot: number
+    sunder: number
   }
   /**
    * The colour this one is drawn in.
@@ -108,6 +119,7 @@ export interface Encounter {
     /** Empty where the boss does not use the mechanic. */
     sweep: string
     rot: string
+    sunder: string
   }
 }
 
@@ -143,11 +155,11 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#ef4444',
     names: { slam: 'ABYSSAL SLAM', breath: 'TIDAL BREATH' },
     phases: {
-      1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0, sweep: 42, rot: 33 },
-      2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50, sweep: 35, rot: 27 },
-      3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42, sweep: 30, rot: 22 },
+      1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0, sweep: 42, rot: 33, sunder: 11 },
+      2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50, sweep: 35, rot: 27, sunder: 9 },
+      3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42, sweep: 30, rot: 22, sunder: 8 },
     },
-    opening: { puddle: 9, spread: 17, slam: 13, raid: 11, breath: 21, shockwave: 27, adds: 45, sweep: 30, rot: 22 },
+    opening: { puddle: 9, spread: 17, slam: 13, raid: 11, breath: 21, shockwave: 27, adds: 45, sweep: 30, rot: 22, sunder: 14 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -155,6 +167,7 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: 'The deep exhales',
       sweep: 'The tide sweeps in',
       rot: 'Rot on me — need a heal',
+      sunder: 'Your guard breaks',
     },
   },
   {
@@ -177,11 +190,11 @@ export const ENCOUNTERS: Encounter[] = [
     // casts is the one that hits whoever is holding it.
     names: { slam: 'DISCORDANT CHORD', breath: '' },
     phases: {
-      1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 20 },
-      2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 16 },
-      3: { swing: 1.8, puddle: 6, spread: 8, slam: 14, puddleCount: 3, raid: 5.5, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 14 },
+      1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 20, sunder: 0 },
+      2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 16, sunder: 0 },
+      3: { swing: 1.8, puddle: 6, spread: 8, slam: 14, puddleCount: 3, raid: 5.5, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 14, sunder: 0 },
     },
-    opening: { puddle: 7, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 12 },
+    opening: { puddle: 7, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 12, sunder: 0 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -189,6 +202,7 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: '',
       sweep: '',
       rot: 'A note is caught in me — heal',
+      sunder: '',
     },
   },
   {
@@ -210,11 +224,11 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     phases: {
-      1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30, sweep: 32, rot: 0 },
-      2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26, sweep: 28, rot: 0 },
-      3: { swing: 1.5, puddle: 11, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 22, sweep: 23, rot: 0 },
+      1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30, sweep: 32, rot: 0, sunder: 0 },
+      2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26, sweep: 28, rot: 0, sunder: 0 },
+      3: { swing: 1.5, puddle: 11, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 22, sweep: 23, rot: 0, sunder: 0 },
     },
-    opening: { puddle: 14, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 28, sweep: 23, rot: 0 },
+    opening: { puddle: 14, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 28, sweep: 23, rot: 0, sunder: 0 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -222,6 +236,7 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: 'The undertow',
       sweep: 'Wide swing — out of reach',
       rot: '',
+      sunder: '',
     },
   },
 ]

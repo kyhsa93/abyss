@@ -75,6 +75,7 @@ import {
   getAura,
   hasteOf,
   stackAura,
+  clearAura,
   applyDamage,
   applyHeal,
   boss,
@@ -120,7 +121,7 @@ import { descentDamage, descentEncounter, descentHealth } from '../src/sim/desce
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { step } from '../src/sim/sim'
-import { PLAYER_ID, createState } from '../src/sim/state'
+import { BOSS_ID, PLAYER_ID, createState } from '../src/sim/state'
 import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
   HISTORY_LIMIT,
@@ -139,6 +140,7 @@ import {
 } from '../src/render/history'
 import { gainPower } from '../src/sim/combat'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
+import { SUNDER_MAX } from '../src/sim/boss'
 import { Ambience, ZOOM, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
@@ -3063,12 +3065,15 @@ for (const [label, w, h] of [
   const thrown = new Map<string, Set<string>>()
   for (let i = 0; i < ENCOUNTERS.length; i++) {
     const ids = new Set<string>()
+    // A ten-man rather than the default five, because one of these mechanics
+    // only exists where there are two tanks to trade it between.
+    const raid = autoParty(10, pickFor('mage', 'dps')!)
     // Kept with the kind attached. A cast that gathers and a hit that lands
     // are different pictures, and the slam pushes both — asking only whether
     // the id appeared would pass on a slam that winds up and then connects
     // with nothing at all, which is the exact bug being fixed.
     const landed = new Set<string>()
-    const s = pulled(0x51ed, 8, undefined, 'normal', i)
+    const s = pulled(0x51ed, 8, raid, 'normal', i)
     const rng = new Rng(0x51ed)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -3121,6 +3126,67 @@ for (const [label, w, h] of [
     new Set(shades).size === shades.length,
     shades.join(','),
   )
+
+  // --- the armour break is a two-tank mechanic ------------------------------
+  //
+  // Every other mechanic here is answered by moving. This one is answered by
+  // deciding who is standing there, which is a decision a five-man does not
+  // get to make: it fields one tank. Asking anyway measured as a tax on the
+  // size least able to pay it — five-man heroic went from twelve percent to
+  // five — so the fight does not have the mechanic without a second tank, and
+  // that is asserted rather than left to the table.
+  {
+    const warden = ENCOUNTERS[0]!
+    const uses = Object.values(warden.phases).some((p) => p.sunder > 0)
+    expect('the warden breaks armour', uses, 'it does not')
+
+    const stacksIn = (size: RaidSize): number => {
+      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'normal', 0)
+      const rng = new Rng(0x51ed)
+      let most = 0
+      while (s.outcome === 'ongoing' && s.time < 150) {
+        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+        for (const a of s.actors) most = Math.max(most, getAura(a, 'sunder')?.stacks ?? 0)
+      }
+      return most
+    }
+
+    expect('a party with one tank never sees it', stacksIn(5) === 0, `${stacksIn(5)} stacks`)
+    const raid = stacksIn(10)
+    expect('a raid with two does', raid > 0, 'it never landed')
+    expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
+
+    // Broken armour is armour: run through the same curve plate and cloth
+    // already sit on, rather than as a multiplier on the damage. The two are
+    // not the same mechanic, and the multiplier compounded with heroic badly
+    // enough to take a ten-man from seventeen percent to three.
+    const s = pulled(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0)
+    const tank = s.actors.find((a) => a.role === 'tank')!
+    const before = tank.hp
+    applyDamage(s, tank, 1000, 'physical', { sourceId: BOSS_ID, silent: true })
+    const clean = before - tank.hp
+
+    tank.hp = tank.maxHp
+    for (let i = 0; i < SUNDER_MAX; i++) stackAura(tank, 'sunder', BOSS_ID)
+    const full = tank.maxHp
+    applyDamage(s, tank, 1000, 'physical', { sourceId: BOSS_ID, silent: true })
+    const broken = full - tank.hp
+    expect('a broken guard takes more', broken > clean, `${clean} then ${broken}`)
+    // The curve is what keeps it from being a straight multiplier: five
+    // stacks off nine thousand armour lands near half again, where a flat
+    // multiplier of the size this started as lands near double.
+    expect('but only about half again', broken < clean * 1.6, `${clean} then ${broken}`)
+
+    // And it is physical only, so it stays the tank's problem rather than
+    // becoming a second raid-wide damage source the healers have to cover.
+    tank.hp = tank.maxHp
+    applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
+    const magic = tank.maxHp - tank.hp
+    tank.hp = tank.maxHp
+    clearAura(tank, 'sunder')
+    applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
+    expect('and magic does not care', tank.maxHp - tank.hp === magic, `${magic}`)
+  }
 
   // An index from a save older than the list must not open a fight that is
   // not there.
