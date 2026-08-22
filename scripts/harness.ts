@@ -5,7 +5,7 @@ import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
 import { BATTLEGROUNDS } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import type { BgKind } from '../src/sim/types'
+import type { BgKind, BgState, Vec2 } from '../src/sim/types'
 import {
   autoParty,
   pickFor,
@@ -416,6 +416,60 @@ for (let i = 1; i < detailParty.length; i++) {
 // the same match with the player standing at the spawn reading the score.
 const BG_RUNS = 30
 
+/**
+ * Which way the match is going, as a sign.
+ *
+ * Escort has no score to read — the whole state of it is how far each cart
+ * got — so the lead there is which cart is further along.
+ */
+function leadOf(bg: BgState): number {
+  if (bg.kind === 'escort' && bg.carts) {
+    return Math.sign(bg.carts.blue.progress - bg.carts.red.progress)
+  }
+  return Math.sign(Math.floor(bg.score.blue) - Math.floor(bg.score.red))
+}
+
+/**
+ * The state of whatever it is that scores, as a string to compare against the
+ * last tick's.
+ *
+ * Per mode because the three do not score the same way, and counting changes
+ * of it is the closest thing to "did this match go back and forth" that can be
+ * read off the state rather than reconstructed from events. Sampling is the
+ * point: several flag events can land on one tick, and a counter that
+ * diffs states across a tick boundary will miscount them — this one only
+ * claims to say whether the picture is the same as it was.
+ */
+function holdingOf(bg: BgState): string {
+  if (bg.kind === 'conquest') return bg.nodes.map((n) => n.owner ?? '-').join(',')
+  if (bg.kind === 'escort' && bg.carts) {
+    return `${bg.carts.blue.contested ? 'C' : '-'}${bg.carts.red.contested ? 'C' : '-'}`
+  }
+  return (['blue', 'red'] as const).map((t) => bg.flags[t].state[0]).join(',')
+}
+
+/**
+ * How far the fight travelled, as a radius.
+ *
+ * The centroid of everyone still standing, sampled once a second; this is the
+ * spread of those samples about their own mean. A match fought in one spot
+ * scores near zero however long it lasted, and one that moved around the map
+ * scores in the hundreds. Win rate cannot see the difference and neither can
+ * the clock: a formality and a war both end at the time limit.
+ */
+function spreadOf(samples: Vec2[]): number {
+  if (samples.length < 2) return 0
+  let mx = 0
+  let my = 0
+  for (const c of samples) {
+    mx += c.x / samples.length
+    my += c.y / samples.length
+  }
+  let sum = 0
+  for (const c of samples) sum += (c.x - mx) ** 2 + (c.y - my) ** 2
+  return Math.sqrt(sum / samples.length)
+}
+
 function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
   // Both sides rolled, and rolled the same way.
   //
@@ -434,6 +488,12 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
   let ticks = 0
   let deaths = 0
   const alive = new Map(s.actors.map((a) => [a.id, a.alive]))
+
+  let leadChanges = 0
+  let lastLead = 0
+  let turnovers = 0
+  let holding = holdingOf(s.bg!)
+  const centroids: Vec2[] = []
 
   while (s.outcome === 'ongoing' && s.time < s.bg!.timeLimit + 30) {
     const player = s.actors.find((a) => a.isPlayer)!
@@ -467,9 +527,39 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
       if (alive.get(a.id) && !a.alive) deaths++
       alive.set(a.id, a.alive)
     }
+
+    // Only a lead that was somebody's and became somebody else's counts. Going
+    // level and back is not a change of who is winning.
+    const lead = leadOf(s.bg!)
+    if (lead !== 0 && lastLead !== 0 && lead !== lastLead) leadChanges++
+    if (lead !== 0) lastLead = lead
+
+    const now = holdingOf(s.bg!)
+    if (now !== holding) {
+      turnovers++
+      holding = now
+    }
+
+    if (ticks % 30 === 0) {
+      const standing = s.actors.filter((a) => a.alive)
+      if (standing.length > 0) {
+        centroids.push({
+          x: standing.reduce((n, a) => n + a.pos.x, 0) / standing.length,
+          y: standing.reduce((n, a) => n + a.pos.y, 0) / standing.length,
+        })
+      }
+    }
   }
 
-  return { outcome: s.outcome, time: s.time, deaths, state: s }
+  return {
+    outcome: s.outcome,
+    time: s.time,
+    deaths,
+    leadChanges,
+    turnovers,
+    spread: spreadOf(centroids),
+    state: s,
+  }
 }
 
 /** A human who understands the objective and nothing else about the fight. */
@@ -493,24 +583,41 @@ function objectiveGoal(s: SimState) {
   return best.pos
 }
 
-console.log('\nbattleground           player     win%     avgTime  deaths')
+// Win rate says whether the rules are even. It says nothing about whether the
+// match was worth playing: a lead taken in the first ten seconds and held is
+// the same hundred percent as one that changed hands four times. The three
+// columns after `deaths` are the ones that can tell those apart — how often
+// the lead changed, how often the thing that scores changed hands, and how far
+// around the map the fight actually went.
+console.log(
+  '\nbattleground           player     win%     avgTime  deaths  leadChg  turnover  spread',
+)
 for (const bg of BATTLEGROUNDS) {
   for (const drive of ['ai', 'objective', 'idle'] as const) {
     let wins = 0
     let time = 0
     let deaths = 0
+    let leadChanges = 0
+    let turnovers = 0
+    let spread = 0
     for (let n = 0; n < BG_RUNS; n++) {
       const r = bgRun(500 + n * 91, bg.kind, drive)
       if (r.outcome === 'victory') wins++
       time += r.time
       deaths += r.deaths
+      leadChanges += r.leadChanges
+      turnovers += r.turnovers
+      spread += r.spread
     }
     console.log(
       `${bg.name}`.padEnd(23),
       drive.padEnd(11),
       `${Math.round((wins / BG_RUNS) * 100)}%`.padEnd(9),
       (time / BG_RUNS).toFixed(0).padEnd(9),
-      (deaths / BG_RUNS).toFixed(1),
+      (deaths / BG_RUNS).toFixed(1).padEnd(8),
+      (leadChanges / BG_RUNS).toFixed(1).padEnd(9),
+      (turnovers / BG_RUNS).toFixed(1).padEnd(10),
+      (spread / BG_RUNS).toFixed(0),
     )
   }
 }

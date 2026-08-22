@@ -37,6 +37,31 @@ const ARRIVED = 24
 /** Below this, a healer stops attacking and starts healing. */
 const WOUNDED = 0.72
 
+/**
+ * How far off the errand the fight may pull somebody, on the flag map.
+ *
+ * The other two maps leash everybody to their objective — a point pays only
+ * while somebody stands on it, so a defender chased off the circle has
+ * conceded it. The flag map had no leash anywhere, on the reasoning that a
+ * carrier is a moving objective and following one across the map is correct.
+ * That is true of following one and of nothing else: with `hold` at zero the
+ * combat positioning in `wander` overrode every flag goal there is. A ranged
+ * actor whose nearest enemy stood beyond its spell range walked at the enemy
+ * instead of the flag, and a melee one chased anybody who came within reach
+ * of where it was going. Carriers spent a quarter of their time being sent
+ * away from their own base — the single place the flag has to reach.
+ */
+const FLAG_LEASH = 96
+
+/**
+ * The carrier's own, which is tighter than anyone's.
+ *
+ * Carrying is the one state in this game where the objective is the whole
+ * job: there is nothing a carrier can win by turning round. Kept well under
+ * `BASE_RADIUS` so that arriving still scores rather than stopping short.
+ */
+const CARRY_LEASH = 30
+
 /** A dealer will cross the map for someone this hurt. */
 const FINISHABLE = 0.35
 
@@ -61,8 +86,9 @@ export function aiGoal(s: SimState, actor: Actor): Vec2 | null {
  *
  * A capture point pays only while somebody is standing on it, so chasing a
  * kiting caster forty units off the edge is the same as not being there at
- * all. A flag has no such circle: whoever is carrying it is the objective, and
- * following them across the map is the correct play.
+ * all. A flag has no circle of its own, but it still has a leash: the goal
+ * moves with whoever is carrying it, and the fight is allowed to happen
+ * around that rather than instead of it. See `FLAG_LEASH`.
  */
 interface Goal {
   pos: Vec2
@@ -107,11 +133,16 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
   const point = (pos: Vec2): Goal => ({ pos, hold: NODE_RADIUS * 0.66 })
 
   if (bg.kind === 'flags') {
+    // An errand on the flag map: go there, and let the fight happen there
+    // rather than wherever the nearest enemy has wandered off to.
+    const errand = (pos: Vec2): Goal => ({ pos, hold: FLAG_LEASH })
     const ours = bg.flags[team]
     const theirs = bg.flags[other(team)]
 
     // Carrying it: go home, and nothing else matters.
-    if (theirs.carrierId === actor.id) return free(bg.bases[team])
+    if (theirs.carrierId === actor.id) {
+      return { pos: bg.bases[team], hold: CARRY_LEASH }
+    }
 
     // Our flag is out, so nothing we do on offence can score until it is
     // back. Who goes depends on whether we are also holding theirs.
@@ -132,9 +163,9 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
       const chaseIsMine = weHoldTheirs ? !escort : actor.role === 'tank' || actor.role === 'healer'
 
       if (carrier) {
-        if (chaseIsMine) return free(carrier.pos)
+        if (chaseIsMine) return errand(carrier.pos)
       } else if (ours.state === 'dropped' && chaseIsMine) {
-        return free(ours.pos)
+        return errand(ours.pos)
       }
     }
 
@@ -142,9 +173,9 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
     const friendlyCarrier = s.actors.find(
       (a) => a.alive && a.id === theirs.carrierId && teamOf(a) === team,
     )
-    if (friendlyCarrier && actor.role === 'healer') return free(friendlyCarrier.pos)
+    if (friendlyCarrier && actor.role === 'healer') return errand(friendlyCarrier.pos)
 
-    return free(theirs.state === 'home' ? bg.bases[other(team)] : theirs.pos)
+    return errand(theirs.state === 'home' ? bg.bases[other(team)] : theirs.pos)
   }
 
   if (bg.kind === 'escort' && bg.carts) {
