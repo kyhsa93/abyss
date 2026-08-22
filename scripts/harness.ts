@@ -9,6 +9,8 @@ import type { BgKind } from '../src/sim/types'
 import {
   autoParty,
   pickFor,
+  randomAround,
+  SPEC_OPTIONS,
   type DifficultyId,
   type Pick,
   type RaidSize,
@@ -16,6 +18,7 @@ import {
   specLabel,
 } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
+import { autoPress } from '../src/sim/autocast'
 import { rollFloor } from '../src/sim/floor'
 import { DESCENT_RECOVERY, DESCENT_REVIVE } from '../src/sim/descent'
 
@@ -414,7 +417,18 @@ for (let i = 1; i < detailParty.length; i++) {
 const BG_RUNS = 30
 
 function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
-  const s = createBattlegroundState(seed, kind)
+  // Both sides rolled, and rolled the same way.
+  //
+  // Blue used to be handed DEFAULT_PARTY while red was rolled, so every
+  // battleground figure below was one fixed lineup against the field rather
+  // than the map's own balance. That lineup is poor on two of the three maps,
+  // which came out as blue losing ninety-seven percent of escorts — a number
+  // that says nothing about escorting. The game itself never did this: it
+  // rolls blue with `randomAround` and red with `randomParty`, both from the
+  // role targets, and this is the same arrangement.
+  const roll = new Rng(seed + 104729)
+  const lead = SPEC_OPTIONS[roll.int(SPEC_OPTIONS.length)]!
+  const s = createBattlegroundState(seed, kind, randomAround(5, lead, () => roll.next()))
   s.countdown = 0
   const rng = new Rng(seed)
   let ticks = 0
@@ -423,9 +437,14 @@ function bgRun(seed: number, kind: BgKind, drive: 'ai' | 'objective' | 'idle') {
 
   while (s.outcome === 'ongoing' && s.time < s.bg!.timeLimit + 30) {
     const player = s.actors.find((a) => a.isPlayer)!
-    const pressed: number[] = []
-    if (ticks % 45 === 0) pressed.push(0)
-    if (ticks % 300 === 0) pressed.push(1)
+    // The rotation the game itself presses when auto is on, rather than a
+    // slot on a timer. A stand-in that fires slot zero every second and a half
+    // regardless of range contributes almost nothing to a five-versus-five,
+    // which made every driver below look the same: the positions differed and
+    // the damage did not, so standing correctly paid nothing and the naive
+    // walk-at-the-objective driver won. Positioning is the thing these rows
+    // are comparing, and it can only be compared by someone who is fighting.
+    const pressed = autoPress(s)
 
     let moveX = 0
     let moveY = 0
