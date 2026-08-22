@@ -1,6 +1,6 @@
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { drawWorld } from '../src/render/draw'
+import { drawWorld, focusOn } from '../src/render/draw'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
@@ -2978,6 +2978,80 @@ for (const [label, w, h] of [
     }
   }
 
+  // Nor do they read as the same fight.
+  //
+  // The mechanic sets above have differed since the second boss existed, and
+  // the check saying so has passed all along — but every boss cast the same
+  // two spells by the same two names in the same red, which is what the fights
+  // actually looked like from the outside. A fight that asks for something
+  // different has to *say* something different.
+  for (const encounter of ENCOUNTERS) {
+    const label = encounter.name
+    const uses = (key: 'breath' | 'shockwave' | 'adds' | 'sweep' | 'rot') =>
+      Object.values(encounter.phases).some((p) => p[key] > 0)
+
+    expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
+    expect(
+      `${label}: and its breath is named exactly when it has one`,
+      uses('breath') === (encounter.names.breath !== ''),
+      `uses ${uses('breath')}, named "${encounter.names.breath}"`,
+    )
+    for (const key of ['shockwave', 'adds', 'sweep', 'rot'] as const) {
+      expect(
+        `${label}: its ${key} is announced exactly when it happens`,
+        uses(key) === (encounter.lines[key] !== ''),
+        `uses ${uses(key)}, says "${encounter.lines[key]}"`,
+      )
+    }
+  }
+
+  // Two bosses sharing a word is two bosses the player cannot tell apart while
+  // reading a cast bar, which is the only place either name is ever seen.
+  const spoken = ENCOUNTERS.flatMap((e) => [
+    e.names.slam,
+    e.names.breath,
+    ...Object.values(e.lines),
+  ]).filter((line) => line !== '')
+  expect(
+    'no two bosses say the same thing',
+    new Set(spoken).size === spoken.length,
+    spoken.filter((line, i) => spoken.indexOf(line) !== i).join(','),
+  )
+  const accents = ENCOUNTERS.map((e) => e.accent)
+  expect('nor share a colour', new Set(accents).size === accents.length, accents.join(','))
+
+  // And the colour reaches the screen: the boss is drawn in its own, not in
+  // the one every boss used to be.
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const painted = new Set<string>()
+    const spy = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'measureText') return () => ({ width: 10 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+            return () => ({ addColorStop: () => {} })
+          }
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return () => {}
+        },
+        set(_t, prop, value) {
+          if (prop === 'fillStyle' && typeof value === 'string') painted.add(value)
+          return true
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D
+    updateLayout(1440, 900)
+    const s = pulled(0x51ed, 0, undefined, 'normal', i)
+    s.countdown = 0
+    drawWorld(spy, s, 1, 0, new Effects())
+    expect(
+      `${ENCOUNTERS[i]!.name}: is drawn in its own colour`,
+      painted.has(ENCOUNTERS[i]!.accent),
+      [...painted].join(','),
+    )
+  }
+
   // An index from a save older than the list must not open a fight that is
   // not there.
   expect('a wild index clamps', encounterIndex(99) === ENCOUNTERS.length - 1, `${encounterIndex(99)}`)
@@ -4445,7 +4519,10 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     plate.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y }
     cloth.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y + 40 }
 
-    if (s.chat.some((line) => line.text === 'Sweeping' && line.age < 0.1)) {
+    // Announced in the boss's own words now, so the check asks the table what
+    // this one says rather than knowing a single hard-coded line.
+    const called = encounterAt(s.encounter).lines.sweep
+    if (s.chat.some((line) => line.text === called && line.age < 0.1)) {
       sawSweep = true
       plateTook = plateBefore - plate.hp
       clothTook = clothBefore - cloth.hp
@@ -4880,8 +4957,13 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 function onScreenShare(scene: Ambience, zoom: number): number {
   const alive = scene.showing.actors.filter((a) => a.alive)
   if (alive.length === 0) return 1
+  // Asked of the renderer rather than assumed, so the check cannot be measuring
+  // a camera the game does not use.
+  const cam = focusOn(scene.showing)
   const on = alive.filter(
-    (a) => Math.abs(a.pos.x * L.scale * zoom) < L.w / 2 && Math.abs(a.pos.y * L.scale * zoom) < L.h / 2,
+    (a) =>
+      Math.abs((a.pos.x - cam.x) * L.scale * zoom) < L.w / 2 &&
+      Math.abs((a.pos.y - cam.y) * L.scale * zoom) < L.h / 2,
   )
   return on.length / alive.length
 }
@@ -5033,6 +5115,19 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   }
   expect('and the zoom is put away afterwards', depth === 0, `${depth} saves left open`)
   expect('and never applied outside one', lowest === 0, `${lowest} scales at the top level`)
+
+  // A phone holds a third of the width, so the same zoom cuts more off the
+  // sides. Checked separately rather than assumed to follow from the desktop
+  // one, since the framing is what the zoom trades against.
+  updateLayout(390, 844)
+  const portrait = new Ambience()
+  let tightest = 1
+  for (let i = 0; i < 60 * 90; i++) {
+    portrait.advance(1 / 60)
+    if (i % 30 === 0) tightest = Math.min(tightest, onScreenShare(portrait, ZOOM))
+  }
+  expect('and does not empty a phone either', tightest > 0, `${(tightest * 100).toFixed(0)}% at its worst`)
+  updateLayout(1440, 900)
 
   // With none installed the menus fill flat, which is what every check that
   // does not ask for a fight has been drawing against all along.

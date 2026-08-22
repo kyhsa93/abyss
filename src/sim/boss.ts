@@ -357,7 +357,7 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.nextSweep = timing.sweep
   s.sounds.push('raid')
-  say(s, b, 'Sweeping')
+  say(s, b, fight(s).lines.sweep)
 
   const reach = SWEEP_RANGE + b.radius
   for (const a of livingParty(s)) {
@@ -390,7 +390,7 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   const victim = rng.pick(victims)
   addAura(victim, 'rot', BOSS_ID)
   s.sounds.push('telegraph')
-  if (victim.ai) say(s, victim, 'Rotting — need a heal')
+  if (victim.ai) say(s, victim, fight(s).lines.rot)
 }
 
 function makeAdd(id: number, x: number, y: number): Actor {

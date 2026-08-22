@@ -86,11 +86,28 @@ export interface Encounter {
     sweep: number
     rot: number
   }
+  /**
+   * The colour this one is drawn in.
+   *
+   * Three bosses that differ in what they ask for still read as one boss when
+   * they are the same red disc casting the same two spells. The tables were
+   * always different — the Choir throws no cone and no ring at all, the
+   * Tidebreaker no spread and no rot — but nothing the player *reads* said so.
+   */
+  accent: string
+  /** What the two casts are called. Empty where the boss never casts it. */
+  names: {
+    slam: string
+    breath: string
+  }
   lines: {
     phaseTwo: string
     phaseThree: string
     adds: string
     shockwave: string
+    /** Empty where the boss does not use the mechanic. */
+    sweep: string
+    rot: string
   }
 }
 
@@ -123,6 +140,8 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1322,
     raidDamage: 129,
     mechanicDamage: 1,
+    accent: '#ef4444',
+    names: { slam: 'ABYSSAL SLAM', breath: 'TIDAL BREATH' },
     phases: {
       1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0, sweep: 42, rot: 33 },
       2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50, sweep: 35, rot: 27 },
@@ -134,6 +153,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'DROWN WITH ME',
       adds: 'Rise, drowned ones',
       shockwave: 'The deep exhales',
+      sweep: 'The tide sweeps in',
+      rot: 'Rot on me — need a heal',
     },
   },
   {
@@ -151,6 +172,10 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1127,
     raidDamage: 180,
     mechanicDamage: 1.1,
+    accent: '#e879f9',
+    // No cone to get behind and nothing to run into, so the only thing it
+    // casts is the one that hits whoever is holding it.
+    names: { slam: 'DISCORDANT CHORD', breath: '' },
     phases: {
       1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 20 },
       2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 16 },
@@ -162,6 +187,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'THE CHOIR TAKES YOU',
       adds: '',
       shockwave: '',
+      sweep: '',
+      rot: 'A note is caught in me — heal',
     },
   },
   {
@@ -180,6 +207,8 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1438,
     raidDamage: 108,
     mechanicDamage: 2.3,
+    accent: '#22d3ee',
+    names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     phases: {
       1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30, sweep: 32, rot: 0 },
       2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26, sweep: 28, rot: 0 },
@@ -191,6 +220,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'NOTHING STANDS',
       adds: 'Break on them',
       shockwave: 'The undertow',
+      sweep: 'Wide swing — out of reach',
+      rot: '',
     },
   },
 ]

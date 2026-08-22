@@ -1042,6 +1042,33 @@ future server-authoritative port possible.
 
 ## The bosses
 
+Three fights that ask for different things — and, for a long time, three
+fights that looked like one.
+
+The tables always differed, and the check saying so has passed since the
+second boss existed: the Choir throws no cone and no ring at all, the
+Tidebreaker no spread and no rot, and what each one actually puts on the floor
+is measured from a real pull rather than read off the table it came from.
+Measured over five pulls each, the Warden lands 26 puddles, 7 breaths, 4
+rings, 7 spreads and 4 summons; the Choir 35 puddles and 11 spreads and
+nothing else; the Tidebreaker 13 breaths, 10 rings and 9 summons with 11
+puddles and no spread at all.
+
+None of which reached the player, because every boss cast the same two spells
+under the same two names in the same red. `ABYSSAL SLAM` and `TIDAL BREATH`
+were hard-coded in the cast bar for all three, the two shared telegraphs said
+`Sweeping` and `Rotting — need a heal` whoever was fighting, and the boss was
+one colour. A fight that asks for something different has to say something
+different, so the names and the colour moved into the table with the numbers:
+the Choir's `DISCORDANT CHORD`, the Tidebreaker's `SHATTERING BLOW` and
+`RIPTIDE BREATH`, a line each for the sweep and the rot, and an accent apiece.
+
+The checks now assert that a boss names a cast exactly when it uses one and
+announces a mechanic exactly when it has one — a nameless mechanic and a line
+for a mechanic that never fires are both table rot — that no two bosses say
+the same thing or share a colour, and that the colour reaches the screen,
+which is asked of the renderer by recording what it actually painted.
+
 Three of them, fought in order. A kill puts a **NEXT BOSS** button on the
 results screen, to the left of PULL AGAIN, and taking it moves you on with the
 pull count back at zero — the party's learning is learning *this* fight, and a

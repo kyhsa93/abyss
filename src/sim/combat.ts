@@ -173,6 +173,9 @@ export function pushText(
 }
 
 export function say(s: SimState, actor: Actor, text: string): void {
+  // A boss that does not use a mechanic has no line for it, and an empty
+  // speech bubble is worse than silence.
+  if (text === '') return
   if (actor.ai && actor.ai.chatCooldown > 0) return
   if (actor.ai) actor.ai.chatCooldown = 4
   s.chat.push({ id: s.nextObjectId++, speaker: actor.name, text, age: 0 })

@@ -776,7 +776,10 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   if (b.castId) {
     const progress = 1 - b.castRemaining / b.castTotal
     const cw = Math.min(220, w * 0.55)
-    const label = b.castId === 'boss_breath' ? 'TIDAL BREATH' : 'ABYSSAL SLAM'
+    // Named by the boss doing it. Every one of them used to cast the same two
+    // spells, which is most of why three different fights read as one.
+    const named = encounterAt(s.encounter).names
+    const label = b.castId === 'boss_breath' ? named.breath : named.slam
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)

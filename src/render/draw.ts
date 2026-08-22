@@ -2,6 +2,7 @@ import { PUDDLE_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
+import { encounterAt } from '../sim/encounters'
 import type { Actor, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -29,11 +30,35 @@ function actorPos(a: Actor, alpha: number): Vec2 {
   }
 }
 
-function updateCamera(s: SimState, alpha: number): void {
+/**
+ * What the view is centred on.
+ *
+ * The player, when there is one. When there is not — the fight running behind
+ * the menus is played by nobody — the middle of everyone still standing, which
+ * is not the same as the middle of the arena: two teams at opposite ends of a
+ * battleground average out to an empty patch of floor, but a fight that has
+ * converged on a flag is framed on the flag. It matters because the background
+ * is drawn twice as close as the game, and at that range the arena centre is
+ * sometimes a view of nothing at all.
+ */
+export function focusOn(s: SimState, alpha = 1): Vec2 {
   const player = s.actors.find((a) => a.isPlayer)
-  // With no player in the fight there is nothing to follow, so fall back to
-  // the arena centre and the view behaves exactly as it did before.
-  const p = player ? actorPos(player, alpha) : { x: 0, y: 0 }
+  if (player) return actorPos(player, alpha)
+
+  let x = 0
+  let y = 0
+  let count = 0
+  for (const a of s.actors) {
+    if (!a.alive) continue
+    x += a.pos.x
+    y += a.pos.y
+    count++
+  }
+  return count === 0 ? { x: 0, y: 0 } : { x: x / count, y: y / count }
+}
+
+function updateCamera(s: SimState, alpha: number): void {
+  const p = focusOn(s, alpha)
   cam.x = p.x
   cam.y = p.y
 }
@@ -74,7 +99,7 @@ export function drawWorld(
 
   const bg = s.mode === 'battleground'
   for (const a of s.actors) {
-    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg)
+    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
   for (const a of s.actors) {
@@ -495,6 +520,11 @@ function standingInFire(s: SimState, a: Actor): boolean {
   )
 }
 
+/** What colour this fight's boss is. A battleground has none. */
+function bossAccent(s: SimState): string {
+  return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
+}
+
 function drawActor(
   ctx: CanvasRenderingContext2D,
   a: Actor,
@@ -502,6 +532,8 @@ function drawActor(
   clock: number,
   burning: boolean,
   battleground = false,
+  /** The boss's own colour. Three bosses in the same red read as one boss. */
+  accent: string = COLORS.boss,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -514,7 +546,7 @@ function drawActor(
   // with a ring around you, which is what picks you out of twenty-five.
   const color = a.alive
     ? isBoss
-      ? COLORS.boss
+      ? accent
       : isAdd
         ? '#a855f7'
         : classColor(a.classId)
