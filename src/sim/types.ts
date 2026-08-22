@@ -196,7 +196,20 @@ export interface FloatingText {
   text: string
   pos: Vec2
   age: number
-  kind: 'damage' | 'heal' | 'miss' | 'crit'
+  /**
+   * `damage` is what you dealt and `taken` is what landed on you.
+   *
+   * The same red for both meant the number that says how you are doing and
+   * the number that says how you are being done to were the same picture.
+   */
+  kind: 'damage' | 'taken' | 'heal' | 'miss' | 'crit'
+  /**
+   * How big the hit was, for how big the number is drawn.
+   *
+   * A filler and a finisher differ by a factor of ten and used to be the same
+   * twelve pixels, so the only way to tell them apart was to read them.
+   */
+  power: number
 }
 
 /**

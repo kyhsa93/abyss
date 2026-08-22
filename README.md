@@ -249,6 +249,36 @@ It can be turned off in settings, and it defaults to off where the device has
 asked for reduced motion. A running battle behind every screen is precisely
 what that setting is about.
 
+## Reading your own numbers
+
+Four things were wrong with the floating damage and healing numbers, and all
+four were the same thing: they were drawn as if the arena behind them were
+empty.
+
+- **No outline.** Twelve pixels of pale red over a magenta puddle is not a
+  number, it is texture. Every number is stroked in near-black before it is
+  filled now, and that one change is most of the fix; everything below is a
+  refinement of something already legible.
+- **They faded from the frame they appeared on.** The alpha ran from one to
+  zero across the whole life, so a number spent most of its existence half
+  gone. It holds at full strength for the first half and then leaves.
+- **They stacked.** Every hit landed on the same point, so a fast rotation
+  turned four numbers into one smudge. They fan into four lanes as they rise,
+  taken from the id the simulation already hands out in order, so consecutive
+  hits take consecutive lanes.
+- **A filler and a finisher were the same size** despite differing by a factor
+  of ten, so the only way to tell a big hit from a small one was to stop and
+  read it. Size now follows the hit.
+
+And one thing was missing rather than wrong: what you dealt and what landed on
+you were the same red. They are different colours now — your own damage in
+near-white, what hits you in red, healing in green — which is the whole point
+of the two being different kinds of event.
+
+The checks paint a frame through a recorder that keeps the font, the fill and
+the alpha for every string drawn, and assert each of the five properties. All
+five were verified by putting the old behaviour back one at a time.
+
 ## Why it looks like this
 
 Hardcore raiders barely look at boss models. They watch timer bars, debuff

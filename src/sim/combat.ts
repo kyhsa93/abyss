@@ -18,6 +18,7 @@ import type {
   Aura,
   AuraId,
   EffectEvent,
+  FloatingText,
   ProjectileKind,
   SimState,
   Vec2,
@@ -190,9 +191,10 @@ export function pushText(
   s: SimState,
   pos: { x: number; y: number },
   text: string,
-  kind: 'damage' | 'heal' | 'miss' | 'crit',
+  kind: FloatingText['kind'],
+  power = 0,
 ): void {
-  s.texts.push({ id: s.nextObjectId++, text, pos: { x: pos.x, y: pos.y }, age: 0, kind })
+  s.texts.push({ id: s.nextObjectId++, text, pos: { x: pos.x, y: pos.y }, age: 0, kind, power })
 }
 
 export function say(s: SimState, actor: Actor, text: string): void {
@@ -339,7 +341,13 @@ export function applyDamage(
   target.hp = Math.max(0, target.hp - final)
   // Ground ticks are silent; 30 floating numbers a second is unreadable.
   if (!opts.silent && mine(target, opts.sourceId)) {
-    pushText(s, target.pos, `-${final}`, opts.crit ? 'crit' : 'damage')
+    pushText(
+      s,
+      target.pos,
+      `-${final}`,
+      opts.crit ? 'crit' : target.isPlayer ? 'taken' : 'damage',
+      final,
+    )
   }
 
   // Rage is earned by being hit as much as by hitting. Ground ticks are
@@ -396,7 +404,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
 
   if (healed > 0) {
     if (target.isPlayer) s.sounds.push('heal')
-    if (mine(target, sourceId)) pushText(s, target.pos, `+${healed}`, 'heal')
+    if (mine(target, sourceId)) pushText(s, target.pos, `+${healed}`, 'heal', healed)
     // Healing generates threat too, which is why a healer can pull the boss.
     addThreat(s, sourceId, healed * 0.5)
   }

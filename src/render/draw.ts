@@ -928,24 +928,70 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
   ctx.lineCap = 'butt'
 }
 
+/** How big a hit has to be to be drawn at full size. */
+const BIG_HIT = 1400
+
+/**
+ * Your own numbers, over a floor that is full of other things.
+ *
+ * Four things were wrong with these and all four were the same thing: they
+ * were drawn as if the arena behind them were empty. Twelve pixels of pale
+ * red with no outline over a magenta puddle is not a number, it is texture;
+ * the alpha started falling on the frame they appeared, so they spent most of
+ * their life half gone; every hit landed on the same point, so a fast
+ * rotation stacked four of them into one smudge; and a filler and a finisher
+ * differ by a factor of ten and were the same size, which meant the only way
+ * to tell a big hit from a small one was to stop and read it.
+ */
 function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   ctx.textAlign = 'center'
   for (const t of s.texts) {
     const age = t.age + alpha * (1 / 30)
     const life = Math.min(1, age / 1.1)
     const p = worldToScreen(t.pos)
-    ctx.save()
-    ctx.globalAlpha = 1 - life
-    ctx.fillStyle =
+
+    // Full strength for the first half, then out. A number that starts fading
+    // immediately is only properly visible on the frame it appears.
+    const fade = life < 0.5 ? 1 : 1 - (life - 0.5) / 0.5
+
+    // Fanned out rather than stacked. The id is what the simulation already
+    // hands out in order, so consecutive hits take consecutive lanes and a
+    // burst of four reads as four numbers instead of one smudge.
+    const lane = (t.id % 4) - 1.5
+    const drift = lane * 13 * L.ui
+    const rise = 22 + Math.abs(lane) * 5
+
+    const heavy = Math.min(1, t.power / BIG_HIT)
+    const size =
+      t.kind === 'miss' ? 11 : (t.kind === 'crit' ? 16 : 13) + heavy * (t.kind === 'crit' ? 9 : 7)
+
+    const colour =
       t.kind === 'heal'
         ? '#4ade80'
         : t.kind === 'crit'
           ? '#fbbf24'
           : t.kind === 'miss'
             ? '#94a3b8'
-            : '#fca5a5'
-    ctx.font = font(t.kind === 'crit' ? 15 : 12, true)
-    ctx.fillText(t.text, p.x, p.y - 20 * L.ui - life * 26)
+            : t.kind === 'taken'
+              ? '#f87171'
+              : // What you dealt, in something that is not another shade of the
+                // floor: the numbers a player is actually watching.
+                '#f8fafc'
+
+    ctx.save()
+    ctx.globalAlpha = fade
+    ctx.font = font(size, true)
+    const x = p.x + drift * life
+    const y = p.y - 20 * L.ui - life * rise
+
+    // The outline is the whole fix. Everything else here is a refinement of
+    // something that is already legible.
+    ctx.lineWidth = Math.max(3, size * 0.28)
+    ctx.strokeStyle = 'rgba(6, 7, 12, 0.92)'
+    ctx.lineJoin = 'round'
+    ctx.strokeText(t.text, x, y)
+    ctx.fillStyle = colour
+    ctx.fillText(t.text, x, y)
     ctx.restore()
   }
 }

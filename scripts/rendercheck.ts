@@ -76,6 +76,7 @@ import {
   hasteOf,
   stackAura,
   clearAura,
+  pushText,
   applyDamage,
   applyHeal,
   boss,
@@ -2037,7 +2038,11 @@ for (const [label, w, h] of [
   const other = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
   const b = boss(s)
 
-  const numbers = () => s.texts.filter((t) => t.kind === 'damage' || t.kind === 'heal').length
+  // Both directions count. What you dealt and what landed on you are drawn
+  // in different colours now, which is the point of them being different
+  // kinds — but the rule this checks is still that both of them appear.
+  const numbers = () =>
+    s.texts.filter((t) => t.kind === 'damage' || t.kind === 'taken' || t.kind === 'heal').length
 
   s.texts.length = 0
   applyDamage(s, b, 100, 'none', { sourceId: player.id })
@@ -5749,6 +5754,126 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   drawHome(recordingCtx(dressed), 1.5)
   expect('an installed scene reaches the front page', dressed.length > 0, 'the page was flat')
   setAmbience(null)
+}
+
+// --- the numbers have to be readable over the floor, not just present ------
+//
+// There was already a check that a hit produces a number. What there was no
+// check for was whether anybody could read it: twelve pixels of pale red with
+// no outline over a magenta puddle is texture rather than a number, and the
+// alpha started falling on the frame it appeared, so it spent most of its
+// life half gone.
+{
+  updateLayout(1440, 900)
+
+  interface Drawn {
+    text: string
+    x: number
+    y: number
+    font: string
+    fill: string
+    alpha: number
+    stroked: boolean
+  }
+
+  const paint = (s: SimState): Drawn[] => {
+    const drawn: Drawn[] = []
+    const state = { font: '', fillStyle: '', globalAlpha: 1, strokeStyle: '' }
+    const stroked = new Set<string>()
+    const spy = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'strokeText') {
+            return (text: string, x: number) => stroked.add(`${text}@${Math.round(x)}`)
+          }
+          if (prop === 'fillText') {
+            return (text: string, x: number, y: number) =>
+              drawn.push({
+                text,
+                x,
+                y,
+                font: state.font,
+                fill: state.fillStyle,
+                alpha: state.globalAlpha,
+                stroked: stroked.has(`${text}@${Math.round(x)}`),
+              })
+          }
+          if (prop === 'measureText') return () => ({ width: 10 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+            return () => ({ addColorStop: () => {} })
+          }
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return () => {}
+        },
+        set(_t, prop, value) {
+          if (prop === 'font') state.font = String(value)
+          if (prop === 'fillStyle') state.fillStyle = String(value)
+          if (prop === 'strokeStyle') state.strokeStyle = String(value)
+          if (prop === 'globalAlpha') state.globalAlpha = Number(value)
+          return true
+        },
+      },
+    ) as unknown as CanvasRenderingContext2D
+    drawWorld(spy, s, 1, 0, new Effects(false))
+    return drawn
+  }
+
+  // "bold 18px ui-monospace, monospace" — the number is the only number in it.
+  const sized = (row: Drawn): number => Number.parseInt(/(\d+)px/.exec(row.font)?.[1] ?? '0', 10)
+
+  const s = pulled(0x51ed, 0)
+  s.countdown = 0
+  const b = boss(s)
+  const player = s.actors.find((a) => a.isPlayer)!
+
+  s.texts.length = 0
+  pushText(s, b.pos, '-120', 'damage', 120)
+  pushText(s, b.pos, '-1400', 'damage', 1400)
+  pushText(s, player.pos, '-300', 'taken', 300)
+  pushText(s, player.pos, '+450', 'heal', 450)
+  const drawn = paint(s).filter((row) => row.text.startsWith('-') || row.text.startsWith('+'))
+
+  expect('every number is outlined', drawn.every((row) => row.stroked), JSON.stringify(drawn.map((r) => [r.text, r.stroked])))
+
+  const small = drawn.find((row) => row.text === '-120')!
+  const big = drawn.find((row) => row.text === '-1400')!
+  expect('a big hit is drawn bigger', sized(big) > sized(small) + 3, `${sized(small)} then ${sized(big)}`)
+  expect('and a small one is still legible', sized(small) >= 13, `${sized(small)}`)
+
+  const dealt = drawn.find((row) => row.text === '-1400')!
+  const taken = drawn.find((row) => row.text === '-300')!
+  const healed = drawn.find((row) => row.text === '+450')!
+  expect(
+    'what you deal does not look like what lands on you',
+    dealt.fill !== taken.fill,
+    `${dealt.fill} against ${taken.fill}`,
+  )
+  expect('and a heal looks like neither', healed.fill !== dealt.fill && healed.fill !== taken.fill, healed.fill)
+
+  // A burst of hits on one target has to read as several numbers rather than
+  // one smudge, which means consecutive ones cannot share a column.
+  s.texts.length = 0
+  for (let i = 0; i < 4; i++) pushText(s, b.pos, `-${100 + i}`, 'damage', 400)
+  // Aged a little, since they all start on the same point and fan out as they
+  // rise — on the frame they appear they are supposed to be together.
+  for (const t of s.texts) t.age = 0.5
+  const burst = paint(s).filter((row) => row.text.startsWith('-'))
+  const columns = new Set(burst.map((row) => Math.round(row.x)))
+  expect('four hits at once are four numbers', columns.size === 4, `${columns.size} columns`)
+
+  // And they are at full strength for long enough to be read, rather than
+  // fading from the frame they appear on.
+  s.texts.length = 0
+  pushText(s, b.pos, '-999', 'damage', 900)
+  const young = paint(s).find((row) => row.text === '-999')!
+  s.texts[0]!.age = 0.4
+  const middle = paint(s).find((row) => row.text === '-999')!
+  s.texts[0]!.age = 1.0
+  const old = paint(s).find((row) => row.text === '-999')!
+  expect('a number holds while it can be read', middle.alpha >= 0.99, `${middle.alpha}`)
+  expect('and is gone by the end', old.alpha < 0.3, `${old.alpha}`)
+  expect('and starts solid', young.alpha >= 0.99, `${young.alpha}`)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
