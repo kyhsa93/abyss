@@ -65,7 +65,21 @@ import {
   type RaidSize,
 } from './sim/classes'
 import { createBattlegroundState, createState } from './sim/state'
-import { ENCOUNTERS, encounterIndex, hasNext } from './sim/encounters'
+import { ENCOUNTERS, encounterIndex } from './sim/encounters'
+import {
+  FIRST_TIER,
+  LADDER,
+  RUNGS_PER_BOSS,
+  cleared,
+  moved,
+  nextSetting,
+  pressBoss,
+  pressDifficulty,
+  pressSize,
+  settle,
+  tierOf,
+  type Setting,
+} from './progress'
 import { dailyAffix, dailyFor, dailyKey, dailyLabel, type Daily } from './sim/daily'
 import { dailyMessage, gameMessage, killMessage, parseInvite, share } from './share'
 import {
@@ -140,7 +154,9 @@ window.addEventListener('orientationchange', onViewportChange)
 const PARTY_KEY = 'abyss.party'
 const DIFFICULTY_KEY = 'abyss.difficulty'
 const ENCOUNTER_KEY = 'abyss.encounter'
-const UNLOCKED_KEY = 'abyss.unlocked'
+/** The old key, read once to carry a save over. See `loadUnlocked`. */
+const BOSSES_KEY = 'abyss.unlocked'
+const UNLOCKED_KEY = 'abyss.tier'
 const MODE_KEY = 'abyss.mode'
 
 function loadParty(): Pick[] {
@@ -211,20 +227,37 @@ function loadEncounter(): number {
 }
 
 /**
- * The furthest boss reached.
+ * The furthest rung reached, on the one chain that runs through every setting.
  *
  * Kept apart from which one you are on, because they answer different
  * questions: the first is progress and only ever goes up, the second is where
  * you are standing right now and can go back. Without the split, going back to
  * the first boss to farm it would lock the rest away again.
+ *
+ * A save from before the chain existed is carried over rather than reset. It
+ * held a boss index, since a boss was the only thing that was ever locked, so
+ * what it says is "these bosses were reachable" and nothing at all about the
+ * sizes and difficulties — which were free. It is read as the *first* rung of
+ * that boss: the progress that was actually earned is kept, and the axes that
+ * were never a door become one. Taking away settings somebody had is the cost;
+ * the alternative is handing them the top of a ladder the chain exists to make
+ * them climb.
  */
 function loadUnlocked(): number {
   try {
     const raw = localStorage.getItem(UNLOCKED_KEY)
-    const parsed = raw === null ? NaN : Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) ? encounterIndex(parsed) : 0
+    if (raw !== null) {
+      const parsed = Number.parseInt(raw, 10)
+      if (Number.isFinite(parsed)) {
+        return Math.max(0, Math.min(LADDER.length - 1, parsed))
+      }
+    }
+    const old = localStorage.getItem(BOSSES_KEY)
+    const boss = old === null ? NaN : Number.parseInt(old, 10)
+    if (!Number.isFinite(boss)) return FIRST_TIER
+    return encounterIndex(boss) * RUNGS_PER_BOSS
   } catch {
-    return 0
+    return FIRST_TIER
   }
 }
 
@@ -282,6 +315,44 @@ function saveSetup(): void {
   }
 }
 
+/**
+ * Drops the raid setting onto the best rung of this boss that is actually open.
+ *
+ * Called wherever the setting can arrive at something it has not earned: a
+ * save written before the chain existed, an invitation to somebody else's
+ * fight, and pressing a boss whose top rungs are still locked. It moves the
+ * size and the difficulty and never the boss — a player who pressed the Choir
+ * and got moved to the Warden because their difficulty was locked would be
+ * reading a stranger answer than a player who got moved to normal.
+ *
+ * Battlegrounds are not on the chain at all: they are five a side and there is
+ * nothing to unlock, so a setting is only settled while the raid is the mode.
+ */
+function settleSetting(): void {
+  if (mode.kind !== 'raid') return
+  apply(settle(unlocked, setting()))
+}
+
+/** The three rows of the setup screen, as the one answer they are. */
+function setting(): Setting {
+  return { encounter, size: party.length as RaidSize, difficulty }
+}
+
+/**
+ * Puts an answer from `progress` back onto the game's own state.
+ *
+ * The boss and the difficulty before the size, because `resize` saves as it
+ * goes: set the other two afterwards and what reaches storage is the pair that
+ * was just corrected next to the one that was not.
+ */
+function apply(next: Setting): void {
+  if (!moved(setting(), next)) return
+  encounter = next.encounter
+  difficulty = next.difficulty
+  if (next.size !== party.length) resize(next.size)
+  saveSetup()
+}
+
 /** Keeps the player's own pick and rolls the rest around the new size. */
 function resize(size: RaidSize): void {
   party = randomAround(size, party[0] ?? DEFAULT_PARTY[0]!, Math.random)
@@ -291,8 +362,13 @@ function resize(size: RaidSize): void {
 let party = loadParty()
 let difficulty = loadDifficulty()
 let encounter = loadEncounter()
-let unlocked = Math.max(loadUnlocked(), encounter)
+let unlocked = loadUnlocked()
 let mode: RosterMode = loadMode()
+
+// A saved setup can name a rung this save has not earned — every one of them
+// could, before the chain existed, and a save carried over from then names one
+// almost by definition.
+settleSetting()
 
 /**
  * Today's run, and what has been made of it so far.
@@ -517,24 +593,29 @@ function restart(): void {
 }
 
 /**
- * On to the next boss.
+ * On to the next rung, which is usually this boss one setting harder.
  *
- * The pull count goes back to zero with it. The AI's learning is learning
- * *this* fight — a party that has killed the first boss nine times has not
- * seen the second one's opening, and carrying the progress over would hand
+ * The pull count goes back to zero with it, and for a rung as much as for a
+ * boss. The AI's learning is learning *this* fight — a party that has killed
+ * the Warden nine times at five has not seen its rot, which is what the
+ * heroic rung buys, and the roster is rolled again whenever the size changes,
+ * so they are not even the same people. Carrying the progress over would hand
  * them a ninth-pull execution of a script they have never watched.
  */
-function nextBoss(): void {
-  if (!hasNext(encounter)) return
+function advanceTier(): void {
+  const next = nextSetting(setting())
+  if (!moved(setting(), next)) return
   // Moving on is leaving today's fight behind; a retry is not.
   playingDaily = false
-  encounter = encounterIndex(encounter + 1)
-  unlocked = Math.max(unlocked, encounter)
+  apply(next)
+  unlocked = Math.max(unlocked, tierOf(next.encounter, next.size, next.difficulty))
   attempt = 0
   recorded = false
   graded = false
   announced = []
   fightingEncounter = encounter
+  fightingDifficulty = difficulty
+  fightingParty = party.map((p) => ({ ...p }))
   state = newState()
   rng = rngFor(state)
   saveSetup()
@@ -564,6 +645,12 @@ function startFight(): void {
   // played before it.
   playingDaily = false
   depth = 0
+  // The last gate before the fight actually starts. Every path that can move
+  // the setting settles it already, so this catches nothing today — which is
+  // the point: it is the one place a rung that was never earned would become
+  // a pull, and it is cheap to make that impossible rather than to keep every
+  // path in mind.
+  settleSetting()
   const changed =
     party.length !== fightingParty.length ||
     difficulty !== fightingDifficulty ||
@@ -610,6 +697,11 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
     const hit = hitHome(tap.x, tap.y)
     if (hit === 'raid') {
       mode = { kind: 'raid' }
+      // A battleground forces the roster to five and leaves the difficulty
+      // where it was, so coming back out of one can land on a rung this save
+      // has not earned. Settled on the way in rather than on the way out, so
+      // there is one place that has to remember.
+      settleSetting()
       saveSetup()
       screen = 'raid'
       return
@@ -626,6 +718,7 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       screen = 'roster'
       return
     }
+
     if (hit === 'daily') {
       // Rolled fresh each time it is opened, so a session left running over
       // midnight offers the new day rather than yesterday's.
@@ -740,19 +833,17 @@ function updateRaidSetup(tap: { x: number; y: number } | null): void {
       screen = 'roster'
       return
     }
+    // All three rows are one answer, and the rules for what a press does live
+    // with what is open rather than here: a press onto something locked comes
+    // back unchanged — it is drawn locked rather than being absent, since what
+    // is left up there is worth knowing — and a press that opens a row may
+    // bring another one down with it.
     if (hit?.kind === 'size') {
-      if (hit.size !== party.length) resize(hit.size)
-      saveSetup()
+      apply(pressSize(unlocked, setting(), hit.size))
     } else if (hit?.kind === 'difficulty') {
-      difficulty = hit.id
-      saveSetup()
+      apply(pressDifficulty(unlocked, setting(), hit.id))
     } else if (hit?.kind === 'boss') {
-      // A locked boss is drawn locked and does nothing when pressed, rather
-      // than being absent: what is left down there is worth knowing.
-      if (hit.index <= unlocked) {
-        encounter = hit.index
-        saveSetup()
-      }
+      apply(pressBoss(unlocked, setting(), hit.index))
     }
   }
   drawRaidSetup(ctx, encounter, unlocked, party.length, difficulty)
@@ -868,14 +959,19 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     const at = ENCOUNTERS.findIndex((e) => e.id === invite.boss)
     if (at >= 0) {
       encounter = at
-      // Following an invitation unlocks the boss it points at, and keeps it.
-      // The ladder is there so a new player meets the bosses in order, not to
-      // stop somebody being invited past it — and locking the retry button
-      // after they have already fought it once would only be a puzzle.
-      unlocked = Math.max(unlocked, at)
       mode = { kind: 'raid' }
       if (invite.size && invite.size !== party.length) resize(invite.size)
       if (invite.difficulty) difficulty = invite.difficulty
+      // Following an invitation opens the rung it points at, and keeps it.
+      // The chain is there so a new player meets the game in order, not to
+      // stop somebody being invited past it — and locking the retry button
+      // after they have already fought it once would only be a puzzle. Every
+      // rung below is opened with it, since what is open is a prefix.
+      const invited = tierOf(encounter, party.length, difficulty)
+      if (invited >= 0) unlocked = Math.max(unlocked, invited)
+      // And if the link named a setting that is not a rung at all, the setup
+      // falls back rather than opening on something the screen draws locked.
+      settleSetting()
       saveSetup()
       screen = 'roster'
     }
@@ -990,7 +1086,7 @@ function frame(now: number): void {
     }
     if (hit === 'next') {
       if (depth > 0) descendTo(depth + 1, state)
-      else nextBoss()
+      else advanceTier()
     }
     else if (hit === 'retry') restart()
   }
@@ -1042,12 +1138,19 @@ function frame(now: number): void {
       )
       saveDaily(dailyResults)
     }
-    // Pressing NEXT BOSS is not what opens the next boss; killing this one
-    // is. Leaving through CHANGE PARTY after a kill must not cost the
+    // Pressing the advance button is not what opens the next rung; killing
+    // this one is. Leaving through CHANGE PARTY after a kill must not cost the
     // progress that kill earned.
-    if (state.outcome === 'victory' && hasNext(state.encounter)) {
-      unlocked = Math.max(unlocked, encounterIndex(state.encounter + 1))
-      saveSetup()
+    //
+    // Read off the fight rather than off the setup screen: the player may
+    // already have walked back and changed both while the corpse was still on
+    // the floor, and what was cleared is what was fought.
+    if (state.outcome === 'victory' && state.mode === 'raid' && state.depth === 0) {
+      const opened = cleared(unlocked, state.encounter, state.party.length, state.difficulty)
+      if (opened !== unlocked) {
+        unlocked = opened
+        saveSetup()
+      }
     }
     const at = Date.now()
     const entry = record(state, at)

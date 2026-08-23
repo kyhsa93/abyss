@@ -4,6 +4,7 @@ import { drawWorld, focusOn } from '../src/render/draw'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
+  advanceLabel,
   canAdvance,
   drawHud,
   hitOutcome,
@@ -158,6 +159,25 @@ import { gainPower } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SHOCKWAVE_START, SUNDER_MAX } from '../src/sim/boss'
+import {
+  FIRST_TIER,
+  LADDER,
+  RUNGS_PER_BOSS,
+  bestOpen,
+  bossOpen,
+  cleared,
+  hasNextTier,
+  isOpen,
+  moved,
+  nextSetting,
+  pressBoss,
+  pressDifficulty,
+  pressSize,
+  settle,
+  tierAt,
+  tierOf,
+  type Setting,
+} from '../src/progress'
 import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floor'
 import {
   DT,
@@ -3958,21 +3978,294 @@ for (const [label, w, h] of [
   )
 }
 
-// A kill on the last boss offers no way on, and a wipe never does.
+// --- the chain the raid opens along ----------------------------------------
+//
+// One chain through every setting rather than three locked doors: six rungs
+// per boss in the order the fight gets harder, and the last of one boss opens
+// the first of the next. What is open is always a prefix of it, which is why a
+// single number describes it — and why nothing here has to ask "but did they
+// clear the *other* twenty-five man".
+{
+  expect(
+    'six rungs a boss, and one chain through all of them',
+    LADDER.length === ENCOUNTERS.length * RUNGS_PER_BOSS && RUNGS_PER_BOSS === 6,
+    `${LADDER.length} rungs over ${ENCOUNTERS.length} bosses`,
+  )
+
+  // Every setting the setup screen can offer is somewhere on it, exactly once.
+  const seen = new Set<string>()
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    for (const size of [5, 10, 25] as RaidSize[]) {
+      for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
+        const at = tierOf(i, size, difficulty)
+        expect(
+          `${ENCOUNTERS[i]!.short} ${size} ${difficulty} is on the chain`,
+          at >= 0 && !seen.has(`${at}`),
+          `${at}`,
+        )
+        seen.add(`${at}`)
+        const rung = tierAt(at)
+        expect(
+          'and reads back as itself',
+          rung.encounter === i && rung.size === size && rung.difficulty === difficulty,
+          `${rung.encounter}/${rung.size}/${rung.difficulty}`,
+        )
+      }
+    }
+  }
+
+  // A battleground is five a side and is not a rung of anything.
+  expect('a size off the roster is not on it', tierOf(0, 7, 'normal') === -1, `${tierOf(0, 7, 'normal')}`)
+
+  // It gets harder along its own length, which is the whole claim the order
+  // makes. Measured against the harness's own reading of each cell rather than
+  // asserted: heroic at one size sits below normal at the next, which is why
+  // the rungs alternate rather than running all the sizes and then all the
+  // difficulties.
+  expect(
+    'and it steps size, difficulty, size, difficulty',
+    [0, 1, 2, 3, 4, 5].every((i) => {
+      const rung = tierAt(i)
+      return rung.size === ([5, 5, 10, 10, 25, 25] as const)[i] &&
+        rung.difficulty === (i % 2 === 0 ? 'normal' : 'heroic')
+    }),
+    [0, 1, 2, 3, 4, 5].map((i) => `${tierAt(i).size}${tierAt(i).difficulty[0]}`).join(' '),
+  )
+
+  // A new save opens exactly one thing.
+  const fresh = FIRST_TIER
+  expect(
+    'a new player has one fight and one setting',
+    isOpen(fresh, 0, 5, 'normal') &&
+      !isOpen(fresh, 0, 5, 'heroic') &&
+      !isOpen(fresh, 0, 10, 'normal') &&
+      !bossOpen(fresh, 1),
+    'more than the first rung was open',
+  )
+
+  // And clearing walks it, one rung at a time, all the way to the end.
+  {
+    let open = FIRST_TIER
+    const walked: string[] = []
+    for (let step = 0; step < LADDER.length; step++) {
+      const rung = tierAt(open)
+      expect(
+        `rung ${step + 1} is open when it is reached`,
+        isOpen(open, rung.encounter, rung.size, rung.difficulty),
+        `${rung.encounter}/${rung.size}/${rung.difficulty}`,
+      )
+      // And the one after it is not, until this one is cleared.
+      if (step + 1 < LADDER.length) {
+        const above = tierAt(open + 1)
+        expect(
+          'and the one above it is not',
+          !isOpen(open, above.encounter, above.size, above.difficulty),
+          `${above.encounter}/${above.size}/${above.difficulty}`,
+        )
+      }
+      walked.push(`${ENCOUNTERS[rung.encounter]!.short}${rung.size}${rung.difficulty[0]}`)
+      open = cleared(open, rung.encounter, rung.size, rung.difficulty)
+    }
+    expect('the whole game opens in eighteen kills', open === LADDER.length - 1, `${open}`)
+    expect(
+      'and the handovers land where they should',
+      walked[RUNGS_PER_BOSS - 1] === `${ENCOUNTERS[0]!.short}25h` &&
+        walked[RUNGS_PER_BOSS] === `${ENCOUNTERS[1]!.short}5n`,
+      walked.join(' '),
+    )
+  }
+
+  // Clearing something already behind you opens nothing, which is what lets a
+  // player farm the first boss without the rest closing up.
+  {
+    const far = tierOf(1, 10, 'normal')
+    expect('a kill behind you costs nothing', cleared(far, 0, 5, 'normal') === far, `${cleared(far, 0, 5, 'normal')}`)
+    expect('and one at the top does not run off the end', cleared(LADDER.length - 1, ENCOUNTERS.length - 1, 25, 'heroic') === LADDER.length - 1, 'it did')
+  }
+
+  // What the setup screen falls back to when the setting it was handed is not
+  // open: the best rung of the boss that was asked for, never a different one.
+  {
+    const open = tierOf(0, 10, 'normal')
+    const best = bestOpen(open, 0)
+    expect(
+      'a locked setting falls back within its own boss',
+      best.encounter === 0 && best.size === 10 && best.difficulty === 'normal',
+      `${best.encounter}/${best.size}/${best.difficulty}`,
+    )
+    const unreached = bestOpen(open, ENCOUNTERS.length - 1)
+    expect(
+      'and a boss not reached at all falls back to the first rung of the game',
+      unreached.encounter === 0 && unreached.size === 5 && unreached.difficulty === 'normal',
+      `${unreached.encounter}/${unreached.size}/${unreached.difficulty}`,
+    )
+  }
+
+  // --- and what the three rows of the setup screen do about it -------------
+  //
+  // The rules live in `progress` rather than in the click handler, which is
+  // the only reason this can be asked at all: a rule about what is open that
+  // lives in a screen is a rule nothing can check, and the screen is the one
+  // place a rung that was never earned would turn into a pull.
+  {
+    const at = (encounter: number, size: RaidSize, difficulty: DifficultyId): Setting => ({
+      encounter,
+      size,
+      difficulty,
+    })
+
+    // A fresh save: every press but the one that is already selected refuses.
+    const fresh = FIRST_TIER
+    const start = at(0, 5, 'normal')
+    expect(
+      'a new player cannot press past the first rung',
+      !moved(start, pressSize(fresh, start, 10)) &&
+        !moved(start, pressSize(fresh, start, 25)) &&
+        !moved(start, pressDifficulty(fresh, start, 'heroic')) &&
+        !moved(start, pressBoss(fresh, start, 1)),
+      'a locked press moved something',
+    )
+
+    // Stepping up a size lands on its normal even from heroic, because the
+    // rung that opens a size *is* that size on normal.
+    {
+      const open = tierOf(0, 10, 'normal')
+      const onFiveHeroic = at(0, 5, 'heroic')
+      const stepped = pressSize(open, onFiveHeroic, 10)
+      expect(
+        'stepping up a size lands on its normal',
+        stepped.size === 10 && stepped.difficulty === 'normal',
+        `${stepped.size}/${stepped.difficulty}`,
+      )
+      // And once its heroic is open too, the difficulty is kept.
+      const later = pressSize(tierOf(0, 10, 'heroic'), onFiveHeroic, 10)
+      expect(
+        'and keeps heroic once heroic is open there',
+        later.size === 10 && later.difficulty === 'heroic',
+        `${later.size}/${later.difficulty}`,
+      )
+    }
+
+    // Pressing a boss brings the rows down with it rather than carrying a
+    // heroic twenty-five onto a boss only opened at five.
+    {
+      const open = tierOf(1, 5, 'normal')
+      const carried = pressBoss(open, at(0, 25, 'heroic'), 1)
+      expect(
+        'a new boss is entered at the rung it was opened on',
+        carried.encounter === 1 && carried.size === 5 && carried.difficulty === 'normal',
+        `${carried.encounter}/${carried.size}/${carried.difficulty}`,
+      )
+      // And a press only brings the rows down when it has to. Going back to a
+      // boss where the current size and difficulty are open leaves them where
+      // they are: the two rows are their own controls, and a boss press that
+      // silently moved them when it did not need to would be a press with a
+      // second effect nobody asked for.
+      const back = pressBoss(open, at(1, 5, 'normal'), 0)
+      expect(
+        'and an old one keeps the rows it can',
+        back.encounter === 0 && back.size === 5 && back.difficulty === 'normal',
+        `${back.encounter}/${back.size}/${back.difficulty}`,
+      )
+    }
+
+    // Settling never moves the boss unless the boss itself is unreached.
+    {
+      const open = tierOf(0, 10, 'normal')
+      const settled = settle(open, at(0, 25, 'heroic'))
+      expect(
+        'settling stays on the boss it was asked about',
+        settled.encounter === 0 && settled.size === 10 && settled.difficulty === 'normal',
+        `${settled.encounter}/${settled.size}/${settled.difficulty}`,
+      )
+      const already = at(0, 5, 'normal')
+      expect('and leaves an open setting alone', !moved(already, settle(open, already)), 'it moved')
+    }
+
+    // The whole game, walked with nothing but the advance button — which is
+    // the path a player who never touches the setup screen actually takes.
+    {
+      let open = FIRST_TIER
+      let where = at(0, 5, 'normal')
+      const seen: string[] = []
+      for (let step = 0; step < LADDER.length; step++) {
+        expect(
+          `the advance button never lands on a locked rung (${step + 1})`,
+          isOpen(open, where.encounter, where.size, where.difficulty),
+          `${where.encounter}/${where.size}/${where.difficulty}`,
+        )
+        seen.push(`${where.encounter}${where.size}${where.difficulty[0]}`)
+        open = cleared(open, where.encounter, where.size, where.difficulty)
+        const next = nextSetting(where)
+        if (step === LADDER.length - 1) {
+          expect('and stops at the top', !moved(where, next), 'it kept going')
+        } else {
+          expect(`and moves every time before it (${step + 1})`, moved(where, next), 'it stalled')
+        }
+        where = next
+      }
+      expect(
+        'eighteen presses walk the whole game',
+        new Set(seen).size === LADDER.length,
+        seen.join(' '),
+      )
+    }
+  }
+
+  // The last rung of the game is the only one with nothing above it.
+  {
+    const ends = LADDER.filter((t) => !hasNextTier(t.encounter, t.size, t.difficulty))
+    expect('exactly one rung is the end of it', ends.length === 1, `${ends.length}`)
+    expect(
+      'and it is the hardest setting of the last boss',
+      ends[0]!.encounter === ENCOUNTERS.length - 1 &&
+        ends[0]!.size === 25 &&
+        ends[0]!.difficulty === 'heroic',
+      JSON.stringify(ends[0]),
+    )
+  }
+}
+
+// A kill on the last rung of the last boss offers no way on, and a wipe never
+// does. Every other kill offers the rung above it, which is usually this same
+// boss one setting harder rather than the next boss at all.
 {
   updateLayout(1440, 900)
-  const last = pulled(0x51ed, 0, undefined, 'normal', ENCOUNTERS.length - 1)
-  last.outcome = 'victory'
-  expect('the last kill has nowhere to go', !canAdvance(last), 'it offered one')
+  const top = pulled(
+    0x51ed,
+    0,
+    autoParty(25, pickFor('mage', 'dps')!),
+    'heroic',
+    ENCOUNTERS.length - 1,
+  )
+  top.outcome = 'victory'
+  expect('the last kill has nowhere to go', !canAdvance(top), 'it offered one')
+
+  // The last boss at the *first* setting is not the last kill: five more rungs
+  // of it are left, and the old check said otherwise because a boss was the
+  // only thing that was ever locked.
+  const lastBossFirstRung = pulled(0x51ed, 0, undefined, 'normal', ENCOUNTERS.length - 1)
+  lastBossFirstRung.outcome = 'victory'
+  expect('but its five-man normal has five', canAdvance(lastBossFirstRung), 'it offered none')
+  expect(
+    'and says which one',
+    advanceLabel(lastBossFirstRung) === '5-MAN HEROIC',
+    advanceLabel(lastBossFirstRung),
+  )
 
   const first = pulled(0x51ed, 0, undefined, 'normal', 0)
   first.outcome = 'victory'
   expect('an earlier kill does', canAdvance(first), 'it did not')
 
+  // The top of a boss is the one rung whose button really is the next boss.
+  const handover = pulled(0x51ed, 0, autoParty(25, pickFor('mage', 'dps')!), 'heroic', 0)
+  handover.outcome = 'victory'
+  expect('the top of a boss hands over', advanceLabel(handover) === 'NEXT BOSS', advanceLabel(handover))
+
   first.outcome = 'wipe'
-  expect('a wipe does not', !canAdvance(first), 'a wipe offered the next boss')
+  expect('a wipe does not', !canAdvance(first), 'a wipe offered the next rung')
   first.outcome = 'enrage'
-  expect('nor an enrage', !canAdvance(first), 'an enrage offered the next boss')
+  expect('nor an enrage', !canAdvance(first), 'an enrage offered the next rung')
 }
 
 // --- battlegrounds ----------------------------------------------------------
@@ -4514,9 +4807,10 @@ for (const [label, w, h] of [
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
   )
 
-  // Raid setup: boss, size, difficulty, and the way on.
-  drawRaidSetup(stubCtx(), 0, ENCOUNTERS.length - 1, 5, 'heroic')
-  drawRaidSetup(stubCtx(), 0, 0, 25, 'normal')
+  // Raid setup: boss, size, difficulty, and the way on. Drawn at both ends of
+  // the chain, since the locked rows are a different set of labels.
+  drawRaidSetup(stubCtx(), 0, LADDER.length - 1, 5, 'heroic')
+  drawRaidSetup(stubCtx(), 0, FIRST_TIER, 25, 'normal')
   const raid = raidSetupLayout()
   const raidRects = [...raid.bosses, ...raid.sizes, ...raid.difficulties, raid.back, raid.next]
   expect(`${label}: the raid setup fits`, raidRects.every(onScreen), JSON.stringify(raidRects.filter((r) => !onScreen(r))))
@@ -5307,9 +5601,17 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const deep = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', ENCOUNTERS.length - 1, null, 7)
   deep.outcome = 'victory'
   expect('a descent always goes deeper', canAdvance(deep), 'it offered no floor')
-  const lastRaid = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', ENCOUNTERS.length - 1)
+  // The last rung rather than the last boss: a raid runs out at the end of the
+  // chain, which is the hardest setting of the last fight and not its easiest.
+  const lastRaid = pulled(
+    0x51ed,
+    0,
+    autoParty(25, pickFor('mage', 'dps')!),
+    'heroic',
+    ENCOUNTERS.length - 1,
+  )
   lastRaid.outcome = 'victory'
-  expect('a raid still runs out', !canAdvance(lastRaid), 'the last boss offered another')
+  expect('a raid still runs out', !canAdvance(lastRaid), 'the last rung offered another')
 
   // Depth is carried by the fight rather than by the screen, and an ordinary
   // pull has none.

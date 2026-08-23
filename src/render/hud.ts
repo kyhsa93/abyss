@@ -4,7 +4,8 @@ import { standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
 import { playerTarget, pressTarget } from '../sim/sim'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
-import { encounterAt, hasNext } from '../sim/encounters'
+import { encounterAt } from '../sim/encounters'
+import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
 import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { teamColour } from './draw'
@@ -109,11 +110,25 @@ export function hitOutcome(
   return null
 }
 
-/** Whether this pull earned the way out of this boss. */
+/** Whether this pull earned the way out of where it was fought. */
 export function canAdvance(s: SimState): boolean {
   if (s.mode !== 'raid' || s.outcome !== 'victory') return false
-  // A descent always has another floor; a raid eventually runs out of bosses.
-  return s.depth > 0 || hasNext(s.encounter)
+  // A descent always has another floor. A raid has another rung — which is
+  // usually this same boss one setting harder, and only at the top of the six
+  // is it the next boss at all.
+  return s.depth > 0 || hasNextTier(s.encounter, s.party.length, s.difficulty)
+}
+
+/** What the button that walks onto the next rung should say. */
+export function advanceLabel(s: SimState): string {
+  if (s.depth > 0) return 'GO DEEPER'
+  const here = tierOf(s.encounter, s.party.length, s.difficulty)
+  if (here < 0) return 'NEXT BOSS'
+  const next = tierAt(here + 1)
+  // Named by what actually changes. A player who just killed the Warden at
+  // five and is being offered the Warden at five on heroic was, before this,
+  // being offered "NEXT BOSS" — which is not what the button did.
+  return next.encounter === s.encounter ? tierLabel(next) : 'NEXT BOSS'
 }
 
 /**
@@ -1496,7 +1511,7 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   // thing you came for, and PULL AGAIN steps back to what you already did.
   const row: Array<readonly [string, Rect, string]> = []
   if (buttons.next) {
-    row.push([s.depth > 0 ? 'GO DEEPER' : 'NEXT BOSS', buttons.next, COLORS.hpBar] as const)
+    row.push([advanceLabel(s), buttons.next, COLORS.hpBar] as const)
   }
   row.push([
     touch || advance ? 'PULL AGAIN' : 'PULL AGAIN  (R)',
@@ -1536,9 +1551,13 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
       buttons.retry.y + buttons.retry.h + 20,
     )
   } else if (advance) {
-    const next = encounterAt(s.encounter + 1)
+    const here = tierOf(s.encounter, s.party.length, s.difficulty)
+    const next = tierAt(Math.max(0, here) + 1)
+    const fight = encounterAt(next.encounter)
     ctx.fillText(
-      `next: ${next.name} — ${next.demand}`,
+      next.encounter === s.encounter
+        ? `next: ${fight.name} — ${next.size} player ${next.difficulty}`
+        : `next: ${fight.name} — ${fight.demand}`,
       L.w / 2,
       buttons.retry.y + buttons.retry.h + 20,
     )

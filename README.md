@@ -51,7 +51,9 @@ row of specs on every screen, twenty-five pixels into them on a desktop. Every
 check passed at the time: the layout checks compare rectangles, and text is not
 a rectangle. They read the drawn labels now.
 
-On the raid screen: pick a boss, a size (5, 10 or 25) and a difficulty. Then
+On the raid screen: pick a boss, a size (5, 10 or 25) and a difficulty — from
+what you have opened, which starts as the first boss at five on normal and
+grows one setting per kill along [the chain](#the-chain). Then
 the class screen asks what
 you are playing. That last one is the only pick you make, and the screen shows
 nothing else — you show up to a raid, you do not build one, and a board of
@@ -875,6 +877,29 @@ only. Nothing threw. It read as a tuning result for two rounds. The check now
 plays a pull at each size and asserts both shapes have a real width, that
 neither has grown past having an outside, and that both are wider than a
 five-man's.
+
+### The backdrop, and a check that was passing on luck
+
+The menu backdrop is a real pull, stepped at the same rate as a played one
+with the player's slot handed to the AI, and there is a check that says it
+never shows an empty screen — a phone holds a third of a desktop's width and
+the backdrop is drawn twice as close as the game, so at that range the middle
+of the arena is sometimes a view of nothing.
+
+The check had been failing at random since it was written, roughly one run in
+three, and always on a battleground. Which is exactly where the bug was: the
+backdrop camera aimed at the *average* of everyone alive, and the average of a
+battleground is an empty patch of floor between two crowds. Then the scene the
+backdrop rolls is picked at random, so whether the check saw it was a coin
+toss — a real defect and a flaky gate at the same time, and the flakiness is
+what kept the defect.
+
+It aims at whoever is nearest that average now. That makes the guarantee
+rather than improving the odds: the camera is centred on somebody, so somebody
+is always in frame. It costs nothing when the fight is together, which is
+every raid — the nearest body to the middle of a raid *is* the middle. Worst
+case across twelve matches went from nobody on screen to two players in
+fifteen.
 
 ## Sharing
 
@@ -1731,18 +1756,73 @@ pass on the strength of its own cast. That hole was real: the first version of
 the check passed with the slam's impact deleted, because the phase break was
 borrowing the slam's id. The phase break has its own now.
 
-Three of them, fought in order. A kill puts a **NEXT BOSS** button on the
-results screen, to the left of PULL AGAIN, and taking it moves you on with the
-pull count back at zero — the party's learning is learning *this* fight, and a
-group that killed the first boss nine times has never seen the second one's
-opening.
+Three of them, fought in order — and each of them six times over, which is
+[the chain](#the-chain) below. A kill puts a button on the results screen to
+the left of PULL AGAIN, and taking it moves you on with the pull count back at
+zero: the party's learning is learning *this* fight, and a group that killed
+the Warden nine times at five has not seen the rot the heroic rung buys.
 
-Killing a boss is what opens the next, not pressing the button: leaving
-through CHANGE PARTY after a kill keeps the progress. Where you are and how
-far you have got are stored apart, so going back to farm an earlier boss does
-not lock the later ones away again. The party screen carries a row of them and
-draws the ones you have not reached locked but named — what is left down there
-is worth knowing.
+Killing something is what opens the next thing, not pressing the button:
+leaving through CHANGE PARTY after a kill keeps the progress. Where you are
+and how far you have got are stored apart, so going back to farm an earlier
+fight does not lock the later ones away again. Every row on the setup screen
+draws what you have not reached locked but named — what is left up there is
+worth knowing.
+
+### The chain
+
+The raid used to be three locked doors and nothing else. A boss opened when
+the one before it died, and the size and the difficulty were free from the
+first pull — so the first thing a new player could do was walk a heroic
+twenty-five man into the Drowned Warden and meet all five of its rungs at
+once. The ladders made that worse rather than better: their whole point is
+that a size and a difficulty each buy a mechanic, and a game that hands you
+the top of a ladder is a game with no rungs.
+
+So there is one chain, and it runs *through* the settings rather than past
+them. Six rungs a boss, in the order the fight gets harder, and the last of
+one boss opens the first of the next:
+
+> Warden 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal → 25 heroic →
+> Choir 5 normal → … → Tidebreaker 25 heroic
+
+Eighteen kills to open the game. **Clearing a rung opens the one after it, and
+nothing else does** — not reaching it, not clearing something harder somewhere
+else — so what is open is always a prefix of that list and a single number
+describes it. Which is also why nothing in here ever has to ask "but did they
+clear the *other* twenty-five man".
+
+**Size before difficulty at each step**, rather than all three sizes and then
+all three heroics. That is the order they actually get harder in: heroic at
+one size sits below normal at the next in every cell of the harness table
+above, and a chain that ran 5N–10N–25N–5H would ask a raid that had just
+fielded twenty-five people to go back down to five to carry on.
+
+The results button is named for what it does. It used to say NEXT BOSS after
+every kill, which was true once in six — now it says `5-MAN HEROIC` or
+`10-MAN NORMAL` when the next rung is this same boss one setting harder, and
+NEXT BOSS only at the top of the six, where it really is.
+
+Three places can hand the setup screen a setting it has not earned: a save
+written before the chain existed, a shared link to somebody else's fight, and
+pressing a boss whose top rungs are still locked. All three settle the same
+way — down to the best rung *of the boss that was asked for*, never sideways
+onto a different one. A player who pressed the Choir and got moved to the
+Warden because their difficulty was locked would be reading a stranger answer
+than a player who got moved to normal.
+
+A save from before the chain held a boss index, since a boss was the only
+thing that was ever locked. It is read as the *first* rung of that boss: the
+progress that was actually earned is kept, and the axes that were never a door
+become one. That does take away settings somebody had, which is the cost of
+the change rather than an oversight.
+
+An invitation still opens what it points at, and keeps it. The chain is there
+so a new player meets the game in order, not to stop somebody being invited
+past it — and locking the retry button after they have already fought it once
+would only be a puzzle. Today's run is not on the chain either: it is one
+fight a day, the same one for everybody, and gating it would make it a
+different fight for everybody.
 
 ### The ladders
 

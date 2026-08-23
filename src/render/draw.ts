@@ -46,16 +46,40 @@ export function focusOn(s: SimState, alpha = 1): Vec2 {
   const player = s.actors.find((a) => a.isPlayer)
   if (player) return actorPos(player, alpha)
 
+  const alive = s.actors.filter((a) => a.alive)
+  if (alive.length === 0) return { x: 0, y: 0 }
+
   let x = 0
   let y = 0
-  let count = 0
-  for (const a of s.actors) {
-    if (!a.alive) continue
+  for (const a of alive) {
     x += a.pos.x
     y += a.pos.y
-    count++
   }
-  return count === 0 ? { x: 0, y: 0 } : { x: x / count, y: y / count }
+  const middle = { x: x / alive.length, y: y / alive.length }
+
+  // Onto whoever is nearest that middle, rather than onto the middle itself.
+  //
+  // The average of a battleground is an empty patch of floor between two
+  // crowds, and on a phone drawn at backdrop zoom that patch is the entire
+  // frame: measured, about one scene in three had *nobody* on screen at some
+  // point in a ninety-second match. The check that guards this had been
+  // failing at random for as long as it has existed, because which scene the
+  // backdrop rolls is random.
+  //
+  // Snapping to the nearest body is what makes the guarantee rather than
+  // improves the odds — the camera is centred on somebody, so somebody is
+  // always in frame. It costs nothing when the fight is together, which is
+  // every raid: the nearest body to the middle of a raid *is* the middle.
+  let best = alive[0]!
+  let closest = Infinity
+  for (const a of alive) {
+    const d = (a.pos.x - middle.x) ** 2 + (a.pos.y - middle.y) ** 2
+    if (d < closest) {
+      closest = d
+      best = a
+    }
+  }
+  return actorPos(best, alpha)
 }
 
 function updateCamera(s: SimState, alpha: number): void {

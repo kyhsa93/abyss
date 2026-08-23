@@ -1,6 +1,7 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type RaidSize } from '../sim/classes'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
+import { bossOpen, isOpen } from '../progress'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
@@ -255,6 +256,7 @@ export function raidSetupLayout(): RaidSetupLayout {
 export function drawRaidSetup(
   ctx: CanvasRenderingContext2D,
   encounter: number,
+  /** How far up the one chain of settings the player has climbed. */
   unlocked: number,
   size: number,
   difficulty: DifficultyId,
@@ -272,28 +274,41 @@ export function drawRaidSetup(
 
   heading('BOSS', layout.headings[0]!)
   ENCOUNTERS.forEach((fight, i) => {
-    const locked = i > unlocked
     const r = layout.bosses[i]!
-    if (locked) {
+    if (!bossOpen(unlocked, i)) {
       button(ctx, r, `${fight.short} 🔒`, 'not reached', COLORS.dead)
       return
     }
     button(ctx, r, fight.short, fight.demand, COLORS.boss, i === encounter)
   })
 
+  // The size and the difficulty are doors now, not switches.
+  //
+  // Both are drawn locked rather than hidden, for the same reason a boss is:
+  // the shape of what is left is worth knowing, and a row that changes length
+  // as you climb is a row you have to re-find every time.
   heading('RAID SIZE', layout.headings[1]!)
   RAID_SIZES.forEach((option, i) => {
-    button(ctx, layout.sizes[i]!, `${option}`, '', COLORS.castBar, option === size)
+    const open = isOpen(unlocked, encounter, option, 'normal')
+    button(
+      ctx,
+      layout.sizes[i]!,
+      open ? `${option}` : `${option} 🔒`,
+      '',
+      open ? COLORS.castBar : COLORS.dead,
+      option === size,
+    )
   })
 
   heading('DIFFICULTY', layout.headings[2]!)
   DIFFICULTY_ORDER.forEach((id, i) => {
+    const open = isOpen(unlocked, encounter, size, id)
     button(
       ctx,
       layout.difficulties[i]!,
-      DIFFICULTIES[id].name,
-      id === 'heroic' ? 'more health, and one mechanic more' : '',
-      id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar,
+      open ? DIFFICULTIES[id].name : `${DIFFICULTIES[id].name} 🔒`,
+      id === 'heroic' && open ? 'more health, and one mechanic more' : '',
+      open ? (id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar) : COLORS.dead,
       id === difficulty,
     )
   })
