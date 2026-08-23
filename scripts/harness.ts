@@ -1,7 +1,7 @@
 import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
-import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
+import { ENCOUNTERS, encounterAt, encounterKit } from '../src/sim/encounters'
 import { BATTLEGROUNDS } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
@@ -206,34 +206,47 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
   )
 }
 
-// --- raid size and difficulty, with a balanced composition each time -------
-const SIZE_RUNS = 20
+// --- raid size and difficulty, per boss ------------------------------------
+//
+// Both axes buy a rung of the boss's ladder now, not just a taller health bar,
+// so this table is where that either works or does not. What is being read is
+// the shape down each block: heroic should cost something at every size, and a
+// bigger raid should not be the easier one — and the kit column says, in
+// words, what the raid is being asked for that the row above was not.
+const SIZE_RUNS = 14
 const SIZE_ATTEMPTS = [0, 8]
-console.log('\nsize / difficulty      ' + SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  bossHP%')
-for (const size of [5, 10, 25] as RaidSize[]) {
-  for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
-    const party = autoParty(size, dps('mage'))
-    const cells: string[] = []
-    let time = 0
-    let left = 0
-    let total = 0
-    for (const attempt of SIZE_ATTEMPTS) {
-      let wins = 0
-      for (let i = 0; i < SIZE_RUNS; i++) {
-        const r = run(1000 + i * 137, attempt, party, difficulty)
-        if (r.outcome === 'victory') wins++
-        time += r.time
-        left += r.bossPct
-        total++
+console.log(
+  '\nboss / size / difficulty  ' +
+    SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
+    'avgTime  bossHP%  kit',
+)
+for (let i = 0; i < ENCOUNTERS.length; i++) {
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
+      const party = autoParty(size, dps('mage'))
+      const cells: string[] = []
+      let time = 0
+      let left = 0
+      let total = 0
+      for (const attempt of SIZE_ATTEMPTS) {
+        let wins = 0
+        for (let n = 0; n < SIZE_RUNS; n++) {
+          const r = run(1000 + n * 137, attempt, party, difficulty, i)
+          if (r.outcome === 'victory') wins++
+          time += r.time
+          left += r.bossPct
+          total++
+        }
+        cells.push(`${Math.round((wins / SIZE_RUNS) * 100)}%`.padEnd(9))
       }
-      cells.push(`${Math.round((wins / SIZE_RUNS) * 100)}%`.padEnd(9))
+      console.log(
+        `${ENCOUNTERS[i]!.short} ${size} ${difficulty}`.padEnd(26),
+        cells.join(''),
+        (time / total).toFixed(0).padEnd(9),
+        (left / total).toFixed(0).padEnd(9),
+        encounterKit(ENCOUNTERS[i]!, size, difficulty).join(','),
+      )
     }
-    console.log(
-      `${size}-player ${difficulty}`.padEnd(23),
-      cells.join(''),
-      (time / total).toFixed(0).padEnd(9),
-      (left / total).toFixed(0),
-    )
   }
 }
 

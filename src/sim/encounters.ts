@@ -16,6 +16,40 @@ import type { DifficultyId } from './classes'
  * change target, and the raid hit says nothing at all except that the healer
  * kept up. A boss is a sentence made of those.
  */
+
+/**
+ * The whole vocabulary, named once.
+ *
+ * `floor.ts` prices these and `boss.ts` schedules them; this is the list both
+ * of them agree on. Everything a boss or a floor can ask for is here, and
+ * nothing else is.
+ */
+export type MechanicId =
+  | 'puddle'
+  | 'spread'
+  | 'breath'
+  | 'shockwave'
+  | 'adds'
+  | 'sweep'
+  | 'rot'
+  | 'sunder'
+  | 'soak'
+  | 'hunt'
+
+/** What each is called anywhere it has to be read rather than dodged. */
+export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  puddle: 'pools',
+  spread: 'marks',
+  breath: 'the cone',
+  shockwave: 'the ring',
+  adds: 'thralls',
+  sweep: 'the sweep',
+  rot: 'rot',
+  sunder: 'the armour break',
+  soak: 'the gathering',
+  hunt: 'the stalker',
+}
+
 export interface PhaseTiming {
   swing: number
   puddle: number
@@ -45,7 +79,9 @@ export interface PhaseTiming {
    * the current target and makes everything physical hurt more, so a party
    * with two of them trades the boss and a party with one has to survive the
    * top of the stack. Every other mechanic here is answered by moving; this
-   * one is answered by deciding who is standing there.
+   * one is answered by deciding who is standing there — which is why no boss
+   * puts it on its ladder before the fourth rung, since a five-man fields one
+   * tank and is not allowed to answer it.
    */
   sunder: number
   /**
@@ -96,6 +132,25 @@ export interface Encounter {
    * whose cone does not is a boss nobody can read.
    */
   mechanicDamage: number
+  /**
+   * What this one asks for, in the order it starts asking.
+   *
+   * The tables below hold the cadence of every mechanic a boss *can* throw;
+   * this says how many of them it actually throws tonight, and which. A
+   * five-man on normal gets the first two rungs, and every step up the raid
+   * size or across to heroic buys one more — see `kitCount`.
+   *
+   * The order is the whole design. Three bosses whose first two rungs overlap
+   * are three bosses that open the same way, and the opening is the only part
+   * of a fight everybody sees: a party that wipes at forty percent has met
+   * two mechanics and no more. So the first rungs are disjoint across all
+   * three — pools and the sweep, marks and the stalker, the cone and the ring
+   * — and the sets only begin to rhyme at the sizes where a raid has the
+   * bodies to notice. No boss's ladder is a prefix or a subset of another's at
+   * any rung, which is the thing that stops the second boss being the first
+   * one wearing a different colour.
+   */
+  ladder: MechanicId[]
   phases: Record<number, PhaseTiming>
   /**
    * Seconds to the first of each mechanic.
@@ -149,10 +204,14 @@ export interface Encounter {
 
 export const ENCOUNTERS: Encounter[] = [
   {
+    // The ground fight. Nothing to get behind and nothing to run into: what it
+    // does is make the floor unusable and then punish whoever is still
+    // standing in reach of it, and at the sizes that field a second tank it
+    // starts asking who that is.
     id: 'warden',
     name: 'The Drowned Warden',
     short: 'Warden',
-    demand: 'every mechanic, none of them often',
+    demand: 'the floor, and whoever is standing on it',
     /**
      * Raised from 36,000 when the party got weapons.
      *
@@ -167,96 +226,106 @@ export const ENCOUNTERS: Encounter[] = [
      * percent at a chance of fifteen and a multiplier of one and a half. The
      * encounter should be the length it was: what a crit changes is how a hit
      * looks, not how long the fight runs.
+     *
+     * Cut back to 41,000 when the ladders arrived. A five-man on normal used
+     * to meet eight mechanics here and now meets two, and a health bar tuned
+     * against the eight is a health bar the two cannot chew through before the
+     * enrage — the fight would have become long rather than easy, which is the
+     * worse of the two failures.
      */
-    hp: 47000,
+    hp: 58000,
     enrage: 240,
     phaseTwoHp: 0.7,
     phaseThreeHp: 0.4,
     swingDamage: 621,
     slamDamage: 1322,
-    raidDamage: 129,
-    mechanicDamage: 1,
+    raidDamage: 168,
+    mechanicDamage: 1.7,
     accent: '#ef4444',
-    names: { slam: 'ABYSSAL SLAM', breath: 'TIDAL BREATH' },
+    // No cone and nothing to run into: the only thing it casts is the one
+    // that lands on whoever is holding it.
+    names: { slam: 'ABYSSAL SLAM', breath: '' },
+    ladder: ['puddle', 'sweep', 'rot', 'sunder', 'soak'],
     phases: {
-      1: { swing: 2.0, puddle: 9, spread: 18, slam: 16, puddleCount: 1, raid: 9, breath: 20, shockwave: 0, adds: 0, sweep: 42, rot: 33, sunder: 11, soak: 0, hunt: 0 },
-      2: { swing: 1.7, puddle: 8, spread: 15, slam: 13, puddleCount: 2, raid: 8, breath: 16, shockwave: 26, adds: 50, sweep: 35, rot: 27, sunder: 9, soak: 0, hunt: 0 },
-      3: { swing: 1.5, puddle: 7, spread: 14, slam: 11, puddleCount: 2, raid: 7, breath: 14, shockwave: 21, adds: 42, sweep: 30, rot: 22, sunder: 8, soak: 0, hunt: 0 },
+      1: { swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 42, rot: 33, sunder: 11, soak: 40, hunt: 0 },
+      2: { swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 35, rot: 27, sunder: 9, soak: 34, hunt: 0 },
+      3: { swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 8, soak: 28, hunt: 0 },
     },
-    opening: { puddle: 9, spread: 17, slam: 13, raid: 11, breath: 21, shockwave: 27, adds: 45, sweep: 30, rot: 22, sunder: 14, soak: 0, hunt: 0 },
+    opening: { puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 14, soak: 34, hunt: 0 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
-      adds: 'Rise, drowned ones',
-      shockwave: 'The deep exhales',
+      adds: '',
+      shockwave: '',
       sweep: 'The tide sweeps in',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       soak: 'The undertow gathers — all of you',
-      hunt: 'Something below has your scent',
+      hunt: '',
     },
   },
   {
-    // Nothing to dodge that a healer can dodge for you. The floor is busy and
-    // the raid damage never stops, so this is the one that ends on mana.
+    // Nothing to dodge that a healer can dodge for you. The floor is quiet and
+    // the raid damage never stops, so this is the one that ends on mana — and
+    // everything it does lands on one person at a time.
     id: 'choir',
     name: 'The Choir Beneath',
     short: 'Choir',
     demand: 'stay apart, and out-heal the singing',
-    hp: 55000,
+    hp: 46000,
     enrage: 230,
     phaseTwoHp: 0.65,
     phaseThreeHp: 0.35,
     swingDamage: 540,
     slamDamage: 1127,
-    raidDamage: 180,
-    mechanicDamage: 1.1,
+    raidDamage: 138,
+    mechanicDamage: 1.35,
     accent: '#e879f9',
-    // No cone to get behind and nothing to run into, so the only thing it
-    // casts is the one that hits whoever is holding it.
     names: { slam: 'DISCORDANT CHORD', breath: '' },
+    ladder: ['spread', 'rot', 'hunt', 'puddle', 'adds'],
     phases: {
-      1: { swing: 2.1, puddle: 8, spread: 11, slam: 18, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 0 },
-      2: { swing: 1.9, puddle: 7, spread: 9, slam: 16, puddleCount: 2, raid: 6, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 0 },
-      3: { swing: 1.8, puddle: 6, spread: 8, slam: 14, puddleCount: 3, raid: 5.5, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 0 },
+      1: { swing: 2.1, puddle: 14, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { swing: 1.9, puddle: 12, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      3: { swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { puddle: 7, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 0 },
+    opening: { puddle: 13, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
-      adds: '',
+      adds: 'The chorus answers',
       shockwave: '',
       sweep: '',
       rot: 'A note is caught in me — heal',
       sunder: '',
       soak: '',
-      hunt: '',
+      hunt: 'One voice is following me',
     },
   },
   {
-    // The opposite problem: little on the floor to stand in, and almost no
+    // The opposite problem: nothing on the floor to stand in, and almost no
     // time standing anywhere. Rings to run into, a cone to get behind, and
     // something new to hit every time you have settled on a target.
     id: 'tidebreaker',
     name: 'The Tidebreaker',
     short: 'Tidebreaker',
     demand: 'come in, get behind, change target',
-    hp: 48500,
+    hp: 58000,
     enrage: 250,
     phaseTwoHp: 0.75,
     phaseThreeHp: 0.4,
-    swingDamage: 690,
-    slamDamage: 1438,
-    raidDamage: 108,
-    mechanicDamage: 2.3,
+    swingDamage: 730,
+    slamDamage: 1700,
+    raidDamage: 265,
+    mechanicDamage: 2.9,
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
+    ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { swing: 1.9, puddle: 15, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 30, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 0 },
-      2: { swing: 1.7, puddle: 13, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 26, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 0 },
-      3: { swing: 1.5, puddle: 11, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 22, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 0 },
+      1: { swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 38, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
+      2: { swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 33, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
+      3: { swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 28, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
     },
-    opening: { puddle: 14, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 28, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 0 },
+    opening: { puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -273,6 +342,89 @@ export const ENCOUNTERS: Encounter[] = [
 
 export const FIRST_ENCOUNTER = 0
 
+/**
+ * How many rungs of a boss's ladder tonight's raid actually meets.
+ *
+ * Two axes, one rung each, and both of them monotone: a bigger raid meets
+ * more of the fight, and heroic meets one more than normal at the same size.
+ *
+ *   5 normal 2 · 5 heroic 3 · 10 normal 3 · 10 heroic 4 · 25 normal 4 · 25 heroic 5
+ *
+ * The size rungs are the honest half. Every mechanic in here already scales
+ * its *volume* with the headcount — puddles per cast, spread marks, add waves
+ * — which made a twenty-five man the same fight arriving in bigger pieces. It
+ * is not: a raid of twenty-five has the bodies to answer a mechanic a
+ * five-man cannot even be asked, which is the reason the size exists at all.
+ *
+ * Heroic is the half that was missing outright. It was twenty-two percent more
+ * health and nothing else, so the honest description of it was "the same fight
+ * for longer" — and the difficulty button said so, in those words. A rung
+ * costs the raid something a health bar never can.
+ */
+export function kitCount(size: number, difficulty: DifficultyId): number {
+  let rungs = 2
+  if (size >= 10) rungs++
+  if (size >= 25) rungs++
+  if (difficulty === 'heroic') rungs++
+  return rungs
+}
+
+/** Which mechanics this boss throws at this size and difficulty. */
+export function encounterKit(
+  encounter: Encounter,
+  size: number,
+  difficulty: DifficultyId,
+): MechanicId[] {
+  return encounter.ladder.slice(0, kitCount(size, difficulty))
+}
+
+/**
+ * How much faster a short kit comes round.
+ *
+ * Two mechanics on the boss's own cadence is not an easier fight, it is a
+ * quieter one — measured, a five-man normal Warden went from winning a fifth
+ * of its first pulls to winning all of them, and the pulls were shorter and
+ * emptier rather than gentler. Which is the wrong trade: what a small raid
+ * should meet is a narrower fight, not a slack one.
+ *
+ * So the rungs a raid did not buy are paid back as tempo. A kit of two runs
+ * its two ideas at about five-eighths of the interval, and by the full five it
+ * is on the table's own numbers. The pressure still rises with the rungs —
+ * five mechanics at full cadence ask for more per second than two at
+ * five-eighths, and they ask for five different things — but the bottom of the
+ * ladder is a fight rather than a wait.
+ */
+export function kitCadence(rungs: number): number {
+  return Math.min(1, 1 - (kitCount(25, 'heroic') - rungs) * 0.127)
+}
+
+/**
+ * Makes tonight's fight out of the boss's full table.
+ *
+ * Two things at once, because they are one decision: everything the kit did
+ * not buy is switched off, and everything it did comes round at the tempo the
+ * kit's size earns. Zeroing is the same switch the tables already use — every
+ * scheduler in `boss.ts` reads a cadence of zero as "not this fight" — so
+ * there is one rule for a mechanic being absent rather than two.
+ */
+export function gated(timing: PhaseTiming, kit: readonly MechanicId[]): PhaseTiming {
+  const tempo = kitCadence(kit.length)
+  const on = (id: MechanicId, every: number): number => (kit.includes(id) ? every * tempo : 0)
+  return {
+    ...timing,
+    puddle: on('puddle', timing.puddle),
+    spread: on('spread', timing.spread),
+    breath: on('breath', timing.breath),
+    shockwave: on('shockwave', timing.shockwave),
+    adds: on('adds', timing.adds),
+    sweep: on('sweep', timing.sweep),
+    rot: on('rot', timing.rot),
+    sunder: on('sunder', timing.sunder),
+    soak: on('soak', timing.soak),
+    hunt: on('hunt', timing.hunt),
+  }
+}
+
 /** Clamped rather than checked: a saved index outliving its boss is not fatal. */
 export function encounterIndex(index: number): number {
   return Math.max(0, Math.min(ENCOUNTERS.length - 1, Math.round(index)))
@@ -287,12 +439,15 @@ export function hasNext(index: number): boolean {
   return index < ENCOUNTERS.length - 1
 }
 
-/** A spread of zero disables the mechanic, the same as the other timers. */
-export function usesMechanic(
-  encounter: Encounter,
-  key: 'breath' | 'shockwave' | 'adds' | 'spread',
-): boolean {
-  return Object.values(encounter.phases).some((p) => p[key] > 0)
+/**
+ * Whether the boss owns this mechanic at all, at any size.
+ *
+ * The ladder rather than the phase tables: a table may carry a cadence for a
+ * rung no raid ever reaches, and the question this answers — does this fight
+ * have a cone in it — is about the boss, not about tonight.
+ */
+export function usesMechanic(encounter: Encounter, key: MechanicId): boolean {
+  return encounter.ladder.includes(key)
 }
 
 export type { DifficultyId }

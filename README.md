@@ -459,38 +459,80 @@ composition, since a fixed shape has no legal intermediate state to pass
 through and the player could never move off the role they started on.
 
 So a twenty-five man is mostly damage, and it works out because the extra
-damage shortens the fight rather than adding survival — 25-player normal wins
-10% of first pulls rising to 70%, against a five-man's 30% to 60%.
+damage shortens the fight rather than adding survival — 25-player normal ends
+up at the same four ninth pulls in five as a five-man does, having won almost
+none of its first ones.
 
-Mechanics scale with headcount. A fixed number of puddles across twenty-five
-players means any one player is almost never targeted, so without scaling the
-bigger raid would be the easier one — puddles and spread marks both go up with
-the roster, and adds come in larger waves.
+Mechanics scale with headcount, in two ways. The volume of one scales: a fixed
+number of puddles across twenty-five players means any one player is almost
+never targeted, so without it the bigger raid would be the easier one — pools
+and marks both go up with the roster, and thralls come in larger waves. That
+last one is proportional rather than banded now; three thralls against ten and
+five against twenty-five is not the same ask, and the middle band was carrying
+about half again the weight the top one did.
+
+And the *number* of them scales, which is the ladder below.
 
 Boss health is not linear with headcount either: larger groups lose
 proportionally more time to mechanics, so a flat multiple per player would
 again make 25 the soft option.
 
-**Heroic raises boss health and nothing else**, which sounds thin and is not.
-Tuning it revealed that fight length *is* the difficulty here: time spent
-dodging is damage not dealt, which lengthens the fight, which brings round
-more mechanics and drains more healer mana. Every attempt to also raise damage
-or mechanic frequency took the win rate from 80% to 0% with nothing in
-between — survival turns out to be a cliff, not a slope. It holds until
-healing throughput is exceeded, then collapses.
+**Both axes buy a rung of the boss's ladder.** A boss owns more mechanics than
+any one raid meets: which of them turn up tonight is decided by how many of
+you came and which button you ticked at the door. A five-man on normal meets
+two, and every step up the size or across to heroic buys one more, to five for
+a heroic twenty-five. See [The bosses](#the-bosses) for the ladders themselves.
 
-| | 1st pull | 9th pull |
-| --- | --- | --- |
-| 5-player normal | 30% | 60% |
-| 5-player heroic | 0% | 0% |
-| 10-player normal | 65% | 95% |
-| 10-player heroic | 10% | 75% |
-| 25-player normal | 10% | 70% |
-| 25-player heroic | 0% | 20% |
+Heroic used to be boss health and nothing else — the difficulty button
+literally said *more health, same mechanics* — and the honest description of
+it was "the same fight for longer". Tuning it that way had revealed that fight
+length *is* a difficulty here: time spent dodging is damage not dealt, which
+lengthens the fight, which brings round more mechanics and drains more healer
+mana. That is still true and heroic still carries a health multiplier. What it
+cannot do is ask for something the normal fight never asked for, and a rung
+can.
 
-Five-man heroic is the hardest thing in the game, and the harness has never
-won one: the same difficulty multipliers with none of the slack a larger
-roster brings.
+**A short kit is paid back as tempo.** Two mechanics on the boss's own cadence
+is not an easier fight, it is a quieter one: measured, a five-man normal
+Warden went from winning a fifth of its first pulls to winning all of them,
+and the pulls were shorter and emptier rather than gentler. So the rungs a
+raid did not buy come back as speed — a kit of two runs at about five-eighths
+of the table's interval, and by the full five it is on the table's own
+numbers. The pressure still rises with the rungs, because five mechanics at
+full cadence ask for more per second than two at five-eighths *and* they ask
+for five different things.
+
+Every attempt to raise heroic's damage or mechanic frequency on top of that
+took the win rate from 80% to 0% with nothing in between — survival turns out
+to be a cliff, not a slope. It holds until healing throughput is exceeded,
+then collapses. The rung is the lever that does not behave that way, because
+what it costs is attention rather than health.
+
+Measured against the Drowned Warden, a balanced roster at each size:
+
+| | 1st pull | 9th pull | kit |
+| --- | --- | --- | --- |
+| 5-player normal | 29% | 79% | pools, the sweep |
+| 5-player heroic | 14% | 57% | + rot |
+| 10-player normal | 14% | 86% | pools, the sweep, rot |
+| 10-player heroic | 14% | 50% | + the armour break |
+| 25-player normal | 0% | 79% | pools, the sweep, rot, the armour break |
+| 25-player heroic | 0% | 57% | + the gathering |
+
+**Heroic never wins more than normal at the same size, and wins clearly less
+by the ninth pull, in all nine boss-and-size cells.** That is the thing the
+rung was added to make true — it used to hold on some of them and be a coin
+flip on the rest, because more health is not more difficulty when the party
+had health to spare. The harness prints the kit beside every row, so a
+difficulty that stopped costing anything would show up as two rows asking for
+the same list.
+
+Two cells sit at the edges and are left there. A heroic twenty-five man Choir
+is the hardest fight in the game and the harness has not won one: it is the
+only place the marks, the stalker, the floor and the chorus arrive together.
+And the Tidebreaker on normal at ten and twenty-five is the easiest, at every
+pull won — a cone and a ring are what this AI is best at, and the extra healer
+covers what it misses.
 
 ## Today's run
 
@@ -550,16 +592,23 @@ boss lower.
 ## A floor rolls its own fight
 
 The three bosses on the ladder are sentences written by hand out of a fixed
-vocabulary — the Choir throws no cone and no ring, the Tidebreaker no spread
-and no rot. The descent used to run those same three in a loop, `(depth - 1) %
-3`, so floor four was the first boss again with more health and floor seven was
-it a third time.
+vocabulary — the Warden no cone and no ring, the Choir nothing on the floor
+until its fourth rung, the Tidebreaker no marks and no rot. The descent used to
+run those same three in a loop, `(depth - 1) % 3`, so floor four was the first
+boss again with more health and floor seven was it a third time.
 
 Now a floor takes a boss for its shape, its health and its damage, and rolls
 what it *asks for*: a budget that grows with the depth, spent on mechanics from
 the same vocabulary. The boss's swing and slam survive, since that is what
 makes one hit differently from another; everything else the plan decides, and
-anything it does not buy is switched off.
+anything it does not buy is switched off — including the boss's own ladder,
+which a floor replaces outright rather than climbing.
+
+The purse moves on the same two axes the ladders do: a ten-man is worth one
+and a half more, a twenty-five three, and heroic another one and a half.
+Without that the descent would be the one place in the game where bringing
+twenty-five people and ticking heroic bought nothing but a longer health
+bar.
 
 **The prices are measured, and they are not what they look like.** A
 mechanic's cost here is not the damage it deals, it is what it takes out of
@@ -599,8 +648,12 @@ by depth as well as by price, and the same seed is the same floor twice. The
 harness samples floors for a win-rate curve, and then walks whole runs the way
 the game does — half a health bar back between floors, one of the fallen up per
 floor — because the difficulty of a descent is the product of its floors
-rather than the hardest one. Runs currently end at a median of floor five, with
-the harness's deliberately mediocre player.
+rather than the hardest one. Runs currently end at a median and a mean of floor
+four, with the harness's deliberately mediocre player.
+The depth curve was pulled down when the ladders went in — the multiplier is
+against the boss's own health and the bosses got heavier, so the same curve had
+quietly become a third steeper and the median had fallen to under four, which
+is a different game rather than a harder one.
 
 ## The armour break, and the second tank
 
@@ -664,6 +717,17 @@ second, because holding the whole floor for eight seconds of every twenty-four
 turned out to be a bigger gift than the mechanic was a cost. That one was
 worth 37 points of first-pull win rate on its own.
 
+The rule needed its other half, which was missing for as long as nothing
+happened to expose it. The floor held itself back while a circle was live, and
+nothing held the circle back while the floor was still *in the air*: a pool
+with a second left on its telegraph goes off and then lingers for five and a
+half, which is most of the walk into a circle the party has just been told to
+stand in. The check that guards this counted zero for months and then
+forty-two the first time the timings moved underneath it — it had been passing
+on luck. The circle now waits for a clear floor as well as a clear spread, and
+only for the telegraph: waiting out every pool's residue would be waiting out
+the fight.
+
 **And its real price is not damage.** With the damage turned down to nothing
 the Warden still lost thirty points of win rate: this party heals by standing
 still and casting, so a mechanic that moves all five of them at once takes the
@@ -672,13 +736,21 @@ the circle from 250 units away to just outside the party helped; it did not
 fix it. At a cost small enough for the ladder to absorb, the mechanic was not
 worth having.
 
-So it does not go on the ladder. **No boss's table asks for it** — it belongs
-to the descent, from the third floor down, tightening as it goes. The descent
-has no fixed difficulty to protect, since every floor is meant to be worse
-than the last, and the three tuned encounters keep the exact shape they were
-tuned to: all three sit on their old numbers to the point. A mechanic that
-costs thirty points of win rate is not a bad mechanic, it is a mechanic that
-needs somewhere its cost is the intention rather than the damage.
+So it goes where its cost is the intention. On the descent that is from the
+third floor down, tightening as it goes — every floor there is meant to be
+worse than the last, so there is no fixed difficulty to protect. On the ladder
+it is **the Warden's last rung and nothing else's**: reached only by a
+twenty-five man on heroic, which is both the raid with the bodies to pay for
+it and the one that ticked the box asking to. Every smaller raid, and every
+other boss, meets the same fight without it. A mechanic that costs thirty
+points of win rate is not a bad mechanic, it is a mechanic that needs
+somewhere to be the last thing asked rather than one of the first.
+
+It is also the one mechanic here that is *not* multiplied by the boss it is
+attached to. Everything else on the floor runs through the encounter's own
+multiplier, which is nearly three times heavier on the Tidebreaker than on the
+Warden — and the gathering asks the same question on both, "is everybody
+standing here", so the tax attached to it is the same on both.
 
 ## The thing that follows one of you
 
@@ -1509,13 +1581,13 @@ Three fights that ask for different things — and, for a long time, three
 fights that looked like one.
 
 The tables always differed, and the check saying so has passed since the
-second boss existed: the Choir throws no cone and no ring at all, the
-Tidebreaker no spread and no rot, and what each one actually puts on the floor
-is measured from a real pull rather than read off the table it came from.
-Measured over five pulls each, the Warden lands 26 puddles, 7 breaths, 4
-rings, 7 spreads and 4 summons; the Choir 35 puddles and 11 spreads and
-nothing else; the Tidebreaker 13 breaths, 10 rings and 9 summons with 11
-puddles and no spread at all.
+second boss existed, and it was still not enough — see
+[the ladders](#the-ladders) for what was actually wrong with it and what
+replaced it. What that check does get right is *how* it asks: what each boss
+puts on the floor is measured from a real pull rather than read off the table
+it came from, and it is asked of tonight's kit rather than of the whole table,
+so a mechanic the boss owns and this raid did not climb to is one the check
+insists never appears.
 
 None of which reached the player, because every boss cast the same two spells
 under the same two names in the same red. `ABYSSAL SLAM` and `TIDAL BREATH`
@@ -1585,25 +1657,75 @@ not lock the later ones away again. The party screen carries a row of them and
 draws the ones you have not reached locked but named — what is left down there
 is worth knowing.
 
+### The ladders
+
+For a long time the three tables differed and the first one owned nearly
+everything: the Warden threw pools, marks, the cone, the ring, thralls, the
+sweep, the rot and the armour break, and the other two were the Warden with
+things taken away. Three fights that opened on the same two mechanics and only
+diverged once the party was already dead — which is not three fights, it is
+one fight with two shorter versions of itself. The check that said they
+differed passed the whole time, because it compared the full tables rather
+than what any raid actually meets.
+
+So each boss now owns a **ladder**: the mechanics it asks for, in the order it
+starts asking. How far up tonight's raid climbs is `kitCount`, and it moves on
+the two axes the setup screen already had — a five-man on normal gets two
+rungs, and every step up the size or across to heroic buys one more.
+
+| | normal | heroic |
+| --- | --- | --- |
+| 5 | 2 | 3 |
+| 10 | 3 | 4 |
+| 25 | 4 | 5 |
+
+| Rung | The Drowned Warden | The Choir Beneath | The Tidebreaker |
+| --- | --- | --- | --- |
+| 1 | pools | marks | the cone |
+| 2 | the sweep | rot | the ring |
+| 3 | rot | the stalker | the sweep |
+| 4 | the armour break | pools | thralls |
+| 5 | the gathering | thralls | the stalker |
+
+The order is the design, not the contents. **The first two rungs are disjoint
+across all three**, so the fight everybody sees — a five-man on normal, and
+the first forty percent of any pull that goes wrong — is a different fight per
+boss: the floor and a wide swing, marks and something walking after you, a
+cone and a ring. The sets only begin to rhyme at the sizes where a raid has
+the bodies to notice, and **no boss's kit is ever a subset of another's** at
+any rung. Both of those are asserted rather than eyeballed, along with the
+containment down each column: heroic asks for everything normal did and one
+thing more, and so does each size against the one below it.
+
+Two constraints shaped where things sit. The armour break is answered by
+swapping tanks and a five-man fields one, so no ladder sells it before the
+rung a five-man cannot reach. The gathering costs about thirty points of win
+rate wherever it is put, so it is the Warden's last word and belongs to a
+heroic twenty-five or a deep descent floor and to nothing else.
+
 | Boss | Asks for | Leans on |
 | --- | --- | --- |
-| The Drowned Warden | every mechanic, none of them often | all of them, gently |
-| The Choir Beneath | stay apart, and out-heal the singing | spread, puddles, unavoidable damage |
-| The Tidebreaker | come in, get behind, change target | shockwave, breath, adds |
+| The Drowned Warden | the floor, and whoever is standing on it | pools, the sweep, the armour break — nobody has to go far |
+| The Choir Beneath | stay apart, and out-heal the singing | marks, rot, one thing walking after you |
+| The Tidebreaker | come in, get behind, change target | the cone, the ring, thralls |
 
 They are one script and three tables (`src/sim/encounters.ts`). A second boss
 written as a second timeline would be a second copy of what a shockwave does,
 and that rule — the ring outruns you, so the answer is to already be inside —
 took three attempts to get right. It is not being written twice.
 
-What separates them is which mechanics they lean on and how hard the floor
-hits. The Choir has no cone, no ring and no adds at all: its floor is busy and
-its damage never stops, so it ends on healer mana. The Tidebreaker is the
-opposite — almost nothing to stand in, and almost no time standing anywhere,
-with a ring to run into, a cone to get behind and something new to hit every
-time you have settled on a target. Its floor hits more than twice as hard as
-the Warden's, because a mechanic you have room to dodge has to be worth
-dodging.
+What separates them is which mechanics they lean on, in what order, and how
+hard the floor hits. The Warden is the ground fight: nothing to get behind and
+nothing to run into, a floor that goes unusable and a wide swing for whoever
+is still in reach, and at the sizes that field a second tank it starts asking
+who that is. The Choir has no cone, no ring and nothing on the floor until its
+fourth rung: everything it does lands on one person at a time while the
+unavoidable damage never stops, so it ends on healer mana. The Tidebreaker is
+the opposite of both — almost nothing to stand in, and almost no time standing
+anywhere, with a ring to run into, a cone to get behind and something new to
+hit every time you have settled on a target. Its floor hits nearly three times
+as hard as the Warden's, because a mechanic you have room to dodge has to be
+worth dodging.
 
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |
@@ -1620,24 +1742,30 @@ to a fight.
 
 | Mechanic | What it asks of you | Warden | Choir | Tidebreaker |
 | --- | --- | --- | --- | --- |
-| Slam | Tank cooldown, or the tank takes a large hit | ✓ | ✓ | ✓ |
-| Puddles | Move out fast; the warning is short and they linger | ✓ | ✓ | rarely |
-| Tidal Breath | A frontal cone — get out of the front, or behind it | ✓ | | ✓ |
-| Shockwave | An expanding ring. It outruns you, so the answer is **in**, not out | ✓ | | ✓ |
-| Spread | The target walks away from everyone else | ✓ | ✓ | |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch to them | ✓ | | ✓ |
-| Crushing tide | Unavoidable party damage — the floor under the healer | ✓ | ✓ | ✓ |
-| The boss itself | Faster than the whole party; you cannot outrun it | ✓ | ✓ | ✓ |
-| Sweep | Get out of reach, or wear something | ✓ | | often |
-| Rot | Nothing — it is the healer's to answer | ✓ | ✓ | |
+| Slam | Tank cooldown, or the tank takes a large hit | always | always | always |
+| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always |
+| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always |
+| Pools | Move out fast; the warning is short and they linger | rung 1 | rung 4 | |
+| Sweep | Get out of reach, or wear something | rung 2 | | rung 3 |
+| Rot | Nothing — it is the healer's to answer | rung 3 | rung 2 | |
+| The armour break | Trade the boss, or survive the top of the stack | rung 4 | | |
+| The gathering | Everyone in one circle, and it is divided by who came | rung 5 | | |
+| Marks | The target walks away from everyone else | | rung 1 | |
+| The stalker | One dealer kites; the rest decide whether to chase | | rung 3 | rung 5 |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch | | rung 5 | rung 4 |
+| The cone | A frontal cone — get out of the front, or behind it | | | rung 1 |
+| The ring | It outruns you, so the answer is **in**, not out | | | rung 2 |
 | Enrage | A hard damage check | 240s | 230s | 250s |
 
-A cadence of zero disables a mechanic, which is how the table says a boss does
-not have one. That is also where it went wrong first: the schedulers counted
-down from zero and fired every tick instead of never, so the Tidebreaker
-marked the whole raid for spread thirty times a second. Every scheduler checks
-its own cadence now, and the render check plays each boss through to the end
-and asserts that what reached the floor is what the table claims.
+A cadence of zero disables a mechanic, and that is also how a rung the raid
+did not buy is switched off: one rule for a mechanic being absent rather than
+two. Zero is where it went wrong first, too — the schedulers counted down from
+it and fired every tick instead of never, so the Tidebreaker marked the whole
+raid for spread thirty times a second. Every scheduler checks its own cadence
+now, and the render check plays each boss through to the end and asserts that
+what reached the floor is exactly tonight's kit: everything on it seen, and
+nothing off it, including the rungs the boss owns and this raid did not
+reach.
 
 Each mechanic asks for something different, which is what stops a fight being
 a single dodge repeated: puddles say leave where you stand, the breath says get

@@ -28,7 +28,18 @@ export function descentHealth(depth: number): number {
   // every raid in the game the first floor's numbers — a boss with 42% of its
   // health, which the harness would have caught and the eye would not.
   if (depth <= 0) return 1
-  return 0.7 + (depth - 1) * 0.085
+  // Nudged down from 0.7 when the ladders arrived, and only at the shallow
+  // end. The multiplier is against the boss's own health, and the bosses got
+  // heavier — an authored fight meets fewer mechanics now and had to be given
+  // the weight back — so the same curve was quietly asking more of the first
+  // floors than it used to, and the median descent had fallen from five floors
+  // to under four.
+  //
+  // The slope goes up to compensate, because the two ends are not free to move
+  // together: the first floor has to sit below an ordinary pull and the fifth
+  // has to sit above one, and a curve flattened at both ends fails the second
+  // of those. That is what the first attempt at this did.
+  return 0.66 + (depth - 1) * 0.086
 }
 
 /** And what it hits for. Softer than the health: a wall is not a lesson. */

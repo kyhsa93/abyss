@@ -8,7 +8,7 @@ import {
   type DifficultyId,
   type Pick,
 } from '../sim/classes'
-import { ENCOUNTERS } from '../sim/encounters'
+import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { BATTLEGROUNDS } from '../sim/battleground'
 import type { BgKind } from '../sim/types'
 import { COLORS, L, classColor } from './theme'
@@ -47,7 +47,7 @@ export interface RosterLayout {
  * Counted rather than assumed, because the grid starts under the last of them
  * and a fifth line added without touching this would be drawn over the specs.
  */
-const SUMMARY_LINES = 4
+const SUMMARY_LINES = 5
 
 export type RosterHit = { kind: 'class'; pick: Pick } | { kind: 'back' } | { kind: 'pull' }
 
@@ -255,6 +255,22 @@ export function drawRoster(
     ctx.fillStyle = mode.kind === 'raid' ? COLORS.boss : COLORS.tank
     ctx.font = font(10, true)
     ctx.fillText(`${headline.name} — ${headline.demand}`, L.w / 2, line(3))
+  }
+
+  // And the same list the setup screen showed, repeated where the pull button
+  // is. The size and the difficulty were chosen a screen ago and cannot be
+  // changed here, so this is the last place the player can read what they
+  // bought before walking into it.
+  if (fight) {
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(9)
+    ctx.fillText(
+      encounterKit(fight, party.length, difficulty)
+        .map((id) => MECHANIC_NAMES[id])
+        .join(' · '),
+      L.w / 2,
+      line(4),
+    )
   }
 
   for (let i = 0; i < layout.classes.length; i++) {

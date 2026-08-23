@@ -134,7 +134,7 @@ export function createState(
   const fight = encounterAt(encounter)
   // A floor rolls its own fight out of the same vocabulary the bosses are
   // written in; the ladder gets the boss exactly as it was authored.
-  const plan = depth > 0 ? rollFloor(seed, depth) : null
+  const plan = depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null
   const opening = plan ? { ...fight.opening, ...plannedOpening(plan) } : fight.opening
 
   const boss: Actor = {

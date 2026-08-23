@@ -28,7 +28,7 @@ import {
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
-import { encounterAt, type Encounter, type PhaseTiming } from './encounters'
+import { encounterAt, encounterKit, gated, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import { descentDamage } from './descent'
 import { planned } from './floor'
@@ -61,7 +61,14 @@ function fight(s: SimState): Encounter {
 function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
   // A floor replaces what the boss asks for and keeps its swings and its
   // slam: the shape of the fight is the boss's, the sentence is the floor's.
-  const timing = s.plan ? planned(base, s.plan, s.phase) : base
+  //
+  // The ladder is the same idea one step earlier, and only the authored bosses
+  // get it: a boss owns more mechanics than any one raid meets, and how many
+  // of them tonight is a question of who turned up and what they picked at the
+  // door. A floor already rolled its own answer to that.
+  const timing = s.plan
+    ? planned(base, s.plan, s.phase)
+    : gated(base, encounterKit(fight(s), s.party.length, s.difficulty))
   const cadence = DIFFICULTIES[s.difficulty].cadence
   if (cadence === 1) return timing
   return {
@@ -193,11 +200,14 @@ function advancePhase(s: SimState, b: Actor): void {
     // the old timers is a phase break nobody notices.
     s.nextPuddle = Math.min(s.nextPuddle, 3)
     s.nextSlam = Math.min(s.nextSlam, 5)
-    // Only for what this boss actually does. Handing a shockwave timer to a
-    // boss with no shockwave is harmless today, since the scheduler checks the
-    // cadence, and is exactly the kind of thing that stops being harmless.
-    if (encounter.phases[2]!.shockwave > 0) s.nextShockwave = 8
-    if (encounter.phases[2]!.adds > 0) s.nextAdds = 16
+    // Only for what this boss actually does *tonight*. Handing a shockwave
+    // timer to a fight with no shockwave is harmless today, since the
+    // scheduler checks the cadence, and is exactly the kind of thing that
+    // stops being harmless. Read through `scaled` rather than off the table,
+    // so a mechanic the ladder did not buy is as absent here as it is there.
+    const next = scaled(encounter.phases[2]!, s)
+    if (next.shockwave > 0) s.nextShockwave = 8
+    if (next.adds > 0) s.nextAdds = 16
     return
   }
 
@@ -206,8 +216,9 @@ function advancePhase(s: SimState, b: Actor): void {
     s.sounds.push('phase')
     phaseBreak(s, b)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
-    if (encounter.phases[3]!.breath > 0) s.nextBreath = Math.min(s.nextBreath, 4)
-    if (encounter.phases[3]!.shockwave > 0) s.nextShockwave = Math.min(s.nextShockwave, 7)
+    const next = scaled(encounter.phases[3]!, s)
+    if (next.breath > 0) s.nextBreath = Math.min(s.nextBreath, 4)
+    if (next.shockwave > 0) s.nextShockwave = Math.min(s.nextShockwave, 7)
   }
 }
 
@@ -407,9 +418,15 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   s.nextAdds = timing.adds
   say(s, b, fight(s).lines.adds)
 
+  // Proportional rather than banded.
+  //
+  // Three thralls against ten and five against twenty-five is not the same
+  // ask: the ten-man has two tanks and fewer dealers, so the middle band was
+  // carrying roughly half again the weight the top one did — measured, a
+  // ten-man heroic Tidebreaker lost every pull on the rung that buys them
+  // while a twenty-five man won three in four.
   const waves =
-    (livingParty(s).length >= 20 ? 5 : livingParty(s).length >= 8 ? 3 : 2) *
-    affixAddWave(s.affix)
+    Math.max(2, Math.round(livingParty(s).length / 6)) * affixAddWave(s.affix)
   for (let i = 0; i < waves; i++) {
     const angle = rng.range(0, Math.PI * 2)
     const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
@@ -478,7 +495,7 @@ const AFTER_SOAK = 3
 const FLOOR_AFTER_SOAK = 0.6
 
 function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  // No boss on the ladder asks for this one; a floor that rolled it does.
+  // The Warden's top rung, and a floor that rolled it.
   const every = timing.soak
   if (every <= 0) return
   s.nextSoak -= DT
@@ -489,6 +506,20 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // it is being handed a contradiction — the spread would detonate into the
   // stack. The soak waits; the spread is the shorter timer.
   if (livingParty(s).some((a) => getAura(a, 'spread'))) return
+
+  // Nor on top of a floor that has not gone off yet.
+  //
+  // The other half of the same rule, and it was missing: the floor holds
+  // itself back while a circle is live, but nothing held the circle back while
+  // the floor was still in the air. A pool with a second left on it detonates
+  // and then lingers for five and a half, which is most of the walk into a
+  // circle the party has just been told to stand in — one mechanic says leave
+  // where you stand and the other says all of you here, and the ground between
+  // them is the same ground.
+  //
+  // The telegraph only, not the residue: waiting out every pool on the floor
+  // would be waiting out the fight.
+  if (s.ground.some((g) => g.kind === 'puddle' && !g.detonated)) return
 
   s.nextSoak = every
 
@@ -626,7 +657,7 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
  * every other one at the same time.
  */
 function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  // As above: only a floor that rolled it.
+  // The Choir's second rung, the Tidebreaker's last, and a floor that rolled it.
   const every = timing.hunt
   if (every <= 0) return
   s.nextHunt -= DT
@@ -876,7 +907,15 @@ export function updateGround(s: SimState): void {
       const inside = party.filter((a) => dist(a.pos, g.pos) <= g.radius)
       // Against the living headcount, not a flat pool: see SOAK_EACH.
       const missing = party.length / Math.max(1, inside.length)
-      const share = mechanic(s, g.damage * Math.min(SOAK_MAX_SHARE, missing))
+      // Not through `mechanic`, which is the boss's floor multiplier.
+      //
+      // Same reason the damage is flat against the difficulty (see where the
+      // circle is placed): the gathering is a positional demand with a tax
+      // attached, and the tax compounds badly with everything else. Run
+      // through the floor multiplier it would cost nearly three times as much
+      // on the Tidebreaker as on the Warden, for a mechanic whose whole
+      // question — is everybody standing here — is the same on both.
+      const share = hit(s, g.damage * Math.min(SOAK_MAX_SHARE, missing))
       for (const a of party) {
         applyDamage(s, a, share, 'magic', {
           sourceId: BOSS_ID,

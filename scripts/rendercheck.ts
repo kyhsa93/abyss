@@ -67,6 +67,7 @@ import {
   SPEC_OPTIONS,
   specLabel,
   specOf,
+  type DifficultyId,
   type Pick,
   type RaidSize,
 } from '../src/sim/classes'
@@ -102,7 +103,15 @@ import {
   SHOT_MIN_RANGE,
   SPELL_RANGE,
 } from '../src/sim/constants'
-import { ENCOUNTERS, encounterAt, encounterIndex, hasNext } from '../src/sim/encounters'
+import {
+  ENCOUNTERS,
+  encounterAt,
+  encounterIndex,
+  encounterKit,
+  hasNext,
+  kitCount,
+  type MechanicId,
+} from '../src/sim/encounters'
 import {
   BASE_RADIUS,
   BATTLEGROUNDS,
@@ -149,13 +158,7 @@ import { gainPower } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SUNDER_MAX } from '../src/sim/boss'
-import {
-  floorBudget,
-  planned,
-  plannedOpening,
-  rollFloor,
-  type MechanicId,
-} from '../src/sim/floor'
+import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floor'
 import {
   DT,
   SOAK_EACH,
@@ -629,21 +632,48 @@ console.log(`rendered ${frames} frames with no exceptions`)
 //
 // Later-phase mechanics only appear once the boss is low enough, so a change
 // that quietly stops them spawning would not show up as an exception anywhere.
+//
+// Swept across all three bosses at the top of their ladders rather than run
+// six times against the first one, because no single pull has the whole
+// vocabulary in it any more — and that is the point of the ladders, so the
+// check that guards the vocabulary has to know it. A mechanic nothing throws
+// at a heroic twenty-five is a mechanic nothing throws at all.
 {
   const seen = new Set<string>()
   let maxPhase = 1
-  for (let run = 0; run < 6 && seen.size < 5; run++) {
-    const s = pulled(1000 + run * 137, 8)
-    const rng = new Rng(1000 + run * 137)
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const s = pulled(1000 + i * 137, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', i)
+    const rng = new Rng(1000 + i * 137)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
       for (const g of s.ground) seen.add(g.kind)
+      for (const event of s.effects) {
+        if (event.abilityId === 'boss_sweep') seen.add('sweep')
+      }
       if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
-      if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) seen.add('spread')
+      for (const [aura, id] of [
+        ['spread', 'spread'],
+        ['rot', 'rot'],
+        ['sunder', 'sunder'],
+        ['hunted', 'hunt'],
+      ] as const) {
+        if (s.actors.some((a) => a.auras.some((au) => au.id === aura))) seen.add(id)
+      }
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
-  const want = ['puddle', 'breath', 'shockwave', 'adds', 'spread']
+  const want = [
+    'puddle',
+    'spread',
+    'breath',
+    'shockwave',
+    'adds',
+    'sweep',
+    'rot',
+    'sunder',
+    'soak',
+    'hunt',
+  ]
   const missing = want.filter((w) => !seen.has(w))
   console.log(
     missing.length === 0 ? 'ok  ' : 'FAIL',
@@ -2966,7 +2996,12 @@ for (const [label, w, h] of [
       for (const a of s.actors) {
         if (a.faction === 'party' && a.auras.some((aura) => aura.id === 'spread')) spreads++
       }
-      adds += s.actors.filter((a) => a.faction === 'boss' && a.id !== boss(s).id).length
+      // Hunting bodies excluded: a stalker is a hostile the boss summoned and
+      // is not a thrall, and counting it as one said the Choir had adds on a
+      // rung where it has a stalker and nothing else.
+      adds += s.actors.filter(
+        (a) => a.faction === 'boss' && a.id !== boss(s).id && a.hunting === null,
+      ).length
     }
     if (spreads > 0) kinds.add('spread')
     if (adds > 0) kinds.add('adds')
@@ -2975,10 +3010,12 @@ for (const [label, w, h] of [
     const encounter = ENCOUNTERS[i]!
     const label = encounter.name
 
-    // Whatever the table says it does, it does — and whatever it says it does
-    // not do, it never does.
+    // Whatever tonight's kit says it does, it does — and whatever the kit
+    // left on the ladder, it never does. Read at the size and difficulty this
+    // pull was actually run at, since that is what decides the kit.
+    const kit = encounterKit(encounter, 5, 'normal')
     for (const key of ['breath', 'shockwave', 'adds', 'spread'] as const) {
-      const wanted = Object.values(encounter.phases).some((p) => p[key] > 0)
+      const wanted = kit.includes(key)
       const happened = kinds.has(key)
       // A mechanic can be scheduled and still not reach the floor inside one
       // pull, so only the negative is asserted in both directions.
@@ -3016,8 +3053,9 @@ for (const [label, w, h] of [
   // different has to *say* something different.
   for (const encounter of ENCOUNTERS) {
     const label = encounter.name
-    const uses = (key: 'breath' | 'shockwave' | 'adds' | 'sweep' | 'rot') =>
-      Object.values(encounter.phases).some((p) => p[key] > 0)
+    // The ladder rather than tonight's kit: a boss that owns a cone needs the
+    // cone's name in the table whether or not a five-man ever climbs to it.
+    const uses = (key: MechanicId) => encounter.ladder.includes(key)
 
     expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
     expect(
@@ -3025,7 +3063,7 @@ for (const [label, w, h] of [
       uses('breath') === (encounter.names.breath !== ''),
       `uses ${uses('breath')}, named "${encounter.names.breath}"`,
     )
-    for (const key of ['shockwave', 'adds', 'sweep', 'rot'] as const) {
+    for (const key of ['shockwave', 'adds', 'sweep', 'rot', 'sunder', 'soak', 'hunt'] as const) {
       expect(
         `${label}: its ${key} is announced exactly when it happens`,
         uses(key) === (encounter.lines[key] !== ''),
@@ -3048,6 +3086,125 @@ for (const [label, w, h] of [
   )
   const accents = ENCOUNTERS.map((e) => e.accent)
   expect('nor share a colour', new Set(accents).size === accents.length, accents.join(','))
+
+// --- the ladders themselves -------------------------------------------------
+//
+// The tables above say what each boss *can* throw; this says what any given
+// raid actually meets, and it is the part that used to be missing. Every boss
+// owned a different set on paper and the first one owned nearly all of it, so
+// the second and third were the first one with things taken away — three
+// fights that opened on the same two mechanics and diverged only once the
+// party was already dead.
+//
+// So: the rungs each raid climbs, checked as a shape rather than as a table.
+{
+  const RUNGS: Array<{ size: number; difficulty: DifficultyId }> = [
+    { size: 5, difficulty: 'normal' },
+    { size: 5, difficulty: 'heroic' },
+    { size: 10, difficulty: 'normal' },
+    { size: 10, difficulty: 'heroic' },
+    { size: 25, difficulty: 'normal' },
+    { size: 25, difficulty: 'heroic' },
+  ]
+
+  for (const encounter of ENCOUNTERS) {
+    expect(
+      `${encounter.name}: asks for the same thing twice on no rung`,
+      new Set(encounter.ladder).size === encounter.ladder.length,
+      encounter.ladder.join(','),
+    )
+    expect(
+      `${encounter.name}: has a rung for every raid to climb to`,
+      encounter.ladder.length >= kitCount(25, 'heroic'),
+      `${encounter.ladder.length} rungs`,
+    )
+    // The armour break is answered by swapping tanks, and a five-man fields
+    // one. A boss that sells it to a party that cannot use it has sold them
+    // nothing at all, which is worse than selling them a harder mechanic.
+    const sunder = encounter.ladder.indexOf('sunder')
+    if (sunder >= 0) {
+      expect(
+        `${encounter.name}: does not sell the armour break to a single tank`,
+        kitCount(5, 'heroic') <= sunder,
+        `rung ${sunder + 1}`,
+      )
+    }
+  }
+
+  // Both axes buy something, and neither ever takes something away.
+  for (const encounter of ENCOUNTERS) {
+    for (const size of [5, 10, 25]) {
+      const normal = encounterKit(encounter, size, 'normal')
+      const heroic = encounterKit(encounter, size, 'heroic')
+      expect(
+        `${encounter.name} at ${size}: heroic asks for more than normal`,
+        heroic.length > normal.length,
+        `${normal.length} vs ${heroic.length}`,
+      )
+      expect(
+        `${encounter.name} at ${size}: and for everything normal did`,
+        normal.every((id) => heroic.includes(id)),
+        heroic.join(','),
+      )
+    }
+    for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
+      const five = encounterKit(encounter, 5, difficulty)
+      const ten = encounterKit(encounter, 10, difficulty)
+      const full = encounterKit(encounter, 25, difficulty)
+      expect(
+        `${encounter.name} on ${difficulty}: a bigger raid meets more of it`,
+        five.length < ten.length && ten.length < full.length,
+        `${five.length}/${ten.length}/${full.length}`,
+      )
+      expect(
+        `${encounter.name} on ${difficulty}: and never less`,
+        five.every((id) => ten.includes(id)) && ten.every((id) => full.includes(id)),
+        full.join(','),
+      )
+    }
+  }
+
+  // And no two bosses are the same fight at any rung. The opening is held to
+  // the stricter rule: a five-man on normal meets two mechanics and no more,
+  // so if those two overlap at all the three bosses open identically, which is
+  // the complaint this whole arrangement answers.
+  for (const { size, difficulty } of RUNGS) {
+    const kits = ENCOUNTERS.map((e) => ({ e, kit: encounterKit(e, size, difficulty) }))
+    for (let i = 0; i < kits.length; i++) {
+      for (let j = i + 1; j < kits.length; j++) {
+        const a = kits[i]!
+        const b = kits[j]!
+        const shared = a.kit.filter((id) => b.kit.includes(id))
+        expect(
+          `${size}-${difficulty}: ${a.e.short} and ${b.e.short} are not one another`,
+          !(shared.length === a.kit.length || shared.length === b.kit.length),
+          `${a.kit.join(',')} vs ${b.kit.join(',')}`,
+        )
+        if (size === 5 && difficulty === 'normal') {
+          expect(
+            `and they open on nothing in common: ${a.e.short} / ${b.e.short}`,
+            shared.length === 0,
+            shared.join(','),
+          )
+        }
+      }
+    }
+  }
+
+  // The purse the descent spends instead, moving on the same two axes.
+  expect(
+    'a floor gets more to spend for a bigger raid',
+    floorBudget(6, 25, 'normal') > floorBudget(6, 10, 'normal') &&
+      floorBudget(6, 10, 'normal') > floorBudget(6, 5, 'normal'),
+    `${floorBudget(6, 5, 'normal')} / ${floorBudget(6, 10, 'normal')} / ${floorBudget(6, 25, 'normal')}`,
+  )
+  expect(
+    'and for heroic',
+    floorBudget(6, 5, 'heroic') > floorBudget(6, 5, 'normal'),
+    `${floorBudget(6, 5, 'normal')} vs ${floorBudget(6, 5, 'heroic')}`,
+  )
+  expect('but nothing at all above the floor', floorBudget(0, 25, 'heroic') === 0, 'it spent')
+}
 
   // And the colour reaches the screen: the boss is drawn in its own, not in
   // the one every boss used to be.
@@ -3091,15 +3248,17 @@ for (const [label, w, h] of [
   const thrown = new Map<string, Set<string>>()
   for (let i = 0; i < ENCOUNTERS.length; i++) {
     const ids = new Set<string>()
-    // A ten-man rather than the default five, because one of these mechanics
-    // only exists where there are two tanks to trade it between.
+    // A ten-man on heroic rather than the default five-man normal. Two
+    // reasons, both about the ladder: four rungs is where every boss has
+    // bought something that draws, and the armour break only exists where
+    // there are two tanks to trade it between.
     const raid = autoParty(10, pickFor('mage', 'dps')!)
     // Kept with the kind attached. A cast that gathers and a hit that lands
     // are different pictures, and the slam pushes both — asking only whether
     // the id appeared would pass on a slam that winds up and then connects
     // with nothing at all, which is the exact bug being fixed.
     const landed = new Set<string>()
-    const s = pulled(0x51ed, 8, raid, 'normal', i)
+    const s = pulled(0x51ed, 8, raid, 'heroic', i)
     const rng = new Rng(0x51ed)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -3108,25 +3267,40 @@ for (const [label, w, h] of [
         ids.add(event.abilityId)
         if (event.kind === 'impact') landed.add(event.abilityId)
       }
+      // The ring is the one mechanic with no effect of its own until it
+      // catches somebody: it is a shape on the floor that grows, and a raid
+      // that answers it correctly is a raid it never draws a hit on. Counting
+      // the shape is what makes "the boss threw it" true for the ring in the
+      // same sense it is true for everything else.
+      if (s.ground.some((g) => g.kind === 'shockwave')) ids.add('boss_shockwave')
     }
     thrown.set(ENCOUNTERS[i]!.id, ids)
 
     const encounter = ENCOUNTERS[i]!
-    const uses = (key: 'breath' | 'shockwave' | 'adds' | 'sweep' | 'rot') =>
-      Object.values(encounter.phases).some((p) => p[key] > 0)
-    for (const [key, id] of [
-      ['breath', 'boss_breath'],
-      ['shockwave', 'boss_shockwave'],
-      ['adds', 'boss_thrall'],
-      ['sweep', 'boss_sweep'],
-      ['rot', 'boss_rot'],
-    ] as const) {
-      if (!uses(key)) {
+    const kit = encounterKit(encounter, 10, 'heroic')
+    // Spread is missing on purpose: it detonates on its carrier and draws
+    // nothing with the boss's name on it, so it is checked by its aura in the
+    // pass above rather than by a picture here.
+    const DRAWN: Partial<Record<MechanicId, string>> = {
+      puddle: 'boss_puddle',
+      breath: 'boss_breath',
+      shockwave: 'boss_shockwave',
+      adds: 'boss_thrall',
+      sweep: 'boss_sweep',
+      rot: 'boss_rot',
+      sunder: 'boss_sunder',
+      soak: 'boss_soak',
+      hunt: 'boss_stalk',
+    }
+    for (const [key, id] of Object.entries(DRAWN) as Array<[MechanicId, string]>) {
+      if (kit.includes(key)) {
+        expect(`${encounter.name}: its ${key} shows itself`, ids.has(id), `${id} was never drawn`)
+      } else {
         expect(`${encounter.name}: nothing draws a ${key}`, !ids.has(id), `${id} was drawn anyway`)
       }
     }
-    // These three every boss does, so every boss has to show them landing.
-    for (const id of ['boss_slam', 'boss_puddle', 'boss_raid'] as const) {
+    // These two every boss does, so every boss has to show them landing.
+    for (const id of ['boss_slam', 'boss_raid'] as const) {
       expect(`${encounter.name}: its ${id.slice(5)} lands visibly`, landed.has(id), 'it drew nothing')
     }
     expect(
@@ -3181,26 +3355,36 @@ for (const [label, w, h] of [
   // deciding who is standing there, which is a decision a five-man does not
   // get to make: it fields one tank. Asking anyway measured as a tax on the
   // size least able to pay it — five-man heroic went from twelve percent to
-  // five — so the fight does not have the mechanic without a second tank, and
-  // that is asserted rather than left to the table.
+  // five — so the fight does not have the mechanic without a second tank.
+  //
+  // The ladders answer half of that on their own: no boss sells the break
+  // before the rung a five-man cannot reach, which is checked with the other
+  // ladder rules. What is checked here is the guard underneath, since a floor
+  // can still roll the mechanic onto a party of five and something has to say
+  // no when it does.
   {
     const warden = ENCOUNTERS[0]!
-    const uses = Object.values(warden.phases).some((p) => p.sunder > 0)
-    expect('the warden breaks armour', uses, 'it does not')
+    expect('the warden breaks armour', warden.ladder.includes('sunder'), 'it does not')
 
-    const stacksIn = (size: RaidSize): number => {
-      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'normal', 0)
+    const stacksIn = (state: SimState): number => {
       const rng = new Rng(0x51ed)
       let most = 0
-      while (s.outcome === 'ongoing' && s.time < 150) {
-        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-        for (const a of s.actors) most = Math.max(most, getAura(a, 'sunder')?.stacks ?? 0)
+      while (state.outcome === 'ongoing' && state.time < 150) {
+        step(state, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+        for (const a of state.actors) most = Math.max(most, getAura(a, 'sunder')?.stacks ?? 0)
       }
       return most
     }
 
-    expect('a party with one tank never sees it', stacksIn(5) === 0, `${stacksIn(5)} stacks`)
-    const raid = stacksIn(10)
+    const alone = stacksIn(
+      floorWith({ sunder: 10, puddle: 9 }, 4, autoParty(5, pickFor('mage', 'dps')!)),
+    )
+    expect('a party with one tank never sees it', alone === 0, `${alone} stacks`)
+    // And the boss that owns it, at the size that buys it: a twenty-five man
+    // on normal is the first raid up the Warden's fourth rung.
+    const raid = stacksIn(
+      pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'normal', 0),
+    )
     expect('a raid with two does', raid > 0, 'it never landed')
     expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
 
@@ -3239,17 +3423,30 @@ for (const [label, w, h] of [
   // --- the circle the whole party stands in ---------------------------------
   //
   // The inverse of spread, and the only mechanic here that asks the party to
-  // do something together. It is also the only one that is not on any boss's
-  // table: measured against the ladder it costs about thirty points of win
-  // rate wherever it is put — not through its damage, which is small, but
-  // because this party heals by standing still and casting, so moving all
-  // five at once takes the healer's output away in the same seconds it takes
-  // health off everybody. The descent has no fixed difficulty to protect, so
-  // it lands there.
+  // do something together. Measured against the ladder it costs about thirty
+  // points of win rate wherever it is put — not through its damage, which is
+  // small, but because this party heals by standing still and casting, so
+  // moving everybody at once takes the healer's output away in the same
+  // seconds it takes health off everybody.
+  //
+  // Which is why it is the last rung of the one boss that has it, reached
+  // only by a twenty-five man on heroic — a raid that expensive is exactly
+  // the raid with the bodies to pay for it — and a descent floor deep enough
+  // to afford the price.
   {
     for (const encounter of ENCOUNTERS) {
-      const asks = Object.values(encounter.phases).some((p) => p.soak > 0)
-      expect(`${encounter.name}: does not call for the circle`, !asks, 'it does')
+      const rung = encounter.ladder.indexOf('soak')
+      if (rung < 0) continue
+      expect(
+        `${encounter.name}: the circle is its last word`,
+        rung === encounter.ladder.length - 1,
+        `rung ${rung + 1} of ${encounter.ladder.length}`,
+      )
+      expect(
+        'and no raid short of a heroic twenty-five reaches it',
+        kitCount(10, 'heroic') <= rung && kitCount(25, 'normal') <= rung,
+        'a smaller raid gets the gathering',
+      )
     }
     expect(
       'a shallow floor cannot afford it',
@@ -3387,10 +3584,18 @@ for (const [label, w, h] of [
   // turned down to one point it still cost the Warden most of its win rate,
   // because the party's output is what it spends, not anybody's health.
   {
-    for (const encounter of ENCOUNTERS) {
-      const asks = Object.values(encounter.phases).some((p) => p.hunt > 0)
-      expect(`${encounter.name}: sends nothing after anybody`, !asks, 'it does')
-    }
+    // Two bosses own one and they sit at opposite ends of their ladders: the
+    // Choir opens with it, which is what makes a five-man Choir a different
+    // pull from a five-man Warden, and the Tidebreaker only reaches it with a
+    // heroic twenty-five behind it.
+    const owners = ENCOUNTERS.filter((e) => e.ladder.includes('hunt'))
+    expect('two bosses send one, not all three', owners.length === 2, `${owners.length} do`)
+    const rungs = owners.map((e) => e.ladder.indexOf('hunt'))
+    expect(
+      'and not at the same point in the fight',
+      new Set(rungs).size === rungs.length,
+      rungs.join(','),
+    )
     expect('a first floor cannot afford one', !rollable('hunt', 1), 'floor one rolled a stalker')
     expect('a deeper one can', rollable('hunt', 8), 'no floor ever rolled one')
 
@@ -5105,13 +5310,62 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 
   const plain = play(null, 150)
 
-  expect('swarming brings more', play('swarming', 150).adds > plain.adds, `${plain.adds}`)
+  // Measured on the Tidebreaker at the rung that buys thralls, rather than on
+  // the fight `plain` runs. The affix multiplies a wave, and a five-man normal
+  // Warden has no wave to multiply — its kit is the floor and the sweep — so
+  // asking there compared nothing against nothing and passed on it for as long
+  // as one boss happened to own every mechanic.
+  {
+    const addsUnder = (affix: AffixId | null): number => {
+      const fight = createState(
+        0x51ed,
+        8,
+        autoParty(10, pickFor('mage', 'dps')!),
+        'heroic',
+        2,
+        affix,
+      )
+      fight.countdown = 0
+      const rng = new Rng(0x51ed)
+      let most = 0
+      while (fight.outcome === 'ongoing' && fight.time < 150) {
+        step(fight, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+        most = Math.max(
+          most,
+          fight.actors.filter(
+            (a) => a.faction === 'boss' && a.alive && a.id !== boss(fight).id && a.hunting === null,
+          ).length,
+        )
+      }
+      return most
+    }
+    const bare = addsUnder(null)
+    expect('a boss that summons does', bare > 0, 'no wave ever arrived')
+    expect('swarming brings more', addsUnder('swarming') > bare, `${bare} at a time`)
+  }
   expect(
     'lingering leaves more on the floor',
     play('lingering', 150).lingerTicks > plain.lingerTicks * 1.3,
     `${plain.lingerTicks}`,
   )
-  expect('faltering heals for less', play('faltering', 120).healing < plain.healing * 0.95, `${plain.healing}`)
+  // Measured on one heal rather than across a pull, for the same reason the
+  // rot is: a whole fight's healing is a function of how long the fight lasted
+  // and how many bodies were still standing to be healed, and those move for
+  // reasons that have nothing to do with the affix. Read over a pull, a
+  // faltering raid *out-healed* the plain one — because the plain one wiped at
+  // a hundred and three seconds and stopped needing any.
+  {
+    const healed = (affix: AffixId | null): number => {
+      const fight = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, affix)
+      const patient = fight.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+      patient.hp = Math.round(patient.maxHp * 0.5)
+      const before = patient.hp
+      applyHeal(fight, patient, 1000, patient.id)
+      return patient.hp - before
+    }
+    const bare = healed(null)
+    expect('faltering heals for less', healed('faltering') < bare * 0.95, `${bare}`)
+  }
   // Measured on its own rather than inside a pull: everything else the boss
   // does lands on the same health bar, and a whole fight's worth of that
   // drowned the difference the first time this was written.
@@ -5223,13 +5477,22 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 // answers, and the rot is the one it cannot touch, so no stat block is the
 // whole answer to a fight.
 {
-  const s = pulled(0x51ed, 0, [
-    pickFor('warrior', 'dps')!,
-    pickFor('warrior', 'tank')!,
-    pickFor('priest', 'healer')!,
-    pickFor('mage', 'dps')!,
-    pickFor('rogue', 'dps')!,
-  ])
+  // On heroic, which is the rung this five-man needs: the sweep is the
+  // Warden's second and the rot its third, and a normal five-man climbs to
+  // two. The pair is the point of the check, so the check has to stand where
+  // both of them are thrown.
+  const s = pulled(
+    0x51ed,
+    0,
+    [
+      pickFor('warrior', 'dps')!,
+      pickFor('warrior', 'tank')!,
+      pickFor('priest', 'healer')!,
+      pickFor('mage', 'dps')!,
+      pickFor('rogue', 'dps')!,
+    ],
+    'heroic',
+  )
   const rng = new Rng(0x51ed)
   const plate = s.actors.find((a) => a.classId === 'warrior' && a.role === 'dps')!
   const cloth = s.actors.find((a) => a.classId === 'mage')!
@@ -5262,6 +5525,12 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       clothTook = clothBefore - cloth.hp
     }
     if (s.actors.some((a) => getAura(a, 'rot'))) sawRot = true
+    // Held upright as well as topped up. Standing in the boss's reach for two
+    // minutes without dodging kills both of them long before the sweep is due,
+    // and a corpse takes no damage — which read as plate and cloth taking the
+    // same nothing.
+    plate.alive = true
+    cloth.alive = true
     plate.hp = plate.maxHp
     cloth.hp = cloth.maxHp
   }
@@ -5411,11 +5680,20 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const dy = boss.pos.y - player.pos.y
     const gap = Math.hypot(dx, dy)
     const closing = gap > 200
-    step(
-      s,
-      { moveX: closing ? dx / gap : 0, moveY: closing ? dy / gap : 0, pressed },
-      rng,
-    )
+    // And out of anything on the floor first, which is the other half of what
+    // a player does. Without it the stand-in stood in every pool the fight
+    // dropped and died about a minute in, and a corpse presses nothing — the
+    // rotation was being measured against a body.
+    let moveX = closing ? dx / gap : 0
+    let moveY = closing ? dy / gap : 0
+    for (const g of s.ground) {
+      const away = Math.hypot(player.pos.x - g.pos.x, player.pos.y - g.pos.y)
+      if (away <= g.radius + 20) {
+        moveX = (player.pos.x - g.pos.x) / (away || 1)
+        moveY = (player.pos.y - g.pos.y) / (away || 1)
+      }
+    }
+    step(s, { moveX, moveY, pressed }, rng)
     ticks++
   }
 

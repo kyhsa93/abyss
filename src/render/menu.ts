@@ -1,6 +1,6 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type RaidSize } from '../sim/classes'
-import { ENCOUNTERS } from '../sim/encounters'
+import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
@@ -292,14 +292,58 @@ export function drawRaidSetup(
       ctx,
       layout.difficulties[i]!,
       DIFFICULTIES[id].name,
-      id === 'heroic' ? 'more health, same mechanics' : '',
+      id === 'heroic' ? 'more health, and one mechanic more' : '',
       id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar,
       id === difficulty,
     )
   })
 
+  // What the three rows above actually add up to.
+  //
+  // The boss, the size and the difficulty each decide part of one thing —
+  // which mechanics this pull has in it — and until this line was here that
+  // sum was invisible: a player who ticked heroic could see the health bar go
+  // up and had no way to learn that a rung had been bought as well. It reads
+  // off the same function the scheduler does, so it cannot describe a fight
+  // that is not the one about to start.
+  drawKit(ctx, encounter, size, difficulty, layout)
+
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
   button(ctx, layout.next, 'PICK YOUR CLASS', '', COLORS.castBar, true)
+}
+
+/** The one line that says what tonight's fight is made of. */
+function drawKit(
+  ctx: CanvasRenderingContext2D,
+  encounter: number,
+  size: number,
+  difficulty: DifficultyId,
+  layout: RaidSetupLayout,
+): void {
+  const fight = ENCOUNTERS[encounter]
+  if (!fight) return
+
+  const kit = encounterKit(fight, size, difficulty)
+  const row = layout.difficulties[0]!
+  const y = row.y + row.h + 15 * L.ui
+
+  ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.boss
+  ctx.font = font(10, true)
+  ctx.fillText(kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y)
+
+  // And what is still in the boss and not in tonight's pull, so the ladder
+  // reads as a ladder rather than as a fixed list that happens to differ.
+  const held = fight.ladder.length - kit.length
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(8)
+  ctx.fillText(
+    held > 0
+      ? `${kit.length} of ${fight.ladder.length} — a bigger raid or heroic buys the rest`
+      : `all ${fight.ladder.length}, which is everything it has`,
+    L.w / 2,
+    y + 12 * L.ui,
+  )
 }
 
 export function hitRaidSetup(x: number, y: number): RaidSetupHit | null {

@@ -1,5 +1,6 @@
 import { Rng } from './rng'
-import type { PhaseTiming } from './encounters'
+import { MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
+import type { DifficultyId } from './classes'
 
 /**
  * What a descent floor is made of.
@@ -24,17 +25,7 @@ import type { PhaseTiming } from './encounters'
  * ladder itself.
  */
 
-export type MechanicId =
-  | 'puddle'
-  | 'spread'
-  | 'breath'
-  | 'shockwave'
-  | 'adds'
-  | 'sweep'
-  | 'rot'
-  | 'sunder'
-  | 'soak'
-  | 'hunt'
+export type { MechanicId }
 
 interface Priced {
   id: MechanicId
@@ -51,31 +42,34 @@ interface Priced {
   cost: number
   /** Floors before this one is allowed to appear at all. */
   from: number
-  /** What it says it is, on the floor's card. */
-  name: string
+}
+
+/** What it says it is, on the floor's card. */
+function nameOf(id: MechanicId): string {
+  return MECHANIC_NAMES[id]
 }
 
 const CATALOGUE: Priced[] = [
   // The floor. Cheap, because standing out of it is a step rather than a walk.
-  { id: 'puddle', slow: 11, fast: 6, cost: 2, from: 1, name: 'pools' },
+  { id: 'puddle', slow: 11, fast: 6, cost: 2, from: 1 },
   // Separation: one person walks a little, everyone else holds still.
-  { id: 'spread', slow: 18, fast: 10, cost: 3, from: 1, name: 'marks' },
+  { id: 'spread', slow: 18, fast: 10, cost: 3, from: 1 },
   // A cone to get behind. Melee move, ranged mostly do not.
-  { id: 'breath', slow: 20, fast: 10, cost: 3, from: 1, name: 'the cone' },
+  { id: 'breath', slow: 20, fast: 10, cost: 3, from: 1 },
   // A ring to run into, which is the whole raid moving toward the boss.
-  { id: 'shockwave', slow: 26, fast: 13, cost: 4, from: 2, name: 'the ring' },
+  { id: 'shockwave', slow: 26, fast: 13, cost: 4, from: 2 },
   // Something else to hit. The cost is target-switching, which is real.
-  { id: 'adds', slow: 50, fast: 26, cost: 4, from: 2, name: 'thralls' },
+  { id: 'adds', slow: 50, fast: 26, cost: 4, from: 2 },
   // Physical, on whoever is in reach. Nobody has to go anywhere.
-  { id: 'sweep', slow: 42, fast: 24, cost: 2, from: 1, name: 'the sweep' },
+  { id: 'sweep', slow: 42, fast: 24, cost: 2, from: 1 },
   // A dot on somebody: the healer's problem and nobody else's.
-  { id: 'rot', slow: 33, fast: 16, cost: 2, from: 1, name: 'rot' },
+  { id: 'rot', slow: 33, fast: 16, cost: 2, from: 1 },
   // Stacks on whoever holds the boss. Moves nobody at all.
-  { id: 'sunder', slow: 14, fast: 8, cost: 2, from: 3, name: 'the armour break' },
+  { id: 'sunder', slow: 14, fast: 8, cost: 2, from: 3 },
   // The whole party in one circle. Measured at thirty points of win rate.
-  { id: 'soak', slow: 40, fast: 22, cost: 6, from: 3, name: 'the gathering' },
+  { id: 'soak', slow: 40, fast: 22, cost: 6, from: 3 },
   // One dealer kites, the rest choose. Sixteen percent of the raid's damage.
-  { id: 'hunt', slow: 44, fast: 26, cost: 5, from: 2, name: 'the stalker' },
+  { id: 'hunt', slow: 44, fast: 26, cost: 5, from: 2 },
 ]
 
 /**
@@ -87,9 +81,20 @@ const CATALOGUE: Priced[] = [
  * being every mechanic at once — a fight that asks for everything asks for
  * nothing, since there is no room left to answer any of it.
  */
-export function floorBudget(depth: number): number {
+export function floorBudget(
+  depth: number,
+  size = 5,
+  difficulty: DifficultyId = 'normal',
+): number {
   if (depth <= 0) return 0
-  return Math.min(14, 4 + depth * 0.9)
+  // The same two axes the authored bosses grew a ladder for. A floor buys its
+  // fight rather than climbing one, so the size and the difficulty are worth
+  // purse rather than rungs — but they have to be worth *something*, or the
+  // descent is the one place in the game where bringing twenty-five people and
+  // ticking heroic buys nothing but a longer health bar.
+  const extra =
+    (size >= 10 ? 1.5 : 0) + (size >= 25 ? 1.5 : 0) + (difficulty === 'heroic' ? 1.5 : 0)
+  return Math.min(14, 4 + depth * 0.9) + extra
 }
 
 export interface FloorPlan {
@@ -113,9 +118,14 @@ export interface FloorPlan {
  * nothing else — a fight that is one idea repeated is the thing this whole
  * arrangement exists to avoid.
  */
-export function rollFloor(seed: number, depth: number): FloorPlan {
+export function rollFloor(
+  seed: number,
+  depth: number,
+  size = 5,
+  difficulty: DifficultyId = 'normal',
+): FloorPlan {
   const rng = new Rng(seed)
-  const budget = floorBudget(depth)
+  const budget = floorBudget(depth, size, difficulty)
   const every: Partial<Record<MechanicId, number>> = {}
   const names: string[] = []
   let spent = 0
@@ -149,7 +159,7 @@ function buy(
   // Somewhere between its most generous cadence and its tightest, so two
   // floors that bought the same thing still do not feel the same.
   every[mechanic.id] = rng.range(mechanic.fast, mechanic.slow)
-  names.push(mechanic.name)
+  names.push(nameOf(mechanic.id))
   return mechanic.cost
 }
 

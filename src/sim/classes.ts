@@ -762,8 +762,8 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
  */
 export const SIZE_HEALTH: Record<RaidSize, number> = {
   5: 1,
-  10: 2.05,
-  25: 5.4,
+  10: 2.2,
+  25: 5.7,
 }
 
 export function sizeHealth(count: number): number {

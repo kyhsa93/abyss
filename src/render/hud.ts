@@ -783,7 +783,10 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     // Named by the boss doing it. Every one of them used to cast the same two
     // spells, which is most of why three different fights read as one.
     const named = encounterAt(s.encounter).names
-    const label = b.castId === 'boss_breath' ? named.breath : named.slam
+    // A floor can roll a cone onto a boss that owns none, and a boss that owns
+    // none has no name for it — which drew an empty cast bar over a cast that
+    // was very much happening. The fallback is the floor's own word for it.
+    const label = b.castId === 'boss_breath' ? named.breath || 'RISING CONE' : named.slam
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)
