@@ -108,10 +108,72 @@ const BREATH_DAMAGE = 700
 // there is time to get there first, hence the telegraph and the generous
 // starting radius: the safe pocket is everything within START - BAND.
 const SHOCKWAVE_TELEGRAPH = 1.8
-const SHOCKWAVE_START = 200
+export const SHOCKWAVE_START = 200
 const SHOCKWAVE_GROWTH = 250
 const SHOCKWAVE_BAND = 58
 const SHOCKWAVE_DAMAGE = 600
+
+/**
+ * How much wider a fixed shape has to be aimed at a bigger raid.
+ *
+ * Everything dropped *on people* already scales with the roster — puddles per
+ * cast, spread marks, add waves — because a fixed number of them across
+ * twenty-five means any one player is almost never the target. The two shapes
+ * aimed at the *arena* rather than at anybody had no such rule: a cone of a
+ * fixed angle catches roughly the same fraction of a raid whatever its size.
+ *
+ * That is not "slightly easier", because everything else about a bigger raid
+ * is slack. A ten-man fields the same one healer per five bodies a five-man
+ * does and *two tanks*, and the boss's weapon and its slam are one target's
+ * worth of damage whoever is holding it — so a ten-man covers the same raid
+ * damage with the same healing and half the tank load.
+ *
+ * Measured, that made the one boss built entirely out of arena shapes — the
+ * Tidebreaker, a cone and a ring — the boss that got *easier* the more people
+ * turned up: every ten-man and twenty-five-man pull on normal won, against
+ * fifty-five in a hundred at five. Its ten-man was eating sixty-three
+ * mechanic hits a pull, losing one body to them, and finishing with the
+ * healers on eleven percent of their mana. Nothing about the boss's own
+ * numbers moved it — the health, the weapon, the unavoidable damage and the
+ * floor multiplier were each tried and each moved all three sizes together.
+ *
+ * So the shapes grow, by a table per shape and per size. Four things it took
+ * to get right, all of them measured rather than reasoned:
+ *
+ * One, the widest correction goes to the **ten-man**, not the twenty-five. The
+ * table is aimed at how safe a size is rather than at how many people it has,
+ * and the ten-man is the safe one for the reason above; a twenty-five man is
+ * already thin at three healers to twenty-five bodies.
+ *
+ * Two, the cone and the ring need separate numbers, because the cone has a
+ * cliff and the ring does not. Past about 0.85 radians it stops being a cone
+ * and becomes a raid-wide hit — twenty-five bodies do not spread far enough to
+ * get out of one — and the twenty-five man went from winning every pull at
+ * 0.83 to winning one in twenty-five at 0.86. A number sitting on that edge is
+ * a number the next change to the AI would flip, so the twenty-five's
+ * correction is carried by its ring instead, which has no such edge: it is
+ * answered by running *in*, and a wider band only makes the pocket smaller.
+ *
+ * Three, banded rather than interpolated, for the same reason `sizeHealth` is:
+ * the sizes are three fixed rosters, not a slider. A straight line through
+ * them was the first attempt and it read as nothing at ten — an eighth wider
+ * against twice the raid — which left the ten-man exactly where it was.
+ *
+ * Four, not the sweep, which already scales and by a better rule than this
+ * one: it catches whoever is in reach, and who is in reach is the melee, and a
+ * bigger raid brings more of them. Multiplying its range as well took it past
+ * the arena's own radius, which is not a wider sweep, it is a sweep with no
+ * outside.
+ */
+const RING_BAND: Record<number, number> = { 5: SHOCKWAVE_BAND, 10: 96, 25: 104 }
+const CONE_HALF_WIDTH: Record<number, number> = { 5: BREATH_HALF_WIDTH, 10: 0.88, 25: 0.80 }
+
+function bySize(table: Record<number, number>, s: SimState): number {
+  const count = s.party.length
+  if (count <= 5) return table[5]!
+  if (count <= 10) return table[10]!
+  return table[25]!
+}
 
 /**
  * How far a sweep reaches past the boss's own edge.
@@ -290,7 +352,7 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
     lingering: 0,
     damage: BREATH_DAMAGE,
     angle: s.bossFacing,
-    halfWidth: BREATH_HALF_WIDTH,
+    halfWidth: bySize(CONE_HALF_WIDTH, s),
   })
 }
 
@@ -312,7 +374,7 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
     damage: SHOCKWAVE_DAMAGE,
     detonated: false,
     growth: SHOCKWAVE_GROWTH,
-    band: SHOCKWAVE_BAND,
+    band: bySize(RING_BAND, s),
   })
 }
 
@@ -418,15 +480,20 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   s.nextAdds = timing.adds
   say(s, b, fight(s).lines.adds)
 
-  // Proportional rather than banded.
+  // Proportional rather than banded, and floored at one rather than two.
   //
   // Three thralls against ten and five against twenty-five is not the same
   // ask: the ten-man has two tanks and fewer dealers, so the middle band was
   // carrying roughly half again the weight the top one did — measured, a
   // ten-man heroic Tidebreaker lost every pull on the rung that buys them
   // while a twenty-five man won three in four.
+  //
+  // The floor of two then put the same over-weighting back at the bottom: a
+  // five-man fields three dealers, so two thralls is two-thirds of a target
+  // each against a twenty-five man's fifth, and the sizes that buy this rung
+  // at all are the heroic ones with the least room to pay for it.
   const waves =
-    Math.max(2, Math.round(livingParty(s).length / 6)) * affixAddWave(s.affix)
+    Math.max(1, Math.round(livingParty(s).length / 6)) * affixAddWave(s.affix)
   for (let i = 0; i < waves; i++) {
     const angle = rng.range(0, Math.PI * 2)
     const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }

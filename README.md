@@ -463,15 +463,23 @@ damage shortens the fight rather than adding survival — 25-player normal ends
 up at the same four ninth pulls in five as a five-man does, having won almost
 none of its first ones.
 
-Mechanics scale with headcount, in two ways. The volume of one scales: a fixed
-number of puddles across twenty-five players means any one player is almost
-never targeted, so without it the bigger raid would be the easier one — pools
-and marks both go up with the roster, and thralls come in larger waves. That
-last one is proportional rather than banded now; three thralls against ten and
-five against twenty-five is not the same ask, and the middle band was carrying
-about half again the weight the top one did.
+Mechanics scale with headcount, in three ways.
 
-And the *number* of them scales, which is the ladder below.
+**The volume of one scales.** A fixed number of puddles across twenty-five
+players means any one player is almost never targeted, so without it the
+bigger raid would be the easier one — pools and marks both go up with the
+roster, and thralls come in larger waves. That last one is proportional rather
+than banded now, and floored at one rather than two: three thralls against ten
+and five against twenty-five is not the same ask, and neither is two against
+five.
+
+**The shapes aimed at the arena grow.** Everything above is dropped *on
+people*; a cone and a ring are aimed at the floor, and a cone of a fixed angle
+catches roughly the same fraction of a raid whatever its size. That is not
+"slightly easier", because everything else about a bigger raid is slack — see
+[The Tidebreaker, and the size that was too safe](#the-tidebreaker-and-the-size-that-was-too-safe).
+
+**And the *number* of them scales**, which is the ladder below.
 
 Boss health is not linear with headcount either: larger groups lose
 proportionally more time to mechanics, so a flat multiple per player would
@@ -517,7 +525,7 @@ Measured against the Drowned Warden, a balanced roster at each size:
 | 10-player normal | 14% | 86% | pools, the sweep, rot |
 | 10-player heroic | 14% | 50% | + the armour break |
 | 25-player normal | 0% | 79% | pools, the sweep, rot, the armour break |
-| 25-player heroic | 0% | 57% | + the gathering |
+| 25-player heroic | 0% | 50% | + the gathering |
 
 **Heroic never wins more than normal at the same size, and wins clearly less
 by the ninth pull, in all nine boss-and-size cells.** That is the thing the
@@ -530,9 +538,9 @@ the same list.
 Two cells sit at the edges and are left there. A heroic twenty-five man Choir
 is the hardest fight in the game and the harness has not won one: it is the
 only place the marks, the stalker, the floor and the chorus arrive together.
-And the Tidebreaker on normal at ten and twenty-five is the easiest, at every
-pull won — a cone and a ring are what this AI is best at, and the extra healer
-covers what it misses.
+And a heroic twenty-five man Tidebreaker is the other, for a related reason:
+it is the only place a raid meets a cone, a ring, a sweep, thralls *and* a
+stalker, on a boss whose shapes are already widened for the size.
 
 ## Today's run
 
@@ -748,7 +756,7 @@ somewhere to be the last thing asked rather than one of the first.
 
 It is also the one mechanic here that is *not* multiplied by the boss it is
 attached to. Everything else on the floor runs through the encounter's own
-multiplier, which is nearly three times heavier on the Tidebreaker than on the
+multiplier, which is half again as heavy on the Tidebreaker as on the
 Warden — and the gathering asks the same question on both, "is everybody
 standing here", so the tax attached to it is the same on both.
 
@@ -788,6 +796,85 @@ One AI weighting had to be measured too. The first version scored a chaser as
 worse than fire, so the one being hunted would stand in a puddle to put eight
 paces between itself and something walking. Its deaths were the mechanic's
 real damage, not anything it landed.
+
+## The Tidebreaker, and the size that was too safe
+
+The ladders left one row of the table reading a hundred percent: a ten-man on
+normal against the third boss, every pull won, and a twenty-five man alongside
+it at ninety-three. Nothing about the boss moved it. Its health, its weapon,
+its unavoidable damage and its floor multiplier were each tried and each moved
+all three sizes together — a number that makes a ten-man sweat makes a
+five-man unwinnable, and the five-man was already at fifty-five.
+
+What the harness said, once it was asked the right question, was that the
+ten-man was not surviving by dodging. It ate **sixty-three mechanic hits a
+pull, lost one body out of ten, and finished with the healers on eleven
+percent of their mana.** The five-man ate four. So the mechanics were landing;
+the raid was simply healing through them, and it could do that because of two
+things that have nothing to do with the boss.
+
+**A ten-man is the safe size, by construction.** It fields the same one healer
+per five bodies a five-man does, and *two tanks* — and the boss's weapon and
+its slam are one target's worth of damage whoever is holding it. So it covers
+the same raid damage with the same healing and half the tank load. A
+twenty-five man does not get that: three healers to twenty-five bodies is
+thinner than one to five.
+
+**And the Tidebreaker is the only boss made entirely of shapes aimed at the
+arena.** Everything else in the vocabulary is dropped *on people* and already
+scales with the roster — pools per cast, marks, thrall waves — because a fixed
+number of them across twenty-five means nobody is ever the target. A cone of a
+fixed angle catches about the same fraction of a raid whatever its size, and a
+ring sweeps everyone regardless. The one boss built out of those was the one
+boss that got easier the more people turned up.
+
+So the cone and the ring widen with the roster, by a table per shape and per
+size. Four things it took to get right:
+
+**The widest correction goes to the ten-man, not the twenty-five.** The table
+is aimed at how safe a size is, not at how many people it has.
+
+**The cone has a cliff and the ring does not.** Past about 0.85 radians the
+cone stops being a cone: twenty-five bodies do not spread far enough to get
+out of one, so it becomes a raid-wide hit for two thousand every eight
+seconds. The twenty-five man went from winning every pull at 0.83 to winning
+one in twenty-five at 0.86. A number sitting on that edge is a number the next
+change to the AI would flip, so the twenty-five's correction is carried by its
+ring instead — which is answered by running *in*, and a wider band only makes
+the pocket smaller.
+
+**Banded, not interpolated**, for the same reason `sizeHealth` is: the sizes
+are three fixed rosters, not a slider. A straight line through them read as
+nothing at ten — an eighth wider against twice the raid.
+
+**Not the sweep.** It already scales, and by a better rule: it catches whoever
+is in reach, who is the melee, and a bigger raid brings more of them.
+Multiplying its range as well took it past the arena's own radius, which is
+not a wider sweep, it is a sweep with no outside.
+
+| Tidebreaker, normal | before | after |
+| --- | --- | --- |
+| 5-player | 57% / 86% | 86% / 100% |
+| 10-player | 100% / 100% | 29% / 93% |
+| 25-player | 93% / 100% | 7% / 36% |
+
+The first and ninth pull of each. The order it leaves is the one the size was
+always supposed to have — a bigger raid is a harder fight, not a safer one.
+
+One cell is left at zero and named rather than tuned away: a heroic
+twenty-five man Tidebreaker is the only place a raid meets the cone, the ring,
+the sweep, thralls and a stalker at once, on shapes already widened for the
+size.
+
+**And one real bug came out of writing it.** The size tables were first
+written as `{ 5: SHOCKWAVE_BAND, 10: 96, 25: 104 }`, above the line that
+declares `SHOCKWAVE_BAND`. A five-man's ring got a band of `undefined` and its
+cone an angle of `undefined` — and an `undefined` half-width fails every
+comparison it is in, so the cone silently stopped hitting anybody at one size
+only. Nothing threw. It read as a tuning result for two rounds. The check now
+plays a pull at each size and asserts both shapes have a real width, that
+neither has grown past having an outside, and that both are wider than a
+five-man's.
 
 ## Sharing
 
@@ -1723,9 +1810,10 @@ fourth rung: everything it does lands on one person at a time while the
 unavoidable damage never stops, so it ends on healer mana. The Tidebreaker is
 the opposite of both — almost nothing to stand in, and almost no time standing
 anywhere, with a ring to run into, a cone to get behind and something new to
-hit every time you have settled on a target. Its floor hits nearly three times
-as hard as the Warden's, because a mechanic you have room to dodge has to be
-worth dodging.
+hit every time you have settled on a target. Its floor hits half again as hard
+as the Warden's, because a mechanic you have room to dodge has to be worth
+dodging — and its two shapes are the ones that widen with the roster, which is
+its own section below.
 
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |

@@ -157,7 +157,7 @@ import {
 import { gainPower } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
-import { SUNDER_MAX } from '../src/sim/boss'
+import { SHOCKWAVE_START, SUNDER_MAX } from '../src/sim/boss'
 import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floor'
 import {
   DT,
@@ -3188,6 +3188,68 @@ for (const [label, w, h] of [
           )
         }
       }
+    }
+  }
+
+  // The two shapes aimed at the arena rather than at anybody, which grow with
+  // the roster instead.
+  //
+  // Read off a real pull rather than out of the table, because the table was
+  // where this went wrong: the sizes were written as `{ 5: SHOCKWAVE_BAND }`
+  // above the line that declares `SHOCKWAVE_BAND`, so a five-man's ring had a
+  // band of `undefined` and its cone an angle of `undefined` — and an
+  // `undefined` half-width fails every comparison it is in, so the cone simply
+  // stopped hitting anybody. Nothing threw. The fights got quietly easier at
+  // one size only, which read as a tuning result for two rounds.
+  {
+    const shapeOf = (size: RaidSize): { cone: number; band: number } => {
+      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'normal', 2)
+      const rng = new Rng(0x51ed)
+      let cone = 0
+      let band = 0
+      while (s.outcome === 'ongoing' && s.time < 120 && !(cone && band)) {
+        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+        for (const g of s.ground) {
+          if (g.kind === 'breath') cone = Math.max(cone, g.halfWidth)
+          if (g.kind === 'shockwave') band = Math.max(band, g.band)
+        }
+      }
+      return { cone, band }
+    }
+
+    const shapes = ([5, 10, 25] as RaidSize[]).map((size) => ({ size, ...shapeOf(size) }))
+    for (const { size, cone, band } of shapes) {
+      expect(
+        `${size}-player: the cone has an angle and the ring a band`,
+        Number.isFinite(cone) && cone > 0 && Number.isFinite(band) && band > 0,
+        `cone ${cone}, band ${band}`,
+      )
+      // A cone that reaches behind the boss is not a cone, and a band wider
+      // than the ring starts is a ring with no pocket to run into.
+      expect(
+        `${size}-player: and both still have an outside`,
+        cone < Math.PI / 2 && band < SHOCKWAVE_START * 0.75,
+        `cone ${cone.toFixed(2)}, band ${band}`,
+      )
+    }
+    // Wider than a five-man's for every raid above five, but *not* monotone
+    // above that, and the ten-man having the widest of all is the finding
+    // rather than a slip.
+    //
+    // The correction is aimed at how safe a size is, not at how many people it
+    // has, and support does not scale evenly across the three: a ten-man
+    // fields the same one healer per five bodies a five-man does and *two*
+    // tanks, so it covers the same raid damage with the same healing and half
+    // the tank load. It is the soft size, so it takes the widest correction. A
+    // twenty-five man is already thin — three healers to twenty-five bodies —
+    // and needs less.
+    const five = shapes[0]!
+    for (const { size, cone, band } of shapes.slice(1)) {
+      expect(
+        `${size}-player: aimed at more widely than a five-man`,
+        cone > five.cone && band > five.band,
+        `${cone.toFixed(2)}/${band} against ${five.cone.toFixed(2)}/${five.band}`,
+      )
     }
   }
 
