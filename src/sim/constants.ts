@@ -125,3 +125,36 @@ export const SHOT_MIN_RANGE = 90
  * weapon does not would read as a bug, not as a rule.
  */
 export const SPELL_RANGE = 340
+
+/**
+ * What a health bar is worth, everywhere.
+ *
+ * Every ability in the game was numbered against a boss: forty-six to
+ * fifty-eight thousand health, five people, a couple of minutes. That works
+ * out to about sixty-five damage a second each, and sixty-five a second is
+ * nothing at all against the four thousand a player used to carry — over a
+ * minute of being hit without pause to kill one. A battleground never gives
+ * anyone that minute, and the ones measured before this spent two thirds of
+ * their length with nobody in range of anybody, so a match killed a player
+ * under twice and the fights on the point decided nothing.
+ *
+ * The gap was never a balance choice. It is that the receiving end of those
+ * numbers had only ever been a boss: a raider dies to a mechanic, one
+ * enormous hit, and a battleground has no mechanics, so sustained damage is
+ * the whole of it and it has to be able to finish the job.
+ *
+ * So the bar moves for everyone rather than for one mode. What that costs is
+ * that everything else denominated in health bars has to move with it or the
+ * raid changes underneath us, and three things are: healing, the flat part of
+ * a tank's mitigation, and every point of damage the fight itself deals. All
+ * three are scaled at their own funnel, which is why the raid tables come out
+ * the same on either side of this number and the battleground does not — the
+ * one thing deliberately left alone is what a player's abilities do, and in a
+ * battleground that is all there is.
+ */
+export const HEALTH = 0.45
+
+/** A health bar, in the units the rest of the game is written in. */
+export function bar(hp: number): number {
+  return Math.round(hp * HEALTH)
+}

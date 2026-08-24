@@ -97,6 +97,7 @@ import {
   COUNTDOWN,
   COUNTDOWN_TICKS,
   GLOBAL_COOLDOWN,
+  HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   MELEE_RANGE,
@@ -1517,7 +1518,12 @@ for (const [label, w, h] of [
 
     const took = member.hp
     applyDamage(s, member, 100, 'physical', { sourceId: b.id, silent: true })
-    const expected = Math.round(Math.max(0, 100 - member.block) * (1 - mitigation(member.armor)) * 2)
+    // `HEALTH` first: the boss is the fight, and the fight's damage is written
+    // in health bars. Block comes off what is left, which is why the tank's
+    // flat mitigation had to be denominated the same way.
+    const expected = Math.round(
+      Math.max(0, 100 * HEALTH - member.block) * (1 - mitigation(member.armor)) * 2,
+    )
     expect('but still amplifies what it deals', took - member.hp === expected, `${took - member.hp} vs ${expected}`)
   }
 
@@ -4885,6 +4891,166 @@ for (const [label, w, h] of [
       hitSettings(...middle(settings.back))?.kind === 'back',
     'a setting answered as something else',
   )
+}
+
+// --- lethality ---------------------------------------------------------------
+//
+// Every ability in the game was numbered against a boss, so each person puts
+// out about sixty-five damage a second, and sixty-five a second against a
+// raid-sized health bar is over a minute of uninterrupted hitting to kill one
+// player. A battleground never gives anyone that minute — the matches
+// measured before this spent two thirds of their length with nobody in range
+// of anybody — so nobody died and the fights on the point decided nothing.
+//
+// The bar came down for everyone rather than for one mode, which means the
+// raid only stays where it was because everything else denominated in health
+// bars came down with it. That is what is checked here: not the multiplier,
+// which is free to move, but that it reaches both modes equally, that a
+// person's damage was left out of it, and that the mode it produces is one
+// where people actually die.
+{
+  const raid = createState(0x51ed, 0)
+  const bg = createBattlegroundState(0x51ed, 'conquest')
+
+  // The whole of the request: one health model, not a battleground exception.
+  {
+    let mismatched = 0
+    let compared = 0
+    for (const a of bg.actors) {
+      const twin = raid.actors.find((r) => r.classId === a.classId && r.spec === a.spec)
+      if (!twin) continue
+      compared++
+      if (a.maxHp !== twin.maxHp) mismatched++
+    }
+    expect('a battleground bar is a raid bar', mismatched === 0 && compared > 0, `${mismatched}/${compared} differ`)
+  }
+
+  // And that the bar actually moved, or the two agreeing means nothing.
+  {
+    const lead = raid.actors.find((a) => a.id === PLAYER_ID)!
+    const sheet = specOf({ classId: lead.classId, spec: lead.spec }).hp
+    expect('the bar is smaller than the sheet', lead.maxHp === Math.round(sheet * HEALTH), `${lead.maxHp} of ${sheet}`)
+  }
+
+  // The regression that would put the raid back where it was without anyone
+  // noticing: the fight's damage is written in health bars and a person's is
+  // not, so the same number has to land differently depending on who threw
+  // it. Fired at the same target, from the boss and from a party member.
+  {
+    const s = createState(0x51ed, 0)
+    const victim = s.actors.find((a) => a.id === PLAYER_ID)!
+    const mate = s.actors.find((a) => a.faction === 'party' && a.id !== PLAYER_ID)!
+
+    victim.hp = victim.maxHp
+    applyDamage(s, victim, 1000, 'none', { sourceId: BOSS_ID, silent: true })
+    const fromFight = victim.maxHp - victim.hp
+
+    victim.hp = victim.maxHp
+    applyDamage(s, victim, 1000, 'none', { sourceId: mate.id, silent: true })
+    const fromPerson = victim.maxHp - victim.hp
+
+    expect(
+      "the fight's damage is in health bars and a person's is not",
+      fromPerson === 1000 && fromFight === Math.round(1000 * HEALTH),
+      `person ${fromPerson}, fight ${fromFight}`,
+    )
+  }
+
+  // The same rule from the other side, and the trap in it: a battleground
+  // numbers its red team from `BOSS_ID` up, so the first of them carries the
+  // boss's id exactly. Anything that decides "is this the fight" by id rather
+  // than by what the source is will cut that one player's damage in half and
+  // read as tuning.
+  {
+    const s = createBattlegroundState(0x51ed, 'conquest')
+    const twin = s.actors.find((a) => a.id === BOSS_ID)!
+    const victim = s.actors.find((a) => a.faction === 'party')!
+    victim.hp = victim.maxHp
+    applyDamage(s, victim, 1000, 'none', { sourceId: twin.id, silent: true })
+    expect(
+      'a red player sharing the boss id still hits like a player',
+      victim.maxHp - victim.hp === 1000,
+      `${victim.maxHp - victim.hp}`,
+    )
+  }
+
+  // Healing is a fraction of a bar, so it moves with the bar too. Without
+  // this the raid would quietly get easier: same heals, smaller bars.
+  {
+    const s = createState(0x51ed, 0)
+    const hurt = s.actors.find((a) => a.id === PLAYER_ID)!
+    const healer = s.actors.find((a) => a.role === 'healer')!
+    hurt.hp = 1
+    applyHeal(s, hurt, 1000, healer.id)
+    expect('a heal is in health bars', hurt.hp - 1 === Math.round(1000 * HEALTH), `${hurt.hp - 1}`)
+  }
+
+  // A respawn hands the body its health back, and a path that read the spec
+  // sheet instead of the actor would undo all of this the first time anyone
+  // died.
+  {
+    const s = createBattlegroundState(0x51ed, 'conquest')
+    s.countdown = 0
+    const rng = new Rng(0x51ed)
+    const victim = s.actors.find((a) => a.faction === 'boss')!
+    const bar = victim.maxHp
+    victim.hp = 0
+    victim.alive = false
+    let back = -1
+    for (let n = 0; n < 60 * 30 && back < 0; n++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      if (victim.alive) back = victim.hp
+    }
+    expect('a respawn returns the battleground bar', back === bar, `${back} vs ${bar}`)
+  }
+
+  // And the point of the whole thing. Driven the way the harness drives it,
+  // through the same reasoning every other body on the map uses.
+  //
+  // One death a match is the floor, not the target: below that, dying is the
+  // end of someone's match rather than a part of it, which is the mode that
+  // was measured before the bar moved. The measured figure is comfortably
+  // above it — this is here to catch the bar drifting back, not to pin it.
+  {
+    let deaths = 0
+    let matches = 0
+    for (const kind of ['conquest', 'flags', 'escort'] as BgKind[]) {
+      for (let n = 0; n < 4; n++) {
+        const s = createBattlegroundState(4000 + n * 137, kind)
+        s.countdown = 0
+        const rng = new Rng(4000 + n * 137)
+        const pid = s.actors.find((a) => a.isPlayer)!.id
+        let wasAlive = true
+        while (s.outcome === 'ongoing' && s.time < s.bg!.timeLimit) {
+          const player = s.actors.find((a) => a.id === pid)!
+          autoPress(s)
+          let moveX = 0
+          let moveY = 0
+          if (player.alive) {
+            const goal = aiGoal(s, player)
+            if (goal) {
+              const dx = goal.x - player.pos.x
+              const dy = goal.y - player.pos.y
+              const d = Math.hypot(dx, dy)
+              if (d > 20) {
+                moveX = dx / d
+                moveY = dy / d
+              }
+            }
+          }
+          step(s, { moveX, moveY, pressed: [] }, rng)
+          if (wasAlive && !player.alive) deaths++
+          wasAlive = player.alive
+        }
+        matches++
+      }
+    }
+    expect(
+      'a battleground kills the player more than once a match',
+      deaths / matches > 1,
+      `${(deaths / matches).toFixed(2)} deaths a match over ${matches}`,
+    )
+  }
 }
 
 // --- terrain ----------------------------------------------------------------

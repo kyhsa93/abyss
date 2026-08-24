@@ -1,4 +1,4 @@
-import { ARENA_RADIUS, COUNTDOWN_TICKS } from './constants'
+import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
@@ -80,14 +80,14 @@ function makeMember(
     role: spec.role,
     melee: spec.melee,
     armor: spec.armor,
-    block: spec.block,
+    block: Math.round(spec.block * HEALTH),
     faction: 'party',
     pos: { x: slot.x, y: slot.y },
     prevPos: { x: slot.x, y: slot.y },
     radius: 17,
     moveSpeed: CLASSES[pick.classId].moveSpeed,
-    hp: spec.hp,
-    maxHp: spec.hp,
+    hp: bar(spec.hp),
+    maxHp: bar(spec.hp),
     resource,
     // Rage is the one you are not handed: a warrior opens a pull with an
     // empty bar and has to hit something before it can do anything.

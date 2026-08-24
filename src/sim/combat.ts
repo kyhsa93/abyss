@@ -7,6 +7,7 @@ import {
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   GLOBAL_COOLDOWN,
+  HEALTH,
   HUNT_DURATION,
   MELEE_RANGE,
   SPREAD_RADIUS,
@@ -289,6 +290,21 @@ export function topThreatTarget(s: SimState): Actor | null {
  */
 export type School = 'physical' | 'magic' | 'none'
 
+/**
+ * Whether a hit came from somebody playing rather than from the fight.
+ *
+ * By what the source is, never by its id: a battleground numbers its red team
+ * from `BOSS_ID` up, so the first of them shares the boss's id exactly. An
+ * attempt to skip the search for `BOSS_ID` — on the grounds that the boss
+ * deals most of the damage in the game — quietly cut every hit that one red
+ * player threw to less than half.
+ */
+function steered(s: SimState, sourceId: number | undefined): boolean {
+  if (sourceId === undefined) return false
+  const source = s.actors.find((a) => a.id === sourceId)
+  return source !== undefined && (source.isPlayer || source.ai !== null)
+}
+
 export interface DamageOptions {
   /** Who to credit. Party damage without this is invisible in the report. */
   sourceId?: number
@@ -311,7 +327,13 @@ export function applyDamage(
 ): void {
   if (!target.alive) return
 
-  let final = amount
+  // Whose hit this is decides what units it is written in. Bodies someone is
+  // steering — the player, and everything with an AI profile — swing numbers
+  // aimed at a boss's health bar, and those are left alone: in a battleground
+  // they are the entire fight. Everything else on the field is the fight
+  // itself, boss and adds and whatever the floor is doing, and that damage is
+  // written in health bars, so it moves with them.
+  let final = amount * (steered(s, opts.sourceId) ? 1 : HEALTH)
   if (school === 'physical') {
     // Block comes off the top, then armour.
     final = Math.max(0, final - target.block)
@@ -411,7 +433,9 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   if (!target.alive) return
   const before = target.hp
   // The day's twist, applied where every heal passes rather than at each of
-  // the dozen places one is cast.
+  // the dozen places one is cast. `HEALTH` rides along for the same reason:
+  // a heal is a fraction of a bar, so it is worth whatever a bar is worth.
+  amount *= HEALTH
   target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix))
   const healed = Math.round(target.hp - before)
 

@@ -1,3 +1,4 @@
+import { bar } from '../sim/constants'
 import {
   CLASSES,
   DIFFICULTIES,
@@ -232,7 +233,7 @@ export function drawRoster(
   ctx.font = font(10)
   ctx.fillText(
     spec
-      ? `${spec.role} · ${spec.resource} · ${Math.round(mitigation(spec.armor) * 100)}% phys · ${spec.hp} hp`
+      ? `${spec.role} · ${spec.resource} · ${Math.round(mitigation(spec.armor) * 100)}% phys · ${bar(spec.hp)} hp`
       : '',
     L.w / 2,
     line(1),
