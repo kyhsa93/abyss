@@ -1068,6 +1068,17 @@ const BIG_HIT = 1400
  * differ by a factor of ten and were the same size, which meant the only way
  * to tell a big hit from a small one was to stop and read it.
  */
+/**
+ * How much bigger the numbers and messages float than they used to.
+ *
+ * Everything about the text is multiplied, not only the font: the lanes it
+ * fans into, how far it rises, and how high above the body it starts. Doubling
+ * the glyphs alone would put twice-as-wide numbers into lanes sized for the
+ * old ones, and four hits at once would go back to being the smudge the lanes
+ * exist to prevent. The outline follows the font already, so it comes along.
+ */
+const TEXT_SCALE = 2
+
 function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   ctx.textAlign = 'center'
   for (const t of s.texts) {
@@ -1084,18 +1095,20 @@ function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: num
     // burst of four reads as four numbers instead of one smudge.
     const lane = (t.id % 4) - 1.5
     // The lanes widen with the type. Bigger numbers need more room between
-    // them or fanning them out stops separating anything.
-    const drift = lane * 19 * L.ui
-    const rise = 30 + Math.abs(lane) * 7
+    // them or fanning them out stops separating anything — which is why the
+    // scale below multiplies this too, and not only the font.
+    const drift = lane * 19 * L.ui * TEXT_SCALE
+    const rise = (30 + Math.abs(lane) * 7) * TEXT_SCALE
 
     const heavy = Math.min(1, t.power / BIG_HIT)
     const size =
-      t.kind === 'miss'
+      TEXT_SCALE *
+      (t.kind === 'miss'
         ? // Why a press did nothing — out of range, out of mana, on cooldown.
           // It is a sentence rather than a number, and it was the smallest
           // thing on the screen.
           16
-        : (t.kind === 'crit' ? 22 : 18) + heavy * (t.kind === 'crit' ? 12 : 9)
+        : (t.kind === 'crit' ? 22 : 18) + heavy * (t.kind === 'crit' ? 12 : 9))
 
     const colour =
       t.kind === 'heal'
@@ -1114,7 +1127,7 @@ function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: num
     ctx.globalAlpha = fade
     ctx.font = font(size, true)
     const x = p.x + drift * life
-    const y = p.y - 20 * L.ui - life * rise
+    const y = p.y - 20 * L.ui * TEXT_SCALE - life * rise
 
     // The outline is the whole fix. Everything else here is a refinement of
     // something that is already legible.

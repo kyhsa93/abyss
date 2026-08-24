@@ -396,6 +396,22 @@ was eleven pixels of dim grey in a corner, which is a thing nobody reads
 during a pull. The lanes the numbers fan into widened to match, since bigger
 numbers thirteen pixels apart stop being separated by being fanned.
 
+Then all of it doubled. Eighteen to twenty-seven became thirty-six to
+fifty-four, a crit runs to sixty-eight, and the message about why a press did
+nothing is thirty-two. One constant does it, and it multiplies more than the
+font: the lanes the numbers fan into, how far they rise, and how high above the
+body they start. Doubling the glyphs alone would put twice-as-wide numbers into
+lanes built for the old ones, which is the smudge the lanes exist to prevent —
+the check that guards it caught exactly that when the lanes were put back by
+hand, at twelve pixels of gap against forty-one-pixel glyphs.
+
+What that check asserts is a ratio rather than a number: the gap between lanes
+against the size of the glyphs, which has been about half a glyph since the
+lanes existed. The fan has never pulled multi-digit numbers fully apart — two
+four-character numbers are wider than any lane gap — and it does not need to.
+It offsets them enough to read as separate, and the ratio is what says whether
+it still does.
+
 Sizes drift back down unless something holds them, so the checks assert a
 floor on each rather than just a difference, and a taller chat has to still
 fit five lines above where it starts on every screen — which the mutation test

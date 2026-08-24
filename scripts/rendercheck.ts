@@ -6647,15 +6647,47 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   expect('a big hit is drawn bigger', sized(big) > sized(small) + 3, `${sized(small)} then ${sized(big)}`)
   // The floor is what stops these drifting back down. They were twelve
   // pixels once, which over a floor full of colour is texture rather than a
-  // number.
-  expect('and a small one is still legible', sized(small) >= 17, `${sized(small)}`)
+  // number — and then they were doubled outright, so the floor moves with
+  // them. A floor that stays where it was stops guarding anything.
+  expect('and a small one is still legible', sized(small) >= 34, `${sized(small)}`)
 
   const status = (() => {
     s.texts.length = 0
     pushText(s, player.pos, 'Too close', 'miss', 0)
     return paint(s).find((row) => row.text === 'Too close')!
   })()
-  expect('and a message about why a press did nothing is too', sized(status) >= 15, `${sized(status)}`)
+  expect('and a message about why a press did nothing is too', sized(status) >= 30, `${sized(status)}`)
+
+  // Doubling the glyphs without doubling the lanes would put twice-as-wide
+  // numbers into lanes built for the old ones. Four hits at once is exactly
+  // the case the fan-out exists for, so it is the case that has to be checked:
+  // consecutive ids take consecutive lanes, and the outermost two must still
+  // land clear of each other.
+  const fanned = (() => {
+    s.texts.length = 0
+    for (const [text, power] of [['-1', 1], ['-2', 1], ['-3', 1], ['-4', 1]] as const) {
+      pushText(s, b.pos, text, 'damage', power)
+    }
+    // Halfway through the life, where the drift has opened up.
+    for (const t of s.texts) t.age = 0.55
+    const rows = paint(s).filter((row) => /^-[1-4]$/.test(row.text))
+    return rows.map((row) => ({ text: row.text, x: row.x, size: sized(row) }))
+  })()
+
+  expect('four at once take four lanes', fanned.length === 4, `${fanned.length}`)
+  const xs = fanned.map((f) => f.x).sort((a, b2) => a - b2)
+  const tightest = Math.min(...xs.slice(1).map((x, i) => x - xs[i]!))
+  // The fan does not pull multi-digit numbers fully apart and never did — two
+  // four-character numbers are wider than any lane gap. What it does is offset
+  // them enough to read as separate, and the measure of that is the gap
+  // against the glyph size. That ratio has been about half a glyph since the
+  // lanes existed, so half a glyph is what is asserted: it holds today, and it
+  // breaks the moment the font grows without the lanes growing with it.
+  expect(
+    'and the lanes grew with the glyphs',
+    tightest >= fanned[0]!.size * 0.5,
+    `lane gap ${tightest.toFixed(0)} against ${fanned[0]!.size}px glyphs`
+  )
 
   const dealt = drawn.find((row) => row.text === '-1400')!
   const taken = drawn.find((row) => row.text === '-300')!
