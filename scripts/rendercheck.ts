@@ -3300,25 +3300,35 @@ for (const [label, w, h] of [
         `cone ${cone.toFixed(2)}, band ${band}`,
       )
     }
-    // Wider than a five-man's for every raid above five, but *not* monotone
-    // above that, and the ten-man having the widest of all is the finding
-    // rather than a slip.
-    //
-    // The correction is aimed at how safe a size is, not at how many people it
-    // has, and support does not scale evenly across the three: a ten-man
-    // fields the same one healer per five bodies a five-man does and *two*
-    // tanks, so it covers the same raid damage with the same healing and half
-    // the tank load. It is the soft size, so it takes the widest correction. A
-    // twenty-five man is already thin — three healers to twenty-five bodies —
-    // and needs less.
+    // The cone widens with the raid, and *not* monotonically: the ten-man has
+    // the widest of all, which is the finding rather than a slip. The
+    // correction is aimed at how safe a size is rather than at how many people
+    // it has, and a ten-man fields the same one healer per five bodies a
+    // five-man does and two tanks — the same raid damage covered by the same
+    // healing at half the tank load. It is the soft size, so it takes the
+    // widest correction.
     const five = shapes[0]!
-    for (const { size, cone, band } of shapes.slice(1)) {
+    for (const { size, cone } of shapes.slice(1)) {
       expect(
         `${size}-player: aimed at more widely than a five-man`,
-        cone > five.cone && band > five.band,
-        `${cone.toFixed(2)}/${band} against ${five.cone.toFixed(2)}/${five.band}`,
+        cone > five.cone,
+        `${cone.toFixed(2)} against ${five.cone.toFixed(2)}`,
       )
     }
+
+    // The ring does not, and this is the check that says so out loud, because
+    // widening it by size is the obvious idea and it is a trap. A band is
+    // answered by running in, so a wider one shrinks the pocket, and the
+    // pocket has a floor the raid physically occupies. The table that used to
+    // live here put ten at 96 and twenty-five at 104 — pockets of 104 and 96
+    // against a raid that operates at a spread of about ninety — and the
+    // result was a coin on its edge: the ten-man's heroic ran 30% at a band of
+    // 96 and 100% at 80, the twenty-five's 5% at 104 and 80% at 85.
+    expect(
+      'the ring is one band for every size',
+      shapes.every((sh) => sh.band === five.band),
+      shapes.map((sh) => `${sh.size}:${sh.band}`).join(' '),
+    )
   }
 
   // The purse the descent spends instead, moving on the same two axes.

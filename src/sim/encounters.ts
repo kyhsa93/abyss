@@ -316,7 +316,11 @@ export const ENCOUNTERS: Encounter[] = [
     swingDamage: 730,
     slamDamage: 1700,
     raidDamage: 265,
-    mechanicDamage: 2.55,
+    // 2.55 while the shockwave was carrying the whole fight on its own. Once
+    // the ring stopped deciding it — see `SHOCKWAVE_BAND` — every rung came
+    // out at 95-100%, because the rest of the boss had never had to do
+    // anything. This is what the rest of it is worth.
+    mechanicDamage: 4.6,
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],

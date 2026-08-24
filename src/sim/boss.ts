@@ -110,7 +110,7 @@ const BREATH_DAMAGE = 700
 const SHOCKWAVE_TELEGRAPH = 1.8
 export const SHOCKWAVE_START = 200
 const SHOCKWAVE_GROWTH = 250
-const SHOCKWAVE_BAND = 58
+const SHOCKWAVE_BAND = 70
 const SHOCKWAVE_DAMAGE = 600
 
 /**
@@ -137,51 +137,56 @@ const SHOCKWAVE_DAMAGE = 600
  * numbers moved it — the health, the weapon, the unavoidable damage and the
  * floor multiplier were each tried and each moved all three sizes together.
  *
- * So the shapes grow, by a table per shape and per size. Four things it took
- * to get right, all of them measured rather than reasoned:
+ * So the shapes grow with the raid — but only the cone does, now.
  *
- * One, the widest correction goes to the **ten-man**, not the twenty-five. The
- * table is aimed at how safe a size is rather than at how many people it has,
- * and the ten-man is the safe one for the reason above; a twenty-five man is
- * already thin at three healers to twenty-five bodies.
+ * The ring was given the same treatment and it was the wrong instrument. A
+ * band is answered by running *in*, so a wider one only shrinks the pocket,
+ * and a pocket has a floor nobody can tune past: the raid operates at a
+ * spread of about ninety whatever its size, and twenty-five bodies of radius
+ * seventeen need ninety-four of floor before they are standing on each other.
+ * The table had ten at 96 and twenty-five at 104 — pockets of 104 and 96,
+ * both of them at or under that number — and the result was not difficulty,
+ * it was a coin landing on its edge. Measured, moving the ten-man's band from
+ * 96 to 80 took its heroic pull from 30% to 100%, and the twenty-five's from
+ * 104 to 85 took it from 5% to 80%. Neither is a dial; both are a cliff, and
+ * a cliff cannot be the thing a difficulty rests on.
  *
- * Two, the cone and the ring need separate numbers, because the cone has a
- * cliff and the ring does not. Past about 0.85 radians it stops being a cone
- * and becomes a raid-wide hit — twenty-five bodies do not spread far enough to
- * get out of one — and the twenty-five man went from winning every pull at
- * 0.83 to winning one in twenty-five at 0.86. A number sitting on that edge is
- * a number the next change to the AI would flip, so the twenty-five's
- * correction is carried by its ring instead, which has no such edge: it is
- * answered by running *in*, and a wider band only makes the pocket smaller.
+ * Nor could the two knobs beside it. The telegraph moved the ten-man heroic
+ * between 20 and 40 percent and no further, and halving the ring's damage
+ * outright moved it from 30 to 50 — while deleting the mechanic moved it to
+ * 100. Most of what the ring costs is not its damage, it is the running: two
+ * healers who have to move are two healers not casting, which is why the
+ * ten-man felt it hardest.
  *
- * Three, banded rather than interpolated, for the same reason `sizeHealth` is:
- * the sizes are three fixed rosters, not a slider. A straight line through
- * them was the first attempt and it read as nothing at ten — an eighth wider
- * against twice the raid — which left the ten-man exactly where it was.
+ * So the ring is one number for every size, set wide enough that being caught
+ * by it is a mistake rather than a seating problem, and the Tidebreaker's
+ * difficulty was moved into its own `mechanicDamage`, where it can be turned
+ * a percent at a time.
  *
- * Four, not the sweep, which already scales and by a better rule than this
- * one: it catches whoever is in reach, and who is in reach is the melee, and a
- * bigger raid brings more of them. Multiplying its range as well took it past
- * the arena's own radius, which is not a wider sweep, it is a sweep with no
+ * The cone keeps its table, because it has the opposite shape: past about
+ * 0.85 radians it stops being a cone and becomes a raid-wide hit — twenty-five
+ * bodies do not spread far enough to get out of one — so it is banded rather
+ * than interpolated, the sizes being three fixed rosters rather than a slider.
+ *
+ * And not the sweep, which already scales and by a better rule than either: it
+ * catches whoever is in reach, and who is in reach is the melee, and a bigger
+ * raid brings more of them. Multiplying its range as well took it past the
+ * arena's own radius, which is not a wider sweep, it is a sweep with no
  * outside.
  */
-const RING_BAND: Record<number, number> = { 5: SHOCKWAVE_BAND, 10: 96, 25: 104 }
+
 
 /**
- * How tightly the ring closes, capped by how much floor the raid needs.
+ * How tightly the ring closes, with a floor under it.
  *
- * The band above is a difficulty dial and it ran off the end of one. A pocket
- * is `SHOCKWAVE_START - band`, so 104 leaves a circle of radius 96 — and
- * eighteen bodies of radius seventeen need about ninety-four of it before they
- * are standing on each other. The mechanic was not hard at twenty-five, it was
- * unperformable: the raid gathered to a radius of 109 because that is as small
- * as it goes, ate the ring, and lost 95 of every 100 pulls. Removing the
- * shockwave outright took the same fight from 4% to 76%.
+ * `SHOCKWAVE_BAND` is wide enough for every size now, so this never binds —
+ * which is the point of a floor. It is here so that the next person to reach
+ * for the band as a difficulty dial cannot tune it past the space the raid
+ * physically occupies, the way the per-size table did.
  *
- * So the dial is kept and a floor is put under it. `PACKING` is the density a
- * crowd of walkers actually reaches rather than the 91% of a perfect lattice,
- * and `ROOM` is the margin over that — a pocket you can only just fit into is
- * one nobody can move inside.
+ * `PACKING` is the density a crowd of walkers actually reaches rather than
+ * the 91% of a perfect lattice, and `ROOM` is the margin over it — a pocket
+ * you can only just fit into is one nobody can move inside.
  *
  * It reads the living rather than the roster, so the ring closes again as the
  * raid thins. A wipe in progress should get tighter, not roomier.
@@ -193,7 +198,7 @@ function ringBand(s: SimState): number {
   const bodies = livingParty(s)
   const radius = bodies[0]?.radius ?? 17
   const needed = Math.sqrt((bodies.length * radius * radius) / PACKING) * ROOM
-  return Math.min(bySize(RING_BAND, s), SHOCKWAVE_START - needed)
+  return Math.min(SHOCKWAVE_BAND, SHOCKWAVE_START - needed)
 }
 const CONE_HALF_WIDTH: Record<number, number> = { 5: BREATH_HALF_WIDTH, 10: 0.88, 25: 0.80 }
 
