@@ -1,5 +1,5 @@
 import { Rng } from '../src/sim/rng'
-import { createState } from '../src/sim/state'
+import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { ENCOUNTERS, encounterAt, encounterKit } from '../src/sim/encounters'
 import { BATTLEGROUNDS } from '../src/sim/battleground'
@@ -16,6 +16,7 @@ import {
   type RaidSize,
   SLOTS,
   specLabel,
+  specOf,
 } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
@@ -669,6 +670,107 @@ function objectiveGoal(s: SimState) {
     if (d < Math.hypot(player.pos.x - best.pos.x, player.pos.y - best.pos.y)) best = n
   }
   return best.pos
+}
+
+
+// --- what each spec is worth ------------------------------------------------
+//
+// One spec under test in an otherwise identical raid, rather than a raid built
+// out of it: six of the same melee is a party with no ranged in it, and that
+// loses for reasons that are not the spec's.
+//
+// The spread at the bottom of each block is the number to watch. It was 1.61x
+// on damage and 1.41x on healing when this table was written, and both had got
+// there without any check noticing, because nothing in the harness had ever
+// looked at a spec on its own.
+const SPEC_RUNS = 8
+const SPEC_SIZE: RaidSize = 10
+{
+  const roleOf = (p: Pick) => specOf(p).role
+  const ref: Record<string, Pick> = {
+    tank: SPEC_OPTIONS.find((p) => roleOf(p) === 'tank')!,
+    healer: SPEC_OPTIONS.find((p) => roleOf(p) === 'healer')!,
+    dps: SPEC_OPTIONS.find((p) => roleOf(p) === 'dps')!,
+  }
+  const TANKS = 2
+  const HEALERS = 2
+  const slotOf: Record<string, number> = { tank: 0, healer: TANKS, dps: TANKS + HEALERS }
+
+  const lineup = (test: Pick): Pick[] => {
+    const out: Pick[] = []
+    for (let i = 0; i < TANKS; i++) out.push(ref.tank!)
+    for (let i = 0; i < HEALERS; i++) out.push(ref.healer!)
+    while (out.length < SPEC_SIZE) out.push(ref.dps!)
+    out[slotOf[roleOf(test)]!] = test
+    return out
+  }
+
+  const measure = (test: Pick) => {
+    const role = roleOf(test)
+    let out = 0
+    let taken = 0
+    let healedBack = 0
+    let wins = 0
+    let runs = 0
+    for (let boss = 0; boss < ENCOUNTERS.length; boss++) {
+      for (let n = 0; n < SPEC_RUNS; n++) {
+        const seed = 3000 + n * 7919 + boss * 131
+        const s = unattended(createState(seed, 6, lineup(test), 'normal', boss))
+        s.countdown = 0
+        const rng = new Rng(seed + 7919)
+        const me = s.actors.filter((a) => a.faction === 'party')[slotOf[role]!]!
+        let healed = 0
+        let prevTaken = 0
+        let prevHp = me.hp
+        while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+          step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+          const now = s.tally[me.id]!.damageTaken
+          if (me.alive) {
+            const gain = me.hp - prevHp + (now - prevTaken)
+            if (gain > 0) healed += gain
+          }
+          prevTaken = now
+          prevHp = me.hp
+        }
+        const t = s.tally[me.id]!
+        const secs = Math.max(1, s.time)
+        out += (role === 'healer' ? t.healing : t.damage) / secs
+        // The tank column is net of what its own trait hands back: a bear
+        // takes three and a half times a warrior's damage and heals most of it
+        // again, so raw damage taken says the opposite of what it looks like.
+        taken += (t.damageTaken - healed) / secs / me.maxHp
+        healedBack += healed / secs
+        if (s.outcome === 'victory') wins++
+        runs++
+      }
+    }
+    return { out: out / runs, taken: (taken / runs) * 100, healedBack: healedBack / runs, win: (wins / runs) * 100 }
+  }
+
+  const rows = SPEC_OPTIONS.map((p) => ({ p, role: roleOf(p), ...measure(p) }))
+  for (const role of ['dps', 'healer', 'tank'] as const) {
+    const list = rows.filter((r) => r.role === role)
+    const key = (r: (typeof list)[number]) => (role === 'tank' ? r.taken : r.out)
+    list.sort((a, b) => (role === 'tank' ? key(a) - key(b) : key(b) - key(a)))
+    const head =
+      role === 'tank'
+        ? 'spec                net taken %bar  healed/s   win%'
+        : `spec                ${role === 'healer' ? 'hps' : 'dps'}       win%`
+    console.log(`\nspec: ${role} (${SPEC_SIZE} normal, ${ENCOUNTERS.length} bosses x ${SPEC_RUNS} pulls a row)`)
+    console.log(head)
+    for (const r of list) {
+      console.log(
+        role === 'tank'
+          ? `${specLabel(r.p).padEnd(20)}${r.taken.toFixed(2).padEnd(14)}${r.healedBack.toFixed(0).padEnd(10)}${r.win.toFixed(0)}%`
+          : `${specLabel(r.p).padEnd(20)}${r.out.toFixed(0).padEnd(10)}${r.win.toFixed(0)}%`,
+      )
+    }
+    const vals = list.map(key)
+    console.log(
+      `  spread ${(Math.max(...vals) / Math.max(1e-9, Math.min(...vals))).toFixed(2)}x` +
+        `  (${Math.max(...vals).toFixed(2)} vs ${Math.min(...vals).toFixed(2)})`,
+    )
+  }
 }
 
 // Win rate says whether the rules are even. It says nothing about whether the

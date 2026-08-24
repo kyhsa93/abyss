@@ -5374,6 +5374,35 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const open = hit((_fight, actor) => stackAura(actor, 'eclipse', actor.id), balance, 'filler')
   expect('an eclipse window is worth filling', open > closed * 1.3, `${closed} -> ${open}`)
 
+  // And that the window holds more than one press. It used to be a single
+  // charge cleared by the first filler after the finisher, which made its
+  // eight second duration decorative and the trait worth about five percent
+  // while the others were worth fifteen to twenty — the measured spread
+  // across the nine damage specs was 1.61x, and nothing was watching.
+  {
+    const fight = pulled(0x51ed, 0, autoParty(5, balance))
+    const actor = fight.actors.find((a) => a.isPlayer)!
+    const boss = fight.actors[fight.actors.length - 1]!
+    boss.pos = { x: 0, y: 0 }
+    actor.pos = { x: 240 + boss.radius, y: 0 }
+    const kit = specOf(balance).abilities
+
+    // Through `landAbility`, the same path a press takes: the charge is spent
+    // where the damage is dealt, and a test that poked the aura directly would
+    // not notice if the two came apart.
+    const rng = new Rng(1)
+    boss.hp = boss.maxHp
+    landAbility(fight, actor, ABILITIES[kit.finisher!]!, boss.id, rng)
+    let lit = 0
+    for (let n = 0; n < 6; n++) {
+      const before = boss.hp
+      landAbility(fight, actor, ABILITIES[kit.filler!]!, boss.id, rng)
+      if (before - boss.hp > closed * 1.3) lit++
+      boss.hp = boss.maxHp
+    }
+    expect('one finisher lights up three fillers', lit === 3, `${lit}`)
+  }
+
   const shadow = pickFor('priest', 'dps')!
   const unmarked = hit(() => {}, shadow, 'filler')
   const marked = hit((fight, actor) => {

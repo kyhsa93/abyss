@@ -97,7 +97,7 @@ const AURA_DURATION: Record<AuraId, number> = {
 const AURA_MAX: Partial<Record<AuraId, number>> = {
   combo: 5,
   momentum: 3,
-  eclipse: 1,
+  eclipse: 3,
   sunder: 5,
 }
 
@@ -117,6 +117,9 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
  * raid's.
  */
 const SUNDER_ARMOR = 1200
+
+/** How many fillers one finisher lights up. See the `eclipse` case in onCast. */
+const ECLIPSE_CHARGES = 3
 
 /** Adds one to a counting aura, up to its cap, and refreshes its clock. */
 export function stackAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -147,7 +150,7 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   judgement: { damage: 68 },
   shadow_word_pain: { damage: 58 },
   renew: { heal: 66 },
-  rejuvenation: { heal: 47 },
+  rejuvenation: { heal: 60 },
   riptide: { heal: 58 },
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
@@ -824,10 +827,24 @@ function spendTrait(
       // Only a real cast compounds. An instant is not standing still.
       if (ability.castTime > 0) stackAura(actor, 'momentum', actor.id)
       break
-    case 'eclipse':
-      if (isFinisher) stackAura(actor, 'eclipse', actor.id)
-      else if (isFiller) clearAura(actor, 'eclipse')
+    case 'eclipse': {
+      // Three charges, spent one filler at a time. It used to be a single
+      // charge cleared by the first filler after the finisher, which made the
+      // eight second duration decorative: one press in six was buffed and the
+      // trait was worth five percent while the others were worth fifteen to
+      // twenty. Counting them is what the duration was always for.
+      if (isFinisher) {
+        clearAura(actor, 'eclipse')
+        for (let i = 0; i < ECLIPSE_CHARGES; i++) stackAura(actor, 'eclipse', actor.id)
+      } else if (isFiller) {
+        const open = getAura(actor, 'eclipse')
+        if (open) {
+          open.stacks -= 1
+          if (open.stacks <= 0) clearAura(actor, 'eclipse')
+        }
+      }
       break
+    }
     case 'chain': {
       // Jumps to whatever else is standing near, for a third each hop. Worth
       // nothing on a lone boss and worth a great deal in a crowd, which is the

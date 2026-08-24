@@ -151,9 +151,9 @@ const list: Ability[] = [
   { id: 'growl', name: 'Growl', role: 'tank', kind: 'taunt', castTime: 0, cooldown: TAUNT_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: null, range: TAUNT_RANGE },
 
   // --- druid, as healer: heal-over-time first ---------------------------------
-  { id: 'healing_touch', name: 'Healing Touch', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, cost: 42, amount: 385, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'healing_touch', name: 'Healing Touch', role: 'healer', kind: 'heal', castTime: 2.2, cooldown: 0, cost: 42, amount: 440, threatMult: 0, aura: null, range: HEAL_RANGE },
   { id: 'rejuvenation', name: 'Rejuvenation', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 30, amount: 0, threatMult: 0, aura: 'rejuvenation', range: HEAL_RANGE },
-  { id: 'swiftmend', name: 'Swiftmend', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 54, amount: 246, threatMult: 0, aura: null, range: HEAL_RANGE },
+  { id: 'swiftmend', name: 'Swiftmend', role: 'healer', kind: 'heal', castTime: 0, cooldown: 8, cost: 54, amount: 300, threatMult: 0, aura: null, range: HEAL_RANGE },
   { id: 'starsurge', name: 'Starsurge', role: 'healer', kind: 'damage', castTime: 0, cooldown: 8, cost: 22, amount: 195, threatMult: 1, aura: null, range: SPELL },
 
   // --- priest, as damage -----------------------------------------------------
