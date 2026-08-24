@@ -614,6 +614,67 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   tryCast(s, actor, kit.filler, b.id, rng, moving)
 }
 
+/**
+ * Who this healer wants under its heal, which is not always who is worst off.
+ *
+ * Two of the four healer traits are conditional in both directions — the
+ * paladin is paid 1.45x on a tank and charged 0.85x on anybody else, the
+ * druid 1.5x on somebody already mending and 0.9x on somebody who is not —
+ * and a rotation that always answers whoever is lowest sets up neither. It
+ * showed: 37% of the paladin's healing reached a tank, the lowest share of
+ * the four despite being the one spec paid for it, and 16% of the druid's
+ * landed on a primed target. Both traits netted out to roughly 1.0x, which is
+ * to say they were not there, and the two healers whose traits have no
+ * penalty branch won a third more often.
+ *
+ * So the choice is made here rather than left to a threshold: a spec that is
+ * paid to heal one kind of person has to be willing to heal them.
+ */
+/**
+ * How hurt a tank has to be before its healer stops watching the raid.
+ *
+ * Below the personalities' own top-off thresholds on purpose. Reading those
+ * instead meant a timid paladin claimed the tank at 95% health — every press,
+ * all fight — and the raid died behind a tank that was never in danger.
+ */
+const ANCHOR_CEILING = 0.75
+
+function healTarget(s: SimState, actor: Actor, wounded: Actor, ceiling: number): Actor {
+  const spec = specFor(actor)
+  const kit = spec.abilities
+
+  // A healer with nobody beside it covers everybody, whatever it would rather
+  // be paid for. Both conditional traits ask the healer to look away from
+  // somebody, and in a five-man there is nobody else to look instead: the two
+  // specs that specialise lost twenty points of win rate there while the two
+  // with unconditional traits did not.
+  if (livingParty(s).filter((a) => a.role === 'healer').length < 2) return wounded
+
+  if (spec.trait === 'anchor') {
+    // The tank, unless the tank is fine and somebody else is not.
+    const tanks = livingParty(s).filter((a) => a.role === 'tank')
+    let worst: Actor | null = null
+    for (const t of tanks) if (!worst || t.hp / t.maxHp < worst.hp / worst.maxHp) worst = t
+    if (worst && worst.hp / worst.maxHp < ANCHOR_CEILING) return worst
+    return wounded
+  }
+
+  if (spec.trait === 'bloom' && kit.overTime) {
+    // Somebody already mending, if one of them needs it. The over-time is the
+    // setup, so healing through it is the whole rotation rather than a bonus
+    // that happens when the two coincide.
+    let best: Actor | null = null
+    for (const a of livingParty(s)) {
+      if (!getAura(a, kit.overTime as AuraId)) continue
+      if (a.hp / a.maxHp >= ceiling) continue
+      if (!best || a.hp / a.maxHp < best.hp / best.maxHp) best = a
+    }
+    if (best) return best
+  }
+
+  return wounded
+}
+
 function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const ai = actor.ai!
   const kit = specFor(actor).abilities
@@ -628,6 +689,8 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   const topOff = ai.personality === 'timid' ? 0.95 : 0.82
 
   if (kit.finisher && ratio < emergency && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
+    // An emergency is answered on whoever is in it, whatever the spec would
+    // rather be doing. A trait is worth less than a body.
     if (tryCast(s, actor, kit.finisher, wounded.id, rng, moving)) {
       say(s, actor, `${wounded.name} is low!`)
       return
@@ -635,19 +698,21 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   }
 
   if (kit.overTime) {
-    const tank = livingParty(s).find((a) => a.role === 'tank')
-    const on = tank ?? wounded
-    if (!getAura(on, kit.overTime as AuraId) && on.hp / on.maxHp < 0.95 && powerLeft > 0.2) {
-      if (tryCast(s, actor, kit.overTime, on.id, rng, moving)) return
+    // A bloom druid seeds whoever it is about to heal; everyone else keeps it
+    // on the tank, where an over-time is worth the most for the least attention.
+    const seed = specFor(actor).trait === 'bloom' ? wounded : livingParty(s).find((a) => a.role === 'tank') ?? wounded
+    if (!getAura(seed, kit.overTime as AuraId) && seed.hp / seed.maxHp < 0.95 && powerLeft > 0.2) {
+      if (tryCast(s, actor, kit.overTime, seed.id, rng, moving)) return
     }
   }
 
-  if (ratio < topOff) {
-    if (powerLeft < 0.15 && ratio > 0.6) {
+  const on = healTarget(s, actor, wounded, topOff)
+  if (on.hp / on.maxHp < topOff) {
+    if (powerLeft < 0.15 && on.hp / on.maxHp > 0.6) {
       say(s, actor, 'Low mana')
       return
     }
-    tryCast(s, actor, kit.filler, wounded.id, rng, moving)
+    tryCast(s, actor, kit.filler, on.id, rng, moving)
     return
   }
 

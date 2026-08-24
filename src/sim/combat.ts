@@ -150,7 +150,7 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   judgement: { damage: 68 },
   shadow_word_pain: { damage: 58 },
   renew: { heal: 66 },
-  rejuvenation: { heal: 60 },
+  rejuvenation: { heal: 47 },
   riptide: { heal: 58 },
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
@@ -884,7 +884,12 @@ function healTrait(actor: Actor, target: Actor): number {
     case 'anchor':
       // Everything is worth more on the tank and less on everybody else. The
       // one healer that is a tank healer rather than a raid healer.
-      return target.role === 'tank' ? 1.45 : 0.85
+      //
+      // The penalty was 0.85 and it was too much: in a raid where most of the
+      // damage arrives as a mechanic on everybody, a tank healer spends most
+      // of its output off the tank whatever it would rather do, so the tax
+      // was the trait and the bonus was the footnote. It netted 1.07x.
+      return target.role === 'tank' ? 1.45 : 0.92
     case 'bloom': {
       // A direct heal on somebody already mending bursts. The over-time is the
       // setup rather than a trickle you top up between real heals.
@@ -955,7 +960,14 @@ function tankTrait(s: SimState, target: Actor, school: School): number {
 
   if (getAura(target, 'ward')) {
     // Not a tank trait, but it lands here: a ward put on before the hit.
-    return 0.65
+    //
+    // 0.65 was the largest healer trait in the game by a distance, and an
+    // unconditional one: the over-time that carries it is on a ten second
+    // cooldown and lasts twelve, so a third off everything the tank took was
+    // simply on. In a five-man, where one healer covers the whole party, the
+    // priest won 87% of pulls against 64% for the healers whose traits ask
+    // them to aim.
+    return 0.78
   }
 
   switch (spec.trait) {
