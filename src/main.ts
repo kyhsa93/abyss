@@ -1,7 +1,16 @@
 import { Input } from './input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
-import { drawHud, hitOutcome, partyButton, setShareLabel, setTrendLine } from './render/hud'
+import {
+  canAdvance,
+  drawHud,
+  hitOutcome,
+  outcomeButtons,
+  partyButton,
+  setShareLabel,
+  setTrendLine,
+  shareRect,
+} from './render/hud'
 import {
   check as checkAwards,
   load as loadAwards,
@@ -1037,6 +1046,20 @@ function frame(now: number): void {
   }
 
   input.setMenuMode(false)
+
+  // The stick answers anywhere the fight is not already showing a control.
+  // The ability buttons and the autocast toggle test for themselves inside
+  // `Input`; these are the ones only this file knows are on screen.
+  {
+    const taken = [partyButton()]
+    if (state.outcome !== 'ongoing') {
+      const buttons = outcomeButtons(canAdvance(state))
+      for (const r of [buttons.next, buttons.retry, buttons.party, shareRect(state)]) {
+        if (r) taken.push(r)
+      }
+    }
+    input.setReserved(taken)
+  }
 
   // Mute lives on the settings screen now, but the key still works mid-fight:
   // the reason to reach for it is usually something that just happened.

@@ -40,6 +40,19 @@ export class Input {
   private menuMode = false
   private tapPoint: { x: number; y: number } | null = null
 
+  /**
+   * Screen regions the stick must not take, beyond the ones it already tests
+   * for itself.
+   *
+   * The stick used to live in the left half of the screen and everything else
+   * lived on the right, so the only thing it could steal was a button it
+   * checked first. Now it answers anywhere, which means the corner button and
+   * the end-of-fight overlay have to be named. They are handed in each frame
+   * rather than imported, because the HUD already imports this file and the
+   * cycle would be the only thing gained.
+   */
+  private reserved: { x: number; y: number; w: number; h: number }[] = []
+
   constructor(target: Window, canvas: HTMLCanvasElement) {
     target.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase()
@@ -106,7 +119,7 @@ export class Input {
       return
     }
 
-    if (p.x <= L.joyZoneMaxX && this.joyPointer === null) {
+    if (this.freeGround(p.x, p.y) && this.joyPointer === null) {
       e.preventDefault()
       canvas.setPointerCapture(e.pointerId)
       this.joyPointer = e.pointerId
@@ -116,6 +129,19 @@ export class Input {
       this.joyKnobX = p.x
       this.joyKnobY = p.y
     }
+  }
+
+  /** Whether a press here belongs to the stick rather than to a control. */
+  private freeGround(x: number, y: number): boolean {
+    for (const r of this.reserved) {
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return false
+    }
+    return true
+  }
+
+  /** Called each frame with whatever the fight is currently showing. */
+  setReserved(rects: { x: number; y: number; w: number; h: number }[]): void {
+    this.reserved = rects
   }
 
   private onPointerMove(e: PointerEvent, canvas: HTMLCanvasElement): void {

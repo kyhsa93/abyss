@@ -152,7 +152,6 @@ export interface Layout {
   joyHomeY: number
   joyBase: number
   joyKnob: number
-  joyZoneMaxX: number
   joyDeadzone: number
 
   /** Centre of every action button, in press order. */
@@ -262,7 +261,6 @@ export function computeLayout(w: number, h: number): Layout {
     joyHomeY: h - joyBase - (portrait ? 34 : 22),
     joyBase,
     joyKnob: joyBase * 0.43,
-    joyZoneMaxX: w * 0.5,
     joyDeadzone: 0.18,
 
     btnPos,

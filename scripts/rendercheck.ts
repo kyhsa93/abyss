@@ -1178,14 +1178,11 @@ for (const [label, w, h] of [
           w: L.joyBase * 2,
           h: L.joyBase * 2,
         }
+        // Its home, which is the only place it can be checked against now.
+        // The stick relocates to wherever a thumb lands, and a thumb may land
+        // anywhere the fight is not showing a control, so there is no longer a
+        // zone for a readout to stay clear of — it can be drawn over, and is.
         expect(`${label} ${mode}: the meter clears the stick`, !overlap(meter, stick), JSON.stringify(stick))
-        // The stick relocates to wherever a thumb lands in the left half, so
-        // the meter has to be clear of that whole zone, not just its home.
-        expect(
-          `${label} ${mode}: the meter stays out of the steering half`,
-          meter.x > L.joyZoneMaxX,
-          `${meter.x.toFixed(0)} vs ${L.joyZoneMaxX}`,
-        )
       } else {
         // The action bar is centred along the bottom in keyboard mode.
         const slot = 58 * L.ui

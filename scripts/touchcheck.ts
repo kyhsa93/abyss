@@ -110,10 +110,30 @@ fire('pointerup', 0, 0, 1)
 move = input.consume()
 check('release stops movement', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
 
-// 8. Taps on the right half must not steer.
+// 8. The stick answers anywhere the fight is not showing a control. It used
+// to be the left half only, which on a phone meant half the screen did
+// nothing and a right-handed thumb had to cross the device to steer.
 fire('pointerdown', L.w - 20, 200, 4)
+fire('pointermove', L.w - 20 + L.joyBase, 200, 4)
 move = input.consume()
-check('right half does not steer', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
+check('the right half steers too', near(move.moveX, 1) && near(move.moveY, 0), JSON.stringify(move))
+fire('pointerup', L.w - 20, 200, 4)
+input.consume()
+
+// And it must not, on ground a control has claimed. The ability buttons and
+// the autocast toggle are tested further down, where they are built; this is
+// the pair only the fight knows about — the corner button, and the overlay.
+{
+  const claimed = { x: 40, y: 40, w: 120, h: 40 }
+  input.setReserved([claimed])
+  fire('pointerdown', claimed.x + claimed.w / 2, claimed.y + claimed.h / 2, 9)
+  fire('pointermove', claimed.x + claimed.w / 2 + L.joyBase, claimed.y + claimed.h / 2, 9)
+  move = input.consume()
+  check('a reserved region does not steer', move.moveX === 0 && move.moveY === 0, JSON.stringify(move))
+  fire('pointerup', 0, 0, 9)
+  input.setReserved([])
+  input.consume()
+}
 
 // 9. Every control must sit inside the viewport, in both orientations. This
 // is the regression that made the joystick unreachable: a letterboxed canvas
@@ -135,10 +155,23 @@ for (const [label, w, h] of [
   const where = L.btnPos.map((b) => `${b.x.toFixed(0)},${b.y.toFixed(0)}`).join(' ')
   check(`${label}: controls fit on screen`, inside, `joy=${L.joyHomeX},${L.joyHomeY} btn=${where}`)
 
-  // Every button, not just the column: the fourth slot sits further left than
-  // the rest and is the one that can reach into the steering half.
-  const leftmost = Math.min(...L.btnPos.map((b) => b.x - L.btnR))
-  check(`${label}: buttons outside the steering half`, leftmost > L.joyZoneMaxX, `${leftmost.toFixed(0)} vs ${L.joyZoneMaxX}`)
+  // The buttons used to be required to sit outside the steering half. There
+  // is no steering half now, so what has to hold instead is the routing: a
+  // press on a button is a press, never a grab of the stick.
+  input.setMenuMode(false)
+  for (let i = 0; i < L.btnPos.length; i++) {
+    const b = L.btnPos[i]!
+    fire('pointerdown', b.x, b.y, 40 + i)
+    fire('pointermove', b.x + L.joyBase, b.y, 40 + i)
+    const after = input.consume()
+    check(
+      `${label}: button ${i} does not grab the stick`,
+      after.moveX === 0 && after.moveY === 0,
+      JSON.stringify(after),
+    )
+    fire('pointerup', b.x, b.y, 40 + i)
+    input.consume()
+  }
 
   // And no two of them may sit on top of each other, or one is unpressable.
   const collisions = L.btnPos.flatMap((a, i) =>
@@ -222,11 +255,16 @@ for (const [label, w, h] of [
   const onScreen =
     auto.x - L.autoR >= 0 && auto.x + L.autoR <= w && auto.y - L.autoR >= 0 && auto.y + L.autoR <= h
   check(`${label}: the autocast toggle is on screen`, onScreen, `${auto.x.toFixed(0)},${auto.y.toFixed(0)} r=${L.autoR.toFixed(0)}`)
+  fire('pointerdown', auto.x, auto.y, 60)
+  fire('pointermove', auto.x + L.joyBase, auto.y, 60)
+  const afterAuto = input.consume()
   check(
-    `${label}: and clear of the steering half`,
-    auto.x - L.autoR > L.joyZoneMaxX,
-    `${(auto.x - L.autoR).toFixed(0)} vs ${L.joyZoneMaxX}`,
+    `${label}: and does not grab the stick`,
+    afterAuto.moveX === 0 && afterAuto.moveY === 0,
+    JSON.stringify(afterAuto),
   )
+  fire('pointerup', auto.x, auto.y, 60)
+  input.consume()
   check(
     `${label}: and clear of the rotation buttons`,
     L.btnPos.every((b) => Math.hypot(b.x - auto.x, b.y - auto.y) > L.btnR + L.autoR),
