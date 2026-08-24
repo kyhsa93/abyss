@@ -1,4 +1,4 @@
-import type { DifficultyId } from './classes'
+import type { DifficultyId, RaidSize } from './classes'
 
 /**
  * The bosses, in the order they are fought.
@@ -132,6 +132,24 @@ export interface Encounter {
    * whose cone does not is a boss nobody can read.
    */
   mechanicDamage: number
+
+  /**
+   * What that multiplier is worth at each raid size, for this boss alone.
+   *
+   * `SIZE_HEALTH` is the raid-size dial the whole game shares, and sharing it
+   * is the problem: the three bosses do not sit the same way at the same size.
+   * A twenty-five man walks over the Tidebreaker and loses to the Choir, and
+   * one global number cannot move one without moving the other.
+   *
+   * It went unnoticed because the Tidebreaker had a second, accidental dial —
+   * a shockwave band so wide at twenty-five that the pocket could not hold the
+   * raid. That was not difficulty, it was an unperformable mechanic, and
+   * taking it out left the boss with no size scaling at all.
+   *
+   * Omitted means one. A boss that reads the same at every size does not need
+   * a line here.
+   */
+  sizeMechanic?: Partial<Record<RaidSize, number>>
   /**
    * What this one asks for, in the order it starts asking.
    *
@@ -280,6 +298,10 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1127,
     raidDamage: 138,
     mechanicDamage: 1.35,
+    // The opposite problem: this is the boss a twenty-five man loses to. Its
+    // last rung buys `adds`, and a wave of them against a raid already holding
+    // a spread, a hunt and a puddle is the one place the size stops helping.
+    sizeMechanic: { 25: 0.8 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
     ladder: ['spread', 'rot', 'hunt', 'puddle', 'adds'],
@@ -321,6 +343,12 @@ export const ENCOUNTERS: Encounter[] = [
     // out at 95-100%, because the rest of the boss had never had to do
     // anything. This is what the rest of it is worth.
     mechanicDamage: 4.6,
+    // A twenty-five man walked over this fight once the shockwave stopped
+    // deciding it — 97% at the top of the practice curve. Five percent is all
+    // it takes: healing covers about two fifths of what a raid takes, and past
+    // that line the first death starts a spiral no dial can catch. Fifteen
+    // percent put the same rung at zero.
+    sizeMechanic: { 25: 1.05 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],

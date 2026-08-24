@@ -85,12 +85,32 @@ function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
 
 /** Every point of boss damage passes through here. */
 function hit(s: SimState, amount: number): number {
-  return amount * DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth)
+  return amount * DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth) * sizeWeight(s)
 }
 
 /** The same, for anything the floor does. */
 function mechanic(s: SimState, amount: number): number {
   return hit(s, amount * fight(s).mechanicDamage)
+}
+
+/**
+ * This boss's own weight at this raid size. One unless it says otherwise.
+ *
+ * On `hit` rather than on `mechanic`, which was the first attempt and moved
+ * almost nothing: a raid that has learnt the fight barely stands in anything,
+ * so at the top of the practice curve the avoidable damage is a rounding error
+ * and the fight is decided by what cannot be dodged. Scaling the mechanics
+ * alone moved a twenty-five man heroic Tidebreaker from 97% to 93%.
+ *
+ * Banded like everything else that reads a size: three rosters, not a slider.
+ */
+function sizeWeight(s: SimState): number {
+  const table = fight(s).sizeMechanic
+  if (!table) return 1
+  const count = s.party.length
+  if (count <= 5) return table[5] ?? 1
+  if (count <= 10) return table[10] ?? 1
+  return table[25] ?? 1
 }
 
 const SLAM_CAST = 2
@@ -221,7 +241,25 @@ const SWEEP_RANGE = 300
 /** As a share of the boss's weapon swing, which armour already answers. */
 const SWEEP_SHARE = 0.34
 
+/**
+ * A thrall's health, against the raid that has to kill it.
+ *
+ * The wave count already grows with the roster; each body in it did not. A
+ * five-man puts about five hundred damage a second into its one thrall and a
+ * twenty-five man two and a half thousand into its four, so the wave is the
+ * same two seconds of work either way — the mechanic grew in number and
+ * stayed the same size, which is the same thing as not growing.
+ *
+ * Gently, and not by headcount: the count already carries that, and scaling
+ * both would square it.
+ */
 const ADD_HP = 1200
+const ADD_HP_SCALE = 0.3
+
+function addHealth(s: SimState): number {
+  return Math.round(ADD_HP * (livingParty(s).length / 5) ** ADD_HP_SCALE)
+}
+
 const ADD_DAMAGE = 70
 const ADD_SWING = 1.8
 
@@ -532,7 +570,10 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     const angle = rng.range(0, Math.PI * 2)
     const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
     clampToArena(pos, 16)
-    s.actors.push(makeAdd(s.nextObjectId++, pos.x, pos.y))
+    const thrall = makeAdd(s.nextObjectId++, pos.x, pos.y)
+    thrall.maxHp = addHealth(s)
+    thrall.hp = thrall.maxHp
+    s.actors.push(thrall)
   }
 }
 
