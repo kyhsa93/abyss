@@ -43,6 +43,50 @@ export const COLORS = {
  * third of the screen, and touches in the surrounding margin never reach it,
  * which makes the on-screen controls unusable.
  */
+/**
+ * Menu and settings text, doubled.
+ *
+ * Same request as the combat text: the sizes below were readable and small,
+ * and small lost. Kept out of `L.ui` because that multiplier also sizes
+ * panels and buttons — this one is only for what is written on them.
+ */
+export const MENU_TEXT = 2
+
+/**
+ * Draws a line at the current font, shrunk just enough to fit its box.
+ *
+ * Doubling the menu text made the labels legible and the long lines liars:
+ * a settings caption that used to end ten pixels short of its button now ran
+ * a screen-width past it. Monospace makes the fix exact — width is linear in
+ * size, so one measurement gives the size that fits, and a line that already
+ * fits is drawn at full size untouched.
+ */
+export function fitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  /**
+   * Smallest size worth printing. Below it the line is dropped entirely:
+   * a caption at five pixels is not small, it is noise shaped like text,
+   * and the screens that hit this floor were already unreadable there
+   * before the menus doubled.
+   */
+  floor = 0,
+): void {
+  const wide = ctx.measureText(text).width
+  if (wide > maxWidth && maxWidth > 0) {
+    const size = Number(/([\d.]+)px/.exec(ctx.font)?.[1] ?? 0)
+    if (size > 0) {
+      const fitted = Math.floor((size * maxWidth) / wide)
+      if (fitted < floor) return
+      ctx.font = ctx.font.replace(/[\d.]+px/, `${Math.max(6, fitted)}px`)
+    }
+  }
+  ctx.fillText(text, x, y)
+}
+
 export interface Layout {
   w: number
   h: number

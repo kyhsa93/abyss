@@ -1,5 +1,5 @@
 import type { SimState } from '../sim/types'
-import { COLORS, L } from './theme'
+import { COLORS, L, MENU_TEXT, fitText } from './theme'
 
 /**
  * First-sight explanations.
@@ -79,8 +79,10 @@ export class Hints {
     const fade = Math.min(1, age / 0.25, (SHOW_FOR - age) / 0.6)
     if (fade <= 0) return
 
-    const w = Math.min(L.w - 32, 420)
-    const h = 52 * L.ui
+    // The panel is two lines of text and nothing else, so it is sized by
+    // them: text that doubles in a box that does not prints through itself.
+    const w = Math.min(L.w - 32, 420 * MENU_TEXT)
+    const h = 52 * L.ui * MENU_TEXT
     const x = (L.w - w) / 2
     const y = L.bannerY - h - 11
 
@@ -94,12 +96,12 @@ export class Hints {
 
     ctx.textAlign = 'center'
     ctx.fillStyle = COLORS.castBar
-    ctx.font = `bold ${Math.round(13 * L.ui)}px ui-monospace, monospace`
-    ctx.fillText(hint.title, x + w / 2, y + h * 0.42)
+    ctx.font = `bold ${Math.round(13 * L.ui * MENU_TEXT)}px ui-monospace, monospace`
+    fitText(ctx, hint.title, x + w / 2, y + h * 0.42, w - 20)
 
     ctx.fillStyle = COLORS.text
-    ctx.font = `${Math.round(11 * L.ui)}px ui-monospace, monospace`
-    ctx.fillText(hint.advice, x + w / 2, y + h * 0.78)
+    ctx.font = `${Math.round(11 * L.ui * MENU_TEXT)}px ui-monospace, monospace`
+    fitText(ctx, hint.advice, x + w / 2, y + h * 0.78, w - 20)
     ctx.restore()
   }
 }

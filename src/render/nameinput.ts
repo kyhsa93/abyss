@@ -1,5 +1,5 @@
 import { NAME_MAX, cleanName } from '../name'
-import { COLORS } from './theme'
+import { COLORS, L, MENU_TEXT } from './theme'
 
 /**
  * The one place this game asks for text.
@@ -63,7 +63,9 @@ export function editName(box: Box, current: string, done: (value: string | null)
     color: COLORS.text,
     border: `2px solid ${COLORS.castBar}`,
     borderRadius: '0',
-    font: 'bold 15px ui-monospace, monospace',
+    // Sized like the button it replaces, not a fixed count of pixels: the
+    // box is 38 tall on a phone and a fixed 30 overflowed it.
+    font: `bold ${Math.round(15 * L.ui * MENU_TEXT)}px ui-monospace, monospace`,
     textAlign: 'center',
     outline: 'none',
   })

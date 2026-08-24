@@ -12,7 +12,7 @@ import {
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { BATTLEGROUNDS } from '../sim/battleground'
 import type { BgKind } from '../sim/types'
-import { COLORS, L, classColor } from './theme'
+import { COLORS, L, classColor, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -98,8 +98,8 @@ export function rosterLayout(): RosterLayout {
   // the raid is rolled at the door. A board of twenty-four strangers you did
   // not choose and cannot change is a readout nobody needs before a pull.
   const gap = Math.max(3, pad * 0.3)
-  const summaryY = titleY + 26 * L.ui
-  const summaryLine = 13 * L.ui
+  const summaryY = titleY + 26 * L.ui * MENU_TEXT
+  const summaryLine = 13 * L.ui * MENU_TEXT
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
   // Below the last summary line rather than a fixed step below the first one.
@@ -178,7 +178,7 @@ export function hitRoster(x: number, y: number): RosterHit | null {
 }
 
 function font(size: number, bold = false): string {
-  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`
 }
 
 function tab(
@@ -196,7 +196,7 @@ function tab(
   ctx.fillStyle = active ? accent : COLORS.textDim
   ctx.font = font(11, active)
   ctx.textAlign = 'center'
-  ctx.fillText(label, r.x + r.w / 2, r.y + r.h * 0.66)
+  fitText(ctx, label, r.x + r.w / 2, r.y + r.h * 0.66, r.w - 10)
 }
 
 export function drawRoster(
@@ -231,31 +231,35 @@ export function drawRoster(
 
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(10)
-  ctx.fillText(
+  fitText(
+    ctx,
     spec
       ? `${spec.role} · ${spec.resource} · ${Math.round(mitigation(spec.armor) * 100)}% phys · ${bar(spec.hp)} hp`
       : '',
     L.w / 2,
     line(1),
+    L.w - 16,
   )
 
   const fight = mode.kind === 'raid' ? ENCOUNTERS[encounter] : null
   const bg = mode.kind === 'bg' ? BATTLEGROUNDS.find((b) => b.kind === mode.bg) : null
 
   ctx.font = font(9)
-  ctx.fillText(
+  fitText(
+    ctx,
     mode.kind === 'raid'
       ? `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`
       : 'five against five — the other five are rolled at the door',
     L.w / 2,
     line(2),
+    L.w - 16,
   )
 
   const headline = fight ?? bg
   if (headline) {
     ctx.fillStyle = mode.kind === 'raid' ? COLORS.boss : COLORS.tank
     ctx.font = font(10, true)
-    ctx.fillText(`${headline.name} — ${headline.demand}`, L.w / 2, line(3))
+    fitText(ctx, `${headline.name} — ${headline.demand}`, L.w / 2, line(3), L.w - 16)
   }
 
   // And the same list the setup screen showed, repeated where the pull button
@@ -265,12 +269,14 @@ export function drawRoster(
   if (fight) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
-    ctx.fillText(
+    fitText(
+      ctx,
       encounterKit(fight, party.length, difficulty)
         .map((id) => MECHANIC_NAMES[id])
         .join(' · '),
       L.w / 2,
       line(4),
+      L.w - 16,
     )
   }
 
@@ -292,14 +298,16 @@ export function drawRoster(
     const cx = r.x + r.w / 2
     ctx.fillStyle = classColor(option.classId)
     ctx.font = font(11, true)
-    ctx.fillText(specLabel(option), cx, r.y + r.h * 0.44)
+    fitText(ctx, specLabel(option), cx, r.y + r.h * 0.44, r.w - 8)
 
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(8)
-    ctx.fillText(
+    fitText(
+      ctx,
       `${spec.melee ? 'melee · ' : ''}${CLASSES[option.classId].armorType} · ${Math.round(mitigation(spec.armor) * 100)}%`,
       cx,
       r.y + r.h * 0.76,
+      r.w - 8,
     )
     ctx.restore()
   }
@@ -324,5 +332,5 @@ export function drawRoster(
       : layout.pull.w > 210
         ? `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
         : `PULL ${party.length}`
-  ctx.fillText(label, layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62)
+  fitText(ctx, label, layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62, layout.pull.w - 12)
 }

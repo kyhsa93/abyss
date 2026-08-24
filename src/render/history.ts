@@ -1,6 +1,6 @@
 import { AWARDS, type Earned } from '../achievements'
 import { HISTORY_LIMIT, label, totals, type Attempt } from '../history'
-import { COLORS, L, classColor } from './theme'
+import { COLORS, L, classColor, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -39,7 +39,7 @@ export type HistoryTab = 'pulls' | 'awards'
 export const HISTORY_TABS: HistoryTab[] = ['pulls', 'awards']
 
 function font(size: number, bold = false): string {
-  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`
 }
 
 /**
@@ -52,13 +52,13 @@ function font(size: number, bold = false): string {
 export function historyLayout(rowCounts: number[]): HistoryLayout {
   const pad = Math.max(8, L.w * 0.02)
   const titleY = Math.max(24, L.h * 0.05)
-  const totalsY = titleY + 26 * L.ui
+  const totalsY = titleY + 26 * L.ui * MENU_TEXT
 
   const buttonH = Math.max(38, Math.min(52, L.h * 0.062))
-  const top = totalsY + 16 * L.ui
+  const top = totalsY + 16 * L.ui * MENU_TEXT
   const bottom = L.h - buttonH - pad * 2
 
-  const rowH = Math.max(13, Math.min(22, L.h * 0.028))
+  const rowH = Math.max(13, Math.min(22, L.h * 0.028)) * MENU_TEXT
   const headerH = rowH + 4
   const gap = Math.max(6, rowH * 0.4)
 
@@ -77,7 +77,7 @@ export function historyLayout(rowCounts: number[]): HistoryLayout {
   }
 
   // The awards are the same list in the same space, at a row apiece.
-  const awardH = Math.max(20, Math.min(34, L.h * 0.042))
+  const awardH = Math.max(20, Math.min(34, L.h * 0.042)) * MENU_TEXT
   const awardGap = 4
   const awards: Rect[] = []
   for (let i = 0; i < AWARDS.length; i++) {
@@ -88,10 +88,12 @@ export function historyLayout(rowCounts: number[]): HistoryLayout {
 
   // Two tabs, sized off the title line they sit beside.
   const tabW = Math.max(64, Math.min(110, L.w * 0.2))
-  const tabH = Math.max(20, Math.min(30, L.h * 0.038))
+  const tabH = Math.max(20, Math.min(30, L.h * 0.038)) * MENU_TEXT
   const tabs = HISTORY_TABS.map((_, i) => ({
     x: L.w - pad - (HISTORY_TABS.length - i) * (tabW + 6) + 6,
-    y: titleY - tabH * 0.75,
+    // Clamped: the tab is title-height now, and hanging three quarters of it
+    // above the title line put its top off the screen.
+    y: Math.max(6, titleY - tabH * 0.6),
     w: tabW,
     h: tabH,
   }))
@@ -165,7 +167,8 @@ export function drawHistory(
   ctx.textAlign = 'left'
   ctx.font = font(11)
   ctx.fillStyle = COLORS.textDim
-  ctx.fillText(
+  fitText(
+    ctx,
     tab === 'pulls'
       ? [
           `${t.pulls} pull${t.pulls === 1 ? '' : 's'}`,
@@ -178,6 +181,7 @@ export function drawHistory(
       : `${held} of ${AWARDS.length} earned`,
     pad,
     layout.totalsY,
+    L.w - pad * 2,
   )
 
   if (tab === 'awards') {
@@ -205,10 +209,12 @@ export function drawHistory(
 
     ctx.font = font(10)
     ctx.fillStyle = COLORS.textDim
-    ctx.fillText(
+    fitText(
+      ctx,
       `${when(entry.at)}  ·  ${entry.size} ${entry.difficulty}`,
-      block.header.x + Math.max(56, L.w * 0.09),
+      block.header.x + Math.max(56, L.w * 0.09) * MENU_TEXT,
       block.header.y + block.header.h - 5,
+      block.header.w - Math.max(56, L.w * 0.09) * MENU_TEXT,
     )
 
     // The meter as it stood, bars and all: this is the record, so it should
@@ -227,12 +233,12 @@ export function drawHistory(
       ctx.textAlign = 'left'
       ctx.font = font(10, row.isPlayer)
       ctx.fillStyle = colour
-      ctx.fillText(`${j + 1}  ${row.name}`, r.x + 6, baseline)
+      fitText(ctx, `${j + 1}  ${row.name}`, r.x + 6, baseline, Math.max(110, r.w * 0.2) * MENU_TEXT - 16)
 
       if (L.w > 520) {
         ctx.fillStyle = COLORS.textDim
         ctx.font = font(9)
-        ctx.fillText(label(row.classId, row.spec), r.x + Math.max(110, r.w * 0.2), baseline)
+        fitText(ctx, label(row.classId, row.spec), r.x + Math.max(110, r.w * 0.2) * MENU_TEXT, baseline, r.w * 0.45 - Math.max(110, r.w * 0.2) * (MENU_TEXT - 1))
       }
 
       ctx.textAlign = 'right'
@@ -288,11 +294,11 @@ function drawAwards(ctx: CanvasRenderingContext2D, layout: HistoryLayout, earned
     ctx.textAlign = 'left'
     ctx.font = font(11, has)
     ctx.fillStyle = has ? COLORS.castBar : COLORS.textDim
-    ctx.fillText(award.name, r.x + 10, baseline)
+    fitText(ctx, award.name, r.x + 10, baseline, Math.max(120, r.w * 0.24) * MENU_TEXT - 16)
 
     ctx.font = font(9)
     ctx.fillStyle = COLORS.textDim
-    ctx.fillText(award.detail, r.x + Math.max(120, r.w * 0.24), baseline)
+    fitText(ctx, award.detail, r.x + Math.max(120, r.w * 0.24) * MENU_TEXT, baseline, r.w - Math.max(120, r.w * 0.24) * MENU_TEXT - 130)
 
     if (has) {
       ctx.textAlign = 'right'

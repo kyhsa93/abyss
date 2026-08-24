@@ -5,7 +5,7 @@ import { bossOpen, isOpen } from '../progress'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
-import { COLORS, L, ZOOM_NAMES } from './theme'
+import { COLORS, L, ZOOM_NAMES, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -48,7 +48,7 @@ function inside(r: Rect, x: number, y: number): boolean {
 }
 
 function font(size: number, bold = false): string {
-  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`
 }
 
 function pad(): number {
@@ -105,15 +105,18 @@ function button(
   ctx.textAlign = 'center'
   ctx.fillStyle = accent
   // A detail line only fits when the button is tall enough to hold two; below
-  // that the name is the only thing worth keeping.
-  const roomy = r.h > 46 && detail !== ''
+  // that the name is the only thing worth keeping. The bar is font-coupled:
+  // it used to be a flat 46 against a 13-point label, and when the menu text
+  // doubled, every mid-sized button kept its detail line and printed the two
+  // lines through each other.
+  const roomy = r.h > 35 * L.ui * MENU_TEXT && detail !== ''
   ctx.font = font(roomy ? 13 : 12, true)
-  ctx.fillText(label, r.x + r.w / 2, r.y + r.h * (roomy ? 0.44 : 0.62))
+  fitText(ctx, label, r.x + r.w / 2, r.y + r.h * (roomy ? 0.44 : 0.62), r.w - 16)
 
   if (roomy) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
-    ctx.fillText(detail, r.x + r.w / 2, r.y + r.h * 0.74)
+    fitText(ctx, detail, r.x + r.w / 2, r.y + r.h * 0.74, r.w - 16, 8)
   }
 }
 
@@ -121,11 +124,11 @@ function screenTitle(ctx: CanvasRenderingContext2D, text: string, sub = ''): voi
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
   ctx.font = font(17, true)
-  ctx.fillText(text, L.w / 2, titleY())
+  fitText(ctx, text, L.w / 2, titleY(), L.w - pad() * 2)
   if (sub === '') return
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(10)
-  ctx.fillText(sub, L.w / 2, titleY() + 17 * L.ui)
+  fitText(ctx, sub, L.w / 2, titleY() + 17 * L.ui * MENU_TEXT, L.w - pad() * 2)
 }
 
 function backdrop(ctx: CanvasRenderingContext2D): void {
@@ -146,7 +149,7 @@ export function homeLayout(): HomeLayout {
   const base = backRect()
   const gap = 8
   const left = L.w / 2 - base.w - gap / 2
-  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui, base.y - 16)
+  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui * MENU_TEXT, base.y - 16)
   return {
     choices,
     record: { ...base, x: left },
@@ -226,7 +229,7 @@ export function raidSetupLayout(): RaidSetupLayout {
   // Three labelled rows, spread through the space between the title and the
   // buttons rather than stacked at the top: on a tall phone that left the
   // whole middle of the screen empty.
-  const top = titleY() + 30 * L.ui
+  const top = titleY() + 30 * L.ui * MENU_TEXT
   const bottom = back.y - 14
   const band = (bottom - top) / 3
   const headings: number[] = []
@@ -340,24 +343,26 @@ function drawKit(
 
   const kit = encounterKit(fight, size, difficulty)
   const row = layout.difficulties[0]!
-  const y = row.y + row.h + 15 * L.ui
+  const y = row.y + row.h + 15 * L.ui * MENU_TEXT
 
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.boss
   ctx.font = font(10, true)
-  ctx.fillText(kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y)
+  fitText(ctx, kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y, L.w - pad() * 2)
 
   // And what is still in the boss and not in tonight's pull, so the ladder
   // reads as a ladder rather than as a fixed list that happens to differ.
   const held = fight.ladder.length - kit.length
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(8)
-  ctx.fillText(
+  fitText(
+    ctx,
     held > 0
       ? `${kit.length} of ${fight.ladder.length} — a bigger raid or heroic buys the rest`
       : `all ${fight.ladder.length}, which is everything it has`,
     L.w / 2,
-    y + 12 * L.ui,
+    y + 12 * L.ui * MENU_TEXT,
+    L.w - pad() * 2,
   )
 }
 
@@ -393,9 +398,11 @@ export interface DailyLayout {
 export function dailyLayout(): DailyLayout {
   const p = pad()
   const back = backRect()
-  const headingY = titleY() + 26 * L.ui
+  // 34 rather than 26: the title has a sub line, and the fight label was
+  // printing through its descenders once both doubled.
+  const headingY = titleY() + 34 * L.ui * MENU_TEXT
   // Room for the fight line, the record line and the affix's two.
-  const summaryY = headingY + 68 * L.ui
+  const summaryY = headingY + 68 * L.ui * MENU_TEXT
   const top = summaryY + 22 * L.ui
 
   // The one thing the day leaves you: which class to bring.
@@ -455,24 +462,26 @@ export function drawDaily(
 
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(10)
-  ctx.fillText(
+  fitText(
+    ctx,
     best
       ? `${best.line}   ·   ${best.attempts} attempt${best.attempts === 1 ? '' : 's'}`
       : 'no attempt yet today',
     L.w / 2,
-    layout.headingY + 16 * L.ui,
+    layout.headingY + 16 * L.ui * MENU_TEXT,
+    L.w - pad() * 2,
   )
 
   // The twist, given its own line and its own colour: it is the thing that
   // makes today different from the same boss yesterday.
   ctx.fillStyle = COLORS.castBar
   ctx.font = font(11, true)
-  ctx.fillText(today.affix.name, L.w / 2, layout.headingY + 34 * L.ui)
+  ctx.fillText(today.affix.name, L.w / 2, layout.headingY + 34 * L.ui * MENU_TEXT)
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(9)
-  ctx.fillText(today.affix.detail, L.w / 2, layout.headingY + 47 * L.ui)
+  fitText(ctx, today.affix.detail, L.w / 2, layout.headingY + 47 * L.ui * MENU_TEXT, L.w - pad() * 2)
 
-  ctx.fillText('THE DAY PICKS THE FIGHT — YOU PICK THE CLASS', L.w / 2, layout.summaryY)
+  fitText(ctx, 'THE DAY PICKS THE FIGHT — YOU PICK THE CLASS', L.w / 2, layout.summaryY, L.w - pad() * 2)
 
   for (let i = 0; i < layout.classes.length; i++) {
     const { text, colour } = labelFor(i)
@@ -505,7 +514,7 @@ export interface BgSetupLayout {
 export function bgSetupLayout(): BgSetupLayout {
   const back = backRect()
   return {
-    maps: column(BATTLEGROUNDS.length, titleY() + 34 * L.ui, back.y - 16, 400),
+    maps: column(BATTLEGROUNDS.length, titleY() + 34 * L.ui * MENU_TEXT, back.y - 16, 400),
     back,
   }
 }
@@ -553,7 +562,7 @@ export interface SettingsLayout {
 export function settingsLayout(): SettingsLayout {
   const p = pad()
   const back = backRect()
-  const top = titleY() + 40 * L.ui
+  const top = titleY() + 40 * L.ui * MENU_TEXT
   const rowH = Math.max(38, Math.min(52, L.h * 0.07))
   const w = Math.min(340, L.w - p * 2)
   const gap = 6
