@@ -301,7 +301,7 @@ export const ENCOUNTERS: Encounter[] = [
     // The opposite problem: this is the boss a twenty-five man loses to. Its
     // last rung buys `adds`, and a wave of them against a raid already holding
     // a spread, a hunt and a puddle is the one place the size stops helping.
-    sizeMechanic: { 25: 0.8 },
+    sizeMechanic: { 5: 0.82, 25: 0.85 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
     ladder: ['spread', 'rot', 'hunt', 'puddle', 'adds'],
@@ -348,7 +348,7 @@ export const ENCOUNTERS: Encounter[] = [
     // it takes: healing covers about two fifths of what a raid takes, and past
     // that line the first death starts a spiral no dial can catch. Fifteen
     // percent put the same rung at zero.
-    sizeMechanic: { 25: 1.05 },
+    sizeMechanic: { 5: 0.9, 10: 1.1, 25: 1.05 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
