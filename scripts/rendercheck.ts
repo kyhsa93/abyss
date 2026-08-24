@@ -63,7 +63,8 @@ import {
   randomParty,
   RESOURCES,
   ROLE_LIMITS,
-  healerCap,
+  healerCount,
+  fixedCount,
   roleOf,
   selectInto,
   SPEC_OPTIONS,
@@ -537,12 +538,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
         roles.tank < ROLE_LIMITS.tank.min ||
         roles.tank > ROLE_LIMITS.tank.max ||
         roles.healer < ROLE_LIMITS.healer.min ||
-        roles.healer > healerCap(size)
+        roles.healer > healerCount(size)
       )
     })
     console.log(
       bad.length === 0 ? 'ok  ' : 'FAIL',
-      `  ${size}-player rosters stay within 1-2 tanks and 1-${healerCap(size)} healers`,
+      `  ${size}-player rosters stay within 1-2 tanks and 1-${healerCount(size)} healers`,
     )
     if (bad.length > 0) throw new Error(`role caps violated at ${size} players`)
   }
@@ -962,11 +963,12 @@ for (const [label, w, h] of [
 // will not hold" and then pulled with it. Every way a roster can be assembled
 // has to respect them now, so this covers all of them.
 {
-  // The healer ceiling is the size's rather than one number: twenty-five needs
-  // four to run the one-per-five the smaller sizes already have, and handing
-  // that same four to a ten-man is one healer per two and a half people.
+  // Healers are a count rather than a ceiling, and the count is the size's:
+  // one per five bodies everywhere, which is what five and ten already ran and
+  // what twenty-five was missing. Tanks stay capped — one or two is a real
+  // choice, and three is a raid that cannot kill anything.
   const capFor = (role: Role, size: number) =>
-    role === 'healer' ? healerCap(size) : ROLE_LIMITS.tank.max
+    role === 'healer' ? healerCount(size) : ROLE_LIMITS.tank.max
   const CAPPED: Role[] = ['tank', 'healer']
 
   for (const role of CAPPED) {
@@ -987,9 +989,10 @@ for (const [label, w, h] of [
 
       const cap = capFor(role, size)
       const filled = countRoles(party)[role]
+      const exact = fixedCount(role, size) !== null
       expect(
-        `${size}-player: tapping ${role}s into every slot stops at ${cap}`,
-        filled <= cap && isLegalComposition(party),
+        `${size}-player: tapping ${role}s into every slot ${exact ? 'holds at' : 'stops at'} ${cap}`,
+        (exact ? filled === cap : filled <= cap) && isLegalComposition(party),
         `${filled} ${role}s, ${rejected} taps rejected`,
       )
       expect(`${size}-player: the party is still the right size after ${role}s`, party.length === size, `${party.length}`)
@@ -1006,9 +1009,25 @@ for (const [label, w, h] of [
     expect(`a ${role} can be swapped for another ${role}`, swap !== null && countRoles(swap)[role] === cap25, `${swap && countRoles(swap)[role]}`)
 
     const dpsSlot = party.findIndex((p) => roleOf(p) === 'dps')
-    expect(`one ${role} past the cap is refused`, !canSelect(party, dpsSlot, options[0]!), `slot ${dpsSlot}`)
     expect(`a dealer is still fine alongside ${role}s`, canSelect(party, dpsSlot, pickFor('mage', 'dps')!), `slot ${dpsSlot}`)
-    expect(`selectInto refuses the extra ${role} too`, selectInto(party, dpsSlot, options[0]!) === null, 'returned a party')
+
+    // Past the count, the two roles part company. A tank is capped, so a
+    // third is simply refused. A healer count is fixed, so the same tap is a
+    // move instead: the role goes to the tapped slot and the slot that had it
+    // takes what was traded away. Refusing that would leave the player unable
+    // to say which of the twenty-five is the one healing.
+    const extra = selectInto(party, dpsSlot, options[0]!)
+    if (fixedCount(role, 25) === null) {
+      expect(`one ${role} past the cap is refused`, !canSelect(party, dpsSlot, options[0]!), `slot ${dpsSlot}`)
+      expect(`selectInto refuses the extra ${role} too`, extra === null, 'returned a party')
+    } else {
+      expect(
+        `a ${role} tapped onto a dealer moves rather than adds`,
+        extra !== null && countRoles(extra)[role] === cap25 && roleOf(extra[dpsSlot]!) === role,
+        `${extra && countRoles(extra)[role]}`,
+      )
+      expect(`and the count is still exactly ${cap25}`, extra !== null && isLegalComposition(extra), 'illegal')
+    }
   }
 
   // --- and a five-man is exact, not capped ---------------------------------
@@ -1127,10 +1146,12 @@ for (const [label, w, h] of [
       while (party.length < size) party.push(pickFor('mage', 'dps')!)
       return party.slice(0, size)
     }
-    expect('a ten-man may field three healers', isLegalComposition(fill(10, 3)), 'rejected')
-    expect('and a fourth is refused it', !isLegalComposition(fill(10, 4)), 'accepted')
-    expect('a twenty-five may field four', isLegalComposition(fill(25, 4)), 'rejected')
-    expect('and a fifth is refused it', !isLegalComposition(fill(25, 5)), 'accepted')
+    expect('a ten-man fields exactly two healers', isLegalComposition(fill(10, 2)), 'rejected')
+    expect('not three', !isLegalComposition(fill(10, 3)), 'accepted')
+    expect('and not one', !isLegalComposition(fill(10, 1)), 'accepted')
+    expect('a twenty-five fields exactly four', isLegalComposition(fill(25, 4)), 'rejected')
+    expect('not five', !isLegalComposition(fill(25, 5)), 'accepted')
+    expect('and not three', !isLegalComposition(fill(25, 3)), 'accepted')
   }
 }
 

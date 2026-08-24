@@ -672,21 +672,39 @@ export function isFixedComposition(size: number): boolean {
 }
 
 /**
- * The healer ceiling, which is the one limit that has to know the raid's size.
+ * How many healers a raid of this size fields. Exactly, not at most.
  *
- * A flat number could not say what it meant. Twenty-five needs four — one per
- * five bodies, the ratio five and ten already run — and a flat four handed the
- * same four to a ten-man, where it is one healer per two and a half people and
- * a fifth of the healing lands on nobody. Three at ten is the slack the
- * ceiling was always for: room for a real choice, not room to outlast the
- * encounter without ever beating it.
+ * One per five bodies at every size, which is the ratio five and ten already
+ * ran and the one twenty-five was missing — it had three for twenty-five, and
+ * that was not a harder fight but a different one: healing covered 30% of
+ * what the raid took against 49% at the smaller sizes, and the first death
+ * landed at 37% of the fight instead of 71-89%.
+ *
+ * Exact rather than capped, the way the five-man already was. A ceiling reads
+ * as a target the moment anyone works out that more is safer, and then the
+ * choice it was meant to open is only the choice to bring the same thing
+ * everybody else brings. Measured: a ten-man at a ceiling of three covers 62%
+ * against the standard two's 50%, and four covers 75% with a fifth of the
+ * healing landing on nobody. None of that is a decision worth offering.
  *
  * `ROLE_LIMITS.healer.max` stays as the ceiling over all sizes, for anything
  * that needs one number rather than a curve.
  */
-export function healerCap(size: number): number {
+export function healerCount(size: number): number {
   if (isFixedComposition(size)) return FIVE_MAN.healer
-  return size <= 10 ? 3 : 4
+  return size <= 10 ? 2 : 4
+}
+
+/**
+ * What this size fixes exactly, as opposed to caps. Null means capped.
+ *
+ * The five-man fixes everything — at five slots there is one arrangement that
+ * works. Bigger raids fix the healers and leave the tank a real choice between
+ * one and two.
+ */
+export function fixedCount(role: Role, size: number): number | null {
+  if (isFixedComposition(size)) return FIVE_MAN[role]
+  return role === 'healer' ? healerCount(size) : null
 }
 
 /**
@@ -700,13 +718,10 @@ export function healerCap(size: number): number {
  */
 export function isLegalComposition(party: Pick[]): boolean {
   const roles = countRoles(party)
-  if (roles.tank > ROLE_LIMITS.tank.max || roles.healer > healerCap(party.length)) return false
-  if (isFixedComposition(party.length)) {
-    return (
-      roles.tank === FIVE_MAN.tank &&
-      roles.healer === FIVE_MAN.healer &&
-      roles.dps === FIVE_MAN.dps
-    )
+  if (roles.tank > ROLE_LIMITS.tank.max) return false
+  for (const role of ['tank', 'healer', 'dps'] as Role[]) {
+    const exact = fixedCount(role, party.length)
+    if (exact !== null && roles[role] !== exact) return false
   }
   return true
 }
@@ -728,7 +743,15 @@ export function selectInto(party: Pick[], slot: number, pick: Pick): Pick[] | nu
   const swapped = party.map((p, i) => (i === slot ? { ...pick } : p))
   if (isLegalComposition(swapped)) return swapped
 
-  if (isFixedComposition(party.length) && roleOf(current) !== roleOf(pick)) {
+  // A tap that changes a slot's role is read as a trade wherever the size
+  // fixes that role's count — five, where everything is fixed, and the healer
+  // slots at ten and twenty-five. Refusing instead would leave the role
+  // unmovable: there is no legal intermediate state to pass through, so the
+  // player could never decide which of the ten is the one healing.
+  const fixesRole =
+    fixedCount(roleOf(current), party.length) !== null ||
+    fixedCount(roleOf(pick), party.length) !== null
+  if (fixesRole && roleOf(current) !== roleOf(pick)) {
     const donor = party.findIndex((p, i) => i !== slot && roleOf(p) === roleOf(pick))
     if (donor >= 0) {
       const traded = party.map((p, i) =>
