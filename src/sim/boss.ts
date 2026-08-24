@@ -166,6 +166,35 @@ const SHOCKWAVE_DAMAGE = 600
  * outside.
  */
 const RING_BAND: Record<number, number> = { 5: SHOCKWAVE_BAND, 10: 96, 25: 104 }
+
+/**
+ * How tightly the ring closes, capped by how much floor the raid needs.
+ *
+ * The band above is a difficulty dial and it ran off the end of one. A pocket
+ * is `SHOCKWAVE_START - band`, so 104 leaves a circle of radius 96 — and
+ * eighteen bodies of radius seventeen need about ninety-four of it before they
+ * are standing on each other. The mechanic was not hard at twenty-five, it was
+ * unperformable: the raid gathered to a radius of 109 because that is as small
+ * as it goes, ate the ring, and lost 95 of every 100 pulls. Removing the
+ * shockwave outright took the same fight from 4% to 76%.
+ *
+ * So the dial is kept and a floor is put under it. `PACKING` is the density a
+ * crowd of walkers actually reaches rather than the 91% of a perfect lattice,
+ * and `ROOM` is the margin over that — a pocket you can only just fit into is
+ * one nobody can move inside.
+ *
+ * It reads the living rather than the roster, so the ring closes again as the
+ * raid thins. A wipe in progress should get tighter, not roomier.
+ */
+const PACKING = 0.6
+const ROOM = 1.1
+
+function ringBand(s: SimState): number {
+  const bodies = livingParty(s)
+  const radius = bodies[0]?.radius ?? 17
+  const needed = Math.sqrt((bodies.length * radius * radius) / PACKING) * ROOM
+  return Math.min(bySize(RING_BAND, s), SHOCKWAVE_START - needed)
+}
 const CONE_HALF_WIDTH: Record<number, number> = { 5: BREATH_HALF_WIDTH, 10: 0.88, 25: 0.80 }
 
 function bySize(table: Record<number, number>, s: SimState): number {
@@ -374,7 +403,7 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
     damage: SHOCKWAVE_DAMAGE,
     detonated: false,
     growth: SHOCKWAVE_GROWTH,
-    band: bySize(RING_BAND, s),
+    band: ringBand(s),
   })
 }
 
