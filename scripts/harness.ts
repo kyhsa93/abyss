@@ -20,6 +20,7 @@ import {
 } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
+import { boss as bossOf } from '../src/sim/combat'
 import { rollFloor } from '../src/sim/floor'
 import { DESCENT_RECOVERY, DESCENT_REVIVE } from '../src/sim/descent'
 
@@ -112,7 +113,13 @@ function run(
     }
   }
 
-  const boss = s.actors[s.actors.length - 1]!
+  // `boss(s)` by id, not the last actor: adds and the stalker are appended to
+  // the roster as they spawn, so the tail of it is whatever was summoned most
+  // recently. Every row for a boss with `adds` or `hunt` in its kit — which is
+  // the Choir's and the Tidebreaker's — has been reporting an add's health as
+  // the boss's, and reading a won pull as one that left a third of the boss
+  // standing.
+  const fought = bossOf(s)
   const pct: Record<string, number> = {}
   for (const a of s.actors) {
     if (a.faction !== 'party' || a.isPlayer) continue
@@ -130,7 +137,7 @@ function run(
   return {
     outcome: s.outcome,
     time: Math.round(s.time * 10) / 10,
-    bossPct: Math.round((boss.hp / boss.maxHp) * 1000) / 10,
+    bossPct: Math.round((fought.hp / fought.maxHp) * 1000) / 10,
     inPuddle: pct,
     travel,
     idleTravel,

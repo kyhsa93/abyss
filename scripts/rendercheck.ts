@@ -158,7 +158,7 @@ import {
   historyLayout,
   hitHistory,
 } from '../src/render/history'
-import { gainPower } from '../src/sim/combat'
+import { gainPower, boss as bossOf } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import { SHOCKWAVE_START, SUNDER_MAX } from '../src/sim/boss'
@@ -389,7 +389,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const rng = new Rng(0x51ed)
   const caster = s.actors[0]!
   const ally = s.actors.find((a) => a.faction === 'party' && a.id !== caster.id)!
-  const target = s.actors[s.actors.length - 1]!
+  const target = bossOf(s)
 
   const silent: string[] = []
   // A charge has a range and throws nothing: it is the caster crossing the
@@ -1491,7 +1491,7 @@ for (const [label, w, h] of [
     let sawOwnBolt = false
 
     for (let i = 0; i < 30 * 12; i++) {
-      const b = boss(s)
+      const b = bossOf(s)
       player.pos.x = b.pos.x + gap
       player.pos.y = b.pos.y
       s.projectiles.length = 0
@@ -1550,7 +1550,7 @@ for (const [label, w, h] of [
     // everything hitting harder — which is what it would have meant once the
     // party had a physical attack of its own.
     const s = pulled(0x51ed, 0)
-    const b = boss(s)
+    const b = bossOf(s)
     const member = s.actors.find((a) => a.faction === 'party')!
     addAura(b, 'enrage', b.id)
 
@@ -1582,7 +1582,7 @@ for (const [label, w, h] of [
     const player = s.actors.find((a) => a.isPlayer)!
     const rng = new Rng(0x51ed)
     for (let i = 0; i < 30 * 4; i++) {
-      const b = boss(s)
+      const b = bossOf(s)
       player.pos.x = b.pos.x + 20
       player.pos.y = b.pos.y
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -1812,7 +1812,7 @@ for (const [label, w, h] of [
   // targeting prefers an add, and an add that dies takes the bleed with it.
   const rng = new Rng(0x51ed)
   for (let i = 0; i < 30 * 8; i++) {
-    const b = boss(s)
+    const b = bossOf(s)
     player.pos.x = b.pos.x + 20
     player.pos.y = b.pos.y
     // Bleed first, filler second — the priority a player would press, and
@@ -1926,7 +1926,7 @@ for (const [label, w, h] of [
   const effects = new Effects()
   let ticks = 0
   for (let i = 0; i < 30 * 12; i++) {
-    const b = boss(s)
+    const b = bossOf(s)
     player.pos.x = b.pos.x + 20
     player.pos.y = b.pos.y
     step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -1975,7 +1975,7 @@ for (const [label, w, h] of [
   const s = pulled(0x51ed, 0)
   const rng = new Rng(0x51ed)
   const caster = s.actors[0]!
-  const target = s.actors[s.actors.length - 1]!
+  const target = bossOf(s)
 
   const anonymous: string[] = []
   // A charge has a range and throws nothing: it is the caster crossing the
@@ -2112,7 +2112,7 @@ for (const [label, w, h] of [
     const rng = new Rng(0x51ed)
 
     for (let i = 0; i < 30 * 10; i++) {
-      const b = boss(s)
+      const b = bossOf(s)
       player.pos.x = b.pos.x + 250
       player.pos.y = b.pos.y
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -2141,7 +2141,7 @@ for (const [label, w, h] of [
   const s = pulled(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
   const player = s.actors.find((a) => a.isPlayer)!
   const other = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
-  const b = boss(s)
+  const b = bossOf(s)
 
   // Both directions count. What you dealt and what landed on you are drawn
   // in different colours now, which is the point of them being different
@@ -2287,7 +2287,7 @@ for (const [label, w, h] of [
   )
 
   // A crit is worth exactly its multiplier, and a mechanic never crits.
-  const target = boss(s)
+  const target = bossOf(s)
   const member = s.actors.find((a) => a.faction === 'party')!
   const before = target.hp
   applyDamage(s, target, 200, 'none', { sourceId: member.id, silent: true })
@@ -2635,8 +2635,8 @@ for (const [label, w, h] of [
       pickFor('rogue', 'dps')!,
     ])
     const player = s.actors.find((a) => a.isPlayer)!
-    player.pos.x = boss(s).pos.x + gap
-    player.pos.y = boss(s).pos.y
+    player.pos.x = bossOf(s).pos.x + gap
+    player.pos.y = bossOf(s).pos.y
     player.power = 0
     return { s, player, slot: abilityBar(pickFor('warrior', 'dps')!).indexOf('charge') }
   }
@@ -2698,8 +2698,8 @@ for (const [label, w, h] of [
       pickFor('rogue', 'dps')!,
     ])
     const arms = s.actors.find((a) => a.classId === 'warrior' && a.spec === 'arms')!
-    arms.pos.x = boss(s).pos.x + 200
-    arms.pos.y = boss(s).pos.y
+    arms.pos.x = bossOf(s).pos.x + 200
+    arms.pos.y = bossOf(s).pos.y
     const rng = new Rng(0x51ed)
     let charged = false
     for (let i = 0; i < 30 * 3 && !charged; i++) {
@@ -2741,8 +2741,8 @@ for (const [label, w, h] of [
       pickFor('rogue', 'dps')!,
     ])
     const player = s.actors.find((a) => a.isPlayer)!
-    player.pos.x = boss(s).pos.x + gap
-    player.pos.y = boss(s).pos.y
+    player.pos.x = bossOf(s).pos.x + gap
+    player.pos.y = bossOf(s).pos.y
     return { s, player }
   }
 
@@ -2779,7 +2779,7 @@ for (const [label, w, h] of [
     const rng = new Rng(0x51ed)
     let shotSomething = false
     for (let i = 0; i < 30 * 8; i++) {
-      const b = boss(s)
+      const b = bossOf(s)
       player.pos.x = b.pos.x + 200
       player.pos.y = b.pos.y
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -2801,8 +2801,8 @@ for (const [label, w, h] of [
       pickFor('rogue', 'dps')!,
     ])
     const hunter = s.actors.find((a) => a.classId === 'hunter')!
-    hunter.pos.x = boss(s).pos.x + 70
-    hunter.pos.y = boss(s).pos.y
+    hunter.pos.x = bossOf(s).pos.x + 70
+    hunter.pos.y = bossOf(s).pos.y
     const rng = new Rng(0x51ed)
     for (let i = 0; i < 30 * 20; i++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     expect(
@@ -2909,7 +2909,7 @@ for (const [label, w, h] of [
 {
   const s = createState(0x51ed, 0)
   const rng = new Rng(0x51ed)
-  const before = boss(s).hp
+  const before = bossOf(s).hp
   const player = s.actors.find((a) => a.isPlayer)!
   const start = { x: player.pos.x, y: player.pos.y }
 
@@ -3068,7 +3068,7 @@ for (const [label, w, h] of [
       // is not a thrall, and counting it as one said the Choir had adds on a
       // rung where it has a stalker and nothing else.
       adds += s.actors.filter(
-        (a) => a.faction === 'boss' && a.id !== boss(s).id && a.hunting === null,
+        (a) => a.faction === 'boss' && a.id !== bossOf(s).id && a.hunting === null,
       ).length
     }
     if (spreads > 0) kinds.add('spread')
@@ -5415,7 +5415,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const s = pulled(0x51ed, 8, autoParty(5, pick))
     const rng = new Rng(0x51ed)
     const player = s.actors.find((a) => a.isPlayer)!
-    const boss = s.actors[s.actors.length - 1]!
+    const boss = bossOf(s)
     const bar = abilityBar(pick)
     const range = spec.melee ? 40 : 260
 
@@ -5480,7 +5480,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   ): number => {
     const fight = pulled(0x51ed, 0, autoParty(5, pick))
     const actor = fight.actors.find((a) => a.isPlayer)!
-    const boss = fight.actors[fight.actors.length - 1]!
+    const boss = bossOf(fight)
     boss.pos = { x: 0, y: 0 }
     actor.pos = { x: (specOf(pick).melee ? 40 : 240) + boss.radius, y: 0 }
     boss.hp = boss.maxHp
@@ -5512,7 +5512,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   {
     const fight = pulled(0x51ed, 0, autoParty(5, balance))
     const actor = fight.actors.find((a) => a.isPlayer)!
-    const boss = fight.actors[fight.actors.length - 1]!
+    const boss = bossOf(fight)
     boss.pos = { x: 0, y: 0 }
     actor.pos = { x: 240 + boss.radius, y: 0 }
     const kit = specOf(balance).abilities
@@ -5536,7 +5536,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const shadow = pickFor('priest', 'dps')!
   const unmarked = hit(() => {}, shadow, 'filler')
   const marked = hit((fight, actor) => {
-    const boss = fight.actors[fight.actors.length - 1]!
+    const boss = bossOf(fight)
     addAura(boss, specOf(shadow).abilities.overTime as AuraId, actor.id)
   }, shadow, 'filler')
   expect('a mark is worth keeping up', marked > unmarked * 1.25, `${unmarked} -> ${marked}`)
@@ -5664,7 +5664,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       const warrior = pickFor('warrior', 'tank')!
       const fight = pulled(0x51ed, 0, autoParty(5, warrior))
       const tank = fight.actors.find((a) => a.isPlayer)!
-      const boss = fight.actors[fight.actors.length - 1]!
+      const boss = bossOf(fight)
 
       tank.power = 0
       tank.hp = tank.maxHp
@@ -5685,7 +5685,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       const paladinTank = pickFor('paladin', 'tank')!
       const fight = pulled(0x51ed, 0, autoParty(5, paladinTank))
       const tank = fight.actors.find((a) => a.isPlayer)!
-      const boss = fight.actors[fight.actors.length - 1]!
+      const boss = bossOf(fight)
 
       const at = (time: number): number => {
         fight.time = time
@@ -5704,7 +5704,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       const bear = pickFor('druid', 'tank')!
       const fight = pulled(0x51ed, 0, autoParty(5, bear))
       const tank = fight.actors.find((a) => a.isPlayer)!
-      const boss = fight.actors[fight.actors.length - 1]!
+      const boss = bossOf(fight)
       tank.hp = Math.round(tank.maxHp * 0.6)
       applyDamage(fight, tank, 600, 'physical', { sourceId: boss.id })
       expect('a bear starts mending when hit', getAura(tank, 'mending') !== undefined, 'no mending')
@@ -6019,7 +6019,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
         most = Math.max(
           most,
           fight.actors.filter(
-            (a) => a.faction === 'boss' && a.alive && a.id !== boss(fight).id && a.hunting === null,
+            (a) => a.faction === 'boss' && a.alive && a.id !== bossOf(fight).id && a.hunting === null,
           ).length,
         )
       }
@@ -6182,7 +6182,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const rng = new Rng(0x51ed)
   const plate = s.actors.find((a) => a.classId === 'warrior' && a.role === 'dps')!
   const cloth = s.actors.find((a) => a.classId === 'mage')!
-  const boss = s.actors[s.actors.length - 1]!
+  const boss = bossOf(s)
 
   // Both standing the same distance from the boss, so only the armour differs.
   plate.pos = { x: boss.radius + 60, y: 0 }
@@ -6276,7 +6276,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     // It has to actually close the gap, and pay for itself in rage.
     const fight = pulled(0x51ed, 0, autoParty(5, pick))
     const runner = fight.actors.find((a) => a.isPlayer)!
-    const boss = fight.actors[fight.actors.length - 1]!
+    const boss = bossOf(fight)
     boss.pos = { x: 0, y: 0 }
     runner.pos = { x: 260, y: 0 }
     runner.power = 0
@@ -6361,7 +6361,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     // anything out of range, and a caster standing where it started is out of
     // range for most of a fight. Standing still measures the walk, not the
     // rotation.
-    const boss = s.actors[s.actors.length - 1]!
+    const boss = bossOf(s)
     const dx = boss.pos.x - player.pos.x
     const dy = boss.pos.y - player.pos.y
     const gap = Math.hypot(dx, dy)
@@ -6952,7 +6952,7 @@ function onScreenShare(scene: Ambience, zoom: number): number {
 
   const s = pulled(0x51ed, 0)
   s.countdown = 0
-  const b = boss(s)
+  const b = bossOf(s)
   const player = s.actors.find((a) => a.isPlayer)!
 
   s.texts.length = 0
@@ -7192,7 +7192,7 @@ for (const [label, w, h] of [
     const s = pulled(0x51ed, 0, [healer, ...DEFAULT_PARTY.slice(1)])
     s.countdown = 0
     const player = s.actors.find((a) => a.isPlayer)!
-    const b = boss(s)
+    const b = bossOf(s)
     const mate = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
     mate.hp = Math.round(mate.maxHp * 0.35)
 
