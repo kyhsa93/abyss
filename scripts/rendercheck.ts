@@ -139,7 +139,7 @@ import { descentDamage, descentEncounter, descentHealth } from '../src/sim/desce
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { pressTarget, step } from '../src/sim/sim'
-import { BOSS_ID, PLAYER_ID, createState } from '../src/sim/state'
+import { BOSS_ID, PLAYER_ID, createState, unattended } from '../src/sim/state'
 import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
   HISTORY_LIMIT,
@@ -4890,6 +4890,74 @@ for (const [label, w, h] of [
   )
 }
 
+// --- no spec is the obvious one ----------------------------------------------
+//
+// In a pull, because a pull is the game. The dummy this used to be measured on
+// holds everyone still, and standing still is exactly the cost the field does
+// not share: eight of the nine damage specs have an instant filler and lose
+// nothing to the floor, and the ninth has a cast time and loses a global every
+// time the fight moves it. Realisation ran from 72% to 116% of what the dummy
+// promised, so the dummy ranked the shaman last and the game ranked it first,
+// and the dummy said 1.25x while the game said 1.61x.
+//
+// One spec under test in an otherwise identical raid rather than a raid built
+// out of it: six of the same melee is a party with no ranged in it, and that
+// loses for reasons that are not the spec's. Twelve pulls a spec — the spread
+// reads within four hundredths across independent seed bases at that count,
+// which is what makes it a check rather than a coin toss.
+{
+  const RUNS = 4
+  const SIZE = 10
+  const TANKS = 2
+  const HEALERS = 2
+  const SLOT = TANKS + HEALERS
+  const ref = {
+    tank: SPEC_OPTIONS.find((p) => roleOf(p) === 'tank')!,
+    healer: SPEC_OPTIONS.find((p) => roleOf(p) === 'healer')!,
+    dps: SPEC_OPTIONS.find((p) => roleOf(p) === 'dps')!,
+  }
+
+  const measure = (test: Pick): number => {
+    let total = 0
+    let runs = 0
+    for (let boss = 0; boss < ENCOUNTERS.length; boss++) {
+      for (let n = 0; n < RUNS; n++) {
+        const seed = 3000 + n * 7919 + boss * 131
+        const line: Pick[] = []
+        for (let i = 0; i < TANKS; i++) line.push(ref.tank)
+        for (let i = 0; i < HEALERS; i++) line.push(ref.healer)
+        while (line.length < SIZE) line.push(ref.dps)
+        line[SLOT] = test
+        const s = unattended(createState(seed, 6, line, 'normal', boss))
+        s.countdown = 0
+        const rng = new Rng(seed + 7919)
+        const me = s.actors.filter((a: Actor) => a.faction === 'party')[SLOT]!
+        while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
+          step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        }
+        total += s.tally[me.id]!.damage / Math.max(1, s.time)
+        runs++
+      }
+    }
+    return total / runs
+  }
+
+  const rows = SPEC_OPTIONS.filter((p) => roleOf(p) === 'dps').map((p) => ({
+    name: specLabel(p),
+    dps: measure(p),
+  }))
+  const best = Math.max(...rows.map((r) => r.dps))
+  const worst = Math.min(...rows.map((r) => r.dps))
+  expect(
+    'no damage spec is the obvious one',
+    best < worst * 1.35,
+    rows
+      .sort((a, b) => b.dps - a.dps)
+      .map((r) => `${r.name} ${r.dps.toFixed(0)}`)
+      .join(', '),
+  )
+}
+
 // --- lethality ---------------------------------------------------------------
 //
 // Every ability in the game was numbered against a boss, so each person puts
@@ -5328,14 +5396,21 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     })
   }
 
-  // Even, because a spec nobody would pick is a spec that does not exist.
-  const best = Math.max(...profiles.map((p) => p.dps))
-  const worst = Math.min(...profiles.map((p) => p.dps))
-  expect(
-    'no damage spec is the obvious one',
-    best < worst * 1.25,
-    profiles.map((p) => `${p.name} ${p.dps.toFixed(0)}`).join(', '),
-  )
+  // Evenness used to be asserted here, on the dummy, and it is asserted in a
+  // pull further down instead. The dummy cannot see the thing the spread
+  // actually turns on: nobody moves on it, so the one spec in the game with a
+  // cast-time filler never loses a global to the floor and the eight with
+  // instant fillers never gain one. It ranked the field the other way round
+  // from the game — the shaman last here and first in a pull, the mage the
+  // reverse — and it passed at 1.25x for as long as the pull sat at 1.61x.
+  //
+  // What the dummy is kept for is what it can vouch for: every spec presses,
+  // presses at a sane rate, and splits those presses differently from its
+  // neighbours. That is below, and the trait measurements after it.
+  {
+    const quiet = profiles.filter((p) => p.dps <= 0 || p.presses <= 0)
+    expect('every damage spec does something on a dummy', quiet.length === 0, quiet.map((p) => p.name).join(', '))
+  }
 
   // Even is half of it. The other half is that the traits actually do
   // something, which is asserted directly rather than inferred from a play

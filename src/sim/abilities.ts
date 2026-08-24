@@ -94,9 +94,9 @@ const list: Ability[] = [
   { id: 'holy_shock', name: 'Holy Shock', role: 'healer', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 210, threatMult: 1, aura: null, range: SPELL },
 
   // --- mage: burst, and a long cast that fights the movement ---------------
-  { id: 'frostbolt', name: 'Frostbolt', role: 'dps', kind: 'damage', castTime: 1.4, cooldown: 0, cost: 18, amount: 91, threatMult: 1, aura: null, range: SPELL },
+  { id: 'frostbolt', name: 'Frostbolt', role: 'dps', kind: 'damage', castTime: 1.4, cooldown: 0, cost: 18, amount: 120, threatMult: 1, aura: null, range: SPELL },
   { id: 'living_bomb', name: 'Living Bomb', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 24, threatMult: 1, aura: 'living_bomb', range: SPELL },
-  { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 22, cost: 55, amount: 397, threatMult: 1, aura: null, range: SPELL },
+  { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 13, cost: 55, amount: 430, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
   { id: 'steady_shot', name: 'Steady Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
@@ -168,9 +168,9 @@ const list: Ability[] = [
   { id: 'lava_burst', name: 'Lava Burst', role: 'healer', kind: 'damage', castTime: 0, cooldown: 7, cost: 24, amount: 215, threatMult: 1, aura: null, range: SPELL },
 
   // --- shaman --------------------------------------------------------------
-  { id: 'lightning_bolt', name: 'Lightning Bolt', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 20, amount: 172, threatMult: 1, aura: null, range: SPELL },
+  { id: 'lightning_bolt', name: 'Lightning Bolt', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 20, amount: 120, threatMult: 1, aura: null, range: SPELL },
   { id: 'flame_shock', name: 'Flame Shock', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 24, amount: 83, threatMult: 1, aura: 'flame_shock', range: SPELL },
-  { id: 'chain_lightning', name: 'Chain Lightning', role: 'dps', kind: 'damage', castTime: 1.5, cooldown: 9, cost: 34, amount: 614, threatMult: 1, aura: null, range: SPELL },
+  { id: 'chain_lightning', name: 'Chain Lightning', role: 'dps', kind: 'damage', castTime: 1.5, cooldown: 9, cost: 34, amount: 430, threatMult: 1, aura: null, range: SPELL },
 
   // --- druid ---------------------------------------------------------------
   { id: 'wrath', name: 'Wrath', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 106, threatMult: 1, aura: null, range: SPELL },
