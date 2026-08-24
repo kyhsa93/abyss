@@ -221,12 +221,19 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
 // the shape down each block: heroic should cost something at every size, and a
 // bigger raid should not be the easier one — and the kit column says, in
 // words, what the raid is being asked for that the row above was not.
-const SIZE_RUNS = 14
+// Fourteen for a long time, which is two standard errors of twenty-seven
+// points — wider than most of the gaps this table is read for. A rung that
+// swung from 93% to 43% between two neighbouring tuning values could not be
+// told from the same rung sampled twice, and a round of tuning was spent
+// chasing the difference. Forty brings it to sixteen.
+const SIZE_RUNS = 40
 const SIZE_ATTEMPTS = [0, 8]
 console.log(
   '\nboss / size / difficulty  ' +
     SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
-    'avgTime  bossHP%  kit',
+    'avgTime  bossHP%  kit' +
+    `\n(${SIZE_RUNS} pulls a cell; two standard errors on a win rate is about ` +
+    `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
   for (const size of [5, 10, 25] as RaidSize[]) {
