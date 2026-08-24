@@ -642,10 +642,17 @@ export function partyIndex(slot: number): number {
  *
  * More than two tanks is wasted on a single-target encounter, and the healer
  * ceiling is what keeps a larger raid from simply out-healing everything.
+ *
+ * The ceiling was three, which the twenty-five man then read as its target
+ * rather than as its limit — one healer per eight bodies where the smaller
+ * sizes run one per five. Four is what `roleTargets` now asks for there, so
+ * the ceiling has to be at least that or a legal raid would be an illegal
+ * composition. Still a ceiling: five is where overhealing leaves the 1-6%
+ * the other sizes sit at and the role stops having to choose.
  */
 export const ROLE_LIMITS: Record<Role, { min: number; max: number }> = {
   tank: { min: 1, max: 2 },
-  healer: { min: 1, max: 3 },
+  healer: { min: 1, max: 4 },
   dps: { min: 0, max: 25 },
 }
 
@@ -833,10 +840,25 @@ export function makeSlots(size: RaidSize): Slot[] {
 
 /** A balanced composition for a given size: tanks, then healers, then damage. */
 function roleTargets(size: RaidSize): { tanks: number; healers: number } {
-  // Capped by ROLE_LIMITS: a bigger raid gets more damage, not more support.
+  // A bigger raid gets more damage than support, but not none: five and ten
+  // both run one healer per five bodies, and twenty-five ran one per eight.
+  //
+  // That was not a harder fight, it was a different one. Healing covered 49%
+  // of what the raid took at five and ten and 30% at twenty-five, the first
+  // death landed at 37% of the fight instead of 71-89%, and from there each
+  // loss left fewer healers holding the same mechanics — seventeen of the
+  // twenty-five died on normal and the healers themselves died 68% of the
+  // time. A fourth brings coverage to 41% and the first death back to where
+  // the other sizes have it.
+  //
+  // Four rather than five, which would put it at 47% and level with the rest:
+  // overhealing is the tell, and it runs 1-6% wherever a healer is working at
+  // the edge of what it can cover. Three healers waste 7%, four waste 10%,
+  // five waste 14% — five is where the role stops having to choose. The
+  // biggest raid is allowed to be the tightest one.
   return {
     tanks: size === 5 ? 1 : 2,
-    healers: size === 5 ? 1 : size === 10 ? 2 : 3,
+    healers: size === 5 ? 1 : size === 10 ? 2 : 4,
   }
 }
 
