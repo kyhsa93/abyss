@@ -656,6 +656,7 @@ export const ROLE_LIMITS: Record<Role, { min: number; max: number }> = {
   dps: { min: 0, max: 25 },
 }
 
+
 /**
  * The one composition a five-man may field.
  *
@@ -671,6 +672,24 @@ export function isFixedComposition(size: number): boolean {
 }
 
 /**
+ * The healer ceiling, which is the one limit that has to know the raid's size.
+ *
+ * A flat number could not say what it meant. Twenty-five needs four — one per
+ * five bodies, the ratio five and ten already run — and a flat four handed the
+ * same four to a ten-man, where it is one healer per two and a half people and
+ * a fifth of the healing lands on nobody. Three at ten is the slack the
+ * ceiling was always for: room for a real choice, not room to outlast the
+ * encounter without ever beating it.
+ *
+ * `ROLE_LIMITS.healer.max` stays as the ceiling over all sizes, for anything
+ * that needs one number rather than a curve.
+ */
+export function healerCap(size: number): number {
+  if (isFixedComposition(size)) return FIVE_MAN.healer
+  return size <= 10 ? 3 : 4
+}
+
+/**
  * Whether a hand-built raid is one we will pull with.
  *
  * The generated rosters have always honoured this, but the party screen did
@@ -681,7 +700,7 @@ export function isFixedComposition(size: number): boolean {
  */
 export function isLegalComposition(party: Pick[]): boolean {
   const roles = countRoles(party)
-  if (roles.tank > ROLE_LIMITS.tank.max || roles.healer > ROLE_LIMITS.healer.max) return false
+  if (roles.tank > ROLE_LIMITS.tank.max || roles.healer > healerCap(party.length)) return false
   if (isFixedComposition(party.length)) {
     return (
       roles.tank === FIVE_MAN.tank &&

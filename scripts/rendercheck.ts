@@ -63,6 +63,7 @@ import {
   randomParty,
   RESOURCES,
   ROLE_LIMITS,
+  healerCap,
   roleOf,
   selectInto,
   SPEC_OPTIONS,
@@ -536,12 +537,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
         roles.tank < ROLE_LIMITS.tank.min ||
         roles.tank > ROLE_LIMITS.tank.max ||
         roles.healer < ROLE_LIMITS.healer.min ||
-        roles.healer > ROLE_LIMITS.healer.max
+        roles.healer > healerCap(size)
       )
     })
     console.log(
       bad.length === 0 ? 'ok  ' : 'FAIL',
-      `  ${size}-player rosters stay within 1-2 tanks and 1-3 healers`,
+      `  ${size}-player rosters stay within 1-2 tanks and 1-${healerCap(size)} healers`,
     )
     if (bad.length > 0) throw new Error(`role caps violated at ${size} players`)
   }
@@ -961,12 +962,14 @@ for (const [label, w, h] of [
 // will not hold" and then pulled with it. Every way a roster can be assembled
 // has to respect them now, so this covers all of them.
 {
-  const CAPPED = [
-    { role: 'tank' as Role, cap: ROLE_LIMITS.tank.max },
-    { role: 'healer' as Role, cap: ROLE_LIMITS.healer.max },
-  ]
+  // The healer ceiling is the size's rather than one number: twenty-five needs
+  // four to run the one-per-five the smaller sizes already have, and handing
+  // that same four to a ten-man is one healer per two and a half people.
+  const capFor = (role: Role, size: number) =>
+    role === 'healer' ? healerCap(size) : ROLE_LIMITS.tank.max
+  const CAPPED: Role[] = ['tank', 'healer']
 
-  for (const { role, cap } of CAPPED) {
+  for (const role of CAPPED) {
     const options = SPEC_OPTIONS.filter((o) => roleOf(o) === role)
     expect(`there are ${role} specs to over-fill with`, options.length >= 3, `${options.length}`)
 
@@ -982,6 +985,7 @@ for (const [label, w, h] of [
         else rejected++
       }
 
+      const cap = capFor(role, size)
       const filled = countRoles(party)[role]
       expect(
         `${size}-player: tapping ${role}s into every slot stops at ${cap}`,
@@ -994,11 +998,12 @@ for (const [label, w, h] of [
     // Swapping one for another is not an extra one, or a raid at the cap
     // could never change who fills the role at all.
     const party = autoParty(25, pickFor('mage', 'dps')!)
-    expect(`the 25-player default fields ${cap} ${role}s`, countRoles(party)[role] === cap, `${countRoles(party)[role]}`)
+    const cap25 = capFor(role, 25)
+    expect(`the 25-player default fields ${cap25} ${role}s`, countRoles(party)[role] === cap25, `${countRoles(party)[role]}`)
 
     const held = party.findIndex((p) => roleOf(p) === role)
     const swap = selectInto(party, held, options[options.length - 1]!)
-    expect(`a ${role} can be swapped for another ${role}`, swap !== null && countRoles(swap)[role] === cap, `${swap && countRoles(swap)[role]}`)
+    expect(`a ${role} can be swapped for another ${role}`, swap !== null && countRoles(swap)[role] === cap25, `${swap && countRoles(swap)[role]}`)
 
     const dpsSlot = party.findIndex((p) => roleOf(p) === 'dps')
     expect(`one ${role} past the cap is refused`, !canSelect(party, dpsSlot, options[0]!), `slot ${dpsSlot}`)
@@ -1107,6 +1112,25 @@ for (const [label, w, h] of [
   ]
   for (const [label, party] of stored) {
     expect(`a stored roster with ${label} is rejected`, !isLegalComposition(party), 'accepted')
+  }
+
+  // The ceiling is the size's, not one number for every raid. Four healers is
+  // what a twenty-five needs to run the one-per-five that five and ten
+  // already do; the same four in a ten-man is one healer per two and a half
+  // people, and a fifth of its healing lands on nobody. Both directions are
+  // checked, because a flat cap passes one of them whichever number it holds.
+  {
+    const fill = (size: number, healers: number): Pick[] => {
+      const party: Pick[] = [pickFor('warrior', 'tank')!, pickFor('paladin', 'tank')!]
+      const bench = SPEC_OPTIONS.filter((o) => roleOf(o) === 'healer')
+      for (let i = 0; i < healers; i++) party.push(bench[i % bench.length]!)
+      while (party.length < size) party.push(pickFor('mage', 'dps')!)
+      return party.slice(0, size)
+    }
+    expect('a ten-man may field three healers', isLegalComposition(fill(10, 3)), 'rejected')
+    expect('and a fourth is refused it', !isLegalComposition(fill(10, 4)), 'accepted')
+    expect('a twenty-five may field four', isLegalComposition(fill(25, 4)), 'rejected')
+    expect('and a fifth is refused it', !isLegalComposition(fill(25, 5)), 'accepted')
   }
 }
 
