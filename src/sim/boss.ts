@@ -225,9 +225,37 @@ function bySize(table: Record<number, number>, s: SimState): number {
  * to be the reward. Everybody takes it and armour decides what it costs, so
  * plate is finally worth the walk rather than a line in a table.
  */
-const SWEEP_RANGE = 300
-/** As a share of the boss's weapon swing, which armour already answers. */
-const SWEEP_SHARE = 0.34
+/**
+ * How far a sweep reaches past the boss's own edge.
+ *
+ * Tied to melee range, because that is what it is for. It was a flat 300,
+ * which with the boss's own radius is 350 — and a raid stands between ninety
+ * and a hundred and twenty-five from the boss, so measured, *every* body was
+ * inside it, every cast, a hundred percent of the time. The mechanic below
+ * says a tank barely notices and a caster that wandered into melee should not
+ * survive the habit; what it actually did was hit the whole raid and call it
+ * a melee check.
+ *
+ * At melee range and a bit, a practised ranged takes six hits a pull against
+ * a melee's thirty. That is the distinction it was written to make.
+ *
+ * It does not teach, and it is not supposed to: the answer is where your role
+ * stands, and a role check is not a skill check. `soak` and `sunder` are the
+ * same kind. What the harness's teaching table is for is telling those apart
+ * from the ones that are meant to be learnt and are not being.
+ */
+const SWEEP_RANGE = MELEE_RANGE * 1.9
+/**
+ * As a share of the boss's weapon swing, which armour already answers.
+ *
+ * 0.34 while the sweep reached everybody. Once it stopped — see
+ * `SWEEP_RANGE` — the ranged half of the raid simply stopped paying it, and
+ * the damage specs came apart: a shadow priest at 160 against a rogue at 113,
+ * which the parity check caught. Melee were not made worse; ranged were made
+ * better, and a mechanic only melee pay has to cost less per hit than one
+ * everybody paid.
+ */
+const SWEEP_SHARE = 0.24
 
 /**
  * A thrall's health, against the raid that has to kill it.
