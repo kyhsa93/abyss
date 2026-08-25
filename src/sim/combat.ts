@@ -2,6 +2,8 @@ import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import { affixHealing, affixSpread } from './affix'
+import { encounterAt } from './encounters'
+import { descentDamage } from './descent'
 import {
   CHARGE_RAGE,
   CRIT_CHANCE,
@@ -458,11 +460,44 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   }
 }
 
+/**
+ * What the fight multiplies its own damage by, and what a mechanic of its
+ * multiplies on top.
+ *
+ * It lives here rather than in `boss.ts` because one mechanic never reached
+ * it. The spread's detonation is written where the aura expires, which is
+ * outside the timeline, and it applied `760 * difficulty` straight — no
+ * boss `mechanicDamage`, no size weight, no descent. So the Choir's signature
+ * mechanic ignored the Choir's own dial: turning that dial from 1.35 to 3.0
+ * moved its twenty-five man rungs and left its five and ten exactly where
+ * they were, because those two rungs are a spread and a rot and the rot is
+ * unavoidable.
+ *
+ * A funnel with something outside it is not a funnel. Both of them read this.
+ */
+export function fightScale(s: SimState): number {
+  return DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth) * sizeScale(s)
+}
+
+/** This boss's own weight at this raid size. One unless it says otherwise. */
+export function sizeScale(s: SimState): number {
+  const table = encounterAt(s.encounter).sizeMechanic
+  if (!table) return 1
+  const count = s.party.length
+  if (count <= 5) return table[5] ?? 1
+  if (count <= 10) return table[10] ?? 1
+  return table[25] ?? 1
+}
+
+export function mechanicScale(s: SimState): number {
+  return fightScale(s) * encounterAt(s.encounter).mechanicDamage
+}
+
 /** Everything a spread debuff hits when it expires on someone. */
 export function detonateSpread(s: SimState, carrier: Actor): void {
   for (const a of livingParty(s)) {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS * affixSpread(s.affix)) {
-      applyDamage(s, a, 760 * DIFFICULTIES[s.difficulty].damage, 'magic', {
+      applyDamage(s, a, 760 * mechanicScale(s), 'magic', {
         sourceId: BOSS_ID,
         mechanic: true,
       })

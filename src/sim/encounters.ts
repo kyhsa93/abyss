@@ -335,7 +335,12 @@ export const ENCOUNTERS: Encounter[] = [
     swingDamage: 540,
     slamDamage: 1127,
     raidDamage: 138,
-    mechanicDamage: 1.35,
+    // 1.35 while the spread — this boss's own signature — was not reading
+    // this number at all. `detonateSpread` applied its damage straight, so the
+    // dial reached the rungs that buy a puddle and missed the two that are a
+    // spread and a rot. Now that everything goes through one funnel the same
+    // fight is harder at the same number, and this is where it lands.
+    mechanicDamage: 1.15,
     // The opposite problem: this is the boss a twenty-five man loses to. Its
     // last rung buys `adds`, and a wave of them against a raid already holding
     // a spread, a hunt and a puddle is the one place the size stops helping.

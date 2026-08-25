@@ -24,13 +24,14 @@ import {
   say,
   stackAura,
   topThreatTarget,
+  fightScale,
+  mechanicScale,
 } from './combat'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
 import { encounterAt, encounterKit, gated, type Encounter, type PhaseTiming } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
-import { descentDamage } from './descent'
 import { planned } from './floor'
 import type { Actor, GroundEffect, SimState, Vec2 } from './types'
 
@@ -85,33 +86,14 @@ function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
 
 /** Every point of boss damage passes through here. */
 function hit(s: SimState, amount: number): number {
-  return amount * DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth) * sizeWeight(s)
+  return amount * fightScale(s)
 }
 
 /** The same, for anything the floor does. */
 function mechanic(s: SimState, amount: number): number {
-  return hit(s, amount * fight(s).mechanicDamage)
+  return amount * mechanicScale(s)
 }
 
-/**
- * This boss's own weight at this raid size. One unless it says otherwise.
- *
- * On `hit` rather than on `mechanic`, which was the first attempt and moved
- * almost nothing: a raid that has learnt the fight barely stands in anything,
- * so at the top of the practice curve the avoidable damage is a rounding error
- * and the fight is decided by what cannot be dodged. Scaling the mechanics
- * alone moved a twenty-five man heroic Tidebreaker from 97% to 93%.
- *
- * Banded like everything else that reads a size: three rosters, not a slider.
- */
-function sizeWeight(s: SimState): number {
-  const table = fight(s).sizeMechanic
-  if (!table) return 1
-  const count = s.party.length
-  if (count <= 5) return table[5] ?? 1
-  if (count <= 10) return table[10] ?? 1
-  return table[25] ?? 1
-}
 
 const SLAM_CAST = 2
 
