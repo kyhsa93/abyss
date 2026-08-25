@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld, focusOn } from '../src/render/draw'
@@ -9782,8 +9783,13 @@ for (const [label, w, h] of [
 // It happened twice in the round that added eight mechanics. Both times it was
 // caught by hand, which is not a thing to rely on twice more.
 {
-  const armed = readFileSync(new URL('../src/sim/boss.ts', import.meta.url), 'utf8')
-  const advising = readFileSync(new URL('../src/sim/ai.ts', import.meta.url), 'utf8')
+  // From the working directory, not from `import.meta.url`. `npm run check`
+  // bundles this file into node_modules/.cache and runs it from there, so a
+  // path relative to the module resolves inside node_modules and the read
+  // throws -- which is exactly the check that passed for a week under
+  // `npx tsx` and had never once run in CI.
+  const armed = readFileSync(resolve(process.cwd(), 'src/sim/boss.ts'), 'utf8')
+  const advising = readFileSync(resolve(process.cwd(), 'src/sim/ai.ts'), 'utf8')
   let arms = 0
   const mixed: string[] = []
   for (const [file, source] of [['boss.ts', armed], ['ai.ts', advising]] as const) {
