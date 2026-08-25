@@ -1,76 +1,171 @@
-# 새 보스 기믹을 만들 때의 규칙 (전부 이번 세션의 실측에서 나옴)
+# Designing a boss mechanic
 
-## 반드시 만족해야 하는 것
+Everything here was measured in this repo. Where a number is quoted, it came
+out of a run rather than out of an argument, and several of these rules exist
+because a mechanic was built the other way first and taught nothing.
 
-1. **실패가 순간의 전부-아니면-전무여야 한다.**
-   puddle은 1.6초 경고 뒤 터지고, 그 순간 안에 있으면 전부 맞고 없으면 0이다 → 34pp를 가르친다.
-   회전 고깔(gale)은 초당 1틱씩 깎았고 → 0pp였다. 비례적 손해는 평균으로 씻긴다.
+## Read this before you read the rest
 
-2. **발생량이 puddle급이어야 한다.**
-   puddle은 10인에서 초당 0.45개가 떨어진다. 처음 만든 brand는 0.16개였고 세 번 0pp였다.
-   구조를 의심하기 전에 초당 발생량부터 맞출 것.
+**The teaching numbers in this file were all re-taken.** `SimState.only`
+narrows the kit to the mechanic under test, and kit length is also what sets
+the tempo -- a short kit runs faster, so that a small raid meets a narrower
+fight rather than a slack one. Isolating a mechanic therefore bought it the
+one-rung tempo and fired it about twice as often as it ever does in a real
+pull. Every teaching figure taken before that was fixed was reading a boss
+nobody plays, and mechanics were accepted and rejected against a 12-point bar
+that the tempo was clearing on their behalf.
 
-3. **AI 답변 경로가 ai.ts의 `currentDanger`/`consider()`를 지나야 한다.**
-   반응 지연(reactionDelay)과 실수 확률(mistakeChance)이 거기에만 있다.
-   `isSpotSafe`는 숙련도와 무관한 결정론이라, 거기서 처리되면 실력이 개입할 수 없다.
+Use `scripts/teachprobe.ts`. It pairs its seeds, so the boss, the party, the
+placement and every roll are identical between the practised and unpractised
+runs and only the reaction delay differs. The error bar it prints is the
+spread of the per-seed difference, which is the quantity the design actually
+produces -- typically around two points, not the eighteen an unpaired formula
+would suggest.
 
-4. **근접성 기믹은 금지.** "가까이 있어라 / 떨어져 있어라"는 인원이 늘수록 쉬워진다(역스케일).
-   antiphon이 25인 97% / 5인 영웅 0%로 폐기됐다.
+## The bar, and the current field
 
-## 확정된 것: 경고가 가르침을 만든다 (crush의 통제 실험)
+    breath      21.4pp    removes 67% of the deaths
+    hand         9.2      93%
+    echo         6.6      100%
+    verdict      6.0      57%
+    shockwave    5.2      84%
+    crush        3.3      97%
+    brand        2.0      69%
+    puddle       0.5      83%
+    rot, sunder, spread, sweep, adds -- indistinguishable from nothing
 
-같은 보스, 같은 반경 102의 띠, 같은 난이도 다이얼. 유일한 차이가 예고 시간이다.
+Read both columns. Isolation leaves the raid under about a quarter of a real
+pull's pressure, so there are barely any deaths left for a good mechanic to
+remove and the points column compresses toward zero for everything except the
+cone. The share removed does not shrink just because the count did: the echo
+kills 6.6% of unpractised raids and none at all of practised ones, which is as
+clean as teaching gets even though it is worth a third of the cone in points.
 
-| | 예고 | 가르침 | 미숙련 피격 → 숙련 |
-|---|---|---|---|
-| sweep | 없음 | 0.1pp | 43.2 → 42.2 |
-| crush | 1.1초 | 19.9pp | 18.6 → 5.8 |
+There is no fixed pass mark any more. A mechanic has to be `real` -- lower
+bound above zero at 250 pairs -- and it has to earn its rung against that list.
 
-그리고 예고 길이는 가파르다: 0.95초 64pp(벽) / 1.10초 21pp / 1.15초 14pp(형식).
-걸어 나가는 데 0.31초가 걸리므로, 남는 여유가 반응 지연이 들어갈 창이다.
-답변 경로도 직접 계측됐다 — 근접이 살아있는 띠에 서 있던 27만 틱 중 96%에서
-ai.reactingTo가 그 기믹을 가리켰다. 위험 반응이 근접의 관성을 이긴다.
+## What a mechanic has to be
 
-**그러므로 새 기믹을 설계할 때 "무엇을 때리는가"보다 "언제 판정하는가"를 먼저 정할 것.**
-0pp인 기존 기믹(sweep, soak, sunder)도 예고를 붙이면 가르치는 기믹이 될 수 있다.
+1. **Failure is binary at a single moment.** A pool announces itself for 1.6
+   seconds and then takes everything inside it and nothing outside it. A wind
+   that pushed people around a tick at a time taught exactly 0pp: proportional
+   damage averages skill out.
 
-## 알려진 함정
+2. **It has to land often enough that a pull is full of it.** The first brand
+   arrived at 0.16 a second and taught nothing three separate times. But
+   throughput is necessary, not sufficient -- see granularity below.
 
-- 피했다가 되돌아온다: 위험을 피해 나간 AI가 `outOfPosition` → `idlePosition`으로
-  아직 판정이 안 난 자리로 다시 걸어 들어온다. 일반적 해법(idlePosition을 isSpotSafe에
-  통과시키기)은 brand를 10pp 깎았다 — 낙인이 가르치는 것의 대부분이 자기 바닥을 다시
-  밟지 않는 것이기 때문. 살아있는 해당 기믹에만 좁혀 적용할 것.
-- 아이콘 색이 겹치면 rendercheck가 잡는다.
-- 보스에서 기믹을 빼면 그 보스가 두 기믹을 동시에 갖는다고 가정한 검사가 깨질 수 있다.
+3. **The answer has to route through `consider()` in ai.ts.** Reaction delay
+   and mistake chance live there and nowhere else. `isSpotSafe` is
+   skill-independent, so a mechanic answered entirely by it cannot be
+   practised and will measure zero however lethal it is.
 
-## 측정된 전장 (여기에 어긋나는 전제는 실패한다)
+4. **Proximity mechanics anti-scale.** "Stand together" and "stand apart" get
+   easier with more bodies, which is how one of them measured 97% at 25 and 0%
+   at a five-man heroic. And **a raid at rest already stands about 30 units
+   apart**, so a proximity rule is usually satisfied before the cast lands --
+   the first burden handed itself off on the tick it was dealt, four hundred
+   times in one pull, with the party AI never involved. That is not an easy
+   mechanic, it is an absent one.
 
-- 공대는 보스 중심 반경 90~125에 뭉쳐 선다. 아레나 반경은 460이라 대부분이 빈 땅이다.
-- 보스는 전투의 2%만 움직인다. 탱커가 붙잡아 둔다.
-- 보스와 탱커 사이 거리는 평균 52이고 70을 넘는 시간이 1%다.
-- 근접 사거리 52, 주문 사거리 340, 웅덩이 반경 92.
-- **임계선이 있다**: 10인 영웅에서 1인당 총 피해 1937이면 사망 0명, 2645면 10명 전멸.
-  기믹 하나가 더할 수 있는 여유는 1인당 체력바의 절반 정도뿐이다.
+5. **Area denial super-scales, which is the mirror of 4.** The arena is a
+   fixed 460 radius whatever the headcount, so a mechanic that eats floor per
+   body wipes every first pull at 25 while a ten-man never notices. Cap how
+   much can be out at once.
 
-## 측정 방법
+## What actually moves the number
 
-`SimState.only`에 MechanicId를 넣으면 그 기믹만 켜진다. 이걸로 단독 측정한다.
-attempt 0(미숙련)과 attempt 8(숙련)으로 각각 돌려 **사망률 차이(pp)**를 본다. 그게 "가르침"이다.
-`mechanicHits`는 실패 횟수일 뿐이라 가르침과 무관하다 — sweep은 6회 맞히고 0pp, breath는 0.4회 맞히고 29pp.
+**The telegraph, more than the payload.** Same boss, same 102-radius band,
+same difficulty dial, one difference:
 
-목표: **가르침 15pp 이상.** 참고로 puddle 34, breath 29, brand 17, 나머지 전부 6 이하.
+    sweep    no telegraph    0.1pp    18.6 hits unpractised -> 42.2
+    crush    1.1s            19.9pp   18.6 -> 5.8
 
-## 구현 접점 (하나라도 빠지면 rendercheck가 잡는다)
+And its length is steep: 0.95s is a wall at 64pp, 1.10s is 21pp, 1.15s is a
+formality at 14pp. Walking clear takes 0.31s, and whatever is left over is the
+window a reaction delay fits inside. So decide *when it judges* before you
+decide what it hits. This also means the mechanics currently measuring zero
+are not beyond saving -- give one of them a wind-up and it becomes a teacher.
 
-encounters.ts: MechanicId / MECHANIC_NAMES / MECHANIC_SCALES / PhaseTiming 필드 /
-  gated() / lines 필드+보스별 문구 / 세 보스의 단계1~3 + opening 표에 주기 값
-types.ts: SimState.next<이름> 타이머 / (지형이면) GroundKind / (오라면) AuraId
-state.ts: 두 곳의 상태 생성자에 타이머 초기값
-boss.ts: schedule<이름>() + 업데이트 목록에 호출 / (지형이면) 지형 갱신 루프에 분기
-sim.ts: (오라 만료 처리가 필요하면)
-ai.ts: currentDanger에 consider() 항목 + (필요하면) 후보 지점 제시
-draw.ts: 지형이면 전용 그리기 함수
-icons.ts: boss_<이름> 항목, **다른 기믹과 색이 겹치면 안 됨**
-rendercheck.ts: DRAWN 맵에 항목 추가
+**Granularity, independently of throughput.** Holding the rate fixed at 0.48 a
+second and changing only the clumping: one every 9 seconds taught 13pp, four
+every 18 taught 29pp, six every 27 taught 15pp. A trickle asks nobody to
+decide anything and a downpour has no answer. This is a lever of the same size
+as rate, and rule 2 does not cover it.
 
-기존 `brand` 기믹(커밋 11fc4ca)이 이 모든 접점의 완성된 예시다. 그대로 따라갈 것.
+**Not damage, past a point.** Raising a hit from 700 to 1000 left the gap flat
+between 26 and 29pp. Once one hit is close to lethal, damage stops being a
+teaching lever; cadence and how long the hazard stays are what remain.
+
+**The boss more than the mechanic.** The same code taught 26pp on one boss and
+16 on another, and made the first unbeatable at every difficulty while leaving
+the second fair. Floor denial multiplies badly against a boss whose other
+rungs all say *stand somewhere specific* -- the cone's blind side, the ring's
+gap -- and it was still a wipe with damage cut to 300, so the cause is the
+denial, not the payload. A boss with no shape of its own absorbs it.
+
+**For anything involving a second person:** a name that is recomputed is not a
+name -- asking "who is furthest" every tick meant the answer changed as soon
+as the bearer took two steps, and 32 casts a pull resolved with the carrier
+alone. And a commitment that ends when it is met is not a commitment: bearers
+that stopped reacting on arrival walked home and were outside again by the
+time it mattered.
+
+## Traps
+
+- **Dodged, then walked back into.** An AI that leaves a hazard returns
+  through `outOfPosition` -> `idlePosition` before the thing has resolved. The
+  general fix (running `idlePosition` through `isSpotSafe`) cost the brand
+  10pp, because not walking back onto your own floor is most of what the brand
+  teaches. Narrow it to the live mechanic.
+- **Hand-kept lists of mechanic ids.** `planned()` carried one, `brand` was
+  never added to it, and a descent floor built to the Warden's shape threw
+  brands nobody bought -- while the check written to catch exactly that
+  carried a copy of the same list with the same name missing. Read the set off
+  `MECHANIC_IDS`, which comes from a table the compiler forces to be complete.
+- **Checks that bet on a roll.** One check named a raider up front and assumed
+  a one-in-ten mark landed on them. It passed only because the brand bug was
+  shifting the RNG stream, and broke the moment the bug was fixed. Adopt
+  whichever body the mechanic actually chose.
+- **Long-lived ground breaks the rendercheck stand-ins**, which flee anything
+  within `radius + 20` and will flee forever if it never expires, pressing
+  nothing.
+- **The Warden is a fixture for unrelated checks.** Spec parity, autocast
+  cadence and the mashing comparison are all measured on Warden pulls, so
+  changing a Warden rung moves three checks that have nothing to do with the
+  mechanic.
+- **Icon colours must not collide.** rendercheck enforces it.
+- **Removing a mechanic from a boss** breaks checks that assumed that boss
+  owned two particular things at once.
+- **Do not chase a peak in a tuning sweep.** A 60-run sweep showed 32pp at one
+  setting with 25 and 26 either side; at 120 runs it was 27. Take the middle
+  of a plateau.
+
+## The battlefield, as measured
+
+- The raid clusters at radius 90-125 from the boss. The arena is 460, so most
+  of it is empty ground.
+- Bodies at rest sit about 30 apart.
+- The boss moves during 2% of the fight. The tank holds it.
+- Boss-to-tank distance averages 52 and is over 70 for 1% of the time.
+- Melee range 52, spell range 340, pool radius 92.
+- **There is a threshold.** At ten-man heroic, 1937 total damage per body
+  kills nobody and 2645 wipes the raid. One mechanic's room is about half a
+  health bar per person.
+
+## Every place a mechanic has to be wired
+
+    encounters.ts  MechanicId / MECHANIC_NAMES / MECHANIC_SCALES /
+                   PhaseTiming field / lines field and a line per boss /
+                   cadences in each boss's phase 1-3 and opening tables
+    types.ts       SimState.next<Name> timer / GroundKind if it is ground /
+                   AuraId if it is an aura
+    state.ts       initial timer value in both state constructors
+    boss.ts        schedule<Name>() and its call / a branch in the ground loop
+    sim.ts         aura expiry, if it needs any
+    ai.ts          a consider() entry in currentDanger, and candidate spots
+    draw.ts        a draw function if it is ground
+    icons.ts       boss_<name>, in a colour nothing else uses
+    rendercheck.ts an entry in DRAWN, plus assertions of its own
+
+`brand` is the worked example that touches all of them.
