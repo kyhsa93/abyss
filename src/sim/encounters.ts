@@ -37,6 +37,38 @@ export type MechanicId =
   | 'hunt'
 
 /** What each is called anywhere it has to be read rather than dodged. */
+/**
+ * Whether a mechanic grows with the roster or catches a fixed share of it.
+ *
+ * The distinction was in `boss.ts` all along, one implementation at a time,
+ * and never written down — which is why the consequence took a round of
+ * tuning to find. Something dropped *on people* asks more of a bigger raid
+ * because there is more of it: puddles per cast, spread marks, add waves, a
+ * gathering split among whoever stands in it. Something aimed at the *arena*
+ * does not: a cone of a fixed angle catches roughly the same fraction of five
+ * bodies as of twenty-five, and so does a ring of a fixed radius, and so does
+ * whatever happens to be within reach of the boss.
+ *
+ * Read across a boss's ladder it predicts how that boss behaves at size, and
+ * it is the reason `sizeMechanic` exists:
+ *
+ *   Choir        5/5 scale — a bigger raid gets more of everything
+ *   Warden       4/5       — balances itself, and carries no weights
+ *   Tidebreaker  2/5, and 0/2 at its opening — a bigger raid gets it free
+ */
+export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
+  puddle: true, // `puddleCount` per cast
+  spread: true, // one mark per so many bodies
+  adds: true, // a wave of `living / 6`
+  soak: true, // split among whoever stands in it
+  rot: true, // applied to each of them
+  sunder: true, // the tank's, and a bigger raid brings a second
+  hunt: true, // one stalker per quarry
+  breath: false, // a cone of a fixed angle
+  shockwave: false, // a ring of a fixed radius
+  sweep: false, // whoever is in reach, which is the melee
+}
+
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   puddle: 'pools',
   spread: 'marks',
@@ -140,6 +172,12 @@ export interface Encounter {
    * is the problem: the three bosses do not sit the same way at the same size.
    * A twenty-five man walks over the Tidebreaker and loses to the Choir, and
    * one global number cannot move one without moving the other.
+   *
+   * `MECHANIC_SCALES` says why they differ, and it is not a fudge for it: a
+   * boss made of things dropped on people asks more of a bigger raid on its
+   * own, and one made of arena shapes asks the same of any raid, so the same
+   * roster is worth different amounts against each. The Warden sits at four
+   * fifths and needs no line here at all.
    *
    * It went unnoticed because the Tidebreaker had a second, accidental dial —
    * a shockwave band so wide at twenty-five that the pocket could not hold the

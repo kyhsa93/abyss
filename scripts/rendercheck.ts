@@ -112,6 +112,8 @@ import {
   encounterAt,
   encounterIndex,
   encounterKit,
+  MECHANIC_SCALES,
+  MECHANIC_NAMES,
   hasNext,
   kitCount,
   type MechanicId,
@@ -3230,6 +3232,39 @@ for (const [label, w, h] of [
         full.join(','),
       )
     }
+  }
+
+  // A boss whose opening scales with nothing has to say so in its own numbers.
+  //
+  // `MECHANIC_SCALES` is the property that decides how a boss behaves at size:
+  // things dropped on people ask more of a bigger raid, arena shapes ask the
+  // same of any raid. A boss made entirely of the second kind gets easier the
+  // more people turn up, and no global dial can fix that without moving the
+  // bosses that do not have the problem — which is what `sizeMechanic` is for.
+  //
+  // Checked at the opening rather than across the ladder, because that is
+  // where it is unambiguous: two mechanics, and either one of them scales or
+  // none of them do. The Tidebreaker opens on a cone and a ring and carries
+  // weights at all three sizes; the Warden is four fifths roster-aimed and
+  // carries none. This is the rule that pairing followed, written down.
+  for (const e of ENCOUNTERS) {
+    const opening = encounterKit(e, 5, 'normal')
+    const scaling = opening.filter((m) => MECHANIC_SCALES[m]).length
+    if (scaling > 0) continue
+    expect(
+      `${e.short}: an opening that scales with nothing carries its own weights`,
+      e.sizeMechanic !== undefined,
+      opening.join(','),
+    )
+  }
+
+  // And the property is total: a mechanic nobody classified is a mechanic the
+  // rule above silently reads as arena-aimed.
+  {
+    const unclassified = (Object.keys(MECHANIC_NAMES) as MechanicId[]).filter(
+      (m) => MECHANIC_SCALES[m] === undefined,
+    )
+    expect('every mechanic says whether it scales', unclassified.length === 0, unclassified.join(','))
   }
 
   // And no two bosses are the same fight at any rung. The opening is held to
