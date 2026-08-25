@@ -9778,5 +9778,60 @@ for (const [label, w, h] of [
   expect('and none of them answers for another mechanic', mixed.length === 0, mixed.join('; '))
 }
 
+// --- every rung a boss sells actually happens ------------------------------
+//
+// The simplest property there is, and nothing asserted it until the ladders
+// had already been dealt out across five bosses through eight merges. A
+// mechanic lost in a merge -- a schedule call dropped, an arm closed with the
+// wrong body -- does not look like a broken build. It looks like a boss that
+// is slightly easier than expected, which is indistinguishable from tuning.
+//
+// Three of the thirty arrive as bodies rather than as effects and each is told
+// apart by a different field: the bell and the jar carry `spawn`, the stalker
+// carries its quarry, and a thrall is the one with neither. Written out here
+// because getting that wrong is how a first draft of this check reported two
+// mechanics missing that were firing perfectly well.
+{
+  for (let b = 0; b < ENCOUNTERS.length; b++) {
+    const encounter = ENCOUNTERS[b]!
+    const kit = encounterKit(encounter, 25, 'heroic')
+    const seen = new Set<string>()
+    for (let n = 0; n < 3; n++) {
+      const seed = 1000 + n * 137
+      const s = createState(seed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', b)
+      s.countdown = 0
+      // The boss may not die before its late rungs come round, and the raid
+      // may not wipe: what this asks is what the boss does, not who wins.
+      const monster = bossOf(s)
+      monster.maxHp *= 40
+      monster.hp = monster.maxHp
+      const rng = new Rng(seed + 8 * 7919)
+      let ticks = 0
+      while (s.outcome === 'ongoing' && s.time < 300) {
+        step(s, { moveX: 0, moveY: 0, pressed: ticks % 45 === 0 ? [0] : [] }, rng)
+        ticks++
+        for (const fx of s.effects) {
+          if (fx.abilityId && fx.abilityId.startsWith('boss_')) seen.add(fx.abilityId.slice(5))
+        }
+        for (const g of s.ground) seen.add(g.kind)
+        for (const a of s.actors) for (const aura of a.auras) seen.add(aura.id)
+        for (const a of s.actors) {
+          if (a.faction !== 'boss' || a.id === monster.id) continue
+          if (a.spawn !== undefined) seen.add(a.spawn)
+          else if (a.hunting !== null) seen.add('hunt')
+          else seen.add('adds')
+        }
+        for (const a of s.actors) {
+          if (a.faction !== 'party') continue
+          a.alive = true
+          a.hp = a.maxHp
+        }
+      }
+    }
+    const missing = kit.filter((m) => !seen.has(m))
+    expect(`${encounter.name}: throws every rung it sells`, missing.length === 0, missing.join(','))
+  }
+}
+
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
 console.log('all render checks passed')
