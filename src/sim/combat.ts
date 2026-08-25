@@ -115,6 +115,14 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // else arriving, and they are arriving from wherever the rest of the fight
   // left them standing.
   yoke: 1.1,
+  // How long the surface stays closed. Long enough that stopping and staying
+  // stopped are two different things -- a raid that reads the cast and holds
+  // for one global is a raid that starts again inside the window.
+  mirror: 4,
+  // Only a memory, and only for as long as the thing it was struck on can
+  // still be broken. It outlives the vessel's own clock by a little so that a
+  // hit landed in the last tenth of a second is still a hit that was landed.
+  spoil: 12,
 }
 
 /**
@@ -411,6 +419,8 @@ export function applyDamage(
   if (final > 0 && !opts.silent) gainPower(target, RESOURCES[target.resource].onHit)
   if (final > 0) mendAfterHit(target, final)
 
+  if (final > 0 && !opts.silent) remember(s, target, opts.sourceId)
+
   record(s, target, final, opts)
   // Only the player's own hits are audible; everyone's would be a wall of noise.
   if (target.isPlayer && final > 0 && !opts.silent) s.sounds.push('hit')
@@ -423,6 +433,40 @@ export function applyDamage(
     if (target.faction === 'party') s.sounds.push('death')
     const tally = s.tally[target.id]
     if (tally && tally.deathAt === null) tally.deathAt = s.time
+  }
+}
+
+/**
+ * Who struck what, for the two mechanics that bill at an instant rather than
+ * as the hits go in.
+ *
+ * Silent damage is deliberately not a strike. A dot ticking on the boss is
+ * damage nobody pressed, and it keeps ticking whatever the body that applied
+ * it decides to do next — billing it would bill a raid for having played the
+ * first ten seconds of the fight, identically on a first pull and a ninth,
+ * which is exactly the shape that averages skill out. What it catches is a
+ * press and a swing, which are the two things a raid can hold.
+ */
+function remember(s: SimState, target: Actor, sourceId: number | undefined): void {
+  if (sourceId === undefined) return
+  // By faction as well as by id. One counter numbers every object in the
+  // fight, so a body the boss summoned early can carry a raider's id.
+  const source = s.actors.find((a) => a.faction === 'party' && a.id === sourceId)
+  if (!source) return
+
+  if (target.id === BOSS_ID) {
+    const glass = getAura(target, 'mirror')
+    if (glass && glass.struck && !glass.struck.includes(source.id)) glass.struck.push(source.id)
+    return
+  }
+
+  // And the one that must not be broken open remembers whoever put a hand on
+  // it. Kept on the striker rather than on the thing struck, so the bill
+  // survives the corpse it is a bill for.
+  if (target.spawn === 'vessel') {
+    const mark = getAura(source, 'spoil')
+    if (mark) mark.sourceId = target.id
+    else addAura(source, 'spoil', target.id)
   }
 }
 

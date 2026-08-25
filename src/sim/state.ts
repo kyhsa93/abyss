@@ -63,6 +63,9 @@ function makeAi(personality: Personality, attempt: number): AiProfile {
     callTimer: 0,
     callTo: null,
     answering: null,
+    switchTimer: 0,
+    switchTo: null,
+    striking: null,
   }
 }
 

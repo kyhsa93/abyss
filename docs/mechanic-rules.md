@@ -25,10 +25,13 @@ would suggest.
 ## The bar, and the current field
 
     breath      21.4pp    removes 67% of the deaths
+    mirror      19.8      62%
     burden       9.8      70%     over-scales; see below
     hand         9.2      93%
     spire        9.0      67%
     fault        8.3      96%
+    vessel       7.5      39%     over-scales both ways; see below
+    knell        7.0      41%     real at ten and nowhere else; see below
     yoke         6.7      75%
     echo         6.6      100%
     verdict      6.0      57%
@@ -38,6 +41,21 @@ would suggest.
     brand        2.0      69%
     puddle       0.5      83%
     rot, sunder, spread, sweep, adds -- indistinguishable from nothing
+
+**Read the field table at three sizes before believing it.** It is a ten-man
+heroic table and always has been, and three mechanics measured across sizes in
+the same round came out like this:
+
+                 5 heroic        10 heroic       25 heroic
+    mirror    49.0pp (49%)    19.8pp (62%)    51.5pp (53%)
+    vessel    37.8   (40%)     7.5   (39%)    33.3   (76%)
+    knell      0.0              7.0   (41%)     0.0
+
+Two of them are three or more times the mechanic at the sizes either side of
+the one they were tuned at, and the first pull at those sizes is a wipe: 100%
+of unpractised five-mans and 96.5% of unpractised twenty-fives die to the
+mirror. One number in the middle of a table is not a mechanic's worth, it is
+one reading of it, and a rung sold at every size is sold at all three.
 
 The burden is the one to be careful with. At twenty-five it runs five chains
 at once, each tying up three bodies, so fifteen of twenty-five are carrying or
@@ -66,10 +84,31 @@ bound above zero at 250 pairs -- and it has to earn its rung against that list.
    arrived at 0.16 a second and taught nothing three separate times. But
    throughput is necessary, not sufficient -- see granularity below.
 
-3. **The answer has to route through `consider()` in ai.ts.** Reaction delay
-   and mistake chance live there and nowhere else. `isSpotSafe` is
-   skill-independent, so a mechanic answered entirely by it cannot be
-   practised and will measure zero however lethal it is.
+3. **The answer has to route through a channel that carries the two
+   numbers.** `reactionDelay` and `mistakeChance` are the whole of what
+   separates a first pull from a ninth, and a mechanic answered by code that
+   reads neither cannot be practised and will measure zero however lethal it
+   is. `isSpotSafe` is the standing example: it is skill-independent, so a
+   mechanic answered entirely by it measures nothing.
+
+   This rule used to name `consider()` and say the two numbers lived "there
+   and nowhere else", and that was already not true when it was written --
+   `watchTheLine` is a second channel, built because a judgement is answered
+   by a cast and the walking channel could not hold it. There are three now:
+
+       currentDanger / consider()   answered by walking
+       watchTheLine                 answered by a heal
+       readTheField                 answered by what you hit, and by stopping
+
+   The correction matters because of what it says about a mechanic that
+   measures zero. The thralls were read for a round as proof that "the party's
+   damage goes somewhere else" teaches nothing. It is not: nothing about
+   *choosing a target* was ever delayed or fumbled, so the demand was answered
+   identically on every pull by construction. Given a channel of its own, the
+   same family of demands measures 7.0, 7.5 and 19.8 points. **Before
+   concluding that a kind of demand cannot teach, check whether the code that
+   answers it has ever been able to be late.** If it has not, building the
+   channel is part of building the mechanic.
 
 4. **Proximity mechanics anti-scale.** "Stand together" and "stand apart" get
    easier with more bodies, which is how one of them measured 97% at 25 and 0%
@@ -83,6 +122,15 @@ bound above zero at 250 pairs -- and it has to earn its rung against that list.
    fixed 460 radius whatever the headcount, so a mechanic that eats floor per
    body wipes every first pull at 25 while a ten-man never notices. Cap how
    much can be out at once.
+
+   And it is not only floor. Anything that writes one near-lethal bill per
+   body caught in an instant super-scales the same way and for the same
+   arithmetic: more bodies means more of them caught in the one instant, and
+   the healers have the same second to cover all of them. The surface that
+   hands damage back caught about three of ten and 32% of unpractised
+   ten-mans died; at twenty-five it caught proportionally more and 96.5% died.
+   Cap how many bills one instant may write, the way area denial caps how much
+   ground may be out.
 
 ## What actually moves the number
 
@@ -112,9 +160,67 @@ arriving two at a time. The share of deaths practice removes barely moves
 across that range (61%, 67%, 57%), so clumping is a dial on *how much pressure
 there is*, not on *how learnable it is*. Rule 2 does not cover it.
 
+**A delay has to be expressed at the scale of the answer it delays.**
+`reactionDelay` is a quarter of a second for a steady raider and a tenth off
+that by the ninth pull, which is calibrated for a sidestep -- a step costs
+nothing but the step. Anything with machinery in front of it swamps that: a
+heal sits behind a global cooldown and a two-second cast, and the judgement
+taught 3.8 points until its delay was multiplied by six. It is not a quirk of
+healing. A target call sits behind the same global cooldown and a rotation
+already mid-press, and multiplied by five it produces the three entries above;
+at 1x it produces the thralls. So the multiplier is a general instrument:
+decide what the answer's machinery costs, and express the hesitation in the
+same units.
+
+**What the rotation does by default is what a target mechanic is fighting.**
+The party's rule is "hit whatever is hurting the raid, lowest health first",
+with no decision in it. A mechanic whose right answer *is* that rule teaches
+nothing, which is the thralls in one sentence. Both of the ones that measure
+here break the coincidence rather than lean on it:
+
+  - the knell hurts nobody, so the default rule never looks at it, and
+    somebody has to decide to leave a health bar that is asking to be hit;
+  - the vessel hurts somebody, so the default rule aims straight at it, and
+    the answer is to stop -- the default is the trap.
+
+Neither is "more damage elsewhere". Both are a moment at which a raid either
+did the thing or did not, which is what rule 1 has always asked for.
+
+**A hold has to reach the weapons, not only the buttons.** Auto-attacks pick
+the nearest hostile with nobody deciding anything. Measured, that is not a
+weakening, it is the whole mechanic: the surface that hands damage back is
+worth 19.8 points with the swing held and
+
+    mirror, weapons ungated    100.0% -> 100.0%    0.0pp
+
+with it not. Both ends of the practice curve wipe, because every body in the
+raid is billed on every cast whatever it decided. Eleven percent of the raid's
+damage is enough to fail a demand outright, so a rule that only reaches the
+buttons is not a rule.
+
 **Not damage, past a point.** Raising a hit from 700 to 1000 left the gap flat
 between 26 and 29pp. Once one hit is close to lethal, damage stops being a
 teaching lever.
+
+**Who pays, which is a different question from how much.** The knell writes
+its bill to the whole raid at once and the vessel writes it to the two or
+three bodies that earned it, and they are otherwise the same shape -- a
+telegraphed instant, a binary outcome, the same channel, the same tuning
+round. The vessel converts its failures into deaths at every size. The knell
+converts them at exactly one, and at the other two it measures a flat zero
+while plainly working: a twenty-five man pull hung nine bells, broke seven and
+let two finish, and not one body died all fight.
+
+The cause is that healing is a rate and a raid-wide bill is a rate. Spread
+thin enough to be survivable at the size it was tuned for, the same total is
+absorbed outright by a raid with more healers, and one point past that it
+wipes the raid it was tuned for. There is no number between the two. An
+individual bill near the top of a health bar has no such problem, because
+nothing about a bigger raid makes one body harder to kill.
+
+So: **if the answer to a mechanic is a raid-wide hit, expect it to exist at
+one raid size only** unless the boss carries a weight for it. Bill bodies, not
+rosters.
 
 **And not how long the hazard stays, either.** Over a fourfold range at 250
 pairs each -- 6s 8.7pp, 10s 9.0, 16s 7.8, 24s 10.0 -- linger sat inside its
@@ -150,6 +256,18 @@ time it mattered.
   brands nobody bought -- while the check written to catch exactly that
   carried a copy of the same list with the same name missing. Read the set off
   `MECHANIC_IDS`, which comes from a table the compiler forces to be complete.
+- **An id is not a name.** `nextObjectId` numbers every object in a fight --
+  actors, ground, chat lines, floating numbers -- from one, and the raid's own
+  slots are numbered one up to the headcount, so a summoned body can carry a
+  raider's id and `find` walks the party first. Everything summoned before this
+  round arrives forty seconds in, by which point the counter is in the
+  hundreds, so nobody had met it: measured, the counter clears the roster at
+  t=0.03 in a five-man and t=1.53 at ten and twenty-five, and the earliest
+  opening on any table is seven and a half seconds. A check that starts a
+  mechanic at t=0 walks straight into it, and it is not a check-only problem --
+  the bell resolved its own count by killing the raider that shared its id, in
+  silence. Look a summoned body up by faction as well as by id.
+
 - **Checks that bet on a roll.** One check named a raider up front and assumed
   a one-in-ten mark landed on them. It passed only because the brand bug was
   shifting the RNG stream, and broke the moment the bug was fixed. Adopt
@@ -191,6 +309,10 @@ time it mattered.
     boss.ts        schedule<Name>() and its call / a branch in the ground loop
     sim.ts         aura expiry, if it needs any
     ai.ts          a consider() entry in currentDanger, and candidate spots
+                   -- or, if the answer is not a walk, an entry in whichever
+                   other channel carries it, and a pair of fields of its own
+                   on AiProfile: the three channels must not share a slot,
+                   since a real pull asks all three at once
     draw.ts        a draw function if it is ground
     icons.ts       boss_<name>, in a colour nothing else uses
     rendercheck.ts an entry in DRAWN, plus assertions of its own

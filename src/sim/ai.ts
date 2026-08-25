@@ -90,6 +90,26 @@ const VERDICT_MARGIN = 0.12
  */
 const VERDICT_NOTICE = 6
 
+/**
+ * The same again, for a change of target.
+ *
+ * `reactionDelay` is a quarter of a second for a steady raider and a tenth
+ * off that by the ninth pull, which is the right scale for a sidestep and the
+ * wrong one for everything else. Stepping out of a pool is one decision with
+ * nothing in front of it. Deciding what to hit is noticing a thing arrived,
+ * reading which of two kinds it is, and then re-aiming a rotation that is
+ * already mid-global — and a global cooldown is a second and a half on its
+ * own. A tenth of a second of extra hesitation in front of that machinery
+ * changes nothing, which is exactly the finding the judgement produced.
+ *
+ * So the delay is expressed at the scale of the answer, and the two numbers
+ * that separate a first pull from a ninth separate them by an amount the
+ * mechanic can actually be built around. Five rather than the judgement's
+ * six: a target call has one cast in front of it, not a cast and a heal
+ * landing in time.
+ */
+const SWITCH_NOTICE = 5
+
 const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
@@ -107,6 +127,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   // The one call that is not about where to stand, so it is made before the
   // one that is and kept in its own pair of fields.
   if (actor.role === 'healer') watchTheLine(s, actor, rng)
+
+  // And the one that is not about where to stand either, for the same reason
+  // and kept in its own third pair of fields.
+  readTheField(s, actor, rng)
 
   const danger = currentDanger(s, actor)
 
@@ -273,6 +297,142 @@ function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
   }
   if (ai.callTimer > 0) ai.callTimer -= DT
   ai.answering = ai.callTimer > 0 ? null : mine.id
+}
+
+/**
+ * What this one has decided to hit, and how long it took to decide.
+ *
+ * The third reaction channel, and the last thing in the fight that was not
+ * going through one. Everything answered by walking runs through
+ * `currentDanger`, healing a judgement runs through `watchTheLine`, and
+ * choosing a target ran through neither: a rotation read `adds(s)`, took the
+ * lowest health bar in it, and did that identically on a first pull and a
+ * ninth. Anything answered by the choice of target was therefore unteachable
+ * however lethal it was, which is most of why the thralls measure at nothing.
+ *
+ * It cannot share either of the other two slots. An actor that spent its
+ * danger slot on a target call would then be sent to find a safe tile, and
+ * one that spent its healer slot on it would stop answering judgements — and
+ * a real pull asks all three at once, which is the whole point of them being
+ * three.
+ */
+function readTheField(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  const want = targetCall(s, actor)
+
+  if (want === null) {
+    ai.switchTo = null
+    ai.switchTimer = 0
+    ai.striking = null
+    return
+  }
+
+  if (ai.switchTo !== want) {
+    ai.switchTo = want
+    ai.switchTimer = ai.reactionDelay * SWITCH_NOTICE * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.switchTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.switchTimer > 0) ai.switchTimer -= DT
+
+  const held = ai.striking
+  ai.striking = ai.switchTimer > 0 ? null : want
+  if (ai.striking !== null && ai.striking !== held) {
+    if (ai.striking === 'hush') say(s, actor, 'Stop — everything comes back')
+    else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
+    else say(s, actor, 'Leave that one alone')
+  }
+}
+
+/**
+ * The one call worth making, as a stable key.
+ *
+ * Ranked rather than merged, the way `currentDanger` is: while the surface is
+ * closed nothing is hit at all, so a bell and a vessel on the field at the
+ * same time are both answered by the same silence. Below that the bell comes
+ * first because it is the one with a deadline on it — hitting the bell is
+ * already not hitting the vessel, so ranking that way costs the second call
+ * nothing.
+ *
+ * A key rather than a target, so the reaction delay is rolled once per
+ * decision instead of once per tick. The id is in it deliberately: a second
+ * bell is a second decision and has to be paid for again.
+ */
+function targetCall(s: SimState, actor: Actor): string | null {
+  if (actor.role === 'healer' && actor.ai?.answering !== null) return null
+
+  const b = boss(s)
+  if (getAura(b, 'mirror') || b.castId === 'boss_mirror') return 'hush'
+
+  const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)
+  if (bell) return `knell:${bell.id}`
+
+  const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)
+  if (jar) return `spare:${jar.id}`
+
+  return null
+}
+
+/** The id in a call of the form `something:42`, or null if there is none. */
+function calledId(call: string | null, prefix: string): number | null {
+  if (call === null || !call.startsWith(prefix)) return null
+  const id = Number(call.slice(prefix.length))
+  return Number.isFinite(id) ? id : null
+}
+
+/**
+ * Whether this body is willing to land a hit on that one right now.
+ *
+ * Asked by the weapons as well as by the rotations, because a mechanic
+ * answered by not hitting something is answered by nobody if the auto-attack
+ * carries on regardless — a melee standing in the boss's lap swings at it
+ * every couple of seconds without anyone deciding anything, and a rule that
+ * only reaches the buttons would have left every melee in the raid marked
+ * whatever it did.
+ */
+export function mayStrike(s: SimState, actor: Actor, target: Actor): boolean {
+  const call = actor.ai?.striking ?? null
+  if (call === null) return true
+  if (call === 'hush') return target.id !== boss(s).id
+  const spared = calledId(call, 'spare:')
+  return spared === null || target.id !== spared
+}
+
+/**
+ * What a rotation should be aimed at, given whatever it has decided.
+ *
+ * The default is untouched and has to be: summons that walk in and hit
+ * somebody are picked the way they always were, lowest health bar first, so
+ * the thralls and the stalker are the same mechanic they were measured as.
+ * What is new is the two exceptions, and both of them cost a reaction delay
+ * to reach — the bell is invisible to a rotation until somebody decides to
+ * look at it, and the vessel stops being a target only once somebody decides
+ * to leave it alone.
+ */
+function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
+  const b = boss(s)
+  const call = actor.ai?.striking ?? null
+
+  const ringing = calledId(call, 'knell:')
+  if (ringing !== null) {
+    // By faction as well as by id: one counter numbers every object in the
+    // fight and the raid's own ids start at one, so a body summoned early
+    // enough can share an id with a raider standing in front of it.
+    const bell = s.actors.find((a) => a.faction === 'boss' && a.id === ringing)
+    if (bell && bell.alive) return bell
+  }
+
+  const spared = calledId(call, 'spare:')
+  // A summon that is not hurting anybody is not what a rotation aimed at
+  // whatever is hurting the raid would ever pick. That is the read the bell
+  // is built on, so it is a rule about the party rather than a rule about the
+  // bell: nothing here knows what a bell is, only that this one is standing
+  // still doing nothing.
+  const summoned = pool.filter((a) => a.spawn !== 'knell' && a.id !== spared)
+  if (summoned.length === 0) return b
+
+  let focus = summoned[0]!
+  for (const a of summoned) if (a.hp < focus.hp) focus = a
+  return focus
 }
 
 /** Whoever this healer has decided to save, if it has decided at all. */
@@ -1384,7 +1544,7 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   const ai = actor.ai!
   const kit = specFor(actor).abilities
 
-  if (tryCharge(s, actor, b, rng, moving)) return
+  if (mayStrike(s, actor, b) && tryCharge(s, actor, b, rng, moving)) return
 
   // The swap.
   //
@@ -1433,6 +1593,11 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
       }
     }
   }
+
+  // And a tank is a body that hits things too. Only the damage is held: the
+  // taunt and the wall above are answers to other mechanics, and dropping the
+  // boss on the raid to answer this one is answering it with a worse mistake.
+  if (!mayStrike(s, actor, b)) return
 
   if (kit.threat && tryCast(s, actor, kit.threat, b.id, rng, moving)) return
   tryCast(s, actor, kit.filler, b.id, rng, moving)
@@ -1559,9 +1724,8 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 
   // Nobody needs healing: help kill it, but keep enough mana in reserve to
   // answer the next spike.
-  if (kit.attack && powerLeft > 0.55) {
-    const summoned = adds(s)
-    const target = summoned.length > 0 ? summoned[0]! : boss(s)
+  if (kit.attack && powerLeft > 0.55 && actor.ai?.striking !== 'hush') {
+    const target = strikeTarget(s, actor, adds(s))
     tryCast(s, actor, kit.attack, target.id, rng, moving)
   }
 }
@@ -1571,14 +1735,13 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   if (!b.alive) return
   const kit = specFor(actor).abilities
 
-  // Adds first: they beeline for whoever is closest and shred a healer.
-  const summoned = adds(s)
-  let target = b
-  if (summoned.length > 0) {
-    let focus = summoned[0]!
-    for (const a of summoned) if (a.hp < focus.hp) focus = a
-    target = focus
-  }
+  // Nothing at all goes out while the surface is closed. A dealer has no
+  // second job to fall back on, which is the cost of the mechanic.
+  if (actor.ai?.striking === 'hush') return
+
+  // Adds first: they beeline for whoever is closest and shred a healer. The
+  // two exceptions to that are decisions, and they are made in `readTheField`.
+  let target = strikeTarget(s, actor, adds(s))
 
   // A bow has a near edge, and a thrall's whole plan is to stand on you. The
   // one it cannot shoot is not a target, so it shoots past it at the boss
