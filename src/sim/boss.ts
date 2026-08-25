@@ -32,7 +32,7 @@ import { encounterAt, encounterKit, gated, type Encounter, type PhaseTiming } fr
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import { descentDamage } from './descent'
 import { planned } from './floor'
-import type { Actor, GroundEffect, SimState } from './types'
+import type { Actor, GroundEffect, SimState, Vec2 } from './types'
 
 /**
  * The boss is deliberately NOT an AI.
@@ -127,10 +127,39 @@ const BREATH_DAMAGE = 700
 // option and the answer has to be to already be inside it. That only works if
 // there is time to get there first, hence the telegraph and the generous
 // starting radius: the safe pocket is everything within START - BAND.
-const SHOCKWAVE_TELEGRAPH = 1.8
-export const SHOCKWAVE_START = 200
+const SHOCKWAVE_TELEGRAPH = 2.4
+export const SHOCKWAVE_START = 40
 const SHOCKWAVE_GROWTH = 250
-const SHOCKWAVE_BAND = 70
+const SHOCKWAVE_BAND = 58
+
+/**
+ * The safe arc, as a half-width in radians.
+ *
+ * The ring used to be answered by running *in*, and that answer stopped
+ * working for a reason no tuning could reach: a raid stands on its boss to
+ * fight it, so the pocket the mechanic asked them to reach was the ground
+ * they were already on. Measured at every size, 98% of the raid was inside it
+ * when the ring went off, and the mechanic hit nobody.
+ *
+ * Widening the band to shrink the pocket does not fix it either, because the
+ * pocket has a floor: twenty-two bodies of radius seventeen need about a
+ * hundred and four of floor to stand on, and any pocket small enough to catch
+ * a raid at twenty-five is one it cannot fit inside. The old table sat on that
+ * edge and the twenty-five man lost 95 pulls in a hundred.
+ *
+ * A gap has no such floor. It is a wedge rather than a disc, so it grows with
+ * the radius the ring has reached, and what it asks is *where* to stand rather
+ * than *how close* — which is a question a raid of any size can answer.
+ */
+const SHOCKWAVE_GAP = 1.9
+
+/** Whether this spot is in the ring's gap, and so safe from it. */
+export function inShockwaveGap(p: Vec2, g: GroundEffect): boolean {
+  let delta = Math.atan2(p.y - g.pos.y, p.x - g.pos.x) - g.angle
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  return Math.abs(delta) <= g.halfWidth
+}
 const SHOCKWAVE_DAMAGE = 600
 
 /**
@@ -196,30 +225,6 @@ const SHOCKWAVE_DAMAGE = 600
  */
 
 
-/**
- * How tightly the ring closes, with a floor under it.
- *
- * `SHOCKWAVE_BAND` is wide enough for every size now, so this never binds —
- * which is the point of a floor. It is here so that the next person to reach
- * for the band as a difficulty dial cannot tune it past the space the raid
- * physically occupies, the way the per-size table did.
- *
- * `PACKING` is the density a crowd of walkers actually reaches rather than
- * the 91% of a perfect lattice, and `ROOM` is the margin over it — a pocket
- * you can only just fit into is one nobody can move inside.
- *
- * It reads the living rather than the roster, so the ring closes again as the
- * raid thins. A wipe in progress should get tighter, not roomier.
- */
-const PACKING = 0.6
-const ROOM = 1.1
-
-function ringBand(s: SimState): number {
-  const bodies = livingParty(s)
-  const radius = bodies[0]?.radius ?? 17
-  const needed = Math.sqrt((bodies.length * radius * radius) / PACKING) * ROOM
-  return Math.min(SHOCKWAVE_BAND, SHOCKWAVE_START - needed)
-}
 const CONE_HALF_WIDTH: Record<number, number> = { 5: BREATH_HALF_WIDTH, 10: 0.88, 25: 0.80 }
 
 function bySize(table: Record<number, number>, s: SimState): number {
@@ -298,7 +303,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleRaidHit(s, timing)
   scheduleSpread(s, b, rng, timing)
   scheduleBreath(s, b, timing)
-  scheduleShockwave(s, b, timing)
+  scheduleShockwave(s, b, rng, timing)
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
   scheduleSunder(s, b, target, timing)
@@ -428,7 +433,7 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
   })
 }
 
-function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
+function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.shockwave <= 0) return
   s.nextShockwave -= DT
   if (s.nextShockwave > 0) return
@@ -446,7 +451,10 @@ function scheduleShockwave(s: SimState, b: Actor, timing: PhaseTiming): void {
     damage: SHOCKWAVE_DAMAGE,
     detonated: false,
     growth: SHOCKWAVE_GROWTH,
-    band: ringBand(s),
+    band: SHOCKWAVE_BAND,
+    // Rolled, so the answer is read off the floor rather than remembered.
+    angle: rng.range(0, Math.PI * 2),
+    halfWidth: SHOCKWAVE_GAP,
   })
 }
 
@@ -1019,7 +1027,7 @@ export function updateGround(s: SimState): void {
         const d = dist(a.pos, g.pos)
         // The ring outruns everyone, so the answer is to be inside it, not
         // ahead of it: run toward the boss, not away.
-        if (d >= g.radius - g.band && d <= g.radius + g.band) {
+        if (d >= g.radius - g.band && d <= g.radius + g.band && !inShockwaveGap(a.pos, g)) {
           g.caught.push(a.id)
           const damage = mechanic(s, g.damage)
           applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })

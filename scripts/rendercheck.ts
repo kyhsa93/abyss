@@ -163,7 +163,7 @@ import {
 import { gainPower, boss as bossOf } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
-import { SHOCKWAVE_START, SUNDER_MAX } from '../src/sim/boss'
+import { SUNDER_MAX } from '../src/sim/boss'
 import {
   FIRST_TIER,
   LADDER,
@@ -3305,34 +3305,41 @@ for (const [label, w, h] of [
   // stopped hitting anybody. Nothing threw. The fights got quietly easier at
   // one size only, which read as a tuning result for two rounds.
   {
-    const shapeOf = (size: RaidSize): { cone: number; band: number } => {
+    const shapeOf = (size: RaidSize): { cone: number; band: number; gap: number } => {
       const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'normal', 2)
       const rng = new Rng(0x51ed)
       let cone = 0
       let band = 0
+      let gap = 0
       while (s.outcome === 'ongoing' && s.time < 120 && !(cone && band)) {
         step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
         for (const g of s.ground) {
           if (g.kind === 'breath') cone = Math.max(cone, g.halfWidth)
-          if (g.kind === 'shockwave') band = Math.max(band, g.band)
+          if (g.kind === 'shockwave') {
+            band = Math.max(band, g.band)
+            gap = Math.max(gap, g.halfWidth)
+          }
         }
       }
-      return { cone, band }
+      return { cone, band, gap }
     }
 
     const shapes = ([5, 10, 25] as RaidSize[]).map((size) => ({ size, ...shapeOf(size) }))
-    for (const { size, cone, band } of shapes) {
+    for (const { size, cone, band, gap } of shapes) {
       expect(
         `${size}-player: the cone has an angle and the ring a band`,
         Number.isFinite(cone) && cone > 0 && Number.isFinite(band) && band > 0,
         `cone ${cone}, band ${band}`,
       )
-      // A cone that reaches behind the boss is not a cone, and a band wider
-      // than the ring starts is a ring with no pocket to run into.
+      // A cone that reaches behind the boss is not a cone. The ring is judged
+      // on its gap instead of on a pocket, which it no longer has: the wedge
+      // has to be somewhere to stand and the rest of the floor has to be
+      // somewhere not to. Both halves matter — a gap of zero is a mechanic
+      // with no answer, and a gap of pi is a mechanic with no question.
       expect(
         `${size}-player: and both still have an outside`,
-        cone < Math.PI / 2 && band < SHOCKWAVE_START * 0.75,
-        `cone ${cone.toFixed(2)}, band ${band}`,
+        cone < Math.PI / 2 && gap > 0 && gap < Math.PI * 0.75,
+        `cone ${cone.toFixed(2)}, gap ${gap.toFixed(2)}`,
       )
     }
     // The cone widens with the raid, and *not* monotonically: the ten-man has

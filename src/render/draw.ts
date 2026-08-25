@@ -1,4 +1,4 @@
-import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS } from '../sim/constants'
+import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS, ARENA_RADIUS } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
@@ -610,40 +610,58 @@ function drawShockwave(
   r: number,
 ): void {
   const band = g.band * L.scale
+  // The ring is drawn everywhere except its gap, because the gap is the
+  // answer and an answer you cannot see is not one. Arcs run from the far
+  // edge of the wedge round to its near edge.
+  const from = g.angle + g.halfWidth
+  const to = g.angle - g.halfWidth + Math.PI * 2
 
   // Three rings of wake behind the edge, so the ring reads as travelling
   // rather than as a circle that keeps being redrawn bigger.
   for (let i = 3; i >= 1; i--) {
     const behind = Math.max(1, r - band * i * 0.9)
     ctx.beginPath()
-    ctx.arc(p.x, p.y, behind, 0, Math.PI * 2)
+    ctx.arc(p.x, p.y, behind, from, to)
     ctx.strokeStyle = `rgba(250, 204, 21, ${(0.16 / i).toFixed(3)})`
     ctx.lineWidth = band
     ctx.stroke()
   }
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2)
+  ctx.arc(p.x, p.y, Math.max(1, r), from, to)
   ctx.strokeStyle = 'rgba(250, 204, 21, 0.30)'
   ctx.lineWidth = band * 2
   ctx.stroke()
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2)
+  ctx.arc(p.x, p.y, Math.max(1, r), from, to)
   ctx.strokeStyle = 'rgba(253, 224, 71, 0.95)'
   ctx.lineWidth = 3
   ctx.stroke()
 
-  // Inner edge marks where it is safe to stand.
-  const inner = Math.max(1, r - band)
+  // And the gap itself, marked out to the rim rather than at the ring's own
+  // radius: the raid has to pick a bearing before the ring arrives, so what
+  // it needs to see is the wedge, not the hole in a line.
+  const reach = ARENA_RADIUS * L.scale
   ctx.beginPath()
-  ctx.arc(p.x, p.y, inner, 0, Math.PI * 2)
-  ctx.strokeStyle = 'rgba(74, 222, 128, 0.5)'
-  ctx.lineWidth = 1.5
-  ctx.setLineDash([5, 7])
-  ctx.stroke()
-  ctx.setLineDash([])
+  ctx.moveTo(p.x, p.y)
+  ctx.arc(p.x, p.y, reach, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(74, 222, 128, 0.07)'
+  ctx.fill()
+
+  for (const edge of [g.angle - g.halfWidth, g.angle + g.halfWidth]) {
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.lineTo(p.x + Math.cos(edge) * reach, p.y + Math.sin(edge) * reach)
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.45)'
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([5, 7])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
 }
+
 
 /**
  * A line from the thing that is hunting somebody to whoever it is hunting.

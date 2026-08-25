@@ -7,7 +7,7 @@ import {
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
 } from './constants'
-import { BREATH_CAST, insideCone } from './boss'
+import { BREATH_CAST, insideCone, inShockwaveGap } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
 import {
@@ -153,8 +153,12 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     }
 
     if (g.kind === 'shockwave') {
-      const d = dist(actor.pos, g.pos)
-      if (d > g.radius - g.band - 12) consider(`wave:${g.id}`, 78)
+      // Only a ring that has not reached you yet. One that has already swept
+      // past is still on the floor — it lingers for the length of the fight —
+      // and reading it as live made the whole arena dangerous forever.
+      if (dist(actor.pos, g.pos) >= g.radius - g.band && !inShockwaveGap(actor.pos, g)) {
+        consider(`wave:${g.id}`, 78)
+      }
       continue
     }
 
@@ -210,7 +214,7 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
       continue
     }
     if (g.kind === 'shockwave') {
-      if (dist(spot, g.pos) > g.radius - g.band - 12) return false
+      if (dist(spot, g.pos) >= g.radius - g.band && !inShockwaveGap(spot, g)) return false
       continue
     }
     // Inverted: this is the one piece of ground that is only safe from the
@@ -312,13 +316,15 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   // sampling around the actor will almost never land on. Offer those directly.
   for (const g of s.ground) {
     if (g.kind === 'shockwave') {
-      // The pocket inside the ring.
-      const pocket = Math.max(52, (g.radius - g.band) * 0.62)
+      // Along the gap, at the spread of ranges the raid already stands at.
+      // Sampling around the actor almost never lands inside a wedge, so the
+      // answer is offered rather than searched for.
       for (let i = 0; i < 8; i++) {
-        const angle = offset + (i / 8) * Math.PI * 2
+        const along = g.angle + (i / 8 - 0.5) * g.halfWidth * 1.2
+        const reach = 90 + (i % 4) * 55 + offset * 8
         candidates.push({
-          x: g.pos.x + Math.cos(angle) * pocket,
-          y: g.pos.y + Math.sin(angle) * pocket,
+          x: g.pos.x + Math.cos(along) * reach,
+          y: g.pos.y + Math.sin(along) * reach,
         })
       }
     } else if (g.kind === 'soak' && !g.detonated) {
@@ -377,10 +383,16 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       }
       if (g.kind === 'shockwave') {
         ringActive = true
-        const d = dist(candidate, g.pos)
-        // Inside the ring is safe; the band and everything beyond it is not.
-        if (d > g.radius - g.band - 12) score -= 1400
-        else score += Math.min(200, (g.radius - g.band - d) * 2)
+        // The gap is safe and the rest of the floor is not, so the score is
+        // read off the bearing rather than off the distance. Deeper into the
+        // wedge is better, which keeps a crowd from lining its very edge.
+        let delta = Math.atan2(candidate.y - g.pos.y, candidate.x - g.pos.x) - g.angle
+        while (delta > Math.PI) delta -= Math.PI * 2
+        while (delta < -Math.PI) delta += Math.PI * 2
+        const outside = Math.abs(delta) - g.halfWidth
+        const ahead = dist(candidate, g.pos) >= g.radius - g.band
+        if (ahead && outside > 0) score -= 1400
+        else if (ahead) score += Math.min(200, -outside * 300)
         continue
       }
       const d = dist(candidate, g.pos)

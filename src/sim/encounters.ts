@@ -386,7 +386,12 @@ export const ENCOUNTERS: Encounter[] = [
     // it takes: healing covers about two fifths of what a raid takes, and past
     // that line the first death starts a spiral no dial can catch. Fifteen
     // percent put the same rung at zero.
-    sizeMechanic: { 5: 0.9, 10: 1.1, 25: 1.05 },
+    // Re-cut once the ring started working. The old line was fitted while the
+    // shockwave hit nobody, so it was paying for a boss with four mechanics
+    // rather than five; the five-man felt it worst, because a two-rung kit is
+    // paid back as tempo and the rung that comes round fastest is the one a
+    // live ring punishes hardest.
+    sizeMechanic: { 5: 0.75, 10: 1.1 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
