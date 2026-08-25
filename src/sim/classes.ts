@@ -799,7 +799,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   // Cadence is the strongest lever by far: time spent dodging is damage not
   // dealt, which lengthens the fight, which brings more mechanics. It gets the
   // gentlest nudge of the three.
-  heroic: { id: 'heroic', name: 'Heroic', health: 1.22, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
+  heroic: { id: 'heroic', name: 'Heroic', health: 1.12, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
 }
 
 /**
@@ -807,12 +807,21 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
  *
  * Not linear with headcount: bigger groups lose proportionally more time to
  * mechanics and overlap their cooldowns worse, so a flat multiple would make
- * 25 the easy option.
+ * 25 the easy option. 5.7 was not enough of a bend and 25 was the easy option
+ * anyway — measured, the step from a ten-man heroic to a twenty-five normal
+ * gave back thirty points of win rate, which is more than any rung above it
+ * takes away.
+ *
+ * That step is the reason this number moved. `kitCount` runs 2, 3, 3, 4, 4, 5
+ * across the six rungs, so two of them add no mechanic at all and change only
+ * the headcount — and the headcount, on its own, is help. The ladder was a
+ * sawtooth: every heroic rung cost 13 to 30 points and every size rung handed
+ * 17 to 30 straight back.
  */
 export const SIZE_HEALTH: Record<RaidSize, number> = {
   5: 1,
   10: 2.2,
-  25: 5.7,
+  25: 6.7,
 }
 
 export function sizeHealth(count: number): number {
