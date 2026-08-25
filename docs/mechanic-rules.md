@@ -25,14 +25,25 @@ would suggest.
 ## The bar, and the current field
 
     breath      21.4pp    removes 67% of the deaths
+    burden       9.8      70%     over-scales; see below
     hand         9.2      93%
+    spire        9.0      67%
+    fault        8.3      96%
+    yoke         6.7      75%
     echo         6.6      100%
     verdict      6.0      57%
     shockwave    5.2      84%
     crush        3.3      97%
+    shallows     2.4      98%
     brand        2.0      69%
     puddle       0.5      83%
     rot, sunder, spread, sweep, adds -- indistinguishable from nothing
+
+The burden is the one to be careful with. At twenty-five it runs five chains
+at once, each tying up three bodies, so fifteen of twenty-five are carrying or
+fetching at any moment and 80% of a *practised* raid dies -- there is nothing
+left for practice to remove. It wants a cap on concurrent chains or a rung a
+large raid does not reach.
 
 Read both columns. Isolation leaves the raid under about a quarter of a real
 pull's pressure, so there are barely any deaths left for a good mechanic to
@@ -87,15 +98,31 @@ window a reaction delay fits inside. So decide *when it judges* before you
 decide what it hits. This also means the mechanics currently measuring zero
 are not beyond saving -- give one of them a wind-up and it becomes a teacher.
 
-**Granularity, independently of throughput.** Holding the rate fixed at 0.48 a
-second and changing only the clumping: one every 9 seconds taught 13pp, four
-every 18 taught 29pp, six every 27 taught 15pp. A trickle asks nobody to
-decide anything and a downpour has no answer. This is a lever of the same size
-as rate, and rule 2 does not cover it.
+**Granularity, independently of throughput -- and finer is simply better.**
+Holding the rate fixed at 0.30 a second and changing only the clumping, at 250
+pairs each: two every 6.7 seconds taught 19.8pp, six every 20 taught 9.0, and
+twelve every 40 taught 5.9. This was first measured as a peak with the middle
+setting winning, and that was the tempo bug -- a doubled cadence saturating
+the large clumps. It is monotone.
+
+The cause looks like arithmetic rather than psychology. The raid stands inside
+a band of radius 90-125, so twelve circles of radius 62 dropped in one instant
+overlap heavily and deny far less distinct ground than the same twelve
+arriving two at a time. The share of deaths practice removes barely moves
+across that range (61%, 67%, 57%), so clumping is a dial on *how much pressure
+there is*, not on *how learnable it is*. Rule 2 does not cover it.
 
 **Not damage, past a point.** Raising a hit from 700 to 1000 left the gap flat
 between 26 and 29pp. Once one hit is close to lethal, damage stops being a
-teaching lever; cadence and how long the hazard stays are what remain.
+teaching lever.
+
+**And not how long the hazard stays, either.** Over a fourfold range at 250
+pairs each -- 6s 8.7pp, 10s 9.0, 16s 7.8, 24s 10.0 -- linger sat inside its
+own error bar. What teaches is the instant it lands, not the ground it leaves.
+This one is worth knowing because it kills a whole family of design pitches:
+"where will still be floor a minute from now" is a good sentence and not a
+measurable mechanic. Pick a linger for what a long one costs the rest of the
+game, not for what it buys.
 
 **The boss more than the mechanic.** The same code taught 26pp on one boss and
 16 on another, and made the first unbeatable at every difficulty while leaving
