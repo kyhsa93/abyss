@@ -1,12 +1,15 @@
 import {
   BURDEN_REACH,
+  CHANT_CAST,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
+  GAZE_TELEGRAPH,
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   PUDDLE_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
+  VIGIL_TELEGRAPH,
   YOKE_REACH,
   ARENA_RADIUS,
 } from '../sim/constants'
@@ -14,7 +17,14 @@ import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
-import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, VERDICT_LINE, schismMuster } from '../sim/boss'
+import {
+  ECHO_TELEGRAPH,
+  HAND_BEAT,
+  SUNDER_MAX,
+  VERDICT_LINE,
+  schismMuster,
+  watched,
+} from '../sim/boss'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -506,6 +516,21 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 
     if (g.kind === 'shallows') {
       drawShallows(ctx, g, r, clock)
+      continue
+    }
+
+    if (g.kind === 'vigil') {
+      drawVigil(ctx, g, p, r)
+      continue
+    }
+
+    if (g.kind === 'chant') {
+      drawChant(ctx, s, g, p, r)
+      continue
+    }
+
+    if (g.kind === 'gaze') {
+      drawGaze(ctx, s, g, p, r)
       continue
     }
 
@@ -1774,4 +1799,139 @@ function drawFloatingText(ctx: CanvasRenderingContext2D, s: SimState, alpha: num
     ctx.fillText(t.text, x, y)
     ctx.restore()
   }
+}
+
+/**
+ * The count that punishes working, drawn as the room closing rather than as a
+ * shape on the floor.
+ *
+ * Every other picture in here answers "where is it". This one has to answer
+ * "how long have I got", because there is no where — so it is a ring at the
+ * arena's own edge that thickens inward as the count runs out, with nothing
+ * drawn on the floor at all. A player who reads it as somewhere to leave has
+ * been told the wrong thing, and a filled circle would tell them exactly that.
+ */
+function drawVigil(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / VIGIL_TELEGRAPH))
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(245, 158, 11, ${(0.3 + 0.6 * closing).toFixed(3)})`
+  ctx.lineWidth = 3 + 26 * closing
+  ctx.stroke()
+
+  // And the count itself, as a ring falling in on the boss. It is the only
+  // part of the picture that says when, and the mechanic is nothing but when.
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(1, 70 * L.scale * (1 - closing)), 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(253, 230, 138, ${(0.35 + 0.55 * closing).toFixed(3)})`
+  ctx.lineWidth = 2 + 4 * closing
+  ctx.stroke()
+  ctx.restore()
+}
+
+/**
+ * The note, and the line to the one body that can cut it.
+ *
+ * The line is the whole picture. Twenty-four people cannot do anything about
+ * this and one can, so what has to be legible at a glance is which of them it
+ * is — a ring on the boss alone would be a mechanic nobody knows is theirs.
+ */
+function drawChant(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / CHANT_CAST))
+
+  ctx.save()
+  for (let i = 0; i < 3; i++) {
+    const phase = (closing + i / 3) % 1
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, Math.max(1, r * phase), 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(124, 58, 237, ${(0.5 * (1 - phase)).toFixed(3)})`
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    if (!getAura(a, 'chant')) continue
+    const at = worldToScreen(a.pos)
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.lineTo(at.x, at.y)
+    ctx.strokeStyle = `rgba(167, 139, 250, ${(0.4 + 0.5 * closing).toFixed(3)})`
+    ctx.lineWidth = 2 + 3 * closing
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, (a.radius + 10) * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(124, 58, 237, ${(0.55 + 0.4 * closing).toFixed(3)})`
+    ctx.lineWidth = 2 + 3 * closing
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+/**
+ * The thing about to look at you, and a mark on everyone still looking back.
+ *
+ * Both halves are needed and the second is the one that teaches. A ring on the
+ * boss says something is coming; the marks say who it is coming for, and since
+ * that is decided by a bearing rather than by a tile there is nothing else on
+ * the screen a player could work it out from.
+ */
+function drawGaze(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / GAZE_TELEGRAPH))
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r * (1 - 0.35 * closing), 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(8, 145, 178, ${(0.4 + 0.5 * closing).toFixed(3)})`
+  ctx.lineWidth = 2 + 5 * closing
+  ctx.stroke()
+
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const at = worldToScreen(a.pos)
+    const looking = watched(a, g)
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = looking
+      ? `rgba(34, 211, 238, ${(0.35 + 0.55 * closing).toFixed(3)})`
+      : 'rgba(148, 163, 184, 0.25)'
+    ctx.lineWidth = looking ? 2 + 3 * closing : 1
+    ctx.stroke()
+
+    // The bearing itself, as a stub off each body. Without it the marks are a
+    // rule the player is told about rather than one they can see obeyed.
+    ctx.beginPath()
+    ctx.moveTo(at.x, at.y)
+    ctx.lineTo(
+      at.x + Math.cos(a.facing) * (a.radius + 16) * L.scale,
+      at.y + Math.sin(a.facing) * (a.radius + 16) * L.scale,
+    )
+    ctx.strokeStyle = looking ? 'rgba(34, 211, 238, 0.8)' : 'rgba(148, 163, 184, 0.5)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+  ctx.restore()
 }

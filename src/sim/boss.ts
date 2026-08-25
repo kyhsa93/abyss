@@ -4,7 +4,11 @@ import {
   BURDEN_REACH,
   CRUSH_TELEGRAPH,
   DT,
+  CHANT_CAST,
   FAULT_TELEGRAPH,
+  GAZE_ARC,
+  GAZE_TELEGRAPH,
+  GLOBAL_COOLDOWN,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SHALLOWS_COUNT,
@@ -21,7 +25,10 @@ import {
   STALKER_HP,
   STALKER_SPEED,
   STALKER_SWING,
+  TURN_RATE,
   HEALTH,
+  VIGIL_HELD,
+  VIGIL_TELEGRAPH,
   YOKE_REACH,
 } from './constants'
 import {
@@ -30,6 +37,7 @@ import {
   adds,
   clearAura,
   getAura,
+  interruptCast,
   pushEffect,
   applyDamage,
   boss,
@@ -355,6 +363,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleHunt(s, b, rng, timing)
   scheduleBurden(s, b, rng, timing)
   scheduleYoke(s, b, rng, timing)
+  scheduleVigil(s, b, timing)
+  scheduleChant(s, b, rng, timing)
+  scheduleGaze(s, b, timing)
   passBurdens(s)
 
   updateAdds(s)
@@ -1869,6 +1880,7 @@ function makeAdd(id: number, x: number, y: number): Actor {
     isPlayer: false,
     ai: null,
     swingTimer: 1.5,
+    facing: 0,
     hunting: null,
   }
 }
@@ -2266,6 +2278,72 @@ if (g.kind === 'schism') {
       continue
     }
 
+    // Nothing to leave, and nothing to be inside of. What this arm reads at
+    // the instant the count runs out is whether a body was still working --
+    // mid-cast, or with most of a global still on it -- which is the resting
+    // state of every rotation in the game and therefore the failing one.
+    if (g.kind === 'vigil') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      s.raidFlash = 0.3
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_vigil', power: 320, crit: true })
+      for (const a of livingParty(s)) {
+        if (!stillWorking(a)) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_vigil', power: damage })
+      }
+      continue
+    }
+
+    // The note landing, which happens only because the body it named did not
+    // cut it. Everybody pays, and exactly one of them failed: the mark is
+    // what says which, and it is the only place in the ground loop where the
+    // hit and the failure are recorded against different people.
+    if (g.kind === 'chant') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      s.raidFlash = 0.45
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_chant', power: 900, crit: true })
+      const named = chantNamed(s)
+      for (const a of livingParty(s)) {
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: named !== null && a.id === named.id,
+        })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_chant', power: damage })
+      }
+      if (named) clearAura(named, 'chant')
+      continue
+    }
+
+    // A bearing rather than a place. It takes whoever is still turned toward
+    // where it opened, wherever they happen to be standing -- and since a
+    // party fights what it is looking at, that is everybody who did nothing.
+    if (g.kind === 'gaze') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      s.raidFlash = 0.3
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_gaze', power: 460, crit: true })
+      for (const a of livingParty(s)) {
+        if (!watched(a, g)) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_gaze', power: damage })
+      }
+      continue
+    }
+
     // All of it or none of it, at one instant. Handled apart from the pools
     // below rather than folded into them: those keep burning after they go
     // off and the whole of this one is the frame it lands on.
@@ -2336,6 +2414,11 @@ if (g.kind === 'schism') {
     if (g.kind === 'shockwave') return g.lingering > 0
     // The same rule as the circle, for the same reason: a moment, not a place.
     if (g.kind === 'crush') return !g.detonated
+    // And the same again for the three that are nothing but a moment. There is
+    // no ground under any of them to hand back.
+    if (g.kind === 'vigil') return !g.detonated
+    if (g.kind === 'chant') return !g.detonated
+    if (g.kind === 'gaze') return !g.detonated
     // Unlike every other one-instant hazard above, it leaves something, so it
     // is kept until the stone is gone rather than dropped on the frame it
     // lands. Spelt out beside the others instead of falling through to the
@@ -2539,4 +2622,203 @@ function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
 /** Everyone close enough to be paying a share of this one's yoke right now. */
 export function yokeSharers(s: SimState, carrier: Actor): number {
   return livingParty(s).filter((a) => dist(a.pos, carrier.pos) <= YOKE_REACH).length
+}
+
+// --- the three whose answer is an instant -----------------------------------
+//
+// Every mechanic above this line is a shape and a step. The pool says leave
+// where you stand, the cone says get behind, the ring says come in, the
+// shallows say be on one of these three, the schism says be with your own. All
+// of them are answered by a position, and all of them can be answered early:
+// the floor a raid walked to at the start of the count is still the floor it
+// wants at the end of it.
+//
+// These three take the shape out and keep the count. What they read at the
+// instant they land is not where a body is but what it was doing -- working,
+// waiting, or turned the wrong way -- and none of those is a thing that can be
+// arranged in advance and left. A raid that answers one of these has to answer
+// it again for every cast, at the moment of the cast, and cannot bank it.
+//
+// They also bill something no other mechanic here bills. The price of a pool
+// is the walk; the price of these is the part of a rotation that fits inside
+// the count, paid by everybody at once. That is deliberate: a fight made
+// entirely of floor teaches a raid to read floor, and there is nothing in it
+// for the half of raiding that is knowing when to do nothing.
+
+/**
+ * What the vigil takes off whoever was still working when it sealed.
+ *
+ * A puddle's, less a tenth, and for the reason the crush's own number is a
+ * puddle's: this is one mechanic's worth of damage at one instant, and the
+ * puddle is the measured shape of that. It lands on everybody who failed
+ * rather than on whoever happened to be standing somewhere, so it is set low
+ * enough that a raid which misses one cast has lost a piece of a bar and not
+ * the pull.
+ */
+const VIGIL_DAMAGE = 900
+
+/**
+ * What the note costs the whole raid when nobody cuts it.
+ *
+ * Under half the others, and the mechanic is why. Those are paid by the
+ * bodies that failed; this is paid by everybody for the failure of one, so the
+ * same per-body number is worth five times as much per cast against a raid of
+ * five and twenty-five times against a raid of twenty-five. Priced as
+ * something a raid can absorb several times in a pull, because a raid will.
+ */
+const CHANT_DAMAGE = 210
+
+/** The vigil's, for the same reason: one instant, and everybody who failed. */
+const GAZE_DAMAGE = 900
+
+/**
+ * Whether a body was still working the boss.
+ *
+ * Read off the global cooldown rather than off a flag of its own, because the
+ * global already is the thing that says "this one pressed something recently"
+ * -- every rotation in the game presses the moment it comes up, so a body
+ * whose global still has most of its length left has not stopped. A cast in
+ * progress counts on its own: the whole of a cast is working.
+ */
+export function stillWorking(actor: Actor): boolean {
+  return actor.castId !== null || actor.gcd > GLOBAL_COOLDOWN - VIGIL_HELD
+}
+
+function scheduleVigil(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.vigil <= 0) return
+  s.next.vigil -= DT
+  if (s.next.vigil > 0) return
+
+  s.next.vigil = timing.vigil
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.vigil)
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'vigil',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // The arena, because there is no outside to it. Every other radius on
+    // this list is a test; this one is only the picture, and it is drawn at
+    // the full width of the floor so nobody reads it as somewhere to leave.
+    radius: ARENA_RADIUS,
+    telegraph: VIGIL_TELEGRAPH,
+    lingering: 0,
+    damage: VIGIL_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_vigil', power: ARENA_RADIUS })
+}
+
+/**
+ * Whoever the note has named, if it has named anybody still alive.
+ *
+ * Read off the mark rather than worked out again, which is the thing the yoke
+ * had to learn twice: a name that is recomputed is not a name. The mark is
+ * written once when the note opens and never moved, so the body that has to
+ * answer at the end of the count is the body that was told at the start of it.
+ */
+export function chantNamed(s: SimState): Actor | null {
+  return livingParty(s).find((a) => getAura(a, 'chant') !== undefined) ?? null
+}
+
+/**
+ * The note cut, by the one it named.
+ *
+ * Costs a global cooldown, because it is an action and not a decision. That
+ * is the only part of the price a raid feels when the mechanic goes right --
+ * one body loses a beat of its rotation -- and it is what stops a perfectly
+ * answered chant from being free.
+ */
+export function breakChant(s: SimState, breaker: Actor): void {
+  if (getAura(breaker, 'chant') === undefined) return
+  const note = s.ground.find((g) => g.kind === 'chant' && !g.detonated)
+  if (!note) return
+  note.detonated = true
+  clearAura(breaker, 'chant')
+  breaker.gcd = Math.max(breaker.gcd, GLOBAL_COOLDOWN)
+  if (breaker.castId) interruptCast(s, breaker, 'moved')
+  s.sounds.push('telegraph')
+  pushEffect(s, 'impact', note.pos, { abilityId: 'boss_chant', power: 340 })
+}
+
+function scheduleChant(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.chant <= 0) return
+  s.next.chant -= DT
+  if (s.next.chant > 0) return
+
+  // One note at a time. Two open at once and the mark stops naming anybody in
+  // particular, since there is only one place a name can be kept.
+  if (s.ground.some((g) => g.kind === 'chant')) {
+    s.next.chant = CHANT_CAST
+    return
+  }
+
+  s.next.chant = timing.chant
+
+  const free = livingParty(s)
+  if (free.length === 0) return
+  // Anybody at all, and deliberately not the nearest or the one holding it.
+  // What the mechanic asks is whether the raid is quick, and a raid is exactly
+  // as quick as whoever it happens to be tonight -- naming the body best
+  // placed to answer would be naming the answer.
+  const named = free[rng.int(free.length)]!
+  addAura(named, 'chant', BOSS_ID)
+  if (named.ai) say(s, named, fight(s).lines.chant)
+  s.sounds.push('telegraph')
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'chant',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: 130,
+    telegraph: CHANT_CAST,
+    lingering: 0,
+    damage: CHANT_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_chant', power: 260 })
+}
+
+/** Whether a body is still turned toward the thing about to look at it. */
+export function watched(actor: Actor, g: GroundEffect): boolean {
+  const toward = Math.atan2(g.pos.y - actor.pos.y, g.pos.x - actor.pos.x)
+  let delta = actor.facing - toward
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  return Math.abs(delta) < GAZE_ARC
+}
+
+/** Swings a body's bearing toward the one it wants, at the rate it turns. */
+export function turnToward(actor: Actor, want: number): void {
+  let delta = want - actor.facing
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  actor.facing += Math.max(-TURN_RATE * DT, Math.min(TURN_RATE * DT, delta))
+}
+
+function scheduleGaze(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.gaze <= 0) return
+  s.next.gaze -= DT
+  if (s.next.gaze > 0) return
+
+  s.next.gaze = timing.gaze
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.gaze)
+
+  s.ground.push({
+    ...blankGround(s),
+    // Anchored where the boss stood when it opened rather than read off the
+    // boss every tick, for the crush's reason: the shape a raid turns away
+    // from has to be the shape that judges it. The boss moves for two percent
+    // of a fight, so the two are nearly the same bearing -- and nearly is the
+    // wrong word to have anywhere in a mechanic decided by an angle.
+    kind: 'gaze',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: 104,
+    telegraph: GAZE_TELEGRAPH,
+    lingering: 0,
+    damage: GAZE_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_gaze', power: 220 })
 }

@@ -239,6 +239,24 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // A debt falling due, which either splits or does not. A burst rather than
   // a wither: it arrives all at once and it is over.
   boss_yoke: { colour: '#f0abfc', style: 'burst' },
+  // The three whose answer is a moment. They share nothing on the floor with
+  // anything above -- there is no shape to be outside of -- so what their
+  // colours have to do is be unmistakably not-floor, and be unmistakably three
+  // different demands rather than one idea in three shades.
+  //
+  // The count that punishes working, in amber: it is the only hostile thing
+  // in the game whose picture means "wait", and it crushes because what it
+  // does is come down on everyone still busy.
+  boss_vigil: { colour: '#f59e0b', style: 'crush' },
+  // The note nobody cut, in a deep violet nothing else owns. A burst, because
+  // it arrives on the entire raid at once and is over -- and it is drawn like
+  // the party-wide hit rather than like a hazard on purpose, since that is
+  // what it is from twenty-four people's point of view.
+  boss_chant: { colour: '#7c3aed', style: 'burst' },
+  // Being looked at, in cold cyan, and piercing: it comes from one place, it
+  // arrives along the line between there and you, and the only thing that
+  // saves you is which way that line was pointing.
+  boss_gaze: { colour: '#0891b2', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

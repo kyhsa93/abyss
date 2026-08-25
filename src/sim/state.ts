@@ -107,6 +107,7 @@ function makeMember(
     isPlayer,
     ai: isPlayer ? null : makeAi(slot.personality, attempt),
     swingTimer: 0,
+    facing: 0,
     hunting: null,
   }
 }
@@ -170,6 +171,7 @@ export function createState(
     isPlayer: false,
     ai: null,
     swingTimer: 2,
+    facing: 0,
     hunting: null,
   }
 

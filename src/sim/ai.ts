@@ -2,9 +2,12 @@ import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
   BURDEN_REACH,
+  CHANT_CAST,
+  CHANT_NOTICE,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
+  GAZE_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SCHISM_MUSTER_ROOM,
@@ -13,18 +16,21 @@ import {
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
+  VIGIL_TELEGRAPH,
   YOKE_REACH,
 } from './constants'
 import {
   BREATH_CAST,
   ECHO_TELEGRAPH,
   HAND_BEAT,
+  breakChant,
   condemned,
   insideCone,
   inShockwaveGap,
   onShallows,
   schismClash,
   schismMuster,
+  turnToward,
   underHand,
   verdictLine,
 } from './boss'
@@ -120,7 +126,7 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // Noticing danger at all is what costs reaction time.
     ai.reactingTo = danger
     ai.fumbled = false
-    ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4)
+    ai.reactionTimer = ai.reactionDelay * noticeScale(danger) * rng.range(0.7, 1.4)
     // A fumble means it reacts far too late — the AI equivalent of
     // tunnel-visioning on your rotation.
     if (rng.chance(ai.mistakeChance)) {
@@ -138,6 +144,36 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   if (ai.reactionTimer > 0) ai.reactionTimer -= DT
 
   const reacting = danger !== null && ai.reactionTimer <= 0
+
+  // The three whose answer is not a place, split off before the movement
+  // branch rather than inside it. Everything below assumes that reacting
+  // means going somewhere -- it picks a tile, re-picks it when the tile goes
+  // bad, and drops whatever cast the walk would have broken. None of that is
+  // what these ask for, and running them through it would have answered all
+  // three by accident with a sidestep that costs nothing.
+  if (reacting && answeredInPlace(danger)) {
+    if (danger!.startsWith('vigil')) {
+      // Dropping the cast is the answer here rather than a side effect of it.
+      // The greedy exception is kept from the movement branch on purpose: the
+      // one who squeezes the last half second out of a cast is the one
+      // standing in the fire when you look over, and this is the same
+      // character reading the same way against a different demand.
+      const nearlyDone = actor.castRemaining < 0.35
+      if (actor.castId && !(ai.personality === 'greedy' && nearlyDone)) {
+        interruptCast(s, actor, 'moved')
+      }
+      say(s, actor, 'Hands off it')
+    } else if (danger!.startsWith('gaze')) {
+      say(s, actor, 'Turning away')
+    } else {
+      breakChant(s, actor)
+      say(s, actor, 'Cutting it')
+    }
+    turnBody(s, actor, danger)
+    moveToward(s, actor, ai.moveTarget)
+    useAbilities(s, actor, rng)
+    return
+  }
 
   if (reacting) {
     // Recompute only when there is no destination or the chosen one went bad.
@@ -213,8 +249,72 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       ai.moveTarget = home
   }
 
+  turnBody(s, actor, danger)
   moveToward(s, actor, ai.moveTarget)
   useAbilities(s, actor, rng)
+}
+
+/**
+ * How much longer this danger takes to notice than fire on the floor does.
+ *
+ * One for everything with a shape, because `reactionDelay` is calibrated for
+ * exactly that: seeing a circle appear under you and starting to walk. The
+ * only entry that is not one is the note, and the reason is the same one the
+ * judgement needed six of — what has to be read is a mark on a frame rather
+ * than a shape on the ground, and those are not the same act.
+ */
+function noticeScale(danger: string): number {
+  return danger.startsWith('chant') ? CHANT_NOTICE : 1
+}
+
+/**
+ * The dangers that are answered where the body already is.
+ *
+ * Named as a set rather than tested one at a time, because what they have in
+ * common is the thing the caller needs: none of them is made better or worse
+ * by standing anywhere, so none of them may reach the code that decides where
+ * to stand.
+ */
+function answeredInPlace(danger: string | null): boolean {
+  if (danger === null) return false
+  return danger.startsWith('vigil') || danger.startsWith('gaze') || danger.startsWith('chant')
+}
+
+/**
+ * Which way a body is turned.
+ *
+ * Toward the boss, always, because a party fights what it is looking at and
+ * because that is what makes the gaze a mechanic rather than a coin toss: the
+ * resting bearing is the failing one, so turning away is a thing somebody
+ * did, on purpose, in time.
+ *
+ * The one exception is a gaze this body has already noticed. It is read off
+ * `reactingTo` rather than off a flag of its own so that the turn is gated by
+ * exactly the two numbers that separate a first pull from a ninth, and by
+ * nothing else -- a body that has spotted the gaze turns, and one that has not
+ * keeps working and gets looked at.
+ */
+function turnBody(s: SimState, actor: Actor, danger: string | null): void {
+  const b = boss(s)
+  const toward = Math.atan2(b.pos.y - actor.pos.y, b.pos.x - actor.pos.x)
+  const away = danger !== null && danger.startsWith('gaze') && actor.ai!.reactionTimer <= 0
+  turnToward(actor, away ? toward + Math.PI : toward)
+}
+
+/**
+ * Whether this body is deliberately doing nothing, and for how much longer.
+ *
+ * The vigil's whole answer, and it is a refusal rather than an action, so it
+ * cannot be expressed as something the rotation presses. It is expressed as
+ * the rotation not being reached at all -- and only once the reaction delay
+ * has run out, which is what makes the hold a thing a raid gets better at
+ * instead of a rule the fight enforces on it.
+ */
+function holdingStill(s: SimState, actor: Actor): boolean {
+  const ai = actor.ai
+  if (!ai || ai.reactingTo === null || !ai.reactingTo.startsWith('vigil')) return false
+  if (ai.reactionTimer > 0) return false
+  return s.ground.some((live) => live.kind === 'vigil' && !live.detonated)
 }
 
 /**
@@ -491,6 +591,46 @@ function currentDanger(s: SimState, actor: Actor): string | null {
         if (adrift || clashingWith(s, actor, actor.pos, g.radius + DANGER_MARGIN)) {
           consider(`schism:${g.id}`, 86 + (SCHISM_TELEGRAPH - g.telegraph) * 8)
         }
+      }
+      continue
+    }
+
+    // The count with no shape to it. Everybody has it, for as long as it is
+    // open, whatever they are doing and wherever they stand -- which is the
+    // only way a demand answered by *not acting* can be reaction-timed at all.
+    //
+    // The obvious narrowing is a trap and was written first: raise it only
+    // for a body that would be caught if it landed now. That oscillates. The
+    // moment such a body holds, its danger clears; the moment its danger
+    // clears it presses again, and the pair re-roll a reaction delay every
+    // few ticks until one of them happens to land inside the count. Read as a
+    // count that everybody is under, the delay is rolled once and the thing
+    // it decides is whether the hold started in time.
+    if (g.kind === 'vigil') {
+      if (!g.detonated) {
+        consider(`vigil:${g.id}`, 90 + (VIGIL_TELEGRAPH - g.telegraph) * 12)
+      }
+      continue
+    }
+
+    // The same count, read the same way, and for the same reason: a body that
+    // has finished turning is a body with nothing to react to, and one with
+    // nothing to react to turns straight back.
+    if (g.kind === 'gaze') {
+      if (!g.detonated) {
+        consider(`gaze:${g.id}`, 90 + (GAZE_TELEGRAPH - g.telegraph) * 12)
+      }
+      continue
+    }
+
+    // And the one that is only the named body's. Ranked over the caving band,
+    // which is the one thing on this list it has to beat: the band kills
+    // whoever stood in it and this lands on the whole raid, so a body holding
+    // both should cut the note and take the hit rather than the other way
+    // round. Nobody else can do anything about it, so nobody else sees it.
+    if (g.kind === 'chant') {
+      if (!g.detonated && getAura(actor, 'chant')) {
+        consider(`chant:${g.id}`, 94 + (CHANT_CAST - g.telegraph) * 10)
       }
       continue
     }
@@ -1307,6 +1447,10 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
     interruptCast(s, actor, 'switching')
   }
   if (actor.castId) return
+  // Nothing at all while the count is running, which is the only place in this
+  // file where the answer to a mechanic is to reach the end of this function
+  // and press nothing.
+  if (holdingStill(s, actor)) return
   // Off-GCD defensives are still worth checking while the global is running.
   if (actor.gcd > 0 && !canUseOffGcd(s, actor)) return
   // While relocating, only instants are available — exactly the constraint a

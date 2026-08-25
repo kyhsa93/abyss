@@ -410,3 +410,97 @@ export const SCHISM_APART = 380
  * not finished walking.
  */
 export const SCHISM_MUSTER_ROOM = 80
+
+// --- the three whose answer is an instant ----------------------------------
+//
+// Everything above this line is a shape and a step. What follows is the same
+// telegraph-then-judge machinery with the shape taken out: the count runs, and
+// at the instant it lands what is read is not a position but what a body was
+// *doing*. That is the only reason the three are grouped -- they cost the same
+// thing, which is the part of a rotation that fits inside the count, and none
+// of them can be answered by walking.
+
+/**
+ * How long the vigil counts before it seals.
+ *
+ * Set from the crush rather than invented. The crush warns for 1.1 seconds
+ * against a step that costs 0.31, and its length is the steepest dial in the
+ * game: a tenth shorter is a wall and a twentieth longer is a formality. What
+ * this asks costs `VIGIL_HELD` instead of a step, so the count is that plus
+ * about the same slack the crush leaves over -- long enough that a reaction
+ * delay fits inside it and short enough that it does not fit twice.
+ */
+export const VIGIL_TELEGRAPH = 1.3
+
+/**
+ * How long a body has to have been doing nothing before the vigil passes over
+ * it.
+ *
+ * Read off the global cooldown rather than chosen: a rotation presses
+ * something the instant the global is up, so "did you press anything recently"
+ * is exactly `gcd > GLOBAL_COOLDOWN - this`. At 0.45 the demand is to have
+ * stopped a little under half a second before it lands, which is one
+ * hesitation and not a plan.
+ */
+export const VIGIL_HELD = 0.45
+
+/**
+ * How long the chant runs before it lands on everybody.
+ *
+ * The first number here was 2.1, on the reasoning that one body's roll is
+ * riskier than a whole raid's and should be given room. Measured, it was cut
+ * 12.6 times a pull and failed 0.1 times -- an unpractised raid answered
+ * essentially every note, and the mechanic taught 0.8 points with a bar
+ * wider than the figure.
+ *
+ * The cause is that the answer has no duration. A pool is answered by a step
+ * that takes 0.31 seconds, so the count has to hold a delay *and* a walk; a
+ * note is answered by a press, so the whole count is slack. What sets this
+ * number is therefore the delay alone, and it is set just inside the range a
+ * greedy raider rolls on its first pull and outside the one it rolls on its
+ * ninth.
+ */
+export const CHANT_CAST = 1.25
+
+/**
+ * How much slower noticing your own name is than noticing fire.
+ *
+ * The judgement needed the same idea and needed six of it: reading a raid
+ * frame, deciding whose problem somebody else's health bar is, and re-aiming
+ * is not a sidestep. This is the smaller version of the same argument. The
+ * mark is on you and the answer is one press, so most of the delay is real
+ * reaction -- but a debuff appearing on your own frame is still a thing that
+ * has to be read rather than seen underfoot.
+ *
+ * It was put in for a measured reason and the reason is worth keeping. At a
+ * flat delay every personality answers a note without a fumble, so the whole
+ * gap came from the mistake roll and the mechanic was a probe of one of the
+ * two skill numbers rather than of both. Doubled, the greedy raider's own
+ * delay crosses the count on a first pull and clears it on a ninth, which is
+ * what the count is supposed to be measuring.
+ */
+export const CHANT_NOTICE = 2
+
+/** How long the gaze holds open before it takes whoever is still watching. */
+export const GAZE_TELEGRAPH = 1.2
+
+/**
+ * How far off the boss's bearing counts as looking away.
+ *
+ * A wide arc rather than a narrow one, so that the answer is a turn and not a
+ * pixel. Sixty degrees off is unmistakably not watching, and it is reached in
+ * a third of a second at `TURN_RATE` -- which leaves the same kind of slack
+ * inside `GAZE_TELEGRAPH` that a step leaves inside the crush's count.
+ */
+export const GAZE_ARC = 1.05
+
+/**
+ * How fast a body turns, in radians a second.
+ *
+ * Slower than a wrist and faster than the boss, which turns at 2.6 and is a
+ * building. What the number is actually for is to stop the answer being free:
+ * a turn that resolved on the tick it was decided would make the gaze a pure
+ * reaction-delay probe with no cost of its own, and every mechanic here is
+ * supposed to bill something.
+ */
+export const TURN_RATE = 3.2
