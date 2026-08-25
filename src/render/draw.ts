@@ -1,4 +1,10 @@
-import { PUDDLE_TELEGRAPH, SOAK_TELEGRAPH, SPREAD_RADIUS, ARENA_RADIUS } from '../sim/constants'
+import {
+  CRUSH_TELEGRAPH,
+  PUDDLE_TELEGRAPH,
+  SOAK_TELEGRAPH,
+  SPREAD_RADIUS,
+  ARENA_RADIUS,
+} from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
@@ -456,6 +462,11 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'crush') {
+      drawCrush(ctx, g, p, r)
+      continue
+    }
+
     if (g.kind === 'soak') {
       drawSoak(ctx, s, g, p, r, clock)
       continue
@@ -605,6 +616,49 @@ function drawSoak(
   ctx.textBaseline = 'middle'
   ctx.fillText(`${inside}/${party.length}`, p.x, p.y)
   ctx.textBaseline = 'alphabetic'
+}
+
+/**
+ * The band about to cave in, and how long is left of it.
+ *
+ * A disc rather than a scar, filling and brightening as the second runs out —
+ * the one thing this shape has to say is *when*, because where is already
+ * obvious to anyone standing in it. It draws nothing after it lands: there is
+ * nothing left to avoid, and a mark on the floor would say otherwise.
+ *
+ * Arrows pointing outward rather than a rim closing in. The gathering's rim
+ * closes because the answer is to be inside; this one's answer is out, and
+ * the picture should not have to be read twice to say which.
+ */
+function drawCrush(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / CRUSH_TELEGRAPH))
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(220, 38, 38, ${(0.07 + 0.21 * closing).toFixed(3)})`
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(248, 113, 113, 0.9)'
+  ctx.lineWidth = 2 + 6 * closing
+  ctx.stroke()
+
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    const from = r * (0.55 + 0.4 * closing)
+    ctx.beginPath()
+    ctx.moveTo(p.x + Math.cos(a) * from, p.y + Math.sin(a) * from)
+    ctx.lineTo(p.x + Math.cos(a) * (r + 18), p.y + Math.sin(a) * (r + 18))
+    ctx.strokeStyle = `rgba(254, 202, 202, ${(0.25 + 0.5 * closing).toFixed(3)})`
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+  ctx.restore()
 }
 
 /** Expanding ring: lethal band, safe interior. */

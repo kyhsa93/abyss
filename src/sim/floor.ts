@@ -174,6 +174,7 @@ export function planned(timing: PhaseTiming, plan: FloorPlan, phase: number): Ph
   }
   return {
     ...timing,
+    crush: at('crush'),
     puddle: at('puddle'),
     spread: at('spread'),
     breath: at('breath'),

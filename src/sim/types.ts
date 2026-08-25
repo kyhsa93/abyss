@@ -140,7 +140,7 @@ export interface Actor {
   hunting: number | null
 }
 
-export type GroundKind = 'puddle' | 'brand' | 'breath' | 'shockwave' | 'soak'
+export type GroundKind = 'puddle' | 'brand' | 'crush' | 'breath' | 'shockwave' | 'soak'
 
 export interface GroundEffect {
   id: number
@@ -582,6 +582,7 @@ export interface SimState {
   /** Timers driving the boss script. */
   nextPuddle: number
   nextBrand: number
+  nextCrush: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number

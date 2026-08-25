@@ -184,6 +184,10 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_brand: { colour: '#f472b6', style: 'wither' },
   // The one thing armour answers, so it is drawn as steel.
   boss_sweep: { colour: '#e2e8f0', style: 'cleave' },
+  // The same band as the sweep and deliberately not the same colour: one is a
+  // swing that arrives and the other is the floor itself coming down, and a
+  // player who cannot tell them apart cannot learn that one of them warned.
+  boss_crush: { colour: '#dc2626', style: 'crush' },
   // Everyone at once, which is the healer's whole fight.
   boss_raid: { colour: '#a78bfa', style: 'burst' },
   boss_rot: { colour: '#65a30d', style: 'wither' },

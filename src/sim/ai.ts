@@ -1,6 +1,7 @@
 import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
+  CRUSH_TELEGRAPH,
   DT,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
@@ -111,7 +112,23 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // to a moving boss is what made the party pace back and forth.
     ai.moveTarget = null
   } else if (!ai.moveTarget && outOfPosition(s, actor)) {
-    ai.moveTarget = idlePosition(s, actor)
+    // Home, unless home is the floor that is about to cave in.
+    //
+    // Nothing checked this before, because until the crush no mechanic
+    // covered the place a role wants to *be*: a puddle lands where somebody
+    // is standing, and by the time anyone walks back it has already gone off.
+    // The crush covers the melee's own ground for a second, so a melee that
+    // finished its step out early turned round, walked back in, and was
+    // caught by the thing it had already dodged.
+    //
+    // Narrow on purpose rather than a general "is home safe". Run through
+    // `isSpotSafe` instead, an unpractised raid stops walking back into
+    // anything at all — measured, that alone took the brand from seventeen
+    // points of teaching to six, because most of what the brand teaches is
+    // not walking onto your own. One mechanic's fix is not a licence to make
+    // every other mechanic easier.
+    const home = idlePosition(s, actor)
+    if (!caving(s, home)) ai.moveTarget = home
   }
 
   moveToward(s, actor, ai.moveTarget)
@@ -156,6 +173,24 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     if (g.kind === 'breath') {
       if (!g.detonated && insideCone(actor.pos, g)) {
         consider(`breath:${g.id}`, 70 + (BREATH_CAST - g.telegraph) * 8)
+      }
+      continue
+    }
+
+    // The floor under the melee, about to cave in. Ranked above everything
+    // that is merely on fire, and rising as the second runs out: this is the
+    // one hazard here that is a single enormous hit at a known instant rather
+    // than a place that keeps hurting, so being late by a tenth of a second
+    // is the whole of the mechanic.
+    //
+    // It has to outrank the melee's own reason to stand there, which is
+    // `findSafeSpot`'s job rather than this one's — but nothing gets that far
+    // until this returns the crush as the thing worth reacting to, and a
+    // mechanic that never becomes the *most* urgent thing is a mechanic the
+    // reaction delay never gets applied to.
+    if (g.kind === 'crush') {
+      if (!g.detonated && dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`crush:${g.id}`, 92 + (CRUSH_TELEGRAPH - g.telegraph) * 12)
       }
       continue
     }
@@ -214,6 +249,13 @@ function hunterOf(s: SimState, actor: Actor): Actor | null {
 /** How close the thing chasing you has to be before it is worth running. */
 const STALK_ROOM = 110
 
+/** Is this spot inside a slam that has been announced and has not landed? */
+function caving(s: SimState, spot: Vec2): boolean {
+  return s.ground.some(
+    (g) => g.kind === 'crush' && !g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN,
+  )
+}
+
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   for (const g of s.ground) {
@@ -223,6 +265,10 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     }
     if (g.kind === 'shockwave') {
       if (dist(spot, g.pos) >= g.radius - g.band && !inShockwaveGap(spot, g)) return false
+      continue
+    }
+    if (g.kind === 'crush') {
+      if (!g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
       continue
     }
     // Inverted: this is the one piece of ground that is only safe from the
@@ -384,6 +430,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     // 1. Ground danger dominates everything else.
     let ringActive = false
     let soakActive = false
+    let crushActive = false
     for (const g of s.ground) {
       if (g.kind === 'breath') {
         if (!g.detonated && insideCone(candidate, g)) score -= 1400
@@ -397,6 +444,15 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         // in one at a time divides the hit by one and takes it five times.
         if (d > g.radius - actor.radius) score -= 1600
         else score += Math.min(240, (g.radius - d) * 2)
+        continue
+      }
+      if (g.kind === 'crush') {
+        if (g.detonated) continue
+        crushActive = true
+        // Above what fire is worth avoiding, because it is worth more: a pool
+        // is a health bar over five and a half seconds and this is most of one
+        // in a single frame.
+        if (dist(candidate, g.pos) <= g.radius + DANGER_MARGIN) score -= 1800
         continue
       }
       if (g.kind === 'shockwave') {
@@ -453,7 +509,15 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.
-      if (bossDist > 200) score -= (bossDist - 200) * 3
+      //
+      // Suspended while the floor around the boss is caving in, the way the
+      // gathering suspends it. This is the one mechanic whose answer is
+      // *away from the boss specifically*, so a term that pays for being
+      // close is a term arguing directly against it — and the melee's whole
+      // reason to be there is the thing the mechanic is asking them to give
+      // up for a second.
+      if (crushActive) score -= Math.max(0, 260 - bossDist) * 0.2
+      else if (bossDist > 200) score -= (bossDist - 200) * 3
       else score -= bossDist * 0.35
     } else if (!ringActive) {
       // Casters want to stay in range but out of the boss's lap. Suspended
@@ -781,7 +845,10 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   // plays a rogue as a warrior with different words on the buttons.
   const ai = actor.ai!
   const dangerNear = s.ground.some(
-    (g) => (g.kind === 'puddle' || g.kind === 'brand') && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
+    (g) =>
+      (g.kind === 'puddle' || g.kind === 'brand' || g.kind === 'crush') &&
+      !g.detonated &&
+      dist(actor.pos, g.pos) < g.radius + 130,
   )
 
   for (const id of damageOrder(actor, target)) {

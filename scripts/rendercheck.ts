@@ -3133,7 +3133,7 @@ for (const [label, w, h] of [
       uses('breath') === (encounter.names.breath !== ''),
       `uses ${uses('breath')}, named "${encounter.names.breath}"`,
     )
-    for (const key of ['shockwave', 'adds', 'sweep', 'rot', 'sunder', 'soak', 'hunt'] as const) {
+    for (const key of ['shockwave', 'adds', 'sweep', 'crush', 'rot', 'sunder', 'soak', 'hunt'] as const) {
       expect(
         `${label}: its ${key} is announced exactly when it happens`,
         uses(key) === (encounter.lines[key] !== ''),
@@ -3466,6 +3466,7 @@ for (const [label, w, h] of [
     const DRAWN: Partial<Record<MechanicId, string>> = {
       puddle: 'boss_puddle',
       brand: 'boss_brand',
+      crush: 'boss_crush',
       breath: 'boss_breath',
       shockwave: 'boss_shockwave',
       adds: 'boss_thrall',
@@ -6211,22 +6212,22 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 // answers, and the rot is the one it cannot touch, so no stat block is the
 // whole answer to a fight.
 {
-  // On heroic, which is the rung this five-man needs: the sweep is the
-  // Warden's second and the rot its third, and a normal five-man climbs to
-  // two. The pair is the point of the check, so the check has to stand where
-  // both of them are thrown.
-  const s = pulled(
-    0x51ed,
-    0,
-    [
-      pickFor('warrior', 'dps')!,
-      pickFor('warrior', 'tank')!,
-      pickFor('priest', 'healer')!,
-      pickFor('mage', 'dps')!,
-      pickFor('rogue', 'dps')!,
-    ],
-    'heroic',
-  )
+  // A floor rather than a boss, and the pair is the reason.
+  //
+  // This used to be a five-man heroic Warden, which owned both: the sweep on
+  // its second rung and the rot on its third. It does not any more — the
+  // second rung is the crush now — and no single boss owns both, which is
+  // fine, because the claim was never about one boss. It is that the game has
+  // a mechanic armour answers and a mechanic armour cannot touch, and a floor
+  // is built out of exactly that vocabulary. Asked for two of it and nothing
+  // else, so neither reading is another mechanic landing in the same tick.
+  const s = floorWith({ sweep: 22, rot: 16 }, 4, [
+    pickFor('warrior', 'dps')!,
+    pickFor('warrior', 'tank')!,
+    pickFor('priest', 'healer')!,
+    pickFor('mage', 'dps')!,
+    pickFor('rogue', 'dps')!,
+  ])
   const rng = new Rng(0x51ed)
   const plate = s.actors.find((a) => a.classId === 'warrior' && a.role === 'dps')!
   const cloth = s.actors.find((a) => a.classId === 'mage')!
@@ -6250,10 +6251,9 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     plate.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y }
     cloth.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y + 40 }
 
-    // Announced in the boss's own words now, so the check asks the table what
-    // this one says rather than knowing a single hard-coded line.
-    const called = encounterAt(s.encounter).lines.sweep
-    if (s.chat.some((line) => line.text === called && line.age < 0.1)) {
+    // Read off the hit rather than off a line of chat. A floor has no boss
+    // saying anything, and the thing being measured is the hit anyway.
+    if (s.effects.some((e) => e.kind === 'impact' && e.abilityId === 'boss_sweep')) {
       sawSweep = true
       plateTook = plateBefore - plate.hp
       clothTook = clothBefore - cloth.hp

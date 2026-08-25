@@ -1,5 +1,6 @@
 import {
   ARENA_RADIUS,
+  CRUSH_TELEGRAPH,
   DT,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
@@ -317,6 +318,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleShockwave(s, b, rng, timing)
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
+  scheduleCrush(s, b, timing)
   scheduleBrand(s, rng, timing)
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
@@ -635,6 +637,83 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
 }
 
 /**
+ * The floor around the boss, announced and then caved in.
+ *
+ * The sweep's opposite number, and the only reason it was built. Both land on
+ * the same band — whoever is within reach of the boss, which is the melee —
+ * and the sweep measures at exactly zero points of teaching, because the
+ * question it asks is *are you melee*, and a role is not a skill. Nothing a
+ * raid can practise moves that number.
+ *
+ * The difference here is one second. It says it is coming, and then it lands,
+ * and at that instant you are either inside the band or you are not: no ticks,
+ * no partial credit, no proportional loss to be washed out by an average. So
+ * the same band that was a seating chart becomes a moment of judgement, and
+ * what it costs the melee is not the hit — a practised melee is never hit at
+ * all — it is the walk out and the walk back, paid for in uptime.
+ *
+ * Magic rather than physical, which is the one thing it deliberately does not
+ * borrow from the sweep. Armour answering it would hand the answer back to
+ * the role, and that is the thing being tested.
+ *
+ * Anchored where the boss stood when it announced, not where the boss ends up.
+ * The boss moves for two percent of a fight so the two are nearly the same
+ * spot, and the shape a raid is reading has to be the shape that goes off.
+ */
+/**
+ * A puddle's, exactly, and for the same reason a puddle's is what it is: this
+ * is one mechanic's worth of damage at one instant, and the puddle is the
+ * measured shape of that. Heavier read as forty-five percent of a first pull
+ * dead rather than twenty-three, which is a wipe mechanic rather than a
+ * teaching one.
+ */
+const CRUSH_DAMAGE = 1000
+
+function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.crush <= 0) return
+  s.nextCrush -= DT
+  if (s.nextCrush > 0) return
+
+  // Not onto a party that has been told to stand in one place. The gathering
+  // is placed near the raid and the raid stands near the boss, so a circle
+  // and a caving floor at once is the same contradiction the puddles are held
+  // for — one says all of you here and the other says not there.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextCrush = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextCrush = timing.crush
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.crush)
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'crush',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // Exactly what the melee can reach the boss from, which is what makes it
+    // the melee's band rather than a circle that happens to contain them.
+    //
+    // The sweep's own reach was the first version, since the comparison is
+    // supposed to be the same floor with a warning in front of it — and the
+    // sweep reaches almost twice as far as melee range. Measured at the
+    // moment it is announced, the melee are all inside eighty of the boss and
+    // the ranged start at ninety-seven, so a band that wide caught six
+    // ranged a pull against seven melee and the split the mechanic exists to
+    // make was not there. At melee range and the boss's own radius it is
+    // fourteen melee against one ranged.
+    radius: MELEE_RANGE + b.radius,
+    telegraph: CRUSH_TELEGRAPH,
+    // Nothing at all afterwards. A residue would make it a place to avoid
+    // rather than a moment to be somewhere else, and a moment is the point.
+    lingering: 0,
+    damage: CRUSH_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crush', power: SWEEP_RANGE + b.radius })
+}
+
+/**
  * The circle the whole party has to be standing in.
  *
  * The inverse of spread, and the only thing here that asks the party to do
@@ -681,7 +760,12 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   //
   // The telegraph only, not the residue: waiting out every pool on the floor
   // would be waiting out the fight.
-  if (s.ground.some((g) => (g.kind === 'puddle' || g.kind === 'brand') && !g.detonated)) return
+  if (
+    s.ground.some(
+      (g) => (g.kind === 'puddle' || g.kind === 'brand' || g.kind === 'crush') && !g.detonated,
+    )
+  )
+    return
 
   s.nextSoak = every
 
@@ -1176,6 +1260,33 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // All of it or none of it, at one instant. Handled apart from the pools
+    // below rather than folded into them: those keep burning after they go
+    // off and the whole of this one is the frame it lands on.
+    if (g.kind === 'crush') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      s.raidFlash = 0.35
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_crush',
+        power: g.radius * 12,
+        crit: true,
+      })
+      for (const a of livingParty(s)) {
+        // The band's own edge, with no forgiveness on the actor's radius: a
+        // mechanic whose answer is a step out cannot also be a mechanic that
+        // lets a shoulder hang over the line.
+        if (dist(a.pos, g.pos) > g.radius) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_crush', power: damage })
+      }
+      continue
+    }
+
     if (!g.detonated) {
       g.telegraph -= DT
       if (g.telegraph <= 0) {
@@ -1217,6 +1328,8 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'soak') return !g.detonated
     if (g.kind === 'breath') return !g.detonated || g.lingering > 0
     if (g.kind === 'shockwave') return g.lingering > 0
+    // The same rule as the circle, for the same reason: a moment, not a place.
+    if (g.kind === 'crush') return !g.detonated
     return !g.detonated || g.lingering > 0
   })
 }

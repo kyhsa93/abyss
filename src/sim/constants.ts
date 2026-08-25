@@ -106,6 +106,31 @@ export const COUNTDOWN_TICKS = COUNTDOWN * TICK_RATE
  */
 export const PUDDLE_TELEGRAPH = 1.6
 
+/**
+ * Warning time before the floor around the boss caves in.
+ *
+ * Shorter than a puddle's on purpose. A puddle is a place you walk away from
+ * and this is a place the whole melee half of the raid is already standing
+ * in, so the question is not whether they noticed but whether they noticed
+ * *in time* — and this is the only dial that decides that.
+ *
+ * It is also the whole mechanic, and it is steep. The walk out is fifty units
+ * and about a third of a second, so what is left over is what a reaction has
+ * to fit inside, and measured against a ten-man heroic the entire mechanic
+ * lives in two tenths of a second:
+ *
+ *   0.95  forty-two points of teaching, and forty-five percent of a first
+ *         pull dead — a wipe mechanic
+ *   1.10  twenty-one points, twenty-three percent dead, ninety-five percent
+ *         of first pulls still won
+ *   1.15  fourteen points, and sixteen percent — an unpractised raid strolls
+ *         out of it about as reliably as a practised one
+ *
+ * The middle one, which is a first pull that is punished and a ninth that is
+ * not, rather than either a formality or a wall.
+ */
+export const CRUSH_TELEGRAPH = 1.1
+
 /** Melee actors need to be this close to their target to swing. */
 export const MELEE_RANGE = 52
 
