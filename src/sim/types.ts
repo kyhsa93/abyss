@@ -1,6 +1,7 @@
 import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
 import type { FloorPlan } from './floor'
+import type { MechanicId } from './encounters'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -600,6 +601,16 @@ export interface SimState {
    * plan decides what it does with them.
    */
   plan: FloorPlan | null
+
+  /**
+   * One mechanic, and nothing else, for measuring what a mechanic is worth.
+   *
+   * Null everywhere the game itself runs. The harness sets it because there is
+   * no other way to ask the question it needs answered: a boss's rungs arrive
+   * together, so a table of win rates cannot say which of them the raid is
+   * actually learning. It reads the same override path a floor already uses.
+   */
+  only: MechanicId | null
   /** A magic dot on somebody, which armour does not. */
   nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */

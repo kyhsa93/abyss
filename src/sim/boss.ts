@@ -67,9 +67,10 @@ function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
   // get it: a boss owns more mechanics than any one raid meets, and how many
   // of them tonight is a question of who turned up and what they picked at the
   // door. A floor already rolled its own answer to that.
-  const timing = s.plan
-    ? planned(base, s.plan, s.phase)
-    : gated(base, encounterKit(fight(s), s.party.length, s.difficulty))
+  const kit = s.only
+    ? encounterKit(fight(s), s.party.length, s.difficulty).filter((m) => m === s.only)
+    : encounterKit(fight(s), s.party.length, s.difficulty)
+  const timing = s.plan ? planned(base, s.plan, s.phase) : gated(base, kit)
   const cadence = DIFFICULTIES[s.difficulty].cadence
   if (cadence === 1) return timing
   return {

@@ -190,6 +190,7 @@ export function createState(
   return {
     mode: 'raid',
     bg: null,
+    only: null,
     time: 0,
     tick: 0,
     actors: [...members, boss],
@@ -321,6 +322,7 @@ export function createBattlegroundState(
     nextSunder: 0,
     nextSoak: 0,
     nextHunt: 0,
+    only: null,
     plan: null,
     nextRot: 0,
     bossFacing: Math.PI,

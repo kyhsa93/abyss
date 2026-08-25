@@ -787,6 +787,82 @@ const SPEC_SIZE: RaidSize = 10
   }
 }
 
+
+// --- what a mechanic is worth -----------------------------------------------
+//
+// Win rates cannot say which rung a raid is actually learning: a boss's
+// mechanics arrive together, so the table above reports the sum and nothing
+// about the parts. This runs each of them alone, twice — once against a raid
+// that has never seen the fight and once against one that has — and reports
+// the gap between how many died.
+//
+// Ten-man rather than twenty-five, and heroic so that every rung of every
+// ladder is in play. Twenty-five saturates: the Warden's puddle wipes a raid
+// that has practised as reliably as one that has not, so the gap reads zero
+// for the mechanic that teaches most. A rung has to be survivable by somebody
+// before it can measure who.
+//
+// That gap is the only thing here that measures teaching, and it is not what
+// `mechanicHits` measures. A sweep lands seven times a pull and the gap is
+// zero: you are in reach or you are not, and practice does not move it. The
+// Tidebreaker's cone lands four tenths of a time and the gap is twenty-nine,
+// because what it costs is not the hit, it is having to be somewhere else.
+// Reading the hit count instead is how four separate rounds of tuning in this
+// file's history went after the wrong mechanic.
+const TEACH_RUNS = 30
+{
+  console.log(
+    `\nmechanic / boss        hits    unpractised  practised   teaches` +
+      `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time; ` +
+      `two standard errors on a death rate is about ` +
+      `${(2 * Math.sqrt(0.25 / TEACH_RUNS) * 100).toFixed(0)} points)`,
+  )
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    // A ten-man heroic buys four rungs, so a boss's fifth is not in the kit at
+    // all and filtering to it leaves an empty fight. Saying so beats printing
+    // a zero that reads like a finding.
+    const reached = encounterKit(ENCOUNTERS[e]!, 10, 'heroic')
+    for (const mech of ENCOUNTERS[e]!.ladder) {
+      if (!reached.includes(mech)) {
+        console.log(`${mech} / ${ENCOUNTERS[e]!.short}`.padEnd(23), '   —  a ten-man heroic never meets it')
+        continue
+      }
+      let raw = 0
+      let green = 0
+      let veteran = 0
+      for (let n = 0; n < TEACH_RUNS; n++) {
+        const seed = 3000 + n * 7919
+        for (const attempt of [0, 8]) {
+          const s = unattended(
+            createState(seed, attempt, autoParty(10, dps('mage')), 'heroic', e),
+          )
+          s.only = mech
+          s.countdown = 0
+          const rng = new Rng(seed + 7919)
+          while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage + 60) {
+            step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+          }
+          const party = s.actors.filter((a) => a.faction === 'party')
+          const dead = party.filter((a) => !a.alive).length / party.length
+          if (attempt === 0) {
+            green += dead
+            for (const a of party) raw += s.tally[a.id]!.mechanicHits / party.length
+          } else veteran += dead
+        }
+      }
+      const green0 = (green / TEACH_RUNS) * 100
+      const vet = (veteran / TEACH_RUNS) * 100
+      console.log(
+        `${mech} / ${ENCOUNTERS[e]!.short}`.padEnd(23),
+        (raw / TEACH_RUNS).toFixed(1).padStart(4),
+        `${green0.toFixed(0)}%`.padStart(12),
+        `${vet.toFixed(0)}%`.padStart(11),
+        `${(green0 - vet).toFixed(0)}pp`.padStart(9),
+      )
+    }
+  }
+}
+
 // Win rate says whether the rules are even. It says nothing about whether the
 // match was worth playing: a lead taken in the first ten seconds and held is
 // the same hundred percent as one that changed hands four times. The three
