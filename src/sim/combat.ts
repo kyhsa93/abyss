@@ -74,6 +74,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   spread: 4,
   // Short enough that a reaction is a reaction rather than a stroll.
   brand: 1.8,
+  // Long enough to be several beats rather than one, which is the mechanic:
+  // a single piece of floor going out from under somebody is a puddle, and
+  // what this asks is that they keep leaving.
+  echo: 5,
   // The count on a judgement. Long enough that a healer who started on it
   // lands the heal, short enough that one who waited out a global cooldown
   // first does not — which is the whole question the mechanic asks.

@@ -164,7 +164,7 @@ import {
 import { gainPower, boss as bossOf } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
-import { SUNDER_MAX } from '../src/sim/boss'
+import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, underHand } from '../src/sim/boss'
 import {
   FIRST_TIER,
   LADDER,
@@ -3134,7 +3134,19 @@ for (const [label, w, h] of [
       uses('breath') === (encounter.names.breath !== ''),
       `uses ${uses('breath')}, named "${encounter.names.breath}"`,
     )
-    for (const key of ['shockwave', 'adds', 'sweep', 'crush', 'rot', 'sunder', 'soak', 'hunt'] as const) {
+    const spoken = [
+      'shockwave',
+      'adds',
+      'sweep',
+      'crush',
+      'rot',
+      'sunder',
+      'soak',
+      'hunt',
+      'hand',
+      'echo',
+    ] as const
+    for (const key of spoken) {
       expect(
         `${label}: its ${key} is announced exactly when it happens`,
         uses(key) === (encounter.lines[key] !== ''),
@@ -3477,6 +3489,8 @@ for (const [label, w, h] of [
       sunder: 'boss_sunder',
       soak: 'boss_soak',
       hunt: 'boss_stalk',
+      hand: 'boss_hand',
+      echo: 'boss_echo',
     }
     for (const [key, id] of Object.entries(DRAWN) as Array<[MechanicId, string]>) {
       if (kit.includes(key)) {
@@ -3496,13 +3510,15 @@ for (const [label, w, h] of [
     )
   }
 
-  // One mechanic is not on any boss's table — the circle the party stands in
-  // lives on the descent — so a floor deep enough to ask for it is collected
-  // too. Otherwise the "nothing ever threw it" rule below would be right for
-  // the wrong reason.
+  // Some mechanics are not on any rung a ten-man heroic climbs — the circle
+  // the party stands in is the top of the Warden and the turning wedge and
+  // the echo are past the top of anything, and all three are rolled by the
+  // descent — so a floor deep enough to ask for them is collected too.
+  // Otherwise the "nothing ever threw it" rule below would be right for the
+  // wrong reason.
   {
     const deep = floorWith(
-      { soak: 26, hunt: 30, puddle: 9, sunder: 12 },
+      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13 },
       4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
@@ -3515,6 +3531,8 @@ for (const [label, w, h] of [
       }
     }
     expect('a deep floor draws its circle', ids.has('boss_soak'), 'it drew nothing')
+    expect('and its turning wedge', ids.has('boss_hand'), 'it drew nothing')
+    expect('and the floor that follows somebody', ids.has('boss_echo'), 'it drew nothing')
     thrown.set('descent', ids)
   }
 
@@ -3623,10 +3641,18 @@ for (const [label, w, h] of [
     for (const encounter of ENCOUNTERS) {
       const rung = encounter.ladder.indexOf('soak')
       if (rung < 0) continue
+      // The last rung anybody climbs to, rather than the last one written
+      // down. A ladder is allowed to be longer than `kitCount` reaches — that
+      // is where a mechanic waits while its place among the others is still
+      // being argued about — and what this check is about is what the raid
+      // meets: the gathering is the top of the fight for the raid that is
+      // sold the whole fight. For a ladder of five the two readings are the
+      // same sentence.
+      const top = Math.min(encounter.ladder.length, kitCount(25, 'heroic'))
       expect(
         `${encounter.name}: the circle is its last word`,
-        rung === encounter.ladder.length - 1,
-        `rung ${rung + 1} of ${encounter.ladder.length}`,
+        rung === top - 1,
+        `rung ${rung + 1} of ${top}`,
       )
       expect(
         'and no raid short of a heroic twenty-five reaches it',
@@ -3727,6 +3753,8 @@ for (const [label, w, h] of [
           kind: 'soak',
           pos: spot,
           radius: SOAK_RADIUS,
+          turn: 0,
+          pulses: 0,
           telegraph: 0,
           lingering: 0,
           damage: SOAK_EACH,
@@ -4032,6 +4060,300 @@ for (const [label, w, h] of [
   expect('a wild index clamps', encounterIndex(99) === ENCOUNTERS.length - 1, `${encounterIndex(99)}`)
   expect('and so does a negative one', encounterIndex(-5) === 0, `${encounterIndex(-5)}`)
   expect('the last boss has no next', !hasNext(ENCOUNTERS.length - 1), 'it claims one')
+}
+
+// --- the two shapes whose answer is a bearing rather than a place -----------
+//
+// Everything else on any of these tables is answered by finding the ground
+// the mechanic is not on, and once that is found the mechanic has stopped
+// asking. These two keep asking: the wedge turns onto the answer and the
+// echo follows the body that took it. So what has to be checked is not that
+// they land — that is the easy half — but that the ground they have just
+// left is safe and the ground they are about to reach is not, since that is
+// the only sentence either of them is trying to say.
+{
+  // A floor rather than a boss. Both sit past the last rung any raid climbs
+  // to, and a plan written by hand is also the only way to have one of them
+  // in a fight without the other twelve mechanics landing in the same tick.
+  const withHand = (): SimState =>
+    floorWith({ hand: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+
+  // --- the wedge turns, and it is one shape doing it ------------------------
+  {
+    const s = withHand()
+    const rng = new Rng(0x51ed)
+    const bearings: number[] = []
+    let id = -1
+    let turns = 0
+    while (s.outcome === 'ongoing' && s.time < 90 && bearings.length < 4) {
+      const before = s.ground.find((g) => g.kind === 'hand')
+      const was = before ? before.angle : null
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const now = s.ground.find((g) => g.kind === 'hand')
+      if (!now) continue
+      if (id === -1) id = now.id
+      if (was !== null && now.angle !== was && now.id === id) {
+        bearings.push(now.angle)
+        turns++
+      }
+    }
+    expect('the hand turns rather than being thrown again', turns >= 3, `${turns} turns`)
+    expect(
+      'and it is one shape doing it, not four',
+      new Set(bearings).size === bearings.length && bearings.length >= 3,
+      `${bearings.length} bearings`,
+    )
+    // Every step the same size and the same way round: a hand that wandered
+    // would be unreadable, and reading it is the whole answer.
+    const steps = bearings.slice(1).map((b, i) => b - bearings[i]!)
+    const even = steps.every((d) => Math.abs(Math.abs(d) - Math.abs(steps[0]!)) < 1e-9)
+    const oneWay = steps.every((d) => Math.sign(d) === Math.sign(steps[0]!))
+    expect('by the same amount each beat', even, steps.map((d) => d.toFixed(3)).join(','))
+    expect('and always the same way round', oneWay, steps.map((d) => d.toFixed(3)).join(','))
+  }
+
+  // --- behind it is safe, in front of it is not -----------------------------
+  //
+  // The claim the mechanic rests on, read off the shape rather than out of
+  // the tuning: the ground the wedge has just left is not asked about again
+  // on the next beat, and the ground a pace ahead of it is.
+  {
+    const s = withHand()
+    const rng = new Rng(0x51ed)
+    let checked = 0
+    while (s.outcome === 'ongoing' && s.time < 90 && checked === 0) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const g = s.ground.find((h) => h.kind === 'hand')
+      if (!g || g.pulses < 2) continue
+      const back = g.turn >= 0 ? -1 : 1
+      const out = 140
+      const behind = {
+        x: g.pos.x + Math.cos(g.angle + back * (g.halfWidth + 0.05)) * out,
+        y: g.pos.y + Math.sin(g.angle + back * (g.halfWidth + 0.05)) * out,
+      }
+      const ahead = {
+        x: g.pos.x + Math.cos(g.angle - back * (g.halfWidth + 0.05)) * out,
+        y: g.pos.y + Math.sin(g.angle - back * (g.halfWidth + 0.05)) * out,
+      }
+      expect('the floor behind the hand is out of this pulse', !underHand(behind, g), 'it was not')
+      expect('and out of the next one too', !underHand(behind, g, 1), 'the turn caught it')
+      expect('the floor in front of it is out of this pulse', !underHand(ahead, g), 'it was not')
+      expect('and squarely inside the next', underHand(ahead, g, 1), 'the turn missed it')
+      checked++
+    }
+    expect('a hand was there to be read', checked === 1, `${checked}`)
+  }
+
+  // --- a pulse is a moment, not a place -------------------------------------
+  //
+  // The first rule any of these have to pass: all of it at one instant, or
+  // none of it. A wedge that ticked while it was overhead would be a loss to
+  // be averaged rather than a mistake to be made — measured, that is the
+  // difference between the pool's thirty-four points of teaching and the
+  // rotating cone's zero.
+  {
+    const s = withHand()
+    const rng = new Rng(0x51ed)
+    const victim = s.actors.find((a) => a.faction === 'party' && a.role === 'dps')!
+    victim.ai = null
+    let hitTicks = 0
+    let coveredTicks = 0
+    let took = 0
+    while (s.outcome === 'ongoing' && s.time < 90) {
+      const g = s.ground.find((h) => h.kind === 'hand')
+      if (g) {
+        // Pinned in the middle of the live wedge, and healed back up, so what
+        // is being counted is how many ticks it hurts on rather than whether
+        // one body could live through it.
+        victim.pos = {
+          x: g.pos.x + Math.cos(g.angle) * 150,
+          y: g.pos.y + Math.sin(g.angle) * 150,
+        }
+        coveredTicks++
+      }
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      // Read off the mechanic's own hits rather than off the health bar: the
+      // boss is still swinging and still landing on everybody, and a check
+      // about whether *this* shape ticks cannot be answered by a bar that
+      // several other things are also moving.
+      for (const event of s.effects) {
+        if (event.abilityId !== 'boss_hand' || event.kind !== 'impact' || event.crit) continue
+        if (dist(event.pos, victim.pos) > 40) continue
+        hitTicks++
+        took += event.power ?? 0
+      }
+      victim.alive = true
+      victim.hp = victim.maxHp
+    }
+    expect('the hand lands on somebody standing in it', hitTicks > 0, 'it never did')
+    expect(
+      'and only on the frames it goes off',
+      coveredTicks > hitTicks * 8,
+      `${hitTicks} of ${coveredTicks} covered ticks hurt`,
+    )
+    expect('each of them for a whole mechanic', took / Math.max(1, hitTicks) > 400, `${took}`)
+  }
+
+  // --- and the party answers it through the path practice reaches ----------
+  //
+  // The rule that killed four designs before these two: an answer that does
+  // not go through `currentDanger` cannot be practised, because the reaction
+  // delay and the fumble live nowhere else. Read the same way the crush's
+  // was — whether the AI standing under a live wedge is calling it the thing
+  // it is reacting to.
+  {
+    const s = withHand()
+    const rng = new Rng(0x51ed)
+    let underIt = 0
+    let naming = 0
+    while (s.outcome === 'ongoing' && s.time < 120) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const g = s.ground.find((h) => h.kind === 'hand')
+      if (!g) continue
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || !a.alive || !a.ai) continue
+        if (!underHand(a.pos, g)) continue
+        underIt++
+        if (a.ai.reactingTo?.startsWith('hand')) naming++
+      }
+    }
+    expect('bodies do end up under the wedge', underIt > 200, `${underIt} ticks`)
+    expect(
+      'and while they are there it is what they are reacting to',
+      naming > underIt * 0.8,
+      `${naming} of ${underIt}`,
+    )
+  }
+
+  // --- the echo drops where the body is, again and again --------------------
+  {
+    const s = floorWith({ echo: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    const rng = new Rng(0x51ed)
+    let drops = 0
+    let onTheMark = 0
+    let mostForOne = 0
+    const perMark = new Map<number, number>()
+    let lingered = 0
+    while (s.outcome === 'ongoing' && s.time < 120) {
+      const known = new Set(s.ground.filter((g) => g.kind === 'echo').map((g) => g.id))
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const g of s.ground) {
+        if (g.kind !== 'echo' || known.has(g.id)) continue
+        drops++
+        const carrying = s.actors.filter((a) => a.alive && getAura(a, 'echo') !== undefined)
+        // Under one of the marked, rather than anywhere the boss fancied.
+        const owner = carrying.find((a) => dist(a.pos, g.pos) < 4)
+        if (owner) {
+          onTheMark++
+          const count = (perMark.get(owner.id) ?? 0) + 1
+          perMark.set(owner.id, count)
+          mostForOne = Math.max(mostForOne, count)
+        }
+      }
+      lingered += s.ground.filter((g) => g.kind === 'echo' && g.detonated).length
+    }
+    expect('the echo drops at all', drops > 20, `${drops} drops`)
+    expect(
+      'and always under the body it marked',
+      onTheMark === drops,
+      `${onTheMark} of ${drops}`,
+    )
+    expect('one mark is a drum rather than a single pool', mostForOne >= 3, `${mostForOne} beats`)
+    expect('and it leaves nothing behind it', lingered === 0, `${lingered} ticks of residue`)
+  }
+
+  // --- standing still is the one answer that is always wrong ---------------
+  //
+  // The sentence, checked as a pair: a body held in place is caught by every
+  // beat of its own mark, and the same body walking is caught by none of
+  // them. Both are run with the party AI switched off for the one being
+  // measured, so what is being compared is the mechanic rather than two
+  // rolls of a reaction.
+  const echoRun = (walk: boolean): { hits: number; beats: number } => {
+    const s = floorWith({ echo: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    const rng = new Rng(0x51ed)
+    // Whoever the mark actually lands on, adopted at the moment it lands,
+    // rather than a body chosen up front and hoped for. One in ten is marked,
+    // so naming a raider in advance is a bet on the roll -- and the bet was
+    // being won by an unrelated bug, which threw a mechanic this floor had
+    // not bought and moved the stream. Both runs are identical up to the
+    // adoption, so both adopt the same body.
+    let victim: Actor | null = null
+    let hits = 0
+    let beats = 0
+    while (s.outcome === 'ongoing' && s.time < 120) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      if (victim === null) {
+        victim = s.actors.filter((a) => a.faction === 'party' && a.alive).find((a) => getAura(a, 'echo') !== undefined) ?? null
+        if (victim !== null) {
+          victim.ai = null
+          victim.pos = { x: 240, y: 0 }
+        }
+      }
+      if (victim === null) continue
+      // The mechanic's own hits, not the health bar: the boss is still
+      // swinging at somebody and still landing on everybody.
+      for (const event of s.effects) {
+        if (event.abilityId !== 'boss_echo' || event.kind !== 'impact' || event.crit) continue
+        if (dist(event.pos, victim.pos) > 40) continue
+        hits++
+      }
+      // The walk is a circle a little wider than the drop, taken at the pace
+      // a raider actually moves: the mechanic's claim is that leaving is
+      // enough, not that leaving fast is.
+      if (walk) {
+        const angle = s.time * 1.5
+        victim.pos = { x: 240 + Math.cos(angle) * 90, y: Math.sin(angle) * 90 }
+      }
+      victim.alive = true
+      victim.hp = victim.maxHp
+      if (getAura(victim, 'echo')) beats++
+    }
+    return { hits, beats }
+  }
+  {
+    const still = echoRun(false)
+    const moving = echoRun(true)
+    expect('a body that never moves is asked something', still.beats > 60, `${still.beats} ticks`)
+    // Four or more, which is a mark's worth of beats: this one is picked at
+    // random out of ten, so a run is one mark or two rather than a count to
+    // be predicted, and what is being claimed is that a mark it does not
+    // move for takes all of it.
+    expect(
+      'and the floor takes it on every beat of the mark',
+      still.hits >= 4,
+      `${still.hits} hits over ${still.beats} ticks of carrying it`,
+    )
+    expect(
+      'the same body walking is caught by far less of it',
+      moving.hits < still.hits / 2,
+      `${still.hits} standing, ${moving.hits} walking`,
+    )
+  }
+
+  // --- neither of them is a place to keep off afterwards -------------------
+  //
+  // Both are moments. A residue would turn either into a map of ground to
+  // avoid, which is a question the pool and the brand already ask, and
+  // answering it does not require anybody to keep moving.
+  {
+    expect('a beat of the echo is over the moment it lands', ECHO_TELEGRAPH < 1.6, `${ECHO_TELEGRAPH}`)
+    expect('and the hand asks again on its own beat', HAND_BEAT < 1.6, `${HAND_BEAT}`)
+  }
+
+  // --- and somebody can actually meet them ---------------------------------
+  //
+  // Neither sits on a rung `kitCount` reaches, so the descent is the whole of
+  // where they are played. A mechanic that is only ever built by a check is a
+  // colour and a paragraph rather than a mechanic, and the rule that says so
+  // would be passing here for the wrong reason without this.
+  {
+    expect('a floor deep enough rolls the turning wedge', rollable('hand', 8), 'none ever did')
+    expect('and one rolls the echo', rollable('echo', 8), 'none ever did')
+    // Both are ground that keeps asking, which is the expensive kind: a first
+    // floor is meant to be a fight with two ideas in it.
+    expect('and floor one does neither', !rollable('hand', 1) && !rollable('echo', 1), 'it did')
+  }
 }
 
 // --- NEXT BOSS appears exactly when there is one ----------------------------
@@ -6739,6 +7061,8 @@ function floorWith(
   s.nextSunder = opening.sunder
   s.nextSoak = opening.soak
   s.nextHunt = opening.hunt
+  s.nextHand = opening.hand
+  s.nextEcho = opening.echo
   return s
 }
 

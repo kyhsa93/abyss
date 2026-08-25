@@ -70,6 +70,13 @@ const CATALOGUE: Priced[] = [
   { id: 'soak', slow: 40, fast: 22, cost: 6, from: 3 },
   // One dealer kites, the rest choose. Sixteen percent of the raid's damage.
   { id: 'hunt', slow: 44, fast: 26, cost: 5, from: 2 },
+  // A wedge that keeps turning onto the answer. Expensive for the reason the
+  // ring is: it is the whole raid moving, and moving again on the next beat
+  // rather than once.
+  { id: 'hand', slow: 24, fast: 13, cost: 5, from: 2 },
+  // The floor following whoever it marked. One person moves, five times, and
+  // pays for it in everything they would have cast standing still.
+  { id: 'echo', slow: 22, fast: 12, cost: 3, from: 2 },
 ]
 
 /**

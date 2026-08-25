@@ -38,6 +38,7 @@ export type AuraId =
   | 'hunted' // boss: something has picked you, and it is walking over
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'brand' // boss: leaves ground where it burns out
+  | 'echo' // boss: the floor under you gives way on a beat until it fades
   | 'verdict' // boss: judgement pending, and it kills anyone under the line
   | 'enrage' // boss damage amplifier
 
@@ -155,7 +156,15 @@ export interface Actor {
   hunting: number | null
 }
 
-export type GroundKind = 'puddle' | 'brand' | 'crush' | 'breath' | 'shockwave' | 'soak'
+export type GroundKind =
+  | 'puddle'
+  | 'brand'
+  | 'crush'
+  | 'breath'
+  | 'shockwave'
+  | 'soak'
+  | 'hand'
+  | 'echo'
 
 export interface GroundEffect {
   id: number
@@ -177,6 +186,15 @@ export interface GroundEffect {
   band: number
   /** shockwave: ids already caught, so the ring hits each actor once. */
   caught: number[]
+  /**
+   * hand: how far the wedge turns between one pulse and the next, in radians.
+   *
+   * Signed, because which way it is going is the whole question the mechanic
+   * asks: the floor it has just left is the floor that is about to be safe.
+   */
+  turn: number
+  /** hand: pulses left before the sweep is finished with the arena. */
+  pulses: number
 }
 
 /**
@@ -599,6 +617,18 @@ export interface SimState {
   nextBrand: number
   nextVerdict: number
   nextCrush: number
+  /** Next cast of the wedge that turns across the arena. */
+  nextHand: number
+  /**
+   * Next beat of the echo, which is both its cadence and its drum.
+   *
+   * One timer rather than two because the mechanic is one thing: while
+   * nobody carries it this counts down to the next cast, and while somebody
+   * does it counts down to the next piece of floor going out from under
+   * them. Two timers would have to agree with each other about which of them
+   * owns the moment a mark expires, and they would eventually not.
+   */
+  nextEcho: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number
