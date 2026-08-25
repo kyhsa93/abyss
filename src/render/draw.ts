@@ -9,7 +9,7 @@ import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
-import { SUNDER_MAX } from '../sim/boss'
+import { SUNDER_MAX, VERDICT_LINE } from '../sim/boss'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -127,6 +127,7 @@ export function drawWorld(
   drawGround(ctx, s, clock)
   drawHunts(ctx, s, alpha)
   drawSpreadRings(ctx, s, alpha)
+  drawVerdicts(ctx, s, alpha)
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
@@ -795,6 +796,52 @@ function drawHunts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
     ctx.lineDashOffset = -s.time * 40
     ctx.stroke()
     ctx.setLineDash([])
+  }
+}
+
+/**
+ * A judgement pending on somebody, and how far off the line they are.
+ *
+ * Drawn as a bar rather than as a shape on the floor, because the floor has
+ * nothing to do with it: the only fact that decides this one is a health bar,
+ * and the picture has to say so or the mechanic reads as a hit with no tell.
+ * The mark fills as the count runs down and the notch is the line — over the
+ * notch when it fills and it passes over you, under it and it takes you.
+ */
+function drawVerdicts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const mark = getAura(a, 'verdict')
+    if (!mark) continue
+
+    const p = screenPos(a, alpha)
+    const safe = a.hp / a.maxHp > VERDICT_LINE
+    const w = 44 * L.ui
+    const h = 5 * L.ui
+    const y = p.y - a.radius * L.scale - 30 * L.ui
+    const spent = 1 - Math.max(0, mark.remaining) / mark.duration
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)'
+    ctx.fillRect(p.x - w / 2, y, w, h)
+    ctx.fillStyle = safe ? 'rgba(129, 140, 248, 0.9)' : 'rgba(244, 63, 94, 0.95)'
+    ctx.fillRect(p.x - w / 2, y, w * spent, h)
+
+    // The line itself, at the share of the bar it asks for.
+    ctx.beginPath()
+    ctx.moveTo(p.x - w / 2 + w * VERDICT_LINE, y - 2 * L.ui)
+    ctx.lineTo(p.x - w / 2 + w * VERDICT_LINE, y + h + 2 * L.ui)
+    ctx.strokeStyle = 'rgba(226, 232, 240, 0.9)'
+    ctx.lineWidth = Math.max(1, L.ui)
+    ctx.stroke()
+
+    // And a ring on the token, so it is findable without reading the bar.
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = safe ? 'rgba(129, 140, 248, 0.55)' : 'rgba(244, 63, 94, 0.85)'
+    ctx.lineWidth = 1 + spent * 3
+    ctx.stroke()
+    ctx.restore()
   }
 }
 

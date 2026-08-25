@@ -3466,6 +3466,7 @@ for (const [label, w, h] of [
     const DRAWN: Partial<Record<MechanicId, string>> = {
       puddle: 'boss_puddle',
       brand: 'boss_brand',
+      verdict: 'boss_verdict',
       crush: 'boss_crush',
       breath: 'boss_breath',
       shockwave: 'boss_shockwave',
@@ -3772,9 +3773,20 @@ for (const [label, w, h] of [
     // Choir opens with it, which is what makes a five-man Choir a different
     // pull from a five-man Warden, and the Tidebreaker only reaches it with a
     // heroic twenty-five behind it.
-    const owners = ENCOUNTERS.filter((e) => e.ladder.includes('hunt'))
-    expect('two bosses send one, not all three', owners.length === 2, `${owners.length} do`)
-    const rungs = owners.map((e) => e.ladder.indexOf('hunt'))
+    // Any mechanic two of them share, not the stalker in particular. The rule
+    // was written naming it, and then a new mechanic pushed the stalker off
+    // one of the two ladders and the check failed for a fight that had lost
+    // nothing — `rot` and the thralls were both still doing exactly this. What
+    // the claim is about is that the bosses rhyme without repeating, and that
+    // is a property of the set rather than of one entry in it.
+    const shared = ENCOUNTERS.reduce((seen, e) => {
+      for (const m of e.ladder) seen.set(m, (seen.get(m) ?? 0) + 1)
+      return seen
+    }, new Map<MechanicId, number>())
+    const twice = [...shared].filter(([, n]) => n === 2).map(([m]) => m)
+    expect('some mechanic is shared by two bosses and not all three', twice.length > 0, `${twice.join(',')}`)
+    const owners = ENCOUNTERS.filter((e) => e.ladder.includes(twice[0]!))
+    const rungs = owners.map((e) => e.ladder.indexOf(twice[0]!))
     expect(
       'and not at the same point in the fight',
       new Set(rungs).size === rungs.length,

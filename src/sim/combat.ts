@@ -74,6 +74,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   spread: 4,
   // Short enough that a reaction is a reaction rather than a stroll.
   brand: 1.8,
+  // The count on a judgement. Long enough that a healer who started on it
+  // lands the heal, short enough that one who waited out a global cooldown
+  // first does not — which is the whole question the mechanic asks.
+  verdict: 3,
   // Long enough that a second tank has to take it, short enough that a party
   // with only one tank gets it back off eventually.
   sunder: 16,

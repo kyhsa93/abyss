@@ -12,6 +12,7 @@ import {
   STALKER_HP,
   STALKER_SPEED,
   STALKER_SWING,
+  HEALTH,
 } from './constants'
 import {
   addAura,
@@ -320,6 +321,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
   scheduleBrand(s, rng, timing)
+  scheduleVerdict(s, rng, timing)
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
   scheduleSoak(s, b, rng, timing)
@@ -945,6 +947,95 @@ function scheduleBrand(s: SimState, rng: Rng, timing: PhaseTiming): void {
     if (marked.ai) say(s, marked, fight(s).lines.brand)
   }
   s.sounds.push('telegraph')
+}
+
+/**
+ * A judgement, which is the one thing here no amount of walking answers.
+ *
+ * Every other mechanic on every boss is a question about where you are
+ * standing. This one picks somebody, counts to itself, and then takes them
+ * outright unless their health is above a line when it lands. There is
+ * nowhere to take that. The only thing that moves a health bar upward is a
+ * healer, so the answer is a healer's — and unlike every heal in the game,
+ * which is paid after the damage has landed, it has to be paid before the
+ * count runs out rather than after.
+ *
+ * The line rather than a number of damage decides it. A fixed lethal hit
+ * would have made this a question about class: plate lives through it and
+ * cloth does not, and neither of them had a decision to make. A share of the
+ * bar asks the same thing of everybody.
+ *
+ * Two things about it are measurements rather than taste, and both were
+ * surprises.
+ *
+ * It passes over rather than hurting. The first version dealt a heavy but
+ * survivable hit to anyone above the line — which is the obvious shape, and
+ * which measured at 2 points against 29 for the same mechanic dealing
+ * nothing. Damage is what makes somebody the most hurt person in the raid,
+ * and the most hurt person in the raid is who `healerRotation` already heals.
+ * A mechanic that wounds the people it marks is a mechanic the ordinary
+ * rotation answers by accident, and there is no skill anywhere in that rule.
+ * It only teaches while the answer is something the healers would not have
+ * done anyway.
+ *
+ * And it does not mark anybody already under the line. Left to pick freely it
+ * spent most of its judgements on bodies no healer could have lifted in time
+ * — three casts short, not one — and those die at exactly the same rate on a
+ * ninth pull as on a first. A mechanic teaches nothing through the cases that
+ * had no answer.
+ */
+export const VERDICT_LINE = 0.85
+
+/** How high a healer has to get somebody before the count runs out. */
+export function verdictLine(actor: Actor): number {
+  return actor.maxHp * VERDICT_LINE
+}
+
+function scheduleVerdict(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.verdict <= 0) return
+  s.nextVerdict -= DT
+  if (s.nextVerdict > 0) return
+
+  s.nextVerdict = timing.verdict
+
+  // It judges the whole and not the broken: see above.
+  const free = livingParty(s).filter(
+    (a) => !getAura(a, 'verdict') && a.hp > verdictLine(a),
+  )
+  if (free.length === 0) return
+
+  const marks = Math.max(1, Math.round(livingParty(s).length / 5))
+  for (let i = 0; i < marks && free.length > 0; i++) {
+    const marked = free.splice(rng.int(free.length), 1)[0]!
+    addAura(marked, 'verdict', BOSS_ID)
+    pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_verdict' })
+    if (marked.ai) say(s, marked, fight(s).lines.verdict)
+  }
+  s.sounds.push('telegraph')
+}
+
+/** The count reaching zero: above the line it passes over, below it takes. */
+export function passJudgement(s: SimState, marked: Actor): void {
+  if (marked.hp > verdictLine(marked)) {
+    pushEffect(s, 'impact', marked.pos, { abilityId: 'boss_verdict', power: 260 })
+    return
+  }
+
+  // Whatever is left, and then some. Written as the whole bar rather than as
+  // a big number so that it stays lethal at every size and difficulty the
+  // fight is played at: a mechanic whose promise is "this takes you" cannot
+  // be a mechanic that sometimes does not.
+  applyDamage(s, marked, marked.maxHp / HEALTH, 'none', {
+    sourceId: BOSS_ID,
+    mechanic: true,
+    crit: true,
+  })
+  pushEffect(s, 'impact', marked.pos, {
+    abilityId: 'boss_verdict',
+    power: marked.maxHp,
+    crit: true,
+  })
+  s.sounds.push('raid')
 }
 
 /** Where a brand burned out, the floor keeps it. */

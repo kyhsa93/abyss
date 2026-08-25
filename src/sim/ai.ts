@@ -8,7 +8,7 @@ import {
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
 } from './constants'
-import { BREATH_CAST, insideCone, inShockwaveGap } from './boss'
+import { BREATH_CAST, insideCone, inShockwaveGap, verdictLine } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
 import {
@@ -40,6 +40,35 @@ import type { Actor, AuraId, SimState, Vec2 } from './types'
 /** How much room a brand looks for before it burns out. */
 const BRAND_ROOM = 130
 
+/**
+ * How far under the judgement's line a healer starts worrying, as a share of
+ * the bar. Roughly one cast: waiting until somebody is actually under it is
+ * waiting until the answer no longer fits in the count.
+ */
+const VERDICT_MARGIN = 0.12
+
+/**
+ * How much slower answering a call is than stepping out of fire.
+ *
+ * This is the number the whole mechanic turned on, and it is the only honest
+ * finding in it. `reactionDelay` is calibrated for movement — a quarter of a
+ * second for a steady raider, six tenths for a greedy one, and 40% off both
+ * by the ninth pull. Against a puddle that is decisive, because the answer to
+ * a puddle is a step and a step costs nothing else. Against a judgement the
+ * answer is a heal, and in front of every heal sits a global cooldown of a
+ * second and a half and a cast of two seconds more. A tenth of a second of
+ * extra hesitation in front of three and a half seconds of machinery changes
+ * nothing: measured, an unpractised raid and a practised one both lost 3% of
+ * their judgements, and the mechanic taught 3.8 points, which is noise.
+ *
+ * So the delay is scaled to the size of the thing being delayed. Reading a
+ * raid frame, deciding whose problem it is, and re-aiming is not a sidestep,
+ * and the same two numbers that separate the pulls — the delay and the fumble
+ * — separate them by thirty points once they are expressed at the scale of
+ * the answer rather than at the scale of a step.
+ */
+const VERDICT_NOTICE = 6
+
 const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
@@ -53,6 +82,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   if (!ai || !actor.alive) return
 
   ai.chatCooldown = Math.max(0, ai.chatCooldown - DT)
+
+  // The one call that is not about where to stand, so it is made before the
+  // one that is and kept in its own pair of fields.
+  if (actor.role === 'healer') watchTheLine(s, actor, rng)
 
   const danger = currentDanger(s, actor)
 
@@ -133,6 +166,72 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
 
   moveToward(s, actor, ai.moveTarget)
   useAbilities(s, actor, rng)
+}
+
+/**
+ * The healer's half of a judgement, and the only place skill reaches healing.
+ *
+ * Everything else a party member does about a mechanic runs through
+ * `currentDanger` above, where noticing late and fumbling outright already
+ * live. Healing does not go anywhere near that path — `healerRotation` reads
+ * a health bar and casts, with no notion of having spotted anything — so a
+ * mechanic answered by healing would be answered identically by a raid on its
+ * first pull and its ninth. That is not a property of healing, it is a
+ * property of the rotation having no reaction in it. This puts one there, out
+ * of the same two numbers and rolled the same way: notice once per mark, wait
+ * out the delay, and sometimes miss it entirely.
+ *
+ * It cannot share `reactingTo` with the movement path. Answering a judgement
+ * means standing still and casting, and a healer that had spent its danger
+ * slot on one would then be told to go and find a safe tile.
+ */
+function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  const marked = livingParty(s).filter((a) => getAura(a, 'verdict') !== undefined)
+
+  const shaky = (a: Actor): boolean => a.hp <= verdictLine(a) + a.maxHp * VERDICT_MARGIN
+
+  // A claim is kept until the body it was made about is out of danger, one
+  // way or the other. Re-deciding every tick is what a raid calling targets
+  // out loud exists to prevent, and an AI that does it drops the cast it was
+  // halfway through every time somebody else's health bar moves.
+  let mine = marked.find((a) => ai.callTo === `verdict:${a.id}` && shaky(a))
+
+  if (!mine) {
+    // Anything another healer has already called is somebody else's.
+    const spoken = new Set(
+      livingParty(s)
+        .filter((a) => a.role === 'healer' && a.id !== actor.id)
+        .map((a) => a.ai?.callTo),
+    )
+    mine = marked
+      .filter((a) => shaky(a) && !spoken.has(`verdict:${a.id}`))
+      .sort((a, b) => getAura(a, 'verdict')!.remaining - getAura(b, 'verdict')!.remaining)[0]
+  }
+
+  if (!mine) {
+    ai.callTo = null
+    ai.callTimer = 0
+    ai.answering = null
+    return
+  }
+
+  const key = `verdict:${mine.id}`
+  if (ai.callTo !== key) {
+    ai.callTo = key
+    ai.callTimer = ai.reactionDelay * VERDICT_NOTICE * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.callTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.callTimer > 0) ai.callTimer -= DT
+  ai.answering = ai.callTimer > 0 ? null : mine.id
+}
+
+/** Whoever this healer has decided to save, if it has decided at all. */
+function rescueTarget(s: SimState, actor: Actor): Actor | null {
+  const id = actor.ai?.answering
+  if (id === null || id === undefined) return null
+  const target = s.actors.find((a) => a.id === id)
+  return target && target.alive && getAura(target, 'verdict') ? target : null
 }
 
 /**
@@ -576,6 +675,15 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
 // --- ability priorities -----------------------------------------------------
 
 function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
+  // A count that is running is worth dropping a cast for, and only this one
+  // is: every other heal in the fight can be finished and then re-aimed,
+  // because what it was answering is damage that has already landed.
+  const rescue = rescueTarget(s, actor)
+  // Only a cast with real time left on it: one that is about to land is
+  // faster to finish than to start again.
+  if (rescue && actor.castId && actor.castTargetId !== rescue.id && actor.castRemaining > 0.4) {
+    interruptCast(s, actor, 'switching')
+  }
   if (actor.castId) return
   // Off-GCD defensives are still worth checking while the global is running.
   if (actor.gcd > 0 && !canUseOffGcd(s, actor)) return
@@ -772,6 +880,23 @@ function healTarget(s: SimState, actor: Actor, wounded: Actor, ceiling: number):
 function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void {
   const ai = actor.ai!
   const kit = specFor(actor).abilities
+
+  // Above everything, including the emergency below it. The emergency is
+  // about who is lowest and this is about who is out of time, and the marked
+  // are hardly ever the lowest — that is the whole difficulty of the
+  // mechanic. Fastest first rather than biggest: what the line needs is a
+  // heal that has landed, and a bigger one that lands afterwards has not.
+  const rescue = rescueTarget(s, actor)
+  if (rescue) {
+    if (kit.finisher && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
+      if (tryCast(s, actor, kit.finisher, rescue.id, rng, moving)) {
+        say(s, actor, `${rescue.name} — getting you up`)
+        return
+      }
+    }
+    if (tryCast(s, actor, kit.filler, rescue.id, rng, moving)) return
+  }
+
   const wounded = mostHurt(s)
   if (!wounded) return
 

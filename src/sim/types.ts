@@ -38,6 +38,7 @@ export type AuraId =
   | 'hunted' // boss: something has picked you, and it is walking over
   | 'spread' // detonates on expiry, damages everyone nearby
   | 'brand' // boss: leaves ground where it burns out
+  | 'verdict' // boss: judgement pending, and it kills anyone under the line
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -83,6 +84,20 @@ export interface AiProfile {
   moveTarget: Vec2 | null
   /** Cooldown on chat lines so it does not spam. */
   chatCooldown: number
+
+  // --- the healer's own reaction, kept apart from the one above -------------
+  //
+  // Every other mechanic in the game is answered by walking, so one timer was
+  // enough: notice, wait, move. A judgement is answered by casting, and the
+  // two cannot share a slot — a healer that has "reacted" to a mark by
+  // clearing its move timer would then be told to stand somewhere, which is
+  // the opposite of what answering it takes.
+  /** Counts down before a pending judgement is acted upon. */
+  callTimer: number
+  /** The judgement currently being reacted to, so the delay is rolled once. */
+  callTo: string | null
+  /** Who this healer has decided to save, once the delay above has run out. */
+  answering: number | null
 }
 
 export interface Actor {
@@ -582,6 +597,7 @@ export interface SimState {
   /** Timers driving the boss script. */
   nextPuddle: number
   nextBrand: number
+  nextVerdict: number
   nextCrush: number
   nextSpread: number
   nextSlam: number

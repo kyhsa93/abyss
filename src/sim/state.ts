@@ -60,6 +60,9 @@ function makeAi(personality: Personality, attempt: number): AiProfile {
     fumbled: false,
     moveTarget: null,
     chatCooldown: 0,
+    callTimer: 0,
+    callTo: null,
+    answering: null,
   }
 }
 
@@ -207,6 +210,7 @@ export function createState(
     phase: 1,
     nextPuddle: opening.puddle,
     nextBrand: opening.brand,
+    nextVerdict: opening.verdict,
     nextCrush: opening.crush,
     nextSpread: opening.spread,
     nextSlam: opening.slam,
@@ -315,6 +319,7 @@ export function createBattlegroundState(
     phase: 1,
     nextPuddle: 0,
     nextBrand: 0,
+    nextVerdict: 0,
     nextCrush: 0,
     nextSpread: 0,
     nextSlam: 0,

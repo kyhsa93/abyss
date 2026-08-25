@@ -26,6 +26,7 @@ import type { DifficultyId, RaidSize } from './classes'
  */
 export type MechanicId =
   | 'brand'
+  | 'verdict'
   | 'crush'
   | 'puddle'
   | 'spread'
@@ -60,6 +61,7 @@ export type MechanicId =
  */
 export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   brand: true, // one mark per so many bodies
+  verdict: true, // one judgement per so many bodies
   crush: false, // a band of a fixed radius, which is where the melee stand
   puddle: true, // `puddleCount` per cast
   spread: true, // one mark per so many bodies
@@ -75,6 +77,7 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   brand: 'the brand',
+  verdict: 'the judgement',
   crush: 'the crush',
   puddle: 'pools',
   spread: 'marks',
@@ -105,6 +108,20 @@ export interface PhaseTiming {
    * different price from ground nobody was using.
    */
   brand: number
+  /**
+   * Seconds between one judgement and the next.
+   *
+   * The one thing on any of these tables that is not answered by standing
+   * somewhere else. It picks somebody, counts, and then kills them outright
+   * unless they are above a line when it lands — so the answer belongs to
+   * whoever can move a health bar, and it has to be paid before the count
+   * runs out rather than after the hit, which is where healing normally sits.
+   *
+   * What that costs a healer is not throughput, it is attention: the marked
+   * are rarely the most hurt person in the raid, so answering means looking
+   * away from the body the rotation would otherwise pick.
+   */
+  verdict: number
   /**
    * Seconds between one crush and the next.
    *
@@ -250,6 +267,7 @@ export interface Encounter {
    */
   opening: {
     brand: number
+    verdict: number
     crush: number
     puddle: number
     spread: number
@@ -288,6 +306,7 @@ export interface Encounter {
     rot: string
     sunder: string
     brand: string
+    verdict: string
     crush: string
     soak: string
     hunt: string
@@ -339,11 +358,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'ABYSSAL SLAM', breath: '' },
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak'],
     phases: {
-      1: { brand: 8, crush: 9, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
-      2: { brand: 7, crush: 8, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
-      3: { brand: 6, crush: 7, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
+      1: { verdict: 0, brand: 8, crush: 9, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
+      2: { verdict: 0, brand: 7, crush: 8, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
+      3: { verdict: 0, brand: 6, crush: 7, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
     },
-    opening: { brand: 8, crush: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
+    opening: { verdict: 0, brand: 8, crush: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -353,6 +372,7 @@ export const ENCOUNTERS: Encounter[] = [
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
+      verdict: '',
       crush: 'THE DEEP COMES DOWN',
       soak: 'The undertow gathers — all of you',
       hunt: '',
@@ -410,13 +430,13 @@ export const ENCOUNTERS: Encounter[] = [
     // Third is as early as it can go. The three bosses must open on nothing in
     // common and the Warden opens with this, so the first two rungs are spoken
     // for whatever they hold.
-    ladder: ['spread', 'rot', 'puddle', 'hunt', 'adds'],
+    ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds'],
     phases: {
-      1: { brand: 0, crush: 0, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
-      2: { brand: 0, crush: 0, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
-      3: { brand: 0, crush: 0, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
+      1: { verdict: 19, brand: 0, crush: 0, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { verdict: 16, brand: 0, crush: 0, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      3: { verdict: 13.5, brand: 0, crush: 0, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { brand: 0, crush: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
+    opening: { verdict: 11, brand: 0, crush: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -426,9 +446,10 @@ export const ENCOUNTERS: Encounter[] = [
       rot: 'A note is caught in me — heal',
       sunder: '',
       brand: '',
+      verdict: 'It has judged me — heal through it',
       crush: '',
       soak: '',
-      hunt: 'One voice is following me',
+      hunt: '',
     },
   },
   {
@@ -466,11 +487,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { brand: 0, crush: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
-      2: { brand: 0, crush: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
-      3: { brand: 0, crush: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
+      1: { verdict: 0, brand: 0, crush: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
+      2: { verdict: 0, brand: 0, crush: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
+      3: { verdict: 0, brand: 0, crush: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
     },
-    opening: { brand: 0, crush: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
+    opening: { verdict: 0, brand: 0, crush: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -480,6 +501,7 @@ export const ENCOUNTERS: Encounter[] = [
       rot: '',
       sunder: '',
       brand: '',
+      verdict: '',
       crush: '',
       soak: '',
       hunt: 'It has your scent',
@@ -560,6 +582,7 @@ export function gated(timing: PhaseTiming, kit: readonly MechanicId[]): PhaseTim
   return {
     ...timing,
     brand: on('brand', timing.brand),
+    verdict: on('verdict', timing.verdict),
     crush: on('crush', timing.crush),
     puddle: on('puddle', timing.puddle),
     spread: on('spread', timing.spread),

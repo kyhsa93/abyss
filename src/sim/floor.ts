@@ -182,6 +182,7 @@ export function planned(timing: PhaseTiming, plan: FloorPlan, phase: number): Ph
     adds: at('adds'),
     sweep: at('sweep'),
     rot: at('rot'),
+    verdict: at('verdict'),
     sunder: at('sunder'),
     soak: at('soak'),
     hunt: at('hunt'),

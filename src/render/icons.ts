@@ -182,6 +182,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The floor, in the floor's magenta, sinking in rather than pushing out.
   boss_puddle: { colour: '#be185d', style: 'wither' },
   boss_brand: { colour: '#f472b6', style: 'wither' },
+  // The judgement, in a colour nothing else here owns: it is the one thing on
+  // any of these bosses that no amount of walking answers.
+  boss_verdict: { colour: '#4f46e5', style: 'pierce' },
   // The one thing armour answers, so it is drawn as steel.
   boss_sweep: { colour: '#e2e8f0', style: 'cleave' },
   // The same band as the sweep and deliberately not the same colour: one is a
