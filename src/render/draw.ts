@@ -9,7 +9,7 @@ import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
-import { SUNDER_MAX, VERDICT_LINE } from '../sim/boss'
+import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, VERDICT_LINE } from '../sim/boss'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -473,6 +473,16 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'hand') {
+      drawHand(ctx, g, p, worldToScreen({ x: 0, y: 0 }))
+      continue
+    }
+
+    if (g.kind === 'echo') {
+      drawEcho(ctx, g, p, r)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
@@ -660,6 +670,108 @@ function drawCrush(
     ctx.stroke()
   }
   ctx.restore()
+}
+
+/**
+ * The wedge that turns, drawn as two wedges rather than one.
+ *
+ * The pulse about to land is the bright one and the pulse after it is the
+ * faint one, and the faint one is the whole picture: this mechanic is not
+ * answered by seeing where the danger is, it is answered by seeing where the
+ * danger is going. A player shown only the live wedge would step out of it
+ * along the shortest line, which half the time is into the next beat.
+ */
+function drawHand(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  arena: Vec2,
+): void {
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / HAND_BEAT))
+  // The shape itself reaches past the wall, so that it covers the arena from
+  // wherever the boss happens to be standing. What gets drawn is clipped
+  // back to the floor: a wedge painted over the void outside would read as
+  // ground that can be stood on.
+  const reach = ARENA_RADIUS * 2 * L.scale
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
+  ctx.clip()
+
+  // Where it is going, first, so the live wedge is drawn over the top of it.
+  if (g.pulses > 1) {
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.arc(p.x, p.y, reach, g.angle + g.turn - g.halfWidth, g.angle + g.turn + g.halfWidth)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(132, 204, 22, 0.07)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(132, 204, 22, 0.30)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+  }
+
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  ctx.arc(p.x, p.y, reach, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.closePath()
+  ctx.fillStyle = `rgba(132, 204, 22, ${(0.09 + 0.20 * closing).toFixed(3)})`
+  ctx.fill()
+  ctx.strokeStyle = `rgba(190, 242, 100, ${(0.55 + 0.4 * closing).toFixed(3)})`
+  ctx.lineWidth = 2 + 3 * closing
+  ctx.stroke()
+
+  // And an arrow of the turn along the leading edge, because which way it is
+  // going is the only thing here worth knowing and a wedge does not say.
+  const lead = g.angle + Math.sign(g.turn) * g.halfWidth
+  for (let i = 1; i <= 3; i++) {
+    const out = reach * (i / 4)
+    const from = { x: p.x + Math.cos(lead) * out, y: p.y + Math.sin(lead) * out }
+    const to = {
+      x: p.x + Math.cos(lead + Math.sign(g.turn) * 0.22) * out,
+      y: p.y + Math.sin(lead + Math.sign(g.turn) * 0.22) * out,
+    }
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.strokeStyle = 'rgba(190, 242, 100, 0.75)'
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+/**
+ * The floor answering under whoever it marked.
+ *
+ * Closing inward like the brand's ring, because both are ground that has
+ * been chosen rather than ground that was already there — and in a different
+ * colour, since the brand is a place to stay off afterwards and this one has
+ * nothing afterwards at all.
+ */
+function drawEcho(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / ECHO_TELEGRAPH))
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(192, 132, 252, ${(0.08 + 0.22 * closing).toFixed(3)})`
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(216, 180, 254, 0.85)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // A second ring falling in on the spot: the beat arriving.
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(1, r * (1 - closing)), 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(216, 180, 254, ${(0.35 + 0.5 * closing).toFixed(3)})`
+  ctx.lineWidth = 3
+  ctx.stroke()
 }
 
 /** Expanding ring: lethal band, safe interior. */

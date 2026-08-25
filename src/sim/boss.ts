@@ -15,6 +15,7 @@ import {
   HEALTH,
 } from './constants'
 import {
+  AURA_DURATION,
   addAura,
   adds,
   getAura,
@@ -320,7 +321,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
+  scheduleHand(s, b, rng, timing)
   scheduleBrand(s, rng, timing)
+  scheduleEcho(s, rng, timing)
   scheduleVerdict(s, rng, timing)
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
@@ -716,6 +719,109 @@ function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
 }
 
 /**
+ * The wedge that turns, and the reason it is not another cone.
+ *
+ * Every shape this game already throws is answered by finding the ground it
+ * is not on. The pool says leave where you stand, the cone says get behind,
+ * the ring says come in, the caving band says step out of it — and in all
+ * four the answer, once taken, is taken. The floor stops asking.
+ *
+ * This one moves onto the answer. It fires, turns by a little less than its
+ * own width, and fires again, five times to a cast, so the ground that was
+ * safe a beat ago is the ground it is standing on now. What it asks for is
+ * not a place, it is a bearing: the floor behind the turn is about to be
+ * safe and the floor ahead of it is about to stop being floor, so a raid
+ * that reads the wedge without reading which way it is going steps out of
+ * one pulse and into the next.
+ *
+ * Anchored on the boss and reaching past the wall, so it is a question of
+ * bearing rather than of distance and nobody answers it by being far away.
+ * Which way it turns is rolled, because a hand that always goes the same way
+ * is a fact to be memorised once rather than a thing to be read.
+ *
+ * The beat is the crush's telegraph, and it lands on the same number for the
+ * same reason. Measured at a ten-man heroic, the cliff is as steep here as
+ * it is there: a beat of 1.2 is 17 points of teaching and 19 percent of a
+ * first pull dead, 1.1 is 26 and 28, and 1.0 is 33 and 38 — which is a wipe
+ * mechanic rather than a teaching one.
+ *
+ * The width is the other half of the shape, and it is the half that turned
+ * out not to be a dial. A wedge is an angle, so what it costs to leave grows
+ * with how far out you are standing: this one is sixty-four units across at
+ * melee range and two hundred and seventy-nine where the casters stand. And
+ * widening it from 0.42 to this moved the bodies it caught over a whole
+ * fight from ten to eleven on a first pull and six to five on a ninth, which
+ * is nothing. What moved the mechanic was the beat and the size of the hit.
+ */
+const HAND_HALF_WIDTH = 0.62
+export const HAND_BEAT = 1.1
+/**
+ * How far it turns between pulses, in radians.
+ *
+ * Less than its own full width on purpose. Turn it further and consecutive
+ * pulses leave a strip of floor nobody was ever asked about, which is a
+ * mechanic that can be stood still through; turn it exactly its width and
+ * the trailing edge is a coin toss. At three quarters of it, the ground the
+ * hand has just left is safe for the next pulse and the ground a pace ahead
+ * of it is not, which is the whole sentence this is trying to say.
+ */
+const HAND_TURN = HAND_HALF_WIDTH * 1.5
+const HAND_PULSES = 5
+/**
+ * A pool's, a brand's and a crush's, because it is the same kind of event:
+ * one mechanic's worth of damage arriving at one instant. Seven hundred was
+ * the first number and it was the wrong shape of wrong — the wedge still
+ * caught the same bodies, the healers simply covered it, and a mechanic
+ * whose mistakes are covered by the ordinary rotation teaches nothing at
+ * either end of the practice curve.
+ */
+const HAND_DAMAGE = 1000
+
+function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.hand <= 0) return
+  s.nextHand -= DT
+  if (s.nextHand > 0) return
+
+  // Never two at once. Two wedges turning together is not a harder question,
+  // it is an unreadable one: the answer to this is a bearing, and there is
+  // no bearing that answers both.
+  if (s.ground.some((g) => g.kind === 'hand')) {
+    s.nextHand = HAND_BEAT
+    return
+  }
+
+  // Held while a gathering is live, for the reason the crush and the brand
+  // are held: one mechanic says all of you here and this one says nobody
+  // stands anywhere for long.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextHand = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextHand = timing.hand
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.hand)
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'hand',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // Past the far wall, so the wedge is a slice of the whole arena however
+    // far off centre the boss is standing when it starts turning.
+    radius: ARENA_RADIUS * 2,
+    telegraph: HAND_BEAT,
+    lingering: 0,
+    damage: HAND_DAMAGE,
+    detonated: false,
+    angle: rng.range(0, Math.PI * 2),
+    halfWidth: HAND_HALF_WIDTH,
+    turn: rng.chance(0.5) ? HAND_TURN : -HAND_TURN,
+    pulses: HAND_PULSES,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_hand', power: ARENA_RADIUS })
+}
+
+/**
  * The circle the whole party has to be standing in.
  *
  * The inverse of spread, and the only thing here that asks the party to do
@@ -798,6 +904,8 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     kind: 'soak',
     pos,
     radius: SOAK_RADIUS,
+    turn: 0,
+    pulses: 0,
     telegraph: SOAK_TELEGRAPH,
     lingering: 0,
     // Flat, where every other mechanic here is multiplied by the difficulty.
@@ -947,6 +1055,116 @@ function scheduleBrand(s: SimState, rng: Rng, timing: PhaseTiming): void {
     if (marked.ai) say(s, marked, fight(s).lines.brand)
   }
   s.sounds.push('telegraph')
+}
+
+/**
+ * The floor answering a beat late, under whoever it picked.
+ *
+ * The brand asks for one walk: the ground you are standing on is about to
+ * stop being ground, so take it somewhere the fight was not using. That is a
+ * decision made once and then done with, and most of what it teaches is not
+ * walking back onto your own.
+ *
+ * This asks for the walk again before the last one has been paid for. A mark
+ * that lasts five seconds and a drum that beats every second: wherever the
+ * one carrying it is standing when the drum falls, that floor goes out from
+ * under them, and then it does it again. There is no spot to reach. Standing
+ * still is the one answer that is always wrong, and the place worth being is
+ * wherever the next beat will not find them — which is a thing to be chosen
+ * five times rather than once.
+ *
+ * Deliberately without the guard the crush has. An actor that has stepped
+ * off its own floor and is then sent home walks back onto the ground it just
+ * left, and for the crush that was the mechanic dodging itself. Here it *is*
+ * the mechanic: the brand measured ten points of its teaching in exactly
+ * that habit, and a mark that follows the body is the same lesson asked on a
+ * beat.
+ */
+const ECHO_RADIUS = 66
+/**
+ * How long the floor takes to answer.
+ *
+ * Shorter than a pool's and longer than the caving band's. A pool is walked
+ * away from and this is standing on top of you, so the pool's second and a
+ * half is a stroll; the band's one and a tenth is measured against a step of
+ * fifty units and this asks for sixty-six with a reaction in front of it.
+ *
+ * It is the shallowest dial the mechanic has, which is worth writing down:
+ * at one mark per ten bodies, a tenth of a second here is 24 points of
+ * teaching against 13 at a full second. The volume dials — how many carry it
+ * and how fast the drum runs — move it four times as far.
+ */
+export const ECHO_TELEGRAPH = 0.9
+const ECHO_BEAT = 1.05
+const ECHO_DAMAGE = 620
+
+/** One beat of it: the ground under this body, about to answer. */
+function dropEcho(s: SimState, actor: Actor): void {
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'echo',
+    pos: { x: actor.pos.x, y: actor.pos.y },
+    radius: ECHO_RADIUS,
+    telegraph: ECHO_TELEGRAPH,
+    // Nothing afterwards, the way the crush leaves nothing. A residue would
+    // make this a trail to be walked around, and what it asks about is the
+    // next beat rather than the last one.
+    lingering: 0,
+    damage: ECHO_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'cast', actor.pos, { abilityId: 'boss_echo' })
+}
+
+function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.echo <= 0) return
+  s.nextEcho -= DT
+  if (s.nextEcho > 0) return
+
+  // The drum, while anybody is still carrying it. One timer does both jobs
+  // because the mechanic is one thing, and two of them would have to agree
+  // with each other about the beat a mark runs out on.
+  const carrying = livingParty(s).filter((a) => getAura(a, 'echo') !== undefined)
+  if (carrying.length > 0) {
+    for (const marked of carrying) dropEcho(s, marked)
+    s.sounds.push('telegraph')
+    const longest = carrying.reduce((most, a) => Math.max(most, getAura(a, 'echo')!.remaining), 0)
+    // The table's number is the gap between one echo and the next, so the
+    // beats it spends carrying come out of it rather than being added on.
+    s.nextEcho =
+      longest > ECHO_BEAT ? ECHO_BEAT : Math.max(ECHO_BEAT, timing.echo - AURA_DURATION.echo)
+    return
+  }
+
+  // Held while a gathering is live: one says all of you here, this says none
+  // of you stay anywhere.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextEcho = FLOOR_AFTER_SOAK
+    return
+  }
+
+  // One per ten bodies, and this is the one number here that had to go the
+  // other way from the brand's.
+  //
+  // The brand needed one per five before it taught anything, because a mark
+  // that lands is one demand and a pool lands 0.45 times a second across a
+  // ten-man. This is not one demand: a mark is five beats, so one mark at a
+  // ten-man is already a piece of floor going out from under somebody every
+  // second, and the boss re-casts as soon as the last beat has run out. At
+  // one per five it measured 65 points of teaching and 77 percent of a first
+  // pull dead — which is not a hard mechanic, it is a wall, and the rung
+  // above it is unplayable rather than unpractised. At one per ten it is 25
+  // points and 25 percent.
+  const free = livingParty(s)
+  const marks = Math.max(1, Math.round(free.length / 10))
+  for (let i = 0; i < marks && free.length > 0; i++) {
+    const marked = free.splice(rng.int(free.length), 1)[0]!
+    addAura(marked, 'echo', BOSS_ID)
+    dropEcho(s, marked)
+    if (marked.ai) say(s, marked, fight(s).lines.echo)
+  }
+  s.sounds.push('telegraph')
+  s.nextEcho = ECHO_BEAT
 }
 
 /**
@@ -1213,6 +1431,8 @@ function blankGround(s: SimState): GroundEffect {
     growth: 0,
     band: 0,
     caught: [],
+    turn: 0,
+    pulses: 0,
   }
 }
 
@@ -1259,6 +1479,28 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
       crit: true,
     })
   }
+}
+
+/**
+ * Whether a spot is under the turning wedge, now or on a beat still to come.
+ *
+ * `ahead` of zero is the pulse about to land; one is the pulse after that.
+ * The second is the mechanic. Every other shape in the game can be answered
+ * by asking whether a spot is dangerous, and this one has to be answered by
+ * asking whether it is *about to be* — the ground the hand has just left is
+ * the ground worth standing on, and it looks exactly like the ground a pace
+ * ahead of it, which is worth a health bar.
+ */
+export function underHand(p: Vec2, g: GroundEffect, ahead = 0): boolean {
+  if (ahead > g.pulses - 1) return false
+  const dx = p.x - g.pos.x
+  const dy = p.y - g.pos.y
+  if (Math.hypot(dx, dy) > g.radius) return false
+
+  let delta = Math.atan2(dy, dx) - (g.angle + g.turn * ahead)
+  while (delta > Math.PI) delta -= Math.PI * 2
+  while (delta < -Math.PI) delta += Math.PI * 2
+  return Math.abs(delta) <= g.halfWidth
 }
 
 export function insideCone(p: { x: number; y: number }, cone: GroundEffect): boolean {
@@ -1351,6 +1593,63 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // The wedge, which is not finished when it goes off: it fires, turns,
+    // and waits out the next beat. Each pulse is all of it or none of it at
+    // one instant, the way the caving band is — what makes it a different
+    // mechanic is that the next instant asks about different ground.
+    if (g.kind === 'hand') {
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+
+      s.sounds.push('raid')
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_hand',
+        power: ARENA_RADIUS * 4,
+        angle: g.angle,
+        crit: true,
+      })
+      for (const a of livingParty(s)) {
+        // The wedge's own edge, with nothing forgiven on the body's radius,
+        // for the crush's reason: a mechanic answered by a step out cannot
+        // also be one that lets a shoulder hang over the line.
+        if (!underHand(a.pos, g)) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, {
+          abilityId: 'boss_hand',
+          power: damage,
+          angle: Math.atan2(a.pos.y - g.pos.y, a.pos.x - g.pos.x),
+        })
+      }
+
+      g.pulses -= 1
+      g.angle += g.turn
+      g.telegraph = HAND_BEAT
+      continue
+    }
+
+    // A beat of the echo. The same instant as the band and the wedge, and
+    // the same lack of a residue: what it leaves behind is nothing, because
+    // the question it asks is about the next beat.
+    if (g.kind === 'echo') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_echo',
+        power: g.radius * 12,
+        crit: true,
+      })
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_echo', power: damage })
+      }
+      continue
+    }
+
     // All of it or none of it, at one instant. Handled apart from the pools
     // below rather than folded into them: those keep burning after they go
     // off and the whole of this one is the frame it lands on.
@@ -1421,6 +1720,11 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'shockwave') return g.lingering > 0
     // The same rule as the circle, for the same reason: a moment, not a place.
     if (g.kind === 'crush') return !g.detonated
+    if (g.kind === 'echo') return !g.detonated
+    // It is done when it has finished turning, not when it has gone off: a
+    // pulse is one of five, and `detonated` would have to mean "the last one"
+    // for this shape and "the only one" for every other.
+    if (g.kind === 'hand') return g.pulses > 0
     return !g.detonated || g.lingering > 0
   })
 }

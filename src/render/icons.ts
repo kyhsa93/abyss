@@ -205,6 +205,16 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The one the party answers together, so it arrives on everybody at once
   // and reads as something settling rather than something thrown.
   boss_soak: { colour: '#2dd4bf', style: 'wither' },
+  // The wedge that turns, in a colour nothing else on the floor owns. It has
+  // to be read as one shape moving rather than as a series of cones, so it
+  // cannot borrow the cone's blue.
+  boss_hand: { colour: '#84cc16', style: 'cleave' },
+  // The floor answering under the one it marked. Its own violet rather than
+  // a shade of the brand's pink, which is the closest thing to it: both
+  // arrive where somebody was standing, and they are opposite mechanics
+  // about it — the brand is ground to keep off afterwards and this is gone
+  // before anybody could.
+  boss_echo: { colour: '#c084fc', style: 'wither' },
   // The thing that followed you, in a colour nothing else uses: whatever else
   // is happening, this one is about you specifically.
   boss_stalk: { colour: '#fb923c', style: 'cleave' },

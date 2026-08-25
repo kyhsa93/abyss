@@ -8,7 +8,15 @@ import {
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
 } from './constants'
-import { BREATH_CAST, insideCone, inShockwaveGap, verdictLine } from './boss'
+import {
+  BREATH_CAST,
+  ECHO_TELEGRAPH,
+  HAND_BEAT,
+  insideCone,
+  inShockwaveGap,
+  underHand,
+  verdictLine,
+} from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
 import {
@@ -136,6 +144,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'Out of the front')
     } else if (danger.startsWith('spread')) {
       say(s, actor, 'Spreading out')
+    } else if (danger.startsWith('hand')) {
+      say(s, actor, 'Behind it, follow it round')
+    } else if (danger.startsWith('echo')) {
+      say(s, actor, 'It is under me again')
     } else if (ai.personality === 'timid') {
       say(s, actor, 'Moving!')
     }
@@ -161,7 +173,16 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // not walking onto your own. One mechanic's fix is not a licence to make
     // every other mechanic easier.
     const home = idlePosition(s, actor)
-    if (!caving(s, home)) ai.moveTarget = home
+    // The wedge gets the same narrow guard as the caving band, and for the
+    // same reason: home is a bearing off the boss, the wedge covers bearings,
+    // and a melee that finished its step and walked back is a melee that
+    // dodged the pulse and stood in the next one.
+    //
+    // The echo deliberately gets none. Home for the one carrying it is the
+    // ground it just left, and walking back onto your own floor is not a bug
+    // in this mechanic, it is the thing it is asking about — the brand
+    // measured ten of its seventeen points of teaching in that habit alone.
+    if (!caving(s, home) && !swept(s, home)) ai.moveTarget = home
   }
 
   moveToward(s, actor, ai.moveTarget)
@@ -294,6 +315,37 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // The pulse about to land, and only that one. Ranked with the caving
+    // band, which is the same kind of thing: one enormous hit at a known
+    // instant, where being a tenth of a second late is the whole mechanic.
+    //
+    // The beat *after* it is deliberately not a danger here. It was, and it
+    // cost the mechanic everything: an actor that starts walking as soon as
+    // the wedge is pointed anywhere near it gets two beats of warning rather
+    // than one, and two beats is a stroll — measured, the hand caught four
+    // bodies in eighty-two pulses and taught nothing at either end of the
+    // practice curve. Where the wedge is going still belongs in `isSpotSafe`
+    // and in the scoring, because walking out of one pulse and into the next
+    // is not an answer either. Knowing where to go is free. Going in time is
+    // the part that has to be practised.
+    if (g.kind === 'hand') {
+      if (underHand(actor.pos, g)) {
+        consider(`hand:${g.id}`, 92 + (HAND_BEAT - g.telegraph) * 12)
+      }
+      continue
+    }
+
+    // The floor under whoever it marked, about to answer. Ranked just under
+    // live fire: it is a bigger hit than a pool tick and there is less time
+    // to be somewhere else, but a pool that has already gone off is burning
+    // right now.
+    if (g.kind === 'echo') {
+      if (!g.detonated && dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`echo:${g.id}`, 88 + (ECHO_TELEGRAPH - g.telegraph) * 10)
+      }
+      continue
+    }
+
     if (g.kind === 'shockwave') {
       // Only a ring that has not reached you yet. One that has already swept
       // past is still on the floor — it lingers for the length of the fight —
@@ -355,6 +407,13 @@ function caving(s: SimState, spot: Vec2): boolean {
   )
 }
 
+/** Is this spot under the wedge, on the pulse coming or the one after it? */
+function swept(s: SimState, spot: Vec2): boolean {
+  return s.ground.some(
+    (g) => g.kind === 'hand' && (underHand(spot, g) || underHand(spot, g, 1)),
+  )
+}
+
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   for (const g of s.ground) {
@@ -367,6 +426,17 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
       continue
     }
     if (g.kind === 'crush') {
+      if (!g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
+      continue
+    }
+    // Both the pulse that is coming and the one after it. A destination that
+    // is merely safe from the pulse about to land is a destination the wedge
+    // turns onto while the walk there is still happening.
+    if (g.kind === 'hand') {
+      if (underHand(spot, g) || underHand(spot, g, 1)) return false
+      continue
+    }
+    if (g.kind === 'echo') {
       if (!g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
       continue
     }
@@ -502,6 +572,24 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           y: g.pos.y + Math.sin(angle) * g.radius * 0.55,
         })
       }
+    } else if (g.kind === 'hand') {
+      // Behind the turn, at the range this one is already standing at. The
+      // answer here is a bearing rather than a distance, and the rings
+      // sampled around the body find it only sideways: out where the casters
+      // stand the wedge covers two hundred and eighty units of arc and the
+      // beat after it covers another hundred and seventy, so the samples
+      // that clear both are the ones that have also left the fight.
+      const reach = Math.max(70, dist(actor.pos, g.pos))
+      const back = g.turn >= 0 ? -1 : 1
+      for (let i = 1; i <= 4; i++) {
+        const bearing = g.angle + back * (g.halfWidth + 0.3 * i)
+        for (const out of [reach, reach * 0.7]) {
+          candidates.push({
+            x: g.pos.x + Math.cos(bearing) * out,
+            y: g.pos.y + Math.sin(bearing) * out,
+          })
+        }
+      }
     } else if (g.kind === 'breath' && !g.detonated) {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
@@ -552,6 +640,21 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         // is a health bar over five and a half seconds and this is most of one
         // in a single frame.
         if (dist(candidate, g.pos) <= g.radius + DANGER_MARGIN) score -= 1800
+        continue
+      }
+      if (g.kind === 'hand') {
+        // Three deep, and falling away: where it is about to be is worth
+        // most of what where it is is worth, and the beat after that is
+        // worth a nudge. A raid that only priced the pulse in front of it
+        // would answer this mechanic by stepping into it.
+        if (underHand(candidate, g)) score -= 1800
+        else if (underHand(candidate, g, 1)) score -= 900
+        else if (underHand(candidate, g, 2)) score -= 300
+        continue
+      }
+      if (g.kind === 'echo') {
+        if (g.detonated) continue
+        if (dist(candidate, g.pos) <= g.radius + DANGER_MARGIN) score -= 1200
         continue
       }
       if (g.kind === 'shockwave') {
