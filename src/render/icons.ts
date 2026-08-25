@@ -239,6 +239,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // A debt falling due, which either splits or does not. A burst rather than
   // a wither: it arrives all at once and it is over.
   boss_yoke: { colour: '#f0abfc', style: 'burst' },
+  // A note finishing, on everybody at once. A burst, because the whole of it
+  // arrives in one frame and there is nothing left of it afterwards.
+  boss_knell: { colour: '#f43f5e', style: 'burst' },
+  // Whatever was inside it, coming back out at whoever opened it.
+  boss_vessel: { colour: '#06b6d4', style: 'burst' },
+  // Your own damage, handed back. Pierced rather than crushed: what lands is
+  // the shape of what was thrown.
+  boss_mirror: { colour: '#7dd3fc', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

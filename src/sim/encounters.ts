@@ -46,6 +46,9 @@ export type MechanicId =
   | 'burden'
   | 'yoke'
   | 'schism'
+  | 'knell'
+  | 'vessel'
+  | 'mirror'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -97,6 +100,13 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
   schism: true,
+  // The three that are answered by what the raid is hitting rather than by
+  // where it is standing, and all three are aimed at the roster rather than
+  // at the arena: every extra body is another pair of hands that has to stop,
+  // switch or hold, and pays for itself when it does not.
+  knell: true, // its health is dealt by whoever came, so its health is per body
+  vessel: true, // one more body is one more hand that can break it
+  mirror: true, // one more body is one more mouth that has to shut
 }
 
 /**
@@ -164,6 +174,9 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   burden: 'the burden',
   yoke: 'the yoke',
   schism: 'the schism',
+  knell: 'the knell',
+  vessel: 'the vessel',
+  mirror: 'the mirror',
 }
 
 export interface PhaseTiming {
@@ -372,6 +385,98 @@ export interface PhaseTiming {
    * standing somewhere and being met.
    */
   yoke: number
+  /**
+   * Seconds between one knell and the next.
+   *
+   * Something surfaces that has to be broken before it finishes, and it is
+   * the one hostile in this game that is not hurting anybody. That is the
+   * whole read. A rotation aimed at whatever is currently doing damage has no
+   * reason to look at it, so the raid has to decide to leave the health bar
+   * it was working on for one that is not asking to be worked on — and it has
+   * to decide inside the count, because what the count ends in is a note the
+   * whole raid pays for.
+   *
+   * The thralls are the same sentence with the read taken out: they walk in
+   * and hit somebody, so the party is already aimed at them and there is no
+   * instant at which a raid either did the thing or did not. Measured, that
+   * is worth nothing. This one has an instant.
+   *
+   * And measured, it is the one of the three that does not earn a rung.
+   * Against a Warden over paired seeds:
+   *
+   *     5 heroic     0.0pp
+   *    10 heroic     7.0 +/- 3.0, removes 41%
+   *    25 heroic     0.0pp
+   *
+   * It fires perfectly well at the sizes where it reads zero -- a twenty-five
+   * man pull hung nine bells, broke seven and let two finish -- and nobody
+   * died of either of them. The reason is the shape of the bill rather than
+   * anything about the read: what a finished count costs is one hit spread
+   * across the whole raid, and a hit spread across a raid is a rate, which is
+   * what healing is. Thin enough to be survivable at ten, a bigger raid's
+   * healers absorb it outright; one step heavier and the ten-man wipes. There
+   * is no number between the two, so this wants a per-size weight on the boss
+   * carrying it rather than a rung of its own. See `docs/mechanic-rules.md`.
+   */
+  knell: number
+  /**
+   * Seconds between one vessel and the next.
+   *
+   * The knell read backwards, and the reason both exist. This one *does* walk
+   * in and hit somebody, so every rule the party has says kill it — and
+   * killing it is the failure. It carries what the boss swallowed, it gives
+   * it back to whoever broke it open, and if it is left alone it sinks on its
+   * own clock and costs nothing but the swings it landed.
+   *
+   * What it asks for is restraint, which is the one thing a damage rotation
+   * has no vocabulary for. The bill goes to the bodies that actually struck
+   * it rather than to the raid, so the mechanic is not a coin flip on the
+   * greediest dealer in the party: everyone who held off is clear, and
+   * everyone who did not pays for themselves.
+   *
+   * Measured against a Warden over paired seeds:
+   *
+   *     5 heroic    37.8pp +/- 8.9, removes 40%
+   *    10 heroic     7.5   +/- 2.5, removes 39%
+   *    25 heroic    33.3   +/- 2.6, removes 76%
+   *
+   * Real at every size, and three or four times the mechanic at the sizes
+   * either side of the one it was tuned at -- 94% of unpractised five-mans
+   * die to it. A near-lethal bill per body caught super-scales the way area
+   * denial does, so this wants a cap on how many bills one instant may write,
+   * or a rung a five-man cannot reach.
+   */
+  vessel: number
+  /**
+   * Seconds between one mirror and the next.
+   *
+   * The boss goes still, and for as long as it does, everything landed on it
+   * is landed on whoever landed it. Nothing here is a place, so nothing here
+   * is answered by a step: the answer is to stop, and then to start again,
+   * and the cost of reading it early is the same seconds of uptime the crush
+   * charges for the walk out.
+   *
+   * It judges at the instant the surface breaks rather than as the hits go
+   * in, which is deliberate. A reflection paid out per hit is proportional
+   * damage, and proportional damage averages skill out — a raid a tenth of a
+   * second late takes a tenth of a second's worth and nobody dies of it. One
+   * bill at one moment for everybody who touched it is a moment a raid either
+   * passed or did not.
+   *
+   * Measured against a Warden over paired seeds:
+   *
+   *     5 heroic    49.0pp +/- 6.1, removes 49%
+   *    10 heroic    19.8   +/- 1.0, removes 62%
+   *    25 heroic    51.5   +/- 1.6, removes 53%
+   *
+   * The strongest thing on this table except the cone, and it carries the
+   * vessel's caveat twice over: every unpractised five-man and 96.5% of
+   * unpractised twenty-fives die to it. It also depends on the hold reaching
+   * the weapons rather than only the buttons -- with auto-attacks left
+   * ungated it is worth exactly 0.0 points and both ends of the practice
+   * curve wipe, because a swing nobody decided on marks everybody anyway.
+   */
+  mirror: number
 }
 
 export interface Encounter {
@@ -476,6 +581,9 @@ export interface Encounter {
     hunt: number
     burden: number
     yoke: number
+    knell: number
+    vessel: number
+    mirror: number
   }
   /**
    * The colour this one is drawn in.
@@ -534,6 +642,17 @@ export interface Encounter {
      * shallows do, and it already has something to say if it takes a rung.
      */
     schism: string
+    /**
+     * The three that are answered by target rather than by footing.
+     *
+     * On no ladder either, and authored on every boss for the reason the
+     * fault and the shallows are: a descent can be handed any of them
+     * tomorrow, and a mechanic three bosses can all throw needs a voice from
+     * all three.
+     */
+    knell: string
+    vessel: string
+    mirror: string
   }
 }
 
@@ -594,11 +713,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5 }) },
-      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0 }) },
-      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5 }) },
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5, knell: 21, vessel: 23, mirror: 19 }) },
+      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0, knell: 18, vessel: 20, mirror: 16.5 }) },
+      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5, knell: 15, vessel: 17, mirror: 14 }) },
     },
-    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5 }) },
+    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5, knell: 12, vessel: 14, mirror: 10 }) },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -620,6 +739,9 @@ export const ENCOUNTERS: Encounter[] = [
       burden: 'The weight is on me — somebody take it',
       yoke: 'They cannot hold that alone — going',
       schism: 'The current parts you',
+      knell: 'A bell is rising — break it before it rings',
+      vessel: 'That one is full of the deep — leave it whole',
+      mirror: 'THE WATER GOES STILL — HOLD',
     },
   },
   {
@@ -679,11 +801,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0 }) },
-      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5 }) },
-      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0 }) },
+      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0, knell: 21, vessel: 23, mirror: 19 }) },
+      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5, knell: 18, vessel: 20, mirror: 16.5 }) },
+      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0, knell: 15, vessel: 17, mirror: 14 }) },
     },
-    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0 }) },
+    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0, knell: 12, vessel: 14, mirror: 10 }) },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -705,6 +827,9 @@ export const ENCOUNTERS: Encounter[] = [
       burden: 'It is passing to me — where do I put it',
       yoke: 'One of them is singing alone — with them',
       schism: 'Take your parts — apart',
+      knell: 'One note is gathering — silence it',
+      vessel: 'It is holding the chord — do not open it',
+      mirror: 'THE SONG TURNS BACK — STOP SINGING',
     },
   },
   {
@@ -742,11 +867,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0, knell: 21, vessel: 23, mirror: 19 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5, knell: 18, vessel: 20, mirror: 16.5 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0, knell: 15, vessel: 17, mirror: 14 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0, knell: 12, vessel: 14, mirror: 10 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -768,6 +893,9 @@ export const ENCOUNTERS: Encounter[] = [
       burden: 'This is dragging me — hands, now',
       yoke: 'They are under it on their own — moving',
       schism: 'The tide splits you',
+      knell: 'Something is swelling out there — break it',
+      vessel: 'That one is carrying the tide — let it pass',
+      mirror: 'THE SURFACE CLOSES — NOTHING GOES IN',
     },
   },
 ]

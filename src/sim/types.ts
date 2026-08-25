@@ -43,6 +43,8 @@ export type AuraId =
   | 'burden' // boss: a weight that has to be walked into fresh hands
   | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
   | 'schism' // boss: which group you belong to, and they must not touch
+  | 'mirror' // boss: its own surface is closed, and what goes in comes back
+  | 'spoil' // boss: you struck the thing that was not to be broken
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -80,6 +82,15 @@ export interface Aura {
    * has not named anybody.
    */
   bearer?: number
+  /**
+   * Everyone who landed a hit on this, for the one that gives it back.
+   *
+   * The mirror bills at the instant it breaks rather than as the hits go in,
+   * so it has to remember who put something in. Ids rather than a count: what
+   * it owes is one bill each, not one bill per hit, and paying per hit would
+   * make it proportional damage — which is the shape that averages skill out.
+   */
+  struck?: number[]
   /** Accumulator for periodic ticks. */
   tickTimer: number
 }
@@ -128,6 +139,21 @@ export interface AiProfile {
   callTo: string | null
   /** Who this healer has decided to save, once the delay above has run out. */
   answering: number | null
+
+  // --- and the one about what to hit, kept apart from both -----------------
+  //
+  // A third channel for the same reason there is a second. Deciding what to
+  // hit is not deciding where to stand: an actor that spent its danger slot
+  // on a target call would then be sent to find a safe tile, and one that
+  // spent its healer slot on it would stop answering judgements. The three
+  // are answered at the same time in a real pull and so they are kept apart
+  // here.
+  /** Counts down before a change of target is acted upon. */
+  switchTimer: number
+  /** The call currently being reacted to, so the delay is rolled once. */
+  switchTo: string | null
+  /** The call this one has actually adopted, once the delay has run out. */
+  striking: string | null
 }
 
 export interface Actor {
@@ -183,6 +209,21 @@ export interface Actor {
    * — this one answers by walking after you.
    */
   hunting: number | null
+
+  /**
+   * What kind of thing this is, for the two that are not thralls.
+   *
+   * Absent means a thrall or a stalker, which is every summon that came
+   * before these and every summon the party's own rules already understand:
+   * it walks in and it hits somebody, so a rotation aimed at whatever is
+   * hurting the raid is already aimed at it.
+   *
+   * The two named here break that rule in opposite directions, which is why
+   * they need a name at all. One hurts nobody and has to be killed anyway;
+   * the other hurts somebody and must not be killed. Neither can be read off
+   * a health bar, and both are the whole demand.
+   */
+  spawn?: 'knell' | 'vessel'
 }
 
 export type GroundKind =
