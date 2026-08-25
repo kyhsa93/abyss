@@ -1,5 +1,5 @@
 import { Rng } from './rng'
-import { MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
+import { MECHANIC_IDS, MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
 import type { DifficultyId } from './classes'
 
 /**
@@ -172,21 +172,15 @@ export function planned(timing: PhaseTiming, plan: FloorPlan, phase: number): Ph
     const every = plan.every[id]
     return every === undefined ? 0 : every * tighten
   }
-  return {
-    ...timing,
-    crush: at('crush'),
-    puddle: at('puddle'),
-    spread: at('spread'),
-    breath: at('breath'),
-    shockwave: at('shockwave'),
-    adds: at('adds'),
-    sweep: at('sweep'),
-    rot: at('rot'),
-    verdict: at('verdict'),
-    sunder: at('sunder'),
-    soak: at('soak'),
-    hunt: at('hunt'),
-  }
+  // Every mechanic, taken from the type rather than listed here. It used to
+  // be a written-out list, and `brand` was never added to it, so a floor built
+  // to a Warden's shape spread the Warden's brand cadence through `...timing`
+  // and then threw a mark the floor had not bought. A list that has to be
+  // updated by hand every time a mechanic is added will be wrong again; the
+  // set of ids is already known, so ask for it.
+  const cadence = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) cadence[id] = at(id)
+  return { ...timing, ...cadence }
 }
 
 /**

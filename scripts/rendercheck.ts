@@ -117,6 +117,7 @@ import {
   hasNext,
   kitCount,
   type MechanicId,
+  MECHANIC_IDS,
 } from '../src/sim/encounters'
 import {
   BASE_RADIUS,
@@ -4010,22 +4011,18 @@ for (const [label, w, h] of [
       const laid = planned(table, s.plan, 1)
       expect('the swing survives the plan', laid.swing === table.swing, `${laid.swing}`)
       expect('and the slam does', laid.slam === table.slam, `${laid.slam}`)
+      // Over every mechanic there is, not a list written out here. This check
+      // and the code it checks both used to carry the same hand-kept list, and
+      // both were missing `brand` -- which is exactly why a floor throwing an
+      // unbought brand went unnoticed. A check that repeats the shape of the
+      // thing it is checking cannot catch the thing they get wrong together.
+      const leaked = MECHANIC_IDS.filter((id) =>
+        s.plan!.every[id] === undefined ? laid[id] !== 0 : !(laid[id] > 0),
+      )
       expect(
         'what it did not buy is off',
-        (Object.keys(s.plan.every).length > 0 &&
-          ([
-            'puddle',
-            'spread',
-            'breath',
-            'shockwave',
-            'adds',
-            'sweep',
-            'rot',
-            'sunder',
-            'soak',
-            'hunt',
-          ] as const).every((id) => (s.plan!.every[id] === undefined ? laid[id] === 0 : laid[id] > 0))),
-        JSON.stringify(s.plan.every),
+        Object.keys(s.plan.every).length > 0 && leaked.length === 0,
+        `${leaked.join(',')} of ${JSON.stringify(s.plan.every)}`,
       )
     }
   }

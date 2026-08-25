@@ -75,6 +75,16 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   sweep: false, // whoever is in reach, which is the melee
 }
 
+/**
+ * Every mechanic there is.
+ *
+ * Read off a table the compiler already forces to be complete, so that code
+ * which has to touch all of them cannot quietly miss one. It used to be spelt
+ * out by hand in `planned()` and `brand` was left off, which meant a descent
+ * floor threw a mark nobody had paid for.
+ */
+export const MECHANIC_IDS = Object.keys(MECHANIC_SCALES) as MechanicId[]
+
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   brand: 'the brand',
   verdict: 'the judgement',
