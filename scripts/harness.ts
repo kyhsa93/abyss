@@ -813,9 +813,11 @@ const TEACH_RUNS = 30
 {
   console.log(
     `\nmechanic / boss        hits    unpractised  practised   teaches` +
-      `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time; ` +
-      `two standard errors on a death rate is about ` +
-      `${(2 * Math.sqrt(0.25 / TEACH_RUNS) * 100).toFixed(0)} points)`,
+      `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time. ` +
+      `The two columns are paired -- same seed, same fight, only practice ` +
+      `differs -- so most of what looks like variance here cancels inside ` +
+      `the pair and the gap is far tighter than either column. ` +
+      `scripts/teachprobe.ts prints the bar that belongs to it.)`,
   )
   for (let e = 0; e < ENCOUNTERS.length; e++) {
     // A ten-man heroic buys four rungs, so a boss's fifth is not in the kit at
