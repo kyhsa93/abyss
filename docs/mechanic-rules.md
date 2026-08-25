@@ -230,12 +230,32 @@ This one is worth knowing because it kills a whole family of design pitches:
 measurable mechanic. Pick a linger for what a long one costs the rest of the
 game, not for what it buys.
 
-**The boss more than the mechanic.** The same code taught 26pp on one boss and
-16 on another, and made the first unbeatable at every difficulty while leaving
-the second fair. Floor denial multiplies badly against a boss whose other
-rungs all say *stand somewhere specific* -- the cone's blind side, the ring's
-gap -- and it was still a wipe with damage cut to 300, so the cause is the
-denial, not the payload. A boss with no shape of its own absorbs it.
+**The boss more than the mechanic, and it is not close.** Every mechanic in
+the game was moved onto one host -- the Warden, with its own cadence lent to
+each so nothing went silent -- and measured at all three sizes. The result is
+that there is no host-independent value of a mechanic at all:
+
+    on the Warden      at its own boss
+    puddle  35.2pp     0.5pp on the Choir
+    echo    48.3       6.6  on the Choir
+    breath  nobody died at any size      21.4 on the Tidebreaker
+
+The cause is one number. `mechanicDamage` is 1.15 on the Choir, 1.7 on the
+Warden and 4.6 on the Tidebreaker, and a mechanic's own damage was tuned
+against whichever of those it was written for. The cone is built for 4.6, so
+on 1.7 it lands at a bit over a third of what it is meant to and kills nobody;
+the echo is built for 1.15, so on 1.7 it is half again as heavy and goes from
+mid-field to the hardest thing measured.
+
+A factor of four across the hosts swamps every dial a mechanic has. Cadence,
+radius and telegraph are trim next to it. So when a mechanic is placed, the
+placement is the tuning: the question is not which rung but which boss, and a
+mechanic moved between two of them has to be re-measured rather than re-read.
+
+Denial also multiplies badly against a boss whose other rungs all say *stand
+somewhere specific* -- the cone's blind side, the ring's gap -- and it stayed a
+wipe with the damage cut to 300, so that part is the denial rather than the
+payload. A boss with no shape of its own absorbs it.
 
 **For anything involving a second person:** a name that is recomputed is not a
 name -- asking "who is furthest" every tick meant the answer changed as soon
