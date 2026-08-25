@@ -519,7 +519,12 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 900,
         block: 0,
         power: 1000,
-        abilities: kit({ filler: 'frostbolt', overTime: 'living_bomb', finisher: 'pyroblast' }),
+        abilities: kit({
+          filler: 'frostbolt',
+          overTime: 'living_bomb',
+          finisher: 'pyroblast',
+          attack: 'ice_lance',
+        }),
       },
     ],
   },

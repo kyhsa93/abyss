@@ -2660,7 +2660,20 @@ function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   const free = livingParty(s).filter((a) => !getAura(a, 'burden'))
   if (free.length === 0) return
 
-  const weights = Math.max(1, Math.round(livingParty(s).length / 5))
+  // One weight per five bodies, and never more than two at once.
+  //
+  // Without the cap a twenty-five man carried five chains and each chain ties
+  // up three bodies -- the carrier, whoever is being walked to, and whoever
+  // just handed it on -- so fifteen of twenty-five were mid-handoff at any
+  // moment. Measured, that killed eighty percent of *practised* raids, which
+  // leaves nothing for practice to remove and stops it being a mechanic at
+  // all. The same crowding is what made this the one boss where the spec with
+  // no instant in its rotation fell to two fifths of the best: a raid this
+  // busy is a raid that is walking, and walking is the whole cost.
+  //
+  // Two is the roster raising the size of the demand rather than the count of
+  // it, which is the rule that came out of the round that built these.
+  const weights = Math.min(2, Math.max(1, Math.round(livingParty(s).length / 5)))
   for (let i = 0; i < weights && free.length > 0; i++) {
     const first = free.splice(rng.int(free.length), 1)[0]!
     addAura(first, 'burden', b.id)
@@ -2774,19 +2787,38 @@ function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     addAura(owed, 'yoke', b.id)
     const mark = getAura(owed, 'yoke')
 
-    // The furthest body that can go, which is what makes the answer a journey.
-    // Anything nearer is already standing there: a raid at rest is a blob
-    // about ninety units across, so a yoke answered by whoever is close enough
-    // is a yoke answered before it was thrown.
+    // Anybody far enough that going is a journey, chosen at random among them
+    // rather than the single furthest.
+    //
+    // It was the furthest, on the reasoning that a nearer body is already
+    // standing there -- a raid at rest is a blob about ninety units across, so
+    // a yoke a neighbour can answer is one that was answered before it was
+    // thrown. The reasoning is right and the implementation named a role.
+    // Melee stand at the boss and ranged at three hundred and forty, so "the
+    // furthest from that body" is a question with the same answer nearly every
+    // cast, and the spec it kept picking paid for it: measured across the
+    // dealers, the one with no instant in its rotation ended up at two fifths
+    // of the best on this boss, because every yoke was its walk.
+    //
+    // A floor on the distance keeps the journey; the roll keeps it from being
+    // the same person's journey every time. If nobody clears the floor -- a
+    // raid stacked tighter than usual -- it falls back to the furthest, since
+    // a short walk is still better than no answer at all.
+    const eligible = livingParty(s).filter(
+      (a) => a.id !== owed.id && a.role !== 'tank' && !getAura(a, 'yoke') && !named.has(a.id),
+    )
+    const travelled = eligible.filter((a) => dist(owed.pos, a.pos) >= YOKE_REACH * 2)
     let bearer: Actor | null = null
-    let furthest = -1
-    for (const a of livingParty(s)) {
-      if (a.id === owed.id || a.role === 'tank') continue
-      if (getAura(a, 'yoke') || named.has(a.id)) continue
-      const d = dist(owed.pos, a.pos)
-      if (d > furthest) {
-        furthest = d
-        bearer = a
+    if (travelled.length > 0) {
+      bearer = travelled[rng.int(travelled.length)]!
+    } else {
+      let furthest = -1
+      for (const a of eligible) {
+        const d = dist(owed.pos, a.pos)
+        if (d > furthest) {
+          furthest = d
+          bearer = a
+        }
       }
     }
     if (mark && bearer) {

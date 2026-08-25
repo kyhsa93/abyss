@@ -98,6 +98,7 @@ const ICONS: Record<string, IconSpec> = {
   frostbolt: { shape: 'orb', colour: '#7dd3fc' },
   living_bomb: { shape: 'orb', colour: '#fb7185' },
   pyroblast: { shape: 'flame', colour: '#dc2626' },
+  ice_lance: { shape: 'bolt', colour: '#bae6fd' },
 
   // hunter
   steady_shot: { shape: 'arrow', colour: '#a3e635' },

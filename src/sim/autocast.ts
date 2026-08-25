@@ -142,5 +142,12 @@ export function damageOrder(actor: Actor, target: Actor | null): string[] {
       break
   }
 
+  // Last, and only reached when nothing above it can be pressed: the slot a
+  // healer uses to have something to do between heals. For a damage spec it
+  // is the answer to walking -- everything above may be a cast, and a cast is
+  // skipped while the feet are moving, which used to leave one spec with an
+  // empty rotation for as long as the fight kept it walking.
+  order.push(kit.attack)
+
   return order.filter((id): id is string => id !== null)
 }

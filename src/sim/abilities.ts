@@ -97,6 +97,16 @@ const list: Ability[] = [
   { id: 'frostbolt', name: 'Frostbolt', role: 'dps', kind: 'damage', castTime: 1.4, cooldown: 0, cost: 18, amount: 120, threatMult: 1, aura: null, range: SPELL },
   { id: 'living_bomb', name: 'Living Bomb', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 24, threatMult: 1, aura: 'living_bomb', range: SPELL },
   { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 13, cost: 55, amount: 430, threatMult: 1, aura: null, range: SPELL },
+  // The one thing it can press with its feet moving.
+  //
+  // Every other damage spec fills with an instant, so a fight that asks the
+  // raid to move costs them a step and costs this one the whole global. That
+  // was survivable while a ten-man on normal met three mechanics; at four it
+  // put the mage at two fifths of the best dealer on the boss that moves the
+  // most, and at the bottom of four of the five. Weak on purpose -- standing
+  // still is still where the damage is -- but not nothing, which is what it
+  // had.
+  { id: 'ice_lance', name: 'Ice Lance', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 10, amount: 72, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
   { id: 'steady_shot', name: 'Steady Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },

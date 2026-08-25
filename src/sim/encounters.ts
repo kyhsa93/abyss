@@ -849,7 +849,11 @@ export const ENCOUNTERS: Encounter[] = [
     swingDamage: 621,
     slamDamage: 1322,
     raidDamage: 168,
-    mechanicDamage: 1.7,
+    mechanicDamage: 0.75,
+    // The floor is the one demand that gets strictly worse with bodies: more
+    // people means more ground given away per cast, into an arena that does
+    // not grow. Six rungs of it wiped every practised twenty-five man.
+    sizeMechanic: { 25: 0.8 },
     accent: '#ef4444',
     // No cone and nothing to run into: the only thing it casts is the one
     // that lands on whoever is holding it.
@@ -925,7 +929,7 @@ export const ENCOUNTERS: Encounter[] = [
     // dial reached the rungs that buy a puddle and missed the two that are a
     // spread and a rot. Now that everything goes through one funnel the same
     // fight is harder at the same number, and this is where it lands.
-    mechanicDamage: 1.15,
+    mechanicDamage: 0.5,
     // The opposite problem: this is the boss a twenty-five man loses to. Its
     // last rung buys `adds`, and a wave of them against a raid already holding
     // a spread, a hunt and a puddle is the one place the size stops helping.
@@ -935,7 +939,7 @@ export const ENCOUNTERS: Encounter[] = [
     // was not going to hurt anybody anyway. With a puddle on the third rung it
     // was holding down a fight that could, and both five-man rungs were won as
     // often on a first pull as a ninth.
-    sizeMechanic: { 5: 0.94, 25: 0.85 },
+    sizeMechanic: { 5: 0.94, 25: 0.7 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
     // `puddle` third rather than fourth, and quicker than it was.
@@ -1018,7 +1022,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the ring stopped deciding it — see `SHOCKWAVE_BAND` — every rung came
     // out at 95-100%, because the rest of the boss had never had to do
     // anything. This is what the rest of it is worth.
-    mechanicDamage: 4.6,
+    mechanicDamage: 1.15,
     // A twenty-five man walked over this fight once the shockwave stopped
     // deciding it — 97% at the top of the practice curve. Five percent is all
     // it takes: healing covers about two fifths of what a raid takes, and past
@@ -1029,10 +1033,21 @@ export const ENCOUNTERS: Encounter[] = [
     // rather than five; the five-man felt it worst, because a two-rung kit is
     // paid back as tempo and the rung that comes round fastest is the one a
     // live ring punishes hardest.
-    sizeMechanic: { 5: 0.75, 10: 1.1 },
+    // The twenty-five entry came with the sixth rung. Six mechanics at full
+    // cadence against a raid that big wiped every practised pull; at 0.85 it
+    // is a fight that is lost on a first attempt and won by the ninth, and at
+    // 0.7 it is not a fight at all. Another cliff, and the usable width of it
+    // is about a tenth.
+    sizeMechanic: { 10: 1.1, 25: 0.85 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
-    ladder: ['sweep', 'breath', 'hunt', 'shockwave', 'fault', 'shallows'],
+    // The ring ahead of the sweep, which is the one change here that is not
+    // a number. A five-man on normal buys the first three rungs, and with the
+    // sweep among them it bought a mechanic measured at zero -- the fight was
+    // won on a first pull as reliably as on a ninth at every weight, because
+    // there was nothing in it to learn. The sweep is a fourth-rung mechanic:
+    // real enough to be in the fight, not enough to be an opening.
+    ladder: ['breath', 'shockwave', 'hunt', 'sweep', 'fault', 'shallows'],
     phases: {
       1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, sweep: 32, fault: 10, shallows: 10, hunt: 44 }) },
       2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, sweep: 28, fault: 9, shallows: 9, hunt: 38 }) },
@@ -1082,7 +1097,7 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Unblinking Watch',
     short: 'Watcher',
     demand: 'stop, look away, and leave it whole',
-    hp: 50000,
+    hp: 36000,
     enrage: 240,
     phaseTwoHp: 0.7,
     phaseThreeHp: 0.38,
@@ -1095,7 +1110,13 @@ export const ENCOUNTERS: Encounter[] = [
     // whether a mechanic exists at all, so it starts a full notch under the
     // host they were fitted on and is moved from measurement rather than
     // from taste.
-    mechanicDamage: 1.0,
+    mechanicDamage: 0.6,
+    // Its bar is short because its kit is paid for in uptime -- a raid
+    // fighting this one deals about two thirds of what the same raid deals
+    // elsewhere, because half of what it is told to do is stop -- and the
+    // weight at twenty-five is there because six of those demands at once
+    // took the fight past the enrage rather than past the healers.
+    sizeMechanic: { 25: 0.85 },
     accent: '#c084fc',
     names: { slam: 'UNBLINKING BLOW', breath: '' },
     ladder: ['mirror', 'gaze', 'vessel', 'vigil', 'adds', 'knell'],
@@ -1160,7 +1181,13 @@ export const ENCOUNTERS: Encounter[] = [
     // teach at every size and also the property that makes them small. So it
     // sits above the Watcher and under the Warden, and the number is a
     // starting point rather than a finding.
-    mechanicDamage: 1.35,
+    mechanicDamage: 0.45,
+    // Both ends needed holding down and for opposite reasons. A five-man
+    // meets three bills and has three bodies to nominate from, so the same
+    // weight that a ten-man absorbs is most of a small raid; a twenty-five
+    // man meets six and every one of them sends somebody out of the fight.
+    // The ten is the size this boss was fitted at and it carries no weight.
+    sizeMechanic: { 5: 0.75, 25: 0.6 },
     accent: '#f59e0b',
     names: { slam: 'CALLING IT IN', breath: '' },
     ladder: ['yoke', 'crush', 'burden', 'toll', 'spire', 'hand'],
