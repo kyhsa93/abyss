@@ -383,7 +383,7 @@ function advancePhase(s: SimState, b: Actor): void {
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseTwo, age: 0 })
     // Pulled in rather than reset: a phase break whose new cadence waits out
     // the old timers is a phase break nobody notices.
-    s.nextPuddle = Math.min(s.nextPuddle, 3)
+    s.next.puddle = Math.min(s.next.puddle, 3)
     s.nextSlam = Math.min(s.nextSlam, 5)
     // Only for what this boss actually does *tonight*. Handing a shockwave
     // timer to a fight with no shockwave is harmless today, since the
@@ -391,8 +391,8 @@ function advancePhase(s: SimState, b: Actor): void {
     // stops being harmless. Read through `scaled` rather than off the table,
     // so a mechanic the ladder did not buy is as absent here as it is there.
     const next = scaled(encounter.phases[2]!, s)
-    if (next.shockwave > 0) s.nextShockwave = 8
-    if (next.adds > 0) s.nextAdds = 16
+    if (next.shockwave > 0) s.next.shockwave = 8
+    if (next.adds > 0) s.next.adds = 16
     return
   }
 
@@ -402,8 +402,8 @@ function advancePhase(s: SimState, b: Actor): void {
     phaseBreak(s, b)
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
     const next = scaled(encounter.phases[3]!, s)
-    if (next.breath > 0) s.nextBreath = Math.min(s.nextBreath, 4)
-    if (next.shockwave > 0) s.nextShockwave = Math.min(s.nextShockwave, 7)
+    if (next.breath > 0) s.next.breath = Math.min(s.next.breath, 4)
+    if (next.shockwave > 0) s.next.shockwave = Math.min(s.next.shockwave, 7)
   }
 }
 
@@ -454,8 +454,8 @@ function scheduleSlam(s: SimState, b: Actor, target: Actor | null, timing: Phase
 
 function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.breath <= 0) return
-  s.nextBreath -= DT
-  if (s.nextBreath > 0 || b.castId) return
+  s.next.breath -= DT
+  if (s.next.breath > 0 || b.castId) return
 
   s.sounds.push('telegraph')
   b.castId = 'boss_breath'
@@ -463,7 +463,7 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
   b.castRemaining = BREATH_CAST
   b.castTotal = BREATH_CAST
   b.castTargetId = null
-  s.nextBreath = timing.breath
+  s.next.breath = timing.breath
 
   // The cone is telegraphed on the floor for the whole cast.
   s.ground.push({
@@ -481,10 +481,10 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
 
 function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.shockwave <= 0) return
-  s.nextShockwave -= DT
-  if (s.nextShockwave > 0) return
+  s.next.shockwave -= DT
+  if (s.next.shockwave > 0) return
 
-  s.nextShockwave = timing.shockwave
+  s.next.shockwave = timing.shockwave
   s.sounds.push('shockwave')
   say(s, b, fight(s).lines.shockwave)
   s.ground.push({
@@ -506,8 +506,8 @@ function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
 
 function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (timing.puddle <= 0) return
-  s.nextPuddle -= DT
-  if (s.nextPuddle > 0) return
+  s.next.puddle -= DT
+  if (s.next.puddle > 0) return
 
   // Not onto a party that has been told to stand in one place.
   //
@@ -522,7 +522,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
     // standing still — and holding the whole floor for eight seconds of every
     // twenty-four turned out to be a bigger gift than the mechanic was a
     // cost, worth thirty-seven points of first-pull win rate on its own.
-    s.nextPuddle = FLOOR_AFTER_SOAK
+    s.next.puddle = FLOOR_AFTER_SOAK
     return
   }
 
@@ -547,7 +547,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
       damage: PUDDLE_DAMAGE,
     })
   }
-  s.nextPuddle = timing.puddle
+  s.next.puddle = timing.puddle
 }
 
 function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
@@ -570,8 +570,8 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
 
 function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.spread <= 0) return
-  s.nextSpread -= DT
-  if (s.nextSpread > 0) return
+  s.next.spread -= DT
+  if (s.next.spread > 0) return
 
   // And never into a circle the party is already running to — nor into the
   // second after one resolves.
@@ -583,7 +583,7 @@ function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // contradiction one tick later instead of removing it, and the Choir wiped
   // at ninety seconds every single pull.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextSpread = AFTER_SOAK
+    s.next.spread = AFTER_SOAK
     return
   }
 
@@ -595,15 +595,15 @@ function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
     addAura(victim, 'spread', b.id)
     if (victim.ai && i === 0) say(s, victim, 'Spread on me, moving out')
   }
-  s.nextSpread = timing.spread
+  s.next.spread = timing.spread
 }
 
 function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.adds <= 0) return
-  s.nextAdds -= DT
-  if (s.nextAdds > 0) return
+  s.next.adds -= DT
+  if (s.next.adds > 0) return
 
-  s.nextAdds = timing.adds
+  s.next.adds = timing.adds
   say(s, b, fight(s).lines.adds)
 
   // Proportional rather than banded, and floored at one rather than two.
@@ -645,10 +645,10 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
  */
 function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.sweep <= 0) return
-  s.nextSweep -= DT
-  if (s.nextSweep > 0) return
+  s.next.sweep -= DT
+  if (s.next.sweep > 0) return
 
-  s.nextSweep = timing.sweep
+  s.next.sweep = timing.sweep
   s.sounds.push('raid')
   say(s, b, fight(s).lines.sweep)
 
@@ -703,19 +703,19 @@ const CRUSH_DAMAGE = 1000
 
 function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.crush <= 0) return
-  s.nextCrush -= DT
-  if (s.nextCrush > 0) return
+  s.next.crush -= DT
+  if (s.next.crush > 0) return
 
   // Not onto a party that has been told to stand in one place. The gathering
   // is placed near the raid and the raid stands near the boss, so a circle
   // and a caving floor at once is the same contradiction the puddles are held
   // for — one says all of you here and the other says not there.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextCrush = FLOOR_AFTER_SOAK
+    s.next.crush = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextCrush = timing.crush
+  s.next.crush = timing.crush
   s.sounds.push('telegraph')
   say(s, b, fight(s).lines.crush)
 
@@ -804,17 +804,17 @@ export function schismClash(a: Actor, other: Actor): boolean {
 
 function scheduleSchism(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.schism <= 0) return
-  s.nextSchism -= DT
-  if (s.nextSchism > 0) return
+  s.next.schism -= DT
+  if (s.next.schism > 0) return
 
   // Never against a gathering, which is the exact opposite instruction, and
   // never against itself.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextSchism = FLOOR_AFTER_SOAK
+    s.next.schism = FLOOR_AFTER_SOAK
     return
   }
   if (s.ground.some((g) => g.kind === 'schism')) {
-    s.nextSchism = 0.5
+    s.next.schism = 0.5
     return
   }
 
@@ -826,7 +826,7 @@ function scheduleSchism(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // people holding it in place.
   const party = livingParty(s).filter((a) => a.role !== 'tank')
   if (party.length < 2) return
-  s.nextSchism = timing.schism
+  s.next.schism = timing.schism
 
   const sides = schismSides(party.length)
   const shape: GroundEffect = {
@@ -953,14 +953,14 @@ const HAND_DAMAGE = 1000
 
 function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.hand <= 0) return
-  s.nextHand -= DT
-  if (s.nextHand > 0) return
+  s.next.hand -= DT
+  if (s.next.hand > 0) return
 
   // Never two at once. Two wedges turning together is not a harder question,
   // it is an unreadable one: the answer to this is a bearing, and there is
   // no bearing that answers both.
   if (s.ground.some((g) => g.kind === 'hand')) {
-    s.nextHand = HAND_BEAT
+    s.next.hand = HAND_BEAT
     return
   }
 
@@ -968,11 +968,11 @@ function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // are held: one mechanic says all of you here and this one says nobody
   // stands anywhere for long.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextHand = FLOOR_AFTER_SOAK
+    s.next.hand = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextHand = timing.hand
+  s.next.hand = timing.hand
   s.sounds.push('telegraph')
   say(s, b, fight(s).lines.hand)
 
@@ -1042,18 +1042,18 @@ export function condemned(p: Vec2, g: GroundEffect): boolean {
 
 function scheduleFault(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.fault <= 0) return
-  s.nextFault -= DT
-  if (s.nextFault > 0) return
+  s.next.fault -= DT
+  if (s.next.fault > 0) return
 
   // Held while a gathering is live, for the reason every other piece of
   // hazardous floor is: one mechanic says all of you here and the other says
   // half of that is about to stop being floor.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextFault = FLOOR_AFTER_SOAK
+    s.next.fault = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextFault = timing.fault
+  s.next.fault = timing.fault
   s.sounds.push('telegraph')
   say(s, b, fight(s).lines.fault)
 
@@ -1128,15 +1128,15 @@ export function onShallows(p: Vec2, g: GroundEffect): boolean {
 
 function scheduleShallows(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.shallows <= 0) return
-  s.nextShallows -= DT
-  if (s.nextShallows > 0) return
+  s.next.shallows -= DT
+  if (s.next.shallows > 0) return
 
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextShallows = FLOOR_AFTER_SOAK
+    s.next.shallows = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextShallows = timing.shallows
+  s.next.shallows = timing.shallows
   s.sounds.push('telegraph')
   say(s, b, fight(s).lines.shallows)
 
@@ -1202,8 +1202,8 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // The Warden's top rung, and a floor that rolled it.
   const every = timing.soak
   if (every <= 0) return
-  s.nextSoak -= DT
-  if (s.nextSoak > 0) return
+  s.next.soak -= DT
+  if (s.next.soak > 0) return
 
   // Never on top of a spread. One says get apart and the other says get
   // together, and a party asked both at once is not being asked a question,
@@ -1236,7 +1236,7 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   )
     return
 
-  s.nextSoak = every
+  s.next.soak = every
 
   // Placed near the party rather than out in the arena.
   //
@@ -1299,10 +1299,10 @@ export const SUNDER_MAX = 5
 
 function scheduleSunder(s: SimState, b: Actor, target: Actor | null, timing: PhaseTiming): void {
   if (timing.sunder <= 0) return
-  s.nextSunder -= DT
-  if (s.nextSunder > 0) return
+  s.next.sunder -= DT
+  if (s.next.sunder > 0) return
 
-  s.nextSunder = timing.sunder
+  s.next.sunder = timing.sunder
   // A party that brought one tank never sees it.
   //
   // The mechanic is a question about who is standing there, and a five-man is
@@ -1345,10 +1345,10 @@ function scheduleSunder(s: SimState, b: Actor, target: Actor | null, timing: Pha
  */
 function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (timing.rot <= 0) return
-  s.nextRot -= DT
-  if (s.nextRot > 0) return
+  s.next.rot -= DT
+  if (s.next.rot > 0) return
 
-  s.nextRot = timing.rot
+  s.next.rot = timing.rot
   const victims = livingParty(s).filter((a) => !getAura(a, 'rot'))
   if (victims.length === 0) return
 
@@ -1385,17 +1385,17 @@ const BRAND_LINGER = 7
 
 function scheduleBrand(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (timing.brand <= 0) return
-  s.nextBrand -= DT
-  if (s.nextBrand > 0) return
+  s.next.brand -= DT
+  if (s.next.brand > 0) return
 
   // Held while a gathering is live, for the reason the puddle is: one
   // mechanic says leave where you stand and the other says all of you here.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextBrand = FLOOR_AFTER_SOAK
+    s.next.brand = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextBrand = timing.brand
+  s.next.brand = timing.brand
   const free = livingParty(s).filter((a) => !getAura(a, 'brand'))
   if (free.length === 0) return
 
@@ -1479,8 +1479,8 @@ function dropEcho(s: SimState, actor: Actor): void {
 
 function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (timing.echo <= 0) return
-  s.nextEcho -= DT
-  if (s.nextEcho > 0) return
+  s.next.echo -= DT
+  if (s.next.echo > 0) return
 
   // The drum, while anybody is still carrying it. One timer does both jobs
   // because the mechanic is one thing, and two of them would have to agree
@@ -1492,7 +1492,7 @@ function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
     const longest = carrying.reduce((most, a) => Math.max(most, getAura(a, 'echo')!.remaining), 0)
     // The table's number is the gap between one echo and the next, so the
     // beats it spends carrying come out of it rather than being added on.
-    s.nextEcho =
+    s.next.echo =
       longest > ECHO_BEAT ? ECHO_BEAT : Math.max(ECHO_BEAT, timing.echo - AURA_DURATION.echo)
     return
   }
@@ -1500,7 +1500,7 @@ function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
   // Held while a gathering is live: one says all of you here, this says none
   // of you stay anywhere.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextEcho = FLOOR_AFTER_SOAK
+    s.next.echo = FLOOR_AFTER_SOAK
     return
   }
 
@@ -1525,7 +1525,7 @@ function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
     if (marked.ai) say(s, marked, fight(s).lines.echo)
   }
   s.sounds.push('telegraph')
-  s.nextEcho = ECHO_BEAT
+  s.next.echo = ECHO_BEAT
 }
 
 /**
@@ -1572,10 +1572,10 @@ export function verdictLine(actor: Actor): number {
 
 function scheduleVerdict(s: SimState, rng: Rng, timing: PhaseTiming): void {
   if (timing.verdict <= 0) return
-  s.nextVerdict -= DT
-  if (s.nextVerdict > 0) return
+  s.next.verdict -= DT
+  if (s.next.verdict > 0) return
 
-  s.nextVerdict = timing.verdict
+  s.next.verdict = timing.verdict
 
   // It judges the whole and not the broken: see above.
   const free = livingParty(s).filter(
@@ -1723,18 +1723,18 @@ const SPIRE_MELEE_ROOM = MELEE_RANGE + SPIRE_RADIUS
 
 function scheduleSpire(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.spire <= 0) return
-  s.nextSpire -= DT
-  if (s.nextSpire > 0) return
+  s.next.spire -= DT
+  if (s.next.spire > 0) return
 
   // Held while a gathering is live, for the reason every other piece of floor
   // is: one mechanic saying all of you here and another saying not there is
   // two mechanics cancelling rather than one hard one.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextSpire = FLOOR_AFTER_SOAK
+    s.next.spire = FLOOR_AFTER_SOAK
     return
   }
 
-  s.nextSpire = timing.spire
+  s.next.spire = timing.spire
 
   const victims = livingParty(s)
   if (victims.length === 0) return
@@ -1803,9 +1803,9 @@ function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // The Choir's second rung, the Tidebreaker's last, and a floor that rolled it.
   const every = timing.hunt
   if (every <= 0) return
-  s.nextHunt -= DT
-  if (s.nextHunt > 0) return
-  s.nextHunt = every
+  s.next.hunt -= DT
+  if (s.next.hunt > 0) return
+  s.next.hunt = every
 
   // Never a tank, and never a healer.
   //
@@ -2379,9 +2379,9 @@ if (g.kind === 'schism') {
  */
 function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.burden <= 0) return
-  s.nextBurden -= DT
-  if (s.nextBurden > 0) return
-  s.nextBurden = timing.burden
+  s.next.burden -= DT
+  if (s.next.burden > 0) return
+  s.next.burden = timing.burden
 
   // Held while the party is being told to stand in one circle, the same way
   // the floor mechanics are. A gathering puts every body inside a hundred and
@@ -2389,7 +2389,7 @@ function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // free — and a mechanic that solves itself during another mechanic is a
   // mechanic that reads as luck.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextBurden = FLOOR_AFTER_SOAK
+    s.next.burden = FLOOR_AFTER_SOAK
     return
   }
 
@@ -2479,15 +2479,15 @@ function passBurdens(s: SimState): void {
  */
 function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.yoke <= 0) return
-  s.nextYoke -= DT
-  if (s.nextYoke > 0) return
-  s.nextYoke = timing.yoke
+  s.next.yoke -= DT
+  if (s.next.yoke > 0) return
+  s.next.yoke = timing.yoke
 
   // Never on top of a gathering, for the reason the spread is not: one of them
   // says all of you in this circle and the other says all of you around this
   // person, and a party told both at once is a party told nothing.
   if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextYoke = FLOOR_AFTER_SOAK
+    s.next.yoke = FLOOR_AFTER_SOAK
     return
   }
 

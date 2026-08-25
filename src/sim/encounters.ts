@@ -109,6 +109,39 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
  */
 export const MECHANIC_IDS = Object.keys(MECHANIC_SCALES) as MechanicId[]
 
+/**
+ * A phase's mechanic cadences, with everything it does not throw left out.
+ *
+ * These tables used to be written in full -- every mechanic in the game named
+ * on every row of every boss, and all but a handful of them zero. That is 288
+ * characters of mostly nothing per row, and worse, it meant adding one
+ * mechanic rewrote all twelve rows of all three bosses. Two mechanics written
+ * at the same time therefore collided on every row, every time, and merging
+ * them by hand is how a deleted cast line came back from the dead.
+ *
+ * A boss now names what it throws. Absent is zero, which is what zero already
+ * meant.
+ */
+function beats(some: Partial<Record<MechanicId, number>>): Record<MechanicId, number> {
+  const all = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) all[id] = some[id] ?? 0
+  return all
+}
+
+/** Every mechanic's first cast, read off a boss's opening table. */
+export function openingTimers(opening: Record<MechanicId, number>): Record<MechanicId, number> {
+  const next = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) next[id] = opening[id] ?? 0
+  return next
+}
+
+/** All of them at zero, for a state that has not started a fight. */
+export function noTimers(): Record<MechanicId, number> {
+  const next = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) next[id] = 0
+  return next
+}
+
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   brand: 'the brand',
   verdict: 'the judgement',
@@ -561,11 +594,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0, burden: 4.6, yoke: 10, schism: 12.5 },
-      2: { verdict: 0, brand: 7, crush: 8, spire: 0, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0, burden: 4.0, yoke: 8.5, schism: 11.0 },
-      3: { verdict: 0, brand: 6, crush: 7, spire: 0, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0, burden: 3.5, yoke: 7.5, schism: 9.5 },
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5 }) },
+      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0 }) },
+      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5 }) },
     },
-    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0, burden: 4.5, yoke: 8.5, schism: 8.5 },
+    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5 }) },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -646,11 +679,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { verdict: 19, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0 },
-      2: { verdict: 16, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5 },
-      3: { verdict: 13.5, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0 },
+      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0 }) },
+      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5 }) },
+      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0 }) },
     },
-    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0 },
+    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0 }) },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -709,11 +742,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0 },
-      2: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5 },
-      3: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0 },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0 }) },
     },
-    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0 },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',

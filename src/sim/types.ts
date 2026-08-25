@@ -663,46 +663,27 @@ export interface SimState {
   countdown: number
   phase: number
   /** Timers driving the boss script. */
-  nextPuddle: number
-  nextBrand: number
-  nextSpire: number
-  nextVerdict: number
-  nextCrush: number
-  /** Next cast of the wedge that turns across the arena. */
-  nextHand: number
   /**
-   * Next beat of the echo, which is both its cadence and its drum.
+   * Seconds to the next of each mechanic, keyed by the mechanic.
    *
-   * One timer rather than two because the mechanic is one thing: while
-   * nobody carries it this counts down to the next cast, and while somebody
-   * does it counts down to the next piece of floor going out from under
-   * them. Two timers would have to agree with each other about which of them
-   * owns the moment a mark expires, and they would eventually not.
+   * Twenty-one separate `nextThing` fields once, which meant a new mechanic
+   * added a field, two constructors and a line to every place that seeds
+   * timers -- and a constructor that missed one left a mechanic that never
+   * fired, silently, since zero is also a legal cadence. Keyed by id it is
+   * one field, and the compiler will not accept a map that is missing one.
    */
-  nextEcho: number
+  next: Record<MechanicId, number>
+  /** Next cast of the wedge that turns across the arena. */
   /** Next time half the floor gives way. */
-  nextFault: number
   /** Next time everything but a few patches does. */
-  nextShallows: number
-  nextSchism: number
-  nextSpread: number
   nextSlam: number
   nextRaidHit: number
-  nextBreath: number
-  nextShockwave: number
-  nextAdds: number
   /** Physical damage to everyone in reach, which armour actually answers. */
-  nextSweep: number
   /** Next stack of the boss's armour break on whoever is holding it. */
-  nextSunder: number
   /** Next circle the whole party has to stand in. */
-  nextSoak: number
   /** Next thing that picks somebody and follows them. */
-  nextHunt: number
   /** Next weight that has to be walked into somebody else's hands. */
-  nextBurden: number
   /** Next debt that is paid by whoever came to stand with the one who owes it. */
-  nextYoke: number
   /**
    * What this floor was rolled to ask for, on a descent.
    *
@@ -723,7 +704,6 @@ export interface SimState {
    */
   only: MechanicId | null
   /** A magic dot on somebody, which armour does not. */
-  nextRot: number
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */
   raidFlash: number
   /** Monotonic id source for spawned objects. */

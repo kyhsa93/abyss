@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { drawWorld, focusOn } from '../src/render/draw'
@@ -3735,7 +3736,7 @@ for (const [label, w, h] of [
     // simulation does not honour is worse than no picture.
     {
       const split = floorWith({ fault: 9 }, 4, size)
-      split.nextFault = 0
+      split.next.fault = 0
       const rng = dice()
       step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
       const line = split.ground.find((g) => g.kind === 'fault')
@@ -3829,7 +3830,7 @@ for (const [label, w, h] of [
     // this one says be on one of these three.
     {
       const drown = floorWith({ shallows: 10 }, 4, size)
-      drown.nextShallows = 0
+      drown.next.shallows = 0
       const rng = dice()
       step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
       const tide = drown.ground.find((g) => g.kind === 'shallows')
@@ -3913,7 +3914,7 @@ for (const [label, w, h] of [
     // rather than waited for, the way the circle's own refusals are.
     {
       const forced = floorWith({ soak: 24, fault: 9, shallows: 10 }, 4, size)
-      forced.nextSoak = 0
+      forced.next.soak = 0
       const rng = dice()
       step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
       expect(
@@ -3921,8 +3922,8 @@ for (const [label, w, h] of [
         forced.ground.some((g) => g.kind === 'soak'),
         'it never appeared',
       )
-      forced.nextFault = 0
-      forced.nextShallows = 0
+      forced.next.fault = 0
+      forced.next.shallows = 0
       for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
       expect(
         'and the floor does not split under it',
@@ -4058,7 +4059,7 @@ for (const [label, w, h] of [
     // due, so the refusal is put on the spot.
     {
       const forced = floorWith({ soak: 24, puddle: 9, spread: 16 })
-      forced.nextSoak = 0
+      forced.next.soak = 0
       const dice = new Rng(7)
       step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
       expect(
@@ -4066,8 +4067,8 @@ for (const [label, w, h] of [
         forced.ground.some((g) => g.kind === 'soak'),
         'it never appeared',
       )
-      forced.nextSpread = 0
-      forced.nextPuddle = 0
+      forced.next.spread = 0
+      forced.next.puddle = 0
       for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
       expect(
         'and nothing is marked while it is',
@@ -4231,7 +4232,7 @@ for (const [label, w, h] of [
     // an expired aura is a permanent add nobody was told about.
     {
       const fight = floorWith({ hunt: 26 })
-      fight.nextHunt = 0
+      fight.next.hunt = 0
       const dice = new Rng(3)
       step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
       const stalker = fight.actors.find((a) => a.name === 'Stalker')
@@ -4844,7 +4845,7 @@ for (const [label, w, h] of [
   {
     // The marks do not outlive the count, and the split is an even one.
     const s = unattended(floorWith({ schism: 9 }))
-    s.nextSchism = 0.4
+    s.next.schism = 0.4
     const rng = new Rng(0x51ed)
     let counted = false
     let tanksMarked = 0
@@ -4923,7 +4924,7 @@ for (const [label, w, h] of [
   // ten.
   {
     const s = unattended(floorWith({ schism: 9 }, 4, autoParty(10, pickFor('mage', 'dps')!)))
-    s.nextSchism = 0.4
+    s.next.schism = 0.4
     const rng = new Rng(0x51ed)
     let spans: number[] = []
     while (s.outcome === 'ongoing' && s.time < 40) {
@@ -7689,27 +7690,27 @@ function floorWith(
   // to schedule in the same second — which is how a check ends up failing for
   // a reason that has nothing to do with what it is testing.
   const opening = plannedOpening(s.plan)
-  s.nextPuddle = opening.puddle
-  s.nextSpread = opening.spread
-  s.nextBreath = opening.breath
-  s.nextShockwave = opening.shockwave
-  s.nextAdds = opening.adds
-  s.nextSweep = opening.sweep
-  s.nextRot = opening.rot
-  s.nextSunder = opening.sunder
-  s.nextSoak = opening.soak
-  s.nextHunt = opening.hunt
-  s.nextHand = opening.hand
-  s.nextEcho = opening.echo
+  s.next.puddle = opening.puddle
+  s.next.spread = opening.spread
+  s.next.breath = opening.breath
+  s.next.shockwave = opening.shockwave
+  s.next.adds = opening.adds
+  s.next.sweep = opening.sweep
+  s.next.rot = opening.rot
+  s.next.sunder = opening.sunder
+  s.next.soak = opening.soak
+  s.next.hunt = opening.hunt
+  s.next.hand = opening.hand
+  s.next.echo = opening.echo
   // Not in the catalogue, so `plannedOpening` has nothing to say about them
   // and the boss's own table would decide when they arrive. A floor built to
   // order has to start its own clocks.
-  s.nextFault = every.fault === undefined ? 0 : every.fault * 0.45
-  s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
-  s.nextBurden = opening.burden
-  s.nextYoke = opening.yoke
-  s.nextSpire = every.spire === undefined ? 0 : every.spire * 0.45
-  s.nextSchism = every.schism === undefined ? 0 : every.schism * 0.45
+  s.next.fault = every.fault === undefined ? 0 : every.fault * 0.45
+  s.next.shallows = every.shallows === undefined ? 0 : every.shallows * 0.9
+  s.next.burden = opening.burden
+  s.next.yoke = opening.yoke
+  s.next.spire = every.spire === undefined ? 0 : every.spire * 0.45
+  s.next.schism = every.schism === undefined ? 0 : every.schism * 0.45
   return s
 }
 
@@ -8665,6 +8666,47 @@ for (const [label, w, h] of [
       labels.map((l) => l.text).join(' | '),
     )
   }
+}
+
+// --- no mechanic's branch answers for another mechanic --------------------
+//
+// Read off the source rather than run, because what this catches is a shape
+// that behaves correctly nearly always. Every hazard in the ground loop and
+// every entry in `currentDanger` is an `if (g.kind === '...')` arm, and
+// adjacent arms tend to open with the same three or four lines -- decrement
+// the telegraph, return if it has not run out, mark it detonated. When two of
+// them are written at the same time and merged, a diff can hand one arm's
+// closing body to the other. The result compiles, reads fine, and quietly
+// resolves one mechanic with another's damage.
+//
+// It happened twice in the round that added eight mechanics. Both times it was
+// caught by hand, which is not a thing to rely on twice more.
+{
+  const armed = readFileSync(new URL('../src/sim/boss.ts', import.meta.url), 'utf8')
+  const advising = readFileSync(new URL('../src/sim/ai.ts', import.meta.url), 'utf8')
+  let arms = 0
+  const mixed: string[] = []
+  for (const [file, source] of [['boss.ts', armed], ['ai.ts', advising]] as const) {
+    for (const opener of source.matchAll(/if \((?:[^()]|\([^()]*\))*g\.kind === '(\w+)'(?:[^()]|\([^()]*\))*\) \{/g)) {
+      const own = new Set([...opener[0].matchAll(/g\.kind === '(\w+)'/g)].map((m) => m[1]!))
+      let depth = 0
+      let cursor = opener.index + opener[0].length - 1
+      for (; cursor < source.length; cursor++) {
+        if (source[cursor] === '{') depth++
+        else if (source[cursor] === '}' && --depth === 0) break
+      }
+      const body = source.slice(opener.index + opener[0].length, cursor)
+      arms++
+      for (const id of MECHANIC_IDS) {
+        if (own.has(id)) continue
+        if (new RegExp(`boss_${id}\\b|'${id}'`).test(body)) {
+          mixed.push(`${file}: the ${[...own].join('/')} arm names ${id}`)
+        }
+      }
+    }
+  }
+  expect('every hazard arm was read', arms > 30, `${arms} arms`)
+  expect('and none of them answers for another mechanic', mixed.length === 0, mixed.join('; '))
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
