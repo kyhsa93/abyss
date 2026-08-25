@@ -97,8 +97,13 @@ const FLAG_LIMIT = 180
  * both worth twelve seconds of walking. A death late is meant to be the one
  * you cannot take back.
  */
-const RESPAWN_EARLY = 10
-const RESPAWN_LATE = 17
+// Ten and seventeen were set when a match killed a player under twice. It
+// kills them four times now — the health bar came down across the whole game
+// — and the wait did not follow, so the corpse became the longest thing in
+// the match: measured, 29 to 40 percent of it dead against 21 to 27 percent
+// fighting. Waiting is not the cost of dying, it is the absence of the game.
+const RESPAWN_EARLY = 6
+const RESPAWN_LATE = 11
 
 /** What losing the rally does to a respawn, while the penalty lasts. */
 const SLOWED_MULTIPLIER = 2
