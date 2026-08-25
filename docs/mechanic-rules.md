@@ -297,7 +297,7 @@ bill was a flat share to everybody. That version measured 19.1 points at a
 ten-man, 0.2 at twenty-five and 0.0 at five: one raid size, exactly as the
 rule says. Moving the weight onto the body that earned it -- one near-lethal
 bill, and a token share for everybody else so it still reads as collective --
-gives 8.3 at five, 4.5 at ten and 2.6 at twenty-five. It is worth less at its
+gives 8.3 at five, 4.5 at ten and 3.4 at twenty-five. It is worth less at its
 best size and it exists at all three, which is the trade the rule is
 describing. Note also that the roster-billed version was the second-highest
 number in the whole field at the time, and it was wrong: **a big number at one
