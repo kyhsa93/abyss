@@ -77,6 +77,15 @@ const CATALOGUE: Priced[] = [
   // The floor following whoever it marked. One person moves, five times, and
   // pays for it in everything they would have cast standing still.
   { id: 'echo', slow: 22, fast: 12, cost: 3, from: 2 },
+  // A weight that has to be walked into somebody else's hands, three times.
+  // Expensive: it moves two people at once and it moves them toward each
+  // other, which is the opposite direction from wherever either of them was
+  // supposed to be standing.
+  { id: 'burden', slow: 7, fast: 4, cost: 5, from: 2 },
+  // A debt somebody else has to come and halve. The same price as the
+  // gathering minus one, because it takes one body out of position rather
+  // than all of them — but it takes that one all the way across the arena.
+  { id: 'yoke', slow: 11, fast: 7, cost: 5, from: 3 },
 ]
 
 /**

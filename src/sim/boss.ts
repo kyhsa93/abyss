@@ -1,5 +1,7 @@
 import {
   ARENA_RADIUS,
+  BURDEN_HANDS,
+  BURDEN_REACH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
@@ -17,6 +19,7 @@ import {
   STALKER_SPEED,
   STALKER_SWING,
   HEALTH,
+  YOKE_REACH,
 } from './constants'
 import {
   AURA_DURATION,
@@ -28,6 +31,8 @@ import {
   boss,
   dist,
   livingParty,
+  burdenFuse,
+  burdenTaker,
   say,
   stackAura,
   topThreatTarget,
@@ -342,6 +347,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleRot(s, rng, timing)
   scheduleSoak(s, b, rng, timing)
   scheduleHunt(s, b, rng, timing)
+  scheduleBurden(s, b, rng, timing)
+  scheduleYoke(s, b, rng, timing)
+  passBurdens(s)
 
   updateAdds(s)
 }
@@ -1961,4 +1969,184 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'hand') return g.pulses > 0
     return !g.detonated || g.lingering > 0
   })
+}
+
+/**
+ * The weight, and who is holding it.
+ *
+ * Every other mark in this game is a job for the person wearing it. A brand
+ * is walked to empty floor by the one who is branded, a spread is walked away
+ * from the raid by the one who is marked, a stalker is kited by the one it
+ * picked. In each case the rest of the raid answers by leaving them room, and
+ * leaving room is something a party does by standing still.
+ *
+ * This one cannot be answered by its carrier at all. The only thing that
+ * takes it off is another body, and the body has to be one that has not held
+ * it yet, so the raid does not get to nominate a volunteer and be done: it
+ * has to keep producing fresh ones while the fight goes on underneath. Three
+ * legs and the weight is spent. Miss a leg and it goes off in the hands it
+ * was left in, for more the further it got.
+ *
+ * One per five bodies, which is the brand's rate and it is the brand's rate
+ * for the brand's reason. The first cadence tried here was one weight every
+ * twelve seconds, and the pull it produced had four of them in it — a raid
+ * meets that mechanic four times, decides it four times, and there is not
+ * enough of it in a fight to be worth learning. Rate is the first dial, not
+ * the last.
+ */
+function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.burden <= 0) return
+  s.nextBurden -= DT
+  if (s.nextBurden > 0) return
+  s.nextBurden = timing.burden
+
+  // Held while the party is being told to stand in one circle, the same way
+  // the floor mechanics are. A gathering puts every body inside a hundred and
+  // thirty five units of every other, which hands the whole chain over for
+  // free — and a mechanic that solves itself during another mechanic is a
+  // mechanic that reads as luck.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextBurden = FLOOR_AFTER_SOAK
+    return
+  }
+
+  const free = livingParty(s).filter((a) => !getAura(a, 'burden'))
+  if (free.length === 0) return
+
+  const weights = Math.max(1, Math.round(livingParty(s).length / 5))
+  for (let i = 0; i < weights && free.length > 0; i++) {
+    const first = free.splice(rng.int(free.length), 1)[0]!
+    addAura(first, 'burden', b.id)
+    const weight = getAura(first, 'burden')
+    if (weight) {
+      weight.stacks = 1
+      weight.held = [first.id]
+    }
+    pushEffect(s, 'cast', first.pos, { abilityId: 'boss_burden' })
+    if (first.ai && i === 0) say(s, first, fight(s).lines.burden)
+  }
+  s.sounds.push('telegraph')
+}
+
+/**
+ * A weight changing hands, checked every tick rather than announced.
+ *
+ * There is no button for it and there deliberately is not one. An ability
+ * would make the handoff a thing you press when you are already standing
+ * there, and the standing there is the entire mechanic; keying it off
+ * position means the answer is the walk, which is the only currency this
+ * simulation actually charges anybody.
+ *
+ * Nearest fresh body rather than any fresh body, so two carriers crossing do
+ * not swap chains in a way nobody could have read.
+ */
+function passBurdens(s: SimState): void {
+  for (const carrier of livingParty(s)) {
+    const weight = getAura(carrier, 'burden')
+    if (!weight) continue
+    const taker = burdenTaker(s, carrier)
+    if (!taker || dist(carrier.pos, taker.pos) > BURDEN_REACH) continue
+
+    const held = weight.held ?? [carrier.id]
+    const hands = weight.stacks + 1
+    // Off the old hands before it is on the new ones, or the next tick sees a
+    // chain of length one.
+    const at = carrier.auras.findIndex((au) => au.id === 'burden')
+    if (at >= 0) carrier.auras.splice(at, 1)
+
+    if (hands > BURDEN_HANDS) {
+      // Spent, and worth a look of its own: a mechanic that ends by quietly
+      // not being there is one nobody knows they answered.
+      pushEffect(s, 'cast', taker.pos, { abilityId: 'boss_burden' })
+      s.sounds.push('telegraph')
+      continue
+    }
+
+    addAura(taker, 'burden', BOSS_ID)
+    const moved = getAura(taker, 'burden')
+    if (moved) {
+      moved.stacks = hands
+      moved.held = [...held, taker.id]
+      moved.remaining = burdenFuse(hands - 1)
+      moved.duration = moved.remaining
+    }
+    pushEffect(s, 'cast', taker.pos, { abilityId: 'boss_burden' })
+  }
+}
+
+/**
+ * A debt one person owes, and the question of who came to help pay it.
+ *
+ * The gathering read the other way round. A gathering is a circle drawn on
+ * the floor and the raid walks to a place; this is a circle drawn on a person
+ * who is still trying to answer everything else, and the raid has to walk to
+ * *them*. What that changes is that the destination moves and there is more
+ * than one of it: at ten bodies there are two of these at once, which is a
+ * raid deciding how to divide itself rather than a raid going somewhere.
+ *
+ * Divided rather than dealt per head — see `shareYoke`. Turning up has to be
+ * worth something to the people who turn up, not only to the one who owed it.
+ */
+function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.yoke <= 0) return
+  s.nextYoke -= DT
+  if (s.nextYoke > 0) return
+  s.nextYoke = timing.yoke
+
+  // Never on top of a gathering, for the reason the spread is not: one of them
+  // says all of you in this circle and the other says all of you around this
+  // person, and a party told both at once is a party told nothing.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextYoke = FLOOR_AFTER_SOAK
+    return
+  }
+
+  // Never the tank. A tank that has to be surrounded drags the raid into the
+  // boss's melee band, which is where the crush and the sweep already live,
+  // and the mechanic would be answered by whichever of those happened not to
+  // be up rather than by anybody's decision.
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'yoke'))
+  if (free.length === 0) return
+
+  const marks = Math.max(1, Math.round(livingParty(s).length / 6))
+  // Nobody is named twice. A ten-man carries two of these at once and two
+  // carriers choosing independently choose the same body — whoever is furthest
+  // from one of them is usually furthest from the other — which is not a hard
+  // mechanic but an unanswerable one: the second yoke fails before it is
+  // thrown, every time.
+  const named = new Set<number>()
+  for (let i = 0; i < marks && free.length > 0; i++) {
+    const owed = free.splice(rng.int(free.length), 1)[0]!
+    addAura(owed, 'yoke', b.id)
+    const mark = getAura(owed, 'yoke')
+
+    // The furthest body that can go, which is what makes the answer a journey.
+    // Anything nearer is already standing there: a raid at rest is a blob
+    // about ninety units across, so a yoke answered by whoever is close enough
+    // is a yoke answered before it was thrown.
+    let bearer: Actor | null = null
+    let furthest = -1
+    for (const a of livingParty(s)) {
+      if (a.id === owed.id || a.role === 'tank') continue
+      if (getAura(a, 'yoke') || named.has(a.id)) continue
+      const d = dist(owed.pos, a.pos)
+      if (d > furthest) {
+        furthest = d
+        bearer = a
+      }
+    }
+    if (mark && bearer) {
+      mark.bearer = bearer.id
+      named.add(bearer.id)
+      if (bearer.ai) say(s, bearer, fight(s).lines.yoke)
+    }
+
+    pushEffect(s, 'cast', owed.pos, { abilityId: 'boss_yoke' })
+  }
+  s.sounds.push('telegraph')
+}
+
+/** Everyone close enough to be paying a share of this one's yoke right now. */
+export function yokeSharers(s: SimState, carrier: Actor): number {
+  return livingParty(s).filter((a) => dist(a.pos, carrier.pos) <= YOKE_REACH).length
 }

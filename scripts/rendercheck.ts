@@ -78,6 +78,8 @@ import {
   AURA_TICK,
   PROJECTILE_MIN_RANGE,
   addAura,
+  burdenTaker,
+  dropBurden,
   getAura,
   hasteOf,
   stackAura,
@@ -191,11 +193,16 @@ import {
 } from '../src/progress'
 import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floor'
 import {
+  BURDEN_HANDS,
+  BURDEN_REACH,
   DT,
   SOAK_EACH,
   SOAK_MAX_SHARE,
   SOAK_RADIUS,
   STALKER_SPEED,
+  YOKE_ALONE,
+  YOKE_REACH,
+  YOKE_SHARE,
 } from '../src/sim/constants'
 import { Ambience, ZOOM, backdropZoom, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
@@ -3515,12 +3522,12 @@ for (const [label, w, h] of [
     )
   }
 
-  // Some mechanics are not on any rung a ten-man heroic climbs — the circle
-  // the party stands in is the top of the Warden and the turning wedge and
-  // the echo are past the top of anything, and all three are rolled by the
-  // descent — so a floor deep enough to ask for them is collected too.
-  // Otherwise the "nothing ever threw it" rule below would be right for the
-  // wrong reason.
+  // Several mechanics are on no rung a ten-man heroic climbs — the circle the
+  // party stands in is the top of the Warden, the turning wedge and the echo
+  // are past the top of anything, and the two handoffs are on no ladder at
+  // all — and every one of them is rolled by the descent, so floors deep
+  // enough to ask for them are collected too. Otherwise the "nothing ever
+  // threw it" rule below would be right for the wrong reason.
   {
     const deep = floorWith(
       { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13 },
@@ -3541,12 +3548,13 @@ for (const [label, w, h] of [
     thrown.set('descent', ids)
   }
 
-  // And two that are on no boss's table at all yet.
+  // And four that are on no boss's table at all yet.
   //
-  // The floor giving way is written, measured and drawn; which rung of which
-  // ladder it belongs on is a question about the shape of a fight rather than
-  // about the mechanic, and it is not answered here. A floor can be handed
-  // either of them today, so that is where they are collected from — the same
+  // The floor giving way, all but the shallows drowning, and the two handoffs
+  // are each written, measured and drawn; which rung of which ladder any of
+  // them belongs on is a question about the shape of a fight rather than about
+  // the mechanic, and it is not answered here. A floor can be handed any of
+  // them today, so that is where they are collected from — the same
   // arrangement the gathering had while it lived only on the descent.
   {
     const collapsing = floorWith(
@@ -3565,6 +3573,28 @@ for (const [label, w, h] of [
     expect('a floor can split its own arena', ids.has('boss_fault'), 'it drew nothing')
     expect('and drown all but the shallows', ids.has('boss_shallows'), 'it drew nothing')
     thrown.set('collapse', ids)
+  }
+
+  // The two whose answer is another person. Both resolve on a clock rather
+  // than on contact, so a floor that buys them throws them whatever the party
+  // does — which is what makes them checkable here at all.
+  {
+    const handoff = floorWith(
+      { burden: 5, yoke: 8 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (handoff.outcome === 'ongoing' && handoff.time < 150) {
+      step(handoff, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of handoff.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor that buys the weight passes it round', ids.has('boss_burden'), 'it drew nothing')
+    expect('and a floor that buys the yoke calls somebody over', ids.has('boss_yoke'), 'it drew nothing')
+    thrown.set('handoff', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -7366,6 +7396,8 @@ function floorWith(
   // order has to start its own clocks.
   s.nextFault = every.fault === undefined ? 0 : every.fault * 0.45
   s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
+  s.nextBurden = opening.burden
+  s.nextYoke = opening.yoke
   return s
 }
 
@@ -8115,6 +8147,212 @@ for (const [label, w, h] of [
     fresh.actors.find((a) => a.isPlayer)?.name === DEFAULT_NAME,
     `${fresh.actors.find((a) => a.isPlayer)?.name}`,
   )
+}
+
+
+// --- the two mechanics whose answer is another person -----------------------
+//
+// Everything else the bosses throw is answered by the person it lands on: get
+// out of the fire, get behind the cone, get away from the raid. These two
+// cannot be answered by their carrier at all — one has to be walked into
+// somebody else's hands and the other has to be come to — so what is checked
+// here is the half that lives in another body, since that is the half a
+// mechanic like this gets wrong.
+{
+  const raid = autoParty(10, pickFor('mage', 'dps')!)
+
+  // --- the weight ----------------------------------------------------------
+  {
+    const s = floorWith({ burden: 5 }, 4, raid)
+    const rng = new Rng(0x51ed)
+
+    let everCarried = false
+    let longestChain = 0
+    let drops = 0
+    // The invariant that makes the mechanic a journey rather than a formality.
+    let takerAlwaysFurthest = true
+    // And the evidence that the journey is real: at least once, the body it
+    // was sent to was not the body standing nearest.
+    let sentPastSomebodyNearer = false
+
+    while (s.outcome === 'ongoing' && s.time < 150) {
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of s.effects) {
+        if (event.abilityId === 'boss_burden' && event.kind === 'impact') {
+          drops++
+        }
+      }
+
+      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+      for (const a of party) {
+        const weight = getAura(a, 'burden')
+        if (!weight) continue
+        everCarried = true
+        longestChain = Math.max(longestChain, weight.stacks)
+
+        const held = weight.held ?? [a.id]
+        const fresh = party.filter(
+          (b) => b.id !== a.id && !held.includes(b.id) && !getAura(b, 'burden'),
+        )
+        if (fresh.length === 0) continue
+        const taker = burdenTaker(s, a)
+        if (!taker) continue
+        const far = Math.max(...fresh.map((b) => dist(a.pos, b.pos)))
+        if (dist(a.pos, taker.pos) < far - 0.001) takerAlwaysFurthest = false
+        const near = Math.min(...fresh.map((b) => dist(a.pos, b.pos)))
+        if (dist(a.pos, taker.pos) > near + BURDEN_REACH) sentPastSomebodyNearer = true
+      }
+    }
+
+    expect('a floor that buys the weight hands one out', everCarried, 'nobody ever held it')
+    expect(
+      'it is sent to the furthest pair of hands that has not had it',
+      takerAlwaysFurthest,
+      'something nearer was chosen',
+    )
+    expect(
+      'and past somebody who was standing closer, so the answer is a walk',
+      sentPastSomebodyNearer,
+      'it never had further to go than the next body over',
+    )
+    expect(
+      `the chain runs to ${BURDEN_HANDS} pairs of hands`,
+      longestChain >= BURDEN_HANDS,
+      `longest was ${longestChain}`,
+    )
+    expect('and one that is not passed goes off', drops > 0, 'it never once landed')
+  }
+
+  // --- and it is priced off the chain, not the clock -----------------------
+  //
+  // Asked of the rule rather than of a run. The first version of this check
+  // watched a floor for drops and compared the largest against the smallest,
+  // which is a bet that one pull happens to drop a weight on its first leg and
+  // another on its third. It passed until the tempo was corrected, at which
+  // point every drop in the sample landed at the same stack count and two
+  // identical numbers read as a broken mechanic. What is actually claimed is
+  // that the price rises with the hands it went through, so both weights are
+  // built here and both are dropped.
+  {
+    const s = floorWith({ burden: 5 }, 4, raid)
+    const party = s.actors.filter((a) => a.faction === 'party' && a.alive && a.role === 'dps')
+    const fresh = party[0]!
+    const late = party[1]!
+
+    const paid = (victim: Actor, hands: number): number => {
+      addAura(victim, 'burden', BOSS_ID)
+      const weight = getAura(victim, 'burden')!
+      weight.stacks = hands
+      const before = victim.hp
+      dropBurden(s, victim, weight)
+      clearAura(victim, 'burden')
+      const spent = before - victim.hp
+      victim.hp = before
+      return spent
+    }
+
+    const first = paid(fresh, 1)
+    const third = paid(late, BURDEN_HANDS)
+    expect(
+      'a weight that never moved is the cheap one',
+      first > 0 && third > first,
+      `${first} on the first leg against ${third} on the last`,
+    )
+  }
+
+  // --- the yoke ------------------------------------------------------------
+  {
+    const s = floorWith({ yoke: 8 }, 4, raid)
+    const rng = new Rng(0x51ed)
+
+    let everOwed = false
+    let everNamed = false
+    let namedATank = false
+    // A name that moves is a name nobody can answer: see `Aura.bearer`.
+    let nameHeld = true
+    const promised = new Map<number, number>()
+    let namedTwice = false
+
+    while (s.outcome === 'ongoing' && s.time < 150) {
+      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+      const seen = new Map<number, number>()
+      for (const a of party) {
+        const owed = getAura(a, 'yoke')
+        if (!owed) continue
+        everOwed = true
+        if (owed.bearer === undefined) continue
+        everNamed = true
+        const bearer = party.find((b) => b.id === owed.bearer)
+        if (bearer && bearer.role === 'tank') namedATank = true
+        const before = promised.get(a.id)
+        if (before !== undefined && before !== owed.bearer) nameHeld = false
+        promised.set(a.id, owed.bearer)
+        if (seen.has(owed.bearer)) namedTwice = true
+        seen.set(owed.bearer, a.id)
+      }
+      // Cleared when the yoke goes, so the next one on the same body is
+      // allowed a different name.
+      for (const id of [...promised.keys()]) {
+        if (!party.some((a) => a.id === id && getAura(a, 'yoke'))) promised.delete(id)
+      }
+    }
+
+    expect('a floor that buys the yoke puts one on somebody', everOwed, 'nobody ever owed it')
+    expect('and calls somebody over for it', everNamed, 'it never named anybody')
+    expect(
+      'never the tank, which would bring the boss with it',
+      !namedATank,
+      'a tank was called across the arena',
+    )
+    expect('the name it called does not change under them', nameHeld, 'the bearer moved mid-yoke')
+    expect(
+      'and two of them never call the same body',
+      !namedTwice,
+      'one body was promised to two carriers at once',
+    )
+    expect(
+      'carrying it alone costs more than halving it',
+      YOKE_ALONE > YOKE_SHARE * 2,
+      `${YOKE_ALONE} against ${YOKE_SHARE}`,
+    )
+  }
+
+  // --- both of them are drawn as the line they are -------------------------
+  //
+  // A relationship drawn as two unrelated marks is two marks nobody connects,
+  // so the picture has to be the line between them, the clock on the one
+  // holding it, and a ring where "arrived" is.
+  {
+    const s = floorWith({ burden: 5, yoke: 8 }, 4, raid)
+    const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    const holder = party.find((a) => a.role === 'dps')!
+    const owing = party.find((a) => a.role === 'dps' && a.id !== holder.id)!
+    addAura(holder, 'burden', BOSS_ID)
+    getAura(holder, 'burden')!.held = [holder.id]
+    addAura(owing, 'yoke', BOSS_ID)
+    getAura(owing, 'yoke')!.bearer = party.find(
+      (a) => a.id !== owing.id && a.role !== 'tank',
+    )!.id
+
+    updateLayout(1440, 900)
+    const circles: Circle[] = []
+    const labels: Label[] = []
+    drawWorld(recordingCtx(circles, labels), s, 1, 0, new Effects(false))
+
+    const ring = (r: number) => circles.some((c) => Math.abs(c.r - r * L.scale) < 1)
+    expect(
+      'the weight draws the distance that counts as arrived',
+      ring(BURDEN_REACH),
+      circles.map((c) => Math.round(c.r)).join(','),
+    )
+    expect('and so does the yoke', ring(YOKE_REACH), circles.map((c) => Math.round(c.r)).join(','))
+    expect(
+      'and both put a clock on whoever is holding it',
+      labels.filter((l) => /^\d+\.\d($| \()/.test(l.text)).length >= 2,
+      labels.map((l) => l.text).join(' | '),
+    )
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

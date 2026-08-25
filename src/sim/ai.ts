@@ -1,6 +1,7 @@
 import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
+  BURDEN_REACH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
@@ -9,6 +10,7 @@ import {
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
+  YOKE_REACH,
 } from './constants'
 import {
   BREATH_CAST,
@@ -27,6 +29,8 @@ import {
   adds,
   beginCast,
   boss,
+  burdenTaker,
+  carryDrag,
   dist,
   getAura,
   hasteOf,
@@ -156,6 +160,14 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'Behind it, follow it round')
     } else if (danger.startsWith('echo')) {
       say(s, actor, 'It is under me again')
+    } else if (danger === 'burden:self') {
+      say(s, actor, 'Take this off me')
+    } else if (danger.startsWith('burden:')) {
+      say(s, actor, 'Bring it here')
+    } else if (danger === 'yoke:self') {
+      say(s, actor, 'On me — I cannot hold this alone')
+    } else if (danger.startsWith('yoke:')) {
+      say(s, actor, 'Going to help carry')
     } else if (ai.personality === 'timid') {
       say(s, actor, 'Moving!')
     }
@@ -287,6 +299,52 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   // just under a spread's: getting this wrong costs ground rather than
   // health, and ground is paid for later.
   if (getAura(actor, 'brand')) consider('brand:self', 58)
+
+  // Holding a weight that only somebody else can take off. The urgency
+  // climbs with the fuse, and it climbs from below the floor rather than
+  // above it: the answer to this one is a walk into another body, and a
+  // carrier that valued the handoff over the fire would walk through a puddle
+  // to make it. That trade was already measured once on the stalker, where
+  // the mechanic's real damage turned out to be the deaths it caused by
+  // outranking the ground, and it is not being made again here.
+  const weight = getAura(actor, 'burden')
+  if (weight) {
+    const spent = 1 - Math.max(0, weight.remaining) / Math.max(0.01, weight.duration)
+    consider('burden:self', 64 + spent * 20)
+  }
+
+  // Being the one it is being brought to. This is the half of the handoff
+  // that makes it a handoff at all: the carrier walking is only half a
+  // meeting, and a raid where nobody comes out to take it is a raid that
+  // drops every weight on the last leg.
+  const bringing = burdenBringer(s, actor)
+  if (bringing) {
+    const mark = getAura(bringing, 'burden')!
+    const spent = 1 - Math.max(0, mark.remaining) / Math.max(0.01, mark.duration)
+    consider(`burden:${bringing.id}`, 64 + spent * 20)
+  }
+
+  // A debt somebody is about to pay, and having been named to go and halve
+  // it. Ranked with the gathering rather than with the marks, and for the
+  // gathering's reason: everything else in this list costs the person who got
+  // it wrong, and this costs the person who got it right and was left
+  // standing on their own.
+  //
+  // The one who owes it reacts too. It cannot fetch its own bearer, but it
+  // can stop walking away from the rest of them while one is on the way —
+  // which is the only answer available to it.
+  const owed = getAura(actor, 'yoke')
+  if (owed) {
+    const spent = 1 - Math.max(0, owed.remaining) / Math.max(0.01, owed.duration)
+    consider('yoke:self', 80 + spent * 8)
+  } else {
+    const join = yokeToJoin(s, actor)
+    if (join) {
+      const mark = getAura(join, 'yoke')!
+      const spent = 1 - Math.max(0, mark.remaining) / Math.max(0.01, mark.duration)
+      consider(`yoke:${join.id}`, 80 + spent * 8)
+    }
+  }
 
   // Something is walking over. It is slower than anyone it picks, so the
   // answer is simply to keep moving — but only for the one it picked, and
@@ -432,6 +490,49 @@ function hunterOf(s: SimState, actor: Actor): Actor | null {
   return stalker && stalker.alive ? stalker : null
 }
 
+/**
+ * The carrier that is bringing a weight to this one, if any.
+ *
+ * Read off `burdenTaker` rather than kept as a second piece of state, so the
+ * body walking over and the body walking out are answering the same question
+ * and cannot disagree about it.
+ */
+function burdenBringer(s: SimState, actor: Actor): Actor | null {
+  if (getAura(actor, 'burden')) return null
+  for (const other of livingParty(s)) {
+    if (other.id === actor.id) continue
+    if (!getAura(other, 'burden')) continue
+    if (burdenTaker(s, other)?.id === actor.id) return other
+  }
+  return null
+}
+
+/**
+ * The one this actor has been named to go and stand with, if any.
+ *
+ * Read off the mark the boss wrote when it landed, so the body walking over
+ * and the thing deciding whether it arrived are reading one name and cannot
+ * disagree about it. See `Aura.bearer` for why the name is written down
+ * rather than worked out.
+ *
+ * It keeps answering from inside the radius too, which is not an oversight.
+ * The first version returned nothing once the bearer was in reach — which
+ * reads correctly, since standing there is the answer — and it made the
+ * mechanic worse than useless: the danger cleared the instant anybody
+ * arrived, the AI stopped reacting, walked back to whatever it considers home,
+ * and was outside again by the time the yoke matured. A commitment that ends
+ * the moment it is met is not a commitment.
+ */
+function yokeToJoin(s: SimState, actor: Actor): Actor | null {
+  if (actor.role === 'tank') return null
+  if (getAura(actor, 'yoke')) return null
+  for (const other of livingParty(s)) {
+    if (other.id === actor.id) continue
+    if (getAura(other, 'yoke')?.bearer === actor.id) return other
+  }
+  return null
+}
+
 /** How close the thing chasing you has to be before it is worth running. */
 const STALK_ROOM = 110
 
@@ -541,6 +642,25 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
       if (dist(spot, other.pos) < BRAND_ROOM) return false
     }
   }
+
+  // A spot that cannot hand the weight on is not a spot to stand on, which is
+  // the brand's rule pointed the other way: the brand wants floor nobody is
+  // using and this wants a body nobody has used. Written as a safety check
+  // rather than only as a score so the carrier keeps re-picking until it is
+  // actually standing on somebody, instead of settling for a candidate that
+  // scored well and was still two paces short.
+  const weight = getAura(actor, 'burden')
+  if (weight) {
+    const taker = burdenTaker(s, actor)
+    if (taker && dist(spot, taker.pos) > BURDEN_REACH) return false
+  }
+  const bringer = burdenBringer(s, actor)
+  if (bringer && dist(spot, bringer.pos) > BURDEN_REACH) return false
+
+  // And a spot out of reach of a live yoke is not one either, while there is
+  // one to reach.
+  const join = yokeToJoin(s, actor)
+  if (join && dist(spot, join.pos) > YOKE_REACH) return false
 
   const carrying = getAura(actor, 'spread') !== undefined
   for (const other of livingParty(s)) {
@@ -712,6 +832,35 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     }
   }
 
+  // The two answers that are another person rather than a piece of floor.
+  // Sampling rings around the actor finds ground; it does not reliably find a
+  // body two hundred units away, which is the same problem the ring's pocket
+  // and the gathering's circle have and it gets the same fix — offer the
+  // answer instead of hoping to stumble onto it.
+  const meeting = getAura(actor, 'burden') ? burdenTaker(s, actor) : burdenBringer(s, actor)
+  if (meeting) {
+    candidates.push({ x: meeting.pos.x, y: meeting.pos.y })
+    for (let i = 0; i < 8; i++) {
+      const angle = offset + (i / 8) * Math.PI * 2
+      candidates.push({
+        x: meeting.pos.x + Math.cos(angle) * BURDEN_REACH * 0.6,
+        y: meeting.pos.y + Math.sin(angle) * BURDEN_REACH * 0.6,
+      })
+    }
+  }
+  const joining = yokeToJoin(s, actor)
+  if (joining) {
+    candidates.push({ x: joining.pos.x, y: joining.pos.y })
+    for (let i = 0; i < 8; i++) {
+      const angle = offset + (i / 8) * Math.PI * 2
+      candidates.push({
+        x: joining.pos.x + Math.cos(angle) * YOKE_REACH * 0.55,
+        y: joining.pos.y + Math.sin(angle) * YOKE_REACH * 0.55,
+      })
+    }
+  }
+  const owing = getAura(actor, 'yoke') !== undefined
+
   const chasing = hunterOf(s, actor)
 
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
@@ -834,6 +983,39 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       }
     }
 
+    // 3b. The weight, and the body that can take it. Scored below what fire
+    // costs on purpose, for the reason the stalker's term is: a carrier that
+    // valued the handoff above the floor would walk a chain straight through
+    // a puddle, and the mechanic's damage would stop being its own.
+    if (meeting) {
+      const d = dist(candidate, meeting.pos)
+      if (d <= BURDEN_REACH) score += 620
+      else score -= Math.min(700, (d - BURDEN_REACH) * 1.6)
+    }
+
+    // 3c. Somebody else's yoke, which is worth walking to for the same reason
+    // the gathering is: the alternative is that they pay all of it, and this
+    // party cannot afford anybody paying all of it.
+    if (joining) {
+      const d = dist(candidate, joining.pos)
+      if (d <= YOKE_REACH) score += 820
+      else score -= Math.min(900, (d - YOKE_REACH) * 1.8)
+    }
+
+    // 3d. Owing one. It cannot fetch its own bearer, so the only thing it can
+    // do is be somewhere findable — which is toward the rest of them rather
+    // than out at the edge where the last mechanic sent it. Weak on purpose:
+    // it is a preference, not an answer, and a carrier that chased the raid
+    // would be answering with the one move the mechanic does not ask for.
+    if (owing) {
+      let close = 0
+      for (const other of livingParty(s)) {
+        if (other.id === actor.id) continue
+        if (dist(candidate, other.pos) <= YOKE_REACH) close++
+      }
+      score += Math.min(4, close) * 150
+    }
+
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
     if (soakActive || strandedActive) {
@@ -905,7 +1087,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
     return
   }
 
-  const stepLen = actor.moveSpeed * DT * hasteOf(actor)
+  const stepLen = actor.moveSpeed * DT * hasteOf(actor) * carryDrag(actor)
   actor.pos.x += ((target.x - actor.pos.x) / d) * stepLen
   actor.pos.y += ((target.y - actor.pos.y) / d) * stepLen
   clampToArena(actor.pos, actor.radius)

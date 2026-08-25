@@ -1,13 +1,15 @@
 import {
+  BURDEN_REACH,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   PUDDLE_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
+  YOKE_REACH,
   ARENA_RADIUS,
 } from '../sim/constants'
-import { dist, getAura } from '../sim/combat'
+import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
@@ -130,6 +132,7 @@ export function drawWorld(
   drawHunts(ctx, s, alpha)
   drawSpreadRings(ctx, s, alpha)
   drawVerdicts(ctx, s, alpha)
+  drawHandoffs(ctx, s, alpha)
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
@@ -1089,6 +1092,115 @@ function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     ctx.textAlign = 'center'
     ctx.fillText(aura.remaining.toFixed(1), p.x, p.y - a.radius * L.scale - 22 * L.ui)
   }
+}
+
+/**
+ * The two mechanics whose answer is another person, drawn as the line between
+ * them.
+ *
+ * Everything else on this floor is a shape you are inside or outside of, and
+ * it can be drawn where it is and understood. These two are a relationship —
+ * this one has to reach that one, before this number runs out — and a
+ * relationship drawn as two separate marks is two marks nobody connects. So
+ * the picture is the line itself, with the clock on the carrier and the target
+ * ringed at the distance that counts as arrived.
+ *
+ * Drawn under the tokens and over the floor, with the party's own spread rings,
+ * because it is the same kind of thing: information about people rather than
+ * about ground.
+ */
+function drawHandoffs(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+
+    const weight = getAura(a, 'burden')
+    if (weight) {
+      const taker = burdenTaker(s, a)
+      drawHandoff(
+        ctx,
+        s,
+        alpha,
+        a,
+        taker,
+        weight.remaining,
+        BURDEN_REACH,
+        'rgba(129, 140, 248, ',
+        weight.stacks,
+      )
+    }
+
+    const owed = getAura(a, 'yoke')
+    if (owed) {
+      const bearer =
+        owed.bearer === undefined
+          ? null
+          : (livingParty(s).find((b) => b.id === owed.bearer) ?? null)
+      drawHandoff(ctx, s, alpha, a, bearer, owed.remaining, YOKE_REACH, 'rgba(240, 171, 252, ', 0)
+    }
+  }
+}
+
+/**
+ * One carrier, one person it has to reach, and how long it has.
+ *
+ * The line goes solid as the two close, which is the only feedback either of
+ * them gets that the answer is working: a dashed line at full length reads as
+ * a demand and a solid short one reads as a demand that has been met.
+ */
+function drawHandoff(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  alpha: number,
+  carrier: Actor,
+  other: Actor | null,
+  remaining: number,
+  reach: number,
+  rgb: string,
+  stacks: number,
+): void {
+  const p = screenPos(carrier, alpha)
+
+  ctx.save()
+  // The clock, on the one who is holding it.
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, (carrier.radius + 13) * L.scale, 0, Math.PI * 2)
+  ctx.strokeStyle = `${rgb}0.75)`
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  if (other) {
+    const q = screenPos(other, alpha)
+    const gap = dist(carrier.pos, other.pos)
+    // Closing tightens the line rather than colouring it, so it reads at a
+    // glance and in the corner of an eye.
+    const closed = Math.max(0, Math.min(1, 1 - (gap - reach) / 320))
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.lineTo(q.x, q.y)
+    ctx.strokeStyle = `${rgb}${(0.25 + 0.5 * closed).toFixed(3)})`
+    ctx.lineWidth = 1 + closed * 2
+    ctx.setLineDash(gap <= reach ? [] : [5, 7])
+    ctx.lineDashOffset = -s.time * 50
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Where "arrived" is, on the one being reached for.
+    ctx.beginPath()
+    ctx.arc(q.x, q.y, reach * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = `${rgb}0.3)`
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
+  ctx.restore()
+
+  ctx.fillStyle = `${rgb}0.95)`
+  ctx.font = font(11, true)
+  ctx.textAlign = 'center'
+  // The chain's leg, where there is one. A burden on its third pair of hands
+  // is a different thing from one that has not moved, and the number is the
+  // only place that says so.
+  const label = stacks > 1 ? `${remaining.toFixed(1)} (${stacks})` : remaining.toFixed(1)
+  ctx.fillText(label, p.x, p.y - carrier.radius * L.scale - 34 * L.ui)
 }
 
 /**

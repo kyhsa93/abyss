@@ -5,6 +5,9 @@ import { affixHealing, affixSpread } from './affix'
 import { encounterAt } from './encounters'
 import { descentDamage } from './descent'
 import {
+  BURDEN_DAMAGE,
+  BURDEN_SLOW,
+  BURDEN_PER_HAND,
   CHARGE_RAGE,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
@@ -13,6 +16,9 @@ import {
   HUNT_DURATION,
   MELEE_RANGE,
   SPREAD_RADIUS,
+  YOKE_ALONE,
+  YOKE_REACH,
+  YOKE_SHARE,
 } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
@@ -97,6 +103,14 @@ export const AURA_DURATION: Record<AuraId, number> = {
   rot: 15,
   // Short on purpose: it is for one exit and one return, not for a fight.
   sprint: 5,
+  // The fuse on a weight that has to change hands. Long enough to cross the
+  // gap to somebody who has not held it, short enough that the crossing has
+  // to start now — which is the only place a reaction can be charged for.
+  burden: 1.9,
+  // Longer, because what it asks for is not one person moving but everybody
+  // else arriving, and they are arriving from wherever the rest of the fight
+  // left them standing.
+  yoke: 1.1,
 }
 
 /**
@@ -535,6 +549,157 @@ const ROT_BREAK = 200
 export function rotBite(aura: Aura, base: number): number {
   const spent = 1 - Math.max(0, aura.remaining) / AURA_DURATION.rot
   return base * (1 - ROT_RAMP / 2 + ROT_RAMP * spent)
+}
+
+/**
+ * Whoever could take this weight, and has not had it yet.
+ *
+ * The chain's memory is what makes this a search rather than a lookup: by the
+ * last leg the bodies standing closest are exactly the ones that have already
+ * had their turn.
+ */
+export function freshHands(s: SimState, carrier: Actor): Actor[] {
+  const weight = getAura(carrier, 'burden')
+  if (!weight) return []
+  const held = weight.held ?? [carrier.id]
+  return livingParty(s).filter(
+    (a) => a.id !== carrier.id && !held.includes(a.id) && !getAura(a, 'burden'),
+  )
+}
+
+/**
+ * The one body being asked to take it, which is the furthest one that can.
+ *
+ * The furthest rather than the nearest, and this is the entire mechanic.
+ *
+ * Nearest was the first version and it measured at nothing, for a reason that
+ * is worth writing down because it will be true of the next mechanic somebody
+ * builds about proximity: this party stands thirty units apart. A raid at rest
+ * is already touching, so a handoff to whoever is nearest completes on the
+ * tick it is handed out, before anybody has noticed it exists — four hundred
+ * of them in one pull and not one dropped. It was not an easy mechanic, it was
+ * an absent one, and no amount of shortening the fuse would have found it,
+ * because the fuse was never what it was failing to fit inside.
+ *
+ * Sent to the far side instead, the pass is a run across the arena — the melee
+ * stand at the boss and the casters two hundred units out, so the raid is wide
+ * even when it is packed. Now the fuse has a journey to be too short for, and
+ * the reaction that delays the start of the journey is charged for.
+ *
+ * It also says something true: a hand that happened to be there did not accept
+ * anything. Somebody has to come and get it.
+ */
+export function burdenTaker(s: SimState, carrier: Actor): Actor | null {
+  let best: Actor | null = null
+  let furthest = -1
+  for (const hand of freshHands(s, carrier)) {
+    const d = dist(carrier.pos, hand.pos)
+    if (d > furthest) {
+      furthest = d
+      best = hand
+    }
+  }
+  return best
+}
+
+/**
+ * The one named to stand with a carrier, read off the mark itself.
+ *
+ * The mark rather than the carrier, because the one place this has to be right
+ * is the one place the carrier no longer has it: aura expiry splices the entry
+ * out of the actor before it calls the thing that resolves it, so a lookup
+ * through `getAura` answers "nobody was named" for every yoke that ever
+ * matured. That read as a mechanic the raid never once answered — thirty-two
+ * of them a pull, every one resolved alone — and it was not the raid failing
+ * to walk, it was the question being asked of an actor that had already been
+ * cleaned up.
+ */
+export function yokeBearerOf(s: SimState, mark: Aura): Actor | null {
+  if (mark.bearer === undefined) return null
+  const bearer = s.actors.find((a) => a.id === mark.bearer)
+  return bearer && bearer.alive ? bearer : null
+}
+
+/**
+ * What a weight costs whoever is carrying it, in speed.
+ *
+ * The one thing the mechanic charges before it resolves. Without it the
+ * handoff is free — a carrier walks to the nearest fresh body at exactly the
+ * speed it would have moved anyway, and the fuse is the only cost there is.
+ * With it, the last leg of a chain is a walk the raid can watch fail.
+ *
+ * Lives here rather than in either mover, because the player and the AI have
+ * separate movement code and a drag that only one of them pays is a drag that
+ * makes the mechanic mean two different things.
+ */
+export function carryDrag(actor: Actor): number {
+  return getAura(actor, 'burden') ? BURDEN_SLOW : 1
+}
+
+/**
+ * How long the next pair of hands gets.
+ *
+ * Tightening down the chain. A relay whose every leg is the same length is a
+ * relay that is either always finished or never started; shortening it means
+ * the raid is racing something that is getting harder as it goes, and the
+ * last leg is the one that is actually in doubt.
+ */
+export function burdenFuse(hands: number): number {
+  return AURA_DURATION.burden * Math.pow(0.9, Math.max(0, hands))
+}
+
+/**
+ * The weight going off in the hands it was left in.
+ *
+ * Priced off the chain rather than off the clock: what it cost the raid is
+ * the walking already spent on it, and a burden dropped on its last leg spent
+ * the most. `stacks` counts the hands it has been through, so a weight that
+ * never moved is the cheap one and a weight that nearly made it is not.
+ */
+export function dropBurden(s: SimState, carrier: Actor, weight: Aura): void {
+  const hands = Math.max(0, weight.stacks - 1)
+  const damage = Math.round(BURDEN_DAMAGE * (1 + hands * BURDEN_PER_HAND) * mechanicScale(s))
+  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_burden', power: damage })
+  s.sounds.push('raid')
+}
+
+/**
+ * The yoke coming due, and whether the one who was called for came.
+ *
+ * The gathering read the other way round, and then narrowed. A gathering is a
+ * circle on the floor and the raid walks to a place; this is a debt on a
+ * person, and what it asks is that one named body drops what it is doing and
+ * goes to stand with them so that it can be halved.
+ *
+ * The bearer is the whole mechanic. If it arrived, the two of them split it
+ * and it is a hit nobody remembers. If it did not, there is nobody to split it
+ * with, and the whole of it lands on the one person in the raid who did
+ * nothing wrong.
+ *
+ * That last part is the point. Every other mechanic here bills whoever made
+ * the mistake: the one who stood in the fire, the one who did not spread, the
+ * one still in the band when it came down. This one bills somebody else, and
+ * it is the only thing in the fight that does.
+ */
+export function shareYoke(s: SimState, carrier: Actor, mark: Aura): void {
+  const bearer = yokeBearerOf(s, mark)
+  const came = bearer !== null && dist(bearer.pos, carrier.pos) <= YOKE_REACH
+
+  if (!came) {
+    const alone = Math.round(YOKE_ALONE * mechanicScale(s))
+    applyDamage(s, carrier, alone, 'magic', { sourceId: BOSS_ID, mechanic: true })
+    pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: alone })
+    s.sounds.push('raid')
+    return
+  }
+
+  const share = Math.round(YOKE_SHARE * mechanicScale(s))
+  for (const a of [carrier, bearer]) {
+    applyDamage(s, a, share, 'magic', { sourceId: BOSS_ID, mechanic: true })
+  }
+  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: share })
+  s.sounds.push('raid')
 }
 
 /** What is left of the note when it lets go. */

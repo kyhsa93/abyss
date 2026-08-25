@@ -40,6 +40,8 @@ export type AuraId =
   | 'brand' // boss: leaves ground where it burns out
   | 'echo' // boss: the floor under you gives way on a beat until it fades
   | 'verdict' // boss: judgement pending, and it kills anyone under the line
+  | 'burden' // boss: a weight that has to be walked into fresh hands
+  | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -51,6 +53,32 @@ export interface Aura {
   sourceId: number
   /** Where it was applied, for auras that remember the spot. */
   at?: Vec2
+  /**
+   * Everyone this aura has already sat on, for the one that changes hands.
+   *
+   * The burden is the only thing here whose answer is another person, and
+   * without a memory the answer is the same person twice: two bodies standing
+   * together pass it back and forth without either of them walking anywhere,
+   * which is not a handoff, it is a formality. Kept on the aura rather than on
+   * the state because the chain belongs to the weight, not to the fight, and
+   * several of them are alive at once.
+   */
+  held?: number[]
+  /**
+   * The body named to come and stand with this one, for the yoke.
+   *
+   * Written down when the yoke lands and never recomputed, which took a round
+   * to learn. The first version asked "who is furthest from the carrier right
+   * now" every tick, and the answer changed as soon as the bearer started
+   * walking: two steps in it was no longer the furthest, the name moved to
+   * somebody on the other side of the raid, and that one set off too. Nobody
+   * ever arrived — thirty-two yokes in a pull and every single one of them
+   * resolved with the carrier standing alone.
+   *
+   * A mechanic that names somebody has to keep naming the same somebody, or it
+   * has not named anybody.
+   */
+  bearer?: number
   /** Accumulator for periodic ticks. */
   tickTimer: number
 }
@@ -657,6 +685,10 @@ export interface SimState {
   nextSoak: number
   /** Next thing that picks somebody and follows them. */
   nextHunt: number
+  /** Next weight that has to be walked into somebody else's hands. */
+  nextBurden: number
+  /** Next debt that is paid by whoever came to stand with the one who owes it. */
+  nextYoke: number
   /**
    * What this floor was rolled to ask for, on a descent.
    *
