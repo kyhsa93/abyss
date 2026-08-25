@@ -853,7 +853,7 @@ export const ENCOUNTERS: Encounter[] = [
     // The floor is the one demand that gets strictly worse with bodies: more
     // people means more ground given away per cast, into an arena that does
     // not grow. Six rungs of it wiped every practised twenty-five man.
-    sizeMechanic: { 25: 0.8 },
+    sizeMechanic: { 5: 0.8, 25: 0.8 },
     accent: '#ef4444',
     // No cone and nothing to run into: the only thing it casts is the one
     // that lands on whoever is holding it.
@@ -939,7 +939,7 @@ export const ENCOUNTERS: Encounter[] = [
     // was not going to hurt anybody anyway. With a puddle on the third rung it
     // was holding down a fight that could, and both five-man rungs were won as
     // often on a first pull as a ninth.
-    sizeMechanic: { 5: 0.94, 25: 0.7 },
+    sizeMechanic: { 5: 0.92, 25: 0.8 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
     // `puddle` third rather than fourth, and quicker than it was.
@@ -1038,7 +1038,7 @@ export const ENCOUNTERS: Encounter[] = [
     // is a fight that is lost on a first attempt and won by the ninth, and at
     // 0.7 it is not a fight at all. Another cliff, and the usable width of it
     // is about a tenth.
-    sizeMechanic: { 10: 1.1, 25: 0.85 },
+    sizeMechanic: { 5: 0.78, 10: 1.15, 25: 0.85 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     // The ring ahead of the sweep, which is the one change here that is not
@@ -1116,9 +1116,15 @@ export const ENCOUNTERS: Encounter[] = [
     // elsewhere, because half of what it is told to do is stop -- and the
     // weight at twenty-five is there because six of those demands at once
     // took the fight past the enrage rather than past the healers.
-    sizeMechanic: { 25: 0.85 },
+    sizeMechanic: { 5: 0.72, 10: 1.15, 25: 0.85 },
     accent: '#c084fc',
     names: { slam: 'UNBLINKING BLOW', breath: '' },
+    // The vigil stays on the fourth rung even though a five-man on heroic
+    // struggles with it. Swapping it with the thralls was measured and it
+    // moves the problem rather than solving it: the same rung is also what a
+    // ten-man buys on normal, and a wave scales with the roster while a
+    // count does not, so the trade was a five-man walk for a ten-man wall.
+    // The weight below is the dial that separates the two.
     ladder: ['mirror', 'gaze', 'vessel', 'vigil', 'adds', 'knell'],
     phases: {
       1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ mirror: 19, gaze: 11, vessel: 23, vigil: 10, adds: 46, knell: 21 }) },
@@ -1187,7 +1193,7 @@ export const ENCOUNTERS: Encounter[] = [
     // weight that a ten-man absorbs is most of a small raid; a twenty-five
     // man meets six and every one of them sends somebody out of the fight.
     // The ten is the size this boss was fitted at and it carries no weight.
-    sizeMechanic: { 5: 0.75, 25: 0.6 },
+    sizeMechanic: { 5: 0.61, 10: 0.85, 25: 0.85 },
     accent: '#f59e0b',
     names: { slam: 'CALLING IT IN', breath: '' },
     ladder: ['yoke', 'crush', 'burden', 'toll', 'spire', 'hand'],

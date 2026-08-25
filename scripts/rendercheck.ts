@@ -96,6 +96,7 @@ import {
   projectileKind,
   resolveAbility,
   topThreatTarget,
+  mechanicScale,
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
@@ -9519,6 +9520,8 @@ for (const [label, w, h] of [
     return s
   }
 
+  const STAGED = 6000
+
   const blank = (kind: SimState['ground'][number]['kind']): SimState['ground'][number] => ({
     id: 1,
     kind,
@@ -9527,7 +9530,7 @@ for (const [label, w, h] of [
     // Half a tick, so one step takes it past zero and resolves it.
     telegraph: DT * 0.5,
     lingering: 0,
-    damage: 6000,
+    damage: STAGED,
     detonated: false,
     angle: 0,
     halfWidth: 0,
@@ -9539,14 +9542,20 @@ for (const [label, w, h] of [
   })
 
   // A floor under what counts as this mechanic's hit, so a swing landing in
-  // the same tick cannot be read as one. The shapes below are given a payload
-  // far above anything else the boss does; the plate's unpaid branch is the
-  // exception, because that number is the constant rather than the shape's,
-  // so it gets a lower floor of its own.
-  const billed = (s: SimState, before: Map<number, number>, floor = 1500): number[] =>
-    s.actors
+  // the same tick cannot be read as one. The shapes below are staged with a
+  // payload far above anything else the boss does, and the floor is a share of
+  // that payload *after the fight's own dials* -- which is the part that was
+  // wrong. It was 1500 flat, fitted while the host boss multiplied mechanics
+  // by 1.7 and carried no weight at its size; a weight of 0.8 and a
+  // multiplier of 0.75 put the same correct hit under the floor and six
+  // checks reported that nothing had happened at all. A threshold a boss's
+  // own tuning can walk past is not measuring the mechanic.
+  const billed = (s: SimState, before: Map<number, number>, share = 0.25): number[] => {
+    const floor = STAGED * mechanicScale(s) * share
+    return s.actors
       .filter((a) => a.faction === 'party' && (before.get(a.id) ?? 0) - a.hp > floor)
       .map((a) => a.id)
+  }
 
   const resolve = (s: SimState): number[] => {
     const before = new Map(s.actors.map((a) => [a.id, a.hp]))
@@ -9587,7 +9596,7 @@ for (const [label, w, h] of [
     s.ground = [{ ...blank('toll'), radius: TOLL_RADIUS, named: named.id }]
     const before = new Map(s.actors.map((a) => [a.id, a.hp]))
     step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-    const unpaid = billed(s, before, 900)
+    const unpaid = billed(s, before, 0.15)
     expect(
       'and a plate nobody stood on is paid by the one who was asked',
       unpaid.length === 1 && unpaid[0] === named.id,

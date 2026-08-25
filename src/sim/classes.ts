@@ -804,7 +804,15 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   // Cadence is the strongest lever by far: time spent dodging is damage not
   // dealt, which lengthens the fight, which brings more mechanics. It gets the
   // gentlest nudge of the three.
-  heroic: { id: 'heroic', name: 'Heroic', health: 1.12, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
+  // No health bonus. It was 1.12 from before the ladders existed, when heroic
+  // was twenty-two percent more health and nothing else -- and the note that
+  // introduced the rungs says as much, that a rung costs a raid something a
+  // health bar never can. The bonus stayed anyway, so heroic was buying a rung
+  // *and* a longer fight, and the two compounded: measured across the five
+  // bosses at ten and twenty-five, every heroic ceiling was between three and
+  // fifty-seven percent with it and between ten and ninety without. Heroic
+  // buys one more mechanic. That is the whole of it.
+  heroic: { id: 'heroic', name: 'Heroic', health: 1.0, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
 }
 
 /**
