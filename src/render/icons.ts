@@ -239,6 +239,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // A debt falling due, which either splits or does not. A burst rather than
   // a wither: it arrives all at once and it is over.
   boss_yoke: { colour: '#f0abfc', style: 'burst' },
+  // A note finishing, on everybody at once. A burst, because the whole of it
+  // arrives in one frame and there is nothing left of it afterwards.
+  boss_knell: { colour: '#f43f5e', style: 'burst' },
+  // Whatever was inside it, coming back out at whoever opened it.
+  boss_vessel: { colour: '#06b6d4', style: 'burst' },
+  // Your own damage, handed back. Pierced rather than crushed: what lands is
+  // the shape of what was thrown.
+  boss_mirror: { colour: '#7dd3fc', style: 'pierce' },
   // The three whose answer is a moment. They share nothing on the floor with
   // anything above -- there is no shape to be outside of -- so what their
   // colours have to do is be unmistakably not-floor, and be unmistakably three
@@ -249,14 +257,15 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // does is come down on everyone still busy.
   boss_vigil: { colour: '#f59e0b', style: 'crush' },
   // The note nobody cut, in a deep violet nothing else owns. A burst, because
-  // it arrives on the entire raid at once and is over -- and it is drawn like
-  // the party-wide hit rather than like a hazard on purpose, since that is
-  // what it is from twenty-four people's point of view.
+  // it arrives on the whole raid at once and is over.
   boss_chant: { colour: '#7c3aed', style: 'burst' },
-  // Being looked at, in cold cyan, and piercing: it comes from one place, it
-  // arrives along the line between there and you, and the only thing that
-  // saves you is which way that line was pointing.
-  boss_gaze: { colour: '#0891b2', style: 'pierce' },
+  // Being looked at, in a magenta nothing on the floor could be mistaken for.
+  // The obvious colour for an eye is a cold cyan and the two cyans either side
+  // of it are already spoken for -- the check only rejects an exact match, and
+  // three shades of the same blue is a picture a player cannot read even when
+  // every string in the table is different. Piercing, because it comes from
+  // one place and arrives along the line between there and you.
+  boss_gaze: { colour: '#d946ef', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

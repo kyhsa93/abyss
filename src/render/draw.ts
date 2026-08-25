@@ -1905,7 +1905,7 @@ function drawGaze(
   ctx.save()
   ctx.beginPath()
   ctx.arc(p.x, p.y, r * (1 - 0.35 * closing), 0, Math.PI * 2)
-  ctx.strokeStyle = `rgba(8, 145, 178, ${(0.4 + 0.5 * closing).toFixed(3)})`
+  ctx.strokeStyle = `rgba(217, 70, 239, ${(0.4 + 0.5 * closing).toFixed(3)})`
   ctx.lineWidth = 2 + 5 * closing
   ctx.stroke()
 
@@ -1916,7 +1916,7 @@ function drawGaze(
     ctx.beginPath()
     ctx.arc(at.x, at.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = looking
-      ? `rgba(34, 211, 238, ${(0.35 + 0.55 * closing).toFixed(3)})`
+      ? `rgba(240, 171, 252, ${(0.35 + 0.55 * closing).toFixed(3)})`
       : 'rgba(148, 163, 184, 0.25)'
     ctx.lineWidth = looking ? 2 + 3 * closing : 1
     ctx.stroke()
@@ -1929,7 +1929,7 @@ function drawGaze(
       at.x + Math.cos(a.facing) * (a.radius + 16) * L.scale,
       at.y + Math.sin(a.facing) * (a.radius + 16) * L.scale,
     )
-    ctx.strokeStyle = looking ? 'rgba(34, 211, 238, 0.8)' : 'rgba(148, 163, 184, 0.5)'
+    ctx.strokeStyle = looking ? 'rgba(240, 171, 252, 0.8)' : 'rgba(148, 163, 184, 0.5)'
     ctx.lineWidth = 2
     ctx.stroke()
   }

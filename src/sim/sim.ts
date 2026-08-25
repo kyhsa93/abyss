@@ -1,6 +1,6 @@
 import { ABILITIES } from './abilities'
 import { RESOURCES, abilityBar, specOf } from './classes'
-import { updatePartyAi } from './ai'
+import { mayStrike, updatePartyAi } from './ai'
 import { affixRot } from './affix'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
 import {
@@ -16,6 +16,7 @@ import {
   updateBoss,
   updateGround,
   breakChant,
+  breakMirror,
   burnBrand,
   passJudgement,
   turnToward,
@@ -156,6 +157,11 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // whatever is standing on the hunter rather than at it.
     const target = nearestHostile(s, a, auto.range, auto.minRange ?? 0)
     if (!target) continue
+    // A held swing is still a decision, and the two mechanics answered by not
+    // hitting something would be answered by nobody if the weapon carried on
+    // regardless. The swing timer is deliberately left where it is rather
+    // than reset: holding fire costs the swing, not the next one.
+    if (!mayStrike(s, a, target)) continue
 
     a.swingTimer = auto.speed
     // Physical, so it answers armour and block the way a weapon should. The
@@ -266,6 +272,9 @@ function updateTimers(s: SimState, a: Actor): void {
       // is paid by whoever happened to be standing there when it did.
       if (aura.id === 'burden' && a.alive) dropBurden(s, a, aura)
       if (aura.id === 'yoke' && a.alive) shareYoke(s, a, aura)
+      // The surface opening again, which is the instant the raid is billed
+      // for whatever it put in while the surface was closed.
+      if (aura.id === 'mirror' && a.alive) breakMirror(s, aura)
     }
   }
 }

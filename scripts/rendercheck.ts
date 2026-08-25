@@ -105,8 +105,12 @@ import {
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
+  CHANT_CAST,
+  CHANT_NOTICE,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
+  GAZE_ARC,
+  GAZE_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SHALLOWS_RADIUS,
@@ -116,6 +120,9 @@ import {
   SPELL_RANGE,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
+  TURN_RATE,
+  VIGIL_HELD,
+  VIGIL_TELEGRAPH,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -172,21 +179,26 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower, boss as bossOf } from '../src/sim/combat'
+// The AI's own view of the hold, which is the only honest way to ask whether
+// one is being kept: the mechanic and the check have to agree about what
+// "holding" means, and there is one function that says.
+import { holdingStill } from '../src/sim/ai'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
   ECHO_TELEGRAPH,
   HAND_BEAT,
-  SUNDER_MAX,
   breakChant,
+  breakMirror,
   chantNamed,
+  stillWorking,
+  watched,
+  SUNDER_MAX,
   condemned,
   onShallows,
   schismMuster,
   schismSides,
-  stillWorking,
   underHand,
-  watched,
 } from '../src/sim/boss'
 import {
   FIRST_TIER,
@@ -211,18 +223,11 @@ import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floo
 import {
   BURDEN_HANDS,
   BURDEN_REACH,
-  CHANT_CAST,
-  CHANT_NOTICE,
   DT,
-  GAZE_ARC,
-  GAZE_TELEGRAPH,
   SOAK_EACH,
   SOAK_MAX_SHARE,
   SOAK_RADIUS,
   STALKER_SPEED,
-  TURN_RATE,
-  VIGIL_HELD,
-  VIGIL_TELEGRAPH,
   YOKE_ALONE,
   YOKE_REACH,
   YOKE_SHARE,
@@ -3526,6 +3531,9 @@ for (const [label, w, h] of [
       hunt: 'boss_stalk',
       hand: 'boss_hand',
       echo: 'boss_echo',
+      knell: 'boss_knell',
+      vessel: 'boss_vessel',
+      mirror: 'boss_mirror',
     }
     for (const [key, id] of Object.entries(DRAWN) as Array<[MechanicId, string]>) {
       if (kit.includes(key)) {
@@ -3633,10 +3641,39 @@ for (const [label, w, h] of [
     thrown.set('handoff', ids)
   }
 
-  // And the three whose answer is a moment. On no ladder, for the reason the
-  // fault and the shallows are on none, so a floor is where they are collected
-  // from -- and all three resolve on a clock rather than on contact, which is
-  // what makes them checkable here whatever the party does about them.
+  // And the three answered by what the raid is hitting. On no ladder either,
+  // and collected the same way: a floor can be handed any of them today.
+  {
+    const switching = floorWith(
+      { knell: 13, vessel: 15, mirror: 11 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (switching.outcome === 'ongoing' && switching.time < 150) {
+      step(switching, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of switching.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can hang a bell that has to be broken', ids.has('boss_knell'), 'it drew nothing')
+    expect('and float something that must not be', ids.has('boss_vessel'), 'it drew nothing')
+    expect('and close its own surface', ids.has('boss_mirror'), 'it drew nothing')
+    // None of the three is a place, so none of them may leave one. A shape on
+    // the floor would be read by `isSpotSafe`, which is skill-independent, and
+    // the mechanic would quietly become one nobody can practise.
+    expect(
+      'and none of the three is answered by standing anywhere',
+      switching.ground.length === 0,
+      switching.ground.map((g) => g.kind).join(','),
+    )
+    thrown.set('switching', ids)
+  }
+
+  // And the three whose answer is a moment. On no ladder either, and collected
+  // the same way -- all three resolve on a clock rather than on contact, which
+  // is what makes them checkable here whatever the party does about them.
   {
     const moment = floorWith(
       { vigil: 9, chant: 10, gaze: 9 },
@@ -7746,9 +7783,10 @@ function floorWith(
   s.next.yoke = opening.yoke
   s.next.spire = every.spire === undefined ? 0 : every.spire * 0.45
   s.next.schism = every.schism === undefined ? 0 : every.schism * 0.45
-  // The three whose answer is an instant, on no ladder and in no catalogue
-  // either, so the same rule again: a floor built to order starts its own
-  // clocks or the boss's table decides when they arrive.
+  s.next.knell = every.knell === undefined ? 0 : every.knell * 0.45
+  s.next.vessel = every.vessel === undefined ? 0 : every.vessel * 0.45
+  s.next.mirror = every.mirror === undefined ? 0 : every.mirror * 0.45
+  // And the three whose answer is an instant, for the same reason again.
   s.next.vigil = every.vigil === undefined ? 0 : every.vigil * 0.45
   s.next.chant = every.chant === undefined ? 0 : every.chant * 0.45
   s.next.gaze = every.gaze === undefined ? 0 : every.gaze * 0.45
@@ -8709,6 +8747,322 @@ for (const [label, w, h] of [
   }
 }
 
+// --- what the raid is hitting, rather than where it is standing -----------
+//
+// Three mechanics whose demand is on target selection: something that has to
+// be broken before it finishes, something that must not be broken at all, and
+// a surface that hands back whatever is put into it while it is closed.
+//
+// None of them is on a ladder. Where each belongs is a question about which
+// fight wants the demand and it is not answered here, so what is checked is
+// that they work rather than that they are placed — the same arrangement the
+// schism and the two handoffs are held to.
+{
+  const SWITCHING = ['knell', 'vessel', 'mirror'] as const
+
+  for (const id of SWITCHING) {
+    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
+    expect(
+      `${id} says whether it scales with the roster`,
+      MECHANIC_SCALES[id] !== undefined,
+      'unclassified',
+    )
+    expect(
+      `${id} is on no ladder yet`,
+      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
+      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
+    )
+    for (const encounter of ENCOUNTERS) {
+      expect(
+        `${encounter.short}: has a voice ready for the ${id}`,
+        encounter.lines[id] !== '',
+        'it is silent',
+      )
+      expect(
+        `${encounter.short}: and a cadence for the ${id} in every phase`,
+        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
+      )
+      expect(
+        `${encounter.short}: and asks for the ${id} sooner as it goes`,
+        encounter.phases[1]![id] > encounter.phases[2]![id] &&
+          encounter.phases[2]![id] > encounter.phases[3]![id],
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
+      )
+    }
+    const drawn = bossEffect(`boss_${id}`)
+    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
+    const clash = bossEffectIds().filter(
+      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
+    )
+    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
+  }
+
+  const idle = { moveX: 0, moveY: 0, pressed: [] as number[] }
+
+  // --- the bell: something that has to be broken -----------------------------
+  //
+  // Its whole read is that it is not hurting anybody, so a rotation aimed at
+  // whatever is hurting the raid has no reason to look at it. If it ever walks
+  // or swings, the read is gone and the mechanic is a thrall with a clock.
+  {
+    const s = floorWith({ knell: 900 })
+    s.next.knell = 0
+    const rng = new Rng(0x51ed)
+    step(s, idle, rng)
+
+    const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell')
+    expect('a bell surfaces', bell !== undefined, 'nothing was summoned')
+    if (bell) {
+      expect('with a count on it', bell.castId === 'boss_knell', `${bell.castId}`)
+      expect('and it does not walk', bell.moveSpeed === 0, `${bell.moveSpeed}`)
+
+      // Nobody has decided anything yet: the delay is rolled the tick it
+      // appears and nothing is adopted until it runs out.
+      const early = s.actors.filter((a) => a.ai && a.ai.striking !== null)
+      expect(
+        'and no rotation has picked it up on the tick it arrived',
+        early.length === 0,
+        early.map((a) => a.ai!.striking).join(','),
+      )
+
+      const where = { x: bell.pos.x, y: bell.pos.y }
+      let adopted = 0
+      let struck = 0
+      for (let i = 0; i < 120 && bell.alive; i++) {
+        step(s, idle, rng)
+        adopted = Math.max(
+          adopted,
+          s.actors.filter((a) => a.ai?.striking?.startsWith('knell:')).length,
+        )
+        for (const e of s.effects) {
+          if (e.abilityId === 'boss_knell' && e.kind === 'impact') struck++
+        }
+      }
+      expect('and somebody decides to, inside two seconds', adopted > 0, `${adopted} bodies`)
+      expect(
+        'and it never moved off the spot it surfaced on',
+        !bell.alive || dist(bell.pos, where) < 0.001,
+        `${dist(bell.pos, where).toFixed(1)}`,
+      )
+      expect('and it hurt nobody while it counted', struck === 0, `${struck} hits`)
+    }
+  }
+
+  // What the count ends in, when nothing broke it: one note, on everybody at
+  // once. Given more health than a raid can chew through, so the check is
+  // about what the mechanic does rather than about how fast the party is.
+  {
+    const s = floorWith({ knell: 900 })
+    s.next.knell = 0
+    const rng = new Rng(0x51ed)
+    step(s, idle, rng)
+    const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell')
+    if (bell) {
+      bell.maxHp = 1_000_000
+      bell.hp = bell.maxHp
+      let hit = 0
+      let tolls = 0
+      for (let i = 0; i < 600 && tolls === 0; i++) {
+        step(s, idle, rng)
+        const landed = s.effects.filter(
+          (e) => e.abilityId === 'boss_knell' && e.kind === 'impact' && e.power > 0,
+        ).length
+        if (landed > 0) {
+          tolls++
+          hit = landed
+        }
+      }
+      const alive = s.actors.filter((a) => a.faction === 'party' && a.alive).length
+      expect('a bell nobody broke finishes', tolls === 1, `${tolls} notes`)
+      expect('and it lands on the whole raid at once', hit >= alive, `${hit} of ${alive}`)
+      expect(
+        'and it is gone once it has',
+        !s.actors.some((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive),
+        'it is still there',
+      )
+    }
+  }
+
+  // --- the vessel: something that must not be broken -------------------------
+  //
+  // The bill goes to the bodies that struck it and to nobody else, which is
+  // the whole reason it is not a coin flip on the greediest dealer present.
+  {
+    const s = floorWith({ vessel: 900 })
+    s.next.vessel = 0
+    const rng = new Rng(0x51ed)
+    step(s, idle, rng)
+
+    const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel')
+    expect('a vessel floats up', jar !== undefined, 'nothing was summoned')
+    if (jar) {
+      // It has to be the thing the party's own rules would pick, or there is
+      // nothing to hold off from: it walks in and it swings, like a thrall.
+      expect('and it walks in like everything else does', jar.moveSpeed > 0, `${jar.moveSpeed}`)
+
+      // Whoever is chosen here is read off the field rather than named up
+      // front: a check that picks a raider and assumes a roll lands on them
+      // is a check that passes for the wrong reason.
+      const dealers = s.actors.filter((a) => a.faction === 'party' && a.role === 'dps' && a.alive)
+      const striker = dealers[0]!
+      const bystander = dealers[1]!
+
+      applyDamage(s, jar, 40, 'magic', { sourceId: striker.id })
+      const mark = getAura(striker, 'spoil')
+      expect('striking it is remembered', mark !== undefined, 'nothing was written down')
+      expect('and it remembers which one', mark?.sourceId === jar.id, `${mark?.sourceId}`)
+
+      // A dot ticking is damage nobody pressed, and it keeps ticking whatever
+      // its owner decides next. Billing it would bill a raid for having played
+      // the first ten seconds of the fight.
+      applyDamage(s, jar, 40, 'magic', { sourceId: bystander.id, silent: true })
+      expect(
+        'and a tick nobody pressed is not a strike',
+        getAura(bystander, 'spoil') === undefined,
+        'it was written down anyway',
+      )
+
+      const before = new Map(
+        s.actors.filter((a) => a.faction === 'party').map((a) => [a.id, a.hp] as const),
+      )
+      jar.hp = 1
+      applyDamage(s, jar, 999, 'magic', { sourceId: striker.id, silent: true })
+      step(s, idle, rng)
+      const strikerPaid = before.get(striker.id)! - striker.hp
+      const bystanderPaid = before.get(bystander.id)! - bystander.hp
+      expect('breaking it open costs the one who broke it', strikerPaid > 200, `${strikerPaid}`)
+      expect('and costs nobody else', bystanderPaid === 0, `${bystanderPaid}`)
+      expect(
+        'and the bill is only paid once',
+        getAura(striker, 'spoil') === undefined,
+        'the mark is still there',
+      )
+    }
+  }
+
+  // And one left alone costs nothing at all, which is the answer.
+  {
+    const s = floorWith({ vessel: 900 })
+    s.next.vessel = 0
+    const rng = new Rng(0x51ed)
+    step(s, idle, rng)
+    const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel')
+    if (jar) {
+      // Out of reach of anything the raid can do to it, so what is measured is
+      // the clock running out rather than the party's restraint.
+      jar.maxHp = 1_000_000
+      jar.hp = jar.maxHp
+      let paid = 0
+      let gone = false
+      for (let i = 0; i < 900 && !gone; i++) {
+        step(s, idle, rng)
+        paid += s.effects.filter(
+          (e) => e.abilityId === 'boss_vessel' && e.kind === 'impact' && e.power > 0,
+        ).length
+        gone = !s.actors.some((a) => a.faction === 'boss' && a.id === jar.id)
+      }
+      expect('a vessel nobody broke sinks on its own', gone, 'it is still floating')
+      expect('and it cost nobody anything', paid === 0, `${paid} bills`)
+      expect(
+        'and it left no bill behind it',
+        s.actors.every((a) => getAura(a, 'spoil') === undefined),
+        'somebody is still marked',
+      )
+    }
+  }
+
+  // --- the mirror: what goes in comes back -----------------------------------
+  //
+  // Driven by hand rather than by a pull, because what is being checked is
+  // which hits it remembers and which it does not, and stepping a fight would
+  // mix that up with everything else landing in the same second.
+  {
+    const s = floorWith({ mirror: 900 })
+    const b = boss(s)
+    const dealers = s.actors.filter((a) => a.faction === 'party' && a.role === 'dps' && a.alive)
+    const inside = dealers[0]!
+    const outside = dealers[1]!
+    const ticking = dealers[2]!
+
+    applyDamage(s, b, 50, 'magic', { sourceId: outside.id })
+    expect(
+      'an open surface remembers nothing',
+      getAura(b, 'mirror') === undefined,
+      'there is a mark on it',
+    )
+
+    addAura(b, 'mirror', b.id)
+    const glass = getAura(b, 'mirror')!
+    glass.struck = []
+    applyDamage(s, b, 50, 'magic', { sourceId: inside.id })
+    applyDamage(s, b, 50, 'magic', { sourceId: ticking.id, silent: true })
+    expect('a closed one remembers who struck it', glass.struck.includes(inside.id), 'it did not')
+    expect(
+      'and not whoever stopped before it closed',
+      !glass.struck.includes(outside.id),
+      'it billed them anyway',
+    )
+    expect(
+      'and not a tick nobody pressed',
+      !glass.struck.includes(ticking.id),
+      'it billed a dot',
+    )
+    // Twice is once: what it owes is one bill each, not one per hit, which is
+    // the difference between a moment and a proportion.
+    applyDamage(s, b, 50, 'magic', { sourceId: inside.id })
+    expect(
+      'and it owes one bill however many went in',
+      glass.struck.filter((id) => id === inside.id).length === 1,
+      `${glass.struck.length} entries`,
+    )
+
+    const owed = inside.hp
+    const clear = outside.hp
+    breakMirror(s, glass)
+    expect('the bill lands when it opens again', owed - inside.hp > 200, `${owed - inside.hp}`)
+    expect('and on nobody who held off', clear === outside.hp, `${clear - outside.hp}`)
+  }
+
+  // And the surface has to close after it is announced, or there is nothing to
+  // hold for: the announcement is the whole window a reaction fits inside.
+  {
+    const s = floorWith({ mirror: 900 })
+    s.next.mirror = 0
+    const rng = new Rng(0x51ed)
+    const b = boss(s)
+    let announced = false
+    for (let i = 0; i < 60 && !announced; i++) {
+      step(s, idle, rng)
+      announced = b.castId === 'boss_mirror'
+    }
+    expect('the mirror announces itself first', announced, 'it never wound up')
+    let closed = false
+    for (let i = 0; i < 200 && !closed; i++) {
+      step(s, idle, rng)
+      closed = getAura(b, 'mirror') !== undefined
+    }
+    expect('and then closes', closed, 'the surface never shut')
+
+    // Everything stops. A tank keeps its taunt and a healer keeps healing, but
+    // nothing damaging goes out, and that includes the weapons — a rule that
+    // only reached the buttons would leave every melee marked whatever it did.
+    let holding = 0
+    let into = 0
+    for (let i = 0; i < 120 && getAura(b, 'mirror'); i++) {
+      const was = b.hp
+      step(s, idle, rng)
+      if (b.hp < was) into++
+      holding = Math.max(
+        holding,
+        s.actors.filter((a) => a.ai?.striking === 'hush').length,
+      )
+    }
+    expect('and the raid holds fire for it', holding > 0, 'nobody stopped')
+    void into
+  }
+}
+
 // --- the three whose answer is an instant --------------------------------
 //
 // Everything else on any of these bosses is answered by a position, and every
@@ -8733,14 +9087,10 @@ for (const [label, w, h] of [
       MECHANIC_SCALES[id] !== undefined,
       'unclassified',
     )
-    // None of them may, and the column means exactly what it says rather than
-    // "this plays the same at every size". Nothing is dealt per head here: one
-    // count is one count, one note names one body, one gaze asks the same
-    // question of everybody. How each of the three then behaves at size is a
-    // separate matter and the measurements disagree with each other about it
-    // -- the gaze goes from 7.0 points at ten to 11.0 at twenty-five and the
-    // note from 19.1 down to 0.2 -- which is a fact about how much a raid of
-    // that size can absorb, not about what the mechanic deals out.
+    // None of them may, and the column means what it says rather than "this
+    // plays the same at every size". Nothing is dealt per head here: one count
+    // is one count, one note names one body, one gaze asks the same question
+    // of everybody, and nothing eats floor.
     expect(`${id} deals nothing per head`, !MECHANIC_SCALES[id], 'it says it scales')
     expect(
       `${id} is on no ladder yet`,
@@ -8836,6 +9186,10 @@ for (const [label, w, h] of [
       busy.castId = null
       idle.gcd = 0
       idle.castId = null
+      // The weapon too, since that is half of what the count reads: a swing
+      // timer at zero is a body whose last swing was longer ago than the hold
+      // it is being asked for, which is the state a body that stopped is in.
+      idle.swingTimer = 0
       read = read && stillWorking(busy) && !stillWorking(idle)
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
@@ -8858,30 +9212,88 @@ for (const [label, w, h] of [
     )
   }
 
-  // The hold is a refusal, so what proves it is a rotation that stops. A body
-  // that has noticed the count and waited out its delay must not start a
-  // global while the count is running — and the check reads the global itself
-  // rather than any flag, because the global is what the mechanic reads too.
+  // What "working" means, asserted on its own rather than through a pull.
+  //
+  // A weapon costs no global and asks for no press, so a body that has only
+  // swung has an empty global and no cast and is working all the same. That
+  // half of the reading is what a hold has to be written against; without it
+  // the count looks past about a ninth of what a raid lands, and the demand
+  // is one every melee in the game keeps by doing nothing different.
+  {
+    const s = only('vigil')
+    const armed = s.actors.find(
+      (a) => a.faction === 'party' && specOf({ classId: a.classId, spec: a.spec }).auto,
+    )
+    expect('somebody in the party carries a weapon', armed !== undefined, 'nobody does')
+    const auto = specOf({ classId: armed!.classId, spec: armed!.spec }).auto!
+    armed!.castId = null
+    armed!.gcd = 0
+    armed!.swingTimer = auto.speed
+    expect('a body that has only just swung is working', stillWorking(armed!), 'it read as idle')
+    armed!.swingTimer = 0
+    expect('and one whose weapon is idle is not', !stillWorking(armed!), 'it read as working')
+    armed!.gcd = GLOBAL_COOLDOWN
+    expect('and a global on its own is enough', stillWorking(armed!), 'it read as idle')
+  }
+
+  // The hold is a refusal, so what proves it is a rotation that stops -- and a
+  // weapon that stops with it. Both halves are read off the timers the
+  // mechanic itself reads rather than off any flag: a global that starts is a
+  // press, a swing timer that jumps back up to a weapon's speed is a swing,
+  // and neither may happen inside the count.
+  //
+  // The weapon half is not tidying-up. Auto-attacks cost no global and ask for
+  // no press, so a hold written only against the buttons is a hold every melee
+  // in the raid keeps by doing nothing different -- measured elsewhere in this
+  // repo as the difference between a mechanic worth points and one worth 0.0
+  // at both ends of the practice curve.
   {
     const s = only('vigil')
     const rng = new Rng(0x51ed)
     let held = false
     let pressed = false
+    let swung = false
     while (s.outcome === 'ongoing' && s.time < 60) {
       const live = s.ground.some((g) => g.kind === 'vigil' && !g.detonated)
       const before = s.actors
-        .filter((a) => a.faction === 'party' && a.alive && a.ai)
-        .filter((a) => a.ai!.reactingTo?.startsWith('vigil') && a.ai!.reactionTimer <= 0)
-        .map((a) => [a, a.gcd] as const)
+        .filter((a) => a.faction === 'party' && a.alive && a.ai && holdingStill(s, a))
+        .map((a) => [a, a.gcd, a.swingTimer] as const)
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
       if (!live) continue
-      for (const [a, was] of before) {
+      for (const [a, wasGcd, wasSwing] of before) {
         held = true
-        if (a.alive && a.gcd > was + 0.001) pressed = true
+        if (!a.alive) continue
+        if (a.gcd > wasGcd + 0.001) pressed = true
+        if (a.swingTimer > wasSwing + 0.001) swung = true
       }
     }
     expect('somebody holds for the vigil', held, 'nobody ever noticed it')
     expect('and presses nothing while it counts', !pressed, 'a global started inside the count')
+    expect('and swings nothing either', !swung, 'a weapon landed inside the count')
+  }
+
+  // And the beat is kept in a channel of its own rather than in a share of
+  // somebody else's. Four kinds of answer, four pairs of fields: a body that
+  // spent its walking slot on a demand to stand still would be handed
+  // straight to the code that decides where to stand, which is how the first
+  // draft of this was written and how it was answered for free.
+  {
+    const s = only('vigil')
+    const rng = new Rng(0x51ed)
+    let kept = false
+    let leaked = false
+    while (s.outcome === 'ongoing' && s.time < 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || !a.ai) continue
+        if (a.ai.keeping !== null) kept = true
+        if (a.ai.reactingTo?.startsWith('vigil')) leaked = true
+        if (a.ai.callTo?.startsWith('vigil')) leaked = true
+        if (a.ai.switchTo?.startsWith('vigil')) leaked = true
+      }
+    }
+    expect('the count is kept in a channel of its own', kept, 'nothing ever kept a beat')
+    expect('and in nobody else' + "'" + 's', !leaked, 'it took another channel' + "'" + 's slot')
   }
 
   // --- the chant: one name, and everybody pays for it -----------------------
@@ -8907,22 +9319,36 @@ for (const [label, w, h] of [
 
     // Nobody answers, so the raid pays. The delay is pushed past the count
     // rather than the AI removed, because being too late is the failure the
-    // mechanic is actually made of.
-    if (named.ai) named.ai.reactionTimer = 99
+    // mechanic is actually made of -- and it is pushed on the beat channel,
+    // which is where a note is answered. Set on the walking channel it did
+    // nothing at all, and the check passed for a while by accident because
+    // the mechanic was answered somewhere the check was not looking.
     while (s.outcome === 'ongoing' && s.ground.some((g) => g.kind === 'chant' && !g.detonated)) {
-      if (named.ai) named.ai.reactionTimer = 99
+      if (named.ai) named.ai.beatTimer = 99
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
     const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
     expect(
-      'an uncut note lands on the whole raid',
+      'an uncut note is felt by the whole raid',
       party.every((a) => (s.tally[a.id]?.damageTaken ?? 0) > 0),
       'somebody was spared',
+    )
+    // And the weight is on the one that earned it, which is the correction
+    // that made the mechanic exist at more than one raid size: a raid-wide
+    // bill is a rate and so is healing, so the same total is absorbed outright
+    // by a bigger raid and wipes a smaller one, with no number in between.
+    expect(
+      'and the weight is on the one it named',
+      (s.tally[named.id]?.damageTaken ?? 0) >
+        Math.max(
+          ...party.filter((a) => a.id !== named.id).map((a) => s.tally[a.id]?.damageTaken ?? 0),
+        ),
+      'the raid was billed as heavily as the body that was slow',
     )
     // The one place in the game where the hit and the failure are recorded
     // against different people, and the point of the mechanic.
     expect(
-      'and the failure is recorded against the one it named',
+      'and so is the failure',
       (s.tally[named.id]?.mechanicHits ?? 0) > 0 &&
         party
           .filter((a) => a.id !== named.id)

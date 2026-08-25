@@ -2,21 +2,20 @@ import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
   BURDEN_REACH,
-  CHANT_CAST,
   CHANT_NOTICE,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
-  GAZE_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SCHISM_MUSTER_ROOM,
+  GLOBAL_COOLDOWN,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
-  VIGIL_TELEGRAPH,
+  VIGIL_HELD,
   YOKE_REACH,
 } from './constants'
 import {
@@ -96,6 +95,26 @@ const VERDICT_MARGIN = 0.12
  */
 const VERDICT_NOTICE = 6
 
+/**
+ * The same again, for a change of target.
+ *
+ * `reactionDelay` is a quarter of a second for a steady raider and a tenth
+ * off that by the ninth pull, which is the right scale for a sidestep and the
+ * wrong one for everything else. Stepping out of a pool is one decision with
+ * nothing in front of it. Deciding what to hit is noticing a thing arrived,
+ * reading which of two kinds it is, and then re-aiming a rotation that is
+ * already mid-global — and a global cooldown is a second and a half on its
+ * own. A tenth of a second of extra hesitation in front of that machinery
+ * changes nothing, which is exactly the finding the judgement produced.
+ *
+ * So the delay is expressed at the scale of the answer, and the two numbers
+ * that separate a first pull from a ninth separate them by an amount the
+ * mechanic can actually be built around. Five rather than the judgement's
+ * six: a target call has one cast in front of it, not a cast and a heal
+ * landing in time.
+ */
+const SWITCH_NOTICE = 5
+
 const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
@@ -114,6 +133,13 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   // one that is and kept in its own pair of fields.
   if (actor.role === 'healer') watchTheLine(s, actor, rng)
 
+  // And the one that is not about where to stand either, for the same reason
+  // and kept in its own third pair of fields.
+  readTheField(s, actor, rng)
+
+  // And the fourth, for the demands that resolve on one tick.
+  holdTheBeat(s, actor, rng)
+
   const danger = currentDanger(s, actor)
 
   // Reaction time is rolled once per distinct danger, not per tick, so the
@@ -126,7 +152,7 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // Noticing danger at all is what costs reaction time.
     ai.reactingTo = danger
     ai.fumbled = false
-    ai.reactionTimer = ai.reactionDelay * noticeScale(danger) * rng.range(0.7, 1.4)
+    ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4)
     // A fumble means it reacts far too late — the AI equivalent of
     // tunnel-visioning on your rotation.
     if (rng.chance(ai.mistakeChance)) {
@@ -144,36 +170,6 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   if (ai.reactionTimer > 0) ai.reactionTimer -= DT
 
   const reacting = danger !== null && ai.reactionTimer <= 0
-
-  // The three whose answer is not a place, split off before the movement
-  // branch rather than inside it. Everything below assumes that reacting
-  // means going somewhere -- it picks a tile, re-picks it when the tile goes
-  // bad, and drops whatever cast the walk would have broken. None of that is
-  // what these ask for, and running them through it would have answered all
-  // three by accident with a sidestep that costs nothing.
-  if (reacting && answeredInPlace(danger)) {
-    if (danger!.startsWith('vigil')) {
-      // Dropping the cast is the answer here rather than a side effect of it.
-      // The greedy exception is kept from the movement branch on purpose: the
-      // one who squeezes the last half second out of a cast is the one
-      // standing in the fire when you look over, and this is the same
-      // character reading the same way against a different demand.
-      const nearlyDone = actor.castRemaining < 0.35
-      if (actor.castId && !(ai.personality === 'greedy' && nearlyDone)) {
-        interruptCast(s, actor, 'moved')
-      }
-      say(s, actor, 'Hands off it')
-    } else if (danger!.startsWith('gaze')) {
-      say(s, actor, 'Turning away')
-    } else {
-      breakChant(s, actor)
-      say(s, actor, 'Cutting it')
-    }
-    turnBody(s, actor, danger)
-    moveToward(s, actor, ai.moveTarget)
-    useAbilities(s, actor, rng)
-    return
-  }
 
   if (reacting) {
     // Recompute only when there is no destination or the chosen one went bad.
@@ -249,35 +245,135 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       ai.moveTarget = home
   }
 
-  turnBody(s, actor, danger)
+  turnBody(s, actor)
   moveToward(s, actor, ai.moveTarget)
   useAbilities(s, actor, rng)
 }
 
 /**
- * How much longer this danger takes to notice than fire on the floor does.
+ * What this one has decided to be doing at the next instant.
  *
- * One for everything with a shape, because `reactionDelay` is calibrated for
- * exactly that: seeing a circle appear under you and starting to walk. The
- * only entry that is not one is the note, and the reason is the same one the
- * judgement needed six of — what has to be read is a mark on a frame rather
- * than a shape on the ground, and those are not the same act.
+ * The fourth reaction channel. The other three carry an answer that lasts: a
+ * tile to walk to, a body to heal, a target to hit or to leave alone. These
+ * carry an answer that is over the moment it is given -- hold, turn, press --
+ * and there is nothing left of it a tick later.
+ *
+ * It cannot borrow any of the three. The walking slot is the worst of them to
+ * borrow and it was the one borrowed first: an actor that spends its danger
+ * slot on "stand still and do nothing" is then handed to `findSafeSpot`, and
+ * the demand is answered by a sidestep that costs it nothing. The target slot
+ * is nearer but still wrong -- what it holds lasts a window and is about one
+ * body on the field, and these last a tick and are about the raid.
+ *
+ * The one compromise is that a body can keep only one beat at a time, which
+ * is the compromise all four make: a vigil and a gaze open at once are two
+ * different things to be doing at the same instant, and something has to
+ * choose. `beatCall` ranks them.
  */
-function noticeScale(danger: string): number {
-  return danger.startsWith('chant') ? CHANT_NOTICE : 1
+function holdTheBeat(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  const want = beatCall(s, actor)
+
+  if (want === null) {
+    ai.beatTo = null
+    ai.beatTimer = 0
+    ai.keeping = null
+    return
+  }
+
+  if (ai.beatTo !== want) {
+    ai.beatTo = want
+    ai.beatTimer = ai.reactionDelay * beatNotice(want) * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.beatTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.beatTimer > 0) ai.beatTimer -= DT
+
+  const held = ai.keeping
+  ai.keeping = ai.beatTimer > 0 ? null : want
+  if (ai.keeping === null || ai.keeping === held) return
+
+  if (ai.keeping.startsWith('vigil')) say(s, actor, 'Hands off it')
+  else if (ai.keeping.startsWith('gaze')) say(s, actor, 'Turning away')
+  else say(s, actor, 'Cutting it')
+
+  // A press is the one of the three that has to happen rather than be
+  // maintained, so it is made here, on the tick the delay runs out.
+  if (ai.keeping.startsWith('chant')) breakChant(s, actor)
+
+  // And dropping the cast is the vigil's answer rather than a side effect of
+  // it. The greedy exception is borrowed from the walking branch on purpose:
+  // the one who squeezes the last half second out of a cast is the one
+  // standing in the fire when you look over, and it should read the same way
+  // against a demand to stop.
+  if (ai.keeping.startsWith('vigil') && actor.castId) {
+    const nearlyDone = actor.castRemaining < 0.35
+    if (!(ai.personality === 'greedy' && nearlyDone)) interruptCast(s, actor, 'moved')
+  }
 }
 
 /**
- * The dangers that are answered where the body already is.
+ * The one instant worth answering, as a stable key.
  *
- * Named as a set rather than tested one at a time, because what they have in
- * common is the thing the caller needs: none of them is made better or worse
- * by standing anywhere, so none of them may reach the code that decides where
- * to stand.
+ * Ranked rather than merged, the way the other two calls are. The note comes
+ * first because it is the only one of the three that nobody else can cover: a
+ * vigil eaten costs one body a hit and a gaze eaten costs one body a hit, and
+ * a note nobody cut is billed to the raider it named hard enough to kill
+ * them. Below it the vigil, because holding is something a body can start
+ * doing while it is still turning and a turn is not something it can start
+ * while holding.
+ *
+ * The id is in the key deliberately: a second cast is a second decision and
+ * has to be paid for again.
  */
-function answeredInPlace(danger: string | null): boolean {
-  if (danger === null) return false
-  return danger.startsWith('vigil') || danger.startsWith('gaze') || danger.startsWith('chant')
+function beatCall(s: SimState, actor: Actor): string | null {
+  let note: string | null = null
+  let hold: string | null = null
+  let turn: string | null = null
+  for (const g of s.ground) {
+    if (g.detonated) continue
+    // Only the body it named. Nobody else can do anything about it, so nobody
+    // else spends a reaction on it.
+    if (g.kind === 'chant') {
+      if (getAura(actor, 'chant')) note = `chant:${g.id}`
+      continue
+    }
+    // Everybody, for as long as the count is open, whatever they are doing.
+    //
+    // The obvious narrowing is a trap and was written first: raise it only
+    // for a body that would be caught if it landed now. That oscillates. The
+    // moment such a body holds, its demand clears; the moment its demand
+    // clears it starts working again, and the pair re-roll a delay every few
+    // ticks until one of them happens to land inside the count. Read as a
+    // count everybody is under, the delay is rolled once and what it decides
+    // is whether the answer started in time.
+    if (g.kind === 'vigil') {
+      hold = `vigil:${g.id}`
+      continue
+    }
+    if (g.kind === 'gaze') {
+      turn = `gaze:${g.id}`
+      continue
+    }
+  }
+  return note ?? hold ?? turn
+}
+
+/**
+ * How much longer each of the three takes to notice than fire on the floor.
+ *
+ * One for the two that are answered by a posture. `reactionDelay` is
+ * calibrated for seeing a shape appear and starting to move, and seeing a
+ * count open and starting to stop is the same act with the same tell.
+ *
+ * The note is not, and it is the argument the judgement needed six of and the
+ * target call five: what has to be read is a mark on your own frame rather
+ * than a shape on the ground. It was measured as well as argued. At a flat
+ * delay every personality answered every note without a fumble, so the whole
+ * gap came out of the mistake roll and the mechanic was a probe of one of the
+ * two skill numbers instead of both.
+ */
+function beatNotice(call: string): number {
+  return call.startsWith('chant') ? CHANT_NOTICE : 1
 }
 
 /**
@@ -285,36 +381,40 @@ function answeredInPlace(danger: string | null): boolean {
  *
  * Toward the boss, always, because a party fights what it is looking at and
  * because that is what makes the gaze a mechanic rather than a coin toss: the
- * resting bearing is the failing one, so turning away is a thing somebody
+ * resting bearing is the failing one, so turning away is something a body
  * did, on purpose, in time.
  *
- * The one exception is a gaze this body has already noticed. It is read off
- * `reactingTo` rather than off a flag of its own so that the turn is gated by
- * exactly the two numbers that separate a first pull from a ninth, and by
- * nothing else -- a body that has spotted the gaze turns, and one that has not
- * keeps working and gets looked at.
+ * The one exception is a gaze this body has already noticed, read off the
+ * beat it is keeping so that the turn is gated by exactly the two numbers
+ * that separate a first pull from a ninth and by nothing else.
  */
-function turnBody(s: SimState, actor: Actor, danger: string | null): void {
+function turnBody(s: SimState, actor: Actor): void {
   const b = boss(s)
   const toward = Math.atan2(b.pos.y - actor.pos.y, b.pos.x - actor.pos.x)
-  const away = danger !== null && danger.startsWith('gaze') && actor.ai!.reactionTimer <= 0
+  const away = actor.ai?.keeping?.startsWith('gaze') === true
   turnToward(actor, away ? toward + Math.PI : toward)
 }
 
 /**
- * Whether this body is deliberately doing nothing, and for how much longer.
+ * Whether this body is deliberately doing nothing.
  *
  * The vigil's whole answer, and it is a refusal rather than an action, so it
- * cannot be expressed as something the rotation presses. It is expressed as
- * the rotation not being reached at all -- and only once the reaction delay
- * has run out, which is what makes the hold a thing a raid gets better at
- * instead of a rule the fight enforces on it.
+ * cannot be written as something the rotation presses. It is written as the
+ * rotation not being reached and the weapon not being swung -- and, for the
+ * AI, only once the delay has run out, which is what makes the hold something
+ * a raid gets better at rather than a rule the fight enforces on it.
+ *
+ * The player has no delay and needs none, because their reaction is their
+ * own. What they need is for stopping to actually stop them: a weapon swings
+ * without being asked, so a player who took their hands off the buttons would
+ * still be working, and there is no button to hold a weapon with. So while a
+ * count is open, a player who is not pressing anything is holding -- and one
+ * who is carries on swinging and is caught, which is the demand.
  */
-function holdingStill(s: SimState, actor: Actor): boolean {
-  const ai = actor.ai
-  if (!ai || ai.reactingTo === null || !ai.reactingTo.startsWith('vigil')) return false
-  if (ai.reactionTimer > 0) return false
-  return s.ground.some((live) => live.kind === 'vigil' && !live.detonated)
+export function holdingStill(s: SimState, actor: Actor): boolean {
+  if (actor.ai) return actor.ai.keeping?.startsWith('vigil') === true
+  if (!s.ground.some((live) => live.kind === 'vigil' && !live.detonated)) return false
+  return actor.castId === null && actor.gcd <= GLOBAL_COOLDOWN - VIGIL_HELD
 }
 
 /**
@@ -373,6 +473,151 @@ function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
   }
   if (ai.callTimer > 0) ai.callTimer -= DT
   ai.answering = ai.callTimer > 0 ? null : mine.id
+}
+
+/**
+ * What this one has decided to hit, and how long it took to decide.
+ *
+ * The third reaction channel, and the last thing in the fight that was not
+ * going through one. Everything answered by walking runs through
+ * `currentDanger`, healing a judgement runs through `watchTheLine`, and
+ * choosing a target ran through neither: a rotation read `adds(s)`, took the
+ * lowest health bar in it, and did that identically on a first pull and a
+ * ninth. Anything answered by the choice of target was therefore unteachable
+ * however lethal it was, which is most of why the thralls measure at nothing.
+ *
+ * It cannot share either of the other two slots. An actor that spent its
+ * danger slot on a target call would then be sent to find a safe tile, and
+ * one that spent its healer slot on it would stop answering judgements — and
+ * a real pull asks all three at once, which is the whole point of them being
+ * three.
+ */
+function readTheField(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  const want = targetCall(s, actor)
+
+  if (want === null) {
+    ai.switchTo = null
+    ai.switchTimer = 0
+    ai.striking = null
+    return
+  }
+
+  if (ai.switchTo !== want) {
+    ai.switchTo = want
+    ai.switchTimer = ai.reactionDelay * SWITCH_NOTICE * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.switchTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.switchTimer > 0) ai.switchTimer -= DT
+
+  const held = ai.striking
+  ai.striking = ai.switchTimer > 0 ? null : want
+  if (ai.striking !== null && ai.striking !== held) {
+    if (ai.striking === 'hush') say(s, actor, 'Stop — everything comes back')
+    else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
+    else say(s, actor, 'Leave that one alone')
+  }
+}
+
+/**
+ * The one call worth making, as a stable key.
+ *
+ * Ranked rather than merged, the way `currentDanger` is: while the surface is
+ * closed nothing is hit at all, so a bell and a vessel on the field at the
+ * same time are both answered by the same silence. Below that the bell comes
+ * first because it is the one with a deadline on it — hitting the bell is
+ * already not hitting the vessel, so ranking that way costs the second call
+ * nothing.
+ *
+ * A key rather than a target, so the reaction delay is rolled once per
+ * decision instead of once per tick. The id is in it deliberately: a second
+ * bell is a second decision and has to be paid for again.
+ */
+function targetCall(s: SimState, actor: Actor): string | null {
+  if (actor.role === 'healer' && actor.ai?.answering !== null) return null
+
+  const b = boss(s)
+  if (getAura(b, 'mirror') || b.castId === 'boss_mirror') return 'hush'
+
+  const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)
+  if (bell) return `knell:${bell.id}`
+
+  const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)
+  if (jar) return `spare:${jar.id}`
+
+  return null
+}
+
+/** The id in a call of the form `something:42`, or null if there is none. */
+function calledId(call: string | null, prefix: string): number | null {
+  if (call === null || !call.startsWith(prefix)) return null
+  const id = Number(call.slice(prefix.length))
+  return Number.isFinite(id) ? id : null
+}
+
+/**
+ * Whether this body is willing to land a hit on that one right now.
+ *
+ * Asked by the weapons as well as by the rotations, because a mechanic
+ * answered by not hitting something is answered by nobody if the auto-attack
+ * carries on regardless — a melee standing in the boss's lap swings at it
+ * every couple of seconds without anyone deciding anything, and a rule that
+ * only reaches the buttons would have left every melee in the raid marked
+ * whatever it did.
+ */
+export function mayStrike(s: SimState, actor: Actor, target: Actor): boolean {
+  // A body holding for a count is holding everything, weapon included, and
+  // this is the measured half of the rule rather than the tidy half. Eleven
+  // percent of what a raid lands is white damage that nobody decided on, and
+  // a demand to stop that the weapon ignores is a demand every melee in the
+  // raid fails whatever it did -- worth 0.0 points at both ends of the
+  // practice curve when the surface that hands damage back was measured that
+  // way. The hold is over on the tick the count resolves, so what it costs is
+  // the swings inside the count and nothing after it.
+  if (holdingStill(s, actor)) return false
+  const call = actor.ai?.striking ?? null
+  if (call === null) return true
+  if (call === 'hush') return target.id !== boss(s).id
+  const spared = calledId(call, 'spare:')
+  return spared === null || target.id !== spared
+}
+
+/**
+ * What a rotation should be aimed at, given whatever it has decided.
+ *
+ * The default is untouched and has to be: summons that walk in and hit
+ * somebody are picked the way they always were, lowest health bar first, so
+ * the thralls and the stalker are the same mechanic they were measured as.
+ * What is new is the two exceptions, and both of them cost a reaction delay
+ * to reach — the bell is invisible to a rotation until somebody decides to
+ * look at it, and the vessel stops being a target only once somebody decides
+ * to leave it alone.
+ */
+function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
+  const b = boss(s)
+  const call = actor.ai?.striking ?? null
+
+  const ringing = calledId(call, 'knell:')
+  if (ringing !== null) {
+    // By faction as well as by id: one counter numbers every object in the
+    // fight and the raid's own ids start at one, so a body summoned early
+    // enough can share an id with a raider standing in front of it.
+    const bell = s.actors.find((a) => a.faction === 'boss' && a.id === ringing)
+    if (bell && bell.alive) return bell
+  }
+
+  const spared = calledId(call, 'spare:')
+  // A summon that is not hurting anybody is not what a rotation aimed at
+  // whatever is hurting the raid would ever pick. That is the read the bell
+  // is built on, so it is a rule about the party rather than a rule about the
+  // bell: nothing here knows what a bell is, only that this one is standing
+  // still doing nothing.
+  const summoned = pool.filter((a) => a.spawn !== 'knell' && a.id !== spared)
+  if (summoned.length === 0) return b
+
+  let focus = summoned[0]!
+  for (const a of summoned) if (a.hp < focus.hp) focus = a
+  return focus
 }
 
 /** Whoever this healer has decided to save, if it has decided at all. */
@@ -591,46 +836,6 @@ function currentDanger(s: SimState, actor: Actor): string | null {
         if (adrift || clashingWith(s, actor, actor.pos, g.radius + DANGER_MARGIN)) {
           consider(`schism:${g.id}`, 86 + (SCHISM_TELEGRAPH - g.telegraph) * 8)
         }
-      }
-      continue
-    }
-
-    // The count with no shape to it. Everybody has it, for as long as it is
-    // open, whatever they are doing and wherever they stand -- which is the
-    // only way a demand answered by *not acting* can be reaction-timed at all.
-    //
-    // The obvious narrowing is a trap and was written first: raise it only
-    // for a body that would be caught if it landed now. That oscillates. The
-    // moment such a body holds, its danger clears; the moment its danger
-    // clears it presses again, and the pair re-roll a reaction delay every
-    // few ticks until one of them happens to land inside the count. Read as a
-    // count that everybody is under, the delay is rolled once and the thing
-    // it decides is whether the hold started in time.
-    if (g.kind === 'vigil') {
-      if (!g.detonated) {
-        consider(`vigil:${g.id}`, 90 + (VIGIL_TELEGRAPH - g.telegraph) * 12)
-      }
-      continue
-    }
-
-    // The same count, read the same way, and for the same reason: a body that
-    // has finished turning is a body with nothing to react to, and one with
-    // nothing to react to turns straight back.
-    if (g.kind === 'gaze') {
-      if (!g.detonated) {
-        consider(`gaze:${g.id}`, 90 + (GAZE_TELEGRAPH - g.telegraph) * 12)
-      }
-      continue
-    }
-
-    // And the one that is only the named body's. Ranked over the caving band,
-    // which is the one thing on this list it has to beat: the band kills
-    // whoever stood in it and this lands on the whole raid, so a body holding
-    // both should cut the note and take the hit rather than the other way
-    // round. Nobody else can do anything about it, so nobody else sees it.
-    if (g.kind === 'chant') {
-      if (!g.detonated && getAura(actor, 'chant')) {
-        consider(`chant:${g.id}`, 94 + (CHANT_CAST - g.telegraph) * 10)
       }
       continue
     }
@@ -1447,7 +1652,7 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
     interruptCast(s, actor, 'switching')
   }
   if (actor.castId) return
-  // Nothing at all while the count is running, which is the only place in this
+  // Nothing at all while a count is running, which is the only place in this
   // file where the answer to a mechanic is to reach the end of this function
   // and press nothing.
   if (holdingStill(s, actor)) return
@@ -1528,7 +1733,7 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   const ai = actor.ai!
   const kit = specFor(actor).abilities
 
-  if (tryCharge(s, actor, b, rng, moving)) return
+  if (mayStrike(s, actor, b) && tryCharge(s, actor, b, rng, moving)) return
 
   // The swap.
   //
@@ -1577,6 +1782,11 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
       }
     }
   }
+
+  // And a tank is a body that hits things too. Only the damage is held: the
+  // taunt and the wall above are answers to other mechanics, and dropping the
+  // boss on the raid to answer this one is answering it with a worse mistake.
+  if (!mayStrike(s, actor, b)) return
 
   if (kit.threat && tryCast(s, actor, kit.threat, b.id, rng, moving)) return
   tryCast(s, actor, kit.filler, b.id, rng, moving)
@@ -1703,9 +1913,8 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 
   // Nobody needs healing: help kill it, but keep enough mana in reserve to
   // answer the next spike.
-  if (kit.attack && powerLeft > 0.55) {
-    const summoned = adds(s)
-    const target = summoned.length > 0 ? summoned[0]! : boss(s)
+  if (kit.attack && powerLeft > 0.55 && actor.ai?.striking !== 'hush') {
+    const target = strikeTarget(s, actor, adds(s))
     tryCast(s, actor, kit.attack, target.id, rng, moving)
   }
 }
@@ -1715,14 +1924,13 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   if (!b.alive) return
   const kit = specFor(actor).abilities
 
-  // Adds first: they beeline for whoever is closest and shred a healer.
-  const summoned = adds(s)
-  let target = b
-  if (summoned.length > 0) {
-    let focus = summoned[0]!
-    for (const a of summoned) if (a.hp < focus.hp) focus = a
-    target = focus
-  }
+  // Nothing at all goes out while the surface is closed. A dealer has no
+  // second job to fall back on, which is the cost of the mechanic.
+  if (actor.ai?.striking === 'hush') return
+
+  // Adds first: they beeline for whoever is closest and shred a healer. The
+  // two exceptions to that are decisions, and they are made in `readTheField`.
+  let target = strikeTarget(s, actor, adds(s))
 
   // A bow has a near edge, and a thrall's whole plan is to stand on you. The
   // one it cannot shoot is not a target, so it shoots past it at the boss

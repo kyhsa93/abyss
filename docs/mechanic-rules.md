@@ -25,22 +25,43 @@ would suggest.
 ## The bar, and the current field
 
     breath      21.4pp    removes 67% of the deaths
-    chant       19.1      97%     collapses to 0.2 at twenty-five; see below
+    mirror      19.8      62%
     burden       9.8      70%     over-scales; see below
     hand         9.2      93%
+    gaze         9.7      95%     real at five, ten and twenty-five
     spire        9.0      67%
     fault        8.3      96%
-    gaze         7.0      51%     rises to 11.0 at twenty-five
+    vessel       7.5      39%     over-scales both ways; see below
+    knell        7.0      41%     real at ten and nowhere else; see below
     yoke         6.7      75%
     echo         6.6      100%
     verdict      6.0      57%
     shockwave    5.2      84%
+    chant        4.5      96%     real at five, ten and twenty-five
+    vigil        4.2      80%
     crush        3.3      97%
-    vigil        2.5      46%
     shallows     2.4      98%
     brand        2.0      69%
     puddle       0.5      83%
     rot, sunder, spread, sweep, adds -- indistinguishable from nothing
+
+**Read the field table at three sizes before believing it.** It is a ten-man
+heroic table and always has been, and three mechanics measured across sizes in
+the same round came out like this:
+
+                 5 heroic        10 heroic       25 heroic
+    mirror    49.0pp (49%)    19.8pp (62%)    51.5pp (53%)
+    vessel    37.8   (40%)     7.5   (39%)    33.3   (76%)
+    knell      0.0              7.0   (41%)     0.0
+    gaze       7.0   (98%)     9.7   (95%)    27.9   (97%)
+    chant      8.3   (89%)     4.5   (96%)     3.4   (93%)
+    vigil      0.0              4.2   (80%)     0.2   (88%)
+
+Two of them are three or more times the mechanic at the sizes either side of
+the one they were tuned at, and the first pull at those sizes is a wipe: 100%
+of unpractised five-mans and 96.5% of unpractised twenty-fives die to the
+mirror. One number in the middle of a table is not a mechanic's worth, it is
+one reading of it, and a rung sold at every size is sold at all three.
 
 The burden is the one to be careful with. At twenty-five it runs five chains
 at once, each tying up three bodies, so fifteen of twenty-five are carrying or
@@ -69,10 +90,31 @@ bound above zero at 250 pairs -- and it has to earn its rung against that list.
    arrived at 0.16 a second and taught nothing three separate times. But
    throughput is necessary, not sufficient -- see granularity below.
 
-3. **The answer has to route through `consider()` in ai.ts.** Reaction delay
-   and mistake chance live there and nowhere else. `isSpotSafe` is
-   skill-independent, so a mechanic answered entirely by it cannot be
-   practised and will measure zero however lethal it is.
+3. **The answer has to route through a channel that carries the two
+   numbers.** `reactionDelay` and `mistakeChance` are the whole of what
+   separates a first pull from a ninth, and a mechanic answered by code that
+   reads neither cannot be practised and will measure zero however lethal it
+   is. `isSpotSafe` is the standing example: it is skill-independent, so a
+   mechanic answered entirely by it measures nothing.
+
+   This rule used to name `consider()` and say the two numbers lived "there
+   and nowhere else", and that was already not true when it was written --
+   `watchTheLine` is a second channel, built because a judgement is answered
+   by a cast and the walking channel could not hold it. There are three now:
+
+       currentDanger / consider()   answered by walking
+       watchTheLine                 answered by a heal
+       readTheField                 answered by what you hit, and by stopping
+
+   The correction matters because of what it says about a mechanic that
+   measures zero. The thralls were read for a round as proof that "the party's
+   damage goes somewhere else" teaches nothing. It is not: nothing about
+   *choosing a target* was ever delayed or fumbled, so the demand was answered
+   identically on every pull by construction. Given a channel of its own, the
+   same family of demands measures 7.0, 7.5 and 19.8 points. **Before
+   concluding that a kind of demand cannot teach, check whether the code that
+   answers it has ever been able to be late.** If it has not, building the
+   channel is part of building the mechanic.
 
 4. **Proximity mechanics anti-scale.** "Stand together" and "stand apart" get
    easier with more bodies, which is how one of them measured 97% at 25 and 0%
@@ -86,6 +128,15 @@ bound above zero at 250 pairs -- and it has to earn its rung against that list.
    fixed 460 radius whatever the headcount, so a mechanic that eats floor per
    body wipes every first pull at 25 while a ten-man never notices. Cap how
    much can be out at once.
+
+   And it is not only floor. Anything that writes one near-lethal bill per
+   body caught in an instant super-scales the same way and for the same
+   arithmetic: more bodies means more of them caught in the one instant, and
+   the healers have the same second to cover all of them. The surface that
+   hands damage back caught about three of ten and 32% of unpractised
+   ten-mans died; at twenty-five it caught proportionally more and 96.5% died.
+   Cap how many bills one instant may write, the way area denial caps how much
+   ground may be out.
 
 ## What actually moves the number
 
@@ -115,9 +166,67 @@ arriving two at a time. The share of deaths practice removes barely moves
 across that range (61%, 67%, 57%), so clumping is a dial on *how much pressure
 there is*, not on *how learnable it is*. Rule 2 does not cover it.
 
+**A delay has to be expressed at the scale of the answer it delays.**
+`reactionDelay` is a quarter of a second for a steady raider and a tenth off
+that by the ninth pull, which is calibrated for a sidestep -- a step costs
+nothing but the step. Anything with machinery in front of it swamps that: a
+heal sits behind a global cooldown and a two-second cast, and the judgement
+taught 3.8 points until its delay was multiplied by six. It is not a quirk of
+healing. A target call sits behind the same global cooldown and a rotation
+already mid-press, and multiplied by five it produces the three entries above;
+at 1x it produces the thralls. So the multiplier is a general instrument:
+decide what the answer's machinery costs, and express the hesitation in the
+same units.
+
+**What the rotation does by default is what a target mechanic is fighting.**
+The party's rule is "hit whatever is hurting the raid, lowest health first",
+with no decision in it. A mechanic whose right answer *is* that rule teaches
+nothing, which is the thralls in one sentence. Both of the ones that measure
+here break the coincidence rather than lean on it:
+
+  - the knell hurts nobody, so the default rule never looks at it, and
+    somebody has to decide to leave a health bar that is asking to be hit;
+  - the vessel hurts somebody, so the default rule aims straight at it, and
+    the answer is to stop -- the default is the trap.
+
+Neither is "more damage elsewhere". Both are a moment at which a raid either
+did the thing or did not, which is what rule 1 has always asked for.
+
+**A hold has to reach the weapons, not only the buttons.** Auto-attacks pick
+the nearest hostile with nobody deciding anything. Measured, that is not a
+weakening, it is the whole mechanic: the surface that hands damage back is
+worth 19.8 points with the swing held and
+
+    mirror, weapons ungated    100.0% -> 100.0%    0.0pp
+
+with it not. Both ends of the practice curve wipe, because every body in the
+raid is billed on every cast whatever it decided. Eleven percent of the raid's
+damage is enough to fail a demand outright, so a rule that only reaches the
+buttons is not a rule.
+
 **Not damage, past a point.** Raising a hit from 700 to 1000 left the gap flat
 between 26 and 29pp. Once one hit is close to lethal, damage stops being a
 teaching lever.
+
+**Who pays, which is a different question from how much.** The knell writes
+its bill to the whole raid at once and the vessel writes it to the two or
+three bodies that earned it, and they are otherwise the same shape -- a
+telegraphed instant, a binary outcome, the same channel, the same tuning
+round. The vessel converts its failures into deaths at every size. The knell
+converts them at exactly one, and at the other two it measures a flat zero
+while plainly working: a twenty-five man pull hung nine bells, broke seven and
+let two finish, and not one body died all fight.
+
+The cause is that healing is a rate and a raid-wide bill is a rate. Spread
+thin enough to be survivable at the size it was tuned for, the same total is
+absorbed outright by a raid with more healers, and one point past that it
+wipes the raid it was tuned for. There is no number between the two. An
+individual bill near the top of a health bar has no such problem, because
+nothing about a bigger raid makes one body harder to kill.
+
+So: **if the answer to a mechanic is a raid-wide hit, expect it to exist at
+one raid size only** unless the boss carries a weight for it. Bill bodies, not
+rosters.
 
 **And not how long the hazard stays, either.** Over a fourfold range at 250
 pairs each -- 6s 8.7pp, 10s 9.0, 16s 7.8, 24s 10.0 -- linger sat inside its
@@ -143,74 +252,113 @@ time it mattered.
 
 ## A demand can be a moment rather than a place
 
-Twenty-one mechanics in and every one of them was answered by standing
-somewhere else. That is not a property of the genre, it is a property of this
-AI: `consider()` ranks dangers, and the only thing reacting to one ever did was
-run `findSafeSpot`. Three mechanics were built to test whether the other half
-of raiding measures -- interrupt it, hold your rotation, turn your back -- and
-all three are `real`.
+Every mechanic that answers to `currentDanger` is answered by standing
+somewhere else, and for a long time that was the whole vocabulary. Three
+mechanics were built to ask for the other half of raiding -- hold your
+rotation, cut the note, turn your back -- and all three are `real`. The note
+is real at all three sizes, the gaze at all three, and the count at two of
+them: a five-man heroic loses nobody to it at either end of the practice
+curve.
 
-    vigil    hold your rotation      2.5pp    46%   0.9 at 25, 0.0 at 5
-    chant    one named body cuts    19.1      97%   0.2 at 25, 0.0 at 5
-    gaze     turn away             11.0*      95%   *at 25; 7.0 at 10, 2.7 at 5
+    vigil    hold everything      4.2pp  80%    5h 0.0        25h 0.2
+    chant    the one it named     4.5    96%    5h 8.3        25h 3.4
+    gaze     turn your back       9.7    95%    5h 7.0        25h 27.9
 
-Five things came out of building them, and three of those change how a
-mechanic should be read rather than how one should be written.
+None of them is a place, so none of them leaves ground and none of them is
+read by `isSpotSafe`. They resolve on one tick and there is nothing of them a
+tick later.
 
-**A non-positional answer needs its own branch, or it is answered by a
-sidestep.** The reacting path picks a tile, re-picks it when the tile goes bad,
-and drops whatever cast the walk would have broken. Run a "stop doing things"
-demand through that and it is satisfied for free by the walk it did not ask
-for. The three above are split off before the movement branch, and the vigil's
-whole answer is `useAbilities` never being reached -- a refusal cannot be
-expressed as something the rotation presses.
+**They needed a fourth channel, and the first draft measured the cost of not
+having one.** Written on the walking channel -- the obvious place, because
+`consider()` is where a hazard with a telegraph belongs -- the vigil was worth
+2.5 points and the gaze 7.0. The trouble is not that the walking channel is
+slow, it is that reacting on it *means walking*: an actor that spends its
+danger slot on "stand still and do nothing" is handed straight to
+`findSafeSpot` and given a tile to go to. Moved onto a channel of their own,
+with their own three fields on `AiProfile`, the same two mechanics measure 4.2
+and 9.7 with nothing else changed. There are four channels now:
 
-**Do not define the danger by the failure it causes.** The obvious way to write
-the vigil is to raise it only for a body that would be caught if it landed now.
-That oscillates: the moment such a body holds, its danger clears; the moment
-its danger clears it presses again, and the pair re-roll a reaction delay every
-few ticks until one happens to land inside the count. The danger has to be the
-*count*, so that the delay is rolled once and what it decides is whether the
-answer started in time. This is the schism's "a formation is not a step" one
-step further on -- there the danger had to outlive the nearest problem, here it
-must not be defined by the problem at all.
+    currentDanger / consider()   answered by walking
+    watchTheLine                 answered by a heal
+    readTheField                 answered by what you hit, over a window
+    holdTheBeat                  answered by what you are doing at one tick
 
-**Set the count against what the answer costs, not against the count you liked
-the sound of.** The doc already says the telegraph is the steepest dial; what
-it did not say is what the dial is measured against. A pool's 1.6 seconds holds
-a 0.31-second walk and a delay. A note is answered by a press, which takes no
-time at all, so the whole count is slack and the count is therefore a direct
-probe of `reactionDelay`. Written at 2.1 seconds the chant was cut 12.6 times a
-pull and failed 0.1 times -- an unpractised raid answered essentially every one
--- and taught 0.8pp with a bar wider than the figure. At 1.25 seconds, inside
-the range a greedy raider rolls on a first pull and outside the one it rolls on
-a ninth, the same code teaches 19.1. Nothing else about it changed.
+**A hold has to reach the weapons, and this is the second measurement of that
+rule rather than the first.** The vigil reads whether a body was working when
+the count sealed, and the first version read only the buttons -- a cast in
+progress, or a global still running. Auto-attacks set neither, so every melee
+in the raid kept swinging through a demand to stop and the mechanic never
+noticed. Reading the swing timer as well, and holding the swing through
+`mayStrike` the way the closed surface does, is part of the 2.5 -> 4.2.
 
-**`MECHANIC_SCALES` says what is dealt per head. It does not predict how a
-mechanic plays at size, and the two can point opposite ways.** All three of
-these deal nothing per head and all three are `false`. Measured at ten and at
-twenty-five on the same boss, the gaze goes 7.0 -> 11.0 and the note goes
-19.1 -> 0.2. The difference is granularity against the healing budget: the gaze
-asks every body a separate question every nine seconds, so its cost tracks the
-headcount and outruns the healers, while the note is one enormous raid-wide
-spike two or three times a pull, and whether a spike kills anybody is a
-question about how much a raid of that size can absorb. Coarse mechanics get
-easier with bodies and fine ones get harder, whatever the column says.
+**Bill bodies, not rosters -- confirmed from the other direction.** The chant
+names one raider and lands on the raid if that raider is slow, so the obvious
+bill was a flat share to everybody. That version measured 19.1 points at a
+ten-man, 0.2 at twenty-five and 0.0 at five: one raid size, exactly as the
+rule says. Moving the weight onto the body that earned it -- one near-lethal
+bill, and a token share for everybody else so it still reads as collective --
+gives 8.3 at five, 4.5 at ten and 2.6 at twenty-five. It is worth less at its
+best size and it exists at all three, which is the trade the rule is
+describing. Note also that the roster-billed version was the second-highest
+number in the whole field at the time, and it was wrong: **a big number at one
+size is evidence about that size and nothing else.**
 
-**A five-man heroic can read exactly zero because nobody dies at all, which is
-not the same as the mechanic being absent.** The vigil and the note both
-measured 0.0% dead on *both* attempts at five. The diagnostic shows the vigil
-being thrown and failed there; there was simply nothing left for a death rate
-to express. Isolation compresses the points column, and at five it can compress
-it flat -- at which point the share-removed column has no denominator either
-and both columns say nothing rather than saying no.
+**Set the count against what the answer costs.** The telegraph is the steepest
+dial in the game, and what it is measured against is the machinery in front of
+the answer. A pool's 1.6 seconds has to hold a delay and a 0.31-second walk. A
+note is answered by one press, which takes no time at all, so the whole count
+is slack and the count is a direct probe of `reactionDelay`. At 2.1 seconds
+the chant was cut 12.6 times a pull and failed 0.1 times, and taught 0.8
+points with a bar wider than the figure. At 1.25 seconds, inside the range a
+greedy raider rolls on a first pull and outside the range it rolls on a ninth,
+the same code teaches. Nothing else about it changed.
+
+**Do not define the danger by the failure it causes.** The obvious way to
+write the vigil is to raise it only for a body that would be caught if the
+count landed now. That oscillates: the moment such a body holds its demand
+clears, the moment its demand clears it starts working again, and the pair
+re-roll a delay every few ticks until one happens to land inside the count.
+The demand has to be the *count*, so the delay is rolled once and what it
+decides is whether the answer started in time. This is the schism's "a
+formation is not a step" one turn further on -- there the danger had to
+outlive the nearest problem, here it must not be defined by the problem at
+all.
+
+**A flat demand and a flat bill can still triple the points column, and the
+difference is the raid's own margin.** The gaze is worth 7.0 at five, 9.7 at
+ten and 27.9 at twenty-five, which is the spread the rule above says to be
+suspicious of. It is worth knowing what it is not. Measured on the same code:
+
+    gaze, unpractised    10 heroic   1.43 failures a body   2540 taken a body
+                         25 heroic   1.50                   2588
+
+The demand per body is flat, the bill per body is flat, and no instant writes
+anything like a bill per body -- about one body a cast at ten and two and a
+half at twenty-five, against a headcount two and a half times larger. So this
+is not rule 5's super-scaling and a cap on bills would be machinery for a
+problem that is not there. What moved is the raid: 2540 a body is just under a
+ten-man's wipe line and 2588 is over a twenty-five man's, so the same fight
+converts to deaths at one size and not at the other.
+
+Which is the general form of "read the field table at three sizes". The points
+column is not a property of a mechanic. Two of its three inputs -- what the
+mechanic demands and what it bills -- can both be flat across the roster while
+the number it produces triples, because the third input is how much margin the
+raid had before it started.
+
+**A five-man heroic can read exactly zero because nobody dies at all.** The
+vigil measures 0.0 at five on both attempts. The diagnostic shows it thrown
+and failed there; there is simply nothing left for a death rate to express.
+Isolation compresses the points column and at five it can compress it flat, at
+which point the share-removed column has no denominator either and both
+columns say nothing rather than saying no.
 
 **Use `scripts/momentprobe.ts` before believing a zero.** A gap of nothing has
-two causes that the gap cannot tell apart: a demand nobody is failing, and a
-demand everybody is failing for too little to matter. It prints casts a pull,
-failures a pull and damage taken per body, and it is the reason the chant is in
-this file at 19.1 rather than discarded at 0.8. Failure counts still may not be
-used to argue a mechanic is alive -- only to explain why it is not.
+two causes the gap cannot tell apart: a demand nobody has to answer, and a
+demand everybody fails for too little to matter. It prints casts a pull,
+failures a pull, deaths and damage per body, and it is the reason the chant is
+in this file at all rather than discarded at 0.8. A failure count still may
+not be used to argue that a mechanic is alive, only to explain why it is not.
 
 ## Traps
 
@@ -224,6 +372,18 @@ used to argue a mechanic is alive -- only to explain why it is not.
   brands nobody bought -- while the check written to catch exactly that
   carried a copy of the same list with the same name missing. Read the set off
   `MECHANIC_IDS`, which comes from a table the compiler forces to be complete.
+- **An id is not a name.** `nextObjectId` numbers every object in a fight --
+  actors, ground, chat lines, floating numbers -- from one, and the raid's own
+  slots are numbered one up to the headcount, so a summoned body can carry a
+  raider's id and `find` walks the party first. Everything summoned before this
+  round arrives forty seconds in, by which point the counter is in the
+  hundreds, so nobody had met it: measured, the counter clears the roster at
+  t=0.03 in a five-man and t=1.53 at ten and twenty-five, and the earliest
+  opening on any table is seven and a half seconds. A check that starts a
+  mechanic at t=0 walks straight into it, and it is not a check-only problem --
+  the bell resolved its own count by killing the raider that shared its id, in
+  silence. Look a summoned body up by faction as well as by id.
+
 - **Checks that bet on a roll.** One check named a raider up front and assumed
   a one-in-ten mark landed on them. It passed only because the brand bug was
   shifting the RNG stream, and broke the moment the bug was fixed. Adopt
@@ -264,9 +424,11 @@ used to argue a mechanic is alive -- only to explain why it is not.
     state.ts       initial timer value in both state constructors
     boss.ts        schedule<Name>() and its call / a branch in the ground loop
     sim.ts         aura expiry, if it needs any
-    ai.ts          a consider() entry in currentDanger, and candidate spots --
-                   or, if the answer is not a position, a branch of its own
-                   before the movement one
+    ai.ts          a consider() entry in currentDanger, and candidate spots
+                   -- or, if the answer is not a walk, an entry in whichever
+                   other channel carries it, and a pair of fields of its own
+                   on AiProfile: the channels must not share a slot, since a
+                   real pull asks all of them at once
     draw.ts        a draw function if it is ground
     icons.ts       boss_<name>, in a colour nothing else uses
     rendercheck.ts an entry in DRAWN, plus assertions of its own
