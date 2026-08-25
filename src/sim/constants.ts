@@ -504,3 +504,138 @@ export const GAZE_ARC = 1.05
  * supposed to bill something.
  */
 export const TURN_RATE = 3.2
+/**
+ * The plate somebody has to stand on, and how long the raid has to send them.
+ *
+ * Laid out past where the raid operates rather than under it. A price nobody
+ * has to walk to is a price the raid pays by standing where it already was,
+ * which is the shape the first handoff had and the reason it measured at
+ * nothing: this party is a blob ninety units across and anything drawn on top
+ * of it is answered before it is read. Out at a hundred and seventy-five,
+ * along the bearing the nominee already holds, it is a deliberate journey
+ * away from the fight and back and it is the same length every cast.
+ *
+ * The count is what a journey of that length needs and no more. Walking clear
+ * of something takes about a third of a second and a reaction fits in what is
+ * left over; this is a walk of a hundred units or so at about a hundred and
+ * sixty a second, which is most of a second on its own, so the count has to
+ * carry that walk plus the room for noticing late.
+ *
+ * Two tenths shorter than it was, and the shortening is the whole of what
+ * this mechanic has: at 2.0 it read 2.5pp at ten, 0.8 at twenty-five and
+ * nothing at all at five, and at 1.7 it reads 2.8 / 0.6 / 2.2, which is real
+ * at every size. What moved was the miss rate rather than the payload, which
+ * is what the arena notes say to expect -- the telegraph is the lever and the
+ * damage is not. What it cost is the share: 85% of the deaths were practice's
+ * to remove at 2.0 and 57% at 1.7, because a shorter count turns some of the
+ * misses into ones nobody could have made.
+ */
+export const TOLL_TELEGRAPH = 1.7
+export const TOLL_RADIUS = 66
+export const TOLL_RANGE = 175
+
+/**
+ * What the toll costs the one who went, and what it costs everybody when
+ * nobody did.
+ *
+ * Flat rather than a share of a bar, which is the whole of the choice. A
+ * fixed number is a different fraction of every body in the raid, so the
+ * nomination is a real decision — send the one with the most left and it is a
+ * heavy hit, send the one the last three mechanics have already worked on and
+ * the toll finishes them. The raid picks whoever can currently afford it, and
+ * a raid that cannot afford it anywhere is a raid that has already lost this
+ * one.
+ *
+ * And the two numbers are the two bad outcomes, priced against each other.
+ * Paying is cheap per pull because one body pays it; not paying is dearer per
+ * pull because all of them do. That ordering is the reason practice has
+ * anything to remove, and it was not the first arrangement tried: with the
+ * paid branch at 760 the raid was billed eleven times a pull whatever it did,
+ * the plate was missed as often on a ninth pull as on a first, and the whole
+ * thing measured 6.0pp with a 16.1 bar around it. A mechanic whose *answered*
+ * branch is expensive bills a practised raid the same total as a green one,
+ * however well it is played, which is the shape that has already been
+ * measured and thrown away twice here.
+ *
+ * The unpaid hit lands on the one body that was asked to go and did not, and
+ * that is the correction this mechanic exists to record. It was a hit on
+ * every living body first, and it produced the raid-wide signature exactly:
+ * 13.0pp at twenty-five, 7.6 at ten and 0.8 with a 3.7 bar at five, which is
+ * nothing -- a rate against a roster, absorbed by a big one and lethal to a
+ * small one with no size in between. On a slope like that the damage number
+ * never settles either: 900 bought 2.9pp, 1400 bought 7.6 and 1900 bought
+ * 20.2, still climbing, because what was being raised was everybody's bill.
+ *
+ * Written to the named body, the mechanic reads 2.8 / 0.6 / 2.2 at ten,
+ * twenty-five and five -- smaller everywhere and real at all three rather
+ * than at one. It also means the number here has one job: to be past the top
+ * of a health bar, so that being asked and not going is fatal. Anything above
+ * that changes nothing, which is what the arena notes say about damage.
+ */
+export const TOLL_PRICE = 320
+export const TOLL_UNPAID = 3400
+
+/**
+ * How far the grasp reaches, and how long it is coming.
+ *
+ * A wide circle on a short count, which is the opposite way round from the
+ * plate above and for the opposite reason. Nobody has anywhere to be: what it
+ * asks is that the ground it named is not the ground you are standing on when
+ * it closes, and the raid clusters, so the circle has to be wider than the
+ * crowd or it is asking one person a question.
+ */
+export const GRASP_TELEGRAPH = 1.7
+export const GRASP_REACH = 118
+
+/**
+ * What it takes, and how much worse everybody else's slowness makes it.
+ *
+ * Billed whole to one body rather than divided among the ones it caught. A
+ * total split between whoever is standing in it is the shape that goes into
+ * the raid unchanged however well it is played -- it has been measured twice
+ * here, on the gathering and on the yoke's first draft, and both times a
+ * practised raid was wiped as reliably as a green one. Concentrated instead,
+ * the sustained cost is one hit a cast whatever the headcount, and what
+ * practice moves is the size of it.
+ *
+ * Capped, because the multiplier is the part that could run away. Six bodies
+ * caught at twenty-five would otherwise bill one of them for six, which is
+ * not a lesson, it is an execution.
+ *
+ * The payload is on a plateau, which is what a bill written to one body does:
+ * 2100 measured 22.5pp and 2600 measured 25.6, error bars overlapping, so the
+ * lower of the two is taken. What the number actually has to do is be lethal
+ * to a body the fight has already worked on and survivable by one it has not,
+ * and 1600 against a dealer's bar is that. The teaching is in the count and
+ * in how many bodies were still inside, not here.
+ */
+export const GRASP_DAMAGE = 1600
+export const GRASP_PER_HEAD = 0.5
+export const GRASP_CAP = 3.0
+
+/**
+ * The stones, and the room on one.
+ *
+ * Exactly as many as it marks, so a raid that divides itself correctly pays
+ * nothing at all. That is deliberate and it is the difference between this
+ * and a mechanic that cannot be practised: one stone short and somebody dies
+ * on every cast however well it was answered, which puts a fixed bill into
+ * the raid and leaves practice nothing to take out.
+ *
+ * Small enough to hold one. Nothing in this game collides, so what makes a
+ * stone hold one body is the rule that only the nearest of the marked keeps
+ * it -- the radius is what says how precisely a body has to arrive, not how
+ * many can stand there.
+ */
+export const REFUGE_TELEGRAPH = 2.2
+export const REFUGE_RADIUS = 46
+export const REFUGE_RING = 175
+
+/**
+ * What being crowded out costs.
+ *
+ * Heavy, because it is the only thing the mechanic does: a raid that sorted
+ * itself takes none of this, so the number is not a per-pull tax, it is the
+ * price of one body being in the wrong place at one instant.
+ */
+export const REFUGE_DAMAGE = 3700

@@ -32,6 +32,8 @@ would suggest.
     spire        9.0      67%
     fault        8.3      96%
     vessel       7.5      39%     over-scales both ways; see below
+    refuge      11.1      49%     and 8.2 / 15.8 at twenty-five and five
+    grasp       10.9      67%     and 16.5 / 22.0
     knell        7.0      41%     real at ten and nowhere else; see below
     yoke         6.7      75%
     echo         6.6      100%
@@ -40,6 +42,7 @@ would suggest.
     chant        4.5      96%     real at five, ten and twenty-five
     vigil        4.2      80%
     crush        3.3      97%
+    toll         2.8      57%     and 0.6 / 2.2
     shallows     2.4      98%
     brand        2.0      69%
     puddle       0.5      83%
@@ -56,12 +59,28 @@ the same round came out like this:
     gaze       7.0   (98%)     9.7   (95%)    27.9   (97%)
     chant      8.3   (89%)     4.5   (96%)     3.4   (93%)
     vigil      0.0              4.2   (80%)     0.2   (88%)
+    grasp     22.0   (63%)    10.9   (67%)    16.5   (66%)
+    refuge    15.8   (64%)    11.1   (49%)     8.2   (54%)
+    toll       2.2   (57%)     2.8   (57%)     0.6   (26%)
 
 Two of them are three or more times the mechanic at the sizes either side of
 the one they were tuned at, and the first pull at those sizes is a wipe: 100%
 of unpractised five-mans and 96.5% of unpractised twenty-fives die to the
 mirror. One number in the middle of a table is not a mechanic's worth, it is
 one reading of it, and a rung sold at every size is sold at all three.
+
+The three below them are the same exercise done deliberately, and what the
+sweep is *for* is visible in them: none of the three arrived in that shape.
+The grasp at one reach per ten bodies read 22.5pp at ten and looked like the
+best thing in the field, and at twenty-five it was killing 66.3% of
+unpractised raids and 24.3% of practised ones -- the burden's failure, three
+near-lethal bills written in one instant. Capped at one bill an instant it
+lands where it is above, with two thirds of its deaths removed at every size.
+The toll's first arrangement billed the raid rather than a body and read
+13.0 / 7.6 / nothing across the three; billed to the one who was asked to go,
+it is small everywhere instead of large in one place. A mechanic that is even
+across the sweep is worth more than one that is tall in the middle of it, and
+neither is visible from a single reading.
 
 The burden is the one to be careful with. At twenty-five it runs five chains
 at once, each tying up three bodies, so fifteen of twenty-five are carrying or
@@ -137,6 +156,18 @@ bound above zero at 250 pairs -- and it has to earn its rung against that list.
    ten-mans died; at twenty-five it caught proportionally more and 96.5% died.
    Cap how many bills one instant may write, the way area denial caps how much
    ground may be out.
+
+   The cap is a real design decision and not a safety valve, and it is worth
+   spending the sweep to find it. The grasp writes one near-lethal bill per
+   reach; at one reach per ten bodies it read 22.5pp at ten and looked like
+   the best thing in the field, and the same setting at twenty-five put three
+   of them in one instant, killed 66.3% of unpractised raids and 24.3% of
+   practised ones. Held to one bill an instant whatever the headcount it
+   teaches 22.0 / 10.9 / 16.5 across the three sizes with two thirds of its
+   deaths removed at each. What was allowed to scale instead was the *size*
+   of the one bill -- a bigger raid puts more bodies inside the circle, so the
+   body it catches owes more. The roster is allowed to make a mechanic harder;
+   it is not allowed to make an instant unanswerable.
 
 ## What actually moves the number
 
@@ -228,6 +259,15 @@ So: **if the answer to a mechanic is a raid-wide hit, expect it to exist at
 one raid size only** unless the boss carries a weight for it. Bill bodies, not
 rosters.
 
+Confirmed a second time, on a mechanic built the wrong way round before this
+was written down. The toll's failure was a hit on every living body, and it
+produced the signature exactly: 13.0pp at twenty-five, 7.6 at ten, and 0.8
+with a 3.7 bar at five, which is nothing. The same code with the failure
+billed to the one body the raid had asked to go reads 0.6 / 2.8 / 2.2 --
+small everywhere instead of large in one place, and `real` at all three
+rather than at one. The points went *down* and the mechanic got better,
+which is the whole reason the sweep is worth more than the middle column.
+
 **And not how long the hazard stays, either.** Over a fourfold range at 250
 pairs each -- 6s 8.7pp, 10s 9.0, 16s 7.8, 24s 10.0 -- linger sat inside its
 own error bar. What teaches is the instant it lands, not the ground it leaves.
@@ -262,13 +302,68 @@ Denial also multiplies badly against a boss whose other rungs all say *stand
 somewhere specific* -- the cone's blind side, the ring's gap -- and it stayed a
 wipe with the damage cut to 300, so that part is the denial rather than the
 payload. A boss with no shape of its own absorbs it.
+**Which branch the cost is on, for anything with two of them.** A mechanic
+that offers the raid a choice has an answered branch and a failed one, and
+everything depends on which of them carries the bill. The toll was first
+written with a heavy payment and a moderate failure: somebody always pays it,
+so the raid was billed eleven times a pull whatever it did, and the answered
+branch alone was worth more per pull than every failure put together. It
+measured 6.0pp with a 16.1 bar around it -- which is to say nothing at all,
+and it would have measured nothing at any telegraph, because the number the
+probe reads was mostly a fixed tax. Moved the other way round -- a scratch
+for going and a real hit for not -- the same mechanic, the same count and the
+same code became a teacher. The rule generalises to every mechanic already
+here: what practice can remove is the difference between the branches, so a
+design puts as little as it can get away with on the branch the raid takes
+when it is playing well.
 
-**For anything involving a second person:** a name that is recomputed is not a
+**A stat is not a person, and reading one names a role.** The toll picks
+whoever can best afford the price, and the first version read that as the most
+health -- which is the biggest bar, which is plate, which is a melee dealer,
+which stands at the boss. Measured: it named a melee dealer on 292 of 293
+casts, and a melee dealer is the furthest body in the raid from anywhere the
+mechanic can put a plate. It failed eighty units short every time it failed
+and it was eighty units short on a ninth pull as reliably as on a first.
+Reading the same question as a *share* of a bar instead spread the nomination
+across every role and turned a structural failure into a reaction the practice
+curve moves. Anything that picks a body off a number should be checked against
+what that number is a proxy for.
+
+**A journey has to be the same length every time it is asked for.** The plate
+was first laid at a rolled bearing anywhere in the arena, which made the walk
+fifteen units for whoever happened to be near it and three hundred for whoever
+was not. That is not a mechanic with a window in it: it is one that is free or
+impossible depending on where the last cast left everybody, and no count can
+be right for both. Anchored on the bearing the nominated body already holds,
+the walk is about a hundred units every time and the count has one job.
+
+**Damage on a failure branch is a slope while the bill is a raid-wide one,
+and a plateau once it is a body's.** The toll's unpaid hit while it was still
+written to the whole roster, 250 pairs a setting: 900 for 2.9pp, 1400 for 7.6,
+1900 for 20.2 -- still climbing at the top, with no middle to take, because
+what was being raised was a rate applied to everybody. The grasp, which bills
+one body, behaves the way "not damage, past a point" says: 2100 for 22.5pp and
+2600 for 25.6, two readings whose error bars overlap. So the shape of the
+damage sweep tells you which kind of bill you have written, and a sweep with
+no plateau in it is a sign to go and look at who is paying rather than to keep
+turning the dial.
+
+**The boss more than the mechanic.** The same code taught 26pp on one boss and
+16 on another, and made the first unbeatable at every difficulty while leaving
+the second fair. Floor denial multiplies badly against a boss whose other
+rungs all say *stand somewhere specific* -- the cone's blind side, the ring's
+gap -- and it was still a wipe with damage cut to 300, so the cause is the
+denial, not the payload. A boss with no shape of its own absorbs it.
+
+**For anything that names somebody, or sends them somewhere:** a name that is recomputed is not a
 name -- asking "who is furthest" every tick meant the answer changed as soon
 as the bearer took two steps, and 32 casts a pull resolved with the carrier
 alone. And a commitment that ends when it is met is not a commitment: bearers
 that stopped reacting on arrival walked home and were outside again by the
-time it mattered.
+time it mattered. Both rules held for the round after the one that found them
+-- the plate and the stones keep their danger live until the shape resolves
+rather than until the walk finishes, and both write the choice onto the shape
+at the instant it is cast.
 
 ## A demand can be a moment rather than a place
 

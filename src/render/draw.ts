@@ -4,12 +4,15 @@ import {
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
   GAZE_TELEGRAPH,
+  GRASP_TELEGRAPH,
+  REFUGE_TELEGRAPH,
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   PUDDLE_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
   VIGIL_TELEGRAPH,
+  TOLL_TELEGRAPH,
   YOKE_REACH,
   ARENA_RADIUS,
 } from '../sim/constants'
@@ -534,6 +537,21 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'toll') {
+      drawToll(ctx, s, g, p, r, clock)
+      continue
+    }
+
+    if (g.kind === 'grasp') {
+      drawGrasp(ctx, g, p, r, clock)
+      continue
+    }
+
+    if (g.kind === 'refuge') {
+      drawRefuge(ctx, s, g, r, clock)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
@@ -675,6 +693,137 @@ function drawShallows(
     ctx.setLineDash([])
   }
   ctx.restore()
+}
+
+/**
+ * The plate, and whether anybody is standing on it.
+ *
+ * The count is drawn as a ring closing the way the gathering's is, because it
+ * is the same kind of question -- a place somebody has to be at a moment --
+ * and the difference is the number in the middle, which is one or nothing
+ * rather than a tally of the raid.
+ */
+function drawToll(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+  clock: number,
+): void {
+  if (g.detonated) return
+  const paid = s.actors.some(
+    (a) => a.faction === 'party' && a.alive && dist(a.pos, g.pos) <= g.radius,
+  )
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / TOLL_TELEGRAPH))
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = paid ? 'rgba(245, 158, 11, 0.20)' : 'rgba(245, 158, 11, 0.10)'
+  ctx.fill()
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(2, r * (1 - closing * 0.7)), 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(252, 211, 77, 0.6)'
+  ctx.lineWidth = 2
+  ctx.setLineDash([5, 6])
+  ctx.lineDashOffset = clock * 22
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.strokeStyle = paid ? '#fcd34d' : 'rgba(252, 211, 77, 0.8)'
+  ctx.lineWidth = paid ? 3 : 2
+  ctx.stroke()
+
+  ctx.fillStyle = paid ? '#fcd34d' : '#e2e8f0'
+  ctx.font = font(15, true)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(paid ? '1' : '0', p.x, p.y)
+  ctx.textBaseline = 'alphabetic'
+}
+
+/**
+ * The reach, closing inward.
+ *
+ * Drawn the other way round from every telegraph here: the ring shrinks
+ * toward the middle rather than filling out to the rim, because what is
+ * coming is not the circle going off, it is the circle taking hold of
+ * whatever is left nearest its centre.
+ */
+function drawGrasp(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+  clock: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / GRASP_TELEGRAPH))
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(124, 58, 237, ${(0.08 + 0.14 * closing).toFixed(3)})`
+  ctx.fill()
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(167, 139, 250, 0.75)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(3, r * (1 - closing)), 0, Math.PI * 2)
+  ctx.strokeStyle = '#a78bfa'
+  ctx.lineWidth = 2 + 4 * closing
+  ctx.setLineDash([7, 5])
+  ctx.lineDashOffset = -clock * 30
+  ctx.stroke()
+  ctx.setLineDash([])
+}
+
+/**
+ * The stones, and which one is being walked to.
+ *
+ * The player's own is drawn heavier than the rest. Every other piece of
+ * ground in this game means the same thing to everybody looking at it; these
+ * mean "yours" and "somebody else's", and a picture that cannot say which is
+ * a picture of a mechanic nobody can perform.
+ */
+function drawRefuge(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  r: number,
+  clock: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / REFUGE_TELEGRAPH))
+  const player = s.actors.find((a) => a.isPlayer)
+  const mark = player ? getAura(player, 'refuge') : undefined
+  const mine = mark ? mark.stacks - 1 : -1
+
+  const spots = g.spots ?? []
+  for (let i = 0; i < spots.length; i++) {
+    const at = worldToScreen(spots[i]!)
+    const own = i === mine
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = own ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.08)'
+    ctx.fill()
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.strokeStyle = own ? '#67e8f9' : 'rgba(103, 232, 249, 0.45)'
+    ctx.lineWidth = own ? 2 + 5 * closing : 2
+    ctx.setLineDash([8, 6])
+    ctx.lineDashOffset = -clock * 20
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
 }
 
 /** Frontal cone: fills toward the tip as the cast completes. */

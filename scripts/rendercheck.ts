@@ -123,6 +123,9 @@ import {
   TURN_RATE,
   VIGIL_HELD,
   VIGIL_TELEGRAPH,
+  GRASP_REACH,
+  REFUGE_RADIUS,
+  TOLL_RADIUS,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -3619,6 +3622,30 @@ for (const [label, w, h] of [
     thrown.set('collapse', ids)
   }
 
+  // The three about who pays. Like the five above they are on no ladder yet,
+  // and like the two handoffs they resolve on a clock rather than on contact,
+  // so a floor that buys them throws them whether or not the party manages
+  // anything about it.
+  {
+    const billed = floorWith(
+      { toll: 9, grasp: 8, refuge: 12 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (billed.outcome === 'ongoing' && billed.time < 150) {
+      step(billed, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of billed.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor that lays a plate collects on it', ids.has('boss_toll'), 'it drew nothing')
+    expect('and one that reaches takes hold of somebody', ids.has('boss_grasp'), 'it drew nothing')
+    expect('and one that counts out stones counts them', ids.has('boss_refuge'), 'it drew nothing')
+    thrown.set('billed', ids)
+  }
+
   // The two whose answer is another person. Both resolve on a clock rather
   // than on contact, so a floor that buys them throws them whatever the party
   // does — which is what makes them checkable here at all.
@@ -4785,15 +4812,18 @@ for (const [label, w, h] of [
 //
 // One mechanic whose demand is on the party's formation rather than on
 // anybody's footwork: the schism cuts the raid into groups and asks that the
-// groups do not touch.
+// groups do not touch, and the three after it are all about who pays -- a
+// plate one body has to be standing on, a reach that bills whoever it was
+// left nearest, and stones there are exactly enough of.
 //
-// It is on no boss's ladder. Where it belongs is a question about which fight
-// wants the demand and it is not answered here, so what is checked below is
-// that it works rather than that it is placed — the rule that ties a boss's
-// line to a boss's rung is the one part of the usual plumbing that cannot be
-// applied to a mechanic no rung has reached.
+// None of them is on a boss's ladder. Which rung of which one they belong on
+// is a question about the shape of a fight rather than about the mechanic and
+// it is not answered here, so what is checked below is that they work rather
+// than that they are placed — the rule that ties a boss's line to a boss's
+// rung is the one part of the usual plumbing that cannot be applied to a
+// mechanic no rung has reached.
 {
-  const SHAPES = ['schism'] as const
+  const SHAPES = ['schism', 'toll', 'grasp', 'refuge'] as const
 
   for (const id of SHAPES) {
     expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
@@ -7790,6 +7820,9 @@ function floorWith(
   s.next.vigil = every.vigil === undefined ? 0 : every.vigil * 0.45
   s.next.chant = every.chant === undefined ? 0 : every.chant * 0.45
   s.next.gaze = every.gaze === undefined ? 0 : every.gaze * 0.45
+  s.next.toll = every.toll === undefined ? 0 : every.toll * 0.45
+  s.next.grasp = every.grasp === undefined ? 0 : every.grasp * 0.45
+  s.next.refuge = every.refuge === undefined ? 0 : every.refuge * 0.45
   return s
 }
 
@@ -9500,6 +9533,239 @@ for (const [label, w, h] of [
     CHANT_CAST < GLOBAL_COOLDOWN && CHANT_NOTICE > 1,
     `${CHANT_CAST} at a notice of ${CHANT_NOTICE}`,
   )
+}
+
+// --- the three about who pays ---------------------------------------------
+//
+// A plate one body has to be standing on, a reach that bills whoever it was
+// left nearest, and stones there are exactly enough of. What they have in
+// common is that the raid decides who takes the hit, so what is checked here
+// is the deciding: that the nomination is written down rather than worked out
+// again, that the bill lands on one body rather than being spread across
+// everybody who was slow, and that a stone holds one.
+//
+// Nothing below names a raider up front and hopes a roll lands on them. Where
+// a body has to be the one the mechanic chose, it is read off the mechanic;
+// where the state matters, it is assigned here.
+{
+  // A floor that buys one thing, so a reading is about the shape on the floor
+  // and not about whatever else was scheduled in the same second. Bars are
+  // raised out of range of anything else the boss does, so a hit from this
+  // mechanic cannot be confused with a swing, and nobody dies mid-check.
+  const staged = (every: Partial<Record<MechanicId, number>>): SimState => {
+    const s = unattended(floorWith(every))
+    for (const a of s.actors) {
+      if (a.faction !== 'party') continue
+      a.ai = null
+      a.maxHp = 200000
+      a.hp = a.maxHp
+      a.pos = { x: 330, y: 330 }
+    }
+    return s
+  }
+
+  const blank = (kind: SimState['ground'][number]['kind']): SimState['ground'][number] => ({
+    id: 1,
+    kind,
+    pos: { x: 0, y: 0 },
+    radius: 0,
+    // Half a tick, so one step takes it past zero and resolves it.
+    telegraph: DT * 0.5,
+    lingering: 0,
+    damage: 6000,
+    detonated: false,
+    angle: 0,
+    halfWidth: 0,
+    growth: 0,
+    band: 0,
+    caught: [],
+    turn: 0,
+    pulses: 0,
+  })
+
+  // A floor under what counts as this mechanic's hit, so a swing landing in
+  // the same tick cannot be read as one. The shapes below are given a payload
+  // far above anything else the boss does; the plate's unpaid branch is the
+  // exception, because that number is the constant rather than the shape's,
+  // so it gets a lower floor of its own.
+  const billed = (s: SimState, before: Map<number, number>, floor = 1500): number[] =>
+    s.actors
+      .filter((a) => a.faction === 'party' && (before.get(a.id) ?? 0) - a.hp > floor)
+      .map((a) => a.id)
+
+  const resolve = (s: SimState): number[] => {
+    const before = new Map(s.actors.map((a) => [a.id, a.hp]))
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+    return billed(s, before)
+  }
+
+  const dealers = (s: SimState) =>
+    s.actors.filter((a) => a.faction === 'party' && a.alive && a.role !== 'tank')
+
+  // --- the plate -----------------------------------------------------------
+  {
+    const s = staged({ toll: 900 })
+    const free = dealers(s)
+    const near = free[0]!
+    const also = free[1]!
+    near.pos = { x: 8, y: 0 }
+    also.pos = { x: 45, y: 0 }
+    s.ground = [{ ...blank('toll'), radius: TOLL_RADIUS, named: near.id }]
+    const paid = resolve(s)
+    expect('somebody on the plate pays it alone', paid.length === 1, `${paid.length} paid`)
+    expect(
+      'and it is whoever is nearest the middle of it',
+      paid[0] === near.id,
+      `${paid[0]} against ${near.id}`,
+    )
+  }
+  {
+    // Nobody went, so the body that was asked to go pays it -- and only that
+    // body. It was written to the whole raid first, and a raid-wide bill is a
+    // rate that a bigger roster absorbs and a smaller one cannot: measured,
+    // the same code taught 13.0 points at twenty-five, 7.6 at ten and nothing
+    // at five. What is checked here is that the bill lands where the choosing
+    // did, and that one instant writes one of them.
+    const s = staged({ toll: 900 })
+    const free = dealers(s)
+    const named = free[0]!
+    s.ground = [{ ...blank('toll'), radius: TOLL_RADIUS, named: named.id }]
+    const before = new Map(s.actors.map((a) => [a.id, a.hp]))
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+    const unpaid = billed(s, before, 900)
+    expect(
+      'and a plate nobody stood on is paid by the one who was asked',
+      unpaid.length === 1 && unpaid[0] === named.id,
+      `${unpaid.join(',')} against ${named.id}`,
+    )
+  }
+  {
+    // The nomination, over a real pull. Read off the plate rather than worked
+    // out here, and watched for the whole of its count: a name that is
+    // recomputed answers with a different body every time anybody takes a hit,
+    // which is the failure the yoke already paid for.
+    const s = unattended(floorWith({ toll: 8 }))
+    const rng = new Rng(0x51ed)
+    const said = new Map<number, number>()
+    let plates = 0
+    let moved = 0
+    let tanks = 0
+    while (s.outcome === 'ongoing' && s.time < 90) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const g of s.ground) {
+        if (g.kind !== 'toll' || g.named === undefined) continue
+        const was = said.get(g.id)
+        if (was === undefined) {
+          said.set(g.id, g.named)
+          plates++
+          if (s.actors.find((a) => a.id === g.named)?.role === 'tank') tanks++
+        } else if (was !== g.named) {
+          moved++
+        }
+      }
+    }
+    expect('a pull is full of plates', plates >= 4, `${plates} in ninety seconds`)
+    expect('each names one body and keeps naming it', moved === 0, `${moved} changed name`)
+    expect('and never the one holding the boss', tanks === 0, `${tanks} tanks named`)
+  }
+
+  // --- the reach -----------------------------------------------------------
+  {
+    const bill = (extra: number): { paid: number[]; lost: number } => {
+      const s = staged({ grasp: 900 })
+      const free = dealers(s)
+      free[0]!.pos = { x: 6, y: 0 }
+      for (let i = 1; i <= extra; i++) free[i]!.pos = { x: 40 + i * 12, y: 0 }
+      s.ground = [{ ...blank('grasp'), radius: GRASP_REACH }]
+      const before = new Map(s.actors.map((a) => [a.id, a.hp]))
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+      const paid = billed(s, before)
+      return { paid, lost: (before.get(free[0]!.id) ?? 0) - free[0]!.hp }
+    }
+    const alone = bill(0)
+    const crowd = bill(3)
+    expect('the reach bills one body', alone.paid.length === 1, `${alone.paid.length}`)
+    expect('and still one when it caught four', crowd.paid.length === 1, `${crowd.paid.length}`)
+    expect(
+      'and it is dearer for the ones it did not bill',
+      crowd.lost > alone.lost * 1.4,
+      `${crowd.lost.toFixed(0)} against ${alone.lost.toFixed(0)}`,
+    )
+  }
+  {
+    // The one holding the boss cannot answer it, so it does not reach for
+    // them -- even standing on the middle of it.
+    const s = staged({ grasp: 900 })
+    const tank = s.actors.find((a) => a.faction === 'party' && a.role === 'tank')
+    const free = dealers(s).filter((a) => a.role !== 'tank')
+    expect('the party fields somebody holding the boss', tank !== undefined, 'it does not')
+    if (tank) tank.pos = { x: 0, y: 0 }
+    free[0]!.pos = { x: 50, y: 0 }
+    s.ground = [{ ...blank('grasp'), radius: GRASP_REACH }]
+    const paid = resolve(s)
+    expect(
+      'and the reach passes over them for somebody further out',
+      paid.length === 1 && paid[0] === free[0]!.id,
+      paid.join(','),
+    )
+  }
+
+  // --- the stones ----------------------------------------------------------
+  {
+    const stones = [
+      { x: 0, y: 0 },
+      { x: 300, y: 0 },
+    ]
+    const counted = (together: boolean): { paid: number[]; cleared: boolean } => {
+      const s = staged({ refuge: 900 })
+      const free = dealers(s)
+      const one = free[0]!
+      const two = free[1]!
+      addAura(one, 'refuge', BOSS_ID)
+      getAura(one, 'refuge')!.stacks = 1
+      addAura(two, 'refuge', BOSS_ID)
+      getAura(two, 'refuge')!.stacks = 2
+      one.pos = { x: 0, y: 0 }
+      two.pos = together ? { x: 18, y: 0 } : { x: 300, y: 0 }
+      s.ground = [
+        { ...blank('refuge'), radius: REFUGE_RADIUS, spots: stones.map((spot) => ({ ...spot })) },
+      ]
+      const paid = resolve(s)
+      return { paid, cleared: getAura(one, 'refuge') === undefined }
+    }
+
+    const apart = counted(false)
+    const stacked = counted(true)
+    expect('a stone each and nobody pays', apart.paid.length === 0, apart.paid.join(','))
+    expect('two on one stone and one of them does', stacked.paid.length === 1, stacked.paid.join(','))
+    expect('and the marks do not outlive the stones', apart.cleared, 'one was still wearing it')
+  }
+  {
+    // Over a real pull: as many stones as marks, and never a mark on whoever
+    // is holding the boss.
+    const s = unattended(floorWith({ refuge: 11 }))
+    const rng = new Rng(0x51ed)
+    let counts = 0
+    let mismatched = 0
+    let tanks = 0
+    const seen = new Set<number>()
+    while (s.outcome === 'ongoing' && s.time < 90) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const g of s.ground) {
+        if (g.kind !== 'refuge' || g.detonated || seen.has(g.id)) continue
+        seen.add(g.id)
+        counts++
+        const marked = s.actors.filter(
+          (a) => a.faction === 'party' && a.alive && getAura(a, 'refuge') !== undefined,
+        )
+        if (marked.length !== (g.spots ?? []).length) mismatched++
+        tanks += marked.filter((a) => a.role === 'tank').length
+      }
+    }
+    expect('a pull is full of stones', counts >= 3, `${counts} in ninety seconds`)
+    expect('there is one stone a mark', mismatched === 0, `${mismatched} counts were short`)
+    expect('and the one holding the boss is never sent for one', tanks === 0, `${tanks}`)
+  }
 }
 
 // --- no mechanic's branch answers for another mechanic --------------------

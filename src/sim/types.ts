@@ -46,6 +46,7 @@ export type AuraId =
   | 'chant' // boss: named to cut the note, and the raid pays if it is not cut
   | 'mirror' // boss: its own surface is closed, and what goes in comes back
   | 'spoil' // boss: you struck the thing that was not to be broken
+  | 'refuge' // boss: which of the stones is yours, and there is one each
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -277,6 +278,14 @@ export type GroundKind =
   | 'vigil'
   | 'chant'
   | 'gaze'
+  // The plate somebody has to walk into and pay at, so that the rest of them
+  // do not.
+  | 'toll'
+  // The reach that takes hold of whoever it is left nearest to, and bills
+  // them for everybody else who was slow as well.
+  | 'grasp'
+  // The stones there are exactly enough of, one body to each.
+  | 'refuge'
 
 export interface GroundEffect {
   id: number
@@ -324,6 +333,17 @@ export interface GroundEffect {
    * a list of places.
    */
   sides?: number
+  /**
+   * toll: the body the raid nominated to go and pay it.
+   *
+   * Written down when the plate is laid and never asked again, for the reason
+   * the yoke's bearer is. "Whoever can best afford this" is a question whose
+   * answer moves every time anybody takes a hit, and a nomination that moves
+   * is a raid where two people set off, one of them turns round halfway, and
+   * the plate is unpaid at the count. The choice is made once, out loud, and
+   * then it is that person's to walk.
+   */
+  named?: number
 }
 
 /**

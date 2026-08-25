@@ -6,8 +6,10 @@ import {
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
+  GRASP_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
+  REFUGE_TELEGRAPH,
   SCHISM_MUSTER_ROOM,
   GLOBAL_COOLDOWN,
   SCHISM_ROOM,
@@ -16,6 +18,7 @@ import {
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
   VIGIL_HELD,
+  TOLL_TELEGRAPH,
   YOKE_REACH,
 } from './constants'
 import {
@@ -47,7 +50,9 @@ import {
   interruptCast,
   livingParty,
   mostHurt,
+  refugeStone,
   say,
+  tollPayer,
   topThreatTarget,
 } from './combat'
 import type { Rng } from './rng'
@@ -203,6 +208,12 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'Take this off me')
     } else if (danger.startsWith('burden:')) {
       say(s, actor, 'Bring it here')
+    } else if (danger.startsWith('toll')) {
+      say(s, actor, 'I have got the plate')
+    } else if (danger.startsWith('grasp')) {
+      say(s, actor, 'Off that ground, it is reaching')
+    } else if (danger.startsWith('refuge')) {
+      say(s, actor, 'Taking my stone')
     } else if (danger === 'yoke:self') {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
@@ -840,6 +851,60 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // The plate, and the one body the raid put against it. Its urgency is
+    // the gathering's rather than a pool's, and for the gathering's reason:
+    // everything else on this list costs whoever got it wrong, and this one
+    // costs everybody else when the nominee gets it wrong.
+    //
+    // The danger does not go quiet when the nominee arrives, which is the
+    // yoke's lesson written down a second time. A commitment that ends the
+    // moment it is met is not a commitment: read the other way, standing on
+    // the plate clears the danger, the AI is told it is out of position, and
+    // it walks home and is off the plate again by the count.
+    if (g.kind === 'toll') {
+      if (!g.detonated) {
+        const named = tollPayer(s, g)
+        const mine = named !== null && named.id === actor.id
+        // Everyone else is in danger only while they are standing on it. Not
+        // because it hurts them -- it does not -- but because the bill goes to
+        // whoever is nearest the middle, so a body that wandered on has taken
+        // the payment off the one who can afford it and put it on itself.
+        if (mine || dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+          consider(`toll:${g.id}`, 84 + (TOLL_TELEGRAPH - g.telegraph) * 6)
+        }
+      }
+      continue
+    }
+
+    // The reach about to close. Ranked with the caving band: one hit at a
+    // known instant, and being a tenth of a second late is the whole of it.
+    //
+    // Deliberately on this path rather than left to the spot check alone. The
+    // answer to it is nothing more than being further out than somebody else,
+    // which `isSpotSafe` would satisfy on its own and satisfy identically on a
+    // first pull and a ninth -- the reaction delay and the fumble live here,
+    // so a mechanic that never becomes the most urgent thing is a mechanic
+    // practice cannot touch.
+    if (g.kind === 'grasp') {
+      if (!g.detonated && actor.role !== 'tank') {
+        if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+          consider(`grasp:${g.id}`, 90 + (GRASP_TELEGRAPH - g.telegraph) * 11)
+        }
+      }
+      continue
+    }
+
+    // Having been given a stone, and not yet being on it. Live until the
+    // stones resolve rather than until the walk is finished, for the reason
+    // the plate above is and the split before it: a body whose danger clears
+    // on arrival is told it is out of position and walks home.
+    if (g.kind === 'refuge') {
+      if (!g.detonated && getAura(actor, 'refuge') !== undefined) {
+        consider(`refuge:${g.id}`, 86 + (REFUGE_TELEGRAPH - g.telegraph) * 9)
+      }
+      continue
+    }
+
     if (g.kind === 'shockwave') {
       // Only a ring that has not reached you yet. One that has already swept
       // past is still on the floor — it lingers for the length of the fight —
@@ -974,6 +1039,12 @@ function caving(s: SimState, spot: Vec2): boolean {
   return s.ground.some((g) => {
     if (g.detonated) return false
     if (g.kind === 'crush') return dist(spot, g.pos) <= g.radius + DANGER_MARGIN
+    // The fourth narrow case, and it is the crush's exactly: the reach is
+    // drawn on the ground the raid was already standing on, so home is inside
+    // it, and a body that stepped out early would turn round and walk back
+    // into the thing it had just left. Narrow like the others -- it stops the
+    // walk back and does nothing to make the walk out happen.
+    if (g.kind === 'grasp') return dist(spot, g.pos) <= g.radius + DANGER_MARGIN
     if (g.kind === 'fault') return onFault(spot, g)
     if (g.kind === 'shallows') return !onShallows(spot, g)
     return false
@@ -1086,6 +1157,42 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
       const muster = musterFor(s, actor)
       if (muster && dist(spot, muster) <= SCHISM_MUSTER_ROOM) continue
       if (clashingWith(s, actor, spot, g.radius + DANGER_MARGIN)) return false
+      continue
+    }
+    // Inverted for one body and ordinary for everybody else, which is the
+    // only entry on this list that reads differently depending on who is
+    // asking. The nominee is unsafe anywhere but on it; everyone else is
+    // unsafe on it, because standing there takes the bill off the person the
+    // raid decided could pay it.
+    //
+    // Written as a safety rule and not only as a score, the way the weight's
+    // is: without it a nominee settles for a candidate that scored well and
+    // was still two paces short, and two paces short of a plate is a plate
+    // nobody stood on.
+    if (g.kind === 'toll') {
+      if (g.detonated) continue
+      const named = tollPayer(s, g)
+      if (named !== null && named.id === actor.id) {
+        if (dist(spot, g.pos) > g.radius - actor.radius) return false
+        continue
+      }
+      if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
+      continue
+    }
+    if (g.kind === 'grasp') {
+      if (g.detonated) continue
+      if (actor.role !== 'tank' && dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
+      continue
+    }
+    // Only your own stone counts as floor. A spot on somebody else's is not
+    // safe and is not meant to read as safe: the nearest of the marked keeps
+    // it, so arriving on the wrong one is how a raid turns one body's late
+    // start into two bodies paying.
+    if (g.kind === 'refuge') {
+      if (g.detonated) continue
+      const mark = getAura(actor, 'refuge')
+      const stone = mark ? refugeStone(g, mark) : null
+      if (stone && dist(spot, stone) > g.radius - actor.radius) return false
       continue
     }
     // Inverted: this is the one piece of ground that is only safe from the
@@ -1302,6 +1409,40 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           })
         }
       }
+    } else if (g.kind === 'toll' && !g.detonated) {
+      // Two hundred units of empty arena away, which the rings sampled around
+      // a body will never land on. The same problem the gathering's circle
+      // has and the same answer: offer the place rather than hope to stumble
+      // onto it.
+      const named = tollPayer(s, g)
+      if (named !== null && named.id === actor.id) {
+        candidates.push({ x: g.pos.x, y: g.pos.y })
+        for (let i = 0; i < 6; i++) {
+          const angle = offset + (i / 6) * Math.PI * 2
+          candidates.push({
+            x: g.pos.x + Math.cos(angle) * g.radius * 0.4,
+            y: g.pos.y + Math.sin(angle) * g.radius * 0.4,
+          })
+        }
+      }
+    } else if (g.kind === 'refuge' && !g.detonated) {
+      // The one stone this body was given, and nothing else on the ring. The
+      // others are offered to nobody, on purpose: a candidate list that holds
+      // every stone is a body that re-picks the nearest one every tick, and
+      // the whole mechanic is that the division was agreed before the walking
+      // started.
+      const mark = getAura(actor, 'refuge')
+      const stone = mark ? refugeStone(g, mark) : null
+      if (stone) {
+        candidates.push({ x: stone.x, y: stone.y })
+        for (let i = 0; i < 6; i++) {
+          const angle = offset + (i / 6) * Math.PI * 2
+          candidates.push({
+            x: stone.x + Math.cos(angle) * g.radius * 0.4,
+            y: stone.y + Math.sin(angle) * g.radius * 0.4,
+          })
+        }
+      }
     } else if (g.kind === 'breath' && !g.detonated) {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
@@ -1361,6 +1502,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let crushActive = false
     let schismActive = false
     let strandedActive = false
+    let sentActive = false
     for (const g of s.ground) {
       if (g.kind === 'breath') {
         if (!g.detonated && insideCone(candidate, g)) score -= 1400
@@ -1426,6 +1568,47 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       if (g.kind === 'echo') {
         if (g.detonated) continue
         if (dist(candidate, g.pos) <= g.radius + DANGER_MARGIN) score -= 1200
+        continue
+      }
+      // The plate. Worth more to the one who was named than the cone is worth
+      // avoiding, for the gathering's reason: a nominee that trickles toward
+      // it and stops short has not halved the bill, it has moved it onto
+      // everybody.
+      if (g.kind === 'toll') {
+        if (g.detonated) continue
+        const named = tollPayer(s, g)
+        const d = dist(candidate, g.pos)
+        if (named !== null && named.id === actor.id) {
+          sentActive = true
+          if (d <= g.radius - actor.radius) score += 900
+          else score -= Math.min(1600, d * 2.4)
+        } else if (d <= g.radius + DANGER_MARGIN) {
+          score -= 1500
+        }
+        continue
+      }
+      // The reach. A flat cost for being inside it and a shallow gradient
+      // outside, because what it actually charges is being *nearest* -- a
+      // raid that lines up along the rim has answered the shape and not the
+      // rule, and the body a pace behind the rest of them still pays.
+      if (g.kind === 'grasp') {
+        if (g.detonated) continue
+        if (actor.role === 'tank') continue
+        const d = dist(candidate, g.pos)
+        if (d <= g.radius + DANGER_MARGIN) score -= 1500
+        else score += Math.min(200, (d - g.radius) * 1.4)
+        continue
+      }
+      // The stone this one was given, and only that one.
+      if (g.kind === 'refuge') {
+        if (g.detonated) continue
+        const mark = getAura(actor, 'refuge')
+        const stone = mark ? refugeStone(g, mark) : null
+        if (!stone) continue
+        sentActive = true
+        const d = dist(candidate, stone)
+        if (d <= g.radius - actor.radius) score += 950
+        else score -= Math.min(1600, d * 2.4)
         continue
       }
       if (g.kind === 'shockwave') {
@@ -1536,7 +1719,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (soakActive || strandedActive) {
+    if (soakActive || strandedActive || sentActive) {
       // Standing in it beats standing in range of anything. Suspended the
       // same way the ring suspends the casters' spacing, and for melee too:
       // the boss is not going anywhere in five seconds.
@@ -1546,6 +1729,11 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // the patches are three, and a term that pays for standing near the boss
       // would pick the nearest one for everybody — which is a mechanic
       // answered by walking wherever the fight already was.
+      //
+      // And the same again for a body that has been sent somewhere by name:
+      // the plate it has to pay at and the stone it was given are both places
+      // rather than distances, and a term that argues for standing where the
+      // role wants to stand argues against the only spot that answers.
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.

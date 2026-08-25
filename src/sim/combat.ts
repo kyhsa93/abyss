@@ -18,6 +18,8 @@ import {
   MELEE_RANGE,
   SPREAD_RADIUS,
   YOKE_ALONE,
+  GRASP_CAP,
+  GRASP_PER_HEAD,
   YOKE_REACH,
   YOKE_SHARE,
 } from './constants'
@@ -29,6 +31,7 @@ import type {
   AuraId,
   EffectEvent,
   FloatingText,
+  GroundEffect,
   ProjectileKind,
   SimState,
   Vec2,
@@ -94,6 +97,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // the ground effect is what resolves the mechanic, and a mark that expired
   // one tick early would leave the note landing on a raid it had never named.
   chant: CHANT_CAST + 0.4,
+  // The same: a label saying which stone is yours, alive only for as long as
+  // the count on the stones. What decides the mechanic is the ground effect
+  // resolving, not this running out.
+  refuge: 2.8,
   // Only a label, and only until the split resolves. What decides the
   // mechanic is the ground effect counting down, not this running out; this
   // is what says which group you are in while it does.
@@ -762,6 +769,50 @@ export function breakRot(s: SimState, carrier: Actor): void {
   applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
   pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_rot', power: damage })
   s.sounds.push('raid')
+}
+
+/**
+ * The one the raid nominated to go and pay the toll, read off the plate.
+ *
+ * Off the ground effect rather than worked out again, which is the yoke's
+ * lesson applied before it could be learnt a second time here. "Whoever can
+ * best afford this" moves every time anybody in the raid takes a hit, so a
+ * nomination computed on demand is answered by a different person on almost
+ * every tick of the count -- and a plate two people set off for and one
+ * turned back from is a plate nobody stood on.
+ */
+export function tollPayer(s: SimState, g: GroundEffect): Actor | null {
+  if (g.named === undefined) return null
+  const payer = s.actors.find((a) => a.id === g.named)
+  return payer && payer.alive ? payer : null
+}
+
+/**
+ * What the grasp charges the body it took hold of.
+ *
+ * One bill, raised by everybody else who was still inside when it closed.
+ * Divided, this would be the shape that has already failed twice here -- the
+ * same total goes into the raid whatever it does, so practice moves who pays
+ * and never how much. Concentrated, the raid pays one hit a cast and what
+ * practice moves is its size.
+ */
+export function graspBill(caught: number): number {
+  return Math.min(GRASP_CAP, 1 + GRASP_PER_HEAD * Math.max(0, caught - 1))
+}
+
+/**
+ * Which stone this one was told to take.
+ *
+ * Kept on the mark, the way the split keeps which group you are in, and for
+ * the same reason both of them keep it rather than deriving it: the nearest
+ * free stone is a different stone once somebody has started walking, and a
+ * raid that re-answers it every tick is a raid where two bodies trade places
+ * for two seconds and neither of them arrives.
+ */
+export function refugeStone(g: GroundEffect, mark: Aura): Vec2 | null {
+  const spots = g.spots ?? []
+  const at = mark.stacks - 1
+  return at >= 0 && at < spots.length ? spots[at]! : null
 }
 
 /** Everything a spread debuff hits when it expires on someone. */
