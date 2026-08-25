@@ -3548,17 +3548,18 @@ for (const [label, w, h] of [
     thrown.set('descent', ids)
   }
 
-  // And four that are on no boss's table at all yet.
+  // And five that are on no boss's table at all yet.
   //
-  // The floor giving way, all but the shallows drowning, and the two handoffs
-  // are each written, measured and drawn; which rung of which ladder any of
-  // them belongs on is a question about the shape of a fight rather than about
-  // the mechanic, and it is not answered here. A floor can be handed any of
-  // them today, so that is where they are collected from — the same
-  // arrangement the gathering had while it lived only on the descent.
+  // The floor giving way, all but the shallows drowning, the floor standing
+  // up, and the two handoffs are each written, measured and drawn; which rung
+  // of which ladder any of them belongs on is a question about the shape of a
+  // fight rather than about the mechanic, and it is not answered here. A floor
+  // can be handed any of them today, so that is where they are collected from
+  // — the same arrangement the gathering had while it lived only on the
+  // descent.
   {
     const collapsing = floorWith(
-      { fault: 9, shallows: 10, puddle: 11 },
+      { fault: 9, shallows: 10, spire: 12, puddle: 11 },
       4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
@@ -3572,6 +3573,7 @@ for (const [label, w, h] of [
     }
     expect('a floor can split its own arena', ids.has('boss_fault'), 'it drew nothing')
     expect('and drown all but the shallows', ids.has('boss_shallows'), 'it drew nothing')
+    expect('and stand stone up in its own floor', ids.has('boss_spire'), 'it drew nothing')
     thrown.set('collapse', ids)
   }
 
@@ -7398,6 +7400,7 @@ function floorWith(
   s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
   s.nextBurden = opening.burden
   s.nextYoke = opening.yoke
+  s.nextSpire = every.spire === undefined ? 0 : every.spire * 0.45
   return s
 }
 
