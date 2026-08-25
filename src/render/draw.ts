@@ -470,6 +470,11 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'spire') {
+      drawSpire(ctx, g, p, r)
+      continue
+    }
+
     if (g.kind === 'soak') {
       drawSoak(ctx, s, g, p, r, clock)
       continue
@@ -881,6 +886,71 @@ function drawEcho(
   ctx.strokeStyle = `rgba(216, 180, 254, ${(0.35 + 0.5 * closing).toFixed(3)})`
   ctx.lineWidth = 3
   ctx.stroke()
+}
+
+
+/**
+ * Stone coming up through the floor, and then stone.
+ *
+ * Drawn as a shard rather than a disc on purpose. The pools are stains the
+ * floor washes out; this is a thing standing in the room, and a raid deciding
+ * where it can still walk in a minute has to read that difference at a glance
+ * rather than by remembering which boss it is fighting. Warm stone, not the
+ * fault's cold slate: one is the ground coming apart and this is the ground
+ * standing up.
+ */
+function drawSpire(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  // Nine points, alternating long and short, at a fixed skew per spire so two
+  // of them side by side are not the same picture twice.
+  const teeth = 9
+  const skew = (g.id % 7) * 0.31
+
+  const shard = (reachLong: number, reachShort: number, points: number, turn: number): void => {
+    ctx.beginPath()
+    for (let i = 0; i < points * 2; i++) {
+      const a = skew + turn + (i / (points * 2)) * Math.PI * 2
+      const reach = i % 2 === 0 ? reachLong : reachShort
+      const x = p.x + Math.cos(a) * reach
+      const y = p.y + Math.sin(a) * reach
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.closePath()
+  }
+
+  ctx.save()
+  if (!g.detonated) {
+    // Fills as the count runs out, so the eye is pulled to the middle of the
+    // spot rather than to its edge.
+    const left = Math.max(0, Math.min(1, g.telegraph / PUDDLE_TELEGRAPH))
+    shard(r, r * 0.62, teeth, 0)
+    ctx.fillStyle = `rgba(168, 162, 158, ${0.34 * (1 - left)})`
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(168, 162, 158, 0.85)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.restore()
+    return
+  }
+
+  // Up. Solid enough to read as an object, with a smaller shard inside it so
+  // it has a face rather than a silhouette.
+  shard(r, r * 0.58, teeth, 0)
+  ctx.fillStyle = 'rgba(120, 113, 108, 0.55)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(214, 211, 209, 0.9)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  shard(r * 0.5, r * 0.24, 5, 0.35)
+  ctx.fillStyle = 'rgba(231, 229, 228, 0.28)'
+  ctx.fill()
+  ctx.restore()
 }
 
 /** Expanding ring: lethal band, safe interior. */

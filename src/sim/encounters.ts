@@ -28,6 +28,7 @@ export type MechanicId =
   | 'brand'
   | 'verdict'
   | 'crush'
+  | 'spire'
   | 'fault'
   | 'shallows'
   | 'puddle'
@@ -67,6 +68,12 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   brand: true, // one mark per so many bodies
   verdict: true, // one judgement per so many bodies
   crush: false, // a band of a fixed radius, which is where the melee stand
+  // The one entry here that is false for a reason the column was not built
+  // for. What a spire spends is floor, and the arena is 460 across whoever
+  // turns up — counted per body a twenty-five man met twelve eruptions at
+  // once, into a footprint no wider than a ten-man's, and wiped on every
+  // first pull while the ten-man never noticed. Area denial super-scales.
+  spire: false,
   fault: false, // half the arena, which is half of it at any headcount
   shallows: false, // a fixed number of patches, and nothing collides on them
   puddle: true, // `puddleCount` per cast
@@ -97,6 +104,7 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   brand: 'the brand',
   verdict: 'the judgement',
   crush: 'the crush',
+  spire: 'the spires',
   fault: 'the fault',
   shallows: 'the shallows',
   puddle: 'pools',
@@ -130,6 +138,22 @@ export interface PhaseTiming {
    * different price from ground nobody was using.
    */
   brand: number
+  /**
+   * Seconds between one eruption of spires and the next.
+   *
+   * Stone comes up on telegraphed spots — you are on one or you are not, and
+   * there is no half of it — and then it stands there while the next casts
+   * land on whatever floor is left. Every other hazard here is a place to not
+   * be for a few seconds and then the arena is whole again; this one hands
+   * back less than it took.
+   *
+   * It was built to ask a second question on top of a pool's — not "where do I
+   * stand now" but "which of this floor will still be floor in a minute" —
+   * and measurement does not support that it does. How long the stone stands
+   * barely moves the teaching at all; see `SPIRE_LINGER`. What it is worth, it
+   * is worth at the instant it comes up.
+   */
+  spire: number
   /**
    * Seconds between one judgement and the next.
    *
@@ -345,6 +369,7 @@ export interface Encounter {
    */
   opening: {
     brand: number
+    spire: number
     verdict: number
     crush: number
     hand: number
@@ -402,6 +427,8 @@ export interface Encounter {
      */
     fault: string
     shallows: string
+    /** Unplaced too, and for the same reason. See `fault` above. */
+    spire: string
     soak: string
     hunt: string
     hand: string
@@ -466,11 +493,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { verdict: 0, brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
-      2: { verdict: 0, brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
-      3: { verdict: 0, brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
+      1: { verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
+      2: { verdict: 0, brand: 7, crush: 8, spire: 0, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
+      3: { verdict: 0, brand: 6, crush: 7, spire: 0, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
     },
-    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
+    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -484,6 +511,7 @@ export const ENCOUNTERS: Encounter[] = [
       crush: 'THE DEEP COMES DOWN',
       fault: 'THE SEABED SPLITS',
       shallows: 'The deep swallows the floor — the shallows, all of you',
+      spire: '',
       soak: 'The undertow gathers — all of you',
       hunt: '',
       hand: 'THE DEEP TURNS — STAY BEHIND IT',
@@ -547,11 +575,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { verdict: 19, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
-      2: { verdict: 16, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
-      3: { verdict: 13.5, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
+      1: { verdict: 19, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { verdict: 16, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      3: { verdict: 13.5, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
+    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -565,6 +593,7 @@ export const ENCOUNTERS: Encounter[] = [
       crush: '',
       fault: 'A note cracks the floor',
       shallows: 'Only the high ground still sings',
+      spire: '',
       soak: '',
       hunt: '',
       hand: '',
@@ -606,11 +635,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
-      2: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
-      3: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
+      1: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
+      2: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
+      3: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
     },
-    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
+    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -624,6 +653,7 @@ export const ENCOUNTERS: Encounter[] = [
       crush: '',
       fault: 'The seabed breaks open',
       shallows: 'The tide takes the ground',
+      spire: '',
       soak: '',
       hunt: 'It has your scent',
       hand: '',

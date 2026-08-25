@@ -194,6 +194,10 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The floor splitting, which is a line rather than a circle: stone, and
   // cleaving, because what it does is come apart along one.
   boss_fault: { colour: '#475569', style: 'cleave' },
+  // The floor standing up, which is the split's opposite and must not be its
+  // colour: warm stone against that cold slate, and crushing rather than
+  // cleaving, because what it does is arrive from underneath.
+  boss_spire: { colour: '#a8a29e', style: 'crush' },
   // The floor going under everywhere but three patches. Deep water rather
   // than the shallow teal the gathering owns, and the only mechanic here whose
   // colour means the ground rather than the thing standing on it.

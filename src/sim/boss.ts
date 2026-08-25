@@ -336,6 +336,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleFault(s, b, rng, timing)
   scheduleShallows(s, b, rng, timing)
   scheduleBrand(s, rng, timing)
+  scheduleSpire(s, b, rng, timing)
   scheduleEcho(s, rng, timing)
   scheduleVerdict(s, rng, timing)
   scheduleSunder(s, b, target, timing)
@@ -1456,6 +1457,159 @@ export function passJudgement(s: SimState, marked: Actor): void {
   s.sounds.push('raid')
 }
 
+/**
+ * Stone coming up through the floor, six spots at a time.
+ *
+ * The spots are telegraphed and the stone erupts all at once: standing on one
+ * is the whole hit and standing beside it is none of it. That shape is not a
+ * preference, it is the only one that has ever measured as teaching anything
+ * here — a hazard that costs a raid in proportion to how wrong it was is one
+ * whose mistakes come out in the average.
+ *
+ * It was designed around what happens next: the stone stays, so the floor is a
+ * smaller and more awkward shape at the end of a pull than at the start, and
+ * the raid is being asked which of the floor it can afford to spend. That is
+ * the part that did not survive measurement — `SPIRE_LINGER` moves the
+ * teaching by less than its own error bar over a four-fold range. What is left
+ * is a good instant rather than a new question, and it is worth what a good
+ * instant is worth.
+ *
+ * It is not a wall, and it cannot be. The raid's movement has no collision of
+ * any kind — `clearTerrain` exists, but only a battleground ever passes it an
+ * obstacle list and a raid's is empty by construction — so a spire that
+ * blocked would have to invent one, and a collision system is a bigger thing
+ * than a mechanic. It denies ground the way everything else here does: by
+ * hurting whoever stands in it.
+ */
+const SPIRE_RADIUS = 62
+const SPIRE_DAMAGE = 2200
+
+/**
+ * How long the stone stands, and the dial that turned out not to matter.
+ *
+ * This is the mechanic's whole idea — floor that does not come back — so it
+ * was tuned first and hardest, and at the doubled cadence an isolated mechanic
+ * used to be handed it read as the dominant dial: twenty-four seconds looked
+ * worth half again what ten was. At the cadence the mechanic actually runs at,
+ * 250 pairs a row:
+ *
+ *     6s   8.7pp    10s   9.0pp    16s   7.8pp    24s   10.0pp
+ *
+ * which is one number four times over. What teaches here is the eruption, not
+ * the leftovers. Worth saying plainly because it is the opposite of what the
+ * mechanic was designed around: the second question it was built to ask —
+ * which of this floor will still be floor in a minute — is not one the raid is
+ * measurably answering.
+ *
+ * So the value is chosen on what the long version costs everything else, which
+ * is real. Ground that never expires is load-bearing for the rest of the game
+ * in a way no other hazard is: the rendercheck stand-ins flee anything within
+ * `radius + 20` and flee forever when it never clears, pressing nothing, and a
+ * five-man opening built out of two such mechanics is a fight nobody can cast
+ * in. Ten seconds is about twice a pool's five and a half — long enough to be
+ * in the way of the next eruption, short enough that the arena still recovers.
+ */
+const SPIRE_LINGER = 10
+
+/**
+ * How many come up at once, per eight bodies.
+ *
+ * Clumping is a lever of its own, separately from the rate, and it does not
+ * point the way the first measurement of it said. Held at 0.30 eruptions a
+ * second across a ten-man and changing only the grain, 250 pairs a row:
+ *
+ *     2 every 6.7s   19.8pp      6 every 20s   9.0pp      12 every 40s   5.9pp
+ *
+ * Monotone, not the hump an earlier pass found at the doubled cadence. The
+ * likely reason is arithmetic rather than psychology: twelve circles dropped
+ * at one instant onto a raid that stands ninety to a hundred and twenty-five
+ * from the boss overlap each other heavily, so the same stone per second
+ * denies far less distinct ground when it arrives together. The share of
+ * deaths practice removes barely moves across that row -- 61, 67, 57 -- which
+ * says the grain is changing how much pressure there is rather than how
+ * learnable it is.
+ *
+ * Three is kept anyway, which is a design choice made against the number. Two
+ * at a time is a pool that stays a while; six at a time is an eruption, and
+ * the eruption is the mechanic. The finer setting is a real and measured
+ * option if the rung ever needs to be worth more.
+ */
+const SPIRE_BURST = 3
+
+/**
+ * And how many may come up in one eruption, whatever the size of the raid.
+ *
+ * Everything else in this game counts its volume per body for a good reason —
+ * a fixed number of spots across twenty-five means no one person is ever on
+ * one — but what this spends is floor, and the floor is the same 460 across
+ * whoever turns up. Counted per body a twenty-five man met twelve at once,
+ * into a footprint no wider than a ten-man's, and wiped on every first pull
+ * while the ten-man measured fine. The volume still scales; it stops scaling
+ * before it stops being answerable.
+ */
+const SPIRE_AT_ONCE = 6
+
+/**
+ * The one piece of floor the fight cannot be asked to give up.
+ *
+ * The boss stands still for ninety-eight percent of a pull and the melee stand
+ * on top of it, so a hazard that permanently denies the ring at melee range
+ * does not make the fight harder, it makes it unperformable — and an
+ * unperformable mechanic measures as a flat wipe at every level of practice,
+ * which is the same as measuring nothing. The eruption is pushed out to the
+ * near edge of where the floor can be afforded.
+ */
+const SPIRE_MELEE_ROOM = MELEE_RANGE + SPIRE_RADIUS
+
+function scheduleSpire(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.spire <= 0) return
+  s.nextSpire -= DT
+  if (s.nextSpire > 0) return
+
+  // Held while a gathering is live, for the reason every other piece of floor
+  // is: one mechanic saying all of you here and another saying not there is
+  // two mechanics cancelling rather than one hard one.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextSpire = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextSpire = timing.spire
+
+  const victims = livingParty(s)
+  if (victims.length === 0) return
+
+  // Where people are, because where people are not is floor nobody was going
+  // to miss.
+  const count = Math.min(SPIRE_AT_ONCE, SPIRE_BURST * Math.max(1, Math.ceil(s.party.length / 8)))
+  for (let i = 0; i < count; i++) {
+    const victim = rng.pick(victims)
+    const pos = { x: victim.pos.x + rng.range(-26, 26), y: victim.pos.y + rng.range(-26, 26) }
+    const away = Math.hypot(pos.x - b.pos.x, pos.y - b.pos.y)
+    if (away < SPIRE_MELEE_ROOM) {
+      // Pushed straight out along its own bearing rather than re-rolled, so
+      // the spot still belongs to the body it was aimed at.
+      const bearing =
+        away < 0.001 ? rng.range(0, Math.PI * 2) : Math.atan2(pos.y - b.pos.y, pos.x - b.pos.x)
+      pos.x = b.pos.x + Math.cos(bearing) * SPIRE_MELEE_ROOM
+      pos.y = b.pos.y + Math.sin(bearing) * SPIRE_MELEE_ROOM
+    }
+    clampToArena(pos, SPIRE_RADIUS)
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'spire',
+      pos,
+      radius: SPIRE_RADIUS,
+      telegraph: PUDDLE_TELEGRAPH,
+      lingering: SPIRE_LINGER * affixLinger(s.affix),
+      damage: SPIRE_DAMAGE,
+    })
+    pushEffect(s, 'cast', pos, { abilityId: 'boss_spire' })
+  }
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.spire)
+}
+
 /** Where a brand burned out, the floor keeps it. */
 export function burnBrand(s: SimState, at: Vec2): void {
   s.ground.push({
@@ -1883,6 +2037,44 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // A pool's shape with a longer memory: it announces, takes everything
+    // inside it at one instant, and then the stone stays. Written as its own
+    // arm rather than folded into the pools below, even though the sequence is
+    // the same one, because the two differ in the only place it would matter —
+    // the effect it draws — and a shared arm that picks a name off `g.kind` is
+    // a line every future kind has to remember to edit.
+    if (g.kind === 'spire') {
+      if (!g.detonated) {
+        g.telegraph -= DT
+        if (g.telegraph <= 0) {
+          g.detonated = true
+          s.sounds.push('raid')
+          pushEffect(s, 'impact', g.pos, {
+            abilityId: 'boss_spire',
+            power: g.radius * 12,
+            crit: true,
+          })
+          for (const a of livingParty(s)) {
+            if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+            const damage = mechanic(s, g.damage)
+            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+            pushEffect(s, 'impact', a.pos, { abilityId: 'boss_spire', power: damage })
+          }
+        }
+        continue
+      }
+      // Standing stone. The same silent residue a pool leaves, which is what
+      // makes the ground denied rather than decorative — nobody is meant to be
+      // in here, and the AI treats it as live fire for as long as it stands.
+      g.lingering -= DT
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
+          applyDamage(s, a, mechanic(s, 110 * DT), 'magic', { sourceId: BOSS_ID, silent: true })
+        }
+      }
+      continue
+    }
+
     // All of it or none of it, at one instant. Handled apart from the pools
     // below rather than folded into them: those keep burning after they go
     // off and the whole of this one is the frame it lands on.
@@ -1953,6 +2145,11 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'shockwave') return g.lingering > 0
     // The same rule as the circle, for the same reason: a moment, not a place.
     if (g.kind === 'crush') return !g.detonated
+    // Unlike every other one-instant hazard above, it leaves something, so it
+    // is kept until the stone is gone rather than dropped on the frame it
+    // lands. Spelt out beside the others instead of falling through to the
+    // pools' rule at the bottom, which is the same rule by coincidence.
+    if (g.kind === 'spire') return !g.detonated || g.lingering > 0
     if (g.kind === 'fault' || g.kind === 'shallows') return !g.detonated
     if (g.kind === 'echo') return !g.detonated
     // It is done when it has finished turning, not when it has gone off: a

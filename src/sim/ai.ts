@@ -359,6 +359,26 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // Stone about to come up, and then stone. Its own arm rather than the
+    // pools' below, and a shade over a pool at the same distance: a pool is
+    // ground that will be ground again in five seconds and this is not, so
+    // being here when it lands costs the hit now and the floor afterwards.
+    //
+    // Deliberately here and not in `isSpotSafe` alone. Reaction delay and the
+    // fumble roll live on this path and nowhere else, so a mechanic answered
+    // only by the spot check is one practice cannot improve, however lethal.
+    //
+    // It gets no `caving`-style guard on the walk home. Home for anybody who
+    // just left one is the ground they left, and walking back onto your own
+    // stone is not a bug in this mechanic, it is the thing it asks about —
+    // the brand measured ten of its seventeen points in that habit alone.
+    if (g.kind === 'spire') {
+      if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`spire:${g.id}`, g.detonated ? 100 : 82 + (PUDDLE_TELEGRAPH - g.telegraph) * 9)
+      }
+      continue
+    }
+
     // The floor under whoever it marked, about to answer. Ranked just under
     // live fire: it is a bigger hit than a pool tick and there is less time
     // to be somewhere else, but a pool that has already gone off is burning

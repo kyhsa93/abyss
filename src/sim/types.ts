@@ -160,6 +160,7 @@ export type GroundKind =
   | 'puddle'
   | 'brand'
   | 'crush'
+  | 'spire'
   | 'breath'
   | 'shockwave'
   | 'soak'
@@ -625,6 +626,7 @@ export interface SimState {
   /** Timers driving the boss script. */
   nextPuddle: number
   nextBrand: number
+  nextSpire: number
   nextVerdict: number
   nextCrush: number
   /** Next cast of the wedge that turns across the arena. */
