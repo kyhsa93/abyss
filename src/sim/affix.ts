@@ -31,7 +31,7 @@ export interface Affix {
 }
 
 export const AFFIXES: Affix[] = [
-  { id: 'lingering', name: 'Lingering', detail: 'puddles stay twice as long' },
+  { id: 'lingering', name: 'Lingering', detail: 'what the floor keeps, it keeps twice as long' },
   { id: 'swarming', name: 'Swarming', detail: 'twice as many thralls, half as often' },
   { id: 'faltering', name: 'Faltering', detail: 'healing lands for a quarter less' },
   { id: 'restless', name: 'Restless', detail: 'shockwaves and breaths come round faster' },

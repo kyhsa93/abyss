@@ -25,6 +25,7 @@ import type { DifficultyId, RaidSize } from './classes'
  * nothing else is.
  */
 export type MechanicId =
+  | 'brand'
   | 'puddle'
   | 'spread'
   | 'breath'
@@ -57,6 +58,7 @@ export type MechanicId =
  *   Tidebreaker  2/5, and 0/2 at its opening — a bigger raid gets it free
  */
 export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
+  brand: true, // one mark per so many bodies
   puddle: true, // `puddleCount` per cast
   spread: true, // one mark per so many bodies
   adds: true, // a wave of `living / 6`
@@ -70,6 +72,7 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  brand: 'the brand',
   puddle: 'pools',
   spread: 'marks',
   breath: 'the cone',
@@ -84,6 +87,21 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
 
 export interface PhaseTiming {
   swing: number
+  /**
+   * Seconds between one brand and the next.
+   *
+   * A mark that leaves ground where it burns out. The two things measured to
+   * teach in this game are both about the floor — a puddle is worth 34 points
+   * of survival between a first pull and a ninth and a cone 29, and nothing
+   * else clears 6 — because a telegraph is dodged once and learnt while a
+   * floor is failed again and again.
+   *
+   * What a puddle does not ask is *where* the ground goes. This does: the
+   * marked choose the spot by standing in it, so the fight is over which part
+   * of the floor the raid is willing to give up. Ground the melee needs is a
+   * different price from ground nobody was using.
+   */
+  brand: number
   puddle: number
   spread: number
   slam: number
@@ -217,6 +235,7 @@ export interface Encounter {
    * phase one doing nothing.
    */
   opening: {
+    brand: number
     puddle: number
     spread: number
     slam: number
@@ -253,6 +272,7 @@ export interface Encounter {
     sweep: string
     rot: string
     sunder: string
+    brand: string
     soak: string
     hunt: string
   }
@@ -301,13 +321,13 @@ export const ENCOUNTERS: Encounter[] = [
     // No cone and nothing to run into: the only thing it casts is the one
     // that lands on whoever is holding it.
     names: { slam: 'ABYSSAL SLAM', breath: '' },
-    ladder: ['puddle', 'sweep', 'rot', 'sunder', 'soak'],
+    ladder: ['brand', 'sweep', 'rot', 'sunder', 'soak'],
     phases: {
-      1: { swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 42, rot: 33, sunder: 11, soak: 40, hunt: 0 },
-      2: { swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 35, rot: 27, sunder: 9, soak: 34, hunt: 0 },
-      3: { swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 8, soak: 28, hunt: 0 },
+      1: { brand: 8, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 42, rot: 33, sunder: 11, soak: 40, hunt: 0 },
+      2: { brand: 7, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 35, rot: 27, sunder: 9, soak: 34, hunt: 0 },
+      3: { brand: 6, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 8, soak: 28, hunt: 0 },
     },
-    opening: { puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 14, soak: 34, hunt: 0 },
+    opening: { brand: 8, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 30, rot: 22, sunder: 14, soak: 34, hunt: 0 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -316,6 +336,7 @@ export const ENCOUNTERS: Encounter[] = [
       sweep: 'The tide sweeps in',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
+      brand: 'It is burning through me — clear ground',
       soak: 'The undertow gathers — all of you',
       hunt: '',
     },
@@ -374,11 +395,11 @@ export const ENCOUNTERS: Encounter[] = [
     // for whatever they hold.
     ladder: ['spread', 'rot', 'puddle', 'hunt', 'adds'],
     phases: {
-      1: { swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
-      2: { swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
-      3: { swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
+      1: { brand: 0, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { brand: 0, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      3: { brand: 0, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
+    opening: { brand: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -387,6 +408,7 @@ export const ENCOUNTERS: Encounter[] = [
       sweep: '',
       rot: 'A note is caught in me — heal',
       sunder: '',
+      brand: '',
       soak: '',
       hunt: 'One voice is following me',
     },
@@ -426,11 +448,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
-      2: { swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
-      3: { swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
+      1: { brand: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
+      2: { brand: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
+      3: { brand: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
     },
-    opening: { puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
+    opening: { brand: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -439,6 +461,7 @@ export const ENCOUNTERS: Encounter[] = [
       sweep: 'Wide swing — out of reach',
       rot: '',
       sunder: '',
+      brand: '',
       soak: '',
       hunt: 'It has your scent',
     },
@@ -517,6 +540,7 @@ export function gated(timing: PhaseTiming, kit: readonly MechanicId[]): PhaseTim
   const on = (id: MechanicId, every: number): number => (kit.includes(id) ? every * tempo : 0)
   return {
     ...timing,
+    brand: on('brand', timing.brand),
     puddle: on('puddle', timing.puddle),
     spread: on('spread', timing.spread),
     breath: on('breath', timing.breath),

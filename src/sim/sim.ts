@@ -11,7 +11,7 @@ import {
   other as otherTeam,
   updateBattleground,
 } from './battleground'
-import { resolveBossCast, updateBoss, updateGround } from './boss'
+import { resolveBossCast, updateBoss, updateGround, burnBrand } from './boss'
 import {
   AURA_TICK,
   addThreat,
@@ -247,6 +247,7 @@ function updateTimers(s: SimState, a: Actor): void {
     if (aura.remaining <= 0) {
       a.auras.splice(i, 1)
       if (aura.id === 'spread') detonateSpread(s, a)
+      if (aura.id === 'brand' && a.alive) burnBrand(s, aura.at ?? a.pos)
       if (aura.id === 'rot' && a.alive) breakRot(s, a)
     }
   }

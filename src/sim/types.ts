@@ -37,6 +37,7 @@ export type AuraId =
   | 'sunder' // boss: stacks on whoever is holding it, and makes them softer
   | 'hunted' // boss: something has picked you, and it is walking over
   | 'spread' // detonates on expiry, damages everyone nearby
+  | 'brand' // boss: leaves ground where it burns out
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -46,6 +47,8 @@ export interface Aura {
   stacks: number
   /** Actor that applied the aura. */
   sourceId: number
+  /** Where it was applied, for auras that remember the spot. */
+  at?: Vec2
   /** Accumulator for periodic ticks. */
   tickTimer: number
 }
@@ -137,7 +140,7 @@ export interface Actor {
   hunting: number | null
 }
 
-export type GroundKind = 'puddle' | 'breath' | 'shockwave' | 'soak'
+export type GroundKind = 'puddle' | 'brand' | 'breath' | 'shockwave' | 'soak'
 
 export interface GroundEffect {
   id: number
@@ -578,6 +581,7 @@ export interface SimState {
   phase: number
   /** Timers driving the boss script. */
   nextPuddle: number
+  nextBrand: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number

@@ -181,6 +181,7 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_shockwave: { colour: '#facc15', style: 'pierce' },
   // The floor, in the floor's magenta, sinking in rather than pushing out.
   boss_puddle: { colour: '#be185d', style: 'wither' },
+  boss_brand: { colour: '#f472b6', style: 'wither' },
   // The one thing armour answers, so it is drawn as steel.
   boss_sweep: { colour: '#e2e8f0', style: 'cleave' },
   // Everyone at once, which is the healer's whole fight.

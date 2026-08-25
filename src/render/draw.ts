@@ -451,6 +451,11 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'brand') {
+      drawBrand(ctx, g, p, r)
+      continue
+    }
+
     if (g.kind === 'soak') {
       drawSoak(ctx, s, g, p, r, clock)
       continue
@@ -603,6 +608,54 @@ function drawSoak(
 }
 
 /** Expanding ring: lethal band, safe interior. */
+/**
+ * A brand's ground: the same danger as a puddle and deliberately not the same
+ * picture. Two bosses that drop hazardous floor should not be two bosses that
+ * look identical while they do it, which is the whole reason the ladders were
+ * pulled apart in the first place.
+ */
+function drawBrand(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  const live = g.detonated
+  ctx.save()
+  ctx.globalAlpha = live ? 0.62 + 0.38 * Math.min(1, g.lingering / 1.5) : 1
+
+  if (!live) {
+    // Filling inward rather than outward: the ring closes on the spot.
+    const left = Math.max(0, Math.min(1, g.telegraph / PUDDLE_TELEGRAPH))
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(244, 114, 182, 0.75)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r * left, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(244, 114, 182, 0.35)'
+    ctx.lineWidth = 3
+    ctx.stroke()
+  } else {
+    // Spokes rather than a disc, so it reads as a scar and not as a pool.
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(244, 114, 182, 0.16)'
+    ctx.fill()
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2
+      ctx.beginPath()
+      ctx.moveTo(p.x + Math.cos(a) * r * 0.35, p.y + Math.sin(a) * r * 0.35)
+      ctx.lineTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r)
+      ctx.strokeStyle = 'rgba(244, 114, 182, 0.7)'
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
 function drawShockwave(
   ctx: CanvasRenderingContext2D,
   g: SimState['ground'][number],

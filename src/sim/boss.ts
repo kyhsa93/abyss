@@ -317,6 +317,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleShockwave(s, b, rng, timing)
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
+  scheduleBrand(s, rng, timing)
   scheduleSunder(s, b, target, timing)
   scheduleRot(s, rng, timing)
   scheduleSoak(s, b, rng, timing)
@@ -680,7 +681,7 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   //
   // The telegraph only, not the residue: waiting out every pool on the floor
   // would be waiting out the fight.
-  if (s.ground.some((g) => g.kind === 'puddle' && !g.detonated)) return
+  if (s.ground.some((g) => (g.kind === 'puddle' || g.kind === 'brand') && !g.detonated)) return
 
   s.nextSoak = every
 
@@ -801,6 +802,80 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   pushEffect(s, 'impact', victim.pos, { abilityId: 'boss_rot', power: 220 })
   s.sounds.push('telegraph')
   if (victim.ai) say(s, victim, fight(s).lines.rot)
+}
+
+
+/**
+ * A mark that leaves ground where it burns out.
+ *
+ * Ground is the thing that teaches — measured, a puddle is worth thirty-four
+ * points of survival between a raid's first pull and its ninth and the next
+ * best is twenty-nine, while everything else in the game clears six. A
+ * telegraph is dodged once and then known; a floor is failed again and again
+ * until it is not.
+ *
+ * The ground lands where the mark *was applied*, not where the marked ends up.
+ * Placing it at the end was the first version and it taught nothing: the
+ * answer was taken before the ground existed — walk somewhere useless, wait —
+ * and a pre-emptive answer is one an unpractised raid gives as readily as a
+ * practised one. Measured at 0.0 points either way.
+ *
+ * Anchored to the spot, the question is the one a puddle asks and a puddle
+ * cannot: the floor you are standing on is about to stop being floor, and it
+ * is floor the fight was using.
+ */
+const BRAND_RADIUS = 74
+const BRAND_DAMAGE = 780
+const BRAND_LINGER = 7
+
+function scheduleBrand(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.brand <= 0) return
+  s.nextBrand -= DT
+  if (s.nextBrand > 0) return
+
+  // Held while a gathering is live, for the reason the puddle is: one
+  // mechanic says leave where you stand and the other says all of you here.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextBrand = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextBrand = timing.brand
+  const free = livingParty(s).filter((a) => !getAura(a, 'brand'))
+  if (free.length === 0) return
+
+  // One per five bodies, which is what it took. The first three cadences of
+  // this mechanic taught nothing and I went looking for the reason in its
+  // shape — the window, where the ground anchors, whether the answer is taken
+  // before or after it lands. It was none of those. A puddle lands 0.45 times
+  // a second across a ten-man and this was landing 0.16, and a mechanic a
+  // third as often is a mechanic a third as often. At parity it teaches 36
+  // points against the puddle's 34.
+  const marks = Math.max(1, Math.round(livingParty(s).length / 5))
+  for (let i = 0; i < marks && free.length > 0; i++) {
+    const marked = free.splice(rng.int(free.length), 1)[0]!
+    addAura(marked, 'brand', BOSS_ID)
+    const mark = getAura(marked, 'brand')
+    if (mark) mark.at = { x: marked.pos.x, y: marked.pos.y }
+    pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_brand' })
+    if (marked.ai) say(s, marked, fight(s).lines.brand)
+  }
+  s.sounds.push('telegraph')
+}
+
+/** Where a brand burned out, the floor keeps it. */
+export function burnBrand(s: SimState, at: Vec2): void {
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'brand',
+    pos: { x: at.x, y: at.y },
+    radius: BRAND_RADIUS,
+    telegraph: PUDDLE_TELEGRAPH,
+    lingering: BRAND_LINGER * affixLinger(s.affix),
+    damage: BRAND_DAMAGE,
+    detonated: false,
+  })
+  pushEffect(s, 'impact', at, { abilityId: 'boss_brand', power: BRAND_DAMAGE })
 }
 
 /**
@@ -1105,10 +1180,14 @@ export function updateGround(s: SimState): void {
       g.telegraph -= DT
       if (g.telegraph <= 0) {
         g.detonated = true
+        // Its own name, so a boss that owns one kind of hazardous floor is not
+        // reported as owning the other. The two look different on the screen
+        // and they have to read differently in the effect log as well.
+        const mark = g.kind === 'brand' ? 'boss_brand' : 'boss_puddle'
         // The floor going off, at the size it went off at. Everything that
         // followed used to be the only sign it had.
         pushEffect(s, 'impact', g.pos, {
-          abilityId: 'boss_puddle',
+          abilityId: mark,
           power: g.radius * 12,
           crit: true,
         })
@@ -1116,7 +1195,7 @@ export function updateGround(s: SimState): void {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
             const damage = mechanic(s, g.damage)
             applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
-            pushEffect(s, 'impact', a.pos, { abilityId: 'boss_puddle', power: damage })
+            pushEffect(s, 'impact', a.pos, { abilityId: mark, power: damage })
           }
         }
       }

@@ -72,6 +72,8 @@ export const AURA_DURATION: Record<AuraId, number> = {
   riptide: 12,
   shield: 6,
   spread: 4,
+  // Short enough that a reaction is a reaction rather than a stroll.
+  brand: 1.8,
   // Long enough that a second tank has to take it, short enough that a party
   // with only one tank gets it back off eventually.
   sunder: 16,

@@ -3465,6 +3465,7 @@ for (const [label, w, h] of [
     // pass above rather than by a picture here.
     const DRAWN: Partial<Record<MechanicId, string>> = {
       puddle: 'boss_puddle',
+      brand: 'boss_brand',
       breath: 'boss_breath',
       shockwave: 'boss_shockwave',
       adds: 'boss_thrall',
@@ -6015,7 +6016,12 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       const before = new Map(fight.actors.map((a) => [a.id, a.hp]))
       step(fight, { moveX: 0, moveY: 0, pressed: [] }, rng)
       adds = Math.max(adds, fight.actors.filter((a) => a.faction === 'boss' && a.alive).length - 1)
-      lingerTicks += fight.ground.filter((g) => g.kind === 'puddle' && g.detonated).length
+      // Both kinds of hazardous floor. The affix is about ground rather than
+      // about one boss's version of it, and reading only the puddle meant the
+      // check went quiet the moment a boss carried the other one.
+      lingerTicks += fight.ground.filter(
+        (g) => (g.kind === 'puddle' || g.kind === 'brand') && g.detonated,
+      ).length
       if (boss(fight).auras.some((a) => a.id === 'enrage')) enraged = true
       for (const a of fight.actors) {
         const was = before.get(a.id)

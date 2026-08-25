@@ -36,6 +36,9 @@ import type { Actor, AuraId, SimState, Vec2 } from './types'
  * optimal tile at frame zero reads as a robot, not a raider.
  */
 
+/** How much room a brand looks for before it burns out. */
+const BRAND_ROOM = 130
+
 const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
@@ -135,6 +138,11 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
   if (getAura(actor, 'spread')) consider('spread:self', 62)
 
+  // Branded, and standing where the raid needs the floor. The urgency sits
+  // just under a spread's: getting this wrong costs ground rather than
+  // health, and ground is paid for later.
+  if (getAura(actor, 'brand')) consider('brand:self', 58)
+
   // Something is walking over. It is slower than anyone it picks, so the
   // answer is simply to keep moving — but only for the one it picked, and
   // only while it is close enough to matter. Urgency below a puddle: fire on
@@ -228,6 +236,16 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
 
   const chaser = hunterOf(s, actor)
   if (chaser && dist(spot, chaser.pos) < STALK_ROOM * 0.8) return false
+
+  // A brand is walked to the edge of what the fight is using, not into the
+  // middle of it. Anywhere the party is standing is somewhere the ground will
+  // be missed.
+  if (getAura(actor, 'brand')) {
+    for (const other of livingParty(s)) {
+      if (other.id === actor.id) continue
+      if (dist(spot, other.pos) < BRAND_ROOM) return false
+    }
+  }
 
   const carrying = getAura(actor, 'spread') !== undefined
   for (const other of livingParty(s)) {
@@ -763,7 +781,7 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   // plays a rogue as a warrior with different words on the buttons.
   const ai = actor.ai!
   const dangerNear = s.ground.some(
-    (g) => g.kind === 'puddle' && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
+    (g) => (g.kind === 'puddle' || g.kind === 'brand') && !g.detonated && dist(actor.pos, g.pos) < g.radius + 130,
   )
 
   for (const id of damageOrder(actor, target)) {
