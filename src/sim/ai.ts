@@ -2,29 +2,34 @@ import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
   BURDEN_REACH,
+  CHANT_NOTICE,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SCHISM_MUSTER_ROOM,
+  GLOBAL_COOLDOWN,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
+  VIGIL_HELD,
   YOKE_REACH,
 } from './constants'
 import {
   BREATH_CAST,
   ECHO_TELEGRAPH,
   HAND_BEAT,
+  breakChant,
   condemned,
   insideCone,
   inShockwaveGap,
   onShallows,
   schismClash,
   schismMuster,
+  turnToward,
   underHand,
   verdictLine,
 } from './boss'
@@ -132,6 +137,9 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   // and kept in its own third pair of fields.
   readTheField(s, actor, rng)
 
+  // And the fourth, for the demands that resolve on one tick.
+  holdTheBeat(s, actor, rng)
+
   const danger = currentDanger(s, actor)
 
   // Reaction time is rolled once per distinct danger, not per tick, so the
@@ -237,8 +245,176 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       ai.moveTarget = home
   }
 
+  turnBody(s, actor)
   moveToward(s, actor, ai.moveTarget)
   useAbilities(s, actor, rng)
+}
+
+/**
+ * What this one has decided to be doing at the next instant.
+ *
+ * The fourth reaction channel. The other three carry an answer that lasts: a
+ * tile to walk to, a body to heal, a target to hit or to leave alone. These
+ * carry an answer that is over the moment it is given -- hold, turn, press --
+ * and there is nothing left of it a tick later.
+ *
+ * It cannot borrow any of the three. The walking slot is the worst of them to
+ * borrow and it was the one borrowed first: an actor that spends its danger
+ * slot on "stand still and do nothing" is then handed to `findSafeSpot`, and
+ * the demand is answered by a sidestep that costs it nothing. The target slot
+ * is nearer but still wrong -- what it holds lasts a window and is about one
+ * body on the field, and these last a tick and are about the raid.
+ *
+ * The one compromise is that a body can keep only one beat at a time, which
+ * is the compromise all four make: a vigil and a gaze open at once are two
+ * different things to be doing at the same instant, and something has to
+ * choose. `beatCall` ranks them.
+ */
+function holdTheBeat(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  const want = beatCall(s, actor)
+
+  if (want === null) {
+    ai.beatTo = null
+    ai.beatTimer = 0
+    ai.keeping = null
+    return
+  }
+
+  if (ai.beatTo !== want) {
+    ai.beatTo = want
+    ai.beatTimer = ai.reactionDelay * beatNotice(want) * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.beatTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.beatTimer > 0) ai.beatTimer -= DT
+
+  const held = ai.keeping
+  ai.keeping = ai.beatTimer > 0 ? null : want
+  if (ai.keeping === null || ai.keeping === held) return
+
+  if (ai.keeping.startsWith('vigil')) say(s, actor, 'Hands off it')
+  else if (ai.keeping.startsWith('gaze')) say(s, actor, 'Turning away')
+  else say(s, actor, 'Cutting it')
+
+  // A press is the one of the three that has to happen rather than be
+  // maintained, so it is made here, on the tick the delay runs out.
+  if (ai.keeping.startsWith('chant')) breakChant(s, actor)
+
+  // And dropping the cast is the vigil's answer rather than a side effect of
+  // it. The greedy exception is borrowed from the walking branch on purpose:
+  // the one who squeezes the last half second out of a cast is the one
+  // standing in the fire when you look over, and it should read the same way
+  // against a demand to stop.
+  if (ai.keeping.startsWith('vigil') && actor.castId) {
+    const nearlyDone = actor.castRemaining < 0.35
+    if (!(ai.personality === 'greedy' && nearlyDone)) interruptCast(s, actor, 'moved')
+  }
+}
+
+/**
+ * The one instant worth answering, as a stable key.
+ *
+ * Ranked rather than merged, the way the other two calls are. The note comes
+ * first because it is the only one of the three that nobody else can cover: a
+ * vigil eaten costs one body a hit and a gaze eaten costs one body a hit, and
+ * a note nobody cut is billed to the raider it named hard enough to kill
+ * them. Below it the vigil, because holding is something a body can start
+ * doing while it is still turning and a turn is not something it can start
+ * while holding.
+ *
+ * The id is in the key deliberately: a second cast is a second decision and
+ * has to be paid for again.
+ */
+function beatCall(s: SimState, actor: Actor): string | null {
+  let note: string | null = null
+  let hold: string | null = null
+  let turn: string | null = null
+  for (const g of s.ground) {
+    if (g.detonated) continue
+    // Only the body it named. Nobody else can do anything about it, so nobody
+    // else spends a reaction on it.
+    if (g.kind === 'chant') {
+      if (getAura(actor, 'chant')) note = `chant:${g.id}`
+      continue
+    }
+    // Everybody, for as long as the count is open, whatever they are doing.
+    //
+    // The obvious narrowing is a trap and was written first: raise it only
+    // for a body that would be caught if it landed now. That oscillates. The
+    // moment such a body holds, its demand clears; the moment its demand
+    // clears it starts working again, and the pair re-roll a delay every few
+    // ticks until one of them happens to land inside the count. Read as a
+    // count everybody is under, the delay is rolled once and what it decides
+    // is whether the answer started in time.
+    if (g.kind === 'vigil') {
+      hold = `vigil:${g.id}`
+      continue
+    }
+    if (g.kind === 'gaze') {
+      turn = `gaze:${g.id}`
+      continue
+    }
+  }
+  return note ?? hold ?? turn
+}
+
+/**
+ * How much longer each of the three takes to notice than fire on the floor.
+ *
+ * One for the two that are answered by a posture. `reactionDelay` is
+ * calibrated for seeing a shape appear and starting to move, and seeing a
+ * count open and starting to stop is the same act with the same tell.
+ *
+ * The note is not, and it is the argument the judgement needed six of and the
+ * target call five: what has to be read is a mark on your own frame rather
+ * than a shape on the ground. It was measured as well as argued. At a flat
+ * delay every personality answered every note without a fumble, so the whole
+ * gap came out of the mistake roll and the mechanic was a probe of one of the
+ * two skill numbers instead of both.
+ */
+function beatNotice(call: string): number {
+  return call.startsWith('chant') ? CHANT_NOTICE : 1
+}
+
+/**
+ * Which way a body is turned.
+ *
+ * Toward the boss, always, because a party fights what it is looking at and
+ * because that is what makes the gaze a mechanic rather than a coin toss: the
+ * resting bearing is the failing one, so turning away is something a body
+ * did, on purpose, in time.
+ *
+ * The one exception is a gaze this body has already noticed, read off the
+ * beat it is keeping so that the turn is gated by exactly the two numbers
+ * that separate a first pull from a ninth and by nothing else.
+ */
+function turnBody(s: SimState, actor: Actor): void {
+  const b = boss(s)
+  const toward = Math.atan2(b.pos.y - actor.pos.y, b.pos.x - actor.pos.x)
+  const away = actor.ai?.keeping?.startsWith('gaze') === true
+  turnToward(actor, away ? toward + Math.PI : toward)
+}
+
+/**
+ * Whether this body is deliberately doing nothing.
+ *
+ * The vigil's whole answer, and it is a refusal rather than an action, so it
+ * cannot be written as something the rotation presses. It is written as the
+ * rotation not being reached and the weapon not being swung -- and, for the
+ * AI, only once the delay has run out, which is what makes the hold something
+ * a raid gets better at rather than a rule the fight enforces on it.
+ *
+ * The player has no delay and needs none, because their reaction is their
+ * own. What they need is for stopping to actually stop them: a weapon swings
+ * without being asked, so a player who took their hands off the buttons would
+ * still be working, and there is no button to hold a weapon with. So while a
+ * count is open, a player who is not pressing anything is holding -- and one
+ * who is carries on swinging and is caught, which is the demand.
+ */
+export function holdingStill(s: SimState, actor: Actor): boolean {
+  if (actor.ai) return actor.ai.keeping?.startsWith('vigil') === true
+  if (!s.ground.some((live) => live.kind === 'vigil' && !live.detonated)) return false
+  return actor.castId === null && actor.gcd <= GLOBAL_COOLDOWN - VIGIL_HELD
 }
 
 /**
@@ -390,6 +566,15 @@ function calledId(call: string | null, prefix: string): number | null {
  * whatever it did.
  */
 export function mayStrike(s: SimState, actor: Actor, target: Actor): boolean {
+  // A body holding for a count is holding everything, weapon included, and
+  // this is the measured half of the rule rather than the tidy half. Eleven
+  // percent of what a raid lands is white damage that nobody decided on, and
+  // a demand to stop that the weapon ignores is a demand every melee in the
+  // raid fails whatever it did -- worth 0.0 points at both ends of the
+  // practice curve when the surface that hands damage back was measured that
+  // way. The hold is over on the tick the count resolves, so what it costs is
+  // the swings inside the count and nothing after it.
+  if (holdingStill(s, actor)) return false
   const call = actor.ai?.striking ?? null
   if (call === null) return true
   if (call === 'hush') return target.id !== boss(s).id
@@ -1467,6 +1652,10 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
     interruptCast(s, actor, 'switching')
   }
   if (actor.castId) return
+  // Nothing at all while a count is running, which is the only place in this
+  // file where the answer to a mechanic is to reach the end of this function
+  // and press nothing.
+  if (holdingStill(s, actor)) return
   // Off-GCD defensives are still worth checking while the global is running.
   if (actor.gcd > 0 && !canUseOffGcd(s, actor)) return
   // While relocating, only instants are available — exactly the constraint a

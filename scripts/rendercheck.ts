@@ -105,8 +105,12 @@ import {
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
+  CHANT_CAST,
+  CHANT_NOTICE,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
+  GAZE_ARC,
+  GAZE_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   SHALLOWS_RADIUS,
@@ -116,6 +120,9 @@ import {
   SPELL_RANGE,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
+  TURN_RATE,
+  VIGIL_HELD,
+  VIGIL_TELEGRAPH,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -172,12 +179,20 @@ import {
   hitHistory,
 } from '../src/render/history'
 import { gainPower, boss as bossOf } from '../src/sim/combat'
+// The AI's own view of the hold, which is the only honest way to ask whether
+// one is being kept: the mechanic and the check have to agree about what
+// "holding" means, and there is one function that says.
+import { holdingStill } from '../src/sim/ai'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
   ECHO_TELEGRAPH,
   HAND_BEAT,
+  breakChant,
   breakMirror,
+  chantNamed,
+  stillWorking,
+  watched,
   SUNDER_MAX,
   condemned,
   onShallows,
@@ -3654,6 +3669,29 @@ for (const [label, w, h] of [
       switching.ground.map((g) => g.kind).join(','),
     )
     thrown.set('switching', ids)
+  }
+
+  // And the three whose answer is a moment. On no ladder either, and collected
+  // the same way -- all three resolve on a clock rather than on contact, which
+  // is what makes them checkable here whatever the party does about them.
+  {
+    const moment = floorWith(
+      { vigil: 9, chant: 10, gaze: 9 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (moment.outcome === 'ongoing' && moment.time < 150) {
+      step(moment, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of moment.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can ask its raid to stop', ids.has('boss_vigil'), 'it drew nothing')
+    expect('and to cut a note before it lands', ids.has('boss_chant'), 'it drew nothing')
+    expect('and to look away from it', ids.has('boss_gaze'), 'it drew nothing')
+    thrown.set('moment', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -7748,6 +7786,10 @@ function floorWith(
   s.next.knell = every.knell === undefined ? 0 : every.knell * 0.45
   s.next.vessel = every.vessel === undefined ? 0 : every.vessel * 0.45
   s.next.mirror = every.mirror === undefined ? 0 : every.mirror * 0.45
+  // And the three whose answer is an instant, for the same reason again.
+  s.next.vigil = every.vigil === undefined ? 0 : every.vigil * 0.45
+  s.next.chant = every.chant === undefined ? 0 : every.chant * 0.45
+  s.next.gaze = every.gaze === undefined ? 0 : every.gaze * 0.45
   return s
 }
 
@@ -9019,6 +9061,445 @@ for (const [label, w, h] of [
     expect('and the raid holds fire for it', holding > 0, 'nobody stopped')
     void into
   }
+}
+
+// --- the three whose answer is an instant --------------------------------
+//
+// Everything else on any of these bosses is answered by a position, and every
+// check written for one of them reads a position back. None of that applies
+// here. What these three judge is what a body was doing at the tick the count
+// ran out — working, or waiting, or turned the wrong way — so what has to be
+// checked is that the doing is read correctly, that the not-doing is a real
+// answer rather than an accident, and that the answer costs something.
+//
+// All three are on no boss's ladder. Which fight wants which demand is a
+// question about the shape of a boss and it is not answered here, so the usual
+// rule that ties a line to a rung is checked in the form the schism uses: the
+// plumbing has to be complete and the mechanic has to work, and where it is
+// sold is somebody else's decision.
+{
+  const MOMENTS = ['vigil', 'chant', 'gaze'] as const
+
+  for (const id of MOMENTS) {
+    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
+    expect(
+      `${id} says whether it scales with the roster`,
+      MECHANIC_SCALES[id] !== undefined,
+      'unclassified',
+    )
+    // None of them may, and the column means what it says rather than "this
+    // plays the same at every size". Nothing is dealt per head here: one count
+    // is one count, one note names one body, one gaze asks the same question
+    // of everybody, and nothing eats floor.
+    expect(`${id} deals nothing per head`, !MECHANIC_SCALES[id], 'it says it scales')
+    expect(
+      `${id} is on no ladder yet`,
+      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
+      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
+    )
+    for (const encounter of ENCOUNTERS) {
+      expect(
+        `${encounter.short}: has a voice ready for the ${id}`,
+        encounter.lines[id] !== '',
+        'it is silent',
+      )
+      expect(
+        `${encounter.short}: and a cadence for it in every phase`,
+        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
+      )
+      expect(
+        `${encounter.short}: and asks for the ${id} sooner as it goes`,
+        encounter.phases[1]![id] > encounter.phases[2]![id] &&
+          encounter.phases[2]![id] > encounter.phases[3]![id],
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
+      )
+    }
+    const drawn = bossEffect(`boss_${id}`)
+    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
+    const clash = bossEffectIds().filter(
+      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
+    )
+    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
+  }
+
+  // A Warden with one of them scheduled and nothing else, so a reading is
+  // about the mechanic under test and not about whatever the boss had queued
+  // in the same tick. The cadence is long and the timer is set by hand, the
+  // way every other forced check here does it.
+  const only = (id: (typeof MOMENTS)[number]): SimState => {
+    const s = unattended(floorWith({ [id]: 900 }, 4, autoParty(10, pickFor('mage', 'dps')!)))
+    s.next[id] = 0
+    return s
+  }
+
+  // Nothing is left behind by any of them, which is what separates this family
+  // from every hazard above it. A moment that leaves ground is a place, and the
+  // whole claim being made here is that these are not.
+  for (const id of MOMENTS) {
+    const s = only(id)
+    const rng = new Rng(0x51ed)
+    let opened = false
+    while (s.outcome === 'ongoing' && s.time < 30) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      if (s.ground.some((g) => g.kind === id)) opened = true
+      else if (opened) break
+    }
+    expect(`${id} is thrown when a floor buys it`, opened, 'it never appeared')
+    expect(
+      `and the ${id} hands its floor straight back`,
+      !s.ground.some((g) => g.kind === id),
+      'it is still on the floor',
+    )
+  }
+
+  // --- the vigil: it reads what a body was doing ----------------------------
+  //
+  // Assigned rather than waited for. A check that pulls until it happens to
+  // find one body mid-global and another idle is a check betting on a roll,
+  // and the roll it would be betting on is the one the mechanic exists to
+  // decide. Both states are set by hand and both bodies are whichever two the
+  // party happens to hold.
+  {
+    const s = only('vigil')
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const shape = s.ground.find((g) => g.kind === 'vigil')
+    expect('the vigil opens at all', shape !== undefined, 'nothing was put on the floor')
+    expect(
+      'and it covers the whole arena, because there is no outside to it',
+      (shape?.radius ?? 0) >= ARENA_RADIUS,
+      `${shape?.radius}`,
+    )
+
+    const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    const busy = party[0]!
+    const idle = party[1]!
+    expect('there are two bodies to tell apart', busy.id !== idle.id, 'the party is too small')
+
+    // Held open by hand so that the two states below are still the two states
+    // when the count runs out: the party AI would otherwise spend the count
+    // answering it, which is the thing the probe measures and not this.
+    let read = true
+    while (s.outcome === 'ongoing' && s.ground.some((g) => g.kind === 'vigil' && !g.detonated)) {
+      busy.gcd = GLOBAL_COOLDOWN
+      busy.castId = null
+      idle.gcd = 0
+      idle.castId = null
+      // The weapon too, since that is half of what the count reads: a swing
+      // timer at zero is a body whose last swing was longer ago than the hold
+      // it is being asked for, which is the state a body that stopped is in.
+      idle.swingTimer = 0
+      read = read && stillWorking(busy) && !stillWorking(idle)
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect('the one still working is read as working', read, 'the two states read alike')
+
+    expect(
+      'and the count takes it',
+      (s.tally[busy.id]?.mechanicHits ?? 0) > 0,
+      'the one still casting was passed over',
+    )
+    expect(
+      'and passes over the one that had stopped',
+      (s.tally[idle.id]?.mechanicHits ?? 0) === 0,
+      'it took the body that was doing nothing',
+    )
+    expect(
+      'and leaves no floor behind it',
+      !s.ground.some((g) => g.kind === 'vigil'),
+      'the count is still on the floor',
+    )
+  }
+
+  // What "working" means, asserted on its own rather than through a pull.
+  //
+  // A weapon costs no global and asks for no press, so a body that has only
+  // swung has an empty global and no cast and is working all the same. That
+  // half of the reading is what a hold has to be written against; without it
+  // the count looks past about a ninth of what a raid lands, and the demand
+  // is one every melee in the game keeps by doing nothing different.
+  {
+    const s = only('vigil')
+    const armed = s.actors.find(
+      (a) => a.faction === 'party' && specOf({ classId: a.classId, spec: a.spec }).auto,
+    )
+    expect('somebody in the party carries a weapon', armed !== undefined, 'nobody does')
+    const auto = specOf({ classId: armed!.classId, spec: armed!.spec }).auto!
+    armed!.castId = null
+    armed!.gcd = 0
+    armed!.swingTimer = auto.speed
+    expect('a body that has only just swung is working', stillWorking(armed!), 'it read as idle')
+    armed!.swingTimer = 0
+    expect('and one whose weapon is idle is not', !stillWorking(armed!), 'it read as working')
+    armed!.gcd = GLOBAL_COOLDOWN
+    expect('and a global on its own is enough', stillWorking(armed!), 'it read as idle')
+  }
+
+  // The hold is a refusal, so what proves it is a rotation that stops -- and a
+  // weapon that stops with it. Both halves are read off the timers the
+  // mechanic itself reads rather than off any flag: a global that starts is a
+  // press, a swing timer that jumps back up to a weapon's speed is a swing,
+  // and neither may happen inside the count.
+  //
+  // The weapon half is not tidying-up. Auto-attacks cost no global and ask for
+  // no press, so a hold written only against the buttons is a hold every melee
+  // in the raid keeps by doing nothing different -- measured elsewhere in this
+  // repo as the difference between a mechanic worth points and one worth 0.0
+  // at both ends of the practice curve.
+  {
+    const s = only('vigil')
+    const rng = new Rng(0x51ed)
+    let held = false
+    let pressed = false
+    let swung = false
+    while (s.outcome === 'ongoing' && s.time < 60) {
+      const live = s.ground.some((g) => g.kind === 'vigil' && !g.detonated)
+      const before = s.actors
+        .filter((a) => a.faction === 'party' && a.alive && a.ai && holdingStill(s, a))
+        .map((a) => [a, a.gcd, a.swingTimer] as const)
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      if (!live) continue
+      for (const [a, wasGcd, wasSwing] of before) {
+        held = true
+        if (!a.alive) continue
+        if (a.gcd > wasGcd + 0.001) pressed = true
+        if (a.swingTimer > wasSwing + 0.001) swung = true
+      }
+    }
+    expect('somebody holds for the vigil', held, 'nobody ever noticed it')
+    expect('and presses nothing while it counts', !pressed, 'a global started inside the count')
+    expect('and swings nothing either', !swung, 'a weapon landed inside the count')
+  }
+
+  // And the beat is kept in a channel of its own rather than in a share of
+  // somebody else's. Four kinds of answer, four pairs of fields: a body that
+  // spent its walking slot on a demand to stand still would be handed
+  // straight to the code that decides where to stand, which is how the first
+  // draft of this was written and how it was answered for free.
+  {
+    const s = only('vigil')
+    const rng = new Rng(0x51ed)
+    let kept = false
+    let leaked = false
+    while (s.outcome === 'ongoing' && s.time < 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || !a.ai) continue
+        if (a.ai.keeping !== null) kept = true
+        if (a.ai.reactingTo?.startsWith('vigil')) leaked = true
+        if (a.ai.callTo?.startsWith('vigil')) leaked = true
+        if (a.ai.switchTo?.startsWith('vigil')) leaked = true
+      }
+    }
+    expect('the count is kept in a channel of its own', kept, 'nothing ever kept a beat')
+    expect('and in nobody else' + "'" + 's', !leaked, 'it took another channel' + "'" + 's slot')
+  }
+
+  // --- the chant: one name, and everybody pays for it -----------------------
+  {
+    const s = only('chant')
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const note = s.ground.find((g) => g.kind === 'chant')
+    expect('the chant opens at all', note !== undefined, 'nothing was put on the floor')
+    const marked = s.actors.filter(
+      (a) => a.faction === 'party' && getAura(a, 'chant') !== undefined,
+    )
+    expect('and names exactly one body', marked.length === 1, `${marked.length} were named`)
+    // Whichever one it chose. Naming a raider up front and assuming the roll
+    // landed on them is how a check ends up passing for a reason that has
+    // nothing to do with the mechanic.
+    const named = marked[0]!
+    expect(
+      'the same one the code hands back',
+      chantNamed(s)?.id === named.id,
+      `${chantNamed(s)?.name} against ${named.name}`,
+    )
+
+    // Nobody answers, so the raid pays. The delay is pushed past the count
+    // rather than the AI removed, because being too late is the failure the
+    // mechanic is actually made of -- and it is pushed on the beat channel,
+    // which is where a note is answered. Set on the walking channel it did
+    // nothing at all, and the check passed for a while by accident because
+    // the mechanic was answered somewhere the check was not looking.
+    while (s.outcome === 'ongoing' && s.ground.some((g) => g.kind === 'chant' && !g.detonated)) {
+      if (named.ai) named.ai.beatTimer = 99
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    expect(
+      'an uncut note is felt by the whole raid',
+      party.every((a) => (s.tally[a.id]?.damageTaken ?? 0) > 0),
+      'somebody was spared',
+    )
+    // And the weight is on the one that earned it, which is the correction
+    // that made the mechanic exist at more than one raid size: a raid-wide
+    // bill is a rate and so is healing, so the same total is absorbed outright
+    // by a bigger raid and wipes a smaller one, with no number in between.
+    expect(
+      'and the weight is on the one it named',
+      (s.tally[named.id]?.damageTaken ?? 0) >
+        Math.max(
+          ...party.filter((a) => a.id !== named.id).map((a) => s.tally[a.id]?.damageTaken ?? 0),
+        ),
+      'the raid was billed as heavily as the body that was slow',
+    )
+    // The one place in the game where the hit and the failure are recorded
+    // against different people, and the point of the mechanic.
+    expect(
+      'and so is the failure',
+      (s.tally[named.id]?.mechanicHits ?? 0) > 0 &&
+        party
+          .filter((a) => a.id !== named.id)
+          .every((a) => (s.tally[a.id]?.mechanicHits ?? 0) === 0),
+      'the raid was blamed for one body being slow',
+    )
+  }
+
+  // And cut, which is the same note and the opposite ending.
+  {
+    const s = only('chant')
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const named = chantNamed(s)
+    expect('there is somebody to cut it', named !== null, 'nothing was named')
+    const globalBefore = named!.gcd
+    breakChant(s, named!)
+    expect(
+      'cutting it costs the one who cut a global',
+      named!.gcd >= Math.max(globalBefore, GLOBAL_COOLDOWN) - 0.001,
+      `${named!.gcd}`,
+    )
+    expect('and takes the name back off', getAura(named!, 'chant') === undefined, 'still marked')
+    const takenBefore = s.actors
+      .filter((a) => a.faction === 'party')
+      .map((a) => s.tally[a.id]?.damageTaken ?? 0)
+    for (let i = 0; i < Math.ceil(CHANT_CAST / DT) + 4; i++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    const takenAfter = s.actors
+      .filter((a) => a.faction === 'party')
+      .map((a) => s.tally[a.id]?.damageTaken ?? 0)
+    // The Warden still swings at its tank while this runs, so the raid cannot
+    // be asked to take nothing at all. What it can be asked is that nobody
+    // took a note's worth of it — a cut note is worth zero to everybody.
+    expect(
+      'a cut note lands on nobody',
+      takenAfter.filter((t, i) => t > takenBefore[i]!).length <= 1,
+      'the raid was hit anyway',
+    )
+  }
+
+  // --- the gaze: a bearing, and only a bearing ------------------------------
+  //
+  // Assigned rather than waited for, and for the vigil's reason: both bearings
+  // are set by hand on whichever two bodies the party holds, so the check is
+  // about how the shape is read and not about which way anybody happened to be
+  // turned when it opened.
+  {
+    const s = only('gaze')
+    const rng = new Rng(0x51ed)
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const eye = s.ground.find((g) => g.kind === 'gaze')
+    expect('the gaze opens at all', eye !== undefined, 'nothing was put on the floor')
+
+    const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    const watcher = party[0]!
+    const turned = party[1]!
+    const bearing = (a: Actor): number =>
+      Math.atan2(eye!.pos.y - a.pos.y, eye!.pos.x - a.pos.x)
+    watcher.facing = bearing(watcher)
+    turned.facing = bearing(turned) + Math.PI
+    expect(
+      'a body pointed at it is read as watching',
+      watched(watcher, eye!) && !watched(turned, eye!),
+      'the arc reads the wrong way round',
+    )
+    // Exactly at the edge is not watching, and the edge is where a mechanic
+    // decided by an angle is decided.
+    const edge = { ...turned, facing: bearing(turned) + GAZE_ARC }
+    expect('and the arc closes at its own edge', !watched(edge, eye!), 'the edge is inside')
+
+    while (s.outcome === 'ongoing' && s.ground.some((g) => g.kind === 'gaze' && !g.detonated)) {
+      watcher.facing = bearing(watcher)
+      turned.facing = bearing(turned) + Math.PI
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    expect(
+      'the gaze takes whoever was still looking',
+      (s.tally[watcher.id]?.mechanicHits ?? 0) > 0,
+      'the one facing it was passed over',
+    )
+    expect(
+      'and passes over whoever had turned',
+      (s.tally[turned.id]?.mechanicHits ?? 0) === 0,
+      'turning away was not an answer',
+    )
+  }
+
+  // The turn is the answer, so somebody has to make it — and it has to cost
+  // the time it takes rather than resolving on the tick it was decided.
+  {
+    const s = only('gaze')
+    const rng = new Rng(0x51ed)
+    let turnedAway = false
+    let fastest = 0
+    while (s.outcome === 'ongoing' && s.time < 60) {
+      const before = s.actors
+        .filter((a) => a.faction === 'party' && a.alive)
+        .map((a) => [a, a.facing] as const)
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const [a, was] of before) {
+        if (!a.alive) continue
+        let swing = a.facing - was
+        while (swing > Math.PI) swing -= Math.PI * 2
+        while (swing < -Math.PI) swing += Math.PI * 2
+        fastest = Math.max(fastest, Math.abs(swing))
+      }
+      const eye = s.ground.find((g) => g.kind === 'gaze' && !g.detonated)
+      if (!eye) continue
+      if (s.actors.some((a) => a.faction === 'party' && a.alive && !watched(a, eye))) {
+        turnedAway = true
+      }
+    }
+    expect('somebody turns their back on the gaze', turnedAway, 'the raid watched all of it')
+    expect(
+      'and nobody turns faster than a body turns',
+      fastest <= TURN_RATE * DT + 0.001,
+      `${fastest.toFixed(4)} in a tick`,
+    )
+  }
+
+  // The dial each of the three actually turns on, written down where it can be
+  // read. All three are the crush's dial with the walk taken out: what a body
+  // needs is not a step but a hesitation, so the count is that hesitation plus
+  // about the slack the crush leaves over a step.
+  expect(
+    'the vigil counts longer than the hold it asks for',
+    VIGIL_TELEGRAPH - VIGIL_HELD > 0.6 && VIGIL_TELEGRAPH - VIGIL_HELD < 1.1,
+    `${(VIGIL_TELEGRAPH - VIGIL_HELD).toFixed(2)} of slack`,
+  )
+  // And the hold has to be shorter than a global, or the answer would be to
+  // stop before the count started and the count would decide nothing.
+  expect(
+    'and asks for less than a global of it',
+    VIGIL_HELD < GLOBAL_COOLDOWN,
+    `${VIGIL_HELD} against ${GLOBAL_COOLDOWN}`,
+  )
+  expect(
+    'the gaze counts longer than the turn it asks for',
+    GAZE_TELEGRAPH - GAZE_ARC / TURN_RATE > 0.6,
+    `${(GAZE_TELEGRAPH - GAZE_ARC / TURN_RATE).toFixed(2)} of slack`,
+  )
+  // The note is the one with no answer time at all -- a press has no duration
+  // -- so the whole count is slack, and what has to be true is that the count
+  // sits inside the delay a first pull rolls rather than outside all of them.
+  expect(
+    'the chant counts against a delay rather than against a walk',
+    CHANT_CAST < GLOBAL_COOLDOWN && CHANT_NOTICE > 1,
+    `${CHANT_CAST} at a notice of ${CHANT_NOTICE}`,
+  )
 }
 
 // --- no mechanic's branch answers for another mechanic --------------------

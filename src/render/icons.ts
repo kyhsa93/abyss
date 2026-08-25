@@ -247,6 +247,25 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Your own damage, handed back. Pierced rather than crushed: what lands is
   // the shape of what was thrown.
   boss_mirror: { colour: '#7dd3fc', style: 'pierce' },
+  // The three whose answer is a moment. They share nothing on the floor with
+  // anything above -- there is no shape to be outside of -- so what their
+  // colours have to do is be unmistakably not-floor, and be unmistakably three
+  // different demands rather than one idea in three shades.
+  //
+  // The count that punishes working, in amber: it is the only hostile thing
+  // in the game whose picture means "wait", and it crushes because what it
+  // does is come down on everyone still busy.
+  boss_vigil: { colour: '#f59e0b', style: 'crush' },
+  // The note nobody cut, in a deep violet nothing else owns. A burst, because
+  // it arrives on the whole raid at once and is over.
+  boss_chant: { colour: '#7c3aed', style: 'burst' },
+  // Being looked at, in a magenta nothing on the floor could be mistaken for.
+  // The obvious colour for an eye is a cold cyan and the two cyans either side
+  // of it are already spoken for -- the check only rejects an exact match, and
+  // three shades of the same blue is a picture a player cannot read even when
+  // every string in the table is different. Piercing, because it comes from
+  // one place and arrives along the line between there and you.
+  boss_gaze: { colour: '#d946ef', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {

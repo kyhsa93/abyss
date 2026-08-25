@@ -66,6 +66,9 @@ function makeAi(personality: Personality, attempt: number): AiProfile {
     switchTimer: 0,
     switchTo: null,
     striking: null,
+    beatTimer: 0,
+    beatTo: null,
+    keeping: null,
   }
 }
 
@@ -110,6 +113,7 @@ function makeMember(
     isPlayer,
     ai: isPlayer ? null : makeAi(slot.personality, attempt),
     swingTimer: 0,
+    facing: 0,
     hunting: null,
   }
 }
@@ -173,6 +177,7 @@ export function createState(
     isPlayer: false,
     ai: null,
     swingTimer: 2,
+    facing: 0,
     hunting: null,
   }
 

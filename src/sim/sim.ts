@@ -15,9 +15,11 @@ import {
   resolveBossCast,
   updateBoss,
   updateGround,
+  breakChant,
+  breakMirror,
   burnBrand,
   passJudgement,
-  breakMirror,
+  turnToward,
 } from './boss'
 import {
   AURA_TICK,
@@ -299,6 +301,27 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     if (player.castId) interruptCast(s, player, 'moved')
   }
 
+  // Which way the player is turned, which is the one thing on an actor that
+  // the party AI decides deliberately and a player cannot be asked to.
+  //
+  // There is no button for it and there is not going to be one: a keyboard
+  // that turns you is a keyboard with a camera on it, and this game is played
+  // from above. So a player faces where they are walking, and faces the boss
+  // when they are standing still — which leaves the gaze with a real answer,
+  // and one a player finds rather than reads. Walk away from it for a moment.
+  //
+  // The AI turns on the spot instead, and the difference is deliberate. Its
+  // answer has to cost only the reaction, or the mechanic would be measuring
+  // a walk. A player's answer costs a step, which is the same price every
+  // other mechanic here charges them.
+  const b = boss(s)
+  turnToward(
+    player,
+    len > 0.01
+      ? Math.atan2(input.moveY, input.moveX)
+      : Math.atan2(b.pos.y - player.pos.y, b.pos.x - player.pos.x),
+  )
+
   const bar = abilityBar({ classId: player.classId, spec: player.spec })
   for (const slot of input.pressed) {
     const abilityId = bar[slot]
@@ -316,6 +339,12 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
       reportReach(s, player, blocked === 'close' ? TOO_CLOSE : OUT_OF_RANGE)
       continue
     }
+    // Anything at all cuts the note. The AI answers the chant through its
+    // reaction delay, which is the only place skill lives for it; a player's
+    // reaction is their own, so what is asked of them is a press and not a
+    // particular one. Before the cast rather than after, so a press that
+    // fizzles on mana still counts as having answered in time.
+    breakChant(s, player)
     beginCast(s, player, abilityId, target, rng)
   }
 }

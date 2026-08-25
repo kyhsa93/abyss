@@ -8,6 +8,7 @@ import {
   BURDEN_DAMAGE,
   BURDEN_SLOW,
   BURDEN_PER_HAND,
+  CHANT_CAST,
   CHARGE_RAGE,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
@@ -88,6 +89,11 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // lands the heal, short enough that one who waited out a global cooldown
   // first does not — which is the whole question the mechanic asks.
   verdict: 3,
+  // The name on the one who has to cut the note. A shade longer than the note
+  // itself, so that the name is still on the body when the count runs out --
+  // the ground effect is what resolves the mechanic, and a mark that expired
+  // one tick early would leave the note landing on a raid it had never named.
+  chant: CHANT_CAST + 0.4,
   // Only a label, and only until the split resolves. What decides the
   // mechanic is the ground effect counting down, not this running out; this
   // is what says which group you are in while it does.
