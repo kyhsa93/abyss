@@ -866,13 +866,13 @@ export const ENCOUNTERS: Encounter[] = [
     // out, and the thirteen that are there were each measured into place.
     // What the hand is worth is measured and written down where it lives; a
     // rung for it is a separate decision about the other thirteen.
-    ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
+    ladder: ['puddle', 'grasp', 'rot', 'brand', 'sunder', 'soak'],
     phases: {
-      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5, vigil: 10, chant: 12, gaze: 11, knell: 21, vessel: 23, mirror: 19, toll: 13, grasp: 9.5, refuge: 15 }) },
-      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0, vigil: 9, chant: 10.5, gaze: 9.5, knell: 18, vessel: 20, mirror: 16.5, toll: 11.5, grasp: 8.5, refuge: 13 }) },
-      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5, vigil: 8, chant: 9, gaze: 8, knell: 15, vessel: 17, mirror: 14, toll: 10, grasp: 7.5, refuge: 11.5 }) },
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, grasp: 11, puddle: 9, rot: 33, sunder: 11, soak: 40 }) },
+      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, grasp: 9.5, puddle: 8, rot: 27, sunder: 9, soak: 34 }) },
+      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, grasp: 8.5, puddle: 7, rot: 22, sunder: 8, soak: 28 }) },
     },
-    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5, vigil: 9, chant: 10, gaze: 9, knell: 12, vessel: 14, mirror: 10, toll: 9, grasp: 7, refuge: 11 }) },
+    opening: { slam: 13, raid: 11, ...beats({ brand: 8, grasp: 8, puddle: 9, rot: 22, sunder: 14, soak: 34 }) },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -883,26 +883,26 @@ export const ENCOUNTERS: Encounter[] = [
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
       verdict: '',
-      crush: 'THE DEEP COMES DOWN',
-      fault: 'THE SEABED SPLITS',
-      shallows: 'The deep swallows the floor — the shallows, all of you',
+      crush: '',
+      fault: '',
+      shallows: '',
       spire: '',
       soak: 'The undertow gathers — all of you',
       hunt: '',
-      hand: 'THE DEEP TURNS — STAY BEHIND IT',
+      hand: '',
       echo: '',
-      burden: 'The weight is on me — somebody take it',
-      yoke: 'They cannot hold that alone — going',
-      schism: 'The current parts you',
-      vigil: 'THE DEEP HOLDS ITS BREATH — AND SO DO YOU',
-      chant: 'It has named me — cutting it',
-      gaze: 'LOOK AWAY FROM ME',
-      knell: 'A bell is rising — break it before it rings',
-      vessel: 'That one is full of the deep — leave it whole',
-      mirror: 'THE WATER GOES STILL — HOLD',
-      toll: 'The deep wants paying — somebody stand on it',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      mirror: '',
+      toll: '',
       grasp: 'Something is reaching up — off that ground',
-      refuge: 'Only these stones are left — one each',
+      refuge: '',
     },
   },
   {
@@ -960,42 +960,42 @@ export const ENCOUNTERS: Encounter[] = [
     // The echo on a sixth rung, for the reason the Warden's hand is on one:
     // owned and named and thrown by the descent, and not yet taking a rung
     // away from the four that a ten-man heroic already meets here.
-    ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
+    ladder: ['verdict', 'chant', 'spread', 'echo', 'refuge', 'schism'],
     phases: {
-      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0, vigil: 10, chant: 12, gaze: 11, knell: 21, vessel: 23, mirror: 19, toll: 14, grasp: 10, refuge: 16 }) },
-      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5, vigil: 9, chant: 10.5, gaze: 9.5, knell: 18, vessel: 20, mirror: 16.5, toll: 12, grasp: 9, refuge: 14 }) },
-      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0, vigil: 8, chant: 9, gaze: 8, knell: 15, vessel: 17, mirror: 14, toll: 10.5, grasp: 8, refuge: 12 }) },
+      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, spread: 11, schism: 12.0, chant: 12, refuge: 16 }) },
+      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, spread: 9, schism: 10.5, chant: 10.5, refuge: 14 }) },
+      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, spread: 8, schism: 9.0, chant: 9, refuge: 12 }) },
     },
-    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0, vigil: 9, chant: 10, gaze: 9, knell: 12, vessel: 14, mirror: 10, toll: 9.5, grasp: 7.5, refuge: 11.5 }) },
+    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, spread: 8, schism: 8.0, chant: 10, refuge: 11.5 }) },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
-      adds: 'The chorus answers',
+      adds: '',
       shockwave: '',
       sweep: '',
-      rot: 'A note is caught in me — heal',
+      rot: '',
       sunder: '',
       brand: '',
       verdict: 'It has judged me — heal through it',
       crush: '',
-      fault: 'A note cracks the floor',
-      shallows: 'Only the high ground still sings',
+      fault: '',
+      shallows: '',
       spire: '',
       soak: '',
       hunt: '',
       hand: '',
       echo: 'The floor is answering me — I cannot stand still',
-      burden: 'It is passing to me — where do I put it',
-      yoke: 'One of them is singing alone — with them',
+      burden: '',
+      yoke: '',
       schism: 'Take your parts — apart',
-      vigil: 'The singing stops. So does everything else',
+      vigil: '',
       chant: 'The note is mine to break',
-      gaze: 'DO NOT WATCH THE CHOIR',
-      knell: 'One note is gathering — silence it',
-      vessel: 'It is holding the chord — do not open it',
-      mirror: 'THE SONG TURNS BACK — STOP SINGING',
-      toll: 'It wants a voice — one of you, go',
-      grasp: 'A hand is closing on that floor — away from it',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      mirror: '',
+      toll: '',
+      grasp: '',
       refuge: 'Take a stone and hold it alone',
     },
   },
@@ -1032,17 +1032,17 @@ export const ENCOUNTERS: Encounter[] = [
     sizeMechanic: { 5: 0.75, 10: 1.1 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
-    ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
+    ladder: ['sweep', 'breath', 'hunt', 'shockwave', 'fault', 'shallows'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0, vigil: 10, chant: 12, gaze: 11, knell: 21, vessel: 23, mirror: 19, toll: 15, grasp: 11, refuge: 17 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5, vigil: 9, chant: 10.5, gaze: 9.5, knell: 18, vessel: 20, mirror: 16.5, toll: 13, grasp: 9.5, refuge: 15 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0, vigil: 8, chant: 9, gaze: 8, knell: 15, vessel: 17, mirror: 14, toll: 11, grasp: 8.5, refuge: 13 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, sweep: 32, fault: 10, shallows: 10, hunt: 44 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, sweep: 28, fault: 9, shallows: 9, hunt: 38 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, sweep: 23, fault: 8, shallows: 8, hunt: 32 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0, vigil: 9, chant: 10, gaze: 9, knell: 12, vessel: 14, mirror: 10, toll: 10, grasp: 8, refuge: 12 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, sweep: 23, fault: 10, shallows: 9, hunt: 45 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
-      adds: 'Break on them',
+      adds: '',
       shockwave: 'The undertow',
       sweep: 'Wide swing — out of reach',
       rot: '',
@@ -1057,18 +1057,149 @@ export const ENCOUNTERS: Encounter[] = [
       hunt: 'It has your scent',
       hand: '',
       echo: '',
-      burden: 'This is dragging me — hands, now',
-      yoke: 'They are under it on their own — moving',
-      schism: 'The tide splits you',
-      vigil: 'THE WATER GOES FLAT — DROP EVERYTHING',
-      chant: 'It is singing at me — breaking it',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      mirror: '',
+      toll: '',
+      grasp: '',
+      refuge: '',
+    },
+  },
+  {
+    // The boss that reads what you were doing rather than where you were
+    // standing. Nothing it throws is answered by a step: the raid stops, or
+    // turns away, or leaves something alone, and every one of those is a
+    // refusal rather than a movement. It is the only fight here a body can
+    // fail without moving an inch, and the only one where the price of
+    // getting it right is paid in uptime instead of in health.
+    id: 'watcher',
+    name: 'The Unblinking Watch',
+    short: 'Watcher',
+    demand: 'stop, look away, and leave it whole',
+    hp: 50000,
+    enrage: 240,
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.38,
+    swingDamage: 600,
+    slamDamage: 1250,
+    raidDamage: 150,
+    // Its whole kit was written and measured against the Warden's 1.7, and
+    // three of the six were brutal there -- the reflection wipes every
+    // unpractised five-man on that number. This is the dial that decides
+    // whether a mechanic exists at all, so it starts a full notch under the
+    // host they were fitted on and is moved from measurement rather than
+    // from taste.
+    mechanicDamage: 1.0,
+    accent: '#c084fc',
+    names: { slam: 'UNBLINKING BLOW', breath: '' },
+    ladder: ['mirror', 'gaze', 'vessel', 'vigil', 'adds', 'knell'],
+    phases: {
+      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ mirror: 19, gaze: 11, vessel: 23, vigil: 10, adds: 46, knell: 21 }) },
+      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ mirror: 16.5, gaze: 9.5, vessel: 20, vigil: 9, adds: 40, knell: 18 }) },
+      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ mirror: 14, gaze: 8, vessel: 17, vigil: 8, adds: 34, knell: 15 }) },
+    },
+    opening: { slam: 12, raid: 12, ...beats({ mirror: 10, gaze: 9, vessel: 14, vigil: 9, adds: 42, knell: 12 }) },
+    lines: {
+      phaseTwo: 'It has not looked away',
+      phaseThree: 'IT SEES ALL OF YOU',
+      adds: 'More eyes open',
+      shockwave: '',
+      sweep: '',
+      rot: '',
+      sunder: '',
+      brand: '',
+      verdict: '',
+      crush: '',
+      fault: '',
+      shallows: '',
+      spire: '',
+      soak: '',
+      hunt: '',
+      hand: '',
+      echo: '',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: 'IT IS COUNTING — PUT IT DOWN',
+      chant: '',
       gaze: 'EYES DOWN',
-      knell: 'Something is swelling out there — break it',
-      vessel: 'That one is carrying the tide — let it pass',
-      mirror: 'THE SURFACE CLOSES — NOTHING GOES IN',
-      toll: 'The tide takes a price — who is paying',
-      grasp: 'It has hold of the ground there — move',
-      refuge: 'One rock apiece — pick yours now',
+      knell: 'Something is winding up — end it',
+      vessel: 'That one is watching back — leave it',
+      mirror: 'THE SURFACE CLOSES — HANDS OFF',
+      toll: '',
+      grasp: '',
+      refuge: '',
+    },
+  },
+  {
+    // The boss that makes the raid choose a loser. Every rung asks the same
+    // question in a different shape -- a plate one body has to stand on, a
+    // debt somebody has to come and halve, a reach that bills whoever was
+    // left nearest, a weight that has to reach fresh hands -- and none of
+    // them can be answered by the body that was picked. What it costs is not
+    // a reaction, it is a decision, and the fight is over whose it was.
+    id: 'ledger',
+    name: 'The Long Ledger',
+    short: 'Ledger',
+    demand: 'decide who pays, then pay it',
+    hp: 52000,
+    enrage: 245,
+    phaseTwoHp: 0.72,
+    phaseThreeHp: 0.4,
+    swingDamage: 615,
+    slamDamage: 1290,
+    raidDamage: 158,
+    // Its kit is the mildest in the game per cast -- five of the six bill one
+    // body rather than the roster, which is the property that made them
+    // teach at every size and also the property that makes them small. So it
+    // sits above the Watcher and under the Warden, and the number is a
+    // starting point rather than a finding.
+    mechanicDamage: 1.35,
+    accent: '#f59e0b',
+    names: { slam: 'CALLING IT IN', breath: '' },
+    ladder: ['yoke', 'crush', 'burden', 'toll', 'spire', 'hand'],
+    phases: {
+      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ toll: 15, yoke: 10, crush: 9, burden: 4.6, spire: 20, hand: 14 }) },
+      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ toll: 13, yoke: 8.5, crush: 8, burden: 4.0, spire: 18, hand: 12 }) },
+      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ toll: 11, yoke: 7.5, crush: 7, burden: 3.5, spire: 16, hand: 10 }) },
+    },
+    opening: { slam: 12, raid: 12, ...beats({ toll: 10, yoke: 8.5, crush: 9, burden: 4.5, spire: 16, hand: 12 }) },
+    lines: {
+      phaseTwo: 'The account runs on',
+      phaseThree: 'EVERY DEBT AT ONCE',
+      adds: '',
+      shockwave: '',
+      sweep: '',
+      rot: '',
+      sunder: '',
+      brand: '',
+      verdict: '',
+      crush: 'THE LEDGER COMES DOWN',
+      fault: '',
+      shallows: '',
+      spire: 'The ground is standing up',
+      soak: '',
+      hunt: '',
+      hand: 'THE LEDGER TURNS — KEEP BEHIND IT',
+      echo: '',
+      burden: 'This is on me — somebody take it off',
+      yoke: 'They are carrying that alone — going to them',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      mirror: '',
+      toll: 'It wants one of us on the plate',
+      grasp: '',
+      refuge: '',
     },
   },
 ]
@@ -1095,7 +1226,14 @@ export const FIRST_ENCOUNTER = 0
  * costs the raid something a health bar never can.
  */
 export function kitCount(size: number, difficulty: DifficultyId): number {
-  let rungs = 2
+  // Three, so that the smallest fight anybody can buy is still a fight. Two
+  // rungs meant a five-man on normal met one mechanic and its pair, and the
+  // ladder above it was five steps of adding one thing to a fight that had
+  // barely started -- which is also why two of the six rungs used to buy
+  // bodies without buying an idea. Five bosses of six now, one mechanic to
+  // each rung and no mechanic on two bosses, so a raid that climbs the whole
+  // thing meets all thirty and meets each of them in exactly one fight.
+  let rungs = 3
   if (size >= 10) rungs++
   if (size >= 25) rungs++
   if (difficulty === 'heroic') rungs++
@@ -1160,6 +1298,28 @@ export function gated(
   const cadence = {} as Record<MechanicId, number>
   for (const id of MECHANIC_IDS) cadence[id] = on(id, timing[id])
   return { ...timing, ...cadence }
+}
+
+/**
+ * What gets shouted when a mechanic goes off.
+ *
+ * A boss speaks for the six mechanics on its own ladder and is silent about
+ * the other twenty-four, which is the rule that stops five fights sounding
+ * like one. A descent floor is not one of the five: it borrows a boss for its
+ * shape and then buys its own sentence out of the whole vocabulary, so it can
+ * and does throw mechanics that boss has never had a word for. Left to read
+ * the borrowed table it threw them in silence.
+ *
+ * So a floor announces from the mechanic's own name instead. It reads plainer
+ * than an authored line, which is right: a floor is a fight nobody wrote.
+ */
+export function lineFor(encounter: Encounter, onAFloor: boolean, key: MechanicId): string {
+  if (!onAFloor) return key in encounter.lines ? (encounter.lines as Record<string, string>)[key]! : ''
+  if (encounter.ladder.includes(key)) {
+    const own = key in encounter.lines ? (encounter.lines as Record<string, string>)[key]! : ''
+    if (own !== '') return own
+  }
+  return `Here comes ${MECHANIC_NAMES[key]}`
 }
 
 /** Clamped rather than checked: a saved index outliving its boss is not fatal. */

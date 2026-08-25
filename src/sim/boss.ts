@@ -72,6 +72,7 @@ import {
   encounterAt,
   encounterKit,
   gated,
+  lineFor,
   MECHANIC_IDS,
   type Encounter,
   type MechanicId,
@@ -517,7 +518,7 @@ function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
 
   s.next.shockwave = timing.shockwave
   s.sounds.push('shockwave')
-  say(s, b, fight(s).lines.shockwave)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'shockwave'))
   s.ground.push({
     ...blankGround(s),
     kind: 'shockwave',
@@ -635,7 +636,7 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   if (s.next.adds > 0) return
 
   s.next.adds = timing.adds
-  say(s, b, fight(s).lines.adds)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'adds'))
 
   // Proportional rather than banded, and floored at one rather than two.
   //
@@ -681,7 +682,7 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.next.sweep = timing.sweep
   s.sounds.push('raid')
-  say(s, b, fight(s).lines.sweep)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'sweep'))
 
   const reach = SWEEP_RANGE + b.radius
   for (const a of livingParty(s)) {
@@ -748,7 +749,7 @@ function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.next.crush = timing.crush
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.crush)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'crush'))
 
   s.ground.push({
     ...blankGround(s),
@@ -919,7 +920,7 @@ function scheduleSchism(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   shape.angle = order[Math.min(order.length - 1, Math.floor(per / 2))]!.bearing
 
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.schism)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'schism'))
 }
 
 
@@ -1005,7 +1006,7 @@ function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
 
   s.next.hand = timing.hand
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.hand)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'hand'))
 
   s.ground.push({
     ...blankGround(s),
@@ -1086,7 +1087,7 @@ function scheduleFault(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
 
   s.next.fault = timing.fault
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.fault)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'fault'))
 
   s.ground.push({
     ...blankGround(s),
@@ -1169,7 +1170,7 @@ function scheduleShallows(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
 
   s.next.shallows = timing.shallows
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.shallows)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'shallows'))
 
   // Around the boss rather than around the arena. The raid operates between
   // ninety and a hundred and twenty-five of it, so patches rolled across four
@@ -1313,7 +1314,7 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     caught: [],
   })
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.soak)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'soak'))
 }
 
 /**
@@ -1360,7 +1361,7 @@ function scheduleSunder(s: SimState, b: Actor, target: Actor | null, timing: Pha
     stackAura(target, 'sunder', b.id)
   }
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.sunder)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'sunder'))
   pushEffect(s, 'impact', target.pos, {
     abilityId: 'boss_sunder',
     power: 260,
@@ -1387,7 +1388,7 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   addAura(victim, 'rot', BOSS_ID)
   pushEffect(s, 'impact', victim.pos, { abilityId: 'boss_rot', power: 220 })
   s.sounds.push('telegraph')
-  if (victim.ai) say(s, victim, fight(s).lines.rot)
+  if (victim.ai) say(s, victim, lineFor(fight(s), s.plan !== null, 'rot'))
 }
 
 
@@ -1444,7 +1445,7 @@ function scheduleBrand(s: SimState, rng: Rng, timing: PhaseTiming): void {
     const mark = getAura(marked, 'brand')
     if (mark) mark.at = { x: marked.pos.x, y: marked.pos.y }
     pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_brand' })
-    if (marked.ai) say(s, marked, fight(s).lines.brand)
+    if (marked.ai) say(s, marked, lineFor(fight(s), s.plan !== null, 'brand'))
   }
   s.sounds.push('telegraph')
 }
@@ -1553,7 +1554,7 @@ function scheduleEcho(s: SimState, rng: Rng, timing: PhaseTiming): void {
     const marked = free.splice(rng.int(free.length), 1)[0]!
     addAura(marked, 'echo', BOSS_ID)
     dropEcho(s, marked)
-    if (marked.ai) say(s, marked, fight(s).lines.echo)
+    if (marked.ai) say(s, marked, lineFor(fight(s), s.plan !== null, 'echo'))
   }
   s.sounds.push('telegraph')
   s.next.echo = ECHO_BEAT
@@ -1619,7 +1620,7 @@ function scheduleVerdict(s: SimState, rng: Rng, timing: PhaseTiming): void {
     const marked = free.splice(rng.int(free.length), 1)[0]!
     addAura(marked, 'verdict', BOSS_ID)
     pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_verdict' })
-    if (marked.ai) say(s, marked, fight(s).lines.verdict)
+    if (marked.ai) say(s, marked, lineFor(fight(s), s.plan !== null, 'verdict'))
   }
   s.sounds.push('telegraph')
 }
@@ -1798,7 +1799,7 @@ function scheduleSpire(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
     pushEffect(s, 'cast', pos, { abilityId: 'boss_spire' })
   }
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.spire)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'spire'))
 }
 
 /** Where a brand burned out, the floor keeps it. */
@@ -1865,7 +1866,7 @@ function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
 
   addAura(victim, 'hunted', stalker.id)
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.hunt)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'hunt'))
   pushEffect(s, 'cast', pos, { abilityId: 'boss_stalk' })
 }
 
@@ -2669,7 +2670,7 @@ function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
       weight.held = [first.id]
     }
     pushEffect(s, 'cast', first.pos, { abilityId: 'boss_burden' })
-    if (first.ai && i === 0) say(s, first, fight(s).lines.burden)
+    if (first.ai && i === 0) say(s, first, lineFor(fight(s), s.plan !== null, 'burden'))
   }
   s.sounds.push('telegraph')
 }
@@ -2791,7 +2792,7 @@ function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     if (mark && bearer) {
       mark.bearer = bearer.id
       named.add(bearer.id)
-      if (bearer.ai) say(s, bearer, fight(s).lines.yoke)
+      if (bearer.ai) say(s, bearer, lineFor(fight(s), s.plan !== null, 'yoke'))
     }
 
     pushEffect(s, 'cast', owed.pos, { abilityId: 'boss_yoke' })
@@ -2898,7 +2899,7 @@ function scheduleToll(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   s.ground.push(plate)
 
   pushEffect(s, 'cast', plate.pos, { abilityId: 'boss_toll' })
-  if (named.ai) say(s, named, fight(s).lines.toll)
+  if (named.ai) say(s, named, lineFor(fight(s), s.plan !== null, 'toll'))
   s.sounds.push('telegraph')
 }
 
@@ -2958,7 +2959,7 @@ function scheduleGrasp(s: SimState, rng: Rng, timing: PhaseTiming): void {
     }
     s.ground.push(shape)
     pushEffect(s, 'cast', shape.pos, { abilityId: 'boss_grasp' })
-    if (anchor.ai && i === 0) say(s, anchor, fight(s).lines.grasp)
+    if (anchor.ai && i === 0) say(s, anchor, lineFor(fight(s), s.plan !== null, 'grasp'))
   }
   s.sounds.push('telegraph')
 }
@@ -3067,7 +3068,7 @@ function scheduleRefuge(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
     spots,
   })
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.refuge)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'refuge'))
 }
 
 /** Everyone close enough to be paying a share of this one's yoke right now. */
@@ -3173,7 +3174,7 @@ function scheduleVigil(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.next.vigil = timing.vigil
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.vigil)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'vigil'))
 
   s.ground.push({
     ...blankGround(s),
@@ -3245,7 +3246,7 @@ function scheduleChant(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   // placed to answer would be naming the answer.
   const named = free[rng.int(free.length)]!
   addAura(named, 'chant', BOSS_ID)
-  if (named.ai) say(s, named, fight(s).lines.chant)
+  if (named.ai) say(s, named, lineFor(fight(s), s.plan !== null, 'chant'))
   s.sounds.push('telegraph')
 
   s.ground.push({
@@ -3285,7 +3286,7 @@ function scheduleGaze(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   s.next.gaze = timing.gaze
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.gaze)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'gaze'))
 
   s.ground.push({
     ...blankGround(s),
@@ -3399,7 +3400,7 @@ function scheduleKnell(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   // being asked which to break.
   if (s.actors.some((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)) return
 
-  say(s, b, fight(s).lines.knell)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'knell'))
   s.sounds.push('telegraph')
 
   const angle = rng.range(0, Math.PI * 2)
@@ -3484,7 +3485,7 @@ function scheduleVessel(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // was struck on, so two alive at once is one memory for two bills.
   if (s.actors.some((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)) return
 
-  say(s, b, fight(s).lines.vessel)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'vessel'))
   s.sounds.push('telegraph')
 
   // Where the thralls come from, and walking in the way they do. It has to be
@@ -3580,7 +3581,7 @@ function scheduleMirror(s: SimState, b: Actor, timing: PhaseTiming): void {
   s.next.mirror = timing.mirror
 
   s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.mirror)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'mirror'))
   b.castId = 'boss_mirror'
   b.castRemaining = MIRROR_CAST
   b.castTotal = MIRROR_CAST

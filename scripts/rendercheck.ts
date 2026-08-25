@@ -139,6 +139,7 @@ import {
   kitCount,
   type MechanicId,
   MECHANIC_IDS,
+  lineFor,
 } from '../src/sim/encounters'
 import {
   BASE_RADIUS,
@@ -3111,11 +3112,17 @@ for (const [label, w, h] of [
       for (const a of s.actors) {
         if (a.faction === 'party' && a.auras.some((aura) => aura.id === 'spread')) spreads++
       }
-      // Hunting bodies excluded: a stalker is a hostile the boss summoned and
-      // is not a thrall, and counting it as one said the Choir had adds on a
-      // rung where it has a stalker and nothing else.
+      // Thralls only. Four mechanics put a body on the boss's side now -- a
+      // wave, a stalker, a bell and a jar -- and counting them all as thralls
+      // said a boss had adds on a rung where it has one of the other three.
+      // The stalker is told apart by its quarry and the other two by `spawn`,
+      // which is what that field is for.
       adds += s.actors.filter(
-        (a) => a.faction === 'boss' && a.id !== bossOf(s).id && a.hunting === null,
+        (a) =>
+          a.faction === 'boss' &&
+          a.id !== bossOf(s).id &&
+          a.hunting === null &&
+          a.spawn === undefined,
       ).length
     }
     if (spreads > 0) kinds.add('spread')
@@ -3178,25 +3185,38 @@ for (const [label, w, h] of [
       uses('breath') === (encounter.names.breath !== ''),
       `uses ${uses('breath')}, named "${encounter.names.breath}"`,
     )
-    const spoken = [
-      'shockwave',
-      'adds',
-      'sweep',
-      'crush',
-      'rot',
-      'sunder',
-      'soak',
-      'hunt',
-      'hand',
-      'echo',
-    ] as const
-    for (const key of spoken) {
+    // Every mechanic, not a list written out here. The list version named ten
+    // of them and was never extended, so twenty could have been announced by a
+    // boss that does not throw them, or thrown in silence, and nothing would
+    // have said so. `lines` does not carry a key for a mechanic that is never
+    // announced, which is the one legitimate absence.
+    for (const key of MECHANIC_IDS) {
+      if (!(key in encounter.lines)) continue
+      const line = (encounter.lines as Record<string, string>)[key]!
       expect(
         `${label}: its ${key} is announced exactly when it happens`,
-        uses(key) === (encounter.lines[key] !== ''),
-        `uses ${uses(key)}, says "${encounter.lines[key]}"`,
+        uses(key) === (line !== ''),
+        `uses ${uses(key)}, says "${line}"`,
+      )
+      if (!uses(key)) continue
+      expect(
+        `${label}: and has a cadence for it in every phase`,
+        [1, 2, 3].every((phase) => encounter.phases[phase]![key] > 0) && encounter.opening[key] > 0,
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![key]).join('/')} from ${encounter.opening[key]}`,
+      )
+      // Later phases ask sooner. A cadence that is flat is a boss that does
+      // not build.
+      expect(
+        `${label}: and asks for it sooner as it goes`,
+        encounter.phases[1]![key] > encounter.phases[2]![key] &&
+          encounter.phases[2]![key] > encounter.phases[3]![key],
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![key]).join('/')}`,
       )
     }
+    // And nothing it does not own has a cadence either, or a boss carries a
+    // timer for a fight it is not having.
+    const stray = MECHANIC_IDS.filter((key) => !uses(key) && encounter.phases[1]![key] > 0)
+    expect(`${label}: and throws nothing it does not own`, stray.length === 0, stray.join(','))
   }
 
   // Two bosses sharing a word is two bosses the player cannot tell apart while
@@ -3362,8 +3382,16 @@ for (const [label, w, h] of [
   // stopped hitting anybody. Nothing threw. The fights got quietly easier at
   // one size only, which read as a tuning result for two rounds.
   {
+    // Heroic, and the boss found by asking which ladder carries the ring
+    // rather than by remembering an index. What this measures is the shape of
+    // the ring at each size, so it has to be run at a difficulty every size
+    // reaches the rung on -- and the rung moved when the ladders were dealt
+    // out across five bosses, at which point a five-man on normal stopped
+    // buying a ring at all and the check read a band of zero as a bug in the
+    // ring rather than as a fight that never had one.
+    const ringed = ENCOUNTERS.findIndex((e) => e.ladder.includes('shockwave'))
     const shapeOf = (size: RaidSize): { cone: number; band: number; gap: number } => {
-      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'normal', 2)
+      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'heroic', ringed)
       const rng = new Rng(0x51ed)
       let cone = 0
       let band = 0
@@ -4037,21 +4065,23 @@ for (const [label, w, h] of [
       )
     }
 
-    // A boss says what it is doing. Most of these lines are empty on the
-    // bosses that do not own the mechanic — checked with the rest of the
-    // tables — but a mechanic no ladder sells yet can be handed to a floor
-    // borrowing any of the three shapes, so all three have to have one.
-    for (const encounter of ENCOUNTERS) {
+    // The boss that owns them says so, and a floor that borrows them speaks
+    // for itself. This used to demand a line from all three bosses, on the
+    // grounds that a floor can be handed either shape -- true, and the wrong
+    // fix: it made every boss carry a word for a fight it was not having. A
+    // floor now announces out of the mechanic's own name, so the boss tables
+    // can say only what the boss does.
+    {
+      const owner = ENCOUNTERS.find((e) => e.ladder.includes('fault'))
+      expect('one boss owns the split', owner !== undefined, 'none does')
+      expect('and announces it', owner !== undefined && owner.lines.fault !== '', 'it said nothing')
       expect(
-        `${encounter.name}: announces the split`,
-        encounter.lines.fault !== '',
+        'and the drowning',
+        owner !== undefined && owner.lines.shallows !== '',
         'it said nothing',
       )
-      expect(
-        `${encounter.name}: and the drowning`,
-        encounter.lines.shallows !== '',
-        'it said nothing',
-      )
+      const borrowed = lineFor(ENCOUNTERS[0]!, true, 'fault')
+      expect('a floor that buys one is not silent about it', borrowed !== '', 'it said nothing')
     }
 
     // Both are read off the arena rather than off the roster, which is what
@@ -4251,29 +4281,37 @@ for (const [label, w, h] of [
   // turned down to one point it still cost the Warden most of its win rate,
   // because the party's output is what it spends, not anybody's health.
   {
-    // Two bosses own one and they sit at opposite ends of their ladders: the
-    // Choir opens with it, which is what makes a five-man Choir a different
-    // pull from a five-man Warden, and the Tidebreaker only reaches it with a
-    // heroic twenty-five behind it.
-    // Any mechanic two of them share, not the stalker in particular. The rule
-    // was written naming it, and then a new mechanic pushed the stalker off
-    // one of the two ladders and the check failed for a fight that had lost
-    // nothing — `rot` and the thralls were both still doing exactly this. What
-    // the claim is about is that the bosses rhyme without repeating, and that
-    // is a property of the set rather than of one entry in it.
-    const shared = ENCOUNTERS.reduce((seen, e) => {
-      for (const m of e.ladder) seen.set(m, (seen.get(m) ?? 0) + 1)
-      return seen
-    }, new Map<MechanicId, number>())
-    const twice = [...shared].filter(([, n]) => n === 2).map(([m]) => m)
-    expect('some mechanic is shared by two bosses and not all three', twice.length > 0, `${twice.join(',')}`)
-    const owners = ENCOUNTERS.filter((e) => e.ladder.includes(twice[0]!))
-    const rungs = owners.map((e) => e.ladder.indexOf(twice[0]!))
+    // Every mechanic belongs to exactly one boss.
+    //
+    // This rule has been rewritten twice and each version was a smaller claim
+    // than the one it replaced. First it named the stalker and said two bosses
+    // own it; then, when a new mechanic pushed the stalker off a ladder, it
+    // said some mechanic is shared by two. Both were describing a shortage --
+    // there were ten mechanics and fifteen rungs, so sharing was not a design
+    // decision, it was arithmetic.
+    //
+    // There are thirty now and thirty rungs, so the shortage is gone and the
+    // real rule can be stated: no fight repeats another fight's idea. A raid
+    // that climbs all five ladders meets all thirty mechanics and meets each
+    // of them in exactly one boss.
+    const owners = new Map<MechanicId, string[]>()
+    for (const e of ENCOUNTERS) {
+      for (const m of e.ladder) owners.set(m, [...(owners.get(m) ?? []), e.short])
+    }
+    const twice = [...owners].filter(([, who]) => who.length > 1)
     expect(
-      'and not at the same point in the fight',
-      new Set(rungs).size === rungs.length,
-      rungs.join(','),
+      'no mechanic is on two bosses',
+      twice.length === 0,
+      twice.map(([m, who]) => `${m}: ${who.join('+')}`).join('; '),
     )
+    const homeless = MECHANIC_IDS.filter((m) => !owners.has(m))
+    expect('and every one of them is on a boss', homeless.length === 0, homeless.join(','))
+    expect(
+      'so the ladders spend the whole vocabulary exactly once',
+      [...owners].length === MECHANIC_IDS.length,
+      `${[...owners].length} of ${MECHANIC_IDS.length}`,
+    )
+
     expect('a first floor cannot afford one', !rollable('hunt', 1), 'floor one rolled a stalker')
     expect('a deeper one can', rollable('hunt', 8), 'no floor ever rolled one')
 
@@ -4824,47 +4862,6 @@ for (const [label, w, h] of [
 // rung is the one part of the usual plumbing that cannot be applied to a
 // mechanic no rung has reached.
 {
-  const SHAPES = ['schism', 'toll', 'grasp', 'refuge'] as const
-
-  for (const id of SHAPES) {
-    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
-    expect(
-      `${id} says whether it scales with the roster`,
-      MECHANIC_SCALES[id] !== undefined,
-      'unclassified',
-    )
-    expect(
-      `${id} is on no ladder yet`,
-      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
-      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
-    )
-    for (const encounter of ENCOUNTERS) {
-      expect(
-        `${encounter.short}: has a voice ready for the ${id}`,
-        encounter.lines[id] !== '',
-        'it is silent',
-      )
-      expect(
-        `${encounter.short}: and a cadence for it in every phase`,
-        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
-      )
-      // Later phases ask sooner, the same way every other line on the table
-      // does. A mechanic whose cadence is flat is a boss that does not build.
-      expect(
-        `${encounter.short}: and asks for the ${id} sooner as it goes`,
-        encounter.phases[1]![id] > encounter.phases[2]![id] &&
-          encounter.phases[2]![id] > encounter.phases[3]![id],
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
-      )
-    }
-    const drawn = bossEffect(`boss_${id}`)
-    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
-    const clash = bossEffectIds().filter(
-      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
-    )
-    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
-  }
 
   // A quiet Warden with nothing scheduled inside the window a check looks at,
   // so a reading is about the shape put on the floor and not about whatever
@@ -7118,19 +7115,22 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 
   const plain = play(null, 150)
 
-  // Measured on the Tidebreaker at the rung that buys thralls, rather than on
-  // the fight `plain` runs. The affix multiplies a wave, and a five-man normal
-  // Warden has no wave to multiply — its kit is the floor and the sweep — so
-  // asking there compared nothing against nothing and passed on it for as long
-  // as one boss happened to own every mechanic.
+  // Measured on whichever boss owns thralls, at a size and difficulty that
+  // reaches that rung. The affix multiplies a wave, and a boss with no wave
+  // has nothing to multiply -- asking the wrong one compares nothing against
+  // nothing and passes. It was pinned to encounter index 2 and went on
+  // passing until the ladders were redealt and the thralls moved, which is
+  // the argument for asking the ladder rather than remembering a number.
   {
+    const summoner = ENCOUNTERS.findIndex((e) => e.ladder.includes('adds'))
+    expect('some boss summons at all', summoner >= 0, 'none has thralls')
     const addsUnder = (affix: AffixId | null): number => {
       const fight = createState(
         0x51ed,
         8,
-        autoParty(10, pickFor('mage', 'dps')!),
+        autoParty(25, pickFor('mage', 'dps')!),
         'heroic',
-        2,
+        summoner,
         affix,
       )
       fight.countdown = 0
@@ -7141,7 +7141,12 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
         most = Math.max(
           most,
           fight.actors.filter(
-            (a) => a.faction === 'boss' && a.alive && a.id !== bossOf(fight).id && a.hunting === null,
+            (a) =>
+              a.faction === 'boss' &&
+              a.alive &&
+              a.id !== bossOf(fight).id &&
+              a.hunting === null &&
+              a.spawn === undefined,
           ).length,
         )
       }
@@ -8792,45 +8797,6 @@ for (const [label, w, h] of [
 // that they work rather than that they are placed — the same arrangement the
 // schism and the two handoffs are held to.
 {
-  const SWITCHING = ['knell', 'vessel', 'mirror'] as const
-
-  for (const id of SWITCHING) {
-    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
-    expect(
-      `${id} says whether it scales with the roster`,
-      MECHANIC_SCALES[id] !== undefined,
-      'unclassified',
-    )
-    expect(
-      `${id} is on no ladder yet`,
-      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
-      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
-    )
-    for (const encounter of ENCOUNTERS) {
-      expect(
-        `${encounter.short}: has a voice ready for the ${id}`,
-        encounter.lines[id] !== '',
-        'it is silent',
-      )
-      expect(
-        `${encounter.short}: and a cadence for the ${id} in every phase`,
-        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
-      )
-      expect(
-        `${encounter.short}: and asks for the ${id} sooner as it goes`,
-        encounter.phases[1]![id] > encounter.phases[2]![id] &&
-          encounter.phases[2]![id] > encounter.phases[3]![id],
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
-      )
-    }
-    const drawn = bossEffect(`boss_${id}`)
-    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
-    const clash = bossEffectIds().filter(
-      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
-    )
-    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
-  }
 
   const idle = { moveX: 0, moveY: 0, pressed: [] as number[] }
 
@@ -9113,49 +9079,6 @@ for (const [label, w, h] of [
 // sold is somebody else's decision.
 {
   const MOMENTS = ['vigil', 'chant', 'gaze'] as const
-
-  for (const id of MOMENTS) {
-    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
-    expect(
-      `${id} says whether it scales with the roster`,
-      MECHANIC_SCALES[id] !== undefined,
-      'unclassified',
-    )
-    // None of them may, and the column means what it says rather than "this
-    // plays the same at every size". Nothing is dealt per head here: one count
-    // is one count, one note names one body, one gaze asks the same question
-    // of everybody, and nothing eats floor.
-    expect(`${id} deals nothing per head`, !MECHANIC_SCALES[id], 'it says it scales')
-    expect(
-      `${id} is on no ladder yet`,
-      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
-      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
-    )
-    for (const encounter of ENCOUNTERS) {
-      expect(
-        `${encounter.short}: has a voice ready for the ${id}`,
-        encounter.lines[id] !== '',
-        'it is silent',
-      )
-      expect(
-        `${encounter.short}: and a cadence for it in every phase`,
-        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
-      )
-      expect(
-        `${encounter.short}: and asks for the ${id} sooner as it goes`,
-        encounter.phases[1]![id] > encounter.phases[2]![id] &&
-          encounter.phases[2]![id] > encounter.phases[3]![id],
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
-      )
-    }
-    const drawn = bossEffect(`boss_${id}`)
-    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
-    const clash = bossEffectIds().filter(
-      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
-    )
-    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
-  }
 
   // A Warden with one of them scheduled and nothing else, so a reading is
   // about the mechanic under test and not about whatever the boss had queued
