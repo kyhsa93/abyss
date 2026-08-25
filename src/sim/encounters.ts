@@ -344,16 +344,41 @@ export const ENCOUNTERS: Encounter[] = [
     // The opposite problem: this is the boss a twenty-five man loses to. Its
     // last rung buys `adds`, and a wave of them against a raid already holding
     // a spread, a hunt and a puddle is the one place the size stops helping.
-    sizeMechanic: { 5: 0.82, 25: 0.85 },
+    // The five-man weight came up with the ladder. 0.82 was set while this
+    // boss's first three rungs were a spread, a rot and a stalker — nothing
+    // that punishes a mistake — so the number was holding down a fight that
+    // was not going to hurt anybody anyway. With a puddle on the third rung it
+    // was holding down a fight that could, and both five-man rungs were won as
+    // often on a first pull as a ninth.
+    sizeMechanic: { 5: 0.94, 25: 0.85 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
-    ladder: ['spread', 'rot', 'hunt', 'puddle', 'adds'],
+    // `puddle` third rather than fourth, and quicker than it was.
+    //
+    // Measured one mechanic at a time against a raid that has never seen the
+    // fight, only two of the thirteen mechanic-and-boss pairs in this game
+    // teach anything: the Warden's puddle costs an unpractised raid 31 points
+    // of survival over a practised one, and the Tidebreaker's cone 29. Every
+    // other pair lands between 0 and 5, which is to say the rung is passed or
+    // failed on arrival and practice does not move it.
+    //
+    // The Choir held one of the two and had it on the fourth rung, where only
+    // a ten-man heroic and above ever met it — and set so gently that the same
+    // mechanic taught 2 points here against the Warden's 31. Its first three
+    // rungs were a spread, a rot and a stalker, worth 2, 0 and 0. There was
+    // nothing in them to learn, and the win rate said so: the ten-man normal
+    // was won as often on a first pull as on a ninth.
+    //
+    // Third is as early as it can go. The three bosses must open on nothing in
+    // common and the Warden opens with this, so the first two rungs are spoken
+    // for whatever they hold.
+    ladder: ['spread', 'rot', 'puddle', 'hunt', 'adds'],
     phases: {
-      1: { swing: 2.1, puddle: 14, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
-      2: { swing: 1.9, puddle: 12, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      1: { swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
       3: { swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { puddle: 13, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
+    opening: { puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
