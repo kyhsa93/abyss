@@ -94,9 +94,24 @@ const list: Ability[] = [
   { id: 'holy_shock', name: 'Holy Shock', role: 'healer', kind: 'damage', castTime: 0, cooldown: 6, cost: 20, amount: 210, threatMult: 1, aura: null, range: SPELL },
 
   // --- mage: burst, and a long cast that fights the movement ---------------
-  { id: 'frostbolt', name: 'Frostbolt', role: 'dps', kind: 'damage', castTime: 1.4, cooldown: 0, cost: 18, amount: 120, threatMult: 1, aura: null, range: SPELL },
-  { id: 'living_bomb', name: 'Living Bomb', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 24, threatMult: 1, aura: 'living_bomb', range: SPELL },
-  { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 13, cost: 55, amount: 430, threatMult: 1, aura: null, range: SPELL },
+  //
+  // All four are fifteen percent above where they were fitted, which is what
+  // the cast time is worth once every rung of every boss buys one more
+  // mechanic than it used to. Eight of the nine damage specs fill with an
+  // instant and pay a step for a demand to move; this one pays the whole
+  // global. Measured over five bosses at twelve pulls a spec, that had it last
+  // on four of the five and last overall by a spread of 1.44; at 1.15 the
+  // spread is 1.33 and it is no longer the worst on three of them.
+  //
+  // Fifteen percent and not more, and the sweep says why: at 1.30 it is second
+  // on the Tidebreaker, at 1.45 it is first there and second on the Choir --
+  // and it is *still* last on the Watcher and the Ledger at both. A flat
+  // coefficient overpays on the fights it can stand still in and cannot buy
+  // anything on the two that keep it walking. Those two want a rotation that
+  // works while moving, not a bigger number.
+  { id: 'frostbolt', name: 'Frostbolt', role: 'dps', kind: 'damage', castTime: 1.4, cooldown: 0, cost: 18, amount: 138, threatMult: 1, aura: null, range: SPELL },
+  { id: 'living_bomb', name: 'Living Bomb', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 25, amount: 28, threatMult: 1, aura: 'living_bomb', range: SPELL },
+  { id: 'pyroblast', name: 'Pyroblast', role: 'dps', kind: 'damage', castTime: 2.5, cooldown: 13, cost: 55, amount: 495, threatMult: 1, aura: null, range: SPELL },
   // The one thing it can press with its feet moving.
   //
   // Every other damage spec fills with an instant, so a fight that asks the
@@ -106,7 +121,7 @@ const list: Ability[] = [
   // most, and at the bottom of four of the five. Weak on purpose -- standing
   // still is still where the damage is -- but not nothing, which is what it
   // had.
-  { id: 'ice_lance', name: 'Ice Lance', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 10, amount: 72, threatMult: 1, aura: null, range: SPELL },
+  { id: 'ice_lance', name: 'Ice Lance', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 10, amount: 83, threatMult: 1, aura: null, range: SPELL },
 
   // --- hunter: everything instant, so it never stops damaging --------------
   { id: 'steady_shot', name: 'Steady Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },

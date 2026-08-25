@@ -6076,7 +6076,15 @@ for (const [label, w, h] of [
 // reads within four hundredths across independent seed bases at that count,
 // which is what makes it a check rather than a coin toss.
 {
-  const RUNS = 4
+  // Twelve, not four. The note above says four is enough because the spread
+  // reads within four hundredths across seed bases at that count -- measured
+  // when there were three bosses and a ten-man normal met three mechanics.
+  // With five bosses and four, four pulls a spec put the same tree at 1.33 on
+  // sixty samples and 1.37 on twenty, which straddles the limit. A check whose
+  // own error is the size of the thing it is judging will be answered by
+  // tuning until it goes green, and this file has a long record of that going
+  // badly.
+  const RUNS = 12
   const SIZE = 10
   const TANKS = 2
   const HEALERS = 2
@@ -6118,30 +6126,24 @@ for (const [label, w, h] of [
   }))
   const best = Math.max(...rows.map((r) => r.dps))
   const worst = Math.min(...rows.map((r) => r.dps))
-  // 1.35 until the ladders were dealt across five bosses. It is 1.55 now, and
-  // that is a regression being written down rather than a limit being tuned
-  // to fit -- so here is the measurement, because a loosened bound with no
-  // number attached is how a check stops meaning anything.
+  // Back to 1.35, and the story is worth keeping because the number left it
+  // for a while. Dealing the ladders across five bosses put one more mechanic
+  // on every rung, and a mechanic is a demand to move -- which sent the spread
+  // to 1.44 and the mage to last on four of the five bosses, where it had been
+  // mid-pack on all three before. Two things closed it. The mage had nothing
+  // at all it could press while walking, because the `attack` slot the healers
+  // use for exactly that was empty; and its coefficients were fitted against a
+  // fight with a third less movement in it.
   //
-  // Every rung of every boss now buys one more mechanic than it did, and a
-  // mechanic is a demand to move. Eight of the nine damage specs fill their
-  // rotation with an instant and pay a step for that; the mage fills with a
-  // 1.4-second cast and pays the whole global. Measured across three seed
-  // bases at twelve pulls a spec, the spread is 1.40 to 1.49 and the mage is
-  // last every time. It was mid-pack on all three bosses before.
-  //
-  // `ice_lance` is the part of that which was a plain omission -- the mage was
-  // the only damage spec with nothing at all it could press while walking, and
-  // the `attack` slot the healers use for exactly this was sitting empty. That
-  // is worth about six hundredths. The rest is not an omission, it is the
-  // class table having been balanced against a fight with a third less
-  // movement in it, and closing it needs a round of its own: nine specs, five
-  // bosses, and a decision about what a caster is supposed to be worth when it
-  // is allowed to stand still. Do not close it by making the emergency button
-  // stronger than the rotation.
+  // What did *not* close it is the interesting half. A flat coefficient buys
+  // nothing on the two bosses that keep it walking -- it is last on the
+  // Watcher and the Ledger at every value swept -- while at 1.30 it is second
+  // on the Tidebreaker and at 1.45 it is first. The aggregate passes because
+  // the fights it can stand still in carry it. If this check goes red again,
+  // the answer is a rotation that works while moving, not a bigger number.
   expect(
     'no damage spec is the obvious one',
-    best < worst * 1.55,
+    best < worst * 1.35,
     rows
       .sort((a, b) => b.dps - a.dps)
       .map((r) => `${r.name} ${r.dps.toFixed(0)}`)
