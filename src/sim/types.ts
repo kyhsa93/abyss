@@ -165,6 +165,8 @@ export type GroundKind =
   | 'soak'
   | 'hand'
   | 'echo'
+  | 'fault'
+  | 'shallows'
 
 export interface GroundEffect {
   id: number
@@ -195,6 +197,14 @@ export interface GroundEffect {
   turn: number
   /** hand: pulses left before the sweep is finished with the arena. */
   pulses: number
+  /**
+   * shallows: the ground that is still ground when the rest of it goes.
+   *
+   * The only mechanic here whose safe set is a list rather than a shape, so
+   * it is the only one that needs somewhere to keep it. `radius` is one
+   * patch's, since what the mechanic condemns is everything else.
+   */
+  spots?: Vec2[]
 }
 
 /**
@@ -629,6 +639,10 @@ export interface SimState {
    * owns the moment a mark expires, and they would eventually not.
    */
   nextEcho: number
+  /** Next time half the floor gives way. */
+  nextFault: number
+  /** Next time everything but a few patches does. */
+  nextShallows: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number

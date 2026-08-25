@@ -131,6 +131,90 @@ export const PUDDLE_TELEGRAPH = 1.6
  */
 export const CRUSH_TELEGRAPH = 1.1
 
+/**
+ * Warning time before half the floor gives way.
+ *
+ * The crush's dial, against a longer walk, and it behaves the same way: the
+ * whole mechanic lives inside two tenths of a second. The crush asks for a
+ * step of fifty units; this asks for however deep into the condemned half a
+ * body was standing, which for a raid operating at ninety to a hundred and
+ * twenty-five from the boss is about sixty-five on average and twice that at
+ * the back. What is left of the count after the walk is the window a reaction
+ * fits inside, and that window is the mechanic.
+ *
+ * Swept against a ten-man heroic, twenty pulls a step, as the share of an
+ * unpractised raid dead against a practised one — and every row of it taken
+ * while an isolated mechanic still got the one-rung tempo, so read the shape
+ * of the column rather than the heights. The rows are comparable with each
+ * other because they were all wrong by the same factor; none of them is
+ * comparable with anything measured since.
+ *
+ *   1.35  4.5% against 1.0% — a formality; the raid strolls across
+ *   1.15  23.5% against 1.5%
+ *   1.05  45.5% against 4.0%
+ *   0.95  61.5% against 9.5% — a wipe mechanic
+ *
+ * The second, which is where the crush's own dial sits and for the same
+ * reason: a first pull that is punished and a ninth that is not. Re-taken at
+ * the cadence the mechanic actually has, two hundred and fifty paired pulls
+ * put that setting at 8.6% against 0.4% — 8.3 points, and 96% of the deaths
+ * there were to remove. That is second in the field behind the cone's 21.4,
+ * and the sweep would want re-running before anybody moved the dial off it.
+ */
+export const FAULT_TELEGRAPH = 1.15
+
+/**
+ * Warning time before everything except the shallows goes under.
+ *
+ * The same shelf as the split's, and the honest finding here is that this is
+ * *not* the dial this mechanic turns on. Shortening it from 1.15 to 1.05 left
+ * an unpractised raid at exactly the same figure and cost a practised one
+ * half a point — because what fails here is not the walk, it is the noticing:
+ * a fumble is a second and a half late whatever the count says, and everybody
+ * who noticed at all had time to reach a patch.
+ *
+ * What moved it was volume. The death rate in this game is a step function of
+ * total mechanic damage per body — the measured line is 1937 for no deaths at
+ * all and 2645 for a wipe — so a mechanic landing under that line reads as
+ * teaching nothing however cleanly it separates the pulls. Three settings, as
+ * damage totalled per body across a pull and then the pulls dead, unpractised
+ * against practised, all three at the doubled tempo an isolated mechanic used
+ * to be given, so again: the column has a shape and the heights are stale.
+ *
+ *   every 20s, 850, a count of 1.90   448 a body    0.0% against 0.0%
+ *   every 12s, 1000, a count of 1.35  1581 a body   3.5% against 0.0%
+ *   every 10s, 1000, a count of 1.15  2278 a body  16.5% against 0.5%
+ *
+ * The separation was there the whole way down — even the first setting was
+ * catching an unpractised raid three times as often as a practised one — and
+ * none of it reached the number the probe reads until the total crossed the
+ * line.
+ *
+ * At the real cadence the third setting lands about half that per body, and
+ * two hundred and fifty paired pulls put it at 2.5% against 0.0%: 2.4 points,
+ * and 98% of the deaths there were to remove. Mid-field on points, between
+ * the crush and the brand, and near the top of the field on the share — which
+ * is the pair of columns this mechanic was always going to sit oddly across,
+ * because most of what it costs a raid is the walk and the probe cannot see
+ * uptime.
+ *
+ * Which is the thing worth writing down for the next one of these: check what
+ * the mechanic totals per body before concluding anything about its shape.
+ */
+export const SHALLOWS_TELEGRAPH = 1.15
+
+/**
+ * How much floor each shallow leaves standing, and how many of them there are.
+ *
+ * Small enough that the raid cannot stand where it already was — three
+ * patches of this size sit inside the ring the raid operates on and cover
+ * something under half of it — and large enough that a patch holds a raid of
+ * twenty-five, since nothing in this game collides and a patch that could not
+ * would be a lie told by the picture rather than a mechanic.
+ */
+export const SHALLOWS_RADIUS = 78
+export const SHALLOWS_COUNT = 3
+
 /** Melee actors need to be this close to their target to swing. */
 export const MELEE_RANGE = 52
 

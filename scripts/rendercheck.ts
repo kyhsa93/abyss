@@ -102,7 +102,12 @@ import {
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
+  CRUSH_TELEGRAPH,
+  FAULT_TELEGRAPH,
   MELEE_RANGE,
+  PUDDLE_TELEGRAPH,
+  SHALLOWS_RADIUS,
+  SHALLOWS_TELEGRAPH,
   SPREAD_RADIUS,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
@@ -164,7 +169,7 @@ import {
 import { gainPower, boss as bossOf } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
-import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, underHand } from '../src/sim/boss'
+import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, condemned, onShallows, underHand } from '../src/sim/boss'
 import {
   FIRST_TIER,
   LADDER,
@@ -3536,6 +3541,32 @@ for (const [label, w, h] of [
     thrown.set('descent', ids)
   }
 
+  // And two that are on no boss's table at all yet.
+  //
+  // The floor giving way is written, measured and drawn; which rung of which
+  // ladder it belongs on is a question about the shape of a fight rather than
+  // about the mechanic, and it is not answered here. A floor can be handed
+  // either of them today, so that is where they are collected from — the same
+  // arrangement the gathering had while it lived only on the descent.
+  {
+    const collapsing = floorWith(
+      { fault: 9, shallows: 10, puddle: 11 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (collapsing.outcome === 'ongoing' && collapsing.time < 150) {
+      step(collapsing, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of collapsing.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can split its own arena', ids.has('boss_fault'), 'it drew nothing')
+    expect('and drown all but the shallows', ids.has('boss_shallows'), 'it drew nothing')
+    thrown.set('collapse', ids)
+  }
+
   // A mechanic with no entry falls back to one orange ring shared with every
   // other boss cast, and an entry nothing throws is a colour for a mechanic
   // that does not exist. Both are the same rot the names had.
@@ -3622,6 +3653,273 @@ for (const [label, w, h] of [
     clearAura(tank, 'sunder')
     applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
     expect('and magic does not care', tank.maxHp - tank.hp === magic, `${magic}`)
+  }
+
+  // --- the floor that stops being floor -------------------------------------
+  //
+  // Two mechanics aimed at the arena rather than at anybody in it: a line
+  // across the floor with one half of it condemned, and the floor going under
+  // everywhere except three patches. Both are the crush's shape rather than a
+  // pool's — announced, and then the whole of it in a single frame — because
+  // that is the shape that measures as teaching anything. A pull that is
+  // punished in proportion is a pull whose mistakes come out in the average:
+  // measured against a ten-man heroic over 250 paired seeds, the split is
+  // worth 8.3 points of survival between a first pull and a ninth and takes
+  // 96% of the deaths there were to take, and the drowning 2.4 points and
+  // 98% — where a mechanic that merely leans on people is worth none.
+  //
+  // Neither is on a ladder. Which rung of which boss they belong to is a
+  // question about the shape of a fight, and it is not answered here; what is
+  // checked is that a floor handed either of them gets the mechanic the
+  // measurement was taken of.
+  {
+    const size = autoParty(10, pickFor('mage', 'dps')!)
+    const dice = (): Rng => new Rng(0x51ed)
+
+    // The line, and the two things that have to agree about it: what the AI
+    // reads off the floor and what the floor actually takes. A picture the
+    // simulation does not honour is worse than no picture.
+    {
+      const split = floorWith({ fault: 9 }, 4, size)
+      split.nextFault = 0
+      const rng = dice()
+      step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const line = split.ground.find((g) => g.kind === 'fault')
+      expect('a fault is drawn on the floor', line !== undefined, 'nothing was announced')
+      if (line) {
+        const party = split.actors.filter((a) => a.faction === 'party' && a.alive)
+        // Well clear of the line on one side or the other, so a stride taken
+        // inside the frame it lands on cannot move anybody across it.
+        party.forEach((a, i) => {
+          const side = i % 2 === 0 ? 1 : -1
+          a.pos = {
+            x: line.pos.x + Math.cos(line.angle) * side * 150,
+            y: line.pos.y + Math.sin(line.angle) * side * 150,
+          }
+        })
+        const doomed = party.filter((a) => condemned(a.pos, line))
+        expect('and it condemns one half of the arena', doomed.length === party.length / 2, `${doomed.length} of ${party.length}`)
+
+        const before = new Map(party.map((a) => [a.id, split.tally[a.id]?.mechanicHits ?? 0]))
+        line.telegraph = DT * 0.5
+        step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        const hit = party.filter(
+          (a) => (split.tally[a.id]?.mechanicHits ?? 0) > (before.get(a.id) ?? 0),
+        )
+        expect(
+          'everybody the line condemned is caught',
+          doomed.every((a) => hit.includes(a)),
+          `${hit.length} of ${doomed.length}`,
+        )
+        expect(
+          'and nobody on the other side of it is',
+          hit.length === doomed.length,
+          `${hit.length} caught, ${doomed.length} condemned`,
+        )
+        // A moment, not a place. Half an arena that stays dangerous is not a
+        // mechanic, it is a smaller arena.
+        expect(
+          'and the floor is floor again afterwards',
+          !split.ground.some((g) => g.kind === 'fault'),
+          'the condemned half stayed on the floor',
+        )
+      }
+    }
+
+    // Rolled every cast rather than fixed. A line that always falls the same
+    // way is answered by standing on the correct side of the arena for the
+    // rest of the fight, which is the sweep's failure — a mechanic whose
+    // answer is where you already were teaches nothing.
+    {
+      const s = floorWith({ fault: 9 }, 4, size)
+      const rng = dice()
+      const bearings = new Set<number>()
+      while (s.outcome === 'ongoing' && s.time < 150) {
+        for (const g of s.ground) if (g.kind === 'fault') bearings.add(Math.round(g.angle * 100))
+        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      }
+      expect('a floor asks for it more than once', bearings.size > 4, `${bearings.size} faults`)
+      expect(
+        'and never twice along the same bearing',
+        bearings.size > 4,
+        `${bearings.size} distinct`,
+      )
+    }
+
+    // The party has to actually cross. An unanswerable mechanic is a tax, and
+    // the AI getting over the line is what makes it a decision instead.
+    {
+      const s = floorWith({ fault: 9 }, 4, size)
+      const rng = dice()
+      let lands = 0
+      let clear = 0
+      while (s.outcome === 'ongoing' && s.time < 150) {
+        // The same tick and a half of slack the gathering is measured with:
+        // the timer is decremented by DT and the shape is gone inside the tick
+        // it fires.
+        for (const g of s.ground) {
+          if (g.kind !== 'fault' || g.detonated || g.telegraph > DT * 1.5) continue
+          lands++
+          const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
+          const caught = alive.filter((a) => condemned(a.pos, g))
+          if (caught.length <= alive.length / 4) clear++
+        }
+        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      }
+      expect('a floor calls for the split', lands > 0, 'it never did')
+      expect('and the raid gets across it', clear >= lands - 2, `${clear} of ${lands}`)
+    }
+
+    // The drowning, which is the same question asked the other way round:
+    // every other piece of hazardous ground here says leave where you are and
+    // this one says be on one of these three.
+    {
+      const drown = floorWith({ shallows: 10 }, 4, size)
+      drown.nextShallows = 0
+      const rng = dice()
+      step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const tide = drown.ground.find((g) => g.kind === 'shallows')
+      expect('the shallows are marked out', tide !== undefined, 'nothing was announced')
+      if (tide) {
+        const spots = tide.spots ?? []
+        expect('there are three of them', spots.length === 3, `${spots.length}`)
+        expect(
+          'each the size the mechanic measures against',
+          tide.radius === SHALLOWS_RADIUS,
+          `${tide.radius}`,
+        )
+        // Reachable, or the mechanic is a tax rather than a question. The raid
+        // operates between ninety and a hundred and twenty-five from the boss.
+        const b = boss(drown)
+        const nearest = Math.min(...spots.map((spot) => dist(spot, b.pos)))
+        expect('and the nearest is a walk rather than a journey', nearest < 240, `${nearest.toFixed(0)}`)
+
+        const party = drown.actors.filter((a) => a.faction === 'party' && a.alive)
+        party.forEach((a, i) => {
+          a.pos = i % 2 === 0 ? { ...spots[i % spots.length]! } : { x: 0, y: -430 }
+        })
+        const safe = party.filter((a) => onShallows(a.pos, tide))
+        expect('half of them stand on one', safe.length === party.length / 2, `${safe.length}`)
+
+        const before = new Map(party.map((a) => [a.id, drown.tally[a.id]?.mechanicHits ?? 0]))
+        tide.telegraph = DT * 0.5
+        step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        const hit = party.filter(
+          (a) => (drown.tally[a.id]?.mechanicHits ?? 0) > (before.get(a.id) ?? 0),
+        )
+        expect(
+          'nobody standing on a patch is taken',
+          !hit.some((a) => safe.includes(a)),
+          `${hit.length} caught`,
+        )
+        expect(
+          'and everybody who is not is',
+          hit.length === party.length - safe.length,
+          `${hit.length} of ${party.length - safe.length}`,
+        )
+        expect(
+          'and the floor comes back afterwards',
+          !drown.ground.some((g) => g.kind === 'shallows'),
+          'the arena stayed underwater',
+        )
+      }
+    }
+
+    {
+      const s = floorWith({ shallows: 10 }, 4, size)
+      const rng = dice()
+      let lands = 0
+      let bodies = 0
+      let safe = 0
+      while (s.outcome === 'ongoing' && s.time < 150) {
+        for (const g of s.ground) {
+          if (g.kind !== 'shallows' || g.detonated || g.telegraph > DT * 1.5) continue
+          lands++
+          const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
+          bodies += alive.length
+          safe += alive.filter((a) => onShallows(a.pos, g)).length
+        }
+        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      }
+      // Counted in bodies rather than in casts, which is the honest unit for
+      // this one: the split asks the same thing of the whole raid at once and
+      // is answered by all of it or by none, while three patches are answered
+      // one raider at a time, so a single straggler is not a failed cast.
+      expect('a floor drowns itself more than once', lands > 0, 'it never did')
+      expect(
+        'and a practised raid is standing on a patch when it lands',
+        safe > bodies * 0.85,
+        `${safe} of ${bodies}`,
+      )
+    }
+
+    // Neither goes off while the party is being told to stand in one circle.
+    // The gathering says all of you here; these say that half of here, or all
+    // of here bar three patches, is about to stop being floor. Asked directly
+    // rather than waited for, the way the circle's own refusals are.
+    {
+      const forced = floorWith({ soak: 24, fault: 9, shallows: 10 }, 4, size)
+      forced.nextSoak = 0
+      const rng = dice()
+      step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      expect(
+        'the circle is out',
+        forced.ground.some((g) => g.kind === 'soak'),
+        'it never appeared',
+      )
+      forced.nextFault = 0
+      forced.nextShallows = 0
+      for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      expect(
+        'and the floor does not split under it',
+        !forced.ground.some((g) => g.kind === 'fault'),
+        'a fault opened under a gathering',
+      )
+      expect(
+        'nor drown around it',
+        !forced.ground.some((g) => g.kind === 'shallows'),
+        'the arena went under a gathering',
+      )
+    }
+
+    // A boss says what it is doing. Most of these lines are empty on the
+    // bosses that do not own the mechanic — checked with the rest of the
+    // tables — but a mechanic no ladder sells yet can be handed to a floor
+    // borrowing any of the three shapes, so all three have to have one.
+    for (const encounter of ENCOUNTERS) {
+      expect(
+        `${encounter.name}: announces the split`,
+        encounter.lines.fault !== '',
+        'it said nothing',
+      )
+      expect(
+        `${encounter.name}: and the drowning`,
+        encounter.lines.shallows !== '',
+        'it said nothing',
+      )
+    }
+
+    // Both are read off the arena rather than off the roster, which is what
+    // `MECHANIC_SCALES` is for: a half of the floor is a half of it whether
+    // five people or twenty-five are standing on it, and three patches are
+    // three patches. Measured, neither gets easier with the headcount — the
+    // split costs an unpractised twenty-five man more than a ten, not less.
+    expect('the split is aimed at the arena', !MECHANIC_SCALES.fault, 'it says it scales')
+    expect('and so is the drowning', !MECHANIC_SCALES.shallows, 'it says it scales')
+
+    // The two telegraphs are the whole of both mechanics, and they are the
+    // crush's dial with a longer walk in front of them. The crush measured a
+    // cliff two tenths of a second wide; these sit on the same shelf.
+    expect(
+      'the split gives about as long as the crush does',
+      FAULT_TELEGRAPH > CRUSH_TELEGRAPH && FAULT_TELEGRAPH < PUDDLE_TELEGRAPH,
+      `${FAULT_TELEGRAPH}`,
+    )
+    expect(
+      'and the drowning no longer, for a longer walk',
+      SHALLOWS_TELEGRAPH >= FAULT_TELEGRAPH,
+      `${SHALLOWS_TELEGRAPH}`,
+    )
   }
 
   // --- the circle the whole party stands in ---------------------------------
@@ -7063,6 +7361,11 @@ function floorWith(
   s.nextHunt = opening.hunt
   s.nextHand = opening.hand
   s.nextEcho = opening.echo
+  // Not in the catalogue, so `plannedOpening` has nothing to say about them
+  // and the boss's own table would decide when they arrive. A floor built to
+  // order has to start its own clocks.
+  s.nextFault = every.fault === undefined ? 0 : every.fault * 0.45
+  s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
   return s
 }
 

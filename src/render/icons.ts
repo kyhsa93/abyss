@@ -191,6 +191,13 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // swing that arrives and the other is the floor itself coming down, and a
   // player who cannot tell them apart cannot learn that one of them warned.
   boss_crush: { colour: '#dc2626', style: 'crush' },
+  // The floor splitting, which is a line rather than a circle: stone, and
+  // cleaving, because what it does is come apart along one.
+  boss_fault: { colour: '#475569', style: 'cleave' },
+  // The floor going under everywhere but three patches. Deep water rather
+  // than the shallow teal the gathering owns, and the only mechanic here whose
+  // colour means the ground rather than the thing standing on it.
+  boss_shallows: { colour: '#1d4ed8', style: 'wither' },
   // Everyone at once, which is the healer's whole fight.
   boss_raid: { colour: '#a78bfa', style: 'burst' },
   boss_rot: { colour: '#65a30d', style: 'wither' },
