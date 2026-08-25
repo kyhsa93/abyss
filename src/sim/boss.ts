@@ -2041,9 +2041,15 @@ function scheduleBurden(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
  * not swap chains in a way nobody could have read.
  */
 function passBurdens(s: SimState): void {
+  // One leg a tick, per weight. Without this the pass is worth however far
+  // down the actor list the receiver happens to sit: a weight handed to
+  // somebody with a higher id is picked up again later in the same loop and
+  // can travel two legs in a single frame, and a chain that runs at a speed
+  // decided by roster order is not a chain anybody can read.
+  const moved = new Set<number>()
   for (const carrier of livingParty(s)) {
     const weight = getAura(carrier, 'burden')
-    if (!weight) continue
+    if (!weight || moved.has(carrier.id)) continue
     const taker = burdenTaker(s, carrier)
     if (!taker || dist(carrier.pos, taker.pos) > BURDEN_REACH) continue
 
@@ -2063,13 +2069,14 @@ function passBurdens(s: SimState): void {
     }
 
     addAura(taker, 'burden', BOSS_ID)
-    const moved = getAura(taker, 'burden')
-    if (moved) {
-      moved.stacks = hands
-      moved.held = [...held, taker.id]
-      moved.remaining = burdenFuse(hands - 1)
-      moved.duration = moved.remaining
+    const next = getAura(taker, 'burden')
+    if (next) {
+      next.stacks = hands
+      next.held = [...held, taker.id]
+      next.remaining = burdenFuse(hands - 1)
+      next.duration = next.remaining
     }
+    moved.add(taker.id)
     pushEffect(s, 'cast', taker.pos, { abilityId: 'boss_burden' })
   }
 }
