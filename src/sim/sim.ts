@@ -18,7 +18,10 @@ import {
   applyDamage,
   applyHeal,
   boss,
+  carryDrag,
   detonateSpread,
+  dropBurden,
+  shareYoke,
   interruptCast,
   dist,
   gainPower,
@@ -250,6 +253,11 @@ function updateTimers(s: SimState, a: Actor): void {
       if (aura.id === 'brand' && a.alive) burnBrand(s, aura.at ?? a.pos)
       if (aura.id === 'verdict' && a.alive) passJudgement(s, a)
       if (aura.id === 'rot' && a.alive) breakRot(s, a)
+      // The two that are somebody else's problem as much as their own. A
+      // burden that ran out of clock was never passed on; a yoke that ran out
+      // is paid by whoever happened to be standing there when it did.
+      if (aura.id === 'burden' && a.alive) dropBurden(s, a, aura)
+      if (aura.id === 'yoke' && a.alive) shareYoke(s, a, aura)
     }
   }
 }
@@ -261,7 +269,11 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   const len = Math.hypot(input.moveX, input.moveY)
   if (len > 0.01) {
     const stepLen =
-      player.moveSpeed * DT * (carrying(s, player) ? CARRIER_SPEED : 1) * hasteOf(player)
+      player.moveSpeed *
+      DT *
+      (carrying(s, player) ? CARRIER_SPEED : 1) *
+      hasteOf(player) *
+      carryDrag(player)
     const stepX = (input.moveX / len) * stepLen
     const stepY = (input.moveY / len) * stepLen
     player.pos.x += stepX

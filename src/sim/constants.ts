@@ -215,6 +215,86 @@ export const SHALLOWS_TELEGRAPH = 1.15
 export const SHALLOWS_RADIUS = 78
 export const SHALLOWS_COUNT = 3
 
+/**
+ * How close the weight has to be carried before it changes hands.
+ *
+ * Narrow on purpose. Wide enough and the handoff happens by accident: this
+ * party clusters, so anything much past a hundred units means the burden is
+ * answered by standing where you already were, and a mechanic whose answer is
+ * to keep doing what you were doing is not a mechanic. This is about two
+ * thirds of a melee's reach, so it is a deliberate walk into somebody.
+ */
+export const BURDEN_REACH = 62
+
+/**
+ * How many fresh pairs of hands it takes before the weight is spent.
+ *
+ * Three rather than one. One is a pass, and a pass is over the moment it
+ * happens; three is a chain, and a chain is the thing that has to be kept
+ * going while the rest of the fight carries on underneath it. It is also what
+ * makes the memory on the aura matter — by the third leg the raid has run out
+ * of the people standing nearest and has to go and find somebody.
+ */
+export const BURDEN_HANDS = 3
+
+/**
+ * What a burden costs whoever is still holding it when the fuse runs out.
+ *
+ * Scaled by how far along the chain it got, so the raid pays most for the
+ * handoff it nearly finished. Dropping the weight on the first leg is a
+ * mistake; dropping it on the third is a mistake that wasted everybody's
+ * walk, and it should read that way.
+ */
+export const BURDEN_DAMAGE = 900
+export const BURDEN_PER_HAND = 0.55
+
+/** What carrying it costs in speed, on top of everywhere else you have to be. */
+export const BURDEN_SLOW = 0.86
+
+/**
+ * How close you have to stand to take a share of somebody else's yoke.
+ *
+ * Wider than the burden's reach and narrower than the gathering's circle. The
+ * gathering is a place, so it can afford to be found from across the arena;
+ * this is a person, and a person who is still moving, so the radius has to be
+ * something a raid can hold around a body rather than a target it walks to
+ * once and stands in.
+ */
+export const YOKE_REACH = 45
+
+/**
+ * What a yoke costs each of the two when the one who was called for came.
+ *
+ * Two of them and nobody else, which took three shapes to arrive at. The first
+ * divided a fixed total among everyone standing close enough, and a fixed
+ * total is the wrong shape for the same reason the gathering's was: the raid
+ * pays it whatever it does, so practice can move the distribution and never
+ * the bill. The second priced it per head against how many turned up, which
+ * fixes the spiral but not the bill — everyone nearby still pays, so the
+ * mechanic's sustained cost rises with how well it is answered, and the only
+ * way to make it affordable was to run it so rarely that a pull barely
+ * contained it. Measured, both wiped a practised raid as reliably as an
+ * unpractised one at every number that made carrying it alone lethal.
+ *
+ * Billed to the pair instead, the sustained cost is two of these however many
+ * bodies happen to be standing around, which is what lets it come round often
+ * enough to be worth learning. The rest of the raid is not being asked to pay;
+ * one of them is being asked to go.
+ */
+export const YOKE_SHARE = 105
+
+/**
+ * What it costs the one who owes it when nobody came.
+ *
+ * A dealer's whole health bar, near enough. It has to be, because this is the
+ * only hit in the fight that is charged to somebody who did nothing wrong: the
+ * carrier cannot fetch its own bearer and cannot pay less by playing better,
+ * so if it is survivable then looking away is free and the mechanic is a
+ * suggestion. What makes it fair is that it is loud, it is slow, and the
+ * person who has to answer it is named.
+ */
+export const YOKE_ALONE = 1500
+
 /** Melee actors need to be this close to their target to swing. */
 export const MELEE_RANGE = 52
 

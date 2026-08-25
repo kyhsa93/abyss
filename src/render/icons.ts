@@ -225,6 +225,13 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The thing that followed you, in a colour nothing else uses: whatever else
   // is happening, this one is about you specifically.
   boss_stalk: { colour: '#fb923c', style: 'cleave' },
+  // A weight coming down in the hands it was left in. Drawn as a crush
+  // because that is what it is — the difference from the boss's own is that
+  // this one landed somewhere a person walked it to.
+  boss_burden: { colour: '#818cf8', style: 'crush' },
+  // A debt falling due, which either splits or does not. A burst rather than
+  // a wither: it arrives all at once and it is over.
+  boss_yoke: { colour: '#f0abfc', style: 'burst' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {
