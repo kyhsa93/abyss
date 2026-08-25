@@ -1,23 +1,30 @@
 import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
+  CHURN_TELEGRAPH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
+  SCHISM_MUSTER_ROOM,
+  SCHISM_ROOM,
+  SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
 } from './constants'
 import {
   BREATH_CAST,
+  churnSafe,
   ECHO_TELEGRAPH,
   HAND_BEAT,
   condemned,
   insideCone,
   inShockwaveGap,
   onShallows,
+  schismClash,
+  schismMuster,
   underHand,
   verdictLine,
 } from './boss'
@@ -142,7 +149,11 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       const greedy = ai.personality === 'greedy'
       if (!(greedy && nearlyDone)) interruptCast(s, actor, 'moved')
     }
-    if (danger.startsWith('wave')) {
+    if (danger.startsWith('churn')) {
+      say(s, actor, 'It turns over — move!')
+    } else if (danger.startsWith('schism')) {
+      say(s, actor, 'Groups, break up')
+    } else if (danger.startsWith('wave')) {
       say(s, actor, 'Inside, get in!')
     } else if (danger.startsWith('fault')) {
       say(s, actor, 'Across the crack!')
@@ -190,7 +201,13 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // ground it just left, and walking back onto your own floor is not a bug
     // in this mechanic, it is the thing it is asking about — the brand
     // measured ten of its seventeen points of teaching in that habit alone.
-    if (!caving(s, home) && !swept(s, home)) ai.moveTarget = home
+    if (
+      !caving(s, home) &&
+      !swept(s, home) &&
+      !turningOver(s, home) &&
+      !stillSplit(s, actor, home)
+    )
+      ai.moveTarget = home
   }
 
   moveToward(s, actor, ai.moveTarget)
@@ -381,6 +398,49 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // The wrong side of the line the water is about to turn over. Ranked with
+    // the crush, and for the crush's reason: one enormous hit at a known
+    // instant, so being a tenth of a second late is the whole mechanic.
+    //
+    // The key carries the beat as well as the shape. Three beats out of one
+    // cast are three separate notices — a key that named only the shape would
+    // roll a reaction for the first beat and then hand the next two over for
+    // free, since `reactingTo` only re-rolls when the danger *changes*.
+    if (g.kind === 'churn') {
+      if (!g.detonated && !churnSafe(actor.pos, g, DANGER_MARGIN)) {
+        consider(`churn:${g.id}:${g.beats ?? 0}`, 90 + (CHURN_TELEGRAPH - g.telegraph) * 12)
+      }
+      continue
+    }
+
+    // Not yet with your own group. The only danger on this list that is not
+    // about a place, and the only one that stays live after the immediate
+    // problem has gone.
+    //
+    // Both halves are load-bearing. Reading only the clash — somebody wearing
+    // another mark standing on you — made the mechanic answerable by one step
+    // sideways, because a step is all it takes to stop clashing with the body
+    // that happened to be nearest. This AI keeps the smallest correction that
+    // works and drops the walk the moment its spot is clear, so a raid told to
+    // come apart into groups came apart by about a pace each and stayed one
+    // crowd: measured, it was still two hundred and thirty-five units from its
+    // own muster point when the count ran out.
+    //
+    // A formation is not a step, so the danger is not over until the formation
+    // exists. What that costs is the walk, which is the whole price of the
+    // mechanic and the reason it belongs to a boss with room in its table for
+    // one — the same price the gathering charges, paid outward instead of in.
+    if (g.kind === 'schism') {
+      if (!g.detonated) {
+        const muster = musterFor(s, actor)
+        const adrift = muster !== null && dist(actor.pos, muster) > SCHISM_MUSTER_ROOM
+        if (adrift || clashingWith(s, actor, actor.pos, g.radius + DANGER_MARGIN)) {
+          consider(`schism:${g.id}`, 86 + (SCHISM_TELEGRAPH - g.telegraph) * 8)
+        }
+      }
+      continue
+    }
+
     if (g.kind === 'shockwave') {
       // Only a ring that has not reached you yet. One that has already swept
       // past is still on the floor — it lingers for the length of the fight —
@@ -485,6 +545,57 @@ function swept(s: SimState, spot: Vec2): boolean {
   )
 }
 
+/** Whether anybody wearing another mark is this close to the given spot. */
+function clashingWith(s: SimState, actor: Actor, spot: Vec2, room: number): boolean {
+  return livingParty(s).some(
+    (other) => other.id !== actor.id && schismClash(actor, other) && dist(spot, other.pos) <= room,
+  )
+}
+
+/** The split the party is currently being asked to make, if it is being asked. */
+function liveSchism(s: SimState): SimState['ground'][number] | null {
+  return s.ground.find((g) => g.kind === 'schism' && !g.detonated) ?? null
+}
+
+/** Where this actor's group is supposed to be standing. */
+function musterFor(s: SimState, actor: Actor): Vec2 | null {
+  const split = liveSchism(s)
+  if (!split) return null
+  const mark = getAura(actor, 'schism')
+  if (!mark) return null
+  return schismMuster(split, mark.stacks - 1)
+}
+
+/** Is this spot on the wrong side of a beat that has not landed? */
+function turningOver(s: SimState, spot: Vec2): boolean {
+  return s.ground.some(
+    (g) => g.kind === 'churn' && !g.detonated && !churnSafe(spot, g, DANGER_MARGIN),
+  )
+}
+
+/**
+ * Would going home put this one back among the other groups?
+ *
+ * The third narrow case of the same trap. Home is a bearing off the boss and
+ * a split sends the groups to bearings of their own, so a body that stepped
+ * just far enough to be clear had its danger go quiet, was told it was out of
+ * position, and walked back into the middle of everybody.
+ *
+ * Narrow like the other two, and worth about as little on its own: it stops
+ * the walk back, and it does nothing to make the walk out happen. What made
+ * this mechanic work is two rules further down — the danger staying live
+ * until the group exists, and a muster point being read as a place worth
+ * going even while the group that has to leave it is still standing there.
+ */
+function stillSplit(s: SimState, actor: Actor, spot: Vec2): boolean {
+  return s.ground.some(
+    (g) =>
+      g.kind === 'schism' &&
+      !g.detonated &&
+      clashingWith(s, actor, spot, g.radius + DANGER_MARGIN),
+  )
+}
+
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   for (const g of s.ground) {
@@ -518,6 +629,32 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     // Inverted, like the circle: three patches are the only floor there is.
     if (g.kind === 'shallows') {
       if (!g.detonated && !onShallows(spot, g)) return false
+      continue
+    }
+    if (g.kind === 'churn') {
+      if (!g.detonated && !churnSafe(spot, g, DANGER_MARGIN)) return false
+      continue
+    }
+    // Whether the spot is safe depends on who else is standing near it, so it
+    // is re-read every tick rather than decided once: a destination that was
+    // clear when it was picked stops being clear the moment somebody wearing
+    // the other mark walks toward it.
+    //
+    // Except the place this one was sent. A muster point is read as safe even
+    // while the group that has to leave it is still standing there, and that
+    // is the difference between a raid that comes apart and a raid that
+    // shuffles. Scored instant by instant, the far side of the arena is
+    // *unsafe* at the moment a split lands — everybody is still in one crowd,
+    // so every point two hundred units out has the other group inside its
+    // circle — and an AI that believes that rejects the one destination that
+    // solves the mechanic and re-picks a new spot every tick instead. Going
+    // where you were told is a plan, and a plan is allowed to be wrong for the
+    // second it takes everybody else to leave.
+    if (g.kind === 'schism') {
+      if (g.detonated) continue
+      const muster = musterFor(s, actor)
+      if (muster && dist(spot, muster) <= SCHISM_MUSTER_ROOM) continue
+      if (clashingWith(s, actor, spot, g.radius + DANGER_MARGIN)) return false
       continue
     }
     // Inverted: this is the one piece of ground that is only safe from the
@@ -698,6 +835,44 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           })
         }
       }
+    } else if (g.kind === 'churn' && !g.detonated) {
+      // Straight across the line on the actor's own bearing, which is the
+      // shortest answer there is and the one a raider actually takes — the
+      // sample rings around the actor find the outward beat easily and the
+      // inward one almost never, because the inside of a circle a hundred
+      // units away is a small target from two hundred and fifty.
+      const bearing = Math.atan2(actor.pos.y - g.pos.y, actor.pos.x - g.pos.x)
+      const reach = g.inward ? g.radius * 0.6 : g.radius + 45
+      candidates.push({
+        x: g.pos.x + Math.cos(bearing) * reach,
+        y: g.pos.y + Math.sin(bearing) * reach,
+      })
+      // And a spread of places on the right side of it, so a whole raid
+      // crossing at once does not end up stacked on one bearing.
+      for (let i = 0; i < 12; i++) {
+        const angle = offset + (i / 12) * Math.PI * 2
+        candidates.push({
+          x: g.pos.x + Math.cos(angle) * reach,
+          y: g.pos.y + Math.sin(angle) * reach,
+        })
+      }
+    } else if (g.kind === 'schism' && !g.detonated) {
+      // The muster point for this actor's own group, and a ring of places
+      // around it. Offered rather than searched for, the same way the circle
+      // and the ring's pocket are: the answer to a split is an agreed place,
+      // and a raid that each works out its own spacing from scratch produces
+      // two groups that never quite finish separating.
+      const muster = musterFor(s, actor)
+      if (muster) {
+        candidates.push({ x: muster.x, y: muster.y })
+        for (let i = 0; i < 8; i++) {
+          const angle = offset + (i / 8) * Math.PI * 2
+          candidates.push({
+            x: muster.x + Math.cos(angle) * 55,
+            y: muster.y + Math.sin(angle) * 55,
+          })
+        }
+      }
     } else if (g.kind === 'breath' && !g.detonated) {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
@@ -726,6 +901,8 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let ringActive = false
     let soakActive = false
     let crushActive = false
+    let churnActive = false
+    let schismActive = false
     let strandedActive = false
     for (const g of s.ground) {
       if (g.kind === 'breath') {
@@ -763,6 +940,25 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         for (const spot of g.spots ?? []) nearest = Math.min(nearest, dist(candidate, spot))
         if (nearest > g.radius - actor.radius) score -= 1800
         else score += Math.min(220, (g.radius - nearest) * 2)
+        continue
+      }
+      if (g.kind === 'churn') {
+        if (g.detonated) continue
+        churnActive = true
+        if (!churnSafe(candidate, g, DANGER_MARGIN)) score -= 1700
+        else {
+          // Deeper into the safe side is better, which keeps a raid from
+          // lining up along the line it has just been asked to cross — and
+          // the line moves, so the far side of one beat is the near side of
+          // the next.
+          const d = dist(candidate, g.pos)
+          score += Math.min(200, (g.inward ? g.radius - d : d - g.radius) * 1.4)
+        }
+        continue
+      }
+      if (g.kind === 'schism') {
+        if (g.detonated) continue
+        schismActive = true
         continue
       }
       if (g.kind === 'crush') {
@@ -822,6 +1018,34 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       else score += Math.min(180, (d - STALK_ROOM * 0.8) * 1.2)
     }
 
+    // 3a. The other groups, and this one's own place to be.
+    //
+    // Two terms rather than one, because a split has two halves to it. The
+    // repulsion is what the mechanic actually checks, and on its own it
+    // produces a raid that shuffles until it happens to be sorted; the pull
+    // toward the muster point is what makes that shuffling into a plan, and
+    // it is weighted above the cost of walking so a group commits to going
+    // rather than settling for the first spot that is barely clear.
+    if (schismActive) {
+      const muster = musterFor(s, actor)
+      const gathered = muster !== null && dist(candidate, muster) <= SCHISM_MUSTER_ROOM
+      if (muster) score -= dist(candidate, muster) * 1.1
+      // The other groups are worth avoiding everywhere except at the place
+      // this one was sent, for the reason `isSpotSafe` says above: at the
+      // instant a split lands the crowd is still one crowd, so every muster
+      // point in the arena has somebody else's group inside its circle, and a
+      // term that reads that literally argues against all of them at once.
+      if (!gathered) {
+        for (const other of livingParty(s)) {
+          if (other.id === actor.id) continue
+          if (!schismClash(actor, other)) continue
+          const d = dist(candidate, other.pos)
+          if (d < SCHISM_ROOM + DANGER_MARGIN) score -= 900
+          else score += Math.min(d, 280) * 0.3
+        }
+      }
+    }
+
     // 3. Spread separation.
     const carryingSpread = getAura(actor, 'spread') !== undefined
     for (const other of livingParty(s)) {
@@ -836,7 +1060,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (soakActive || strandedActive) {
+    if (soakActive || strandedActive || churnActive) {
       // Standing in it beats standing in range of anything. Suspended the
       // same way the ring suspends the casters' spacing, and for melee too:
       // the boss is not going anywhere in five seconds.
@@ -846,6 +1070,13 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // the patches are three, and a term that pays for standing near the boss
       // would pick the nearest one for everybody — which is a mechanic
       // answered by walking wherever the fight already was.
+      //
+      // And the churn, for a sharper version of the first reason. Its two
+      // lines sit either side of where a role wants to stand, so a term that
+      // pays for melee range argues against the outward beat and one that
+      // pays for spell range argues against the inward one — the mechanic is
+      // the party giving up its formation for a moment, and the formation
+      // cannot be allowed to argue back.
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.
@@ -867,7 +1098,12 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     }
 
     // 5. Humanity: drift toward the group.
-    score -= dist(candidate, centroid) * ai.clustering
+    //
+    // Whichever group that is. While the raid is cut into groups, the pull
+    // toward the middle of everybody is a pull back into the other one, and
+    // an instinct that is right for every other mechanic here is exactly
+    // wrong for this one.
+    score -= dist(candidate, schismActive ? sideCentroid(s, actor) : centroid) * ai.clustering
 
     // 6. Do not run further than necessary.
     score -= dist(candidate, actor.pos) * 0.35
@@ -882,6 +1118,27 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   }
 
   return best
+}
+
+/**
+ * The middle of the actor's own group, for as long as it has one.
+ *
+ * Falls back to the whole party, which is what it is when nobody is marked:
+ * the split is the only thing that ever makes "the group" mean less than
+ * everybody.
+ */
+function sideCentroid(s: SimState, actor: Actor): Vec2 {
+  let x = 0
+  let y = 0
+  let n = 0
+  for (const a of livingParty(s)) {
+    if (a.id === actor.id) continue
+    if (schismClash(actor, a)) continue
+    x += a.pos.x
+    y += a.pos.y
+    n++
+  }
+  return n === 0 ? { x: actor.pos.x, y: actor.pos.y } : { x: x / n, y: y / n }
 }
 
 function partyCentroid(s: SimState, exclude: Actor): Vec2 {

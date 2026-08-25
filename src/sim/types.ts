@@ -40,6 +40,7 @@ export type AuraId =
   | 'brand' // boss: leaves ground where it burns out
   | 'echo' // boss: the floor under you gives way on a beat until it fades
   | 'verdict' // boss: judgement pending, and it kills anyone under the line
+  | 'schism' // boss: which group you belong to, and they must not touch
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -167,6 +168,8 @@ export type GroundKind =
   | 'echo'
   | 'fault'
   | 'shallows'
+  | 'churn'
+  | 'schism'
 
 export interface GroundEffect {
   id: number
@@ -205,6 +208,27 @@ export interface GroundEffect {
    * patch's, since what the mechanic condemns is everything else.
    */
   spots?: Vec2[]
+
+  /**
+   * churn: which side of `radius` this beat wants the raid on, and how many
+   * beats of the cast are still to come.
+   *
+   * Optional, because a cast that lasts several beats is the first thing on
+   * this table that does: everything else here is one shape resolved once,
+   * and every other place a `GroundEffect` is built would otherwise have had
+   * to learn two fields it has no use for.
+   */
+  inward?: boolean
+  beats?: number
+
+  /**
+   * schism: how many groups the raid is being cut into.
+   *
+   * The bearing of the first muster point is `angle` and the rest are spaced
+   * evenly round from it, so the whole arrangement is two numbers rather than
+   * a list of places.
+   */
+  sides?: number
 }
 
 /**
@@ -643,6 +667,8 @@ export interface SimState {
   nextFault: number
   /** Next time everything but a few patches does. */
   nextShallows: number
+  nextChurn: number
+  nextSchism: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number

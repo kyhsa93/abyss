@@ -111,6 +111,11 @@ import {
   SPREAD_RADIUS,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
+  CHURN_IN,
+  CHURN_OUT,
+  CHURN_TELEGRAPH,
+  SCHISM_ROOM,
+  SCHISM_TELEGRAPH,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -169,7 +174,17 @@ import {
 import { gainPower, boss as bossOf } from '../src/sim/combat'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
-import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, condemned, onShallows, underHand } from '../src/sim/boss'
+import {
+  ECHO_TELEGRAPH,
+  HAND_BEAT,
+  SUNDER_MAX,
+  churnSafe,
+  condemned,
+  onShallows,
+  schismMuster,
+  schismSides,
+  underHand,
+} from '../src/sim/boss'
 import {
   FIRST_TIER,
   LADDER,
@@ -3523,7 +3538,7 @@ for (const [label, w, h] of [
   // wrong reason.
   {
     const deep = floorWith(
-      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13 },
+      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13, churn: 14, schism: 12 },
       4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
@@ -4651,6 +4666,420 @@ for (const [label, w, h] of [
     // Both are ground that keeps asking, which is the expensive kind: a first
     // floor is meant to be a fight with two ideas in it.
     expect('and floor one does neither', !rollable('hand', 1) && !rollable('echo', 1), 'it did')
+  }
+}
+
+// --- the shape the raid stands in, on a timer --------------------------------
+//
+// Two mechanics whose demand is on the party's formation rather than on
+// anybody's footwork: the churn turns the floor over on a beat, so the whole
+// raid has to be somewhere else and then somewhere else again, and the schism
+// cuts the raid into groups and asks that the groups do not touch.
+//
+// Neither is on a boss's ladder. Where either of them belongs is a question
+// about which fight wants which demand and it is not answered here, so what
+// is checked below is that both work rather than that either is placed — the
+// rule that ties a boss's line to a boss's rung is the one part of the usual
+// plumbing that cannot be applied to a mechanic no rung has reached.
+{
+  const SHAPES = ['churn', 'schism'] as const
+
+  for (const id of SHAPES) {
+    expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
+    expect(
+      `${id} says whether it scales with the roster`,
+      MECHANIC_SCALES[id] !== undefined,
+      'unclassified',
+    )
+    expect(
+      `${id} is on no ladder yet`,
+      ENCOUNTERS.every((e) => !e.ladder.includes(id)),
+      ENCOUNTERS.filter((e) => e.ladder.includes(id)).map((e) => e.short).join(','),
+    )
+    for (const encounter of ENCOUNTERS) {
+      expect(
+        `${encounter.short}: has a voice ready for the ${id}`,
+        encounter.lines[id] !== '',
+        'it is silent',
+      )
+      expect(
+        `${encounter.short}: and a cadence for it in every phase`,
+        [1, 2, 3].every((phase) => encounter.phases[phase]![id] > 0) && encounter.opening[id] > 0,
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')} from ${encounter.opening[id]}`,
+      )
+      // Later phases ask sooner, the same way every other line on the table
+      // does. A mechanic whose cadence is flat is a boss that does not build.
+      expect(
+        `${encounter.short}: and asks for the ${id} sooner as it goes`,
+        encounter.phases[1]![id] > encounter.phases[2]![id] &&
+          encounter.phases[2]![id] > encounter.phases[3]![id],
+        `${[1, 2, 3].map((phase) => encounter.phases[phase]![id]).join('/')}`,
+      )
+    }
+    const drawn = bossEffect(`boss_${id}`)
+    expect(`${id} has a picture when it lands`, drawn !== null, 'no effect is registered')
+    const clash = bossEffectIds().filter(
+      (other) => other !== `boss_${id}` && bossEffect(other)!.colour === drawn?.colour,
+    )
+    expect(`${id} does not borrow another mechanic's colour`, clash.length === 0, clash.join(','))
+  }
+
+  // A quiet Warden with nothing scheduled inside the window a check looks at,
+  // so a reading is about the shape put on the floor and not about whatever
+  // else the boss was going to do in the same tick.
+  const quiet = (): SimState => floorWith({ churn: 900, schism: 900 })
+
+  const churnGround = (inward: boolean, beats: number): SimState['ground'][number] => ({
+    id: 1,
+    kind: 'churn',
+    pos: { x: 0, y: 0 },
+    radius: inward ? CHURN_IN : CHURN_OUT,
+    telegraph: 0,
+    lingering: 0,
+    damage: 400,
+    detonated: false,
+    angle: 0,
+    halfWidth: 0,
+    growth: 0,
+    band: 0,
+    caught: [],
+    // The wedge's two, which every `GroundEffect` carries whether or not the
+    // shape has any use for them.
+    turn: 0,
+    pulses: 0,
+    inward,
+    beats,
+  })
+
+  // --- the churn: one line, and which side of it is floor --------------------
+  const beatCost = (inward: boolean, at: number): number => {
+    const s = quiet()
+    const party = s.actors.filter((a) => a.faction === 'party')
+    party.forEach((a) => {
+      a.pos = { x: at, y: 0 }
+      a.hp = a.maxHp
+    })
+    s.ground = [churnGround(inward, 1)]
+    const watched = party[party.length - 1]!
+    const before = watched.hp
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+    return before - watched.hp
+  }
+
+  expect('the far line catches whoever did not cross it', beatCost(false, 120) > 0, '0')
+  expect('and lets go of whoever did', beatCost(false, CHURN_OUT + 40) === 0, 'it hit anyway')
+  expect('the near line is the same demand backwards', beatCost(true, 300) > 0, '0')
+  expect('and its inside is the safe side', beatCost(true, 60) === 0, 'it hit anyway')
+  // The band a raid actually rests in — ninety to a hundred and twenty-five
+  // from its boss — is outside the near line and inside the far one, so the
+  // whole of it is caught by an outward beat and the outer half of it by an
+  // inward one. Nothing a role wants is on the right side of both.
+  expect(
+    'the far beat catches the whole band a raid rests in',
+    [95, 110, 125].every((at) => beatCost(false, at) > 0),
+    'part of the resting band survives it',
+  )
+  expect(
+    'and the near beat catches the rest of it',
+    beatCost(true, 125) > 0,
+    'the resting band survives it',
+  )
+  // Which is a property of the two numbers rather than of where anybody
+  // happened to be standing: safe-inside and safe-outside do not overlap, so
+  // no single spot answers both beats.
+  expect('no one spot answers both beats', CHURN_IN < CHURN_OUT, `${CHURN_IN} vs ${CHURN_OUT}`)
+
+  // --- the churn: three beats, alternating, and then nothing -----------------
+  {
+    const s = quiet()
+    const party = s.actors.filter((a) => a.faction === 'party')
+    // Parked where no beat can reach them, so what is being read is the shape
+    // turning over rather than anybody dying to it.
+    party.forEach((a) => {
+      a.pos = { x: 160, y: 0 }
+      a.ai = null
+    })
+    s.ground = [churnGround(false, 3)]
+    const seen: string[] = []
+    for (let beat = 0; beat < 4 && s.ground.length > 0; beat++) {
+      const shape = s.ground[0]!
+      seen.push(`${shape.inward ? 'in' : 'out'}@${shape.radius}`)
+      shape.telegraph = 0
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+    }
+    expect(
+      'a churn is out, then in, then out',
+      seen.join(' ') === `out@${CHURN_OUT} in@${CHURN_IN} out@${CHURN_OUT}`,
+      seen.join(' '),
+    )
+    expect('and then it is gone', s.ground.length === 0, `${s.ground.length} left on the floor`)
+  }
+
+  // --- the churn: it can be practised ----------------------------------------
+  //
+  // The rule the last four discarded mechanics died on: an answer that does
+  // not pass through `currentDanger` is an answer with no reaction time and no
+  // fumble in front of it, and a mechanic nobody can be late for is a mechanic
+  // nobody can get better at. Read the same way the crush's was — count the
+  // ticks somebody is standing on the wrong side of a live beat, and ask how
+  // often the churn is the thing they are reacting to.
+  {
+    const s = unattended(floorWith({ churn: 9 }))
+    s.nextChurn = 0.4
+    const rng = new Rng(0x51ed)
+    let wrongSide = 0
+    let onIt = 0
+    const keys = new Set<string>()
+    while (s.outcome === 'ongoing' && s.time < 90) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const live = s.ground.find((g) => g.kind === 'churn' && !g.detonated)
+      if (!live) continue
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || !a.alive || !a.ai) continue
+        if (churnSafe(a.pos, live)) continue
+        wrongSide++
+        if (a.ai.reactingTo?.startsWith('churn')) {
+          onIt++
+          keys.add(a.ai.reactingTo)
+        }
+      }
+    }
+    expect('the churn is thrown at all', wrongSide > 0, 'nobody was ever caught out by it')
+    expect(
+      'and a raid on the wrong side of it is reacting to it',
+      onIt / Math.max(1, wrongSide) > 0.8,
+      `${((onIt / Math.max(1, wrongSide)) * 100).toFixed(0)}% of ${wrongSide} ticks`,
+    )
+    // Each beat has to be noticed on its own. `reactingTo` only re-rolls a
+    // reaction when the danger *changes*, so a key naming only the shape would
+    // charge for the first beat and hand the next two over free.
+    const perCast = new Map<string, Set<string>>()
+    for (const key of keys) {
+      const [, id, beat] = key.split(':')
+      if (!id || !beat) continue
+      perCast.set(id, (perCast.get(id) ?? new Set()).add(beat))
+    }
+    expect(
+      'and each beat is a notice of its own',
+      [...perCast.values()].some((beats) => beats.size > 1),
+      [...keys].slice(0, 4).join(' '),
+    )
+  }
+
+  // --- the schism: groups, and the room between them -------------------------
+  expect('ten people come apart into two groups', schismSides(10) === 2, `${schismSides(10)}`)
+  expect('twenty-five into three', schismSides(25) === 3, `${schismSides(25)}`)
+  for (const sides of [2, 3]) {
+    const shape = { ...churnGround(false, 1), kind: 'schism' as const, sides, angle: 0.4 }
+    let closest = Infinity
+    for (let a = 0; a < sides; a++) {
+      for (let b = a + 1; b < sides; b++) {
+        closest = Math.min(closest, dist(schismMuster(shape, a), schismMuster(shape, b)))
+      }
+    }
+    expect(
+      `${sides} muster points are further apart than the room they have to keep`,
+      closest > SCHISM_ROOM,
+      `${closest.toFixed(0)} against ${SCHISM_ROOM}`,
+    )
+  }
+
+  {
+    // Two bodies, two marks, one distance. Everything else is held still.
+    const clashCost = (sameSide: boolean, apart: number): number => {
+      const s = quiet()
+      const party = s.actors.filter((a) => a.faction === 'party')
+      party.forEach((a, i) => {
+        a.pos = { x: 400, y: 400 + i * 40 }
+        a.hp = a.maxHp
+        a.ai = null
+      })
+      const one = party[0]!
+      const two = party[1]!
+      one.pos = { x: 0, y: 0 }
+      two.pos = { x: apart, y: 0 }
+      addAura(one, 'schism', BOSS_ID)
+      addAura(two, 'schism', BOSS_ID)
+      getAura(one, 'schism')!.stacks = 1
+      getAura(two, 'schism')!.stacks = sameSide ? 1 : 2
+      s.ground = [
+        { ...churnGround(false, 1), kind: 'schism', radius: SCHISM_ROOM, sides: 2, damage: 400 },
+      ]
+      const before = one.hp
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
+      return before - one.hp
+    }
+
+    expect('the other group standing on you is the danger', clashCost(false, 60) > 0, '0')
+    expect('your own group is not', clashCost(true, 60) === 0, 'it hit anyway')
+    expect(
+      'and far enough is far enough',
+      clashCost(false, SCHISM_ROOM + 60) === 0,
+      'it hit from outside the room',
+    )
+  }
+
+  {
+    // The marks do not outlive the count, and the split is an even one.
+    const s = unattended(floorWith({ schism: 9 }))
+    s.nextSchism = 0.4
+    const rng = new Rng(0x51ed)
+    let counted = false
+    let tanksMarked = 0
+    let sizes: number[] = []
+    let clashing = 0
+    let onIt = 0
+    while (s.outcome === 'ongoing' && s.time < 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const live = s.ground.find((g) => g.kind === 'schism' && !g.detonated)
+      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
+      if (live && !counted) {
+        counted = true
+        const per = new Map<number, number>()
+        for (const a of party) {
+          const mark = getAura(a, 'schism')
+          if (!mark) continue
+          per.set(mark.stacks, (per.get(mark.stacks) ?? 0) + 1)
+          if (a.role === 'tank') tanksMarked++
+        }
+        sizes = [...per.values()]
+      }
+      if (live) {
+        for (const a of party) {
+          const mine = getAura(a, 'schism')
+          // Tanks are left out of the split, so they are neither in danger
+          // from it nor a danger to anybody: reading them as clashing counted
+          // every body standing near the boss and buried the answer.
+          if (!a.ai || !mine) continue
+          const near = party.some(
+            (other) =>
+              other.id !== a.id &&
+              getAura(other, 'schism') !== undefined &&
+              getAura(other, 'schism')!.stacks !== mine.stacks &&
+              dist(a.pos, other.pos) <= SCHISM_ROOM,
+          )
+          if (!near) continue
+          clashing++
+          if (a.ai.reactingTo?.startsWith('schism')) onIt++
+        }
+      }
+      if (!live && counted) {
+        expect(
+          'the marks do not outlive the count',
+          party.every((a) => getAura(a, 'schism') === undefined),
+          'somebody is still wearing one',
+        )
+        break
+      }
+    }
+    expect('the schism is thrown at all', counted, 'it never landed')
+    expect(
+      'and it cuts the raid into even groups',
+      sizes.length > 1 && Math.max(...sizes) - Math.min(...sizes) <= 1,
+      sizes.join('/'),
+    )
+    expect(
+      'and leaves whoever is holding the boss out of it',
+      tanksMarked === 0,
+      `${tanksMarked} tanks were sent to a muster point`,
+    )
+    expect(
+      'a raid standing with the wrong group is reacting to it',
+      onIt / Math.max(1, clashing) > 0.8,
+      `${((onIt / Math.max(1, clashing)) * 100).toFixed(0)}% of ${clashing} ticks`,
+    )
+  }
+
+  // The cut follows the raid rather than the arena.
+  //
+  // Marks handed out at random are the version of this mechanic that cannot be
+  // performed: half the party is sent past the other half to reach the group
+  // it was put in, and no count that is long enough for that is short enough
+  // to be worth anything. Cut by bearing, each group is already most of the
+  // way to being a group and the walk is the same length for everybody — which
+  // is also the property that keeps it the same length at twenty-five as at
+  // ten.
+  {
+    const s = unattended(floorWith({ schism: 9 }, 4, autoParty(10, pickFor('mage', 'dps')!)))
+    s.nextSchism = 0.4
+    const rng = new Rng(0x51ed)
+    let spans: number[] = []
+    while (s.outcome === 'ongoing' && s.time < 40) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const live = s.ground.find((g) => g.kind === 'schism' && !g.detonated)
+      if (!live || spans.length > 0) continue
+      const b = bossOf(s)
+      const groups = new Map<number, number[]>()
+      for (const a of s.actors) {
+        if (a.faction !== 'party' || !a.alive) continue
+        const mark = getAura(a, 'schism')
+        if (!mark) continue
+        const bearing = Math.atan2(a.pos.y - b.pos.y, a.pos.x - b.pos.x)
+        groups.set(mark.stacks, [...(groups.get(mark.stacks) ?? []), bearing])
+      }
+      // Each group occupies an arc of its own rather than being scattered
+      // round the whole circle, which is what "cut where they stand" means.
+      spans = [...groups.values()].map((bearings) => {
+        const sorted = [...bearings].sort((one, two) => one - two)
+        let widest = sorted[sorted.length - 1]! - sorted[0]!
+        for (let i = 1; i < sorted.length; i++) {
+          const gap = sorted[i]! - sorted[i - 1]!
+          if (gap > widest - gap) widest = Math.min(widest, Math.PI * 2 - gap)
+        }
+        return widest
+      })
+    }
+    expect('a split was made at all', spans.length > 1, `${spans.length} groups`)
+    expect(
+      'and each group is an arc of the raid rather than a scattering of it',
+      spans.every((span) => span < Math.PI * 1.2),
+      spans.map((span) => span.toFixed(2)).join('/'),
+    )
+  }
+
+  // --- both of them are visible ---------------------------------------------
+  {
+    const s = quiet()
+    const b = bossOf(s)
+    b.pos = { x: 0, y: 0 }
+    s.actors.filter((a) => a.faction === 'party').forEach((a) => (a.pos = { x: 0, y: 0 }))
+    focusOn(s, 1)
+
+    const churnCircles: Circle[] = []
+    s.ground = [{ ...churnGround(false, 3), telegraph: CHURN_TELEGRAPH }]
+    drawWorld(recordingCtx(churnCircles), s, 1, s.time, new Effects())
+    expect(
+      'the churn draws the line it is about to turn over',
+      churnCircles.some((c) => Math.abs(c.r - CHURN_OUT * L.scale) < 2),
+      `${churnCircles.length} circles, none at the line`,
+    )
+
+    const split = {
+      ...churnGround(false, 1),
+      kind: 'schism' as const,
+      radius: SCHISM_ROOM,
+      sides: 2,
+      angle: 0,
+      telegraph: SCHISM_TELEGRAPH,
+    }
+    const marked = s.actors.find((a) => a.faction === 'party')!
+    addAura(marked, 'schism', BOSS_ID)
+    getAura(marked, 'schism')!.stacks = 1
+    const splitCircles: Circle[] = []
+    s.ground = [split]
+    drawWorld(recordingCtx(splitCircles), s, 1, s.time, new Effects())
+    const muster = schismMuster(split, 0)
+    expect(
+      'the schism draws where each group is supposed to go',
+      splitCircles.length > 0 &&
+        splitCircles.some((c) => Math.abs(c.r - SCHISM_ROOM * L.scale) < 2),
+      `${splitCircles.length} circles, none the size of the room`,
+    )
+    expect(
+      'and puts a muster point out at the bearing it named',
+      Math.hypot(muster.x - split.pos.x, muster.y - split.pos.y) > SCHISM_ROOM * 0.5,
+      `${muster.x.toFixed(0)},${muster.y.toFixed(0)}`,
+    )
   }
 }
 
@@ -7366,6 +7795,8 @@ function floorWith(
   // order has to start its own clocks.
   s.nextFault = every.fault === undefined ? 0 : every.fault * 0.45
   s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
+  s.nextChurn = every.churn === undefined ? 0 : every.churn * 0.45
+  s.nextSchism = every.schism === undefined ? 0 : every.schism * 0.45
   return s
 }
 
