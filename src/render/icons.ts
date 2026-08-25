@@ -226,6 +226,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // about it — the brand is ground to keep off afterwards and this is gone
   // before anybody could.
   boss_echo: { colour: '#c084fc', style: 'wither' },
+  // The split, in the one colour left that reads as a division rather than a
+  // hazard: nothing is on fire, the person beside you is simply wrong.
+  boss_schism: { colour: '#059669', style: 'cleave' },
   // The thing that followed you, in a colour nothing else uses: whatever else
   // is happening, this one is about you specifically.
   boss_stalk: { colour: '#fb923c', style: 'cleave' },

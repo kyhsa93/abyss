@@ -88,6 +88,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // lands the heal, short enough that one who waited out a global cooldown
   // first does not — which is the whole question the mechanic asks.
   verdict: 3,
+  // Only a label, and only until the split resolves. What decides the
+  // mechanic is the ground effect counting down, not this running out; this
+  // is what says which group you are in while it does.
+  schism: 2.4,
   // Long enough that a second tank has to take it, short enough that a party
   // with only one tank gets it back off eventually.
   sunder: 16,

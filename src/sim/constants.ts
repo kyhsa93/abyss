@@ -347,3 +347,66 @@ export const HEALTH = 0.45
 export function bar(hp: number): number {
   return Math.round(hp * HEALTH)
 }
+
+/**
+ * How long the raid gets to come apart into its groups.
+ *
+ * Shorter than the walk it pays for looks like it should allow. The answer
+ * here is a place rather than a line, and a place two hundred units away is a
+ * second and a quarter at a walk — but the split is cut where the raid is
+ * already standing, so nobody walks the whole radius: each group shuffles
+ * outward along the bearing it already held, which is nearer a hundred and
+ * ten.
+ *
+ * At two and a tenth, with random marks and a walk across the arena, a
+ * practised raid still lost a fifth of its bodies and an unpractised one was
+ * indistinguishable from it — the walk was so long that everybody was late
+ * and lateness stopped meaning anything. Cut where they stand and counted
+ * down faster, the same two numbers separate the pulls again.
+ */
+export const SCHISM_TELEGRAPH = 1.5
+
+/**
+ * How far apart the groups have to be before they count as apart.
+ *
+ * Wide enough that the raid's own resting shape never satisfies it — the
+ * whole party stands inside a circle of about this radius — so the answer is
+ * always to break up and never to stand still and be lucky.
+ *
+ * And narrower than `SCHISM_APART` by enough to hold a group. Two muster
+ * points three hundred and eighty apart with this much room demanded around
+ * every body leaves ninety-five a side for the group itself to spread over,
+ * which is about what a third of a raid occupies. Set any closer to the
+ * separation and the mechanic stops being a question about the formation and
+ * becomes one about how tightly the groups happen to have bunched.
+ */
+export const SCHISM_ROOM = 190
+
+/**
+ * How far apart the groups are asked to stand.
+ *
+ * The separation rather than the radius the groups stand on, so that the
+ * arrangement says one thing at every size. Muster points placed at a fixed
+ * distance from the boss get closer to each other the more of them there are
+ * — three of them on a ring are only a bit over one and a half times that
+ * radius apart, against twice it for a pair — so a twenty-five man would have
+ * been asked to fit a third group into a gap that had shrunk by the same rule
+ * that added it. Written this way the ring grows instead, and the gap between
+ * groups is the same wherever the raid is cut.
+ *
+ * It is not, on its own, what made the mechanic performable at twenty-five —
+ * that was cutting the groups where the raid already stands rather than
+ * dealing them at random, and the measurement is in `scheduleSchism`. This is
+ * the rule that keeps the geometry honest once the cut has been made.
+ */
+export const SCHISM_APART = 380
+
+/**
+ * How close to its own muster point a group counts as gathered.
+ *
+ * Loose enough that a group is a group rather than a single tile everybody is
+ * standing on — the arrangement being asked for is several crowds, not several
+ * points — and tight enough that a body still drifting between two of them is
+ * not finished walking.
+ */
+export const SCHISM_MUSTER_ROOM = 80

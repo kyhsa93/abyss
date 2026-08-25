@@ -45,6 +45,7 @@ export type MechanicId =
   | 'echo'
   | 'burden'
   | 'yoke'
+  | 'schism'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -92,6 +93,10 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   echo: true, // one mark per so many bodies
   burden: true, // one weight per so many bodies, and a bigger raid has more hands
   yoke: true, // one yoke per so many bodies, and the share is split among who came
+  // A group per body, and a third group once there are enough bodies to need
+  // one: what it asks grows with the roster twice over, in how many people
+  // have to be sorted and in how many places they have to be sorted into.
+  schism: true,
 }
 
 /**
@@ -125,6 +130,7 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   echo: 'the echo',
   burden: 'the burden',
   yoke: 'the yoke',
+  schism: 'the schism',
 }
 
 export interface PhaseTiming {
@@ -241,6 +247,15 @@ export interface PhaseTiming {
    * raid of twenty-five is not punished for being a crowd.
    */
   shallows: number
+  /**
+   * Seconds between one schism and the next.
+   *
+   * The other half of the same question. Instead of moving the whole party at
+   * once it cuts the party into groups and asks that the groups do not touch,
+   * which is the one demand on this table a body standing perfectly still can
+   * fail — what catches you is that somebody else walked toward you.
+   */
+  schism: number
   puddle: number
   spread: number
   slam: number
@@ -409,6 +424,7 @@ export interface Encounter {
     spire: number
     verdict: number
     crush: number
+    schism: number
     hand: number
     echo: number
     fault: number
@@ -474,6 +490,17 @@ export interface Encounter {
     echo: string
     burden: string
     yoke: string
+    /**
+     * Authored on every boss rather than on the one that throws it.
+     *
+     * The rule everywhere else on this table is that a boss has a line for a
+     * mechanic exactly when its ladder has a rung for it, and that rule is
+     * checked. This one is on no ladder at all yet — where it belongs is a
+     * question about which fight wants the demand, and it is not answered
+     * here — so every boss carries a voice for it, the way the fault and the
+     * shallows do, and it already has something to say if it takes a rung.
+     */
+    schism: string
   }
 }
 
@@ -534,11 +561,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0, burden: 4.6, yoke: 10 },
-      2: { verdict: 0, brand: 7, crush: 8, spire: 0, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0, burden: 4.0, yoke: 8.5 },
-      3: { verdict: 0, brand: 6, crush: 7, spire: 0, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0, burden: 3.5, yoke: 7.5 },
+      1: { verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0, burden: 4.6, yoke: 10, schism: 12.5 },
+      2: { verdict: 0, brand: 7, crush: 8, spire: 0, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0, burden: 4.0, yoke: 8.5, schism: 11.0 },
+      3: { verdict: 0, brand: 6, crush: 7, spire: 0, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0, burden: 3.5, yoke: 7.5, schism: 9.5 },
     },
-    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0, burden: 4.5, yoke: 8.5 },
+    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, spire: 0, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0, burden: 4.5, yoke: 8.5, schism: 8.5 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -559,6 +586,7 @@ export const ENCOUNTERS: Encounter[] = [
       echo: '',
       burden: 'The weight is on me — somebody take it',
       yoke: 'They cannot hold that alone — going',
+      schism: 'The current parts you',
     },
   },
   {
@@ -618,11 +646,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { verdict: 19, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52, burden: 4.6, yoke: 10 },
-      2: { verdict: 16, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45, burden: 4.0, yoke: 8.5 },
-      3: { verdict: 13.5, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38, burden: 3.5, yoke: 7.5 },
+      1: { verdict: 19, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0 },
+      2: { verdict: 16, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5 },
+      3: { verdict: 13.5, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0 },
     },
-    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44, burden: 4.5, yoke: 8.5 },
+    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -643,6 +671,7 @@ export const ENCOUNTERS: Encounter[] = [
       echo: 'The floor is answering me — I cannot stand still',
       burden: 'It is passing to me — where do I put it',
       yoke: 'One of them is singing alone — with them',
+      schism: 'Take your parts — apart',
     },
   },
   {
@@ -680,11 +709,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44, burden: 4.6, yoke: 10 },
-      2: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38, burden: 4.0, yoke: 8.5 },
-      3: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32, burden: 3.5, yoke: 7.5 },
+      1: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0 },
+      2: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5 },
+      3: { verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0 },
     },
-    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45, burden: 4.5, yoke: 8.5 },
+    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, spire: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -705,6 +734,7 @@ export const ENCOUNTERS: Encounter[] = [
       echo: '',
       burden: 'This is dragging me — hands, now',
       yoke: 'They are under it on their own — moving',
+      schism: 'The tide splits you',
     },
   },
 ]

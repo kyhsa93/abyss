@@ -2,6 +2,7 @@ import {
   BURDEN_REACH,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
+  SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   PUDDLE_TELEGRAPH,
   SOAK_TELEGRAPH,
@@ -13,7 +14,7 @@ import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
-import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, VERDICT_LINE } from '../sim/boss'
+import { ECHO_TELEGRAPH, HAND_BEAT, SUNDER_MAX, VERDICT_LINE, schismMuster } from '../sim/boss'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
@@ -495,6 +496,11 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 
     if (g.kind === 'fault') {
       drawFault(ctx, g, p)
+      continue
+    }
+
+    if (g.kind === 'schism') {
+      drawSchism(ctx, s, g, p, clock)
       continue
     }
 
@@ -1001,6 +1007,60 @@ function drawBrand(
       ctx.lineWidth = 2
       ctx.stroke()
     }
+  }
+  ctx.restore()
+}
+
+/**
+ * The split: where each group goes, and how much room it has to keep.
+ *
+ * The only mechanic here whose picture is not a piece of floor, because the
+ * danger is not on the floor. What is drawn is the arrangement being asked
+ * for — a muster point per group, with a line from the boss to each so the
+ * bearings read at a glance — and, on each marked body, the circle nobody
+ * wearing another mark may be inside of.
+ */
+function drawSchism(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  clock: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / SCHISM_TELEGRAPH))
+  const sides = g.sides ?? 2
+
+  ctx.save()
+  for (let side = 0; side < sides; side++) {
+    const muster = worldToScreen(schismMuster(g, side))
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.lineTo(muster.x, muster.y)
+    ctx.strokeStyle = 'rgba(5, 150, 105, 0.35)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([8, 10])
+    ctx.lineDashOffset = -clock * 30
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    ctx.beginPath()
+    ctx.arc(muster.x, muster.y, (26 + 10 * closing) * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(52, 211, 153, ${(0.4 + 0.5 * closing).toFixed(3)})`
+    ctx.lineWidth = 2 + 3 * closing
+    ctx.stroke()
+  }
+
+  // The room each marked body has to keep from the other groups.
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    if (!getAura(a, 'schism')) continue
+    const at = worldToScreen(a.pos)
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, g.radius * L.scale, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(5, 150, 105, ${(0.12 + 0.2 * closing).toFixed(3)})`
+    ctx.lineWidth = 1
+    ctx.stroke()
   }
   ctx.restore()
 }

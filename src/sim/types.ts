@@ -42,6 +42,7 @@ export type AuraId =
   | 'verdict' // boss: judgement pending, and it kills anyone under the line
   | 'burden' // boss: a weight that has to be walked into fresh hands
   | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
+  | 'schism' // boss: which group you belong to, and they must not touch
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -196,6 +197,7 @@ export type GroundKind =
   | 'echo'
   | 'fault'
   | 'shallows'
+  | 'schism'
 
 export interface GroundEffect {
   id: number
@@ -234,6 +236,15 @@ export interface GroundEffect {
    * patch's, since what the mechanic condemns is everything else.
    */
   spots?: Vec2[]
+
+  /**
+   * schism: how many groups the raid is being cut into.
+   *
+   * The bearing of the first muster point is `angle` and the rest are spaced
+   * evenly round from it, so the whole arrangement is two numbers rather than
+   * a list of places.
+   */
+  sides?: number
 }
 
 /**
@@ -673,6 +684,7 @@ export interface SimState {
   nextFault: number
   /** Next time everything but a few patches does. */
   nextShallows: number
+  nextSchism: number
   nextSpread: number
   nextSlam: number
   nextRaidHit: number

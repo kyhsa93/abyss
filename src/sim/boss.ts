@@ -10,6 +10,9 @@ import {
   SHALLOWS_COUNT,
   SHALLOWS_RADIUS,
   SHALLOWS_TELEGRAPH,
+  SCHISM_APART,
+  SCHISM_ROOM,
+  SCHISM_TELEGRAPH,
   SOAK_RADIUS,
   SOAK_EACH,
   SOAK_MAX_SHARE,
@@ -25,6 +28,7 @@ import {
   AURA_DURATION,
   addAura,
   adds,
+  clearAura,
   getAura,
   pushEffect,
   applyDamage,
@@ -337,6 +341,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
+  scheduleSchism(s, b, rng, timing)
   scheduleHand(s, b, rng, timing)
   scheduleFault(s, b, rng, timing)
   scheduleShallows(s, b, rng, timing)
@@ -739,6 +744,153 @@ function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
   })
   pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crush', power: SWEEP_RANGE + b.radius })
 }
+/**
+ * The raid cut into groups that must not touch.
+ *
+ * The one demand on any of these tables that is not about a place. Everything
+ * else here moves one person, or moves every person separately; this moves
+ * them apart from *each other*, and it is the only thing in the game that a
+ * body standing perfectly still can fail — what catches you is not where you went, it is that
+ * somebody wearing another mark was close enough when the count ran out.
+ *
+ * Which is why it is the one mechanic here whose answer is a *plan*. The
+ * sides are marked and the muster points are shown; what the party has to do
+ * is come apart into them before the count ends, and a raid that starts late
+ * is a raid still standing in one blob when it does.
+ *
+ * A third group once there are enough bodies to need one, and that is the
+ * rule that keeps it from going limp at size. Everything else in this game
+ * that measures the distance between people gets *easier* with more of them —
+ * a crowd already satisfies "stay near somebody" and a wider arena share
+ * already satisfies "stay away from somebody", which is why the last mechanic
+ * built out of proximity was answered by 97 percent of twenty-five mans and
+ * none of the five. Sorting does not: twenty-five bodies into three groups is
+ * more sorting than ten into two, and the number of shapes the raid has to
+ * become is the thing that grows with it.
+ *
+ * Measured, it teaches 19.4 points at ten and 36.2 at twenty-five.
+ */
+const SCHISM_DAMAGE = 950
+
+/** How many groups a raid this size is cut into. */
+export function schismSides(living: number): number {
+  return living >= 20 ? 3 : 2
+}
+
+/**
+ * Where the group wearing this mark is supposed to end up.
+ *
+ * The ring they stand on is derived from how far apart they have to be, not
+ * chosen: `SCHISM_APART` is a chord of it, so adding a third group pushes the
+ * ring out rather than crowding the gap between the two that were there.
+ */
+export function schismMuster(g: GroundEffect, side: number): Vec2 {
+  const sides = g.sides ?? 2
+  const reach = SCHISM_APART / (2 * Math.sin(Math.PI / sides))
+  const bearing = g.angle + (side / sides) * Math.PI * 2
+  return {
+    x: g.pos.x + Math.cos(bearing) * reach,
+    y: g.pos.y + Math.sin(bearing) * reach,
+  }
+}
+
+/** Whether these two were told to be in different places. */
+export function schismClash(a: Actor, other: Actor): boolean {
+  const mine = getAura(a, 'schism')
+  const theirs = getAura(other, 'schism')
+  if (!mine || !theirs) return false
+  return mine.stacks !== theirs.stacks
+}
+
+function scheduleSchism(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.schism <= 0) return
+  s.nextSchism -= DT
+  if (s.nextSchism > 0) return
+
+  // Never against a gathering, which is the exact opposite instruction, and
+  // never against itself.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextSchism = FLOOR_AFTER_SOAK
+    return
+  }
+  if (s.ground.some((g) => g.kind === 'schism')) {
+    s.nextSchism = 0.5
+    return
+  }
+
+  // Never the tanks, which is the same rule the stalker keeps and for the
+  // same reason: whoever is holding the boss cannot walk two hundred units to
+  // a muster point without taking the fight with them, and a mechanic whose
+  // answer is "drag the boss across the arena" breaks every other mechanic on
+  // the table while it is being answered. The raid comes apart around the
+  // people holding it in place.
+  const party = livingParty(s).filter((a) => a.role !== 'tank')
+  if (party.length < 2) return
+  s.nextSchism = timing.schism
+
+  const sides = schismSides(party.length)
+  const shape: GroundEffect = {
+    ...blankGround(s),
+    kind: 'schism',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // The distance the groups have to keep, which is also the circle each of
+    // them has to end up outside of the others'.
+    radius: SCHISM_ROOM,
+    // Filled in below, once the cut has been made: the muster points are put
+    // where the groups already are rather than anywhere in the arena.
+    angle: 0,
+    sides,
+    telegraph: SCHISM_TELEGRAPH,
+    lingering: 0,
+    damage: SCHISM_DAMAGE,
+    detonated: false,
+  }
+  s.ground.push(shape)
+
+  // Cut where the raid already stands, not dealt at random.
+  //
+  // This is the difference between a mechanic a raid can perform and one it
+  // cannot, and it was measured rather than reasoned. Marks handed out at
+  // random send half the party across the arena to reach the group they were
+  // put in — at twenty-five, past two other groups walking the other way —
+  // and the count is not long enough for that at any setting that is not also
+  // long enough to make the whole thing a formality. Measured, a practised
+  // twenty-five man was still a hundred and ninety units from its own muster
+  // point when the count ran out, and was losing nearly nine pulls in ten.
+  //
+  // Sorted by bearing and cut into equal blocks, every group is already most
+  // of the way to being a group, and what the mechanic asks is the thing it
+  // was written to ask: the raid pulls apart into a shape it does not
+  // normally hold. The walk is then about the same length for everybody and
+  // the same length at every raid size, which is the property a formation
+  // mechanic has to have and a proximity one never does.
+  //
+  // The cut still moves. Where the first block starts is rolled, so a party
+  // cannot stand in the arrangement before the cast has said anything — an
+  // answer that can be taken in advance is one an unpractised raid gives as
+  // readily as a practised one, which is what the brand measured at nothing
+  // for until its ground stopped landing where the marked ended up.
+  const bearings = party
+    .map((a) => ({ a, bearing: Math.atan2(a.pos.y - b.pos.y, a.pos.x - b.pos.x) }))
+    .sort((one, two) => one.bearing - two.bearing)
+  const cut = rng.int(bearings.length)
+  const order = [...bearings.slice(cut), ...bearings.slice(0, cut)]
+  const per = Math.ceil(order.length / sides)
+  order.forEach((entry, i) => {
+    addAura(entry.a, 'schism', BOSS_ID)
+    const mark = getAura(entry.a, 'schism')
+    if (mark) mark.stacks = Math.min(sides, Math.floor(i / per) + 1)
+    pushEffect(s, 'cast', entry.a.pos, { abilityId: 'boss_schism' })
+  })
+  // The first group's muster goes where the middle of it is standing, and the
+  // rest are spaced evenly round from there — so each group walks outward
+  // along the bearing it already held instead of across everybody else.
+  shape.angle = order[Math.min(order.length - 1, Math.floor(per / 2))]!.bearing
+
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.schism)
+}
+
 
 /**
  * The wedge that turns, and the reason it is not another cone.
@@ -2045,6 +2197,37 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // The split, counted once. What it reads is not where anybody is but who
+    // is standing next to whom, so it is the one shape here whose answer is
+    // in the party rather than on the floor.
+if (g.kind === 'schism') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+
+      s.sounds.push('raid')
+      const party = livingParty(s)
+      const caught = party.filter((a) =>
+        party.some((other) => other.id !== a.id && schismClash(a, other) && dist(a.pos, other.pos) <= g.radius),
+      )
+      for (const a of caught) {
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_schism', power: damage })
+      }
+      // Cleared here rather than left to run out, so the marks are gone the
+      // moment they stop meaning anything and nobody keeps walking away from
+      // a group that is no longer a group.
+      for (const a of party) clearAura(a, 'schism')
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_schism',
+        power: g.radius * 5,
+        crit: true,
+      })
+      continue
+    }
+
     // A pool's shape with a longer memory: it announces, takes everything
     // inside it at one instant, and then the stone stays. Written as its own
     // arm rather than folded into the pools below, even though the sequence is
@@ -2160,6 +2343,9 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'spire') return !g.detonated || g.lingering > 0
     if (g.kind === 'fault' || g.kind === 'shallows') return !g.detonated
     if (g.kind === 'echo') return !g.detonated
+    // The same rule again: a split is a count rather than a place, and what
+    // keeps it on the floor is having something still to ask.
+    if (g.kind === 'schism') return !g.detonated
     // It is done when it has finished turning, not when it has gone off: a
     // pulse is one of five, and `detonated` would have to mean "the last one"
     // for this shape and "the only one" for every other.
