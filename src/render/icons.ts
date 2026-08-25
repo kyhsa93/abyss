@@ -222,10 +222,6 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // about it — the brand is ground to keep off afterwards and this is gone
   // before anybody could.
   boss_echo: { colour: '#c084fc', style: 'wither' },
-  // The water turning over, pushing out. Deep cyan rather than the cone's
-  // sky or the shallows' blue: three mechanics on this boss's table are
-  // water, and the one that moves the whole raid has to be the darkest.
-  boss_churn: { colour: '#0e7490', style: 'burst' },
   // The split, in the one colour left that reads as a division rather than a
   // hazard: nothing is on fire, the person beside you is simply wrong.
   boss_schism: { colour: '#059669', style: 'cleave' },

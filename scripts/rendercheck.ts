@@ -111,9 +111,6 @@ import {
   SPREAD_RADIUS,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
-  CHURN_IN,
-  CHURN_OUT,
-  CHURN_TELEGRAPH,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
 } from '../src/sim/constants'
@@ -178,7 +175,6 @@ import {
   ECHO_TELEGRAPH,
   HAND_BEAT,
   SUNDER_MAX,
-  churnSafe,
   condemned,
   onShallows,
   schismMuster,
@@ -3530,6 +3526,11 @@ for (const [label, w, h] of [
     )
   }
 
+  // The schism is on no rung at all, and no floor buys it either -- it has a
+  // price in no catalogue -- so what the rule below asks of it is that its
+  // picture belongs to a mechanic that works when it is asked for, which is
+  // the most that can be true of it until a boss takes it on.
+  //
   // Some mechanics are not on any rung a ten-man heroic climbs — the circle
   // the party stands in is the top of the Warden and the turning wedge and
   // the echo are past the top of anything, and all three are rolled by the
@@ -3538,7 +3539,7 @@ for (const [label, w, h] of [
   // wrong reason.
   {
     const deep = floorWith(
-      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13, churn: 14, schism: 12 },
+      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13, schism: 12 },
       4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
@@ -4669,20 +4670,19 @@ for (const [label, w, h] of [
   }
 }
 
-// --- the shape the raid stands in, on a timer --------------------------------
+// --- the shape the raid stands in ---------------------------------------------
 //
-// Two mechanics whose demand is on the party's formation rather than on
-// anybody's footwork: the churn turns the floor over on a beat, so the whole
-// raid has to be somewhere else and then somewhere else again, and the schism
-// cuts the raid into groups and asks that the groups do not touch.
+// One mechanic whose demand is on the party's formation rather than on
+// anybody's footwork: the schism cuts the raid into groups and asks that the
+// groups do not touch.
 //
-// Neither is on a boss's ladder. Where either of them belongs is a question
-// about which fight wants which demand and it is not answered here, so what
-// is checked below is that both work rather than that either is placed — the
-// rule that ties a boss's line to a boss's rung is the one part of the usual
-// plumbing that cannot be applied to a mechanic no rung has reached.
+// It is on no boss's ladder. Where it belongs is a question about which fight
+// wants the demand and it is not answered here, so what is checked below is
+// that it works rather than that it is placed — the rule that ties a boss's
+// line to a boss's rung is the one part of the usual plumbing that cannot be
+// applied to a mechanic no rung has reached.
 {
-  const SHAPES = ['churn', 'schism'] as const
+  const SHAPES = ['schism'] as const
 
   for (const id of SHAPES) {
     expect(`${id} has a name to be read by`, MECHANIC_NAMES[id] !== '', 'it has none')
@@ -4727,13 +4727,13 @@ for (const [label, w, h] of [
   // A quiet Warden with nothing scheduled inside the window a check looks at,
   // so a reading is about the shape put on the floor and not about whatever
   // else the boss was going to do in the same tick.
-  const quiet = (): SimState => floorWith({ churn: 900, schism: 900 })
+  const quiet = (): SimState => floorWith({ schism: 900 })
 
-  const churnGround = (inward: boolean, beats: number): SimState['ground'][number] => ({
+  const splitGround = (): SimState['ground'][number] => ({
     id: 1,
-    kind: 'churn',
+    kind: 'schism',
     pos: { x: 0, y: 0 },
-    radius: inward ? CHURN_IN : CHURN_OUT,
+    radius: SCHISM_ROOM,
     telegraph: 0,
     lingering: 0,
     damage: 400,
@@ -4747,130 +4747,14 @@ for (const [label, w, h] of [
     // shape has any use for them.
     turn: 0,
     pulses: 0,
-    inward,
-    beats,
+    sides: 2,
   })
-
-  // --- the churn: one line, and which side of it is floor --------------------
-  const beatCost = (inward: boolean, at: number): number => {
-    const s = quiet()
-    const party = s.actors.filter((a) => a.faction === 'party')
-    party.forEach((a) => {
-      a.pos = { x: at, y: 0 }
-      a.hp = a.maxHp
-    })
-    s.ground = [churnGround(inward, 1)]
-    const watched = party[party.length - 1]!
-    const before = watched.hp
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-    return before - watched.hp
-  }
-
-  expect('the far line catches whoever did not cross it', beatCost(false, 120) > 0, '0')
-  expect('and lets go of whoever did', beatCost(false, CHURN_OUT + 40) === 0, 'it hit anyway')
-  expect('the near line is the same demand backwards', beatCost(true, 300) > 0, '0')
-  expect('and its inside is the safe side', beatCost(true, 60) === 0, 'it hit anyway')
-  // The band a raid actually rests in — ninety to a hundred and twenty-five
-  // from its boss — is outside the near line and inside the far one, so the
-  // whole of it is caught by an outward beat and the outer half of it by an
-  // inward one. Nothing a role wants is on the right side of both.
-  expect(
-    'the far beat catches the whole band a raid rests in',
-    [95, 110, 125].every((at) => beatCost(false, at) > 0),
-    'part of the resting band survives it',
-  )
-  expect(
-    'and the near beat catches the rest of it',
-    beatCost(true, 125) > 0,
-    'the resting band survives it',
-  )
-  // Which is a property of the two numbers rather than of where anybody
-  // happened to be standing: safe-inside and safe-outside do not overlap, so
-  // no single spot answers both beats.
-  expect('no one spot answers both beats', CHURN_IN < CHURN_OUT, `${CHURN_IN} vs ${CHURN_OUT}`)
-
-  // --- the churn: three beats, alternating, and then nothing -----------------
-  {
-    const s = quiet()
-    const party = s.actors.filter((a) => a.faction === 'party')
-    // Parked where no beat can reach them, so what is being read is the shape
-    // turning over rather than anybody dying to it.
-    party.forEach((a) => {
-      a.pos = { x: 160, y: 0 }
-      a.ai = null
-    })
-    s.ground = [churnGround(false, 3)]
-    const seen: string[] = []
-    for (let beat = 0; beat < 4 && s.ground.length > 0; beat++) {
-      const shape = s.ground[0]!
-      seen.push(`${shape.inward ? 'in' : 'out'}@${shape.radius}`)
-      shape.telegraph = 0
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-    }
-    expect(
-      'a churn is out, then in, then out',
-      seen.join(' ') === `out@${CHURN_OUT} in@${CHURN_IN} out@${CHURN_OUT}`,
-      seen.join(' '),
-    )
-    expect('and then it is gone', s.ground.length === 0, `${s.ground.length} left on the floor`)
-  }
-
-  // --- the churn: it can be practised ----------------------------------------
-  //
-  // The rule the last four discarded mechanics died on: an answer that does
-  // not pass through `currentDanger` is an answer with no reaction time and no
-  // fumble in front of it, and a mechanic nobody can be late for is a mechanic
-  // nobody can get better at. Read the same way the crush's was — count the
-  // ticks somebody is standing on the wrong side of a live beat, and ask how
-  // often the churn is the thing they are reacting to.
-  {
-    const s = unattended(floorWith({ churn: 9 }))
-    s.nextChurn = 0.4
-    const rng = new Rng(0x51ed)
-    let wrongSide = 0
-    let onIt = 0
-    const keys = new Set<string>()
-    while (s.outcome === 'ongoing' && s.time < 90) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const live = s.ground.find((g) => g.kind === 'churn' && !g.detonated)
-      if (!live) continue
-      for (const a of s.actors) {
-        if (a.faction !== 'party' || !a.alive || !a.ai) continue
-        if (churnSafe(a.pos, live)) continue
-        wrongSide++
-        if (a.ai.reactingTo?.startsWith('churn')) {
-          onIt++
-          keys.add(a.ai.reactingTo)
-        }
-      }
-    }
-    expect('the churn is thrown at all', wrongSide > 0, 'nobody was ever caught out by it')
-    expect(
-      'and a raid on the wrong side of it is reacting to it',
-      onIt / Math.max(1, wrongSide) > 0.8,
-      `${((onIt / Math.max(1, wrongSide)) * 100).toFixed(0)}% of ${wrongSide} ticks`,
-    )
-    // Each beat has to be noticed on its own. `reactingTo` only re-rolls a
-    // reaction when the danger *changes*, so a key naming only the shape would
-    // charge for the first beat and hand the next two over free.
-    const perCast = new Map<string, Set<string>>()
-    for (const key of keys) {
-      const [, id, beat] = key.split(':')
-      if (!id || !beat) continue
-      perCast.set(id, (perCast.get(id) ?? new Set()).add(beat))
-    }
-    expect(
-      'and each beat is a notice of its own',
-      [...perCast.values()].some((beats) => beats.size > 1),
-      [...keys].slice(0, 4).join(' '),
-    )
-  }
 
   // --- the schism: groups, and the room between them -------------------------
   expect('ten people come apart into two groups', schismSides(10) === 2, `${schismSides(10)}`)
   expect('twenty-five into three', schismSides(25) === 3, `${schismSides(25)}`)
   for (const sides of [2, 3]) {
-    const shape = { ...churnGround(false, 1), kind: 'schism' as const, sides, angle: 0.4 }
+    const shape = { ...splitGround(), sides, angle: 0.4 }
     let closest = Infinity
     for (let a = 0; a < sides; a++) {
       for (let b = a + 1; b < sides; b++) {
@@ -4903,7 +4787,7 @@ for (const [label, w, h] of [
       getAura(one, 'schism')!.stacks = 1
       getAura(two, 'schism')!.stacks = sameSide ? 1 : 2
       s.ground = [
-        { ...churnGround(false, 1), kind: 'schism', radius: SCHISM_ROOM, sides: 2, damage: 400 },
+        { ...splitGround(), sides: 2, damage: 400 },
       ]
       const before = one.hp
       step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
@@ -5045,19 +4929,8 @@ for (const [label, w, h] of [
     s.actors.filter((a) => a.faction === 'party').forEach((a) => (a.pos = { x: 0, y: 0 }))
     focusOn(s, 1)
 
-    const churnCircles: Circle[] = []
-    s.ground = [{ ...churnGround(false, 3), telegraph: CHURN_TELEGRAPH }]
-    drawWorld(recordingCtx(churnCircles), s, 1, s.time, new Effects())
-    expect(
-      'the churn draws the line it is about to turn over',
-      churnCircles.some((c) => Math.abs(c.r - CHURN_OUT * L.scale) < 2),
-      `${churnCircles.length} circles, none at the line`,
-    )
-
     const split = {
-      ...churnGround(false, 1),
-      kind: 'schism' as const,
-      radius: SCHISM_ROOM,
+      ...splitGround(),
       sides: 2,
       angle: 0,
       telegraph: SCHISM_TELEGRAPH,
@@ -7795,7 +7668,6 @@ function floorWith(
   // order has to start its own clocks.
   s.nextFault = every.fault === undefined ? 0 : every.fault * 0.45
   s.nextShallows = every.shallows === undefined ? 0 : every.shallows * 0.9
-  s.nextChurn = every.churn === undefined ? 0 : every.churn * 0.45
   s.nextSchism = every.schism === undefined ? 0 : every.schism * 0.45
   return s
 }

@@ -1,5 +1,4 @@
 import {
-  CHURN_TELEGRAPH,
   CRUSH_TELEGRAPH,
   FAULT_TELEGRAPH,
   SCHISM_TELEGRAPH,
@@ -492,11 +491,6 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
-    if (g.kind === 'churn') {
-      drawChurn(ctx, g, p, r)
-      continue
-    }
-
     if (g.kind === 'schism') {
       drawSchism(ctx, s, g, p, clock)
       continue
@@ -940,59 +934,6 @@ function drawBrand(
       ctx.lineWidth = 2
       ctx.stroke()
     }
-  }
-  ctx.restore()
-}
-
-/**
- * The line the water is about to turn over, and which side of it is floor.
- *
- * Drawn as a shaded side rather than as a ring, because the ring is not the
- * danger — the whole of one side of it is, and a raid reading a bare circle
- * has to remember which beat it is on to know which side that was. The shade
- * says it instead, and the arrows say which way to go.
- */
-function drawChurn(
-  ctx: CanvasRenderingContext2D,
-  g: SimState['ground'][number],
-  p: Vec2,
-  r: number,
-): void {
-  if (g.detonated) return
-  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / CHURN_TELEGRAPH))
-  const wall = ARENA_RADIUS * L.scale
-
-  ctx.save()
-  // The doomed side, filled. Inward beats condemn the ring outside the line
-  // and outward beats condemn the disc inside it, which is the whole of what
-  // the picture has to say.
-  ctx.beginPath()
-  if (g.inward) {
-    ctx.arc(p.x, p.y, wall, 0, Math.PI * 2)
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2, true)
-  } else {
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-  }
-  ctx.fillStyle = `rgba(14, 116, 144, ${(0.06 + 0.16 * closing).toFixed(3)})`
-  ctx.fill()
-
-  ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-  ctx.strokeStyle = 'rgba(103, 232, 249, 0.9)'
-  ctx.lineWidth = 2 + 5 * closing
-  ctx.stroke()
-
-  // Which way across it, on twelve bearings, growing as the beat closes.
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2
-    const reach = 14 + 20 * closing
-    const from = g.inward ? r + reach : r - reach
-    ctx.beginPath()
-    ctx.moveTo(p.x + Math.cos(a) * from, p.y + Math.sin(a) * from)
-    ctx.lineTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r)
-    ctx.strokeStyle = `rgba(207, 250, 254, ${(0.3 + 0.55 * closing).toFixed(3)})`
-    ctx.lineWidth = 2
-    ctx.stroke()
   }
   ctx.restore()
 }

@@ -1,7 +1,6 @@
 import { ABILITIES } from './abilities'
 import {
   ARENA_RADIUS,
-  CHURN_TELEGRAPH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
@@ -16,7 +15,6 @@ import {
 } from './constants'
 import {
   BREATH_CAST,
-  churnSafe,
   ECHO_TELEGRAPH,
   HAND_BEAT,
   condemned,
@@ -149,9 +147,7 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       const greedy = ai.personality === 'greedy'
       if (!(greedy && nearlyDone)) interruptCast(s, actor, 'moved')
     }
-    if (danger.startsWith('churn')) {
-      say(s, actor, 'It turns over — move!')
-    } else if (danger.startsWith('schism')) {
+    if (danger.startsWith('schism')) {
       say(s, actor, 'Groups, break up')
     } else if (danger.startsWith('wave')) {
       say(s, actor, 'Inside, get in!')
@@ -201,12 +197,7 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // ground it just left, and walking back onto your own floor is not a bug
     // in this mechanic, it is the thing it is asking about — the brand
     // measured ten of its seventeen points of teaching in that habit alone.
-    if (
-      !caving(s, home) &&
-      !swept(s, home) &&
-      !turningOver(s, home) &&
-      !stillSplit(s, actor, home)
-    )
+    if (!caving(s, home) && !swept(s, home) && !stillSplit(s, actor, home))
       ai.moveTarget = home
   }
 
@@ -398,21 +389,6 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
-    // The wrong side of the line the water is about to turn over. Ranked with
-    // the crush, and for the crush's reason: one enormous hit at a known
-    // instant, so being a tenth of a second late is the whole mechanic.
-    //
-    // The key carries the beat as well as the shape. Three beats out of one
-    // cast are three separate notices — a key that named only the shape would
-    // roll a reaction for the first beat and then hand the next two over for
-    // free, since `reactingTo` only re-rolls when the danger *changes*.
-    if (g.kind === 'churn') {
-      if (!g.detonated && !churnSafe(actor.pos, g, DANGER_MARGIN)) {
-        consider(`churn:${g.id}:${g.beats ?? 0}`, 90 + (CHURN_TELEGRAPH - g.telegraph) * 12)
-      }
-      continue
-    }
-
     // Not yet with your own group. The only danger on this list that is not
     // about a place, and the only one that stays live after the immediate
     // problem has gone.
@@ -566,13 +542,6 @@ function musterFor(s: SimState, actor: Actor): Vec2 | null {
   return schismMuster(split, mark.stacks - 1)
 }
 
-/** Is this spot on the wrong side of a beat that has not landed? */
-function turningOver(s: SimState, spot: Vec2): boolean {
-  return s.ground.some(
-    (g) => g.kind === 'churn' && !g.detonated && !churnSafe(spot, g, DANGER_MARGIN),
-  )
-}
-
 /**
  * Would going home put this one back among the other groups?
  *
@@ -629,10 +598,6 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     // Inverted, like the circle: three patches are the only floor there is.
     if (g.kind === 'shallows') {
       if (!g.detonated && !onShallows(spot, g)) return false
-      continue
-    }
-    if (g.kind === 'churn') {
-      if (!g.detonated && !churnSafe(spot, g, DANGER_MARGIN)) return false
       continue
     }
     // Whether the spot is safe depends on who else is standing near it, so it
@@ -835,27 +800,6 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           })
         }
       }
-    } else if (g.kind === 'churn' && !g.detonated) {
-      // Straight across the line on the actor's own bearing, which is the
-      // shortest answer there is and the one a raider actually takes — the
-      // sample rings around the actor find the outward beat easily and the
-      // inward one almost never, because the inside of a circle a hundred
-      // units away is a small target from two hundred and fifty.
-      const bearing = Math.atan2(actor.pos.y - g.pos.y, actor.pos.x - g.pos.x)
-      const reach = g.inward ? g.radius * 0.6 : g.radius + 45
-      candidates.push({
-        x: g.pos.x + Math.cos(bearing) * reach,
-        y: g.pos.y + Math.sin(bearing) * reach,
-      })
-      // And a spread of places on the right side of it, so a whole raid
-      // crossing at once does not end up stacked on one bearing.
-      for (let i = 0; i < 12; i++) {
-        const angle = offset + (i / 12) * Math.PI * 2
-        candidates.push({
-          x: g.pos.x + Math.cos(angle) * reach,
-          y: g.pos.y + Math.sin(angle) * reach,
-        })
-      }
     } else if (g.kind === 'schism' && !g.detonated) {
       // The muster point for this actor's own group, and a ring of places
       // around it. Offered rather than searched for, the same way the circle
@@ -901,7 +845,6 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let ringActive = false
     let soakActive = false
     let crushActive = false
-    let churnActive = false
     let schismActive = false
     let strandedActive = false
     for (const g of s.ground) {
@@ -940,20 +883,6 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         for (const spot of g.spots ?? []) nearest = Math.min(nearest, dist(candidate, spot))
         if (nearest > g.radius - actor.radius) score -= 1800
         else score += Math.min(220, (g.radius - nearest) * 2)
-        continue
-      }
-      if (g.kind === 'churn') {
-        if (g.detonated) continue
-        churnActive = true
-        if (!churnSafe(candidate, g, DANGER_MARGIN)) score -= 1700
-        else {
-          // Deeper into the safe side is better, which keeps a raid from
-          // lining up along the line it has just been asked to cross — and
-          // the line moves, so the far side of one beat is the near side of
-          // the next.
-          const d = dist(candidate, g.pos)
-          score += Math.min(200, (g.inward ? g.radius - d : d - g.radius) * 1.4)
-        }
         continue
       }
       if (g.kind === 'schism') {
@@ -1060,7 +989,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (soakActive || strandedActive || churnActive) {
+    if (soakActive || strandedActive) {
       // Standing in it beats standing in range of anything. Suspended the
       // same way the ring suspends the casters' spacing, and for melee too:
       // the boss is not going anywhere in five seconds.
@@ -1070,13 +999,6 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // the patches are three, and a term that pays for standing near the boss
       // would pick the nearest one for everybody — which is a mechanic
       // answered by walking wherever the fight already was.
-      //
-      // And the churn, for a sharper version of the first reason. Its two
-      // lines sit either side of where a role wants to stand, so a term that
-      // pays for melee range argues against the outward beat and one that
-      // pays for spell range argues against the inward one — the mechanic is
-      // the party giving up its formation for a moment, and the formation
-      // cannot be allowed to argue back.
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.

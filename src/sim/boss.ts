@@ -1,8 +1,5 @@
 import {
   ARENA_RADIUS,
-  CHURN_IN,
-  CHURN_OUT,
-  CHURN_TELEGRAPH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
@@ -339,7 +336,6 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleAdds(s, b, rng, timing)
   scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
-  scheduleChurn(s, b, timing)
   scheduleSchism(s, b, rng, timing)
   scheduleHand(s, b, rng, timing)
   scheduleFault(s, b, rng, timing)
@@ -740,122 +736,12 @@ function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
   pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crush', power: SWEEP_RANGE + b.radius })
 }
 /**
- * The raid's own shape, taken away from it three times in five seconds.
- *
- * Every other mechanic on these tables asks one person, or every person
- * separately, to be somewhere else. This one asks the *party* to be a
- * different shape: out past the far line, in behind the near one, and out
- * again, on a beat it does not get to choose. There is no version of it
- * answered by standing still and no version answered by the role picked at
- * the door — both lines sit outside the band a raid rests in, so the melee's
- * walk out and the casters' walk in are the same walk in opposite directions,
- * and whoever is late is late whatever they were holding.
- *
- * Three beats from one cast rather than three casts, and that is most of why
- * it works at the rate it does. A mechanic teaches in proportion to how often
- * it asks — the brand was rebuilt twice looking for a shape before the answer
- * turned out to be that it landed a third as often as a puddle — and one cast
- * that asks three times costs a boss's table one line instead of three.
- *
- * Anchored where the boss stood when it was announced. The boss moves for two
- * percent of a fight, so the two are nearly the same spot, and the shape a
- * raid is reading has to be the shape that goes off.
- *
- * Measured, it teaches 18.7 points at ten and 20.9 at twenty-five.
- */
-/**
- * Lighter than a crush, because there are three of them.
- *
- * A crush is one instant and most of a health bar. Failing every beat of a
- * churn should be about that sentence and failing one of them should not,
- * which is what makes it worth walking a second time after already walking
- * once.
- */
-const CHURN_DAMAGE = 265
-
-/**
- * How many times one cast turns the floor over, at each raid size.
- *
- * A table rather than a number, and it is the only size dial this mechanic
- * has — which was itself a finding. This is a shape aimed at the arena, so it
- * catches the same share of any raid, and measured it does exactly that: an
- * unpractised ten-man and an unpractised twenty-five failed the same eight
- * beats in a hundred and took the same damage per body from them. What
- * differed was the healing. A twenty-five man covers about a fifth less of it
- * per body than a ten, and against a mechanic that moves *everybody* that is
- * the whole margin — the same churn cost a fifth of a ten-man and nearly all
- * of a twenty-five.
- *
- * The two obvious dials do not reach it. Cutting the damage by a ninth moved
- * an unpractised twenty-five from 99.6 percent dead to 98.2, and shortening
- * the walk between the lines by a quarter moved it to 98.9 — nothing. Slowing
- * the cadence by two fifths moved it to 20.8, and that is the answer written
- * down: what this mechanic costs is not its damage, it is the seconds the
- * raid spends walking instead of casting, and the way to charge a bigger raid
- * less of that is to ask fewer times rather than to ask more gently.
- *
- * So a twenty-five man gets two beats and everybody else gets three. It is
- * still scatter and then stack; it is one turn of the floor shorter.
- */
-const CHURN_BEATS: Record<number, number> = { 5: 3, 10: 3, 25: 2 }
-
-/** Which side of this beat's line is the safe one, with room to spare. */
-export function churnSafe(p: Vec2, g: GroundEffect, margin = 0): boolean {
-  const d = dist(p, g.pos)
-  return g.inward ? d <= g.radius - margin : d >= g.radius + margin
-}
-
-function scheduleChurn(s: SimState, b: Actor, timing: PhaseTiming): void {
-  if (timing.churn <= 0) return
-  s.nextChurn -= DT
-  if (s.nextChurn > 0) return
-
-  // Never on top of a gathering, for the reason the floor is not: one says
-  // all of you here and the other says all of you somewhere else.
-  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-    s.nextChurn = FLOOR_AFTER_SOAK
-    return
-  }
-  // Nor on top of itself. A cast runs for three beats, and a second one
-  // starting inside the first would be two lines at once with no shape that
-  // answers both — which is not a hard mechanic, it is an unperformable one.
-  if (s.ground.some((g) => g.kind === 'churn')) {
-    s.nextChurn = 0.5
-    return
-  }
-
-  s.nextChurn = timing.churn
-  s.sounds.push('telegraph')
-  say(s, b, fight(s).lines.churn)
-
-  s.ground.push({
-    ...blankGround(s),
-    kind: 'churn',
-    pos: { x: b.pos.x, y: b.pos.y },
-    // Out first. The raid is already standing between the two lines when the
-    // cast goes off, so opening inward would be a beat half the party gets
-    // for nothing — and the first beat is the one an unpractised raid is
-    // least ready for.
-    radius: CHURN_OUT,
-    inward: false,
-    beats: bySize(CHURN_BEATS, s),
-    telegraph: CHURN_TELEGRAPH,
-    // Nothing afterwards. It is a moment to be somewhere, not a place to
-    // avoid, and the next beat is the only residue it has.
-    lingering: 0,
-    damage: CHURN_DAMAGE,
-    detonated: false,
-  })
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_churn', power: CHURN_OUT })
-}
-
-/**
  * The raid cut into groups that must not touch.
  *
- * The other half of the churn's question, asked the other way round. The
- * churn moves everybody at once; this moves them apart from each other, and
- * it is the only thing on any of these tables that a body standing perfectly
- * still can fail — what catches you is not where you went, it is that
+ * The one demand on any of these tables that is not about a place. Everything
+ * else here moves one person, or moves every person separately; this moves
+ * them apart from *each other*, and it is the only thing in the game that a
+ * body standing perfectly still can fail — what catches you is not where you went, it is that
  * somebody wearing another mark was close enough when the count ran out.
  *
  * Which is why it is the one mechanic here whose answer is a *plan*. The
@@ -1335,8 +1221,7 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
           g.kind === 'brand' ||
           g.kind === 'crush' ||
           g.kind === 'fault' ||
-          g.kind === 'shallows' ||
-          g.kind === 'churn') &&
+          g.kind === 'shallows') &&
         !g.detonated,
     )
   )
@@ -2150,51 +2035,6 @@ export function updateGround(s: SimState): void {
       continue
     }
 
-    // A beat of the churn. All of it or none of it, at one instant, and then
-    // the line moves and it asks again — so the branch resolves a beat rather
-    // than a cast, and a cast is over when it runs out of beats.
-    if (g.kind === 'churn') {
-      if (g.detonated) continue
-      g.telegraph -= DT
-      if (g.telegraph > 0) continue
-
-      s.sounds.push('raid')
-      s.raidFlash = 0.3
-      pushEffect(s, 'impact', g.pos, {
-        abilityId: 'boss_churn',
-        power: g.radius * 6,
-        crit: true,
-      })
-      for (const a of livingParty(s)) {
-        // The line itself, with no forgiveness on the actor's radius. The
-        // crush's rule, for the crush's reason: a mechanic whose answer is a
-        // walk cannot also be one that lets a shoulder hang over.
-        if (churnSafe(a.pos, g)) continue
-        const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
-        pushEffect(s, 'impact', a.pos, {
-          abilityId: 'boss_churn',
-          power: damage,
-          angle: Math.atan2(a.pos.y - g.pos.y, a.pos.x - g.pos.x),
-        })
-      }
-
-      const left = (g.beats ?? 1) - 1
-      if (left <= 0) {
-        g.detonated = true
-        continue
-      }
-      // The other line, and the same warning again. Turning the shape over
-      // rather than pushing a second one is what makes the two beats one
-      // demand: there is never a moment where both lines are live, so there
-      // is never a moment with no place to stand.
-      g.beats = left
-      g.inward = !g.inward
-      g.radius = g.inward ? CHURN_IN : CHURN_OUT
-      g.telegraph = CHURN_TELEGRAPH
-      continue
-    }
-
     // The split, counted once. What it reads is not where anybody is but who
     // is standing next to whom, so it is the one shape here whose answer is
     // in the party rather than on the floor.
@@ -2298,10 +2138,9 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'crush') return !g.detonated
     if (g.kind === 'fault' || g.kind === 'shallows') return !g.detonated
     if (g.kind === 'echo') return !g.detonated
-    // Both of the shape mechanics, and the same rule again. A churn is a beat
-    // rather than a place and a split is a count rather than a place; what
-    // keeps either on the floor is having something still to ask.
-    if (g.kind === 'churn' || g.kind === 'schism') return !g.detonated
+    // The same rule again: a split is a count rather than a place, and what
+    // keeps it on the floor is having something still to ask.
+    if (g.kind === 'schism') return !g.detonated
     // It is done when it has finished turning, not when it has gone off: a
     // pulse is one of five, and `detonated` would have to mean "the last one"
     // for this shape and "the only one" for every other.
