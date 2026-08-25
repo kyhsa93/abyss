@@ -49,6 +49,9 @@ export type MechanicId =
   | 'knell'
   | 'vessel'
   | 'mirror'
+  | 'toll'
+  | 'grasp'
+  | 'refuge'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -107,6 +110,21 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   knell: true, // its health is dealt by whoever came, so its health is per body
   vessel: true, // one more body is one more hand that can break it
   mirror: true, // one more body is one more mouth that has to shut
+  // One plate, one nominee, one bill. A bigger raid does not get a second
+  // toll and does not get a discount on the one it has -- what changes with
+  // the roster is only how many bodies there are to nominate from, which
+  // makes it easier rather than more, and that is what `false` means here.
+  toll: false,
+  // One reach, whatever the headcount, and it writes one bill. What a bigger
+  // raid changes is how many bodies are inside the circle when it closes,
+  // which makes the single bill larger rather than making a second one -- so
+  // the demand on any one body is the same at every size.
+  grasp: false,
+  // Marks per body, and a stone per mark. Both halves scale together, which
+  // is the property that keeps it the same question at every size: a quarter
+  // of the raid is sorting itself onto its own ground whether that is two
+  // people or six.
+  refuge: true,
 }
 
 /**
@@ -177,6 +195,9 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   knell: 'the knell',
   vessel: 'the vessel',
   mirror: 'the mirror',
+  toll: 'the toll',
+  grasp: 'the grasp',
+  refuge: 'the refuge',
 }
 
 export interface PhaseTiming {
@@ -477,6 +498,50 @@ export interface PhaseTiming {
    * curve wipe, because a swing nobody decided on marks everybody anyway.
    */
   mirror: number
+  /**
+   * Seconds between one toll and the next.
+   *
+   * A plate laid out past where the raid stands, a count, and a price that is
+   * paid by exactly one body or by all of them. Nobody is marked and nothing
+   * is aimed: what the boss asks for is a name, and the raid has to produce
+   * one before the count runs out.
+   *
+   * It is the judgement's opposite number. The judgement picks somebody and
+   * the raid answers; this picks nobody and the raid has to do the picking,
+   * which is the one demand on this table that is a decision before it is a
+   * walk. The choice is real because the price is flat: it is a scratch on
+   * whoever still has most of a bar and it finishes whoever does not.
+   */
+  toll: number
+  /**
+   * Seconds between one grasp and the next.
+   *
+   * A reach that closes on a piece of floor and takes hold of the single body
+   * left nearest to it. Everything else here that lands on ground bills
+   * everyone standing in it; this bills one, and it bills them for the others
+   * as well -- the more of the raid that was still inside when it closed, the
+   * more the one it caught pays.
+   *
+   * So there is no safety in a crowd and none in being outside a line either.
+   * There is only being further out than somebody else, and the raid decides
+   * who that is by who it leaves behind.
+   */
+  grasp: number
+  /**
+   * Seconds between one refuge and the next.
+   *
+   * Stones enough for exactly the bodies it marks, and one body to a stone.
+   * The shallows leave three patches and every one of them holds the whole
+   * raid; these hold one each, so the question is not where the floor is, it
+   * is which piece of it is yours -- and a body that walks to the nearest one
+   * without asking who else was walking there has taken somebody's place
+   * rather than found its own.
+   *
+   * Nobody has to pay it. That is the design rather than a softness: a
+   * mechanic one stone short kills somebody on every cast however well it is
+   * answered, which is a fixed bill and not a lesson.
+   */
+  refuge: number
 }
 
 export interface Encounter {
@@ -584,6 +649,9 @@ export interface Encounter {
     knell: number
     vessel: number
     mirror: number
+    toll: number
+    grasp: number
+    refuge: number
   }
   /**
    * The colour this one is drawn in.
@@ -653,6 +721,16 @@ export interface Encounter {
     knell: string
     vessel: string
     mirror: string
+    /**
+     * The three that belong to the round about who pays. Authored on every
+     * boss for the schism's reason above: none of them has a rung anywhere
+     * yet, where they belong is a question about the shape of a fight rather
+     * than about the mechanic, and a fight that takes one on should not also
+     * have to be given a voice for it.
+     */
+    toll: string
+    grasp: string
+    refuge: string
   }
 }
 
@@ -713,11 +791,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5, knell: 21, vessel: 23, mirror: 19 }) },
-      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0, knell: 18, vessel: 20, mirror: 16.5 }) },
-      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5, knell: 15, vessel: 17, mirror: 14 }) },
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, puddle: 9, rot: 33, sunder: 11, soak: 40, burden: 4.6, yoke: 10, schism: 12.5, knell: 21, vessel: 23, mirror: 19, toll: 13, grasp: 9.5, refuge: 15 }) },
+      2: { swing: 1.7, slam: 13, puddleCount: 2, raid: 8, ...beats({ brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, puddle: 8, rot: 27, sunder: 9, soak: 34, burden: 4.0, yoke: 8.5, schism: 11.0, knell: 18, vessel: 20, mirror: 16.5, toll: 11.5, grasp: 8.5, refuge: 13 }) },
+      3: { swing: 1.5, slam: 11, puddleCount: 2, raid: 7, ...beats({ brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, puddle: 7, rot: 22, sunder: 8, soak: 28, burden: 3.5, yoke: 7.5, schism: 9.5, knell: 15, vessel: 17, mirror: 14, toll: 10, grasp: 7.5, refuge: 11.5 }) },
     },
-    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5, knell: 12, vessel: 14, mirror: 10 }) },
+    opening: { slam: 13, raid: 11, ...beats({ hand: 12, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, rot: 22, sunder: 14, soak: 34, burden: 4.5, yoke: 8.5, schism: 8.5, knell: 12, vessel: 14, mirror: 10, toll: 9, grasp: 7, refuge: 11 }) },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -742,6 +820,9 @@ export const ENCOUNTERS: Encounter[] = [
       knell: 'A bell is rising — break it before it rings',
       vessel: 'That one is full of the deep — leave it whole',
       mirror: 'THE WATER GOES STILL — HOLD',
+      toll: 'The deep wants paying — somebody stand on it',
+      grasp: 'Something is reaching up — off that ground',
+      refuge: 'Only these stones are left — one each',
     },
   },
   {
@@ -801,11 +882,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0, knell: 21, vessel: 23, mirror: 19 }) },
-      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5, knell: 18, vessel: 20, mirror: 16.5 }) },
-      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0, knell: 15, vessel: 17, mirror: 14 }) },
+      1: { swing: 2.1, slam: 18, puddleCount: 1, raid: 7, ...beats({ verdict: 19, echo: 13, puddle: 12, spread: 11, adds: 58, rot: 20, hunt: 52, burden: 4.6, yoke: 10, schism: 12.0, knell: 21, vessel: 23, mirror: 19, toll: 14, grasp: 10, refuge: 16 }) },
+      2: { swing: 1.9, slam: 16, puddleCount: 1, raid: 6, ...beats({ verdict: 16, echo: 11, puddle: 11, spread: 9, adds: 50, rot: 16, hunt: 45, burden: 4.0, yoke: 8.5, schism: 10.5, knell: 18, vessel: 20, mirror: 16.5, toll: 12, grasp: 9, refuge: 14 }) },
+      3: { swing: 1.8, slam: 14, puddleCount: 1, raid: 5.5, ...beats({ verdict: 13.5, echo: 9.5, puddle: 10, spread: 8, adds: 42, rot: 14, hunt: 38, burden: 3.5, yoke: 7.5, schism: 9.0, knell: 15, vessel: 17, mirror: 14, toll: 10.5, grasp: 8, refuge: 12 }) },
     },
-    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0, knell: 12, vessel: 14, mirror: 10 }) },
+    opening: { slam: 15, raid: 9, ...beats({ echo: 10, verdict: 11, puddle: 12, spread: 8, adds: 52, rot: 12, hunt: 44, burden: 4.5, yoke: 8.5, schism: 8.0, knell: 12, vessel: 14, mirror: 10, toll: 9.5, grasp: 7.5, refuge: 11.5 }) },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -830,6 +911,9 @@ export const ENCOUNTERS: Encounter[] = [
       knell: 'One note is gathering — silence it',
       vessel: 'It is holding the chord — do not open it',
       mirror: 'THE SONG TURNS BACK — STOP SINGING',
+      toll: 'It wants a voice — one of you, go',
+      grasp: 'A hand is closing on that floor — away from it',
+      refuge: 'Take a stone and hold it alone',
     },
   },
   {
@@ -867,11 +951,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0, knell: 21, vessel: 23, mirror: 19 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5, knell: 18, vessel: 20, mirror: 16.5 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0, knell: 15, vessel: 17, mirror: 14 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, adds: 46, sweep: 32, hunt: 44, burden: 4.6, yoke: 10, schism: 13.0, knell: 21, vessel: 23, mirror: 19, toll: 15, grasp: 11, refuge: 17 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, adds: 40, sweep: 28, hunt: 38, burden: 4.0, yoke: 8.5, schism: 11.5, knell: 18, vessel: 20, mirror: 16.5, toll: 13, grasp: 9.5, refuge: 15 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, adds: 34, sweep: 23, hunt: 32, burden: 3.5, yoke: 7.5, schism: 10.0, knell: 15, vessel: 17, mirror: 14, toll: 11, grasp: 8.5, refuge: 13 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0, knell: 12, vessel: 14, mirror: 10 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, adds: 42, sweep: 23, hunt: 45, burden: 4.5, yoke: 8.5, schism: 9.0, knell: 12, vessel: 14, mirror: 10, toll: 10, grasp: 8, refuge: 12 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -896,6 +980,9 @@ export const ENCOUNTERS: Encounter[] = [
       knell: 'Something is swelling out there — break it',
       vessel: 'That one is carrying the tide — let it pass',
       mirror: 'THE SURFACE CLOSES — NOTHING GOES IN',
+      toll: 'The tide takes a price — who is paying',
+      grasp: 'It has hold of the ground there — move',
+      refuge: 'One rock apiece — pick yours now',
     },
   },
 ]

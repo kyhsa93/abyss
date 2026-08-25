@@ -5,8 +5,15 @@ import {
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
+  GRASP_DAMAGE,
+  GRASP_REACH,
+  GRASP_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
+  REFUGE_DAMAGE,
+  REFUGE_RADIUS,
+  REFUGE_RING,
+  REFUGE_TELEGRAPH,
   SHALLOWS_COUNT,
   SHALLOWS_RADIUS,
   SHALLOWS_TELEGRAPH,
@@ -21,6 +28,11 @@ import {
   STALKER_HP,
   STALKER_SPEED,
   STALKER_SWING,
+  TOLL_PRICE,
+  TOLL_RADIUS,
+  TOLL_RANGE,
+  TOLL_TELEGRAPH,
+  TOLL_UNPAID,
   HEALTH,
   YOKE_REACH,
 } from './constants'
@@ -37,6 +49,8 @@ import {
   livingParty,
   burdenFuse,
   burdenTaker,
+  graspBill,
+  tollPayer,
   say,
   stackAura,
   topThreatTarget,
@@ -358,6 +372,9 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleKnell(s, b, rng, timing)
   scheduleVessel(s, b, rng, timing)
   scheduleMirror(s, b, timing)
+  scheduleToll(s, b, rng, timing)
+  scheduleGrasp(s, rng, timing)
+  scheduleRefuge(s, b, rng, timing)
   passBurdens(s)
 
   updateAdds(s)
@@ -2255,6 +2272,140 @@ if (g.kind === 'schism') {
       continue
     }
 
+    // The plate coming due, and which of the two bad outcomes the raid
+    // bought. Somebody stood on it and one body pays, or nobody did and all
+    // of them do. There is no third answer and there is deliberately no
+    // partial one: a price that could be half paid is a price that comes out
+    // in the average, and an average is the one thing measurement here has
+    // never been able to see a difference in.
+    if (g.kind === 'toll') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_toll',
+        power: g.radius * 12,
+        crit: true,
+      })
+
+      const standing = livingParty(s).filter((a) => dist(a.pos, g.pos) <= g.radius)
+      if (standing.length === 0) {
+        // The body the raid named, and nobody else.
+        //
+        // This was a raid-wide hit first, and it is the mechanic's one real
+        // mistake. A bill written to the whole roster is a rate, and healing
+        // is a rate, so a bigger raid absorbs it and a smaller one is wiped
+        // by it with no size in between: measured at three sizes, the same
+        // code taught 13.0 points at twenty-five, 7.6 at ten and nothing at
+        // all at five. Billed to the one body that was asked to go and did
+        // not, it is the same question with the answer landing where the
+        // choosing did -- and it writes one bill an instant instead of
+        // twenty-five, which is the other half of the same rule.
+        const named = tollPayer(s, g)
+        if (named) {
+          const owed = mechanic(s, TOLL_UNPAID)
+          applyDamage(s, named, owed, 'magic', { sourceId: BOSS_ID, mechanic: true })
+          pushEffect(s, 'impact', named.pos, {
+            abilityId: 'boss_toll',
+            power: owed,
+            crit: true,
+          })
+          s.raidFlash = 0.35
+        }
+        continue
+      }
+
+      // One body, and not a share each. Whoever is nearest the middle of it
+      // pays the whole thing and everyone else who wandered in pays nothing,
+      // which is what keeps a crowd from being an answer -- turning up in
+      // numbers does not make it cheaper, it only changes whose bill it is.
+      let payer = standing[0]!
+      for (const a of standing) {
+        if (dist(a.pos, g.pos) < dist(payer.pos, g.pos)) payer = a
+      }
+      const damage = mechanic(s, g.damage)
+      applyDamage(s, payer, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      pushEffect(s, 'impact', payer.pos, { abilityId: 'boss_toll', power: damage, crit: true })
+      continue
+    }
+
+    // The reach closing. It takes hold of one body and charges it for
+    // everybody who was still inside, so there is no safety in a crowd and
+    // none in a line either -- only in somebody else being nearer.
+    if (g.kind === 'grasp') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_grasp',
+        power: g.radius * 8,
+        crit: true,
+      })
+
+      // Whoever is holding the boss is not reachable by this, which is the
+      // rule the stalker and the split both keep. A tank cannot walk a
+      // hundred units without taking the fight with it, so a mechanic that
+      // could bill one is a mechanic answered by a role rather than by a
+      // decision -- and the tank would be nearest on every single cast.
+      const caught = livingParty(s).filter(
+        (a) => a.role !== 'tank' && dist(a.pos, g.pos) <= g.radius,
+      )
+      if (caught.length === 0) continue
+      let taken = caught[0]!
+      for (const a of caught) {
+        if (dist(a.pos, g.pos) < dist(taken.pos, g.pos)) taken = a
+      }
+      const damage = mechanic(s, g.damage * graspBill(caught.length))
+      applyDamage(s, taken, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      pushEffect(s, 'impact', taken.pos, { abilityId: 'boss_grasp', power: damage, crit: true })
+      s.sounds.push('raid')
+      continue
+    }
+
+    // The stones, counted out. Read off where the marked are standing rather
+    // than off what they were told, so a body that walked onto somebody
+    // else's has not saved itself: the nearest of the marked keeps it and the
+    // other one is standing on ground that is not theirs with nowhere left to
+    // go.
+    if (g.kind === 'refuge') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+
+      const marked = livingParty(s).filter((a) => getAura(a, 'refuge') !== undefined)
+      const kept = new Set<number>()
+      for (const spot of g.spots ?? []) {
+        let holder: Actor | null = null
+        for (const a of marked) {
+          if (dist(a.pos, spot) > g.radius) continue
+          if (holder === null || dist(a.pos, spot) < dist(holder.pos, spot)) holder = a
+        }
+        if (holder) kept.add(holder.id)
+      }
+
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: 'boss_refuge',
+        power: g.radius * 10,
+        crit: true,
+      })
+      for (const a of marked) {
+        // Cleared here rather than left to run out, the way the split's marks
+        // are: they say which stone is yours, and the moment the stones are
+        // gone they say nothing.
+        clearAura(a, 'refuge')
+        if (kept.has(a.id)) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_refuge', power: damage })
+      }
+      continue
+    }
+
     // A pool's shape with a longer memory: it announces, takes everything
     // inside it at one instant, and then the stone stays. Written as its own
     // arm rather than folded into the pools below, even though the sequence is
@@ -2369,6 +2520,10 @@ if (g.kind === 'schism') {
     // pools' rule at the bottom, which is the same rule by coincidence.
     if (g.kind === 'spire') return !g.detonated || g.lingering > 0
     if (g.kind === 'fault' || g.kind === 'shallows') return !g.detonated
+    // The same rule for all three of the ones about who pays: each of them is
+    // a moment the raid arrives at or does not, and none of them leaves
+    // anything on the floor afterwards.
+    if (g.kind === 'toll' || g.kind === 'grasp' || g.kind === 'refuge') return !g.detonated
     if (g.kind === 'echo') return !g.detonated
     // The same rule again: a split is a count rather than a place, and what
     // keeps it on the floor is having something still to ask.
@@ -2561,6 +2716,277 @@ function scheduleYoke(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     pushEffect(s, 'cast', owed.pos, { abilityId: 'boss_yoke' })
   }
   s.sounds.push('telegraph')
+}
+
+/**
+ * A price the boss names and the raid has to put a body against.
+ *
+ * The judgement read backwards. A judgement picks somebody and the raid
+ * answers for them; this picks nobody at all -- it lays a plate on the far
+ * side of the arena, starts counting, and what it is asking for is a name.
+ * Somebody has to be standing on it when the count runs out, and if nobody is
+ * then the whole raid pays instead, for more than the one would have.
+ *
+ * Two things make it a decision rather than a dodge. The plate is out past
+ * where anybody has business being, so going costs the fight a body for two
+ * seconds and coming back costs another; and the price is flat, so it is a
+ * scratch on whoever still has most of a bar and it finishes whoever does
+ * not. The raid is not being asked to move, it is being asked who it can
+ * afford to send.
+ *
+ * The nomination is made once, here, and written onto the plate. See
+ * `tollPayer` for why it cannot be worked out again later.
+ */
+function scheduleToll(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.toll <= 0) return
+  s.next.toll -= DT
+  if (s.next.toll > 0) return
+  s.next.toll = timing.toll
+
+  // Never against a gathering, which is the same instruction pointed at
+  // everybody: one says all of you into this circle and this says exactly one
+  // of you into that one, and a party told both at once is a party told
+  // nothing.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.next.toll = FLOOR_AFTER_SOAK
+    return
+  }
+  // And never two plates at once. Two nominations is not twice the mechanic,
+  // it is a raid with two people walking away from the fight at the same
+  // time, which is a tax rather than a question.
+  if (s.ground.some((g) => g.kind === 'toll')) {
+    s.next.toll = 0.5
+    return
+  }
+
+  // Never a tank, for the reason nothing else that asks for a journey names
+  // one: the boss follows whoever is holding it, so a tank sent two hundred
+  // units out does not pay a toll, it drags the fight across the arena and
+  // every other mechanic on the table is answered wrong while it does.
+  const free = livingParty(s).filter((a) => a.role !== 'tank')
+  if (free.length === 0) return
+
+  // Whoever has most of their bar left, which is the raid making the call
+  // rather than the boss making it. Read once, out loud, and then it is that
+  // person's walk -- the shape a raid uses for anything that has to be decided
+  // faster than it can be discussed.
+  //
+  // The share of a bar and not the number on it, which was the first version
+  // and turned the whole mechanic into a role. Plate carries the biggest bar
+  // in the raid, so "most left" named a melee dealer on two hundred and
+  // ninety-two casts out of two hundred and ninety-three -- and a melee dealer
+  // stands at the boss, which is the furthest anybody in the raid is from the
+  // plate. Measured, it was eighty units short every time it failed and just
+  // as short on a ninth pull as on a first. That is not a mechanic with a
+  // window in it; it is a tax on whoever wears the heaviest armour.
+  //
+  // The rotation is rolled so that a raid at full health does not name the
+  // same body every cast. Ties are the normal case at the start of a pull and
+  // an untied rule would answer them by actor order, which is a nomination
+  // nobody made.
+  const start = rng.int(free.length)
+  let named = free[start]!
+  for (let i = 1; i < free.length; i++) {
+    const a = free[(start + i) % free.length]!
+    if (a.hp / a.maxHp > named.hp / named.maxHp) named = a
+  }
+
+  // Laid out along the bearing the nominee already holds, with a roll on it.
+  //
+  // Not anywhere in the arena, which was the first version and made the walk
+  // a different length on every cast -- sometimes a step and sometimes three
+  // hundred units, which is not a mechanic with a window in it, it is a
+  // mechanic that is free or impossible depending on where the last one left
+  // everybody. Out along their own line the journey is about a hundred units
+  // every time, so the count has one job: to be long enough for the walk and
+  // short enough that noticing late does not fit inside it too.
+  const held = Math.atan2(named.pos.y - b.pos.y, named.pos.x - b.pos.x)
+  const bearing = held + rng.range(-0.5, 0.5)
+  const plate: GroundEffect = {
+    ...blankGround(s),
+    kind: 'toll',
+    pos: { x: b.pos.x + Math.cos(bearing) * TOLL_RANGE, y: b.pos.y + Math.sin(bearing) * TOLL_RANGE },
+    radius: TOLL_RADIUS,
+    telegraph: TOLL_TELEGRAPH,
+    lingering: 0,
+    damage: TOLL_PRICE,
+    detonated: false,
+    named: named.id,
+  }
+  clampToArena(plate.pos, TOLL_RADIUS)
+  s.ground.push(plate)
+
+  pushEffect(s, 'cast', plate.pos, { abilityId: 'boss_toll' })
+  if (named.ai) say(s, named, fight(s).lines.toll)
+  s.sounds.push('telegraph')
+}
+
+/**
+ * A reach that closes on a piece of floor and bills one body for everybody
+ * who was slow.
+ *
+ * Every other hazard on this table charges each person it caught. That is a
+ * bill that grows with how badly the raid played and lands spread across it,
+ * and spread is how a mistake disappears -- five bodies each losing a fifth
+ * of a bar is a healer's afternoon, not a lesson. This charges one, and it
+ * raises what that one owes for each of the others still inside, so the raid
+ * failing together is a single body's death rather than five people's dents.
+ *
+ * It is also the one shape here with no safe side to be on. Being outside a
+ * radius is not the answer, because the radius takes whoever is nearest
+ * whatever the distance; the answer is that somebody else is nearer than you,
+ * which means the raid is choosing who pays by choosing who it leaves.
+ */
+function scheduleGrasp(s: SimState, rng: Rng, timing: PhaseTiming): void {
+  if (timing.grasp <= 0) return
+  s.next.grasp -= DT
+  if (s.next.grasp > 0) return
+  s.next.grasp = timing.grasp
+
+  // Dropped on a body rather than on the arena, the way a pool is. Ground
+  // chosen at random is ground the raid was not using, and a mechanic aimed
+  // at floor nobody wanted is a mechanic nobody has to answer.
+  const free = livingParty(s).filter((a) => a.role !== 'tank')
+  if (free.length === 0) return
+
+  // One, whatever the headcount, and this is the second half of the area
+  // denial rule rather than a shrug at scaling. A reach writes a bill near
+  // the top of a health bar in a single instant; three of them at
+  // twenty-five write three, in the one second the healers have to answer
+  // any of them. Measured, one per ten bodies took a twenty-five man from
+  // 36.7% of unpractised raids dead to 66.3%, and it took the *practised*
+  // rate to 24.3% -- which is the burden's failure exactly, a mechanic with
+  // nothing left for practice to remove.
+  //
+  // What scales instead is the multiplier: a bigger raid puts more bodies
+  // inside one circle, so the single bill it writes is a larger one. That is
+  // the roster making the mechanic harder without the instant making it
+  // unanswerable.
+  const reaches = 1
+  for (let i = 0; i < reaches && free.length > 0; i++) {
+    const anchor = free.splice(rng.int(free.length), 1)[0]!
+    const shape: GroundEffect = {
+      ...blankGround(s),
+      kind: 'grasp',
+      pos: { x: anchor.pos.x, y: anchor.pos.y },
+      radius: GRASP_REACH,
+      telegraph: GRASP_TELEGRAPH,
+      lingering: 0,
+      damage: GRASP_DAMAGE,
+      detonated: false,
+    }
+    s.ground.push(shape)
+    pushEffect(s, 'cast', shape.pos, { abilityId: 'boss_grasp' })
+    if (anchor.ai && i === 0) say(s, anchor, fight(s).lines.grasp)
+  }
+  s.sounds.push('telegraph')
+}
+
+/**
+ * Ground rationed one body to a piece, and exactly enough of it.
+ *
+ * The shallows with the crowding put back in. Three patches of shallow water
+ * hold the whole raid at any size, deliberately, because nothing in this game
+ * collides and a patch that could not hold everybody would be a lie the
+ * picture told. These hold one each -- not by physics but by the rule that
+ * resolves them, which keeps a stone for the nearest of the marked and gives
+ * the rest of it to nobody.
+ *
+ * So the question stops being where the floor is and becomes which piece of
+ * it is yours. A body that walks to the nearest stone without asking who else
+ * was walking there has not answered the mechanic, it has taken somebody's
+ * place, and the two of them end the count standing on one stone with another
+ * one empty.
+ *
+ * There are as many stones as marks. That is the part that makes it
+ * measurable rather than merely cruel: a raid that divides itself correctly
+ * pays nothing at all, so everything this mechanic costs is something
+ * practice can remove. One stone short and it kills somebody on every cast
+ * however well it is answered, which is a fixed bill, and a fixed bill is the
+ * shape that has already been thrown away twice here.
+ */
+function scheduleRefuge(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.refuge <= 0) return
+  s.next.refuge -= DT
+  if (s.next.refuge > 0) return
+  s.next.refuge = timing.refuge
+
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.next.refuge = FLOOR_AFTER_SOAK
+    return
+  }
+  if (s.ground.some((g) => g.kind === 'refuge')) {
+    s.next.refuge = 0.5
+    return
+  }
+
+  // The tanks are out, for the journey's reason again.
+  const free = livingParty(s).filter((a) => a.role !== 'tank')
+  const marks = Math.min(free.length, Math.max(2, Math.round(free.length / 3)))
+  if (marks < 2) return
+
+  // The stones, spaced evenly on a ring the raid already operates near, from
+  // a bearing that is rolled every cast. Fixed bearings would let a party
+  // stand in the answer before the cast said anything, which is what the
+  // brand measured at nothing for until its ground stopped landing where the
+  // marked already were.
+  const start = rng.range(0, Math.PI * 2)
+  const spots: Vec2[] = []
+  for (let i = 0; i < marks; i++) {
+    const bearing = start + (i / marks) * Math.PI * 2
+    const spot = {
+      x: b.pos.x + Math.cos(bearing) * REFUGE_RING,
+      y: b.pos.y + Math.sin(bearing) * REFUGE_RING,
+    }
+    clampToArena(spot, REFUGE_RADIUS)
+    spots.push(spot)
+  }
+
+  const chosen: Actor[] = []
+  const pool = [...free]
+  for (let i = 0; i < marks && pool.length > 0; i++) {
+    chosen.push(pool.splice(rng.int(pool.length), 1)[0]!)
+  }
+
+  // The division, made once and written down.
+  //
+  // Nearest free stone, closest pair first, which is the arrangement that
+  // asks the shortest total walk -- and, more to the point, the one every
+  // marked body computes the same answer to. Left to be worked out on the
+  // way, "the nearest stone nobody better has claimed" is a different stone
+  // the moment anybody starts walking, and two bodies trade places for the
+  // whole count and neither of them arrives. The yoke paid for that lesson
+  // once already.
+  const pairs: Array<{ a: Actor; at: number; d: number }> = []
+  for (const a of chosen) {
+    for (let at = 0; at < spots.length; at++) pairs.push({ a, at, d: dist(a.pos, spots[at]!) })
+  }
+  pairs.sort((one, two) => one.d - two.d || one.a.id - two.a.id || one.at - two.at)
+  const spoken = new Set<number>()
+  const claimed = new Set<number>()
+  for (const pair of pairs) {
+    if (spoken.has(pair.a.id) || claimed.has(pair.at)) continue
+    spoken.add(pair.a.id)
+    claimed.add(pair.at)
+    addAura(pair.a, 'refuge', b.id)
+    const mark = getAura(pair.a, 'refuge')
+    if (mark) mark.stacks = pair.at + 1
+    pushEffect(s, 'cast', pair.a.pos, { abilityId: 'boss_refuge' })
+  }
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'refuge',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: REFUGE_RADIUS,
+    telegraph: REFUGE_TELEGRAPH,
+    lingering: 0,
+    damage: REFUGE_DAMAGE,
+    detonated: false,
+    spots,
+  })
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.refuge)
 }
 
 /** Everyone close enough to be paying a share of this one's yoke right now. */

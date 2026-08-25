@@ -247,6 +247,16 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Your own damage, handed back. Pierced rather than crushed: what lands is
   // the shape of what was thrown.
   boss_mirror: { colour: '#7dd3fc', style: 'pierce' },
+  // A price being collected, in a metal nothing else here is: the fight's one
+  // hit that a body walked to rather than failed to leave.
+  boss_toll: { colour: '#f59e0b', style: 'burst' },
+  // Something closing on one body out of the crowd. Deep violet, and crushing,
+  // because what it does is take hold rather than burn.
+  boss_grasp: { colour: '#7c3aed', style: 'crush' },
+  // Ground rationed out. Its own cold blue rather than a shade of the water
+  // that drowns the floor -- these are the pieces that are left, and a player
+  // who reads them as the same mechanic reads standing on one as a mistake.
+  boss_refuge: { colour: '#0e7490', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {
