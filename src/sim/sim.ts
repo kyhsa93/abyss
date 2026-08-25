@@ -32,6 +32,9 @@ import {
   resolveAbility,
   beginCast,
   castBlocker,
+  rotBite,
+  breakRot,
+  fightScale,
 } from './combat'
 import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
 import type { Rng } from './rng'
@@ -231,7 +234,10 @@ function updateTimers(s: SimState, a: Actor): void {
       if (tick.damage !== undefined) {
         // The boss's own dot is the one an affix can sharpen; the party's are
         // theirs and stay as they are.
-        const bite = aura.id === 'rot' ? tick.damage * affixRot(s.affix) : tick.damage
+        const bite =
+          aura.id === 'rot'
+            ? rotBite(aura, tick.damage) * affixRot(s.affix) * fightScale(s)
+            : tick.damage
         applyDamage(s, a, bite, 'none', { sourceId: aura.sourceId, silent: true })
         if (a.faction === 'boss') addThreat(s, aura.sourceId, bite)
       }
@@ -241,6 +247,7 @@ function updateTimers(s: SimState, a: Actor): void {
     if (aura.remaining <= 0) {
       a.auras.splice(i, 1)
       if (aura.id === 'spread') detonateSpread(s, a)
+      if (aura.id === 'rot' && a.alive) breakRot(s, a)
     }
   }
 }

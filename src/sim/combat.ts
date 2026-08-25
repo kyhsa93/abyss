@@ -57,7 +57,7 @@ export function getAura(actor: Actor, id: AuraId): Aura | undefined {
   return actor.auras.find((au) => au.id === id)
 }
 
-const AURA_DURATION: Record<AuraId, number> = {
+export const AURA_DURATION: Record<AuraId, number> = {
   living_bomb: 12,
   serpent_sting: 15,
   rupture: 12,
@@ -491,6 +491,48 @@ export function sizeScale(s: SimState): number {
 
 export function mechanicScale(s: SimState): number {
   return fightScale(s) * encounterAt(s.encounter).mechanicDamage
+}
+
+/**
+ * The note, getting louder, and what it does when it finally breaks.
+ *
+ * A flat drip is the one shape a healer never has to think about: it arrives
+ * at the same rate it is covered at, so the fight asks nothing and a raid
+ * that has never seen it wins as often as one that has. Measured, the
+ * Choir's three normal rungs improved by 0, -5 and +10 points between a first
+ * pull and a ninth, against the Warden's 35, 60 and 93 — and the Warden's
+ * curve is a puddle, which is to say a spike somebody failed to avoid.
+ *
+ * This is the same idea for a mechanic that cannot be avoided at all: the
+ * spike is not dodged, it is anticipated. The note builds over its fifteen
+ * seconds and bursts at the end, so a healer that is watching tops the
+ * carrier before it lands and one that is not loses them — which is exactly
+ * what this boss already asks for out loud. `demand` says out-heal the
+ * singing and the carrier says a note is caught in me.
+ *
+ * The ramp is centred on one, so the total the drip used to do is unchanged.
+ * What moved is when it arrives.
+ */
+const ROT_RAMP = 1.2
+// 200 rather than the 430 this started at. The break is a real spike at that
+// size — a fifth of a bar, landing on a body the drip has already worked on —
+// and it leaves the ladder where the last round put it. Larger, and it stops
+// being the Choir's mechanic and becomes everybody's: the Warden buys `rot` on
+// its second rung and holds it for the rest of the ladder, so this number is
+// paid four times by the boss it does not belong to.
+const ROT_BREAK = 200
+
+export function rotBite(aura: Aura, base: number): number {
+  const spent = 1 - Math.max(0, aura.remaining) / AURA_DURATION.rot
+  return base * (1 - ROT_RAMP / 2 + ROT_RAMP * spent)
+}
+
+/** What is left of the note when it lets go. */
+export function breakRot(s: SimState, carrier: Actor): void {
+  const damage = Math.round(ROT_BREAK * fightScale(s))
+  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_rot', power: damage })
+  s.sounds.push('raid')
 }
 
 /** Everything a spread debuff hits when it expires on someone. */
