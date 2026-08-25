@@ -32,7 +32,15 @@ import {
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import { DIFFICULTIES } from './classes'
-import { encounterAt, encounterKit, gated, type Encounter, type PhaseTiming } from './encounters'
+import {
+  encounterAt,
+  encounterKit,
+  gated,
+  MECHANIC_IDS,
+  type Encounter,
+  type MechanicId,
+  type PhaseTiming,
+} from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import { planned } from './floor'
 import type { Actor, GroundEffect, SimState, Vec2 } from './types'
@@ -69,22 +77,21 @@ function scaled(base: PhaseTiming, s: SimState): PhaseTiming {
   // get it: a boss owns more mechanics than any one raid meets, and how many
   // of them tonight is a question of who turned up and what they picked at the
   // door. A floor already rolled its own answer to that.
-  const kit = s.only
-    ? encounterKit(fight(s), s.party.length, s.difficulty).filter((m) => m === s.only)
-    : encounterKit(fight(s), s.party.length, s.difficulty)
-  const timing = s.plan ? planned(base, s.plan, s.phase) : gated(base, kit)
+  const bought = encounterKit(fight(s), s.party.length, s.difficulty)
+  const kit = s.only ? bought.filter((m) => m === s.only) : bought
+  // `bought.length`, not `kit.length` -- narrowing to one mechanic is a filter
+  // on what fires, not a discount on how many rungs the raid paid for.
+  const timing = s.plan ? planned(base, s.plan, s.phase) : gated(base, kit, bought.length)
   const cadence = DIFFICULTIES[s.difficulty].cadence
   if (cadence === 1) return timing
-  return {
-    ...timing,
-    puddle: timing.puddle * cadence,
-    spread: timing.spread * cadence,
-    slam: timing.slam * cadence,
-    raid: timing.raid * cadence,
-    breath: timing.breath * cadence,
-    shockwave: timing.shockwave * cadence,
-    adds: timing.adds * cadence,
-  }
+  // Over every mechanic, plus the two timers that are not mechanics. This was
+  // a list of five that nobody extended as mechanics were added, which no
+  // fight noticed only because heroic's cadence is currently 1 and the whole
+  // branch is skipped. Left as it was it would have come back as a difficulty
+  // that speeds up a third of a boss.
+  const faster = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) faster[id] = timing[id] * cadence
+  return { ...timing, ...faster, slam: timing.slam * cadence, raid: timing.raid * cadence }
 }
 
 /** Every point of boss damage passes through here. */

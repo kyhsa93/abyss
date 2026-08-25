@@ -69,6 +69,12 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
       `->`,
       `${((vet / RUNS) * 100).toFixed(1)}%`.padStart(7),
       `  teaches ${(mean * 100).toFixed(1)}pp +/- ${(2 * se * 100).toFixed(1)}`,
+      // Points alone read the floor, not the mechanic. Isolating one mechanic
+      // leaves the raid under a quarter of a real pull's pressure, so a good
+      // one can only ever move a death rate that starts near zero and the
+      // whole table compresses. The share of the deaths practice removes does
+      // not care how few there were to begin with.
+      green > 0 ? `  removes ${(((green - vet) / green) * 100).toFixed(0)}% of them` : '',
       lo > 0 ? '  real' : '  indistinguishable from nothing',
     )
   }

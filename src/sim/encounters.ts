@@ -586,25 +586,26 @@ export function kitCadence(rungs: number): number {
  * scheduler in `boss.ts` reads a cadence of zero as "not this fight" — so
  * there is one rule for a mechanic being absent rather than two.
  */
-export function gated(timing: PhaseTiming, kit: readonly MechanicId[]): PhaseTiming {
-  const tempo = kitCadence(kit.length)
+export function gated(
+  timing: PhaseTiming,
+  kit: readonly MechanicId[],
+  /**
+   * How many rungs the raid actually bought, when that is not `kit.length`.
+   *
+   * Measuring one mechanic at a time narrows the kit to it, and the tempo
+   * would then be a one-rung tempo -- five eighths of the interval, so the
+   * mechanic under measurement arrives about twice as often as it ever does
+   * in the fight it belongs to. Every teaching figure taken that way was
+   * quietly reading a boss nobody plays. The caller says what the kit really
+   * is and the filtering stays a filter.
+   */
+  rungs = kit.length,
+): PhaseTiming {
+  const tempo = kitCadence(rungs)
   const on = (id: MechanicId, every: number): number => (kit.includes(id) ? every * tempo : 0)
-  return {
-    ...timing,
-    brand: on('brand', timing.brand),
-    verdict: on('verdict', timing.verdict),
-    crush: on('crush', timing.crush),
-    puddle: on('puddle', timing.puddle),
-    spread: on('spread', timing.spread),
-    breath: on('breath', timing.breath),
-    shockwave: on('shockwave', timing.shockwave),
-    adds: on('adds', timing.adds),
-    sweep: on('sweep', timing.sweep),
-    rot: on('rot', timing.rot),
-    sunder: on('sunder', timing.sunder),
-    soak: on('soak', timing.soak),
-    hunt: on('hunt', timing.hunt),
-  }
+  const cadence = {} as Record<MechanicId, number>
+  for (const id of MECHANIC_IDS) cadence[id] = on(id, timing[id])
+  return { ...timing, ...cadence }
 }
 
 /** Clamped rather than checked: a saved index outliving its boss is not fatal. */
