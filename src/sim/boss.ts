@@ -2,8 +2,12 @@ import {
   ARENA_RADIUS,
   CRUSH_TELEGRAPH,
   DT,
+  FAULT_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
+  SHALLOWS_COUNT,
+  SHALLOWS_RADIUS,
+  SHALLOWS_TELEGRAPH,
   SOAK_RADIUS,
   SOAK_EACH,
   SOAK_MAX_SHARE,
@@ -329,6 +333,8 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
   scheduleHand(s, b, rng, timing)
+  scheduleFault(s, b, rng, timing)
+  scheduleShallows(s, b, rng, timing)
   scheduleBrand(s, rng, timing)
   scheduleEcho(s, rng, timing)
   scheduleVerdict(s, rng, timing)
@@ -829,6 +835,187 @@ function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
 }
 
 /**
+ * The floor split down the middle, and one half of it condemned.
+ *
+ * The crush asks the melee whether they noticed in time, which is a question
+ * only half the raid is ever asked — it is a band of a fixed radius and the
+ * ranged are outside it every cast. This asks everybody the same question at
+ * once. A line is drawn across the arena through the boss, the half on one
+ * side of it gives way about a second later, and at that instant a body is on
+ * one side or the other with nothing in between.
+ *
+ * The bearing is rolled every time. That is the whole of what makes it a
+ * mechanic rather than a seating chart: a fixed line would be learnt once and
+ * then answered by standing on the correct side forever, which is the failure
+ * the sweep already demonstrates — a mechanic whose answer is where your role
+ * stands teaches nothing, because a role is not a skill. Rolled, the answer is
+ * the same shape and never the same direction, so it has to be read off the
+ * floor while the count runs.
+ *
+ * Anchored on the boss where it was announced, for the reason the crush is:
+ * the boss moves for two percent of a fight, and the shape a raid reads has to
+ * be the shape that goes off.
+ *
+ * What it is worth, alone, on heroic, in points of survival between a first
+ * pull and a ninth and then the share of the deaths that practice removes:
+ *
+ *   five        21.3pp +/- 6.3    75%
+ *   ten          8.3   +/- 1.5    96%
+ *   twenty-five 24.6   +/- 2.7    95%
+ *
+ * The ends are where the mechanic is, and the dip in the middle is the boss
+ * rather than the line: a ten-man Warden fields two tanks and the same healer
+ * per five bodies a five-man does, so it is the size with the most slack to
+ * absorb a hit somebody ate. It is worth reading as area denial super-scaling
+ * — the arena is 460 whatever the headcount — except that this one denies a
+ * fixed half of it rather than a share per body, so what grows with the raid
+ * is the number of chances to be the one who was late.
+ */
+/** A crush's, and a puddle's: one mechanic's worth of damage at one instant. */
+const FAULT_DAMAGE = 1000
+
+/** Which half a fault condemns: the one its bearing points into. */
+export function condemned(p: Vec2, g: GroundEffect): boolean {
+  return (p.x - g.pos.x) * Math.cos(g.angle) + (p.y - g.pos.y) * Math.sin(g.angle) > 0
+}
+
+function scheduleFault(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.fault <= 0) return
+  s.nextFault -= DT
+  if (s.nextFault > 0) return
+
+  // Held while a gathering is live, for the reason every other piece of
+  // hazardous floor is: one mechanic says all of you here and the other says
+  // half of that is about to stop being floor.
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextFault = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextFault = timing.fault
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.fault)
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'fault',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // The whole floor, because the half of it that is condemned reaches the
+    // wall. What decides a hit is the bearing, not this.
+    radius: ARENA_RADIUS,
+    telegraph: FAULT_TELEGRAPH,
+    // Nothing afterwards: a moment to be on the right side of, not a place to
+    // avoid for the rest of the fight. Half an arena that stays dangerous is
+    // not a mechanic, it is a smaller arena.
+    lingering: 0,
+    damage: FAULT_DAMAGE,
+    detonated: false,
+    angle: rng.range(0, Math.PI * 2),
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_fault', power: ARENA_RADIUS })
+}
+
+/**
+ * The arena going under, except for the few patches it leaves standing.
+ *
+ * Every other piece of hazardous ground in this game says *leave where you
+ * are*: a pool, a brand, the band round the boss, the half a fault takes.
+ * This one says *be somewhere specific*, and there is exactly one other
+ * mechanic here that does — the gathering, which asks the whole party into a
+ * single circle and therefore gets easier the more bodies there are to divide
+ * the hit between. Three patches ask each body the same question whatever the
+ * headcount.
+ *
+ * The patches are rolled a third of a turn apart rather than freely. Three
+ * free rolls land on top of one another often enough to be a coin flip
+ * between a mechanic and a formality, and what this is supposed to ask is
+ * which patch, not whether there happened to be one underfoot.
+ *
+ * Alone, on heroic, in points and then the share of deaths practice removes:
+ *
+ *   five         2.8pp +/- 2.3    94%
+ *   ten          2.4   +/- 0.7    98%
+ *   twenty-five  8.7   +/- 1.3    97%
+ *
+ * Three patches are three patches at any headcount, so the growth is the same
+ * one the split has: more bodies, more chances that one of them noticed late.
+ * The share column is the honest one here — this mechanic empties a first
+ * pull's deaths almost completely — and the points column is low because most
+ * of what it costs a raid is the walk, which the probe cannot see at all.
+ */
+/**
+ * A crush's, in the end, and not by choice.
+ *
+ * It was set under one — eight hundred and fifty — on the argument that this
+ * mechanic already charges for the walk and should not also hit like the
+ * floor caving in. Measured, that argument is wrong about how this game
+ * kills people: deaths are a step function of what a mechanic totals per body
+ * over a pull — the measured line is 1937 for none and 2645 for a wipe — and
+ * under it nothing happens at all. See `SHALLOWS_TELEGRAPH`. The walk is
+ * charged for in uptime, which is real and which the death rate cannot see.
+ */
+const SHALLOWS_DAMAGE = 1000
+
+/** Whether this spot is on ground the shallows leave standing. */
+export function onShallows(p: Vec2, g: GroundEffect): boolean {
+  const spots = g.spots ?? []
+  for (const spot of spots) {
+    if (Math.hypot(p.x - spot.x, p.y - spot.y) <= g.radius) return true
+  }
+  return false
+}
+
+function scheduleShallows(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.shallows <= 0) return
+  s.nextShallows -= DT
+  if (s.nextShallows > 0) return
+
+  if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
+    s.nextShallows = FLOOR_AFTER_SOAK
+    return
+  }
+
+  s.nextShallows = timing.shallows
+  s.sounds.push('telegraph')
+  say(s, b, fight(s).lines.shallows)
+
+  // Around the boss rather than around the arena. The raid operates between
+  // ninety and a hundred and twenty-five of it, so patches rolled across four
+  // hundred and sixty of floor would be a mechanic answered by a walk nobody
+  // can finish — and the gathering already measured what a long walk costs:
+  // this party heals standing still, so the seconds spent crossing the arena
+  // come out of the healing rather than out of anybody's attention.
+  const base = rng.range(0, Math.PI * 2)
+  const spots: Vec2[] = []
+  for (let i = 0; i < SHALLOWS_COUNT; i++) {
+    const angle = base + (i / SHALLOWS_COUNT) * Math.PI * 2 + rng.range(-0.4, 0.4)
+    const away = rng.range(85, 195)
+    const spot = { x: b.pos.x + Math.cos(angle) * away, y: b.pos.y + Math.sin(angle) * away }
+    clampToArena(spot, SHALLOWS_RADIUS)
+    spots.push(spot)
+  }
+
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'shallows',
+    // The middle of the arena, since what it condemns is all of it. The
+    // patches are the exception and they are carried in `spots`.
+    pos: { x: 0, y: 0 },
+    // One patch's, which is the only length this mechanic measures anything
+    // against.
+    radius: SHALLOWS_RADIUS,
+    telegraph: SHALLOWS_TELEGRAPH,
+    lingering: 0,
+    damage: SHALLOWS_DAMAGE,
+    detonated: false,
+    spots,
+  })
+  for (const spot of spots) {
+    pushEffect(s, 'cast', spot, { abilityId: 'boss_shallows', power: SHALLOWS_RADIUS })
+  }
+}
+
+/**
  * The circle the whole party has to be standing in.
  *
  * The inverse of spread, and the only thing here that asks the party to do
@@ -877,7 +1064,13 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // would be waiting out the fight.
   if (
     s.ground.some(
-      (g) => (g.kind === 'puddle' || g.kind === 'brand' || g.kind === 'crush') && !g.detonated,
+      (g) =>
+        (g.kind === 'puddle' ||
+          g.kind === 'brand' ||
+          g.kind === 'crush' ||
+          g.kind === 'fault' ||
+          g.kind === 'shallows') &&
+        !g.detonated,
     )
   )
     return
@@ -1657,6 +1850,39 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // The floor splitting, and the floor going under. Both are the crush's
+    // shape rather than a pool's — announced, and then the whole of it in one
+    // frame — so they are resolved here beside it rather than with the ground
+    // that keeps burning afterwards. What differs is only the question asked
+    // of a position: which side of a line, and whether it is on one of the
+    // patches left standing.
+    if (g.kind === 'fault' || g.kind === 'shallows') {
+      if (g.detonated) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      s.sounds.push('raid')
+      s.raidFlash = 0.35
+      const mark = g.kind === 'fault' ? 'boss_fault' : 'boss_shallows'
+      pushEffect(s, 'impact', g.pos, {
+        abilityId: mark,
+        power: g.radius * 12,
+        crit: true,
+        angle: g.angle,
+      })
+      for (const a of livingParty(s)) {
+        // No forgiveness on the actor's radius, the same as the crush: a
+        // mechanic answered by crossing a line cannot also be a mechanic that
+        // lets a shoulder hang over it.
+        const caught = g.kind === 'fault' ? condemned(a.pos, g) : !onShallows(a.pos, g)
+        if (!caught) continue
+        const damage = mechanic(s, g.damage)
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        pushEffect(s, 'impact', a.pos, { abilityId: mark, power: damage, angle: g.angle })
+      }
+      continue
+    }
+
     // All of it or none of it, at one instant. Handled apart from the pools
     // below rather than folded into them: those keep burning after they go
     // off and the whole of this one is the frame it lands on.
@@ -1727,6 +1953,7 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'shockwave') return g.lingering > 0
     // The same rule as the circle, for the same reason: a moment, not a place.
     if (g.kind === 'crush') return !g.detonated
+    if (g.kind === 'fault' || g.kind === 'shallows') return !g.detonated
     if (g.kind === 'echo') return !g.detonated
     // It is done when it has finished turning, not when it has gone off: a
     // pulse is one of five, and `detonated` would have to mean "the last one"

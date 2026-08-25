@@ -1,5 +1,7 @@
 import {
   CRUSH_TELEGRAPH,
+  FAULT_TELEGRAPH,
+  SHALLOWS_TELEGRAPH,
   PUDDLE_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
@@ -483,6 +485,16 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'fault') {
+      drawFault(ctx, g, p)
+      continue
+    }
+
+    if (g.kind === 'shallows') {
+      drawShallows(ctx, g, r, clock)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
@@ -527,6 +539,103 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.restore()
     }
   }
+}
+
+/**
+ * The line across the floor, and the half of it that is going.
+ *
+ * Drawn as the exact piece of arena that is condemned rather than as a line
+ * with a hint of shading — a mechanic whose answer is "be on the other side"
+ * has to say which side, and the only unambiguous way to say it is to colour
+ * one of them in. The chord and the arc are worked out rather than clipped so
+ * the shape is the shape the simulation tests: what is filled is what is hit.
+ */
+function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number], p: Vec2): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / FAULT_TELEGRAPH))
+  const c = worldToScreen({ x: 0, y: 0 })
+  const radius = L.arenaR
+  const nx = Math.cos(g.angle)
+  const ny = Math.sin(g.angle)
+
+  // Where the line crosses the wall. The boss is always inside the arena, so
+  // the line always crosses it twice; the guard is for the frame where the
+  // camera has not caught up rather than for a case the fight can produce.
+  const away = (p.x - c.x) * nx + (p.y - c.y) * ny
+  const half = Math.sqrt(Math.max(0, radius * radius - away * away))
+  if (half <= 0) return
+  const foot = { x: c.x + nx * away, y: c.y + ny * away }
+  const from = { x: foot.x - ny * half, y: foot.y + nx * half }
+  const to = { x: foot.x + ny * half, y: foot.y - nx * half }
+
+  // Of the two arcs between those crossings, the condemned one is whichever
+  // contains the bearing the fault points along.
+  const a1 = Math.atan2(from.y - c.y, from.x - c.x)
+  const a2 = Math.atan2(to.y - c.y, to.x - c.x)
+  const turn = (x: number): number => ((x % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
+  const sweep = turn(a1 - a2)
+  const forward = turn(g.angle - a2) < sweep
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(to.x, to.y)
+  ctx.arc(c.x, c.y, radius, a2, a1, !forward)
+  ctx.closePath()
+  ctx.fillStyle = `rgba(71, 85, 105, ${(0.24 + 0.34 * closing).toFixed(3)})`
+  ctx.fill()
+
+  // The line itself, which is the thing being read.
+  ctx.beginPath()
+  ctx.moveTo(from.x, from.y)
+  ctx.lineTo(to.x, to.y)
+  ctx.strokeStyle = 'rgba(203, 213, 225, 0.95)'
+  ctx.lineWidth = 2 + 7 * closing
+  ctx.stroke()
+  ctx.restore()
+}
+
+/**
+ * The arena going under, and the patches it leaves.
+ *
+ * The opposite picture to everything else on this floor, and it has to be:
+ * every other shape here is a bright thing on dark ground meaning *not here*,
+ * and this one means *only here*. So the wash goes over the whole arena and
+ * the patches are cut back out of it in the floor's own colour — the safe
+ * ground reads as ground, and the danger is the absence of it.
+ */
+function drawShallows(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  r: number,
+  clock: number,
+): void {
+  if (g.detonated) return
+  const closing = Math.max(0, Math.min(1, 1 - g.telegraph / SHALLOWS_TELEGRAPH))
+  const c = worldToScreen({ x: 0, y: 0 })
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(29, 78, 216, ${(0.18 + 0.3 * closing).toFixed(3)})`
+  ctx.fill()
+
+  for (const spot of g.spots ?? []) {
+    const at = worldToScreen(spot)
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.floor
+    ctx.fill()
+
+    ctx.beginPath()
+    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    ctx.strokeStyle = 'rgba(147, 197, 253, 0.9)'
+    ctx.lineWidth = 2 + 6 * closing
+    ctx.setLineDash([8, 6])
+    ctx.lineDashOffset = -clock * 24
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+  ctx.restore()
 }
 
 /** Frontal cone: fills toward the tip as the cast completes. */

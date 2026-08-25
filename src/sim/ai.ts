@@ -3,8 +3,10 @@ import {
   ARENA_RADIUS,
   CRUSH_TELEGRAPH,
   DT,
+  FAULT_TELEGRAPH,
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
+  SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
   SPREAD_RADIUS,
 } from './constants'
@@ -12,8 +14,10 @@ import {
   BREATH_CAST,
   ECHO_TELEGRAPH,
   HAND_BEAT,
+  condemned,
   insideCone,
   inShockwaveGap,
+  onShallows,
   underHand,
   verdictLine,
 } from './boss'
@@ -34,7 +38,7 @@ import {
 } from './combat'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
-import type { Actor, AuraId, SimState, Vec2 } from './types'
+import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
 /**
  * Party AI.
@@ -140,6 +144,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     }
     if (danger.startsWith('wave')) {
       say(s, actor, 'Inside, get in!')
+    } else if (danger.startsWith('fault')) {
+      say(s, actor, 'Across the crack!')
+    } else if (danger.startsWith('shallows')) {
+      say(s, actor, 'Onto the shallows!')
     } else if (danger.startsWith('breath')) {
       say(s, actor, 'Out of the front')
     } else if (danger.startsWith('spread')) {
@@ -335,6 +343,22 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       continue
     }
 
+    // The half of the floor that is about to stop being floor, and the floor
+    // that is about to stop being floor everywhere but three patches. Both sit
+    // beside the crush and just under it, and rise the same way as the count
+    // runs out: they are single instants rather than places that keep hurting,
+    // so being late by a tenth of a second is the whole mechanic.
+    //
+    // Under the crush rather than over it because the crush is the shorter
+    // count of the three. A raid holding both should answer the one that lands
+    // first, and the walk out of a band is a step where a crossing is a walk.
+    if (g.kind === 'fault') {
+      if (!g.detonated && onFault(actor.pos, g)) {
+        consider(`fault:${g.id}`, 88 + (FAULT_TELEGRAPH - g.telegraph) * 12)
+      }
+      continue
+    }
+
     // The floor under whoever it marked, about to answer. Ranked just under
     // live fire: it is a bigger hit than a pool tick and there is less time
     // to be somewhere else, but a pool that has already gone off is burning
@@ -342,6 +366,17 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     if (g.kind === 'echo') {
       if (!g.detonated && dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
         consider(`echo:${g.id}`, 88 + (ECHO_TELEGRAPH - g.telegraph) * 10)
+      }
+      continue
+    }
+
+    // The one hazard here whose danger is *not* being somewhere. Everything
+    // else on this list is read by asking whether a body is inside a shape;
+    // this asks whether it is inside any of three, and answers yes to the
+    // whole rest of the arena.
+    if (g.kind === 'shallows') {
+      if (!g.detonated && !onShallows(actor.pos, g)) {
+        consider(`shallows:${g.id}`, 86 + (SHALLOWS_TELEGRAPH - g.telegraph) * 10)
       }
       continue
     }
@@ -400,11 +435,47 @@ function hunterOf(s: SimState, actor: Actor): Actor | null {
 /** How close the thing chasing you has to be before it is worth running. */
 const STALK_ROOM = 110
 
-/** Is this spot inside a slam that has been announced and has not landed? */
+/**
+ * Whether a spot is on the half a fault is taking, with room to spare.
+ *
+ * The mechanic itself has no forgiveness at all — a body is on one side of
+ * the line or the other when it lands. What the AI reads is the same line
+ * pushed a stride into the safe half, so that standing on it counts as
+ * standing in it: a raider who answers by putting one foot across has not
+ * answered anything, and the margin is what makes the answer a crossing
+ * rather than a lean.
+ */
+function onFault(spot: Vec2, g: GroundEffect): boolean {
+  const nudged = {
+    x: spot.x + Math.cos(g.angle) * DANGER_MARGIN,
+    y: spot.y + Math.sin(g.angle) * DANGER_MARGIN,
+  }
+  return condemned(nudged, g)
+}
+
+/**
+ * Is this spot on floor that has been announced and has not gone yet?
+ *
+ * Only ever asked about the place a role wants to *be*, which is why it is
+ * this narrow list rather than `isSpotSafe`. A pool lands where somebody is
+ * standing and has gone off by the time anyone walks back; these three cover
+ * ground the fight was already using, so an actor that finished its step out
+ * early would otherwise turn round, walk home, and be caught by the thing it
+ * had just dodged.
+ *
+ * Narrow on purpose, and it stays narrow. Run home through `isSpotSafe`
+ * instead and an unpractised raid stops walking back into anything at all —
+ * measured, that alone took the brand from seventeen points of teaching to
+ * six, because most of what the brand teaches is not walking onto your own.
+ */
 function caving(s: SimState, spot: Vec2): boolean {
-  return s.ground.some(
-    (g) => g.kind === 'crush' && !g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN,
-  )
+  return s.ground.some((g) => {
+    if (g.detonated) return false
+    if (g.kind === 'crush') return dist(spot, g.pos) <= g.radius + DANGER_MARGIN
+    if (g.kind === 'fault') return onFault(spot, g)
+    if (g.kind === 'shallows') return !onShallows(spot, g)
+    return false
+  })
 }
 
 /** Is this spot under the wedge, on the pulse coming or the one after it? */
@@ -438,6 +509,15 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     }
     if (g.kind === 'echo') {
       if (!g.detonated && dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
+      continue
+    }
+    if (g.kind === 'fault') {
+      if (!g.detonated && onFault(spot, g)) return false
+      continue
+    }
+    // Inverted, like the circle: three patches are the only floor there is.
+    if (g.kind === 'shallows') {
+      if (!g.detonated && !onShallows(spot, g)) return false
       continue
     }
     // Inverted: this is the one piece of ground that is only safe from the
@@ -590,6 +670,34 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
           })
         }
       }
+    } else if (g.kind === 'fault' && !g.detonated) {
+      // Straight across, at a few depths. Sampling around the actor does find
+      // the far side of a line eventually, but only on the rings that happen
+      // to point the right way — and a mechanic answered by one bearing out of
+      // sixteen is a mechanic answered late.
+      const across = (actor.pos.x - g.pos.x) * Math.cos(g.angle) +
+        (actor.pos.y - g.pos.y) * Math.sin(g.angle)
+      for (const depth of [40, 90, 170]) {
+        const step = across + depth
+        candidates.push({
+          x: actor.pos.x - Math.cos(g.angle) * step,
+          y: actor.pos.y - Math.sin(g.angle) * step,
+        })
+      }
+    } else if (g.kind === 'shallows' && !g.detonated) {
+      // Every patch, and a ring inside each of them. The same problem the
+      // gathering has — the answer is a specific place rather than a direction
+      // — and the same answer: offer it rather than search for it.
+      for (const spot of g.spots ?? []) {
+        candidates.push({ x: spot.x, y: spot.y })
+        for (let i = 0; i < 6; i++) {
+          const angle = offset + (i / 6) * Math.PI * 2
+          candidates.push({
+            x: spot.x + Math.cos(angle) * g.radius * 0.5,
+            y: spot.y + Math.sin(angle) * g.radius * 0.5,
+          })
+        }
+      }
     } else if (g.kind === 'breath' && !g.detonated) {
       // Behind and beside the cone. The short ring matters for melee, which
       // has to end up behind the boss rather than away from it.
@@ -618,6 +726,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let ringActive = false
     let soakActive = false
     let crushActive = false
+    let strandedActive = false
     for (const g of s.ground) {
       if (g.kind === 'breath') {
         if (!g.detonated && insideCone(candidate, g)) score -= 1400
@@ -631,6 +740,29 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         // in one at a time divides the hit by one and takes it five times.
         if (d > g.radius - actor.radius) score -= 1600
         else score += Math.min(240, (g.radius - d) * 2)
+        continue
+      }
+      if (g.kind === 'fault') {
+        if (g.detonated) continue
+        // The crush's weight, because it is the crush's kind of hit: the whole
+        // of it in one frame rather than a health bar over five seconds.
+        // Depth into the safe half is worth a little, which keeps a crowd from
+        // lining up along the line it just crossed and stepping back over it.
+        if (onFault(candidate, g)) score -= 1800
+        else {
+          const across = (candidate.x - g.pos.x) * Math.cos(g.angle) +
+            (candidate.y - g.pos.y) * Math.sin(g.angle)
+          score += Math.min(160, -across * 1.2)
+        }
+        continue
+      }
+      if (g.kind === 'shallows') {
+        if (g.detonated) continue
+        strandedActive = true
+        let nearest = Infinity
+        for (const spot of g.spots ?? []) nearest = Math.min(nearest, dist(candidate, spot))
+        if (nearest > g.radius - actor.radius) score -= 1800
+        else score += Math.min(220, (g.radius - nearest) * 2)
         continue
       }
       if (g.kind === 'crush') {
@@ -704,10 +836,16 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (soakActive) {
+    if (soakActive || strandedActive) {
       // Standing in it beats standing in range of anything. Suspended the
       // same way the ring suspends the casters' spacing, and for melee too:
       // the boss is not going anywhere in five seconds.
+      //
+      // The same for the three patches, and it is not the same reason. The
+      // circle is one place and being in range of the fight from it is luck;
+      // the patches are three, and a term that pays for standing near the boss
+      // would pick the nearest one for everybody — which is a mechanic
+      // answered by walking wherever the fight already was.
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.

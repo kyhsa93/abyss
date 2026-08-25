@@ -28,6 +28,8 @@ export type MechanicId =
   | 'brand'
   | 'verdict'
   | 'crush'
+  | 'fault'
+  | 'shallows'
   | 'puddle'
   | 'spread'
   | 'breath'
@@ -65,6 +67,8 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   brand: true, // one mark per so many bodies
   verdict: true, // one judgement per so many bodies
   crush: false, // a band of a fixed radius, which is where the melee stand
+  fault: false, // half the arena, which is half of it at any headcount
+  shallows: false, // a fixed number of patches, and nothing collides on them
   puddle: true, // `puddleCount` per cast
   spread: true, // one mark per so many bodies
   adds: true, // a wave of `living / 6`
@@ -93,6 +97,8 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   brand: 'the brand',
   verdict: 'the judgement',
   crush: 'the crush',
+  fault: 'the fault',
+  shallows: 'the shallows',
   puddle: 'pools',
   spread: 'marks',
   breath: 'the cone',
@@ -176,6 +182,35 @@ export interface PhaseTiming {
    * asks for the walk again before the last one has finished being paid for.
    */
   echo: number
+  /**
+   * Seconds between one fault and the next.
+   *
+   * A line drawn across the arena, and the half of the floor on one side of
+   * it is condemned. The crush asks the melee whether they noticed; this asks
+   * the whole raid, because a half-plane through the boss does not care where
+   * anybody's role stands — the tank at fifty-two and a caster at two hundred
+   * are on one side of it or the other on the same terms.
+   *
+   * The bearing is rolled every cast, so it is read off the floor rather than
+   * remembered. What it costs is the crossing: the answer is always the same
+   * shape and never the same direction.
+   */
+  fault: number
+  /**
+   * Seconds between one drowning of the floor and the next.
+   *
+   * The inverse of every other piece of hazardous ground here. A pool says
+   * leave where you stand and a fault says leave that half; this condemns the
+   * arena and leaves a few patches of it standing, so the answer is not a
+   * step off something but a walk to somewhere, chosen from three.
+   *
+   * It is the gathering's opposite as well, and deliberately: the circle asks
+   * the whole party into one place, which is a mechanic that gets easier the
+   * more bodies there are to divide it between. Three patches ask each body
+   * the same question whatever the headcount, and nothing here collides, so a
+   * raid of twenty-five is not punished for being a crowd.
+   */
+  shallows: number
   puddle: number
   spread: number
   slam: number
@@ -314,6 +349,8 @@ export interface Encounter {
     crush: number
     hand: number
     echo: number
+    fault: number
+    shallows: number
     puddle: number
     spread: number
     slam: number
@@ -353,6 +390,18 @@ export interface Encounter {
     brand: string
     verdict: string
     crush: string
+    /**
+     * Every boss has one of these, where most lines are empty on the bosses
+     * that do not own the mechanic.
+     *
+     * The floor giving way is not on anybody's ladder yet — where it belongs
+     * on one is a question about the shape of a fight rather than about the
+     * mechanic — but a descent floor can already be handed it, and a descent
+     * borrows whichever boss it likes for its shape. A mechanic that any of
+     * the three can throw needs a line from all three.
+     */
+    fault: string
+    shallows: string
     soak: string
     hunt: string
     hand: string
@@ -417,11 +466,11 @@ export const ENCOUNTERS: Encounter[] = [
     // rung for it is a separate decision about the other thirteen.
     ladder: ['brand', 'crush', 'rot', 'sunder', 'soak', 'hand'],
     phases: {
-      1: { verdict: 0, brand: 8, crush: 9, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
-      2: { verdict: 0, brand: 7, crush: 8, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
-      3: { verdict: 0, brand: 6, crush: 7, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
+      1: { verdict: 0, brand: 8, crush: 9, fault: 10, shallows: 10, hand: 14, echo: 0, swing: 2.0, puddle: 9, spread: 0, slam: 16, puddleCount: 1, raid: 9, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 33, sunder: 11, soak: 40, hunt: 0 },
+      2: { verdict: 0, brand: 7, crush: 8, fault: 9, shallows: 9, hand: 12, echo: 0, swing: 1.7, puddle: 8, spread: 0, slam: 13, puddleCount: 2, raid: 8, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 27, sunder: 9, soak: 34, hunt: 0 },
+      3: { verdict: 0, brand: 6, crush: 7, fault: 8, shallows: 8, hand: 10, echo: 0, swing: 1.5, puddle: 7, spread: 0, slam: 11, puddleCount: 2, raid: 7, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 8, soak: 28, hunt: 0 },
     },
-    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
+    opening: { hand: 12, echo: 0, verdict: 0, brand: 8, crush: 9, fault: 10, shallows: 9, puddle: 9, spread: 0, slam: 13, raid: 11, breath: 0, shockwave: 0, adds: 0, sweep: 0, rot: 22, sunder: 14, soak: 34, hunt: 0 },
     lines: {
       phaseTwo: 'The tide rises!',
       phaseThree: 'DROWN WITH ME',
@@ -433,6 +482,8 @@ export const ENCOUNTERS: Encounter[] = [
       brand: 'It is burning through me — clear ground',
       verdict: '',
       crush: 'THE DEEP COMES DOWN',
+      fault: 'THE SEABED SPLITS',
+      shallows: 'The deep swallows the floor — the shallows, all of you',
       soak: 'The undertow gathers — all of you',
       hunt: '',
       hand: 'THE DEEP TURNS — STAY BEHIND IT',
@@ -496,11 +547,11 @@ export const ENCOUNTERS: Encounter[] = [
     // away from the four that a ten-man heroic already meets here.
     ladder: ['spread', 'rot', 'verdict', 'puddle', 'adds', 'echo'],
     phases: {
-      1: { verdict: 19, brand: 0, crush: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
-      2: { verdict: 16, brand: 0, crush: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
-      3: { verdict: 13.5, brand: 0, crush: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
+      1: { verdict: 19, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 13, swing: 2.1, puddle: 12, spread: 11, slam: 18, puddleCount: 1, raid: 7, breath: 0, shockwave: 0, adds: 58, sweep: 0, rot: 20, sunder: 0, soak: 0, hunt: 52 },
+      2: { verdict: 16, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 11, swing: 1.9, puddle: 11, spread: 9, slam: 16, puddleCount: 1, raid: 6, breath: 0, shockwave: 0, adds: 50, sweep: 0, rot: 16, sunder: 0, soak: 0, hunt: 45 },
+      3: { verdict: 13.5, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 9.5, swing: 1.8, puddle: 10, spread: 8, slam: 14, puddleCount: 1, raid: 5.5, breath: 0, shockwave: 0, adds: 42, sweep: 0, rot: 14, sunder: 0, soak: 0, hunt: 38 },
     },
-    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
+    opening: { hand: 0, echo: 10, verdict: 11, brand: 0, crush: 0, fault: 0, shallows: 0, puddle: 12, spread: 8, slam: 15, raid: 9, breath: 0, shockwave: 0, adds: 52, sweep: 0, rot: 12, sunder: 0, soak: 0, hunt: 44 },
     lines: {
       phaseTwo: 'Sing louder',
       phaseThree: 'THE CHOIR TAKES YOU',
@@ -512,6 +563,8 @@ export const ENCOUNTERS: Encounter[] = [
       brand: '',
       verdict: 'It has judged me — heal through it',
       crush: '',
+      fault: 'A note cracks the floor',
+      shallows: 'Only the high ground still sings',
       soak: '',
       hunt: '',
       hand: '',
@@ -553,11 +606,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     ladder: ['breath', 'shockwave', 'sweep', 'adds', 'hunt'],
     phases: {
-      1: { verdict: 0, brand: 0, crush: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
-      2: { verdict: 0, brand: 0, crush: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
-      3: { verdict: 0, brand: 0, crush: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
+      1: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.9, puddle: 0, spread: 0, slam: 14, puddleCount: 1, raid: 11, breath: 11, shockwave: 16, adds: 46, sweep: 32, rot: 0, sunder: 0, soak: 0, hunt: 44 },
+      2: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.7, puddle: 0, spread: 0, slam: 12, puddleCount: 1, raid: 10, breath: 9.5, shockwave: 13, adds: 40, sweep: 28, rot: 0, sunder: 0, soak: 0, hunt: 38 },
+      3: { verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, hand: 0, echo: 0, swing: 1.5, puddle: 0, spread: 0, slam: 10, puddleCount: 1, raid: 9, breath: 8, shockwave: 10.5, adds: 34, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 32 },
     },
-    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
+    opening: { hand: 0, echo: 0, verdict: 0, brand: 0, crush: 0, fault: 0, shallows: 0, puddle: 0, spread: 0, slam: 11, raid: 13, breath: 10, shockwave: 15, adds: 42, sweep: 23, rot: 0, sunder: 0, soak: 0, hunt: 45 },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
@@ -569,6 +622,8 @@ export const ENCOUNTERS: Encounter[] = [
       brand: '',
       verdict: '',
       crush: '',
+      fault: 'The seabed breaks open',
+      shallows: 'The tide takes the ground',
       soak: '',
       hunt: 'It has your scent',
       hand: '',
