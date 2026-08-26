@@ -5,10 +5,11 @@ import type { DifficultyId } from './classes'
 /**
  * What a descent floor is made of.
  *
- * The three bosses on the ladder are sentences written by hand out of a fixed
- * vocabulary of mechanics — the Choir throws no cone and no ring, the
- * Tidebreaker no spread and no rot — and the descent used to run those same
- * three in a loop, so floor four was the first boss again with more health.
+ * The five bosses on the ladder are sentences written by hand out of a fixed
+ * vocabulary of thirty mechanics, one boss to each of them and six to a boss —
+ * the Choir throws no cone and no ring, the Tidebreaker no marks and no rot —
+ * and the descent used to run those bosses in a loop, so floor four was the
+ * first boss again with more health.
  *
  * Here the sentence is rolled instead. The floor takes a boss for its shape
  * and its numbers and then replaces what it asks for: a budget that grows with

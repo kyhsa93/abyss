@@ -3160,8 +3160,22 @@ const VIGIL_DAMAGE = 900
  *
  * Exactly one heavy bill per cast, which is also the cap rule 5 asks for:
  * whatever the headcount, one instant of this writes one near-lethal number.
+ *
+ * Which makes it a small-raid mechanic by construction, and that is worth
+ * stating rather than discovering again. One death out of twenty-five barely
+ * moves a win rate: measured by silencing it, this rung is worth 29 points to
+ * a five-man heroic, 8 to a ten and 4 to a twenty-five. The other twenty-nine
+ * rungs are worth between 17 and 96 wherever they are reached, so this is the
+ * one that leans on a size.
+ *
+ * The number is 3600 rather than the 1350 it was fitted at because it was
+ * fitted on a boss that multiplies mechanics by 1.7 and it lives on one that
+ * multiplies them by 0.5. At 1350 the note landed for about half a bar, the
+ * raid answered it or did not with no consequence either way, and silencing
+ * the whole rung changed a fight by four points. Placement is tuning; this is
+ * the bill for having moved it.
  */
-const CHANT_DAMAGE = 1350
+const CHANT_DAMAGE = 3600
 
 /** What everybody else pays for it. Felt, and not the thing that kills. */
 const CHANT_SHARE = 110

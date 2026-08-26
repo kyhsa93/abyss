@@ -705,7 +705,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // Later-phase mechanics only appear once the boss is low enough, so a change
 // that quietly stops them spawning would not show up as an exception anywhere.
 //
-// Swept across all three bosses at the top of their ladders rather than run
+// Swept across all five bosses at the top of their ladders rather than run
 // six times against the first one, because no single pull has the whole
 // vocabulary in it any more — and that is the point of the ladders, so the
 // check that guards the vocabulary has to know it. A mechanic nothing throws
@@ -3346,8 +3346,8 @@ for (const [label, w, h] of [
   }
 
   // And no two bosses are the same fight at any rung. The opening is held to
-  // the stricter rule: a five-man on normal meets two mechanics and no more,
-  // so if those two overlap at all the three bosses open identically, which is
+  // the stricter rule: a five-man on normal meets three mechanics and no
+  // more, so if any of the three overlap the two bosses open alike, which is
   // the complaint this whole arrangement answers.
   for (const { size, difficulty } of RUNGS) {
     const kits = ENCOUNTERS.map((e) => ({ e, kit: encounterKit(e, size, difficulty) }))
@@ -4396,9 +4396,9 @@ for (const [label, w, h] of [
 
   // --- a floor rolls its own fight ------------------------------------------
   //
-  // The three bosses are sentences written by hand out of a fixed vocabulary.
-  // The descent used to run those same three in a loop, so floor four was the
-  // first boss again with more health. Now the floor keeps the boss's shape
+  // The five bosses are sentences written by hand out of a fixed vocabulary,
+  // one boss to each mechanic. The descent used to run the bosses in a loop,
+  // so floor four was the first boss again with more health. Now the floor keeps the boss's shape
   // and numbers and rolls what it asks for, out of the same vocabulary and
   // against a budget that grows with the depth.
   {

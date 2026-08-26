@@ -638,7 +638,7 @@ export interface Encounter {
    * What that multiplier is worth at each raid size, for this boss alone.
    *
    * `SIZE_HEALTH` is the raid-size dial the whole game shares, and sharing it
-   * is the problem: the three bosses do not sit the same way at the same size.
+   * is the problem: the five bosses do not sit the same way at the same size.
    * A twenty-five man walks over the Tidebreaker and loses to the Choir, and
    * one global number cannot move one without moving the other.
    *
@@ -665,10 +665,10 @@ export interface Encounter {
    * five-man on normal gets the first two rungs, and every step up the raid
    * size or across to heroic buys one more — see `kitCount`.
    *
-   * The order is the whole design. Three bosses whose first two rungs overlap
-   * are three bosses that open the same way, and the opening is the only part
-   * of a fight everybody sees: a party that wipes at forty percent has met
-   * two mechanics and no more. So the first rungs are disjoint across all
+   * The order is the whole design. Two bosses whose first rungs overlap are
+   * two bosses that open the same way, and the opening is the only part of a
+   * fight everybody sees: a party that wipes at forty percent has met three
+   * mechanics and no more. So the first rungs are disjoint across all
    * three — the brand and the crush, marks and the stalker, the cone and the ring
    * — and the sets only begin to rhyme at the sizes where a raid has the
    * bodies to notice. No boss's ladder is a prefix or a subset of another's at
@@ -791,9 +791,10 @@ export interface Encounter {
      * The three that are answered by target rather than by footing.
      *
      * On no ladder either, and authored on every boss for the reason the
-     * fault and the shallows are: a descent can be handed any of them
-     * tomorrow, and a mechanic three bosses can all throw needs a voice from
-     * all three.
+     * fault and the shallows are. A boss speaks for the six on its own ladder
+     * and is silent about the other twenty-four; a descent floor borrows a
+     * boss for its shape and buys its own mechanics, so it announces out of
+     * the mechanic's own name instead -- see `lineFor`.
      */
     knell: string
     vessel: string
@@ -858,18 +859,15 @@ export const ENCOUNTERS: Encounter[] = [
     // No cone and nothing to run into: the only thing it casts is the one
     // that lands on whoever is holding it.
     names: { slam: 'ABYSSAL SLAM', breath: '' },
-    // Six rungs, and the sixth is not sold to anybody: `kitCount` tops out at
-    // five, so the hand is a mechanic this boss owns, names and can throw
-    // without any raid meeting it tonight.
+    // Six rungs, all of them sold. This used to end on a mechanic no raid
+    // reached, because there were ten mechanics for fifteen rungs and the
+    // shortage had to go somewhere. With thirty for thirty it does not: the
+    // gathering is the last rung and a twenty-five man on heroic buys it.
     //
-    // That is on purpose rather than for want of a decision. Every reachable
-    // rung on all three ladders is already load-bearing — the armour break
-    // has to sit above the size that fields one tank, the pool has to sit
-    // where a ten-man meets it, and no boss's kit may be another's — so
-    // putting a new mechanic where a raid meets it means taking one of those
-    // out, and the thirteen that are there were each measured into place.
-    // What the hand is worth is measured and written down where it lives; a
-    // rung for it is a separate decision about the other thirteen.
+    // The order is constrained rather than chosen. The armour break cannot sit
+    // where a raid fields one tank, and the gathering has to be last -- it
+    // costs about thirty points of win rate wherever it goes, not through its
+    // damage but because this party heals by standing still.
     ladder: ['puddle', 'grasp', 'rot', 'brand', 'sunder', 'soak'],
     phases: {
       1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 9, ...beats({ brand: 8, grasp: 11, puddle: 9, rot: 33, sunder: 11, soak: 40 }) },
@@ -942,14 +940,11 @@ export const ENCOUNTERS: Encounter[] = [
     sizeMechanic: { 5: 0.92, 25: 0.8 },
     accent: '#e879f9',
     names: { slam: 'DISCORDANT CHORD', breath: '' },
-    // `puddle` third rather than fourth, and quicker than it was.
-    //
-    // Measured one mechanic at a time against a raid that has never seen the
-    // fight, only two of the thirteen mechanic-and-boss pairs in this game
-    // teach anything: the Warden's puddle costs an unpractised raid 31 points
-    // of survival over a practised one, and the Tidebreaker's cone 29. Every
-    // other pair lands between 0 and 5, which is to say the rung is passed or
-    // failed on arrival and practice does not move it.
+    // The three rungs a five-man buys are all about being named: the
+    // judgement, the note, and the marks. None of them is answered by reading
+    // the floor, which is what makes an opening here a different pull from an
+    // opening at the Warden -- and the openings have to differ, since a raid
+    // that wipes at forty percent has met three mechanics and no more.
     //
     // The Choir held one of the two and had it on the fourth rung, where only
     // a ten-man heroic and above ever met it — and set so gently that the same
@@ -958,9 +953,9 @@ export const ENCOUNTERS: Encounter[] = [
     // nothing in them to learn, and the win rate said so: the ten-man normal
     // was won as often on a first pull as on a ninth.
     //
-    // Third is as early as it can go. The three bosses must open on nothing in
-    // common and the Warden opens with this, so the first two rungs are spoken
-    // for whatever they hold.
+    // No boss may open on anything another opens on, and with five of them
+    // and three rungs apiece that is fifteen mechanics spoken for before any
+    // of the later rungs are dealt.
     // The echo on a sixth rung, for the reason the Warden's hand is on one:
     // owned and named and thrown by the descent, and not yet taking a rung
     // away from the four that a ten-man heroic already meets here.

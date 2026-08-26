@@ -410,9 +410,9 @@ function drawCountdown(ctx: CanvasRenderingContext2D, s: SimState): void {
   // What this floor rolled, while there is still time to read it.
   //
   // A fight assembled by a die is only interesting if you can see what it was
-  // assembled out of. The three bosses on the ladder are learned by repeating
-  // them; a floor is met once, so the one chance to know what is coming is
-  // the three seconds before it starts.
+  // assembled out of. The bosses on the ladder are learned by repeating them;
+  // a floor is met once, so the one chance to know what is coming is the three
+  // seconds before it starts.
   if (s.plan && s.plan.names.length > 0) {
     ctx.fillStyle = COLORS.hpBar
     ctx.font = font(11, true)
