@@ -372,7 +372,7 @@ function inset(): number {
 }
 
 /**
- * The open list: under its field, and never off the bottom of the screen.
+ * The open list: under its field, and never over the bottom row.
  *
  * It is allowed to cover the fields below it, which is the whole point of a
  * list that opens — the alternative is pushing them down, and a screen whose
@@ -381,9 +381,18 @@ function inset(): number {
  */
 function listRects(field: Rect, count: number): Rect[] {
   const p = pad()
-  const h = Math.max(28, Math.min(field.h, (L.h - p * 2) / (count + 1)))
-  const wanted = field.y + field.h + 2
-  const y = Math.min(wanted, Math.max(p, L.h - p - h * count))
+  // It hangs from its own field and stops above the bottom row, and the rows
+  // share whatever is between the two. Sized to the screen instead, the boss
+  // list on a landscape phone ran the length of it: the last rows printed
+  // across the way on, and clamping the bottom alone then pushed the top up
+  // over the field it belongs to. It may still cover the fields under it —
+  // that is what a list that opens is for — but not those two.
+  const floor = backRect().y - 8
+  const top = field.y + field.h + 2
+  const h = Math.max(28, Math.min(field.h, (floor - top) / count))
+  // And a list with more rows than that space holds goes up rather than off
+  // the bottom of the screen.
+  const y = Math.min(top, Math.max(p, floor - h * count))
   return Array.from({ length: count }, (_, i) => ({ x: field.x, y: y + i * h, w: field.w, h }))
 }
 
@@ -402,12 +411,25 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
   // Three lines under the last field: what the fight asks of you, what it
   // throws tonight, and how much of the boss that is.
   const summary = 46 * L.ui * MENU_TEXT
-  const bottom = back.y - 12 - summary
-  const block = (bottom - top) / RAID_FIELDS.length
-  const h = Math.max(34, Math.min(56, block - 18 * L.ui * MENU_TEXT))
+  const bottom = back.y - 12
+
+  // A heading and the control under it are one unit, and the units are
+  // stacked against each other with the summary riding under the last of
+  // them, the whole block centred — the shape the battleground and home
+  // lists already have. Giving each unit an equal share of the screen
+  // instead pushed a gap the height of a button between three answers to the
+  // same question, so one setup read as three unrelated controls that
+  // happened to line up, with its own summary stranded at the bottom.
+  const head = 14 * L.ui * MENU_TEXT
+  const gap = Math.max(8, L.h * 0.014)
+  const spare = bottom - top - summary - (head + gap) * RAID_FIELDS.length + gap
+  const h = Math.max(34, Math.min(56, spare / RAID_FIELDS.length))
+  const unit = head + h + gap
+  const stack = unit * RAID_FIELDS.length - gap
+  const startY = top + Math.max(0, (bottom - top - stack - summary) / 2)
   const headings: number[] = []
   const fields = RAID_FIELDS.map((_, i) => {
-    const y = top + block * i + 14 * L.ui * MENU_TEXT
+    const y = startY + unit * i + head
     headings.push(y - 5 * L.ui * MENU_TEXT)
     return { x, y, w, h }
   })
@@ -419,7 +441,7 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
     back,
     next: primaryRect(),
     headings,
-    summaryY: bottom + 18 * L.ui * MENU_TEXT,
+    summaryY: startY + stack + 18 * L.ui * MENU_TEXT,
   }
 }
 
@@ -547,6 +569,16 @@ export function drawRaidSetup(
   if (open !== null) {
     const list = lists[RAID_FIELDS.indexOf(open)]!
     const accent = accentFor(open, difficulty)
+    // A ground under the whole list first. No row is opaque — a panel is
+    // nine tenths and the chosen row is a twelve percent tint — so a list
+    // laid straight over the fields printed their headings and counts
+    // through its own rows, which is legible as neither.
+    const first = layout.options[0]
+    const last = layout.options[layout.options.length - 1]
+    if (first && last) {
+      ctx.fillStyle = COLORS.bg
+      ctx.fillRect(first.x, first.y, first.w, last.y + last.h - first.y)
+    }
     layout.options.forEach((r, i) => optionRow(ctx, r, list[i]!, accent, text))
   }
 }

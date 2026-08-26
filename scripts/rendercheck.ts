@@ -6042,6 +6042,18 @@ for (const [label, w, h] of [
       'a row answered as something else',
     )
     const self = down.fields[RAID_FIELDS.indexOf(field)]!
+    // It may cover the fields under it -- that is what opening one is for --
+    // but not the field it belongs to and not the two buttons at the bottom.
+    // A list sized to the screen rather than to the room under its field ran
+    // over both: the way on was printed through, and clamping the bottom
+    // alone then pushed the top up over the open control's own answer.
+    expect(
+      `${label}: the ${field} list clears its own field and the bottom row`,
+      down.options.every(
+        (r) => !collides(r, self) && !collides(r, down.next) && !collides(r, down.back),
+      ),
+      'the open list covered a control it has to leave alone',
+    )
     expect(
       `${label}: pressing the ${field} field again puts it away`,
       hitRaidSetup(middle(self)[0], middle(self)[1], field)?.kind === 'open',
