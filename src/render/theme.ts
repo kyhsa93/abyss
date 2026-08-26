@@ -87,6 +87,30 @@ export function fitText(
   ctx.fillText(text, x, y)
 }
 
+/**
+ * The one size at which every line in a group fits its box.
+ *
+ * `fitText` measures each line on its own, which is right for a caption and
+ * wrong for a row of buttons: five boss names of five different lengths came
+ * out at five different sizes, so a row that is one question read as five
+ * unrelated things. Measured at the current font, returned in pixels, and
+ * applied by the caller to all of them.
+ */
+export function groupSize(
+  ctx: CanvasRenderingContext2D,
+  texts: string[],
+  maxWidth: number,
+): number {
+  const size = Number(/([\d.]+)px/.exec(ctx.font)?.[1] ?? 0)
+  if (size <= 0 || maxWidth <= 0) return size
+  let fitted = size
+  for (const text of texts) {
+    const wide = ctx.measureText(text).width
+    if (wide > maxWidth) fitted = Math.min(fitted, Math.floor((size * maxWidth) / wide))
+  }
+  return Math.max(6, fitted)
+}
+
 export interface Layout {
   w: number
   h: number

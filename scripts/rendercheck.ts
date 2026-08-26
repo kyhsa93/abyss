@@ -20,6 +20,7 @@ import {
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
 import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
 import {
+  RAID_FIELDS,
   bgSetupLayout,
   drawBgSetup,
   drawHome,
@@ -63,6 +64,7 @@ import {
   pickFor,
   randomAround,
   randomParty,
+  RAID_SIZES,
   RESOURCES,
   ROLE_LIMITS,
   healerCount,
@@ -5980,30 +5982,78 @@ for (const [label, w, h] of [
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
   )
 
-  // Raid setup: boss, size, difficulty, and the way on. Drawn at both ends of
-  // the chain, since the locked rows are a different set of labels.
+  // Raid setup: three fields that open, and the way on. Drawn at both ends of
+  // the chain, since the locked labels are a different set.
   drawRaidSetup(stubCtx(), 0, LADDER.length - 1, 5, 'heroic')
   drawRaidSetup(stubCtx(), 0, FIRST_TIER, 25, 'normal')
   const raid = raidSetupLayout()
-  const raidRects = [...raid.bosses, ...raid.sizes, ...raid.difficulties, raid.back, raid.next]
+  const raidRects = [...raid.fields, raid.back, raid.next]
   expect(`${label}: the raid setup fits`, raidRects.every(onScreen), JSON.stringify(raidRects.filter((r) => !onScreen(r))))
   expect(
-    `${label}: and its rows do not collide`,
+    `${label}: and its fields do not collide`,
     raidRects.every((r, i) => raidRects.every((o, j) => i === j || !collides(r, o))),
     'two raid controls share space',
   )
   expect(
-    `${label}: every raid control answers as itself`,
-    raid.bosses.every((r, i) => {
+    `${label}: every raid field answers as itself`,
+    raid.fields.every((r, i) => {
       const hit = hitRaidSetup(...middle(r))
-      return hit?.kind === 'boss' && hit.index === i
+      return hit?.kind === 'open' && hit.field === RAID_FIELDS[i]
     }) &&
-      raid.sizes.every((r) => hitRaidSetup(...middle(r))?.kind === 'size') &&
-      raid.difficulties.every((r) => hitRaidSetup(...middle(r))?.kind === 'difficulty') &&
       hitRaidSetup(...middle(raid.back))?.kind === 'back' &&
       hitRaidSetup(...middle(raid.next))?.kind === 'next',
     'a raid control answered as something else',
   )
+
+  // And with one of them down: the list has to be reachable, has to answer as
+  // itself, and has to be the only thing answering — a press past an open
+  // list closes it and does nothing else, or you leave the screen by trying
+  // to put a list away.
+  const counts: Record<string, number> = {
+    boss: ENCOUNTERS.length,
+    size: RAID_SIZES.length,
+    difficulty: 2,
+  }
+  for (const field of RAID_FIELDS) {
+    drawRaidSetup(stubCtx(), 0, LADDER.length - 1, 5, 'heroic', field)
+    drawRaidSetup(stubCtx(), 0, FIRST_TIER, 25, 'normal', field)
+    const down = raidSetupLayout(field)
+    expect(
+      `${label}: the ${field} list has one row per choice`,
+      down.options.length === counts[field],
+      `${down.options.length} against ${counts[field]}`,
+    )
+    expect(
+      `${label}: and all of it is on the screen`,
+      down.options.every(onScreen),
+      JSON.stringify(down.options.filter((r) => !onScreen(r))),
+    )
+    expect(
+      `${label}: and its rows do not overlap each other`,
+      down.options.every((r, i) => down.options.every((o, j) => i === j || !collides(r, o))),
+      'two rows share space',
+    )
+    expect(
+      `${label}: each ${field} row answers as its own choice`,
+      down.options.every((r, i) => {
+        const hit = hitRaidSetup(middle(r)[0], middle(r)[1], field)
+        return hit?.kind === 'choose' && hit.field === field && hit.index === i
+      }),
+      'a row answered as something else',
+    )
+    const self = down.fields[RAID_FIELDS.indexOf(field)]!
+    expect(
+      `${label}: pressing the ${field} field again puts it away`,
+      hitRaidSetup(middle(self)[0], middle(self)[1], field)?.kind === 'open',
+      'the open field answered as something else',
+    )
+    // A corner, which no control is ever in.
+    expect(
+      `${label}: and a press past the ${field} list only dismisses it`,
+      hitRaidSetup(w - 1, 1, field)?.kind === 'dismiss',
+      `${hitRaidSetup(w - 1, 1, field)?.kind}`,
+    )
+  }
 
   // Battleground: pick a map, and that is the whole screen.
   drawBgSetup(stubCtx(), 'flags')
@@ -6058,6 +6108,125 @@ for (const [label, w, h] of [
       hitSettings(...middle(settings.back))?.kind === 'back',
     'a setting answered as something else',
   )
+}
+
+// --- a screenful of choices is one size -------------------------------------
+//
+// Every stub context above answers `measureText` with a flat ten pixels,
+// which means none of them can see the bug this catches: the menu shrinks a
+// line that does not fit, and it used to shrink each line on its own. The
+// raid screen was three rows of buttons holding five, three and two things,
+// so it had three button widths and, once the labels were fitted to them,
+// three type sizes at once -- "Choir" at full size beside "Tidebreaker" at a
+// third of it. The rows are three fields that open now, all the same width,
+// which is what makes one size possible; this is what holds it there.
+// Monospace makes the measurement exact the same way it does in `fitText`.
+{
+  interface Typed {
+    text: string
+    x: number
+    y: number
+    size: number
+    /** Centred is a heading or a caption; a control writes to its edges. */
+    align: string
+  }
+  const typedCtx = (out: Typed[]): CanvasRenderingContext2D => {
+    const noop = () => {}
+    const state: Record<string, unknown> = { font: '10px monospace', textAlign: 'left' }
+    const sizeOf = () => Number(/([\d.]+)px/.exec(String(state.font))?.[1] ?? 0)
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        if (prop === 'font') return state.font
+        if (prop === 'textAlign') return state.textAlign
+        // Monospace: width is linear in the size and in the characters.
+        if (prop === 'measureText') {
+          return (text: string) => ({ width: 0.6 * sizeOf() * [...text].length })
+        }
+        if (prop === 'fillText') {
+          return (text: string, x: number, y: number) =>
+            out.push({ text, x, y, size: sizeOf(), align: String(state.textAlign) })
+        }
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: noop })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set(_t, prop, value) {
+        state[prop as string] = value
+        return true
+      },
+    }
+    return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+  }
+
+  const inside = (r: Box, t: { x: number; y: number }) =>
+    t.x >= r.x && t.x <= r.x + r.w && t.y >= r.y && t.y <= r.y + r.h
+
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['desktop 960x760', 960, 760],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['tiny portrait 320x568', 320, 568],
+  ] as const) {
+    updateLayout(w, h)
+    // Both ends of the chain: the locked rows carry a padlock, which is
+    // another character every field has to hold.
+    for (const [state, unlocked] of [
+      ['everything open', LADDER.length - 1],
+      ['first pull', FIRST_TIER],
+    ] as const) {
+      for (const open of [null, ...RAID_FIELDS] as const) {
+        const out: Typed[] = []
+        drawRaidSetup(typedCtx(out), 0, unlocked, 5, 'heroic', open)
+        const layout = raidSetupLayout(open)
+        const boxes: Box[] = [...layout.fields, ...layout.options]
+        // An open list is drawn over the headings under it, so being inside a
+        // box is not enough to be part of one: a control writes to its left
+        // and right edges, and everything centred is a heading or a caption.
+        const inControls = out.filter(
+          (t) => t.align !== 'center' && boxes.some((r) => inside(r, t)),
+        )
+        const what = open === null ? 'shut' : `${open} open`
+
+        expect(
+          `${label} ${state} ${what}: the fields are written`,
+          inControls.length >= layout.fields.length,
+          `${inControls.length} lines`,
+        )
+        const sizes = new Set(inControls.map((t) => t.size))
+        expect(
+          `${label} ${state} ${what}: at one size`,
+          sizes.size === 1,
+          JSON.stringify(inControls.map((t) => `${t.text}@${t.size}`)),
+        )
+        // Nothing is written at a size that is not worth writing.
+        expect(
+          `${label} ${state} ${what}: and a size worth printing`,
+          [...sizes].every((size) => size >= 12),
+          `${[...sizes].join(',')}`,
+        )
+      }
+
+      // Every choice is actually listed when its field is down, locked ones
+      // included: the count beside the answer is the only other place the
+      // screen says how much is still above you, and it has to agree.
+      const out: Typed[] = []
+      drawRaidSetup(typedCtx(out), 0, unlocked, 5, 'heroic', 'boss')
+      expect(
+        `${label} ${state}: every boss is in the list`,
+        ENCOUNTERS.every((fight) => out.some((t) => t.text === fight.short)),
+        JSON.stringify(ENCOUNTERS.filter((f) => !out.some((t) => t.text === f.short)).map((f) => f.short)),
+      )
+      const listed = ENCOUNTERS.filter((_, i) => bossOpen(unlocked, i)).length
+      expect(
+        `${label} ${state}: and the count says how many are open`,
+        out.some((t) => t.text.startsWith(`${listed}/${ENCOUNTERS.length}`)),
+        JSON.stringify(out.map((t) => t.text).filter((t) => t.includes('/'))),
+      )
+    }
+  }
 }
 
 // --- no spec is the obvious one ----------------------------------------------

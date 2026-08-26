@@ -1,11 +1,11 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
-import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type RaidSize } from '../sim/classes'
+import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { bossOpen, isOpen } from '../progress'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
-import { COLORS, L, ZOOM_NAMES, MENU_TEXT, fitText } from './theme'
+import { COLORS, L, ZOOM_NAMES, MENU_TEXT, fitText, groupSize } from './theme'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -47,8 +47,12 @@ function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
 }
 
+function px(size: number, bold = false): string {
+  return `${bold ? 'bold ' : ''}${Math.round(size)}px ui-monospace, monospace`
+}
+
 function font(size: number, bold = false): string {
-  return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`
+  return px(size * L.ui * MENU_TEXT, bold)
 }
 
 function pad(): number {
@@ -88,6 +92,68 @@ function titleY(): number {
   return Math.max(26, L.h * 0.07)
 }
 
+/** One row's worth of type, measured once and used by every button in it. */
+interface RowText {
+  label: number
+  /** Zero when the row's detail lines are too small to keep, and all are dropped. */
+  detail: number
+  roomy: boolean
+}
+
+/**
+ * The size and the arrangement a whole row of buttons shares.
+ *
+ * A button left to size itself is sized by its own text, and a row is not a
+ * collection of buttons — it is one question asked once. Two ways it used to
+ * come apart: the boss row printed "Choir" at full size and "Tidebreaker" at
+ * a third of it, and the difficulty row, where only heroic carries a detail
+ * line, put the two names at two sizes and two heights. Both are measured
+ * together here instead, so a row is one size or none of it is.
+ */
+function rowText(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  labels: string[],
+  details: string[],
+): RowText {
+  const max = r.w - 16
+  let roomy = r.h > 35 * L.ui * MENU_TEXT && details.some((d) => d !== '')
+  let detail = 0
+  if (roomy) {
+    ctx.font = font(9)
+    const fitted = groupSize(
+      ctx,
+      details.filter((d) => d !== ''),
+      max,
+    )
+    // Same floor `fitText` keeps: below it the line is noise shaped like
+    // text, and dropping it gives the names the whole button back.
+    if (fitted >= 8) detail = fitted
+    else roomy = false
+  }
+  ctx.font = font(roomy ? 13 : 12, true)
+  return { label: groupSize(ctx, labels, max), detail, roomy }
+}
+
+/**
+ * One size for a screenful of rows, not just for each row on its own.
+ *
+ * The rows are measured apart because they hold different words, and that
+ * left the raid screen printing its bosses a fifth smaller than its
+ * difficulties — three rows of buttons that look like three different kinds
+ * of control when they are three answers to the same setup. The smallest
+ * that fits wins, since it is the only one every row can hold.
+ */
+function unify(rows: RowText[]): void {
+  const label = Math.min(...rows.map((r) => r.label))
+  const written = rows.map((r) => r.detail).filter((size) => size > 0)
+  const detail = written.length > 0 ? Math.min(...written) : 0
+  for (const r of rows) {
+    r.label = label
+    if (r.detail > 0) r.detail = detail
+  }
+}
+
 function button(
   ctx: CanvasRenderingContext2D,
   r: Rect,
@@ -95,6 +161,8 @@ function button(
   detail: string,
   accent: string,
   active = false,
+  /** Set when this button is one of a row that has already been measured. */
+  shared?: RowText,
 ): void {
   ctx.fillStyle = active ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
   ctx.fillRect(r.x, r.y, r.w, r.h)
@@ -109,13 +177,13 @@ function button(
   // it used to be a flat 46 against a 13-point label, and when the menu text
   // doubled, every mid-sized button kept its detail line and printed the two
   // lines through each other.
-  const roomy = r.h > 35 * L.ui * MENU_TEXT && detail !== ''
-  ctx.font = font(roomy ? 13 : 12, true)
+  const roomy = shared ? shared.roomy : r.h > 35 * L.ui * MENU_TEXT && detail !== ''
+  ctx.font = shared ? px(shared.label, true) : font(roomy ? 13 : 12, true)
   fitText(ctx, label, r.x + r.w / 2, r.y + r.h * (roomy ? 0.44 : 0.62), r.w - 16)
 
-  if (roomy) {
+  if (roomy && detail !== '') {
     ctx.fillStyle = COLORS.textDim
-    ctx.font = font(9)
+    ctx.font = shared ? px(shared.detail) : font(9)
     fitText(ctx, detail, r.x + r.w / 2, r.y + r.h * 0.74, r.w - 16, 8)
   }
 }
@@ -176,18 +244,28 @@ export function drawHome(
     ['THE DESCENT', 'boss after boss, no second try', COLORS.hpBarLow],
     ['SETTINGS', 'sound', COLORS.textDim],
   ]
+  // One measurement for the stack: BATTLEGROUND is half again as long as
+  // RAID, and sized apart the two came out at two sizes in one column.
+  const text = rowText(
+    ctx,
+    layout.choices[0]!,
+    labels.map(([label]) => label),
+    labels.map(([, detail]) => detail),
+  )
+  const pair = rowText(ctx, layout.record, ['RECORD', shareLabel ?? 'SHARE'], [])
+  unify([text, pair])
   labels.forEach(([label, detail, accent], i) => {
     const r = layout.choices[i]!
     // The first one breathes, so the eye starts there rather than reading all
     // three before choosing.
     const pulse = i === 0 ? 0.75 + 0.25 * Math.sin(clock * 3) : 1
     ctx.globalAlpha = pulse
-    button(ctx, r, label, detail, accent, i === 0)
+    button(ctx, r, label, detail, accent, i === 0, text)
     ctx.globalAlpha = 1
   })
 
-  button(ctx, layout.record, 'RECORD', '', COLORS.textDim)
-  button(ctx, layout.share, shareLabel ?? 'SHARE', '', COLORS.tank)
+  button(ctx, layout.record, 'RECORD', '', COLORS.textDim, false, pair)
+  button(ctx, layout.share, shareLabel ?? 'SHARE', '', COLORS.tank, false, pair)
 }
 
 export function hitHome(x: number, y: number): HomeChoice | null {
@@ -202,58 +280,204 @@ export function hitHome(x: number, y: number): HomeChoice | null {
 
 // --- raid setup -------------------------------------------------------------
 
+/**
+ * The three settings a raid has, as three of the same control.
+ *
+ * They were three rows of buttons, and the rows held five, three and two
+ * things. Three counts meant three button widths, and once the labels were
+ * fitted to those widths it meant three type sizes on one screen — a boss
+ * name printed a fifth smaller than the difficulty beside it, and on a phone
+ * the boss row came out at seven points. A row of choices has to be re-shaped
+ * every time the number of choices changes; one control that opens does not.
+ *
+ * So each setting is a field showing its answer, and the list it opens is the
+ * same width as the field. Nothing on this screen has to shrink to fit, and
+ * nothing has to be re-fitted when a sixth boss arrives.
+ */
+export type RaidField = 'boss' | 'size' | 'difficulty'
+
+export const RAID_FIELDS: RaidField[] = ['boss', 'size', 'difficulty']
+
+export const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
+
+const FIELD_NAMES: Record<RaidField, string> = {
+  boss: 'BOSS',
+  size: 'RAID SIZE',
+  difficulty: 'DIFFICULTY',
+}
+
 export interface RaidSetupLayout {
-  bosses: Rect[]
-  sizes: Rect[]
-  difficulties: Rect[]
+  /** The closed control for each setting, in `RAID_FIELDS` order. */
+  fields: Rect[]
+  /** The rows of the open list, drawn over everything else. Empty when shut. */
+  options: Rect[]
   back: Rect
   next: Rect
   headings: number[]
+  summaryY: number
 }
 
 export type RaidSetupHit =
-  | { kind: 'boss'; index: number }
-  | { kind: 'size'; size: RaidSize }
-  | { kind: 'difficulty'; id: DifficultyId }
+  | { kind: 'open'; field: RaidField }
+  | { kind: 'choose'; field: RaidField; index: number }
+  | { kind: 'dismiss' }
   | { kind: 'back' }
   | { kind: 'next' }
 
-const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
+/** One entry of a field's list, and whether it can be taken. */
+interface Choice {
+  label: string
+  /** Reachable, rather than a rung still to be bought. */
+  open: boolean
+  chosen: boolean
+}
 
-export function raidSetupLayout(): RaidSetupLayout {
-  const p = pad()
-  const back = backRect()
-  const rowH = Math.max(32, Math.min(46, L.h * 0.062))
-  const gap = 6
-
-  // Three labelled rows, spread through the space between the title and the
-  // buttons rather than stacked at the top: on a tall phone that left the
-  // whole middle of the screen empty.
-  const top = titleY() + 30 * L.ui * MENU_TEXT
-  const bottom = back.y - 14
-  const band = (bottom - top) / 3
-  const headings: number[] = []
-  const row = (i: number, count: number, maxWidth: number): Rect[] => {
-    const y = top + band * i + 18 * L.ui
-    headings.push(y - 8 * L.ui)
-    const w = Math.min(maxWidth, (L.w - p * 2 - gap * (count - 1)) / count)
-    const block = w * count + gap * (count - 1)
-    return Array.from({ length: count }, (_, n) => ({
-      x: L.w / 2 - block / 2 + n * (w + gap),
-      y,
-      w,
-      h: rowH,
+function choicesFor(
+  field: RaidField,
+  encounter: number,
+  unlocked: number,
+  size: number,
+  difficulty: DifficultyId,
+): Choice[] {
+  if (field === 'boss') {
+    return ENCOUNTERS.map((fight, i) => ({
+      label: fight.short,
+      open: bossOpen(unlocked, i),
+      chosen: i === encounter,
     }))
   }
+  if (field === 'size') {
+    return RAID_SIZES.map((option) => ({
+      label: `${option}`,
+      open: isOpen(unlocked, encounter, option, 'normal'),
+      chosen: option === size,
+    }))
+  }
+  return DIFFICULTY_ORDER.map((id) => ({
+    label: DIFFICULTIES[id].name,
+    open: isOpen(unlocked, encounter, size, id),
+    chosen: id === difficulty,
+  }))
+}
+
+function accentFor(field: RaidField, difficulty: DifficultyId): string {
+  if (field === 'boss') return COLORS.boss
+  if (field === 'difficulty' && difficulty === 'heroic') return COLORS.hpBarLow
+  return COLORS.castBar
+}
+
+/** How far in from a field's edge its text starts, at either end. */
+function inset(): number {
+  return 12 * L.ui
+}
+
+/**
+ * The open list: under its field, and never off the bottom of the screen.
+ *
+ * It is allowed to cover the fields below it, which is the whole point of a
+ * list that opens — the alternative is pushing them down, and a screen whose
+ * controls move when you look at one of them is a screen you have to re-read
+ * after every press.
+ */
+function listRects(field: Rect, count: number): Rect[] {
+  const p = pad()
+  const h = Math.max(28, Math.min(field.h, (L.h - p * 2) / (count + 1)))
+  const wanted = field.y + field.h + 2
+  const y = Math.min(wanted, Math.max(p, L.h - p - h * count))
+  return Array.from({ length: count }, (_, i) => ({ x: field.x, y: y + i * h, w: field.w, h }))
+}
+
+function optionCount(field: RaidField): number {
+  if (field === 'boss') return ENCOUNTERS.length
+  if (field === 'size') return RAID_SIZES.length
+  return DIFFICULTY_ORDER.length
+}
+
+export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout {
+  const p = pad()
+  const back = backRect()
+  const w = Math.min(420, L.w - p * 2)
+  const x = L.w / 2 - w / 2
+  const top = titleY() + 30 * L.ui * MENU_TEXT
+  // Three lines under the last field: what the fight asks of you, what it
+  // throws tonight, and how much of the boss that is.
+  const summary = 46 * L.ui * MENU_TEXT
+  const bottom = back.y - 12 - summary
+  const block = (bottom - top) / RAID_FIELDS.length
+  const h = Math.max(34, Math.min(56, block - 18 * L.ui * MENU_TEXT))
+  const headings: number[] = []
+  const fields = RAID_FIELDS.map((_, i) => {
+    const y = top + block * i + 14 * L.ui * MENU_TEXT
+    headings.push(y - 5 * L.ui * MENU_TEXT)
+    return { x, y, w, h }
+  })
 
   return {
-    bosses: row(0, ENCOUNTERS.length, 150),
-    sizes: row(1, RAID_SIZES.length, 90),
-    difficulties: row(2, DIFFICULTY_ORDER.length, 130),
+    fields,
+    options:
+      open === null ? [] : listRects(fields[RAID_FIELDS.indexOf(open)]!, optionCount(open)),
     back,
     next: primaryRect(),
     headings,
+    summaryY: bottom + 18 * L.ui * MENU_TEXT,
   }
+}
+
+/** The closed control: the answer on the left, what is left of the list on the right. */
+function control(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  value: string,
+  tally: string,
+  accent: string,
+  size: number,
+  opened: boolean,
+): void {
+  ctx.fillStyle = opened ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.strokeStyle = opened ? accent : COLORS.panelEdge
+  ctx.lineWidth = opened ? 2 : 1
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+
+  const mid = r.y + r.h / 2 + size * 0.35
+  ctx.font = px(size, true)
+  ctx.textAlign = 'left'
+  ctx.fillStyle = accent
+  ctx.fillText(value, r.x + inset(), mid)
+
+  // The count is the part a list costs you: with the rows folded away, this
+  // is the only place the screen still says how much of the game is above
+  // where you have got to.
+  ctx.textAlign = 'right'
+  ctx.fillStyle = COLORS.textDim
+  ctx.fillText(`${tally} ${opened ? '▲' : '▼'}`, r.x + r.w - inset(), mid)
+}
+
+function optionRow(
+  ctx: CanvasRenderingContext2D,
+  r: Rect,
+  choice: Choice,
+  accent: string,
+  size: number,
+): void {
+  ctx.fillStyle = choice.chosen ? 'rgba(250, 204, 21, 0.12)' : COLORS.panel
+  ctx.fillRect(r.x, r.y, r.w, r.h)
+  ctx.strokeStyle = choice.chosen ? accent : COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+
+  const mid = r.y + r.h / 2 + size * 0.35
+  ctx.font = px(size, choice.chosen)
+  ctx.textAlign = 'left'
+  ctx.fillStyle = choice.open ? accent : COLORS.dead
+  ctx.fillText(choice.label, r.x + inset(), mid)
+
+  // Locked rows are listed rather than left out, the same as they were when
+  // this was a row of buttons: what is still up there is worth knowing.
+  const mark = choice.open ? (choice.chosen ? '✓' : '') : '🔒'
+  if (mark === '') return
+  ctx.textAlign = 'right'
+  ctx.fillText(mark, r.x + r.w - inset(), mid)
 }
 
 export function drawRaidSetup(
@@ -263,75 +487,72 @@ export function drawRaidSetup(
   unlocked: number,
   size: number,
   difficulty: DifficultyId,
+  /** Which field's list is down, if any. */
+  open: RaidField | null = null,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'RAID', 'pick the fight, then who you are playing')
 
-  const layout = raidSetupLayout()
-  const heading = (text: string, y: number) => {
+  const layout = raidSetupLayout(open)
+  const lists = RAID_FIELDS.map((field) =>
+    choicesFor(field, encounter, unlocked, size, difficulty),
+  )
+  const tallies = lists.map((list) => `${list.filter((c) => c.open).length}/${list.length}`)
+
+  // One size for the whole screen, measured over everything that has to fit
+  // inside a field: the answers, the counts, and every row of every list.
+  // They are all the same width, so one measurement settles all of them.
+  ctx.font = font(13, true)
+  const text = groupSize(
+    ctx,
+    lists.flatMap((list, i) => [
+      `${list.find((c) => c.chosen)?.label ?? ''}    ${tallies[i]!} ▼`,
+      ...list.map((c) => `${c.label}    🔒`),
+    ]),
+    layout.fields[0]!.w - inset() * 2,
+  )
+
+  RAID_FIELDS.forEach((field, i) => {
     ctx.textAlign = 'center'
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
-    ctx.fillText(text, L.w / 2, y)
-  }
+    ctx.fillText(FIELD_NAMES[field], L.w / 2, layout.headings[i]!)
 
-  heading('BOSS', layout.headings[0]!)
-  ENCOUNTERS.forEach((fight, i) => {
-    const r = layout.bosses[i]!
-    if (!bossOpen(unlocked, i)) {
-      button(ctx, r, `${fight.short} 🔒`, 'not reached', COLORS.dead)
-      return
-    }
-    button(ctx, r, fight.short, fight.demand, COLORS.boss, i === encounter)
-  })
-
-  // The size and the difficulty are doors now, not switches.
-  //
-  // Both are drawn locked rather than hidden, for the same reason a boss is:
-  // the shape of what is left is worth knowing, and a row that changes length
-  // as you climb is a row you have to re-find every time.
-  heading('RAID SIZE', layout.headings[1]!)
-  RAID_SIZES.forEach((option, i) => {
-    const open = isOpen(unlocked, encounter, option, 'normal')
-    button(
+    const list = lists[i]!
+    control(
       ctx,
-      layout.sizes[i]!,
-      open ? `${option}` : `${option} 🔒`,
-      '',
-      open ? COLORS.castBar : COLORS.dead,
-      option === size,
+      layout.fields[i]!,
+      list.find((c) => c.chosen)?.label ?? '',
+      tallies[i]!,
+      accentFor(field, difficulty),
+      text,
+      open === field,
     )
   })
 
-  heading('DIFFICULTY', layout.headings[2]!)
-  DIFFICULTY_ORDER.forEach((id, i) => {
-    const open = isOpen(unlocked, encounter, size, id)
-    button(
-      ctx,
-      layout.difficulties[i]!,
-      open ? DIFFICULTIES[id].name : `${DIFFICULTIES[id].name} 🔒`,
-      id === 'heroic' && open ? 'more health, and one mechanic more' : '',
-      open ? (id === 'heroic' ? COLORS.hpBarLow : COLORS.castBar) : COLORS.dead,
-      id === difficulty,
-    )
-  })
-
-  // What the three rows above actually add up to.
+  // What the three fields add up to.
   //
   // The boss, the size and the difficulty each decide part of one thing —
-  // which mechanics this pull has in it — and until this line was here that
-  // sum was invisible: a player who ticked heroic could see the health bar go
-  // up and had no way to learn that a rung had been bought as well. It reads
-  // off the same function the scheduler does, so it cannot describe a fight
-  // that is not the one about to start.
-  drawKit(ctx, encounter, size, difficulty, layout)
+  // which mechanics this pull has in it — and until this was here that sum
+  // was invisible: a player who ticked heroic could see the health bar go up
+  // and had no way to learn that a rung had been bought as well. It reads off
+  // the same function the scheduler does, so it cannot describe a fight that
+  // is not the one about to start.
+  drawSummary(ctx, encounter, size, difficulty, layout)
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
   button(ctx, layout.next, 'PICK YOUR CLASS', '', COLORS.castBar, true)
+
+  // Last, so it covers the fields under it rather than being covered.
+  if (open !== null) {
+    const list = lists[RAID_FIELDS.indexOf(open)]!
+    const accent = accentFor(open, difficulty)
+    layout.options.forEach((r, i) => optionRow(ctx, r, list[i]!, accent, text))
+  }
 }
 
-/** The one line that says what tonight's fight is made of. */
-function drawKit(
+/** What the fight asks, what it throws, and how much of the boss that is. */
+function drawSummary(
   ctx: CanvasRenderingContext2D,
   encounter: number,
   size: number,
@@ -342,13 +563,21 @@ function drawKit(
   if (!fight) return
 
   const kit = encounterKit(fight, size, difficulty)
-  const row = layout.difficulties[0]!
-  const y = row.y + row.h + 15 * L.ui * MENU_TEXT
+  const wide = L.w - pad() * 2
+  const y = layout.summaryY
+  const line = 14 * L.ui * MENU_TEXT
 
+  // The demand used to sit inside the boss button, which is what made the
+  // buttons two lines tall and their type small. It says the same thing here
+  // and only for the fight actually picked.
   ctx.textAlign = 'center'
+  ctx.fillStyle = COLORS.text
+  ctx.font = font(10)
+  fitText(ctx, fight.demand, L.w / 2, y, wide)
+
   ctx.fillStyle = COLORS.boss
   ctx.font = font(10, true)
-  fitText(ctx, kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y, L.w - pad() * 2)
+  fitText(ctx, kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y + line, wide)
 
   // And what is still in the boss and not in tonight's pull, so the ladder
   // reads as a ladder rather than as a fixed list that happens to differ.
@@ -361,28 +590,42 @@ function drawKit(
       ? `${kit.length} of ${fight.ladder.length} — a bigger raid or heroic buys the rest`
       : `all ${fight.ladder.length}, which is everything it has`,
     L.w / 2,
-    y + 12 * L.ui * MENU_TEXT,
-    L.w - pad() * 2,
+    y + line * 2,
+    wide,
+    8,
   )
 }
 
-export function hitRaidSetup(x: number, y: number): RaidSetupHit | null {
-  const layout = raidSetupLayout()
+export function hitRaidSetup(
+  x: number,
+  y: number,
+  open: RaidField | null = null,
+): RaidSetupHit | null {
+  const layout = raidSetupLayout(open)
+
+  // An open list is drawn over everything, so it answers before anything
+  // under it does.
+  if (open !== null) {
+    for (let i = 0; i < layout.options.length; i++) {
+      if (inside(layout.options[i]!, x, y)) return { kind: 'choose', field: open, index: i }
+    }
+    if (inside(layout.fields[RAID_FIELDS.indexOf(open)]!, x, y)) {
+      return { kind: 'open', field: open }
+    }
+    // Anywhere else shuts it and does nothing else. A press that dismisses
+    // and acts in the same motion is a press you cannot take back — you would
+    // leave the screen by tapping past a list you only meant to close.
+    return { kind: 'dismiss' }
+  }
+
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.next, x, y)) return { kind: 'next' }
-  for (let i = 0; i < layout.bosses.length; i++) {
-    if (inside(layout.bosses[i]!, x, y)) return { kind: 'boss', index: i }
-  }
-  for (let i = 0; i < layout.sizes.length; i++) {
-    if (inside(layout.sizes[i]!, x, y)) return { kind: 'size', size: RAID_SIZES[i]! }
-  }
-  for (let i = 0; i < layout.difficulties.length; i++) {
-    if (inside(layout.difficulties[i]!, x, y)) {
-      return { kind: 'difficulty', id: DIFFICULTY_ORDER[i]! }
-    }
+  for (let i = 0; i < RAID_FIELDS.length; i++) {
+    if (inside(layout.fields[i]!, x, y)) return { kind: 'open', field: RAID_FIELDS[i]! }
   }
   return null
 }
+
 
 // --- today's run ------------------------------------------------------------
 
@@ -524,8 +767,14 @@ export function drawBgSetup(ctx: CanvasRenderingContext2D, kind: BgKind | null):
   screenTitle(ctx, 'BATTLEGROUND', 'five against five, and the other five are people')
 
   const layout = bgSetupLayout()
+  const text = rowText(
+    ctx,
+    layout.maps[0]!,
+    BATTLEGROUNDS.map((map) => map.name),
+    BATTLEGROUNDS.map((map) => map.demand),
+  )
   BATTLEGROUNDS.forEach((map, i) => {
-    button(ctx, layout.maps[i]!, map.name, map.demand, COLORS.tank, map.kind === kind)
+    button(ctx, layout.maps[i]!, map.name, map.demand, COLORS.tank, map.kind === kind, text)
   })
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
 }

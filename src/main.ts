@@ -35,6 +35,7 @@ import { Ambience, loadBackdrop, saveBackdrop, setAmbience } from './render/ambi
 import { Hints } from './render/hints'
 import { drawRoster, hitRoster, sameMode, type RosterMode } from './render/roster'
 import {
+  DIFFICULTY_ORDER,
   drawBgSetup,
   drawDaily,
   drawHome,
@@ -46,6 +47,7 @@ import {
   hitRaidSetup,
   hitSettings,
   settingsLayout,
+  type RaidField,
 } from './render/menu'
 import { Sfx } from './sfx'
 import {
@@ -831,31 +833,46 @@ function updateDaily(tap: { x: number; y: number } | null): void {
   )
 }
 
+/** Which of the raid screen's three fields has its list down, if any. */
+let raidOpen: RaidField | null = null
+
 function updateRaidSetup(tap: { x: number; y: number } | null): void {
   if (tap) {
-    const hit = hitRaidSetup(tap.x, tap.y)
+    const hit = hitRaidSetup(tap.x, tap.y, raidOpen)
     if (hit?.kind === 'back') {
+      raidOpen = null
       screen = 'home'
       return
     }
     if (hit?.kind === 'next') {
+      raidOpen = null
       screen = 'roster'
       return
     }
-    // All three rows are one answer, and the rules for what a press does live
-    // with what is open rather than here: a press onto something locked comes
-    // back unchanged — it is drawn locked rather than being absent, since what
-    // is left up there is worth knowing — and a press that opens a row may
-    // bring another one down with it.
-    if (hit?.kind === 'size') {
-      apply(pressSize(unlocked, setting(), hit.size))
-    } else if (hit?.kind === 'difficulty') {
-      apply(pressDifficulty(unlocked, setting(), hit.id))
-    } else if (hit?.kind === 'boss') {
-      apply(pressBoss(unlocked, setting(), hit.index))
+    if (hit?.kind === 'dismiss') {
+      raidOpen = null
+    } else if (hit?.kind === 'open') {
+      raidOpen = raidOpen === hit.field ? null : hit.field
+    } else if (hit?.kind === 'choose') {
+      // All three fields are one answer, and the rules for what a press does
+      // live with what is open rather than here: a press onto something
+      // locked comes back unchanged — it is listed locked rather than being
+      // absent, since what is left up there is worth knowing — and a press
+      // that opens a field may bring another one down with it.
+      const before = setting()
+      const next =
+        hit.field === 'boss'
+          ? pressBoss(unlocked, before, hit.index)
+          : hit.field === 'size'
+            ? pressSize(unlocked, before, RAID_SIZES[hit.index]!)
+            : pressDifficulty(unlocked, before, DIFFICULTY_ORDER[hit.index]!)
+      apply(next)
+      // A press that changed nothing was a press onto a locked rung, and
+      // shutting the list on it would read as the press having been taken.
+      if (moved(before, next)) raidOpen = null
     }
   }
-  drawRaidSetup(ctx, encounter, unlocked, party.length, difficulty)
+  drawRaidSetup(ctx, encounter, unlocked, party.length, difficulty, raidOpen)
 }
 
 function updateBgSetup(tap: { x: number; y: number } | null): void {
