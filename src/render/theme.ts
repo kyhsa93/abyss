@@ -387,6 +387,7 @@ export const CLASS_COLORS: Record<string, string> = {
   druid: '#ff7d0a',
   shaman: '#0f8fe8',
   mage: '#40c7eb',
+  warlock: '#9482c9',
   hunter: '#abd473',
   rogue: '#fff569',
 }

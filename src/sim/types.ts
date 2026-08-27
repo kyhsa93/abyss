@@ -23,12 +23,14 @@ export type AuraId =
   | 'rake'
   | 'judgement'
   | 'shadow_word_pain'
+  | 'immolate'
   | 'renew'
   | 'rejuvenation'
   | 'riptide' // heal over time on a party member
   | 'combo' // rogue and cat: builds on the filler, spent by the finisher
   | 'momentum' // mage: stacks while it stands and casts, gone the moment it moves
   | 'eclipse' // balance druid: the window a finisher opens for its filler
+  | 'pact' // warlock: the window it bought with its own health
   | 'rot' // boss: a stacking magic dot, the healer's slow problem
   | 'sprint' // leather melee: brief, expensive speed, for getting out and back
   | 'ward' // priest: damage taken down, applied before the damage arrives

@@ -77,6 +77,7 @@ export const AURA_DURATION: Record<AuraId, number> = {
   rake: 12,
   judgement: 12,
   shadow_word_pain: 15,
+  immolate: 12,
   renew: 12,
   rejuvenation: 12,
   riptide: 12,
@@ -115,6 +116,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   combo: 20,
   momentum: 6,
   eclipse: 8,
+  // Long enough that the health went on a stretch of casting rather than on
+  // one press, short enough that it cannot be bought before a pull and spent
+  // during it.
+  pact: 12,
   ward: 10,
   mending: 6,
   rot: 15,
@@ -138,6 +143,12 @@ export const AURA_DURATION: Record<AuraId, number> = {
   spoil: 12,
 }
 
+/** How many fillers one mouthful of health lights up. See the `pact` case. */
+const PACT_CHARGES = 3
+
+/** What a lit filler is worth, for the health it was bought with. */
+const PACT_BONUS = 1.5
+
 /**
  * How high a trait's counter can go.
  *
@@ -149,6 +160,7 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   combo: 5,
   momentum: 3,
   eclipse: 3,
+  pact: PACT_CHARGES,
   sunder: 5,
 }
 
@@ -200,6 +212,7 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   rake: { damage: 96 },
   judgement: { damage: 68 },
   shadow_word_pain: { damage: 58 },
+  immolate: { damage: 64 },
   renew: { heal: 66 },
   rejuvenation: { heal: 47 },
   riptide: { heal: 58 },
@@ -916,6 +929,10 @@ export function castBlocker(
   if (actor.gcd > 0 && !ability.offGcd) return 'locked'
   if ((actor.cooldowns[ability.id] ?? 0) > 0) return 'locked'
   if (actor.power < ability.cost) return 'resource'
+  // Health is a resource for exactly one button, and the same answer covers
+  // it: a press you cannot pay for is a press the bar refuses rather than one
+  // that kills you for trying.
+  if (ability.selfCost && actor.hp <= Math.round(actor.maxHp * ability.selfCost)) return 'resource'
 
   if (ability.range > 0) {
     const target = actorById(s, targetId)
@@ -1080,6 +1097,19 @@ export function landAbility(
     }
     case 'defensive': {
       if (ability.aura) addAura(actor, ability.aura, actor.id)
+      // And the one that is paid for out of the bar. Taken here rather than
+      // through `applyDamage`: nothing hit you, so it is not damage taken, it
+      // does not belong on anybody's meter, and armour has no opinion about
+      // it. A window bought at full charges each time, so a second press does
+      // not top up a window that is already open for a fraction of the price.
+      if (ability.selfCost) {
+        actor.hp = Math.max(1, actor.hp - Math.round(actor.maxHp * ability.selfCost))
+        pushText(s, actor.pos, ability.name, 'taken')
+        if (ability.aura) {
+          const window = getAura(actor, ability.aura)
+          if (window) window.stacks = AURA_MAX[ability.aura] ?? 1
+        }
+      }
       break
     }
     case 'charge': {
@@ -1159,6 +1189,15 @@ function traitBonus(actor: Actor, ability: Ability, target: Actor): number {
       if (!isFiller) return 1
       return actor.power >= actor.maxPower * 0.8 ? 1.5 : 1
     }
+    case 'pact': {
+      // Bought rather than built: every other window in the game is opened by
+      // pressing the right thing in the right order, and this one is opened by
+      // handing the healers a problem. What it buys is the same shape as the
+      // eclipse -- a few fillers worth half again -- so the two can be read
+      // against each other, and the difference is entirely in what it cost.
+      if (!isFiller) return 1
+      return getAura(actor, 'pact') ? PACT_BONUS : 1
+    }
     case 'chain':
       return 1
     default:
@@ -1208,6 +1247,18 @@ function spendTrait(
           open.stacks -= 1
           if (open.stacks <= 0) clearAura(actor, 'eclipse')
         }
+      }
+      break
+    }
+    case 'pact': {
+      // One charge a filler, the same as the eclipse. Nothing else spends it:
+      // the dot and the finisher are worth what they are worth, so the window
+      // cannot be banked by pressing something bigger inside it.
+      if (!isFiller) break
+      const open = getAura(actor, 'pact')
+      if (open) {
+        open.stacks -= 1
+        if (open.stacks <= 0) clearAura(actor, 'pact')
       }
       break
     }

@@ -2,7 +2,7 @@ import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { Personality, ResourceId, Role } from './types'
 
 /**
- * The eight classes.
+ * The nine classes.
  *
  * Rotations are shared per role; what differs is the numbers and the cast
  * times, which is enough to make each one play differently. A hunter with an
@@ -13,6 +13,7 @@ import type { Personality, ResourceId, Role } from './types'
 export type ClassId =
   | 'warrior'
   | 'mage'
+  | 'warlock'
   | 'priest'
   | 'paladin'
   | 'hunter'
@@ -35,6 +36,14 @@ export interface ClassAbilities {
   taunt: string | null
   /** Closing a gap the class is expected to close on its own. */
   mobility: string | null
+  /**
+   * The button a spec pays for its own damage with, out of its health bar.
+   *
+   * Its own slot rather than borrowed from the tanks' `defensive`, which is
+   * the opposite thing: that one is pressed because something is about to
+   * land, and this one is pressed because nothing is.
+   */
+  pact: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
 }
@@ -46,6 +55,7 @@ export const CLASS_ORDER: ClassId[] = [
   'druid',
   'shaman',
   'mage',
+  'warlock',
   'hunter',
   'rogue',
 ]
@@ -131,6 +141,7 @@ export type SpecId =
   | 'frost'
   | 'marksmanship'
   | 'assassination'
+  | 'destruction'
 
 /**
  * The one rule that is this spec's and nobody else's.
@@ -167,6 +178,8 @@ export type Trait =
   | 'cadence'
   /** Druid tank: gives back a slice of what it takes, over time. */
   | 'thick'
+  /** Warlock: buys a window of harder fillers with its own health. */
+  | 'pact'
 
 export interface Spec {
   id: SpecId
@@ -241,6 +254,7 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   threat: null,
   taunt: null,
   mobility: null,
+  pact: null,
   attack: null,
   ...a,
 })
@@ -524,6 +538,38 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           overTime: 'living_bomb',
           finisher: 'pyroblast',
           attack: 'ice_lance',
+        }),
+      },
+    ],
+  },
+
+  warlock: {
+    id: 'warlock',
+    name: 'Warlock',
+    armorType: 'cloth',
+    moveSpeed: 155,
+    specs: [
+      {
+        id: 'destruction',
+        role: 'dps',
+        trait: 'pact',
+        resource: 'mana',
+        melee: false,
+        // The largest bar of the three cloth wearers, and it is not a
+        // survivability statement: this is the one spec that spends the bar on
+        // purpose, so a mage's would leave it two taps from being a problem
+        // for somebody else. It ends most fights the softest thing in the raid
+        // regardless, since the health is going out whether the boss asks for
+        // it or not.
+        hp: 3300,
+        armor: 900,
+        block: 0,
+        power: 950,
+        abilities: kit({
+          filler: 'shadow_bolt',
+          overTime: 'immolate',
+          finisher: 'chaos_bolt',
+          pact: 'life_tap',
         }),
       },
     ],
@@ -956,6 +1002,7 @@ const POOLS: Record<Role, Pick[]> = {
     { classId: 'warrior', spec: 'arms' },
     { classId: 'paladin', spec: 'retribution' },
     { classId: 'priest', spec: 'shadow' },
+    { classId: 'warlock', spec: 'destruction' },
   ],
 }
 
@@ -996,18 +1043,26 @@ export const SLOTS = makeSlots(5)
  */
 export function abilityBar(pick: Pick): string[] {
   const a = specOf(pick).abilities
-  return [a.filler, a.threat, a.overTime, a.finisher, a.defensive, a.taunt, a.mobility].filter(
-    (id): id is string => id !== null,
-  )
+  return [
+    a.filler,
+    a.threat,
+    a.overTime,
+    a.finisher,
+    a.pact,
+    a.defensive,
+    a.taunt,
+    a.mobility,
+  ].filter((id): id is string => id !== null)
 }
 
 /**
  * A random raid that is still a raid.
  *
- * Drawing all five classes freely leaves you without a tank about half the
- * time — there is only one tanking class in eight — and a pull that cannot be
- * won is a penalty, not a surprise. So the role counts are kept and everything
- * else is rolled: which classes fill them, and where they stand.
+ * Drawing freely from the spec list leaves you without a tank most of the
+ * time — three of the seventeen tank, and a five-man that rolls none of them
+ * is a pull that cannot be won rather than a surprise. So the role counts are
+ * kept and everything else is rolled: which classes fill them, and where they
+ * stand.
  *
  * The generator takes its randomness as an argument. Nothing under sim/ is
  * allowed to reach for Math.random, because the fight itself must stay

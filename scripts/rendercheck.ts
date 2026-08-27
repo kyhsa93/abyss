@@ -1687,7 +1687,10 @@ for (const [label, w, h] of [
   // for a reason the button never showed. A charge is free for the opposite
   // reason: it is where a warrior's rage comes from at the start of a pull,
   // and charging to earn rage you needed to charge would be a circle.
-  const free = Object.values(ABILITIES).filter((a) => a.cost === 0)
+  // Free of both currencies, since one button pays in the other one: a tap
+  // costs no mana and eight percent of the bar, and counting it here would
+  // read the most expensive press in the game as costless.
+  const free = Object.values(ABILITIES).filter((a) => a.cost === 0 && !a.selfCost)
   const shouldBeFree = free.every(
     (a) => a.kind === 'defensive' || a.kind === 'taunt' || a.kind === 'charge',
   )
@@ -1698,6 +1701,15 @@ for (const [label, w, h] of [
     // you sometimes cannot afford is worse than not having one.
     shouldBeFree && free.length === 10,
     free.map((a) => a.id).join(', '),
+  )
+
+  // And the one that pays in health is charged for it. A press that took
+  // nothing would be a free damage window, which is not what any of this is.
+  const paid = Object.values(ABILITIES).filter((a) => (a.selfCost ?? 0) > 0)
+  expect(
+    'the tap costs a real slice of the bar',
+    paid.length === 1 && paid.every((a) => a.cost === 0 && a.selfCost! >= 0.05),
+    paid.map((a) => `${a.id} ${a.selfCost}`).join(', '),
   )
 
   // Rage: empty at the pull, earned by swinging, earned by being hit, and
@@ -7039,6 +7051,55 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const spec = specOf(pick)
     if (roleOf(pick) !== 'dps') continue
     expect(`${specLabel(pick)} has a trait`, spec.trait !== undefined, 'none')
+  }
+
+  // The warlock buys its window with health, so both halves have to be true:
+  // the bar goes down by what the button says, and the fillers under the
+  // window land harder than the ones outside it. Either alone is a class that
+  // pays for nothing or gets nothing for paying.
+  {
+    const lock = SPEC_OPTIONS.find((p) => p.classId === 'warlock')!
+    const spec = specOf(lock)
+    const tap = ABILITIES[spec.abilities.pact!]!
+    const fight = pulled(0x51ed, 0, autoParty(5, lock))
+    const you = fight.actors.find((a) => a.isPlayer)!
+    const rng = new Rng(1)
+
+    const before = you.hp
+    landAbility(fight, you, tap, you.id, rng)
+    expect(
+      'a tap costs the health it says it does',
+      you.hp === before - Math.round(you.maxHp * tap.selfCost!),
+      `${before} -> ${you.hp} of ${you.maxHp}`,
+    )
+    expect('and opens a window of three', getAura(you, 'pact')?.stacks === 3, `${getAura(you, 'pact')?.stacks}`)
+
+    // The filler under the window against the same filler outside it, on a
+    // boss standing still with nothing else happening to either of them.
+    const filler = ABILITIES[spec.abilities.filler!]!
+    const monster = bossOf(fight)
+    const hit = (): number => {
+      const was = monster.hp
+      landAbility(fight, you, filler, monster.id, new Rng(7))
+      return was - monster.hp
+    }
+    const lit = hit()
+    clearAura(you, 'pact')
+    const plain = hit()
+    expect(
+      'and the fillers inside it land harder',
+      lit > plain * 1.3,
+      `${lit} against ${plain}`,
+    )
+
+    // And it cannot be pressed down to nothing: health is a resource, and a
+    // press you cannot pay for is refused rather than lethal.
+    you.hp = Math.round(you.maxHp * tap.selfCost!)
+    expect(
+      'a tap you cannot afford is refused',
+      castBlocker(fight, you, tap, you.id) === 'resource',
+      `${castBlocker(fight, you, tap, you.id)}`,
+    )
   }
 }
 

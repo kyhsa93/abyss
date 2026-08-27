@@ -1344,10 +1344,11 @@ protection warrior and an arms warrior share nothing but a name.
 | Priest | | ✓ | ✓ |
 | Shaman | | ✓ | ✓ |
 | Mage | | | ✓ |
+| Warlock | | | ✓ |
 | Hunter | | | ✓ |
 | Rogue | | | ✓ |
 
-Fifteen combinations in all, and the raid screen lists them individually
+Seventeen combinations in all, and the raid screen lists them individually
 rather than asking you to pick a class and then a role.
 
 **Every spec has one rule that is its own** — healers and tanks included.
@@ -1386,6 +1387,27 @@ numbers within thirteen percent of each other. Picking a class chose a colour.
 | Shadow, Retribution | **Affliction** — the filler is worth 40% more on a target already marked |
 | Arms | **Overflow** — rage near the top makes the next swing land half again as hard |
 | Elemental | **Chain** — the finisher jumps to two more bodies for a third each, and to nothing on a lone boss |
+| Destruction | **Pact** — buys a window of harder fillers with eight percent of its own health |
+
+The last of those is the only one paid for in a currency somebody else can
+see. Every other price in the game is private — mana, rage, a cooldown, a
+global — and is settled between a player and their own bar. Life Tap spends
+eight percent of the health bar the healers are watching, and buys three
+fillers worth half again, so the question it asks is not "what do I press
+next" but "can the raid afford me right now".
+
+It sits off the global cooldown on purpose, and that is the whole of its
+tuning. On the global it came out last of the ten dealers at 103 against a
+field of 111 to 150 — the press was being charged twice for one idea, once in
+health and once in rotation time. Off it, the price is health and nothing
+else, and it lands at 128, seventh of ten. Nothing else about it moved.
+
+What it does with the fights is the part worth having. The rotation stops
+tapping below half a bar, so the boss decides how much of the class you get to
+play: the same warlock taps fourteen times on the Warden and seven on the
+Unblinking Watch, because one of them keeps hitting it. A spec whose output is
+throttled by the fight rather than by its own cooldowns is the one thing none
+of the other nine do.
 
 Each one is drawn where you are already looking, above the cast bar: a rogue
 banking points it cannot see is a rogue pressing the same three buttons as
@@ -1983,7 +2005,7 @@ it, kill it heroic, kill it with twenty-five, kill it without losing anyone,
 kill it without standing in anything, kill it inside a hundred and ten
 seconds, finish a kill top of the meter, finish one holding the threat, finish
 one having healed more than anybody dealt. Some are about the record — ten
-pulls in, five classes played, all eight.
+pulls in, five classes played, all nine.
 
 Each is one pure function of the pull that just ended and the record kept
 before it, so an award is a rule you can read rather than a flag somebody

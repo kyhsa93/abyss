@@ -1176,6 +1176,13 @@ function drawTrait(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
       for (let i = 0; i < 3; i++) pip(i, 3, i < stacks, COLORS.manaBar)
       break
     }
+    case 'pact': {
+      // Pips, like the other counted windows, in the colour of what bought
+      // them: three fillers, and the bar they came out of is directly below.
+      const stacks = getAura(player, 'pact')?.stacks ?? 0
+      for (let i = 0; i < 3; i++) pip(i, 3, i < stacks, COLORS.hpBarLow)
+      break
+    }
     case 'eclipse':
       label(getAura(player, 'eclipse') ? 'ECLIPSE — WRATH HITS HARDER' : 'STARFIRE OPENS THE WINDOW', getAura(player, 'eclipse') ? COLORS.hpBar : COLORS.textDim)
       break

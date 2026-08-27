@@ -95,6 +95,14 @@ export function autoPress(s: SimState): number[] {
 }
 
 /**
+ * The health a tapping spec keeps for itself.
+ *
+ * The player may spend past it -- it is their bar and the button is on their
+ * screen -- but nothing the AI steers ever will.
+ */
+const PACT_FLOOR = 0.5
+
+/**
  * What a damage spec should press, best first, as ability ids.
  *
  * Shared with the party AI on purpose. The order *is* the trait — bank the
@@ -136,6 +144,16 @@ export function damageOrder(actor: Actor, target: Actor | null): string[] {
       if (actor.power >= actor.maxPower * 0.8) order.push(kit.filler)
       order.push(kit.overTime, kit.finisher, kit.filler)
       break
+    case 'pact': {
+      // Open the window before filling it, and never out of a bar the fight
+      // is already eating. Half is the line: below it the tap is the healer's
+      // problem twice over -- the health it takes and the health they were
+      // already spending -- and a dealer who taps into a mechanic landing is a
+      // dealer the raid loses.
+      if (!getAura(actor, 'pact') && actor.hp > actor.maxHp * PACT_FLOOR) order.push(kit.pact)
+      order.push(kit.overTime, kit.finisher, kit.filler)
+      break
+    }
     case 'momentum':
     default:
       order.push(kit.overTime, kit.finisher, kit.filler)

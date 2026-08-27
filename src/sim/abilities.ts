@@ -44,6 +44,19 @@ export interface Ability {
    * be pressed mid-rotation without losing the press you already made.
    */
   offGcd?: boolean
+  /**
+   * Paid out of your own health bar, as a fraction of it.
+   *
+   * The one resource in this game that the healers can see. Everything else a
+   * press costs is private -- mana, rage, a cooldown -- and is settled between
+   * the player and their own bar; this is spent out of the number somebody
+   * else is watching, which is what makes it a decision about the raid rather
+   * than about the rotation.
+   *
+   * Never lethal: a press that would take the last of it is refused, the same
+   * as one that cannot be afforded in mana.
+   */
+  selfCost?: number
 }
 
 const MELEE = 52
@@ -97,7 +110,7 @@ const list: Ability[] = [
   //
   // All four are fifteen percent above where they were fitted, which is what
   // the cast time is worth once every rung of every boss buys one more
-  // mechanic than it used to. Eight of the nine damage specs fill with an
+  // mechanic than it used to. Nine of the ten damage specs fill with an
   // instant and pay a step for a demand to move; this one pays the whole
   // global. Measured over five bosses at twelve pulls a spec, that had it last
   // on four of the five and last overall by a spread of 1.44; at 1.15 the
@@ -196,6 +209,21 @@ const list: Ability[] = [
   { id: 'lightning_bolt', name: 'Lightning Bolt', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 20, amount: 120, threatMult: 1, aura: null, range: SPELL },
   { id: 'flame_shock', name: 'Flame Shock', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 24, amount: 83, threatMult: 1, aura: 'flame_shock', range: SPELL },
   { id: 'chain_lightning', name: 'Chain Lightning', role: 'dps', kind: 'damage', castTime: 1.5, cooldown: 9, cost: 34, amount: 430, threatMult: 1, aura: null, range: SPELL },
+
+  // --- warlock: instant, and paid for out of its own health ----------------
+  //
+  // Everything it presses is instant except the finisher, which is the shape
+  // the fight argues with: the mage pays the movement tax on its filler and
+  // this one pays it once, on the biggest press it has. What it does with the
+  // globals it keeps is buy them with health.
+  { id: 'shadow_bolt', name: 'Shadow Bolt', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 20, amount: 96, threatMult: 1, aura: null, range: SPELL },
+  { id: 'immolate', name: 'Immolate', role: 'dps', kind: 'damage', castTime: 0, cooldown: 14, cost: 24, amount: 42, threatMult: 1, aura: 'immolate', range: SPELL },
+  { id: 'chaos_bolt', name: 'Chaos Bolt', role: 'dps', kind: 'damage', castTime: 2, cooldown: 10, cost: 44, amount: 455, threatMult: 1, aura: null, range: SPELL },
+  // The button the class is about. Costs no mana and eight percent of the
+  // bar, and what it buys is three fillers worth half again -- so the damage
+  // is real, the price is paid to the healers rather than to the rotation,
+  // and the fight decides how often it can be afforded.
+  { id: 'life_tap', name: 'Life Tap', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 6, cost: 0, amount: 0, threatMult: 0, aura: 'pact', range: 0, offGcd: true, selfCost: 0.08 },
 
   // --- druid ---------------------------------------------------------------
   { id: 'wrath', name: 'Wrath', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 16, amount: 106, threatMult: 1, aura: null, range: SPELL },

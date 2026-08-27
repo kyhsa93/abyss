@@ -105,6 +105,14 @@ const ICONS: Record<string, IconSpec> = {
   serpent_sting: { shape: 'arrow', colour: '#4d7c0f' },
   aimed_shot: { shape: 'arrow', colour: '#facc15', repeat: 2 },
 
+  // warlock
+  shadow_bolt: { shape: 'orb', colour: '#9482c9' },
+  immolate: { shape: 'flame', colour: '#7e22ce' },
+  chaos_bolt: { shape: 'bolt', colour: '#6d28d9' },
+  // The one button in the game that is drawn in the colour of a health bar,
+  // because that is what it spends.
+  life_tap: { shape: 'droplet', colour: '#ef4444' },
+
   // rogue
   sinister_strike: { shape: 'dagger', colour: '#cbd5e1' },
   rupture: { shape: 'dagger', colour: '#991b1b' },
