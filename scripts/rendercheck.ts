@@ -140,6 +140,7 @@ import {
   MECHANIC_NAMES,
   hasNext,
   kitCount,
+  kitThrough,
   type MechanicId,
   MECHANIC_IDS,
   lineFor,
@@ -164,6 +165,7 @@ import { createBattlegroundState } from '../src/sim/state'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
+import { fold, pageFor } from '../src/notes'
 import { AFFIXES, type AffixId } from '../src/sim/affix'
 import { descentDamage, descentEncounter, descentHealth } from '../src/sim/descent'
 import { fold as foldDaily } from '../src/daily-record'
@@ -222,6 +224,7 @@ import {
   pressBoss,
   pressDifficulty,
   pressSize,
+  rungBuys,
   settle,
   tierAt,
   tierOf,
@@ -2528,7 +2531,7 @@ for (const [label, w, h] of [
       expect(`${label} ${count}: the way out is on screen`, onScreen, JSON.stringify(back))
       expect(
         `${label} ${count}: and answers a tap`,
-        hitHistory(back.x + back.w / 2, back.y + back.h / 2, counts) === 'back',
+        hitHistory(back.x + back.w / 2, back.y + back.h / 2, counts)?.kind === 'back',
         'back did not answer',
       )
       const clear = every.every((r) => r.y + r.h <= back.y)
@@ -2940,11 +2943,12 @@ for (const [label, w, h] of [
 
     expect(`${label}: the award rows fit`, layout.awards.every(onScreen), JSON.stringify(layout.awards[layout.awards.length - 1]))
     expect(`${label}: nothing is under the button`, layout.awards.every((r) => r.y + r.h <= layout.back.y), 'a row overlaps the button')
-    expect(`${label}: both tabs are on screen`, layout.tabs.every(onScreen), JSON.stringify(layout.tabs))
+    expect(`${label}: every tab is on screen`, layout.tabs.every(onScreen), JSON.stringify(layout.tabs))
 
-    const answers = HISTORY_TABS.every(
-      (id, i) => hitHistory(layout.tabs[i]!.x + 4, layout.tabs[i]!.y + 4, []) === id,
-    )
+    const answers = HISTORY_TABS.every((id, i) => {
+      const hit = hitHistory(layout.tabs[i]!.x + 4, layout.tabs[i]!.y + 4, [])
+      return hit?.kind === 'tab' && hit.tab === id
+    })
     expect(`${label}: and answer their own taps`, answers, 'a tab answered as another')
   }
 }
@@ -10014,6 +10018,160 @@ for (const [label, w, h] of [
     const missing = kit.filter((m) => !seen.has(m))
     expect(`${encounter.name}: throws every rung it sells`, missing.length === 0, missing.join(','))
   }
+}
+
+// --- what a kill pays out ----------------------------------------------------
+//
+// Two things a pull hands over, neither of which is power: the rung it opened
+// and what that rung is for, and the page of the boss it was against.
+{
+  // What a rung pays out, which the results screen now says out loud.
+  //
+  // Never more than one mechanic, and one exactly when the kit grows: the
+  // chain alternates, since 5-heroic and 10-normal buy the same four ideas
+  // and the second of them is paying for bodies instead. A line that promised
+  // a mechanic on every rung would be lying on half of them, which is why the
+  // screen has a second thing to say.
+  const inside = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS !== 0)
+  expect(
+    'a rung never buys more than one mechanic',
+    LADDER.every((_, i) => rungBuys(i).length <= 1),
+    'a rung sold two ideas at once',
+  )
+  const grows = inside.every((i) => {
+    const here = tierAt(i)
+    const before = tierAt(i - 1)
+    const wider = kitCount(here.size, here.difficulty) > kitCount(before.size, before.difficulty)
+    return (rungBuys(i).length === 1) === wider
+  })
+  expect('and buys one exactly when the kit grows', grows, 'a rung paid the wrong thing')
+  // And the first rung of a boss buys a fight rather than a mechanic, so the
+  // line that names one has to have something else to say.
+  const firsts = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS === 0)
+  expect(
+    'and the first rung of a boss buys none',
+    firsts.every((i) => rungBuys(i).length === 0),
+    'a boss opened owing a mechanic',
+  )
+  // What it names is what the fight will actually throw at that rung.
+  const named = inside.every((i) => {
+    const tier = tierAt(i)
+    const fight = ENCOUNTERS[tier.encounter]!
+    return rungBuys(i).every((id) => encounterKit(fight, tier.size, tier.difficulty).includes(id))
+  })
+  expect('and names something the rung actually throws', named, 'a rung sold what it does not throw')
+
+  // The page: what a pull writes on it is what the pull put in front of you.
+  // A bill for a mechanic the fight was not carrying would be a page that
+  // teaches the wrong boss, and it is the one thing the attribution could get
+  // wrong without any test noticing -- every damage call in the game says
+  // which mechanic it is, and nothing else checks that it says the right one.
+  for (const [size, difficulty] of [[5, 'normal'], [25, 'heroic']] as const) {
+    let billed = 0
+    let split = 0
+    const stray: string[] = []
+    for (let e = 0; e < ENCOUNTERS.length; e++) {
+      const fight = ENCOUNTERS[e]!
+      const s = unattended(createState(0x51ed, 0, autoParty(size, pickFor('mage', 'dps')!), difficulty, e))
+      const rng = new Rng(0x51ed + 7919)
+      while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage + 60) {
+        step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      }
+      const kit = encounterKit(fight, size, difficulty)
+      for (const t of Object.values(s.tally)) {
+        billed += t.mechanicHits
+        for (const [id, hits] of Object.entries(t.byMechanic)) {
+          split += hits
+          if (!kit.includes(id as MechanicId)) stray.push(`${fight.short}: ${id}`)
+        }
+      }
+      // And the page only ever claims what the pull reached.
+      const shown = kitThrough(fight, size, difficulty, s.phase)
+      expect(
+        `${fight.short} ${size}${difficulty[0]}: the page claims no more than the kit`,
+        shown.every((id) => kit.includes(id)),
+        shown.filter((id) => !kit.includes(id)).join(','),
+      )
+    }
+    expect(
+      `${size} ${difficulty}: every mechanic hit says which mechanic it was`,
+      billed === split && billed > 0,
+      `${billed} hits against ${split} named`,
+    )
+    expect(
+      `and none of them names one the fight was not carrying`,
+      stray.length === 0,
+      stray.join(', '),
+    )
+  }
+
+  // The page itself, written from a real pull.
+  {
+    const fight = ENCOUNTERS[0]!
+    const play = (size: RaidSize, difficulty: DifficultyId): SimState => {
+      const s = unattended(createState(0x51ed, 0, autoParty(size, pickFor('mage', 'dps')!), difficulty, 0))
+      const rng = new Rng(0x51ed + 7919)
+      while (s.outcome === 'ongoing' && s.time < encounterAt(0).enrage + 60) {
+        step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      }
+      // The seat was handed to the AI so the pull could play itself; the page
+      // is written from your own row, so hand it back before folding.
+      s.actors.find((a) => a.faction === 'party')!.isPlayer = true
+      return s
+    }
+
+    const small = play(5, 'normal')
+    const one = fold({}, small)
+    const page = pageFor(one, 0)!
+    expect(`${fight.short}: one pull is one pull`, page.pulls === 1, `${page.pulls}`)
+    expect(
+      'and a kill is counted as one',
+      page.kills === (small.outcome === 'victory' ? 1 : 0),
+      `${page.kills} on a ${small.outcome}`,
+    )
+    // The five-man kit is three of the six, so a page written by one of them
+    // has to still be saying that the other three are up there.
+    expect(
+      'and a small kit leaves the rest of the boss unmet',
+      page.metCount === kitCount(5, 'normal') && page.rungs.length === fight.ladder.length,
+      `${page.metCount} of ${page.rungs.length}`,
+    )
+    const billed = small.tally[small.actors.find((a) => a.isPlayer)!.id]?.byMechanic ?? {}
+    expect(
+      'and what caught you is what the fight billed you for',
+      page.rungs.every((r) => r.hits === (billed[r.id] ?? 0)),
+      page.rungs.map((r) => `${r.id}:${r.hits}/${billed[r.id] ?? 0}`).join(','),
+    )
+
+    // Knowledge only ever grows: a later pull at a wider setting adds rungs,
+    // and a page that could lose one would be a page that forgets a fight you
+    // have already been shown.
+    const two = fold(one, play(25, 'heroic'))
+    const wider = pageFor(two, 0)!
+    expect(`${fight.short}: a second pull is counted`, wider.pulls === 2, `${wider.pulls}`)
+    expect(
+      'and a wider kit only ever adds to the page',
+      page.rungs.every((r) => !r.met || wider.rungs.find((o) => o.id === r.id)?.met === true) &&
+        wider.metCount === kitCount(25, 'heroic'),
+      `${wider.metCount} of ${wider.rungs.length}`,
+    )
+    // And a battleground has no boss to write about.
+    const bg = createBattlegroundState(0x51ed, 'flags', autoParty(5, pickFor('mage', 'dps')!))
+    expect('a battleground writes no page', Object.keys(fold(two, bg)).length === 1, 'a page was written')
+  }
+
+  // Nothing about the page reaches the fight. The same rule the awards keep,
+  // and the reason a record can be kept per boss without ever changing what a
+  // pull does: the split is written where damage is applied, declared where
+  // the tally is, and named nowhere else under `src/sim`. Read off the source
+  // because there is no run that could show a rule being kept.
+  const reads = ['sim.ts', 'boss.ts', 'ai.ts', 'autocast.ts', 'combat.ts', 'state.ts', 'types.ts']
+    .filter((file) => /byMechanic/.test(readFileSync(resolve(process.cwd(), `src/sim/${file}`), 'utf8')))
+  expect(
+    'the split is written by the fight and never read by it',
+    reads.join(',') === 'combat.ts,state.ts,types.ts',
+    reads.join(','),
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

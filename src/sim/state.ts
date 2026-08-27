@@ -194,6 +194,7 @@ export function createState(
       overhealing: 0,
       damageTaken: 0,
       mechanicHits: 0,
+      byMechanic: {},
       deathAt: null,
     }
   }
@@ -295,6 +296,7 @@ export function createBattlegroundState(
       overhealing: 0,
       damageTaken: 0,
       mechanicHits: 0,
+      byMechanic: {},
       deathAt: null,
     }
   }

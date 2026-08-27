@@ -1,5 +1,5 @@
 import { RAID_SIZES, type DifficultyId, type RaidSize } from './sim/classes'
-import { ENCOUNTERS, encounterIndex } from './sim/encounters'
+import { ENCOUNTERS, encounterIndex, encounterKit, type MechanicId } from './sim/encounters'
 
 /**
  * What is open, and in what order it opens.
@@ -124,6 +124,30 @@ export function bestOpen(unlocked: number, encounter: number): Tier {
 export function hasNextTier(encounter: number, size: number, difficulty: DifficultyId): boolean {
   const tier = tierOf(encounter, size, difficulty)
   return tier >= 0 && tier < LADDER.length - 1
+}
+
+/**
+ * What opening a rung buys, in mechanics.
+ *
+ * The chain's whole argument is that a size and a difficulty each buy a
+ * mechanic, and until now the only place that was ever said out loud was a
+ * count on the setup screen -- so a player who cleared a rung was told a
+ * harder setting had opened and never told what was in it. This is the
+ * difference between the kit the rung above throws and the kit the one just
+ * cleared threw, which for every rung inside a boss is exactly one mechanic.
+ *
+ * Empty at the top of a boss, where what opens is a different fight and the
+ * mechanics it owns are its own rather than one more of these.
+ */
+export function rungBuys(tier: number): MechanicId[] {
+  if (tier <= 0 || tier >= LADDER.length) return []
+  const here = tierAt(tier)
+  const before = tierAt(tier - 1)
+  if (before.encounter !== here.encounter) return []
+  const fight = ENCOUNTERS[here.encounter]
+  if (!fight) return []
+  const had = encounterKit(fight, before.size, before.difficulty)
+  return encounterKit(fight, here.size, here.difficulty).filter((id) => !had.includes(id))
 }
 
 /** What a rung is called, for the button that walks onto it. */

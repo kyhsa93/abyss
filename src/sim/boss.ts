@@ -52,6 +52,7 @@ import {
   interruptCast,
   pushEffect,
   applyDamage,
+  type DamageOptions,
   boss,
   dist,
   livingParty,
@@ -690,7 +691,7 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
     // Physical, so armour and block both answer it. A tank barely notices; a
     // caster that wandered into melee should not survive making a habit of it.
     const damage = hit(s, fight(s).swingDamage * SWEEP_SHARE)
-    applyDamage(s, a, damage, 'physical', { sourceId: b.id, mechanic: true })
+    applyDamage(s, a, damage, 'physical', { sourceId: b.id, mechanic: 'sweep' })
     pushEffect(s, 'impact', a.pos, {
       abilityId: 'boss_sweep',
       power: damage,
@@ -1638,7 +1639,7 @@ export function passJudgement(s: SimState, marked: Actor): void {
   // be a mechanic that sometimes does not.
   applyDamage(s, marked, marked.maxHp / HEALTH, 'none', {
     sourceId: BOSS_ID,
-    mechanic: true,
+    mechanic: 'verdict',
     crit: true,
   })
   pushEffect(s, 'impact', marked.pos, {
@@ -1951,11 +1952,11 @@ function updateAdds(s: SimState): void {
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
       const damage = hit(s, stalking ? STALKER_DAMAGE : ADD_DAMAGE)
-      applyDamage(s, nearest, damage, 'physical', {
-        sourceId: add.id,
-        // Being caught by the thing following you is a mistake with a name.
-        mechanic: stalking,
-      })
+      const blame: DamageOptions = { sourceId: add.id }
+      // Being caught by the thing following you is a mistake with a name.
+      // An ordinary thrall in melee is not one: it is there to be killed.
+      if (stalking) blame.mechanic = 'hunt'
+      applyDamage(s, nearest, damage, 'physical', blame)
       pushEffect(s, 'impact', nearest.pos, {
         abilityId: stalking ? 'boss_stalk' : 'boss_thrall',
         power: damage,
@@ -2033,7 +2034,7 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     for (const a of livingParty(s)) {
       if (!insideCone(a.pos, cone)) continue
       const damage = mechanic(s, cone.damage)
-      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: true })
+      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: 'breath' })
       // Along the cone rather than along the line to the boss, so the streak
       // reads as the breath going through them.
       pushEffect(s, 'impact', a.pos, {
@@ -2104,7 +2105,7 @@ export function updateGround(s: SimState): void {
         if (d >= g.radius - g.band && d <= g.radius + g.band && !inShockwaveGap(a.pos, g)) {
           g.caught.push(a.id)
           const damage = mechanic(s, g.damage)
-          applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+          applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
           // Outward from the centre, which is the direction it ran them down
           // from — and the opposite of the way they should have gone.
           pushEffect(s, 'impact', a.pos, {
@@ -2141,11 +2142,10 @@ export function updateGround(s: SimState): void {
       // question — is everybody standing here — is the same on both.
       const share = hit(s, g.damage * Math.min(SOAK_MAX_SHARE, missing))
       for (const a of party) {
-        applyDamage(s, a, share, 'magic', {
-          sourceId: BOSS_ID,
-          // Only the ones who were not there failed anything.
-          mechanic: !inside.includes(a),
-        })
+        const blame: DamageOptions = { sourceId: BOSS_ID }
+        // Only the ones who were not there failed anything.
+        if (!inside.includes(a)) blame.mechanic = 'soak'
+        applyDamage(s, a, share, 'magic', blame)
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_soak', power: share })
       }
       pushEffect(s, 'impact', g.pos, {
@@ -2185,7 +2185,7 @@ export function updateGround(s: SimState): void {
         // also be one that lets a shoulder hang over the line.
         if (!underHand(a.pos, g)) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, {
           abilityId: 'boss_hand',
           power: damage,
@@ -2215,7 +2215,7 @@ export function updateGround(s: SimState): void {
       for (const a of livingParty(s)) {
         if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_echo', power: damage })
       }
       continue
@@ -2248,7 +2248,7 @@ export function updateGround(s: SimState): void {
         const caught = g.kind === 'fault' ? condemned(a.pos, g) : !onShallows(a.pos, g)
         if (!caught) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: mark, power: damage, angle: g.angle })
       }
       continue
@@ -2270,7 +2270,7 @@ if (g.kind === 'schism') {
       )
       for (const a of caught) {
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_schism', power: damage })
       }
       // Cleared here rather than left to run out, so the marks are gone the
@@ -2319,7 +2319,7 @@ if (g.kind === 'schism') {
         const named = tollPayer(s, g)
         if (named) {
           const owed = mechanic(s, TOLL_UNPAID)
-          applyDamage(s, named, owed, 'magic', { sourceId: BOSS_ID, mechanic: true })
+          applyDamage(s, named, owed, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
           pushEffect(s, 'impact', named.pos, {
             abilityId: 'boss_toll',
             power: owed,
@@ -2339,7 +2339,7 @@ if (g.kind === 'schism') {
         if (dist(a.pos, g.pos) < dist(payer.pos, g.pos)) payer = a
       }
       const damage = mechanic(s, g.damage)
-      applyDamage(s, payer, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      applyDamage(s, payer, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
       pushEffect(s, 'impact', payer.pos, { abilityId: 'boss_toll', power: damage, crit: true })
       continue
     }
@@ -2372,7 +2372,7 @@ if (g.kind === 'schism') {
         if (dist(a.pos, g.pos) < dist(taken.pos, g.pos)) taken = a
       }
       const damage = mechanic(s, g.damage * graspBill(caught.length))
-      applyDamage(s, taken, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      applyDamage(s, taken, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
       pushEffect(s, 'impact', taken.pos, { abilityId: 'boss_grasp', power: damage, crit: true })
       s.sounds.push('raid')
       continue
@@ -2413,7 +2413,7 @@ if (g.kind === 'schism') {
         clearAura(a, 'refuge')
         if (kept.has(a.id)) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_refuge', power: damage })
       }
       continue
@@ -2439,7 +2439,7 @@ if (g.kind === 'schism') {
           for (const a of livingParty(s)) {
             if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
             const damage = mechanic(s, g.damage)
-            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
             pushEffect(s, 'impact', a.pos, { abilityId: 'boss_spire', power: damage })
           }
         }
@@ -2472,7 +2472,7 @@ if (g.kind === 'schism') {
       for (const a of livingParty(s)) {
         if (!stillWorking(a)) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_vigil', power: damage })
       }
       continue
@@ -2494,7 +2494,12 @@ if (g.kind === 'schism') {
       for (const a of livingParty(s)) {
         const mine = named !== null && a.id === named.id
         const damage = mechanic(s, mine ? g.damage : CHANT_SHARE)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: mine })
+        // The named one is the only one who could have done anything about
+        // it; the share everybody else pays is the mechanic working, not
+        // them failing it.
+        const blame: DamageOptions = { sourceId: BOSS_ID }
+        if (mine) blame.mechanic = g.kind
+        applyDamage(s, a, damage, 'magic', blame)
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_chant', power: damage })
       }
       if (named) clearAura(named, 'chant')
@@ -2515,7 +2520,7 @@ if (g.kind === 'schism') {
       for (const a of livingParty(s)) {
         if (!watched(a, g)) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_gaze', power: damage })
       }
       continue
@@ -2542,7 +2547,7 @@ if (g.kind === 'schism') {
         // lets a shoulder hang over the line.
         if (dist(a.pos, g.pos) > g.radius) continue
         const damage = mechanic(s, g.damage)
-        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+        applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_crush', power: damage })
       }
       continue
@@ -2566,7 +2571,7 @@ if (g.kind === 'schism') {
         for (const a of livingParty(s)) {
           if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
             const damage = mechanic(s, g.damage)
-            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+            applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: g.kind })
             pushEffect(s, 'impact', a.pos, { abilityId: mark, power: damage })
           }
         }
@@ -3483,7 +3488,7 @@ function toll(s: SimState, ringer: number | null): void {
 
   for (const a of livingParty(s)) {
     const damage = mechanic(s, KNELL_DAMAGE)
-    applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: true })
+    applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: 'knell' })
     pushEffect(s, 'impact', a.pos, { abilityId: 'boss_knell', power: damage })
   }
   s.raidFlash = 0.4
@@ -3585,7 +3590,7 @@ function shatterVessels(s: SimState): void {
       if (!mark || mark.sourceId !== broken.id) continue
       clearAura(a, 'spoil')
       const damage = mechanic(s, VESSEL_BREAK)
-      applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+      applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'vessel' })
       pushEffect(s, 'impact', a.pos, { abilityId: 'boss_vessel', power: damage })
     }
     s.sounds.push('raid')
@@ -3655,7 +3660,7 @@ export function breakMirror(s: SimState, glass: Aura): void {
     const a = s.actors.find((x) => x.faction === 'party' && x.id === id)
     if (!a || !a.alive) continue
     const damage = mechanic(s, MIRROR_DAMAGE)
-    applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+    applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'mirror' })
     pushEffect(s, 'impact', a.pos, { abilityId: 'boss_mirror', power: damage })
   }
   if (owed.length > 0) s.sounds.push('raid')

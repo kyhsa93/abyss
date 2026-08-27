@@ -343,6 +343,22 @@ export function setTrendLine(line: string | null): void {
   trendLine = line
 }
 
+/**
+ * What this kill opened, when it opened something.
+ *
+ * Set by the page on the pull that earned it and cleared on the next one, so
+ * it says "you just did this" rather than "this is where you are". The screen
+ * already names the rung ahead of you under the buttons; this is the other
+ * half of the same fact, and the half the game never said: what the rung is
+ * for. A raid ladder that hands out a mechanic per rung and never names the
+ * mechanic is handing out something the player cannot see they were given.
+ */
+let openedLine: string | null = null
+
+export function setOpenedLine(line: string | null): void {
+  openedLine = line
+}
+
 /** Confirms a share on the button itself; the clipboard says nothing on its own. */
 let shareLabel: string | null = null
 
@@ -1505,7 +1521,19 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
     ctx.fillText(trendLine, L.w / 2, Math.max(80, L.h * 0.205))
   }
 
-  drawReport(ctx, s, Math.max(96, L.h * 0.26), buttons.retry.y - 24)
+  // Above the meter, in the kill's own colour: what the pull paid out. It is
+  // the one line on this screen that is about the game rather than about the
+  // fight, so it sits with the fight's headline rather than in the report.
+  const reportTop = Math.max(96, L.h * 0.26)
+  if (openedLine !== null && s.outcome === 'victory') {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = COLORS.castBar
+    // This screen's own `fitText` takes the size rather than reading it off
+    // the context, and sets the font itself.
+    fitText(ctx, openedLine, L.w / 2, reportTop - 14 * L.ui, L.w - 32, 12, true)
+  }
+
+  drawReport(ctx, s, reportTop + (openedLine !== null ? 16 * L.ui : 0), buttons.retry.y - 24)
 
   // The kill's own button is the bright one: after a kill, going on is the
   // thing you came for, and PULL AGAIN steps back to what you already did.

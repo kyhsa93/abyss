@@ -1278,6 +1278,32 @@ export function encounterKit(
 }
 
 /**
+ * The part of the kit a pull that got this far has been shown.
+ *
+ * The kit is what the fight would throw given the whole timeline; a raid that
+ * wiped in the first phase has not been shown the thing that only turns up in
+ * the third, and a page that told them they had met it would be teaching the
+ * fight wrong. So the phase reached is the second half of the question, and a
+ * mechanic counts as met once the fight has reached a phase that names it.
+ *
+ * Read off the same tables the scheduler reads, so it cannot claim a mechanic
+ * the boss has no cadence for.
+ */
+export function kitThrough(
+  encounter: Encounter,
+  size: number,
+  difficulty: DifficultyId,
+  phase: number,
+): MechanicId[] {
+  const kit = encounterKit(encounter, size, difficulty)
+  return kit.filter((id) =>
+    Object.entries(encounter.phases).some(
+      ([at, timing]) => Number(at) <= phase && (timing[id] ?? 0) > 0,
+    ),
+  )
+}
+
+/**
  * How much faster a short kit comes round.
  *
  * Two mechanics on the boss's own cadence is not an easier fight, it is a

@@ -7,6 +7,7 @@ import {
   hitOutcome,
   outcomeButtons,
   partyButton,
+  setOpenedLine,
   setShareLabel,
   setTrendLine,
   shareRect,
@@ -27,6 +28,12 @@ import {
   type Attempt,
 } from './history'
 import { drawAwardBanners, drawHistory, hitHistory, type HistoryTab } from './render/history'
+import {
+  fold as foldNote,
+  load as loadNotes,
+  save as saveNotes,
+  type Notes,
+} from './notes'
 import { beat, load as loadBests, save as saveBests, type Bests } from './bests'
 import { Effects } from './render/effects'
 import { loadName, nameThePlayer, saveName } from './name'
@@ -76,7 +83,7 @@ import {
   type RaidSize,
 } from './sim/classes'
 import { createBattlegroundState, createState } from './sim/state'
-import { ENCOUNTERS, encounterIndex } from './sim/encounters'
+import { ENCOUNTERS, MECHANIC_NAMES, encounterIndex } from './sim/encounters'
 import {
   FIRST_TIER,
   LADDER,
@@ -87,7 +94,10 @@ import {
   pressBoss,
   pressDifficulty,
   pressSize,
+  rungBuys,
   settle,
+  tierAt,
+  tierLabel,
   tierOf,
   type Setting,
 } from './progress'
@@ -390,6 +400,15 @@ settleSetting()
  */
 let dailyResults: DailyResult[] = loadDaily()
 /**
+ * What has been learned about each boss, and which page of it is open.
+ *
+ * Written after every raid pull and read by nothing in a fight: the record is
+ * the only thing a kill pays out in a game where no stat on the character
+ * moves.
+ */
+let notes: Notes = loadNotes()
+let openNote: number | null = null
+/**
  * What the share button last did, shown on the button for a moment.
  *
  * A share sheet says its own piece; a clipboard copy says nothing at all, and
@@ -479,6 +498,11 @@ let attempt = 0
 let bgRolls = 0
 
 function newState(): SimState {
+  // Whatever the last pull opened, it opened it last pull. Cleared here
+  // rather than at each of the five places a fight starts, since every one of
+  // them comes through this.
+  setOpenedLine(null)
+
   // The name goes on afterwards rather than into the simulation: it changes
   // nothing about a fight, the harness must not depend on what is in storage,
   // and a replay from a seed has to be the same fight whoever is playing it.
@@ -1053,11 +1077,26 @@ function frame(now: number): void {
   if (screen === 'history') {
     input.setMenuMode(true)
     if (tap) {
-      const hit = hitHistory(tap.x, tap.y, history.map((e) => e.standings.length))
-      if (hit === 'back') screen = 'home'
-      else if (hit) historyTab = hit
+      const hit = hitHistory(
+        tap.x,
+        tap.y,
+        history.map((e) => e.standings.length),
+        historyTab,
+        openNote,
+      )
+      // With a page open, the way out is out of the page. Leaving the screen
+      // from inside one would drop the reader two levels for one press.
+      if (hit?.kind === 'back') {
+        if (openNote !== null) openNote = null
+        else screen = 'home'
+      } else if (hit?.kind === 'tab') {
+        historyTab = hit.tab
+        openNote = null
+      } else if (hit?.kind === 'boss') {
+        openNote = hit.index
+      }
     }
-    drawHistory(ctx, history, awards, historyTab)
+    drawHistory(ctx, history, awards, historyTab, notes, openNote)
     requestAnimationFrame(frame)
     return
   }
@@ -1167,6 +1206,11 @@ function frame(now: number): void {
       depth = 0
     }
 
+    // Every raid pull writes to the boss's page, a daily and a descent floor
+    // included: they are all that boss doing that to you.
+    notes = foldNote(notes, state)
+    saveNotes(notes)
+
     // A daily keeps its own row: the best answer to the day, not every answer.
     if (playingDaily) {
       dailyResults = foldDaily(
@@ -1190,6 +1234,24 @@ function frame(now: number): void {
       if (opened !== unlocked) {
         unlocked = opened
         saveSetup()
+        // And what that rung is for. Said only on the pull that earned it:
+        // a line that stayed up on every later kill would be a description
+        // of where you are rather than of what you just did.
+        const rung = tierAt(opened)
+        const buys = rungBuys(opened)
+        const fight = ENCOUNTERS[rung.encounter]
+        // Two shapes, because a rung pays out two ways. The chain alternates:
+        // five heroic and ten normal throw the same four ideas, so the second
+        // of them is bought with bodies rather than with a mechanic, and a
+        // line that promised a mechanic every time would be wrong every other
+        // rung.
+        setOpenedLine(
+          rung.encounter !== state.encounter
+            ? `OPENED  ${fight?.name ?? 'the next fight'}`
+            : buys.length > 0
+              ? `OPENED  ${tierLabel(rung).toLowerCase()}  ·  brings ${buys.map((id) => MECHANIC_NAMES[id]).join(' and ')}`
+              : `OPENED  ${tierLabel(rung).toLowerCase()}  ·  the same kit, ${rung.size} of you`,
+        )
       }
     }
     const at = Date.now()

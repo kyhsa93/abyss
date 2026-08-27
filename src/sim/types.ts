@@ -451,6 +451,15 @@ export interface Tally {
   damageTaken: number
   /** Avoidable mechanics eaten: the number a raider actually argues about. */
   mechanicHits: number
+  /**
+   * The same count, split by which mechanic did it.
+   *
+   * The total says you ate five things and the split says four of them were
+   * the same puddle, which is the difference between a bad night and a habit.
+   * Written but never read by the simulation -- nothing in a fight may branch
+   * on it, the same rule the awards keep.
+   */
+  byMechanic: Partial<Record<MechanicId, number>>
   deathAt: number | null
 }
 

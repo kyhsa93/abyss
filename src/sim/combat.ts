@@ -2,7 +2,7 @@ import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import { affixHealing, affixSpread } from './affix'
-import { encounterAt } from './encounters'
+import { encounterAt, type MechanicId } from './encounters'
 import { descentDamage } from './descent'
 import {
   BURDEN_DAMAGE,
@@ -366,10 +366,16 @@ export interface DamageOptions {
   /** Rolled by the caller, which is the only place with the rng. */
   crit?: boolean
   /**
-   * An avoidable mechanic. Counted per hit rather than per point, because
-   * "ate three puddles" is the thing worth knowing, not the total.
+   * An avoidable mechanic, named. Counted per hit rather than per point,
+   * because "ate three puddles" is the thing worth knowing, not the total.
+   *
+   * It was a flag until the boss notes wanted to say *which* three. Every
+   * caller already knew -- a hazard carries its kind and everything else is
+   * thrown from a function named after one mechanic -- so the name costs
+   * nothing to pass and the flag was throwing it away. Still only ever read
+   * as truthy by the fight itself.
    */
-  mechanic?: boolean
+  mechanic?: MechanicId
 }
 
 export function applyDamage(
@@ -495,7 +501,10 @@ function record(s: SimState, target: Actor, final: number, opts: DamageOptions):
   const taken = s.tally[target.id]
   if (!taken) return
   taken.damageTaken += final
-  if (opts.mechanic) taken.mechanicHits++
+  if (opts.mechanic) {
+    taken.mechanicHits++
+    taken.byMechanic[opts.mechanic] = (taken.byMechanic[opts.mechanic] ?? 0) + 1
+  }
 }
 
 /**
@@ -720,7 +729,7 @@ export function burdenFuse(hands: number): number {
 export function dropBurden(s: SimState, carrier: Actor, weight: Aura): void {
   const hands = Math.max(0, weight.stacks - 1)
   const damage = Math.round(BURDEN_DAMAGE * (1 + hands * BURDEN_PER_HAND) * mechanicScale(s))
-  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'burden' })
   pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_burden', power: damage })
   s.sounds.push('raid')
 }
@@ -749,7 +758,7 @@ export function shareYoke(s: SimState, carrier: Actor, mark: Aura): void {
 
   if (!came) {
     const alone = Math.round(YOKE_ALONE * mechanicScale(s))
-    applyDamage(s, carrier, alone, 'magic', { sourceId: BOSS_ID, mechanic: true })
+    applyDamage(s, carrier, alone, 'magic', { sourceId: BOSS_ID, mechanic: 'yoke' })
     pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: alone })
     s.sounds.push('raid')
     return
@@ -757,7 +766,7 @@ export function shareYoke(s: SimState, carrier: Actor, mark: Aura): void {
 
   const share = Math.round(YOKE_SHARE * mechanicScale(s))
   for (const a of [carrier, bearer]) {
-    applyDamage(s, a, share, 'magic', { sourceId: BOSS_ID, mechanic: true })
+    applyDamage(s, a, share, 'magic', { sourceId: BOSS_ID, mechanic: 'yoke' })
   }
   pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: share })
   s.sounds.push('raid')
@@ -766,7 +775,7 @@ export function shareYoke(s: SimState, carrier: Actor, mark: Aura): void {
 /** What is left of the note when it lets go. */
 export function breakRot(s: SimState, carrier: Actor): void {
   const damage = Math.round(ROT_BREAK * fightScale(s))
-  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: true })
+  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'rot' })
   pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_rot', power: damage })
   s.sounds.push('raid')
 }
@@ -821,7 +830,7 @@ export function detonateSpread(s: SimState, carrier: Actor): void {
     if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS * affixSpread(s.affix)) {
       applyDamage(s, a, 760 * mechanicScale(s), 'magic', {
         sourceId: BOSS_ID,
-        mechanic: true,
+        mechanic: 'spread',
       })
     }
   }

@@ -1,5 +1,7 @@
 import { AWARDS, type Earned } from '../achievements'
+import { ENCOUNTERS, MECHANIC_NAMES } from '../sim/encounters'
 import { HISTORY_LIMIT, label, totals, type Attempt } from '../history'
+import { metOverall, pageFor, type Notes } from '../notes'
 import { COLORS, L, classColor, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
 
@@ -29,14 +31,35 @@ export interface HistoryLayout {
   blocks: Block[]
   /** One per award, in catalogue order, for the other tab. */
   awards: Rect[]
+  /** One per boss, for the notes tab with no page open. */
+  bosses: Rect[]
+  /** One per rung of the open boss's ladder, for the page itself. */
+  rungs: Rect[]
   tabs: Rect[]
   titleY: number
   totalsY: number
+  /** Where an open page writes its two header lines. */
+  pageY: number
   rowH: number
 }
 
-export type HistoryTab = 'pulls' | 'awards'
-export const HISTORY_TABS: HistoryTab[] = ['pulls', 'awards']
+export type HistoryTab = 'pulls' | 'awards' | 'bosses'
+export const HISTORY_TABS: HistoryTab[] = ['pulls', 'awards', 'bosses']
+
+/**
+ * What a tap on the record screen was.
+ *
+ * A union rather than a string now that one of the tabs has something inside
+ * it to press: a hit test that answers "bosses" for both the tab and a boss
+ * cannot be told apart by the caller.
+ */
+export type HistoryHit =
+  | { kind: 'back' }
+  | { kind: 'tab'; tab: HistoryTab }
+  | { kind: 'boss'; index: number }
+
+/** The longest ladder any boss has, which is what the page has to hold. */
+const LADDER_ROWS = Math.max(...ENCOUNTERS.map((e) => e.ladder.length))
 
 function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`
@@ -86,7 +109,31 @@ export function historyLayout(rowCounts: number[]): HistoryLayout {
     awards.push({ x: pad, y: ry, w: L.w - pad * 2, h: awardH })
   }
 
-  // Two tabs, sized off the title line they sit beside.
+  // The boss list is the same list in the same space, at a row apiece, and
+  // an open page is that boss's ladder under two lines of header. Both are
+  // laid out whichever is showing, since a layout that depended on what was
+  // open would have to be recomputed to answer where a press landed.
+  const bossH = Math.max(24, Math.min(40, L.h * 0.05)) * MENU_TEXT
+  const bossGap = 4
+  const bosses: Rect[] = []
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const ry = top + i * (bossH + bossGap)
+    if (ry + bossH > bottom) break
+    bosses.push({ x: pad, y: ry, w: L.w - pad * 2, h: bossH })
+  }
+
+  const pageY = top + 12 * L.ui * MENU_TEXT
+  const rungTop = pageY + 26 * L.ui * MENU_TEXT
+  const rungH = Math.max(
+    22,
+    Math.min(bossH, (bottom - rungTop - bossGap * (LADDER_ROWS - 1)) / LADDER_ROWS),
+  )
+  const rungs: Rect[] = []
+  for (let i = 0; i < LADDER_ROWS; i++) {
+    rungs.push({ x: pad, y: rungTop + i * (rungH + bossGap), w: L.w - pad * 2, h: rungH })
+  }
+
+  // The tabs, sized off the title line they sit beside.
   const tabW = Math.max(64, Math.min(110, L.w * 0.2))
   const tabH = Math.max(20, Math.min(30, L.h * 0.038)) * MENU_TEXT
   const tabs = HISTORY_TABS.map((_, i) => ({
@@ -102,9 +149,12 @@ export function historyLayout(rowCounts: number[]): HistoryLayout {
     back: { x: pad, y: L.h - buttonH - pad, w: L.w - pad * 2, h: buttonH },
     blocks,
     awards,
+    bosses,
+    rungs,
     tabs,
     titleY,
     totalsY,
+    pageY,
     rowH,
   }
 }
@@ -116,11 +166,21 @@ export function hitHistory(
   x: number,
   y: number,
   rowCounts: number[],
-): 'back' | HistoryTab | null {
+  tab: HistoryTab = 'pulls',
+  /** Which boss's page is open, if the notes tab has one. */
+  open: number | null = null,
+): HistoryHit | null {
   const layout = historyLayout(rowCounts)
-  if (inside(layout.back, x, y)) return 'back'
+  if (inside(layout.back, x, y)) return { kind: 'back' }
   for (let i = 0; i < layout.tabs.length; i++) {
-    if (inside(layout.tabs[i]!, x, y)) return HISTORY_TABS[i]!
+    if (inside(layout.tabs[i]!, x, y)) return { kind: 'tab', tab: HISTORY_TABS[i]! }
+  }
+  // Only the list picks a boss. With a page open the rows under the pointer
+  // are that boss's mechanics, and none of them is a thing to press.
+  if (tab === 'bosses' && open === null) {
+    for (let i = 0; i < layout.bosses.length; i++) {
+      if (inside(layout.bosses[i]!, x, y)) return { kind: 'boss', index: i }
+    }
   }
   return null
 }
@@ -137,6 +197,9 @@ export function drawHistory(
   entries: Attempt[],
   earned: Earned,
   tab: HistoryTab,
+  notes: Notes = {},
+  /** Which boss's page is open on the notes tab, if any. */
+  open: number | null = null,
 ): void {
   const layout = historyLayout(entries.map((e) => e.standings.length))
   const pad = Math.max(8, L.w * 0.02)
@@ -159,11 +222,18 @@ export function drawHistory(
     ctx.fillStyle = active ? COLORS.castBar : COLORS.textDim
     ctx.font = font(10, active)
     ctx.textAlign = 'center'
-    ctx.fillText(id === 'pulls' ? 'PULLS' : 'AWARDS', r.x + r.w / 2, r.y + r.h * 0.68)
+    fitText(
+      ctx,
+      id === 'pulls' ? 'PULLS' : id === 'awards' ? 'AWARDS' : 'BOSSES',
+      r.x + r.w / 2,
+      r.y + r.h * 0.68,
+      r.w - 8,
+    )
   })
 
   const t = totals(entries)
   const held = AWARDS.filter((a) => earned[a.id] !== undefined).length
+  const overall = metOverall(notes)
   ctx.textAlign = 'left'
   ctx.font = font(11)
   ctx.fillStyle = COLORS.textDim
@@ -178,7 +248,9 @@ export function drawHistory(
         ]
           .filter((p): p is string => p !== null)
           .join('  ·  ')
-      : `${held} of ${AWARDS.length} earned`,
+      : tab === 'awards'
+        ? `${held} of ${AWARDS.length} earned`
+        : `${overall.met} of ${overall.total} mechanics met`,
     pad,
     layout.totalsY,
     L.w - pad * 2,
@@ -186,7 +258,16 @@ export function drawHistory(
 
   if (tab === 'awards') {
     drawAwards(ctx, layout, earned)
-    drawBack(ctx, layout)
+    drawBack(ctx, layout, 'BACK')
+    return
+  }
+
+  if (tab === 'bosses') {
+    if (open === null) drawBossList(ctx, layout, notes)
+    else drawBossPage(ctx, layout, notes, open)
+    // The way out of a page is the way out of the screen, relabelled. A
+    // second button for it would be a button that is only there sometimes.
+    drawBack(ctx, layout, open === null ? 'BACK' : 'ALL BOSSES')
     return
   }
 
@@ -263,7 +344,156 @@ export function drawHistory(
     )
   }
 
-  drawBack(ctx, layout)
+  drawBack(ctx, layout, 'BACK')
+}
+
+/**
+ * One row per boss: how much of it you have been shown, and how it has gone.
+ *
+ * A boss never pulled is listed rather than hidden, blank and named. The list
+ * is what says how much of the game is still ahead of you, and a list that
+ * only showed what you had already met could not say it.
+ */
+function drawBossList(ctx: CanvasRenderingContext2D, layout: HistoryLayout, notes: Notes): void {
+  layout.bosses.forEach((r, i) => {
+    const page = pageFor(notes, i)
+    if (!page) return
+    const known = page.pulls > 0
+
+    ctx.fillStyle = COLORS.panel
+    ctx.fillRect(r.x, r.y, r.w, r.h)
+    ctx.fillStyle = known ? COLORS.boss : COLORS.panelEdge
+    ctx.fillRect(r.x, r.y, 3, r.h)
+    ctx.strokeStyle = COLORS.panelEdge
+    ctx.lineWidth = 1
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+
+    const baseline = r.y + r.h * 0.66
+    ctx.save()
+    if (!known) ctx.globalAlpha = 0.45
+
+    // Three columns, each with its own slot: the longest boss name is twenty
+    // characters and the longest tally is eighteen, and sized to the text
+    // they printed through each other on a phone.
+    const nameW = r.w * 0.45
+    ctx.textAlign = 'left'
+    ctx.font = font(11, known)
+    ctx.fillStyle = known ? COLORS.boss : COLORS.textDim
+    fitText(ctx, page.name, r.x + 10, baseline, nameW - 10)
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(9)
+    fitText(
+      ctx,
+      known
+        ? `${page.pulls} pull${page.pulls === 1 ? '' : 's'}  ·  ${page.kills} kill${page.kills === 1 ? '' : 's'}`
+        : 'never pulled',
+      r.x + nameW + 8,
+      baseline,
+      r.w - nameW - 58 * MENU_TEXT,
+    )
+
+    ctx.textAlign = 'right'
+
+    // The count is the part the page is for: what is still unmet.
+    ctx.fillStyle = page.metCount === page.rungs.length ? COLORS.hpBar : COLORS.text
+    ctx.font = font(10, true)
+    ctx.fillText(`${page.metCount}/${page.rungs.length}`, r.x + r.w - 10, baseline)
+    ctx.restore()
+  })
+
+  // The same note the award list carries, for the same reason: a list that
+  // silently stops is a list that reads as the whole list.
+  if (ENCOUNTERS.length > layout.bosses.length) {
+    ctx.textAlign = 'center'
+    ctx.font = font(9)
+    ctx.fillStyle = COLORS.textDim
+    ctx.fillText(`${ENCOUNTERS.length - layout.bosses.length} more below`, L.w / 2, layout.back.y - 6)
+  }
+}
+
+/**
+ * One boss's page: every mechanic it owns, and what each has cost you.
+ *
+ * The unmet ones keep their names. What a fight is going to ask is the thing
+ * worth knowing before it asks, and the setup screen already says a bigger
+ * raid or heroic buys the rest -- this is where a player can see which rest.
+ */
+function drawBossPage(
+  ctx: CanvasRenderingContext2D,
+  layout: HistoryLayout,
+  notes: Notes,
+  open: number,
+): void {
+  const page = pageFor(notes, open)
+  if (!page) return
+  const pad = Math.max(8, L.w * 0.02)
+
+  ctx.textAlign = 'left'
+  ctx.fillStyle = COLORS.boss
+  ctx.font = font(13, true)
+  fitText(ctx, page.name, pad, layout.pageY, L.w - pad * 2)
+
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(9)
+  fitText(
+    ctx,
+    page.pulls === 0
+      ? 'never pulled -- everything below is still ahead of you'
+      : [
+          `${page.pulls} pull${page.pulls === 1 ? '' : 's'}`,
+          `${page.kills} kill${page.kills === 1 ? '' : 's'}`,
+          `phase ${page.phase} at deepest`,
+          page.worst !== null ? `most eaten: ${MECHANIC_NAMES[page.worst]}` : null,
+        ]
+          .filter((part): part is string => part !== null)
+          .join('  ·  '),
+    pad,
+    layout.pageY + 14 * L.ui * MENU_TEXT,
+    L.w - pad * 2,
+  )
+
+  page.rungs.forEach((rung, i) => {
+    const r = layout.rungs[i]
+    if (!r) return
+
+    ctx.fillStyle = COLORS.panel
+    ctx.fillRect(r.x, r.y, r.w, r.h)
+    // The stripe is how it has gone: met and never eaten is the good case and
+    // is the only one that gets the kill colour.
+    ctx.fillStyle = !rung.met
+      ? COLORS.panelEdge
+      : rung.hits === 0
+        ? COLORS.hpBar
+        : COLORS.hpBarLow
+    ctx.fillRect(r.x, r.y, 3, r.h)
+    ctx.strokeStyle = COLORS.panelEdge
+    ctx.lineWidth = 1
+    ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+
+    const baseline = r.y + r.h * 0.68
+    ctx.save()
+    if (!rung.met) ctx.globalAlpha = 0.45
+
+    ctx.textAlign = 'left'
+    ctx.font = font(11, rung.met)
+    ctx.fillStyle = rung.met ? COLORS.text : COLORS.textDim
+    fitText(ctx, rung.name, r.x + 10, baseline, r.w * 0.5)
+
+    ctx.textAlign = 'right'
+    ctx.font = font(10, rung.hits > 0)
+    ctx.fillStyle = !rung.met
+      ? COLORS.textDim
+      : rung.hits === 0
+        ? COLORS.hpBar
+        : COLORS.hpBarLow
+    ctx.fillText(
+      !rung.met ? 'not met' : rung.hits === 0 ? 'never caught you' : `caught you ${rung.hits}x`,
+      r.x + r.w - 10,
+      baseline,
+    )
+    ctx.restore()
+  })
 }
 
 /**
@@ -360,7 +590,7 @@ export function drawAwardBanners(
   })
 }
 
-function drawBack(ctx: CanvasRenderingContext2D, layout: HistoryLayout): void {
+function drawBack(ctx: CanvasRenderingContext2D, layout: HistoryLayout, text: string): void {
   const back = layout.back
 
   ctx.fillStyle = 'rgba(15, 17, 26, 0.85)'
@@ -371,5 +601,5 @@ function drawBack(ctx: CanvasRenderingContext2D, layout: HistoryLayout): void {
   ctx.fillStyle = COLORS.castBar
   ctx.font = font(14, true)
   ctx.textAlign = 'center'
-  ctx.fillText('BACK', back.x + back.w / 2, back.y + back.h * 0.62)
+  fitText(ctx, text, back.x + back.w / 2, back.y + back.h * 0.62, back.w - 24)
 }
