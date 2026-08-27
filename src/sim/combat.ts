@@ -82,6 +82,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   rejuvenation: 12,
   riptide: 12,
   shield: 6,
+  // Shorter than a wall as well as weaker: it answers one hit rather than a
+  // stretch of the fight.
+  brace: 4,
+  beacon: 12,
   spread: 4,
   // Short enough that a reaction is a reaction rather than a stroll.
   brand: 1.8,
@@ -216,6 +220,7 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   renew: { heal: 66 },
   rejuvenation: { heal: 47 },
   riptide: { heal: 58 },
+  beacon: { heal: 62 },
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
   mending: { heal: 62 },
@@ -422,6 +427,19 @@ export function applyDamage(
   if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
+    // The one everybody else carries, and it does nothing at all about the
+    // floor.
+    //
+    // Weaker than a wall by a wide margin -- a tank's is what lets it be hit
+    // on purpose, and eleven specs holding the tank's number would be eleven
+    // tanks -- and narrower in the way that matters: it answers what could
+    // not have been avoided and is worth nothing against what was. Measured
+    // the other way round it ate the mistakes the fight is for. The puddle is
+    // the biggest teacher in the game and the gap between a raid that had
+    // practised and one that had not fell from five points to one, because a
+    // brace was standing in for the practice. A press that makes the fire
+    // safe is a press that deletes the fight.
+    else if (!opts.mechanic && getAura(target, 'brace')) final *= 0.7
     // The enrage is a boss damage amplifier, so it only doubles what the raid
     // is taking. Before the party had a physical attack of its own nothing
     // else reached this line, and reading it as "everything doubles" would

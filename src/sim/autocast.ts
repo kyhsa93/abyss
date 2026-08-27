@@ -33,6 +33,20 @@ export function autoPress(s: SimState): number[] {
   // own idea of a target, because the player's target is whatever the bar is
   // already aimed at.
   const order: number[] = []
+
+  // The brace, first of all and for everybody who is not holding the boss.
+  // The party AI reaches for its own at the same line; an autocast that did
+  // not would be an autocast that plays every spec one button worse than the
+  // four bodies standing next to it.
+  if (
+    player.role !== 'tank' &&
+    kit.defensive &&
+    player.hp < player.maxHp * BRACE_AT &&
+    (player.cooldowns[kit.defensive] ?? 0) <= 0
+  ) {
+    order.push(slotOf(kit.defensive))
+  }
+
   if (player.role === 'healer') {
     const hurt = mostHurt(s)
     const dire = hurt !== null && hurt.hp / hurt.maxHp < 0.45
@@ -101,6 +115,16 @@ export function autoPress(s: SimState): number[] {
  * screen -- but nothing the AI steers ever will.
  */
 const PACT_FLOOR = 0.5
+
+/**
+ * When the autocast reaches for the brace.
+ *
+ * Between the timid AI's line and the greedy one's, since the player is not
+ * one of the three: it is a press the thumb can always make earlier, and an
+ * autocast that spent it at fifty-five percent would spend it on nothing most
+ * of the time.
+ */
+const BRACE_AT = 0.42
 
 /**
  * What a damage spec should press, best first, as ability ids.

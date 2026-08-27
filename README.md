@@ -1543,6 +1543,62 @@ edge, so a hunter would have stood at a distance the AI was happy with and
 fired nothing. A shooter is asked about its own rule now. It is only asked
 about the boss: running from a thrall costs more uptime than the thrall does.
 
+**Five buttons each, and the fifth is always the same question.** Every spec
+carries exactly five: what it presses when nothing else is up, what it keeps
+running, what it saves for, the one that is only its own, and — always under
+the same finger — what it does when none of that is the question any more.
+Before this the bars ran from two to five, and the eleven specs at the short
+end were the ones with no answer to the floor at all: a mechanic here is
+dodged or eaten, and only the tanks and the two leather melee owned anything
+to do about the eating.
+
+That fifth button is a brace: thirty percent off for four seconds, free, off
+the global cooldown, on a fifty-second cooldown. Deliberately not a wall — a
+tank's is sixty percent for six, and eleven bodies holding the tank's number
+would be eleven tanks. The party AI reaches for it by personality, since it is
+the same decision the reaction delay already models: the timid one at
+fifty-five percent health, the steady one at forty-two, the greedy one at
+thirty and sometimes not at all.
+
+**And it does nothing at all about the floor.** A brace answers what could not
+have been avoided — the beat that hits everybody, the boss's dot, a thrall in
+your back — and is worth nothing against what you stood in. The rule is a
+design one rather than a tuning one: avoidable damage is the only thing
+practice removes, so a press that makes the fire safe is a press that deletes
+the fight. It is checked directly, both halves of it, because half of the rule
+is not the rule.
+
+It still pays, because the unavoidable is most of what kills a dealer over two
+minutes: deaths over sixty pulls a spec fell where they were worst — the mage
+from 37 to 30, the warlock 30 to 26, the rogue 27 to 21, the balance druid 28
+to 24 — and the damage spread across the ten dealers came in from 1.34 to
+**1.30**, since the specs that were dying most were the ones losing the most
+damage to being dead.
+
+And the teaching survived it, which is the number that decided whether any of
+this shipped. At 120 paired pulls a mechanic, before and after: the puddle
+teaches 4.0 points against 4.2, the mirror 6.9 against 7.0, the fault 6.3
+against 5.5, the judgement 10.2 against 8.3 — all four still real, the
+judgement's the only one that moved by more than its error bar, and it is the
+one answered by a healer rather than by feet, so the healers' own new buttons
+are where that went.
+
+The first read of this said something else. The harness prints the same gaps
+at thirty pulls a row, and there the puddle went from 5 points to 1 — which
+was a phantom, and one the file warns about in as many words: a check whose
+error is the size of the thing it is judging gets answered by tuning until it
+goes green. `scripts/teachprobe.ts` exists to print the bar that belongs to the
+number, and at 120 runs the gap had not moved at all.
+
+**One of those five had never been reachable.** The `attack` slot — a healer's
+damage button and the mage's one instant — was in the kit, was pressed by the
+party AI, and was not on the bar the screen draws or the keyboard maps. Five
+specs carried a button only the four bodies standing next to you could press.
+The README has been describing Ice Lance as "the one thing it can press with
+its feet moving" for two rounds; for the player it did not exist. The check
+that would have caught it asks the question directly now: every ability in a
+kit has to appear on that spec's bar.
+
 **Leather melee carry a way out.** A rogue's Sprint and a cat's Dash: half
 again the speed for five seconds, free, on a forty-five second cooldown. Melee
 range is 52 units, so walking out of a puddle is walking out of the fight,
@@ -1551,11 +1607,18 @@ afford to eat a hit through, and leather could not answer it at all. It is one
 exit and one return rather than a way to play the whole fight at speed, which
 is what the five seconds are for.
 
-**A warrior charges, and so does a bear.** Both warrior specs carry it and the
-guardian druid carries Wild Charge, which is the same rule under another name:
-a tank that cannot get back to whatever wandered off is a tank whose raid is
-being eaten while it jogs. Every rage tank has one, and the check asks for them
-by resource rather than by name so a fourth one cannot quietly ship without.
+**A warrior charges, and so does a bear — and now the paladin rides.** Both
+warrior specs carry Charge, the guardian druid carries Wild Charge, and the
+protection paladin carries Divine Steed: a tank that cannot get back to
+whatever wandered off is a tank whose raid is being eaten while it jogs.
+
+The paladin was the one tank without one, on the grounds that a charge is
+where a warrior's rage comes from and a paladin runs on mana. That was the
+justification for the button, not for the gap it left, and the gap measured:
+against the same fights with the same healers, a protection paladin took
+0.019 bars a second and the other two took 0.008 and 0.007. With a way to
+close its own gap it takes 0.009, which is the same tank as the other two
+rather than the one that spends the fight walking.
 
 Measured rather than assumed, the same way the warrior's was: 2.3 uses a pull,
 never spent from inside melee, average gap 111 units.

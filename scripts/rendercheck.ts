@@ -950,6 +950,94 @@ for (const [label, w, h] of [
     }
   }
   expect('no ability carries a key of its own', mislabelled.length === 0, mislabelled.join('; '))
+
+  // Five buttons a spec, and every one of them reachable.
+  //
+  // The second half is the one that had been quietly false. `attack` -- the
+  // healer's damage button and the mage's one instant -- was in the kit, was
+  // pressed by the party AI, and was never listed on the bar: five specs
+  // carried a button the screen did not offer and no key could reach. An
+  // ability the player cannot press is an ability only four fifths of the
+  // raid has.
+  const shapes: string[] = []
+  const unreachable: string[] = []
+  for (const pick of SPEC_OPTIONS) {
+    const bar = abilityBar(pick)
+    if (bar.length !== BAR_SLOTS) shapes.push(`${specLabel(pick)}: ${bar.length}`)
+    const kit = specOf(pick).abilities as unknown as Record<string, string | null>
+    for (const [slot, id] of Object.entries(kit)) {
+      if (id && !bar.includes(id)) unreachable.push(`${specLabel(pick)} ${slot}=${id}`)
+    }
+  }
+  expect(`all ${SPEC_OPTIONS.length} specs carry ${BAR_SLOTS} buttons`, shapes.length === 0, shapes.join(', '))
+  expect('and every one of them is on the bar', unreachable.length === 0, unreachable.join(', '))
+
+  // The brace is the fifth for eleven of them, and it has to be the same
+  // answer everywhere: free, off the global, and long enough that it is a
+  // reaction rather than a rotation.
+  const braces = SPEC_OPTIONS.map((pick) => ({ pick, id: specOf(pick).abilities.defensive }))
+    .filter((b): b is { pick: Pick; id: string } => b.id !== null)
+  const wrong = braces.filter(({ id }) => {
+    const a = ABILITIES[id]!
+    return a.cost !== 0 || !a.offGcd || a.cooldown < 40
+  })
+  expect(
+    `all ${braces.length} specs answer the floor for free`,
+    wrong.length === 0 && braces.length === SPEC_OPTIONS.length,
+    wrong.map((b) => b.id).join(', ') || `${braces.length} of ${SPEC_OPTIONS.length}`,
+  )
+  // And a brace is not a wall: the tank's is worth keeping tanks for.
+  const walls = braces.filter(({ id }) => ABILITIES[id]!.aura === 'shield')
+  expect(
+    'and only the tanks carry the wall',
+    walls.every(({ pick }) => roleOf(pick) === 'tank') && walls.length === 3,
+    walls.map((w) => specLabel(w.pick)).join(', '),
+  )
+}
+
+// --- a brace does not make the fire safe -------------------------------------
+//
+// The rule the whole fifth button hangs on. A brace answers what could not be
+// avoided and is worth nothing against what was, because the other way round
+// it stands in for practice: measured with it covering everything, the gap
+// between an unpractised raid and a practised one on the Warden's puddle --
+// the biggest teacher in the game -- fell from five points to one.
+{
+  const s = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!))
+  const you = s.actors.find((a) => a.isPlayer)!
+  const monster = bossOf(s)
+
+  const hit = (mechanic: boolean): number => {
+    you.hp = you.maxHp
+    if (mechanic) applyDamage(s, you, 400, 'magic', { sourceId: monster.id, mechanic: 'puddle' })
+    else applyDamage(s, you, 400, 'magic', { sourceId: monster.id })
+    return you.maxHp - you.hp
+  }
+
+  const barePlain = hit(false)
+  const bareMechanic = hit(true)
+  addAura(you, 'brace', you.id)
+  const bracedPlain = hit(false)
+  const bracedMechanic = hit(true)
+
+  expect(
+    'a brace takes a bite out of what the fight throws at everybody',
+    bracedPlain < barePlain * 0.8,
+    `${barePlain} -> ${bracedPlain}`,
+  )
+  expect(
+    'and nothing at all out of what you stood in',
+    bracedMechanic === bareMechanic,
+    `${bareMechanic} -> ${bracedMechanic}`,
+  )
+  // The tank's wall is the one that covers both, which is what a tank is.
+  clearAura(you, 'brace')
+  addAura(you, 'shield', you.id)
+  expect(
+    'a wall covers the floor as well',
+    hit(true) < bareMechanic * 0.6,
+    `${bareMechanic} -> ${hit(true)}`,
+  )
 }
 
 // A taunt has to take the boss back off whoever ran away with it.
@@ -1696,10 +1784,10 @@ for (const [label, w, h] of [
   )
   expect(
     `only the ${free.length} defensives, taunts and charges are free`,
-    // Nine now: leather melee carry a free way out of a puddle, for the same
-    // reason a charge is free — it is the answer to the floor, and an answer
-    // you sometimes cannot afford is worse than not having one.
-    shouldBeFree && free.length === 10,
+    // One a spec now, plus the tanks' own: the answer to the floor is free
+    // for the same reason a charge is — an answer you sometimes cannot afford
+    // is worse than not having one.
+    shouldBeFree && free.length === 24,
     free.map((a) => a.id).join(', '),
   )
 
@@ -1872,8 +1960,9 @@ for (const [label, w, h] of [
   expect('a feral player is a melee on energy', player.resource === 'energy' && player.melee, `${player.resource}`)
 
   const bar = abilityBar({ classId: player.classId, spec: player.spec })
-  // Four now: leather melee carry a way back onto the boss as well.
-  expect('with four buttons of its own', bar.length === 4, bar.join(', '))
+  // Five, like everything else: a way back onto the boss and a way to live
+  // through what it could not leave.
+  expect('with five buttons of its own', bar.length === 5, bar.join(', '))
   // Eight seconds, which is before the first thralls arrive: the player's own
   // targeting prefers an add, and an add that dies takes the bleed with it.
   const rng = new Rng(0x51ed)
@@ -2686,9 +2775,15 @@ for (const [label, w, h] of [
   expect('both warrior specs carry it', armed.length === warriors.length, `${armed.length}`)
 
   const bars = warriors.map((p) => abilityBar(p))
+  // It used to sit in a different slot in each of them, which is the example
+  // that put the key on the bar index instead of on the ability. Every spec
+  // carries the same five slots now, so a shared button lands under the same
+  // finger in both -- better for the hands, and no reason at all to move the
+  // key back onto the ability. So the rule is checked rather than the example
+  // that once demonstrated it.
   expect(
-    'and it sits in a different slot in each',
-    bars[0]!.indexOf('charge') !== bars[1]!.indexOf('charge'),
+    'and the slot is what says which key it is on',
+    bars[0]!.indexOf('charge') === bars[1]!.indexOf('charge') && !('key' in charge),
     bars.map((b) => b.indexOf('charge')).join(' and '),
   )
 
@@ -7645,14 +7740,17 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 // --- everything that has to reach the boss can -------------------------------
 //
 // A tank that cannot get back to what wandered off is a tank whose raid is
-// being eaten while it jogs. Both rage tanks carry a charge; both refuse to
-// spend it from inside melee, where it would buy nothing.
+// being eaten while it jogs. Every tank carries one now and all of them refuse
+// to spend it from inside melee, where it would buy nothing.
+//
+// It used to be the rage tanks alone, on the grounds that a charge is where a
+// warrior's rage comes from. That is an argument for the button being free,
+// not for the third tank going without: measured against the same fights with
+// the same healers, the paladin took 0.019 bars a second and the other two
+// took 0.008 and 0.007. Asked for by role now rather than by resource.
 {
-  const chargers = SPEC_OPTIONS.filter((option) => {
-    const spec = specOf(option)
-    return spec.role === 'tank' && spec.resource === 'rage'
-  })
-  expect('the rage tanks are the ones that charge', chargers.length >= 2, `${chargers.length}`)
+  const chargers = SPEC_OPTIONS.filter((option) => specOf(option).role === 'tank')
+  expect('every tank carries a way back', chargers.length === 3, `${chargers.length}`)
 
   for (const pick of chargers) {
     const spec = specOf(pick)

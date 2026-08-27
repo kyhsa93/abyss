@@ -210,6 +210,54 @@ const list: Ability[] = [
   { id: 'flame_shock', name: 'Flame Shock', role: 'dps', kind: 'damage', castTime: 0, cooldown: 13, cost: 24, amount: 83, threatMult: 1, aura: 'flame_shock', range: SPELL },
   { id: 'chain_lightning', name: 'Chain Lightning', role: 'dps', kind: 'damage', castTime: 1.5, cooldown: 9, cost: 34, amount: 430, threatMult: 1, aura: null, range: SPELL },
 
+  // --- the fifth button ------------------------------------------------------
+  //
+  // Everybody now carries an answer to the floor, which is a thing only tanks
+  // and leather melee had. A mechanic in this game is dodged or eaten, and
+  // eleven of the seventeen specs had nothing at all to do about the eating —
+  // so the one press that separated a good pull from a bad one was a press
+  // most of the roster did not own.
+  //
+  // A brace, not a wall. Thirty percent off for four seconds against a tank's
+  // sixty for six, and on a longer cooldown: it is enough to live through the
+  // one thing you could not get out of, and not enough to stand in the next
+  // one on purpose. Free of resource for the same reason a taunt is — an
+  // answer to a mechanic that is sometimes unaffordable is worse than none.
+  { id: 'die_by_the_sword', name: 'Die by the Sword', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'shield_of_vengeance', name: 'Shield of Vengeance', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'fade', name: 'Fade', role: 'healer', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'dispersion', name: 'Dispersion', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'barkskin', name: 'Barkskin', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'survival_instincts', name: 'Survival Instincts', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'astral_shift', name: 'Astral Shift', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'ice_barrier', name: 'Ice Barrier', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'unending_resolve', name: 'Unending Resolve', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'deterrence', name: 'Deterrence', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'evasion', name: 'Evasion', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+  { id: 'divine_shield', name: 'Divine Shield', role: 'healer', kind: 'defensive', castTime: 0, cooldown: 50, cost: 0, amount: 0, threatMult: 0, aura: 'brace', range: 0, offGcd: true },
+
+  // Two more ways to close a gap, on the same terms as the warrior's: free,
+  // refused from inside melee, and the reason a class that has to be
+  // somewhere can get there.
+  { id: 'divine_steed', name: 'Divine Steed', role: 'tank', kind: 'charge', castTime: 0, cooldown: 15, cost: 0, amount: 0, threatMult: 0, aura: null, range: CHARGE_RANGE, minRange: MELEE + 40 },
+  // The hunter's is the other direction — it is the one class whose damage
+  // falls off when something walks onto it, so its way out is speed rather
+  // than a way in.
+  { id: 'cheetah', name: 'Aspect of the Cheetah', role: 'dps', kind: 'defensive', castTime: 0, cooldown: 45, cost: 0, amount: 0, threatMult: 0, aura: 'sprint', range: 0, offGcd: true },
+
+  // And the instants that give a walking spec something to press. The mage's
+  // `ice_lance` was the first of these and was unreachable for two rounds:
+  // it sat in the kit, the bar never listed it, and only the party AI ever
+  // pressed one.
+  { id: 'shadow_word_death', name: 'Shadow Word: Death', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 22, amount: 196, threatMult: 1, aura: null, range: SPELL },
+  { id: 'sunfire', name: 'Sunfire', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 21, amount: 188, threatMult: 1, aura: null, range: SPELL },
+  { id: 'exorcism', name: 'Exorcism', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 22, amount: 197, threatMult: 1, aura: null, range: 200 },
+  { id: 'earth_shock', name: 'Earth Shock', role: 'dps', kind: 'damage', castTime: 0, cooldown: 9, cost: 24, amount: 205, threatMult: 1, aura: null, range: SPELL },
+
+  // The paladin's healing kit was two buttons, which is the smallest in the
+  // game by half. A trickle it can put on the tank and leave there.
+  { id: 'beacon_of_light', name: 'Beacon of Light', role: 'healer', kind: 'heal', castTime: 0, cooldown: 9, cost: 30, amount: 0, threatMult: 0, aura: 'beacon', range: HEAL_RANGE },
+
   // --- warlock: instant, and paid for out of its own health ----------------
   //
   // Everything it presses is instant except the finisher, which is the shape

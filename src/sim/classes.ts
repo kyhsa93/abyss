@@ -296,7 +296,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 5200,
         block: 0,
         power: 100,
-        abilities: kit({ filler: 'mortal_strike', overTime: 'rend', finisher: 'execute', mobility: 'charge' }),
+        abilities: kit({
+          filler: 'mortal_strike',
+          overTime: 'rend',
+          finisher: 'execute',
+          mobility: 'charge',
+          defensive: 'die_by_the_sword',
+        }),
       },
     ],
   },
@@ -323,6 +329,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           threat: 'avengers_shield',
           taunt: 'hand_of_reckoning',
           defensive: 'divine_protection',
+          mobility: 'divine_steed',
         }),
       },
       {
@@ -335,7 +342,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 4200,
         block: 0,
         power: 1100,
-        abilities: kit({ filler: 'holy_light', finisher: 'lay_on_hands', attack: 'holy_shock' }),
+        abilities: kit({
+          filler: 'holy_light',
+          overTime: 'beacon_of_light',
+          finisher: 'lay_on_hands',
+          defensive: 'divine_shield',
+          attack: 'holy_shock',
+        }),
       },
       {
         id: 'retribution',
@@ -352,6 +365,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'crusader_strike',
           overTime: 'judgement',
           finisher: 'hammer_of_wrath',
+          defensive: 'shield_of_vengeance',
+          attack: 'exorcism',
         }),
       },
     ],
@@ -377,6 +392,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'heal',
           overTime: 'renew',
           finisher: 'flash_heal',
+          defensive: 'fade',
           attack: 'smite',
         }),
       },
@@ -394,6 +410,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'mind_flay',
           overTime: 'shadow_word_pain',
           finisher: 'mind_blast',
+          defensive: 'dispersion',
+          attack: 'shadow_word_death',
         }),
       },
     ],
@@ -441,6 +459,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'healing_touch',
           overTime: 'rejuvenation',
           finisher: 'swiftmend',
+          defensive: 'barkskin',
           attack: 'starsurge',
         }),
       },
@@ -454,7 +473,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 2300,
         block: 0,
         power: 950,
-        abilities: kit({ filler: 'wrath', overTime: 'moonfire', finisher: 'starfire' }),
+        abilities: kit({
+          filler: 'wrath',
+          overTime: 'moonfire',
+          finisher: 'starfire',
+          defensive: 'barkskin',
+          attack: 'sunfire',
+        }),
       },
       {
         // The other half of the same role. Cat form trades the spell list and
@@ -470,7 +495,13 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         armor: 2400,
         block: 0,
         power: 100,
-        abilities: kit({ filler: 'shred', overTime: 'rake', finisher: 'ferocious_bite', mobility: 'dash' }),
+        abilities: kit({
+          filler: 'shred',
+          overTime: 'rake',
+          finisher: 'ferocious_bite',
+          mobility: 'dash',
+          defensive: 'survival_instincts',
+        }),
       },
     ],
   },
@@ -495,6 +526,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'healing_wave',
           overTime: 'riptide',
           finisher: 'chain_heal',
+          defensive: 'astral_shift',
           attack: 'lava_burst',
         }),
       },
@@ -512,6 +544,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'lightning_bolt',
           overTime: 'flame_shock',
           finisher: 'chain_lightning',
+          defensive: 'astral_shift',
+          attack: 'earth_shock',
         }),
       },
     ],
@@ -537,6 +571,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'frostbolt',
           overTime: 'living_bomb',
           finisher: 'pyroblast',
+          defensive: 'ice_barrier',
           attack: 'ice_lance',
         }),
       },
@@ -570,6 +605,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           overTime: 'immolate',
           finisher: 'chaos_bolt',
           pact: 'life_tap',
+          defensive: 'unending_resolve',
         }),
       },
     ],
@@ -596,6 +632,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           filler: 'steady_shot',
           overTime: 'serpent_sting',
           finisher: 'aimed_shot',
+          defensive: 'deterrence',
+          mobility: 'cheetah',
         }),
       },
     ],
@@ -623,6 +661,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
           overTime: 'rupture',
           finisher: 'eviscerate',
           mobility: 'sprint',
+          defensive: 'evasion',
         }),
       },
     ],
@@ -1043,15 +1082,21 @@ export const SLOTS = makeSlots(5)
  */
 export function abilityBar(pick: Pick): string[] {
   const a = specOf(pick).abilities
+  // Five slots, and the fifth is always the one that answers the floor. Every
+  // spec fills the first four with what it is -- what it presses, what it
+  // keeps up, what it saves for, and the one thing that is only its own -- and
+  // the last with what it does when none of that is the question any more.
+  // A player who changes class keeps one finger where it was.
   return [
     a.filler,
     a.threat,
     a.overTime,
     a.finisher,
     a.pact,
-    a.defensive,
+    a.attack,
     a.taunt,
     a.mobility,
+    a.defensive,
   ].filter((id): id is string => id !== null)
 }
 

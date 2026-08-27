@@ -36,6 +36,8 @@ export type AuraId =
   | 'ward' // priest: damage taken down, applied before the damage arrives
   | 'mending' // druid tank: a slice of what it just took, given back over time
   | 'shield' // damage reduction on the tank
+  | 'brace' // the lesser one everybody else carries
+  | 'beacon' // heal over time on a party member
   | 'sunder' // boss: stacks on whoever is holding it, and makes them softer
   | 'hunted' // boss: something has picked you, and it is walking over
   | 'spread' // detonates on expiry, damages everyone nearby

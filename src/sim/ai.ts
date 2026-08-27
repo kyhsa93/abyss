@@ -1860,9 +1860,47 @@ function specFor(actor: Actor) {
   return specOf({ classId: actor.classId, spec: actor.spec })
 }
 
+/**
+ * The health at which a body that is not holding the boss reaches for its
+ * brace.
+ *
+ * By personality, since it is the same decision the reaction delay and the
+ * mistake roll already model: the timid one presses it early and wastes it,
+ * the greedy one presses it late and sometimes not at all. A single number
+ * here would have been one more thing every party member does identically.
+ */
+function braceLine(actor: Actor): number {
+  const personality = actor.ai?.personality
+  if (personality === 'timid') return 0.55
+  if (personality === 'greedy') return 0.3
+  return 0.42
+}
+
+/**
+ * Whether this one wants its brace up now.
+ *
+ * Read off its own health rather than off what the boss is casting. A tank
+ * knows what is coming for it -- the slam is aimed at whoever is holding the
+ * boss -- and nobody else does: what lands on a dealer is a floor it failed
+ * to leave or a beat that hits everybody, and neither announces itself to one
+ * body in particular. So the brace answers the thing that is already
+ * happening, which is the health bar going down.
+ */
+function wantsBrace(actor: Actor): boolean {
+  if (actor.role === 'tank') return false
+  const kit = specFor(actor).abilities
+  if (!kit.defensive) return false
+  const ability = ABILITIES[kit.defensive]
+  if (!ability?.offGcd) return false
+  if ((actor.cooldowns[kit.defensive] ?? 0) > 0) return false
+  return actor.alive && actor.hp < actor.maxHp * braceLine(actor)
+}
+
 /** Is there anything worth pressing that ignores the global cooldown? */
 function canUseOffGcd(s: SimState, actor: Actor): boolean {
   const kit = specFor(actor).abilities
+  // A brace is worth having up during a global as much as between two.
+  if (wantsBrace(actor)) return true
   if (!kit.defensive) return false
   const ability = ABILITIES[kit.defensive]
   if (!ability?.offGcd) return false
@@ -2045,6 +2083,12 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   const ai = actor.ai!
   const kit = specFor(actor).abilities
 
+  // Its own skin first, and only when its own skin is the problem. A healer
+  // that dies is every other health bar going down as well.
+  if (wantsBrace(actor) && kit.defensive && !rng.chance(ai.mistakeChance)) {
+    if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) return
+  }
+
   // Above everything, including the emergency below it. The emergency is
   // about who is lowest and this is about who is out of time, and the marked
   // are hardly ever the lowest — that is the whole difficulty of the
@@ -2111,6 +2155,13 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   const b = boss(s)
   if (!b.alive) return
   const kit = specFor(actor).abilities
+
+  // The brace, before anything it might rather be doing. It is off the global
+  // and free, so the only thing pressing it costs is the tick -- and a dealer
+  // that dies at forty percent deals nothing for the rest of the pull.
+  if (wantsBrace(actor) && kit.defensive && !rng.chance(actor.ai!.mistakeChance)) {
+    if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) return
+  }
 
   // Nothing at all goes out while the surface is closed. A dealer has no
   // second job to fall back on, which is the cost of the mechanic.

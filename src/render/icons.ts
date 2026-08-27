@@ -105,6 +105,29 @@ const ICONS: Record<string, IconSpec> = {
   serpent_sting: { shape: 'arrow', colour: '#4d7c0f' },
   aimed_shot: { shape: 'arrow', colour: '#facc15', repeat: 2 },
 
+  // the fifth button: an answer to the floor for everyone who had none.
+  // Braces are shields in the wearer's own colour, ways out are arrows, and
+  // the instants are the shape of what they throw.
+  die_by_the_sword: { shape: 'shield', colour: '#ef4444' },
+  shield_of_vengeance: { shape: 'shield', colour: '#f59e0b' },
+  divine_shield: { shape: 'shield', colour: '#fef08a' },
+  divine_steed: { shape: 'arrow', colour: '#f5d0a9' },
+  fade: { shape: 'shield', colour: '#94a3b8' },
+  dispersion: { shape: 'shield', colour: '#7e22ce' },
+  shadow_word_death: { shape: 'spiral', colour: '#a78bfa' },
+  barkskin: { shape: 'shield', colour: '#78350f' },
+  sunfire: { shape: 'orb', colour: '#fbbf24' },
+  survival_instincts: { shape: 'shield', colour: '#ff7d0a' },
+  astral_shift: { shape: 'shield', colour: '#0f8fe8' },
+  exorcism: { shape: 'burst', colour: '#fde68a' },
+  earth_shock: { shape: 'orb', colour: '#92400e' },
+  ice_barrier: { shape: 'shield', colour: '#7dd3fc' },
+  unending_resolve: { shape: 'shield', colour: '#9482c9' },
+  deterrence: { shape: 'shield', colour: '#abd473' },
+  cheetah: { shape: 'arrow', colour: '#65a30d' },
+  evasion: { shape: 'shield', colour: '#cbd5e1' },
+  beacon_of_light: { shape: 'star', colour: '#fef9c3' },
+
   // warlock
   shadow_bolt: { shape: 'orb', colour: '#9482c9' },
   immolate: { shape: 'flame', colour: '#7e22ce' },
