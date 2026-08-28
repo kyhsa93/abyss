@@ -1,6 +1,6 @@
 import { CLASSES, type DifficultyId, type Pick, type SpecId } from './sim/classes'
 import { ENCOUNTERS } from './sim/encounters'
-import type { Outcome, SimState } from './sim/types'
+import type { Outcome, Role, SimState } from './sim/types'
 
 /**
  * What the meter said, pull by pull.
@@ -15,6 +15,14 @@ export interface Standing {
   name: string
   classId: string
   spec: string
+  /**
+   * Which board this row belongs on.
+   *
+   * Kept on the row rather than looked up from the class, because a record
+   * outlives the roster: a spec that changes role in a later version must not
+   * silently move an old row onto the other board.
+   */
+  role: Role
   dps: number
   hps: number
   isPlayer: boolean
@@ -53,14 +61,25 @@ export const HISTORY_LIMIT = 20
 export const STANDING_LIMIT = 9
 
 /**
- * The meter's ranking.
+ * What a row is measured on.
  *
- * Damage plus healing, the same way the after-action report ranks, so a
- * healer is not permanently last on a board that only counts damage. Lives
- * here rather than in the meter because the record has to agree with what was
- * on screen — two rankings would eventually be two different answers.
+ * Damage and healing are not the same unit and adding them was the meter's
+ * oldest lie: a healer on three thousand a second was ranked above a damage
+ * dealer on two thousand nine hundred as though the two numbers answered the
+ * same question. They answer different ones, so each row is scored on its own,
+ * and rows scored on different numbers are never ranked against each other.
  */
-export function standings(s: SimState): Standing[] {
+export function score(row: Standing): number {
+  return row.role === 'healer' ? row.hps : row.dps
+}
+
+/** The unit a row is quoted in, since it is no longer always the same one. */
+export function unit(row: Standing): 'dps' | 'hps' {
+  return row.role === 'healer' ? 'hps' : 'dps'
+}
+
+/** Every party member's numbers, in no particular order. */
+function tallied(s: SimState): Standing[] {
   const seconds = Math.max(1, s.time)
   return s.actors
     .filter((a) => a.faction === 'party')
@@ -68,11 +87,86 @@ export function standings(s: SimState): Standing[] {
       name: a.name,
       classId: a.classId,
       spec: a.spec,
+      role: a.role,
       dps: Math.round((s.tally[a.id]?.damage ?? 0) / seconds),
       hps: Math.round((s.tally[a.id]?.healing ?? 0) / seconds),
       isPlayer: a.isPlayer,
     }))
-    .sort((a, b) => b.dps + b.hps - (a.dps + a.hps))
+}
+
+/**
+ * The record's ranking: two boards, one after the other.
+ *
+ * One row per person — this is a table of who was there, not a board — with
+ * the damage board first and the healing board after it, each sorted on its
+ * own number. Lives here rather than in the screens that draw it because the
+ * record has to agree with what was on screen, and two rankings would
+ * eventually be two different answers.
+ */
+export function standings(s: SimState): Standing[] {
+  const rows = tallied(s)
+  const damage = rows.filter((r) => r.role !== 'healer').sort((a, b) => b.dps - a.dps)
+  const healing = rows.filter((r) => r.role === 'healer').sort((a, b) => b.hps - a.hps)
+  return [...damage, ...healing]
+}
+
+/**
+ * The two live boards, which are not a partition.
+ *
+ * A healer who spends a gap on damage did that damage and belongs on the
+ * damage board for it; a druid who threw one heal belongs on the healing one.
+ * So membership is having contributed the number rather than owning the role,
+ * and a zero is left off rather than padding the board with rows that say
+ * nothing. Whoever is reading it is put back on by the meter itself.
+ */
+export function damageBoard(s: SimState): Standing[] {
+  return tallied(s)
+    .filter((r) => r.dps > 0)
+    .sort((a, b) => b.dps - a.dps)
+}
+
+export function healingBoard(s: SimState): Standing[] {
+  return tallied(s)
+    .filter((r) => r.hps > 0)
+    .sort((a, b) => b.hps - a.hps)
+}
+
+/**
+ * Which board the live meter is showing, and who is on it.
+ *
+ * Three rows on a portrait phone is no room for two boards, and the question
+ * the meter answers during a pull is "am I pulling my weight" rather than
+ * "how is everyone doing" — so it shows the board the reader is on. Decided
+ * here rather than inside the drawing, because which board a player is
+ * looking at is a rule about the game and a rule that lives in a draw call is
+ * a rule nothing can check.
+ */
+export function meterBoard(s: SimState): { healing: boolean; rows: Standing[] } {
+  const healing = s.actors.find((a) => a.isPlayer)?.role === 'healer'
+  return { healing, rows: healing ? healingBoard(s) : damageBoard(s) }
+}
+
+/**
+ * Nine rows out of a raid, split the way the raid is.
+ *
+ * Taking the first nine of a role-grouped board would keep the damage board
+ * and throw the healing one away entirely: twenty-five men field twenty
+ * damage rows before the first healer, so a record of a full raid would have
+ * held no evidence that anybody was healed. So the cap is shared out in the
+ * proportion the raid actually has, and the healing board is never rounded
+ * down to nothing — one healer named is the difference between a partial
+ * record and a wrong one.
+ */
+function capped(board: Standing[]): Standing[] {
+  if (board.length <= STANDING_LIMIT) return [...board]
+  const healers = board.filter((r) => r.role === 'healer')
+  const damage = board.filter((r) => r.role !== 'healer')
+  if (healers.length === 0) return damage.slice(0, STANDING_LIMIT)
+  if (damage.length === 0) return healers.slice(0, STANDING_LIMIT)
+  const share = Math.round((STANDING_LIMIT * healers.length) / board.length)
+  // Both boards keep at least one row, whatever the rounding said.
+  const forHealers = Math.max(1, Math.min(STANDING_LIMIT - 1, share))
+  return [...damage.slice(0, STANDING_LIMIT - forHealers), ...healers.slice(0, forHealers)]
 }
 
 /** Builds the record of a finished pull. Pure, so the checks can call it. */
@@ -80,11 +174,20 @@ export function record(s: SimState, at: number): Attempt | null {
   if (s.outcome === 'ongoing') return null
 
   const board = standings(s)
-  const top = board.slice(0, STANDING_LIMIT)
+  const top = capped(board)
   // Your own row is kept whatever it placed. A board you dropped off the
   // bottom of is a board that does not answer the question you opened it for.
+  //
+  // Put back into its own block rather than onto the end of the list: the
+  // last row is a healing row now, so writing a damage dealer there would
+  // both file them under the wrong ranking and evict the healer whose place
+  // the cap had just gone to the trouble of reserving.
   const own = board.find((row) => row.isPlayer)
-  if (own && !top.includes(own)) top[top.length - 1] = own
+  if (own && !top.includes(own)) {
+    const mine = (row: Standing) => (row.role === 'healer') === (own.role === 'healer')
+    const last = top.map(mine).lastIndexOf(true)
+    top[last >= 0 ? last : top.length - 1] = own
+  }
 
   const player = s.actors.find((a) => a.isPlayer)
   return {
@@ -102,7 +205,17 @@ export function record(s: SimState, at: number): Attempt | null {
 function validStanding(row: unknown): row is Standing {
   if (typeof row !== 'object' || row === null) return false
   const r = row as Partial<Standing>
-  return typeof r.name === 'string' && typeof r.dps === 'number' && typeof r.hps === 'number'
+  if (typeof r.name !== 'string' || typeof r.dps !== 'number' || typeof r.hps !== 'number') {
+    return false
+  }
+  // A record written before the boards were split has no role on it. Read one
+  // off the numbers rather than dropping the row: whoever healed more than
+  // they hit was the healer, which is the same answer the old board's own
+  // label logic gave, so an old night reads the way it always did.
+  if (r.role !== 'tank' && r.role !== 'healer' && r.role !== 'dps') {
+    ;(row as Standing).role = r.hps! > r.dps! ? 'healer' : 'dps'
+  }
+  return true
 }
 
 function valid(entry: unknown): entry is Attempt {
@@ -194,8 +307,9 @@ export function trend(entries: Attempt[], boss: string, difficulty: DifficultyId
 export function totals(entries: Attempt[]): Totals {
   const own = entries.flatMap((e) => e.standings.filter((r) => r.isPlayer))
   const any = entries.flatMap((e) => e.standings)
-  const best = (rows: Standing[]) =>
-    rows.length > 0 ? Math.max(...rows.map((r) => r.dps + r.hps)) : 0
+  // Each row against its own number, since the two are not comparable and a
+  // best that summed them was a best at nothing in particular.
+  const best = (rows: Standing[]) => (rows.length > 0 ? Math.max(...rows.map(score)) : 0)
 
   return {
     pulls: entries.length,

@@ -1,6 +1,6 @@
 import type { JoystickView } from '../input'
 import { ABILITIES } from '../sim/abilities'
-import { standings } from '../history'
+import { meterBoard, standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
 import { playerTarget, pressTarget } from '../sim/sim'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
@@ -689,28 +689,47 @@ function short(n: number): string {
 }
 
 /**
- * Live contribution meter.
+ * Live contribution meter, on the board the player is actually on.
  *
- * Ranked on damage plus healing, the same way the after-action report ranks,
- * so a healer is not permanently last on a board that only counts damage. The
- * player's own row is always on it: the question the meter answers during a
- * pull is "am I pulling my weight", and a row that drops off the bottom at
- * rank six answers nothing.
+ * Damage and healing used to be added together and ranked as one number,
+ * which put a healer above a damage dealer for reasons neither of them could
+ * read. They are separate boards now — but three rows on a portrait phone is
+ * no room for two of them, and the question this meter answers during a pull
+ * is "am I pulling my weight", not "how is everyone doing". So it shows the
+ * one board that answers it: yours. The footer keeps both raid totals, which
+ * is the other question and needs one line rather than a panel.
+ *
+ * The player's own row is always on it, whatever it placed: a row that drops
+ * off the bottom at rank six answers nothing.
  */
 function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {
   const rect = meterRect(touch)
 
-  // The same ranking the record keeps, from the same function: two of them
-  // would eventually be two different answers to the same question.
-  const ranked = standings(s).map((row, i) => ({ ...row, rank: i + 1 }))
+  // Board and boards both from the record's own module, so the numbers on
+  // screen and the numbers kept afterwards can never be two different
+  // answers, and so the rule about which one you are shown is checkable.
+  const { healing, rows: board } = meterBoard(s)
+  const value = (row: { dps: number; hps: number }) => (healing ? row.hps : row.dps)
+  const ranked = board.map((row, i) => ({ ...row, rank: i + 1 }))
 
   const limit = rect.rows ?? 5
   const shown = ranked.slice(0, limit)
-  const playerRow = ranked.find((r) => r.isPlayer)
-  if (playerRow && !shown.includes(playerRow)) shown[shown.length - 1] = playerRow
+  // Read off every party member rather than off the board: a healer who has
+  // not landed a heal yet is not on the healing board at all, and that is the
+  // moment they most need to see their own zero. Placed below everyone who
+  // has a number, since that is where a zero actually stands — a rank read
+  // off the record's own listing would be a rank on a board this is not.
+  const absent = standings(s).find((r) => r.isPlayer)
+  const playerRow =
+    ranked.find((r) => r.isPlayer) ??
+    (absent ? { ...absent, rank: ranked.length + 1 } : undefined)
+  if (playerRow && !shown.some((r) => r.isPlayer)) {
+    if (shown.length < limit) shown.push(playerRow)
+    else shown[shown.length - 1] = playerRow
+  }
 
   const line = 13 * L.ui
-  const peak = Math.max(1, ...ranked.map((r) => r.dps + r.hps))
+  const peak = Math.max(1, ...ranked.map(value))
 
   ctx.fillStyle = COLORS.panel
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h)
@@ -725,27 +744,21 @@ function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
   ctx.textAlign = 'left'
   ctx.font = font(9)
   ctx.fillStyle = COLORS.textDim
-  ctx.fillText('per second', rect.x + pad, y)
+  ctx.fillText(healing ? 'healing per second' : 'damage per second', rect.x + pad, y)
   ctx.textAlign = 'right'
   ctx.fillText(`${s.time.toFixed(0)}s`, rect.x + rect.w - pad, y)
   y += line
 
   for (const row of shown) {
     const colour = classColor(row.classId)
-    const total = row.dps + row.hps
+    const mine = value(row)
 
-    // Damage and healing stack in one bar, healing lighter, exactly as the
-    // after-action report draws them.
+    // One bar of one number. The two halves it used to be stacked from were
+    // scaled against a peak that was itself a sum, so neither half was a
+    // share of anything a reader could name.
     ctx.globalAlpha = 0.24
     ctx.fillStyle = colour
-    ctx.fillRect(rect.x + pad, y - line * 0.72, (row.dps / peak) * inner, line * 0.86)
-    ctx.globalAlpha = 0.13
-    ctx.fillRect(
-      rect.x + pad + (row.dps / peak) * inner,
-      y - line * 0.72,
-      (row.hps / peak) * inner,
-      line * 0.86,
-    )
+    ctx.fillRect(rect.x + pad, y - line * 0.72, (mine / peak) * inner, line * 0.86)
     ctx.globalAlpha = 1
 
     ctx.textAlign = 'left'
@@ -754,13 +767,16 @@ function drawMeter(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): 
     fitLeft(ctx, `${row.rank} ${row.name}`, rect.x + pad + 2, y, inner - 40 * L.ui)
 
     ctx.textAlign = 'right'
-    ctx.fillStyle = row.hps > row.dps ? '#4ade80' : COLORS.textDim
-    ctx.fillText(short(total), rect.x + rect.w - pad - 2, y)
+    ctx.fillStyle = healing ? '#4ade80' : COLORS.textDim
+    ctx.fillText(short(mine), rect.x + rect.w - pad - 2, y)
     y += line
   }
 
-  const raidDps = ranked.reduce((sum, r) => sum + r.dps, 0)
-  const raidHps = ranked.reduce((sum, r) => sum + r.hps, 0)
+  // Both totals, from everybody: the board above is one half of the fight and
+  // this line is the other half, which is the whole reason it is here.
+  const all = standings(s)
+  const raidDps = all.reduce((sum, r) => sum + r.dps, 0)
+  const raidHps = all.reduce((sum, r) => sum + r.hps, 0)
   ctx.textAlign = 'left'
   ctx.font = font(9)
   ctx.fillStyle = COLORS.textDim
@@ -1399,55 +1415,90 @@ function compact(value: number): string {
  * A pull that ends with only "wipe" on screen tells you nothing about why.
  * The numbers the genre actually argues over are damage, healing, and how
  * many avoidable mechanics each player ate — so those are the columns.
+ *
+ * Two blocks rather than one list, because damage and healing are two
+ * rankings and there is no honest way to interleave them. Each block is
+ * ranked and scaled on its own number, so a bar means "this share of the
+ * raid's damage" or "this share of its healing" rather than this share of a
+ * sum that was never a quantity. Both columns are printed for everybody: a
+ * healer who spent the gaps casting is owed the damage they did, and a report
+ * that showed only the larger of the two hid it.
  */
 function drawReport(ctx: CanvasRenderingContext2D, s: SimState, top: number, bottom: number): void {
   const members = s.actors.filter((a) => a.faction === 'party')
   const seconds = Math.max(1, s.time)
 
-  const rows = members
-    .map((m) => {
-      const t = s.tally[m.id]
-      return {
-        actor: m,
-        dps: (t?.damage ?? 0) / seconds,
-        hps: (t?.healing ?? 0) / seconds,
-        overheal: t?.overhealing ?? 0,
-        healing: t?.healing ?? 0,
-        taken: t?.damageTaken ?? 0,
-        mechanics: t?.mechanicHits ?? 0,
-        deathAt: t?.deathAt ?? null,
-      }
-    })
-    // Whoever contributed most goes on top, damage or healing.
-    .sort((a, b) => b.dps + b.hps - (a.dps + a.hps))
+  const all = members.map((m) => {
+    const t = s.tally[m.id]
+    return {
+      actor: m,
+      dps: (t?.damage ?? 0) / seconds,
+      hps: (t?.healing ?? 0) / seconds,
+      overheal: t?.overhealing ?? 0,
+      healing: t?.healing ?? 0,
+      taken: t?.damageTaken ?? 0,
+      mechanics: t?.mechanicHits ?? 0,
+      deathAt: t?.deathAt ?? null,
+    }
+  })
 
-  const peak = Math.max(1, ...rows.map((r) => r.dps + r.hps))
+  const damage = all.filter((r) => r.actor.role !== 'healer').sort((a, b) => b.dps - a.dps)
+  const healers = all.filter((r) => r.actor.role === 'healer').sort((a, b) => b.hps - a.hps)
+  const peaks = {
+    damage: Math.max(1, ...damage.map((r) => r.dps)),
+    healing: Math.max(1, ...healers.map((r) => r.hps)),
+  }
+
+  // The healing block costs a caption line of its own, since a group of rows
+  // that just appears under the damage ones reads as the bottom of a single
+  // ranking, which is the exact misreading the split was made to end.
+  const captions = healers.length > 0 && damage.length > 0 ? 1 : 0
   const available = bottom - top
-  const rowH = Math.min(30 * L.ui, available / rows.length)
+  const rowH = Math.min(30 * L.ui, available / (all.length + captions))
   const width = Math.min(L.w - 40, 560)
   const x = (L.w - width) / 2
+
+  // Column ends, right-aligned, so the headers sit over their own numbers
+  // rather than over an approximation made of spaces.
+  const cols = {
+    dps: x + width - 196 * L.ui,
+    hps: x + width - 132 * L.ui,
+    taken: x + width - 70 * L.ui,
+    mechanics: x + width - 8,
+  }
+
+  const heading = (label: string, at: number, y: number) => {
+    ctx.textAlign = 'right'
+    ctx.font = font(9)
+    ctx.fillStyle = COLORS.textDim
+    ctx.fillText(label, at, y)
+  }
 
   ctx.textAlign = 'left'
   ctx.font = font(9)
   ctx.fillStyle = COLORS.textDim
-  ctx.fillText('damage / healing per second', x, top - 6)
-  ctx.textAlign = 'right'
-  ctx.fillText('taken      mechanics', x + width, top - 6)
+  ctx.fillText('damage board', x, top - 6)
+  heading('dps', cols.dps, top - 6)
+  heading('hps', cols.hps, top - 6)
+  heading('taken', cols.taken, top - 6)
+  heading('mechanics', cols.mechanics, top - 6)
 
-  rows.forEach((row, i) => {
-    const y = top + i * rowH
+  const draw = (
+    row: (typeof all)[number],
+    y: number,
+    board: 'damage' | 'healing',
+  ): void => {
     const h = rowH - 4
     const cls = CLASSES[row.actor.classId]
     const colour = classColor(row.actor.classId)
+    const own = board === 'healing' ? row.hps : row.dps
 
-    // Contribution bar behind the text, healing shown lighter than damage.
+    // One bar of one number, against its own board's best.
     ctx.fillStyle = 'rgba(255,255,255,0.04)'
     ctx.fillRect(x, y, width, h)
     ctx.fillStyle = colour
     ctx.globalAlpha = 0.22
-    ctx.fillRect(x, y, (row.dps / peak) * width, h)
-    ctx.globalAlpha = 0.12
-    ctx.fillRect(x + (row.dps / peak) * width, y, (row.hps / peak) * width, h)
+    ctx.fillRect(x, y, (own / peaks[board]) * width, h)
     ctx.globalAlpha = 1
 
     ctx.textAlign = 'left'
@@ -1464,24 +1515,37 @@ function drawReport(ctx: CanvasRenderingContext2D, s: SimState, top: number, bot
       ctx.fillText(`died ${row.deathAt.toFixed(0)}s`, x + 130 * L.ui, y + h * 0.68)
     }
 
+    // Both numbers, with the one this block ranks on carrying the weight: the
+    // other is context, not the row's placing.
     ctx.textAlign = 'right'
-    ctx.fillStyle = COLORS.text
-    ctx.font = font(11, true)
-    const contribution =
-      row.hps > row.dps
-        ? `${compact(row.hps)} hps`
-        : `${compact(row.dps)} dps`
-    ctx.fillText(contribution, x + width - 150 * L.ui, y + h * 0.68)
+    ctx.fillStyle = board === 'damage' ? COLORS.text : COLORS.textDim
+    ctx.font = font(board === 'damage' ? 11 : 10, board === 'damage')
+    ctx.fillText(row.dps >= 1 ? compact(row.dps) : '—', cols.dps, y + h * 0.68)
+
+    ctx.fillStyle = board === 'healing' ? '#4ade80' : COLORS.textDim
+    ctx.font = font(board === 'healing' ? 11 : 10, board === 'healing')
+    ctx.fillText(row.hps >= 1 ? compact(row.hps) : '—', cols.hps, y + h * 0.68)
 
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(10)
-    ctx.fillText(compact(row.taken), x + width - 78 * L.ui, y + h * 0.68)
+    ctx.fillText(compact(row.taken), cols.taken, y + h * 0.68)
 
     // The column people argue about.
     ctx.fillStyle = row.mechanics > 0 ? COLORS.hpBarLow : COLORS.textDim
     ctx.font = font(11, row.mechanics > 2)
-    ctx.fillText(String(row.mechanics), x + width - 8, y + h * 0.68)
-  })
+    ctx.fillText(String(row.mechanics), cols.mechanics, y + h * 0.68)
+  }
+
+  let line = 0
+  damage.forEach((row) => draw(row, top + line++ * rowH, 'damage'))
+  if (captions > 0) {
+    ctx.textAlign = 'left'
+    ctx.font = font(9)
+    ctx.fillStyle = COLORS.textDim
+    ctx.fillText('healing board', x, top + line * rowH + rowH * 0.7)
+    line++
+  }
+  healers.forEach((row) => draw(row, top + line++ * rowH, 'healing'))
 }
 
 function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean): void {

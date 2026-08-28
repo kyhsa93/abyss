@@ -177,6 +177,9 @@ import {
   HISTORY_LIMIT,
   STANDING_LIMIT,
   append,
+  damageBoard,
+  healingBoard,
+  meterBoard,
   record,
   standings,
   totals,
@@ -2540,20 +2543,87 @@ for (const [label, w, h] of [
   const live = standings(s)
   const entry = record(s, 1234)!
   expect('a finished pull records', entry !== null && entry.standings.length > 0, 'nothing recorded')
-  // Every row but the last, which is where a player outside the cap is put
-  // back: the board is the meter's, in the meter's order.
+  // The record is the meter's boards, each in the meter's order — but no
+  // longer a prefix of the whole list, since the cap now takes the top of the
+  // damage board and the top of the healing one rather than the first nine
+  // rows of a list that happens to open with twenty damage dealers. So the
+  // claim is per board: same order, and what is kept is that board's top.
+  for (const healing of [false, true]) {
+    const on = (r: { role: string }) => (r.role === 'healer') === healing
+    const keptRows = entry.standings.filter(on)
+    const meter = live.filter(on)
+    expect(
+      `the record is the ${healing ? 'healing' : 'damage'} board, in the meter order`,
+      // Your own row is the one exception, and it is the point of the cap
+      // rule: a player who placed below it is written into the last slot of
+      // their own block, so that slot holds them rather than the meter's row.
+      keptRows.every(
+        (row, i) =>
+          row.isPlayer ||
+          (row.name === meter[i]!.name && row.dps === meter[i]!.dps && row.hps === meter[i]!.hps),
+      ),
+      `${keptRows.map((r) => r.name).join(', ')} vs ${meter.map((r) => r.name).join(', ')}`,
+    )
+  }
+  // Two boards, each ranked on its own number and never against the other.
+  // The old assertion here checked that the board was sorted by damage plus
+  // healing, which is exactly the ranking the split was made to end.
   expect(
-    'the record is the meter, in the meter order',
-    entry.standings
-      .slice(0, STANDING_LIMIT - 1)
-      .every((row, i) => row.name === live[i]!.name && row.dps === live[i]!.dps),
-    entry.standings.map((r) => r.name).join(', '),
+    'the damage board is ranked on damage',
+    live
+      .filter((r) => r.role !== 'healer')
+      .every((row, i, board) => i === 0 || board[i - 1]!.dps >= row.dps),
+    live.filter((r) => r.role !== 'healer').map((r) => r.dps).join(', '),
   )
   expect(
-    'ranked by damage and healing together',
-    live.every((row, i) => i === 0 || live[i - 1]!.dps + live[i - 1]!.hps >= row.dps + row.hps),
-    live.map((r) => r.dps + r.hps).join(', '),
+    'the healing board is ranked on healing',
+    live
+      .filter((r) => r.role === 'healer')
+      .every((row, i, board) => i === 0 || board[i - 1]!.hps >= row.hps),
+    live.filter((r) => r.role === 'healer').map((r) => r.hps).join(', '),
   )
+  expect(
+    'and the damage board comes first, whole',
+    live.findIndex((r) => r.role === 'healer') === -1 ||
+      live.slice(live.findIndex((r) => r.role === 'healer')).every((r) => r.role === 'healer'),
+    live.map((r) => r.role).join(', '),
+  )
+  const dmg = damageBoard(s)
+  const heals = healingBoard(s)
+  expect(
+    'no zero pads either live board',
+    dmg.every((r) => r.dps > 0) && heals.every((r) => r.hps > 0),
+    `${dmg.length} damage, ${heals.length} healing`,
+  )
+
+  // The meter shows the board you are on, which is the whole reason there is
+  // room for the split on a phone at all. Checked from a real pull as each
+  // role, since a rule about what a player is looking at that only exists
+  // inside a draw call is a rule nothing can hold to account.
+  for (const [role, pick] of [
+    ['dps', pickFor('mage', 'dps')!],
+    ['healer', pickFor('priest', 'healer')!],
+    ['tank', pickFor('warrior', 'tank')!],
+  ] as const) {
+    const run = pulled(0x51ed, 0, autoParty(10, pick))
+    const r = new Rng(0x51ed)
+    while (run.outcome === 'ongoing' && run.time < 300) {
+      step(run, { moveX: 0, moveY: 0, pressed: [] }, r)
+    }
+    const shown = meterBoard(run)
+    expect(
+      `the meter shows a ${role} the ${role === 'healer' ? 'healing' : 'damage'} board`,
+      shown.healing === (role === 'healer'),
+      `healing: ${shown.healing}`,
+    )
+    // And it is the board itself, not a re-sort of it.
+    const want = role === 'healer' ? healingBoard(run) : damageBoard(run)
+    expect(
+      'and it is that board, unchanged',
+      shown.rows.length === want.length && shown.rows.every((row, i) => row.name === want[i]!.name),
+      shown.rows.map((row) => row.name).join(', '),
+    )
+  }
   expect(
     'with the pull it belongs to',
     entry.outcome === s.outcome && entry.size === 10 && entry.difficulty === s.difficulty,
@@ -2577,6 +2647,45 @@ for (const [label, w, h] of [
     // The player pressed nothing all fight, so they placed last of
     // twenty-five and are exactly the row a cap would drop.
     expect('and yours is one of them', board.standings.some((r) => r.isPlayer), 'the player fell off')
+
+    // The cap is where the split can quietly undo itself: a twenty-five man
+    // fields twenty damage rows before the first healer, so nine rows taken
+    // off the top would be nine damage rows and a record with no evidence
+    // anybody was healed. Both boards have to survive it.
+    const healers = board.standings.filter((r) => r.role === 'healer')
+    const damage = board.standings.filter((r) => r.role !== 'healer')
+    expect(
+      'and the cap keeps both boards',
+      healers.length > 0 && damage.length > 0,
+      `${damage.length} damage, ${healers.length} healing`,
+    )
+    // Your row goes back into your own block, not onto the end of the list.
+    // The end is a healing row now, so the obvious way to write it back both
+    // files a damage dealer under the healing ranking and evicts the healer
+    // the cap had just reserved a place for.
+    const mine = board.standings.findIndex((r) => r.isPlayer)
+    expect(
+      'and puts your row back on your own board',
+      board.standings[mine]!.role !== 'healer' && mine < damage.length,
+      `row ${mine} of ${board.standings.length}, ${damage.length} on the damage board`,
+    )
+
+    // Kept in proportion rather than one token row: a raid that is a fifth
+    // healers should be reading about two of them.
+    const full = standings(big)
+    const share = (full.filter((r) => r.role === 'healer').length / full.length) * STANDING_LIMIT
+    expect(
+      'in roughly the proportion the raid has',
+      Math.abs(healers.length - share) <= 1,
+      `${healers.length} kept, ${share.toFixed(1)} expected`,
+    )
+    // And each block is still its own ranking after the cap cut it.
+    expect(
+      'each still ranked on its own number after the cap',
+      damage.every((r, i) => i === 0 || damage[i - 1]!.dps >= r.dps) &&
+        healers.every((r, i) => i === 0 || healers[i - 1]!.hps >= r.hps),
+      board.standings.map((r) => `${r.role}:${r.role === 'healer' ? r.hps : r.dps}`).join(', '),
+    )
   }
 
   // Newest first, and it never grows without bound.
@@ -2586,8 +2695,8 @@ for (const [label, w, h] of [
   expect('newest at the top', kept[0]!.at === HISTORY_LIMIT + 14, `${kept[0]!.at}`)
 
   // Totals over a night rather than over a pull.
-  const you = (dps: number) => ({ name: 'You', classId: 'mage', spec: 'frost', dps, hps: 0, isPlayer: true })
-  const them = (dps: number) => ({ name: 'Vale', classId: 'rogue', spec: 'assassination', dps, hps: 0, isPlayer: false })
+  const you = (dps: number) => ({ name: 'You', classId: 'mage', spec: 'frost', role: 'dps' as const, dps, hps: 0, isPlayer: true })
+  const them = (dps: number) => ({ name: 'Vale', classId: 'rogue', spec: 'assassination', role: 'dps' as const, dps, hps: 0, isPlayer: false })
   const night: Attempt[] = [
     { ...entry, outcome: 'victory', standings: [them(500), you(300)] },
     { ...entry, outcome: 'wipe', standings: [them(410), you(380)] },
@@ -3016,7 +3125,7 @@ for (const [label, w, h] of [
     size: 5,
     difficulty: 'normal' as const,
     outcome: 'wipe' as const,
-    standings: [{ name: 'You', classId, spec: 'frost', dps: 1, hps: 0, isPlayer: true }],
+    standings: [{ name: 'You', classId, spec: 'frost', role: 'dps' as const, dps: 1, hps: 0, isPlayer: true }],
   })
   const five = ['mage', 'rogue', 'priest', 'druid', 'shaman'].map(board)
   const tourist = AWARDS.find((a) => a.id === 'tourist')!

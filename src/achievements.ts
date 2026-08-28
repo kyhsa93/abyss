@@ -1,4 +1,4 @@
-import { standings, type Attempt } from './history'
+import { damageBoard, healingBoard, standings, type Attempt } from './history'
 import { CLASSES } from './sim/classes'
 import type { SimState } from './sim/types'
 
@@ -78,8 +78,16 @@ export const AWARDS: Award[] = [
   {
     id: 'top_of_meter',
     name: 'Top of the Meter',
-    detail: 'Finish a kill first on the board.',
-    earned: (s) => won(s) && (standings(s)[0]?.isPlayer ?? false),
+    detail: 'Finish a kill first on your own board.',
+    // Your own board, since there are two of them and they are not ranked
+    // against each other: topping the damage board as a healer would be an
+    // award for a fight nobody asked you to have.
+    earned: (s) => {
+      const you = player(s)
+      if (!won(s) || !you) return false
+      const board = you.role === 'healer' ? healingBoard(s) : damageBoard(s)
+      return board[0]?.isPlayer ?? false
+    },
   },
   {
     id: 'held_it',

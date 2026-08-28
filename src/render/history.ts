@@ -1,6 +1,6 @@
 import { AWARDS, type Earned } from '../achievements'
 import { ENCOUNTERS, MECHANIC_NAMES } from '../sim/encounters'
-import { HISTORY_LIMIT, label, totals, type Attempt } from '../history'
+import { HISTORY_LIMIT, label, score, totals, unit, type Attempt } from '../history'
 import { metOverall, pageFor, type Notes } from '../notes'
 import { COLORS, L, classColor, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
@@ -299,22 +299,31 @@ export function drawHistory(
     )
 
     // The meter as it stood, bars and all: this is the record, so it should
-    // read the same way it did while the fight was on.
-    const peak = Math.max(1, ...entry.standings.map((r) => r.dps + r.hps))
+    // read the same way it did while the fight was on — which now means two
+    // boards, each scaled and numbered against itself. A healer's bar is a
+    // share of the healing; sharing a scale with the damage would put every
+    // healer at the thin end of a bar measuring something they never did.
+    const peaks = {
+      damage: Math.max(1, ...entry.standings.filter((r) => r.role !== 'healer').map((r) => r.dps)),
+      healing: Math.max(1, ...entry.standings.filter((r) => r.role === 'healer').map((r) => r.hps)),
+    }
+    let placed = { damage: 0, healing: 0 }
     block.rows.forEach((r, j) => {
       const row = entry.standings[j]!
+      const board = row.role === 'healer' ? 'healing' : 'damage'
       const colour = classColor(row.classId)
       const baseline = r.y + r.h - 4
+      const rank = ++placed[board]
 
       ctx.globalAlpha = 0.22
       ctx.fillStyle = classColor(row.classId)
-      ctx.fillRect(r.x, r.y, ((row.dps + row.hps) / peak) * r.w, r.h - 2)
+      ctx.fillRect(r.x, r.y, (score(row) / peaks[board]) * r.w, r.h - 2)
       ctx.globalAlpha = 1
 
       ctx.textAlign = 'left'
       ctx.font = font(10, row.isPlayer)
       ctx.fillStyle = colour
-      fitText(ctx, `${j + 1}  ${row.name}`, r.x + 6, baseline, Math.max(110, r.w * 0.2) * MENU_TEXT - 16)
+      fitText(ctx, `${rank}  ${row.name}`, r.x + 6, baseline, Math.max(110, r.w * 0.2) * MENU_TEXT - 16)
 
       if (L.w > 520) {
         ctx.fillStyle = COLORS.textDim
@@ -324,12 +333,8 @@ export function drawHistory(
 
       ctx.textAlign = 'right'
       ctx.font = font(10, row.isPlayer)
-      ctx.fillStyle = row.hps > row.dps ? '#4ade80' : colour
-      ctx.fillText(
-        row.hps > row.dps ? `${row.hps} hps` : `${row.dps} dps`,
-        r.x + r.w - 6,
-        baseline,
-      )
+      ctx.fillStyle = board === 'healing' ? '#4ade80' : colour
+      ctx.fillText(`${score(row)} ${unit(row)}`, r.x + r.w - 6, baseline)
     })
   })
 
