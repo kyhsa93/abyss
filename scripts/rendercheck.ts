@@ -18,6 +18,19 @@ import {
   slotStatus,
 } from '../src/render/hud'
 import { drawRoster, hitRoster, rosterLayout } from '../src/render/roster'
+import { compositionLayout, drawComposition, hitComposition } from '../src/render/composition'
+import {
+  begin as beginCompose,
+  close as closeCompose,
+  legal as legalCompose,
+  pressAuto,
+  pressReroll,
+  pressSlot,
+  pressSpec,
+  refusal,
+  repair,
+  summary as composeSummary,
+} from '../src/compose'
 import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
 import {
   RAID_FIELDS,
@@ -197,6 +210,17 @@ import { gainPower, boss as bossOf } from '../src/sim/combat'
 // "holding" means, and there is one function that says.
 import { holdingStill } from '../src/sim/ai'
 import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
+
+/**
+ * Declared up here rather than beside `expect`, which is where it used to be.
+ *
+ * `expect` is a hoisted function and this is not: a check added above the old
+ * declaration ran fine while it passed and died in the temporal dead zone the
+ * moment it failed — so the first failure in a new block reported a
+ * ReferenceError instead of the claim that broke. The counter has to be older
+ * than every check that can reach it.
+ */
+let failures = 0
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
   ECHO_TELEGRAPH,
@@ -509,6 +533,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       const targets = [
         ...layout.classes.map((r, i) => [`class ${i}`, r] as const),
         ['back', layout.history] as const,
+        ['compose', layout.compose] as const,
         ['pull', layout.pull] as const,
       ]
 
@@ -521,6 +546,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         const [kind] = name.split(' ')
         if (kind === 'class' && hit.kind !== 'class') return true
         if (kind === 'back' && hit.kind !== 'back') return true
+        if (kind === 'compose' && hit.kind !== 'compose') return true
         if (kind === 'pull' && hit.kind !== 'pull') return true
         return false
       })
@@ -537,6 +563,180 @@ console.log(`rendered ${frames} frames with no exceptions`)
         throw new Error(
           `roster ${w}x${h} ${party.length}-player: ${[...bad.map(([n]) => n), ...slotProblems].join(', ')}`,
         )
+      }
+    }
+  }
+}
+
+// --- the raid may be built by hand, and only into a raid -------------------
+//
+// The board is the one place a raid the game did not generate can reach a
+// pull, so what it may produce is checked here rather than trusted to the
+// screen that draws it.
+{
+  for (const size of [5, 10, 25] as RaidSize[]) {
+    const start = autoParty(size, pickFor('mage', 'dps')!)
+    expect(`a ${size} starts legal`, legalCompose(beginCompose(start)), composeSummary(start))
+
+    // Opening a slot, giving it something, and getting a legal raid back.
+    let c = beginCompose(start)
+    c = pressSlot(c, size > 1 ? 1 : 0)
+    expect(`a ${size} opens a slot`, c.selected === (size > 1 ? 1 : 0), `${c.selected}`)
+    // Pressing the open one again closes it: the board must always be one
+    // press away or the list needs a second dismiss target beside the first.
+    expect(`a ${size} closes the one it opened`, pressSlot(c, c.selected!).selected === null, 'stayed open')
+
+    // Every spec, into every slot, at every size. What is refused must be
+    // refused with a reason, and what is taken must leave a raid that pulls.
+    let taken = 0
+    let refused = 0
+    for (let slot = 0; slot < size; slot++) {
+      for (const option of SPEC_OPTIONS) {
+        const after = pressSpec(pressSlot(beginCompose(start), slot), option)
+        if (after.refused !== null) {
+          refused++
+          // A refusal keeps the slot open, or the board would look as though
+          // the press went through.
+          expect_quiet(`a refusal at ${size}/${slot} keeps the slot open`, after.selected === slot)
+          expect_quiet(`a refusal at ${size}/${slot} changes nothing`, after.party.every((p, i) => p.classId === start[i]!.classId && p.spec === start[i]!.spec))
+          continue
+        }
+        taken++
+        expect_quiet(`a ${size} stays a raid after ${slot}:${option.classId}`, legalCompose(after))
+        expect_quiet(`and the slot took it`, after.party[slot]!.classId === option.classId && after.party[slot]!.spec === option.spec)
+        expect_quiet(`and the list closed`, after.selected === null)
+      }
+    }
+    expect(
+      `every press on a ${size} is answered`,
+      taken + refused === size * SPEC_OPTIONS.length && taken > 0,
+      `${taken} taken, ${refused} refused`,
+    )
+    // A five refuses nothing, which is not slack — it is the trade rule.
+    // Every role count is fixed there, so there is no legal intermediate
+    // state to pass through and a press that changes a slot's role is read as
+    // a swap with whoever was holding it. Refusing instead would leave the
+    // composition unchangeable. Bigger raids have real slack and take more
+    // than they refuse.
+    expect(
+      `a ${size} ${size === 5 ? 'trades rather than refuses' : 'takes more than it refuses'}`,
+      size === 5 ? refused === 0 : taken > refused,
+      `${taken} taken, ${refused} refused`,
+    )
+    if (size === 5) {
+      // And the trade is a trade: somebody else moved to pay for it.
+      const before = beginCompose(start)
+      const dps = start.findIndex((p, i) => i > 0 && roleOf(p) === 'dps')
+      const after = pressSpec(pressSlot(before, dps), pickFor('warrior', 'tank')!)
+      expect(
+        'and a five pays for a new tank with the old one',
+        roleOf(after.party[dps]!) === 'tank' &&
+          after.party.filter((p) => roleOf(p) === 'tank').length === 1,
+        composeSummary(after.party),
+      )
+    }
+
+    // AUTO and REROLL both have to land on a raid, since both reach a pull.
+    expect(`AUTO builds a ${size} that pulls`, legalCompose(pressAuto(beginCompose(start))), 'illegal')
+    let seed = 1
+    const rolled = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648)
+    for (let i = 0; i < 20; i++) {
+      const r = pressReroll(beginCompose(start), rolled)
+      expect_quiet(`REROLL builds a ${size} that pulls`, legalCompose(r))
+      expect_quiet('and keeps you where you are', r.party[0]!.classId === start[0]!.classId)
+    }
+    expect(`REROLL builds a ${size} that pulls, twenty times`, true, '')
+
+    // Closing while a slot is open never edits the raid.
+    const opened = pressSlot(beginCompose(start), 0)
+    expect(
+      `closing a ${size} changes nobody`,
+      closeCompose(opened).party.every((p, i) => p.classId === start[i]!.classId),
+      'the raid moved',
+    )
+
+    // A legal raid has nothing to explain; an illegal one must say what it is.
+    expect(`a legal ${size} gives no reason`, refusal(start) === null, refusal(start) ?? '')
+  }
+
+  // The repair, which is what stops changing your own spec from costing you
+  // the raid you built. A twenty-five with two tanks, and you want to be the
+  // third: the press has to be taken and the other twenty-four mostly kept.
+  {
+    const built = autoParty(25, pickFor('mage', 'dps')!)
+    const fixed = repair(built, pickFor('warrior', 'tank')!)
+    expect('repairing a 25 keeps it a raid', isLegalComposition(fixed), composeSummary(fixed))
+    expect(
+      'and takes the press',
+      fixed[0]!.classId === 'warrior' && roleOf(fixed[0]!) === 'tank',
+      specLabel(fixed[0]!),
+    )
+    const kept = fixed.filter((p, i) => i > 0 && p.classId === built[i]!.classId && p.spec === built[i]!.spec).length
+    // A re-roll would keep almost none of them; this is the whole difference.
+    expect(
+      'and keeps almost everyone it did not have to move',
+      kept >= 22,
+      `${kept} of 24 kept`,
+    )
+  }
+
+  // The screen: reachable, on screen, drawing, at every size and viewport —
+  // with the list up and with it down, since the list covers the board and a
+  // press in that area means two different things.
+  for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
+    updateLayout(w, h)
+    for (const size of [5, 10, 25] as RaidSize[]) {
+      const closed = beginCompose(autoParty(size, pickFor('priest', 'healer')!))
+      const open = pressSlot(closed, size - 1)
+      for (const c of [closed, open]) drawComposition(stubCtx(), c)
+
+      const layout = compositionLayout(size)
+      const problems: string[] = []
+      const onScreen = (r: { x: number; y: number; w: number; h: number }) =>
+        r.x >= 0 && r.y >= 0 && r.x + r.w <= w + 0.5 && r.y + r.h <= h + 0.5
+
+      for (const [name, r] of [
+        ['back', layout.back] as const,
+        ['auto', layout.auto] as const,
+        ['reroll', layout.reroll] as const,
+      ]) {
+        if (!onScreen(r)) problems.push(`${name} off screen`)
+        const hit = hitComposition(r.x + r.w / 2, r.y + r.h / 2, closed)
+        if (hit?.kind !== name) problems.push(`${name} not reachable`)
+      }
+
+      // Every slot, at its own centre, with the list down.
+      layout.slots.forEach((r, i) => {
+        if (!onScreen(r)) problems.push(`slot ${i} off screen`)
+        const hit = hitComposition(r.x + r.w / 2, r.y + r.h / 2, closed)
+        if (hit?.kind !== 'slot' || hit.index !== i) problems.push(`slot ${i} not reachable`)
+      })
+
+      // And every spec, at its own centre, with the list up. The same points
+      // must read as slots when it is down, which is the collision worth
+      // checking: one of the two readings is always wrong.
+      layout.specs.forEach((r, i) => {
+        if (!onScreen(r)) problems.push(`spec ${i} off screen`)
+        const hit = hitComposition(r.x + r.w / 2, r.y + r.h / 2, open)
+        if (hit?.kind !== 'spec') problems.push(`spec ${i} not reachable`)
+        else if (hit.pick.classId !== SPEC_OPTIONS[i]!.classId || hit.pick.spec !== SPEC_OPTIONS[i]!.spec) {
+          problems.push(`spec ${i} is somebody else`)
+        }
+      })
+
+      // A press inside the board area with the list up dismisses rather than
+      // reaching the name underneath.
+      const mid = hitComposition(w / 2, (layout.boardTop + layout.boardBottom) / 2, open)
+      if (mid === null || (mid.kind !== 'spec' && mid.kind !== 'dismiss')) {
+        problems.push('the open list leaks to the board')
+      }
+
+      console.log(
+        problems.length === 0 ? 'ok  ' : 'FAIL',
+        `  composition ${w}x${h} ${size}-player: ${layout.slots.length} slots, ${layout.specs.length} specs`,
+      )
+      if (problems.length > 0) {
+        throw new Error(`composition ${w}x${h} ${size}: ${problems.join(', ')}`)
       }
     }
   }
@@ -831,10 +1031,22 @@ function recordingCtx(circles: Circle[], labels: Label[] = []): CanvasRenderingC
   return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
 }
 
-let failures = 0
 function expect(label: string, ok: boolean, detail: string): void {
   if (!ok) failures++
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${label}${ok ? '' : `  -> ${detail}`}`)
+}
+
+/**
+ * The same claim, printed only when it breaks.
+ *
+ * For sweeps that make one claim a few hundred times — every spec into every
+ * slot at every size — where a line each would bury the rest of the run and
+ * a single line at the end would not say which one went.
+ */
+function expect_quiet(label: string, ok: boolean, detail = ''): void {
+  if (ok) return
+  failures++
+  console.log(`FAIL  ${label}${detail ? `  -> ${detail}` : ''}`)
 }
 
 for (const [label, w, h] of [
@@ -6145,7 +6357,10 @@ for (const [label, w, h] of [
       `${headline?.y.toFixed(0)} vs grid at ${layout.gridTop.toFixed(0)}`,
     )
 
-    const rolled = labels.find((t) => t.text.includes('rolled at the door'))
+    // The line that points at the board of who else is coming. It used to say
+    // the raid was rolled at the door, which stopped being the whole truth the
+    // moment the board could be opened and changed.
+    const rolled = labels.find((t) => t.text.includes('THE RAID'))
     expect(
       `${label} ${mode.kind}: and so is the composition line`,
       rolled !== undefined && rolled.y < layout.gridTop,

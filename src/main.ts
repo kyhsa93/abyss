@@ -35,6 +35,18 @@ import {
   type Notes,
 } from './notes'
 import { beat, load as loadBests, save as saveBests, type Bests } from './bests'
+import {
+  begin as beginCompose,
+  close as closeCompose,
+  legal as legalCompose,
+  pressAuto,
+  pressReroll,
+  pressSlot,
+  pressSpec,
+  repair,
+  type Composing,
+} from './compose'
+import { drawComposition, hitComposition } from './render/composition'
 import { Effects } from './render/effects'
 import { loadName, nameThePlayer, saveName } from './name'
 import { editName, isEditingName } from './render/nameinput'
@@ -381,6 +393,16 @@ function resize(size: RaidSize): void {
 }
 
 let party = loadParty()
+
+/**
+ * The raid while it is being built.
+ *
+ * Held apart from `party` and copied back on every press rather than edited
+ * in place, because the rules that say what a raid may be live in `compose`
+ * and a half-applied press is a raid nothing checked. Seeded on the way into
+ * the screen, so leaving and coming back reads the raid as it now stands.
+ */
+let composing: Composing = beginCompose(party)
 let difficulty = loadDifficulty()
 let encounter = loadEncounter()
 let unlocked = loadUnlocked()
@@ -450,6 +472,7 @@ let screen:
   | 'battleground'
   | 'daily'
   | 'roster'
+  | 'composition'
   | 'settings'
   | 'fight'
   | 'history' = 'home'
@@ -723,7 +746,11 @@ function inside(r: { x: number; y: number; w: number; h: number }, x: number, y:
  */
 function chooseOwn(pick: Pick): void {
   const traded = selectInto(party, 0, pick)
-  party = traded ?? randomAround(party.length as RaidSize, pick, Math.random)
+  // And repaired rather than re-rolled when no trade works. Rolling the raid
+  // again was free while the raid was rolled anyway; now that it can be built
+  // by hand it is the difference between changing your spec and losing the
+  // twenty-four people you placed.
+  party = traded ?? repair(party, pick)
   saveSetup()
 }
 
@@ -982,12 +1009,76 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       screen = startingDescent ? 'home' : mode.kind === 'raid' ? 'raid' : 'battleground'
       startingDescent = false
       return
+    } else if (hit?.kind === 'compose') {
+      // Seeded here rather than kept in step with `party`: the board has to
+      // open on the raid as it now stands, and the class screen can have
+      // moved slot zero since the last time this screen was open.
+      composing = beginCompose(party)
+      screen = 'composition'
+      return
     } else if (hit?.kind === 'pull') {
       startFight()
       return
     }
   }
   drawRoster(ctx, party, difficulty, clock, encounter, mode)
+}
+
+/**
+ * Who else is coming.
+ *
+ * Every press goes through `compose`, and what comes back is written to the
+ * party and saved immediately — there is no confirm step, because the board
+ * is already showing the answer and a raid that only counted once you pressed
+ * DONE would be a second place for the rules to be enforced.
+ *
+ * An illegal raid cannot be reached: `pressSpec` refuses the press and says
+ * why rather than taking it and locking the pull. So there is nothing to
+ * guard on the way out.
+ */
+function updateComposition(tap: { x: number; y: number } | null): void {
+  if (tap) {
+    const hit = hitComposition(tap.x, tap.y, composing)
+    if (hit?.kind === 'back') {
+      // The one button that means two things, and the open list gets first
+      // claim: a list over the board with no way back but the one that also
+      // leaves the screen is a list you cannot change your mind out of.
+      if (composing.selected !== null) {
+        composing = closeCompose(composing)
+      } else {
+        screen = 'roster'
+        return
+      }
+    } else if (hit?.kind === 'slot') {
+      composing = pressSlot(composing, hit.index)
+    } else if (hit?.kind === 'spec') {
+      composing = pressSpec(composing, hit.pick)
+      applyComposition()
+    } else if (hit?.kind === 'auto') {
+      composing = pressAuto(composing)
+      applyComposition()
+    } else if (hit?.kind === 'reroll') {
+      composing = pressReroll(composing, Math.random)
+      applyComposition()
+    } else if (hit?.kind === 'dismiss') {
+      composing = closeCompose(composing)
+    }
+  }
+  drawComposition(ctx, composing)
+}
+
+/**
+ * Puts the board back onto the game's own party.
+ *
+ * Guarded on legality even though `compose` refuses illegal presses: this is
+ * the one line that can hand a raid to a pull, and a rule worth having is
+ * worth having at the point it would be broken rather than only upstream
+ * of it.
+ */
+function applyComposition(): void {
+  if (!legalCompose(composing)) return
+  party = composing.party.map((p) => ({ ...p }))
+  saveSetup()
 }
 
 /**
@@ -1069,6 +1160,7 @@ function frame(now: number): void {
     else if (screen === 'battleground') updateBgSetup(tap)
     else if (screen === 'daily') updateDaily(tap)
     else if (screen === 'settings') updateSettings(tap)
+    else if (screen === 'composition') updateComposition(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)
     return

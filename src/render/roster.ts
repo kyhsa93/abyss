@@ -33,6 +33,8 @@ export interface Rect {
 export interface RosterLayout {
   classes: Rect[]
   history: Rect
+  /** Through to the board of who else is coming. */
+  compose: Rect
   pull: Rect
   titleY: number
   /** Baseline of the first summary line; the rest step down by `summaryLine`. */
@@ -50,7 +52,11 @@ export interface RosterLayout {
  */
 const SUMMARY_LINES = 5
 
-export type RosterHit = { kind: 'class'; pick: Pick } | { kind: 'back' } | { kind: 'pull' }
+export type RosterHit =
+  | { kind: 'class'; pick: Pick }
+  | { kind: 'back' }
+  | { kind: 'compose' }
+  | { kind: 'pull' }
 
 /**
  * What you are queueing for.
@@ -139,20 +145,21 @@ export function rosterLayout(): RosterLayout {
     })
   }
 
-  // Two buttons on one row, and PULL takes what is left so it stays the
-  // obvious target. AUTO and REROLL both used to sit here: one filled the
-  // raid deterministically and the other rolled it, and neither means
-  // anything once the raid is neither shown nor chosen.
+  // Three buttons on one row, and PULL takes what is left so it stays the
+  // obvious target. AUTO and REROLL used to sit here and were taken out with
+  // the slot grid; they belong on the board they act on rather than here, so
+  // what this row carries is the way to that board.
   const gapB = 6
-  const fillW = Math.min(120, (L.w - pad * 2 - gapB) * 0.26)
-  const pullW = L.w - pad * 2 - gapB - fillW
+  const sideW = Math.min(104, (L.w - pad * 2 - gapB * 2) * 0.24)
+  const pullW = L.w - pad * 2 - gapB * 2 - sideW * 2
   const buttonY = L.h - buttonH - pad
   return {
     classes,
     // Named for what it does rather than where it goes: this is the way out
     // of the screen, and the record lives on the front page now.
-    history: { x: pad, y: buttonY, w: fillW, h: buttonH },
-    pull: { x: pad + fillW + gapB, y: buttonY, w: pullW, h: buttonH },
+    history: { x: pad, y: buttonY, w: sideW, h: buttonH },
+    compose: { x: pad + sideW + gapB, y: buttonY, w: sideW, h: buttonH },
+    pull: { x: pad + (sideW + gapB) * 2, y: buttonY, w: pullW, h: buttonH },
     titleY,
     summaryY,
     summaryLine,
@@ -168,6 +175,7 @@ export function hitRoster(x: number, y: number): RosterHit | null {
   const layout = rosterLayout()
   if (inside(layout.pull, x, y)) return { kind: 'pull' }
   if (inside(layout.history, x, y)) return { kind: 'back' }
+  if (inside(layout.compose, x, y)) return { kind: 'compose' }
 
   // Slots are a readout, not a control: the only pick anyone makes is their
   // own, and that is made from the class list.
@@ -248,8 +256,8 @@ export function drawRoster(
   fitText(
     ctx,
     mode.kind === 'raid'
-      ? `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — the rest of the raid is rolled at the door`
-      : 'five against five — the other five are rolled at the door',
+      ? `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()} — press THE RAID to choose who else comes`
+      : 'five against five — press THE RAID to choose who else comes',
     L.w / 2,
     line(2),
     L.w - 16,
@@ -313,6 +321,7 @@ export function drawRoster(
   }
 
   tab(ctx, layout.history, 'BACK', false, COLORS.text)
+  tab(ctx, layout.compose, 'THE RAID', false, COLORS.text)
 
   const pulse = 0.75 + 0.25 * Math.sin(clock * 3)
   ctx.fillStyle = `rgba(250, 204, 21, ${(0.14 * pulse).toFixed(2)})`
