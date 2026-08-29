@@ -11,8 +11,9 @@
     "rendercheck": "esbuild scripts/rendercheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rendercheck.mjs --log-level=error && node node_modules/.cache/rendercheck.mjs",
     "touchcheck": "esbuild scripts/touchcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/touchcheck.mjs --log-level=error && node node_modules/.cache/touchcheck.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",
+    "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
     "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",
-    "check": "tsc && npm run conceptcheck && npm run rendercheck && npm run touchcheck && npm run harness"
+    "check": "tsc && npm run conceptcheck && npm run rendercheck && npm run touchcheck && npm run balancecheck"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
