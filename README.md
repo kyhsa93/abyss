@@ -2,10 +2,54 @@
 
 **[Play it](https://kyhsa93.github.io/abyss/)**
 
-A browser raid-boss prototype. You pick one of fifteen specs, the rest of a
-five, ten or twenty-five player raid is rolled around you, and everybody in it
-but you is AI. No assets, no server, no network: everything is shapes, timers
-and a deterministic simulation.
+**Single-player multiplayer.** The content that needs a group — a raid boss, a
+battleground — played alone, at any hour, with nobody to wait for and no server
+to run. You pick one of fifteen specs; everybody else on the field is AI. No
+assets, no network: everything is shapes, timers and a deterministic simulation.
+
+## What it is
+
+That one sentence decides the rest, so it is worth being exact about what it
+buys and what it forbids.
+
+**The boss is a script, not an AI.** A boss that improvises cannot be learned,
+and learning the fight is the whole genre. The only randomness is *who* gets
+targeted. See [Design](#design).
+
+**Everyone else has to read as a person.** This is not a flourish on top of the
+AI — it is the product. A party of perfect bots is a solver with a health bar,
+and playing alongside it is not multiplayer in any sense a player would accept.
+So the AI carries reaction delay, fumbles, personalities and a clustering term
+that pulls it away from the optimal tile.
+
+**Nothing on your character gets stronger.** There is no gear, no level, no
+currency. What a kill opens is more of the game, never a bigger number, and what
+improves between attempts is you. Take this away and the fights would have to be
+tuned around a power curve instead of around a player learning them.
+
+**The simulation is deterministic.** Same seed, same fight, down to the tick.
+That is what lets today's run be *the same run everybody else got*, which is how
+a game with no server still offers the thing a server usually provides. It is
+also what would later allow replays and verified scores.
+
+What the sentence rules out: character progression, loot, gacha, matchmaking,
+live services, and anything that needs an artist. Those are not omissions to be
+filled in later. Each of them breaks one of the four above.
+
+### Four shapes of the same promise
+
+| Mode | The promise | Where it lives |
+|---|---|---|
+| `raid` | learn one fight by repeating it | the whole engine |
+| `battleground` | a team fight, five against five | `sim/battleground.ts`, `sim/bgai.ts` |
+| `daily` | the run everybody else got today | `sim/daily.ts`, `sim/affix.ts` |
+| `descent` | one attempt, boss after boss | `sim/descent.ts` |
+
+The raid is the engine and the other three are framings of it. A mode that
+cannot be described as *content that would otherwise need other people* does
+not belong on the front screen. `npm run conceptcheck` fails if the home screen
+grows a mode this table has not heard of, because a menu is easier to add to
+than a concept is to revisit.
 
 ## Run it
 
@@ -431,6 +475,41 @@ five were verified by putting the old behaviour back one at a time.
 Hardcore raiders barely look at boss models. They watch timer bars, debuff
 icons and raid frames. The information a raid encounter actually runs on is
 already abstract, so this prototype renders exactly that and nothing else.
+
+### The bodies
+
+Everything on the floor used to be a filled circle with a letter in it, which
+is honest about position and silent about everything else. Two things were
+being thrown away by that. Colour says the class, but ten colours is ten
+colours — a mage and a shaman are two blues, and at a glance on a phone that
+is one blue. And every actor has a bearing that the gaze mechanic asks about,
+which nothing on screen showed.
+
+So a token is a body now: legs, a torso in the class colour, shoulders, arms,
+a head, and one thing in its hands per class. It is drawn from the same
+primitives as the rest of the render path — arcs, lines, filled paths — so
+there is no art in the repo, nothing to load, nothing to regenerate, and a new
+class is a colour in one table and a shape in one switch.
+
+Two decisions in `src/render/sprite.ts` are worth keeping:
+
+**The body faces the screen, and only the ground turns.** A body drawn from
+above and rotated with its bearing was tried first and reads as an insect: a
+person seen from directly overhead is a blob with shoulders, and turning the
+blob makes it worse. The body mirrors left or right with the way it is turned,
+and the bearing itself is a mark on the rim of the disc it stands on.
+
+**The disc is still the hitbox.** The footprint is drawn first, at the actor's
+own radius, exactly as before — the body over it is a picture, and a picture
+must never be what position is read off. Under nine pixels the picture is
+dropped entirely and the token is a disc again, and under fifteen it keeps its
+shape and loses whatever it was holding: a greatsword at twelve pixels is not
+a greatsword, it is a smudge on the silhouette that was doing the work.
+
+Bodies stand up out of their footprints, so the party is drawn in depth order
+and health bars and names are placed off the body height rather than the
+radius. The boss stays underneath the party: letting it into the depth order
+put a very large body in front of whoever was standing north of it.
 
 ## Design
 
@@ -2132,7 +2211,24 @@ npm run harness      # win rate and puddle-uptime by attempt number
 npm run rendercheck  # draws every frame against a stub canvas, asserts controls land on screen
 npm run touchcheck   # pointer and key mapping, joystick vector, multi-touch, layout bounds
 npm run pwacheck     # manifest, icons, precache list and offline shell (runs in build)
+npm run spritesheet  # every body, every pose, as sprites.svg + sprites.png
+npm run screenshot   # a real frame of a real pull, as shot.svg + shot.png
 npm run build
+```
+
+`spritesheet` and `screenshot` exist because nothing here could see itself.
+The render path only runs in a browser, this machine has no libraries for a
+headless one, and the checks assert on numbers — which catches a control that
+never got drawn and cannot catch a body that looks wrong. Both run the real
+drawing code against a recorder (`scripts/canvasrec.ts`) that writes SVG for a
+browser and rasterises a PNG for anything else. Text lives in the SVG, because
+laying out glyphs needs a font and a font is an asset; the PNG carries the
+shapes, which is what shapes have to be judged on. Clipping is ignored, so a
+band of floor outside the arena in a screenshot is the recorder, not the game.
+
+```bash
+npm run spritesheet -- sprites.svg 3     # magnified, for judging a silhouette
+npm run screenshot -- shot.png 390 844 40 25   # portrait, 40s in, 25-man
 ```
 
 The harness is the main tool here. Tuning AI or balance without measuring it
