@@ -14,6 +14,7 @@ import { BATTLEGROUNDS } from '../sim/battleground'
 import type { BgKind } from '../sim/types'
 import { COLORS, L, classColor, MENU_TEXT, fitText } from './theme'
 import { drawBackdrop } from './ambience'
+import { drawPortrait } from './portraitimage'
 
 /**
  * Raid setup.
@@ -299,6 +300,22 @@ export function drawRoster(
 
     ctx.fillStyle = chosen ? 'rgba(74, 222, 128, 0.12)' : COLORS.panel
     ctx.fillRect(r.x, r.y, r.w, r.h)
+
+    // The portrait sits behind the card rather than beside it. A 120x65 cell
+    // has no room for a picture and two lines of text side by side, and the
+    // text is the part a player is actually reading — so the art goes under
+    // it, far enough back that it never competes, and further back again when
+    // the card is not the one chosen.
+    if (drawPortrait(ctx, `${option.classId}-${option.spec}`, r.x, r.y, r.w, r.h, chosen ? 0.95 : 0.7)) {
+      // A scrim under the text, because a light patch in a portrait would
+      // otherwise take a word with it.
+      const shade = ctx.createLinearGradient(0, r.y, 0, r.y + r.h)
+      shade.addColorStop(0, 'rgba(10, 10, 15, 0.1)')
+      shade.addColorStop(1, 'rgba(10, 10, 15, 0.72)')
+      ctx.fillStyle = shade
+      ctx.fillRect(r.x, r.y, r.w, r.h)
+    }
+
     ctx.strokeStyle = chosen ? COLORS.player : COLORS.panelEdge
     ctx.lineWidth = chosen ? 2 : 1
     ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
