@@ -7,7 +7,7 @@
  * request and one cache entry.
  *
  * The browser does the packing. Node has no image encoder, and `visualcheck`
- * already brought a real one into this repo: a canvas can decode the PNGs,
+ * already brought a real one into this repo: a canvas can decode the frames,
  * draw them into a grid, and encode WebP, which for painted art is a fraction
  * of the PNG. That is worth caring about here — the whole build is 173 kB, so
  * an atlas is the largest thing the game would ever have loaded.
@@ -48,7 +48,7 @@ const QUALITY = 0.82
 
 async function main(): Promise<void> {
   const jobs = iconJobs()
-  const have = jobs.filter((job) => existsSync(resolve(SRC, `${job.id}.png`)))
+  const have = jobs.filter((job) => existsSync(resolve(SRC, `${job.id}.jpg`)))
   const missing = jobs.length - have.length
 
   if (have.length === 0) {
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
     id: job.id,
     x: (index % COLS) * CELL,
     y: Math.floor(index / COLS) * CELL,
-    data: `data:image/png;base64,${readFileSync(resolve(SRC, `${job.id}.png`)).toString('base64')}`,
+    data: `data:image/jpeg;base64,${readFileSync(resolve(SRC, `${job.id}.jpg`)).toString('base64')}`,
   }))
 
   const browser = await chromium.launch()

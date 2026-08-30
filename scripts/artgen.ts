@@ -2,7 +2,7 @@
  * Ask an image model for the eighty-two ability icons.
  *
  * Generation is not deterministic, so this is not a check and its output is
- * not a build artifact: the PNGs it writes are committed, and this exists to
+ * not a build artifact: the images it writes are committed, and this exists to
  * make a new one or replace a bad one, not to run in CI. Treat it the way you
  * treat `spritesheet` — a tool that produces something a person then looks at.
  *
@@ -31,9 +31,14 @@ const OUT = resolve(process.cwd(), 'art/icons')
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 
 /**
- * The cheapest model that can do 512px, which is already four times the size
- * an icon is drawn at. Paying for 1K here would buy pixels the game throws
- * away on the first draw.
+ * The cheapest model that can do 512, which is already four times the size an
+ * icon is drawn at. Paying for 1K here would buy pixels the game throws away
+ * on the first draw.
+ *
+ * Every image model is billed. There is a free tier on this API and it does
+ * not cover image output — the pricing table says "not available" and the
+ * endpoint says `limit: 0`, which reads like a spent quota and is not one.
+ * At this model's rate eighty-two icons is a couple of dollars.
  */
 const MODEL = 'gemini-3.1-flash-lite-image'
 
@@ -116,19 +121,28 @@ async function generate(job: IconJob, key: string): Promise<Buffer> {
     body: JSON.stringify({
       model: MODEL,
       input: [{ type: 'text', text: job.prompt }],
+      // JPEG is the only mime the endpoint accepts. It costs nothing here:
+      // an ability icon is opaque by design — it carries its own dark ground
+      // so it can sit on buttons of different colours — and the atlas
+      // re-encodes to WebP anyway.
       response_format: {
         type: 'image',
-        mime_type: 'image/png',
+        mime_type: 'image/jpeg',
         aspect_ratio: '1:1',
-        image_size: '512px',
+        image_size: '512',
       },
     }),
   })
 
   if (!response.ok) {
+    // Long enough to reach the useful part. A 429 here is two different
+    // failures wearing one status: a rate limit, which passes on its own, and
+    // `limit: 0`, which means the model has no free tier and never will. That
+    // distinction lives past the three hundredth character of the message.
+    //
     // The body can carry a rejected-key message; the request headers cannot
     // appear here, and nothing prints the key itself.
-    const detail = (await response.text()).slice(0, 300)
+    const detail = (await response.text()).slice(0, 700)
     throw new Error(`HTTP ${response.status}: ${detail}`)
   }
 
@@ -167,7 +181,7 @@ async function main(): Promise<void> {
   const failed: string[] = []
 
   for (const job of jobs) {
-    const path = resolve(OUT, `${job.id}.png`)
+    const path = resolve(OUT, `${job.id}.jpg`)
     if (!FORCE && existsSync(path)) {
       kept += 1
       continue
