@@ -216,6 +216,20 @@ const SPRITE_FRAME =
   'on a pure plain white background, isolated, no ground, no shadow, no scenery, ' +
   'stylized cel-shaded fantasy game art, thick black outlines, flat saturated colors'
 
+/**
+ * The backdrop is asked for twice, at both ends.
+ *
+ * The front of a prompt wins — that is what the portraits taught — and for a
+ * sprite the two things that must both be right are pulling against each
+ * other. A subject described in black and violet takes the whole picture with
+ * it and returns a figure on a near-black ground, which no cutout can
+ * separate; a background instruction strong enough to prevent that, placed
+ * first, washes the character out instead.
+ *
+ * So it is said first and repeated last, and the subject sits between them.
+ */
+const SPRITE_GROUND = 'on a pure plain white background'
+
 export function spriteJobs(): ArtJob[] {
   const jobs: ArtJob[] = []
 
@@ -224,7 +238,7 @@ export function spriteJobs(): ArtJob[] {
       jobs.push({
         id: `${classId}-${spec.id}`,
         label: `${CLASSES[classId].name} ${spec.id}`,
-        prompt: `${CLASS_LOOK[classId]}, ${SPEC_LOOK[spec.id] ?? ''}, ${SPRITE_FRAME}`,
+        prompt: `${SPRITE_GROUND}, ${CLASS_LOOK[classId]}, ${SPEC_LOOK[spec.id] ?? ''}, ${SPRITE_FRAME}`,
       })
     }
   }
@@ -233,7 +247,7 @@ export function spriteJobs(): ArtJob[] {
     jobs.push({
       id: `boss-${id}`,
       label: `boss ${id}`,
-      prompt: `${look}, colossal and monstrous, ${SPRITE_FRAME}`,
+      prompt: `${SPRITE_GROUND}, ${look}, colossal and monstrous, ${SPRITE_FRAME}`,
     })
   }
 

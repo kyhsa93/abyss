@@ -14,9 +14,15 @@
  *
  * A second pass clears what the fill cannot reach. Background enclosed by the
  * subject — the gap under an arm, the hole in a staff's ring — touches no edge,
- * so it is found by colour instead: near-white and unsaturated, which is what
- * the prompt asked the backdrop to be and what a cel-shaded character has very
- * little of.
+ * so it is found by colour instead: whatever the border of this particular
+ * picture actually is.
+ *
+ * That colour is measured rather than assumed, and the assumption is what
+ * broke first. The prompt asks for a white backdrop and the prompt is not in
+ * charge: a priest described in black and violet came back on a near-black
+ * ground and a druid in green came back on green, and a cutout written around
+ * the word "white" removed the character and kept the background. Reading the
+ * border makes the cut work on whatever arrived.
  *
  * Everything happens in the browser because Node has no image codec, and
  * `visualcheck` already brought one into this repo.
@@ -104,6 +110,28 @@ async function main(): Promise<void> {
 
           const pixels = wc.getImageData(0, 0, w, h)
           const d = pixels.data
+
+          // What this picture's background actually is, taken as the median of
+          // its border so one bright corner cannot move it.
+          const border: number[][] = [[], [], []]
+          const sample = (i: number) => {
+            const o = i * 4
+            border[0]!.push(d[o]!)
+            border[1]!.push(d[o + 1]!)
+            border[2]!.push(d[o + 2]!)
+          }
+          for (let x = 0; x < w; x += 2) {
+            sample(x)
+            sample((h - 1) * w + x)
+          }
+          for (let y = 0; y < h; y += 2) {
+            sample(y * w)
+            sample(y * w + w - 1)
+          }
+          const ground = border.map((channel) => {
+            channel.sort((a, b) => a - b)
+            return channel[channel.length >> 1]!
+          })
           const seen = new Uint8Array(w * h)
           const stack: number[] = []
 
@@ -145,11 +173,13 @@ async function main(): Promise<void> {
             const r = d[o]!
             const g = d[o + 1]!
             const b = d[o + 2]!
-            // Enclosed background the fill never reached: what the prompt asked
-            // the backdrop to be, and what a cel-shaded figure has almost none
-            // of — bright and grey at once.
-            const paper = Math.min(r, g, b) > 232 && Math.max(r, g, b) - Math.min(r, g, b) < 14
-            if (seen[i] || paper) d[o + 3] = 0
+            // Enclosed background the fill never reached. Tighter than the
+            // fill's own tolerance, because this one is not walking a gradient
+            // — it is asking whether a pixel is the background colour, and a
+            // loose answer punches holes in the character.
+            const same =
+              Math.abs(r - ground[0]!) + Math.abs(g - ground[1]!) + Math.abs(b - ground[2]!) <= 18
+            if (seen[i] || same) d[o + 3] = 0
             else solid += 1
           }
           kept[c.id] = Math.round((solid / (w * h)) * 1000) / 10
