@@ -1658,7 +1658,25 @@ function drawActor(
     // instead of running on the spot. Scaled so one stride is about one body
     // width of travel.
     const step = Math.hypot(a.pos.x - a.prevPos.x, a.pos.y - a.prevPos.y)
-    drawBody(ctx, token, p.x, p.y, r, a.facing, a.pos.x * 0.32 + a.pos.y * 0.32, step > 0.2, a.alive ? 1 : 0.4)
+    // How far through the cast, so the animation lasts exactly as long as the
+    // thing it is showing. A swing that finishes early and then stands there
+    // reads as the cast having been cancelled.
+    const casting =
+      a.castId !== null && a.castTotal > 0
+        ? Math.max(0, Math.min(1, 1 - a.castRemaining / a.castTotal))
+        : null
+    drawBody(
+      ctx,
+      token,
+      p.x,
+      p.y,
+      r,
+      a.facing,
+      a.pos.x * 0.32 + a.pos.y * 0.32,
+      step > 0.2,
+      casting,
+      a.alive ? 1 : 0.4,
+    )
   }
 
   ctx.globalAlpha = 1

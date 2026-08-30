@@ -44,10 +44,23 @@ const args = process.argv.slice(2)
 const at = args.indexOf('--lpc')
 const LPC = resolve(at >= 0 && args[at + 1] ? args[at + 1]! : join(homedir(), 'src/lpc'))
 
-/** Nine frames across, four directions down, at LPC's own cell size. */
+/** LPC's own cell, and its four directions. */
 const CELL = 64
-const FRAMES = 9
 const DIRECTIONS = 4
+
+/**
+ * Five frames per animation, subsampled from whatever LPC ships.
+ *
+ * The sheets are nine frames for a walk and six or seven for an action, and at
+ * sixty pixels on a phone nothing survives of the difference between four
+ * frames of a stride and eight. Taking five evenly is what pays for the second
+ * animation: narrowing the columns almost exactly offsets doubling the rows,
+ * so casting costs nothing in bytes.
+ *
+ * Frame zero is kept whatever else is dropped. It is LPC's standing pose and
+ * the renderer reserves it for standing still.
+ */
+const FRAMES = 5
 
 /**
  * How much of each cell is actually drawn in.
@@ -117,38 +130,38 @@ const WEAPON: Record<ClassId, string | null> = {
 const BOSS: Record<string, Layer[]> = {
   // "the floor, and whoever is standing on it" — a drowned jailer in plate.
   warden: [
-    { z: 10, path: 'body/bodies/male/walk' },
-    { z: 20, path: 'legs/armour/plate/male/walk' },
-    { z: 60, path: 'torso/armour/plate/male/walk' },
-    { z: 100, path: 'head/heads/zombie/adult/walk' },
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/plate/male' },
+    { z: 100, dir: 'head/heads/zombie/adult' },
   ],
   // "stay apart, and out-heal the singing" — something robed with a lantern
   // for a head, which is as close to a many-mouthed chorus as the set goes.
   choir: [
-    { z: 10, path: 'body/bodies/male/walk' },
-    { z: 20, path: 'legs/pants/male/walk' },
-    { z: 60, path: 'torso/clothes/shortsleeve/tshirt/male/walk' },
-    { z: 100, path: 'head/heads/jack/adult/walk' },
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
+    { z: 100, dir: 'head/heads/jack/adult' },
   ],
   // "come in, get behind, change target" — an armoured thing from the water.
   tidebreaker: [
-    { z: 10, path: 'body/bodies/male/walk' },
-    { z: 20, path: 'legs/armour/plate/male/walk' },
-    { z: 60, path: 'torso/armour/plate/male/walk' },
-    { z: 100, path: 'head/heads/lizard/male/walk' },
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/plate/male' },
+    { z: 100, dir: 'head/heads/lizard/male' },
   ],
   // "stop, look away, and leave it whole" — the head is all eyes.
   watcher: [
-    { z: 10, path: 'body/bodies/male/walk' },
-    { z: 20, path: 'legs/pants/male/walk' },
-    { z: 60, path: 'torso/clothes/shortsleeve/tshirt/male/walk' },
-    { z: 100, path: 'head/heads/alien/adult/walk' },
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
+    { z: 100, dir: 'head/heads/alien/adult' },
   ],
   // "decide who pays, then pay it" — a skeleton, wearing nothing, which is the
   // one boss the bare skeleton body is exactly right for.
   ledger: [
-    { z: 10, path: 'body/bodies/skeleton/walk' },
-    { z: 100, path: 'head/heads/skeleton/adult/walk' },
+    { z: 10, dir: 'body/bodies/skeleton' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
 }
 
@@ -189,7 +202,24 @@ const HAIR: Record<string, string> = {
 const SHIELD = 'shield/heater'
 
 /**
- * Find the walk sheet somewhere under a directory.
+ * The two things a body on this floor is ever doing.
+ *
+ * Walking, and the thing it does when it presses a button. Which of those the
+ * second one looks like comes off `spec.melee`, which the simulation already
+ * uses to decide whether a spec has to close the distance — so a caster casts
+ * and a melee spec swings for the same reason each moves the way it does.
+ */
+const ANIMATIONS = ['walk', 'action'] as const
+
+/** What LPC calls the animation, and what else it might call it. */
+const ALIASES: Record<string, string[]> = {
+  walk: ['walk'],
+  slash: ['slash', 'attack_slash'],
+  spellcast: ['spellcast', 'cast'],
+}
+
+/**
+ * Find a sheet for one animation somewhere under a directory.
  *
  * LPC does not lay its equipment out one way. A longsword keeps its walk
  * frames at `walk/longsword.png`, a gnarled staff at
@@ -201,18 +231,20 @@ const SHIELD = 'shield/heater'
  * Foreground wins where a piece has two halves: the background layer is what
  * sits behind the body, and one of the two is enough at this size.
  */
-function findWalk(dir: string): string | null {
+function findAnim(dir: string, anim: string): string | null {
   const root = join(LPC, 'spritesheets', dir)
   if (!existsSync(root)) return null
 
+  const names = ALIASES[anim] ?? [anim]
   const hits: string[] = []
   const walk = (d: string, depth: number) => {
     if (depth > 5) return
     for (const entry of readdirSync(d, { withFileTypes: true })) {
       const full = join(d, entry.name)
       if (entry.isDirectory()) walk(full, depth + 1)
-      else if (entry.name.endsWith('.png') && (full.includes('/walk/') || entry.name === 'walk.png')) {
-        hits.push(full)
+      else if (entry.name.endsWith('.png')) {
+        const matches = names.some((n) => full.includes(`/${n}/`) || entry.name === `${n}.png`)
+        if (matches) hits.push(full)
       }
     }
   }
@@ -227,7 +259,8 @@ function findWalk(dir: string): string | null {
 
 interface Layer {
   z: number
-  path: string
+  /** A directory. Which sheet inside it depends on the animation being built. */
+  dir: string
 }
 
 function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
@@ -235,41 +268,49 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   const weapon = WEAPON[classId]
 
   const stack: Layer[] = [
-    { z: 10, path: 'body/bodies/male/walk' },
-    { z: 20, path: `${armour.legs}/walk` },
-    { z: 60, path: `${armour.torso}/walk` },
-    { z: 100, path: 'head/heads/human/male/walk' },
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: armour.legs },
+    { z: 60, dir: armour.torso },
+    { z: 100, dir: 'head/heads/human/male' },
   ]
 
   // Above the head, below anything held: hair is drawn on a head, and a shield
   // arm passes in front of it.
   const hair = HAIR[`${classId}-${spec}`]
-  if (hair) {
-    const found = findWalk(`hair/${hair}`)
-    if (found) stack.push({ z: 110, path: found })
-  }
+  if (hair) stack.push({ z: 110, dir: `hair/${hair}` })
 
-  if (role === 'tank') {
-    const shield = findWalk(SHIELD)
-    if (shield) stack.push({ z: 130, path: shield })
-  }
-  if (weapon) {
-    const found = findWalk(weapon)
-    if (found) stack.push({ z: 140, path: found })
-  }
+  if (role === 'tank') stack.push({ z: 130, dir: SHIELD })
+  if (weapon) stack.push({ z: 140, dir: weapon })
   return stack
 }
 
+interface Subject {
+  id: string
+  layers: Layer[]
+  /** Which sheet the action animation is built from. */
+  action: string
+}
+
 /** Every spec in the order the roster shows them, then every boss. */
-function specs(): Array<{ id: string; layers: Layer[] }> {
-  const out: Array<{ id: string; layers: Layer[] }> = []
+function specs(): Subject[] {
+  const out: Subject[] = []
   for (const classId of CLASS_ORDER) {
     for (const spec of CLASSES[classId].specs) {
-      out.push({ id: `${classId}-${spec.id}`, layers: layersFor(classId, spec.id, spec.role) })
+      out.push({
+        id: `${classId}-${spec.id}`,
+        layers: layersFor(classId, spec.id, spec.role),
+        // The simulation already uses `melee` to decide whether a spec has to
+        // close the distance, so a caster casts and a melee spec swings for
+        // the same reason each moves the way it does.
+        action: spec.melee ? 'slash' : 'spellcast',
+      })
     }
   }
+  // A boss's mechanics are scripted rather than cast off an ability table, and
+  // every one of them reads as something being done to the room. Slash is the
+  // closer of the two to that.
   for (const [id, layers] of Object.entries(BOSS)) {
-    out.push({ id: `boss-${id}`, layers })
+    out.push({ id: `boss-${id}`, layers, action: 'slash' })
   }
   return out
 }
@@ -326,30 +367,35 @@ async function main(): Promise<void> {
   const used = new Set<string>()
   const missing: string[] = []
 
-  const cells = all.map((spec, index) => {
-    const layers = spec.layers
-      .map((layer) => {
-        const file = join(LPC, 'spritesheets', `${layer.path}.png`)
-        if (!existsSync(file)) {
-          missing.push(`${spec.id}: ${layer.path}`)
-          return null
-        }
-        used.add(layer.path)
-        return { z: layer.z, data: `data:image/png;base64,${readFileSync(file).toString('base64')}` }
-      })
-      .filter((l): l is { z: number; data: string } => l !== null)
-      .sort((a, b) => a.z - b.z)
+  // A block per subject per animation, four directions inside each. A layer
+  // that has no sheet for an animation is dropped rather than fatal — a staff
+  // with no slash frames is a staff that is not drawn mid-swing, which is
+  // better than no character.
+  const blocks = all.flatMap((spec, index) =>
+    ANIMATIONS.map((anim, order) => {
+      const sheet = anim === 'walk' ? 'walk' : spec.action
+      const layers = spec.layers
+        .map((layer) => {
+          const found = findAnim(layer.dir, sheet)
+          if (!found) {
+            if (anim === 'walk') missing.push(`${spec.id}: ${layer.dir} has no ${sheet}`)
+            return null
+          }
+          used.add(found)
+          const file = join(LPC, 'spritesheets', `${found}.png`)
+          return { z: layer.z, data: `data:image/png;base64,${readFileSync(file).toString('base64')}` }
+        })
+        .filter((l): l is { z: number; data: string } => l !== null)
+        .sort((a, b) => a.z - b.z)
 
-    return { id: spec.id, row: index, layers }
-  })
+      return { id: spec.id, block: index * ANIMATIONS.length + order, layers }
+    }),
+  )
 
   for (const line of missing) console.error(`  ! missing layer  ${line}`)
 
-  // One spec per row: nine frames across for the cycle, and the four
-  // directions stacked, which is how LPC ships them and how the renderer wants
-  // to index them.
   const width = FRAMES * CELL_W
-  const height = all.length * DIRECTIONS * CELL
+  const height = blocks.length * DIRECTIONS * CELL
 
   const browser = await chromium.launch()
   let encoded: string
@@ -357,32 +403,40 @@ async function main(): Promise<void> {
     const page = await browser.newPage()
     await page.setContent('<!doctype html><meta charset="utf-8">', { waitUntil: 'load' })
     encoded = await page.evaluate(
-      async ({ cells, width, height, cell, cellW, cropX, frames, directions, quality }) => {
+      async ({ blocks, width, height, cell, cellW, cropX, frames, directions, quality }) => {
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height
         const ctx = canvas.getContext('2d')!
         ctx.imageSmoothingEnabled = false
 
-        for (const c of cells) {
+        for (const c of blocks) {
           for (const layer of c.layers) {
             const image = new Image()
             image.src = layer.data
             await image.decode()
-            // Every LPC sheet is the same shape, so a layer drops straight
-            // onto the row without any per-layer offset.
+            // How many frames this animation shipped with. Sheets are six,
+            // seven or nine wide depending on what they show, so the five taken
+            // out of them spread across whatever is there rather than across an
+            // assumed width.
+            const source = Math.max(1, Math.round(image.naturalWidth / cell))
+
             // Frame by frame rather than whole-sheet, because the crop has to
             // be taken out of the middle of every one of them.
             for (let f = 0; f < frames; f++) {
+              // Frame zero stays frame zero — it is the standing pose and the
+              // renderer reserves it — and the rest spread over the remainder.
+              const from =
+                f === 0 ? 0 : Math.min(source - 1, Math.round((f * (source - 1)) / (frames - 1)))
               for (let d = 0; d < directions; d++) {
                 ctx.drawImage(
                   image,
-                  f * cell + cropX,
+                  from * cell + cropX,
                   d * cell,
                   cellW,
                   cell,
                   f * cellW,
-                  (c.row * directions + d) * cell,
+                  (c.block * directions + d) * cell,
                   cellW,
                   cell,
                 )
@@ -392,7 +446,7 @@ async function main(): Promise<void> {
         }
         return canvas.toDataURL('image/webp', quality)
       },
-      { cells, width, height, cell: CELL, cellW: CELL_W, cropX: CROP_X, frames: FRAMES, directions: DIRECTIONS, quality: QUALITY },
+      { blocks, width, height, cell: CELL, cellW: CELL_W, cropX: CROP_X, frames: FRAMES, directions: DIRECTIONS, quality: QUALITY },
     )
   } finally {
     await browser.close()
@@ -406,11 +460,12 @@ async function main(): Promise<void> {
   writeFileSync(
     TABLE,
     `/**
- * Which row of \`public/art/lpc.webp\` belongs to each spec.
+ * Which block of \`public/art/lpc.webp\` belongs to each spec.
  *
  * Generated by \`npm run lpc\` — edit the layer table in the packer, not this
- * file. A row is four directions of a nine-frame walk, in LPC's own order:
- * up, left, down, right.
+ * file. A subject owns \`LPC_ANIMATIONS\` blocks, each of four directions in
+ * LPC's own order — up, left, down, right — and each direction is
+ * \`LPC_FRAMES\` frames across.
  *
  * The art is Liberated Pixel Cup, variously CC-BY-SA 3.0, GPL 3.0, OGA-BY and
  * CC0. Attribution is a condition of those, and the list is in
@@ -421,6 +476,11 @@ export const LPC_CELL_W = ${CELL_W}
 export const LPC_CELL_H = ${CELL}
 export const LPC_FRAMES = ${FRAMES}
 export const LPC_DIRECTIONS = ${DIRECTIONS}
+
+/** Blocks per subject, in this order. A block is four directions. */
+export const LPC_WALK = 0
+export const LPC_ACTION = 1
+export const LPC_ANIMATIONS = ${ANIMATIONS.length}
 export const LPC_SRC = 'art/lpc.webp'
 
 /** Row order in the sheet, which is also LPC's direction order. */

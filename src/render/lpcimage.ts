@@ -9,6 +9,8 @@
  */
 
 import {
+  LPC_ACTION,
+  LPC_ANIMATIONS,
   LPC_CELL_H,
   LPC_CELL_W,
   LPC_DIRECTIONS,
@@ -19,6 +21,7 @@ import {
   LPC_ROW,
   LPC_SRC,
   LPC_UP,
+  LPC_WALK,
 } from './lpc'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
@@ -87,6 +90,15 @@ export function drawBody(
   facing: number,
   phase: number,
   moving: boolean,
+  /**
+   * How far through a cast, nought to one, or null when not casting.
+   *
+   * A cast has a length the simulation already knows and the animation should
+   * take exactly that long — a swing that finishes early and then stands there
+   * reads as the cast having been cancelled. So the caller passes progress
+   * rather than a flag, and the frame is read off it.
+   */
+  casting: number | null,
   alpha: number,
 ): boolean {
   begin()
@@ -95,9 +107,18 @@ export function drawBody(
   const row = LPC_ROW[id]
   if (row === undefined) return false
 
-  // Frame zero is the standing pose and the other eight are the cycle, so a
-  // body that is not walking must not land on it by accident.
-  const frame = moving ? 1 + (Math.floor(phase) % (LPC_FRAMES - 1)) : 0
+  // Casting wins over walking. Both can be true — the simulation lets a spec
+  // walk while a channel runs — and of the two, the one worth showing is the
+  // one the player is waiting on.
+  const block = casting !== null ? LPC_ACTION : LPC_WALK
+  const frame =
+    casting !== null
+      ? Math.min(LPC_FRAMES - 1, Math.floor(casting * LPC_FRAMES))
+      : // Frame zero is the standing pose, so a body that is not walking must
+        // not land on the cycle by accident.
+        moving
+        ? 1 + (Math.floor(phase) % (LPC_FRAMES - 1))
+        : 0
   const direction = directionOf(facing)
 
   // The cell is taller than it is wide — the packer crops the empty sides off
@@ -117,7 +138,7 @@ export function drawBody(
   ctx.drawImage(
     sheet,
     frame * LPC_CELL_W,
-    (row * LPC_DIRECTIONS + direction) * LPC_CELL_H,
+    ((row * LPC_ANIMATIONS + block) * LPC_DIRECTIONS + direction) * LPC_CELL_H,
     LPC_CELL_W,
     LPC_CELL_H,
     x - w / 2,
