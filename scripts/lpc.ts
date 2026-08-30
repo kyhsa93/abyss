@@ -34,6 +34,7 @@ import { join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 
 import { CLASSES, CLASS_ORDER } from '../src/sim/classes'
+import { classColor } from '../src/render/theme'
 import type { ClassId } from '../src/sim/classes'
 
 const IMAGE = resolve(process.cwd(), 'public/art/lpc.webp')
@@ -233,6 +234,41 @@ const ADD: Record<string, Layer[]> = {
   ],
 }
 
+/**
+ * What a class puts on its head and shoulders.
+ *
+ * Colour separated the classes and this separates their outlines, which is the
+ * half colour cannot do: a shape survives being small, being dimmed under a
+ * telegraph, and being seen out of the corner of an eye while something else
+ * is being read. A pointed hat is a mage from across the room.
+ *
+ * Not everyone gets one. A druid in nothing is a druid, and a set where every
+ * class wears a hat is a set where the hat has stopped meaning anything.
+ */
+const HEADGEAR: Partial<Record<ClassId, string>> = {
+  warrior: 'hat/helmet/barbarian',
+  paladin: 'hat/helmet/armet_simple',
+  priest: 'hat/cloth/hood',
+  mage: 'hat/magic/wizard',
+  warlock: 'hat/cloth/hood',
+  hunter: 'hat/cloth/leather_cap',
+  rogue: 'hat/cloth/hood',
+}
+
+/** Heavy shoulders read as heavy armour from further away than plate does. */
+const SHOULDERS: Partial<Record<ClassId, string>> = {
+  warrior: 'shoulders/pauldrons',
+  paladin: 'shoulders/pauldrons',
+  shaman: 'shoulders/mantal',
+}
+
+/** A cape is a silhouette that moves, which is worth more than one that does not. */
+const CAPE: Partial<Record<ClassId, string>> = {
+  paladin: 'cape/solid',
+  warlock: 'cape/solid',
+  druid: 'cape/tattered',
+}
+
 /** Only tanks, because only tanks are holding one. */
 const SHIELD = 'shield/heater'
 
@@ -296,25 +332,52 @@ interface Layer {
   z: number
   /** A directory. Which sheet inside it depends on the animation being built. */
   dir: string
+  /**
+   * Push this layer towards a colour, keeping its shading.
+   *
+   * Set on the worn layers and nothing else. Four armour types across
+   * seventeen specs left every class reading as the same person in a different
+   * hat, and colour is the fastest channel there is — the game already assigns
+   * each class one and the roster, the party frames and the ring under a body
+   * all use it. Skin and hair are left alone: a paladin is a person in gold
+   * armour, not a gold person.
+   */
+  tint?: string
 }
 
 function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   const armour = ARMOUR[CLASSES[classId].armorType] ?? ARMOUR.cloth!
   const weapon = WEAPON[classId]
 
+  // Enough to say which class without washing out the shading that says which
+  // armour. Legs take less than the torso: they are half in shadow already and
+  // the same strength on both read as a costume rather than as kit.
+  const colour = classColor(classId)
+
   const stack: Layer[] = [
     { z: 10, dir: 'body/bodies/male' },
-    { z: 20, dir: armour.legs },
-    { z: 60, dir: armour.torso },
+    { z: 20, dir: armour.legs, tint: colour },
+    { z: 60, dir: armour.torso, tint: colour },
     { z: 100, dir: 'head/heads/human/male' },
   ]
+
+  // A cape hangs behind everything, which is where the set draws it.
+  const cape = CAPE[classId]
+  if (cape) stack.push({ z: 5, dir: cape, tint: colour })
 
   // Above the head, below anything held: hair is drawn on a head, and a shield
   // arm passes in front of it.
   const hair = HAIR[`${classId}-${spec}`]
   if (hair) stack.push({ z: 110, dir: `hair/${hair}` })
 
-  if (role === 'tank') stack.push({ z: 130, dir: SHIELD })
+  const shoulders = SHOULDERS[classId]
+  if (shoulders) stack.push({ z: 115, dir: shoulders, tint: colour })
+
+  // Over the hair, because it is worn on top of it.
+  const hat = HEADGEAR[classId]
+  if (hat) stack.push({ z: 120, dir: hat, tint: colour })
+
+  if (role === 'tank') stack.push({ z: 130, dir: SHIELD, tint: colour })
   if (weapon) stack.push({ z: 140, dir: weapon })
   return stack
 }
@@ -424,9 +487,13 @@ async function main(): Promise<void> {
           }
           used.add(found)
           const file = join(LPC, 'spritesheets', `${found}.png`)
-          return { z: layer.z, data: `data:image/png;base64,${readFileSync(file).toString('base64')}` }
+          return {
+            z: layer.z,
+            tint: layer.tint ?? null,
+            data: `data:image/png;base64,${readFileSync(file).toString('base64')}`,
+          }
         })
-        .filter((l): l is { z: number; data: string } => l !== null)
+        .filter((l): l is { z: number; tint: string | null; data: string } => l !== null)
         .sort((a, b) => a.z - b.z)
 
       return { id: spec.id, block: index * ANIMATIONS.length + order, layers }
@@ -451,16 +518,39 @@ async function main(): Promise<void> {
         const ctx = canvas.getContext('2d')!
         ctx.imageSmoothingEnabled = false
 
+        // One scratch canvas, reused: tinting has to happen on the layer alone,
+        // before it is composited, or it would take the layers under it with it.
+        const scratch = document.createElement('canvas')
+        const sc = scratch.getContext('2d')!
+
         for (const c of blocks) {
           for (const layer of c.layers) {
             const image = new Image()
             image.src = layer.data
             await image.decode()
+
+            let source: CanvasImageSource = image
+            if (layer.tint) {
+              scratch.width = image.naturalWidth
+              scratch.height = image.naturalHeight
+              sc.globalCompositeOperation = 'source-over'
+              sc.clearRect(0, 0, scratch.width, scratch.height)
+              sc.drawImage(image, 0, 0)
+              // `source-atop` paints only where the layer already is, so the
+              // colour lands on the garment and not on the empty cell around
+              // it. Partial alpha is what keeps the shading underneath.
+              sc.globalCompositeOperation = 'source-atop'
+              sc.fillStyle = layer.tint
+              sc.globalAlpha = 0.42
+              sc.fillRect(0, 0, scratch.width, scratch.height)
+              sc.globalAlpha = 1
+              source = scratch
+            }
             // How many frames this animation shipped with. Sheets are six,
             // seven or nine wide depending on what they show, so the five taken
             // out of them spread across whatever is there rather than across an
             // assumed width.
-            const source = Math.max(1, Math.round(image.naturalWidth / cell))
+            const count = Math.max(1, Math.round(image.naturalWidth / cell))
 
             // Frame by frame rather than whole-sheet, because the crop has to
             // be taken out of the middle of every one of them.
@@ -468,10 +558,10 @@ async function main(): Promise<void> {
               // Frame zero stays frame zero — it is the standing pose and the
               // renderer reserves it — and the rest spread over the remainder.
               const from =
-                f === 0 ? 0 : Math.min(source - 1, Math.round((f * (source - 1)) / (frames - 1)))
+                f === 0 ? 0 : Math.min(count - 1, Math.round((f * (count - 1)) / (frames - 1)))
               for (let d = 0; d < directions; d++) {
                 ctx.drawImage(
-                  image,
+                  source,
                   from * cell + cropX,
                   d * cell,
                   cellW,
