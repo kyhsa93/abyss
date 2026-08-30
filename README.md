@@ -2352,18 +2352,3 @@ committed decision rather than a build step — `npm run iconmatch` picks once,
 a person reads the list, and the game is never one API call away from a
 different icon set.
 
-## Portrait art
-
-The class and boss portraits under `art/portraits` were generated with
-[pollinations.ai](https://pollinations.ai), which answers an unauthenticated
-request with an image and charges nothing.
-
-Its terms are worth stating plainly rather than leaving implied: the project is
-MIT, but that covers the software. The documentation says nothing about the
-images — no ownership, no commercial-use clause, no attribution requirement.
-Unstated is not granted. This is a free, non-commercial hobby project and the
-decision was taken with that in view; anything that changed either of those
-would need the art regenerated somewhere with terms.
-
-`npm run artgen` prints the prompts and writes nothing. `--write` generates
-what is missing, `--only <id> --force --seed <n>` rerolls one.

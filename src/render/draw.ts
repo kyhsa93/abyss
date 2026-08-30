@@ -32,8 +32,6 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
-import { drawSprite, hasSprite } from './spriteimage'
-import { drawFloor } from './floorimage'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -153,23 +151,11 @@ export function drawWorld(
 
   const bg = s.mode === 'battleground'
   for (const a of s.actors) {
-    if (a.faction === 'boss') {
-      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossToken(s))
-    }
+    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
-  // Bodies stand up out of their footprints, so whoever is drawn last is
-  // whoever is in front — and in actor order a body standing behind another
-  // was drawing over its face. Sorted by depth, on a copy, so the order the
-  // simulation walks its actors in is left alone.
-  //
-  // Only the party. Letting the boss into the same order would put a very
-  // large body in front of whoever is standing north of it, and losing a
-  // party member behind the boss is the worse trade.
-  const depth = s.actors.filter((a) => a.faction === 'party')
-  depth.sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
-  for (const a of depth) {
-    drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+  for (const a of s.actors) {
+    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -454,14 +440,6 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
   ctx.fill()
   ctx.clip()
 
-  // The picture goes over the flat fill rather than instead of it, so a floor
-  // that has not loaded is the floor that always was rather than a hole.
-  const textured = drawFloor(ctx, c.x, c.y, L.arenaR)
-
-  // The grid is what makes your own movement readable — it slides past you in
-  // world space while you stand still. It stays, quieter, once there is
-  // something under it to read against.
-  ctx.globalAlpha = textured ? 0.45 : 1
   ctx.strokeStyle = COLORS.grid
   ctx.lineWidth = 1
   const step = 64 * L.scale
@@ -475,7 +453,6 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
     ctx.lineTo(c.x + L.arenaR, c.y + g)
     ctx.stroke()
   }
-  ctx.globalAlpha = 1
   ctx.restore()
 
   ctx.beginPath()
@@ -1587,16 +1564,6 @@ function standingInFire(s: SimState, a: Actor): boolean {
 }
 
 /** What colour this fight's boss is. A battleground has none. */
-/**
- * The boss's portrait key, or nothing outside a raid.
- *
- * A battleground has no boss and the descent runs the raid table, so this is
- * the one place that knows which face belongs to the large red thing.
- */
-function bossToken(s: SimState): string | null {
-  return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
-}
-
 function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
 }
@@ -1610,12 +1577,6 @@ function drawActor(
   battleground = false,
   /** The boss's own colour. Three bosses in the same red read as one boss. */
   accent: string = COLORS.boss,
-  /**
-   * Which portrait to put in the disc, for the one actor whose identity is not
-   * on itself. A party member carries its class and spec; the boss's is a
-   * property of the encounter, so the caller that knows the encounter passes it.
-   */
-  bossToken: string | null = null,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -1653,42 +1614,13 @@ function drawActor(
     ctx.stroke()
   }
 
-  const token = isBoss ? bossToken : isAdd ? null : `${a.classId}-${a.spec}`
-  const bodied = token !== null && hasSprite(token)
-
   ctx.beginPath()
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-  // Under a body the disc is the ground it stands in, not the body itself, so
-  // it drops to a shade and the class colour moves out to the ring. Keeping it
-  // a solid coloured circle put a bright plate over every sprite's feet.
-  ctx.fillStyle = bodied ? 'rgba(6, 8, 10, 0.55)' : color
+  ctx.fillStyle = color
   ctx.globalAlpha = a.alive ? 1 : 0.4
   ctx.fill()
-
-  // Motion, and it is procedural rather than drawn. A walk cycle needs frames
-  // that agree with each other, and a text-to-image model produces frames that
-  // do not — so the sprite is one picture and the movement is arithmetic on
-  // top of it. The disc does not move: it is the hitbox, and a hitbox that
-  // bobs is a hitbox nobody can read. Only the face inside it does.
-  //
-  // The phase comes off the actor id so a party walking together does not bob
-  // in lockstep, which reads as one object rather than five people.
-  const walking = Math.hypot(a.pos.x - a.prevPos.x, a.pos.y - a.prevPos.y) > 0.2
-  const bob = walking ? Math.sin(clock * 11 + a.id * 1.7) * r * 0.1 : 0
-  // A cast lifts and holds rather than oscillating: something is being wound
-  // up, and a wobble would read as another footstep.
-  const bodyLift = bob - (a.castId !== null ? r * 0.12 : 0)
-
-  // The face goes inside the disc it already had. Adds get none: they are
-  // summoned things with no class and no encounter entry, and giving them the
-  // boss's face would say they are the boss.
-  // Facing is an angle and a sprite has two sides, so the only question a
-  // mirror can answer is which half of the circle it points into.
-  const facingLeft = Math.cos(a.facing) < 0
-  if (token) drawSprite(ctx, token, p.x, p.y, r, bodyLift, facingLeft, a.alive ? 1 : 0.4)
-
   ctx.globalAlpha = 1
-  ctx.strokeStyle = bodied ? color : '#0a0a0f'
+  ctx.strokeStyle = '#0a0a0f'
   ctx.lineWidth = 2
   ctx.stroke()
 
