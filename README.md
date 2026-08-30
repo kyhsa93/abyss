@@ -2211,24 +2211,20 @@ npm run harness      # win rate and puddle-uptime by attempt number
 npm run rendercheck  # draws every frame against a stub canvas, asserts controls land on screen
 npm run touchcheck   # pointer and key mapping, joystick vector, multi-touch, layout bounds
 npm run pwacheck     # manifest, icons, precache list and offline shell (runs in build)
-npm run spritesheet  # every body, every pose, as sprites.svg + sprites.png
-npm run screenshot   # a real frame of a real pull, as shot.svg + shot.png
+npm run visualcheck  # boots dist in a real browser, every boss, frames to shots/
 npm run build
 ```
 
-`spritesheet` and `screenshot` exist because nothing here could see itself.
-The render path only runs in a browser, this machine has no libraries for a
-headless one, and the checks assert on numbers — which catches a control that
-never got drawn and cannot catch a body that looks wrong. Both run the real
-drawing code against a recorder (`scripts/canvasrec.ts`) that writes SVG for a
-browser and rasterises a PNG for anything else. Text lives in the SVG, because
-laying out glyphs needs a font and a font is an asset; the PNG carries the
-shapes, which is what shapes have to be judged on. Clipping is ignored, so a
-band of floor outside the arena in a screenshot is the recorder, not the game.
+`visualcheck` exists because the checks assert on numbers — which catches a
+control that never got drawn and cannot catch a frame that looks wrong. It
+boots the built game in headless Chromium, walks into a pull on every boss by
+the invite link, and writes frames to `shots/`. It also fails the run if the
+page throws: every other check imports modules directly, so a fight that dies
+on boot, on a missing asset or on a browser API the code assumed would pass
+all of them, and that is the failure a player meets first.
 
 ```bash
-npm run spritesheet -- sprites.svg 3     # magnified, for judging a silhouette
-npm run screenshot -- shot.png 390 844 40 25   # portrait, 40s in, 25-man
+npm run visualcheck -- out 1280 800   # a directory and a viewport
 ```
 
 The harness is the main tool here. Tuning AI or balance without measuring it

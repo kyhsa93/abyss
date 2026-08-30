@@ -12,9 +12,8 @@
  * What it buys until then is that the icon is derived from `theme.ts` like
  * everything else on screen, so it cannot drift away from the game.
  *
- * A browser renders it, because the mark is type and type needs a font — which
- * is exactly the thing `canvasrec` says it will not do. `visualcheck` already
- * brought a real browser into this repo, so the font is free.
+ * A browser renders it, because the mark is type and type needs a font.
+ * `visualcheck` already brought a real browser into this repo, so it is free.
  *
  *   npm run icons
  */

@@ -1,18 +1,18 @@
 /**
  * The game, in a real browser, looked at.
  *
- * `canvasrec` and `screenshot` both open by saying that this machine has no
- * libraries for a headless browser, so the render path could only ever be
- * judged by deploying it and squinting at a phone. That stopped being true:
- * the libraries are installed, and this drives the built game in Chromium.
+ * This repo used to have no way to look at itself: the render path only runs
+ * in a browser, and this machine had no libraries for a headless one, so every
+ * judgement about how the game looked was made by deploying it and squinting
+ * at a phone. The libraries are installed now, and this drives the built game
+ * in Chromium.
  *
- * It does not replace the recorder. The recorder draws through the same
- * functions the browser calls and can therefore run without a build, in a
- * second, against code that has never shipped — that is why `rendercheck`
- * asserts through it. This one boots `dist/`, which is slower and needs a
- * build, and in exchange sees the things the recorder cannot: real fonts, the
- * compositor, the service worker, and whether the whole thing survives being
- * started at all.
+ * It does not replace `rendercheck`. That one calls the drawing functions
+ * directly and asserts on numbers — a circle of radius r at x, y — so it runs
+ * without a build, in a second, against code that has never shipped. This one
+ * boots `dist/`, which is slower, and in exchange sees what numbers cannot:
+ * real fonts, the compositor, the service worker, and whether the whole thing
+ * survives being started at all.
  *
  * So it does two jobs.
  *
@@ -24,8 +24,8 @@
  *
  * The rest is a contact sheet. Frames are captured on the wall clock, so two
  * runs are close but not identical: the simulation is deterministic per tick,
- * the number of ticks inside a real second is not. Read these the way you read
- * `sprites.png` — to judge how something looks, not to diff.
+ * the number of ticks inside a real second is not. They are for judging how
+ * something looks, not for diffing.
  *
  *   npm run visualcheck                       # shots/ , portrait phone
  *   npm run visualcheck -- out 1280 800       # a directory and a viewport

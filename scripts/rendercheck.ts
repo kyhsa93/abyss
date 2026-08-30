@@ -60,8 +60,6 @@ import {
 } from '../src/share'
 import { VOLUME_NAMES } from '../src/sfx'
 import { COLORS, L, classColor, updateLayout } from '../src/render/theme'
-import { BODY_HEIGHT, BODY_MIN_R, KIT_MIN_R, drawBody } from '../src/render/sprite'
-import { RecordingCtx } from './canvasrec'
 import { ABILITIES, type Ability } from '../src/sim/abilities'
 import {
   abilityBar,
@@ -8942,18 +8940,11 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   const worldScale = (level: number): number => {
     setZoomLevel(level, 1440, 900)
     const applied: number[] = []
-    // Only the transform the scene puts around the world counts. Bodies scale
-    // themselves to their own radius deeper in, inside their own save, and
-    // multiplying those in would be measuring how big somebody's token is
-    // rather than how far away the camera is.
-    let depth = 0
     const spy = new Proxy(
       {},
       {
         get(_t, prop) {
-          if (prop === 'save') return () => void depth++
-          if (prop === 'restore') return () => void depth--
-          if (prop === 'scale') return (x: number) => (depth <= 1 ? applied.push(x) : 0)
+          if (prop === 'scale') return (x: number) => applied.push(x)
           if (prop === 'measureText') return () => ({ width: 10 })
           if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
             return () => ({ addColorStop: () => {} })
@@ -10663,147 +10654,6 @@ for (const [label, w, h] of [
     'the split is written by the fight and never read by it',
     reads.join(',') === 'combat.ts,state.ts,types.ts',
     reads.join(','),
-  )
-}
-
-// --- bodies ----------------------------------------------------------------
-//
-// The tokens are people now rather than discs, and a drawing check cannot
-// tell whether a person looks like one — that is what `npm run spritesheet`
-// is for. What it can tell is whether the rules the bodies are drawn under
-// are still being kept, and all of them are rules about what is missing at
-// what size, which is exactly the class of bug a picture nobody regenerated
-// would hide.
-{
-  const bodyBase = {
-    kind: 'party' as const,
-    role: 'dps' as const,
-    x: 0,
-    y: 0,
-    facing: 0,
-    colour: '#c79c6e',
-    alive: true,
-    moving: false,
-    casting: false,
-    clock: 0.4,
-  }
-
-  /** Draws one body into a fresh recorder and gives back what it drew. */
-  function bodyShapes(over: Partial<Parameters<typeof drawBody>[1]>) {
-    const rec = new RecordingCtx()
-    drawBody(rec.as2d(), { ...bodyBase, classId: 'warrior', r: 40, ...over })
-    return rec.shapes
-  }
-
-  function span(shapes: ReturnType<typeof bodyShapes>) {
-    let minX = Infinity
-    let maxX = -Infinity
-    let minY = Infinity
-    let maxY = -Infinity
-    for (const shape of shapes) {
-      for (const sub of shape.subpaths) {
-        for (const [x, y] of sub.pts) {
-          minX = Math.min(minX, x)
-          maxX = Math.max(maxX, x)
-          minY = Math.min(minY, y)
-          maxY = Math.max(maxY, y)
-        }
-      }
-    }
-    return { minX, maxX, minY, maxY }
-  }
-
-  expect(
-    `nothing is drawn under ${BODY_MIN_R}px`,
-    bodyShapes({ r: BODY_MIN_R - 1 }).length === 0,
-    `${bodyShapes({ r: BODY_MIN_R - 1 }).length} shapes`,
-  )
-  expect(
-    'and a body is drawn over it',
-    bodyShapes({ r: BODY_MIN_R + 1 }).length > 4,
-    `${bodyShapes({ r: BODY_MIN_R + 1 }).length} shapes`,
-  )
-
-  // A body reaches up out of its own footprint, and the constant that says
-  // how far is what the health bars and names are placed off. If a body grew
-  // past it, the bars would be drawn through somebody's chest again.
-  const tall = span(bodyShapes({ r: 40, role: 'tank', classId: 'priest' }))
-  expect(
-    'a body stays inside the height the bars are placed off',
-    -tall.minY <= 40 * BODY_HEIGHT,
-    `${(-tall.minY / 40).toFixed(2)} radii against ${BODY_HEIGHT}`,
-  )
-
-  // Every class carries something, and no two of them carry the same thing.
-  // A class added to the table without a shape in its hands is a class that
-  // is only its colour, which on a floor of ten colours is not enough.
-  const kits = new Map<string, string>()
-  const bare = bodyShapes({ classId: 'nobody' }).length
-  for (const id of CLASS_ORDER) {
-    const shapes = bodyShapes({ classId: id })
-    expect(`the ${id} is holding something`, shapes.length > bare, `${shapes.length} against ${bare}`)
-    const box = span(shapes)
-    kits.set(
-      id,
-      `${shapes.length}:${box.minX.toFixed(0)}:${box.maxX.toFixed(0)}:${box.minY.toFixed(0)}:${box.maxY.toFixed(0)}`,
-    )
-  }
-  expect(
-    `all ${CLASS_ORDER.length} kits are different shapes`,
-    new Set(kits.values()).size === CLASS_ORDER.length,
-    [...kits].map(([id, sig]) => `${id} ${sig}`).join(' | '),
-  )
-
-  // The kit comes off before the body does, and a body without its kit is
-  // still a body.
-  expect(
-    `a kit is dropped under ${KIT_MIN_R}px`,
-    bodyShapes({ classId: 'priest', r: KIT_MIN_R - 1 }).length ===
-      bodyShapes({ classId: 'nobody', r: KIT_MIN_R - 1 }).length,
-    'a prop survived past its size',
-  )
-
-  // Facing mirrors the body rather than turning it, so the same body turned
-  // the other way is the same body reflected.
-  const east = span(bodyShapes({ classId: 'hunter' }))
-  const west = span(bodyShapes({ classId: 'hunter', facing: Math.PI }))
-  expect(
-    'a body turned the other way is the same body, mirrored',
-    Math.abs(east.maxX + west.minX) < 1 && Math.abs(east.minY - west.minY) < 1,
-    `${east.minX.toFixed(1)}..${east.maxX.toFixed(1)} against ${west.minX.toFixed(1)}..${west.maxX.toFixed(1)}`,
-  )
-
-  // And the one thing that does turn: the bearing, on the ground. Two
-  // bearings that draw the same mark would be a body facing nowhere.
-  const marks = [0, Math.PI / 2].map((facing) => {
-    const rec = new RecordingCtx()
-    drawBody(rec.as2d(), { ...bodyBase, classId: 'rogue', r: 40, facing })
-    return span(rec.shapes.slice(0, 1))
-  })
-  expect(
-    'the bearing mark moves with the bearing',
-    Math.abs(marks[0]!.maxX - marks[1]!.maxX) > 4 || Math.abs(marks[0]!.maxY - marks[1]!.maxY) > 4,
-    'the mark sat still',
-  )
-}
-
-// A name has to clear the body it belongs to, at every size, or a raid is
-// twenty-five names written across twenty-five chests.
-for (const [label, w, h] of [
-  ['desktop 1440x900', 1440, 900],
-  ['portrait 390x844', 390, 844],
-] as const) {
-  updateLayout(w, h)
-  const s = pulled(0x51ed, 0)
-  const player = s.actors.find((a) => a.isPlayer)!
-  const labels: Label[] = []
-  drawWorld(recordingCtx([], labels), s, 1, s.time, new Effects())
-  const token = Math.max(4, player.radius * L.scale)
-  const name = labels.find((l) => l.text === player.name)
-  expect(
-    `${label}: a name clears the body under it`,
-    name !== undefined && name.y <= L.cy - token * BODY_HEIGHT,
-    name ? `${(L.cy - name.y).toFixed(0)}px up, body is ${(token * BODY_HEIGHT).toFixed(0)}px` : 'no name drawn',
   )
 }
 

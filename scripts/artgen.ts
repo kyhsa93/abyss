@@ -4,7 +4,7 @@
  * Generation is not deterministic, so this is not a check and its output is
  * not a build artifact: the images it writes are committed, and this exists to
  * make a new one or replace a bad one, not to run in CI. Treat it the way you
- * treat `spritesheet` — a tool that produces something a person then looks at.
+ * treat `visualcheck` — a tool that produces something a person then looks at.
  *
  * The key is never a command-line argument and is never printed. Put it in a
  * file only you can read:
