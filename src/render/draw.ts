@@ -32,6 +32,7 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
+import { BODY_HEIGHT, BODY_MIN_R, drawBody, mix } from './sprite'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -154,8 +155,19 @@ export function drawWorld(
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
-  for (const a of s.actors) {
-    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+  // Bodies stand up out of their footprints, so whoever is drawn last is
+  // whoever is in front — and drawn in actor order, a body standing behind
+  // another one was being drawn over its face. Sorted by depth, on a copy, so
+  // that the order the simulation walks its actors in is left alone.
+  //
+  // Only the party is sorted. Letting the boss into the same order would put
+  // a very large body in front of whoever is standing north of it, and losing
+  // a party member behind the boss is a worse trade than a stacking order
+  // that is occasionally wrong about the boss's feet.
+  const depth = s.actors.filter((a) => a.faction === 'party')
+  depth.sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
+  for (const a of depth) {
+    drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -1614,15 +1626,39 @@ function drawActor(
     ctx.stroke()
   }
 
+  // The footprint, which is the hitbox and stays exactly what it was: a disc
+  // at the actor's own radius. Everything drawn on top of it is a reading of
+  // the same body and must never be what position is read off, so the disc is
+  // drawn first and darkened under a body rather than replaced by one.
+  const bodied = r >= BODY_MIN_R
   ctx.beginPath()
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-  ctx.fillStyle = color
+  ctx.fillStyle = bodied && a.alive ? mix(color, '#0a0a0f', 0.68) : color
   ctx.globalAlpha = a.alive ? 1 : 0.4
   ctx.fill()
   ctx.globalAlpha = 1
   ctx.strokeStyle = '#0a0a0f'
   ctx.lineWidth = 2
   ctx.stroke()
+
+  ctx.globalAlpha = a.alive ? 1 : 0.4
+  drawBody(ctx, {
+    kind: isBoss ? 'boss' : isAdd ? 'add' : 'party',
+    classId: a.classId,
+    role: a.role,
+    x: p.x,
+    y: p.y,
+    r,
+    facing: a.facing,
+    colour: color,
+    alive: a.alive,
+    // Walking is read off the tick the render is interpolating between, so a
+    // body that is standing still is standing still.
+    moving: Math.hypot(a.pos.x - a.prevPos.x, a.pos.y - a.prevPos.y) > 0.2,
+    casting: a.castId !== null,
+    clock,
+  })
+  ctx.globalAlpha = 1
 
   // Residual puddle damage is silent by design; without this you lose health
   // with nothing on screen explaining it.
@@ -1690,12 +1726,17 @@ function drawActor(
   // itself into the readout exactly when it matters, and leaves it clean when
   // it does not. One line, no number: at seven pixels a token on a portrait
   // phone, colour and length are the only things that survive.
+  // How far above the token anything floating has to start. A body stands up
+  // out of its own footprint, so a bar placed off the radius alone would be
+  // drawn straight through somebody's chest.
+  const top = bodied && a.alive ? r * BODY_HEIGHT : r
+
   const hurt = a.alive && a.hp < a.maxHp * 0.95
   if (hurt) {
     const ratio = Math.max(0, Math.min(1, a.hp / a.maxHp))
     const w = Math.max(14, r * 2.4)
     const bx = p.x - w / 2
-    const by = p.y - r - 9
+    const by = p.y - top - 9
     ctx.fillStyle = 'rgba(0, 0, 0, 0.62)'
     ctx.fillRect(bx - 1, by - 1, w + 2, 5)
     // Red once it is genuinely dangerous, so a glance sorts "chipped" from
@@ -1726,7 +1767,7 @@ function drawActor(
   if (a.faction === 'party' && a.alive) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
-    ctx.fillText(a.name, p.x, p.y - r - (hurt ? 15 : 8))
+    ctx.fillText(a.name, p.x, p.y - top - (hurt ? 15 : 8))
   }
 
   if (a.castId && a.castTotal > 0) {
