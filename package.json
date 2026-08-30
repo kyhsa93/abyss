@@ -11,6 +11,7 @@
     "rendercheck": "esbuild scripts/rendercheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rendercheck.mjs --log-level=error && node node_modules/.cache/rendercheck.mjs",
     "touchcheck": "esbuild scripts/touchcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/touchcheck.mjs --log-level=error && node node_modules/.cache/touchcheck.mjs",
     "visualcheck": "esbuild scripts/visualcheck.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/visualcheck.mjs --log-level=error && node node_modules/.cache/visualcheck.mjs",
+    "icons": "esbuild scripts/icons.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/icons.mjs --log-level=error && node node_modules/.cache/icons.mjs",
     "spritesheet": "esbuild scripts/spritesheet.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spritesheet.mjs --log-level=error && node node_modules/.cache/spritesheet.mjs",
     "screenshot": "esbuild scripts/screenshot.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/screenshot.mjs --log-level=error && node node_modules/.cache/screenshot.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",
