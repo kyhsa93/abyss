@@ -27,9 +27,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { portraitJobs, type ArtJob } from './artprompt'
+import { portraitJobs, spriteJobs, type ArtJob } from './artprompt'
 
-const OUT = resolve(process.cwd(), 'art/portraits')
 const ENDPOINT = 'https://image.pollinations.ai/prompt'
 
 /** Square, and four times the size the smaller of the two slots draws at. */
@@ -46,6 +45,14 @@ const MODEL = 'sana'
 const GAP_MS = 1500
 
 const args = process.argv.slice(2)
+
+/**
+ * Two sets, and they are different pictures rather than two sizes of one: a
+ * card wants a bust framed like a card, and the floor wants a whole body
+ * standing on a ground it can be cut away from.
+ */
+const KIND = args.includes('--sprites') ? 'sprites' : 'portraits'
+const OUT = resolve(process.cwd(), `art/${KIND}`)
 const WRITE = args.includes('--write')
 const FORCE = args.includes('--force')
 
@@ -82,7 +89,7 @@ async function generate(job: ArtJob, seed: number): Promise<Buffer> {
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 
 async function main(): Promise<void> {
-  const jobs = portraitJobs().filter((job) => !ONLY || ONLY.has(job.id))
+  const jobs = (KIND === 'sprites' ? spriteJobs() : portraitJobs()).filter((job) => !ONLY || ONLY.has(job.id))
   if (jobs.length === 0) {
     console.error('--only matched nothing')
     process.exit(1)
@@ -124,7 +131,7 @@ async function main(): Promise<void> {
 
   if (failed.length > 0) for (const line of failed) console.error(`  ! ${line}`)
   console.log(`artgen: ${made} written, ${kept} already there, ${failed.length} failed`)
-  if (made > 0) console.log('review art/portraits — reroll one with --only <id> --force --seed <n>')
+  if (made > 0) console.log(`review art/${KIND} — reroll one with --only <id> --force --seed <n>`)
   if (failed.length > 0) process.exit(1)
 }
 

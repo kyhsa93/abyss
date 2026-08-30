@@ -190,3 +190,52 @@ export function portraitJobs(): ArtJob[] {
 
   return jobs
 }
+
+/* ------------------------------------------------------------------------ *
+ * Field sprites
+ * ------------------------------------------------------------------------ */
+
+/**
+ * A body standing on the floor, which is a different picture from a portrait.
+ *
+ * Two constraints drive every word here and neither is taste.
+ *
+ * The background must be white. The cutout that gives these an alpha channel
+ * is a flood fill inwards from the edges, and it can only separate what it can
+ * see a difference at: a hooded rogue on the dark background these were first
+ * asked for came back as one dark mass the fill walked straight through.
+ * Fantasy characters are mostly mid to dark, so white is the one ground that
+ * contrasts with nearly all of them.
+ *
+ * And one figure, whole, standing. Asked without "single character, one figure
+ * only" the model returns a character sheet — two views of the same person
+ * side by side — which cuts out as two half people.
+ */
+const SPRITE_FRAME =
+  'single character, one figure only, full body head to feet, standing, front view, ' +
+  'on a pure plain white background, isolated, no ground, no shadow, no scenery, ' +
+  'stylized cel-shaded fantasy game art, thick black outlines, flat saturated colors'
+
+export function spriteJobs(): ArtJob[] {
+  const jobs: ArtJob[] = []
+
+  for (const classId of CLASS_ORDER) {
+    for (const spec of CLASSES[classId].specs) {
+      jobs.push({
+        id: `${classId}-${spec.id}`,
+        label: `${CLASSES[classId].name} ${spec.id}`,
+        prompt: `${CLASS_LOOK[classId]}, ${SPEC_LOOK[spec.id] ?? ''}, ${SPRITE_FRAME}`,
+      })
+    }
+  }
+
+  for (const [id, look] of Object.entries(BOSS_LOOK)) {
+    jobs.push({
+      id: `boss-${id}`,
+      label: `boss ${id}`,
+      prompt: `${look}, colossal and monstrous, ${SPRITE_FRAME}`,
+    })
+  }
+
+  return jobs
+}

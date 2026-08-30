@@ -16,6 +16,7 @@
     "artgen": "esbuild scripts/artgen.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/artgen.mjs --log-level=error && node node_modules/.cache/artgen.mjs",
     "atlas": "esbuild scripts/atlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/atlas.mjs --log-level=error && node node_modules/.cache/atlas.mjs",
     "portraits": "esbuild scripts/portraitatlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/portraitatlas.mjs --log-level=error && node node_modules/.cache/portraitatlas.mjs",
+    "sprites": "esbuild scripts/spriteatlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/spriteatlas.mjs --log-level=error && node node_modules/.cache/spriteatlas.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",
     "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
     "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",

@@ -67,3 +67,44 @@ export function drawPortrait(
   ctx.restore()
   return true
 }
+
+/**
+ * The portrait inside the actor's own disc.
+ *
+ * Clipped to the circle rather than drawn over it, which is what makes this
+ * possible at all: the generator returns JPEG and JPEG has no alpha, so a
+ * sprite cut out of its background is not on offer. A circle needs no cut-out
+ * — whatever the portrait had behind it becomes the token's own field, and the
+ * ring the caller strokes afterwards closes it.
+ *
+ * It also keeps the one thing that must not change. The disc is the hitbox and
+ * is what position is read off; this draws inside it and never past it, so a
+ * body is exactly where it always was.
+ *
+ * A bust is framed for a card, so the face sits high in the cell. Taking the
+ * square from the top of the cell puts the face in the middle of the circle
+ * instead of the collar.
+ */
+export function drawToken(
+  ctx: CanvasRenderingContext2D,
+  id: string,
+  x: number,
+  y: number,
+  r: number,
+): boolean {
+  begin()
+  if (!sheet) return false
+
+  const at = PORTRAITS[id]
+  if (!at) return false
+
+  const src = PORTRAIT_CELL * 0.82
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.drawImage(sheet, at[0], at[1], src, src, x - r, y - r, r * 2, r * 2)
+  ctx.restore()
+  return true
+}
