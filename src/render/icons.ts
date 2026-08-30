@@ -7,6 +7,8 @@
  * at all, so uniqueness is asserted in the checks.
  */
 
+import { drawAtlasIcon } from './atlasimage'
+
 export type IconShape =
   | 'blade'
   | 'dagger'
@@ -338,7 +340,15 @@ export function allIcons(): Array<[string, IconSpec]> {
   return Object.entries(ICONS)
 }
 
-/** Draws the icon centred on (cx, cy), sized to fit a box of `size`. */
+/**
+ * Draws the icon centred on (cx, cy), sized to fit a box of `size`.
+ *
+ * Art first, glyph second. The sheet is not always there — the first frames of
+ * a cold start, a refused fetch, and the harness, which draws in Node where
+ * there is no image loader — so the drawn shape stays and remains what
+ * `rendercheck` asserts on. `iconFor(...).colour` is untouched either way,
+ * because the cast bars and hit particles read it and they are not icons.
+ */
 export function drawIcon(
   ctx: CanvasRenderingContext2D,
   abilityId: string,
@@ -352,6 +362,12 @@ export function drawIcon(
 
   ctx.save()
   ctx.globalAlpha = dim ? 0.4 : 1
+
+  if (drawAtlasIcon(ctx, abilityId, cx, cy, size)) {
+    ctx.restore()
+    return
+  }
+
   ctx.strokeStyle = spec.colour
   ctx.fillStyle = spec.colour
   ctx.lineWidth = Math.max(1.5, size * 0.09)

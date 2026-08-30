@@ -12,6 +12,7 @@
     "touchcheck": "esbuild scripts/touchcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/touchcheck.mjs --log-level=error && node node_modules/.cache/touchcheck.mjs",
     "visualcheck": "esbuild scripts/visualcheck.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/visualcheck.mjs --log-level=error && node node_modules/.cache/visualcheck.mjs",
     "icons": "esbuild scripts/icons.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/icons.mjs --log-level=error && node node_modules/.cache/icons.mjs",
+    "iconmatch": "esbuild scripts/iconmatch.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/iconmatch.mjs --log-level=error && node node_modules/.cache/iconmatch.mjs",
     "artgen": "esbuild scripts/artgen.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/artgen.mjs --log-level=error && node node_modules/.cache/artgen.mjs",
     "atlas": "esbuild scripts/atlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/atlas.mjs --log-level=error && node node_modules/.cache/atlas.mjs",
     "spritesheet": "esbuild scripts/spritesheet.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spritesheet.mjs --log-level=error && node node_modules/.cache/spritesheet.mjs",

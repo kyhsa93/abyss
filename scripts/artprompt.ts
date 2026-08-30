@@ -105,7 +105,7 @@ const BY_ELEMENT: Array<[RegExp, string]> = [
   [/water|wave|tide|riptide/, 'water magic, deep blue and foam white, flowing'],
 ]
 
-function element(id: string, name: string): string | null {
+export function elementOf(id: string, name: string): string | null {
   const hay = `${id} ${name}`.toLowerCase()
   for (const [pattern, palette] of BY_ELEMENT) if (pattern.test(hay)) return palette
   return null
@@ -146,7 +146,7 @@ export function iconJobs(): IconJob[] {
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map((ability) => {
       const school =
-        element(ability.id, ability.name) ?? BY_CLASS[owner.get(ability.id) ?? 'warrior']
+        elementOf(ability.id, ability.name) ?? BY_CLASS[owner.get(ability.id) ?? 'warrior']
       // The name is a hint, not the subject: "Shield Wall" should be drawn as
       // a braced wall of shields, but the model must not letter it.
       const subject = `${BY_KIND[ability.kind]}, evoking "${ability.name}"`

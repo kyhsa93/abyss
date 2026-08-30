@@ -2340,3 +2340,18 @@ fixed home position whenever the floor cleared, and because that home was
 defined relative to a moving boss, they chased it forever: the healer walked 70
 units a second, pacing back and forth all fight. It looked busy and read as
 broken. Movement is now only for danger and for genuinely being out of range.
+
+## Icon art
+
+The ability icons come from [game-icons.net](https://game-icons.net) under the
+[CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) licence, recoloured
+per school by `npm run atlas`. Attribution is a condition of that licence:
+
+> Icons made by andymeneely, caro-asercion, darkzaitzev, delapouite,
+> heavenly-dog, lorc, sbed, skoll, willdabeast and zeromancer.
+> Available on https://game-icons.net
+
+`art/icons.json` records which icon each ability uses and who drew it. It is a
+committed decision rather than a build step — `npm run iconmatch` picks once,
+a person reads the list, and the game is never one API call away from a
+different icon set.
