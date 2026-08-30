@@ -2352,3 +2352,16 @@ committed decision rather than a build step — `npm run iconmatch` picks once,
 a person reads the list, and the game is never one API call away from a
 different icon set.
 
+
+## Sprite art
+
+The field bodies are built from [Liberated Pixel Cup](https://lpc.opengameart.org/)
+parts by `npm run lpc`, which needs a checkout of the
+[spritesheet repository](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator)
+passed as `--lpc <dir>`.
+
+The parts are variously CC-BY-SA 3.0, GPL 3.0, OGA-BY 3.0 and CC0. Attribution
+is a condition of the first three, and share-alike of the first two, so the art
+in this repository is under those terms. The credit list is in
+`art/LPC-CREDITS.md` and is generated from the same definitions the layers come
+from, so it cannot fall behind a change to the layer table.

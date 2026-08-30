@@ -32,6 +32,7 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
+import { drawBody, hasBody } from './lpcimage'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -154,8 +155,13 @@ export function drawWorld(
     if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
   }
 
-  for (const a of s.actors) {
-    if (a.faction === 'party') drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+  // A body stands up out of its footprint, so whoever is drawn last is in
+  // front — and in actor order one standing behind another drew over its head.
+  // Sorted on a copy, so the order the simulation walks its actors is untouched.
+  const depth = s.actors.filter((a) => a.faction === 'party')
+  depth.sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
+  for (const a of depth) {
+    drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -1614,13 +1620,29 @@ function drawActor(
     ctx.stroke()
   }
 
+  const token = a.faction === 'party' || hostile ? `${a.classId}-${a.spec}` : null
+  const bodied = token !== null && a.alive && hasBody(token)
+
   ctx.beginPath()
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-  ctx.fillStyle = color
+  // Under a walking body the disc is the ground it stands in rather than the
+  // body itself, so it drops to a shade and the class colour moves out to the
+  // ring. Left a solid colour it was a bright plate across every sprite's feet.
+  ctx.fillStyle = bodied ? 'rgba(6, 8, 10, 0.5)' : color
   ctx.globalAlpha = a.alive ? 1 : 0.4
   ctx.fill()
+
+  if (token && bodied) {
+    // The cycle is driven by ground covered rather than by the clock, so feet
+    // keep pace with the floor: something slowed to a crawl walks slowly
+    // instead of running on the spot. Scaled so one stride is about one body
+    // width of travel.
+    const step = Math.hypot(a.pos.x - a.prevPos.x, a.pos.y - a.prevPos.y)
+    drawBody(ctx, token, p.x, p.y, r, a.facing, a.pos.x * 0.32 + a.pos.y * 0.32, step > 0.2, a.alive ? 1 : 0.4)
+  }
+
   ctx.globalAlpha = 1
-  ctx.strokeStyle = '#0a0a0f'
+  ctx.strokeStyle = bodied ? color : '#0a0a0f'
   ctx.lineWidth = 2
   ctx.stroke()
 
