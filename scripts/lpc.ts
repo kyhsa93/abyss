@@ -152,6 +152,39 @@ const BOSS: Record<string, Layer[]> = {
   ],
 }
 
+/**
+ * Hair, one per spec.
+ *
+ * This is the channel that separates two specs of the same class. Armour comes
+ * off `armorType` and a warrior's two specs wear the same plate, so without
+ * this the protection and arms tiles are the same person holding the same
+ * sword. It is a few pixels at the top of a head and it is enough, because at
+ * this size a silhouette is mostly outline.
+ *
+ * Named by style rather than by path: some styles keep their frames under
+ * `adult/`, some under `male/`, some behind another `fg/`, and the resolver
+ * below finds whichever it is.
+ */
+const HAIR: Record<string, string> = {
+  'warrior-protection': 'buzzcut',
+  'warrior-arms': 'mop',
+  'paladin-protection': 'parted',
+  'paladin-holy': 'long',
+  'paladin-retribution': 'swoop',
+  'priest-discipline': 'bob',
+  'priest-shadow': 'long_messy',
+  'druid-guardian': 'dreadlocks_short',
+  'druid-restoration': 'braid',
+  'druid-balance': 'long_straight',
+  'druid-feral': 'unkempt',
+  'shaman-restoration': 'cornrows',
+  'shaman-elemental': 'twists_fade',
+  'mage-frost': 'xlong',
+  'warlock-destruction': 'spiked',
+  'hunter-marksmanship': 'ponytail',
+  'rogue-assassination': 'pixie',
+}
+
 /** Only tanks, because only tanks are holding one. */
 const SHIELD = 'shield/heater'
 
@@ -197,7 +230,7 @@ interface Layer {
   path: string
 }
 
-function layersFor(classId: ClassId, role: string): Layer[] {
+function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   const armour = ARMOUR[CLASSES[classId].armorType] ?? ARMOUR.cloth!
   const weapon = WEAPON[classId]
 
@@ -207,6 +240,14 @@ function layersFor(classId: ClassId, role: string): Layer[] {
     { z: 60, path: `${armour.torso}/walk` },
     { z: 100, path: 'head/heads/human/male/walk' },
   ]
+
+  // Above the head, below anything held: hair is drawn on a head, and a shield
+  // arm passes in front of it.
+  const hair = HAIR[`${classId}-${spec}`]
+  if (hair) {
+    const found = findWalk(`hair/${hair}`)
+    if (found) stack.push({ z: 110, path: found })
+  }
 
   if (role === 'tank') {
     const shield = findWalk(SHIELD)
@@ -224,7 +265,7 @@ function specs(): Array<{ id: string; layers: Layer[] }> {
   const out: Array<{ id: string; layers: Layer[] }> = []
   for (const classId of CLASS_ORDER) {
     for (const spec of CLASSES[classId].specs) {
-      out.push({ id: `${classId}-${spec.id}`, layers: layersFor(classId, spec.role) })
+      out.push({ id: `${classId}-${spec.id}`, layers: layersFor(classId, spec.id, spec.role) })
     }
   }
   for (const [id, layers] of Object.entries(BOSS)) {
