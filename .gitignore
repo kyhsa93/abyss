@@ -3,3 +3,7 @@ dist
 .DS_Store
 *.local
 .claude/worktrees/
+sprites.svg
+shot.png
+shot.svg
+/shots/
