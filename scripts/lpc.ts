@@ -99,6 +99,59 @@ const WEAPON: Record<ClassId, string | null> = {
   rogue: 'weapon/sword/dagger',
 }
 
+/**
+ * The bosses, out of the same set.
+ *
+ * LPC ships no monsters, but it ships monstrous heads — skeleton, zombie,
+ * orc, troll, minotaur, lizard, alien — and they are drawn to sit on the same
+ * bodies as the human ones. That is enough: a boss here has to read as a large
+ * hostile thing at a glance, and the head is what carries that.
+ *
+ * Armour only exists for the male, female and teen bodies, so a boss that
+ * wears any is built on one of those with a monster's head. The Long Ledger
+ * wears nothing, which is what lets it be an actual skeleton.
+ *
+ * Each is chosen against the `demand` line the encounter already shows before
+ * a pull, so the picture cannot promise a fight the encounter does not run.
+ */
+const BOSS: Record<string, Layer[]> = {
+  // "the floor, and whoever is standing on it" — a drowned jailer in plate.
+  warden: [
+    { z: 10, path: 'body/bodies/male/walk' },
+    { z: 20, path: 'legs/armour/plate/male/walk' },
+    { z: 60, path: 'torso/armour/plate/male/walk' },
+    { z: 100, path: 'head/heads/zombie/adult/walk' },
+  ],
+  // "stay apart, and out-heal the singing" — something robed with a lantern
+  // for a head, which is as close to a many-mouthed chorus as the set goes.
+  choir: [
+    { z: 10, path: 'body/bodies/male/walk' },
+    { z: 20, path: 'legs/pants/male/walk' },
+    { z: 60, path: 'torso/clothes/shortsleeve/tshirt/male/walk' },
+    { z: 100, path: 'head/heads/jack/adult/walk' },
+  ],
+  // "come in, get behind, change target" — an armoured thing from the water.
+  tidebreaker: [
+    { z: 10, path: 'body/bodies/male/walk' },
+    { z: 20, path: 'legs/armour/plate/male/walk' },
+    { z: 60, path: 'torso/armour/plate/male/walk' },
+    { z: 100, path: 'head/heads/lizard/male/walk' },
+  ],
+  // "stop, look away, and leave it whole" — the head is all eyes.
+  watcher: [
+    { z: 10, path: 'body/bodies/male/walk' },
+    { z: 20, path: 'legs/pants/male/walk' },
+    { z: 60, path: 'torso/clothes/shortsleeve/tshirt/male/walk' },
+    { z: 100, path: 'head/heads/alien/adult/walk' },
+  ],
+  // "decide who pays, then pay it" — a skeleton, wearing nothing, which is the
+  // one boss the bare skeleton body is exactly right for.
+  ledger: [
+    { z: 10, path: 'body/bodies/skeleton/walk' },
+    { z: 100, path: 'head/heads/skeleton/adult/walk' },
+  ],
+}
+
 /** Only tanks, because only tanks are holding one. */
 const SHIELD = 'shield/heater'
 
@@ -166,13 +219,16 @@ function layersFor(classId: ClassId, role: string): Layer[] {
   return stack
 }
 
-/** Every spec, in the order the roster shows them. */
+/** Every spec in the order the roster shows them, then every boss. */
 function specs(): Array<{ id: string; layers: Layer[] }> {
   const out: Array<{ id: string; layers: Layer[] }> = []
   for (const classId of CLASS_ORDER) {
     for (const spec of CLASSES[classId].specs) {
       out.push({ id: `${classId}-${spec.id}`, layers: layersFor(classId, spec.role) })
     }
+  }
+  for (const [id, layers] of Object.entries(BOSS)) {
+    out.push({ id: `boss-${id}`, layers })
   }
   return out
 }

@@ -152,7 +152,9 @@ export function drawWorld(
 
   const bg = s.mode === 'battleground'
   for (const a of s.actors) {
-    if (a.faction === 'boss') drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s))
+    if (a.faction === 'boss') {
+      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s))
+    }
   }
 
   // A body stands up out of its footprint, so whoever is drawn last is in
@@ -1570,6 +1572,16 @@ function standingInFire(s: SimState, a: Actor): boolean {
 }
 
 /** What colour this fight's boss is. A battleground has none. */
+/**
+ * The boss's body key, or nothing outside a raid.
+ *
+ * A battleground has no boss, so this is the one place that knows which of the
+ * five belongs to the large hostile thing on the floor.
+ */
+function bossBody(s: SimState): string | null {
+  return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
+}
+
 function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
 }
@@ -1583,6 +1595,12 @@ function drawActor(
   battleground = false,
   /** The boss's own colour. Three bosses in the same red read as one boss. */
   accent: string = COLORS.boss,
+  /**
+   * Which body to stand on the disc, for the one actor whose identity is not
+   * on itself. A party member carries its class and spec; a boss's is a
+   * property of the encounter, so the caller that knows it passes it.
+   */
+  bossBody: string | null = null,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -1620,7 +1638,9 @@ function drawActor(
     ctx.stroke()
   }
 
-  const token = a.faction === 'party' || hostile ? `${a.classId}-${a.spec}` : null
+  // Adds get none: they are summoned things with no class and no encounter
+  // entry, and giving them the boss's body would say they are the boss.
+  const token = isBoss ? bossBody : isAdd ? null : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
   ctx.beginPath()

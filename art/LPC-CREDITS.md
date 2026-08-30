@@ -7,11 +7,17 @@ list is generated from the same definitions the layers are taken from and
 cannot fall behind a change to them.
 
 - `body/bodies/male` — bluecarrot16,JaidynReiman,Benjamin K. Smith (BenCreating),Evert,Eliza Wyatt (ElizaWy),TheraHedwig,MuffinElZangano,Durrani,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `body/bodies/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/alien` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/human/male_elderly` — Benjamin K. Smith (BenCreating),Eliza Wyatt (ElizaWy),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY 3.0)
 - `head/heads/human/male_gaunt` — Stephen Challener (Redshrike),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/human/male_plump` — Stephen Challener (Redshrike),?? (CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/human/male_small` — ElizaWy,Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY)
 - `head/heads/human/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/jack` — bluecarrot16,Joshua Taylor (CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/lizard/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/zombie` — bluecarrot16,Benjamin K. Smith (BenCreating),Sander Frenken (castelonia),Stephen Challener (Redshrike) (CC-BY-SA 3.0,GPL 3.0)
 - `legs/armour/plate` — bluecarrot16,JaidynReiman,Michael Whitlock (bigbeargames),Matthew Krohn (makrohn),Johannes Sjölund (wulax) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `legs/pants/male` — bluecarrot16,JaidynReiman,ElizaWy,Matthew Krohn (makrohn),Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,GPL 3.0,CC-BY-SA 3.0)
 - `shield/heater/original/paint` — bluecarrot16,ElizaWy,JaidynReiman (OGA-BY 3.0)
