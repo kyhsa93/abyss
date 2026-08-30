@@ -151,19 +151,46 @@ export function drawWorld(
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
-  for (const a of s.actors) {
+
+  // Everything on the floor, in one order, back to front.
+  //
+  // A body stands up out of its footprint, so whoever is drawn last is the one
+  // in front, and that has to be decided by where things are rather than by
+  // which list they came out of. Two passes — every hostile, then every party
+  // member — meant a party member standing north of the boss still drew over
+  // it, which is the one arrangement the sort exists to prevent.
+  //
+  // Sorted by feet rather than by centre. A body is drawn upwards out of its
+  // disc, so what decides which of two overlapping figures is nearer is where
+  // each is standing, and that is the bottom of the sprite. Ties break on id,
+  // which is stable, so two things on the same row do not swap places frame to
+  // frame while a fight nudges them past each other.
+  const order = [...s.actors].sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
+  for (const a of order) {
     if (a.faction === 'boss') {
       drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s))
+    } else {
+      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
     }
   }
 
-  // A body stands up out of its footprint, so whoever is drawn last is in
-  // front — and in actor order one standing behind another drew over its head.
-  // Sorted on a copy, so the order the simulation walks its actors is untouched.
-  const depth = s.actors.filter((a) => a.faction === 'party')
-  depth.sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
-  for (const a of depth) {
-    drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+  // Every footprint again, on top of every body.
+  //
+  // Sorting by depth is correct and it costs something: a body standing behind
+  // the boss is now behind the boss, and at twenty-five players somebody is
+  // always behind something. Position is the one thing that must never be lost
+  // — it is what the whole fight is read off — so the ring is drawn a second
+  // time over the lot. A body can be hidden; where it is standing cannot.
+  for (const a of s.actors) {
+    const p = screenPos(a, alpha)
+    const r = Math.max(4, a.radius * L.scale)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    ctx.strokeStyle = ringColour(a, s, bg)
+    ctx.globalAlpha = a.alive ? 1 : 0.4
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.globalAlpha = 1
   }
 
   drawCarriedFlags(ctx, s, alpha)
@@ -1641,6 +1668,21 @@ function standingInFire(s: SimState, a: Actor): boolean {
  * A battleground has no boss, so this is the one place that knows which of the
  * five belongs to the large hostile thing on the floor.
  */
+/**
+ * The colour a footprint is ringed in.
+ *
+ * The same rule `drawActor` uses, pulled out so the pass that redraws every
+ * ring on top cannot disagree with the pass that drew them underneath — two
+ * copies of this would drift and the drift would look like a bug in the sort.
+ */
+function ringColour(a: Actor, s: SimState, battleground: boolean): string {
+  if (!a.alive) return COLORS.dead
+  const isBoss = a.id === BOSS_ID && !battleground
+  if (isBoss) return s.mode === 'raid' ? bossAccent(s) : COLORS.boss
+  if (a.faction === 'boss' && !battleground) return '#a855f7'
+  return classColor(a.classId)
+}
+
 function bossBody(s: SimState): string | null {
   return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
 }
