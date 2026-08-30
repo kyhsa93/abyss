@@ -33,6 +33,7 @@ import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
 import { drawSprite, hasSprite } from './spriteimage'
+import { drawFloor } from './floorimage'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -453,6 +454,14 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
   ctx.fill()
   ctx.clip()
 
+  // The picture goes over the flat fill rather than instead of it, so a floor
+  // that has not loaded is the floor that always was rather than a hole.
+  const textured = drawFloor(ctx, c.x, c.y, L.arenaR)
+
+  // The grid is what makes your own movement readable — it slides past you in
+  // world space while you stand still. It stays, quieter, once there is
+  // something under it to read against.
+  ctx.globalAlpha = textured ? 0.45 : 1
   ctx.strokeStyle = COLORS.grid
   ctx.lineWidth = 1
   const step = 64 * L.scale
@@ -466,6 +475,7 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
     ctx.lineTo(c.x + L.arenaR, c.y + g)
     ctx.stroke()
   }
+  ctx.globalAlpha = 1
   ctx.restore()
 
   ctx.beginPath()
