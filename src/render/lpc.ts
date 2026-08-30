@@ -51,4 +51,7 @@ export const LPC_ROW: Record<string, number> = {
   'boss-tidebreaker': 19,
   'boss-watcher': 20,
   'boss-ledger': 21,
+  'add-thrall': 22,
+  'add-knell': 23,
+  'add-vessel': 24,
 }

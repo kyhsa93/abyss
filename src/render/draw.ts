@@ -1638,9 +1638,15 @@ function drawActor(
     ctx.stroke()
   }
 
-  // Adds get none: they are summoned things with no class and no encounter
-  // entry, and giving them the boss's body would say they are the boss.
-  const token = isBoss ? bossBody : isAdd ? null : `${a.classId}-${a.spec}`
+  // A summon gets its own body rather than the boss's, which would say it is
+  // the boss, and rather than a class's, which it does not have. The two named
+  // kinds are drawn apart on purpose: telling them apart is the whole demand
+  // of the fights that spawn them, and a health bar cannot carry it.
+  const token = isBoss
+    ? bossBody
+    : isAdd
+      ? `add-${a.spawn ?? 'thrall'}`
+      : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
   ctx.beginPath()

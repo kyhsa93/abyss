@@ -26,6 +26,7 @@ cannot fall behind a change to them.
 - `hair/unkempt` — JaidynReiman,Manuel Riecke (MrBeast) (CC-BY-SA 3.0,GPL 3.0)
 - `hair/xlong` — JaidynReiman,Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 2.0,GPL 3.0)
 - `head/heads/alien` — bluecarrot16,Benjamin K. Smith (BenCreating),Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/goblin` — bluecarrot16,Stephen Challener (Redshrike),William.Thomsponj (OGA-BY 3.0,CC-BY 4.0,GPL 2.0,GPL 3.0)
 - `head/heads/human/male_elderly` — Benjamin K. Smith (BenCreating),Eliza Wyatt (ElizaWy),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY 3.0)
 - `head/heads/human/male_gaunt` — Stephen Challener (Redshrike),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/human/male_plump` — Stephen Challener (Redshrike),?? (CC-BY-SA 3.0,GPL 3.0)

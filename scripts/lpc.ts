@@ -198,6 +198,41 @@ const HAIR: Record<string, string> = {
   'rogue-assassination': 'pixie',
 }
 
+/**
+ * The three things a boss puts on the floor.
+ *
+ * A thrall and a stalker walk in and hit somebody, which is what every summon
+ * before them did and what the party's rules already understand — one body
+ * covers both.
+ *
+ * The other two break that rule in opposite directions and the whole demand of
+ * their fights is telling them apart, so they are drawn to be told apart. The
+ * knell hurts nobody and has to be killed anyway: it is a skeleton, a thing.
+ * The vessel hurts somebody and must not be killed: it is a person, in cloth,
+ * with a human face — the one summon on the floor that does not look like
+ * something to swing at.
+ */
+const ADD: Record<string, Layer[]> = {
+  thrall: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/armour/leather/male' },
+    { z: 100, dir: 'head/heads/goblin/adult' },
+    { z: 140, dir: 'weapon/sword/dagger' },
+  ],
+  knell: [
+    { z: 10, dir: 'body/bodies/skeleton' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
+  ],
+  vessel: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
+    { z: 100, dir: 'head/heads/human/male' },
+    { z: 110, dir: 'hair/long' },
+  ],
+}
+
 /** Only tanks, because only tanks are holding one. */
 const SHIELD = 'shield/heater'
 
@@ -311,6 +346,12 @@ function specs(): Subject[] {
   // closer of the two to that.
   for (const [id, layers] of Object.entries(BOSS)) {
     out.push({ id: `boss-${id}`, layers, action: 'slash' })
+  }
+  // A thrall swings. The other two never do anything a swing would describe,
+  // but a block has to exist for every subject, and standing on frame zero of
+  // one is what they will be doing.
+  for (const [id, layers] of Object.entries(ADD)) {
+    out.push({ id: `add-${id}`, layers, action: 'slash' })
   }
   return out
 }
