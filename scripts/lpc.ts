@@ -87,11 +87,30 @@ const QUALITY = 0.85
  * trousers the light classes wear — at sixty pixels the torso is what reads,
  * and a wrong pair of greaves is invisible next to a wrong chestpiece.
  */
-const ARMOUR: Record<string, { torso: string; legs: string }> = {
-  plate: { torso: 'torso/armour/plate/male', legs: 'legs/armour/plate/male' },
-  mail: { torso: 'torso/chainmail/male', legs: 'legs/pants/male' },
-  leather: { torso: 'torso/armour/leather/male', legs: 'legs/pants/male' },
-  cloth: { torso: 'torso/clothes/shortsleeve/tshirt/male', legs: 'legs/pants/male' },
+const ARMOUR: Record<string, { torso: string; legs: string; feet: string }> = {
+  plate: {
+    torso: 'torso/armour/plate/male',
+    legs: 'legs/armour/plate/male',
+    feet: 'feet/armour/plate/male',
+  },
+  mail: {
+    torso: 'torso/chainmail/male',
+    legs: 'legs/pants/male',
+    feet: 'feet/boots/fold/male',
+  },
+  leather: {
+    torso: 'torso/armour/leather/male',
+    legs: 'legs/pants/male',
+    feet: 'feet/boots/basic/male',
+  },
+  // Sandals rather than boots, and the difference is the point: the three
+  // cloth classes are the ones with nothing on their feet worth calling
+  // armour, and a bare ankle says so at a glance.
+  cloth: {
+    torso: 'torso/clothes/shortsleeve/tshirt/male',
+    legs: 'legs/pants/male',
+    feet: 'feet/sandals/male',
+  },
 }
 
 /**
@@ -132,6 +151,7 @@ const BOSS: Record<string, Layer[]> = {
   // "the floor, and whoever is standing on it" — a drowned jailer in plate.
   warden: [
     { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/armour/plate/male' },
     { z: 20, dir: 'legs/armour/plate/male' },
     { z: 60, dir: 'torso/armour/plate/male' },
     { z: 100, dir: 'head/heads/zombie/adult' },
@@ -140,6 +160,7 @@ const BOSS: Record<string, Layer[]> = {
   // for a head, which is as close to a many-mouthed chorus as the set goes.
   choir: [
     { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/shoes/basic/male' },
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
     { z: 100, dir: 'head/heads/jack/adult' },
@@ -147,6 +168,7 @@ const BOSS: Record<string, Layer[]> = {
   // "come in, get behind, change target" — an armoured thing from the water.
   tidebreaker: [
     { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/armour/plate/male' },
     { z: 20, dir: 'legs/armour/plate/male' },
     { z: 60, dir: 'torso/armour/plate/male' },
     { z: 100, dir: 'head/heads/lizard/male' },
@@ -154,6 +176,7 @@ const BOSS: Record<string, Layer[]> = {
   // "stop, look away, and leave it whole" — the head is all eyes.
   watcher: [
     { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/shoes/basic/male' },
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
     { z: 100, dir: 'head/heads/alien/adult' },
@@ -216,6 +239,7 @@ const HAIR: Record<string, string> = {
 const ADD: Record<string, Layer[]> = {
   thrall: [
     { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/boots/basic/male' },
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/armour/leather/male' },
     { z: 100, dir: 'head/heads/goblin/adult' },
@@ -227,6 +251,8 @@ const ADD: Record<string, Layer[]> = {
   ],
   vessel: [
     { z: 10, dir: 'body/bodies/male' },
+    // Barefoot, like the rest of it: the one summon that is a person rather
+    // than a thing, and nothing about it should look equipped.
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
     { z: 100, dir: 'head/heads/human/male' },
@@ -356,6 +382,9 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
 
   const stack: Layer[] = [
     { z: 10, dir: 'body/bodies/male' },
+    // Under the legs, because trousers hang over a boot rather than the other
+    // way round.
+    { z: 15, dir: armour.feet, tint: colour },
     { z: 20, dir: armour.legs, tint: colour },
     { z: 60, dir: armour.torso, tint: colour },
     { z: 100, dir: 'head/heads/human/male' },
