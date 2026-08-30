@@ -43,6 +43,14 @@ export interface RosterLayout {
   summaryLine: number
   /** Top of the spec grid. Always below the last summary line. */
   gridTop: number
+  /**
+   * The band under the grid, when the grid leaves one worth using.
+   *
+   * Null on a screen where the tiles already reach the buttons, which is what
+   * a landscape phone does — a showcase squeezed into forty pixels is a strip
+   * of noise between the thing being chosen and the button that commits it.
+   */
+  showcase: Rect | null
 }
 
 /**
@@ -150,12 +158,20 @@ export function rosterLayout(): RosterLayout {
   // obvious target. AUTO and REROLL used to sit here and were taken out with
   // the slot grid; they belong on the board they act on rather than here, so
   // what this row carries is the way to that board.
+  // What the grid did not use. The face you picked and the thing it is being
+  // pointed at, which is the one pairing this screen is actually about.
+  const gridEnd = gridTop + rows * (cellH + gap) - gap
+  const showcaseH = gridBottom - gridEnd - gap
+  const showcase: Rect | null =
+    showcaseH >= 96 ? { x: pad, y: gridEnd + gap, w: L.w - pad * 2, h: showcaseH } : null
+
   const gapB = 6
   const sideW = Math.min(104, (L.w - pad * 2 - gapB * 2) * 0.24)
   const pullW = L.w - pad * 2 - gapB * 2 - sideW * 2
   const buttonY = L.h - buttonH - pad
   return {
     classes,
+    showcase,
     // Named for what it does rather than where it goes: this is the way out
     // of the screen, and the record lives on the front page now.
     history: { x: pad, y: buttonY, w: sideW, h: buttonH },
@@ -287,6 +303,46 @@ export function drawRoster(
       line(4),
       L.w - 16,
     )
+  }
+
+  // The pairing this screen is about: the face that was picked, and the thing
+  // it is being pointed at. Drawn before the tiles so that nothing here can
+  // land on top of a control, and skipped entirely when either side has no
+  // art — half a matchup reads as a bug rather than as a portrait.
+  const stage = layout.showcase
+  if (stage && own && fight) {
+    const half = stage.w / 2
+    const left = drawPortrait(ctx, `${own.classId}-${own.spec}`, stage.x, stage.y, half, stage.h, 1)
+    const right = drawPortrait(ctx, `boss-${fight.id}`, stage.x + half, stage.y, half, stage.h, 1)
+
+    if (left && right) {
+      // Darkest at the seam, so two unrelated pictures meet in shadow instead
+      // of in a hard vertical line down the middle of the screen.
+      const seam = ctx.createLinearGradient(stage.x, 0, stage.x + stage.w, 0)
+      seam.addColorStop(0, 'rgba(10, 10, 15, 0)')
+      seam.addColorStop(0.42, 'rgba(10, 10, 15, 0.72)')
+      seam.addColorStop(0.58, 'rgba(10, 10, 15, 0.72)')
+      seam.addColorStop(1, 'rgba(10, 10, 15, 0)')
+      ctx.fillStyle = seam
+      ctx.fillRect(stage.x, stage.y, stage.w, stage.h)
+
+      // And into the page at top and bottom, because the band has no border
+      // and a portrait that stops on a straight edge reads as a pasted tile.
+      const edge = ctx.createLinearGradient(0, stage.y, 0, stage.y + stage.h)
+      edge.addColorStop(0, 'rgba(10, 10, 15, 0.85)')
+      edge.addColorStop(0.35, 'rgba(10, 10, 15, 0)')
+      edge.addColorStop(0.65, 'rgba(10, 10, 15, 0)')
+      edge.addColorStop(1, 'rgba(10, 10, 15, 0.9)')
+      ctx.fillStyle = edge
+      ctx.fillRect(stage.x, stage.y, stage.w, stage.h)
+
+      ctx.textAlign = 'center'
+      ctx.font = font(9, true)
+      ctx.fillStyle = classColor(own.classId)
+      fitText(ctx, specLabel(own), stage.x + half / 2, stage.y + stage.h - 6, half - 8)
+      ctx.fillStyle = COLORS.boss
+      fitText(ctx, fight.short, stage.x + half * 1.5, stage.y + stage.h - 6, half - 8)
+    }
   }
 
   for (let i = 0; i < layout.classes.length; i++) {

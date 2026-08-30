@@ -11,3 +11,4 @@ shot.svg
 # Generated art. The PNGs artgen writes are committed under art/ once they are
 # real; this keeps the throwaway ones out while the pipeline has no key.
 /art/.cache/
+/shots-land/
