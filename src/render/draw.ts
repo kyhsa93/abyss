@@ -141,7 +141,7 @@ export function drawWorld(
   ctx.save()
   ctx.translate(shove.x * L.scale, shove.y * L.scale)
 
-  drawArena(ctx)
+  drawArena(ctx, s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawHunts(ctx, s, alpha)
@@ -435,7 +435,44 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.stroke()
 }
 
-function drawArena(ctx: CanvasRenderingContext2D): void {
+/**
+ * Slabs, drawn rather than loaded.
+ *
+ * The generated floor that briefly lived here was thrown out with the rest of
+ * the generated art, and what replaced it is code because the floor is the one
+ * surface that must not have opinions. Every mechanic is drawn on it —
+ * puddles, telegraphs, the grasp — and those are the things a player is
+ * reading. When the picture was here it had to be knocked down to a third of
+ * its strength before it stopped competing, which is another way of saying
+ * that what the ground needs is not to be a flat fill, and nothing more.
+ *
+ * Code buys three things a picture could not. It costs no bytes and no
+ * request. Its contrast is exact rather than negotiated, so it cannot creep
+ * back up against a telegraph. And it takes the encounter's own accent, so a
+ * new boss arrives with its own floor and no new asset.
+ *
+ * The pattern is a hash of the cell, not a random: the arena is drawn in world
+ * space and slides past the player, so a slab has to be the same slab every
+ * frame or the floor boils.
+ */
+function slabAccent(colour: string, alpha: number): string {
+  // The accent table is all six-digit hex, which is the only form this reads.
+  if (!/^#[0-9a-f]{6}$/i.test(colour)) return colour
+  const r = parseInt(colour.slice(1, 3), 16)
+  const g = parseInt(colour.slice(3, 5), 16)
+  const b = parseInt(colour.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function slabTone(gx: number, gy: number): number {
+  // Cheap integer hash. Only the low bits are used, so quality past "does not
+  // repeat visibly at this size" would be wasted.
+  let h = (gx * 374761393 + gy * 668265263) | 0
+  h = (h ^ (h >>> 13)) * 1274126177
+  return ((h ^ (h >>> 16)) >>> 8) & 0xff
+}
+
+function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss): void {
   // The arena is centred on the world origin; the camera decides where that
   // lands on screen. The grid is drawn in world space too, so it slides past
   // the player and makes their own movement readable.
@@ -447,6 +484,32 @@ function drawArena(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
+
+  // Slabs first, under everything, and deliberately near the threshold of
+  // being seen at all. The first pass at these read as a chequerboard, which
+  // is a pattern competing with the telegraphs drawn on top of it; what is
+  // wanted is only that the ground is not a flat fill. About a third of the
+  // cells are lifted, by under one percent each, and a rare one takes a trace
+  // of the encounter's accent.
+  const slab = 64 * L.scale
+  const originX = c.x - L.arenaR
+  const originY = c.y - L.arenaR
+  const cols = Math.ceil((L.arenaR * 2) / slab) + 1
+  for (let gx = 0; gx < cols; gx++) {
+    for (let gy = 0; gy < cols; gy++) {
+      // World cell rather than screen cell, so a slab keeps its own tone as
+      // the camera moves over it.
+      const wx = Math.floor((originX + gx * slab - c.x) / slab)
+      const wy = Math.floor((originY + gy * slab - c.y) / slab)
+      const tone = slabTone(wx, wy)
+      if (tone < 168) continue
+      ctx.fillStyle =
+        tone > 246
+          ? slabAccent(accent, 0.022)
+          : `rgba(255, 255, 255, ${(0.006 + (tone & 15) * 0.0007).toFixed(4)})`
+      ctx.fillRect(originX + gx * slab, originY + gy * slab, slab - 1, slab - 1)
+    }
+  }
 
   ctx.strokeStyle = COLORS.grid
   ctx.lineWidth = 1
