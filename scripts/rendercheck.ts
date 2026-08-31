@@ -1113,14 +1113,24 @@ for (const [label, w, h] of [
   )
   expect(`${label}: player token sits at the centre`, centred, `no r=${token.toFixed(1)} circle at ${L.cx},${L.cy}`)
 
+  // By how far the arena's centre has moved rather than by where it landed.
+  //
+  // This used to name the exact pixel — centre minus the player's position —
+  // which was the same claim right up until the view could turn. A camera that
+  // sits behind the player puts the arena's centre somewhere on a circle
+  // around the middle of the screen, and which point of that circle is a fact
+  // about which way the player is facing rather than about whether the camera
+  // is following them. The distance is the part that was ever being tested,
+  // and it holds at every angle.
   const floor = circles.find((c) => Math.abs(c.r - L.arenaR) < 0.01)
-  const expectedX = L.cx - player.pos.x * L.scale
-  const expectedY = L.cy - player.pos.y * L.scale
-  const follows =
-    floor !== undefined &&
-    Math.abs(floor.x - expectedX) < 0.01 &&
-    Math.abs(floor.y - expectedY) < 0.01
-  expect(`${label}: arena scrolls under the player`, follows, JSON.stringify(floor))
+  const want = Math.hypot(player.pos.x, player.pos.y) * L.scale
+  const off = floor === undefined ? -1 : Math.hypot(floor.x - L.cx, floor.y - L.cy)
+  const follows = floor !== undefined && Math.abs(off - want) < 0.01
+  expect(
+    `${label}: arena scrolls under the player`,
+    follows,
+    `${off.toFixed(1)} from centre, wanted ${want.toFixed(1)}`,
+  )
 }
 
 // --- threat is earned, not issued -----------------------------------------

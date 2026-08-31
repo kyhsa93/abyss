@@ -21,6 +21,8 @@ import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { encounterAt } from '../sim/encounters'
+import { bgAnchor } from '../sim/bgai'
+import { turnView, viewAngle } from './camera'
 import {
   ECHO_TELEGRAPH,
   HAND_BEAT,
@@ -110,14 +112,80 @@ export function focusOn(s: SimState, alpha = 1): Vec2 {
   return actorPos(best, alpha)
 }
 
-function updateCamera(s: SimState, alpha: number): void {
+/**
+ * The thing the view sits behind, or nothing to leave it where it is.
+ *
+ * Whatever the mode is about: the boss in a raid, and in a battleground the
+ * place this player's own orders point at. The battleground's is the steadier
+ * of the two, because it is a place rather than a body — a node or a flag or a
+ * rally stands still while the fight moves around it, and it is already held
+ * deliberately still by the plan for the same reason a camera would want it
+ * to be.
+ */
+function anchorOf(s: SimState): Vec2 | null {
+  const player = s.actors.find((a) => a.isPlayer)
+  if (!player) return null
+  if (s.mode === 'battleground') return bgAnchor(s, player)
+  const b = s.actors.find((a) => a.id === BOSS_ID && a.alive)
+  return b ? b.pos : null
+}
+
+/**
+ * The range within which the view stops caring where the anchor is.
+ *
+ * The bearing to a thing is undefined at the thing, and near it it is violent:
+ * at ten units away a sidestep swings it through a quarter turn. That is not
+ * an edge case here — melee spend the whole fight on the boss's edge, so the
+ * least stable bearing on the floor is the one most of the raid is standing
+ * in.
+ *
+ * The first answer was to freeze the view inside this, and it was wrong in a
+ * way worth writing down. A hard stop leaves the view pointed wherever it
+ * happened to be, so a melee who walks through the boss and out the far side
+ * is left with the boss behind them and nothing to correct it until they
+ * leave. It swapped a camera that moves too much for one that will not move
+ * when it must.
+ *
+ * What is here instead is the swing rate itself scaled by how far out the
+ * anchor is. Far away it turns at full rate; close in it barely turns at all;
+ * at the anchor it does not turn. Same protection against the whip, no cliff
+ * to fall off, and a view that is always still recovering — slowly, but in the
+ * right direction.
+ */
+const HOLD = 90
+
+function updateCamera(s: SimState, alpha: number, clock: number): void {
   const p = focusOn(s, alpha)
   cam.x = p.x
   cam.y = p.y
+
+  const anchor = anchorOf(s)
+  if (!anchor) return
+  const dx = anchor.x - p.x
+  const dy = anchor.y - p.y
+  // Turned so the anchor sits straight up the screen. Screen y grows downward,
+  // so "up" is a quarter turn the negative way.
+  const want = -Math.PI / 2 - Math.atan2(dy, dx)
+  turnView(want, clock, Math.min(1, Math.hypot(dx, dy) / HOLD))
 }
 
 function worldToScreen(p: Vec2): Vec2 {
-  return { x: L.cx + (p.x - cam.x) * L.scale, y: L.cy + (p.y - cam.y) * L.scale }
+  const dx = (p.x - cam.x) * L.scale
+  const dy = (p.y - cam.y) * L.scale
+  const rot = viewAngle()
+  const c = Math.cos(rot)
+  const sn = Math.sin(rot)
+  // In the projection rather than as a canvas transform, and that is not a
+  // detail. `ctx.rotate` would turn the glyphs with the floor, and every
+  // nameplate, damage number and body sprite in this renderer is drawn
+  // axis-aligned on purpose. Turning the coordinates and nothing else leaves
+  // all of them upright for free.
+  return { x: L.cx + dx * c - dy * sn, y: L.cy + dx * sn + dy * c }
+}
+
+/** A bearing in the world, as an angle on the glass. */
+function screenAngle(a: number): number {
+  return a + viewAngle()
 }
 
 /** Interpolated screen position: 30Hz simulation, 60fps rendering. */
@@ -136,7 +204,7 @@ export function drawWorld(
   clock: number,
   effects: Effects,
 ): void {
-  updateCamera(s, alpha)
+  updateCamera(s, alpha, clock)
 
   // The shove goes on the world and nowhere else: a heads-up display that
   // shakes is a heads-up display nobody can read.
@@ -181,7 +249,7 @@ export function drawWorld(
   drawProjectiles(ctx, s, alpha)
   // Above the tokens and below the numbers: a hit should be visible on top of
   // whoever took it, and never on top of what the fight is telling you.
-  effects.draw(ctx, worldToScreen, L.scale)
+  effects.draw(ctx, worldToScreen, L.scale, viewAngle())
   drawFloatingText(ctx, s, alpha)
   ctx.restore()
 
@@ -694,8 +762,12 @@ function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number],
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / FAULT_TELEGRAPH))
   const c = worldToScreen({ x: 0, y: 0 })
   const radius = L.arenaR
-  const nx = Math.cos(g.angle)
-  const ny = Math.sin(g.angle)
+  // The wedge is drawn against screen coordinates, so its bearing has to be
+  // one too: the shape the simulation tests is a bearing in the world, and
+  // the world is turned under the camera.
+  const angle = screenAngle(g.angle)
+  const nx = Math.cos(angle)
+  const ny = Math.sin(angle)
 
   // Where the line crosses the wall. The boss is always inside the arena, so
   // the line always crosses it twice; the guard is for the frame where the
@@ -713,7 +785,7 @@ function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number],
   const a2 = Math.atan2(to.y - c.y, to.x - c.x)
   const turn = (x: number): number => ((x % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
   const sweep = turn(a1 - a2)
-  const forward = turn(g.angle - a2) < sweep
+  const forward = turn(angle - a2) < sweep
 
   ctx.save()
   ctx.beginPath()
@@ -920,7 +992,11 @@ function drawBreath(
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, r, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  // The wedge is drawn against screen coordinates, so its bearing has to be
+  // one too: the shape the simulation tests is a bearing in the world, and
+  // the world is turned under the camera.
+  const angle = screenAngle(g.angle)
+  ctx.arc(p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = firing ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.14)'
   ctx.fill()
@@ -928,7 +1004,7 @@ function drawBreath(
   if (!firing) {
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
-    ctx.arc(p.x, p.y, r * progress, g.angle - g.halfWidth, g.angle + g.halfWidth)
+    ctx.arc(p.x, p.y, r * progress, angle - g.halfWidth, angle + g.halfWidth)
     ctx.closePath()
     ctx.fillStyle = 'rgba(56, 189, 248, 0.22)'
     ctx.fill()
@@ -936,7 +1012,7 @@ function drawBreath(
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, r, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.arc(p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.strokeStyle = firing ? 'rgba(125, 211, 252, 0.95)' : 'rgba(125, 211, 252, 0.7)'
   ctx.lineWidth = 2
@@ -950,7 +1026,7 @@ function drawBreath(
   for (let i = 0; i < 3; i++) {
     const at = ((run + i / 3) % 1) * 0.9 + 0.1
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r * at, g.angle - g.halfWidth * 0.85, g.angle + g.halfWidth * 0.85)
+    ctx.arc(p.x, p.y, r * at, angle - g.halfWidth * 0.85, angle + g.halfWidth * 0.85)
     ctx.strokeStyle = `rgba(224, 242, 254, ${(0.5 * (1 - at)).toFixed(3)})`
     ctx.lineWidth = 3
     ctx.stroke()
@@ -1077,11 +1153,16 @@ function drawHand(
   ctx.arc(arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
   ctx.clip()
 
+  // The wedge is drawn against screen coordinates, so its bearing has to be
+  // one too: the shape the simulation tests is a bearing in the world, and
+  // the world is turned under the camera.
+  const angle = screenAngle(g.angle)
+
   // Where it is going, first, so the live wedge is drawn over the top of it.
   if (g.pulses > 1) {
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
-    ctx.arc(p.x, p.y, reach, g.angle + g.turn - g.halfWidth, g.angle + g.turn + g.halfWidth)
+    ctx.arc(p.x, p.y, reach, angle + g.turn - g.halfWidth, angle + g.turn + g.halfWidth)
     ctx.closePath()
     ctx.fillStyle = 'rgba(132, 204, 22, 0.07)'
     ctx.fill()
@@ -1092,7 +1173,7 @@ function drawHand(
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, reach, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.arc(p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = `rgba(132, 204, 22, ${(0.09 + 0.20 * closing).toFixed(3)})`
   ctx.fill()
@@ -1102,7 +1183,7 @@ function drawHand(
 
   // And an arrow of the turn along the leading edge, because which way it is
   // going is the only thing here worth knowing and a wedge does not say.
-  const lead = g.angle + Math.sign(g.turn) * g.halfWidth
+  const lead = angle + Math.sign(g.turn) * g.halfWidth
   for (let i = 1; i <= 3; i++) {
     const out = reach * (i / 4)
     const from = { x: p.x + Math.cos(lead) * out, y: p.y + Math.sin(lead) * out }
@@ -1331,8 +1412,12 @@ function drawShockwave(
   // The ring is drawn everywhere except its gap, because the gap is the
   // answer and an answer you cannot see is not one. Arcs run from the far
   // edge of the wedge round to its near edge.
-  const from = g.angle + g.halfWidth
-  const to = g.angle - g.halfWidth + Math.PI * 2
+  // The wedge is drawn against screen coordinates, so its bearing has to be
+  // one too: the shape the simulation tests is a bearing in the world, and
+  // the world is turned under the camera.
+  const angle = screenAngle(g.angle)
+  const from = angle + g.halfWidth
+  const to = angle - g.halfWidth + Math.PI * 2
 
   // Three rings of wake behind the edge, so the ring reads as travelling
   // rather than as a circle that keeps being redrawn bigger.
@@ -1363,12 +1448,12 @@ function drawShockwave(
   const reach = ARENA_RADIUS * L.scale
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, reach, g.angle - g.halfWidth, g.angle + g.halfWidth)
+  ctx.arc(p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = 'rgba(74, 222, 128, 0.07)'
   ctx.fill()
 
-  for (const edge of [g.angle - g.halfWidth, g.angle + g.halfWidth]) {
+  for (const edge of [angle - g.halfWidth, angle + g.halfWidth]) {
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
     ctx.lineTo(p.x + Math.cos(edge) * reach, p.y + Math.sin(edge) * reach)
@@ -1815,7 +1900,7 @@ function drawActor(
       p.x,
       p.y,
       r,
-      a.facing,
+      screenAngle(a.facing),
       (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,
       casting,
@@ -2312,8 +2397,8 @@ function drawGaze(
     ctx.beginPath()
     ctx.moveTo(at.x, at.y)
     ctx.lineTo(
-      at.x + Math.cos(a.facing) * (a.radius + 16) * L.scale,
-      at.y + Math.sin(a.facing) * (a.radius + 16) * L.scale,
+      at.x + Math.cos(screenAngle(a.facing)) * (a.radius + 16) * L.scale,
+      at.y + Math.sin(screenAngle(a.facing)) * (a.radius + 16) * L.scale,
     )
     ctx.strokeStyle = looking ? 'rgba(240, 171, 252, 0.8)' : 'rgba(148, 163, 184, 0.5)'
     ctx.lineWidth = 2

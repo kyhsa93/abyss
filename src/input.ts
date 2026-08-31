@@ -1,4 +1,5 @@
 import { L } from './render/theme'
+import { stickToWorld } from './render/camera'
 import type { PlayerInput } from './sim/types'
 
 export interface JoystickView {
@@ -189,7 +190,18 @@ export class Input {
 
     const pressed = this.queued
     this.queued = []
-    return { moveX, moveY, pressed }
+    // Both of those were read on the glass — a key labelled up and a stick
+    // pushed up mean up on the screen, whichever way the world is turned
+    // underneath. The simulation is owed a world-space vector, so the turn is
+    // undone here.
+    //
+    // Here rather than in `step`, and that is the whole reason a camera can
+    // exist at all. What the fight receives is the same world-space push it
+    // has always received, so a recorded input replays into the same fight no
+    // matter where the camera was pointed when it was made. A camera that
+    // reached inside the tick would have to be recorded with it.
+    const world = stickToWorld(moveX, moveY)
+    return { moveX: world.x, moveY: world.y, pressed }
   }
 
   /** Stick position for rendering, clamped to the base ring. */

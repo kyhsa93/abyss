@@ -559,6 +559,19 @@ function bgName(kind: BgKind): string {
   return BATTLEGROUNDS.find((b) => b.kind === kind)?.name ?? 'Battleground'
 }
 
+/**
+ * The floor from above, and deliberately not from behind.
+ *
+ * This does not turn with the view, and that is the point of it. The world
+ * does now — the camera sits behind the player and swings as they walk around
+ * whatever they are working on — which is worth having and costs the one thing
+ * a rotating view always costs: there is no longer a direction that stays put.
+ * A map that turned too would leave the fight with no fixed frame at all.
+ *
+ * So this one is nailed north-up. It is the only thing on the screen that
+ * answers "where is that, on the floor" rather than "where is that, from
+ * here", and a player who has lost their bearings has somewhere to find them.
+ */
 function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   const { mapX: cx, mapY: cy, mapR: r } = L
   const k = r / WORLD_RADIUS

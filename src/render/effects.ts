@@ -456,7 +456,20 @@ export class Effects {
    * passed in rather than imported so this never has to know where the view
    * is pointed.
    */
-  draw(ctx: CanvasRenderingContext2D, project: (p: Vec2) => Vec2, scale: number): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    project: (p: Vec2) => Vec2,
+    scale: number,
+    /**
+     * How far the world is turned under the camera.
+     *
+     * Passed in beside the projection and for the same reason: a burst's
+     * bearing is the one the fight gave it — the line a blow came in on — and
+     * every shape drawn from it lands on the glass, where that line is turned.
+     * Without this a cleave arced away from the blow that made it.
+     */
+    turn = 0,
+  ): void {
     if (this.bursts.length === 0) return
 
     ctx.save()
@@ -476,6 +489,7 @@ export class Effects {
       // Off the floor, in screen space: height above the ground is not a
       // coordinate on a plane the camera is looking down at.
       p.y -= burst.lift * scale
+      const aim = burst.angle + turn
       // A heal closes on the target instead of leaving it.
       const spread = burst.inward ? 1 - t : t
       const r = Math.max(1, burst.reach * (0.25 + spread * 0.75) * scale)
@@ -494,23 +508,23 @@ export class Effects {
         // The dash: a line from where it started to where it ended, fading
         // and thinning from the tail.
         const run = burst.reach * scale
-        const head = { x: p.x + Math.cos(burst.angle) * run, y: p.y + Math.sin(burst.angle) * run }
+        const head = { x: p.x + Math.cos(aim) * run, y: p.y + Math.sin(aim) * run }
         const tail = {
-          x: p.x + Math.cos(burst.angle) * run * t,
-          y: p.y + Math.sin(burst.angle) * run * t,
+          x: p.x + Math.cos(aim) * run * t,
+          y: p.y + Math.sin(aim) * run * t,
         }
         ctx.moveTo(tail.x, tail.y)
         ctx.lineTo(head.x, head.y)
         ctx.lineWidth = Math.max(1, 5 * fade * scale)
       } else if (burst.arc > 0) {
-        ctx.arc(p.x, p.y, r, burst.angle - burst.arc, burst.angle + burst.arc)
+        ctx.arc(p.x, p.y, r, aim - burst.arc, aim + burst.arc)
       } else {
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
       }
       ctx.stroke()
 
       for (let i = 0; i < burst.spokes; i++) {
-        const a = burst.angle + (i / burst.spokes) * Math.PI * 2
+        const a = aim + (i / burst.spokes) * Math.PI * 2
         const inner = r * 0.55
         const outer = r * (1 + 0.35 * t)
         ctx.beginPath()

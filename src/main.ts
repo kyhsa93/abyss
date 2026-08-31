@@ -1,4 +1,5 @@
 import { Input } from './input'
+import { resetView } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import {
@@ -691,6 +692,11 @@ let fightingMode: RosterMode = mode
  * changing anything keeps the progress.
  */
 function startFight(): void {
+  // Face the fight the way it starts rather than the way the last one ended.
+  // The view swings slowly on purpose, so one carried over would spend the
+  // opening seconds unwinding a bearing that belonged to a different floor.
+  resetView()
+
   // The class screen is also where a descent begins, since the one thing a
   // descent still asks is what you are bringing into it.
   if (startingDescent) {

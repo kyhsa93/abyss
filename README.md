@@ -2374,6 +2374,24 @@ packed by `npm run fx -- --packs <a checkout>`. They are CC0: no attribution
 required and no share-alike, which is the lightest licence anything here runs
 under, so there is no credits file to go with them.
 
+## The camera
+
+The view sits behind the player and looks at whatever the mode is about — the
+boss in a raid, the objective this player's own orders point at in a
+battleground. Walking around that thing walks the camera around it, so you see
+your own back and the thing you are working on stays at the top of the screen.
+
+Two rules keep it from spreading into the rest of the code.
+
+The rotation is applied in `worldToScreen` rather than as a canvas transform.
+`ctx.rotate` would turn the glyphs with the floor, and every nameplate, damage
+number and body sprite here is drawn axis-aligned on purpose.
+
+And the stick is turned into world space in `input.ts`, before `step` is ever
+called. The simulation never learns there is a camera, so a recorded input
+replays into the same fight whichever way the view happened to be pointed. A
+camera that reached inside the tick would have to be recorded with it.
+
 ## Projectiles
 
 The bodies of the bolts in flight are DevWizard's

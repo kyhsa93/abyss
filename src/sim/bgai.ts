@@ -337,6 +337,21 @@ export function aiGoal(s: SimState, actor: Actor): Vec2 | null {
 }
 
 /**
+ * The place this one's orders point at, for the camera to sit behind.
+ *
+ * The objective rather than `aiGoal`, and the difference matters here. That
+ * one blends in whoever is being fought, which is right for walking and wrong
+ * for a camera: it would swing the world every time an enemy moved. This is
+ * the blunt answer — a node, a flag, a base, a rally — and it is blunt on
+ * purpose, for the reason written over `objective` itself.
+ */
+export function bgAnchor(s: SimState, actor: Actor): Vec2 | null {
+  const bg = s.bg
+  if (!bg || !actor.alive) return null
+  return objective(s, bg, actor).pos
+}
+
+/**
  * Somewhere to be, and how far from it is still being there.
  *
  * A capture point pays only while somebody is standing on it, so chasing a
