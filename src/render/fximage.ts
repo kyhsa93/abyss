@@ -51,6 +51,9 @@ export function drawFx(
   const fx = FX[name]
   if (!fx) return false
 
+  // Clamped rather than wrapped: these are one-shots. A hit is over, and a
+  // sprite that looped would keep detonating after the thing that caused it
+  // had finished. `drawFxLoop` is the door for the things that do repeat.
   const frame = Math.min(fx.frames - 1, Math.max(0, Math.floor(t * fx.frames)))
 
   ctx.save()
@@ -69,4 +72,30 @@ export function drawFx(
   )
   ctx.restore()
   return true
+}
+
+/**
+ * The same sheet, played on a loop.
+ *
+ * For the things on the floor that are still happening rather than the ones
+ * that have happened: a pool is burning for as long as it is there, and a
+ * sprite that ran once and stopped would say it had gone out.
+ *
+ * `cycles` is turns a second, so the caller says how fast a thing burns rather
+ * than knowing how many frames it was drawn with.
+ */
+export function drawFxLoop(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  x: number,
+  y: number,
+  size: number,
+  clock: number,
+  cycles: number,
+  alpha: number,
+  /** So two pools side by side are not the same picture twice. */
+  offset = 0,
+): boolean {
+  const t = ((clock * cycles + offset) % 1 + 1) % 1
+  return drawFx(ctx, name, x, y, size, t, alpha)
 }

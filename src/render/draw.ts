@@ -15,6 +15,7 @@ import {
   TOLL_TELEGRAPH,
   YOKE_REACH,
   ARENA_RADIUS,
+  GLOBAL_COOLDOWN,
   PARTY_RADIUS,
 } from '../sim/constants'
 import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
@@ -37,6 +38,7 @@ import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
 import { drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
+import { drawFxLoop } from './fximage'
 import { chestHeight } from './lpcimage'
 
 function lerp(a: number, b: number, t: number): number {
@@ -737,6 +739,12 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.arc(p.x, p.y, r * (0.52 + 0.06 * Math.sin(clock * 3 + g.id)), 0, Math.PI * 2)
       ctx.fillStyle = COLORS.puddle
       ctx.fill()
+
+      // Something actually burning in it.
+      for (const [i, spot] of flamesIn(g.radius).entries()) {
+        const at = worldToScreen({ x: g.pos.x + spot.dx, y: g.pos.y + spot.dy })
+        drawFxLoop(ctx, 'flame', at.x, at.y, FLAME * L.scale, clock, 1.4, fade * 0.7, g.id * 0.37 + i * 0.23)
+      }
 
       ctx.strokeStyle = COLORS.puddleEdge
       ctx.lineWidth = 2
@@ -1738,6 +1746,79 @@ function standingInFire(s: SimState, a: Actor): boolean {
  * five belongs to the large hostile thing on the floor.
  */
 /**
+ * How wide a flame on the floor is drawn, in world units.
+ *
+ * A size of its own rather than a share of the pool it is in, which is what
+ * this was first written as and was wrong twice over. A pool can be three
+ * times the width of the person standing in it, so a sprite scaled to fill one
+ * covered a quarter of the arena — and worse, it stopped being a picture: this
+ * is a thirty-two pixel drawing, and at eight times its size the flame was an
+ * orange smear with no shape in it at all.
+ *
+ * A fire is fire-sized. A bigger pool gets more of them rather than a larger
+ * one, which is also what a burning pool actually looks like.
+ */
+const FLAME = 34
+
+/**
+ * How many flames a pool of a given radius is worth, and where they sit.
+ *
+ * Enough to read as burning and few enough to stay out of the way. They are
+ * kept well inside the edge, because the edge is the whole of what a pool is
+ * telling anybody — it is the line between standing here and not — and a
+ * sprite that reached it would be redrawing the one measurement the player is
+ * making. Same reason the floor texture came out and the hit effects came
+ * down: whatever the floor is holding wins.
+ *
+ * Placement is off the pool's own id, so it is the same picture every frame
+ * and a different one from the pool beside it.
+ */
+function flamesIn(radius: number): Array<{ dx: number; dy: number }> {
+  const spots = [{ dx: 0, dy: 0 }]
+  const ring = Math.min(4, Math.floor(radius / FLAME))
+  for (let i = 0; i < ring; i++) {
+    const a = (i / ring) * Math.PI * 2
+    const at = radius * 0.46
+    spots.push({ dx: Math.cos(a) * at, dy: Math.sin(a) * at })
+  }
+  return spots
+}
+
+/**
+ * How long the swing for an instant lasts, in seconds.
+ *
+ * Short, and much shorter than the global cooldown it is read off. It is the
+ * time a blow takes rather than the time until the next one is allowed, and
+ * those are different numbers — stretched to the full global, a body would
+ * still be finishing its last swing as the next one began.
+ */
+const SWING_TIME = 0.4
+
+/**
+ * How far through the swing an instant is, or null if it is not swinging.
+ *
+ * Read off the global cooldown, which is the only mark an instant leaves on
+ * the actor: it resolves on the tick it is pressed, so by the time anything
+ * draws it, it is over. The global is set at the press and counts down, which
+ * makes the elapsed time exactly what is wanted.
+ *
+ * It cannot fire twice for one press. A cast-time ability sets the global at
+ * the same moment it starts casting, so the two overlap only at the front of
+ * the cast — where `castId` is set and wins. By the time a cast resolves its
+ * global is either spent or well past this window.
+ *
+ * Abilities that skip the global get nothing, which is the honest limit of
+ * reading the global rather than a decision: nineteen do, and they are the
+ * ones a rotation presses without paying for, so a body playing no swing for
+ * them is closer to right than one that does.
+ */
+function swingProgress(a: Actor): number | null {
+  const gone = GLOBAL_COOLDOWN - a.gcd
+  if (a.gcd <= 0 || gone >= SWING_TIME) return null
+  return Math.max(0, Math.min(1, gone / SWING_TIME))
+}
+
+/**
  * How much of the walk cycle one unit of travel is worth.
  *
  * Half what it was, which is to say a stride now covers about two body widths
@@ -1890,10 +1971,22 @@ function drawActor(
     // How far through the cast, so the animation lasts exactly as long as the
     // thing it is showing. A swing that finishes early and then stands there
     // reads as the cast having been cancelled.
+    //
+    // An instant has no cast to be part of the way through — it resolves on
+    // the tick it is pressed and never sets `castId` — so most of what a spec
+    // presses used to happen with the body standing perfectly still. Seventy
+    // three of the abilities in this game are instants; a rogue's whole
+    // rotation is.
+    //
+    // What they do have is the global cooldown, which starts when they are
+    // pressed and is already on the actor. The animation is played over the
+    // front of it rather than across the whole thing: a global is a second and
+    // a half and a swing is not, and one stretched over the whole window would
+    // still be swinging when the next press lands.
     const casting =
       a.castId !== null && a.castTotal > 0
         ? Math.max(0, Math.min(1, 1 - a.castRemaining / a.castTotal))
-        : null
+        : swingProgress(a)
     drawBody(
       ctx,
       token,
