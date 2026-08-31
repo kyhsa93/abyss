@@ -449,6 +449,15 @@ function faceTarget(s: SimState, b: Actor, target: Actor | null): void {
   while (delta < -Math.PI) delta += Math.PI * 2
   // Turning slowly is what makes getting behind it possible at all.
   s.bossFacing += Math.max(-2.6 * DT, Math.min(2.6 * DT, delta))
+  // The same bearing, written where every other body keeps it.
+  //
+  // The boss's is held on the state rather than on the actor because the cone
+  // mechanics were written against it, and the renderer asks each body for its
+  // own `facing` — so the boss answered nought for every fight it has ever
+  // been in, and stood facing right while walking anywhere else. Worse than
+  // ugly: getting behind it is a thing the player is asked to do, and the body
+  // was disagreeing with the cone about where its back was.
+  b.facing = s.bossFacing
 }
 
 function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTiming): void {
@@ -1942,6 +1951,12 @@ function updateAdds(s: SimState): void {
     }
     if (!nearest) continue
 
+    // Which way it is turned. Nothing but the drawing reads this on an add —
+    // the gaze only ever asks the party — so it was never set, and every
+    // thrall in the game spent the whole fight facing right. One chasing
+    // somebody to its left walked there backwards.
+    turnToward(add, Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x))
+
     if (best > MELEE_RANGE) {
       add.pos.x += ((nearest.pos.x - add.pos.x) / best) * add.moveSpeed * DT
       add.pos.y += ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
@@ -2149,6 +2164,7 @@ export function updateGround(s: SimState): void {
         pushEffect(s, 'impact', a.pos, { abilityId: 'boss_soak', power: share })
       }
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_soak',
         power: g.radius * 9,
         crit: true,
@@ -2174,6 +2190,7 @@ export function updateGround(s: SimState): void {
 
       s.sounds.push('raid')
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_hand',
         power: ARENA_RADIUS * 4,
         angle: g.angle,
@@ -2208,6 +2225,7 @@ export function updateGround(s: SimState): void {
       if (g.telegraph > 0) continue
       g.detonated = true
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_echo',
         power: g.radius * 12,
         crit: true,
@@ -2236,6 +2254,7 @@ export function updateGround(s: SimState): void {
       s.raidFlash = 0.35
       const mark = g.kind === 'fault' ? 'boss_fault' : 'boss_shallows'
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: mark,
         power: g.radius * 12,
         crit: true,
@@ -2278,6 +2297,7 @@ if (g.kind === 'schism') {
       // a group that is no longer a group.
       for (const a of party) clearAura(a, 'schism')
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_schism',
         power: g.radius * 5,
         crit: true,
@@ -2298,6 +2318,7 @@ if (g.kind === 'schism') {
       g.detonated = true
       s.sounds.push('raid')
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_toll',
         power: g.radius * 12,
         crit: true,
@@ -2353,6 +2374,7 @@ if (g.kind === 'schism') {
       if (g.telegraph > 0) continue
       g.detonated = true
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_grasp',
         power: g.radius * 8,
         crit: true,
@@ -2402,6 +2424,7 @@ if (g.kind === 'schism') {
       }
 
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_refuge',
         power: g.radius * 10,
         crit: true,
@@ -2432,6 +2455,7 @@ if (g.kind === 'schism') {
           g.detonated = true
           s.sounds.push('raid')
           pushEffect(s, 'impact', g.pos, {
+            radius: g.radius,
             abilityId: 'boss_spire',
             power: g.radius * 12,
             crit: true,
@@ -2468,7 +2492,7 @@ if (g.kind === 'schism') {
       g.detonated = true
       s.sounds.push('raid')
       s.raidFlash = 0.3
-      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_vigil', power: 320, crit: true })
+      pushEffect(s, 'impact', g.pos, { radius: g.radius, abilityId: 'boss_vigil', power: 320, crit: true })
       for (const a of livingParty(s)) {
         if (!stillWorking(a)) continue
         const damage = mechanic(s, g.damage)
@@ -2489,7 +2513,7 @@ if (g.kind === 'schism') {
       g.detonated = true
       s.sounds.push('raid')
       s.raidFlash = 0.45
-      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_chant', power: 900, crit: true })
+      pushEffect(s, 'impact', g.pos, { radius: g.radius, abilityId: 'boss_chant', power: 900, crit: true })
       const named = chantNamed(s)
       for (const a of livingParty(s)) {
         const mine = named !== null && a.id === named.id
@@ -2516,7 +2540,7 @@ if (g.kind === 'schism') {
       g.detonated = true
       s.sounds.push('raid')
       s.raidFlash = 0.3
-      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_gaze', power: 460, crit: true })
+      pushEffect(s, 'impact', g.pos, { radius: g.radius, abilityId: 'boss_gaze', power: 460, crit: true })
       for (const a of livingParty(s)) {
         if (!watched(a, g)) continue
         const damage = mechanic(s, g.damage)
@@ -2537,6 +2561,7 @@ if (g.kind === 'schism') {
       s.sounds.push('raid')
       s.raidFlash = 0.35
       pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
         abilityId: 'boss_crush',
         power: g.radius * 12,
         crit: true,
@@ -2564,6 +2589,7 @@ if (g.kind === 'schism') {
         // The floor going off, at the size it went off at. Everything that
         // followed used to be the only sign it had.
         pushEffect(s, 'impact', g.pos, {
+          radius: g.radius,
           abilityId: mark,
           power: g.radius * 12,
           crit: true,

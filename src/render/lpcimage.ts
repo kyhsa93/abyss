@@ -69,7 +69,7 @@ const BODY = 4.6
  * Small on purpose. Past about this the faces start to flatten, and these are
  * sixteen pixels of face to begin with.
  */
-const SQUASH = 0.9
+const SQUASH = 0.81
 
 /**
  * Which way a body is facing, out of an angle.
