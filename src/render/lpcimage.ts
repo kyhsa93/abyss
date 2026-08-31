@@ -49,11 +49,13 @@ export function hasBody(id: string): boolean {
  * How tall a body stands, in footprint radii.
  *
  * A cell is 64 and a body fills rather less than that, so this is picked
- * against how the result reads next to its own disc rather than against the
- * cell — big enough to be a person, small enough that the footprint is still
- * obviously what it is standing in.
+ * against how the result reads over its own footprint rather than against the
+ * cell. Big enough to be a person, small enough that the ellipse under it
+ * still reads as the ground it is standing on: at the size this was first set
+ * to, a body overhung its own patch of floor on every side and the patch
+ * stopped looking like something anybody was standing in.
  */
-const BODY = 5.6
+const BODY = 4.6
 
 /**
  * Which way a body is facing, out of an angle.
