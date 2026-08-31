@@ -126,9 +126,11 @@ export function drawBody(
   // every body comes out squat.
   const h = r * BODY
   const w = (h * LPC_CELL_W) / LPC_CELL_H
-  // Feet a little below the middle of the disc, so a body looks like it is
-  // standing in its footprint rather than balanced on the back edge of it.
-  const feet = y + r * 0.55
+  // Feet on the actor's own position, which is the centre of the footprint
+  // ellipse. The simulation's `pos` is a point on the ground and the ellipse is
+  // drawn around it, so standing anywhere else would put the body beside the
+  // patch of floor it is meant to be occupying.
+  const feet = y
 
   ctx.save()
   ctx.globalAlpha = alpha

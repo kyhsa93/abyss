@@ -184,8 +184,7 @@ export function drawWorld(
   for (const a of s.actors) {
     const p = screenPos(a, alpha)
     const r = Math.max(4, a.radius * L.scale)
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    footprint(ctx, p.x, p.y, r)
     ctx.strokeStyle = ringColour(a, s, bg)
     ctx.globalAlpha = a.alive ? 1 : 0.4
     ctx.lineWidth = 2
@@ -1675,6 +1674,31 @@ function standingInFire(s: SimState, a: Actor): boolean {
  * ring on top cannot disagree with the pass that drew them underneath — two
  * copies of this would drift and the drift would look like a bug in the sort.
  */
+/**
+ * How flat a footprint is drawn.
+ *
+ * The floor is looked across rather than straight down — a body stands up out
+ * of its disc, which only makes sense from an angle. A circle on that floor
+ * reads as a ball; the same circle flattened reads as a patch of ground, and
+ * a patch of ground is what a footprint has always meant.
+ */
+const FOOT_FLATTEN = 0.44
+
+/**
+ * The patch of floor an actor is standing on.
+ *
+ * Centred on the actor's own position, because that is where its feet are: the
+ * simulation's `pos` is a point on the ground, so the ellipse around it is the
+ * ground it occupies and the body is drawn upwards out of the middle of it.
+ *
+ * Every ring an actor wears goes through here. A status ring left as a circle
+ * around an elliptical footprint would read as two different floors.
+ */
+function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number): void {
+  ctx.beginPath()
+  ctx.ellipse(x, y, rx, rx * FOOT_FLATTEN, 0, 0, Math.PI * 2)
+}
+
 function ringColour(a: Actor, s: SimState, battleground: boolean): string {
   if (!a.alive) return COLORS.dead
   const isBoss = a.id === BOSS_ID && !battleground
@@ -1726,8 +1750,7 @@ function drawActor(
 
   if (a.isPlayer && a.alive) {
     // A soft pulse so the player never loses their own token in a crowd.
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, r + 7 + Math.sin(clock * 4) * 1.5, 0, Math.PI * 2)
+    footprint(ctx, p.x, p.y, r + 7 + Math.sin(clock * 4) * 1.5)
     ctx.strokeStyle = 'rgba(74, 222, 128, 0.35)'
     ctx.lineWidth = 2
     ctx.stroke()
@@ -1736,8 +1759,7 @@ function drawActor(
   // Whose side, before whose class. Ten class colours on one screen say what
   // everyone is playing and nothing about who is about to hit you.
   if (hostile && a.alive) {
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2)
+    footprint(ctx, p.x, p.y, r + 4)
     ctx.strokeStyle = COLORS.boss
     ctx.lineWidth = 2
     ctx.stroke()
@@ -1754,8 +1776,7 @@ function drawActor(
       : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
-  ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  footprint(ctx, p.x, p.y, r)
   // Under a walking body the disc is the ground it stands in rather than the
   // body itself, so it drops to a shade and the class colour moves out to the
   // ring. Left a solid colour it was a bright plate across every sprite's feet.
@@ -1798,16 +1819,14 @@ function drawActor(
   // Residual puddle damage is silent by design; without this you lose health
   // with nothing on screen explaining it.
   if (burning) {
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, r + 3.5, 0, Math.PI * 2)
+    footprint(ctx, p.x, p.y, r + 3.5)
     ctx.strokeStyle = `rgba(248, 113, 113, ${(0.55 + 0.45 * Math.sin(clock * 12)).toFixed(2)})`
     ctx.lineWidth = 3
     ctx.stroke()
   }
 
   if (getAura(a, 'shield')) {
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2)
+    footprint(ctx, p.x, p.y, r + 5)
     ctx.strokeStyle = '#93c5fd'
     ctx.lineWidth = 3
     ctx.stroke()

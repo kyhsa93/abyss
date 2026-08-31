@@ -1016,6 +1016,13 @@ function recordingCtx(circles: Circle[], labels: Label[] = []): CanvasRenderingC
       if (prop === 'arc') {
         return (x: number, y: number, r: number) => circles.push({ x, y, r })
       }
+      // A footprint is an ellipse now — the floor is looked across rather than
+      // straight down — so the recorder has to see one. Its horizontal radius
+      // is what the code has always called `r`, so it is recorded as that and
+      // every assertion written against a circle keeps working.
+      if (prop === 'ellipse') {
+        return (x: number, y: number, rx: number) => circles.push({ x, y, r: rx })
+      }
       if (prop === 'fillText') {
         return (text: string, x: number, y: number) => labels.push({ text, x, y })
       }
