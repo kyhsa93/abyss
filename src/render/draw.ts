@@ -1651,6 +1651,21 @@ function standingInFire(s: SimState, a: Actor): boolean {
  * five belongs to the large hostile thing on the floor.
  */
 /**
+ * How much of the walk cycle one unit of travel is worth.
+ *
+ * Half what it was, which is to say a stride now covers about two body widths
+ * instead of one. At the old rate the legs were turning over faster than the
+ * body was crossing the floor, and a raid of twenty-five of them read as
+ * scurrying rather than walking.
+ *
+ * Only the walk. A cast is animated off how far through the cast it is, and
+ * that has to stay where it is: the animation lasts exactly as long as the
+ * thing it is showing, and slowing it would leave a swing finished and stood
+ * there while the cast bar was still running.
+ */
+const STRIDE = 0.16
+
+/**
  * How flat a footprint is drawn.
  *
  * The floor is looked across rather than straight down — a body stands up out
@@ -1783,8 +1798,7 @@ function drawActor(
   if (token && bodied) {
     // The cycle is driven by ground covered rather than by the clock, so feet
     // keep pace with the floor: something slowed to a crawl walks slowly
-    // instead of running on the spot. Scaled so one stride is about one body
-    // width of travel.
+    // instead of running on the spot.
     const step = Math.hypot(a.pos.x - a.prevPos.x, a.pos.y - a.prevPos.y)
     // How far through the cast, so the animation lasts exactly as long as the
     // thing it is showing. A swing that finishes early and then stands there
@@ -1800,7 +1814,7 @@ function drawActor(
       p.y,
       r,
       a.facing,
-      a.pos.x * 0.32 + a.pos.y * 0.32,
+      (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,
       casting,
       a.alive ? 1 : 0.4,
