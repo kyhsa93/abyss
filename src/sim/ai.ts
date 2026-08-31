@@ -388,22 +388,67 @@ function beatNotice(call: string): number {
 }
 
 /**
+ * What a body is looking at, when nothing is making it look elsewhere.
+ *
+ * Whatever it is working on: the thing its rotation is aimed at, or for a
+ * healer the body it is keeping alive. Both are read from the same functions
+ * the rotation itself uses rather than worked out again here, so what a body
+ * is looking at cannot disagree with what it is doing — which is the whole
+ * point of drawing it.
+ *
+ * A healer's is the coarser of the two. `healTarget` refines `mostHurt` by the
+ * spec's trait and needs the rotation's own ceiling to do it, so this stops at
+ * the input both of them start from: who is hurt. A paladin looking at the
+ * worst-off raider while casting on the tank beside them is a smaller lie than
+ * a healer facing a wall.
+ */
+function lookTarget(s: SimState, actor: Actor): Actor | null {
+  if (actor.role === 'healer') {
+    const saving = rescueTarget(s, actor)
+    if (saving) return saving
+    const hurt = mostHurt(s)
+    return hurt && hurt.id !== actor.id ? hurt : null
+  }
+  return strikeTarget(s, actor, adds(s))
+}
+
+/** Whether a gaze is counting down on the floor right now. */
+function gazeOpen(s: SimState): boolean {
+  return s.ground.some((g) => g.kind === 'gaze' && !g.detonated)
+}
+
+/**
  * Which way a body is turned.
  *
- * Toward the boss, always, because a party fights what it is looking at and
- * because that is what makes the gaze a mechanic rather than a coin toss: the
- * resting bearing is the failing one, so turning away is something a body
- * did, on purpose, in time.
+ * At what it is working on, which is what a fight looks like from above: a
+ * raid all facing one way regardless of what any of them was doing read as a
+ * row of cardboard, and the adds nobody appeared to be looking at were the
+ * worst of it.
  *
- * The one exception is a gaze this body has already noticed, read off the
- * beat it is keeping so that the turn is gated by exactly the two numbers
- * that separate a first pull from a ninth and by nothing else.
+ * A gaze takes that away again, and has to. The mechanic asks whether a body
+ * turned away in time, which is only a question if the bearing it turns away
+ * from is the one it would have had anyway — let the resting bearing wander
+ * and half the raid dodges for free because of who they happened to be
+ * healing. So while one is counting down, everything looks at the boss, and
+ * the only body turned away is one that decided to be. That is also the
+ * likelier reading of a gaze: it is the boss demanding to be looked at.
+ *
+ * The turn away is still gated by the beat this body is keeping, so it costs
+ * exactly the two numbers that separate a first pull from a ninth.
  */
 function turnBody(s: SimState, actor: Actor): void {
   const b = boss(s)
   const toward = Math.atan2(b.pos.y - actor.pos.y, b.pos.x - actor.pos.x)
-  const away = actor.ai?.keeping?.startsWith('gaze') === true
-  turnToward(actor, away ? toward + Math.PI : toward)
+  if (actor.ai?.keeping?.startsWith('gaze') === true) {
+    turnToward(actor, toward + Math.PI)
+    return
+  }
+  if (gazeOpen(s)) {
+    turnToward(actor, toward)
+    return
+  }
+  const at = lookTarget(s, actor) ?? b
+  turnToward(actor, Math.atan2(at.pos.y - actor.pos.y, at.pos.x - actor.pos.x))
 }
 
 /**
