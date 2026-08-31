@@ -174,24 +174,6 @@ export function drawWorld(
     }
   }
 
-  // Every footprint again, on top of every body.
-  //
-  // Sorting by depth is correct and it costs something: a body standing behind
-  // the boss is now behind the boss, and at twenty-five players somebody is
-  // always behind something. Position is the one thing that must never be lost
-  // — it is what the whole fight is read off — so the ring is drawn a second
-  // time over the lot. A body can be hidden; where it is standing cannot.
-  for (const a of s.actors) {
-    const p = screenPos(a, alpha)
-    const r = Math.max(4, a.radius * L.scale)
-    footprint(ctx, p.x, p.y, r)
-    ctx.strokeStyle = ringColour(a, s, bg)
-    ctx.globalAlpha = a.alive ? 1 : 0.4
-    ctx.lineWidth = 2
-    ctx.stroke()
-    ctx.globalAlpha = 1
-  }
-
   drawCarriedFlags(ctx, s, alpha)
   drawProjectiles(ctx, s, alpha)
   // Above the tokens and below the numbers: a hit should be visible on top of
@@ -1668,13 +1650,6 @@ function standingInFire(s: SimState, a: Actor): boolean {
  * five belongs to the large hostile thing on the floor.
  */
 /**
- * The colour a footprint is ringed in.
- *
- * The same rule `drawActor` uses, pulled out so the pass that redraws every
- * ring on top cannot disagree with the pass that drew them underneath — two
- * copies of this would drift and the drift would look like a bug in the sort.
- */
-/**
  * How flat a footprint is drawn.
  *
  * The floor is looked across rather than straight down — a body stands up out
@@ -1697,14 +1672,6 @@ const FOOT_FLATTEN = 0.44
 function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number): void {
   ctx.beginPath()
   ctx.ellipse(x, y, rx, rx * FOOT_FLATTEN, 0, 0, Math.PI * 2)
-}
-
-function ringColour(a: Actor, s: SimState, battleground: boolean): string {
-  if (!a.alive) return COLORS.dead
-  const isBoss = a.id === BOSS_ID && !battleground
-  if (isBoss) return s.mode === 'raid' ? bossAccent(s) : COLORS.boss
-  if (a.faction === 'boss' && !battleground) return '#a855f7'
-  return classColor(a.classId)
 }
 
 function bossBody(s: SimState): string | null {
@@ -1784,6 +1751,34 @@ function drawActor(
   ctx.globalAlpha = a.alive ? 1 : 0.4
   ctx.fill()
 
+  ctx.globalAlpha = 1
+  ctx.strokeStyle = bodied ? color : '#0a0a0f'
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+
+  // Residual puddle damage is silent by design; without this you lose health
+  // with nothing on screen explaining it.
+  if (burning) {
+    footprint(ctx, p.x, p.y, r + 3.5)
+    ctx.strokeStyle = `rgba(248, 113, 113, ${(0.55 + 0.45 * Math.sin(clock * 12)).toFixed(2)})`
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  if (getAura(a, 'shield')) {
+    footprint(ctx, p.x, p.y, r + 5)
+    ctx.strokeStyle = '#93c5fd'
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  // The body last, over every ring that is on the ground.
+  //
+  // All of those are marks on the floor — the footprint, the fire you are
+  // standing in, the shield around you — and a mark on the floor belongs under
+  // the thing standing on it. Stroked after, the footprint was a hoop drawn
+  // across a pair of ankles.
   if (token && bodied) {
     // The cycle is driven by ground covered rather than by the clock, so feet
     // keep pace with the floor: something slowed to a crawl walks slowly
@@ -1811,26 +1806,6 @@ function drawActor(
     )
   }
 
-  ctx.globalAlpha = 1
-  ctx.strokeStyle = bodied ? color : '#0a0a0f'
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // Residual puddle damage is silent by design; without this you lose health
-  // with nothing on screen explaining it.
-  if (burning) {
-    footprint(ctx, p.x, p.y, r + 3.5)
-    ctx.strokeStyle = `rgba(248, 113, 113, ${(0.55 + 0.45 * Math.sin(clock * 12)).toFixed(2)})`
-    ctx.lineWidth = 3
-    ctx.stroke()
-  }
-
-  if (getAura(a, 'shield')) {
-    footprint(ctx, p.x, p.y, r + 5)
-    ctx.strokeStyle = '#93c5fd'
-    ctx.lineWidth = 3
-    ctx.stroke()
-  }
 
   // Whatever picked this one, drawn as a line to it.
   //
