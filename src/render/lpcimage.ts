@@ -58,6 +58,20 @@ export function hasBody(id: string): boolean {
 const BODY = 4.6
 
 /**
+ * How much shorter a body stands than its own proportions.
+ *
+ * Height only — the width is taken from the cell ratio before this applies, so
+ * a body keeps its footing and loses a little of its head. The sprites are
+ * drawn at a human proportion and the camera here looks down at a shallow
+ * angle, which foreshortens height and not width; standing them at their full
+ * drawn height made them read as taller than the space they occupy.
+ *
+ * Small on purpose. Past about this the faces start to flatten, and these are
+ * sixteen pixels of face to begin with.
+ */
+const SQUASH = 0.9
+
+/**
  * Which way a body is facing, out of an angle.
  *
  * The sprite has four sides and `facing` is continuous, so the only honest
@@ -124,10 +138,11 @@ export function drawBody(
   const direction = directionOf(facing)
 
   // The cell is taller than it is wide — the packer crops the empty sides off
-  // and keeps the full height — so the destination has to keep that ratio or
-  // every body comes out squat.
-  const h = r * BODY
-  const w = (h * LPC_CELL_W) / LPC_CELL_H
+  // and keeps the full height — so the width is taken from that ratio. Height
+  // is then taken from the width rather than the other way round, which is
+  // what lets SQUASH shorten a body without narrowing it.
+  const w = (r * BODY * LPC_CELL_W) / LPC_CELL_H
+  const h = r * BODY * SQUASH
   // Feet on the actor's own position, which is the centre of the footprint
   // ellipse. The simulation's `pos` is a point on the ground and the ellipse is
   // drawn around it, so standing anywhere else would put the body beside the
