@@ -424,6 +424,20 @@ export interface EffectEvent {
   /** Worth drawing bigger, and worth a shove of the camera. */
   crit: boolean
   /**
+   * How far the thing that caused this reached, in world units, or nought for
+   * a hit on one body.
+   *
+   * A hit is worth a size read off its damage, and for a swing or a bolt that
+   * is the whole story. A mechanic is not: a crush covering half the arena and
+   * a spire the width of one body detonate with the same numbers on the same
+   * frame, and the only difference between them is floor. Without this the
+   * renderer had nothing to tell them apart, and the crush had to smuggle its
+   * size through `power` — twelve times its own radius, so that the ring came
+   * out big — which made the effect log report it as a hit ten times the size
+   * of anything else in the game.
+   */
+  radius: number
+  /**
    * The spec's own rule was paying when this landed — a spent bank of combo
    * points, a filler inside an eclipse, a swing with the rage bar near full.
    *

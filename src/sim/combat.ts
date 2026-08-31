@@ -302,6 +302,7 @@ export function pushEffect(
     power?: number
     crit?: boolean
     empowered?: boolean
+    radius?: number
   } = {},
 ): void {
   s.effects.push({
@@ -312,6 +313,7 @@ export function pushEffect(
     power: opts.power ?? 0,
     crit: opts.crit ?? false,
     empowered: opts.empowered ?? false,
+    radius: opts.radius ?? 0,
   })
 }
 

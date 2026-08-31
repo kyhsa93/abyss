@@ -43,6 +43,17 @@ interface Burst {
 
 /** A hit is worth about this much reach at full power. */
 const REACH = 46
+
+/**
+ * How wide a mechanic's detonation plays, against the floor it covered.
+ *
+ * Rather less than the whole of it. A single sprite stretched edge to edge
+ * across a crush is one drawing blown up past the point it holds together,
+ * and the ring that expands to the mechanic's full reach is already saying
+ * where the edge was. This is the flash at the middle of that, and the ring
+ * is the extent.
+ */
+const MECHANIC_FX = 1.15
 const MAX_BURSTS = 90
 
 /**
@@ -259,7 +270,19 @@ export class Effects {
     // and a half times the ring's reach, which put a fireball over a quarter of
     // the screen and hid the boss behind its own hit — the exact failure the
     // floor texture had, arriving from the other direction.
-    const fxSize = reach * (event.crit ? 1.15 : 0.95)
+    //
+    // Unless the thing that went off has a size of its own, which is what a
+    // mechanic has and a hit does not. A crush covering half the arena and a
+    // spire the width of one body used to flash the same sprite, because the
+    // only size on hand was read off damage — and damage says how much it hurt,
+    // not how much floor it took. So a mechanic is drawn at its own reach.
+    //
+    // Playing it that large is safe here and nowhere else: the telegraph has
+    // already run, so the information this covers is information the player has
+    // finished acting on. Before that instant the same sprite would be hiding
+    // the one thing on the floor worth reading.
+    const fxSize =
+      event.radius > 0 ? event.radius * MECHANIC_FX : reach * (event.crit ? 1.15 : 0.95)
     let used = false
     const once = () => {
       if (used) return null
