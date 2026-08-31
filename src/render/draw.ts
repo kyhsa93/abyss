@@ -15,6 +15,7 @@ import {
   TOLL_TELEGRAPH,
   YOKE_REACH,
   ARENA_RADIUS,
+  PARTY_RADIUS,
 } from '../sim/constants'
 import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
@@ -34,6 +35,7 @@ import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
 import { drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
+import { chestHeight } from './lpcimage'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -1999,15 +2001,37 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     const core = p.abilityId ? iconFor(p.abilityId).colour : style.core
     const glow = p.abilityId ? tint(core, 0.45) : style.glow
 
+    // Flying at chest height rather than along the floor. A projectile's
+    // position is a point on the ground — every position in the simulation is
+    // — so a bolt aimed at somebody arrived between their ankles.
+    //
+    // From the thrower's chest to the target's, rather than either one alone.
+    // The two things worth aiming at here differ by a factor of three: held at
+    // a raider's chest a bolt strikes the boss at the knee, and held at the
+    // boss's it leaves the caster from somewhere above their head.
+    //
+    // How far along it is comes from the two distances rather than from a
+    // launch point, which is not kept and would be wrong by the time it
+    // mattered anyway — both ends of this walk around while the bolt is in the
+    // air.
+    const thrower = p.sourceId === null ? undefined : s.actors.find((a) => a.id === p.sourceId)
+    const struck = s.actors.find((a) => a.id === p.targetId)
+    const leaves = chestHeight(thrower?.radius ?? PARTY_RADIUS)
+    const lands = chestHeight(struck?.radius ?? PARTY_RADIUS)
+    const gone = thrower ? dist(p.pos, thrower.pos) : 0
+    const left = struck ? dist(p.pos, struck.pos) : 0
+    const along = gone + left > 0.01 ? gone / (gone + left) : 1
+    const lift = (leaves + (lands - leaves) * along) * L.scale
+
     const head = worldToScreen({
       x: lerp(p.prevPos.x, p.pos.x, alpha),
       y: lerp(p.prevPos.y, p.pos.y, alpha),
     })
     const tail = worldToScreen(p.prevPos)
     const x = head.x
-    const y = head.y
+    const y = head.y - lift
     const tailX = tail.x
-    const tailY = tail.y
+    const tailY = tail.y - lift
     const r = Math.max(2, style.radius * L.scale)
 
     // The trail behind it, thinning and fading toward where it came from.
@@ -2017,6 +2041,8 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
       for (let i = 1; i < path.length; i++) {
         const from = worldToScreen(path[i - 1]!)
         const to = worldToScreen(path[i]!)
+        from.y -= lift
+        to.y -= lift
         const fade = i / path.length
         ctx.beginPath()
         ctx.moveTo(from.x, from.y)
@@ -2044,7 +2070,10 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     // better source than this frame's step: interpolation can put the head and
     // the tail on the same point between ticks, and a bolt that has not moved
     // this frame still knows which way it was thrown.
-    const from = path && path.length > 1 ? worldToScreen(path[0]!) : { x: tailX, y: tailY }
+    const from =
+      path && path.length > 1
+        ? { x: worldToScreen(path[0]!).x, y: worldToScreen(path[0]!).y - lift }
+        : { x: tailX, y: tailY }
     const angle = Math.atan2(y - from.y, x - from.x)
 
     // The body, if the sheet is there. It replaces the core disc rather than

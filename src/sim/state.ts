@@ -1,4 +1,4 @@
-import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, bar } from './constants'
+import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
@@ -93,7 +93,7 @@ function makeMember(
     faction: 'party',
     pos: { x: slot.x, y: slot.y },
     prevPos: { x: slot.x, y: slot.y },
-    radius: 17,
+    radius: PARTY_RADIUS,
     moveSpeed: CLASSES[pick.classId].moveSpeed,
     hp: bar(spec.hp),
     maxHp: bar(spec.hp),

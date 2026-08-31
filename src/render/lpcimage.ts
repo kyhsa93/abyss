@@ -72,6 +72,22 @@ const BODY = 4.6
 const SQUASH = 0.81
 
 /**
+ * How far up a body its chest sits, as a fraction of how tall it stands.
+ *
+ * Exported because two other things aim at it. An actor's position is a point
+ * on the ground — it is the centre of the footprint the body stands in — so
+ * anything drawn at an actor's position is drawn at its feet. That is right
+ * for a footprint and wrong for everything that is supposed to hit the person:
+ * bolts flew to the floor in front of somebody and landed between their ankles.
+ */
+const CHEST = 0.58
+
+/** How far above its feet a body's chest is, for a footprint of radius `r`. */
+export function chestHeight(r: number): number {
+  return r * BODY * SQUASH * CHEST
+}
+
+/**
  * Which way a body is facing, out of an angle.
  *
  * The sprite has four sides and `facing` is continuous, so the only honest

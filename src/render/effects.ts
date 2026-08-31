@@ -2,6 +2,8 @@ import { bossEffect, hitStyleFor, iconFor } from './icons'
 import type { EffectEvent, SimState, Vec2 } from '../sim/types'
 import { elementOf } from './element'
 import { drawFx } from './fximage'
+import { chestHeight } from './lpcimage'
+import { PARTY_RADIUS } from '../sim/constants'
 
 /**
  * Hit effects.
@@ -28,6 +30,14 @@ interface Burst {
   fx: string | null
   /** How wide to play it, in world units. */
   fxSize: number
+  /**
+   * How far above the floor to draw it, in world units.
+   *
+   * An actor's position is a point on the ground, so a hit pushed at a body's
+   * position lands between its ankles. A hit on a person is raised to the
+   * chest; a mechanic is not, because a mechanic is the floor.
+   */
+  lift: number
   age: number
   life: number
   colour: string
@@ -43,6 +53,23 @@ interface Burst {
 
 /** A hit is worth about this much reach at full power. */
 const REACH = 46
+
+/**
+ * How far above the floor a hit is drawn.
+ *
+ * Chest height on a raider, or nothing at all if the thing that went off has a
+ * reach of its own — that is a mechanic, and a mechanic happens on the floor
+ * where it was telegraphed. Raising one would put a puddle in the air.
+ *
+ * A person's chest rather than the struck body's own, because an effect
+ * carries where it happened and not who it happened to. Most of what is struck
+ * in this game is raider-sized; a hit on the boss rides lower on it than its
+ * own chest, which reads as a hit landing on a large thing rather than as a
+ * mistake.
+ */
+function liftOf(event: EffectEvent): number {
+  return event.radius > 0 ? 0 : chestHeight(PARTY_RADIUS)
+}
 
 /**
  * How wide a mechanic's detonation plays, against the floor it covered.
@@ -181,6 +208,7 @@ export class Effects {
       const fizzled = event.kind === 'fizzle'
       this.bursts.push({
         pos: event.pos,
+        lift: liftOf(event),
         // A cast is a wind-up rather than a landing, and the sprite set has
         // nothing that reads as one. The ring alone is right here.
         fx: null,
@@ -203,6 +231,7 @@ export class Effects {
     if (event.kind === 'dash') {
       this.bursts.push({
         pos: event.pos,
+        lift: liftOf(event),
         fx: null,
         fxSize: 0,
         age: 0,
@@ -220,6 +249,7 @@ export class Effects {
     if (event.kind === 'swing') {
       this.bursts.push({
         pos: event.pos,
+        lift: liftOf(event),
         fx: null,
         fxSize: 0,
         age: 0,
@@ -239,6 +269,7 @@ export class Effects {
     if (event.kind === 'heal') {
       this.bursts.push({
         pos: event.pos,
+        lift: liftOf(event),
         fx: null,
         fxSize: 0,
         age: 0,
@@ -295,6 +326,7 @@ export class Effects {
         // An arc across the target, along the line the blow came in on.
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -311,6 +343,7 @@ export class Effects {
         // A streak straight through, and a short spray out the back.
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -324,6 +357,7 @@ export class Effects {
         })
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -340,6 +374,7 @@ export class Effects {
         // Short, wide and heavy: it does not travel, it arrives.
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -357,6 +392,7 @@ export class Effects {
         // follows and reads as something arriving on a body.
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -372,6 +408,7 @@ export class Effects {
       default:
         this.bursts.push({
           pos: event.pos,
+          lift: liftOf(event),
           fx: once(),
           fxSize,
           age: 0,
@@ -400,6 +437,7 @@ export class Effects {
   private empower(event: EffectEvent, colour: string, weight: number, inward: boolean): void {
     this.bursts.push({
       pos: event.pos,
+      lift: liftOf(event),
       fx: null,
       fxSize: 0,
       age: -0.05,
@@ -435,6 +473,9 @@ export class Effects {
       const t = Math.min(1, burst.age / burst.life)
       const fade = 1 - t
       const p = project(burst.pos)
+      // Off the floor, in screen space: height above the ground is not a
+      // coordinate on a plane the camera is looking down at.
+      p.y -= burst.lift * scale
       // A heal closes on the target instead of leaving it.
       const spread = burst.inward ? 1 - t : t
       const r = Math.max(1, burst.reach * (0.25 + spread * 0.75) * scale)

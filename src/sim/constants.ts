@@ -504,6 +504,13 @@ export const GAZE_ARC = 1.05
  * supposed to bill something.
  */
 export const TURN_RATE = 3.2
+
+/**
+ * How wide a raider stands, which is also how tall: the body is drawn against
+ * its own footprint. Named because the renderer aims at a person's chest and
+ * had otherwise to know the number by heart.
+ */
+export const PARTY_RADIUS = 17
 /**
  * The plate somebody has to stand on, and how long the raid has to send them.
  *
