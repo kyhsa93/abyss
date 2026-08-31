@@ -1,5 +1,7 @@
 import { bossEffect, hitStyleFor, iconFor } from './icons'
 import type { EffectEvent, SimState, Vec2 } from '../sim/types'
+import { elementOf } from './element'
+import { drawFx } from './fximage'
 
 /**
  * Hit effects.
@@ -16,6 +18,16 @@ import type { EffectEvent, SimState, Vec2 } from '../sim/types'
 
 interface Burst {
   pos: Vec2
+  /**
+   * A sprite to play over the drawn shape, or null for the shape alone.
+   *
+   * Over rather than instead: the ring's colour says which school landed on
+   * you, and a sprite has its colour baked in. Layered, the ring keeps the
+   * fact and the sprite adds the weight.
+   */
+  fx: string | null
+  /** How wide to play it, in world units. */
+  fxSize: number
   age: number
   life: number
   colour: string
@@ -32,6 +44,35 @@ interface Burst {
 /** A hit is worth about this much reach at full power. */
 const REACH = 46
 const MAX_BURSTS = 90
+
+/**
+ * Which sprite a hit plays, chosen by what the art already says.
+ *
+ * Only where the two agree. Fire gets the flame, holy gets the cross, storm
+ * gets the bolt — those are drawn in the colours those schools are already
+ * shown in. Everywhere else takes the neutral burst rather than a recolour: an
+ * orange flame tinted violet stops looking like fire and starts looking like a
+ * mistake, and the ring underneath is already saying violet.
+ */
+const FX_BY_SCHOOL: Array<[RegExp, string]> = [
+  [/^fire/, 'flame'],
+  [/^holy/, 'holy'],
+  [/^storm/, 'bolt'],
+  [/^nature|^water/, 'gust'],
+]
+
+function fxFor(abilityId: string | null, kind: string, crit: boolean): string | null {
+  if (kind === 'heal') return 'heal'
+  if (kind === 'swing') return 'slash'
+  if (kind !== 'impact') return null
+  // A crit is the one hit worth the biggest thing in the set, whatever school
+  // it belongs to. It is also the hit the camera already moved for.
+  if (crit) return 'blast'
+  if (!abilityId) return 'slash'
+  const school = elementOf(abilityId, abilityId)
+  if (school) for (const [pattern, name] of FX_BY_SCHOOL) if (pattern.test(school)) return name
+  return 'burst'
+}
 
 /** Steel, for a weapon that has no ability behind it to take a colour from. */
 const WEAPON = '#e2e8f0'
@@ -129,6 +170,10 @@ export class Effects {
       const fizzled = event.kind === 'fizzle'
       this.bursts.push({
         pos: event.pos,
+        // A cast is a wind-up rather than a landing, and the sprite set has
+        // nothing that reads as one. The ring alone is right here.
+        fx: null,
+        fxSize: 0,
         age: 0,
         life: fizzled ? 0.3 : 0.26,
         colour: fizzled ? WEAPON : colour,
@@ -147,6 +192,8 @@ export class Effects {
     if (event.kind === 'dash') {
       this.bursts.push({
         pos: event.pos,
+        fx: null,
+        fxSize: 0,
         age: 0,
         life: 0.32,
         colour: WEAPON,
@@ -162,6 +209,8 @@ export class Effects {
     if (event.kind === 'swing') {
       this.bursts.push({
         pos: event.pos,
+        fx: null,
+        fxSize: 0,
         age: 0,
         life: 0.22,
         colour: WEAPON,
@@ -179,6 +228,8 @@ export class Effects {
     if (event.kind === 'heal') {
       this.bursts.push({
         pos: event.pos,
+        fx: null,
+        fxSize: 0,
         age: 0,
         life: 0.5,
         colour,
@@ -200,11 +251,29 @@ export class Effects {
     const reach = REACH * weight * (event.crit ? 1.35 : 1)
     const spokes = event.crit ? 10 : 6
 
+    // One sprite for the hit, carried by whichever burst is pushed first. A
+    // pierce throws two and a cleave one; playing it on each would stack the
+    // same animation on itself and read as a smear.
+    const fx = fxFor(event.abilityId, event.kind, event.crit)
+    // About the width of a body, and no more. The first pass ran this at two
+    // and a half times the ring's reach, which put a fireball over a quarter of
+    // the screen and hid the boss behind its own hit — the exact failure the
+    // floor texture had, arriving from the other direction.
+    const fxSize = reach * (event.crit ? 1.15 : 0.95)
+    let used = false
+    const once = () => {
+      if (used) return null
+      used = true
+      return fx
+    }
+
     switch (style) {
       case 'cleave':
         // An arc across the target, along the line the blow came in on.
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: event.crit ? 0.34 : 0.26,
           colour,
@@ -219,6 +288,8 @@ export class Effects {
         // A streak straight through, and a short spray out the back.
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: 0.24,
           colour,
@@ -230,6 +301,8 @@ export class Effects {
         })
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: 0.3,
           colour,
@@ -244,6 +317,8 @@ export class Effects {
         // Short, wide and heavy: it does not travel, it arrives.
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: event.crit ? 0.4 : 0.3,
           colour,
@@ -259,6 +334,8 @@ export class Effects {
         // follows and reads as something arriving on a body.
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: 0.42,
           colour,
@@ -272,6 +349,8 @@ export class Effects {
       default:
         this.bursts.push({
           pos: event.pos,
+          fx: once(),
+          fxSize,
           age: 0,
           life: event.crit ? 0.44 : 0.34,
           colour,
@@ -298,6 +377,8 @@ export class Effects {
   private empower(event: EffectEvent, colour: string, weight: number, inward: boolean): void {
     this.bursts.push({
       pos: event.pos,
+      fx: null,
+      fxSize: 0,
       age: -0.05,
       life: 0.46,
       colour,
@@ -334,6 +415,13 @@ export class Effects {
       // A heal closes on the target instead of leaving it.
       const spread = burst.inward ? 1 - t : t
       const r = Math.max(1, burst.reach * (0.25 + spread * 0.75) * scale)
+
+      // The sprite over the shape, on the same clock. Drawn before the ring
+      // rather than after so the ring — which is the part carrying the school
+      // colour — stays the thing on top.
+      if (burst.fx) {
+        drawFx(ctx, burst.fx, p.x, p.y, burst.fxSize * scale, t, fade)
+      }
 
       ctx.strokeStyle = rgba(burst.colour, 0.85 * fade)
       ctx.lineWidth = Math.max(1, 4 * fade * scale)

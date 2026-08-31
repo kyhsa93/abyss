@@ -15,6 +15,7 @@
     "iconmatch": "esbuild scripts/iconmatch.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/iconmatch.mjs --log-level=error && node node_modules/.cache/iconmatch.mjs",
     "atlas": "esbuild scripts/atlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/atlas.mjs --log-level=error && node node_modules/.cache/atlas.mjs",
     "lpc": "esbuild scripts/lpc.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/lpc.mjs --log-level=error && node node_modules/.cache/lpc.mjs",
+    "fx": "esbuild scripts/fx.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/fx.mjs --log-level=error && node node_modules/.cache/fx.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",
     "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
     "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",

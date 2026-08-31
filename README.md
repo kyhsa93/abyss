@@ -2365,3 +2365,11 @@ is a condition of the first three, and share-alike of the first two, so the art
 in this repository is under those terms. The credit list is in
 `art/LPC-CREDITS.md` and is generated from the same definitions the layers come
 from, so it cannot fall behind a change to the layer table.
+
+## Hit effects
+
+The impact animations come from the
+[Superpowers asset packs](https://github.com/sparklinlabs/superpowers-asset-packs),
+packed by `npm run fx -- --packs <a checkout>`. They are CC0: no attribution
+required and no share-alike, which is the lightest licence anything here runs
+under, so there is no credits file to go with them.
