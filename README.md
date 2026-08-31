@@ -2373,3 +2373,17 @@ The impact animations come from the
 packed by `npm run fx -- --packs <a checkout>`. They are CC0: no attribution
 required and no share-alike, which is the lightest licence anything here runs
 under, so there is no credits file to go with them.
+
+## Projectiles
+
+The bodies of the bolts in flight are DevWizard's
+[Pixel Art Spells](https://opengameart.org/content/pixel-art-spells), also CC0,
+packed by `npm run bolt -- --spells <the unpacked directory>`.
+
+They are stored greyscale and tinted per ability at draw time, which is the
+one thing to know before touching them. A projectile's colour comes from the
+ability's own icon and is the only thing telling fifty-one spells apart in
+flight, so a sprite with a colour baked in would send a frost bolt across the
+arena in orange. Desaturating also freed the choice of shapes: picking only
+sprites that happened to be drawn grey left three usable ones, one of which was
+a beam segment.

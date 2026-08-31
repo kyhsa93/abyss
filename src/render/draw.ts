@@ -33,6 +33,7 @@ import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { COLORS, L, classColor } from './theme'
 import { drawBody, hasBody } from './lpcimage'
+import { drawBolt } from './boltimage'
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -1919,13 +1920,25 @@ interface BoltStyle {
   core: string
   glow: string
   radius: number
+  /**
+   * How wide the sprite is drawn, in the same units as `radius`.
+   *
+   * Its own number rather than a multiple of the radius, which is what this
+   * was first written as and was wrong twice over. The radii run from 3.5 to
+   * 6, so one multiplier big enough for a dart to read at all made the heavy
+   * orb nearly as tall as the person who threw it — and a sprite has a size it
+   * stops being legible below that has nothing to do with how big the thing it
+   * depicts is meant to be. Splitting them lets the heavy bolt stay the
+   * biggest without the smallest one disappearing.
+   */
+  sprite: number
 }
 
 const BOLT: Record<ProjectileKind, BoltStyle> = {
-  bolt: { core: '#e0f2fe', glow: 'rgba(125, 211, 252, 0.45)', radius: 3.5 },
-  dot: { core: '#ffedd5', glow: 'rgba(251, 146, 60, 0.5)', radius: 4 },
-  heavy: { core: '#f5d0fe', glow: 'rgba(217, 70, 239, 0.5)', radius: 6 },
-  heal: { core: '#bbf7d0', glow: 'rgba(74, 222, 128, 0.5)', radius: 4 },
+  bolt: { core: '#e0f2fe', glow: 'rgba(125, 211, 252, 0.45)', radius: 3.5, sprite: 7 },
+  dot: { core: '#ffedd5', glow: 'rgba(251, 146, 60, 0.5)', radius: 4, sprite: 8 },
+  heavy: { core: '#f5d0fe', glow: 'rgba(217, 70, 239, 0.5)', radius: 6, sprite: 10 },
+  heal: { core: '#bbf7d0', glow: 'rgba(74, 222, 128, 0.5)', radius: 4, sprite: 8 },
 }
 
 /**
@@ -2000,16 +2013,10 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
       }
     }
 
-    ctx.beginPath()
-    ctx.moveTo(tailX, tailY)
-    ctx.lineTo(x, y)
-    ctx.strokeStyle = glow
-    ctx.lineWidth = r * 1.5
-    ctx.lineCap = 'round'
-    ctx.stroke()
-
     // A halo that actually falls off, rather than a flat disc with a hard
-    // edge pretending to be one.
+    // edge pretending to be one. It goes down first either way: under the disc
+    // it is the glow, under the sprite it is what lifts a sixteen-pixel body
+    // off a floor busy with telegraphs.
     const halo = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2)
     halo.addColorStop(0, tint(core, 0.5))
     halo.addColorStop(0.45, tint(core, 0.22))
@@ -2019,10 +2026,32 @@ function drawProjectiles(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
     ctx.fillStyle = halo
     ctx.fill()
 
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, Math.PI * 2)
-    ctx.fillStyle = core
-    ctx.fill()
+    // Which way it is going, out of where it has just been. The trail is the
+    // better source than this frame's step: interpolation can put the head and
+    // the tail on the same point between ticks, and a bolt that has not moved
+    // this frame still knows which way it was thrown.
+    const from = path && path.length > 1 ? worldToScreen(path[0]!) : { x: tailX, y: tailY }
+    const angle = Math.atan2(y - from.y, x - from.x)
+
+    // The body, if the sheet is there. It replaces the core disc rather than
+    // covering it: unlike the hit effects, a bolt in flight has nothing
+    // underneath it to keep saying what school it is — so the sprite is
+    // greyscale and takes the same colour the disc did.
+    const sprite = Math.max(6, style.sprite * L.scale)
+    if (!drawBolt(ctx, p.kind, x, y, sprite, angle, core, s.time)) {
+      ctx.beginPath()
+      ctx.moveTo(tailX, tailY)
+      ctx.lineTo(x, y)
+      ctx.strokeStyle = glow
+      ctx.lineWidth = r * 1.5
+      ctx.lineCap = 'round'
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, Math.PI * 2)
+      ctx.fillStyle = core
+      ctx.fill()
+    }
   }
   ctx.lineCap = 'butt'
 }
