@@ -1042,13 +1042,32 @@ export const ENCOUNTERS: Encounter[] = [
     // won on a first pull as reliably as on a ninth at every weight, because
     // there was nothing in it to learn. The sweep is a fourth-rung mechanic:
     // real enough to be in the fight, not enough to be an opening.
+    // The last two rungs are both the floor going away, and that is the whole
+    // reason this fight is the wall it is. They were on the same cadence — ten
+    // seconds falling to eight, the two fastest in the boss — so a
+    // twenty-five man heroic, the only cell that meets both, spent the fight
+    // with one of them always up.
+    //
+    // Measured, they are worse together than either is apart. Muting the
+    // shallows took the cell from 72% by the ninth pull to 100% and from
+    // fifteen dead to two; muting the fault did nearly the same. Each alone
+    // accounts for more deaths than the pair produce between them, which is
+    // only possible if what kills people is the overlap: twenty-five bodies
+    // need floor, and two mechanics taking it in turns leaves none.
+    //
+    // So the shallows is slowed rather than weakened. It still arrives often
+    // enough to be the thing this rung adds; it just stops landing on top of
+    // the fault every time. 5% on a first pull and 72% by the ninth becomes
+    // 18% and 90% — the first pull still the second-hardest of the five
+    // bosses, the ninth between the Choir and the Watcher. A wall, and one
+    // that teaches.
     ladder: ['breath', 'shockwave', 'hunt', 'sweep', 'fault', 'shallows'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, sweep: 32, fault: 10, shallows: 10, hunt: 44 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, sweep: 28, fault: 9, shallows: 9, hunt: 38 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, sweep: 23, fault: 8, shallows: 8, hunt: 32 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, sweep: 32, fault: 10, shallows: 13, hunt: 44 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, sweep: 28, fault: 9, shallows: 12, hunt: 38 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, sweep: 23, fault: 8, shallows: 11, hunt: 32 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, sweep: 23, fault: 10, shallows: 9, hunt: 45 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, sweep: 23, fault: 10, shallows: 12, hunt: 45 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
