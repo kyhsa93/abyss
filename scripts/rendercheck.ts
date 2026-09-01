@@ -2570,16 +2570,29 @@ for (const [label, w, h] of [
 // And the wall is actually gone: a twenty-five man fought by everyone but the
 // player, whose numbers are the only ones that can appear.
 {
-  const s = pulled(0x51ed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
-  const rng = new Rng(0x51ed)
+  // Six pulls rather than one, and the bound moved with them.
+  //
+  // This used to run a single seed and assert the peak stayed at six. What it
+  // measures is the high-water mark of a thing that comes and goes in about a
+  // second, which is noisier than one draw can show: swept across seeds on
+  // code that has never been touched it runs three, seven, three, six, four,
+  // three. The bound was under what the game already reaches, and the check
+  // was passing because of which seed it happened to hold.
+  //
+  // So it samples, and the bound is one over what the sweep actually reaches.
+  // What it guards has not changed: this exists because the wall of numbers a
+  // twenty-five man threw was dozens deep, and the fix was to show only your
+  // own. Seven is that fix holding. Dozens would not be.
   let peak = 0
-  for (let i = 0; i < 30 * 20; i++) {
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-    peak = Math.max(peak, s.texts.filter((t) => t.kind === 'damage' || t.kind === 'heal').length)
+  for (const seed of [0x51ed, 0x1234, 0x9abc, 0x4444, 0x7777, 0xbeef]) {
+    const s = pulled(seed, 0, autoParty(25, { classId: 'mage', spec: 'frost' }))
+    const rng = new Rng(seed)
+    for (let i = 0; i < 30 * 20; i++) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      peak = Math.max(peak, s.texts.filter((t) => t.kind === 'damage' || t.kind === 'heal').length)
+    }
   }
-  // Numbers live about a second, and twenty-four people hitting things would
-  // stack dozens of them in that time.
-  expect('a raid does not bury the screen in numbers', peak <= 6, `${peak} at once`)
+  expect('a raid does not bury the screen in numbers', peak <= 8, `${peak} at once`)
 }
 
 // --- a cast has a picture too ---------------------------------------------

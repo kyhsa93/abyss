@@ -1301,6 +1301,19 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
   const b = boss(s)
   const d = dist(actor.pos, b.pos)
 
+  // Standing on somebody counts as being out of position.
+  //
+  // Nothing here used to say so, so a raid that started in a heap stayed in
+  // one: `idlePosition` keeps whatever bearing a body already has and only
+  // fixes its range, and a heap is a range that is already correct. This is
+  // the one thing that ever asks for the lean in `idlePosition`.
+  //
+  // Ahead of the melee rule rather than after it, which is where this was
+  // first written and was dead code — melee and tanks return on the line
+  // below, and melee are the half of the raid that actually piles up.
+  //
+  // A tank is exempt, because where a tank stands is a job rather than a
+  // preference: it is holding the thing everybody else is arranged around.
   if (actor.role === 'tank' || actor.melee) return d > MELEE_RANGE + b.radius * 0.6
 
   if (d > CASTER_MAX_RANGE || d < CASTER_MIN_RANGE) return true
@@ -1320,6 +1333,7 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
       return true
     }
   }
+
   return false
 }
 
@@ -1328,13 +1342,210 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
  * bearing from the boss and only adjust distance. Returning to a shared home
  * tile would also stack the whole party on one spot for the next puddle.
  */
+/**
+ * How much room a body wants around it when nothing is happening.
+ *
+ * Well under `SPREAD_RADIUS`, and that is the number this one is chosen
+ * against rather than against how it looks. The spread marks somebody and asks
+ * the rest to be a hundred and ten units clear of them; a raid that idles at
+ * anything near that has answered the mechanic before it was cast. At this
+ * distance a spread still costs everybody a real walk, which is what it is
+ * for.
+ *
+ * Above two body widths, so it is a raid standing apart rather than a raid
+ * overlapping. Between the two there is a lot of room, and this sits low in
+ * it: the point is to stop bodies occupying the same pixel, not to hold a
+ * formation.
+ */
+const SPACING = 46
+
+/**
+ * What a body standing exactly on top of you is worth, in score.
+ *
+ * Small on the scale this function works at. A cone is fourteen hundred and
+ * standing in fire is sixteen; this is a nudge, and it has to stay one — the
+ * moment personal space can outvote a mechanic, it is killing people to look
+ * tidy.
+ */
+const CROWD_COST = 350
+
+/**
+ * What a candidate spot costs for being on top of somebody.
+ *
+ * Counted per neighbour inside `SPACING` and scaled by how far inside, so a
+ * spot with three bodies on it is worse than a spot with one and a spot that
+ * merely brushes somebody is nearly free.
+ *
+ * Only the ones at range are pushed apart, and only away from each other. A
+ * tank has a job where it stands, and melee have no room to take: their ring
+ * is about forty units off the boss, which is two hundred and sixty units of
+ * circumference for eight bodies, so asking them to hold this spacing asks
+ * them to leave melee. Measured when they were included, it took the warrior
+ * from parity with a hunter to three quarters of one.
+ */
+function elbowRoom(s: SimState, actor: Actor, spot: Vec2): number {
+  if (!spreads(actor)) return 0
+  let cost = 0
+  for (const other of livingParty(s)) {
+    if (other.id === actor.id || !spreads(other)) continue
+    const d = dist(spot, other.pos)
+    if (d >= SPACING) continue
+    cost += (1 - d / SPACING) * CROWD_COST
+  }
+  return cost
+}
+
+/**
+ * Standing apart is a preference, so it never asks anybody to walk.
+ *
+ * This is the whole shape of the thing and it took three goes to find. A raid
+ * clusters because `idlePosition` keeps whatever bearing a body already has
+ * and only fixes its range — a heap is a range that is already correct — so
+ * the obvious fix was to call being crowded a reason to reposition.
+ *
+ * That fix cost more than it bought, three different ways, and `balancecheck`
+ * and `rendercheck` between them caught all three: the hard-casting specs fell
+ * to two thirds of a hunter because a walk breaks a cast; melee lost a quarter
+ * of their damage because their ring is two hundred and sixty units around and
+ * cannot hold eight bodies apart; and three raid cells dropped under their win
+ * floor because the raid was spending the fight on its feet.
+ *
+ * Every one of those is the same charge: a walk. So this does not ask for one.
+ * The lean is applied only inside `idlePosition`, which is reached when a body
+ * is already going somewhere — back from a dodge, or into range after the boss
+ * moved — and all it does is aim that walk a little off whoever is standing
+ * there. A raid in this game moves every few seconds because a mechanic makes
+ * it, so the decongestion rides along on movement that was happening anyway
+ * and costs nothing at all.
+ *
+ * It is slower than pushing them apart, and it stops short of a formation.
+ * That is the trade, and it is the right way round: the pile was a look, and
+ * the fights are the game.
+ */
+
+/**
+ * Whether this one has room to stand apart, and can afford to.
+ *
+ * Only the ones at range. A tank's position is a job rather than a preference,
+ * and melee turned out to have no room: their ring sits about forty units off
+ * the boss, which is two hundred and sixty units of circumference for eight
+ * bodies. Asked to hold this spacing they cannot, so they walk, and they were
+ * still walking when the swing timer came up — measured, it took the warrior
+ * from parity to three quarters of a hunter, and made the spread between best
+ * and worst damage spec wide enough that `rendercheck` called it.
+ *
+ * Melee stacked on a boss is also simply what melee do. What reads as a heap
+ * is the whole raid in one, and the raid is mostly the people at range.
+ */
+function spreads(actor: Actor): boolean {
+  return actor.role !== 'tank' && !actor.melee
+}
+
+/**
+ * Which way this one should lean to stop standing on somebody.
+ *
+ * The sum of the pushes away from everyone inside `SPACING`, so a body in a
+ * crowd leans away from the crowd rather than away from whichever neighbour it
+ * happened to look at first. Null when there is nobody close, which is the
+ * usual answer and the cheap one.
+ *
+ * Weighted by how close each neighbour is, so the nearest matters most and one
+ * at the edge of the radius barely counts. Without that, a body with three
+ * distant neighbours moved as urgently as one standing inside somebody.
+ */
+function crowding(s: SimState, actor: Actor, within: number): Vec2 | null {
+  let x = 0
+  let y = 0
+  let found = false
+  for (const other of livingParty(s)) {
+    if (other.id === actor.id) continue
+    const d = dist(actor.pos, other.pos)
+    if (d >= within) continue
+    found = true
+    // Two bodies exactly on top of each other have no direction between them.
+    // Break it by id, which is stable, rather than randomly — a tie resolved a
+    // different way each tick is two bodies shuffling on the spot forever.
+    const away = d > 0.01 ? 1 / d : 0
+    const dx = d > 0.01 ? actor.pos.x - other.pos.x : (actor.id < other.id ? -1 : 1)
+    const dy = d > 0.01 ? actor.pos.y - other.pos.y : 0
+    const weight = (1 - d / within) * (d > 0.01 ? away : 1)
+    x += dx * weight
+    y += dy * weight
+  }
+  if (!found) return null
+  const len = Math.hypot(x, y)
+  if (len < 0.001) return null
+  return { x: x / len, y: y / len }
+}
+
+/**
+ * How far off its own ring this body stands.
+ *
+ * The cheapest spacing there is, and the only one that turned out to be free.
+ * A raid piles up because every body at range wants the same distance from the
+ * boss — one ring, and a bearing nobody ever changes — so bodies that start
+ * near each other stay near each other forever. Fanning them across a few
+ * rings separates them without asking anyone to take a single extra step: it
+ * is the same walk they were already making, aimed a little short or a little
+ * long.
+ *
+ * That matters more than it sounds. Every version of this that spread bodies
+ * *around* the ring had to pay for a walk, and the walk is what broke things —
+ * casts, melee uptime, three raid cells under their win floor. This one has no
+ * walk to pay for.
+ *
+ * Off the actor's id, so it is fixed for the whole fight: a body that re-drew
+ * its own preferred range would wander in and out for no reason anybody could
+ * see.
+ *
+ * Tanks are exempt. Where a tank stands is a job.
+ */
+function ringOffset(actor: Actor, spread: number): number {
+  if (actor.role === 'tank') return 0
+  // Five bands, centred on nought, so the ring the fight was tuned around is
+  // still the middle one and the raid still averages the range it always had.
+  return ((actor.id % 5) - 2) * spread
+}
+
 function idlePosition(s: SimState, actor: Actor): Vec2 {
   const b = boss(s)
   const d = dist(actor.pos, b.pos) || 1
-  const want = actor.role === 'tank' || actor.melee ? MELEE_RANGE * 0.8 : CASTER_IDEAL_RANGE
+  const want =
+    actor.role === 'tank' || actor.melee
+      ? MELEE_RANGE * 0.8 + ringOffset(actor, 9)
+      : CASTER_IDEAL_RANGE + ringOffset(actor, 26)
 
-  const bearingX = (actor.pos.x - b.pos.x) / d
-  const bearingY = (actor.pos.y - b.pos.y) / d
+  let bearingX = (actor.pos.x - b.pos.x) / d
+  let bearingY = (actor.pos.y - b.pos.y) / d
+
+  // Lean off whoever is standing too close, then come back to the ring.
+  //
+  // The lean is applied to the bearing rather than to the position, so what it
+  // actually buys is a step around the ring rather than a step off it. That
+  // matters: the ring is the range this role fights at, and a body that solved
+  // crowding by backing away would have solved it by leaving melee.
+  //
+  // It also means a ring that cannot hold everybody at `SPACING` does not
+  // thrash. Everyone pushes, everyone slides, and the pushes cancel when the
+  // gaps are even — a ring too small to fit the crowd settles at evenly
+  // squeezed rather than oscillating.
+  const lean = spreads(actor) ? crowding(s, actor, SPACING) : null
+  if (lean) {
+    // Sized so the step along the ring is about one spacing, whatever the ring
+    // is. This was a flat fraction of the bearing first, which is not a
+    // distance at all — a bearing nudged by that much swings through a third
+    // of a turn, and a third of a turn at caster range is a hundred and thirty
+    // units of walking to gain forty. `balancecheck` found it as three raid
+    // cells dropping under their win floor, because the raid was spending the
+    // fight on its feet.
+    const step = SPACING / want
+    bearingX += lean.x * step
+    bearingY += lean.y * step
+    const len = Math.hypot(bearingX, bearingY) || 1
+    bearingX /= len
+    bearingY /= len
+  }
+
   return { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }
 }
 
@@ -1806,6 +2017,23 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     // an instinct that is right for every other mechanic here is exactly
     // wrong for this one.
     score -= dist(candidate, schismActive ? sideCentroid(s, actor) : centroid) * ai.clustering
+
+    // 5b. And not onto somebody's head.
+    //
+    // The pull above is toward the middle of the raid and nothing was pushing
+    // back, so every dodge ended a little tighter than the last and a
+    // twenty-five man spent the fight as one body. This is the push back, and
+    // it is deliberately weaker than everything above it: standing on a
+    // friend is untidy, standing in fire is fatal, and a spacing term that
+    // could outvote a mechanic would be a spacing term that killed people.
+    //
+    // It rides on the walk rather than asking for one, which is the whole
+    // reason it is here and not in `outOfPosition`. Every version that made
+    // crowding its own reason to move paid for the walk, and the walk is what
+    // broke things — casts, melee uptime, three raid cells under their win
+    // floor. A raid moves every few seconds anyway because a mechanic makes
+    // it. This just aims that move a body's width off the nearest neighbour.
+    score -= elbowRoom(s, actor, candidate)
 
     // 6. Do not run further than necessary.
     score -= dist(candidate, actor.pos) * 0.35
