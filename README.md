@@ -2374,6 +2374,28 @@ packed by `npm run fx -- --packs <a checkout>`. They are CC0: no attribution
 required and no share-alike, which is the lightest licence anything here runs
 under, so there is no credits file to go with them.
 
+## The interlude
+
+Four of the five bosses stop once, at their first phase break, and something
+else walks in. The boss turns away and cannot be touched until its herald is
+down.
+
+Two rules keep it from becoming a second fight.
+
+Its health is carved out of the boss rather than added to it, so the raid has
+the same bar to chew through and the enrage clock keeps meaning what it meant.
+A fight that simply grew an elite would be a fight with a longer timer wearing
+a costume.
+
+And it is not a rung. The ladders are full — thirty mechanics across thirty
+rungs, one owner each — so every size and difficulty meets the same interlude.
+That is right for a beat whose job is to change the shape of a fight rather
+than its difficulty.
+
+The Watcher has none. Two of its own rungs already put things on the floor to
+kill and a third puts one there that must not be, so the beat an interlude adds
+is the beat that fight already is.
+
 ## The camera
 
 The view sits behind the player and looks at whatever the mode is about — the

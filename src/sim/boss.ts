@@ -65,6 +65,7 @@ import {
   topThreatTarget,
   fightScale,
   mechanicScale,
+  heraldUp,
 } from './combat'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
@@ -324,6 +325,18 @@ function addHealth(s: SimState): number {
 }
 
 const ADD_DAMAGE = 70
+
+/**
+ * What the interlude's elite hits for.
+ *
+ * More than a thrall and less than the boss whose place it is taking. It has
+ * one job the thralls do not: while it stands, it is the only thing on the
+ * floor still doing damage that a tank has to answer.
+ */
+const HERALD_DAMAGE = 150
+
+/** How far from the boss the interlude's elite walks in, in world units. */
+const HERALD_WALK_IN = 150
 const ADD_SWING = 1.8
 
 export function updateBoss(s: SimState, rng: Rng): void {
@@ -355,7 +368,39 @@ export function updateBoss(s: SimState, rng: Rng): void {
     }
   }
 
+  // While its herald stands, the boss is doing nothing but waiting.
+  //
+  // This is what makes the interlude a change of shape rather than a tax. The
+  // first version left every scheduler running, so the floor kept filling
+  // while the raid had somewhere else to be, and the raid simply lost: across
+  // the four bosses that have one, twenty-five heroic fell from a 70-98% pull
+  // to 0-43%. Nothing about that was the elite being hard. It was sixty
+  // seconds of a boss fight happening beside a fight the raid was told to have
+  // instead.
+  //
+  // Turned away, the beat is the one the fight did not have: the floor goes
+  // quiet, and what is left is bodies that walk at you. Whatever else it is
+  // worth, it is a different thirty seconds from the two hundred around it.
+  //
+  // The swing stays. A boss that stopped hitting the tank would be a boss that
+  // handed the raid a rest, and the tank standing in front of it is the one
+  // thing about this fight that has not changed.
   autoAttack(s, b, target, timing)
+  if (heraldUp(s)) {
+    // The steady raid-wide damage stays; the floor is what goes quiet.
+    //
+    // Silencing everything was the other end of the same mistake as silencing
+    // nothing. With the whole boss switched off, the interlude was a rest — a
+    // minute with no floor and nothing for a healer to do — and the four
+    // fights that have one went to 90-100% at every size, including two that
+    // were meant to be walls. What the beat should change is what the raid is
+    // being asked, not whether it is being asked anything.
+    scheduleRaidHit(s, timing)
+    passBurdens(s)
+    updateAdds(s)
+    return
+  }
+
   scheduleSlam(s, b, target, timing)
   schedulePuddles(s, rng, timing)
   scheduleRaidHit(s, timing)
@@ -405,6 +450,48 @@ function phaseBreak(s: SimState, b: Actor): void {
   s.raidFlash = 0.5
 }
 
+/**
+ * The interlude, at the moment the boss first gives ground.
+ *
+ * Hung on the phase break rather than on a timer of its own because the break
+ * is already the fight's one signposted turn — it has a line, a sound and a
+ * ring, and a second beat that needs all three would be competing with it.
+ *
+ * Alone, and that was decided for us. It first walked in with a handful of
+ * thralls for company, which read well and broke the rule this game is built
+ * on: no fight repeats another fight's idea, and a thrall on the floor is the
+ * Watcher's. Two checks said so on the same run — one that the Warden had
+ * fired an `adds` it does not own, one that a `boss_thrall` had been drawn on
+ * a boss with no thralls. They are right. The elite is the new thing here; it
+ * does not need to borrow somebody else's.
+ */
+function summonHerald(s: SimState, b: Actor): void {
+  const plan = fight(s).herald
+  if (!plan) return
+
+  s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: plan.line, age: 0 })
+  s.sounds.push('telegraph')
+
+  // Off to one side rather than on top of the raid, and not so far off that
+  // reaching it is the mechanic. It first arrived at the arena's edge, which
+  // reads well and quietly taxes exactly one half of the raid: melee walk to
+  // it while everything at range opens fire from where it already stood.
+  // Measured, that alone pushed the gap between the best and worst damage spec
+  // past what `rendercheck` allows, with both melee specs at the bottom.
+  const away = Math.atan2(b.pos.y, b.pos.x) + Math.PI
+  const at = { x: Math.cos(away) * HERALD_WALK_IN, y: Math.sin(away) * HERALD_WALK_IN }
+  clampToArena(at, 30)
+
+  // Read back off the boss rather than recomputed from the encounter. What
+  // `createState` took off is a share of a number that this fight may not be
+  // using — a descent rolls its own health — and the boss's own bar is the one
+  // place that share is guaranteed to still be true of.
+  const hp = Math.round((b.maxHp * plan.share) / (1 - plan.share))
+  const herald = makeHerald(s.nextObjectId++, at.x, at.y, plan.name, Math.max(1, hp))
+  s.actors.push(herald)
+
+}
+
 function advancePhase(s: SimState, b: Actor): void {
   const encounter = fight(s)
   const ratio = b.hp / b.maxHp
@@ -426,6 +513,7 @@ function advancePhase(s: SimState, b: Actor): void {
     const next = scaled(encounter.phases[2]!, s)
     if (next.shockwave > 0) s.next.shockwave = 8
     if (next.adds > 0) s.next.adds = 16
+    summonHerald(s, b)
     return
   }
 
@@ -1916,6 +2004,31 @@ function makeAdd(id: number, x: number, y: number): Actor {
   }
 }
 
+/**
+ * The elite that walks in at the first phase break.
+ *
+ * A thrall's shape with a thrall's rules — it chases whoever is nearest and
+ * hits them — and everything else about it larger. It is deliberately not a
+ * second boss: a boss is a script of mechanics, and a script the raid meets
+ * once per pull halfway through is a script nobody can learn without spending
+ * the first half of the fight to reach it. What this is instead is a target
+ * that moves, in a fight whose target has never moved much, standing between
+ * the raid and the thing it came for.
+ */
+function makeHerald(id: number, x: number, y: number, name: string, hp: number): Actor {
+  const a = makeAdd(id, x, y)
+  a.name = name
+  a.spawn = 'herald'
+  a.hp = hp
+  a.maxHp = hp
+  // Big enough to read as the thing the fight stopped for, and slower than the
+  // thralls around it so the escort arrives first.
+  a.radius = 30
+  a.moveSpeed = 105
+  a.swingTimer = 2.5
+  return a
+}
+
 /** Adds simply chase the nearest living party member. */
 function updateAdds(s: SimState): void {
   for (const add of adds(s)) {
@@ -1966,14 +2079,18 @@ function updateAdds(s: SimState): void {
     const stalking = add.hunting !== null
     add.swingTimer -= DT
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
-      const damage = hit(s, stalking ? STALKER_DAMAGE : ADD_DAMAGE)
+      const damage = hit(
+        s,
+        add.spawn === 'herald' ? HERALD_DAMAGE : stalking ? STALKER_DAMAGE : ADD_DAMAGE,
+      )
       const blame: DamageOptions = { sourceId: add.id }
       // Being caught by the thing following you is a mistake with a name.
       // An ordinary thrall in melee is not one: it is there to be killed.
       if (stalking) blame.mechanic = 'hunt'
       applyDamage(s, nearest, damage, 'physical', blame)
       pushEffect(s, 'impact', nearest.pos, {
-        abilityId: stalking ? 'boss_stalk' : 'boss_thrall',
+        abilityId:
+          add.spawn === 'herald' ? 'boss_herald' : stalking ? 'boss_stalk' : 'boss_thrall',
         power: damage,
         angle: Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x),
       })

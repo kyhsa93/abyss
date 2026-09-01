@@ -2687,6 +2687,15 @@ for (const [label, w, h] of [
   )
 
   // A crit is worth exactly its multiplier, and a mechanic never crits.
+  //
+  // With the interlude cleared out of the way first. Twenty seconds of a
+  // twenty-five man is long enough to break the boss into its second phase,
+  // which is where its herald walks in, and nothing reaches the boss while one
+  // is standing. Left alone, every number below came out nought — and the
+  // multiplier assertion passed on it, because nought is exactly twice nought.
+  // That is the shape of a check that has quietly stopped testing anything.
+  for (const a of s.actors) if (a.spawn === 'herald') a.alive = false
+
   const target = bossOf(s)
   const member = s.actors.find((a) => a.faction === 'party')!
   const before = target.hp

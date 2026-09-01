@@ -259,7 +259,7 @@ export interface Actor {
    * the other hurts somebody and must not be killed. Neither can be read off
    * a health bar, and both are the whole demand.
    */
-  spawn?: 'knell' | 'vessel'
+  spawn?: 'knell' | 'vessel' | 'herald'
 }
 
 export type GroundKind =

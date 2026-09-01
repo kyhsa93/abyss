@@ -617,6 +617,23 @@ export interface Encounter {
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number
+  /**
+   * The thing that arrives at the first phase break, or null for a fight that
+   * is only ever its boss.
+   *
+   * A raid here has always been one large thing in the middle of a circle for
+   * its whole length, and four of the five never had anything else on the
+   * floor to hit. This is the interlude: at the break the boss turns away, a
+   * named elite walks in with an escort, and nothing gets through to the boss
+   * until it is down.
+   *
+   * It is not a rung. The ladders are full — thirty mechanics across thirty
+   * rungs, one owner each — and a seventh rung would be content no cell ever
+   * buys. This sits outside them, so every difficulty and every raid size gets
+   * the same interlude, which is also the right answer for a beat whose job is
+   * to change the shape of the fight rather than its difficulty.
+   */
+  herald: HeraldPlan | null
   /** Health fractions the phases turn on. */
   phaseTwoHp: number
   phaseThreeHp: number
@@ -812,12 +829,40 @@ export interface Encounter {
   }
 }
 
+/** A fight's interlude: what walks in at the first phase break. */
+export interface HeraldPlan {
+  name: string
+  /** What the boss says as it turns away. */
+  line: string
+  /**
+   * The elite's health, as a share of the boss's own.
+   *
+   * Carved out of the boss rather than added to it — `createState` takes this
+   * off the boss's bar when it builds the fight. The raid therefore has the
+   * same total health to chew through and the enrage clock keeps meaning what
+   * it meant; what changed is that some of that health walks around and hits
+   * back. A fight that simply grew an elite would be a fight with a longer
+   * enrage timer wearing a costume.
+   *
+   * Enough to buy about half a minute out of a fight that runs two and a half.
+   * Twice this was tried and it was not an interlude, it was an intermission:
+   * a minute and a half of the fight the raid came for simply not happening,
+   * and every cell that has one swung twenty points or more.
+   */
+  share: number
+}
+
 export const ENCOUNTERS: Encounter[] = [
   {
     // The ground fight. Nothing to get behind and nothing to run into: what it
     // does is make the floor unusable and then punish whoever is still
     // standing in reach of it, and at the sizes that field a second tank it
     // starts asking who that is.
+    herald: {
+      name: 'The Drowned Choirmaster',
+      line: 'Let the drowned sing for me',
+      share: 0.07,
+    },
     id: 'warden',
     name: 'The Drowned Warden',
     short: 'Warden',
@@ -911,6 +956,11 @@ export const ENCOUNTERS: Encounter[] = [
     // Nothing to dodge that a healer can dodge for you. The floor is quiet and
     // the raid damage never stops, so this is the one that ends on mana — and
     // everything it does lands on one person at a time.
+    herald: {
+      name: 'The First Verse',
+      line: 'Hear the one who learned it first',
+      share: 0.07,
+    },
     id: 'choir',
     name: 'The Choir Beneath',
     short: 'Choir',
@@ -1002,6 +1052,11 @@ export const ENCOUNTERS: Encounter[] = [
     // The opposite problem: nothing on the floor to stand in, and almost no
     // time standing anywhere. Rings to run into, a cone to get behind, and
     // something new to hit every time you have settled on a target.
+    herald: {
+      name: 'The Reef Warden',
+      line: 'The reef keeps what it takes',
+      share: 0.07,
+    },
     id: 'tidebreaker',
     name: 'The Tidebreaker',
     short: 'Tidebreaker',
@@ -1107,6 +1162,12 @@ export const ENCOUNTERS: Encounter[] = [
     // refusal rather than a movement. It is the only fight here a body can
     // fail without moving an inch, and the only one where the price of
     // getting it right is paid in uptime instead of in health.
+    // No interlude. Two of this boss's own rungs already put things on the
+    // floor to kill, and a third puts one there that must not be — so the beat
+    // an interlude adds is the beat this fight already is, and a fourth kind of
+    // summon would only make the three that mean different things harder to
+    // tell apart.
+    herald: null,
     id: 'watcher',
     name: 'The Unblinking Watch',
     short: 'Watcher',
@@ -1185,6 +1246,11 @@ export const ENCOUNTERS: Encounter[] = [
     // left nearest, a weight that has to reach fresh hands -- and none of
     // them can be answered by the body that was picked. What it costs is not
     // a reaction, it is a decision, and the fight is over whose it was.
+    herald: {
+      name: 'The Auditor',
+      line: 'Someone else will read the ledger a while',
+      share: 0.07,
+    },
     id: 'ledger',
     name: 'The Long Ledger',
     short: 'Ledger',

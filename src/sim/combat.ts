@@ -51,6 +51,17 @@ export function adds(s: SimState): Actor[] {
   return s.actors.filter((a) => a.faction === 'boss' && a.id !== BOSS_ID && a.alive)
 }
 
+/**
+ * Whether an interlude is running, which is what makes the boss untouchable.
+ *
+ * Here rather than beside the rest of the boss's code because `applyDamage`
+ * has to ask it, and a module that answers damage cannot import the module
+ * that deals it.
+ */
+export function heraldUp(s: SimState): boolean {
+  return s.actors.some((a) => a.faction === 'boss' && a.spawn === 'herald' && a.alive)
+}
+
 export function party(s: SimState): Actor[] {
   return s.actors.filter((a) => a.faction === 'party')
 }
@@ -406,6 +417,15 @@ export function applyDamage(
   opts: DamageOptions = {},
 ): void {
   if (!target.alive) return
+
+  // Nothing reaches the boss while its herald is standing.
+  //
+  // The interlude is a room to clear, and a room you may skip by ignoring it
+  // is a corridor. The AI would switch on its own — a rotation aims at the
+  // lowest-health summon before it aims at the boss — so without this the beat
+  // would exist for the party and not for the player, who can keep pressing
+  // whatever they like.
+  if (target.id === BOSS_ID && s.mode === 'raid' && heraldUp(s)) return
 
   // Whose hit this is decides what units it is written in. Bodies someone is
   // steering — the player, and everything with an AI profile — swing numbers

@@ -1,5 +1,6 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
+import type { Encounter } from './encounters'
 import { createBattleground, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
 import { plannedOpening, rollFloor } from './floor'
@@ -128,6 +129,16 @@ function makeMember(
 export const PLAYER_ID = 1
 export const BOSS_ID = 100
 
+/** What the boss itself holds, once its herald's share is taken off. */
+export function bossHealth(fight: Encounter, scale: number): number {
+  return Math.round(fight.hp * scale * (1 - (fight.herald?.share ?? 0)))
+}
+
+/** What the herald holds, which is the rest of it. */
+export function heraldHealth(fight: Encounter, scale: number): number {
+  return Math.round(fight.hp * scale * (fight.herald?.share ?? 0))
+}
+
 export function createState(
   seed: number,
   attempt: number,
@@ -161,8 +172,13 @@ export function createState(
     prevPos: { x: 0, y: 0 },
     radius: 50,
     moveSpeed: 175,
-    hp: Math.round(fight.hp * scale),
-    maxHp: Math.round(fight.hp * scale),
+    // Less whatever its herald is carrying. The interlude's elite is health
+    // carved out of the boss rather than health added to the fight, so the
+    // raid has the same bar to chew through and the enrage clock keeps meaning
+    // what it meant. A fight that simply grew an elite would be a fight with a
+    // longer timer wearing a costume.
+    hp: bossHealth(fight, scale),
+    maxHp: bossHealth(fight, scale),
     resource: 'mana',
     power: 0,
     maxPower: 0,

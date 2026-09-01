@@ -244,6 +244,11 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // answerable by the phase break.
   boss_phase: { colour: '#fb7185', style: 'burst' },
   boss_thrall: { colour: '#a855f7', style: 'cleave' },
+  // The interlude's elite. Its own entry rather than the thrall's, because a
+  // thrall on the floor is one boss's idea and this walks in on four others —
+  // and because a fight that has stopped for one thing should not be drawing
+  // it in another boss's colour.
+  boss_herald: { colour: '#eab308', style: 'cleave' },
   // Armour coming apart: the same steel as the sweep would say "physical",
   // but this is the thing that makes physical hurt, so it is rust.
   boss_sunder: { colour: '#b45309', style: 'crush' },

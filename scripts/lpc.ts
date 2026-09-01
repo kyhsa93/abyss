@@ -249,6 +249,21 @@ const ADD: Record<string, Layer[]> = {
     { z: 10, dir: 'body/bodies/skeleton' },
     { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
+  // The interlude's elite. A thrall's kin in heavier plate — the same kind of
+  // thing the escort beside it is, promoted, which is what the fight is
+  // saying: this is not a second boss, it is the biggest of them.
+  herald: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/armour/plate/male' },
+    { z: 20, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/plate/male' },
+    { z: 100, dir: 'head/heads/goblin/adult' },
+    { z: 120, dir: 'hat/helmet/barbarian/adult' },
+    // The same blade the escort carries. Plate and a helmet and half again the
+    // height are what say which of them is the one the fight stopped for; a
+    // different weapon on a body this size is a detail nobody can see.
+    { z: 140, dir: 'weapon/sword/dagger' },
+  ],
   vessel: [
     { z: 10, dir: 'body/bodies/male' },
     // Barefoot, like the rest of it: the one summon that is a person rather
