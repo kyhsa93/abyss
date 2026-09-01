@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { drawWorld, focusOn } from '../src/render/draw'
+import { TILT, drawWorld, focusOn } from '../src/render/draw'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
@@ -1113,23 +1113,28 @@ for (const [label, w, h] of [
   )
   expect(`${label}: player token sits at the centre`, centred, `no r=${token.toFixed(1)} circle at ${L.cx},${L.cy}`)
 
-  // By how far the arena's centre has moved rather than by where it landed.
+  // Within the band the projection can put it in, rather than on a pixel.
   //
-  // This used to name the exact pixel — centre minus the player's position —
-  // which was the same claim right up until the view could turn. A camera that
-  // sits behind the player puts the arena's centre somewhere on a circle
-  // around the middle of the screen, and which point of that circle is a fact
-  // about which way the player is facing rather than about whether the camera
-  // is following them. The distance is the part that was ever being tested,
-  // and it holds at every angle.
+  // This has been narrowed twice by the camera growing, and each version was
+  // the largest claim that was still true. It began as an exact pixel — centre
+  // minus the player's position — which held until the view could turn, and a
+  // turning view puts the arena's centre anywhere on a circle around the
+  // middle of the screen. It became that circle's radius, which held until the
+  // floor was tipped away from the camera, and a tipped floor turns the circle
+  // into an ellipse: the same world offset lands at full distance across the
+  // screen and at `TILT` of it going into the screen.
+  //
+  // So the band is the ellipse's two axes, and what is still being tested is
+  // what was being tested at the start — that the floor is drawn under the
+  // player rather than pinned to the middle of the screen.
   const floor = circles.find((c) => Math.abs(c.r - L.arenaR) < 0.01)
   const want = Math.hypot(player.pos.x, player.pos.y) * L.scale
   const off = floor === undefined ? -1 : Math.hypot(floor.x - L.cx, floor.y - L.cy)
-  const follows = floor !== undefined && Math.abs(off - want) < 0.01
+  const follows = floor !== undefined && off >= want * TILT - 0.01 && off <= want + 0.01
   expect(
     `${label}: arena scrolls under the player`,
     follows,
-    `${off.toFixed(1)} from centre, wanted ${want.toFixed(1)}`,
+    `${off.toFixed(1)} from centre, wanted ${(want * TILT).toFixed(1)}..${want.toFixed(1)}`,
   )
 }
 

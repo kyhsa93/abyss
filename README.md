@@ -2396,6 +2396,23 @@ The Watcher has none. Two of its own rungs already put things on the floor to
 kill and a third puts one there that must not be, so the beat an interlude adds
 is the beat that fight already is.
 
+## The floor is a plane
+
+The arena is looked across rather than straight down. The projection squashes
+the world's y by `TILT`, so a circle on the ground is an ellipse on the glass,
+and a body drawn upward from a point on that plane stands up out of it.
+
+Everything on the floor goes through `floorArc` — the arena, the telegraphs,
+the cones, the footprints, the rings around a body — so none of them can
+disagree about where the camera is. The one thing that does not is a
+projectile, which is in the air.
+
+The slabs and the grid are the exception that proves the rule about canvas
+transforms. The renderer turns coordinates and leaves the canvas alone
+everywhere else, because a transform would turn the glyphs with the floor.
+There are no glyphs in the floor's own texture, and it is drawn under a
+transform so that it lies down on the plane with everything else.
+
 ## The camera
 
 The view sits behind the player and looks at whatever the mode is about — the

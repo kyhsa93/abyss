@@ -182,7 +182,51 @@ function worldToScreen(p: Vec2): Vec2 {
   // nameplate, damage number and body sprite in this renderer is drawn
   // axis-aligned on purpose. Turning the coordinates and nothing else leaves
   // all of them upright for free.
-  return { x: L.cx + dx * c - dy * sn, y: L.cy + dx * sn + dy * c }
+  //
+  // The squash is the same trick and the same reason. It is what makes the
+  // floor a floor rather than a map of one: distances across the screen and
+  // distances into it stop being the same distance, which is the whole of what
+  // "looking at it from an angle" means. Bodies are drawn upward from a point
+  // on that plane and so stand up out of it untouched.
+  return { x: L.cx + dx * c - dy * sn, y: L.cy + (dx * sn + dy * c) * TILT }
+}
+
+/**
+ * How far the floor is tipped away from the camera.
+ *
+ * One would be looking straight down; nought would be standing on it. This is
+ * the number the renderer has been half-using all along — the footprint under
+ * every body was drawn at 0.44 while every mechanic on the same floor was
+ * drawn as a true circle, so the arena carried two camera angles at once and
+ * read as flat because of it. This is that number, applied to the floor rather
+ * than to one thing standing on it.
+ */
+export const TILT = 0.62
+
+/**
+ * A circle lying on the floor, which is an ellipse on the glass.
+ *
+ * Every ground shape goes through here — the arena, the telegraphs, the cones,
+ * the footprints, the rings around a body — so none of them can quietly
+ * disagree with the others about where the camera is. The one thing that does
+ * not is a projectile, which is in the air and is therefore a sphere seen head
+ * on rather than a mark on the ground.
+ *
+ * The angles are the world's, unchanged. A canvas ellipse takes parametric
+ * angles, and the parametric angle of a squashed circle is exactly the bearing
+ * it had before the squash — so a cone drawn from the same two numbers the
+ * simulation tests covers the same ground it always did.
+ */
+function floorArc(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  start = 0,
+  end = Math.PI * 2,
+  ccw = false,
+): void {
+  ctx.ellipse(x, y, r, r * TILT, 0, start, end, ccw)
 }
 
 /** A bearing in the world, as an angle on the glass. */
@@ -278,7 +322,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     const r = rock.radius * L.scale
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.fillStyle = COLORS.floorEdge
     ctx.fill()
     // A lighter rim, so it reads as something standing up off the floor rather
@@ -287,7 +331,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     ctx.lineWidth = 2
     ctx.stroke()
     ctx.beginPath()
-    ctx.arc(at.x - r * 0.18, at.y - r * 0.18, r * 0.62, 0, Math.PI * 2)
+    floorArc(ctx, at.x - r * 0.18, at.y - r * 0.18, r * 0.62, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)'
     ctx.lineWidth = 1
     ctx.stroke()
@@ -298,7 +342,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     const r = node.radius * L.scale
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.fillStyle = node.owner ? tint(teamColour(node.owner), 0.1) : 'rgba(120, 130, 150, 0.07)'
     ctx.fill()
     ctx.strokeStyle = node.owner ? teamColour(node.owner) : COLORS.floorEdge
@@ -311,7 +355,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     if (node.progress !== 0) {
       const toward = node.progress > 0 ? 'blue' : 'red'
       ctx.beginPath()
-      ctx.arc(at.x, at.y, r - 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.abs(node.progress))
+      floorArc(ctx, at.x, at.y, r - 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.abs(node.progress))
       ctx.strokeStyle = teamColour(toward)
       ctx.lineWidth = 4
       ctx.stroke()
@@ -339,7 +383,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
       // cart itself as a solid square — the one thing on the floor that is not
       // a person and not a hazard.
       ctx.beginPath()
-      ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+      floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
       ctx.strokeStyle = cart.contested ? COLORS.hpBarLow : tint(teamColour(team), 0.45)
       ctx.lineWidth = cart.contested ? 2 + Math.sin(clock * 8) : 1.5
       ctx.stroke()
@@ -364,7 +408,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
   for (const team of ['blue', 'red'] as const) {
     const base = worldToScreen(bg.bases[team])
     ctx.beginPath()
-    ctx.arc(base.x, base.y, 80 * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, base.x, base.y, 80 * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = tint(teamColour(team), 0.5)
     ctx.setLineDash([6, 6])
     ctx.lineWidth = 2
@@ -382,7 +426,7 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     // moment it leaves, which gives a defender nothing to answer.
     if (flag.taking > 0) {
       ctx.beginPath()
-      ctx.arc(
+      floorArc(ctx, 
         at.x,
         at.y,
         FLAG_PICKUP * L.scale,
@@ -433,7 +477,7 @@ function drawRally(ctx: CanvasRenderingContext2D, bg: BgState, clock: number): v
     // same number the text does for anyone not reading it.
     const through = 1 - rally.telegraph / RALLY_TELEGRAPH
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r * (1 - through * 0.18), 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r * (1 - through * 0.18), 0, Math.PI * 2)
     ctx.strokeStyle = COLORS.telegraphEdge
     ctx.setLineDash([10, 8])
     ctx.lineWidth = 2 + Math.sin(clock * 6)
@@ -449,7 +493,7 @@ function drawRally(ctx: CanvasRenderingContext2D, bg: BgState, clock: number): v
   }
 
   ctx.beginPath()
-  ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+  floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
   ctx.fillStyle = rally.owner ? tint(teamColour(rally.owner), 0.12) : COLORS.telegraph
   ctx.fill()
   ctx.strokeStyle = rally.owner ? teamColour(rally.owner) : COLORS.telegraphEdge
@@ -459,7 +503,7 @@ function drawRally(ctx: CanvasRenderingContext2D, bg: BgState, clock: number): v
   if (rally.progress !== 0) {
     const toward = rally.progress > 0 ? 'blue' : 'red'
     ctx.beginPath()
-    ctx.arc(
+    floorArc(ctx, 
       at.x,
       at.y,
       r - 5,
@@ -510,7 +554,7 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   const c = worldToScreen({ x: 0, y: 0 })
   ctx.beginPath()
-  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(239, 68, 68, ${(0.85 * a).toFixed(3)})`
   ctx.lineWidth = 2 + 6 * a
   ctx.stroke()
@@ -561,7 +605,7 @@ function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss):
 
   ctx.save()
   ctx.beginPath()
-  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
@@ -572,43 +616,64 @@ function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss):
   // wanted is only that the ground is not a flat fill. About a third of the
   // cells are lifted, by under one percent each, and a rare one takes a trace
   // of the encounter's accent.
+  // The floor's own texture, drawn in world coordinates.
+  //
+  // This is the one place a canvas transform is the right tool rather than the
+  // wrong one. Everywhere else the renderer turns coordinates and leaves the
+  // canvas alone, because a transform would turn the glyphs with the floor.
+  // Here there are no glyphs — there is nothing but the floor — and what is
+  // wanted is exactly that the slabs and the grid lie down on it.
+  //
+  // Without it they did not. Both were laid out in screen space, so the ground
+  // stayed square and axis-aligned while the world above it turned and tipped:
+  // the player walked, the arena wall swung round, and the floor they were
+  // walking on held perfectly still. A grid is most of what says which way a
+  // plane is facing, so it was the one surface undoing the illusion the rest of
+  // the frame was building.
+  //
+  // Same composition as `worldToScreen`, in the order canvas applies it: tip,
+  // then turn. The zoom is not in here and must not be — it is multiplied into
+  // the coordinates below instead. `Ambience` draws this same arena as the menu
+  // backdrop, and the check that the backdrop holds one distance across every
+  // zoom step works by watching what the frame passes to `ctx.scale`; a zoom
+  // handed to the canvas rather than to the numbers walks straight into it.
+  ctx.translate(c.x, c.y)
+  ctx.scale(1, TILT)
+  ctx.rotate(viewAngle())
+
+  const reach = ARENA_RADIUS * L.scale
   const slab = 64 * L.scale
-  const originX = c.x - L.arenaR
-  const originY = c.y - L.arenaR
-  const cols = Math.ceil((L.arenaR * 2) / slab) + 1
+  const cols = Math.ceil((reach * 2) / slab) + 1
   for (let gx = 0; gx < cols; gx++) {
     for (let gy = 0; gy < cols; gy++) {
-      // World cell rather than screen cell, so a slab keeps its own tone as
-      // the camera moves over it.
-      const wx = Math.floor((originX + gx * slab - c.x) / slab)
-      const wy = Math.floor((originY + gy * slab - c.y) / slab)
+      const wx = -Math.ceil(reach / slab) + gx
+      const wy = -Math.ceil(reach / slab) + gy
       const tone = slabTone(wx, wy)
       if (tone < 168) continue
       ctx.fillStyle =
         tone > 246
           ? slabAccent(accent, 0.022)
           : `rgba(255, 255, 255, ${(0.006 + (tone & 15) * 0.0007).toFixed(4)})`
-      ctx.fillRect(originX + gx * slab, originY + gy * slab, slab - 1, slab - 1)
+      ctx.fillRect(wx * slab, wy * slab, slab - 1, slab - 1)
     }
   }
 
   ctx.strokeStyle = COLORS.grid
   ctx.lineWidth = 1
-  const step = 64 * L.scale
-  for (let g = -L.arenaR; g <= L.arenaR; g += step) {
+  for (let g = -reach; g <= reach; g += slab) {
     ctx.beginPath()
-    ctx.moveTo(c.x + g, c.y - L.arenaR)
-    ctx.lineTo(c.x + g, c.y + L.arenaR)
+    ctx.moveTo(g, -reach)
+    ctx.lineTo(g, reach)
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(c.x - L.arenaR, c.y + g)
-    ctx.lineTo(c.x + L.arenaR, c.y + g)
+    ctx.moveTo(-reach, g)
+    ctx.lineTo(reach, g)
     ctx.stroke()
   }
   ctx.restore()
 
   ctx.beginPath()
-  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.strokeStyle = COLORS.floorEdge
   ctx.lineWidth = 2
   ctx.stroke()
@@ -708,17 +773,17 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       // Telegraph fills from the centre outward as the timer runs down.
       const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.telegraph
       ctx.fill()
 
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r * progress, 0, Math.PI * 2)
+      floorArc(ctx, p.x, p.y, r * progress, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.telegraph
       ctx.fill()
 
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
       ctx.strokeStyle = COLORS.telegraphEdge
       ctx.lineWidth = 2
       ctx.stroke()
@@ -728,7 +793,7 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.save()
       ctx.globalAlpha = fade
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.puddle
       ctx.fill()
 
@@ -736,7 +801,7 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       // reads as something still burning in it, and it is the same shape and
       // the same edge, so what is safe has not moved.
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r * (0.52 + 0.06 * Math.sin(clock * 3 + g.id)), 0, Math.PI * 2)
+      floorArc(ctx, p.x, p.y, r * (0.52 + 0.06 * Math.sin(clock * 3 + g.id)), 0, Math.PI * 2)
       ctx.fillStyle = COLORS.puddle
       ctx.fill()
 
@@ -798,7 +863,7 @@ function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number],
   ctx.save()
   ctx.beginPath()
   ctx.moveTo(to.x, to.y)
-  ctx.arc(c.x, c.y, radius, a2, a1, !forward)
+  floorArc(ctx, c.x, c.y, radius, a2, a1, !forward)
   ctx.closePath()
   ctx.fillStyle = `rgba(71, 85, 105, ${(0.24 + 0.34 * closing).toFixed(3)})`
   ctx.fill()
@@ -834,19 +899,19 @@ function drawShallows(
 
   ctx.save()
   ctx.beginPath()
-  ctx.arc(c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(29, 78, 216, ${(0.18 + 0.3 * closing).toFixed(3)})`
   ctx.fill()
 
   for (const spot of g.spots ?? []) {
     const at = worldToScreen(spot)
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.fillStyle = COLORS.floor
     ctx.fill()
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(147, 197, 253, 0.9)'
     ctx.lineWidth = 2 + 6 * closing
     ctx.setLineDash([8, 6])
@@ -880,12 +945,12 @@ function drawToll(
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / TOLL_TELEGRAPH))
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.fillStyle = paid ? 'rgba(245, 158, 11, 0.20)' : 'rgba(245, 158, 11, 0.10)'
   ctx.fill()
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(2, r * (1 - closing * 0.7)), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, Math.max(2, r * (1 - closing * 0.7)), 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(252, 211, 77, 0.6)'
   ctx.lineWidth = 2
   ctx.setLineDash([5, 6])
@@ -894,7 +959,7 @@ function drawToll(
   ctx.setLineDash([])
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.strokeStyle = paid ? '#fcd34d' : 'rgba(252, 211, 77, 0.8)'
   ctx.lineWidth = paid ? 3 : 2
   ctx.stroke()
@@ -926,18 +991,18 @@ function drawGrasp(
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / GRASP_TELEGRAPH))
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(124, 58, 237, ${(0.08 + 0.14 * closing).toFixed(3)})`
   ctx.fill()
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(167, 139, 250, 0.75)'
   ctx.lineWidth = 2
   ctx.stroke()
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(3, r * (1 - closing)), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, Math.max(3, r * (1 - closing)), 0, Math.PI * 2)
   ctx.strokeStyle = '#a78bfa'
   ctx.lineWidth = 2 + 4 * closing
   ctx.setLineDash([7, 5])
@@ -973,12 +1038,12 @@ function drawRefuge(
     const own = i === mine
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.fillStyle = own ? 'rgba(6, 182, 212, 0.22)' : 'rgba(6, 182, 212, 0.08)'
     ctx.fill()
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, r, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
     ctx.strokeStyle = own ? '#67e8f9' : 'rgba(103, 232, 249, 0.45)'
     ctx.lineWidth = own ? 2 + 5 * closing : 2
     ctx.setLineDash([8, 6])
@@ -1004,7 +1069,7 @@ function drawBreath(
   // one too: the shape the simulation tests is a bearing in the world, and
   // the world is turned under the camera.
   const angle = screenAngle(g.angle)
-  ctx.arc(p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
+  floorArc(ctx, p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = firing ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.14)'
   ctx.fill()
@@ -1012,7 +1077,7 @@ function drawBreath(
   if (!firing) {
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
-    ctx.arc(p.x, p.y, r * progress, angle - g.halfWidth, angle + g.halfWidth)
+    floorArc(ctx, p.x, p.y, r * progress, angle - g.halfWidth, angle + g.halfWidth)
     ctx.closePath()
     ctx.fillStyle = 'rgba(56, 189, 248, 0.22)'
     ctx.fill()
@@ -1020,7 +1085,7 @@ function drawBreath(
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
+  floorArc(ctx, p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.strokeStyle = firing ? 'rgba(125, 211, 252, 0.95)' : 'rgba(125, 211, 252, 0.7)'
   ctx.lineWidth = 2
@@ -1034,7 +1099,7 @@ function drawBreath(
   for (let i = 0; i < 3; i++) {
     const at = ((run + i / 3) % 1) * 0.9 + 0.1
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r * at, angle - g.halfWidth * 0.85, angle + g.halfWidth * 0.85)
+    floorArc(ctx, p.x, p.y, r * at, angle - g.halfWidth * 0.85, angle + g.halfWidth * 0.85)
     ctx.strokeStyle = `rgba(224, 242, 254, ${(0.5 * (1 - at)).toFixed(3)})`
     ctx.lineWidth = 3
     ctx.stroke()
@@ -1063,14 +1128,14 @@ function drawSoak(
   const closing = 1 - g.telegraph / SOAK_TELEGRAPH
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.fillStyle = ready ? 'rgba(45, 212, 191, 0.16)' : 'rgba(45, 212, 191, 0.10)'
   ctx.fill()
 
   // The rim closes in as the timer runs down, so the shape says how long is
   // left without anybody reading a number.
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(2, r * (1 - closing * 0.55)), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, Math.max(2, r * (1 - closing * 0.55)), 0, Math.PI * 2)
   ctx.strokeStyle = 'rgba(94, 234, 212, 0.55)'
   ctx.lineWidth = 2
   ctx.setLineDash([5, 6])
@@ -1079,7 +1144,7 @@ function drawSoak(
   ctx.setLineDash([])
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.strokeStyle = ready ? '#5eead4' : 'rgba(94, 234, 212, 0.8)'
   ctx.lineWidth = ready ? 3 : 2
   ctx.stroke()
@@ -1115,7 +1180,7 @@ function drawCrush(
 
   ctx.save()
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(220, 38, 38, ${(0.07 + 0.21 * closing).toFixed(3)})`
   ctx.fill()
   ctx.strokeStyle = 'rgba(248, 113, 113, 0.9)'
@@ -1158,7 +1223,7 @@ function drawHand(
   const reach = ARENA_RADIUS * 2 * L.scale
   ctx.save()
   ctx.beginPath()
-  ctx.arc(arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
+  floorArc(ctx, arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
   ctx.clip()
 
   // The wedge is drawn against screen coordinates, so its bearing has to be
@@ -1170,7 +1235,7 @@ function drawHand(
   if (g.pulses > 1) {
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
-    ctx.arc(p.x, p.y, reach, angle + g.turn - g.halfWidth, angle + g.turn + g.halfWidth)
+    floorArc(ctx, p.x, p.y, reach, angle + g.turn - g.halfWidth, angle + g.turn + g.halfWidth)
     ctx.closePath()
     ctx.fillStyle = 'rgba(132, 204, 22, 0.07)'
     ctx.fill()
@@ -1181,7 +1246,7 @@ function drawHand(
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
+  floorArc(ctx, p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = `rgba(132, 204, 22, ${(0.09 + 0.20 * closing).toFixed(3)})`
   ctx.fill()
@@ -1227,7 +1292,7 @@ function drawEcho(
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / ECHO_TELEGRAPH))
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(192, 132, 252, ${(0.08 + 0.22 * closing).toFixed(3)})`
   ctx.fill()
   ctx.strokeStyle = 'rgba(216, 180, 254, 0.85)'
@@ -1236,7 +1301,7 @@ function drawEcho(
 
   // A second ring falling in on the spot: the beat arriving.
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, r * (1 - closing)), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, Math.max(1, r * (1 - closing)), 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(216, 180, 254, ${(0.35 + 0.5 * closing).toFixed(3)})`
   ctx.lineWidth = 3
   ctx.stroke()
@@ -1328,19 +1393,19 @@ function drawBrand(
     // Filling inward rather than outward: the ring closes on the spot.
     const left = Math.max(0, Math.min(1, g.telegraph / PUDDLE_TELEGRAPH))
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(244, 114, 182, 0.75)'
     ctx.lineWidth = 2
     ctx.stroke()
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r * left, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, r * left, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(244, 114, 182, 0.35)'
     ctx.lineWidth = 3
     ctx.stroke()
   } else {
     // Spokes rather than a disc, so it reads as a scar and not as a pool.
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
     ctx.fillStyle = 'rgba(244, 114, 182, 0.16)'
     ctx.fill()
     for (let i = 0; i < 7; i++) {
@@ -1390,7 +1455,7 @@ function drawSchism(
     ctx.setLineDash([])
 
     ctx.beginPath()
-    ctx.arc(muster.x, muster.y, (26 + 10 * closing) * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, muster.x, muster.y, (26 + 10 * closing) * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = `rgba(52, 211, 153, ${(0.4 + 0.5 * closing).toFixed(3)})`
     ctx.lineWidth = 2 + 3 * closing
     ctx.stroke()
@@ -1402,7 +1467,7 @@ function drawSchism(
     if (!getAura(a, 'schism')) continue
     const at = worldToScreen(a.pos)
     ctx.beginPath()
-    ctx.arc(at.x, at.y, g.radius * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, g.radius * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = `rgba(5, 150, 105, ${(0.12 + 0.2 * closing).toFixed(3)})`
     ctx.lineWidth = 1
     ctx.stroke()
@@ -1432,20 +1497,20 @@ function drawShockwave(
   for (let i = 3; i >= 1; i--) {
     const behind = Math.max(1, r - band * i * 0.9)
     ctx.beginPath()
-    ctx.arc(p.x, p.y, behind, from, to)
+    floorArc(ctx, p.x, p.y, behind, from, to)
     ctx.strokeStyle = `rgba(250, 204, 21, ${(0.16 / i).toFixed(3)})`
     ctx.lineWidth = band
     ctx.stroke()
   }
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, r), from, to)
+  floorArc(ctx, p.x, p.y, Math.max(1, r), from, to)
   ctx.strokeStyle = 'rgba(250, 204, 21, 0.30)'
   ctx.lineWidth = band * 2
   ctx.stroke()
 
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, r), from, to)
+  floorArc(ctx, p.x, p.y, Math.max(1, r), from, to)
   ctx.strokeStyle = 'rgba(253, 224, 71, 0.95)'
   ctx.lineWidth = 3
   ctx.stroke()
@@ -1456,7 +1521,7 @@ function drawShockwave(
   const reach = ARENA_RADIUS * L.scale
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
+  floorArc(ctx, p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)
   ctx.closePath()
   ctx.fillStyle = 'rgba(74, 222, 128, 0.07)'
   ctx.fill()
@@ -1540,7 +1605,7 @@ function drawVerdicts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number)
 
     // And a ring on the token, so it is findable without reading the bar.
     ctx.beginPath()
-    ctx.arc(p.x, p.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = safe ? 'rgba(129, 140, 248, 0.55)' : 'rgba(244, 63, 94, 0.85)'
     ctx.lineWidth = 1 + spent * 3
     ctx.stroke()
@@ -1559,7 +1624,7 @@ function drawSpreadRings(ctx: CanvasRenderingContext2D, s: SimState, alpha: numb
 
     ctx.save()
     ctx.beginPath()
-    ctx.arc(p.x, p.y, SPREAD_RADIUS * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, SPREAD_RADIUS * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = COLORS.spread
     ctx.lineWidth = 1 + urgency * 3
     ctx.setLineDash([4, 8])
@@ -1642,7 +1707,7 @@ function drawHandoff(
   ctx.save()
   // The clock, on the one who is holding it.
   ctx.beginPath()
-  ctx.arc(p.x, p.y, (carrier.radius + 13) * L.scale, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, (carrier.radius + 13) * L.scale, 0, Math.PI * 2)
   ctx.strokeStyle = `${rgb}0.75)`
   ctx.lineWidth = 2
   ctx.stroke()
@@ -1665,7 +1730,7 @@ function drawHandoff(
 
     // Where "arrived" is, on the one being reached for.
     ctx.beginPath()
-    ctx.arc(q.x, q.y, reach * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, q.x, q.y, reach * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = `${rgb}0.3)`
     ctx.lineWidth = 1
     ctx.stroke()
@@ -1705,7 +1770,7 @@ function drawCasts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
     // Closes from a way out to the edge of the token as the cast completes.
     const gather = base + (1 - progress) * 34 * L.scale
     ctx.beginPath()
-    ctx.arc(p.x, p.y, gather, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, gather, 0, Math.PI * 2)
     ctx.strokeStyle = tint(colour, 0.2 + 0.5 * progress)
     ctx.lineWidth = Math.max(1, 2 * L.scale)
     ctx.setLineDash([5, 6])
@@ -1715,7 +1780,7 @@ function drawCasts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): v
 
     // And a dial around the token, filling clockwise from noon.
     ctx.beginPath()
-    ctx.arc(p.x, p.y, base + 5 * L.scale, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
+    floorArc(ctx, p.x, p.y, base + 5 * L.scale, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
     ctx.strokeStyle = tint(colour, 0.9)
     ctx.lineWidth = Math.max(1.5, 3 * L.scale)
     ctx.stroke()
@@ -1833,15 +1898,11 @@ function swingProgress(a: Actor): number | null {
  */
 const STRIDE = 0.16
 
-/**
- * How flat a footprint is drawn.
- *
- * The floor is looked across rather than straight down — a body stands up out
- * of its disc, which only makes sense from an angle. A circle on that floor
- * reads as a ball; the same circle flattened reads as a patch of ground, and
- * a patch of ground is what a footprint has always meant.
- */
-const FOOT_FLATTEN = 0.44
+// The footprint used to carry its own flattening — 0.44, its own constant —
+// because it was the only thing in the renderer that admitted the floor is
+// looked across rather than straight down. Everything else on that floor was
+// still a true circle. It goes through `floorArc` with the rest of them now,
+// and the number it used to hold has become the camera's.
 
 /**
  * The patch of floor an actor is standing on.
@@ -1855,7 +1916,7 @@ const FOOT_FLATTEN = 0.44
  */
 function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number): void {
   ctx.beginPath()
-  ctx.ellipse(x, y, rx, rx * FOOT_FLATTEN, 0, 0, Math.PI * 2)
+  floorArc(ctx, x, y, rx)
 }
 
 function bossBody(s: SimState): string | null {
@@ -2010,7 +2071,7 @@ function drawActor(
   const hunted = getAura(a, 'hunted')
   if (hunted && a.alive) {
     ctx.beginPath()
-    ctx.arc(p.x, p.y, r + 9 + Math.sin(clock * 7) * 2, 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, r + 9 + Math.sin(clock * 7) * 2, 0, Math.PI * 2)
     ctx.strokeStyle = '#fb923c'
     ctx.lineWidth = 2
     ctx.setLineDash([4, 5])
@@ -2027,7 +2088,7 @@ function drawActor(
     for (let i = 0; i < sunder.stacks; i++) {
       const from = -Math.PI / 2 + (i * Math.PI * 2) / SUNDER_MAX
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r + 6, from + 0.12, from + (Math.PI * 2) / SUNDER_MAX - 0.12)
+      floorArc(ctx, p.x, p.y, r + 6, from + 0.12, from + (Math.PI * 2) / SUNDER_MAX - 0.12)
       ctx.strokeStyle = '#b45309'
       ctx.lineWidth = 3
       ctx.stroke()
@@ -2386,7 +2447,7 @@ function drawVigil(
 
   ctx.save()
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(245, 158, 11, ${(0.3 + 0.6 * closing).toFixed(3)})`
   ctx.lineWidth = 3 + 26 * closing
   ctx.stroke()
@@ -2394,7 +2455,7 @@ function drawVigil(
   // And the count itself, as a ring falling in on the boss. It is the only
   // part of the picture that says when, and the mechanic is nothing but when.
   ctx.beginPath()
-  ctx.arc(p.x, p.y, Math.max(1, 70 * L.scale * (1 - closing)), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, Math.max(1, 70 * L.scale * (1 - closing)), 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(253, 230, 138, ${(0.35 + 0.55 * closing).toFixed(3)})`
   ctx.lineWidth = 2 + 4 * closing
   ctx.stroke()
@@ -2422,7 +2483,7 @@ function drawChant(
   for (let i = 0; i < 3; i++) {
     const phase = (closing + i / 3) % 1
     ctx.beginPath()
-    ctx.arc(p.x, p.y, Math.max(1, r * phase), 0, Math.PI * 2)
+    floorArc(ctx, p.x, p.y, Math.max(1, r * phase), 0, Math.PI * 2)
     ctx.strokeStyle = `rgba(124, 58, 237, ${(0.5 * (1 - phase)).toFixed(3)})`
     ctx.lineWidth = 3
     ctx.stroke()
@@ -2440,7 +2501,7 @@ function drawChant(
     ctx.stroke()
 
     ctx.beginPath()
-    ctx.arc(at.x, at.y, (a.radius + 10) * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, (a.radius + 10) * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = `rgba(124, 58, 237, ${(0.55 + 0.4 * closing).toFixed(3)})`
     ctx.lineWidth = 2 + 3 * closing
     ctx.stroke()
@@ -2468,7 +2529,7 @@ function drawGaze(
 
   ctx.save()
   ctx.beginPath()
-  ctx.arc(p.x, p.y, r * (1 - 0.35 * closing), 0, Math.PI * 2)
+  floorArc(ctx, p.x, p.y, r * (1 - 0.35 * closing), 0, Math.PI * 2)
   ctx.strokeStyle = `rgba(217, 70, 239, ${(0.4 + 0.5 * closing).toFixed(3)})`
   ctx.lineWidth = 2 + 5 * closing
   ctx.stroke()
@@ -2478,7 +2539,7 @@ function drawGaze(
     const at = worldToScreen(a.pos)
     const looking = watched(a, g)
     ctx.beginPath()
-    ctx.arc(at.x, at.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
+    floorArc(ctx, at.x, at.y, (a.radius + 7) * L.scale, 0, Math.PI * 2)
     ctx.strokeStyle = looking
       ? `rgba(240, 171, 252, ${(0.35 + 0.55 * closing).toFixed(3)})`
       : 'rgba(148, 163, 184, 0.25)'
