@@ -8,7 +8,9 @@ cannot fall behind a change to them.
 
 - `body/bodies/male` — bluecarrot16,JaidynReiman,Benjamin K. Smith (BenCreating),Evert,Eliza Wyatt (ElizaWy),TheraHedwig,MuffinElZangano,Durrani,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `body/bodies/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `cape/solid/bg` — Nila122,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `cape/solid/fg` — bluecarrot16,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `cape/tattered/bg` — Nila122,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `cape/tattered/fg` — Nila122,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `feet/armour/plate` — Matthew Krohn (makrohn),Johannes Sjölund (wulax) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `feet/boots/basic` — JaidynReiman,bluecarrot16,Nila122 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 2.0,GPL 3.0)

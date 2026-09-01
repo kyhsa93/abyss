@@ -304,9 +304,30 @@ const SHOULDERS: Partial<Record<ClassId, string>> = {
 }
 
 /** A cape is a silhouette that moves, which is worth more than one that does not. */
+/**
+ * What hangs off the back.
+ *
+ * Everyone, now that the camera stands behind the player. A cape used to be on
+ * three classes and it was the right call while the view looked down at the
+ * top of everybody's head — a back is not much of a silhouette from up there.
+ * The camera sits behind a shoulder now and the back is most of what is on
+ * screen, so a body without one is a body with nothing to look at.
+ *
+ * Two cuts rather than one, which is what keeps this from being the mistake
+ * the headgear table warns about. A set where every class wears the same cape
+ * is a set where the cape has stopped saying anything: solid for the ones in
+ * armour and in ceremony, tattered for the ones who live outside. The colour
+ * is the class's own, as it is on every other worn layer.
+ */
 const CAPE: Partial<Record<ClassId, string>> = {
+  warrior: 'cape/solid',
   paladin: 'cape/solid',
+  priest: 'cape/solid',
+  mage: 'cape/solid',
   warlock: 'cape/solid',
+  rogue: 'cape/tattered',
+  hunter: 'cape/tattered',
+  shaman: 'cape/tattered',
   druid: 'cape/tattered',
 }
 
@@ -405,9 +426,22 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
     { z: 100, dir: 'head/heads/human/male' },
   ]
 
-  // A cape hangs behind everything, which is where the set draws it.
+  // A cape is two layers, not one, and the set ships them apart for a reason
+  // this renderer cares about more than most: which side of the body it falls
+  // on depends on which way the body is facing. Walking away from the camera
+  // you see the cloth over their back; walking toward it you see it behind
+  // their shoulders.
+  //
+  // It went in as one layer and `findAnim` picked whichever it found first,
+  // which was the one that hangs behind. The camera now stands behind the
+  // player, so the one view that matters most was the one with no cape in it.
   const cape = CAPE[classId]
-  if (cape) stack.push({ z: 5, dir: cape, tint: colour })
+  if (cape) {
+    stack.push({ z: 5, dir: `${cape}/bg`, tint: colour })
+    // Above the torso and below anything held, so it falls over the armour and
+    // a drawn weapon still reads in front of it.
+    stack.push({ z: 130, dir: `${cape}/fg`, tint: colour })
+  }
 
   // Above the head, below anything held: hair is drawn on a head, and a shield
   // arm passes in front of it.
