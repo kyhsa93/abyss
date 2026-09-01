@@ -677,6 +677,63 @@ function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss):
   ctx.strokeStyle = COLORS.floorEdge
   ctx.lineWidth = 2
   ctx.stroke()
+
+  drawFarWall(ctx, c)
+}
+
+/**
+ * How tall the arena's wall stands, in world units.
+ *
+ * Low. It is there to say that the floor ends in something rather than at a
+ * line, and a wall tall enough to be scenery is a wall that takes screen off
+ * the top of the fight — which on a phone is the half the raid is standing in.
+ */
+const WALL = 34
+
+/**
+ * The inside of the far wall.
+ *
+ * Only the far half, and that is not an optimisation. Standing inside a bowl
+ * you see the inner face of the side away from you and nothing of the side you
+ * are on: the near wall is below the camera, and drawing a band there would be
+ * a wall growing downward out of the floor in front of you.
+ *
+ * Which half is far is a fact about the ellipse rather than about the camera.
+ * Screen y grows downward, so the far half is the top of it — parametric
+ * angles from half a turn to a whole one — and that stays true however the
+ * view is turned, because the tilt is applied after the turn.
+ *
+ * Drawn under everything, like the floor it belongs to. A body standing at the
+ * back of the arena is in front of the wall behind it, which is what a raid
+ * inside a bowl looks like.
+ */
+function drawFarWall(ctx: CanvasRenderingContext2D, c: Vec2): void {
+  const rx = L.arenaR
+  const ry = L.arenaR * TILT
+  const h = WALL * L.scale
+  if (h < 1) return
+
+  ctx.beginPath()
+  // Along the base, then back along the rim: the second arc runs the other way
+  // so the two ends meet and the band closes on itself.
+  ctx.ellipse(c.x, c.y, rx, ry, 0, Math.PI, Math.PI * 2)
+  ctx.ellipse(c.x, c.y - h, rx, ry, 0, Math.PI * 2, Math.PI, true)
+  ctx.closePath()
+
+  // Lit from above, which is the one light this game has ever implied — every
+  // body casts its shadow straight down onto its own footprint.
+  const wash = ctx.createLinearGradient(0, c.y - ry - h, 0, c.y - ry + h)
+  wash.addColorStop(0, 'rgba(148, 163, 184, 0.16)')
+  wash.addColorStop(1, 'rgba(10, 10, 16, 0.55)')
+  ctx.fillStyle = wash
+  ctx.fill()
+
+  // The rim, so the wall ends in an edge rather than in a fade.
+  ctx.beginPath()
+  ctx.ellipse(c.x, c.y - h, rx, ry, 0, Math.PI, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.30)'
+  ctx.lineWidth = 2
+  ctx.stroke()
 }
 
 function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
