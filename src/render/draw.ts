@@ -229,6 +229,19 @@ function floorArc(
   ctx.ellipse(x, y, r, r * TILT, 0, start, end, ccw)
 }
 
+/**
+ * A point that far from `p` along a bearing, lying on the floor.
+ *
+ * The companion to `floorArc` and it exists for the same reason: a bearing and
+ * a distance describe a point on the ground, and the ground is tipped. Stepping
+ * `reach` along `(cos, sin)` in screen space steps along a plane facing the
+ * camera instead, which is how a starburst painted on the floor ends up
+ * standing upright in the middle of it.
+ */
+function floorAt(p: Vec2, angle: number, reach: number): Vec2 {
+  return { x: p.x + Math.cos(angle) * reach, y: p.y + Math.sin(angle) * reach * TILT }
+}
+
 /** A bearing in the world, as an angle on the glass. */
 function screenAngle(a: number): number {
   return a + viewAngle()
@@ -241,6 +254,18 @@ function screenPos(a: Actor, alpha: number): Vec2 {
 
 function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui)}px ui-monospace, monospace`
+}
+
+/**
+ * Every actor, back to front.
+ *
+ * Exported so it can be checked. The bug it is guarding against does not show
+ * up in what gets drawn, only in what order — and an order is invisible to a
+ * check that looks at the finished frame.
+ */
+export function drawOrder(s: SimState, alpha = 1): Actor[] {
+  const depth = new Map(s.actors.map((a) => [a.id, screenPos(a, alpha).y]))
+  return [...s.actors].sort((x, y) => depth.get(x.id)! - depth.get(y.id)! || x.id - y.id)
 }
 
 export function drawWorld(
@@ -282,8 +307,15 @@ export function drawWorld(
   // each is standing, and that is the bottom of the sprite. Ties break on id,
   // which is stable, so two things on the same row do not swap places frame to
   // frame while a fight nudges them past each other.
-  const order = [...s.actors].sort((x, y) => x.pos.y - y.pos.y || x.id - y.id)
-  for (const a of order) {
+  //
+  // And by where the feet land on the glass rather than by where they are in
+  // the world. Those were the same number until the view could turn, and the
+  // sort went on reading the world's y — so "further away" stayed pinned to
+  // world north while the camera swung, and at a quarter turn the order was
+  // decided by the axis running across the screen instead of the one running
+  // into it. Bodies swapped in front of each other as the player walked round
+  // the boss.
+  for (const a of drawOrder(s, alpha)) {
     if (a.faction === 'boss') {
       drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s))
     } else {
@@ -782,7 +814,7 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     }
 
     if (g.kind === 'fault') {
-      drawFault(ctx, g, p)
+      drawFault(ctx, g)
       continue
     }
 
@@ -887,32 +919,41 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
  * one of them in. The chord and the arc are worked out rather than clipped so
  * the shape is the shape the simulation tests: what is filled is what is hit.
  */
-function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number], p: Vec2): void {
+// No screen point needed any more: the geometry is worked out in the world and
+// projected, so the only thing this takes from the fight is the fault itself.
+function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number]): void {
   if (g.detonated) return
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / FAULT_TELEGRAPH))
   const c = worldToScreen({ x: 0, y: 0 })
   const radius = L.arenaR
-  // The wedge is drawn against screen coordinates, so its bearing has to be
-  // one too: the shape the simulation tests is a bearing in the world, and
-  // the world is turned under the camera.
-  const angle = screenAngle(g.angle)
-  const nx = Math.cos(angle)
-  const ny = Math.sin(angle)
+
+  // Worked out in the world and then projected, rather than worked out on the
+  // glass. It used to step along `(cos, sin)` in screen space from a bearing
+  // the fight gave it, which was the same thing until the floor was tipped —
+  // a world bearing does not arrive on screen as a unit vector once the y is
+  // squashed, so the line drifted off the ground the simulation was testing.
+  // Here the chord is a chord of a circle, which is what it is.
+  const nx = Math.cos(g.angle)
+  const ny = Math.sin(g.angle)
 
   // Where the line crosses the wall. The boss is always inside the arena, so
   // the line always crosses it twice; the guard is for the frame where the
   // camera has not caught up rather than for a case the fight can produce.
-  const away = (p.x - c.x) * nx + (p.y - c.y) * ny
-  const half = Math.sqrt(Math.max(0, radius * radius - away * away))
+  const away = g.pos.x * nx + g.pos.y * ny
+  const half = Math.sqrt(Math.max(0, ARENA_RADIUS * ARENA_RADIUS - away * away))
   if (half <= 0) return
-  const foot = { x: c.x + nx * away, y: c.y + ny * away }
-  const from = { x: foot.x - ny * half, y: foot.y + nx * half }
-  const to = { x: foot.x + ny * half, y: foot.y - nx * half }
+  const footW = { x: nx * away, y: ny * away }
+  const fromW = { x: footW.x - ny * half, y: footW.y + nx * half }
+  const toW = { x: footW.x + ny * half, y: footW.y - nx * half }
+  const from = worldToScreen(fromW)
+  const to = worldToScreen(toW)
 
   // Of the two arcs between those crossings, the condemned one is whichever
-  // contains the bearing the fault points along.
-  const a1 = Math.atan2(from.y - c.y, from.x - c.x)
-  const a2 = Math.atan2(to.y - c.y, to.x - c.x)
+  // contains the bearing the fault points along. Read as bearings on the
+  // glass, since that is what a canvas ellipse takes.
+  const angle = screenAngle(g.angle)
+  const a1 = screenAngle(Math.atan2(fromW.y, fromW.x))
+  const a2 = screenAngle(Math.atan2(toW.y, toW.x))
   const turn = (x: number): number => ((x % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
   const sweep = turn(a1 - a2)
   const forward = turn(angle - a2) < sweep
@@ -1248,8 +1289,10 @@ function drawCrush(
     const a = (i / 8) * Math.PI * 2
     const from = r * (0.55 + 0.4 * closing)
     ctx.beginPath()
-    ctx.moveTo(p.x + Math.cos(a) * from, p.y + Math.sin(a) * from)
-    ctx.lineTo(p.x + Math.cos(a) * (r + 18), p.y + Math.sin(a) * (r + 18))
+    const near = floorAt(p, a, from)
+    ctx.moveTo(near.x, near.y)
+    const far = floorAt(p, a, r + 18)
+    ctx.lineTo(far.x, far.y)
     ctx.strokeStyle = `rgba(254, 202, 202, ${(0.25 + 0.5 * closing).toFixed(3)})`
     ctx.lineWidth = 2
     ctx.stroke()
@@ -1316,11 +1359,8 @@ function drawHand(
   const lead = angle + Math.sign(g.turn) * g.halfWidth
   for (let i = 1; i <= 3; i++) {
     const out = reach * (i / 4)
-    const from = { x: p.x + Math.cos(lead) * out, y: p.y + Math.sin(lead) * out }
-    const to = {
-      x: p.x + Math.cos(lead + Math.sign(g.turn) * 0.22) * out,
-      y: p.y + Math.sin(lead + Math.sign(g.turn) * 0.22) * out,
-    }
+    const from = floorAt(p, lead, out)
+    const to = floorAt(p, lead + Math.sign(g.turn) * 0.22, out)
     ctx.beginPath()
     ctx.moveTo(from.x, from.y)
     ctx.lineTo(to.x, to.y)
@@ -1391,10 +1431,9 @@ function drawSpire(
     for (let i = 0; i < points * 2; i++) {
       const a = skew + turn + (i / (points * 2)) * Math.PI * 2
       const reach = i % 2 === 0 ? reachLong : reachShort
-      const x = p.x + Math.cos(a) * reach
-      const y = p.y + Math.sin(a) * reach
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
+      const at = floorAt(p, a, reach)
+      if (i === 0) ctx.moveTo(at.x, at.y)
+      else ctx.lineTo(at.x, at.y)
     }
     ctx.closePath()
   }
@@ -1468,8 +1507,10 @@ function drawBrand(
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2
       ctx.beginPath()
-      ctx.moveTo(p.x + Math.cos(a) * r * 0.35, p.y + Math.sin(a) * r * 0.35)
-      ctx.lineTo(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r)
+      const inner = floorAt(p, a, r * 0.35)
+      const outer = floorAt(p, a, r)
+      ctx.moveTo(inner.x, inner.y)
+      ctx.lineTo(outer.x, outer.y)
       ctx.strokeStyle = 'rgba(244, 114, 182, 0.7)'
       ctx.lineWidth = 2
       ctx.stroke()

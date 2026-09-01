@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
-import { TILT, drawWorld, focusOn } from '../src/render/draw'
+import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
+import { viewAngle } from '../src/render/camera'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
@@ -1106,6 +1107,32 @@ for (const [label, w, h] of [
 
   const circles: Circle[] = []
   drawWorld(recordingCtx(circles), s, 1, s.time, new Effects())
+
+  // Back to front, against a bearing this check works out for itself.
+  //
+  // The order is the one thing about a frame that a check reading the finished
+  // frame cannot see, and it broke without anything going red: the sort used
+  // the world's y, which was the same as depth into the screen right up until
+  // the view could turn. A quarter turn later it was sorting by the axis that
+  // runs across the screen, and bodies swapped in front of each other as the
+  // player walked round the boss.
+  //
+  // The projection here is written out rather than borrowed, so this is not
+  // the renderer agreeing with itself. Depth into the screen is the world
+  // point turned by the view; the tilt scales it and the camera offsets it,
+  // and neither changes an ordering, so neither is needed.
+  const face = viewAngle()
+  const into = (a: { pos: Vec2 }) => a.pos.x * Math.sin(face) + a.pos.y * Math.cos(face)
+  const order = drawOrder(s)
+  let backToFront = true
+  for (let i = 1; i < order.length; i++) {
+    if (into(order[i]!) < into(order[i - 1]!) - 0.001) backToFront = false
+  }
+  expect(
+    `${label}: bodies are drawn back to front`,
+    backToFront,
+    `view ${((face * 180) / Math.PI).toFixed(0)}deg`,
+  )
 
   const token = Math.max(4, player.radius * L.scale)
   const centred = circles.some(
