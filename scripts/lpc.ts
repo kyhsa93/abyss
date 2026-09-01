@@ -407,7 +407,59 @@ interface Layer {
   tint?: string
 }
 
+/**
+ * The two druid specs that fight as something else.
+ *
+ * A bear holds the boss and a cat opens its back, which is the one class in
+ * this game whose two melee specs are the same person doing two unrelated
+ * jobs — and until now they were the same twenty pixels doing them.
+ *
+ * Neither is on four legs, and that is the set rather than a choice: it ships
+ * beast heads, ears and tails to put on a person, and no quadrupeds at all. So
+ * these are the shapes that read at the size a body is actually drawn — one
+ * heavy and shaggy, one lean and dark — rather than the shapes the names
+ * promise.
+ *
+ * Everything worn comes off with them. A bear in pauldrons and a cape is a
+ * costume; what makes a form read is that the outline stops being a person's.
+ */
+const FORMS: Record<string, { body: string; head: string; tail?: string }> = {
+  'druid/guardian': {
+    body: 'body/bodies/muscular',
+    head: 'head/heads/wartotaur',
+  },
+  'druid/feral': {
+    body: 'body/bodies/male',
+    // Named down to the variant. `findAnim` searches, and the wolf ships a
+    // child, a female and a male — it reached the child first and gave the
+    // druid a cub's skull on a grown body.
+    head: 'head/heads/wolf/male',
+    tail: 'body/tail/cat/adult',
+  },
+}
+
 function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
+  const form = FORMS[`${classId}/${spec}`]
+  if (form) {
+    // Tinted like every worn layer, and for the same job: the class colour is
+    // how a body is told apart on the floor, and a form that dropped it would
+    // be the one druid nobody could pick out. It lands on the hide here rather
+    // than on cloth, which also stops these two reading as bare skin — a beast
+    // the colour of a person is a person with an odd head.
+    const hide = classColor(classId)
+    const stack: Layer[] = [
+      { z: 10, dir: form.body, tint: hide },
+      { z: 100, dir: form.head, tint: hide },
+    ]
+    if (form.tail) {
+      // Behind the body and in front of it, for the reason a cape is: which
+      // side of a body a tail falls on is a fact about which way it is facing.
+      stack.push({ z: 5, dir: `${form.tail}/bg`, tint: hide })
+      stack.push({ z: 120, dir: `${form.tail}/fg`, tint: hide })
+    }
+    return stack
+  }
+
   const armour = ARMOUR[CLASSES[classId].armorType] ?? ARMOUR.cloth!
   const weapon = WEAPON[classId]
 
