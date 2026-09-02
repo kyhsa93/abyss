@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { RESOURCES, abilityBar, specOf } from './classes'
+import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf } from './classes'
 import { mayStrike, updatePartyAi } from './ai'
 import { affixRot } from './affix'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
@@ -169,6 +169,7 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // needing to know.
     // A weapon crits like anything else the party throws.
     const crit = rng.chance(CRIT_CHANCE)
+    const hit = auto.damage * (crit ? CRIT_MULTIPLIER : 1)
     applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id, crit })
 
     // A weapon swing had no picture at all: damage arrived every three
@@ -178,13 +179,27 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     if (auto.range <= MELEE_RANGE) pushEffect(s, 'swing', a.pos, { angle: facing })
     pushEffect(s, 'impact', target.pos, {
       angle: facing,
-      power: auto.damage * (crit ? CRIT_MULTIPLIER : 1),
+      power: hit,
       crit,
     })
     if (target.id === BOSS_ID) addThreat(s, a.id, auto.damage)
-    // Rage is earned here rather than handed out, which is why a warrior
-    // that cannot reach anything cannot do anything either.
-    gainPower(a, RESOURCES[a.resource].onSwing)
+    // Rage is earned here rather than handed out, which is why a warrior that
+    // cannot reach anything cannot do anything either. What is new is only how
+    // much a swing is worth: what it hit for.
+    //
+    // A flat thirty was right while there was one weapon in the game and every
+    // melee swung it every three seconds. The moment a poleaxe swung every
+    // four and a half, a flat rate was a thirty-two percent pay cut for the
+    // one spec carrying it — a warrior with a third less rage presses a third
+    // fewer buttons — and `rendercheck` found it as the damage specs spreading
+    // from 1.34 to 1.45.
+    //
+    // Off the damage rather than off the swing timer, though the two would
+    // come to the same thing for the two weapons in the game today, because
+    // only one of them stays true of a weapon that is not a straight trade of
+    // speed for size. It also makes a crit worth what a crit is: a heavier
+    // blow, and heavier blows are what rage is.
+    gainPower(a, (RESOURCES[a.resource].onSwing * hit) / SWING_BASELINE_DAMAGE)
     // A shot with nothing in the air between the two of them reads as the
     // hunter standing still doing nothing, same as the ranged abilities.
     if (auto.range > MELEE_RANGE) spawnBolt(s, a, target.id, 'bolt')

@@ -100,17 +100,56 @@ export interface AutoAttack {
 }
 
 /**
- * Everyone in melee swings the same weapon; the hunter shoots instead.
+ * What the weapon does on its own, in the two sizes a melee spec carries.
  *
  * Sized against what the party actually does rather than against the ability
  * tooltips: the AI loses damage to reaction delay and to walking out of
  * puddles, a weapon loses none, so white damage lands at close to a hundred
- * percent uptime and is worth far more per point than it looks. At a swing
- * every three seconds this is about a sixth of an auto-attacker's own output
- * and a seventh of the raid's — a real reason to stand in range, and not a
- * second rotation running itself.
+ * percent uptime and is worth far more per point than it looks. It is about a
+ * sixth of an auto-attacker's own output and a seventh of the raid's — a real
+ * reason to stand in range, and not a second rotation running itself.
+ *
+ * One weapon at three seconds was what every melee spec had, and the split is
+ * a fantasy rather than a balance change: the same damage a second either way,
+ * paid in half as many hits of twice the size. What it buys is that the hit
+ * matches the weapon it is drawn with. A tank with a shield is holding
+ * something it can swing in one hand, so it swings often and small; a plate
+ * dealer has given up the shield to hold a poleaxe with both hands, and a
+ * poleaxe does not flick.
+ *
+ * Exactly twice, and both around the old number rather than one of them on it,
+ * so neither kind of melee has been quietly buffed by the change. Nothing in
+ * the balance tables is supposed to move for this, and the run that adds it is
+ * the one that gets to say whether anything did.
  */
-const SWING: AutoAttack = { damage: 50, speed: 3, range: MELEE_RANGE }
+const ONE_HAND: AutoAttack = { damage: 37, speed: 2.2, range: MELEE_RANGE }
+const TWO_HAND: AutoAttack = { damage: 73, speed: 4.4, range: MELEE_RANGE }
+
+/**
+ * The blow every other number here was set against.
+ *
+ * Fifty damage every three seconds was the one weapon in the game for as long
+ * as there was one, so everything priced per swing — rage above all — is
+ * priced against a swing that landed for this. Anything hitting for more earns
+ * in proportion, or the resource ends up being a second price list for weapons
+ * and charging most for the one that swings slowest.
+ */
+export const SWING_BASELINE_DAMAGE = 50
+
+/**
+ * How many hands a spec's weapon takes, or none for the ones that carry no
+ * weapon at all.
+ *
+ * Read off the swing rather than declared beside it, so the picture and the
+ * numbers cannot drift: the sprite packer chooses which weapons a spec may be
+ * drawn holding, and it asks this. A spec that swings a two-hander is not
+ * allowed to be drawn with a shield in the other hand.
+ */
+export function handsOf(spec: Spec): 0 | 1 | 2 {
+  if (spec.auto === TWO_HAND) return 2
+  if (spec.auto === ONE_HAND) return 1
+  return 0
+}
 const SHOT: AutoAttack = {
   damage: 48,
   speed: 3,
@@ -237,9 +276,20 @@ export const RESOURCES: Record<ResourceId, ResourceRules> = {
   // A budget for the whole fight: the healer's real constraint is the 240s
   // enrage arriving before the mana does not.
   mana: { regen: 9, onSwing: 0, onHit: 0, startsFull: true },
-  // Earned, never given. Twenty a swing is a third of a filler, so a warrior
-  // opens a pull with nothing and a tank being hit every couple of seconds
-  // ends up with more than it can spend — which is the point of the resource.
+  // Earned, never given. A swing is most of a filler, so a warrior opens a
+  // pull with nothing and a tank being hit every couple of seconds ends up
+  // with more than it can spend — which is the point of the resource.
+  //
+  // Thirty is what a blow of `SWING_BASELINE_DAMAGE` pays; a swing pays what it
+  // actually hit for, in proportion. A one-hander earns twenty-two a swing
+  // every two-point-two seconds and a poleaxe forty-four every four-point-four
+  // — the same rage a second, out of very different swings — and a crit,
+  // being a heavier blow, is worth more than a normal one.
+  //
+  // Still earned and never given. It is paid on connecting, so it is nothing
+  // at the pull, nothing out of range, and nothing while a mechanic has the
+  // weapon held: that is what makes it rage and not mana. Only the size of a
+  // payment moved.
   rage: { regen: 0, onSwing: 30, onHit: 12, startsFull: false },
   // Fast enough to cover a filler roughly every global cooldown, so the
   // question is never "can I afford anything" but "can I afford the big one".
@@ -272,7 +322,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'guard',
         resource: 'rage',
         melee: true,
-        auto: SWING,
+        auto: ONE_HAND,
         hp: 6200,
         armor: 9200,
         block: 260,
@@ -291,7 +341,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'overflow',
         resource: 'rage',
         melee: true,
-        auto: SWING,
+        auto: TWO_HAND,
         hp: 4200,
         armor: 5200,
         block: 0,
@@ -319,7 +369,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'cadence',
         resource: 'mana',
         melee: true,
-        auto: SWING,
+        auto: ONE_HAND,
         hp: 6100,
         armor: 8600,
         block: 240,
@@ -356,7 +406,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'affliction',
         resource: 'mana',
         melee: true,
-        auto: SWING,
+        auto: TWO_HAND,
         hp: 4000,
         armor: 5000,
         block: 0,
@@ -429,7 +479,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'thick',
         resource: 'rage',
         melee: true,
-        auto: SWING,
+        auto: ONE_HAND,
         // Bear form has no shield, and a flat block is worth a great deal
         // against a fast weapon, so it pays for that in a much larger health
         // pool: harder to spike down, more of a drain on the healers.
@@ -490,7 +540,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'combo',
         resource: 'energy',
         melee: true,
-        auto: SWING,
+        auto: ONE_HAND,
         hp: 3500,
         armor: 2400,
         block: 0,
@@ -651,7 +701,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'combo',
         resource: 'energy',
         melee: true,
-        auto: SWING,
+        auto: ONE_HAND,
         hp: 3400,
         armor: 2300,
         block: 0,

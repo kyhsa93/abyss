@@ -33,7 +33,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 
-import { CLASSES, CLASS_ORDER } from '../src/sim/classes'
+import { CLASSES, CLASS_ORDER, handsOf } from '../src/sim/classes'
 import { classColor } from '../src/render/theme'
 import type { ClassId } from '../src/sim/classes'
 
@@ -145,19 +145,26 @@ const ARMOUR: Record<string, { torso: string; legs: string; feet: string }> = {
  * one weapon in the whole of LPC.
  */
 
-/** One-handers, for a hand that is already holding a shield with the other. */
-const HELD_WITH_SHIELD = [
+/** One-handers, for a hand that has a shield in the other. */
+const ONE_HANDED = [
   'weapon/sword/arming',
   'weapon/sword/saber',
-  'weapon/sword/longsword',
+  'weapon/sword/rapier',
   'weapon/blunt/mace',
   'weapon/blunt/flail',
 ]
 
-/** Everything a body with both hands free can swing. */
-const SWUNG = [
-  ...HELD_WITH_SHIELD,
-  'weapon/sword/rapier',
+/**
+ * The ones that take both hands, which is to say the ones drawn big.
+ *
+ * Nothing in the set is drawn held in two hands — a body has one slash and it
+ * swings whatever it is given the same way — so "two-handed" here is the
+ * silhouette and the swing timer agreeing about the same weapon rather than a
+ * grip anybody can see. A poleaxe on a body with no shield is read as a
+ * two-hander because there is nothing else it could be.
+ */
+const TWO_HANDED = [
+  'weapon/sword/longsword',
   'weapon/blunt/waraxe',
   'weapon/polearm/halberd',
   'weapon/polearm/scythe',
@@ -188,10 +195,10 @@ const BOWS = [
 ]
 
 const ARMS: Record<string, string[]> = {
-  'warrior-protection': HELD_WITH_SHIELD,
-  'warrior-arms': SWUNG,
-  'paladin-protection': HELD_WITH_SHIELD,
-  'paladin-retribution': SWUNG,
+  'warrior-protection': ONE_HANDED,
+  'warrior-arms': TWO_HANDED,
+  'paladin-protection': ONE_HANDED,
+  'paladin-retribution': TWO_HANDED,
   // A healer in plate, with a sword and a shield like the rest of its class.
   //
   // The sword is not drawn while it casts, and cannot be: `spellcast` exists
@@ -200,7 +207,7 @@ const ARMS: Record<string, string[]> = {
   // shield and raising its free hand is what casting with a shield looks like,
   // and the shield never goes anywhere. What it must not be is a hand holding
   // nothing at all, which is what this was before there was a shield in it.
-  'paladin-holy': HELD_WITH_SHIELD,
+  'paladin-holy': ONE_HANDED,
   'priest-discipline': STAFF,
   'priest-shadow': STAFF,
   'druid-restoration': STAFF,
@@ -242,6 +249,46 @@ function actionFor(id: string, melee: boolean): string {
   if (melee) return 'slash'
   const arms = ARMS[id]
   return arms && arms.length > 0 && kindOf(arms[0]!) === 'shoot' ? 'shoot' : 'spellcast'
+}
+
+/**
+ * That what a spec is drawn holding is what the simulation thinks it holds.
+ *
+ * Two tables, one fact. `classes.ts` decides how fast a spec swings and it
+ * decides that by how many hands the weapon takes; this file decides which
+ * weapons it may be drawn with. Nothing connects them but agreement, and
+ * agreement that nothing checks is agreement until somebody edits one of them.
+ *
+ * So it is checked, and the check is the interesting half of the rule: a body
+ * that swings a poleaxe every four and a half seconds must not be drawn with a
+ * shield on its other arm, because a shield is the picture of the hand that
+ * poleaxe is using.
+ */
+function disagreements(): string[] {
+  const wrong: string[] = []
+  for (const classId of CLASS_ORDER) {
+    for (const spec of CLASSES[classId].specs) {
+      const id = `${classId}-${spec.id}`
+      const arms = ARMS[id]
+      if (!arms) continue
+      // Nought hands is a spec that never swings at all — a holy paladin
+      // carries a sword and heals with it sheathed — and what it carries is
+      // held rather than used, so it answers to the one-handed rule: it has a
+      // hand free, which is why it can put a shield in it.
+      const hands = handsOf(spec) === 2 ? 2 : 1
+      for (const dir of arms) {
+        if (dir.startsWith('weapon/magic/') || dir.startsWith('weapon/ranged/')) continue
+        const takes = TWO_HANDED.includes(dir) ? 2 : 1
+        if (takes !== hands) {
+          wrong.push(`${id} is a ${hands}-handed body drawn holding ${dir}`)
+        }
+      }
+      if (hands === 2 && GUARD.includes(id)) {
+        wrong.push(`${id} swings with two hands and is given a shield`)
+      }
+    }
+  }
+  return wrong
 }
 
 /** Which action each spec plays, so what it holds can be drawn playing it. */
@@ -907,6 +954,7 @@ async function main(): Promise<void> {
     }),
   )
 
+  for (const line of disagreements()) console.error(`  ! hands        ${line}`)
   for (const line of missing) console.error(`  ! missing layer  ${line}`)
   for (const line of new Set(offbeat)) console.error(`  ! off the beat   ${line}`)
 
@@ -1300,7 +1348,7 @@ ${lines.join('\n')}
       `${((filled / (width * height)) * 100).toFixed(0)}% of the sheet used`,
   )
   console.log(`  ${used.size} distinct layers, ${lines.length} credit lines`)
-  if (missing.length > 0 || offbeat.length > 0) process.exit(1)
+  if (missing.length > 0 || offbeat.length > 0 || disagreements().length > 0) process.exit(1)
 }
 
 main()

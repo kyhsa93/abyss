@@ -124,10 +124,10 @@ export const LPC_ROW: Record<string, number> = {
   'weapon/sword/dagger:slash:front': 77,
   'weapon/sword/longsword:slash:behind': 78,
   'weapon/sword/longsword:slash:front': 79,
-  'weapon/sword/longsword:spellcast:behind': 80,
-  'weapon/sword/longsword:spellcast:front': 81,
-  'weapon/sword/rapier:slash:behind': 82,
-  'weapon/sword/rapier:slash:front': 83,
+  'weapon/sword/rapier:slash:behind': 80,
+  'weapon/sword/rapier:slash:front': 81,
+  'weapon/sword/rapier:spellcast:behind': 82,
+  'weapon/sword/rapier:spellcast:front': 83,
   'weapon/sword/saber:slash:behind': 84,
   'weapon/sword/saber:slash:front': 85,
   'weapon/sword/saber:spellcast:behind': 86,
@@ -144,16 +144,16 @@ export const LPC_ROW: Record<string, number> = {
  * neighbours. A spec with no entry carries nothing: a bear has no hands.
  */
 export const LPC_ARMS: Record<string, [number, number][]> = {
-  // sword/arming, sword/saber, sword/longsword, blunt/mace, blunt/flail
-  'warrior-protection': [[72, 73], [84, 85], [78, 79], [54, 55], [50, 51]],
-  // sword/arming, sword/saber, sword/longsword, blunt/mace, blunt/flail, sword/rapier, blunt/waraxe, polearm/halberd, polearm/scythe
-  'warrior-arms': [[72, 73], [84, 85], [78, 79], [54, 55], [50, 51], [82, 83], [58, 59], [62, 63], [64, 65]],
-  // sword/arming, sword/saber, sword/longsword, blunt/mace, blunt/flail
-  'paladin-protection': [[72, 73], [84, 85], [78, 79], [54, 55], [50, 51]],
-  // sword/arming, sword/saber, sword/longsword, blunt/mace, blunt/flail, sword/rapier, blunt/waraxe, polearm/halberd, polearm/scythe
-  'paladin-retribution': [[72, 73], [84, 85], [78, 79], [54, 55], [50, 51], [82, 83], [58, 59], [62, 63], [64, 65]],
-  // sword/arming, sword/saber, sword/longsword, blunt/mace, blunt/flail
-  'paladin-holy': [[74, 75], [86, 87], [80, 81], [56, 57], [52, 53]],
+  // sword/arming, sword/saber, sword/rapier, blunt/mace, blunt/flail
+  'warrior-protection': [[72, 73], [84, 85], [80, 81], [54, 55], [50, 51]],
+  // sword/longsword, blunt/waraxe, polearm/halberd, polearm/scythe
+  'warrior-arms': [[78, 79], [58, 59], [62, 63], [64, 65]],
+  // sword/arming, sword/saber, sword/rapier, blunt/mace, blunt/flail
+  'paladin-protection': [[72, 73], [84, 85], [80, 81], [54, 55], [50, 51]],
+  // sword/longsword, blunt/waraxe, polearm/halberd, polearm/scythe
+  'paladin-retribution': [[78, 79], [58, 59], [62, 63], [64, 65]],
+  // sword/arming, sword/saber, sword/rapier, blunt/mace, blunt/flail
+  'paladin-holy': [[74, 75], [86, 87], [82, 83], [56, 57], [52, 53]],
   // magic/simple
   'priest-discipline': [[60, 61]],
   // magic/simple
@@ -173,7 +173,7 @@ export const LPC_ARMS: Record<string, [number, number][]> = {
   // ranged/bow/normal, ranged/bow/recurve, ranged/bow/great
   'hunter-marksmanship': [[68, 69], [70, 71], [66, 67]],
   // sword/dagger, sword/rapier, sword/saber
-  'rogue-assassination': [[76, 77], [82, 83], [84, 85]],
+  'rogue-assassination': [[76, 77], [80, 81], [84, 85]],
 }
 
 /**
@@ -355,15 +355,15 @@ export const LPC_CELLS: [number, number, number, number, number][] = [
   [0, 469, 162, 68, 68],
   [0, 4007, 36, 64, 64],
   [0, 85, 126, 82, 65],
-  [720, 4007, 64, 64, 64],
-  [2000, 4007, 2, 64, 64],
-  [2040, 4007, 36, 64, 64],
-  [2760, 4007, 2, 64, 64],
-  [0, 4071, 48, 64, 64],
+  [720, 4007, 48, 64, 64],
   [0, 537, 114, 68, 68],
-  [960, 4071, 62, 64, 64],
+  [1680, 4007, 62, 64, 64],
   [0, 167, 162, 82, 65],
-  [2200, 4071, 28, 64, 64],
+  [0, 4071, 48, 64, 64],
+  [960, 4071, 2, 64, 64],
+  [1000, 4071, 62, 64, 64],
+  [2240, 4071, 2, 64, 64],
+  [2280, 4071, 28, 64, 64],
   [0, 4135, 96, 64, 64],
   [1920, 4135, 50, 64, 64],
   [0, 605, 98, 68, 64],
