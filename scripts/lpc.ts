@@ -337,10 +337,8 @@ const SHIELD = 'shield/heater'
 /**
  * The two things a body on this floor is ever doing.
  *
- * Walking, and the thing it does when it presses a button. Which of those the
- * second one looks like comes off `spec.melee`, which the simulation already
- * uses to decide whether a spec has to close the distance — so a caster casts
- * and a melee spec swings for the same reason each moves the way it does.
+ * Walking, and the thing it does when it presses a button. Which of the three
+ * shapes the second one takes is decided in `actionFor`.
  */
 const ANIMATIONS = ['walk', 'action'] as const
 
@@ -349,6 +347,29 @@ const ALIASES: Record<string, string[]> = {
   walk: ['walk'],
   slash: ['slash', 'attack_slash'],
   spellcast: ['spellcast', 'cast'],
+  shoot: ['shoot', 'attack_bow'],
+}
+
+/**
+ * What pressing a button looks like.
+ *
+ * Read off what is in the hands rather than off the spec, which is the same
+ * rule the rest of this table keeps: plate looks like plate because the class
+ * wears plate, and a bow is drawn because the class carries a bow.
+ *
+ * `melee` was the whole answer once, and it is only two thirds of one. It is
+ * a question about distance — does this spec have to close it — and there are
+ * two ways to answer a fight from across the room. A hunter carried a bow
+ * through every frame and then raised a hand and cast with it, which reads as
+ * a caster who happens to be holding a stick.
+ *
+ * The set has the frames: `shoot` is drawn for the body, for every piece of
+ * leather a hunter wears, and for the bow itself. Nothing here had to be
+ * chosen for it except which of the three to ask for.
+ */
+function actionFor(classId: ClassId, melee: boolean): string {
+  if (melee) return 'slash'
+  return WEAPON[classId]?.startsWith('weapon/ranged/') === true ? 'shoot' : 'spellcast'
 }
 
 /**
@@ -527,10 +548,7 @@ function specs(): Subject[] {
       out.push({
         id: `${classId}-${spec.id}`,
         layers: layersFor(classId, spec.id, spec.role),
-        // The simulation already uses `melee` to decide whether a spec has to
-        // close the distance, so a caster casts and a melee spec swings for
-        // the same reason each moves the way it does.
-        action: spec.melee ? 'slash' : 'spellcast',
+        action: actionFor(classId, spec.melee),
       })
     }
   }
