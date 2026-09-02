@@ -124,6 +124,8 @@ const DANGER_MARGIN = 14
 
 /** Casters stay inside ability range but out of the boss's lap. */
 const CASTER_MIN_RANGE = 95
+/** How much of the boss's lap a body at range keeps out of when it dodges. */
+const CASTER_LAP = 90
 const CASTER_MAX_RANGE = 320
 const CASTER_IDEAL_RANGE = 225
 const HEAL_REACH = 360
@@ -269,7 +271,18 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // nominal home. Chasing a home position that is itself defined relative
     // to a moving boss is what made the party pace back and forth.
     ai.moveTarget = null
-  } else if (!ai.moveTarget && outOfPosition(s, actor)) {
+  } else if (!ai.moveTarget && actor.castId === null && outOfPosition(s, actor)) {
+    // Tidying waits for the cast; running does not.
+    //
+    // A walk cancels whatever was being cast, and the two reasons a body walks
+    // are not worth the same. Getting out of the way is worth a cast and then
+    // some — that is the trade the fights are made of, and the branch above
+    // makes it. Fixing a position is worth nothing at all, and it was being
+    // paid for at the same price: a fifth of every cast this raid threw away
+    // went with nothing on the floor to run from, a caster a stride out of its
+    // band cancelling two seconds of work to step back into it. The band will
+    // still be there in two seconds.
+    //
     // Home, unless home is the floor that is about to cave in.
     //
     // Nothing checked this before, because until the crush no mechanic
@@ -2005,6 +2018,18 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
   const chasing = hunterOf(s, actor)
 
+  // How close this one wants to get to the boss: out of its lap, and outside
+  // its own near edge when it has one.
+  //
+  // The larger of the two, and the first version of this dropped the ninety
+  // and kept only the second — which is nothing at all for a staff, because a
+  // staff has no near edge. Casters lost the rule that had been keeping them
+  // out of melee entirely, and the hunter got pushed past where it needed to
+  // stand and spent the difference cornered against the wall. Both showed up
+  // in the same two columns: more time inside the near edge, and more time
+  // standing in fire.
+  const nearEdge = Math.max(CASTER_LAP, nearEdgeOn(actor, b))
+
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
   let bestScore = -Infinity
 
@@ -2278,13 +2303,31 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // close is a term arguing directly against it — and the melee's whole
       // reason to be there is the thing the mechanic is asking them to give
       // up for a second.
+      //
+      // Melee spend about a quarter of a fight with nothing in reach — a spot
+      // between their own reach and two hundred scores as well as standing on
+      // the boss and cannot be hit from, and `aiprobe` reads it straight off.
+      // Scoring that gap the way the casters' near edge is scored fixes it,
+      // and costs something somewhere else: with melee holding tighter the
+      // hunter ends up inside its own near edge half again as often and stands
+      // in fire twice as often, which three attempts at guessing the mechanism
+      // did not shift. It is a trade rather than a fix, and it is left out
+      // until it is understood.
       if (crushActive) score -= Math.max(0, 260 - bossDist) * 0.2
       else if (bossDist > 200) score -= (bossDist - 200) * 3
       else score -= bossDist * 0.35
     } else if (!ringActive) {
       // Casters want to stay in range but out of the boss's lap. Suspended
       // while a ring is out, because hugging the boss is then the answer.
-      if (bossDist < 90) score -= (90 - bossDist) * 4
+      //
+      // The near edge is the actor's own where that is further out than the
+      // shared one, because one of them is holding a bow. Ninety is what a
+      // staff wants and it is only about being out of the way; a bow cannot be
+      // drawn on anything closer than ninety *plus the width of what it is
+      // drawn on*, which for the boss is another fifty. Between those two
+      // figures was a hunter standing in a dodge it had scored perfectly,
+      // unable to fire.
+      if (bossDist < nearEdge) score -= (nearEdge - bossDist) * 4
       if (bossDist > 280) score -= (bossDist - 280) * 4
     }
 
@@ -2482,11 +2525,24 @@ function tryCast(
  * its abilities is, that is the distance at which it is useless.
  */
 function tooClose(actor: Actor, target: Actor): boolean {
+  const near = nearEdgeOn(actor, target)
+  if (near === 0) return false
+  return dist(actor.pos, target.pos) < near
+}
+
+/**
+ * The closest this one can stand to that one and still point something at it.
+ *
+ * Off the kit rather than the class, and measured to the target's centre,
+ * because that is what the distance checks everywhere else are measured to: a
+ * bow with a near edge of ninety cannot be drawn from ninety-one when the
+ * thing it is aimed at is fifty wide.
+ */
+function nearEdgeOn(actor: Actor, target: Actor): number {
   const kit = specFor(actor).abilities
   const ids = [kit.filler, kit.overTime, kit.finisher].filter((id): id is string => id !== null)
   const near = Math.max(0, ...ids.map((id) => ABILITIES[id]?.minRange ?? 0))
-  if (near === 0) return false
-  return dist(actor.pos, target.pos) < near + target.radius
+  return near === 0 ? 0 : near + target.radius
 }
 
 /**
