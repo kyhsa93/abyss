@@ -11,9 +11,10 @@
 import {
   LPC_ACTION,
   LPC_ANIMATIONS,
+  LPC_BODY,
   LPC_CELL_H,
   LPC_CELL_W,
-  LPC_DIRECTIONS,
+  LPC_FOOT,
   LPC_DOWN,
   LPC_FRAMES,
   LPC_LEFT,
@@ -60,8 +61,8 @@ const BODY = 4.6
 /**
  * How much shorter a body stands than its own proportions.
  *
- * Height only — the width is taken from the cell ratio before this applies, so
- * a body keeps its footing and loses a little of its head. The sprites are
+ * Height only — the width comes off the same scale, so a body keeps its
+ * footing and loses a little of its head. The sprites are
  * drawn at a human proportion and the camera here looks down at a shallow
  * angle, which foreshortens height and not width; standing them at their full
  * drawn height made them read as taller than the space they occupy.
@@ -153,17 +154,25 @@ export function drawBody(
         : 0
   const direction = directionOf(facing)
 
-  // The cell is taller than it is wide — the packer crops the empty sides off
-  // and keeps the full height — so the width is taken from that ratio. Height
-  // is then taken from the width rather than the other way round, which is
-  // what lets SQUASH shorten a body without narrowing it.
-  const w = (r * BODY * LPC_CELL_W) / LPC_CELL_H
-  const h = r * BODY * SQUASH
+  // One source pixel, on screen.
+  //
+  // Off the body's own square rather than off the cell, because the cell is
+  // mostly room: it is as wide as a longsword at the far end of a swing and
+  // has a stride of headroom under the feet, and a body drawn to fill that
+  // would be a body four times the size of its own patch of floor. What has to
+  // come out at the intended size is `LPC_BODY`, and everything else in the
+  // cell is drawn at whatever scale that implies.
+  const scale = (r * BODY * SQUASH) / LPC_BODY
+  const w = LPC_CELL_W * scale
+  const h = LPC_CELL_H * scale
   // Feet on the actor's own position, which is the centre of the footprint
   // ellipse. The simulation's `pos` is a point on the ground and the ellipse is
   // drawn around it, so standing anywhere else would put the body beside the
   // patch of floor it is meant to be occupying.
-  const feet = y
+  //
+  // `LPC_FOOT` rather than the bottom of the cell, which are no longer the
+  // same line: a sword swings below the ground the swinger is standing on.
+  const feet = y - LPC_FOOT * scale
 
   ctx.save()
   ctx.globalAlpha = alpha
@@ -172,12 +181,12 @@ export function drawBody(
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(
     sheet,
-    frame * LPC_CELL_W,
-    ((row * LPC_ANIMATIONS + block) * LPC_DIRECTIONS + direction) * LPC_CELL_H,
+    (direction * LPC_FRAMES + frame) * LPC_CELL_W,
+    (row * LPC_ANIMATIONS + block) * LPC_CELL_H,
     LPC_CELL_W,
     LPC_CELL_H,
     x - w / 2,
-    feet - h,
+    feet,
     w,
     h,
   )

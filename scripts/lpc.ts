@@ -64,18 +64,28 @@ const DIRECTIONS = 4
 const FRAMES = 5
 
 /**
- * How much of each cell is actually drawn in.
+ * How big a cell has to be to hold everything drawn into it.
  *
- * LPC frames a 64-wide cell around a body that is nowhere near that wide — the
- * union of every frame in this sheet spans x 12 to 51 and nothing else is ever
- * touched. Measured rather than guessed, and re-measured at build time below,
- * because a layer table that gains a wider weapon would otherwise clip it.
+ * Not a number. The cell used to be forty wide, measured once off a body and
+ * never again, and the comment here said it was re-measured at build time —
+ * which it was not. Everything narrower than a person fitted; a longsword
+ * mid-swing needed a hundred and sixty-two and got forty, so a warrior's
+ * blade was sliced off at the wrist and had been for as long as there were
+ * swords.
  *
- * Height stays whole: something does reach the top of the cell, and something
- * else the bottom.
+ * So it is measured, every build, off the alpha of the layers that were
+ * actually resolved: the union of every frame of every direction of every
+ * subject, and the cell is whatever holds it. A layer table that gains a
+ * two-handed axe gets a wider atlas and nobody has to notice.
+ *
+ * Height is measured the same way and in two halves, because a body's feet
+ * are not in the middle of anything: `LPC_FOOT` is how far down the cell the
+ * ground line sits, and a sword can swing below it.
+ *
+ * The cap is LPC's own largest cell. Past that is not a wide weapon, it is a
+ * sheet being read wrong, and the atlas should not quietly quadruple for it.
  */
-const CROP_X = 12
-const CELL_W = 40
+const CELL_CAP = CELL * 3
 
 /** Painted detail is what compresses badly and pixel art has none. */
 const QUALITY = 0.85
@@ -123,11 +133,21 @@ const ARMOUR: Record<string, { torso: string; legs: string; feet: string }> = {
 const WEAPON: Record<ClassId, string | null> = {
   warrior: 'weapon/sword/longsword',
   paladin: 'weapon/sword/arming',
+  // One staff between the five of them, and it is the set that decided that
+  // rather than this table. A caster spends the fight casting, and `spellcast`
+  // is drawn for exactly one weapon in the whole of LPC — the plain staff. The
+  // gnarled, crystal and diamond staffs are drawn walking and thrusting and
+  // nothing else, so a druid holding one had it in hand right up to the moment
+  // it did the thing a druid does, and then it was gone.
+  //
+  // Little is lost. What a weapon is here is the outline that separates a
+  // staff from a bow, not the one that separates a staff from another staff —
+  // which class is being looked at is what the ring under the body is for.
   priest: 'weapon/magic/simple',
-  druid: 'weapon/magic/gnarled',
-  shaman: 'weapon/magic/s',
-  mage: 'weapon/magic/crystal',
-  warlock: 'weapon/magic/diamond',
+  druid: 'weapon/magic/simple',
+  shaman: 'weapon/magic/simple',
+  mage: 'weapon/magic/simple',
+  warlock: 'weapon/magic/simple',
   hunter: 'weapon/ranged/bow/normal',
   rogue: 'weapon/sword/dagger',
 }
@@ -382,10 +402,56 @@ function actionFor(classId: ClassId, melee: boolean): string {
  * five wrong guesses in a row, so the path in the table is the equipment and
  * this finds the sheet.
  *
- * Foreground wins where a piece has two halves: the background layer is what
- * sits behind the body, and one of the two is enough at this size.
+ * A piece with two halves is asked for by half, because for most of them
+ * neither one alone is the piece. Which side of a body a sword hangs on is a
+ * fact about which way it is facing, so the set draws the half in front of the
+ * body and the half behind it as separate sheets and leaves the other empty —
+ * and a packer that took the front half only got a sword for two of the four
+ * directions and nothing for the other two. The cape learned this first.
+ *
+ * The set names the two halves six ways: `foreground`/`background`,
+ * `fg`/`bg`, and a `behind` or `universal_behind` folder for the sheets that
+ * were drawn before the convention settled. A sheet in none of those is a
+ * piece with only one half, and it answers to whichever is asked for.
  */
-function findAnim(dir: string, anim: string): string | null {
+function behindHalf(p: string): boolean {
+  return /(^|\/)(background|bg|behind|universal_behind)(\/|\.png$)/.test(p)
+}
+
+/**
+ * How many frames across a sheet is, and how tall a cell it is drawn on.
+ *
+ * Straight out of the PNG header, which is thirty-three bytes and always in
+ * the same place. Four rows, one a direction, so the height says the cell.
+ */
+function geometry(rel: string): { cell: number; frames: number } {
+  const buf = readFileSync(join(LPC, 'spritesheets', `${rel}.png`))
+  const width = buf.readUInt32BE(16)
+  const height = buf.readUInt32BE(20)
+  const cell = Math.max(1, Math.round(height / DIRECTIONS))
+  return { cell, frames: Math.max(1, Math.round(width / cell)) }
+}
+
+/**
+ * @param frames How many frames the body is drawing for this animation, when
+ *   that is known. The layers of one animation have to agree frame for frame —
+ *   that agreement is the whole of what makes this set modular — so a sheet
+ *   with a different count is a sheet showing something else. It is not a
+ *   theoretical worry: the bow keeps a thirteen-frame sheet in its `walk`
+ *   folder beside the eight-frame walk, and taken on depth alone the wrong one
+ *   won, which put a hunter halfway through drawing its bow on every stride.
+ *
+ *   Nearest rather than equal, because agreement is not always available: a
+ *   body walks in nine frames and a good many things it carries walk in eight.
+ *   Eight against nine is a stride half a frame out at the end of the cycle,
+ *   which is nothing; thirteen against nine is a different animation.
+ */
+function findAnim(
+  dir: string,
+  anim: string,
+  half: 'front' | 'behind' = 'front',
+  frames?: number,
+): string | null {
   const root = join(LPC, 'spritesheets', dir)
   if (!existsSync(root)) return null
 
@@ -403,18 +469,35 @@ function findAnim(dir: string, anim: string): string | null {
     }
   }
   walk(root, 0)
-  if (hits.length === 0) return null
 
-  const score = (p: string) =>
-    (p.includes('background') || p.includes('/bg/') ? 2 : 0) + p.split('/').length / 100
-  hits.sort((a, b) => score(a) - score(b))
-  return hits[0]!.slice(join(LPC, 'spritesheets').length + 1, -4)
+  // Whichever half was asked for, with the sheets that are neither counted as
+  // front: a piece drawn as a single sheet is a piece that hangs in front.
+  const wanted = hits.filter((p) => (half === 'behind' ? behindHalf(p) : !behindHalf(p)))
+  if (wanted.length === 0) return null
+
+  const rel = (p: string) => p.slice(join(LPC, 'spritesheets').length + 1, -4)
+
+  // Agreeing with the body first, then shallowest: under a half's own folder
+  // the set keeps recolours, and the one at the top is the plain metal the
+  // table means.
+  const apart = (p: string) =>
+    frames === undefined ? 0 : Math.abs(geometry(rel(p)).frames - frames)
+  wanted.sort((a, b) => apart(a) - apart(b) || a.split('/').length - b.split('/').length)
+  return rel(wanted[0]!)
 }
 
 interface Layer {
   z: number
   /** A directory. Which sheet inside it depends on the animation being built. */
   dir: string
+  /**
+   * Which half of a two-part piece this layer is, when it is one.
+   *
+   * Defaults to the front, which is also what a piece with only one sheet
+   * answers to. Anything drawn on both sides of a body — a cape, a weapon, a
+   * shield — goes in twice, once each side, at two different `z`.
+   */
+  half?: 'front' | 'behind'
   /**
    * Push this layer towards a colour, keeping its shading.
    *
@@ -475,7 +558,7 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
     if (form.tail) {
       // Behind the body and in front of it, for the reason a cape is: which
       // side of a body a tail falls on is a fact about which way it is facing.
-      stack.push({ z: 5, dir: `${form.tail}/bg`, tint: hide })
+      stack.push({ z: 5, dir: `${form.tail}/bg`, tint: hide, half: 'behind' })
       stack.push({ z: 120, dir: `${form.tail}/fg`, tint: hide })
     }
     return stack
@@ -510,7 +593,7 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   // player, so the one view that matters most was the one with no cape in it.
   const cape = CAPE[classId]
   if (cape) {
-    stack.push({ z: 5, dir: `${cape}/bg`, tint: colour })
+    stack.push({ z: 5, dir: `${cape}/bg`, tint: colour, half: 'behind' })
     // Above the torso and below anything held, so it falls over the armour and
     // a drawn weapon still reads in front of it.
     stack.push({ z: 130, dir: `${cape}/fg`, tint: colour })
@@ -528,8 +611,20 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   const hat = HEADGEAR[classId]
   if (hat) stack.push({ z: 120, dir: hat, tint: colour })
 
-  if (role === 'tank') stack.push({ z: 130, dir: SHIELD, tint: colour })
-  if (weapon) stack.push({ z: 140, dir: weapon })
+  // Both halves, for the reason the cape is both: which side of a body a
+  // thing hangs on is a fact about which way it is facing, and the set draws
+  // the two sides as separate sheets. Taken front-only, a sword was drawn for
+  // the two directions that carry it in front and for the other two the hand
+  // was empty — and a bow, whose walk frames are all behind, was never drawn
+  // at all except while being fired.
+  if (role === 'tank') {
+    stack.push({ z: 7, dir: SHIELD, tint: colour, half: 'behind' })
+    stack.push({ z: 130, dir: SHIELD, tint: colour })
+  }
+  if (weapon) {
+    stack.push({ z: 6, dir: weapon, half: 'behind' })
+    stack.push({ z: 140, dir: weapon })
+  }
   return stack
 }
 
@@ -626,11 +721,20 @@ async function main(): Promise<void> {
   const blocks = all.flatMap((spec, index) =>
     ANIMATIONS.map((anim, order) => {
       const sheet = anim === 'walk' ? 'walk' : spec.action
+      // The body sets the beat. It is the one layer that is never optional and
+      // never has two halves, so it is resolved first and everything else is
+      // held to the number of frames it came back with.
+      const bodyLayer = spec.layers.find((layer) => layer.dir.startsWith('body/'))
+      const bodySheet = bodyLayer ? findAnim(bodyLayer.dir, sheet) : null
+      const beat = bodySheet ? geometry(bodySheet).frames : undefined
       const layers = spec.layers
         .map((layer) => {
-          const found = findAnim(layer.dir, sheet)
+          const found = findAnim(layer.dir, sheet, layer.half ?? 'front', beat)
           if (!found) {
-            if (anim === 'walk') missing.push(`${spec.id}: ${layer.dir} has no ${sheet}`)
+            // A piece with no behind half is the ordinary case, not a gap.
+            if (anim === 'walk' && (layer.half ?? 'front') === 'front') {
+              missing.push(`${spec.id}: ${layer.dir} has no ${sheet}`)
+            }
             return null
           }
           used.add(found)
@@ -650,19 +754,116 @@ async function main(): Promise<void> {
 
   for (const line of missing) console.error(`  ! missing layer  ${line}`)
 
-  const width = FRAMES * CELL_W
-  const height = blocks.length * DIRECTIONS * CELL
-
   const browser = await chromium.launch()
-  let encoded: string
+  let packed: { png: string; cellW: number; cellH: number; foot: number; wanted: number }
   try {
     const page = await browser.newPage()
     await page.setContent('<!doctype html><meta charset="utf-8">', { waitUntil: 'load' })
-    encoded = await page.evaluate(
-      async ({ blocks, width, height, cell, cellW, cropX, frames, directions, quality }) => {
+    packed = await page.evaluate(
+      async ({ blocks, cell, cellCap, frames, directions, quality }) => {
+        /** Which frame of a sheet of `count` the packer takes for slot `f`. */
+        const slot = (f: number, count: number) =>
+          f === 0 ? 0 : Math.min(count - 1, Math.round((f * (count - 1)) / (frames - 1)))
+
+        /**
+         * How big a cell this sheet is drawn on, which is not always the body's.
+         *
+         * A weapon that swings wide does not fit in the square its owner stands
+         * in, so LPC ships those on a bigger canvas — a hundred and twenty-eight
+         * for an arming sword, a hundred and ninety-two for a longsword
+         * mid-slash — with the body's own sixty-four square centred inside it.
+         * Every one is still four rows, one a direction, so the height says
+         * which.
+         */
+        const shapeOf = (image: HTMLImageElement) => {
+          const srcCell = Math.max(1, Math.round(image.naturalHeight / directions))
+          return {
+            srcCell,
+            inset: (srcCell - cell) / 2,
+            count: Math.max(1, Math.round(image.naturalWidth / srcCell)),
+          }
+        }
+
+        // --- how big the cell has to be ------------------------------------
+        //
+        // Off the alpha of the sheets that were actually resolved, and only
+        // over the frames actually taken: a sheet has nine or thirteen and the
+        // atlas keeps five, so measuring the ones dropped would size the cell
+        // for art that never lands in it.
+        //
+        // Cached by the sheet itself. The same trousers are worn by nine specs
+        // and the same body by every one of them, and the read below is a
+        // pixel at a time.
+        const probe = document.createElement('canvas')
+        const pr = probe.getContext('2d', { willReadFrequently: true })!
+        const seen = new Map<string, { l: number; r: number; t: number; b: number } | null>()
+
+        for (const c of blocks) {
+          for (const layer of c.layers) {
+            if (seen.has(layer.data)) continue
+            const image = new Image()
+            image.src = layer.data
+            await image.decode()
+            const { srcCell, inset, count } = shapeOf(image)
+            probe.width = image.naturalWidth
+            probe.height = image.naturalHeight
+            pr.clearRect(0, 0, probe.width, probe.height)
+            pr.drawImage(image, 0, 0)
+            const px = pr.getImageData(0, 0, probe.width, probe.height).data
+            let l = Infinity
+            let r = -Infinity
+            let t = Infinity
+            let b = -Infinity
+            for (let f = 0; f < frames; f++) {
+              const from = slot(f, count)
+              for (let d = 0; d < directions; d++) {
+                for (let y = 0; y < srcCell; y++) {
+                  const row = d * srcCell + y
+                  for (let x = 0; x < srcCell; x++) {
+                    if (px[(row * probe.width + from * srcCell + x) * 4 + 3]! < 8) continue
+                    if (x < l) l = x
+                    if (x > r) r = x
+                    if (y < t) t = y
+                    if (y > b) b = y
+                  }
+                }
+              }
+            }
+            // Everything is kept relative to the body's own square, which is
+            // the one thing every sheet agrees on.
+            seen.set(
+              layer.data,
+              l > r ? null : { l: l - inset, r: r - inset, t: t - inset, b: b - inset },
+            )
+          }
+        }
+
+        let wanted = cell
+        let padTop = 0
+        let padBottom = 0
+        for (const box of seen.values()) {
+          if (!box) continue
+          wanted = Math.max(wanted, (cell / 2 - box.l) * 2, (box.r + 1 - cell / 2) * 2)
+          padTop = Math.max(padTop, -box.t)
+          padBottom = Math.max(padBottom, box.b + 1 - cell)
+        }
+        // Even, so the body square sits on a whole pixel either side of centre.
+        const cellW = Math.min(cellCap, Math.ceil(wanted / 2) * 2)
+        padTop = Math.min(cellCap - cell, Math.ceil(padTop))
+        padBottom = Math.min(cellCap - cell, Math.ceil(padBottom))
+        const cellH = cell + padTop + padBottom
+
+        // --- the atlas -----------------------------------------------------
+        //
+        // Directions across rather than down. It used to be one column of
+        // every direction of every block, which was fine while a cell was
+        // forty wide and is not now: at a hundred and sixty-two the same
+        // arrangement is seventeen thousand pixels tall, and past sixteen
+        // thousand is where hardware starts refusing to hold a texture. Laid
+        // this way the same pixels come out roughly square.
         const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
+        canvas.width = directions * frames * cellW
+        canvas.height = blocks.length * cellH
         const ctx = canvas.getContext('2d')!
         ctx.imageSmoothingEnabled = false
 
@@ -694,45 +895,68 @@ async function main(): Promise<void> {
               sc.globalAlpha = 1
               source = scratch
             }
-            // How many frames this animation shipped with. Sheets are six,
-            // seven or nine wide depending on what they show, so the five taken
-            // out of them spread across whatever is there rather than across an
-            // assumed width.
-            const count = Math.max(1, Math.round(image.naturalWidth / cell))
 
-            // Frame by frame rather than whole-sheet, because the crop has to
-            // be taken out of the middle of every one of them.
+            const { srcCell, inset, count } = shapeOf(image)
+
+            // Frame by frame rather than whole-sheet, because what is copied
+            // is a window on the body's square rather than the sheet's cell,
+            // and the two are only the same size by coincidence. Where the
+            // window falls outside the sheet there is nothing to read — a
+            // sixty-four cell has no pixels forty-nine to its left — so it is
+            // clipped to what exists and lands correspondingly inset.
             for (let f = 0; f < frames; f++) {
               // Frame zero stays frame zero — it is the standing pose and the
               // renderer reserves it — and the rest spread over the remainder.
-              const from =
-                f === 0 ? 0 : Math.min(count - 1, Math.round((f * (count - 1)) / (frames - 1)))
+              const from = slot(f, count)
+              const left = from * srcCell
+              const wantX = left + inset + cell / 2 - cellW / 2
+              const sx = Math.max(wantX, left)
+              const sw = Math.min(wantX + cellW, left + srcCell) - sx
+              if (sw <= 0) continue
               for (let d = 0; d < directions; d++) {
+                const top = d * srcCell
+                const wantY = top + inset - padTop
+                const sy = Math.max(wantY, top)
+                const sh = Math.min(wantY + cellH, top + srcCell) - sy
+                if (sh <= 0) continue
                 ctx.drawImage(
                   source,
-                  from * cell + cropX,
-                  d * cell,
-                  cellW,
-                  cell,
-                  f * cellW,
-                  (c.block * directions + d) * cell,
-                  cellW,
-                  cell,
+                  sx,
+                  sy,
+                  sw,
+                  sh,
+                  (d * frames + f) * cellW + (sx - wantX),
+                  c.block * cellH + (sy - wantY),
+                  sw,
+                  sh,
                 )
               }
             }
           }
         }
-        return canvas.toDataURL('image/webp', quality)
+        return {
+          png: canvas.toDataURL('image/webp', quality),
+          cellW,
+          cellH,
+          foot: padTop + cell,
+          wanted: Math.ceil(wanted),
+        }
       },
-      { blocks, width, height, cell: CELL, cellW: CELL_W, cropX: CROP_X, frames: FRAMES, directions: DIRECTIONS, quality: QUALITY },
+      {
+        blocks,
+        cell: CELL,
+        cellCap: CELL_CAP,
+        frames: FRAMES,
+        directions: DIRECTIONS,
+        quality: QUALITY,
+      },
     )
   } finally {
     await browser.close()
   }
 
   mkdirSync(resolve(process.cwd(), 'public/art'), { recursive: true })
-  const bytes = Buffer.from(encoded.slice(encoded.indexOf(',') + 1), 'base64')
+  const bytes = Buffer.from(packed.png.slice(packed.png.indexOf(',') + 1), 'base64')
   writeFileSync(IMAGE, bytes)
 
   const rows = all.map((spec, index) => `  '${spec.id}': ${index},`).join('\n')
@@ -742,17 +966,32 @@ async function main(): Promise<void> {
  * Which block of \`public/art/lpc.webp\` belongs to each spec.
  *
  * Generated by \`npm run lpc\` — edit the layer table in the packer, not this
- * file. A subject owns \`LPC_ANIMATIONS\` blocks, each of four directions in
- * LPC's own order — up, left, down, right — and each direction is
- * \`LPC_FRAMES\` frames across.
+ * file.
+ *
+ * One row of cells a block, a subject owning \`LPC_ANIMATIONS\` of them. Across
+ * a row are the four directions in LPC's own order — up, left, down, right —
+ * and inside each direction \`LPC_FRAMES\` frames. So a cell is at
+ *
+ *   x = (direction * LPC_FRAMES + frame) * LPC_CELL_W
+ *   y = (LPC_ROW[id] * LPC_ANIMATIONS + block) * LPC_CELL_H
+ *
+ * The cell is wider and taller than the body it holds, because a longsword
+ * mid-swing is. \`LPC_BODY\` is the square the body itself stands in, centred
+ * across the cell, and \`LPC_FOOT\` is how far down the cell its ground line
+ * sits — draw the whole cell scaled so that \`LPC_BODY\` comes out the size the
+ * body should be, with \`LPC_FOOT\` on the actor's own position.
  *
  * The art is Liberated Pixel Cup, variously CC-BY-SA 3.0, GPL 3.0, OGA-BY and
  * CC0. Attribution is a condition of those, and the list is in
  * \`art/LPC-CREDITS.md\`.
  */
 
-export const LPC_CELL_W = ${CELL_W}
-export const LPC_CELL_H = ${CELL}
+export const LPC_CELL_W = ${packed.cellW}
+export const LPC_CELL_H = ${packed.cellH}
+/** The square a body stands in, centred across the cell. */
+export const LPC_BODY = ${CELL}
+/** How far down the cell the ground under that body is. */
+export const LPC_FOOT = ${packed.foot}
 export const LPC_FRAMES = ${FRAMES}
 export const LPC_DIRECTIONS = ${DIRECTIONS}
 
@@ -762,7 +1001,7 @@ export const LPC_ACTION = 1
 export const LPC_ANIMATIONS = ${ANIMATIONS.length}
 export const LPC_SRC = 'art/lpc.webp'
 
-/** Row order in the sheet, which is also LPC's direction order. */
+/** Column order across a block, which is LPC's own direction order. */
 export const LPC_UP = 0
 export const LPC_LEFT = 1
 export const LPC_DOWN = 2
@@ -791,7 +1030,13 @@ ${lines.join('\n')}
   )
 
   const kb = (bytes.length / 1024).toFixed(1)
+  const width = DIRECTIONS * FRAMES * packed.cellW
+  const height = blocks.length * packed.cellH
   console.log(`lpc: ${all.length} specs, ${width}x${height}, ${kb} kB webp`)
+  console.log(
+    `  cell ${packed.cellW}x${packed.cellH}, foot at ${packed.foot}` +
+      (packed.wanted > packed.cellW ? `  (clipped: wanted ${packed.wanted})` : ''),
+  )
   console.log(`  ${used.size} distinct layers, ${lines.length} credit lines`)
   if (missing.length > 0) process.exit(1)
 }
