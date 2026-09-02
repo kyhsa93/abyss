@@ -11,10 +11,10 @@
 import {
   LPC_ACTION,
   LPC_ANIMATIONS,
+  LPC_ARMS,
   LPC_BODY,
-  LPC_CELL_H,
-  LPC_CELL_W,
-  LPC_FOOT,
+  LPC_CELLS,
+  LPC_GUARD,
   LPC_DOWN,
   LPC_FRAMES,
   LPC_LEFT,
@@ -133,6 +133,11 @@ export function drawBody(
    */
   casting: number | null,
   alpha: number,
+  /**
+   * Which body this is, so that two of the same spec need not be carrying the
+   * same sword. Any stable number does; the actor's id is the one to hand.
+   */
+  who: number,
 ): boolean {
   begin()
   if (!sheet) return false
@@ -157,39 +162,83 @@ export function drawBody(
   // One source pixel, on screen.
   //
   // Off the body's own square rather than off the cell, because the cell is
-  // mostly room: it is as wide as a longsword at the far end of a swing and
-  // has a stride of headroom under the feet, and a body drawn to fill that
-  // would be a body four times the size of its own patch of floor. What has to
-  // come out at the intended size is `LPC_BODY`, and everything else in the
-  // cell is drawn at whatever scale that implies.
+  // room around the body rather than the body: as wide as a longsword at the
+  // far end of a swing, when there is a longsword, and no wider than a staff
+  // when there is not. What has to come out at the intended size is
+  // `LPC_BODY`, which every cell holds centred whatever its width, and the
+  // rest of the cell is drawn at whatever scale that implies.
   const scale = (r * BODY * SQUASH) / LPC_BODY
-  const w = LPC_CELL_W * scale
-  const h = LPC_CELL_H * scale
-  // Feet on the actor's own position, which is the centre of the footprint
-  // ellipse. The simulation's `pos` is a point on the ground and the ellipse is
-  // drawn around it, so standing anywhere else would put the body beside the
-  // patch of floor it is meant to be occupying.
-  //
-  // `LPC_FOOT` rather than the bottom of the cell, which are no longer the
-  // same line: a sword swings below the ground the swinger is standing on.
-  const feet = y - LPC_FOOT * scale
 
   ctx.save()
   ctx.globalAlpha = alpha
   // Pixel art scaled with smoothing turns to mush; this is the one place in
   // the renderer that must not be interpolated.
   ctx.imageSmoothingEnabled = false
-  ctx.drawImage(
-    sheet,
-    (direction * LPC_FRAMES + frame) * LPC_CELL_W,
-    (row * LPC_ANIMATIONS + block) * LPC_CELL_H,
-    LPC_CELL_W,
-    LPC_CELL_H,
-    x - w / 2,
-    feet,
-    w,
-    h,
-  )
+
+  const cell = (which: number): void => {
+    const at = LPC_CELLS[which * LPC_ANIMATIONS + block]
+    if (!at) return
+    const [bx, by, bw, bh, foot] = at
+    ctx.drawImage(
+      sheet!,
+      bx + (direction * LPC_FRAMES + frame) * bw,
+      by,
+      bw,
+      bh,
+      x - (bw * scale) / 2,
+      // Feet on the actor's own position, which is the centre of the footprint
+      // ellipse. The simulation's `pos` is a point on the ground and the
+      // ellipse is drawn around it, so standing anywhere else would put the
+      // body beside the patch of floor it is meant to be occupying.
+      //
+      // The block's own foot line rather than the bottom of its cell, which
+      // are not the same: a sword swings below the ground the swinger is
+      // standing on, and how far below is a fact about that block.
+      y - foot * scale,
+      bw * scale,
+      bh * scale,
+    )
+  }
+
+  // The body in the middle of what it is carrying, because a thing held is on
+  // both sides of the person holding it and which side depends on which way
+  // they are facing. The set draws the halves apart for exactly that reason,
+  // and they are rows of their own here rather than baked into the body so
+  // that a seventh shield costs one row instead of one row a spec.
+  //
+  // The shield inside the weapon, which is the order they were in when both
+  // were painted onto the body: an arm is closer to its owner than the thing
+  // at the end of it.
+  const arm = pickOf(LPC_ARMS[id], who)
+  const shield = pickOf(LPC_GUARD[id], who)
+  if (arm) cell(arm[0])
+  if (shield) cell(shield[0])
+  cell(row)
+  if (shield) cell(shield[1])
+  if (arm) cell(arm[1])
+
   ctx.restore()
   return true
+}
+
+/**
+ * Which of a list this body gets.
+ *
+ * Off its own id and nothing else, so it is decided without asking anybody,
+ * stays the same for the whole of a fight, and comes out different for the
+ * body standing next to it. Plain modulo rather than a hash for that last
+ * reason: a hash would sometimes give two neighbours the same sword, and
+ * neighbours are the only place anyone can compare.
+ *
+ * The weapon and the shield are drawn from the same number, so a raid of
+ * shields runs through them in step with the swords. Six against five means
+ * the pairing takes thirty bodies to repeat, which is more than are ever on
+ * the floor at once.
+ */
+function pickOf(
+  list: [number, number][] | undefined,
+  who: number,
+): [number, number] | undefined {
+  if (!list || list.length === 0) return undefined
+  return list[((who % list.length) + list.length) % list.length]
 }

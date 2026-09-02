@@ -124,32 +124,135 @@ const ARMOUR: Record<string, { torso: string; legs: string; feet: string }> = {
 }
 
 /**
- * What the class fights with.
+ * What a body of this spec might be carrying.
  *
- * A weapon is a handful of pixels at this size, which is the point: it is the
- * silhouette's outline that separates a staff from a bow, and that survives
- * being small far better than a colour does.
+ * A list rather than one weapon, and per spec rather than per class. Every
+ * body in a twenty-five man used to hold the identical object, which is a
+ * thing you notice in a raid and cannot unnotice: eight warriors, one sword,
+ * traced eight times. Which of a list a given body draws is decided by the
+ * renderer off its own id, so it is stable for a fight and different between
+ * neighbours.
+ *
+ * The lists are cut by what the role has to keep saying, not by what the set
+ * has. A weapon is a handful of pixels and almost all of what it says is the
+ * silhouette's outline, so the divisions that survive being small are the ones
+ * worth keeping: a tank has a shield in the other hand, so what is in this one
+ * is a one-hander; a rogue is the small quick one, so it is a blade rather
+ * than an axe. Inside those, variety is free.
+ *
+ * A spec that has to be drawn casting has no list at all, and that is the
+ * set's decision rather than this table's: `spellcast` is drawn for exactly
+ * one weapon in the whole of LPC.
  */
-const WEAPON: Record<ClassId, string | null> = {
-  warrior: 'weapon/sword/longsword',
-  paladin: 'weapon/sword/arming',
-  // One staff between the five of them, and it is the set that decided that
-  // rather than this table. A caster spends the fight casting, and `spellcast`
-  // is drawn for exactly one weapon in the whole of LPC — the plain staff. The
-  // gnarled, crystal and diamond staffs are drawn walking and thrusting and
-  // nothing else, so a druid holding one had it in hand right up to the moment
-  // it did the thing a druid does, and then it was gone.
+
+/** One-handers, for a hand that is already holding a shield with the other. */
+const HELD_WITH_SHIELD = [
+  'weapon/sword/arming',
+  'weapon/sword/saber',
+  'weapon/sword/longsword',
+  'weapon/blunt/mace',
+  'weapon/blunt/flail',
+]
+
+/** Everything a body with both hands free can swing. */
+const SWUNG = [
+  ...HELD_WITH_SHIELD,
+  'weapon/sword/rapier',
+  'weapon/blunt/waraxe',
+  'weapon/polearm/halberd',
+  'weapon/polearm/scythe',
+]
+
+/** Small and quick, which is the whole of what a rogue looks like. */
+const BLADES = ['weapon/sword/dagger', 'weapon/sword/rapier', 'weapon/sword/saber']
+
+// Three swords are missing from these lists and it is not taste. The scimitar,
+// the katana and the alternate longsword are drawn on thirteen frames, and no
+// body in the set has a thirteen-frame walk or slash to pair them with — nine
+// and six is what a body does. Taken anyway they play some other moment of
+// their own swing against every frame of the body's, which reads as a sword
+// that vanishes halfway through being swung. `beat` below refuses them rather
+// than letting them back in quietly.
+//
+// The glowsword is missing for taste. It is the one weapon in the set that
+// brings a colour of its own, and colour on this floor is how a body is told
+// apart from the one beside it.
+
+/** The one staff that is drawn casting. */
+const STAFF = ['weapon/magic/simple']
+
+const BOWS = [
+  'weapon/ranged/bow/normal',
+  'weapon/ranged/bow/recurve',
+  'weapon/ranged/bow/great',
+]
+
+const ARMS: Record<string, string[]> = {
+  'warrior-protection': HELD_WITH_SHIELD,
+  'warrior-arms': SWUNG,
+  'paladin-protection': HELD_WITH_SHIELD,
+  'paladin-retribution': SWUNG,
+  // A healer in plate, with a sword and a shield like the rest of its class.
   //
-  // Little is lost. What a weapon is here is the outline that separates a
-  // staff from a bow, not the one that separates a staff from another staff —
-  // which class is being looked at is what the ring under the body is for.
-  priest: 'weapon/magic/simple',
-  druid: 'weapon/magic/simple',
-  shaman: 'weapon/magic/simple',
-  mage: 'weapon/magic/simple',
-  warlock: 'weapon/magic/simple',
-  hunter: 'weapon/ranged/bow/normal',
-  rogue: 'weapon/sword/dagger',
+  // The sword is not drawn while it casts, and cannot be: `spellcast` exists
+  // for one weapon in the whole set and it is a staff. That reads better here
+  // than it sounds, and better than the staff it replaced — a body holding a
+  // shield and raising its free hand is what casting with a shield looks like,
+  // and the shield never goes anywhere. What it must not be is a hand holding
+  // nothing at all, which is what this was before there was a shield in it.
+  'paladin-holy': HELD_WITH_SHIELD,
+  'priest-discipline': STAFF,
+  'priest-shadow': STAFF,
+  'druid-restoration': STAFF,
+  'druid-balance': STAFF,
+  'shaman-restoration': STAFF,
+  'shaman-elemental': STAFF,
+  'mage-frost': STAFF,
+  'warlock-destruction': STAFF,
+  'hunter-marksmanship': BOWS,
+  'rogue-assassination': BLADES,
+  // The two forms carry nothing. A bear has no hands.
+}
+
+/** Which of the three a thing in a hand is drawn doing. */
+function kindOf(dir: string): string {
+  if (dir.startsWith('weapon/ranged/')) return 'shoot'
+  if (dir.startsWith('weapon/magic/')) return 'spellcast'
+  return 'slash'
+}
+
+/**
+ * What pressing a button looks like.
+ *
+ * Two questions, and the mistake each time was answering with one of them.
+ * `melee` alone was the first: it asks whether a spec has to close the
+ * distance, and there are two ways to answer a fight from across the room, so
+ * a hunter raised a hand and cast with a bow in it. The weapon alone was the
+ * second, and it is wrong in the other direction — a paladin healer carrying a
+ * sword then heals *by swinging the sword*, which is a healer that looks like
+ * it is attacking whoever it is saving.
+ *
+ * So both, in that order. Whether the body closes the distance decides between
+ * swinging and doing something at range; only then does what is in the hands
+ * decide which of the two things at range it is. A holy paladin comes out of
+ * that casting, with a shield on one arm and the other hand raised, which is
+ * what casting with a shield looks like.
+ */
+function actionFor(id: string, melee: boolean): string {
+  if (melee) return 'slash'
+  const arms = ARMS[id]
+  return arms && arms.length > 0 && kindOf(arms[0]!) === 'shoot' ? 'shoot' : 'spellcast'
+}
+
+/** Which action each spec plays, so what it holds can be drawn playing it. */
+function actions(): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const classId of CLASS_ORDER) {
+    for (const spec of CLASSES[classId].specs) {
+      out.set(`${classId}-${spec.id}`, actionFor(`${classId}-${spec.id}`, spec.melee))
+    }
+  }
+  return out
 }
 
 /**
@@ -351,8 +454,47 @@ const CAPE: Partial<Record<ClassId, string>> = {
   druid: 'cape/tattered',
 }
 
-/** Only tanks, because only tanks are holding one. */
-const SHIELD = 'shield/heater'
+/**
+ * What is on the other arm.
+ *
+ * The six the set draws for every animation a body here plays, and six that
+ * can be told apart at thirty pixels: a heater, a crusader's, a tower, a
+ * round Greek one, a cross and a scalloped one. The kite and the round are
+ * left out for the reason three of the swords are — the set draws them
+ * walking and swinging and not casting, and one of the bodies carrying a
+ * shield here is a healer.
+ *
+ * The trimmed variants of the scutum and the two-engrailed are left out for
+ * the opposite reason: they are the same outline with a line of colour on it,
+ * and an outline is all that survives being this small.
+ *
+ * They carry no class colour, unlike the armour under them. That was true when
+ * there was one shield and every tank had it, and it is the wrong way round
+ * now: a shield with a device of its own is a shield, and a shield painted the
+ * colour of the person holding it is a coloured shape they happen to be
+ * carrying. The plate still says which class, and the ring under the feet
+ * still says it louder than either.
+ */
+/**
+ * Who has a hand free for one.
+ *
+ * The two that hold the boss, and the healer that stands next to them in the
+ * same plate. Nothing else: a shield is an arm given up, and every other spec
+ * here is using both.
+ *
+ * The bear is not in the list and could not be. A form replaces the body
+ * outright, and it has no arms to give up.
+ */
+const GUARD = ['warrior-protection', 'paladin-protection', 'paladin-holy']
+
+const SHIELDS = [
+  'shield/heater',
+  'shield/crusader',
+  'shield/scutum',
+  'shield/spartan',
+  'shield/plus',
+  'shield/two_engrailed',
+]
 
 /**
  * The two things a body on this floor is ever doing.
@@ -370,27 +512,6 @@ const ALIASES: Record<string, string[]> = {
   shoot: ['shoot', 'attack_bow'],
 }
 
-/**
- * What pressing a button looks like.
- *
- * Read off what is in the hands rather than off the spec, which is the same
- * rule the rest of this table keeps: plate looks like plate because the class
- * wears plate, and a bow is drawn because the class carries a bow.
- *
- * `melee` was the whole answer once, and it is only two thirds of one. It is
- * a question about distance — does this spec have to close it — and there are
- * two ways to answer a fight from across the room. A hunter carried a bow
- * through every frame and then raised a hand and cast with it, which reads as
- * a caster who happens to be holding a stick.
- *
- * The set has the frames: `shoot` is drawn for the body, for every piece of
- * leather a hunter wears, and for the bow itself. Nothing here had to be
- * chosen for it except which of the three to ask for.
- */
-function actionFor(classId: ClassId, melee: boolean): string {
-  if (melee) return 'slash'
-  return WEAPON[classId]?.startsWith('weapon/ranged/') === true ? 'shoot' : 'spellcast'
-}
 
 /**
  * Find a sheet for one animation somewhere under a directory.
@@ -542,7 +663,7 @@ const FORMS: Record<string, { body: string; head: string; tail?: string }> = {
   },
 }
 
-function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
+function layersFor(classId: ClassId, spec: string): Layer[] {
   const form = FORMS[`${classId}/${spec}`]
   if (form) {
     // Tinted like every worn layer, and for the same job: the class colour is
@@ -565,7 +686,6 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   }
 
   const armour = ARMOUR[CLASSES[classId].armorType] ?? ARMOUR.cloth!
-  const weapon = WEAPON[classId]
 
   // Enough to say which class without washing out the shading that says which
   // armour. Legs take less than the torso: they are half in shadow already and
@@ -611,20 +731,6 @@ function layersFor(classId: ClassId, spec: string, role: string): Layer[] {
   const hat = HEADGEAR[classId]
   if (hat) stack.push({ z: 120, dir: hat, tint: colour })
 
-  // Both halves, for the reason the cape is both: which side of a body a
-  // thing hangs on is a fact about which way it is facing, and the set draws
-  // the two sides as separate sheets. Taken front-only, a sword was drawn for
-  // the two directions that carry it in front and for the other two the hand
-  // was empty — and a bow, whose walk frames are all behind, was never drawn
-  // at all except while being fired.
-  if (role === 'tank') {
-    stack.push({ z: 7, dir: SHIELD, tint: colour, half: 'behind' })
-    stack.push({ z: 130, dir: SHIELD, tint: colour })
-  }
-  if (weapon) {
-    stack.push({ z: 6, dir: weapon, half: 'behind' })
-    stack.push({ z: 140, dir: weapon })
-  }
   return stack
 }
 
@@ -642,8 +748,8 @@ function specs(): Subject[] {
     for (const spec of CLASSES[classId].specs) {
       out.push({
         id: `${classId}-${spec.id}`,
-        layers: layersFor(classId, spec.id, spec.role),
-        action: actionFor(classId, spec.melee),
+        layers: layersFor(classId, spec.id),
+        action: actionFor(`${classId}-${spec.id}`, spec.melee),
       })
     }
   }
@@ -658,6 +764,36 @@ function specs(): Subject[] {
   // one is what they will be doing.
   for (const [id, layers] of Object.entries(ADD)) {
     out.push({ id: `add-${id}`, layers, action: 'slash' })
+  }
+  // And everything carried, on rows of its own.
+  //
+  // Baked into a body, a sword costs a whole extra body every time it varies:
+  // eight swords for a warrior is eight warriors in the atlas, and at that
+  // rate the sheet outgrows what a phone will hold. On its own row it costs
+  // one row, whoever picks it up, and a seventh shield costs one more.
+  //
+  // Two rows apiece rather than one, because a thing held is drawn on both
+  // sides of the body holding it and the body goes between them. That is the
+  // same fact the cape is split for.
+  //
+  // And a row for each action it is held through, because a thing held does
+  // whatever the arm it is on is doing. A sword carried by a warrior has to be
+  // drawn mid-swing; the same sword carried by a paladin healer has to be
+  // drawn through a cast, which the set does not draw — so that row comes out
+  // empty, and the paladin's sword hand is empty for the second it is casting,
+  // with the shield still on its other arm. Better that than a sword swinging
+  // while somebody is being healed.
+  const held = new Map<string, string[]>()
+  for (const [id, action] of actions()) {
+    for (const dir of [...(ARMS[id] ?? []), ...(GUARD.includes(id) ? SHIELDS : [])]) {
+      held.set(dir, [...new Set([...(held.get(dir) ?? []), action])])
+    }
+  }
+  for (const [dir, kinds] of [...held].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    for (const action of [...kinds].sort()) {
+      out.push({ id: `${dir}:${action}:behind`, layers: [{ z: 0, dir, half: 'behind' }], action })
+      out.push({ id: `${dir}:${action}:front`, layers: [{ z: 0, dir }], action })
+    }
   }
   return out
 }
@@ -713,6 +849,7 @@ async function main(): Promise<void> {
   const all = specs()
   const used = new Set<string>()
   const missing: string[] = []
+  const offbeat: string[] = []
 
   // A block per subject per animation, four directions inside each. A layer
   // that has no sheet for an animation is dropped rather than fatal — a staff
@@ -723,9 +860,11 @@ async function main(): Promise<void> {
       const sheet = anim === 'walk' ? 'walk' : spec.action
       // The body sets the beat. It is the one layer that is never optional and
       // never has two halves, so it is resolved first and everything else is
-      // held to the number of frames it came back with.
+      // held to the number of frames it came back with. A weapon on its own
+      // row has no body of its own and is held to the ordinary one, which is
+      // what it will be drawn over.
       const bodyLayer = spec.layers.find((layer) => layer.dir.startsWith('body/'))
-      const bodySheet = bodyLayer ? findAnim(bodyLayer.dir, sheet) : null
+      const bodySheet = findAnim(bodyLayer?.dir ?? 'body/bodies/male', sheet)
       const beat = bodySheet ? geometry(bodySheet).frames : undefined
       const layers = spec.layers
         .map((layer) => {
@@ -735,6 +874,22 @@ async function main(): Promise<void> {
             if (anim === 'walk' && (layer.half ?? 'front') === 'front') {
               missing.push(`${spec.id}: ${layer.dir} has no ${sheet}`)
             }
+            return null
+          }
+          // And nothing that cannot keep time with the body it is worn on.
+          //
+          // One frame of slack, because a body walks in nine and a good many
+          // things it carries walk in eight, and half a frame at the end of a
+          // stride is nothing. Past that it is not the same animation: three
+          // of the swords are drawn on thirteen frames against a six-frame
+          // swing, and played against it a sword disappears halfway through
+          // its own arc. Loud rather than dropped, because the layer table is
+          // where it has to be fixed.
+          const kept = geometry(found).frames
+          if (beat !== undefined && Math.abs(kept - beat) > 1) {
+            offbeat.push(
+              `${spec.id}: ${found} is ${kept} frames against the body's ${beat} for ${sheet}`,
+            )
             return null
           }
           used.add(found)
@@ -753,9 +908,15 @@ async function main(): Promise<void> {
   )
 
   for (const line of missing) console.error(`  ! missing layer  ${line}`)
+  for (const line of new Set(offbeat)) console.error(`  ! off the beat   ${line}`)
 
   const browser = await chromium.launch()
-  let packed: { png: string; cellW: number; cellH: number; foot: number; wanted: number }
+  let packed: {
+    png: string
+    width: number
+    height: number
+    cells: [number, number, number, number, number][]
+  }
   try {
     const page = await browser.newPage()
     await page.setContent('<!doctype html><meta charset="utf-8">', { waitUntil: 'load' })
@@ -784,19 +945,21 @@ async function main(): Promise<void> {
           }
         }
 
-        // --- how big the cell has to be ------------------------------------
+        // --- how much room each block actually needs -----------------------
         //
-        // Off the alpha of the sheets that were actually resolved, and only
-        // over the frames actually taken: a sheet has nine or thirteen and the
-        // atlas keeps five, so measuring the ones dropped would size the cell
-        // for art that never lands in it.
+        // Off the alpha of the sheets that were resolved, and only over the
+        // frames actually taken: a sheet has nine or thirteen and the atlas
+        // keeps five, so measuring the ones dropped would size a cell for art
+        // that never lands in it.
         //
-        // Cached by the sheet itself. The same trousers are worn by nine specs
-        // and the same body by every one of them, and the read below is a
-        // pixel at a time.
+        // Cached by the sheet itself, because the same trousers are worn by
+        // nine specs and the read below is a pixel at a time. The bounds are
+        // relative to the body's own square, which is the one thing every
+        // sheet agrees on, so one reading serves whoever wears it.
         const probe = document.createElement('canvas')
         const pr = probe.getContext('2d', { willReadFrequently: true })!
-        const seen = new Map<string, { l: number; r: number; t: number; b: number } | null>()
+        type Box = { l: number; r: number; t: number; b: number }
+        const seen = new Map<string, Box | null>()
 
         for (const c of blocks) {
           for (const layer of c.layers) {
@@ -829,8 +992,6 @@ async function main(): Promise<void> {
                 }
               }
             }
-            // Everything is kept relative to the body's own square, which is
-            // the one thing every sheet agrees on.
             seen.set(
               layer.data,
               l > r ? null : { l: l - inset, r: r - inset, t: t - inset, b: b - inset },
@@ -838,32 +999,78 @@ async function main(): Promise<void> {
           }
         }
 
-        let wanted = cell
-        let padTop = 0
-        let padBottom = 0
-        for (const box of seen.values()) {
-          if (!box) continue
-          wanted = Math.max(wanted, (cell / 2 - box.l) * 2, (box.r + 1 - cell / 2) * 2)
-          padTop = Math.max(padTop, -box.t)
-          padBottom = Math.max(padBottom, box.b + 1 - cell)
-        }
-        // Even, so the body square sits on a whole pixel either side of centre.
-        const cellW = Math.min(cellCap, Math.ceil(wanted / 2) * 2)
-        padTop = Math.min(cellCap - cell, Math.ceil(padTop))
-        padBottom = Math.min(cellCap - cell, Math.ceil(padBottom))
-        const cellH = cell + padTop + padBottom
-
-        // --- the atlas -----------------------------------------------------
+        // --- a cell a block at a time --------------------------------------
         //
-        // Directions across rather than down. It used to be one column of
-        // every direction of every block, which was fine while a cell was
-        // forty wide and is not now: at a hundred and sixty-two the same
-        // arrangement is seventeen thousand pixels tall, and past sixteen
-        // thousand is where hardware starts refusing to hold a texture. Laid
-        // this way the same pixels come out roughly square.
+        // One size for every cell is the obvious way and it is the expensive
+        // one. The widest thing in this atlas is a longsword at the far end of
+        // a swing, which wants a hundred and sixty-two; the middle of the
+        // distribution wants forty-eight. Sized to the widest, two thirds of
+        // every other cell is margin — and margin costs nothing in the file,
+        // where it compresses to almost nothing, and full price in memory,
+        // where the browser holds four bytes a pixel whether or not anything
+        // was drawn there. That is the number that matters on a phone: this
+        // atlas at one size was a hundred and twenty-five megabytes decoded,
+        // against ten before there were weapons in it.
+        //
+        // So a block is measured on its own. A raid of staves is drawn on
+        // narrow cells and the two warriors get the wide ones, and the atlas
+        // costs the sum rather than the maximum.
+        const sized = blocks.map((c) => {
+          let l = Infinity
+          let r = -Infinity
+          let t = Infinity
+          let b = -Infinity
+          for (const layer of c.layers) {
+            const box = seen.get(layer.data)
+            if (!box) continue
+            l = Math.min(l, box.l)
+            r = Math.max(r, box.r)
+            t = Math.min(t, box.t)
+            b = Math.max(b, box.b)
+          }
+          // A block with nothing in it still needs somewhere to be.
+          if (l > r) return { ...c, w: 2, h: cell, foot: cell }
+          const wide = Math.max((cell / 2 - l) * 2, (r + 1 - cell / 2) * 2)
+          const padTop = Math.min(cellCap - cell, Math.max(0, Math.ceil(-t)))
+          const padBottom = Math.min(cellCap - cell, Math.max(0, Math.ceil(b + 1 - cell)))
+          return {
+            ...c,
+            // Even, so the body square sits on a whole pixel either side of
+            // centre.
+            w: Math.min(cellCap, Math.max(2, Math.ceil(wide / 2) * 2)),
+            h: cell + padTop + padBottom,
+            foot: padTop + cell,
+          }
+        })
+
+        // --- shelves -------------------------------------------------------
+        //
+        // Blocks laid left to right and wrapped, tallest first so a shelf is
+        // not held open by one late arrival. The sheet is as wide as its widest
+        // block has to be, which is one longsword, and everything else fills in
+        // around it.
+        const width = Math.max(...sized.map((c) => c.w * frames * directions))
+        const order = [...sized].sort((a, b) => b.h - a.h)
+        const placed = new Map<number, { x: number; y: number; w: number; h: number; foot: number }>()
+        let penX = 0
+        let penY = 0
+        let shelf = 0
+        for (const c of order) {
+          const run = c.w * frames * directions
+          if (penX + run > width) {
+            penX = 0
+            penY += shelf
+            shelf = 0
+          }
+          placed.set(c.block, { x: penX, y: penY, w: c.w, h: c.h, foot: c.foot })
+          penX += run
+          shelf = Math.max(shelf, c.h)
+        }
+        const height = penY + shelf
+
         const canvas = document.createElement('canvas')
-        canvas.width = directions * frames * cellW
-        canvas.height = blocks.length * cellH
+        canvas.width = width
+        canvas.height = height
         const ctx = canvas.getContext('2d')!
         ctx.imageSmoothingEnabled = false
 
@@ -873,6 +1080,7 @@ async function main(): Promise<void> {
         const sc = scratch.getContext('2d')!
 
         for (const c of blocks) {
+          const at = placed.get(c.block)!
           for (const layer of c.layers) {
             const image = new Image()
             image.src = layer.data
@@ -897,10 +1105,11 @@ async function main(): Promise<void> {
             }
 
             const { srcCell, inset, count } = shapeOf(image)
+            const padTop = at.foot - cell
 
-            // Frame by frame rather than whole-sheet, because what is copied
-            // is a window on the body's square rather than the sheet's cell,
-            // and the two are only the same size by coincidence. Where the
+            // Frame by frame rather than whole-sheet, because what is copied is
+            // a window on the body's square rather than the sheet's own cell,
+            // and the two are the same size only by coincidence. Where the
             // window falls outside the sheet there is nothing to read — a
             // sixty-four cell has no pixels forty-nine to its left — so it is
             // clipped to what exists and lands correspondingly inset.
@@ -909,15 +1118,15 @@ async function main(): Promise<void> {
               // renderer reserves it — and the rest spread over the remainder.
               const from = slot(f, count)
               const left = from * srcCell
-              const wantX = left + inset + cell / 2 - cellW / 2
+              const wantX = left + inset + cell / 2 - at.w / 2
               const sx = Math.max(wantX, left)
-              const sw = Math.min(wantX + cellW, left + srcCell) - sx
+              const sw = Math.min(wantX + at.w, left + srcCell) - sx
               if (sw <= 0) continue
               for (let d = 0; d < directions; d++) {
                 const top = d * srcCell
                 const wantY = top + inset - padTop
                 const sy = Math.max(wantY, top)
-                const sh = Math.min(wantY + cellH, top + srcCell) - sy
+                const sh = Math.min(wantY + at.h, top + srcCell) - sy
                 if (sh <= 0) continue
                 ctx.drawImage(
                   source,
@@ -925,8 +1134,8 @@ async function main(): Promise<void> {
                   sy,
                   sw,
                   sh,
-                  (d * frames + f) * cellW + (sx - wantX),
-                  c.block * cellH + (sy - wantY),
+                  at.x + (d * frames + f) * at.w + (sx - wantX),
+                  at.y + (sy - wantY),
                   sw,
                   sh,
                 )
@@ -936,10 +1145,12 @@ async function main(): Promise<void> {
         }
         return {
           png: canvas.toDataURL('image/webp', quality),
-          cellW,
-          cellH,
-          foot: padTop + cell,
-          wanted: Math.ceil(wanted),
+          width,
+          height,
+          cells: blocks.map((c) => {
+            const at = placed.get(c.block)!
+            return [at.x, at.y, at.w, at.h, at.foot] as [number, number, number, number, number]
+          }),
         }
       },
       {
@@ -960,6 +1171,23 @@ async function main(): Promise<void> {
   writeFileSync(IMAGE, bytes)
 
   const rows = all.map((spec, index) => `  '${spec.id}': ${index},`).join('\n')
+  const cells = packed.cells.map((c) => `  [${c.join(', ')}],`).join('\n')
+  const rowOf = new Map(all.map((spec, index) => [spec.id, index]))
+  const played = actions()
+  const carried = (id: string, list: string[]): string => {
+    const pairs = list
+      .map((dir) => {
+        const key = `${dir}:${played.get(id)}`
+        return `[${rowOf.get(`${key}:behind`)}, ${rowOf.get(`${key}:front`)}]`
+      })
+      .join(', ')
+    const names = list.map((d) => d.replace(/^(weapon|shield)\//, '')).join(', ')
+    return `  // ${names}\n  '${id}': [${pairs}],`
+  }
+  const guard = GUARD.map((id) => carried(id, SHIELDS)).join('\n')
+  const arms = Object.entries(ARMS)
+    .map(([id, list]) => carried(id, list))
+    .join('\n')
   writeFileSync(
     TABLE,
     `/**
@@ -968,30 +1196,30 @@ async function main(): Promise<void> {
  * Generated by \`npm run lpc\` — edit the layer table in the packer, not this
  * file.
  *
- * One row of cells a block, a subject owning \`LPC_ANIMATIONS\` of them. Across
- * a row are the four directions in LPC's own order — up, left, down, right —
- * and inside each direction \`LPC_FRAMES\` frames. So a cell is at
+ * One run of cells a block, a subject owning \`LPC_ANIMATIONS\` of them. Along a
+ * run are the four directions in LPC's own order — up, left, down, right — and
+ * inside each direction \`LPC_FRAMES\` frames.
  *
- *   x = (direction * LPC_FRAMES + frame) * LPC_CELL_W
- *   y = (LPC_ROW[id] * LPC_ANIMATIONS + block) * LPC_CELL_H
+ * Where a block sits and how big its cells are is \`LPC_CELLS\`, indexed by
+ * \`LPC_ROW[id] * LPC_ANIMATIONS + block\` and holding \`[x, y, w, h, foot]\`.
+ * A cell is wider and taller than the body it holds, because a longsword
+ * mid-swing is, and blocks are sized one at a time because most of them are
+ * not holding a longsword. So a cell is at
  *
- * The cell is wider and taller than the body it holds, because a longsword
- * mid-swing is. \`LPC_BODY\` is the square the body itself stands in, centred
- * across the cell, and \`LPC_FOOT\` is how far down the cell its ground line
- * sits — draw the whole cell scaled so that \`LPC_BODY\` comes out the size the
- * body should be, with \`LPC_FOOT\` on the actor's own position.
+ *   x + (direction * LPC_FRAMES + frame) * w,  y
+ *
+ * \`LPC_BODY\` is the square the body itself stands in, centred across the cell
+ * whatever its width, and \`foot\` is how far down the cell its ground line sits
+ * — draw the whole cell scaled so that \`LPC_BODY\` comes out the size the body
+ * should be, with \`foot\` on the actor's own position.
  *
  * The art is Liberated Pixel Cup, variously CC-BY-SA 3.0, GPL 3.0, OGA-BY and
  * CC0. Attribution is a condition of those, and the list is in
  * \`art/LPC-CREDITS.md\`.
  */
 
-export const LPC_CELL_W = ${packed.cellW}
-export const LPC_CELL_H = ${packed.cellH}
-/** The square a body stands in, centred across the cell. */
+/** The square a body stands in, centred across whatever cell holds it. */
 export const LPC_BODY = ${CELL}
-/** How far down the cell the ground under that body is. */
-export const LPC_FOOT = ${packed.foot}
 export const LPC_FRAMES = ${FRAMES}
 export const LPC_DIRECTIONS = ${DIRECTIONS}
 
@@ -1010,6 +1238,36 @@ export const LPC_RIGHT = 3
 export const LPC_ROW: Record<string, number> = {
 ${rows}
 }
+
+/**
+ * Which weapons a spec might be carrying, as the two rows each one occupies —
+ * the half that hangs behind the body and the half in front of it.
+ *
+ * A list rather than one, so a raid of eight warriors is eight swords. Which
+ * of them a given body draws is the renderer's to decide and it decides off
+ * the body's own id, which is stable for a fight and differs between
+ * neighbours. A spec with no entry carries nothing: a bear has no hands.
+ */
+export const LPC_ARMS: Record<string, [number, number][]> = {
+${arms}
+}
+
+/**
+ * And what is on the other arm, the same way.
+ *
+ * A separate table because a shield is not a weapon: it is worn by whoever has
+ * an arm spare rather than by whoever fights a particular way, and the two
+ * lists have nothing to say to each other. The shields carry no class colour —
+ * see the packer — so one row of them serves every class that picks it up.
+ */
+export const LPC_GUARD: Record<string, [number, number][]> = {
+${guard}
+}
+
+/** Every block's place and size in the sheet, as [x, y, w, h, foot]. */
+export const LPC_CELLS: [number, number, number, number, number][] = [
+${cells}
+]
 `,
   )
 
@@ -1030,15 +1288,19 @@ ${lines.join('\n')}
   )
 
   const kb = (bytes.length / 1024).toFixed(1)
-  const width = DIRECTIONS * FRAMES * packed.cellW
-  const height = blocks.length * packed.cellH
+  const { width, height } = packed
+  const widest = Math.max(...packed.cells.map((c) => c[2]))
+  const filled = packed.cells.reduce((t, c) => t + c[2] * FRAMES * DIRECTIONS * c[3], 0)
   console.log(`lpc: ${all.length} specs, ${width}x${height}, ${kb} kB webp`)
   console.log(
-    `  cell ${packed.cellW}x${packed.cellH}, foot at ${packed.foot}` +
-      (packed.wanted > packed.cellW ? `  (clipped: wanted ${packed.wanted})` : ''),
+    `  cells ${Math.min(...packed.cells.map((c) => c[2]))}-${widest} wide, ` +
+      // What it costs held open rather than what it costs on disk, which is
+      // the number that decides whether a phone can keep it.
+      `${((width * height * 4) / 1e6).toFixed(0)} MB decoded, ` +
+      `${((filled / (width * height)) * 100).toFixed(0)}% of the sheet used`,
   )
   console.log(`  ${used.size} distinct layers, ${lines.length} credit lines`)
-  if (missing.length > 0) process.exit(1)
+  if (missing.length > 0 || offbeat.length > 0) process.exit(1)
 }
 
 main()

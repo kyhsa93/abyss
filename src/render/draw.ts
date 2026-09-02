@@ -2157,6 +2157,7 @@ function drawActor(
       step > 0.2,
       casting,
       a.alive ? 1 : 0.4,
+      a.id,
     )
   }
 
