@@ -33,7 +33,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 
-import { CLASSES, CLASS_ORDER, handsOf } from '../src/sim/classes'
+import { CLASSES, CLASS_ORDER, gripOf } from '../src/sim/classes'
 import { classColor } from '../src/render/theme'
 import type { ClassId } from '../src/sim/classes'
 
@@ -271,20 +271,27 @@ function disagreements(): string[] {
       const id = `${classId}-${spec.id}`
       const arms = ARMS[id]
       if (!arms) continue
-      // Nought hands is a spec that never swings at all — a holy paladin
+      // A grip of `none` is a spec that never swings at all — a holy paladin
       // carries a sword and heals with it sheathed — and what it carries is
       // held rather than used, so it answers to the one-handed rule: it has a
       // hand free, which is why it can put a shield in it.
-      const hands = handsOf(spec) === 2 ? 2 : 1
+      const grip = gripOf(spec)
+      const twoHanded = grip === 'two'
       for (const dir of arms) {
         if (dir.startsWith('weapon/magic/') || dir.startsWith('weapon/ranged/')) continue
-        const takes = TWO_HANDED.includes(dir) ? 2 : 1
-        if (takes !== hands) {
-          wrong.push(`${id} is a ${hands}-handed body drawn holding ${dir}`)
+        if (TWO_HANDED.includes(dir) !== twoHanded) {
+          wrong.push(`${id} holds it ${grip} and is drawn with ${dir}`)
         }
       }
-      if (hands === 2 && GUARD.includes(id)) {
-        wrong.push(`${id} swings with two hands and is given a shield`)
+      // Both of the other hands are already full.
+      if ((twoHanded || grip === 'dual') && GUARD.includes(id)) {
+        wrong.push(`${id} holds it ${grip} and is given a shield`)
+      }
+      if (grip === 'dual' && !OFFHAND.includes(id)) {
+        wrong.push(`${id} fights with two and is drawn holding one`)
+      }
+      if (grip !== 'dual' && OFFHAND.includes(id)) {
+        wrong.push(`${id} fights with ${grip} and is drawn holding two`)
       }
     }
   }
@@ -523,6 +530,27 @@ const CAPE: Partial<Record<ClassId, string>> = {
  * still says it louder than either.
  */
 /**
+ * Who is holding a second one.
+ *
+ * The set has no offhand blade — four things in the whole of LPC are drawn for
+ * the wrong hand, and they are a spear and three staffs — so the second blade
+ * is the first one turned around: mirrored, and read off the opposite facing,
+ * because mirroring swaps near for far as well as left for right. That puts it
+ * in the hand it belongs in rather than beside the hand it came out of.
+ *
+ * Walking only, and that is not a shortcut. A body in this set has one
+ * swinging arm: the slash animation moves the weapon arm and leaves the other
+ * where it was. A second blade mirrored onto that is a blade with no arm under
+ * it, hanging in the air at the end of a swing, and no amount of layer order
+ * fixes a missing arm. The walk moves both, so both blades move with them.
+ *
+ * What that costs is the offhand going away for the four tenths of a second a
+ * swing lasts, which reads as hitting with one hand at a time — which is what
+ * hitting with one hand at a time looks like.
+ */
+const OFFHAND = ['rogue-assassination']
+
+/**
  * Who has a hand free for one.
  *
  * The two that hold the boss, and the healer that stands next to them in the
@@ -667,6 +695,16 @@ interface Layer {
    */
   half?: 'front' | 'behind'
   /**
+   * Turn it around: read the opposite facing and flip it left for right.
+   *
+   * The one thing here that is not a sheet somebody drew. It exists for the
+   * second blade of a pair, which the set does not draw, and it has to take
+   * the opposite facing as well as flip — a body seen from its left, mirrored,
+   * is a body seen from its right, and the hand that was near is now far. The
+   * halves are swapped along with it by the caller, for the same reason.
+   */
+  mirror?: boolean
+  /**
    * Push this layer towards a colour, keeping its shading.
    *
    * Set on the worn layers and nothing else. Four armour types across
@@ -786,6 +824,15 @@ interface Subject {
   layers: Layer[]
   /** Which sheet the action animation is built from. */
   action: string
+  /**
+   * Drawn while walking and put away while swinging.
+   *
+   * Only the second blade of a pair, and only because the set has one swinging
+   * arm to hang it on. The block still exists — every subject owns the same
+   * two — it is simply empty, which is what an atlas says for "there is
+   * nothing to draw here".
+   */
+  sheathed?: boolean
 }
 
 /** Every spec in the order the roster shows them, then every boss. */
@@ -841,6 +888,24 @@ function specs(): Subject[] {
       out.push({ id: `${dir}:${action}:behind`, layers: [{ z: 0, dir, half: 'behind' }], action })
       out.push({ id: `${dir}:${action}:front`, layers: [{ z: 0, dir }], action })
     }
+  }
+  // And the second of a pair, which is the first one turned around. Its halves
+  // come from the other half of the main hand's sheet, because mirroring swaps
+  // near for far — see `OFFHAND`, which is also where the walk-only part of
+  // this is argued.
+  for (const dir of new Set(OFFHAND.flatMap((id) => ARMS[id] ?? []))) {
+    out.push({
+      id: `${dir}:off:behind`,
+      layers: [{ z: 0, dir, mirror: true }],
+      action: 'walk',
+      sheathed: true,
+    })
+    out.push({
+      id: `${dir}:off:front`,
+      layers: [{ z: 0, dir, half: 'behind', mirror: true }],
+      action: 'walk',
+      sheathed: true,
+    })
   }
   return out
 }
@@ -905,6 +970,9 @@ async function main(): Promise<void> {
   const blocks = all.flatMap((spec, index) =>
     ANIMATIONS.map((anim, order) => {
       const sheet = anim === 'walk' ? 'walk' : spec.action
+      if (anim !== 'walk' && spec.sheathed) {
+        return { id: spec.id, block: index * ANIMATIONS.length + order, layers: [] }
+      }
       // The body sets the beat. It is the one layer that is never optional and
       // never has two halves, so it is resolved first and everything else is
       // held to the number of frames it came back with. A weapon on its own
@@ -944,10 +1012,14 @@ async function main(): Promise<void> {
           return {
             z: layer.z,
             tint: layer.tint ?? null,
+            mirror: layer.mirror === true,
             data: `data:image/png;base64,${readFileSync(file).toString('base64')}`,
           }
         })
-        .filter((l): l is { z: number; tint: string | null; data: string } => l !== null)
+        .filter(
+          (l): l is { z: number; tint: string | null; mirror: boolean; data: string } =>
+            l !== null,
+        )
         .sort((a, b) => a.z - b.z)
 
       return { id: spec.id, block: index * ANIMATIONS.length + order, layers }
@@ -1171,22 +1243,28 @@ async function main(): Promise<void> {
               const sw = Math.min(wantX + at.w, left + srcCell) - sx
               if (sw <= 0) continue
               for (let d = 0; d < directions; d++) {
-                const top = d * srcCell
+                // A mirrored layer reads the facing it will look like once it
+                // is flipped: left becomes right, and up and down are their own
+                // opposites.
+                const read = layer.mirror ? [0, 3, 2, 1][d]! : d
+                const top = read * srcCell
                 const wantY = top + inset - padTop
                 const sy = Math.max(wantY, top)
                 const sh = Math.min(wantY + at.h, top + srcCell) - sy
                 if (sh <= 0) continue
-                ctx.drawImage(
-                  source,
-                  sx,
-                  sy,
-                  sw,
-                  sh,
-                  at.x + (d * frames + f) * at.w + (sx - wantX),
-                  at.y + (sy - wantY),
-                  sw,
-                  sh,
-                )
+                const dx = at.x + (d * frames + f) * at.w
+                if (!layer.mirror) {
+                  ctx.drawImage(source, sx, sy, sw, sh, dx + (sx - wantX), at.y + (sy - wantY), sw, sh)
+                  continue
+                }
+                // Flipped about the middle of the cell it is landing in, so
+                // what was a hand's width left of centre comes out a hand's
+                // width right of it.
+                ctx.save()
+                ctx.translate(dx + at.w, at.y)
+                ctx.scale(-1, 1)
+                ctx.drawImage(source, sx, sy, sw, sh, sx - wantX, sy - wantY, sw, sh)
+                ctx.restore()
               }
             }
           }
@@ -1233,6 +1311,12 @@ async function main(): Promise<void> {
     return `  // ${names}\n  '${id}': [${pairs}],`
   }
   const guard = GUARD.map((id) => carried(id, SHIELDS)).join('\n')
+  const off = OFFHAND.map((id) => {
+    const pairs = (ARMS[id] ?? [])
+      .map((dir) => `[${rowOf.get(`${dir}:off:behind`)}, ${rowOf.get(`${dir}:off:front`)}]`)
+      .join(', ')
+    return `  '${id}': [${pairs}],`
+  }).join('\n')
   const arms = Object.entries(ARMS)
     .map(([id, list]) => carried(id, list))
     .join('\n')
@@ -1310,6 +1394,18 @@ ${arms}
  */
 export const LPC_GUARD: Record<string, [number, number][]> = {
 ${guard}
+}
+
+/**
+ * The second of a pair, in the same order as \`LPC_ARMS\` so that one number
+ * picks both.
+ *
+ * Empty on the action block, on purpose: a body in this set swings one arm,
+ * and the blade in the other one is put away for the four tenths of a second
+ * that takes rather than left hanging off an arm that did not move.
+ */
+export const LPC_OFF: Record<string, [number, number][]> = {
+${off}
 }
 
 /** Every block's place and size in the sheet, as [x, y, w, h, foot]. */

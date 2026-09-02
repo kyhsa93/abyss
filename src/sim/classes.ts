@@ -126,6 +126,21 @@ const ONE_HAND: AutoAttack = { damage: 37, speed: 2.2, range: MELEE_RANGE }
 const TWO_HAND: AutoAttack = { damage: 73, speed: 4.4, range: MELEE_RANGE }
 
 /**
+ * Two of them, one in each hand, which is a rogue.
+ *
+ * Fastest and lightest of the three, and the same damage a second as the other
+ * two — a second blade is a second blade, not a second weapon's worth of
+ * damage. What it buys is what the class is for: the smallest, most frequent
+ * hits in the game, three of them in the time a poleaxe takes one.
+ *
+ * A rogue runs on energy, which regenerates on its own, so unlike the
+ * warrior's rage nothing in the resource is priced against the swing. This is
+ * the one grip that can be changed without also changing what the spec can
+ * afford to press.
+ */
+const DUAL_WIELD: AutoAttack = { damage: 25, speed: 1.5, range: MELEE_RANGE }
+
+/**
  * The blow every other number here was set against.
  *
  * Fifty damage every three seconds was the one weapon in the game for as long
@@ -137,18 +152,26 @@ const TWO_HAND: AutoAttack = { damage: 73, speed: 4.4, range: MELEE_RANGE }
 export const SWING_BASELINE_DAMAGE = 50
 
 /**
- * How many hands a spec's weapon takes, or none for the ones that carry no
- * weapon at all.
+ * How a spec holds what it fights with.
  *
  * Read off the swing rather than declared beside it, so the picture and the
  * numbers cannot drift: the sprite packer chooses which weapons a spec may be
- * drawn holding, and it asks this. A spec that swings a two-hander is not
- * allowed to be drawn with a shield in the other hand.
+ * drawn holding, and it asks this. A body that swings a poleaxe every four and
+ * a half seconds may not be drawn with a shield, and a body with a blade in
+ * each hand may not either.
+ *
+ * `none` is a spec with no weapon in the simulation at all — a druid in a form
+ * has claws, and a holy paladin carries a sword it never swings. Carrying is
+ * not wielding, and a hand that is only carrying is a hand that can hold a
+ * shield instead.
  */
-export function handsOf(spec: Spec): 0 | 1 | 2 {
-  if (spec.auto === TWO_HAND) return 2
-  if (spec.auto === ONE_HAND) return 1
-  return 0
+export type Grip = 'none' | 'one' | 'two' | 'dual'
+
+export function gripOf(spec: Spec): Grip {
+  if (spec.auto === TWO_HAND) return 'two'
+  if (spec.auto === DUAL_WIELD) return 'dual'
+  if (spec.auto === ONE_HAND) return 'one'
+  return 'none'
 }
 const SHOT: AutoAttack = {
   damage: 48,
@@ -701,7 +724,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
         trait: 'combo',
         resource: 'energy',
         melee: true,
-        auto: ONE_HAND,
+        auto: DUAL_WIELD,
         hp: 3400,
         armor: 2300,
         block: 0,

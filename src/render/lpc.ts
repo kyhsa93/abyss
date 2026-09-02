@@ -132,6 +132,12 @@ export const LPC_ROW: Record<string, number> = {
   'weapon/sword/saber:slash:front': 85,
   'weapon/sword/saber:spellcast:behind': 86,
   'weapon/sword/saber:spellcast:front': 87,
+  'weapon/sword/dagger:off:behind': 88,
+  'weapon/sword/dagger:off:front': 89,
+  'weapon/sword/rapier:off:behind': 90,
+  'weapon/sword/rapier:off:front': 91,
+  'weapon/sword/saber:off:behind': 92,
+  'weapon/sword/saber:off:front': 93,
 }
 
 /**
@@ -191,6 +197,18 @@ export const LPC_GUARD: Record<string, [number, number][]> = {
   'paladin-protection': [[30, 31], [26, 27], [38, 39], [42, 43], [34, 35], [46, 47]],
   // heater, crusader, scutum, spartan, plus, two_engrailed
   'paladin-holy': [[32, 33], [28, 29], [40, 41], [44, 45], [36, 37], [48, 49]],
+}
+
+/**
+ * The second of a pair, in the same order as `LPC_ARMS` so that one number
+ * picks both.
+ *
+ * Empty on the action block, on purpose: a body in this set swings one arm,
+ * and the blade in the other one is put away for the four tenths of a second
+ * that takes rather than left hanging off an arm that did not move.
+ */
+export const LPC_OFF: Record<string, [number, number][]> = {
+  'rogue-assassination': [[88, 89], [90, 91], [92, 93]],
 }
 
 /** Every block's place and size in the sheet, as [x, y, w, h, foot]. */
@@ -371,4 +389,16 @@ export const LPC_CELLS: [number, number, number, number, number][] = [
   [560, 4199, 2, 64, 64],
   [600, 4199, 50, 64, 64],
   [1600, 4199, 2, 64, 64],
+  [1640, 4199, 40, 64, 64],
+  [2440, 4199, 2, 64, 64],
+  [2480, 4199, 24, 64, 64],
+  [2960, 4199, 2, 64, 64],
+  [0, 4263, 62, 64, 64],
+  [1240, 4263, 2, 64, 64],
+  [1280, 4263, 48, 64, 64],
+  [2240, 4263, 2, 64, 64],
+  [0, 4327, 50, 64, 64],
+  [1000, 4327, 2, 64, 64],
+  [1040, 4327, 28, 64, 64],
+  [1600, 4327, 2, 64, 64],
 ]

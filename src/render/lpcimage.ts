@@ -15,6 +15,7 @@ import {
   LPC_BODY,
   LPC_CELLS,
   LPC_GUARD,
+  LPC_OFF,
   LPC_DOWN,
   LPC_FRAMES,
   LPC_LEFT,
@@ -210,12 +211,17 @@ export function drawBody(
   // were painted onto the body: an arm is closer to its owner than the thing
   // at the end of it.
   const arm = pickOf(LPC_ARMS[id], who)
+  const off = pickOf(LPC_OFF[id], who)
   const shield = pickOf(LPC_GUARD[id], who)
+  // The second blade of a pair outside the first, which is arbitrary — they
+  // are in opposite hands and never overlap — but consistent.
+  if (off) cell(off[0])
   if (arm) cell(arm[0])
   if (shield) cell(shield[0])
   cell(row)
   if (shield) cell(shield[1])
   if (arm) cell(arm[1])
+  if (off) cell(off[1])
 
   ctx.restore()
   return true
