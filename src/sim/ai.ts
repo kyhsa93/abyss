@@ -128,6 +128,49 @@ const CASTER_MAX_RANGE = 320
 const CASTER_IDEAL_RANGE = 225
 const HEAL_REACH = 360
 
+/**
+ * How close a healer walks to somebody it cannot reach.
+ *
+ * Inside `HEAL_REACH` rather than at it, and the gap between the two is the
+ * whole design. `HEAL_REACH` is when a healer is asked to walk; this is where
+ * it walks to. Collapsing them into one number is the obvious tidy-up and it
+ * is wrong in both directions: at the loose number the healer settles exactly
+ * on the line it was failing, and steps back off it the moment either body
+ * moves; at the tight one it is out of position for anybody more than this
+ * far away, which is most of the raid most of the time.
+ *
+ * Measured, because it did not read as a tuning question at all. Asking to
+ * walk at this distance rather than at `HEAL_REACH` gives back a third of
+ * what the whole change bought — 16.3% of a raid dying becomes 17.4% — for a
+ * reason that has nothing to do with range: a walking healer may only cast
+ * instants, so a rule that puts one on its feet more often heals less with
+ * every body it can now reach.
+ */
+const HEAL_STAND = HEAL_REACH * 0.8
+
+/**
+ * How far gone somebody has to be before a healer leaves its post to reach
+ * them.
+ *
+ * Two questions live in this file and they are easy to run together. Keeping
+ * a body in range while dodging is free — it aims a step that was being taken
+ * anyway — and that one is asked at the rotation's own emergency line, which
+ * is where a healer starts caring. Walking there is not free: a healer on its
+ * feet may cast instants only, so every walk is a few seconds of the raid's
+ * healing turned down, and on a boss that leans on steady damage that is paid
+ * by everybody rather than by the one being fetched.
+ *
+ * So the walk is priced separately, and low. At the emergency line the
+ * Tidebreaker's twenty-five-man normal won 57% of its ninth pulls; here it
+ * wins 65%, and the number this whole change exists to move did not budge —
+ * a body under a third is a body that dies out there, and one at forty
+ * percent is a body somebody will reach in time anyway.
+ *
+ * A judgement is exempt: that one has a clock rather than a health bar, and
+ * `watchTheLine` has already decided it is this healer's to answer.
+ */
+const WALK_LINE = 0.3
+
 export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
   if (!ai || !actor.alive) return
@@ -682,6 +725,129 @@ function rescueTarget(s: SimState, actor: Actor): Actor | null {
   if (id === null || id === undefined) return null
   const target = s.actors.find((a) => a.id === id)
   return target && target.alive && getAura(target, 'verdict') ? target : null
+}
+
+/**
+ * The body this healer is about to press a button on, when that body is
+ * somebody else.
+ *
+ * The one question the movement layer never asked. Everything about where a
+ * healer stands was written off the boss — a bearing and a range, the same
+ * two numbers every caster gets — and healing is the one job in the fight
+ * whose target is not the boss. So a body that a mechanic had thrown to the
+ * far wall was simply never healed: the rotation asked for a cast, the cast
+ * came back out of range, and nothing anywhere turned that into a walk. It
+ * read as a healer watching somebody die, which is exactly what it was.
+ *
+ * The answer has to be the same body the rotation will actually aim at, not
+ * merely whoever is lowest, or the walk and the cast disagree: an anchor
+ * paladin holding its tank would have been sent across the room after a
+ * damage dealer it was never going to heal. So it runs the rotation's own
+ * choice — the rescue first, because that one is on a timer, then whatever
+ * `healTarget` would pick out of `mostHurt`.
+ *
+ * And it asks the emergency threshold rather than the top-off one, which is
+ * the difference between a rule that fires now and then and a rule that fires
+ * always. Somebody is under a top-off in a raid at essentially every moment of
+ * a fight, so reading that number left every healer permanently owing
+ * somebody, and the whole party moved: the healers sat a little nearer
+ * whoever was lowest, the clustering pull dragged everyone else after them,
+ * and `rendercheck` called it as the damage specs spreading from 1.32 to 1.39
+ * — a check about damage, three layers away from anything here. What this is
+ * for is a body that will die out there, not one that will finish the fight
+ * at eighty percent, and the emergency line is the rotation's own word for
+ * the difference.
+ *
+ * That is the answer for keeping somebody in reach, which is free. Leaving
+ * your position to go and get them is not, and is priced again in `walkFor`.
+ */
+function patientOf(s: SimState, actor: Actor): Actor | null {
+  if (actor.role !== 'healer' || !actor.ai) return null
+
+  const rescue = rescueTarget(s, actor)
+  if (rescue) return rescue.id === actor.id ? null : rescue
+
+  const wounded = mostHurt(s)
+  if (!wounded) return null
+
+  const on = healTarget(s, actor, wounded, topOffFor(actor))
+  if (on.id === actor.id || on.hp / on.maxHp >= emergencyFor(actor)) return null
+  return on
+}
+
+/**
+ * The same body, but only for the healer that owes them a walk.
+ *
+ * Two questions that look like one and are not. Keeping somebody in range is
+ * free — it aims a step that was already being taken — so every healer in the
+ * raid should want it, and `patientOf` answers for all of them. Leaving your
+ * position to go and get them is not free, and `mostHurt` is a question about
+ * the raid rather than about the healer, so every healer gets the same answer
+ * and a raid with five of them sent all five after the same body. That is not
+ * five healers being helpful: it is the raid's spread collapsing onto whoever
+ * is lowest, which is a spread mechanic landing on five people and a brand
+ * burning in the middle of them. Found on the Tidebreaker's twenty-five-man
+ * normal, where it was worth forty-five points of win rate back when a walk
+ * fired at the emergency line — more than the bug this exists to fix was
+ * worth anywhere.
+ *
+ * So the walk is claimed the way a raid claims a target out loud, the shape
+ * `watchTheLine` uses for a judgement: if anybody else can already reach them
+ * it is covered, and if nobody can it belongs to whoever is nearest. Ids break
+ * the tie, because two healers that each decided the other one had it are the
+ * same failure written the other way round. Worth ten points of ninth-pull win
+ * rate on both of the cells this change was hardest on.
+ *
+ * A rescue is not claimed here because it is claimed already, by name, in
+ * `watchTheLine` — and it is the one heal in the fight with a clock on it, so
+ * a second healer walking to a body somebody else has called is the raid
+ * insuring the only mechanic it cannot afford to drop.
+ */
+function walkFor(s: SimState, actor: Actor): Actor | null {
+  const on = patientOf(s, actor)
+  if (!on || getAura(on, 'verdict')) return on
+  if (on.hp / on.maxHp >= WALK_LINE) return null
+
+  // And not while somebody here needs the same thing.
+  //
+  // A walk is a few seconds of instants only, so it is not paid by the one
+  // being fetched — it is paid by whoever was relying on this healer's next
+  // cast. When that is another body already under the line, the trade is one
+  // rescue for one death, and this raid cannot spend healers that way.
+  const line = emergencyFor(actor)
+  for (const near of livingParty(s)) {
+    if (near.id === actor.id || near.id === on.id) continue
+    if (near.hp / near.maxHp >= line) continue
+    if (dist(actor.pos, near.pos) <= HEAL_REACH) return null
+  }
+
+  let nearest = actor
+  for (const other of livingParty(s)) {
+    if (other.id === actor.id || other.role !== 'healer') continue
+    const gap = dist(other.pos, on.pos)
+    if (gap <= HEAL_REACH) return null
+    const mine = dist(nearest.pos, on.pos)
+    if (gap < mine || (gap === mine && other.id < nearest.id)) nearest = other
+  }
+  return nearest.id === actor.id ? on : null
+}
+
+/**
+ * The health a healer of this temperament stops topping people up at, and the
+ * health at which it stops everything else to answer.
+ *
+ * Shared with `healerRotation` rather than written twice, because the reading
+ * and the walk have to agree: a walk taken for somebody the rotation would
+ * not have dropped what it was doing for is a walk out of position for
+ * nothing.
+ */
+function topOffFor(actor: Actor): number {
+  return actor.ai?.personality === 'timid' ? 0.95 : 0.82
+}
+
+function emergencyFor(actor: Actor): number {
+  const personality = actor.ai?.personality
+  return personality === 'timid' ? 0.55 : personality === 'greedy' ? 0.35 : 0.45
 }
 
 /**
@@ -1327,11 +1493,15 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
   if (tooClose(actor, b)) return true
 
   if (actor.role === 'healer') {
-    // A healer also has to be able to reach whoever is hurt.
-    const wounded = mostHurt(s)
-    if (wounded && wounded.id !== actor.id && dist(actor.pos, wounded.pos) > HEAL_REACH) {
-      return true
-    }
+    // A healer also has to be able to reach whoever it is about to heal, and
+    // this is the one rule here that its home does not already answer. Every
+    // other line in this function is a distance off the boss, and `home` is a
+    // bearing off the boss, so being out of position and walking home are the
+    // same sentence. The body that needs the heal is wherever the last
+    // mechanic put it, which is why the walk had to be taught separately --
+    // see `withinReach`.
+    const hurt = walkFor(s, actor)
+    if (hurt && dist(actor.pos, hurt.pos) > HEAL_REACH) return true
   }
 
   return false
@@ -1546,7 +1716,96 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
     bearingY /= len
   }
 
-  return { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }
+  return withinReach(s, actor, { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }, want)
+}
+
+/**
+ * A home a healer can actually heal from.
+ *
+ * A step around the ring rather than off it, which is the same shape as the
+ * crowding lean above and chosen for the same reason. The ring is the range
+ * this role fights at and the rest of the fight is written against it: a
+ * healer that answered this by walking in a straight line at the body it
+ * wanted ended up wherever that body was standing, which on a boss whose main
+ * mechanic sweeps the floor is the melee's ground. Measured, that version
+ * doubled the share of a raid's healers that died, 24% to 47%, and they were
+ * not dying to anything they had walked into — their mechanic hits went
+ * *down*. They were dying because a healer that leaves the range it was tuned
+ * at takes the fight's ordinary damage somewhere it was never built to stand.
+ *
+ * So the ring is kept and the bearing is turned: where the ring and the reach
+ * of a heal cross, that is the spot, and of the two crossings the one nearer
+ * where it was already going. Only when they do not cross at all — a body far
+ * enough out that no point at this range reaches it — does it give ground, and
+ * then along the line, as little as the geometry allows.
+ *
+ * Left exactly where it was when the patient is already in reach, which is
+ * nearly always, so nearly always this costs nothing.
+ *
+ * And it is a fixed point, which is what stops the pacing. The spot it returns
+ * is in range, so the reach rule in `outOfPosition` is satisfied there; if the
+ * walk took the healer off the caster band the range rule fires instead, asks
+ * for a home, and gets this same spot back rather than the ring that put the
+ * patient out of reach in the first place.
+ */
+function withinReach(s: SimState, actor: Actor, home: Vec2, want: number): Vec2 {
+  const hurt = walkFor(s, actor)
+  if (!hurt) return home
+  const gap = dist(home, hurt.pos)
+  if (gap <= HEAL_STAND) return home
+
+  const closer = onRing(boss(s).pos, want, hurt.pos, home) ?? {
+    x: hurt.pos.x + (home.x - hurt.pos.x) * (HEAL_STAND / gap),
+    y: hurt.pos.y + (home.y - hurt.pos.y) * (HEAL_STAND / gap),
+  }
+  // And never into something.
+  //
+  // Home used to be a ring around the boss, which is why the one place this is
+  // read guards it so narrowly: a ring cannot wander into a hazard, so the
+  // only checks it needed were the two mechanics that cover the ring itself.
+  // A home aimed at a body can go wherever that body is, and the fight has
+  // mechanics whose whole point is that it should not follow — a fault takes
+  // half the floor, and the half the dying one is standing on is exactly the
+  // half it is dying on.
+  //
+  // Refusing rather than looking for somewhere else in range. Where a mechanic
+  // has cut the raid in two, the body across the line has an answer of its own
+  // and this one is not it; a healer that went anyway arrived as a second
+  // corpse. It was worth twenty-eight points of the Tidebreaker's ten-man
+  // heroic when the walk was a straight line at the body; against the ring it
+  // measures at nothing, because a spot on the ring is rarely a spot in a
+  // hazard. Kept at nothing: what it refuses has not stopped being fatal, it
+  // has only stopped being common.
+  return isSpotSafe(s, actor, closer) ? closer : home
+}
+
+/**
+ * Where a circle of radius `want` about `centre` comes within `HEAL_STAND` of
+ * `hurt`, nearest to `near`. Null when it never does.
+ *
+ * Two circles: the ring the healer wants to stand on, and the reach of its
+ * heal. Their crossings are the only two spots that answer both, and the
+ * nearer of the two to where the healer was already headed is the one that
+ * costs the shortest walk.
+ */
+function onRing(centre: Vec2, want: number, hurt: Vec2, near: Vec2): Vec2 | null {
+  const dx = hurt.x - centre.x
+  const dy = hurt.y - centre.y
+  const d = Math.hypot(dx, dy)
+  // Concentric, or one circle wholly inside the other with no edge in common.
+  if (d < 0.001 || d > want + HEAL_STAND || d < Math.abs(want - HEAL_STAND)) return null
+
+  // How far along the line between the centres the crossings sit, and half the
+  // chord they lie on.
+  const along = (d * d + want * want - HEAL_STAND * HEAL_STAND) / (2 * d)
+  const half = Math.sqrt(Math.max(0, want * want - along * along))
+  const mid = { x: centre.x + (dx / d) * along, y: centre.y + (dy / d) * along }
+  const px = -dy / d
+  const py = dx / d
+
+  const one = { x: mid.x + px * half, y: mid.y + py * half }
+  const other = { x: mid.x - px * half, y: mid.y - py * half }
+  return dist(one, near) <= dist(other, near) ? one : other
 }
 
 /**
@@ -1741,6 +2000,8 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     }
   }
   const owing = getAura(actor, 'yoke') !== undefined
+
+  const patient = patientOf(s, actor)
 
   const chasing = hunterOf(s, actor)
 
@@ -1971,6 +2232,23 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         if (dist(candidate, other.pos) <= YOKE_REACH) close++
       }
       score += Math.min(4, close) * 150
+    }
+
+    // 3e. And the body this healer is about to heal, which is the burden's
+    // term and the yoke's in the same shape, for the same reason: a dodge is
+    // free to land anywhere the floor is clear, and one that lands out of
+    // heal range answers a mechanic by causing a death somewhere else. The
+    // out-of-position rule catches that afterwards and walks it back, but
+    // afterwards is a second of walking, and the body waiting on the heal is
+    // usually the one that does not have a second.
+    //
+    // Capped under what fire costs, like the rest of this block. A healer
+    // that would stand in a puddle to keep somebody in range has traded one
+    // death for two.
+    if (patient) {
+      const d = dist(candidate, patient.pos)
+      if (d <= HEAL_STAND) score += 700
+      else score -= Math.min(800, (d - HEAL_STAND) * 1.7)
     }
 
     // 4. Role positioning.
@@ -2385,8 +2663,8 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   const powerLeft = actor.maxPower > 0 ? actor.power / actor.maxPower : 1
 
   // Timid healers panic earlier and burn mana; greedy ones let people ride low.
-  const emergency = ai.personality === 'timid' ? 0.55 : ai.personality === 'greedy' ? 0.35 : 0.45
-  const topOff = ai.personality === 'timid' ? 0.95 : 0.82
+  const emergency = emergencyFor(actor)
+  const topOff = topOffFor(actor)
 
   if (kit.finisher && ratio < emergency && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
     // An emergency is answered on whoever is in it, whatever the spec would
