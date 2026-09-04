@@ -115,6 +115,17 @@ function directionOf(facing: number): number {
  * slows it down — and standing still lands on frame zero, which is the pose
  * LPC draws for standing.
  */
+/**
+ * How tall a body of this footprint stands, in screen pixels.
+ *
+ * Exported so that anything drawn beside a body can be sized against one. The
+ * headstone that replaces a dead raider is the first: it has to be shorter
+ * than a person and there is only one place that knows how tall a person is.
+ */
+export function bodyHeight(r: number): number {
+  return r * BODY * SQUASH
+}
+
 export function drawBody(
   ctx: CanvasRenderingContext2D,
   id: string,

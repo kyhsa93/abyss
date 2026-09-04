@@ -459,6 +459,18 @@ export function battlegroundTerrain(bg: BgState, rng: Rng): Obstacle[] {
  */
 const RAID_CLEAR = 210
 
+/**
+ * How big a raid's rocks are, which is smaller than a battleground's.
+ *
+ * A battleground rock is cover — it is sized to hide a body behind. A raid
+ * rock is furniture, and it is sized against the art standing on it: a pile
+ * of stones is a pile of stones at about this width, and past it the pile has
+ * to be built out of more and more pieces before it stops looking like a rock
+ * with gaps in it.
+ */
+const RAID_ROCK_MIN = 30
+const RAID_ROCK_MAX = 52
+
 export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
   const rocks: Obstacle[] = []
   if (rng.chance(0.34)) return rocks
@@ -485,7 +497,7 @@ export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
   // rock, which is a floor with three instead of four on it.
   for (let i = 0; i < wanted; i++) {
     for (let attempt = 0; attempt < 24; attempt++) {
-      const radius = rng.range(ROCK_MIN, ROCK_MAX)
+      const radius = rng.range(RAID_ROCK_MIN, RAID_ROCK_MAX)
       const angle = rng.range(0, Math.PI * 2)
       const out = rng.range(RAID_CLEAR + radius, ARENA_RADIUS - LANE - radius)
       const pos = { x: Math.cos(angle) * out, y: Math.sin(angle) * out }

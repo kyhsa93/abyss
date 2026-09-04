@@ -94,7 +94,7 @@ interface Piece {
 const PIECES: Piece[] = [
   // Casper Nilsson's graveyard, which is what a drowned floor should be
   // furnished with.
-  { id: 'cross', sheet: 'Outside Objects.png', x: 864, y: 544, w: 32, h: 64, by: 'casper' },
+  { id: 'cross', sheet: 'Outside Objects.png', x: 864, y: 544, w: 32, h: 44, by: 'casper' },
   { id: 'tomb', sheet: 'Outside Objects.png', x: 896, y: 544, w: 60, h: 96, by: 'casper' },
   { id: 'grave-round', sheet: 'Outside Objects.png', x: 960, y: 544, w: 32, h: 50, by: 'casper' },
   { id: 'grave-rip', sheet: 'Outside Objects.png', x: 992, y: 544, w: 32, h: 50, by: 'casper' },
@@ -125,9 +125,17 @@ const PIECES: Piece[] = [
   { id: 'floor-clay', sheet: 'Terrain and Outside.png', x: 224, y: 96, w: 32, h: 32, by: 'sharm' },
   { id: 'floor-cobble', sheet: 'Terrain and Outside.png', x: 192, y: 384, w: 32, h: 32, by: 'sharm' },
 
-  // Sharm's white rocks.
-  { id: 'rock', sheet: 'Terrain and Outside.png', x: 960, y: 544, w: 32, h: 32, by: 'sharm' },
-  { id: 'rocks', sheet: 'Terrain and Outside.png', x: 992, y: 544, w: 32, h: 32, by: 'sharm' },
+  // Sharm's white rocks, which are what an obstacle is made of. One big enough
+  // to be the middle of a pile and four small enough to be the rest of it —
+  // a rock on this floor is sixty units across and the art is thirty-two
+  // pixels, so it is built out of several at their own size rather than one
+  // blown up to eight times it.
+  { id: 'boulder', sheet: 'Terrain and Outside.png', x: 960, y: 544, w: 32, h: 32, by: 'sharm' },
+  { id: 'menhir', sheet: 'Terrain and Outside.png', x: 992, y: 640, w: 32, h: 64, by: 'sharm' },
+  { id: 'scatter', sheet: 'Terrain and Outside.png', x: 992, y: 544, w: 32, h: 32, by: 'sharm' },
+  { id: 'rubble-a', sheet: 'Terrain and Outside.png', x: 960, y: 512, w: 32, h: 32, by: 'sharm' },
+  { id: 'rubble-b', sheet: 'Terrain and Outside.png', x: 992, y: 512, w: 32, h: 32, by: 'sharm' },
+  { id: 'pebbles', sheet: 'Terrain and Outside.png', x: 960, y: 640, w: 32, h: 64, by: 'sharm' },
 ]
 
 function unattributed(): string[] {

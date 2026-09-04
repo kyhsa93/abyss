@@ -9,19 +9,23 @@
 export const PROPS_SRC = 'art/props.webp'
 
 export const PROPS: Record<string, [number, number, number, number]> = {
-  'cross': [60, 0, 32, 64],
+  'cross': [32, 96, 32, 44],
   'tomb': [0, 0, 60, 96],
-  'grave-round': [156, 0, 32, 50],
-  'grave-rip': [188, 0, 32, 50],
-  'grave-pair': [92, 0, 64, 54],
-  'cross-wood': [220, 0, 32, 46],
-  'floor-slate': [0, 96, 32, 32],
-  'floor-sand': [32, 96, 32, 32],
-  'floor-earth': [64, 96, 32, 32],
-  'floor-clay': [96, 96, 32, 32],
-  'floor-cobble': [128, 96, 32, 32],
-  'rock': [160, 96, 32, 32],
-  'rocks': [192, 96, 32, 32],
+  'grave-round': [188, 0, 32, 50],
+  'grave-rip': [220, 0, 32, 50],
+  'grave-pair': [124, 0, 64, 54],
+  'cross-wood': [0, 96, 32, 46],
+  'floor-slate': [64, 96, 32, 32],
+  'floor-sand': [96, 96, 32, 32],
+  'floor-earth': [128, 96, 32, 32],
+  'floor-clay': [160, 96, 32, 32],
+  'floor-cobble': [192, 96, 32, 32],
+  'boulder': [224, 96, 32, 32],
+  'menhir': [60, 0, 32, 64],
+  'scatter': [0, 142, 32, 32],
+  'rubble-a': [32, 142, 32, 32],
+  'rubble-b': [64, 142, 32, 32],
+  'pebbles': [92, 0, 32, 64],
 }
 
 export const PROP_IDS = Object.keys(PROPS)

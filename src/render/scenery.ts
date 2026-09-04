@@ -18,10 +18,9 @@
  * half the raid is standing in.
  */
 
-import { ARENA_RADIUS } from '../sim/constants'
 import { Rng } from '../sim/rng'
 import { PROPS, PROPS_SRC, PROP_IDS } from './props'
-import type { Vec2 } from '../sim/types'
+import type { Obstacle, Vec2 } from '../sim/types'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
 
@@ -37,89 +36,6 @@ function begin(): void {
     sheet = image as unknown as Sheet
   }
   image.src = PROPS_SRC
-}
-
-/**
- * How many pieces a room is furnished with.
- *
- * Enough that the ring is not empty and few enough that it is not a fence.
- * Rolled, like everything else about the room, so two fights are not the same
- * place.
- */
-const FEWEST = 7
-const MOST = 13
-
-/** How far beyond the wall a piece stands, at its closest and its furthest. */
-const NEAR = 14
-const FAR = 96
-
-/**
- * How many world units a pixel of this art is worth.
- *
- * Under one, and the number is picked against a body rather than against the
- * art. LPC draws its terrain on the same grid as its people — a headstone and
- * a raider are the same handful of pixels tall — but a raider on this floor is
- * drawn at about a third of the size it would be in the game these tiles were
- * cut for, because this camera is looking at a raid rather than at one person
- * walking down a road. At one-to-one the graveyard came out taller than the
- * people standing in it.
- */
-const PIXEL = 0.52
-
-interface Piece {
-  id: string
-  at: Vec2
-  /** Drawn a little smaller further out, which is all the depth this needs. */
-  scale: number
-}
-
-/** Everything in the sheet that is an object rather than a surface. */
-const STANDING = PROP_IDS.filter((id) => !id.startsWith('floor-'))
-
-/** And everything that is a surface, in a fixed order so a seed picks one. */
-const FLOORS = PROP_IDS.filter((id) => id.startsWith('floor-')).sort()
-
-let planned: { key: string; pieces: Piece[] } | null = null
-
-/**
- * The room, rolled from the fight's own seed.
- *
- * Not from `Math.random`, and the reason is not tidiness. A pull replays from
- * its seed, and a fight can be handed to somebody else as a link — so a room
- * that rolled itself fresh on every load would be a different room for the
- * person you sent it to, and a different one again when you watched your own
- * fight back. Off the seed it is random between fights and fixed within one,
- * which is what "random" has to mean in a game that can replay itself.
- *
- * Cached on the seed for the same reason it is derived from it: the plan is
- * the same every frame, so it is made once.
- */
-function plan(seed: number, encounter: number): Piece[] {
-  const key = `${seed}:${encounter}`
-  if (planned?.key === key) return planned.pieces
-
-  // Off the encounter as well as the seed, so the same party rolling the same
-  // number does not get the same room on every boss of a ladder.
-  const rng = new Rng(seed * 31 + encounter * 7919 + 104729)
-  const count = FEWEST + rng.int(MOST - FEWEST + 1)
-  const pieces: Piece[] = []
-
-  // Spread round the whole circle rather than scattered freely: a ring with
-  // every piece in one quarter is a ring the player never turns to look at.
-  // Each takes a slice and stands somewhere inside it.
-  for (let i = 0; i < count; i++) {
-    const slice = (Math.PI * 2) / count
-    const angle = i * slice + rng.range(0.15, 0.85) * slice
-    const out = ARENA_RADIUS + rng.range(NEAR, FAR)
-    pieces.push({
-      id: STANDING[rng.int(STANDING.length)]!,
-      at: { x: Math.cos(angle) * out, y: Math.sin(angle) * out },
-      scale: rng.range(0.85, 1.15),
-    })
-  }
-
-  planned = { key, pieces }
-  return pieces
 }
 
 /**
@@ -177,40 +93,169 @@ export function floorTexture(
   return floorPattern
 }
 
+
+/** And everything that is a surface, in a fixed order so a seed picks one. */
+const FLOORS = PROP_IDS.filter((id) => id.startsWith('floor-')).sort()
+
 /**
+ * What can be the middle of a pile, and what can be the rest of it.
+ *
+ * Stone only. The graveyard was in this list for a while and it was wrong for
+ * a reason worth writing down: a headstone means something on this floor now —
+ * somebody died here — and a headstone that is also a rock you cannot walk
+ * through is the same picture saying two things. Whichever one the player
+ * learns first makes the other one a lie.
+ */
+const ANCHORS = ['boulder', 'menhir']
+const LITTER = ['scatter', 'rubble-a', 'rubble-b', 'pebbles']
+
+interface Lump {
+  id: string
+  /** Offset from the obstacle's centre, in world units. */
+  dx: number
+  dy: number
+  /** How tall it stands, in world units. */
+  tall: number
+  flip: boolean
+}
+
+const piles = new Map<string, Lump[]>()
+
+/**
+ * What one rock is built out of.
+ *
+ * A pile rather than a picture. An obstacle here is thirty to seventy units
+ * across and the art is thirty-two pixels; blown up to fill the circle its
+ * pixels would be eight times the size of the pixels on the bodies standing
+ * next to it, which is not a bigger rock, it is a different game. So the
+ * circle is filled with several rocks at close to their own size: one that
+ * anchors it and a handful of smaller ones spilling round the base.
+ *
+ * Keyed off where the rock is, so it is the same pile every frame and a
+ * different one from the rock beside it, without anybody having to store it in
+ * the simulation. Terrain does not move.
+ */
+function pileFor(rock: Obstacle): Lump[] {
+  const key = `${rock.pos.x.toFixed(1)},${rock.pos.y.toFixed(1)},${rock.radius.toFixed(1)}`
+  const had = piles.get(key)
+  if (had) return had
+
+  const rng = new Rng(Math.round(rock.pos.x * 73 + rock.pos.y * 179 + rock.radius * 13))
+  const lumps: Lump[] = [
+    {
+      id: ANCHORS[rng.int(ANCHORS.length)]!,
+      dx: rng.range(-0.15, 0.15) * rock.radius,
+      dy: rng.range(-0.1, 0.1) * rock.radius,
+      tall: rock.radius * rng.range(1.0, 1.35),
+      flip: rng.chance(0.5),
+    },
+  ]
+  // The rest around the base, inside the circle, so the pile reads as one
+  // thing rather than as a rock with debris beside it.
+  const rest = 2 + rng.int(3)
+  for (let i = 0; i < rest; i++) {
+    const angle = (i / rest) * Math.PI * 2 + rng.range(0, 1.2)
+    const out = rng.range(0.35, 0.8) * rock.radius
+    lumps.push({
+      id: LITTER[rng.int(LITTER.length)]!,
+      dx: Math.cos(angle) * out,
+      dy: Math.sin(angle) * out * 0.6,
+      tall: rock.radius * rng.range(0.35, 0.6),
+      flip: rng.chance(0.5),
+    })
+  }
+  piles.set(key, lumps)
+  return lumps
+}
+
+/** What a body gets when it stops being one. */
+const GRAVES = ['grave-round', 'grave-rip', 'cross', 'grave-pair', 'tomb', 'cross-wood']
+
+/**
+ * A headstone where somebody died.
+ *
+ * A dead raider was the coloured disc it stands on and nothing else — the body
+ * sprite is only drawn for the living — so the floor after a bad pull was a
+ * scatter of dim circles that read as marks rather than as people. It is the
+ * one place in this game where a picture says something a shape was not
+ * saying: that is where they went down, and it is still their patch of floor.
+ *
+ * Off the raider and the fight together, so it holds still where it has to and
+ * varies where it should: the same stone for that raider for the whole of that
+ * pull, a different one from the raider beside them, and a different one again
+ * the next time the same raider goes down in the same spot on a different
+ * pull. Off the id alone it was a fixed cycle — slot one always took the
+ * round stone — and six raiders dying laid out the same six stones in the same
+ * order every time.
+ *
+ * Still not `Math.random`, for the reason the room is not: a pull replays from
+ * its seed and a fight can be handed to somebody as a link, and a headstone
+ * that re-rolled on every frame would flicker between six of them.
+ *
+ * @param tall How tall to stand it, in screen pixels — a shade under a living
+ *   body, because a headstone is not a person.
+ */
+export function drawGrave(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  tall: number,
+  who: number,
+  seed: number,
+): boolean {
+  begin()
+  if (!sheet) return false
+  const id = GRAVES[new Rng(who * 2654435761 + seed * 40503 + 911).int(GRAVES.length)]!
+  const rect = PROPS[id]
+  if (!rect) return false
+  const [sx, sy, sw, sh] = rect
+  const w = (tall * sw) / sh
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(sheet, sx, sy, sw, sh, x - w / 2, y - tall, w, tall)
+  ctx.restore()
+  return true
+}
+
+/**
+ * The rocks, drawn as rocks.
+ *
  * @param project The renderer's own world-to-screen, passed in rather than
  *   imported: it depends on the camera, and the camera lives with the drawing.
  */
-export function drawScenery(
+export function drawObstacles(
   ctx: CanvasRenderingContext2D,
   project: (p: Vec2) => Vec2,
   scale: number,
-  seed: number,
-  encounter: number,
-): void {
+  obstacles: Obstacle[],
+): boolean {
   begin()
-  if (!sheet) return
+  if (!sheet) return false
 
-  const pieces = plan(seed, encounter)
-
-  // Back to front, by where each one meets the ground on screen. The floor is
-  // tipped away from the camera, so two pieces at the same world radius are at
-  // different depths once the view turns, and the one lower on the glass is
-  // the one in front.
-  const drawn = pieces
-    .map((piece) => ({ piece, at: project(piece.at) }))
-    .sort((a, b) => a.at.y - b.at.y)
-
-  ctx.save()
-  ctx.imageSmoothingEnabled = false
-  for (const { piece, at } of drawn) {
-    const rect = PROPS[piece.id]
-    if (!rect) continue
-    const [sx, sy, sw, sh] = rect
-    const w = sw * PIXEL * scale * piece.scale
-    const h = sh * PIXEL * scale * piece.scale
-    // Its foot on the ground it is standing on, like a body.
-    ctx.drawImage(sheet, sx, sy, sw, sh, at.x - w / 2, at.y - h, w, h)
+  for (const rock of obstacles) {
+    const lumps = pileFor(rock)
+    ctx.save()
+    ctx.imageSmoothingEnabled = false
+    // Back to front inside the pile, by where each lump meets the ground.
+    for (const lump of [...lumps].sort((a, b) => a.dy - b.dy)) {
+      const rect = PROPS[lump.id]
+      if (!rect) continue
+      const [sx, sy, sw, sh] = rect
+      const at = project({ x: rock.pos.x + lump.dx, y: rock.pos.y + lump.dy })
+      const h = lump.tall * scale
+      const w = (h * sw) / sh
+      ctx.save()
+      if (lump.flip) {
+        ctx.translate(at.x, 0)
+        ctx.scale(-1, 1)
+        ctx.drawImage(sheet, sx, sy, sw, sh, -w / 2, at.y - h, w, h)
+      } else {
+        ctx.drawImage(sheet, sx, sy, sw, sh, at.x - w / 2, at.y - h, w, h)
+      }
+      ctx.restore()
+    }
+    ctx.restore()
   }
-  ctx.restore()
+  return true
 }
+

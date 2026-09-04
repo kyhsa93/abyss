@@ -35,9 +35,9 @@ import {
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { drawScenery, floorTexture } from './scenery'
+import { drawGrave, drawObstacles, floorTexture } from './scenery'
 import { COLORS, L, classColor } from './theme'
-import { drawBody, hasBody } from './lpcimage'
+import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
 import { drawFxLoop } from './fximage'
 import { chestHeight } from './lpcimage'
@@ -290,10 +290,6 @@ export function drawWorld(
     s.seed,
     s.encounter,
   )
-  // Outside the wall and under everything in the fight, which is where it
-  // belongs twice over: it is scenery, and the floor it is standing beside is
-  // the surface every mechanic is read on.
-  drawScenery(ctx, worldToScreen, L.scale, s.seed, s.encounter)
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
@@ -328,9 +324,9 @@ export function drawWorld(
   // the boss.
   for (const a of drawOrder(s, alpha)) {
     if (a.faction === 'boss') {
-      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s))
+      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s), s.seed)
     } else {
-      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg)
+      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed)
     }
   }
 
@@ -367,16 +363,27 @@ export function drawWorld(
  * of it.
  */
 function drawTerrain(ctx: CanvasRenderingContext2D, s: SimState): void {
+  // The ground it is standing on, always. A body has a footprint under it for
+  // the same reason: what says where a thing is on a tipped floor is the patch
+  // it occupies, not the picture standing up out of it.
+  for (const rock of s.obstacles) {
+    const at = worldToScreen(rock.pos)
+    ctx.beginPath()
+    floorArc(ctx, at.x, at.y, rock.radius * L.scale, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.floorEdge
+    ctx.fill()
+  }
+
+  // And the rock itself, if the sheet is here. When it is not, the disc is
+  // outlined instead — the same fallback the bodies have, and a fight is still
+  // completely readable in shapes.
+  if (drawObstacles(ctx, worldToScreen, L.scale, s.obstacles)) return
+
   for (const rock of s.obstacles) {
     const at = worldToScreen(rock.pos)
     const r = rock.radius * L.scale
-
     ctx.beginPath()
     floorArc(ctx, at.x, at.y, r, 0, Math.PI * 2)
-    ctx.fillStyle = COLORS.floorEdge
-    ctx.fill()
-    // A lighter rim, so it reads as something standing up off the floor rather
-    // than a hole in it. Everything else here is drawn as a flat disc.
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)'
     ctx.lineWidth = 2
     ctx.stroke()
@@ -2098,6 +2105,8 @@ function drawActor(
    * property of the encounter, so the caller that knows it passes it.
    */
   bossBody: string | null = null,
+  /** The fight's own seed, so what marks a death is not the same every pull. */
+  seed = 0,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -2219,6 +2228,12 @@ function drawActor(
     )
   }
 
+
+  // A headstone where a raider went down, over its own disc for the same
+  // reason a body is: the disc is the floor and the stone is standing on it.
+  if (!a.alive && a.faction === 'party') {
+    drawGrave(ctx, p.x, p.y, bodyHeight(r) * 0.78, a.id, seed)
+  }
 
   // Whatever picked this one, drawn as a line to it.
   //
