@@ -55,10 +55,15 @@ const ATTEMPT = Number(attemptArg ?? 8)
 const HANDS: Hand[] = ['idle', 'dodge', 'press', 'both', 'ai']
 
 console.log(`${SIZE}-player ${DIFF}, pull ${ATTEMPT + 1}, ${RUNS} pulls a cell`)
-console.log('boss'.padEnd(14) + HANDS.map((h) => h.padStart(8)).join('') + '   idle→both')
+console.log('  won% / raid died%')
+console.log('boss'.padEnd(14) + HANDS.map((h) => h.padStart(9)).join('') + '   idle→both')
 
 for (let e = 0; e < ENCOUNTERS.length; e++) {
   const wins: Record<Hand, number> = { idle: 0, dodge: 0, press: 0, both: 0, ai: 0 }
+  // Win rate has no room left in a cell that already wins nearly always, and
+  // most of the ladder is such a cell. What a lever moves there shows up in
+  // how many bodies it took to get through, which always has room.
+  const deaths: Record<Hand, number> = { idle: 0, dodge: 0, press: 0, both: 0, ai: 0 }
   for (const hand of HANDS) {
     for (let n = 0; n < RUNS; n++) {
       const seed = 1000 + n * 137
@@ -72,13 +77,16 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
         ticks++
       }
       if (s.outcome === 'victory') wins[hand]++
+      const party = s.actors.filter((a) => a.faction === 'party')
+      deaths[hand] += party.filter((a) => !a.alive).length / party.length
     }
   }
-  const pct = (h: Hand) => `${Math.round((wins[h] / RUNS) * 100)}%`.padStart(8)
+  const cell = (h: Hand) =>
+    `${Math.round((wins[h] / RUNS) * 100)}/${Math.round((deaths[h] / RUNS) * 100)}`.padStart(9)
   const gap = Math.round(((wins.both - wins.idle) / RUNS) * 100)
   console.log(
     ENCOUNTERS[e]!.short.padEnd(14) +
-      HANDS.map(pct).join('') +
+      HANDS.map(cell).join('') +
       `   ${gap >= 0 ? '+' : ''}${gap}pp`.padStart(11),
   )
 }
