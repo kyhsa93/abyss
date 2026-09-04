@@ -15,6 +15,7 @@
     "iconmatch": "esbuild scripts/iconmatch.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/iconmatch.mjs --log-level=error && node node_modules/.cache/iconmatch.mjs",
     "atlas": "esbuild scripts/atlas.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/atlas.mjs --log-level=error && node node_modules/.cache/atlas.mjs",
     "lpc": "esbuild scripts/lpc.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/lpc.mjs --log-level=error && node node_modules/.cache/lpc.mjs",
+    "tiles": "esbuild scripts/tiles.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/tiles.mjs --log-level=error && node node_modules/.cache/tiles.mjs",
     "bolt": "esbuild scripts/bolt.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/bolt.mjs --log-level=error && node node_modules/.cache/bolt.mjs",
     "fx": "esbuild scripts/fx.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/fx.mjs --log-level=error && node node_modules/.cache/fx.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",

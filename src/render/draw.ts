@@ -35,6 +35,7 @@ import {
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
+import { drawScenery } from './scenery'
 import { COLORS, L, classColor } from './theme'
 import { drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
@@ -284,6 +285,10 @@ export function drawWorld(
   ctx.translate(shove.x * L.scale, shove.y * L.scale)
 
   drawArena(ctx, s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss)
+  // Outside the wall and under everything in the fight, which is where it
+  // belongs twice over: it is scenery, and the floor it is standing beside is
+  // the surface every mechanic is read on.
+  drawScenery(ctx, worldToScreen, L.scale, s.seed, s.encounter)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawHunts(ctx, s, alpha)
