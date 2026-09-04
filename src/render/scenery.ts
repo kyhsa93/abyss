@@ -73,6 +73,12 @@ interface Piece {
   scale: number
 }
 
+/** Everything in the sheet that is an object rather than a surface. */
+const STANDING = PROP_IDS.filter((id) => !id.startsWith('floor-'))
+
+/** And everything that is a surface, in a fixed order so a seed picks one. */
+const FLOORS = PROP_IDS.filter((id) => id.startsWith('floor-')).sort()
+
 let planned: { key: string; pieces: Piece[] } | null = null
 
 /**
@@ -106,7 +112,7 @@ function plan(seed: number, encounter: number): Piece[] {
     const angle = i * slice + rng.range(0.15, 0.85) * slice
     const out = ARENA_RADIUS + rng.range(NEAR, FAR)
     pieces.push({
-      id: PROP_IDS[rng.int(PROP_IDS.length)]!,
+      id: STANDING[rng.int(STANDING.length)]!,
       at: { x: Math.cos(angle) * out, y: Math.sin(angle) * out },
       scale: rng.range(0.85, 1.15),
     })
@@ -114,6 +120,61 @@ function plan(seed: number, encounter: number): Piece[] {
 
   planned = { key, pieces }
   return pieces
+}
+
+/**
+ * The floor's own surface, as a repeating pattern.
+ *
+ * Cut out of the props sheet into a canvas of its own, because a pattern made
+ * from the sheet would repeat the whole sheet — every headstone tiled across
+ * the arena. One extra canvas, made once.
+ *
+ * Null until the sheet arrives, and the caller draws its flat fill either way:
+ * the floor is a complete floor without this.
+ */
+let floorPattern: CanvasPattern | null | undefined
+let floorFor: CanvasRenderingContext2D | null = null
+let floorKey = ''
+
+export function floorTexture(
+  ctx: CanvasRenderingContext2D,
+  seed: number,
+  encounter: number,
+): CanvasPattern | null {
+  begin()
+  if (!sheet || FLOORS.length === 0) return null
+  // A pattern belongs to the context that made it, and the harness makes more
+  // than one.
+  const key = `${seed}:${encounter}`
+  if (floorPattern !== undefined && floorFor === ctx && floorKey === key) return floorPattern
+
+  // Rolled off the fight, like the room around it.
+  const pick = FLOORS[new Rng(seed * 17 + encounter * 104729 + 7919).int(FLOORS.length)]!
+  const rect = PROPS[pick]
+  if (!rect) return null
+  const [sx, sy, sw, sh] = rect
+  const tile = document.createElement('canvas')
+  tile.width = sw
+  tile.height = sh
+  const tc = tile.getContext('2d')
+  if (!tc) return null
+  tc.imageSmoothingEnabled = false
+  tc.drawImage(sheet, sx, sy, sw, sh, 0, 0, sw, sh)
+  // The hue thrown away and the light kept.
+  //
+  // These fills are sand and clay and brick, and a floor that took their
+  // colour would be an orange arena on one pull and a red one on the next —
+  // the encounter's accent drowned by whatever the tile happened to be. What
+  // is wanted from them is the grain, so the saturation is taken out and the
+  // arena's own colour shows through underneath.
+  tc.globalCompositeOperation = 'saturation'
+  tc.fillStyle = '#808080'
+  tc.fillRect(0, 0, sw, sh)
+
+  floorFor = ctx
+  floorKey = key
+  floorPattern = ctx.createPattern(tile, 'repeat')
+  return floorPattern
 }
 
 /**

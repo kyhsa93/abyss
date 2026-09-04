@@ -15,8 +15,13 @@ export const PROPS: Record<string, [number, number, number, number]> = {
   'grave-rip': [188, 0, 32, 50],
   'grave-pair': [92, 0, 64, 54],
   'cross-wood': [220, 0, 32, 46],
-  'rock': [0, 96, 32, 32],
-  'rocks': [32, 96, 32, 32],
+  'floor-slate': [0, 96, 32, 32],
+  'floor-sand': [32, 96, 32, 32],
+  'floor-earth': [64, 96, 32, 32],
+  'floor-clay': [96, 96, 32, 32],
+  'floor-cobble': [128, 96, 32, 32],
+  'rock': [160, 96, 32, 32],
+  'rocks': [192, 96, 32, 32],
 }
 
 export const PROP_IDS = Object.keys(PROPS)

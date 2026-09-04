@@ -17,4 +17,4 @@ complied with. The packer refuses a piece that names no author.
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0
   <https://opengameart.org/content/tiled-terrains>
-  rock, rocks
+  floor-clay, floor-cobble, floor-earth, floor-sand, floor-slate, rock, rocks

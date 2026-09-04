@@ -35,7 +35,7 @@ import {
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { drawScenery } from './scenery'
+import { drawScenery, floorTexture } from './scenery'
 import { COLORS, L, classColor } from './theme'
 import { drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
@@ -284,7 +284,12 @@ export function drawWorld(
   ctx.save()
   ctx.translate(shove.x * L.scale, shove.y * L.scale)
 
-  drawArena(ctx, s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss)
+  drawArena(
+    ctx,
+    s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss,
+    s.seed,
+    s.encounter,
+  )
   // Outside the wall and under everything in the fight, which is where it
   // belongs twice over: it is scenery, and the floor it is standing beside is
   // the surface every mechanic is read on.
@@ -617,6 +622,15 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
  * space and slides past the player, so a slab has to be the same slab every
  * frame or the floor boils.
  */
+/**
+ * How much of the stone is let through.
+ *
+ * The one number in this file that has to be looked at rather than reasoned
+ * about, so it was: rendered against a telegraph at several values and judged
+ * on whether the telegraph still reads first.
+ */
+const FLOOR_STONE = 0.35
+
 function slabAccent(colour: string, alpha: number): string {
   // The accent table is all six-digit hex, which is the only form this reads.
   if (!/^#[0-9a-f]{6}$/i.test(colour)) return colour
@@ -634,7 +648,12 @@ function slabTone(gx: number, gy: number): number {
   return ((h ^ (h >>> 16)) >>> 8) & 0xff
 }
 
-function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss): void {
+function drawArena(
+  ctx: CanvasRenderingContext2D,
+  accent: string = COLORS.boss,
+  seed = 0,
+  encounter = 0,
+): void {
   // The arena is centred on the world origin; the camera decides where that
   // lands on screen. The grid is drawn in world space too, so it slides past
   // the player and makes their own movement readable.
@@ -677,6 +696,27 @@ function drawArena(ctx: CanvasRenderingContext2D, accent: string = COLORS.boss):
   ctx.translate(c.x, c.y)
   ctx.scale(1, TILT)
   ctx.rotate(viewAngle())
+
+  // The floor's own stone, laid in world space so it lies down with the grid.
+  //
+  // Under the slabs rather than instead of them: the slabs are a hash of the
+  // cell and never repeat, and the stone is thirty-two pixels that repeat
+  // forever, so the two answer different halves of the same question — one
+  // stops the ground being a flat fill at arm's length, the other stops it
+  // being one at a glance.
+  //
+  // Dark and low. What the generated floor was thrown out for was competing
+  // with the telegraphs drawn on it, and the lesson was not "no picture" but
+  // "the ground must not have opinions": a texture that adds light argues with
+  // every mechanic, and one that only breaks up a tone does not.
+  const stone = floorTexture(ctx, seed, encounter)
+  if (stone) {
+    ctx.save()
+    ctx.globalAlpha = FLOOR_STONE
+    ctx.fillStyle = stone
+    ctx.fillRect(-L.w, -L.h, L.w * 2, L.h * 2)
+    ctx.restore()
+  }
 
   const reach = ARENA_RADIUS * L.scale
   const slab = 64 * L.scale

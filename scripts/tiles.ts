@@ -107,6 +107,24 @@ const PIECES: Piece[] = [
   // this game does not have. A flat piece needs the floor's own tilt on it,
   // which is a second way of drawing rather than a second entry in a table.
 
+  // Sharm's floor, and the only piece here that repeats: everything else is an
+  // object and this is a surface. Picked by tiling the candidates five across
+  // and looking — the neighbouring fills in the same set are the bordered ones
+  // and show their own edges every thirty-two pixels, which on a floor this
+  // size is a visible weave.
+  //
+  // Five of them, and the renderer picks one per fight. They are wildly
+  // different colours — sand, clay, brick, slate — and none of that colour
+  // reaches the floor: the pattern is taken and the hue is thrown away, for
+  // the same reason the slabs under it are drawn in the encounter's accent
+  // rather than in whatever an artist chose. What varies between rooms is the
+  // stone; what says which fight this is stays the fight's own.
+  { id: 'floor-slate', sheet: 'Terrain and Outside.png', x: 320, y: 96, w: 32, h: 32, by: 'sharm' },
+  { id: 'floor-sand', sheet: 'Terrain and Outside.png', x: 32, y: 96, w: 32, h: 32, by: 'sharm' },
+  { id: 'floor-earth', sheet: 'Terrain and Outside.png', x: 128, y: 96, w: 32, h: 32, by: 'sharm' },
+  { id: 'floor-clay', sheet: 'Terrain and Outside.png', x: 224, y: 96, w: 32, h: 32, by: 'sharm' },
+  { id: 'floor-cobble', sheet: 'Terrain and Outside.png', x: 192, y: 384, w: 32, h: 32, by: 'sharm' },
+
   // Sharm's white rocks.
   { id: 'rock', sheet: 'Terrain and Outside.png', x: 960, y: 544, w: 32, h: 32, by: 'sharm' },
   { id: 'rocks', sheet: 'Terrain and Outside.png', x: 992, y: 544, w: 32, h: 32, by: 'sharm' },
