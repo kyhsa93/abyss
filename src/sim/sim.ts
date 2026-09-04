@@ -311,7 +311,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     player.pos.x += stepX
     player.pos.y += stepY
     clampToArena(player.pos, player.radius)
-    clearTerrain(s.bg, player.pos, player.radius, stepX, stepY)
+    clearTerrain(s.obstacles, player.pos, player.radius, stepX, stepY)
     // Moving breaks your own cast — the core tension with Burst.
     if (player.castId) interruptCast(s, player, 'moved')
   }

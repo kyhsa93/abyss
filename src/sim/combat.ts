@@ -1166,7 +1166,7 @@ export function landAbility(
       // A charge crosses the gap rather than walking it, so it is the one move
       // that can end inside a rock. It stops against one instead: terrain that
       // a cooldown ignores is terrain nobody has to respect.
-      clearTerrain(s.bg, actor.pos, actor.radius, (dx / gap) * landing, (dy / gap) * landing)
+      clearTerrain(s.obstacles, actor.pos, actor.radius, (dx / gap) * landing, (dy / gap) * landing)
 
       // Running at something is the other way a warrior earns rage, and the
       // reason a charge opens a pull rather than waiting one out.

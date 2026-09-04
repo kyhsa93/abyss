@@ -38,6 +38,7 @@ import {
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
+import { clearTerrain, inTerrain } from './battleground'
 import {
   adds,
   beginCast,
@@ -1328,6 +1329,11 @@ function stillSplit(s: SimState, actor: Actor, spot: Vec2): boolean {
 
 /** Cheap re-check of an already chosen destination. */
 function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
+  // Not a hazard, and the first thing checked anyway: a spot inside a rock is
+  // not a spot. Walking at one is not fatal — the terrain slides a body round
+  // it — but it is a dodge that does not arrive, which against a telegraph is
+  // the same as not dodging.
+  if (inTerrain(s.obstacles, spot, actor.radius)) return false
   for (const g of s.ground) {
     if (g.kind === 'breath') {
       if (!g.detonated && insideCone(spot, g)) return false
@@ -2414,9 +2420,16 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   }
 
   const stepLen = actor.moveSpeed * DT * hasteOf(actor) * carryDrag(actor)
-  actor.pos.x += ((target.x - actor.pos.x) / d) * stepLen
-  actor.pos.y += ((target.y - actor.pos.y) / d) * stepLen
+  const stepX = ((target.x - actor.pos.x) / d) * stepLen
+  const stepY = ((target.y - actor.pos.y) / d) * stepLen
+  actor.pos.x += stepX
+  actor.pos.y += stepY
   clampToArena(actor.pos, actor.radius)
+  // And out of anything it walked into. The step is handed over as well as
+  // the position, because being pushed back along the radius costs the whole
+  // step and leaves a body re-walking into the same rock forever; what it does
+  // with it is slide.
+  clearTerrain(s.obstacles, actor.pos, actor.radius, stepX, stepY)
 
   if (actor.castId) interruptCast(s, actor, 'moved')
 }

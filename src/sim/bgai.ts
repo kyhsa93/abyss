@@ -16,7 +16,7 @@ import {
 } from './battleground'
 import type { Rng } from './rng'
 import { clampToArena } from './state'
-import type { Actor, AuraId, BgPlan, BgState, SimState, Team, Vec2 } from './types'
+import type { Actor, AuraId, BgPlan, BgState, Obstacle, SimState, Team, Vec2 } from './types'
 
 /**
  * Everyone in a battleground who is not the player, on both sides.
@@ -333,7 +333,7 @@ export function aiGoal(s: SimState, actor: Actor): Vec2 | null {
   if (!bg || !actor.alive) return null
   const enemies = living(s, other(teamOf(actor)))
   const target = pickTarget(s, actor, enemies)
-  return approach(bg, actor, objective(s, bg, actor), target)
+  return approach(s.obstacles, actor, objective(s, bg, actor), target)
 }
 
 /**
@@ -381,7 +381,7 @@ export function updateBattlegroundAi(s: SimState, actor: Actor, rng: Rng): void 
   // Standing on the objective is the job; the fight is what happens there. So
   // position comes from the goal, and only the last stretch is about the
   // target — a dealer that chases a kite across the map has left the point.
-  const want = approach(bg, actor, goal, target)
+  const want = approach(s.obstacles, actor, goal, target)
   moveToward(s, actor, want)
 
   useAbilities(s, actor, target, rng)
@@ -504,8 +504,8 @@ function objective(s: SimState, bg: BgState, actor: Actor): Goal {
  * up when the objective is far away, since a point nobody is standing on
  * scores for nobody.
  */
-function approach(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): Vec2 {
-  const want = wander(bg, actor, goal, target)
+function approach(obstacles: Obstacle[], actor: Actor, goal: Goal, target: Actor | null): Vec2 {
+  const want = wander(obstacles, actor, goal, target)
   if (goal.hold <= 0) return want
 
   // Leashed. Whatever the fight wanted, it happens on the point: a defender
@@ -520,7 +520,7 @@ function approach(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): 
   }
 }
 
-function wander(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): Vec2 {
+function wander(obstacles: Obstacle[], actor: Actor, goal: Goal, target: Actor | null): Vec2 {
   const toGoal = dist(actor.pos, goal.pos)
   if (!target) return toGoal > ARRIVED ? goal.pos : actor.pos
 
@@ -544,7 +544,7 @@ function wander(bg: BgState, actor: Actor, goal: Goal, target: Actor | null): Ve
     // Backing into a rock is backing into a corner: the push-out would hold
     // the actor against it while it kept trying. Stand where you are instead
     // and let the rock be cover.
-    if (inTerrain(bg, out, actor.radius)) return actor.pos
+    if (inTerrain(obstacles, out, actor.radius)) return actor.pos
     return out
   }
   if (range > SPELL_RANGE * 0.9) return target.pos
@@ -613,7 +613,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   actor.pos.x += stepX
   actor.pos.y += stepY
   clampToArena(actor.pos, actor.radius)
-  clearTerrain(s.bg, actor.pos, actor.radius, stepX, stepY)
+  clearTerrain(s.obstacles, actor.pos, actor.radius, stepX, stepY)
 
   if (actor.castId) interruptCast(s, actor, 'moved')
 }

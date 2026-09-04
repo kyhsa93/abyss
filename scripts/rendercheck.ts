@@ -6232,7 +6232,7 @@ for (const kind of ['conquest', 'escort', 'flags'] as const) {
   )
   expect(
     `${kind} rally: no rock on it`,
-    bg.obstacles.every(
+    s.obstacles.every(
       (rock) =>
         Math.hypot(rock.pos.x - bg.rally.pos.x, rock.pos.y - bg.rally.pos.y) >
         rock.radius + RALLY_RADIUS,
@@ -7010,7 +7010,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const rng = new Rng(0x51ed)
   const bg = s.bg!
 
-  expect(`${kind}: the map has terrain`, bg.obstacles.length > 0, `${bg.obstacles.length}`)
+  expect(`${kind}: the map has terrain`, s.obstacles.length > 0, `${s.obstacles.length}`)
 
   // Rolled per match, so what has to hold is every roll rather than this one.
   // Sixty of them: placement, spacing, symmetry, and that the map is still a
@@ -7023,17 +7023,17 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     for (let n = 0; n < 60; n++) {
       const rolled = createBattlegroundState(2000 + n * 137, kind)
       const map = rolled.bg!
-      shapes.add(map.obstacles.map((r) => `${r.pos.x.toFixed(0)},${r.pos.y.toFixed(0)},${r.radius.toFixed(0)}`).join('|'))
+      shapes.add(rolled.obstacles.map((r) => `${r.pos.x.toFixed(0)},${r.pos.y.toFixed(0)},${r.radius.toFixed(0)}`).join('|'))
 
-      for (const rock of map.obstacles) {
+      for (const rock of rolled.obstacles) {
         if (Math.hypot(rock.pos.x, rock.pos.y) + rock.radius > ARENA_RADIUS - 10) bad++
         if (map.nodes.some((node) => dist(rock.pos, node.pos) < NODE_RADIUS + rock.radius)) bad++
         for (const team of ['blue', 'red'] as const) {
           if (dist(rock.pos, map.bases[team]) < BASE_RADIUS + rock.radius) bad++
-          for (let i = 0; i < 5; i++) if (inTerrain(map, spawnPoint(map, team, i), 18)) bad++
+          for (let i = 0; i < 5; i++) if (inTerrain(rolled.obstacles, spawnPoint(map, team, i), 18)) bad++
         }
         // Mirrored, or one team has cover the other does not.
-        const twin = map.obstacles.find(
+        const twin = rolled.obstacles.find(
           (o) =>
             Math.abs(o.pos.x + rock.pos.x) < 0.01 &&
             Math.abs(o.pos.y - rock.pos.y) < 0.01 &&
@@ -7041,10 +7041,10 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
         )
         if (!twin) bad++
       }
-      for (let i = 0; i < map.obstacles.length; i++) {
-        for (let j = i + 1; j < map.obstacles.length; j++) {
-          const a = map.obstacles[i]!
-          const b = map.obstacles[j]!
+      for (let i = 0; i < rolled.obstacles.length; i++) {
+        for (let j = i + 1; j < rolled.obstacles.length; j++) {
+          const a = rolled.obstacles[i]!
+          const b = rolled.obstacles[j]!
           if (dist(a.pos, b.pos) - a.radius - b.radius < 40) bad++
         }
       }
@@ -7085,7 +7085,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   }
 
   // Nothing may be placed on top of anything that has to be stood on.
-  const onObjective = bg.obstacles.some(
+  const onObjective = s.obstacles.some(
     (rock) =>
       bg.nodes.some((n) => dist(rock.pos, n.pos) < rock.radius + n.radius) ||
       (['blue', 'red'] as const).some(
@@ -7095,7 +7095,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   expect(`${kind}: and none of it sits on a point or a base`, !onObjective, 'terrain covers an objective')
 
   const spawnsClear = (['blue', 'red'] as const).every((team) =>
-    [0, 1, 2, 3, 4].every((i) => !inTerrain(bg, spawnPoint(bg, team, i), 18)),
+    [0, 1, 2, 3, 4].every((i) => !inTerrain(s.obstacles, spawnPoint(bg, team, i), 18)),
   )
   expect(`${kind}: nor on a spawn`, spawnsClear, 'somebody spawns inside a rock')
 
@@ -7105,7 +7105,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   while (s.outcome === 'ongoing' && s.time < bg.timeLimit + 30) {
     step(s, { moveX: 0.6, moveY: 0.4, pressed: [] }, rng)
     for (const a of s.actors) {
-      if (a.alive && inTerrain(bg, a.pos, a.radius * 0.9)) inside++
+      if (a.alive && inTerrain(s.obstacles, a.pos, a.radius * 0.9)) inside++
     }
   }
   expect(`${kind}: nobody walks through it`, inside === 0, `${inside} actor-ticks inside terrain`)
@@ -7117,8 +7117,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const s = createBattlegroundState(0x51ed, 'conquest')
   s.countdown = 0
   const rng = new Rng(0x51ed)
-  const bg = s.bg!
-  const rock = bg.obstacles[0]!
+  const rock = s.obstacles[0]!
   const walker = s.actors.find((a) => a.isPlayer)!
 
   // Lined up so the straight route is blocked by the middle of the rock.

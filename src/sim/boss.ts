@@ -43,6 +43,7 @@ import {
   VIGIL_TELEGRAPH,
   YOKE_REACH,
 } from './constants'
+import { clearTerrain } from './battleground'
 import {
   AURA_DURATION,
   addAura,
@@ -2071,9 +2072,12 @@ function updateAdds(s: SimState): void {
     turnToward(add, Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x))
 
     if (best > MELEE_RANGE) {
-      add.pos.x += ((nearest.pos.x - add.pos.x) / best) * add.moveSpeed * DT
-      add.pos.y += ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
+      const stepX = ((nearest.pos.x - add.pos.x) / best) * add.moveSpeed * DT
+      const stepY = ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
+      add.pos.x += stepX
+      add.pos.y += stepY
       clampToArena(add.pos, add.radius)
+      clearTerrain(s.obstacles, add.pos, add.radius, stepX, stepY)
     }
 
     const stalking = add.hunting !== null

@@ -1,7 +1,7 @@
 import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
-import { createBattleground, spawnPoint } from './battleground'
+import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
 import { plannedOpening, rollFloor } from './floor'
 import { Rng } from './rng'
@@ -156,6 +156,12 @@ export function createState(
   // A floor rolls its own fight out of the same vocabulary the bosses are
   // written in; the ladder gets the boss exactly as it was authored.
   const plan = depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null
+  // The room the fight is fought in, rolled from the same seed as the fight.
+  // Off the slots so nobody starts the pull standing inside a rock.
+  const rocks = raidTerrain(
+    new Rng(seed * 13 + encounter * 7919 + 1049),
+    slots.map((slot) => ({ x: slot.x, y: slot.y })),
+  )
   const opening = plan ? { ...fight.opening, ...plannedOpening(plan) } : fight.opening
 
   const boss: Actor = {
@@ -245,6 +251,7 @@ export function createState(
     nextObjectId: 1,
     attempt,
     seed,
+    obstacles: rocks,
     party: party.map((p) => ({ ...p })),
     difficulty,
     tally,
@@ -280,6 +287,7 @@ export function createBattlegroundState(
   // The terrain is rolled from the same seed as everything else, so a match
   // replays with the map it was played on.
   const bg = createBattleground(kind, rng)
+  const rocks = battlegroundTerrain(bg, rng)
 
   const blue = party.slice(0, size).map((pick, i) => {
     const actor = makeMember(i + 1, pick, slots[i]!, i === 0, 0)
@@ -344,6 +352,7 @@ export function createBattlegroundState(
     nextObjectId: 1,
     attempt: 0,
     seed,
+    obstacles: rocks,
     party: party.slice(0, size).map((p) => ({ ...p })),
     difficulty: 'normal',
     tally,

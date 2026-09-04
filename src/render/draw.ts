@@ -294,6 +294,7 @@ export function drawWorld(
   // belongs twice over: it is scenery, and the floor it is standing beside is
   // the surface every mechanic is read on.
   drawScenery(ctx, worldToScreen, L.scale, s.seed, s.encounter)
+  drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawHunts(ctx, s, alpha)
@@ -353,13 +354,20 @@ export function drawWorld(
  * number the score alone never shows — a point at 90% looks exactly like a
  * point at 10% until the moment it flips.
  */
-function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
-  const bg = s.bg
-  if (!bg) return
-
-  // Terrain first, under the objectives: a rock beside a point is scenery, and
-  // the point is the thing being read.
-  for (const rock of bg.obstacles) {
+/**
+ * The rocks, which are the one thing on this floor a body cannot walk through.
+ *
+ * Drawn out of `drawObjectives` when the terrain stopped belonging to
+ * battlegrounds: a raid has rocks now, and a raid has no objectives to draw
+ * them under.
+ *
+ * Under the mechanics and over the floor. A telegraph that runs across a rock
+ * is still a telegraph — the rock does not stop it, it only stops you standing
+ * there — so the shape has to be read on top of the stone rather than cut out
+ * of it.
+ */
+function drawTerrain(ctx: CanvasRenderingContext2D, s: SimState): void {
+  for (const rock of s.obstacles) {
     const at = worldToScreen(rock.pos)
     const r = rock.radius * L.scale
 
@@ -378,6 +386,11 @@ function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: numbe
     ctx.lineWidth = 1
     ctx.stroke()
   }
+}
+
+function drawObjectives(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  const bg = s.bg
+  if (!bg) return
 
   for (const node of bg.nodes) {
     const at = worldToScreen(node.pos)

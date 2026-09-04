@@ -706,8 +706,6 @@ export interface BgState {
   nodes: BgNode[]
   /** One per side in an escort, empty otherwise. */
   carts: Record<Team, BgCart> | null
-  /** Terrain. Empty in a raid, where the floor is the mechanic. */
-  obstacles: Obstacle[]
   flags: Record<Team, BgFlag>
   bases: Record<Team, Vec2>
   /** Seconds until each downed actor is back on their feet, keyed by id. */
@@ -837,6 +835,14 @@ export interface SimState {
   /** Number of pulls so far; AI plays better on later attempts. */
   attempt: number
   seed: number
+  /**
+   * What the floor has standing on it that a body cannot walk through.
+   *
+   * On the state rather than on the battleground, which is where it started
+   * and where it stopped making sense the moment a raid wanted some. Terrain
+   * is a fact about the arena; a battleground is a set of rules played in one.
+   */
+  obstacles: Obstacle[]
   /** Class and role of each raid slot, in order. */
   party: Pick[]
   difficulty: DifficultyId

@@ -584,16 +584,19 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.fill()
   ctx.clip()
 
-  // Objectives first: they are the map in a battleground, and everything else
+  // Terrain in both modes: a raid has rocks now, and a rock is on the minimap
+  // for the same reason it is on the floor.
+  for (const rock of s.obstacles) {
+    const p = at(rock.pos)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, Math.max(1, rock.radius * k), 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.35)'
+    ctx.fill()
+  }
+
+  // Objectives after: they are the map in a battleground, and everything else
   // on it is somebody on their way to one.
   if (s.bg) {
-    for (const rock of s.bg.obstacles) {
-      const p = at(rock.pos)
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, Math.max(1, rock.radius * k), 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.35)'
-      ctx.fill()
-    }
     if (s.bg.carts) {
       for (const team of ['blue', 'red'] as const) {
         const cart = s.bg.carts[team]

@@ -325,14 +325,13 @@ function rollTerrain(
  * enough because every rock here is convex: sliding along one always ends.
  */
 export function clearTerrain(
-  bg: BgState | null,
+  obstacles: Obstacle[],
   pos: Vec2,
   radius: number,
   moveX = 0,
   moveY = 0,
 ): void {
-  if (!bg) return
-  for (const rock of bg.obstacles) {
+  for (const rock of obstacles) {
     const dx = pos.x - rock.pos.x
     const dy = pos.y - rock.pos.y
     const gap = Math.hypot(dx, dy)
@@ -370,9 +369,8 @@ export function clearTerrain(
 }
 
 /** Whether a point is inside terrain, for placement and for checks. */
-export function inTerrain(bg: BgState | null, pos: Vec2, radius = 0): boolean {
-  if (!bg) return false
-  return bg.obstacles.some(
+export function inTerrain(obstacles: Obstacle[], pos: Vec2, radius = 0): boolean {
+  return obstacles.some(
     (rock) => Math.hypot(pos.x - rock.pos.x, pos.y - rock.pos.y) < rock.radius + radius,
   )
 }
@@ -427,12 +425,84 @@ function cartPath(bg: BgState, team: Team, progress: number): Vec2 {
   }
 }
 
+/**
+ * The rocks a battleground is played around, rolled from the match's seed.
+ *
+ * Split out of `createBattleground` when the terrain moved off the
+ * battleground and onto the state: what it needs to keep off — the bases, the
+ * points, the rally — are the battleground's, so the roll stays here and only
+ * the answer goes elsewhere.
+ */
+export function battlegroundTerrain(bg: BgState, rng: Rng): Obstacle[] {
+  return rollTerrain(bg.kind, bg.bases, bg.nodes.map((n) => n.pos), bg.rally.pos, rng)
+}
+
+/**
+ * The rocks a raid is fought around.
+ *
+ * A raid's floor was empty by construction, and the note on the spire says why
+ * it stayed that way: a mechanic that wanted to be a wall could not become one
+ * because the raid had no collision, and a collision system is a bigger thing
+ * than a mechanic. It turns out the collision was already written — the
+ * battlegrounds have had it for as long as they have had rocks — and what was
+ * missing was only somebody handing a raid an obstacle list.
+ *
+ * The rules are the battleground's with one added, and the added one is the
+ * whole difference between the two modes. A battleground keeps its rocks off
+ * the objectives; a raid has one objective and it moves. Everything a raid
+ * does happens in a ring around whatever the tank is holding, so the middle of
+ * the floor is kept clear outright — a rock inside the melee ring is a rock
+ * between a warrior and the boss, and melee have little enough uptime already.
+ *
+ * Sometimes none at all. An empty room is a legitimate roll and the fights
+ * were built in one, so a third of them stay the way they were written.
+ */
+const RAID_CLEAR = 210
+
+export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
+  const rocks: Obstacle[] = []
+  if (rng.chance(0.34)) return rocks
+
+  const wanted = 1 + rng.int(4)
+  const fits = (pos: Vec2, radius: number): boolean => {
+    const out = Math.hypot(pos.x, pos.y)
+    // Off the middle, and off the wall by a lane so nothing is ever pinned.
+    if (out - radius < RAID_CLEAR) return false
+    if (out + radius > ARENA_RADIUS - LANE) return false
+    // Off wherever the raid is standing when the pull starts.
+    for (const spot of keepOff) {
+      if (dist(pos, spot) < radius + LANE) return false
+    }
+    // And a lane between it and everything already placed: two rocks that
+    // touch make a concave shape, and concave shapes need path-finding.
+    for (const rock of rocks) {
+      if (dist(pos, rock.pos) < rock.radius + radius + LANE) return false
+    }
+    return true
+  }
+
+  // Tried rather than solved. Placement is cheap and a failed roll costs one
+  // rock, which is a floor with three instead of four on it.
+  for (let i = 0; i < wanted; i++) {
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const radius = rng.range(ROCK_MIN, ROCK_MAX)
+      const angle = rng.range(0, Math.PI * 2)
+      const out = rng.range(RAID_CLEAR + radius, ARENA_RADIUS - LANE - radius)
+      const pos = { x: Math.cos(angle) * out, y: Math.sin(angle) * out }
+      if (!fits(pos, radius)) continue
+      rocks.push({ pos, radius })
+      break
+    }
+  }
+  return rocks
+}
+
 export function createBattleground(kind: BgKind, rng: Rng): BgState {
   const bases: Record<Team, Vec2> = {
     blue: { ...BASES.blue },
     red: { ...BASES.red },
   }
-  const nodes = kind === 'conquest' ? NODE_POSITIONS : []
+
   const timeLimit =
     kind === 'conquest' ? CONQUEST_LIMIT : kind === 'flags' ? FLAG_LIMIT : ESCORT_LIMIT
 
@@ -460,7 +530,6 @@ export function createBattleground(kind: BgKind, rng: Rng): BgState {
     timeLimit,
     rally,
     slowed: { blue: 0, red: 0 },
-    obstacles: rollTerrain(kind, bases, nodes, rally.pos, rng),
     carts:
       kind === 'escort'
         ? { blue: cartFor('blue', bases), red: cartFor('red', bases) }
