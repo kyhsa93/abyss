@@ -1,5 +1,5 @@
 import { ABILITIES } from './abilities'
-import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf } from './classes'
+import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf, type ClassId } from './classes'
 import { mayStrike, updatePartyAi } from './ai'
 import { affixRot } from './affix'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
@@ -47,6 +47,7 @@ import {
   rotBite,
   breakRot,
   fightScale,
+  urgencyOf,
 } from './combat'
 import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
 import type { Rng } from './rng'
@@ -60,6 +61,41 @@ import type { Actor, PlayerInput, SimState } from './types'
  * Order matters and must stay stable: timers, player, party AI, boss, ground,
  * then resolution. Changing the order changes replays.
  */
+/**
+ * Somebody in the raid is asked for the thing only they have.
+ *
+ * The player does not press it — they name it, and whoever is carrying it
+ * answers. Which is the whole shape of the input: a raid cooldown belongs to a
+ * class rather than to the body playing it, so what a roster can answer with is
+ * decided on the composition screen and what it answers is decided here, in the
+ * fight, by somebody watching.
+ *
+ * The nearest living carrier with it off cooldown. Nearest rather than first,
+ * so a raid with three paladins spends the one standing in it rather than the
+ * one who happens to hold the lowest id — and if none of them has it up, the
+ * call is simply not answered. That is not a failure state to report; a raid
+ * leader calling for something nobody has is a raid leader who has lost count,
+ * and losing count is the cost of spending them badly.
+ */
+function answerCall(s: SimState, classId: ClassId, rng: Rng): void {
+  const player = s.actors.find((a) => a.isPlayer)
+  let best: Actor | null = null
+  let closest = Infinity
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive || a.classId !== classId) continue
+    const id = specOf({ classId: a.classId, spec: a.spec }).abilities.raid
+    if (!id || (a.cooldowns[id] ?? 0) > 0 || a.castId) continue
+    const away = player ? dist(a.pos, player.pos) : 0
+    if (away < closest) {
+      closest = away
+      best = a
+    }
+  }
+  if (!best) return
+  const id = specOf({ classId: best.classId, spec: best.spec }).abilities.raid
+  if (id) beginCast(s, best, id, best.id, rng)
+}
+
 export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   // Drained before the guard, not after: leaving the last tick's events in
   // place meant the renderer kept replaying them over the results screen.
@@ -93,6 +129,8 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   }
 
   for (const a of s.actors) updateTimers(s, a)
+
+  if (input.call) answerCall(s, input.call, rng)
 
   updatePlayer(s, input, rng)
 
@@ -169,8 +207,8 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // needing to know.
     // A weapon crits like anything else the party throws.
     const crit = rng.chance(CRIT_CHANCE)
-    const hit = auto.damage * (crit ? CRIT_MULTIPLIER : 1)
-    applyDamage(s, target, auto.damage, 'physical', { sourceId: a.id, crit })
+    const hit = auto.damage * urgencyOf(a) * (crit ? CRIT_MULTIPLIER : 1)
+    applyDamage(s, target, Math.round(auto.damage * urgencyOf(a)), 'physical', { sourceId: a.id, crit })
 
     // A weapon swing had no picture at all: damage arrived every three
     // seconds from a token standing still. Melee get an arc where the swing

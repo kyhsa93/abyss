@@ -3,6 +3,7 @@ import { resetView } from './render/camera'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from './loop'
 import { drawWorld } from './render/draw'
 import {
+  callSlots,
   canAdvance,
   drawHud,
   hitOutcome,
@@ -1206,6 +1207,9 @@ function frame(now: number): void {
   // `Input`; these are the ones only this file knows are on screen.
   {
     const taken = [partyButton()]
+    // The call row is drawn by the HUD and tapped here, so the stick has to be
+    // told about it the same way the party button is.
+    for (const c of callSlots(state)) taken.push({ x: c.x, y: c.y, w: c.size, h: c.size })
     if (state.outcome !== 'ongoing') {
       const buttons = outcomeButtons(canAdvance(state))
       for (const r of [buttons.next, buttons.retry, buttons.party, shareRect(state)]) {
@@ -1267,11 +1271,30 @@ function frame(now: number): void {
     }
     else if (hit === 'retry') restart()
   }
+  // A tap on the call row, before anything else can claim the point.
+  if (tap) {
+    for (const [i, c] of callSlots(state).entries()) {
+      if (tap.x >= c.x && tap.x <= c.x + c.size && tap.y >= c.y && tap.y <= c.y + c.size) {
+        input.requestCall(i)
+        break
+      }
+    }
+  }
+
+  // Resolved here rather than in `Input`, which knows keys and pixels but not
+  // which classes this roster brought.
+  const called = input.takeCall()
+  const callRow = called === null ? [] : callSlots(state)
+  const call = called !== null && called < callRow.length ? callRow[called]!.slot.classId : null
+
   if (input.takeRestart()) restart()
 
   let ticks = 0
   while (timing.accumulator >= DT && ticks < MAX_CATCHUP_TICKS) {
     const player = input.consume()
+    // Only the first tick of a frame carries it: a press is one call, and a
+    // frame that catches up three ticks would otherwise spend three cooldowns.
+    if (ticks === 0 && call) player.call = call
     // Autocast adds to what was pressed rather than replacing it: a thumb on a
     // button while it is on should still get that button, and pressing the
     // same slot twice in a tick is not a thing the simulation minds.

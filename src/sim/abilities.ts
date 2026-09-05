@@ -1,7 +1,7 @@
 import { SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { AuraId, Role } from './types'
 
-export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge'
+export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge' | 'raid'
 
 export interface Ability {
   id: string
@@ -282,6 +282,46 @@ const list: Ability[] = [
   { id: 'starfire', name: 'Starbolt', role: 'dps', kind: 'damage', castTime: 2, cooldown: 9, cost: 38, amount: 412, threatMult: 1, aura: null, range: SPELL },
 ]
 
+/**
+ * The nine a raid can be asked for.
+ *
+ * Long cooldowns against a fight that lands twenty to seventy raid-wide hits
+ * in a pull, so a raid brings ten or so presses to spend on far more moments
+ * than that. That ratio is the whole design: with enough of them the right
+ * answer would be "press whenever it is up", which is the shape every other
+ * input in this game already has and the reason none of them is a decision.
+ *
+ * Cast time is nought on all of them. What is being decided is which moment,
+ * not whether the caller can stand still through it — and a called cooldown
+ * that could be walked out of would be a cooldown the fight cancels rather
+ * than one the player spends.
+ *
+ * Three answers, deliberately not interchangeable:
+ *
+ *   soften    `rally`, before the hit. Called late it is wasted.
+ *   undo      a heal, after it. Called early it is wasted.
+ *   press     damage, which asks a different question — not how to live
+ *             through this but whether now is the moment to stop asking.
+ */
+export const RAID_COOLDOWN = 190
+
+export const RAID_ABILITIES: Ability[] = [
+  // Soften.
+  { id: 'rallying_cry', name: 'Rallying Cry', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
+  { id: 'aegis', name: 'Aegis', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
+  { id: 'barrier', name: 'Barrier', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'rally', range: 0, offGcd: true },
+
+  // Undo.
+  { id: 'wildgrowth', name: 'Wildgrowth', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'renewal', range: 0, offGcd: true },
+  { id: 'tidewall', name: 'Tidewall', role: 'healer', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 240, threatMult: 0, aura: null, range: 0, offGcd: true },
+  { id: 'harvest', name: 'Harvest', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 180, threatMult: 0, aura: 'renewal', range: 0, offGcd: true },
+
+  // Press.
+  { id: 'quicken', name: 'Quicken', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
+  { id: 'volley_call', name: 'Volley', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
+  { id: 'shadowmeld_call', name: 'Shadowstep', role: 'dps', kind: 'raid', castTime: 0, cooldown: RAID_COOLDOWN, cost: 0, amount: 0, threatMult: 0, aura: 'urgency', range: 0, offGcd: true },
+]
+
 export const ABILITIES: Record<string, Ability> = Object.fromEntries(
-  list.map((a) => [a.id, a]),
+  [...list, ...RAID_ABILITIES].map((a) => [a.id, a]),
 )

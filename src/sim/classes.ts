@@ -46,6 +46,16 @@ export interface ClassAbilities {
   pact: string | null
   /** Healers only: what to press when nobody is hurt. */
   attack: string | null
+  /**
+   * The one the raid asks for, on the class rather than on the spec.
+   *
+   * Everything else in this table is what a body does about its own fight.
+   * This is what it does about everybody else's, and it is not pressed by its
+   * owner at all — the player calls for it and whoever is carrying it answers.
+   * A class brings one whichever spec it is playing, so what a raid has
+   * available is a fact about the roster rather than about the roles in it.
+   */
+  raid: string | null
 }
 
 export const CLASS_ORDER: ClassId[] = [
@@ -329,8 +339,34 @@ const kit = (a: Partial<ClassAbilities> & { filler: string }): ClassAbilities =>
   mobility: null,
   pact: null,
   attack: null,
+  raid: null,
   ...a,
 })
+
+/**
+ * What each class brings for everybody else.
+ *
+ * On the class rather than in `kit`, because every spec of a class carries the
+ * same one: a paladin healing and a paladin tanking are both a paladin, and
+ * what the raid is short of when neither is present is the same thing.
+ *
+ * Nine classes, three answers, and the spread is the point. Two of them soften
+ * a hit and two of them undo one, which are not interchangeable — a shield
+ * called late is wasted and a heal called late is not — and the rest buy
+ * damage, which is a different question entirely: not "how do we live through
+ * this" but "is now the moment we stop worrying about living".
+ */
+const RAID_CALL: Record<ClassId, string> = {
+  warrior: 'rallying_cry',
+  paladin: 'aegis',
+  priest: 'barrier',
+  druid: 'wildgrowth',
+  shaman: 'tidewall',
+  mage: 'quicken',
+  warlock: 'harvest',
+  hunter: 'volley_call',
+  rogue: 'shadowmeld_call',
+}
 
 export const CLASSES: Record<ClassId, ClassDef> = {
   warrior: {
@@ -740,6 +776,20 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     ],
   },
 }
+
+/**
+ * And the raid call put on every spec of its class.
+ *
+ * Written here rather than into each `kit` because it is not a property of the
+ * spec: seventeen specs would carry nine distinct values between them and the
+ * table would invite somebody to give one paladin a different one than
+ * another, which is exactly the thing the raid is not allowed to be able to
+ * choose. What a roster brings is decided by which classes are in it.
+ */
+for (const classId of CLASS_ORDER) {
+  for (const spec of CLASSES[classId].specs) spec.abilities.raid = RAID_CALL[classId]
+}
+
 
 /** One class filling one role. */
 export interface Pick {

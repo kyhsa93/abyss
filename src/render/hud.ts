@@ -3,6 +3,7 @@ import { ABILITIES } from '../sim/abilities'
 import { meterBoard, standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
 import { playerTarget, pressTarget } from '../sim/sim'
+import { callBar, type CallSlot } from '../sim/calls'
 import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt } from '../sim/encounters'
 import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
@@ -376,6 +377,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: Touch
   drawMeter(ctx, s, touch.active)
   if (touch.active) drawTouchControls(ctx, s, touch)
   else drawActionBar(ctx, s)
+  drawCallBar(ctx, s)
   drawCastBar(ctx, s, touch.active)
   drawTrait(ctx, s, touch.active)
   drawChat(ctx, s)
@@ -1082,6 +1084,75 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   ctx.fillStyle = enrageIn < 30 ? COLORS.hpBarLow : COLORS.textDim
   ctx.fillText(`enrage ${enrageIn.toFixed(0)}s`, L.infoX, y)
+}
+
+/**
+ * Where each raid-cooldown slot sits, for drawing and for the thumb alike.
+ *
+ * A row centred on the screen, sized to what the roster actually brought: a
+ * ten-player raid fields six or seven classes and a five-player one fields
+ * four, and a bar padded out to nine would put most of a player's slots
+ * somewhere different in every group size.
+ */
+export function callSlots(s: SimState): { slot: CallSlot; x: number; y: number; size: number }[] {
+  if (s.mode !== 'raid') return []
+  const bar = callBar(s)
+  const size = L.callSlot
+  const gap = 6 * L.ui
+  const total = bar.length * size + Math.max(0, bar.length - 1) * gap
+  let x = (L.w - total) / 2
+  return bar.map((slot) => {
+    const at = { slot, x, y: L.callY, size }
+    x += size + gap
+    return at
+  })
+}
+
+/**
+ * The raid's cooldowns.
+ *
+ * Deliberately quieter than the ability bar — no captions, no key hints under
+ * each slot — because it is read at a glance for one thing: how many answers
+ * are still standing. The names are on the icons and the icons are the class
+ * colours, which is what a raid leader is actually scanning for.
+ */
+function drawCallBar(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const slots = callSlots(s)
+  if (slots.length === 0) return
+
+  for (const { slot, x, y, size } of slots) {
+    const colour = classColor(slot.classId)
+    const usable = slot.alive && slot.ready <= 0
+
+    ctx.fillStyle = COLORS.panel
+    ctx.fillRect(x, y, size, size)
+    ctx.strokeStyle = usable ? colour : COLORS.textDim
+    ctx.lineWidth = usable ? 2 : 1
+    ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1)
+
+    drawIcon(ctx, slot.abilityId, x + size / 2, y + size / 2, size * 0.58, !usable)
+
+    if (!slot.alive) {
+      // Nobody left to answer. The slot stays where it was so the row does not
+      // reshuffle, and reads as gone rather than merely on cooldown.
+      ctx.fillStyle = 'rgba(10, 10, 14, 0.66)'
+      ctx.fillRect(x, y, size, size)
+      continue
+    }
+
+    if (slot.ready > 0) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(x, y, size, size)
+      ctx.clip()
+      sweep(ctx, x + size / 2, y + size / 2, size * 0.78, slot.ready, slot.cooldown, 0.62)
+      ctx.restore()
+      ctx.textAlign = 'center'
+      ctx.fillStyle = COLORS.text
+      ctx.font = font(12, true)
+      ctx.fillText(`${Math.ceil(slot.ready)}`, x + size / 2, y + size / 2 + 4)
+    }
+  }
 }
 
 function drawActionBar(ctx: CanvasRenderingContext2D, s: SimState): void {

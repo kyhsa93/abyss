@@ -185,6 +185,19 @@ export interface Layout {
   autoPos: { x: number; y: number }
   autoR: number
   btnHit: number
+
+  /**
+   * The raid-cooldown row: top-left corner and slot size.
+   *
+   * It sits clear of both thumbs rather than among the ability buttons,
+   * because it is a different question. The ability bar asks what you are
+   * doing; this asks what the raid should spend. Mixing them put a
+   * ninety-second raid cooldown one slot away from a rotation button and made
+   * it get pressed like one, which is the failure the whole feature exists to
+   * avoid.
+   */
+  callY: number
+  callSlot: number
 }
 
 export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -194,13 +207,14 @@ export function computeLayout(w: number, h: number): Layout {
   const ui = clamp(Math.min(w, h) / 760, 0.62, 1.15)
 
   const topBand = 54 * ui
+  // Named out here because the call row hangs off the top of it.
+  const controlBand = clamp(h * 0.3, 190, 320)
   let arenaR: number
 
   if (portrait) {
     // Reserve the bottom third for thumbs, then size the arena to what is
     // left. This sets the zoom, not the position: the camera follows the
     // player, so the floor is free to run off the edges.
-    const controlBand = clamp(h * 0.3, 190, 320)
     arenaR = Math.max(90, Math.min((w - 20) / 2, (h - topBand - controlBand) / 2))
   } else {
     // Landscape keeps the party frames on the left and buttons on the right.
@@ -214,6 +228,10 @@ export function computeLayout(w: number, h: number): Layout {
   const mapR = clamp(Math.min(w, h) * 0.082, 30, 62)
   const mapX = w - mapR - 10
   const mapY = topBand + 8 + mapR
+
+  const callSlot = clamp(Math.min(w, h) * 0.052, 26, 40)
+  const actionY = h - (58 * ui + 12 * ui + 10)
+  const callY = (portrait ? h - controlBand : actionY - 22) - callSlot - 10
 
   const btnR = clamp(Math.min(w, h) * 0.031, 17, 26)
   const joyBase = clamp(Math.min(w, h) * 0.105, 58, 92)
@@ -278,7 +296,7 @@ export function computeLayout(w: number, h: number): Layout {
     infoY: topBand + 22,
     chatY: h - (portrait ? 250 : 120),
     // Slot height plus its caption plus a small margin. Nothing sits under it.
-    actionY: h - (58 * ui + 12 * ui + 10),
+    actionY,
     castY: h - 30,
 
     joyHomeX: joyBase + 24,
@@ -292,6 +310,8 @@ export function computeLayout(w: number, h: number): Layout {
     autoPos,
     autoR,
     btnHit: btnR * 1.32,
+    callY,
+    callSlot,
   }
 }
 
@@ -309,7 +329,17 @@ export function computeLayout(w: number, h: number): Layout {
  * everything drawn in world units moves together and nothing has to know the
  * camera exists.
  */
-export const ZOOM_STEPS = [1, 1.25, 1.5, 1.8] as const
+/**
+ * Rebased when the arena doubled.
+ *
+ * These are multiples of fit-to-screen, so doubling the world halves what any
+ * one of them shows — the old ladder would have drawn every body at half the
+ * size it used to be, which is not a wider room, it is a smaller game. The top
+ * three are today's framing restored against the bigger floor, and the first
+ * is the one that still fits the whole room on the glass, which is now a
+ * genuine overview rather than the default.
+ */
+export const ZOOM_STEPS = [1, 2.5, 3, 3.6] as const
 export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER'] as const
 
 /**

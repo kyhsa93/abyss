@@ -19,6 +19,8 @@ export interface JoystickView {
 export class Input {
   private held = new Set<string>()
   private queued: number[] = []
+  /** Raid-cooldown slot asked for since the last tick, if any. */
+  private queuedCall: number | null = null
   private restartRequested = false
   private menuRequested = false
   private muteRequested = false
@@ -58,6 +60,7 @@ export class Input {
     target.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase()
       if (MOVE_KEYS.has(key) || ABILITY_KEYS.has(key) || key === 'r') e.preventDefault()
+      if (CALL_KEYS.includes(key)) e.preventDefault()
       if (e.repeat) return
 
       // Any keyboard use hides the touch overlay again.
@@ -66,6 +69,11 @@ export class Input {
 
       const slot = ABILITY_KEYS.get(key)
       if (slot !== undefined) this.queued.push(slot)
+      // One row further right than the rotation, and off it: a raid cooldown
+      // pressed by a finger reaching for its own ability is a raid cooldown
+      // wasted, and the whole value of these is in not wasting them.
+      const call = CALL_KEYS.indexOf(key)
+      if (call >= 0) this.queuedCall = call
       if (key === 'r') this.restartRequested = true
       if (key === 'escape' || key === 'p') this.menuRequested = true
       if (key === 'm') this.muteRequested = true
@@ -166,6 +174,18 @@ export class Input {
       this.joyPointer = null
       this.recentre()
     }
+  }
+
+  /** The raid-cooldown slot asked for, cleared by the reading. */
+  takeCall(): number | null {
+    const call = this.queuedCall
+    this.queuedCall = null
+    return call
+  }
+
+  /** A tap on the call row, which only the frame knows the geometry of. */
+  requestCall(slot: number): void {
+    this.queuedCall = slot
   }
 
   /** Consumes and returns the input for one simulation tick. */
@@ -316,6 +336,15 @@ const MOVE_KEYS = new Set([
  * fewer simply leaves the tail empty.
  */
 export const BAR_SLOTS = 5
+/**
+ * The call row, in order.
+ *
+ * Nine of them because a twenty-five-player roster can field all nine
+ * classes, and they run rightwards from the rotation so the two never share a
+ * finger.
+ */
+const CALL_KEYS = ['6', '7', '8', '9', '0', '-', '=', '[', ']']
+
 const ABILITY_KEYS = new Map(
   Array.from({ length: BAR_SLOTS }, (_, i) => [String(i + 1), i] as const),
 )

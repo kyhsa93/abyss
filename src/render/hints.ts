@@ -20,7 +20,10 @@ const HINTS: Record<string, Hint> = {
   spread: { title: 'SPREAD', advice: 'Marked player walks away from everyone else' },
   adds: { title: 'THRALLS', advice: 'They chase the nearest player — kill them first' },
   slam: { title: 'ABYSSAL SLAM', advice: 'Aimed at the tank; it needs a defensive' },
-  raid: { title: 'CRUSHING TIDE', advice: 'Unavoidable party damage — nothing to dodge' },
+  // The only hint that points at a control rather than at the floor, and it
+  // fires at the one moment that makes the control make sense: damage there
+  // is no dodging. The row exists to answer exactly this and nothing else.
+  raid: { title: 'CRUSHING TIDE', advice: 'Nothing to dodge — call a raid cooldown (6-0) before the next one' },
 }
 
 const SHOW_FOR = 4.5

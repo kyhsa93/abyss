@@ -35,6 +35,23 @@ export interface IconSpec {
 }
 
 const ICONS: Record<string, IconSpec> = {
+  // The raid's cooldowns. Coloured by what they do rather than by class — a
+  // player scanning this row is asking "can I soften the next hit", not "which
+  // of my nine classes is up" — and shaped so the three answers stay apart at
+  // the size the row is drawn at.
+  //
+  // Every one of them is drawn twice over, which is the one thing they all
+  // have in common and the thing that separates them from the single-target
+  // spell each is otherwise the twin of: this lands on everybody.
+  rallying_cry: { shape: 'shield', colour: '#f59e0b', repeat: 2 },
+  aegis: { shape: 'shield', colour: '#fcd34d', repeat: 2 },
+  barrier: { shape: 'shield', colour: '#a5b4fc', repeat: 2 },
+  wildgrowth: { shape: 'leaf', colour: '#34d399', repeat: 2 },
+  tidewall: { shape: 'wave', colour: '#38bdf8', repeat: 2 },
+  harvest: { shape: 'moon', colour: '#c084fc', repeat: 2 },
+  quicken: { shape: 'spiral', colour: '#67e8f9', repeat: 2 },
+  volley_call: { shape: 'arrow', colour: '#a3e635', repeat: 2 },
+  shadowmeld_call: { shape: 'dagger', colour: '#f472b6', repeat: 2 },
   // warrior
   cleave: { shape: 'blade', colour: '#f97316' },
   shield_slam: { shape: 'shield', colour: '#60a5fa' },

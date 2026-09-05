@@ -22,6 +22,9 @@ import {
   GRASP_PER_HEAD,
   YOKE_REACH,
   YOKE_SHARE,
+  MELEE_CALL,
+  ENRAGE_GRACE,
+  ECHO_BEAT,
 } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
@@ -79,6 +82,13 @@ export function getAura(actor: Actor, id: AuraId): Aura | undefined {
 }
 
 export const AURA_DURATION: Record<AuraId, number> = {
+  // Short. A raid cooldown answers one moment, not a stretch of the fight —
+  // long enough to cover the hit it was called for and the tail of a second
+  // one arriving on its heels, and nowhere near long enough to be held up
+  // whenever it happens to be off cooldown.
+  rally: 7,
+  renewal: 8,
+  urgency: 10,
   living_bomb: 12,
   serpent_sting: 15,
   rupture: 12,
@@ -103,7 +113,13 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // Long enough to be several beats rather than one, which is the mechanic:
   // a single piece of floor going out from under somebody is a puddle, and
   // what this asks is that they keep leaving.
-  echo: 5,
+  //
+  // Measured in beats, not in seconds, which is why it moved when the drum
+  // did: `NOTICE_GRANT` slowed `ECHO_BEAT` from 1.05 to 1.45, and five seconds
+  // that had been four beats and a bit became three. Four beats is the
+  // mechanic — the same number of times you are asked to leave, spread over
+  // the longer count a person needs to see each one coming.
+  echo: 4 * ECHO_BEAT + 0.2,
   // The count on a judgement. Long enough that a healer who started on it
   // lands the heal, short enough that one who waited out a global cooldown
   // first does not — which is the whole question the mechanic asks.
@@ -235,6 +251,11 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // The bear's own trickle, refreshed by every hit it takes. Small, constant,
   // and the reason its healer is topping up rather than catching spikes.
   mending: { heal: 62 },
+  // Called rather than cast, and on everybody at once. Small a tick and worth
+  // it because it lands on twenty-five people: what it answers is a raid that
+  // has just taken one hit together, which is the one thing a healer cannot
+  // fix one bar at a time.
+  renewal: { heal: 54 },
   // The boss's own dot. Unavoidable, slow, and the reason a healer cannot
   // spend a whole fight watching one health bar.
   rot: { damage: 36 },
@@ -462,12 +483,41 @@ export function applyDamage(
     // brace was standing in for the practice. A press that makes the fire
     // safe is a press that deletes the fight.
     else if (!opts.mechanic && getAura(target, 'brace')) final *= 0.7
+    // The raid's own, and the one thing in this game that does answer a
+    // mechanic. That is the division rather than an oversight: a brace is
+    // about what you personally could not dodge, and softening the floor with
+    // it deleted the puddle's teaching. A raid cooldown is about the hit the
+    // fight lands on everybody at once, which nobody was ever meant to dodge —
+    // and it is called by name, once or twice in a pull, against twenty to
+    // seventy such hits. Covering two of them is a decision. Covering all of
+    // them is not on offer.
+    if (opts.mechanic && getAura(target, 'rally')) final *= 0.65
     // The enrage is a boss damage amplifier, so it only doubles what the raid
     // is taking. Before the party had a physical attack of its own nothing
     // else reached this line, and reading it as "everything doubles" would
     // now hand the melee a free second wind at the four minute mark.
+    //
+    // And it grows, which it did not used to. A flat doubling is a wall a raid
+    // either gets through or dies to, unless it is neither — a healer and a
+    // tank left alive out of twenty-five, taking two people's worth of a
+    // mechanic that was written for twenty-five, healing through it forever.
+    // That pull is not lost and not won and never ends, and it is reachable:
+    // one turned up in the render suite as a twenty-five man still going at
+    // five minutes with the boss at forty percent and two people standing.
+    //
+    // Flat for the first half minute and doubling every half minute after.
+    //
+    // The grace is what makes this safe to add. A pull that is going to end
+    // ends within a few seconds of the enrage, and every one of those sees the
+    // number the fight was tuned with, unchanged. Ramping from the first
+    // second instead would have quietly made the last ten seconds of every
+    // close pull twenty percent worse, which is a balance change wearing a
+    // bug fix's clothes.
     const enraged = target.faction === 'party' && getAura(boss(s), 'enrage')
-    if (enraged) final *= 2
+    if (enraged) {
+      const since = s.time - encounterAt(s.encounter).enrage - ENRAGE_GRACE
+      final *= since > 0 ? 2 * Math.pow(2, since / 30) : 2
+    }
   }
 
   if (opts.crit) final *= CRIT_MULTIPLIER
@@ -996,7 +1046,24 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
   if (!ability || !canCast(s, actor, ability, targetId)) return false
 
   if (!ability.offGcd) actor.gcd = GLOBAL_COOLDOWN
-  actor.cooldowns[ability.id] = ability.cooldown
+  // A raid cooldown comes back faster off somebody standing in it.
+  //
+  // This is what a melee is for, and it is here because the alternative was
+  // dishonest. Doubling the arena made the room a ranged advantage — measured,
+  // the hunter gained eighteen points of damage and the two worst-off melee
+  // lost eleven and sixteen — and a bigger room *should* favour the specs
+  // whose whole constraint is distance. That is not a bug to tune away. But
+  // "ranged deal more" is only a trade if melee are worth bringing for
+  // something, and until now they were not worth bringing for anything.
+  //
+  // So the raid's cooldowns are what melee are worth. Inside the two families
+  // no spec is the obvious one — a point apart at the top of each — and across
+  // them the ranged lead in damage while a raid built with melee in it gets
+  // the calls back a third sooner. The gap is the price of the discount, and
+  // `rendercheck` is written to say exactly that rather than to say the gap
+  // does not exist.
+  actor.cooldowns[ability.id] =
+    ability.kind === 'raid' && actor.melee ? ability.cooldown * MELEE_CALL : ability.cooldown
 
   if (actor.isPlayer) s.sounds.push('cast')
 
@@ -1098,7 +1165,7 @@ export function landAbility(
       // The spec's own rule decides what this press was worth. Read before it
       // lands, spent after, because a finisher has to be paid at the value it
       // was read at.
-      const bonus = traitBonus(actor, ability, target)
+      const bonus = traitBonus(actor, ability, target) * urgencyOf(actor)
       const amount = Math.round(ability.amount * bonus)
       applyDamage(s, target, amount, 'none', { sourceId: actor.id, crit })
       pushEffect(s, 'impact', target.pos, {
@@ -1128,6 +1195,20 @@ export function landAbility(
       })
       if (ability.aura) addAura(target, ability.aura, actor.id)
       spendHealTrait(s, actor, ability, target, healed)
+      break
+    }
+    // Everybody at once, which is the only thing here that does that.
+    case 'raid': {
+      for (const a of s.actors) {
+        if (a.faction !== actor.faction || !a.alive) continue
+        if (ability.aura) addAura(a, ability.aura, actor.id)
+        if (ability.amount > 0) applyHeal(s, a, ability.amount, actor.id)
+        pushEffect(s, ability.amount > 0 ? 'heal' : 'cast', a.pos, {
+          abilityId: ability.id,
+          power: ability.amount,
+        })
+      }
+      s.chat.push({ id: s.nextObjectId++, speaker: actor.name, text: ability.name, age: 0 })
       break
     }
     case 'taunt': {
@@ -1460,6 +1541,18 @@ export function mendAfterHit(target: Actor, amount: number): void {
  * button that visibly gets a rogue out of a puddle and back onto the boss,
  * which is what it is for.
  */
+/**
+ * What the raid's own damage cooldown is worth to this body.
+ *
+ * On the source rather than on the target, and applied where damage is made
+ * rather than where it lands, because it is the raid hitting harder and not
+ * the boss being softer. A boss that took more from everything would also take
+ * more from the other team in a battleground, which is a different game.
+ */
+export function urgencyOf(actor: Actor): number {
+  return getAura(actor, 'urgency') ? 1.3 : 1
+}
+
 export function hasteOf(actor: Actor): number {
   return getAura(actor, 'sprint') ? 1.5 : 1
 }
