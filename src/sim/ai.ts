@@ -12,6 +12,7 @@ import {
   REFUGE_TELEGRAPH,
   SCHISM_MUSTER_ROOM,
   GLOBAL_COOLDOWN,
+  NOTICE_GRANT,
   SCHISM_ROOM,
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
@@ -203,7 +204,22 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // Noticing danger at all is what costs reaction time.
     ai.reactingTo = danger
     ai.fumbled = false
-    ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4)
+    // Plus the time the telegraphs were lengthened by, which is owed back.
+    //
+    // `NOTICE_GRANT` widened every warning in the game so that a person could
+    // read it. This roster does not need it: it recognises a shape the instant
+    // it appears and starts walking, so a longer count did not make it safer —
+    // it made it leave earlier and stand outside for the difference. Measured,
+    // that cost the warrior fifteen percent of its damage and blew the spread
+    // between damage specs from 1.32 to 1.54, because standing off the boss is
+    // free for a caster and is the whole job for melee.
+    //
+    // Handing the roster the same slowness restores the fight to exactly what
+    // every sweep in this file measured — the party reacts the same number of
+    // seconds before a hit lands as it always did — and leaves the widened
+    // count doing the one thing it was added for, which is being long enough
+    // for a person to see.
+    ai.reactionTimer = ai.reactionDelay * rng.range(0.7, 1.4) + NOTICE_GRANT
     // A fumble means it reacts far too late — the AI equivalent of
     // tunnel-visioning on your rotation.
     if (rng.chance(ai.mistakeChance)) {

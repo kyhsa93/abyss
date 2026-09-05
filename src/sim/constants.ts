@@ -7,10 +7,64 @@ export const DT = 1 / TICK_RATE
  *
  * Everything else here is expressed relative to it: widening the floor without
  * widening ability ranges just moves the party out of range of each other.
+ *
+ * Doubled from four hundred and sixty, and the sentence above is the whole
+ * reason that is a real change rather than a rendering one. The mechanics that
+ * are written as a fraction of the room — the wedge, the split, the vigil, the
+ * ring — grew with it and ask the same question of a bigger floor. The
+ * distances that are written as numbers did not: a bow still reaches as far as
+ * it reached, a step still covers what a step covers, and a body walking out
+ * of something still walks at the speed it always walked. So the room is twice
+ * the room and the party's reach into it is what it was, which is what makes
+ * space something a raid has to spend rather than something it has.
  */
-export const ARENA_RADIUS = 460
+export const ARENA_RADIUS = 920
 
 export const GLOBAL_COOLDOWN = 1.5
+
+/**
+ * The seconds every telegraph is given back, and the shortest one allowed.
+ *
+ * Every warning time in this game was tuned against the party that plays it,
+ * and that party is not a person. A raider's `reactionDelay` is a quarter of a
+ * second, a tenth off that by a ninth pull, and it covers the whole of
+ * noticing: the AI sees a shape appear and begins walking out of it inside
+ * three tenths of a second, every time, without ever having to work out which
+ * shape it was.
+ *
+ * A person does not have that. Noticing something appeared, recognising which
+ * of a dozen mechanics it is, deciding where the answer is and starting to
+ * move is half a second before a foot leaves the ground, and that is for a
+ * mechanic already learnt. The first time it is longer, which is the case
+ * that matters most, because a fight nobody can read is a fight nobody can
+ * learn.
+ *
+ * So the tuned numbers are correct and were left where they are — every sweep
+ * written against them still says what it says — and the difference between a
+ * raider's reflexes and a person's is granted here, once, where it can be
+ * seen and argued with.
+ *
+ * Four tenths, which is a person's half-to-two-thirds of a second against the
+ * quarter the roster rolls.
+ *
+ * Added rather than floored, and this is the part worth defending. A floor at
+ * one global was the first draft, on the reasoning that no warning should be
+ * shorter than the game's own unit of action. It is the wrong shape twice
+ * over: moving costs no global, so a dodge never had to abandon a press in the
+ * first place; and a floor deletes the difference between every count below
+ * it. The split gives longer than the crush because it asks for a longer walk,
+ * the drowning longer still — three numbers a tenth apart that a floor makes
+ * one number, and with them the reason each was chosen. A constant added to
+ * all of them moves the whole shelf and leaves every gap on it exactly where
+ * it was.
+ *
+ * One mechanic is left out of it on purpose. See `CHANT_CAST`.
+ */
+export const NOTICE_GRANT = 0.4
+
+export function readable(tuned: number): number {
+  return tuned + NOTICE_GRANT
+}
 
 /**
  * A crit, on the party's own damage only.
@@ -43,7 +97,7 @@ export const SPREAD_RADIUS = 110
  * two of those, which is the price of the mechanic.
  */
 export const SOAK_RADIUS = 135
-export const SOAK_TELEGRAPH = 5
+export const SOAK_TELEGRAPH = readable(5)
 
 /**
  * What the circle costs each of you when all of you stand in it.
@@ -104,7 +158,7 @@ export const COUNTDOWN_TICKS = COUNTDOWN * TICK_RATE
  * even a distracted AI strolls out in time, which flattens the personalities
  * into identical competence.
  */
-export const PUDDLE_TELEGRAPH = 1.6
+export const PUDDLE_TELEGRAPH = readable(1.6)
 
 /**
  * Warning time before the floor around the boss caves in.
@@ -129,7 +183,7 @@ export const PUDDLE_TELEGRAPH = 1.6
  * The middle one, which is a first pull that is punished and a ninth that is
  * not, rather than either a formality or a wall.
  */
-export const CRUSH_TELEGRAPH = 1.1
+export const CRUSH_TELEGRAPH = readable(1.1)
 
 /**
  * Warning time before half the floor gives way.
@@ -161,7 +215,7 @@ export const CRUSH_TELEGRAPH = 1.1
  * there were to remove. That is second in the field behind the cone's 21.4,
  * and the sweep would want re-running before anybody moved the dial off it.
  */
-export const FAULT_TELEGRAPH = 1.15
+export const FAULT_TELEGRAPH = readable(1.15)
 
 /**
  * Warning time before everything except the shallows goes under.
@@ -201,7 +255,7 @@ export const FAULT_TELEGRAPH = 1.15
  * Which is the thing worth writing down for the next one of these: check what
  * the mechanic totals per body before concluding anything about its shape.
  */
-export const SHALLOWS_TELEGRAPH = 1.15
+export const SHALLOWS_TELEGRAPH = readable(1.15)
 
 /**
  * How much floor each shallow leaves standing, and how many of them there are.
@@ -364,7 +418,7 @@ export function bar(hp: number): number {
  * and lateness stopped meaning anything. Cut where they stand and counted
  * down faster, the same two numbers separate the pulls again.
  */
-export const SCHISM_TELEGRAPH = 1.5
+export const SCHISM_TELEGRAPH = readable(1.5)
 
 /**
  * How far apart the groups have to be before they count as apart.
@@ -430,7 +484,7 @@ export const SCHISM_MUSTER_ROOM = 80
  * about the same slack the crush leaves over -- long enough that a reaction
  * delay fits inside it and short enough that it does not fit twice.
  */
-export const VIGIL_TELEGRAPH = 1.3
+export const VIGIL_TELEGRAPH = readable(1.3)
 
 /**
  * How long a body has to have been doing nothing before the vigil passes over
@@ -459,6 +513,15 @@ export const VIGIL_HELD = 0.45
  * number is therefore the delay alone, and it is set just inside the range a
  * greedy raider rolls on its first pull and outside the one it rolls on its
  * ninth.
+ *
+ * The one count `readable` is not applied to. Every other warning in the game
+ * was granted the difference between a raider's reflexes and a person's; this
+ * one cannot be, because being shorter than a global is the whole mechanic. A
+ * count a player can wait out by finishing the press they were already making
+ * is a count that decides nothing, and there is no walk in front of this one
+ * for the extra time to be spent on — the answer is a single press. What it
+ * asks of a person is not more time. It is knowing, before it lands, that
+ * their own name is the thing to watch.
  */
 export const CHANT_CAST = 1.25
 
@@ -482,7 +545,7 @@ export const CHANT_CAST = 1.25
 export const CHANT_NOTICE = 2
 
 /** How long the gaze holds open before it takes whoever is still watching. */
-export const GAZE_TELEGRAPH = 1.2
+export const GAZE_TELEGRAPH = readable(1.2)
 
 /**
  * How far off the boss's bearing counts as looking away.
@@ -537,7 +600,7 @@ export const PARTY_RADIUS = 17
  * to remove at 2.0 and 57% at 1.7, because a shorter count turns some of the
  * misses into ones nobody could have made.
  */
-export const TOLL_TELEGRAPH = 1.7
+export const TOLL_TELEGRAPH = readable(1.7)
 export const TOLL_RADIUS = 66
 export const TOLL_RANGE = 175
 
@@ -591,7 +654,7 @@ export const TOLL_UNPAID = 3400
  * it closes, and the raid clusters, so the circle has to be wider than the
  * crowd or it is asking one person a question.
  */
-export const GRASP_TELEGRAPH = 1.7
+export const GRASP_TELEGRAPH = readable(1.7)
 export const GRASP_REACH = 118
 
 /**
@@ -634,7 +697,7 @@ export const GRASP_CAP = 3.0
  * it -- the radius is what says how precisely a body has to arrive, not how
  * many can stand there.
  */
-export const REFUGE_TELEGRAPH = 2.2
+export const REFUGE_TELEGRAPH = readable(2.2)
 export const REFUGE_RADIUS = 46
 export const REFUGE_RING = 175
 
@@ -646,3 +709,31 @@ export const REFUGE_RING = 175
  * price of one body being in the wrong place at one instant.
  */
 export const REFUGE_DAMAGE = 3700
+
+/**
+ * How fast the drowned choir's drum runs.
+ *
+ * Here rather than beside the mechanic because the mark's own life is written
+ * in beats of it — see `AURA_DURATION.echo` — and a mechanic whose two halves
+ * live in files that import each other has nowhere to put the number they
+ * share.
+ */
+export const ECHO_BEAT = readable(1.05)
+
+/**
+ * How long the enrage stays the number it was tuned as before it escalates.
+ *
+ * See the enrage in `combat.ts`. Long enough that every pull which resolves
+ * resolves inside it.
+ */
+export const ENRAGE_GRACE = 30
+
+/**
+ * What a melee carrier pays for a raid cooldown, as a fraction of the count
+ * everybody else pays.
+ *
+ * See `beginCast`. Two thirds, which over a three-minute pull is one extra
+ * call from a roster with melee in it — enough to be a reason to bring one,
+ * small enough that a raid of nothing but melee is not a different game.
+ */
+export const MELEE_CALL = 0.67

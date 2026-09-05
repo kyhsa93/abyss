@@ -2,6 +2,8 @@ import {
   ARENA_RADIUS,
   BURDEN_HANDS,
   BURDEN_REACH,
+  readable,
+  ECHO_BEAT,
   CRUSH_TELEGRAPH,
   DT,
   CHANT_CAST,
@@ -145,12 +147,12 @@ function mechanic(s: SimState, amount: number): number {
 }
 
 
-const SLAM_CAST = 2
+const SLAM_CAST = readable(2)
 
 const PUDDLE_RADIUS = 92
 const PUDDLE_DAMAGE = 1000
 
-export const BREATH_CAST = 1.9
+export const BREATH_CAST = readable(1.9)
 const BREATH_RANGE = 390
 const BREATH_HALF_WIDTH = 0.62
 const BREATH_DAMAGE = 700
@@ -159,7 +161,10 @@ const BREATH_DAMAGE = 700
 // option and the answer has to be to already be inside it. That only works if
 // there is time to get there first, hence the telegraph and the generous
 // starting radius: the safe pocket is everything within START - BAND.
-const SHOCKWAVE_TELEGRAPH = 2.4
+const SHOCKWAVE_TELEGRAPH = readable(2.4)
+
+/** How far off the stalker starts. See `spawnStalker`. */
+const STALKER_WALK = 368
 export const SHOCKWAVE_START = 40
 const SHOCKWAVE_GROWTH = 250
 const SHOCKWAVE_BAND = 58
@@ -1059,7 +1064,7 @@ function scheduleSchism(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
  * is nothing. What moved the mechanic was the beat and the size of the hit.
  */
 const HAND_HALF_WIDTH = 0.62
-export const HAND_BEAT = 1.1
+export const HAND_BEAT = readable(1.1)
 /**
  * How far it turns between pulses, in radians.
  *
@@ -1586,8 +1591,7 @@ const ECHO_RADIUS = 66
  * teaching against 13 at a full second. The volume dials — how many carry it
  * and how fast the drum runs — move it four times as far.
  */
-export const ECHO_TELEGRAPH = 0.9
-const ECHO_BEAT = 1.05
+export const ECHO_TELEGRAPH = readable(0.9)
 const ECHO_DAMAGE = 620
 
 /** One beat of it: the ground under this body, about to answer. */
@@ -1949,10 +1953,22 @@ function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   if (quarry.length === 0) return
   const victim = rng.pick(quarry)
 
-  // Spawned on the far side of the arena from whoever it wants, so the first
-  // thing that happens is a walk rather than a hit.
+  // Spawned away from whoever it wants, so the first thing that happens is a
+  // walk rather than a hit.
+  //
+  // A distance, not a fraction of the room. It was written as four fifths of
+  // the arena, which read the same while the arena was one size and became a
+  // different mechanic when the floor doubled: the walk doubled with it, the
+  // stalker took twice as long to arrive and twice as long to die, and pulls
+  // grew by ten to twenty seconds. That is invisible in a win rate and it is
+  // most of a damage spread, because damage is measured over the length of the
+  // pull — the two specs whose pulls grew most lost fourteen and nine points
+  // of it while their uptime on the boss went up.
+  //
+  // The number is what four fifths of the old arena came to, so the mechanic
+  // is the one that was tuned.
   const away = Math.atan2(victim.pos.y, victim.pos.x) + Math.PI
-  const pos = { x: Math.cos(away) * ARENA_RADIUS * 0.8, y: Math.sin(away) * ARENA_RADIUS * 0.8 }
+  const pos = { x: Math.cos(away) * STALKER_WALK, y: Math.sin(away) * STALKER_WALK }
   clampToArena(pos, 20)
 
   const stalker = makeAdd(s.nextObjectId++, pos.x, pos.y)
@@ -3753,7 +3769,7 @@ function shatterVessels(s: SimState): void {
  * to fit inside — and unlike a walk out of a band there is no travel time
  * underneath it, only the global cooldown already in front of every press.
  */
-const MIRROR_CAST = 1.3
+const MIRROR_CAST = readable(1.3)
 
 /** One bill, for everybody who put something in. */
 const MIRROR_DAMAGE = 650
