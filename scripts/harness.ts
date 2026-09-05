@@ -146,6 +146,28 @@ function run(
 }
 
 
+/**
+ * Which slice of this file to run, or all of it.
+ *
+ * Every table here is independent of every other one and every pull inside a
+ * table is independent of every other pull: the simulation is deterministic
+ * from a seed and touches nothing outside itself. So the hour this costs is an
+ * hour on one core of however many the machine has, for no reason beyond
+ * nobody having split it.
+ *
+ * Profiled, the split writes itself. The size-and-difficulty table is 1120 of
+ * the 1475 seconds — five bosses of six cells each, at up to twenty-five
+ * bodies a pull — and everything else in the file put together is 355. So the
+ * shards are one per boss of that table, plus one for all the rest, and the
+ * wall clock becomes the largest of them rather than the sum.
+ *
+ * Unset runs everything, in file order, exactly as it always did. That is not
+ * a fallback nobody uses: it is what `npm run harness` still does, and it is
+ * the thing the sharded run is diffed against.
+ */
+const SHARD = process.env.ABYSS_SHARD ?? ''
+const want = (tag: string): boolean => SHARD === '' || SHARD === tag
+
 const ATTEMPTS = [0, 4, 8]
 
 /** Compositions a player might actually build, including bad ones. */
@@ -164,8 +186,8 @@ const PARTIES: Array<{ label: string; party: Pick[] }> = [
 ]
 
 const RUNS = 60
-console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
-for (const { label, party } of PARTIES) {
+if (want('composition')) console.log('composition            ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime')
+if (want('composition')) for (const { label, party } of PARTIES) {
   const cells: string[] = []
   let time = 0
   let total = 0
@@ -189,8 +211,8 @@ for (const { label, party } of PARTIES) {
 // mechanic columns are what says they are actually different fights: a boss
 // whose puddle count and raid damage match the last one is a reskin.
 const BOSS_RUNS = 40
-console.log('\nboss                   ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  enrage%')
-for (let i = 0; i < ENCOUNTERS.length; i++) {
+if (want('boss')) console.log('\nboss                   ' + ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') + 'avgTime  enrage%')
+if (want('boss')) for (let i = 0; i < ENCOUNTERS.length; i++) {
   const cells: string[] = []
   let time = 0
   let total = 0
@@ -228,7 +250,7 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
 // chasing the difference. Forty brings it to sixteen.
 const SIZE_RUNS = 40
 const SIZE_ATTEMPTS = [0, 8]
-console.log(
+if (want('size:0')) console.log(
   '\nboss / size / difficulty  ' +
     SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
     'avgTime  bossHP%  kit' +
@@ -236,6 +258,7 @@ console.log(
     `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
+  if (!want(`size:${i}`)) continue
   for (const size of [5, 10, 25] as RaidSize[]) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       const party = autoParty(size, dps('mage'))
@@ -274,8 +297,8 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
 // the retry button taken away. Somewhere around half at the top and a tenth
 // by floor ten is the shape being aimed at.
 const FLOOR_RUNS = 24
-console.log('\nfloor    win%     avgTime  bossHP%  bought')
-for (const depth of [1, 2, 3, 4, 6, 8, 10, 12]) {
+if (want('descent')) console.log('\nfloor    win%     avgTime  bossHP%  bought')
+if (want('descent')) for (const depth of [1, 2, 3, 4, 6, 8, 10, 12]) {
   let wins = 0
   let time = 0
   let left = 0
@@ -311,7 +334,7 @@ for (const depth of [1, 2, 3, 4, 6, 8, 10, 12]) {
 // runs the way the game does — half a health bar back between floors, one of
 // the fallen up per floor — and reports where they end.
 const DESCENT_RUNS = 40
-{
+if (want('run')) {
   const reached: number[] = []
   for (let n = 0; n < DESCENT_RUNS; n++) {
     let carried: SimState | null = null
@@ -398,14 +421,14 @@ const DETAIL_RUNS = 20
 const DETAIL_ATTEMPTS = [0, 8]
 const detailParty = PARTIES[0]!.party
 
-console.log('\nper member, default composition, puddle% / units walked per s')
-console.log(
+if (want('member')) console.log('\nper member, default composition, puddle% / units walked per s')
+if (want('member')) console.log(
   'member                       ' +
     DETAIL_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(17)).join(''),
 )
 
 const detail = new Map<number, { puddle: Record<string, number>; travel: Record<string, number> }>()
-for (const attempt of DETAIL_ATTEMPTS) {
+if (want('member')) for (const attempt of DETAIL_ATTEMPTS) {
   const puddle: Record<string, number> = {}
   const travel: Record<string, number> = {}
   for (let i = 0; i < DETAIL_RUNS; i++) {
@@ -420,7 +443,7 @@ for (const attempt of DETAIL_ATTEMPTS) {
 
 // Slot one is the player, who is a scripted stand-in here rather than the AI
 // under test, and whose puddle time would read as somebody's bad decision.
-for (let i = 1; i < detailParty.length; i++) {
+if (want('member')) for (let i = 1; i < detailParty.length; i++) {
   const slot = SLOTS[i]!
   const pick = detailParty[i]!
   const label = `${slot.name} ${specLabel(pick)}, ${slot.personality}`
@@ -699,7 +722,7 @@ function objectiveGoal(s: SimState) {
 // looked at a spec on its own.
 const SPEC_RUNS = 8
 const SPEC_SIZE: RaidSize = 10
-{
+if (want('spec')) {
   const roleOf = (p: Pick) => specOf(p).role
   const ref: Record<string, Pick> = {
     tank: SPEC_OPTIONS.find((p) => roleOf(p) === 'tank')!,
@@ -810,7 +833,7 @@ const SPEC_SIZE: RaidSize = 10
 // Reading the hit count instead is how four separate rounds of tuning in this
 // file's history went after the wrong mechanic.
 const TEACH_RUNS = 30
-{
+if (want('mechanic')) {
   console.log(
     `\nmechanic / boss        hits    unpractised  practised   teaches` +
       `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time. ` +
@@ -871,12 +894,12 @@ const TEACH_RUNS = 30
 // columns after `deaths` are the ones that can tell those apart — how often
 // the lead changed, how often the thing that scores changed hands, and how far
 // around the map the fight actually went.
-console.log(
+if (want('bg')) console.log(
   `\nbattleground           player     win%     avgTime  deaths  leadChg  turnover  spread` +
     `\n(${BG_RUNS} matches a row; two standard errors on win% is about ` +
     `${(2 * Math.sqrt(0.25 / BG_RUNS) * 100).toFixed(0)} points)`,
 )
-for (const bg of BATTLEGROUNDS) {
+if (want('bg')) for (const bg of BATTLEGROUNDS) {
   for (const drive of DRIVES) {
     let wins = 0
     let time = 0

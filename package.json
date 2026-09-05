@@ -19,7 +19,7 @@
     "bolt": "esbuild scripts/bolt.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/bolt.mjs --log-level=error && node node_modules/.cache/bolt.mjs",
     "fx": "esbuild scripts/fx.ts --bundle --format=esm --platform=node --external:playwright --outfile=node_modules/.cache/fx.mjs --log-level=error && node node_modules/.cache/fx.mjs",
     "conceptcheck": "esbuild scripts/conceptcheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/conceptcheck.mjs --log-level=error && node node_modules/.cache/conceptcheck.mjs",
-    "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
+    "balancecheck": "esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error && esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error && esbuild scripts/balancecheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/balancecheck.mjs --log-level=error && node node_modules/.cache/balancecheck.mjs",
     "pwacheck": "esbuild scripts/pwacheck.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/pwacheck.mjs --log-level=error && node node_modules/.cache/pwacheck.mjs",
     "check": "tsc && npm run conceptcheck && npm run rendercheck && npm run touchcheck && npm run balancecheck"
   },

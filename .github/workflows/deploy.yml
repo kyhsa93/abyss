@@ -14,7 +14,44 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Three jobs where there was one, because the checks are independent of each
+# other and were being paid for in sequence.
+#
+# `npm run check` runs five things end to end, and the last of them says in its
+# own source that it costs about an hour. The other four together are minutes.
+# Run in one job that is an hour plus minutes; run in two it is an hour, and the
+# minutes are free. The build is split out for the same reason -- it does not
+# need either check to have passed in order to compile, only to have passed
+# before anything is published, and `deploy` is where that is enforced.
 jobs:
+  # Everything that answers in minutes. First to go red, which is the half of a
+  # gate's job that is about how fast it tells you.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run conceptcheck
+      - run: npm run rendercheck
+      - run: npm run touchcheck
+
+  # The long one, on its own. Nothing waits for it except the publish.
+  balance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run balancecheck
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -24,14 +61,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
-      - run: npm run build
+      # Not `npm run build`, which runs `tsc` again as its first step and is
+      # doing so on a runner that has a job doing exactly that beside it.
+      - run: npx vite build
+      - run: npm run pwacheck
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
+  # The gate. Publishing is what must not happen until everything has passed,
+  # and this is the one place that has to know it.
   deploy:
-    needs: build
+    needs: [checks, balance, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

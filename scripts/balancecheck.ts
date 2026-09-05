@@ -119,13 +119,15 @@ const BANDS: Band[] = [
   },
 ]
 
-// The harness costs about an hour, so anything that already has its output can
-// hand it over rather than paying twice — the weekly upkeep job reads the tables
-// itself and then checks the bands against the same text.
+// The harness used to cost about an hour on one core; `harnessrun` splits it
+// across all of them and it costs the longest shard. Anything that already has
+// its output can still hand it over rather than paying twice — the weekly
+// upkeep job reads the tables itself and then checks the bands against the
+// same text.
 const saved = process.env.ABYSS_HARNESS_OUT
 const text = saved
   ? readFileSync(resolve(process.cwd(), saved), 'utf8')
-  : execFileSync(process.execPath, [resolve(process.cwd(), 'node_modules/.cache/harness.mjs')], {
+  : execFileSync(process.execPath, [resolve(process.cwd(), 'node_modules/.cache/harnessrun.mjs')], {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     })
