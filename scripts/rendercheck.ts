@@ -300,6 +300,28 @@ function stubCtx(): CanvasRenderingContext2D {
         return () => ({ addColorStop: noop })
       }
       if (prop === 'canvas') return { width: 960, height: 760 }
+      // The two calls a real canvas refuses, refused here too.
+      //
+      // This stub records calls and validates none of them, which is right for
+      // most of what it does — the point is to run the whole render path in
+      // Node — and was wrong for exactly this. A negative radius is not a small
+      // circle, it is an exception thrown out of `ellipse` that takes the frame
+      // with it, and two of the eight bosses were throwing one on their first
+      // second while passing every check in this file. Found by driving the
+      // built game in a real browser, which is a thing nobody does on a push.
+      //
+      // The stack from here names the caller, which is the other half of what
+      // this is for: the browser reports a minified frame and no line.
+      if (prop === 'ellipse') {
+        return (_x: number, _y: number, rx: number, ry: number) => {
+          if (!(rx >= 0) || !(ry >= 0)) throw new Error(`ellipse radius ${rx}, ${ry}`)
+        }
+      }
+      if (prop === 'arc') {
+        return (_x: number, _y: number, r: number) => {
+          if (!(r >= 0)) throw new Error(`arc radius ${r}`)
+        }
+      }
       return noop
     },
     set() {
@@ -3694,7 +3716,14 @@ for (const [label, w, h] of [
     const label = encounter.name
     // The ladder rather than tonight's kit: a boss that owns a cone needs the
     // cone's name in the table whether or not a five-man ever climbs to it.
-    const uses = (key: MechanicId) => encounter.ladder.includes(key)
+    //
+    // And what it carries outside the ladder counts as owning it. A fight can
+    // throw something at every setting rather than sell it on one — the wave
+    // the Whisper's empowered body is one of — and a thing thrown every pull
+    // that the table refuses to name is the worst version of this rule being
+    // broken, not an exception to it.
+    const uses = (key: MechanicId) =>
+      encounter.ladder.includes(key) || (encounter.always ?? []).includes(key)
 
     expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
     expect(
@@ -4288,6 +4317,30 @@ for (const [label, w, h] of [
     expect('and drink it', ids.has('boss_inhale'), 'it drew nothing')
     expect('and give it back', ids.has('boss_pungent'), 'it drew nothing')
     thrown.set('air', ids)
+  }
+
+  // The whisper's, which are four different kinds of taking something away and
+  // are driven together for the same reason the air's are: the empowered body
+  // is one of a wave, so asking for it is asking for the wave as well, and
+  // `REQUIRES` is what knows that.
+  {
+    const taken = floorWith(
+      { decay: 12, empower: 9, dominate: 11, shade: 10, insignificance: 9, frostbolt: 8, volley: 7 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (taken.outcome === 'ongoing' && taken.time < 150) {
+      step(taken, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of taken.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can rot its own ground', ids.has('boss_decay'), 'it drew nothing')
+    expect('and send one back wrong', ids.has('boss_empower'), 'it drew nothing')
+    expect('and turn one of yours around', ids.has('boss_dominate'), 'it drew nothing')
+    thrown.set('taken', ids)
   }
 
   // And the three whose answer is a moment. On no ladder either, and collected
@@ -8701,6 +8754,16 @@ function floorWith(
   s.next.toll = every.toll === undefined ? 0 : every.toll * 0.45
   s.next.grasp = every.grasp === undefined ? 0 : every.grasp * 0.45
   s.next.refuge = every.refuge === undefined ? 0 : every.refuge * 0.45
+  // The whisper's, which are not in the catalogue either.
+  s.next.decay = filled.decay === undefined ? 0 : filled.decay * 0.45
+  s.next.frostbolt = filled.frostbolt === undefined ? 0 : filled.frostbolt * 0.45
+  s.next.volley = filled.volley === undefined ? 0 : filled.volley * 0.45
+  s.next.shade = filled.shade === undefined ? 0 : filled.shade * 0.45
+  s.next.insignificance =
+    filled.insignificance === undefined ? 0 : filled.insignificance * 0.45
+  s.next.empower = filled.empower === undefined ? 0 : filled.empower * 0.9
+  s.next.dominate = filled.dominate === undefined ? 0 : filled.dominate * 0.45
+  s.next.bonestorm = filled.bonestorm === undefined ? 0 : filled.bonestorm * 0.45
   // The blight's own, which are not in the catalogue either.
   s.next.blight = filled.blight === undefined ? 0 : filled.blight * 0.45
   s.next.inhale = filled.inhale === undefined ? 0 : filled.inhale * 0.45

@@ -76,6 +76,20 @@ export type AuraId =
    * suspended along with the thing.
    */
   | 'storming'
+  /** Threat generation cut, on whoever is holding the boss. */
+  | 'slighted'
+  /** A summon that came back wrong, and is worth killing first. */
+  | 'empowered'
+  /**
+   * Turned against the raid, briefly and dangerously.
+   *
+   * The only aura here that changes whose side a body is on. What makes it
+   * dangerous is that it also makes them better at it: the fight does not
+   * borrow a weak body, it borrows a good one and hands it back afterwards.
+   */
+  | 'turned'
+  /** Followed by a shade, which is answered by not standing still. */
+  | 'haunted'
   /** Marked with a spore, which bursts on whoever came to stand with them. */
   | 'spore'
   /**
@@ -315,6 +329,8 @@ export type GroundKind =
   // like the pool, because the shape a person answers is one patch at a time
   // and a line is what the sequence of them looks like from above.
   | 'coldflame'
+  // A patch that is simply bad to stand in, and stays.
+  | 'decay'
   | 'soak'
   | 'hand'
   | 'echo'

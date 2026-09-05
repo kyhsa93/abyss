@@ -19,6 +19,7 @@ import {
   SOAK_TELEGRAPH,
   BLOAT_SWAP_AT,
   REEK_REACH,
+  SHADE_REACH,
   SPREAD_RADIUS,
   VIGIL_HELD,
   TOLL_TELEGRAPH,
@@ -739,6 +740,19 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const b = boss(s)
   const call = actor.ai?.striking ?? null
 
+  // A turned mind aims at the raid, and at whoever is nearest: it is not
+  // playing, it is being played, so nothing about target priority applies. The
+  // rotation itself is untouched — it presses the same buttons it always did,
+  // which is what makes a turned dealer dangerous rather than merely absent.
+  if (getAura(actor, 'turned')) {
+    let near: Actor | null = null
+    for (const a of livingParty(s)) {
+      if (a.id === actor.id) continue
+      if (!near || dist(actor.pos, a.pos) < dist(actor.pos, near.pos)) near = a
+    }
+    if (near) return near
+  }
+
   const pinning = calledId(call, 'spike:')
   if (pinning !== null) {
     const spike = s.actors.find((a) => a.faction === 'boss' && a.id === pinning)
@@ -923,6 +937,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   }
 
   if (getAura(actor, 'spread')) consider('spread:self', 62)
+
+  // Something closing on this body, which is answered by not being where it is
+  // going. Ranked with the mark it most resembles: it is a walk rather than a
+  // step, and being a second late costs a tick rather than a life.
+  {
+    const mark = getAura(actor, 'haunted')
+    if (mark?.at && dist(actor.pos, mark.at) <= SHADE_REACH + DANGER_MARGIN) {
+      consider('shade:self', 64)
+    }
+  }
 
   // Branded, and standing where the raid needs the floor. The urgency sits
   // just under a spread's: getting this wrong costs ground rather than
@@ -1523,6 +1547,12 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     if (!carrying && !otherCarries) continue
     if (dist(spot, other.pos) < SPREAD_RADIUS + DANGER_MARGIN) return false
   }
+
+  // A shade closing on this body. The one thing here answered by moving away
+  // from a point that is not on the floor's list: what is following is a fact
+  // about the person rather than about the room, so it is kept on the mark.
+  const shade = getAura(actor, 'haunted')
+  if (shade?.at && dist(spot, shade.at) < SHADE_REACH + DANGER_MARGIN) return false
 
   // The reek, which is the spread's slower cousin and wants the same answer.
   //
@@ -2667,14 +2697,25 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   // last beat the swap can happen on. Both are read here because a tank
   // deciding to take the boss should be looking at everything already on the
   // body it is taking it from.
-  const load = (a: Actor | null): { stacks: number; at: number; of: 'sunder' | 'swelling' } => {
+  const load = (
+    a: Actor | null,
+  ): { stacks: number; at: number; of: 'sunder' | 'swelling' | 'slighted' } => {
     const sunder = a ? (getAura(a, 'sunder')?.stacks ?? 0) : 0
     const swelling = a ? (getAura(a, 'swelling')?.stacks ?? 0) : 0
-    // Whichever is nearer its own line, not whichever number is bigger: five
+    // The slight is not a count. It is one fact — the hold has been taken —
+    // and a tank wearing it is already behind, so it reads as a full line
+    // rather than as a number climbing toward one.
+    const slighted = a && getAura(a, 'slighted') ? 1 : 0
+    // Whichever is nearest its own line, not whichever number is bigger: five
     // armour breaks and five swellings are not the same amount of trouble.
-    return swelling / BLOAT_SWAP_AT >= sunder / SWAP_AT
-      ? { stacks: swelling, at: BLOAT_SWAP_AT, of: 'swelling' }
-      : { stacks: sunder, at: SWAP_AT, of: 'sunder' }
+    const reads: Array<{ stacks: number; at: number; of: 'sunder' | 'swelling' | 'slighted' }> = [
+      { stacks: sunder, at: SWAP_AT, of: 'sunder' },
+      { stacks: swelling, at: BLOAT_SWAP_AT, of: 'swelling' },
+      { stacks: slighted, at: 1, of: 'slighted' },
+    ]
+    let worst = reads[0]!
+    for (const read of reads) if (read.stacks / read.at > worst.stacks / worst.at) worst = read
+    return worst
   }
   const mineNow = load(actor)
   if (kit.taunt && mineNow.stacks < mineNow.at) {

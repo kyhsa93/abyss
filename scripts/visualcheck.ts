@@ -35,6 +35,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
+import { ENCOUNTERS } from '../src/sim/encounters'
 
 const DIST = resolve(process.cwd(), 'dist')
 
@@ -98,11 +99,26 @@ function watch(page: Page, where: string): void {
   })
 }
 
-/** Every boss, since a boss is the thing most likely to draw something new. */
-const BOSSES = ['warden', 'choir', 'tidebreaker', 'watcher', 'ledger']
+/**
+ * Every boss, asked rather than remembered.
+ *
+ * It was a written-out list of five, so the three fights added after it were
+ * the three this never looked at — which is the one job it has. The same
+ * mistake is written up twice in `rendercheck`, about thralls pinned to an
+ * encounter index and about `ENCOUNTERS[0]` meaning the Warden, with the same
+ * conclusion both times.
+ */
+const BOSSES = ENCOUNTERS.map((e) => e.id)
 
-/** Seconds into the pull to capture. Early is positioning, later is mechanics. */
-const AT = [3, 9]
+/**
+ * Seconds into the pull to capture.
+ *
+ * Three and nine were enough while every mechanic arrived inside the first
+ * fifteen seconds. They do not any more: the storm opens at forty-eight, the
+ * breath out at sixty-four, and a sweep that stops at nine would photograph
+ * two fights out of three before their own idea had happened.
+ */
+const AT = [3, 9, 28, 52, 78]
 
 async function shoot(browser: Browser, url: string, name: string): Promise<void> {
   const context = await browser.newContext({

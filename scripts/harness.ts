@@ -720,7 +720,15 @@ function objectiveGoal(s: SimState) {
 // on damage and 1.41x on healing when this table was written, and both had got
 // there without any check noticing, because nothing in the harness had ever
 // looked at a spec on its own.
-const SPEC_RUNS = 8
+//
+// Twenty, up from eight, and the reason is arithmetic rather than taste. Eight
+// pulls across five bosses was forty samples and two standard errors on a win
+// rate is about sixteen points there; across eight bosses it is the same
+// forty-per-row against a floor the band checks to the point. The paladin tank
+// read 48% against a floor of 50 and read 53% at this count, having changed
+// nothing — a band failing inside its own error, which the damage spread did
+// twice before it and which this file's own comments warn about by name.
+const SPEC_RUNS = 20
 const SPEC_SIZE: RaidSize = 10
 if (want('spec')) {
   const roleOf = (p: Pick) => specOf(p).role

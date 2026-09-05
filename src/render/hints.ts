@@ -1,3 +1,4 @@
+import { getAura } from '../sim/combat'
 import type { SimState } from '../sim/types'
 import { COLORS, L, MENU_TEXT, fitText } from './theme'
 
@@ -23,6 +24,11 @@ const HINTS: Record<string, Hint> = {
   // The only hint that points at a control rather than at the floor, and it
   // fires at the one moment that makes the control make sense: damage there
   // is no dodging. The row exists to answer exactly this and nothing else.
+  // The first boss's three, because the first boss is where a player learns
+  // that a card means "this is a thing, and here is what it wants".
+  coldflame: { title: 'COLD LINE', advice: 'It walks outward — step off it, or stand on the boss' },
+  spike: { title: 'BONE SPIKE', advice: 'They cannot move — break it to get them out' },
+  bonestorm: { title: 'BONE STORM', advice: 'It has let go and is coming — keep away from it' },
   raid: { title: 'CRUSHING TIDE', advice: 'Nothing to dodge — call a raid cooldown (6-0) before the next one' },
 }
 
@@ -41,7 +47,32 @@ export class Hints {
     }
 
     for (const g of s.ground) this.trigger(g.kind)
-    if (s.actors.some((a) => a.faction === 'boss' && a.alive && !a.isPlayer && a.id !== 100)) {
+    // The two that are not floor: one is a body standing over somebody, the
+    // other is the boss itself behaving differently. Neither would ever be
+    // reached by watching the ground, and both are things a first-time player
+    // meets on the first boss.
+    if (s.actors.some((a) => a.spawn === 'spike' && a.alive)) this.trigger('spike')
+    const b = boss(s)
+    if (b && getAura(b, 'storming')) this.trigger('bonestorm')
+    // A wave, and only a wave.
+    //
+    // It used to be "anything hostile that is not the boss", which was every
+    // summon in the game at the time. It is not any more: a spike stands where
+    // somebody is pinned and never moves, and a raid told "they chase the
+    // nearest player — kill them first" about one is being taught a rule that
+    // is false about the thing in front of them. The first boss has spikes and
+    // no wave at all, so the very first card this game ever shows a player was
+    // about a mechanic that fight does not have.
+    if (
+      s.actors.some(
+        (a) =>
+          a.faction === 'boss' &&
+          a.alive &&
+          !a.isPlayer &&
+          a.id !== 100 &&
+          (a.spawn === undefined || a.spawn === 'herald'),
+      )
+    ) {
       this.trigger('adds')
     }
     if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) this.trigger('spread')

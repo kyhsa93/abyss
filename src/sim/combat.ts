@@ -136,6 +136,20 @@ export const AURA_DURATION: Record<AuraId, number> = {
    * handles it gets back to the boss with the enrage still far away.
    */
   storming: 24,
+  /** Long enough that the other tank has to actually take it. */
+  slighted: 16,
+  /** It dies or the wave does; the count is only a floor under both. */
+  empowered: 40,
+  /**
+   * Twelve seconds, which is the number the mechanic is named for.
+   *
+   * Long enough that the raid has to decide what to do about a body it was
+   * relying on, short enough that killing them is never the answer — which is
+   * the line this mechanic walks. A minute of it and the raid would simply
+   * remove them; a moment of it and nobody would notice.
+   */
+  turned: 12,
+  haunted: 14,
   /**
    * Long enough to walk to, short enough that walking late is not walking.
    *
@@ -287,6 +301,7 @@ export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
   rot: 'rot',
   spiked: 'spike',
   reek: 'vilegas',
+  haunted: 'shade',
 }
 
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
@@ -296,6 +311,7 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // reaction nobody has.
   spiked: { damage: 58 },
   reek: { damage: 62 },
+  haunted: { damage: 74 },
   living_bomb: { damage: 70 },
   serpent_sting: { damage: 60 },
   rupture: { damage: 85 },
@@ -1624,8 +1640,18 @@ export function mendAfterHit(target: Actor, amount: number): void {
  * more from the other team in a battleground, which is a different game.
  */
 export function urgencyOf(actor: Actor): number {
-  return getAura(actor, 'urgency') ? 1.3 : 1
+  // A turned mind hits harder than it did a second ago, and that is the whole
+  // danger of the mechanic. Borrowing a body and handing it back weakened
+  // would be a headcount problem; borrowing the best thing the raid has and
+  // pointing it at them is a different question, and it is the one being
+  // asked. It rides the same multiplier as the raid's own press because it is
+  // the same idea with the sign flipped.
+  const rally = getAura(actor, 'urgency') ? 1.3 : 1
+  return getAura(actor, 'turned') ? rally * TURNED_POWER : rally
 }
+
+/** What the fight gets out of a body it has taken. See `urgencyOf`. */
+const TURNED_POWER = 1.3
 
 export function hasteOf(actor: Actor): number {
   return getAura(actor, 'sprint') ? 1.5 : 1

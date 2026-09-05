@@ -17,7 +17,18 @@ import {
   BLOAT_BURST_AT,
   BLOAT_SPLASH,
   INHALE_HASTE,
+  DECAY_DAMAGE,
+  DECAY_LINGER,
+  DECAY_RADIUS,
+  EMPOWER_HEALTH,
+  EMPOWER_POWER,
+  FROSTBOLT_CAST,
+  FROSTBOLT_DAMAGE,
+  SHADE_REACH,
+  SHADE_SPEED,
+  SLIGHT_SHARE,
   STORM_REACH,
+  VOLLEY_DAMAGE,
   STORM_SPEED,
   STORM_TICK,
   INHALE_MAX,
@@ -432,6 +443,14 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleBlight(s, b, timing)
   scheduleInhale(s, b, timing)
   schedulePungent(s, b, timing)
+  scheduleDecay(s, b, rng, timing)
+  scheduleFrostbolt(s, b, timing)
+  scheduleVolley(s, b, timing)
+  scheduleShade(s, b, rng, timing)
+  updateShades(s)
+  scheduleSlight(s, b, timing)
+  scheduleEmpower(s, b, rng, timing)
+  scheduleDominate(s, b, rng, timing)
   scheduleStorm(s, b, timing)
   updateStorm(s, b)
   scheduleSpore(s, b, rng, timing)
@@ -777,6 +796,249 @@ function schedulePungent(s: SimState, b: Actor, timing: PhaseTiming): void {
  * everything else is built on top of. A big thing is coming; be somewhere
  * else.
  */
+/**
+ * Ground that has gone over, and stays gone.
+ *
+ * The plainest mechanic in the game and the reason it is on this boss: every
+ * other thing this one does is about who is holding what, so without this
+ * there would be nothing here a player answers by looking at the floor.
+ */
+function scheduleDecay(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.decay <= 0) return
+  s.next.decay -= DT
+  if (s.next.decay > 0) return
+  s.next.decay = timing.decay
+
+  const victims = livingParty(s)
+  if (victims.length === 0) return
+  const at = rng.pick(victims)
+  const pos = { x: at.pos.x + rng.range(-30, 30), y: at.pos.y + rng.range(-30, 30) }
+  clampToArena(pos, DECAY_RADIUS)
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'decay',
+    pos,
+    radius: DECAY_RADIUS,
+    telegraph: PUDDLE_TELEGRAPH,
+    // It stays, which is what separates it from a pool. A pool is a moment to
+    // be elsewhere; by the third of these the fight is being had in a smaller
+    // room than it started in.
+    lingering: DECAY_LINGER,
+    damage: DECAY_DAMAGE,
+    detonated: false,
+  })
+  say(s, b, lineFor(fight(s), s.plan !== null, 'decay'))
+  s.sounds.push('telegraph')
+}
+
+/**
+ * A shard aimed at whoever is holding it, which somebody has to cut.
+ *
+ * The same shape as the note the Choir sings, and a different question. That
+ * one names a body at random and asks whether the raid noticed; this one
+ * always goes to the same place and asks whether anybody is watching the
+ * health bar everybody is already watching. Uncut it is most of a tank.
+ */
+function scheduleFrostbolt(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.frostbolt <= 0) return
+  if (b.castId) return
+  s.next.frostbolt -= DT
+  if (s.next.frostbolt > 0) return
+  s.next.frostbolt = timing.frostbolt
+
+  const held = topThreatTarget(s)
+  if (!held) return
+  b.castId = 'boss_frostbolt'
+  b.castRemaining = FROSTBOLT_CAST
+  b.castTotal = FROSTBOLT_CAST
+  b.castTargetId = held.id
+  say(s, b, lineFor(fight(s), s.plan !== null, 'frostbolt'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_frostbolt' })
+}
+
+/** The shard landing, on whoever it was aimed at. */
+function loose(s: SimState, targetId: number | null): void {
+  const b = boss(s)
+  const at = s.actors.find((a) => a.faction === 'party' && a.id === targetId)
+  if (!at || !at.alive) return
+  const damage = mechanic(s, FROSTBOLT_DAMAGE)
+  applyDamage(s, at, damage, 'magic', { sourceId: b.id, mechanic: 'frostbolt' })
+  pushEffect(s, 'impact', at.pos, { abilityId: 'boss_frostbolt', power: damage })
+  s.sounds.push('raid')
+}
+
+/**
+ * The same cold, spread thin over everybody.
+ *
+ * The floor of this fight: a bill that arrives whatever the raid does, so the
+ * healers have something to be losing ground to while the rest of it happens.
+ * Deliberately less each than the shard costs one body — the two are the same
+ * idea at two sizes, and a raid that lets the shard land is paying the volley
+ * again in one place.
+ */
+function scheduleVolley(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.volley <= 0) return
+  s.next.volley -= DT
+  if (s.next.volley > 0) return
+  s.next.volley = timing.volley
+
+  say(s, b, lineFor(fight(s), s.plan !== null, 'volley'))
+  s.sounds.push('raid')
+  for (const a of livingParty(s)) {
+    const bite = mechanic(s, VOLLEY_DAMAGE)
+    applyDamage(s, a, bite, 'magic', { sourceId: b.id, mechanic: 'volley' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_volley', power: bite })
+  }
+}
+
+/**
+ * Something that picks a body and follows it.
+ *
+ * The one demand on this boss that belongs entirely to the person it picked.
+ * Everything else here is somebody else's problem to solve; this is answered
+ * by walking, and by nobody but them.
+ */
+function scheduleShade(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.shade <= 0) return
+  s.next.shade -= DT
+  if (s.next.shade > 0) return
+  s.next.shade = timing.shade
+
+  const free = livingParty(s).filter((a) => !getAura(a, 'haunted'))
+  if (free.length === 0) return
+  const count = Math.max(1, Math.round(s.party.length / 10))
+  say(s, b, lineFor(fight(s), s.plan !== null, 'shade'))
+  s.sounds.push('telegraph')
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const marked = free.splice(rng.int(free.length), 1)[0]!
+    addAura(marked, 'haunted', b.id)
+    pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_shade' })
+  }
+}
+
+/**
+ * One tick of every shade on the field.
+ *
+ * The aura alone would be a dot with a long name: it would tick on somebody
+ * standing perfectly still, and the mechanic is that standing still is the one
+ * thing that does not work. So the thing following is a place, kept on the
+ * aura, and it closes at most of a body's speed — outrun by walking and never
+ * outrun by being somewhere clever.
+ */
+function updateShades(s: SimState): void {
+  for (const a of livingParty(s)) {
+    const mark = getAura(a, 'haunted')
+    if (!mark) continue
+    // It starts where the body was when it was picked, which is what gives the
+    // first second of it a head start to spend.
+    if (!mark.at) mark.at = { x: a.pos.x, y: a.pos.y }
+    const away = dist(mark.at, a.pos)
+    if (away > 0.001) {
+      const step = a.moveSpeed * SHADE_SPEED * DT
+      mark.at.x += ((a.pos.x - mark.at.x) / away) * step
+      mark.at.y += ((a.pos.y - mark.at.y) / away) * step
+    }
+    // Only while it is actually on them. The aura's own tick is what bills it,
+    // so this decides whether that tick is paid rather than paying it twice.
+    mark.stacks = away <= SHADE_REACH ? 1 : 0
+    pushEffect(s, 'cast', mark.at, { abilityId: 'boss_shade' })
+  }
+}
+
+/**
+ * The hold taken off the tank without taking the tank.
+ *
+ * It leaves them standing there and stops them being the thing the boss is
+ * looking at. The answer is the other tank, and it is on this boss because
+ * this one already asks the raid to keep changing what it is hitting — a
+ * fight that also changes who is being hit is one idea rather than two.
+ */
+function scheduleSlight(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.insignificance <= 0) return
+  s.next.insignificance -= DT
+  if (s.next.insignificance > 0) return
+  s.next.insignificance = timing.insignificance
+
+  const held = topThreatTarget(s)
+  if (!held) return
+  addAura(held, 'slighted', b.id)
+  // Taken off the table rather than applied as a multiplier on what comes
+  // next, so the swap is worth making immediately: a tank that has just lost
+  // half its hold is behind now, not behind eventually.
+  s.threat[held.id] = (s.threat[held.id] ?? 0) * (1 - SLIGHT_SHARE)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'insignificance'))
+  pushEffect(s, 'cast', held.pos, { abilityId: 'boss_insignificance' })
+}
+
+/**
+ * One of the wave, come back wrong.
+ *
+ * What it costs is not the body, it is the ordering. A raid that kills a wave
+ * left to right reaches the empowered one somewhere in the middle, and
+ * everything it did until then it did at full strength.
+ */
+function scheduleEmpower(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.empower <= 0) return
+  s.next.empower -= DT
+  if (s.next.empower > 0) return
+  s.next.empower = timing.empower
+
+  const wave = s.actors.filter(
+    (a) => a.faction === 'boss' && a.id !== BOSS_ID && a.alive && !getAura(a, 'empowered'),
+  )
+  if (wave.length === 0) return
+  const one = rng.pick(wave)
+  addAura(one, 'empowered', b.id)
+  one.maxHp = Math.round(one.maxHp * EMPOWER_HEALTH)
+  one.hp = one.maxHp
+  say(s, b, lineFor(fight(s), s.plan !== null, 'empower'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', one.pos, { abilityId: 'boss_empower' })
+}
+
+/**
+ * One of the raid, turned around.
+ *
+ * The only mechanic in this game whose answer is a person. It does not take
+ * them away — a body removed for twelve seconds is a headcount problem, and
+ * this game already has those — it points them at the people who were counting
+ * on them, and makes them better at it while it does.
+ *
+ * The raid cannot kill them out of it, and nothing had to be written to stop
+ * it: a party only ever aims at the other faction, so the one rule the mechanic
+ * needs is the one the game already had. What is left is the thing that is
+ * actually hard, which is carrying on without somebody for twelve seconds
+ * while they are hurting you.
+ */
+function scheduleDominate(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.dominate <= 0) return
+  s.next.dominate -= DT
+  if (s.next.dominate > 0) return
+  s.next.dominate = timing.dominate
+
+  // Never the tank. Turning the body that is holding the boss hands the raid a
+  // loose boss and a hostile tank at once, which is two mechanics arriving as
+  // one and neither of them the one being asked.
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'turned'))
+  if (free.length === 0) return
+
+  // One at a time until a raid is very large, and even then not many. Two
+  // turned dealers at twenty-five is not twice the mechanic: the raid loses
+  // both of them and is hit by both of them, and the cell went from 98% won to
+  // 30% on that alone while the same fight without it read a hundred. What is
+  // being asked is "carry on without somebody", and that question does not get
+  // better by being asked twice at once.
+  const count = Math.max(1, Math.round(s.party.length / 22))
+  say(s, b, lineFor(fight(s), s.plan !== null, 'dominate'))
+  s.sounds.push('raid')
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const taken = free.splice(rng.int(free.length), 1)[0]!
+    addAura(taken, 'turned', b.id)
+    pushEffect(s, 'cast', taken.pos, { abilityId: 'boss_dominate' })
+  }
+}
+
 function scheduleStorm(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.bonestorm <= 0) return
   if (getAura(b, 'storming')) return
@@ -2431,7 +2693,8 @@ function updateAdds(s: SimState): void {
     if (add.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
       const damage = hit(
         s,
-        add.spawn === 'herald' ? HERALD_DAMAGE : stalking ? STALKER_DAMAGE : ADD_DAMAGE,
+        (add.spawn === 'herald' ? HERALD_DAMAGE : stalking ? STALKER_DAMAGE : ADD_DAMAGE) *
+          (getAura(add, 'empowered') ? EMPOWER_POWER : 1),
       )
       const blame: DamageOptions = { sourceId: add.id }
       // Being caught by the thing following you is a mistake with a name.
@@ -2500,6 +2763,11 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
 
   if (castId === 'boss_vessel') {
     sink(s, targetId)
+    return
+  }
+
+  if (castId === 'boss_frostbolt') {
+    loose(s, targetId)
     return
   }
 
@@ -3047,8 +3315,13 @@ if (g.kind === 'schism') {
         // Its own name, so a boss that owns one kind of hazardous floor is not
         // reported as owning the other. The two look different on the screen
         // and they have to read differently in the effect log as well.
+        // Its own name. A boss that owns one kind of hazardous floor must not
+        // be reported as owning another: they look different on the screen and
+        // they have to read differently in the effect log as well.
         const mark =
-          g.kind === 'brand' ? 'boss_brand' : g.kind === 'coldflame' ? 'boss_coldflame' : 'boss_puddle'
+          g.kind === 'brand' || g.kind === 'coldflame' || g.kind === 'decay'
+            ? `boss_${g.kind}`
+            : 'boss_puddle'
         // The floor going off, at the size it went off at. Everything that
         // followed used to be the only sign it had.
         pushEffect(s, 'impact', g.pos, {

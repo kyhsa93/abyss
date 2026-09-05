@@ -44,6 +44,13 @@ export type MechanicId =
   | 'vilegas'
   | 'bloat'
   | 'bonestorm'
+  | 'decay'
+  | 'frostbolt'
+  | 'volley'
+  | 'shade'
+  | 'insignificance'
+  | 'empower'
+  | 'dominate'
   | 'adds'
   | 'rot'
   | 'sunder'
@@ -113,6 +120,13 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   vilegas: true, // one mark per so many bodies, and it spreads to whoever is near
   bloat: false, // whoever is holding it, and one body holds it
   bonestorm: false, // the boss itself, and there is one of it
+  decay: false, // a patch of a fixed size, wherever it lands
+  frostbolt: false, // one cast at whoever is holding it
+  volley: false, // everybody at once, which is everybody at any size
+  shade: true, // one shade per so many bodies, so nobody is safe by headcount
+  insignificance: false, // whoever is holding it, and one body holds it
+  empower: false, // one body of the wave, and a wave is a wave
+  dominate: true, // one mind per so many bodies, so a bigger raid loses more
   hand: false, // a wedge of a fixed angle, whoever it happens to turn onto
   echo: true, // one mark per so many bodies
   burden: true, // one weight per so many bodies, and a bigger raid has more hands
@@ -224,6 +238,13 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   vilegas: 'the reek',
   bloat: 'the swelling',
   bonestorm: 'the storm',
+  decay: 'the rotting ground',
+  frostbolt: 'the shard',
+  volley: 'the volley',
+  shade: 'the shade',
+  insignificance: 'the slight',
+  empower: 'the empowered',
+  dominate: 'the turned',
   echo: 'the echo',
   burden: 'the burden',
   yoke: 'the yoke',
@@ -519,6 +540,71 @@ export interface PhaseTiming {
    * about floors and shapes is built on knowing that first.
    */
   bonestorm: number
+  /**
+   * Seconds between one patch of rotting ground and the next.
+   *
+   * The plainest thing on this table and deliberately so: it lands, it stays,
+   * and standing in it is bad. No count to read, nobody named, nothing to
+   * decide beyond noticing. Every boss wants one demand that is only about
+   * where your feet are, and this fight's other six are all about who is
+   * holding what.
+   */
+  decay: number
+  /**
+   * Seconds between one shard and the next.
+   *
+   * A cast at whoever is holding the boss, big enough to matter, and the
+   * answer is to cut it. The same shape as the note the Choir sings and a
+   * different question: that one names somebody at random and asks the raid
+   * whether it noticed, this one always goes to the same body and asks
+   * whether anybody is watching a health bar that is already the one being
+   * watched.
+   */
+  frostbolt: number
+  /**
+   * Seconds between one volley and the next.
+   *
+   * Everybody, for less each than the shard costs one. It is the fight's
+   * floor: a bill that arrives whatever the raid does, so that the healers
+   * have something to lose ground to while the rest of this is happening.
+   */
+  volley: number
+  /**
+   * Seconds between one shade and the next.
+   *
+   * A thing that picks a body and follows it. The answer is to keep walking,
+   * which is the only answer in this fight that belongs entirely to the person
+   * who was picked — everything else here is somebody else's problem to solve.
+   */
+  shade: number
+  /**
+   * Seconds between one slight and the next.
+   *
+   * It takes the hold rather than the health: the tank keeps standing there
+   * and stops being the thing the boss is looking at. The answer is the other
+   * tank, and the reason it is on this boss rather than another is that this
+   * one already asks the raid to keep changing what it is hitting — so a
+   * fight that also changes who is being hit is one idea, not two.
+   */
+  insignificance: number
+  /**
+   * Seconds between one empowered body and the next.
+   *
+   * A wave arrives and one of them comes back wrong. What it costs is not the
+   * body, it is the ordering: a raid that kills the wave left to right kills
+   * the empowered one somewhere in the middle, and everything it did until
+   * then it did at full strength.
+   */
+  empower: number
+  /**
+   * Seconds between one turned mind and the next.
+   *
+   * The fight taking one of the raid's own and pointing it back. It is the
+   * only mechanic in this game where the thing that has to be answered is a
+   * person the raid was relying on a moment ago — and the answer is to stop
+   * relying on them without killing them, which nothing else here asks.
+   */
+  dominate: number
   adds: number
   /**
    * Physical damage to everyone standing in reach.
@@ -824,6 +910,13 @@ export interface Encounter {
     vilegas: number
     bloat: number
     bonestorm: number
+    decay: number
+    frostbolt: number
+    volley: number
+    shade: number
+    insignificance: number
+    empower: number
+    dominate: number
     spire: number
     verdict: number
     crush: number
@@ -882,6 +975,13 @@ export interface Encounter {
     vilegas: string
     bloat: string
     bonestorm: string
+    decay: string
+    frostbolt: string
+    volley: string
+    shade: string
+    insignificance: string
+    empower: string
+    dominate: string
     /** Empty where the boss does not use the mechanic. */
     rot: string
     sunder: string
@@ -1036,6 +1136,105 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: 'IT HAS LET GO — RUN',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+      rot: '',
+      sunder: '',
+      brand: '',
+      verdict: '',
+      crush: '',
+      fault: '',
+      shallows: '',
+      spire: '',
+      soak: '',
+      hunt: '',
+      hand: '',
+      echo: '',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      toll: '',
+      grasp: '',
+      refuge: '',
+    },
+  },
+  {
+    // The boss that takes things you were relying on.
+    //
+    // Not places — the rotting ground is the only demand here about where your
+    // feet are, and it is here so that there is one. What this fight removes
+    // is the tank's hold, the harmlessness of a body in the wave, the ground
+    // under the raid, and finally one of the raid. Every one of them is a
+    // thing that was working a second ago.
+    //
+    // Seven, which is one more than there are settings to sell them on, and
+    // that is the whole reason the kit count stopped being a fixed six. Its
+    // steps buy two at a time in the middle of the ladder.
+    herald: null,
+    id: 'whisper',
+    name: 'The Last Whisper',
+    short: 'Whisper',
+    demand: 'cut the shard, swap the hold, and hold off your own',
+    hp: 58000,
+    enrage: 240,
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.36,
+    swingDamage: 580,
+    slamDamage: 1150,
+    raidDamage: 95,
+    mechanicDamage: 0.66,
+    sizeMechanic: { 5: 1.05, 10: 1.0, 25: 0.9 },
+    accent: '#38bdf8',
+    names: { slam: 'A WORD OF ENDING', breath: '' },
+    // Cheapest idea first, and the two that need somebody else to act on them
+    // last. The turned mind is the top rung on purpose: it is the only thing
+    // in this game that asks a raid to stop hitting one of its own, and a raid
+    // that has not already learned to change targets twice will read it as the
+    // fight cheating.
+    // The wave is not one of this fight's ideas, it is the thing one of its ideas
+    // happens to be about — the empowered body is a fact about a summon that was
+    // already coming, and the Watcher is the boss that owns summoning. So it is
+    // carried rather than sold: every setting has a wave, and what the ladder
+    // sells is the one that comes back wrong.
+    always: ['adds'],
+    ladder: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
+    phases: {
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 44, volley: 12, decay: 15, frostbolt: 21, shade: 26, insignificance: 24, empower: 47, dominate: 38 }) },
+      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 39, volley: 10.5, decay: 13, frostbolt: 18, shade: 23, insignificance: 21, empower: 41, dominate: 33 }) },
+      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ adds: 34, volley: 9, decay: 11, frostbolt: 16, shade: 20, insignificance: 18, empower: 36, dominate: 29 }) },
+    },
+    opening: { slam: 13, raid: 15, ...beats({ adds: 40, volley: 11, decay: 14, frostbolt: 19, shade: 24, insignificance: 22, empower: 44, dominate: 36 }) },
+    lines: {
+      phaseTwo: 'The chorus falters',
+      phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
+      adds: 'The faithful answer',
+      shockwave: '',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: 'The ground is going over — off it',
+      frostbolt: 'Shard on the tank — cut it',
+      volley: 'Cold, all of it, all of you',
+      shade: 'Something is following you — keep walking',
+      insignificance: 'It has stopped looking at me — take it',
+      empower: 'That one came back wrong — kill it first',
+      dominate: 'One of ours is turned — hold off them',
       rot: '',
       sunder: '',
       brand: '',
@@ -1142,6 +1341,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
@@ -1245,6 +1451,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1365,6 +1578,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1456,6 +1676,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1539,6 +1766,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: '',
       bloat: '',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1654,6 +1888,13 @@ export const ENCOUNTERS: Encounter[] = [
       vilegas: 'That reek spreads — off them',
       bloat: 'Nine on the tank — swap now',
       bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1751,6 +1992,10 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
 const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   inhale: ['blight'],
   pungent: ['blight', 'inhale', 'spore'],
+  // One of the wave, come back wrong. Without a wave there is nothing for it
+  // to be one of: it is not a summon of its own, it is a fact about one that
+  // was already coming.
+  empower: ['adds'],
 }
 
 /**

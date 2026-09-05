@@ -266,10 +266,22 @@ function nearestHostile(
 ): Actor | null {
   let best: Actor | null = null
   let bestGap = Infinity
+  // Whose side this body is on, which is a question with an answer that can
+  // change. A turned mind keeps its faction — the tally, the party frames and
+  // the win condition all read that, and a body that left the raid for twelve
+  // seconds would have left all of them — and swings at the raid instead.
+  //
+  // Nothing has to be told not to kill them, because nothing could: the raid
+  // only ever aims at the other faction, so the one answer the mechanic wants
+  // is the one the game already enforces. What the raid has to do about them
+  // is stop relying on them, which is not a rule, it is a fact.
+  const turned = getAura(from, 'turned') !== undefined
   const hostile =
     s.mode === 'battleground'
       ? (a: Actor) => teamOf(a) === otherTeam(teamOf(from))
-      : (a: Actor) => a.faction === 'boss'
+      : turned
+        ? (a: Actor) => a.faction === 'party' && a.id !== from.id
+        : (a: Actor) => a.faction === 'boss'
   for (const other of s.actors) {
     if (!hostile(other) || !other.alive) continue
     // Clamped at zero: standing inside something's radius is a gap of none,
@@ -315,6 +327,10 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       aura.tickTimer -= 1
       const tick = AURA_TICK[aura.id]
       if (!tick) continue
+      // A shade bills only while it has caught up, which `updateShades` keeps
+      // on the mark. Without this it is a dot with a long name and standing
+      // still is as good an answer as running.
+      if (aura.id === 'haunted' && aura.stacks === 0) continue
       if (tick.damage !== undefined) {
         // The boss's own dot is the one an affix can sharpen; the party's are
         // theirs and stay as they are.

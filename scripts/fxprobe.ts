@@ -36,17 +36,6 @@ interface Seen {
   fired: number
 }
 
-/**
- * Auras a fight puts on a person rather than on the floor.
- *
- * Read off what the mechanics actually apply rather than listed by hand: an
- * aura the party gives itself is not the fight showing you anything.
- */
-const BOSS_AURAS = new Set([
-  'rot', 'sunder', 'spread', 'brand', 'echo', 'verdict', 'chant', 'burden', 'yoke',
-  'vessel', 'gaze', 'vigil', 'toll', 'grasp', 'mirror', 'knell', 'refuge', 'schism',
-])
-
 const found = new Map<MechanicId, Seen>()
 
 for (let e = 0; e < ENCOUNTERS.length; e++) {
@@ -94,9 +83,21 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
             seen.sounds.add(sound)
           }
         }
+        // Whatever the fight put on somebody, read off who applied it rather
+        // than off a list.
+        //
+        // It was a hand-written set of eighteen ids, under a comment saying
+        // not to hand-write it. Eight auras were added after that line and
+        // every one of them was invisible to this: twelve mechanics reported
+        // as leaving nothing on screen when most of them sit on a party frame
+        // for ten seconds. The boss is the only thing in a raid that applies
+        // an aura the party did not ask for, so the source is the test.
+        // Applied by the boss, wherever it landed. On a party frame, on the
+        // boss itself, or on something it summoned — the source is what makes
+        // it the fight's rather than the party's, and the boss wears the
+        // party's own dots the whole pull.
         for (const a of s.actors) {
-          if (a.faction !== 'party') continue
-          for (const au of a.auras) if (BOSS_AURAS.has(au.id)) seen.auras.add(au.id)
+          for (const au of a.auras) if (au.sourceId === 100) seen.auras.add(au.id)
         }
         // The fourth channel, and the one the first draft of this missed. A
         // boss cast bar is a warning that stands still and counts down where
@@ -158,6 +159,23 @@ const rows = MECHANIC_IDS.filter((id) => found.has(id)).map((id) => {
 console.log(
   'mechanic'.padEnd(22) + 'standing'.padStart(11) + 'where'.padStart(8) + '  what stays on screen',
 )
+/**
+ * Mechanics this sweep cannot judge, and why.
+ *
+ * It drives one mechanic at a time through `only`, which is what makes the
+ * reading clean — a fight throwing six things cannot say which of them drew
+ * what. It is also what makes these unjudgeable: they are built out of another
+ * mechanic, and `only` takes that away. The breath out returns what the breath
+ * in took, so alone it returns nothing; the empowered body is one of a wave,
+ * so alone there is no wave to be one of.
+ *
+ * Named rather than quietly counted as silent. Three measurements in this
+ * session reported that something was fine or broken for a reason that was
+ * about the instrument, and the cost each time was believing them.
+ */
+const NEEDS_ANOTHER = new Set<MechanicId>(['pungent', 'empower'])
+
+let skipped = 0
 let silent = 0
 let brief = 0
 for (const r of rows.sort((a, b) => standing(a) - standing(b))) {
@@ -174,7 +192,8 @@ for (const r of rows.sort((a, b) => standing(a) - standing(b))) {
       : r.telegraph > 0 && r.telegraph < BLINK
         ? '   <- gone in a blink'
         : ''
-  if (channel(r) === 'flash') silent++
+  if (NEEDS_ANOTHER.has(r.id)) skipped++
+  else if (channel(r) === 'flash') silent++
   else if (channel(r) === 'cast') brief++
   console.log(
     r.name.padEnd(22) +
@@ -191,7 +210,7 @@ for (const r of rows.sort((a, b) => standing(a) - standing(b))) {
   )
 }
 console.log(
-  `\n${rows.length} mechanics: ${silent} leave nothing standing, ` +
+  `\n${rows.length} mechanics: ${skipped} cannot be driven alone, ${silent} leave nothing standing, ` +
     `${brief} leave nothing on the floor — ${silent + brief} a person has to be told about ` +
     `somewhere other than where they are looking`,
 )

@@ -20,6 +20,7 @@ import {
 } from '../sim/constants'
 import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
+import { BREATH_CAST } from '../sim/boss'
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
@@ -940,7 +941,21 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
-      const progress = 1 - g.telegraph / PUDDLE_TELEGRAPH
+      //
+      // Against the pool's count because that is the one this path was written
+      // for, and clamped because it is not the only shape that comes down it.
+      // Anything with a longer count than a pool's reads as negative progress
+      // here — the cold line's far patches wait two and two thirds seconds —
+      // and a negative radius is not a small circle, it is an exception thrown
+      // out of `ellipse` that takes the whole frame with it.
+      //
+      // Only a real browser catches that. `rendercheck` draws through a stub
+      // that records calls and never validates them, so this passed every
+      // check in the repo and threw on the first frame of two of the eight
+      // bosses. What it should be is each hazard's own count, which means the
+      // ground remembering what it was born with; the clamp is the honest
+      // version of what is here until it does.
+      const progress = Math.max(0, Math.min(1, 1 - g.telegraph / PUDDLE_TELEGRAPH))
       ctx.beginPath()
       floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.telegraph
@@ -1239,7 +1254,16 @@ function drawBreath(
   r: number,
 ): void {
   const firing = g.detonated
-  const progress = firing ? 1 : 1 - g.telegraph / Math.max(0.001, 1.9)
+  // Against the cone's own count, imported rather than copied.
+  //
+  // It was the literal 1.9, which is what `BREATH_CAST` was before every
+  // telegraph in the game was lengthened for a person to read. The constant
+  // moved to 2.3 and this copy of it did not, so the fill read as negative
+  // progress and a negative radius is an exception out of `ellipse` that takes
+  // the frame with it — every pull of that boss, ten seconds in, on the first
+  // cone. It passed every check in the repo because the render checks draw
+  // through a stub that validated nothing.
+  const progress = firing ? 1 : Math.max(0, 1 - g.telegraph / Math.max(0.001, BREATH_CAST))
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)

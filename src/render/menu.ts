@@ -389,10 +389,20 @@ function listRects(field: Rect, count: number): Rect[] {
   // that is what a list that opens is for — but not those two.
   const floor = backRect().y - 8
   const top = field.y + field.h + 2
-  const h = Math.max(28, Math.min(field.h, (floor - top) / count))
-  // And a list with more rows than that space holds goes up rather than off
-  // the bottom of the screen.
-  const y = Math.min(top, Math.max(p, floor - h * count))
+  //
+  // The rows give way rather than the list moving. It used to hold a
+  // twenty-eight pixel row and slide upward when they would not fit, which
+  // worked while there were five bosses and broke at eight: on a landscape
+  // phone the list climbed over the field it hangs from, so pressing that
+  // field to put the list away pressed a row of it instead.
+  //
+  // Twenty-two is the floor now, and it is a real one — below that a row stops
+  // being something a thumb can pick out of a stack. If a list ever cannot fit
+  // even at that, the answer is a list that scrolls rather than a list that
+  // covers its own control, and this will need writing again.
+  const h = Math.max(22, Math.min(field.h, (floor - top) / count))
+  // Never above its own field, whatever the arithmetic says.
+  const y = Math.max(top, p)
   return Array.from({ length: count }, (_, i) => ({ x: field.x, y: y + i * h, w: field.w, h }))
 }
 

@@ -834,3 +834,28 @@ export const BLOAT_SPLASH = 190
 export const STORM_REACH = 190
 export const STORM_TICK = 210
 export const STORM_SPEED = 0.82
+
+/**
+ * The Deathwhisper's numbers.
+ *
+ * Read together they are one fight rather than seven mechanics: the volley is
+ * the floor everything else is measured against, the shard is what that floor
+ * becomes if nobody cuts it, and the rest are ways of taking something the
+ * raid was relying on — the ground under it, the tank's hold, one of the
+ * summons' harmlessness, and finally one of the raid.
+ */
+export const DECAY_RADIUS = 105
+export const DECAY_LINGER = 26
+export const DECAY_DAMAGE = 240
+/** The cast the tank cannot survive twice, and the window to cut it in. */
+export const FROSTBOLT_CAST = readable(1.9)
+export const FROSTBOLT_DAMAGE = 2600
+export const VOLLEY_DAMAGE = 300
+/** How close a shade has to be, and how fast it follows. */
+export const SHADE_REACH = 90
+export const SHADE_SPEED = 0.72
+/** What the slight takes off the tank's hold. */
+export const SLIGHT_SHARE = 0.45
+/** What coming back wrong is worth, in damage and in health. */
+export const EMPOWER_POWER = 2.1
+export const EMPOWER_HEALTH = 1.6
