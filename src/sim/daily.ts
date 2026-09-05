@@ -1,4 +1,4 @@
-import { DIFFICULTIES, RAID_SIZES, type DifficultyId, type Pick, type RaidSize, randomParty } from './classes'
+import { DIFFICULTIES, type DifficultyId, type Pick, type RaidSize, randomParty } from './classes'
 import { AFFIXES, affixById, type AffixId } from './affix'
 import { ENCOUNTERS } from './encounters'
 import { Rng } from './rng'
@@ -47,7 +47,19 @@ export function dailyKey(at: Date): number {
 export function dailyFor(key: number, player: Pick): Daily {
   const rng = new Rng(key)
   const encounter = rng.int(ENCOUNTERS.length)
-  const size = RAID_SIZES[rng.int(RAID_SIZES.length)]!
+  // Always the full raid.
+  //
+  // The size used to be rolled with everything else, and it was the one roll
+  // that changed what the day was rather than what it contained. A five-player
+  // daily and a twenty-five-player daily are not the same fight at two scales:
+  // the mechanics that divide their damage among the people standing in them
+  // ask a different question of four bodies than of twenty-four, and a
+  // scoreboard comparing the two is comparing nothing.
+  //
+  // Twenty-five rather than five because the daily is the one run that is
+  // supposed to be the whole game — the room at its widest, every mechanic at
+  // the size it was written for.
+  const size: RaidSize = 25
   // Heroic about one day in three: often enough to be a real week, rare enough
   // that a bad draw is not most of the month.
   const difficulty: DifficultyId = rng.chance(0.34) ? 'heroic' : 'normal'

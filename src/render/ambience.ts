@@ -271,6 +271,14 @@ export class Ambience {
       this.accumulator -= DT
       ticks++
     }
+    // A menu makes no noise, and now it cannot.
+    //
+    // Nothing plays this state's channel, so silence here was already true —
+    // but it was true by nobody looking rather than by anything saying so, and
+    // what the fight happened to be doing on the last tick of a frame decided
+    // whether the queue was empty when somebody did. Draining it after the
+    // stepping makes the property the code's rather than the timing's.
+    this.state.sounds.length = 0
     // Behind after three ticks means the tab was away or the machine is busy.
     // The fight skips ahead rather than the menu stuttering to catch it up.
     if (this.accumulator >= DT) this.accumulator = 0

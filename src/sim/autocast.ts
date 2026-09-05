@@ -1,5 +1,6 @@
 import { ABILITIES } from './abilities'
 import { abilityBar, specOf } from './classes'
+import { DT } from './constants'
 import { canCast, getAura, mostHurt } from './combat'
 import { playerTarget, pressTarget } from './sim'
 import type { Actor, AuraId, SimState } from './types'
@@ -80,8 +81,22 @@ export function autoPress(s: SimState): number[] {
   // taken as an argument: a cast started while walking is cancelled by the
   // walking, and starting one every tick to cancel it every tick is how an AI
   // healer once healed for nothing at all. Instants only, while moving.
+  //
+  // Half a step, not half a unit. A body walking under its own power covers
+  // `moveSpeed * DT` in a tick — five units for most of the roster — and the
+  // old half-unit threshold called a tenth of that walking. So did being
+  // shoved by a teammate, and sliding around a rock, and every other way a
+  // position changes without anybody asking it to: the rotation read all of
+  // them as feet moving and refused to cast.
+  //
+  // Changed on the argument rather than on a measurement: swept against the
+  // mage, the old threshold and this one score the same to the digit, so
+  // nothing in the game is currently being shoved hard enough to matter. It is
+  // still the wrong test — half a unit is not walking at any speed any class
+  // moves at — and the right one costs nothing to keep.
+  const step = player.moveSpeed * DT
   const walking =
-    Math.hypot(player.pos.x - player.prevPos.x, player.pos.y - player.prevPos.y) > 0.5
+    Math.hypot(player.pos.x - player.prevPos.x, player.pos.y - player.prevPos.y) > step * 0.5
 
   for (const slot of order) {
     if (slot < 0) continue
