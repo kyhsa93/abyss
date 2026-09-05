@@ -452,8 +452,11 @@ export function updateBoss(s: SimState, rng: Rng): void {
  * boss's own colour by way of its cast.
  */
 function phaseBreak(s: SimState, b: Actor): void {
-  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_phase', power: 900, crit: true })
+  // Sized off the room rather than off a number, so the fight's one signposted
+  // turn stayed the same share of the floor when the floor doubled.
+  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_phase', power: ARENA_RADIUS * 2, crit: true })
   s.raidFlash = 0.5
+  s.phaseAt = s.time
 }
 
 /**

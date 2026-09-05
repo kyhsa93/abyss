@@ -324,9 +324,9 @@ export function drawWorld(
   // the boss.
   for (const a of drawOrder(s, alpha)) {
     if (a.faction === 'boss') {
-      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s), s.seed)
+      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s), s.seed, s.phase, s.time - s.phaseAt)
     } else {
-      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed)
+      drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed, s.phase)
     }
   }
 
@@ -2086,6 +2086,33 @@ function bossBody(s: SimState): string | null {
   return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
 }
 
+/** The floor under anything hostile. */
+const ENEMY_EDGE = '#f87171'
+
+/** How long the ring off a phase break takes to cross the floor. */
+const BREAK_RING = 0.9
+
+/**
+ * The lurch at the moment a boss is pushed into its next phase.
+ *
+ * It grows past where it is going to settle and comes back, because a thing
+ * that simply is bigger a frame later is a thing nobody saw get bigger.
+ */
+function breakSwell(since: number): number {
+  if (!(since >= 0) || since > BREAK_RING) return 1
+  return 1 + 0.35 * Math.sin((since / BREAK_RING) * Math.PI) ** 2
+}
+
+/**
+ * How far into the fight's turn the boss is, nought to one.
+ *
+ * Phases are counted from one and there are three, so this is the fraction of
+ * the ground it has given up — what the picture grows and reddens by.
+ */
+function phaseHeat(phase: number): number {
+  return Math.max(0, Math.min(1, (phase - 1) / 2))
+}
+
 function bossAccent(s: SimState): string {
   return s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
 }
@@ -2107,6 +2134,10 @@ function drawActor(
   bossBody: string | null = null,
   /** The fight's own seed, so what marks a death is not the same every pull. */
   seed = 0,
+  /** Which phase the fight is in, which is a thing the boss wears. */
+  phase = 1,
+  /** Seconds since the phase turned, for the moment it turns. */
+  sinceBreak = Infinity,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -2115,6 +2146,9 @@ function drawActor(
   const isBoss = a.id === BOSS_ID && !battleground
   const isAdd = a.faction === 'boss' && !isBoss && !battleground
   const hostile = battleground && a.faction === 'boss'
+  // Everything that is trying to kill the party, under one name: a boss, its
+  // thralls, and the other five in a battleground.
+  const enemy = a.alive && (isBoss || isAdd || hostile)
   // Colour says the class, the glyph says the role. You are still the one
   // with a ring around you, which is what picks you out of twenty-five.
   const color = a.alive
@@ -2157,14 +2191,65 @@ function drawActor(
   // Under a walking body the disc is the ground it stands in rather than the
   // body itself, so it drops to a shade and the class colour moves out to the
   // ring. Left a solid colour it was a bright plate across every sprite's feet.
-  ctx.fillStyle = bodied ? 'rgba(6, 8, 10, 0.5)' : color
+  //
+  // Except under something that wants to kill you, which is the one thing on
+  // this floor worth spending a colour on. Ten class colours and a purple for
+  // thralls said what everything was and left the fight's own bodies reading
+  // as more of the crowd; the ground under an enemy is red, and only under an
+  // enemy, so what is dangerous is answerable at a glance rather than by
+  // reading tokens. The boss's own accent stays where it always was — on its
+  // frame and its casts — because three bosses in the same red read as one
+  // boss, and that argument is about identity rather than about threat.
+  ctx.fillStyle = enemy
+    ? `rgba(220, 38, 38, ${(bodied ? 0.34 : 0.62) + (isBoss ? phaseHeat(phase) * 0.26 : 0)})`
+    : bodied
+      ? 'rgba(6, 8, 10, 0.5)'
+      : color
   ctx.globalAlpha = a.alive ? 1 : 0.4
   ctx.fill()
 
+  // Its own colour, inside the red rather than instead of it.
+  //
+  // Red is what the floor under an enemy says and it has to say the same thing
+  // under all of them, or it is not answering the question it was put there
+  // for. But three bosses in the same red read as one boss, which is why each
+  // has an accent at all — so the accent moves to a core on the disc and the
+  // ring keeps it too. Threat on the outside, identity in the middle.
+  if (isBoss && a.alive) {
+    footprint(ctx, p.x, p.y, r * 0.52)
+    ctx.fillStyle = accent
+    ctx.globalAlpha = 0.85
+    ctx.fill()
+  }
+
   ctx.globalAlpha = 1
-  ctx.strokeStyle = bodied ? color : '#0a0a0f'
-  ctx.lineWidth = 2
+  ctx.strokeStyle = enemy ? (isBoss ? accent : ENEMY_EDGE) : bodied ? color : '#0a0a0f'
+  ctx.lineWidth = enemy && isBoss ? 3 : 2
   ctx.stroke()
+
+  // The moment it turns: one ring off the floor, out past anything else the
+  // fight draws and gone in a second. The break already had a line, a sound, a
+  // screen flash and a burst, and every one of them is over before a player
+  // who was looking at their own feet has looked up.
+  if (isBoss && a.alive && sinceBreak >= 0 && sinceBreak < BREAK_RING) {
+    const out = sinceBreak / BREAK_RING
+    footprint(ctx, p.x, p.y, r + out * r * 9)
+    ctx.strokeStyle = `rgba(248, 113, 113, ${(0.85 * (1 - out) ** 1.5).toFixed(3)})`
+    ctx.lineWidth = 3 + 7 * (1 - out)
+    ctx.stroke()
+  }
+
+  // The boss wears its phase on the floor: another ring for every ground it
+  // has given, breathing faster each time.
+  if (isBoss && a.alive && phase > 1) {
+    for (let ring = 1; ring < phase; ring++) {
+      const beat = 0.5 + 0.5 * Math.sin(clock * (2.2 + phase * 0.9) - ring * 0.8)
+      footprint(ctx, p.x, p.y, r + 6 + ring * 6 + beat * 3)
+      ctx.strokeStyle = `rgba(248, 113, 113, ${(0.5 - ring * 0.12 + beat * 0.25).toFixed(2)})`
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
+  }
 
 
   // Residual puddle damage is silent by design; without this you lose health
@@ -2218,7 +2303,13 @@ function drawActor(
       token,
       p.x,
       p.y,
-      r,
+      // A boss stands taller for every phase it has been pushed into, and the
+      // disc under it does not: the disc is the ground it occupies and the
+      // simulation decides that, while how big the thing looming out of it
+      // looks is the picture's to say. Fifteen percent a phase, which is a
+      // silhouette that has visibly changed between one glance and the next
+      // without becoming a different creature.
+      isBoss ? r * (1 + phaseHeat(phase) * 0.3) * breakSwell(sinceBreak) : r,
       screenAngle(a.facing),
       (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,

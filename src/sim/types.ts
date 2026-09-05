@@ -802,6 +802,17 @@ export interface SimState {
    */
   countdown: number
   phase: number
+  /**
+   * When the phase last changed, in fight seconds.
+   *
+   * Kept so the picture can mark the moment rather than only the state. A
+   * phase break already has a line, a sound, a screen flash and a burst, and
+   * all four are over inside half a second; what it did not have was anything
+   * that says *the boss is different now* a glance later. The renderer reads
+   * this to swell the thing at the moment it turns, and the boss keeps the
+   * size and the colour afterwards.
+   */
+  phaseAt: number
   /** Timers driving the boss script. */
   /**
    * Seconds to the next of each mechanic, keyed by the mechanic.

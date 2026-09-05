@@ -239,6 +239,7 @@ export function createState(
     depth,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
+    phaseAt: 0,
     // Every mechanic, from the boss's own opening table. Written out one
     // field at a time once, and a mechanic left out of one constructor
     // simply never fired.
@@ -342,6 +343,7 @@ export function createBattlegroundState(
     depth: 0,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
+    phaseAt: 0,
     next: noTimers(),
     nextSlam: 0,
     nextRaidHit: 0,
