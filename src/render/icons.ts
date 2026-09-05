@@ -229,6 +229,12 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The cone, in the cone's own blue, thrown along the way it was facing.
   boss_breath: { colour: '#38bdf8', style: 'pierce' },
   // The ring, in the ring's amber.
+  // Blue on the floor, and a burst rather than a slash: it arrives as a patch
+  // lighting up, not as something swung.
+  // Bone rather than blood: it is a thing standing out of the floor, and what
+  // it asks for is a target call, not a step.
+  boss_spike: { colour: '#e7e5e4', style: 'pierce' },
+  boss_coldflame: { colour: '#22d3ee', style: 'burst' },
   boss_shockwave: { colour: '#facc15', style: 'pierce' },
   // The floor, in the floor's magenta, sinking in rather than pushing out.
   boss_puddle: { colour: '#be185d', style: 'wither' },
@@ -237,7 +243,6 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // any of these bosses that no amount of walking answers.
   boss_verdict: { colour: '#4f46e5', style: 'pierce' },
   // The one thing armour answers, so it is drawn as steel.
-  boss_sweep: { colour: '#e2e8f0', style: 'cleave' },
   // The same band as the sweep and deliberately not the same colour: one is a
   // swing that arrives and the other is the floor itself coming down, and a
   // player who cannot tell them apart cannot learn that one of them warned.
@@ -302,7 +307,6 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_vessel: { colour: '#06b6d4', style: 'burst' },
   // Your own damage, handed back. Pierced rather than crushed: what lands is
   // the shape of what was thrown.
-  boss_mirror: { colour: '#7dd3fc', style: 'pierce' },
   // The three whose answer is a moment. They share nothing on the floor with
   // anything above -- there is no shape to be outside of -- so what their
   // colours have to do is be unmistakably not-floor, and be unmistakably three

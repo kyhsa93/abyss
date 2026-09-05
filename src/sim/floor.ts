@@ -61,8 +61,6 @@ const CATALOGUE: Priced[] = [
   { id: 'shockwave', slow: 26, fast: 13, cost: 4, from: 2 },
   // Something else to hit. The cost is target-switching, which is real.
   { id: 'adds', slow: 50, fast: 26, cost: 4, from: 2 },
-  // Physical, on whoever is in reach. Nobody has to go anywhere.
-  { id: 'sweep', slow: 42, fast: 24, cost: 2, from: 1 },
   // A dot on somebody: the healer's problem and nobody else's.
   { id: 'rot', slow: 33, fast: 16, cost: 2, from: 1 },
   // Stacks on whoever holds the boss. Moves nobody at all.

@@ -737,3 +737,26 @@ export const ENRAGE_GRACE = 30
  * small enough that a raid of nothing but melee is not a different game.
  */
 export const MELEE_CALL = 0.67
+
+/**
+ * The cold line: how far apart its patches sit, how many there are, how wide
+ * each one is, how long the line takes to travel one step, and what standing
+ * in a patch costs.
+ *
+ * The shape is the mechanic. A bearing is rolled off the boss and the floor
+ * lights along it one patch at a time, so what a person sees is a line
+ * crawling outward and what they answer is a single circle about to reach
+ * them. Every other travelling shape in this game is a ring that asks the
+ * whole raid to move at once; this asks one wedge of the room to step aside
+ * while the rest of it carries on hitting.
+ *
+ * It begins outside the boss's own edge, which is what makes melee range the
+ * safe place to be. That is deliberate and it is the point: the mechanic it
+ * replaced on this ladder billed melee for standing where their job is, and
+ * showed them nothing at all while it did.
+ */
+export const COLDFLAME_STEP = 52
+export const COLDFLAME_REACH = 9
+export const COLDFLAME_RADIUS = 44
+export const COLDFLAME_CRAWL = 0.17
+export const COLDFLAME_TELEGRAPH = readable(0.9)

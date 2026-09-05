@@ -643,6 +643,7 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
   ai.striking = ai.switchTimer > 0 ? null : want
   if (ai.striking !== null && ai.striking !== held) {
     if (ai.striking === 'hush') say(s, actor, 'Stop — everything comes back')
+    else if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
     else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
     else say(s, actor, 'Leave that one alone')
   }
@@ -665,8 +666,18 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
 function targetCall(s: SimState, actor: Actor): string | null {
   if (actor.role === 'healer' && actor.ai?.answering !== null) return null
 
-  const b = boss(s)
-  if (getAura(b, 'mirror') || b.castId === 'boss_mirror') return 'hush'
+  // Above the count, because a body that cannot move is losing health now and
+  // a count has not cost anybody anything yet. Nearest first: the walk is what
+  // the mechanic charges, so the raid splitting itself across three spikes by
+  // distance is the answer working rather than the AI being clever.
+  const spikes = s.actors.filter((a) => a.faction === 'boss' && a.spawn === 'spike' && a.alive)
+  if (spikes.length > 0) {
+    let near = spikes[0]!
+    for (const spike of spikes) {
+      if (dist(actor.pos, spike.pos) < dist(actor.pos, near.pos)) near = spike
+    }
+    return `spike:${near.id}`
+  }
 
   const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)
   if (bell) return `knell:${bell.id}`
@@ -726,6 +737,12 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const b = boss(s)
   const call = actor.ai?.striking ?? null
 
+  const pinning = calledId(call, 'spike:')
+  if (pinning !== null) {
+    const spike = s.actors.find((a) => a.faction === 'boss' && a.id === pinning)
+    if (spike && spike.alive) return spike
+  }
+
   const ringing = calledId(call, 'knell:')
   if (ringing !== null) {
     // By faction as well as by id: one counter numbers every object in the
@@ -741,7 +758,12 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   // is built on, so it is a rule about the party rather than a rule about the
   // bell: nothing here knows what a bell is, only that this one is standing
   // still doing nothing.
-  const summoned = pool.filter((a) => a.spawn !== 'knell' && a.id !== spared)
+  // Spikes are left out of the ordinary sweep for the bell's reason and one
+  // more: a spike is worth hitting exactly while it holds somebody, and the
+  // call above is what knows that. Picked up here as well, a raid would keep
+  // hitting whichever spike had least health left rather than the one nearest
+  // the body it is freeing.
+  const summoned = pool.filter((a) => a.spawn !== 'knell' && a.spawn !== 'spike' && a.id !== spared)
   if (summoned.length === 0) return b
 
   let focus = summoned[0]!
@@ -2429,6 +2451,9 @@ function partyCentroid(s: SimState, exclude: Actor): Vec2 {
 
 function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   if (!target) return
+  // Pinned bodies do not walk. The one mechanic in the game whose answer is
+  // not a step, because it takes the step away.
+  if (getAura(actor, 'spiked')) return
   const d = dist(actor.pos, target)
   if (d < 6) {
     actor.ai!.moveTarget = null

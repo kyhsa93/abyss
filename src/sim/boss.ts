@@ -5,6 +5,11 @@ import {
   readable,
   ECHO_BEAT,
   CRUSH_TELEGRAPH,
+  COLDFLAME_CRAWL,
+  COLDFLAME_RADIUS,
+  COLDFLAME_REACH,
+  COLDFLAME_STEP,
+  COLDFLAME_TELEGRAPH,
   DT,
   CHANT_CAST,
   FAULT_TELEGRAPH,
@@ -85,7 +90,7 @@ import {
 } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import { planned } from './floor'
-import type { Actor, Aura, GroundEffect, SimState, Vec2 } from './types'
+import type { Actor, GroundEffect, SimState, Vec2 } from './types'
 
 /**
  * The boss is deliberately NOT an AI.
@@ -306,45 +311,6 @@ function bySize(table: Record<number, number>, s: SimState): number {
   return table[25]!
 }
 
-/**
- * How far a sweep reaches past the boss's own edge.
- *
- * Wide enough to catch the ranged as well, which is the whole point of it:
- * a melee-only physical hit is a tax on the people whose armour was supposed
- * to be the reward. Everybody takes it and armour decides what it costs, so
- * plate is finally worth the walk rather than a line in a table.
- */
-/**
- * How far a sweep reaches past the boss's own edge.
- *
- * Tied to melee range, because that is what it is for. It was a flat 300,
- * which with the boss's own radius is 350 — and a raid stands between ninety
- * and a hundred and twenty-five from the boss, so measured, *every* body was
- * inside it, every cast, a hundred percent of the time. The mechanic below
- * says a tank barely notices and a caster that wandered into melee should not
- * survive the habit; what it actually did was hit the whole raid and call it
- * a melee check.
- *
- * At melee range and a bit, a practised ranged takes six hits a pull against
- * a melee's thirty. That is the distinction it was written to make.
- *
- * It does not teach, and it is not supposed to: the answer is where your role
- * stands, and a role check is not a skill check. `soak` and `sunder` are the
- * same kind. What the harness's teaching table is for is telling those apart
- * from the ones that are meant to be learnt and are not being.
- */
-const SWEEP_RANGE = MELEE_RANGE * 1.9
-/**
- * As a share of the boss's weapon swing, which armour already answers.
- *
- * 0.34 while the sweep reached everybody. Once it stopped — see
- * `SWEEP_RANGE` — the ranged half of the raid simply stopped paying it, and
- * the damage specs came apart: a shadow priest at 160 against a rogue at 113,
- * which the parity check caught. Melee were not made worse; ranged were made
- * better, and a mechanic only melee pay has to cost less per hit than one
- * everybody paid.
- */
-const SWEEP_SHARE = 0.24
 
 /**
  * A thrall's health, against the raid that has to kill it.
@@ -444,12 +410,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
 
   scheduleSlam(s, b, target, timing)
   schedulePuddles(s, rng, timing)
+  scheduleColdflame(s, b, rng, timing)
+  scheduleSpikes(s, b, rng, timing)
   scheduleRaidHit(s, timing)
   scheduleSpread(s, b, rng, timing)
   scheduleBreath(s, b, timing)
   scheduleShockwave(s, b, rng, timing)
   scheduleAdds(s, b, rng, timing)
-  scheduleSweep(s, b, timing)
   scheduleCrush(s, b, timing)
   scheduleSchism(s, b, rng, timing)
   scheduleHand(s, b, rng, timing)
@@ -470,7 +437,6 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleGaze(s, b, timing)
   scheduleKnell(s, b, rng, timing)
   scheduleVessel(s, b, rng, timing)
-  scheduleMirror(s, b, timing)
   scheduleToll(s, b, rng, timing)
   scheduleGrasp(s, rng, timing)
   scheduleRefuge(s, b, rng, timing)
@@ -653,6 +619,57 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
   })
 }
 
+/**
+ * A line of cold laid outward from the boss, lit one patch at a time.
+ *
+ * The whole line is placed in one go and the crawl is written into the
+ * telegraphs: patch `i` counts down `COLDFLAME_CRAWL` seconds later than the
+ * one inside it, so what the floor shows is a flame walking out along a
+ * bearing. Placed at once rather than emitted over time because a hazard that
+ * does not exist yet is a hazard the AI cannot path around and the player
+ * cannot read ahead of -- and reading ahead of it is the entire answer.
+ *
+ * Circles, not a swept rectangle. The floor already knows how to draw a
+ * circle, the AI already knows how to leave one, and `isSpotSafe` already
+ * refuses one; a new shape would have wanted all three written again to say
+ * the same thing. What a person answers here is one patch about to reach
+ * them, and a line is only what a row of those looks like from above.
+ */
+function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.coldflame <= 0) return
+  s.next.coldflame -= DT
+  if (s.next.coldflame > 0) return
+
+  s.next.coldflame = timing.coldflame
+  s.sounds.push('telegraph')
+  say(s, b, lineFor(fight(s), s.plan !== null, 'coldflame'))
+
+  const bearing = rng.range(0, Math.PI * 2)
+  for (let i = 0; i < COLDFLAME_REACH; i++) {
+    // Outside the boss's own edge, so the hitbox is the safe spot.
+    const out = b.radius + COLDFLAME_RADIUS + i * COLDFLAME_STEP
+    const pos = { x: b.pos.x + Math.cos(bearing) * out, y: b.pos.y + Math.sin(bearing) * out }
+    clampToArena(pos, COLDFLAME_RADIUS)
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'coldflame',
+      pos,
+      radius: COLDFLAME_RADIUS,
+      telegraph: COLDFLAME_TELEGRAPH + i * COLDFLAME_CRAWL,
+      // Long enough to be a line rather than a row of moments, short enough
+      // that the floor it took comes back before the next one is due.
+      lingering: 1.6,
+      damage: COLDFLAME_DAMAGE,
+      detonated: false,
+    })
+  }
+  pushEffect(s, 'cast', b.pos, {
+    abilityId: 'boss_coldflame',
+    power: COLDFLAME_REACH * COLDFLAME_STEP,
+    angle: bearing,
+  })
+}
+
 function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.shockwave <= 0) return
   s.next.shockwave -= DT
@@ -817,30 +834,6 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
  * It is telegraphed by the swing itself rather than by a circle on the floor:
  * being in reach is the tell, and getting out is the answer.
  */
-function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
-  if (timing.sweep <= 0) return
-  s.next.sweep -= DT
-  if (s.next.sweep > 0) return
-
-  s.next.sweep = timing.sweep
-  s.sounds.push('raid')
-  say(s, b, lineFor(fight(s), s.plan !== null, 'sweep'))
-
-  const reach = SWEEP_RANGE + b.radius
-  for (const a of livingParty(s)) {
-    if (dist(a.pos, b.pos) > reach) continue
-    // Physical, so armour and block both answer it. A tank barely notices; a
-    // caster that wandered into melee should not survive making a habit of it.
-    const damage = hit(s, fight(s).swingDamage * SWEEP_SHARE)
-    applyDamage(s, a, damage, 'physical', { sourceId: b.id, mechanic: 'sweep' })
-    pushEffect(s, 'impact', a.pos, {
-      abilityId: 'boss_sweep',
-      power: damage,
-      angle: Math.atan2(a.pos.y - b.pos.y, a.pos.x - b.pos.x),
-    })
-  }
-  pushEffect(s, 'swing', b.pos, { power: SWEEP_RANGE, angle: 0 })
-}
 
 /**
  * The floor around the boss, announced and then caved in.
@@ -873,6 +866,8 @@ function scheduleSweep(s: SimState, b: Actor, timing: PhaseTiming): void {
  * dead rather than twenty-three, which is a wipe mechanic rather than a
  * teaching one.
  */
+const COLDFLAME_DAMAGE = 430
+
 const CRUSH_DAMAGE = 1000
 
 function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
@@ -916,7 +911,10 @@ function scheduleCrush(s: SimState, b: Actor, timing: PhaseTiming): void {
     damage: CRUSH_DAMAGE,
     detonated: false,
   })
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crush', power: SWEEP_RANGE + b.radius })
+  // The shape it actually covers. It borrowed the sweep's reach, which is
+  // nearly twice this, so the flash was drawn well outside the ground that
+  // was about to give way — and the sweep is gone now anyway.
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crush', power: MELEE_RANGE + b.radius })
 }
 /**
  * The raid cut into groups that must not touch.
@@ -2091,7 +2089,7 @@ function updateAdds(s: SimState): void {
     // not swing: what it does is finish, and the only thing on the field that
     // can stop it is somebody deciding to hit it. That is the read, so it has
     // to be true of the thing and not only of its description.
-    if (add.spawn === 'knell') continue
+    if (add.spawn === 'knell' || add.spawn === 'spike') continue
 
     let nearest: Actor | null = null
     let best = Infinity
@@ -2208,11 +2206,6 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
 
   if (castId === 'boss_vessel') {
     sink(s, targetId)
-    return
-  }
-
-  if (castId === 'boss_mirror') {
-    closeMirror(s)
     return
   }
 
@@ -2760,7 +2753,8 @@ if (g.kind === 'schism') {
         // Its own name, so a boss that owns one kind of hazardous floor is not
         // reported as owning the other. The two look different on the screen
         // and they have to read differently in the effect log as well.
-        const mark = g.kind === 'brand' ? 'boss_brand' : 'boss_puddle'
+        const mark =
+          g.kind === 'brand' ? 'boss_brand' : g.kind === 'coldflame' ? 'boss_coldflame' : 'boss_puddle'
         // The floor going off, at the size it went off at. Everything that
         // followed used to be the only sign it had.
         pushEffect(s, 'impact', g.pos, {
@@ -3626,6 +3620,91 @@ function spawned(s: SimState, id: number | null): Actor | undefined {
   return s.actors.find((a) => a.faction === 'boss' && a.id === id)
 }
 
+/**
+ * Spikes: how many go up, how much each holds, and how far off the victim.
+ *
+ * Per body rather than flat, like every other summon here, so a bigger raid is
+ * not the raid where nobody is ever pinned. Small health on purpose: the
+ * demand is that somebody stops and turns, not that the raid brings a second
+ * damage phase — measured against the knell, an add that takes real seconds to
+ * kill stops being a target call and becomes a second boss.
+ *
+ * The first draft said all of that and then set the number at 210 a body,
+ * which at twenty-five is three spikes of five thousand every twenty seconds —
+ * about a quarter of everything the raid deals, taken off the boss. The
+ * Watcher went to 3% won by a ninth pull against a floor of 50 and
+ * `balancecheck` said so. Sixty-two is a spike that costs the raid a second
+ * and a half of its damage, which is a turn rather than a phase.
+ */
+const SPIKE_HP_PER_BODY = 62
+const SPIKE_PER_BODIES = 9
+
+function spikeHealth(s: SimState): number {
+  return Math.round(SPIKE_HP_PER_BODY * livingParty(s).length)
+}
+
+/**
+ * Bodies pinned where they stand, until somebody else breaks what holds them.
+ *
+ * The one mechanic in this game whose answer is not a step. Everything else
+ * the floor does is answered by walking off it, which is a thing the person in
+ * trouble does for themselves; this takes their feet, so the answer has to
+ * come from the rest of the raid — and it has to come as damage aimed
+ * somewhere other than the boss, which is the only target call the fight makes
+ * that costs the raid its own damage to obey.
+ *
+ * The spike stands on the victim rather than beside them. Where it is is not
+ * a question the mechanic asks: it is on the person, so finding it is reading
+ * a party frame, and the walk to it is whatever the raid's positions already
+ * were.
+ */
+function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.spike <= 0) return
+  s.next.spike -= DT
+  if (s.next.spike > 0) return
+  s.next.spike = timing.spike
+
+  // Never onto somebody already held. Two spikes on one body is one mechanic
+  // charged twice and a second body left alone, which is the opposite of what
+  // it is for.
+  const free = livingParty(s).filter((a) => !getAura(a, 'spiked'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), s.plan !== null, 'spike'))
+  s.sounds.push('telegraph')
+
+  const count = Math.max(1, Math.round(s.party.length / SPIKE_PER_BODIES))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const victim = free.splice(rng.int(free.length), 1)[0]!
+    const spike = makeAdd(s.nextObjectId++, victim.pos.x, victim.pos.y)
+    spike.name = 'Spike'
+    spike.spawn = 'spike'
+    // It does not walk and it does not swing; `updateAdds` leaves it alone.
+    spike.moveSpeed = 0
+    spike.maxHp = spikeHealth(s)
+    spike.hp = spike.maxHp
+    s.actors.push(spike)
+
+    addAura(victim, 'spiked', spike.id)
+    pushEffect(s, 'cast', victim.pos, { abilityId: 'boss_spike' })
+  }
+}
+
+/**
+ * A spike broken, or a spike that outlasted the raid's attention.
+ *
+ * Both ends are here because both have to leave the field in the same state:
+ * the body walks again and the thing holding it is gone. Called from the aura
+ * expiring and from the add dying, and it is written to be safe run twice.
+ */
+export function freeSpiked(s: SimState, victim: Actor): void {
+  const held = getAura(victim, 'spiked')
+  if (!held) return
+  const spike = s.actors.find((a) => a.id === held.sourceId && a.spawn === 'spike')
+  if (spike) spike.alive = false
+  victim.auras = victim.auras.filter((au) => au.id !== 'spiked')
+}
+
 function knellHealth(s: SimState): number {
   return Math.round(KNELL_HP_PER_BODY * livingParty(s).length)
 }
@@ -3798,71 +3877,3 @@ function shatterVessels(s: SimState): void {
   }
 }
 
-/**
- * How long the surface takes to close.
- *
- * The steepest dial on the mechanic, and the one the rules doc is loudest
- * about: what teaches is when it judges, not what it hits. Everything landed
- * before it closes is free, so this is the whole window a reaction delay has
- * to fit inside — and unlike a walk out of a band there is no travel time
- * underneath it, only the global cooldown already in front of every press.
- */
-const MIRROR_CAST = readable(1.3)
-
-/** One bill, for everybody who put something in. */
-const MIRROR_DAMAGE = 650
-
-/**
- * The boss goes still, and what goes in comes back out.
- *
- * Nothing here is a place, so nothing here is answered by a step. The answer
- * is to stop, and the cost of reading it early is the same seconds of uptime
- * the crush charges for the walk out of its band.
- *
- * It bills at the instant the surface opens rather than as the hits go in. A
- * reflection paid out per hit is proportional damage, and proportional damage
- * averages skill out — a raid a tenth of a second late takes a tenth of a
- * second's worth of it and nobody dies. One bill at one moment for everybody
- * who touched it is a moment a raid either passed or did not.
- */
-function scheduleMirror(s: SimState, b: Actor, timing: PhaseTiming): void {
-  if (timing.mirror <= 0) return
-  s.next.mirror -= DT
-  if (s.next.mirror > 0 || b.castId) return
-  if (getAura(b, 'mirror')) return
-  s.next.mirror = timing.mirror
-
-  s.sounds.push('telegraph')
-  say(s, b, lineFor(fight(s), s.plan !== null, 'mirror'))
-  b.castId = 'boss_mirror'
-  b.castRemaining = MIRROR_CAST
-  b.castTotal = MIRROR_CAST
-  b.castTargetId = null
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_mirror' })
-}
-
-/** The surface closes. Anything landed from here is landed on its owner. */
-function closeMirror(s: SimState): void {
-  const b = boss(s)
-  addAura(b, 'mirror', b.id)
-  const glass = getAura(b, 'mirror')
-  if (glass) glass.struck = []
-}
-
-/**
- * The bill, at the instant it opens again.
- *
- * Exported because the aura running out is what resolves it, and aura expiry
- * lives in `sim.ts` beside the five others that resolve that way.
- */
-export function breakMirror(s: SimState, glass: Aura): void {
-  const owed = glass.struck ?? []
-  for (const id of owed) {
-    const a = s.actors.find((x) => x.faction === 'party' && x.id === id)
-    if (!a || !a.alive) continue
-    const damage = mechanic(s, MIRROR_DAMAGE)
-    applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'mirror' })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_mirror', power: damage })
-  }
-  if (owed.length > 0) s.sounds.push('raid')
-}

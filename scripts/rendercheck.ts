@@ -229,7 +229,6 @@ import {
   ECHO_TELEGRAPH,
   HAND_BEAT,
   breakChant,
-  breakMirror,
   chantNamed,
   stillWorking,
   watched,
@@ -930,9 +929,6 @@ console.log(`rendered ${frames} frames with no exceptions`)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
       for (const g of s.ground) seen.add(g.kind)
-      for (const event of s.effects) {
-        if (event.abilityId === 'boss_sweep') seen.add('sweep')
-      }
       if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
       for (const [aura, id] of [
         ['spread', 'spread'],
@@ -951,7 +947,6 @@ console.log(`rendered ${frames} frames with no exceptions`)
     'breath',
     'shockwave',
     'adds',
-    'sweep',
     'rot',
     'sunder',
     'soak',
@@ -4077,7 +4072,6 @@ for (const [label, w, h] of [
       breath: 'boss_breath',
       shockwave: 'boss_shockwave',
       adds: 'boss_thrall',
-      sweep: 'boss_sweep',
       rot: 'boss_rot',
       sunder: 'boss_sunder',
       soak: 'boss_soak',
@@ -4086,7 +4080,6 @@ for (const [label, w, h] of [
       echo: 'boss_echo',
       knell: 'boss_knell',
       vessel: 'boss_vessel',
-      mirror: 'boss_mirror',
     }
     for (const [key, id] of Object.entries(DRAWN) as Array<[MechanicId, string]>) {
       if (kit.includes(key)) {
@@ -4222,7 +4215,7 @@ for (const [label, w, h] of [
   // and collected the same way: a floor can be handed any of them today.
   {
     const switching = floorWith(
-      { knell: 13, vessel: 15, mirror: 11 },
+      { knell: 13, vessel: 15 },
       4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
@@ -4236,7 +4229,6 @@ for (const [label, w, h] of [
     }
     expect('a floor can hang a bell that has to be broken', ids.has('boss_knell'), 'it drew nothing')
     expect('and float something that must not be', ids.has('boss_vessel'), 'it drew nothing')
-    expect('and close its own surface', ids.has('boss_mirror'), 'it drew nothing')
     // None of the three is a place, so none of them may leave one. A shape on
     // the floor would be read by `isSpotSafe`, which is skill-independent, and
     // the mechanic would quietly become one nobody can practise.
@@ -6786,7 +6778,15 @@ for (const [label, w, h] of [
   // own error is the size of the thing it is judging will be answered by
   // tuning until it goes green, and this file has a long record of that going
   // badly.
-  const RUNS = 12
+  // Twenty-four, not twelve, and for the third time the same argument. Twelve
+  // was picked when the spread was one ratio over ten specs; it is three
+  // ratios now, and the cross-family one is a comparison between the two
+  // extremes of the field, which is the least stable number a sample can
+  // produce. Adding the cold line and the spikes moved it from 1.456 to 1.511
+  // at twelve runs and to 1.461 at twenty-four — so the check went red inside
+  // its own error, and the comment above says exactly what happens next if
+  // that is answered by moving the band.
+  const RUNS = 24
   const SIZE = 10
   const TANKS = 2
   const HEALERS = 2
@@ -8100,71 +8100,46 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 //
 // Everything it did was magic except its weapon, so armour was a line in the
 // class table rather than a reason to bring anybody: a plate dealer took the
-// same mechanic damage as a mage in cloth. The sweep is the one thing armour
-// answers, and the rot is the one it cannot touch, so no stat block is the
-// whole answer to a fight.
+// same mechanic damage as a mage in cloth. A thrall's weapon is the thing
+// armour answers, and the rot is the one it cannot touch, so no stat block is
+// the whole answer to a fight.
 {
-  // A floor rather than a boss, and the pair is the reason.
+  // Applied by hand rather than watched for in a fight, which is how the rot
+  // half below has always been done and is now how both halves are.
   //
-  // This used to be a five-man heroic Warden, which owned both: the sweep on
-  // its second rung and the rot on its third. It does not any more — the
-  // second rung is the crush now — and no single boss owns both, which is
-  // fine, because the claim was never about one boss. It is that the game has
-  // a mechanic armour answers and a mechanic armour cannot touch, and a floor
-  // is built out of exactly that vocabulary. Asked for two of it and nothing
-  // else, so neither reading is another mechanic landing in the same tick.
-  const s = floorWith({ sweep: 22, rot: 16 }, 4, [
+  // Driving a floor and reading health was tried twice and measured the wrong
+  // thing twice. Everything a fight throws that is not a weapon lands on both
+  // of them identically -- the rot on whoever is marked, the tide on everybody
+  // -- so any window wide enough to catch a swing catches those too, and the
+  // reading came back fifty-four against fifty-four: armour does nothing.
+  // Narrowing to the ticks where they differed then measured which of the two
+  // a wandering thrall happened to walk to. The claim is about a number, and
+  // the number is available directly.
+  const s = floorWith({ rot: 16 }, 4, [
     pickFor('warrior', 'dps')!,
     pickFor('warrior', 'tank')!,
     pickFor('priest', 'healer')!,
     pickFor('mage', 'dps')!,
     pickFor('rogue', 'dps')!,
   ])
-  const rng = new Rng(0x51ed)
   const plate = s.actors.find((a) => a.classId === 'warrior' && a.role === 'dps')!
   const cloth = s.actors.find((a) => a.classId === 'mage')!
   const boss = bossOf(s)
 
-  // Both standing the same distance from the boss, so only the armour differs.
-  plate.pos = { x: boss.radius + 60, y: 0 }
-  cloth.pos = { x: boss.radius + 60, y: 40 }
-  plate.hp = plate.maxHp
-  cloth.hp = cloth.maxHp
-
-  let sawSweep = false
-  let sawRot = false
-  let plateTook = 0
-  let clothTook = 0
-
-  while (s.time < 120 && !(sawSweep && sawRot)) {
-    const plateBefore = plate.hp
-    const clothBefore = cloth.hp
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-    plate.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y }
-    cloth.pos = { x: boss.pos.x + boss.radius + 60, y: boss.pos.y + 40 }
-
-    // Read off the hit rather than off a line of chat. A floor has no boss
-    // saying anything, and the thing being measured is the hit anyway.
-    if (s.effects.some((e) => e.kind === 'impact' && e.abilityId === 'boss_sweep')) {
-      sawSweep = true
-      plateTook = plateBefore - plate.hp
-      clothTook = clothBefore - cloth.hp
-    }
-    if (s.actors.some((a) => getAura(a, 'rot'))) sawRot = true
-    // Held upright as well as topped up. Standing in the boss's reach for two
-    // minutes without dodging kills both of them long before the sweep is due,
-    // and a corpse takes no damage — which read as plate and cloth taking the
-    // same nothing.
-    plate.alive = true
-    cloth.alive = true
-    plate.hp = plate.maxHp
-    cloth.hp = cloth.maxHp
+  // A thrall's swing, at the size one lands for.
+  const swing = 400
+  const took = (a: typeof plate, school: 'physical' | 'none'): number => {
+    a.alive = true
+    a.hp = a.maxHp
+    const before = a.hp
+    applyDamage(s, a, swing, school, { sourceId: boss.id, silent: true })
+    return before - a.hp
   }
 
-  expect('the boss sweeps', sawSweep, 'no sweep in two minutes')
-  expect('and rots somebody', sawRot, 'no rot in two minutes')
+  const plateTook = took(plate, 'physical')
+  const clothTook = took(cloth, 'physical')
   expect(
-    'plate takes less of the sweep than cloth',
+    'plate takes less of a weapon than cloth',
     plateTook > 0 && plateTook < clothTook * 0.85,
     `plate ${plateTook}, cloth ${clothTook}`,
   )
@@ -8620,7 +8595,6 @@ function floorWith(
   s.next.breath = opening.breath
   s.next.shockwave = opening.shockwave
   s.next.adds = opening.adds
-  s.next.sweep = opening.sweep
   s.next.rot = opening.rot
   s.next.sunder = opening.sunder
   s.next.soak = opening.soak
@@ -8638,7 +8612,6 @@ function floorWith(
   s.next.schism = every.schism === undefined ? 0 : every.schism * 0.45
   s.next.knell = every.knell === undefined ? 0 : every.knell * 0.45
   s.next.vessel = every.vessel === undefined ? 0 : every.vessel * 0.45
-  s.next.mirror = every.mirror === undefined ? 0 : every.mirror * 0.45
   // And the three whose answer is an instant, for the same reason again.
   s.next.vigil = every.vigil === undefined ? 0 : every.vigil * 0.45
   s.next.chant = every.chant === undefined ? 0 : every.chant * 0.45
@@ -9789,105 +9762,6 @@ for (const [label, w, h] of [
     }
   }
 
-  // --- the mirror: what goes in comes back -----------------------------------
-  //
-  // Driven by hand rather than by a pull, because what is being checked is
-  // which hits it remembers and which it does not, and stepping a fight would
-  // mix that up with everything else landing in the same second.
-  {
-    const s = floorWith({ mirror: 900 })
-    const b = boss(s)
-    const dealers = s.actors.filter((a) => a.faction === 'party' && a.role === 'dps' && a.alive)
-    const inside = dealers[0]!
-    const outside = dealers[1]!
-    const ticking = dealers[2]!
-
-    applyDamage(s, b, 50, 'magic', { sourceId: outside.id })
-    expect(
-      'an open surface remembers nothing',
-      getAura(b, 'mirror') === undefined,
-      'there is a mark on it',
-    )
-
-    addAura(b, 'mirror', b.id)
-    const glass = getAura(b, 'mirror')!
-    glass.struck = []
-    applyDamage(s, b, 50, 'magic', { sourceId: inside.id })
-    applyDamage(s, b, 50, 'magic', { sourceId: ticking.id, silent: true })
-    expect('a closed one remembers who struck it', glass.struck.includes(inside.id), 'it did not')
-    expect(
-      'and not whoever stopped before it closed',
-      !glass.struck.includes(outside.id),
-      'it billed them anyway',
-    )
-    expect(
-      'and not a tick nobody pressed',
-      !glass.struck.includes(ticking.id),
-      'it billed a dot',
-    )
-    // Twice is once: what it owes is one bill each, not one per hit, which is
-    // the difference between a moment and a proportion.
-    applyDamage(s, b, 50, 'magic', { sourceId: inside.id })
-    expect(
-      'and it owes one bill however many went in',
-      glass.struck.filter((id) => id === inside.id).length === 1,
-      `${glass.struck.length} entries`,
-    )
-
-    const owed = inside.hp
-    const clear = outside.hp
-    breakMirror(s, glass)
-    // A share of a health bar rather than a round number of points. The
-    // number here was 200, fitted while this ran on a boss whose mechanic
-    // multiplier was 1.7; the multiplier is 0.75 now and the same correct
-    // behaviour reads 196. A threshold that a boss's own dial can walk past
-    // is not measuring the mechanic.
-    const bill = owed - inside.hp
-    expect(
-      'the bill lands when it opens again',
-      bill > inside.maxHp * 0.02,
-      `${bill} of ${inside.maxHp}`,
-    )
-    expect('and on nobody who held off', clear === outside.hp, `${clear - outside.hp}`)
-  }
-
-  // And the surface has to close after it is announced, or there is nothing to
-  // hold for: the announcement is the whole window a reaction fits inside.
-  {
-    const s = floorWith({ mirror: 900 })
-    s.next.mirror = 0
-    const rng = new Rng(0x51ed)
-    const b = boss(s)
-    let announced = false
-    for (let i = 0; i < 60 && !announced; i++) {
-      step(s, idle, rng)
-      announced = b.castId === 'boss_mirror'
-    }
-    expect('the mirror announces itself first', announced, 'it never wound up')
-    let closed = false
-    for (let i = 0; i < 200 && !closed; i++) {
-      step(s, idle, rng)
-      closed = getAura(b, 'mirror') !== undefined
-    }
-    expect('and then closes', closed, 'the surface never shut')
-
-    // Everything stops. A tank keeps its taunt and a healer keeps healing, but
-    // nothing damaging goes out, and that includes the weapons — a rule that
-    // only reached the buttons would leave every melee marked whatever it did.
-    let holding = 0
-    let into = 0
-    for (let i = 0; i < 120 && getAura(b, 'mirror'); i++) {
-      const was = b.hp
-      step(s, idle, rng)
-      if (b.hp < was) into++
-      holding = Math.max(
-        holding,
-        s.actors.filter((a) => a.ai?.striking === 'hush').length,
-      )
-    }
-    expect('and the raid holds fire for it', holding > 0, 'nobody stopped')
-    void into
-  }
 }
 
 // --- the three whose answer is an instant --------------------------------

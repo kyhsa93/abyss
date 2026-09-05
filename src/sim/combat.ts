@@ -110,6 +110,16 @@ export const AURA_DURATION: Record<AuraId, number> = {
   spread: 4,
   // Short enough that a reaction is a reaction rather than a stroll.
   brand: 1.8,
+  /**
+   * How long a spike stands if nobody breaks it.
+   *
+   * A cap rather than the mechanic. What is supposed to end this is the raid
+   * turning round and hitting the thing, and the number is here so that a raid
+   * which does not is punished rather than deadlocked -- a body that could
+   * never move again would be a body removed from the fight by a mechanic with
+   * no answer, which is the opposite of what this asks.
+   */
+  spiked: 14,
   // Long enough to be several beats rather than one, which is the mechanic:
   // a single piece of floor going out from under somebody is a puddle, and
   // what this asks is that they keep leaving.
@@ -167,7 +177,6 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
-  mirror: 4,
   // Only a memory, and only for as long as the thing it was struck on can
   // still be broken. It outlives the vessel's own clock by a little so that a
   // hit landed in the last tenth of a second is still a hit that was landed.
@@ -234,6 +243,11 @@ export function clearAura(actor: Actor, id: AuraId): void {
 
 /** Per-second effect of each periodic aura. */
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
+  // What being pinned costs while it lasts. Steady rather than sharp: the
+  // demand is on everybody else's target list, and a spike that killed its
+  // victim before a raid could plausibly turn round would be asking for a
+  // reaction nobody has.
+  spiked: { damage: 58 },
   living_bomb: { damage: 70 },
   serpent_sting: { damage: 60 },
   rupture: { damage: 85 },
@@ -560,6 +574,15 @@ export function applyDamage(
     target.alive = false
     target.castId = null
     target.auras.length = 0
+    // A spike broken lets go of whoever it was holding. Here rather than in
+    // the mechanic's own file because this is where a thing stops standing,
+    // and a pin that outlived the spike would be a body held by nothing.
+    if (target.spawn === 'spike') {
+      for (const a of s.actors) {
+        const held = a.auras.find((au) => au.id === 'spiked' && au.sourceId === target.id)
+        if (held) a.auras = a.auras.filter((au) => au !== held)
+      }
+    }
     pushText(s, target.pos, 'DOWN', 'crit')
     if (target.faction === 'party') s.sounds.push('death')
     const tally = s.tally[target.id]
@@ -584,12 +607,6 @@ function remember(s: SimState, target: Actor, sourceId: number | undefined): voi
   // fight, so a body the boss summoned early can carry a raider's id.
   const source = s.actors.find((a) => a.faction === 'party' && a.id === sourceId)
   if (!source) return
-
-  if (target.id === BOSS_ID) {
-    const glass = getAura(target, 'mirror')
-    if (glass && glass.struck && !glass.struck.includes(source.id)) glass.struck.push(source.id)
-    return
-  }
 
   // And the one that must not be broken open remembers whoever put a hand on
   // it. Kept on the striker rather than on the thing struck, so the bill

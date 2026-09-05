@@ -35,8 +35,9 @@ export type MechanicId =
   | 'spread'
   | 'breath'
   | 'shockwave'
+  | 'coldflame'
+  | 'spike'
   | 'adds'
-  | 'sweep'
   | 'rot'
   | 'sunder'
   | 'soak'
@@ -51,7 +52,6 @@ export type MechanicId =
   | 'gaze'
   | 'knell'
   | 'vessel'
-  | 'mirror'
   | 'toll'
   | 'grasp'
   | 'refuge'
@@ -97,7 +97,8 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   hunt: true, // one stalker per quarry
   breath: false, // a cone of a fixed angle
   shockwave: false, // a ring of a fixed radius
-  sweep: false, // whoever is in reach, which is the melee
+  coldflame: false, // a line of a fixed length, wherever it happens to point
+  spike: true, // one spike per so many bodies, so nobody is safe by headcount
   hand: false, // a wedge of a fixed angle, whoever it happens to turn onto
   echo: true, // one mark per so many bodies
   burden: true, // one weight per so many bodies, and a bigger raid has more hands
@@ -123,7 +124,6 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // switch or hold, and pays for itself when it does not.
   knell: true, // its health is dealt by whoever came, so its health is per body
   vessel: true, // one more body is one more hand that can break it
-  mirror: true, // one more body is one more mouth that has to shut
   // One plate, one nominee, one bill. A bigger raid does not get a second
   // toll and does not get a discount on the one it has -- what changes with
   // the roster is only how many bodies there are to nominate from, which
@@ -196,12 +196,13 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   breath: 'the cone',
   shockwave: 'the ring',
   adds: 'thralls',
-  sweep: 'the sweep',
   rot: 'rot',
   sunder: 'the armour break',
   soak: 'the gathering',
   hunt: 'the stalker',
   hand: 'the hand',
+  coldflame: 'the cold line',
+  spike: 'the spikes',
   echo: 'the echo',
   burden: 'the burden',
   yoke: 'the yoke',
@@ -211,7 +212,6 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   gaze: 'the gaze',
   knell: 'the knell',
   vessel: 'the vessel',
-  mirror: 'the mirror',
   toll: 'the toll',
   grasp: 'the grasp',
   refuge: 'the refuge',
@@ -267,16 +267,19 @@ export interface PhaseTiming {
   /**
    * Seconds between one crush and the next.
    *
-   * The sweep's opposite number, and the reason it exists. Both hit the band
-   * of floor the melee stand in; the sweep does it with no warning at all and
-   * measures at exactly zero points of teaching, because the question it asks
-   * is "are you melee" and a role is not a skill. This one announces itself
-   * and lands about a second later, so the same band becomes a moment of
-   * judgement instead — step out, and pay for it in the walk back.
+   * The band of floor the melee stand in, announced and then caved in.
+   *
+   * It was written as the answer to a mechanic that is no longer here. The
+   * sweep hit the same band with no warning at all and measured at exactly
+   * zero points of teaching, because the question it asked was "are you melee"
+   * and a role is not a skill; this announced itself a second ahead and turned
+   * the same band into a moment of judgement. The sweep has since been deleted
+   * for the same reason it taught nothing — it could not be seen — and this
+   * one is now simply the mechanic, rather than the reply to one.
    */
   crush: number
   /**
-   * Seconds between one sweep of the hand and the next.
+   * Seconds between one pass of the hand and the next.
    *
    * A wedge anchored on the boss that fires, turns, and fires again, five
    * times to a cast. Every other shape in this game is answered by finding
@@ -359,7 +362,7 @@ export interface PhaseTiming {
   /**
    * Seconds between one chant and the next.
    *
-   * The mirror of the vigil, and the only demand in the game that asks one
+   * The vigil turned over, and the only demand in the game that asks one
    * person to act rather than everybody to refrain. The boss begins a long
    * note, names one body, and that body has to cut it -- and if it does not,
    * the note lands on the whole raid.
@@ -395,6 +398,35 @@ export interface PhaseTiming {
   /** 0 disables the mechanic for that phase. */
   breath: number
   shockwave: number
+  /**
+   * Seconds between one cold line and the next.
+   *
+   * A bearing off the boss, lit patch by patch outward, each one a step
+   * further and a beat later than the one before. It is the ring's opposite
+   * number and answers a different question with the same floor: the ring
+   * asks everybody to come in, and this asks one wedge of the room to step
+   * aside while the rest of it carries on.
+   *
+   * The hitbox is the safe spot, which is the whole shape of it. The line
+   * starts outside the boss's own edge, so melee standing where melee stand
+   * are already clear and everybody at range has a step to take -- the
+   * inverse of the sweep, which was deleted for asking melee to pay for
+   * standing where their job is and showing them nothing while it did.
+   */
+  coldflame: number
+  /**
+   * Seconds between one set of spikes and the next.
+   *
+   * The only mechanic here whose answer is somebody else's. Everything else on
+   * this table is a place to be or not to be, and the person in trouble solves
+   * it by walking; this takes their feet, so it is solved by the raid aiming
+   * damage away from the boss at a thing that is not hurting anybody.
+   *
+   * That is what it costs and what it is for. A rotation that only ever points
+   * at the biggest health bar answers most of this game; it does not answer
+   * this, and the seconds spent turning are the mechanic.
+   */
+  spike: number
   adds: number
   /**
    * Physical damage to everyone standing in reach.
@@ -403,7 +435,6 @@ export interface PhaseTiming {
    * throws is magic, which is why plate on a melee dealer was a line in a
    * table rather than a reason to bring one.
    */
-  sweep: number
   /** A dot on somebody. Slow, unavoidable, and the healer's to solve. */
   rot: number
   /**
@@ -531,36 +562,6 @@ export interface PhaseTiming {
    * or a rung a five-man cannot reach.
    */
   vessel: number
-  /**
-   * Seconds between one mirror and the next.
-   *
-   * The boss goes still, and for as long as it does, everything landed on it
-   * is landed on whoever landed it. Nothing here is a place, so nothing here
-   * is answered by a step: the answer is to stop, and then to start again,
-   * and the cost of reading it early is the same seconds of uptime the crush
-   * charges for the walk out.
-   *
-   * It judges at the instant the surface breaks rather than as the hits go
-   * in, which is deliberate. A reflection paid out per hit is proportional
-   * damage, and proportional damage averages skill out — a raid a tenth of a
-   * second late takes a tenth of a second's worth and nobody dies of it. One
-   * bill at one moment for everybody who touched it is a moment a raid either
-   * passed or did not.
-   *
-   * Measured against a Warden over paired seeds:
-   *
-   *     5 heroic    49.0pp +/- 6.1, removes 49%
-   *    10 heroic    19.8   +/- 1.0, removes 62%
-   *    25 heroic    51.5   +/- 1.6, removes 53%
-   *
-   * The strongest thing on this table except the cone, and it carries the
-   * vessel's caveat twice over: every unpractised five-man and 96.5% of
-   * unpractised twenty-fives die to it. It also depends on the hold reaching
-   * the weapons rather than only the buttons -- with auto-attacks left
-   * ungated it is worth exactly 0.0 points and both ends of the practice
-   * curve wipe, because a swing nobody decided on marks everybody anyway.
-   */
-  mirror: number
   /**
    * Seconds between one toll and the next.
    *
@@ -704,6 +705,8 @@ export interface Encounter {
    */
   opening: {
     brand: number
+    coldflame: number
+    spike: number
     spire: number
     verdict: number
     crush: number
@@ -722,7 +725,6 @@ export interface Encounter {
     breath: number
     shockwave: number
     adds: number
-    sweep: number
     rot: number
     sunder: number
     soak: number
@@ -731,7 +733,6 @@ export interface Encounter {
     yoke: number
     knell: number
     vessel: number
-    mirror: number
     toll: number
     grasp: number
     refuge: number
@@ -755,8 +756,9 @@ export interface Encounter {
     phaseThree: string
     adds: string
     shockwave: string
+    coldflame: string
+    spike: string
     /** Empty where the boss does not use the mechanic. */
-    sweep: string
     rot: string
     sunder: string
     brand: string
@@ -815,7 +817,6 @@ export interface Encounter {
      */
     knell: string
     vessel: string
-    mirror: string
     /**
      * The three that belong to the round about who pays. Authored on every
      * boss for the schism's reason above: none of them has a rung anywhere
@@ -925,7 +926,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'DROWN WITH ME',
       adds: '',
       shockwave: '',
-      sweep: '',
+      coldflame: '',
+      spike: '',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
@@ -946,7 +948,6 @@ export const ENCOUNTERS: Encounter[] = [
       gaze: '',
       knell: '',
       vessel: '',
-      mirror: '',
       toll: '',
       grasp: 'Something is reaching up — off that ground',
       refuge: '',
@@ -1021,7 +1022,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'THE CHOIR TAKES YOU',
       adds: '',
       shockwave: '',
-      sweep: '',
+      coldflame: '',
+      spike: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1042,7 +1044,6 @@ export const ENCOUNTERS: Encounter[] = [
       gaze: '',
       knell: '',
       vessel: '',
-      mirror: '',
       toll: '',
       grasp: '',
       refuge: 'Take a stone and hold it alone',
@@ -1091,7 +1092,8 @@ export const ENCOUNTERS: Encounter[] = [
     sizeMechanic: { 5: 0.78, 10: 1.15, 25: 0.85 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
-    // The ring ahead of the sweep, which is the one change here that is not
+    // The ring where the sweep used to sit, which is the one change here
+    // that is not
     // a number. A five-man on normal buys the first three rungs, and with the
     // sweep among them it bought a mechanic measured at zero -- the fight was
     // won on a first pull as reliably as on a ninth at every weight, because
@@ -1116,19 +1118,20 @@ export const ENCOUNTERS: Encounter[] = [
     // 18% and 90% — the first pull still the second-hardest of the five
     // bosses, the ninth between the Choir and the Watcher. A wall, and one
     // that teaches.
-    ladder: ['breath', 'shockwave', 'hunt', 'sweep', 'fault', 'shallows'],
+    ladder: ['breath', 'shockwave', 'hunt', 'coldflame', 'fault', 'shallows'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, sweep: 32, fault: 10, shallows: 13, hunt: 44 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, sweep: 28, fault: 9, shallows: 12, hunt: 38 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, sweep: 23, fault: 8, shallows: 11, hunt: 32 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, coldflame: 15, fault: 10, shallows: 13, hunt: 44 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, coldflame: 13, fault: 9, shallows: 12, hunt: 38 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, coldflame: 11, fault: 8, shallows: 11, hunt: 32 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, sweep: 23, fault: 10, shallows: 12, hunt: 45 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, coldflame: 14, fault: 10, shallows: 12, hunt: 45 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
       adds: '',
       shockwave: 'The undertow',
-      sweep: 'Wide swing — out of reach',
+      coldflame: 'Cold on the floor — off the line',
+      spike: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1149,7 +1152,6 @@ export const ENCOUNTERS: Encounter[] = [
       gaze: '',
       knell: '',
       vessel: '',
-      mirror: '',
       toll: '',
       grasp: '',
       refuge: '',
@@ -1200,19 +1202,20 @@ export const ENCOUNTERS: Encounter[] = [
     // ten-man buys on normal, and a wave scales with the roster while a
     // count does not, so the trade was a five-man walk for a ten-man wall.
     // The weight below is the dial that separates the two.
-    ladder: ['mirror', 'gaze', 'vessel', 'vigil', 'adds', 'knell'],
+    ladder: ['gaze', 'vessel', 'vigil', 'spike', 'adds', 'knell'],
     phases: {
-      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ mirror: 19, gaze: 11, vessel: 23, vigil: 10, adds: 46, knell: 21 }) },
-      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ mirror: 16.5, gaze: 9.5, vessel: 20, vigil: 9, adds: 40, knell: 18 }) },
-      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ mirror: 14, gaze: 8, vessel: 17, vigil: 8, adds: 34, knell: 15 }) },
+      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ gaze: 11, vessel: 23, vigil: 10, spike: 26, adds: 46, knell: 21 }) },
+      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ gaze: 9.5, vessel: 20, vigil: 9, spike: 22, adds: 40, knell: 18 }) },
+      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ gaze: 8, vessel: 17, vigil: 8, spike: 19, adds: 34, knell: 15 }) },
     },
-    opening: { slam: 12, raid: 12, ...beats({ mirror: 10, gaze: 9, vessel: 14, vigil: 9, adds: 42, knell: 12 }) },
+    opening: { slam: 12, raid: 12, ...beats({ gaze: 9, vessel: 14, vigil: 9, spike: 20, adds: 42, knell: 12 }) },
     lines: {
       phaseTwo: 'It has not looked away',
       phaseThree: 'IT SEES ALL OF YOU',
       adds: 'More eyes open',
       shockwave: '',
-      sweep: '',
+      coldflame: '',
+      spike: 'Bone through the floor — break it, get them out',
       rot: '',
       sunder: '',
       brand: '',
@@ -1233,7 +1236,6 @@ export const ENCOUNTERS: Encounter[] = [
       gaze: 'EYES DOWN',
       knell: 'Something is winding up — end it',
       vessel: 'That one is watching back — leave it',
-      mirror: 'THE SURFACE CLOSES — HANDS OFF',
       toll: '',
       grasp: '',
       refuge: '',
@@ -1288,7 +1290,8 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'EVERY DEBT AT ONCE',
       adds: '',
       shockwave: '',
-      sweep: '',
+      coldflame: '',
+      spike: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1309,7 +1312,6 @@ export const ENCOUNTERS: Encounter[] = [
       gaze: '',
       knell: '',
       vessel: '',
-      mirror: '',
       toll: 'It wants one of us on the plate',
       grasp: '',
       refuge: '',

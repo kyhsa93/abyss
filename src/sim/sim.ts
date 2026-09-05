@@ -16,7 +16,7 @@ import {
   updateBoss,
   updateGround,
   breakChant,
-  breakMirror,
+  freeSpiked,
   burnBrand,
   passJudgement,
   turnToward,
@@ -48,6 +48,7 @@ import {
   breakRot,
   fightScale,
   urgencyOf,
+  getAura,
 } from './combat'
 import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
 import type { Rng } from './rng'
@@ -325,9 +326,10 @@ function updateTimers(s: SimState, a: Actor): void {
       // is paid by whoever happened to be standing there when it did.
       if (aura.id === 'burden' && a.alive) dropBurden(s, a, aura)
       if (aura.id === 'yoke' && a.alive) shareYoke(s, a, aura)
-      // The surface opening again, which is the instant the raid is billed
-      // for whatever it put in while the surface was closed.
-      if (aura.id === 'mirror' && a.alive) breakMirror(s, aura)
+      // The pin running out on its own, which takes the spike with it: a
+      // spike still standing over somebody who is free again is a target the
+      // raid would keep answering for nothing.
+      if (aura.id === 'spiked' && a.alive) freeSpiked(s, a)
     }
   }
 }
@@ -337,7 +339,10 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   if (!player || !player.alive) return
 
   const len = Math.hypot(input.moveX, input.moveY)
-  if (len > 0.01) {
+  // Pinned, and the stick does nothing. The same rule the roster plays under,
+  // and it has to be here rather than only in the AI or the mechanic would be
+  // a mechanic only other people are subject to.
+  if (len > 0.01 && !getAura(player, 'spiked')) {
     const stepLen =
       player.moveSpeed *
       DT *

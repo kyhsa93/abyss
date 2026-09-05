@@ -55,7 +55,16 @@ export type AuraId =
   | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
   | 'schism' // boss: which group you belong to, and they must not touch
   | 'chant' // boss: named to cut the note, and the raid pays if it is not cut
-  | 'mirror' // boss: its own surface is closed, and what goes in comes back
+  /**
+   * Pinned by a spike, which is the one thing in this game that takes a body's
+   * feet away.
+   *
+   * Everything else the floor does is answered by walking. This is answered by
+   * somebody else: the person wearing it cannot leave, so the raid has to stop
+   * hitting the boss and break the thing holding them. `sourceId` is the
+   * spike, so freeing them is a fact about the field rather than a timer.
+   */
+  | 'spiked'
   | 'spoil' // boss: you struck the thing that was not to be broken
   | 'refuge' // boss: which of the stones is yours, and there is one each
   | 'enrage' // boss damage amplifier
@@ -266,7 +275,7 @@ export interface Actor {
    * the other hurts somebody and must not be killed. Neither can be read off
    * a health bar, and both are the whole demand.
    */
-  spawn?: 'knell' | 'vessel' | 'herald'
+  spawn?: 'knell' | 'vessel' | 'herald' | 'spike'
 }
 
 export type GroundKind =
@@ -276,6 +285,10 @@ export type GroundKind =
   | 'spire'
   | 'breath'
   | 'shockwave'
+  // A line of patches lit one after the next, outward from the boss. Circles,
+  // like the pool, because the shape a person answers is one patch at a time
+  // and a line is what the sequence of them looks like from above.
+  | 'coldflame'
   | 'soak'
   | 'hand'
   | 'echo'
