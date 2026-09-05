@@ -129,6 +129,30 @@ function makeMember(
 export const PLAYER_ID = 1
 export const BOSS_ID = 100
 
+/**
+ * Where the running id counter starts, which is past everything reserved.
+ *
+ * The counter is shared: chat lines, floating text, ground effects,
+ * projectiles and summoned bodies all take the next number off it. It used to
+ * start at one, and the two ids above are constants sitting in the middle of
+ * its range, so it walked straight through them.
+ *
+ * Reaching a hundred is what it costs, and a fight reaches a hundred in about
+ * twenty-five seconds. The body summoned on that tick was handed `BOSS_ID` —
+ * and the line that makes the boss untouchable while its herald stands reads
+ * the id, so the herald was untouchable too. It could not be killed, so it
+ * never stopped standing, so the boss was never touchable again: one pull in
+ * six ran to five minutes with the boss frozen at exactly its phase-two
+ * health and nobody able to do anything about it.
+ *
+ * That is also what the threat table and the damage tally are keyed on, so
+ * the same collision quietly filed a summon's threat and a summon's damage
+ * under the boss.
+ *
+ * Past both, and the counter only ever goes up.
+ */
+export const FIRST_OBJECT_ID = BOSS_ID + 1
+
 /** What the boss itself holds, once its herald's share is taken off. */
 export function bossHealth(fight: Encounter, scale: number): number {
   return Math.round(fight.hp * scale * (1 - (fight.herald?.share ?? 0)))
@@ -249,7 +273,7 @@ export function createState(
     plan,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
-    nextObjectId: 1,
+    nextObjectId: FIRST_OBJECT_ID,
     attempt,
     seed,
     obstacles: rocks,
@@ -351,7 +375,7 @@ export function createBattlegroundState(
     plan: null,
     bossFacing: Math.PI,
     raidFlash: 0,
-    nextObjectId: 1,
+    nextObjectId: FIRST_OBJECT_ID,
     attempt: 0,
     seed,
     obstacles: rocks,

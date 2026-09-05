@@ -187,7 +187,7 @@ import { descentDamage, descentEncounter, descentHealth } from '../src/sim/desce
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { pressTarget, step } from '../src/sim/sim'
-import { BOSS_ID, PLAYER_ID, createState, unattended } from '../src/sim/state'
+import { BOSS_ID, FIRST_OBJECT_ID, PLAYER_ID, createState, unattended } from '../src/sim/state'
 import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
   HISTORY_LIMIT,
@@ -10786,6 +10786,75 @@ for (const [label, w, h] of [
     'the split is written by the fight and never read by it',
     reads.join(',') === 'combat.ts,state.ts,types.ts',
     reads.join(','),
+  )
+}
+
+// --- nobody shares an id -----------------------------------------------------
+//
+// The counter that hands out ids is shared by chat lines, floating text,
+// ground effects, projectiles and summoned bodies, and two ids are constants
+// sitting still: the player's and the boss's. Nothing stopped the counter
+// walking onto one of them, and it did — about twenty-five seconds into a
+// fight, which is roughly when the first summon arrives.
+//
+// What that cost was not a duplicate row in a list. `BOSS_ID` is how the
+// damage path asks whether a hit is aimed at the boss, so a herald holding it
+// inherited the rule that makes a boss untouchable while its herald stands: it
+// could not be killed, so it never stopped standing, so the boss was never
+// touchable again. One pull in six ran to the clock with the boss frozen at
+// exactly its phase-two health.
+//
+// Two checks, and the second is the one that matters — which is worth writing
+// down, because the first is the one that looks like it should be.
+//
+// Scanning pulls for two bodies with the same number only catches the seed
+// where the counter lands exactly on a reserved id. Run against the broken
+// counter, five bosses of it noticed nothing: by the time a summon appears the
+// counter is somewhere in the hundreds, and whether that somewhere is exactly
+// a hundred is a coin the seed flips. It is kept because a duplicate id is
+// worth catching whatever causes it, not because it would have caught this.
+//
+// What makes it impossible is the floor, and the floor is checked directly.
+// Put `FIRST_OBJECT_ID` back to one and that is the line that goes red.
+{
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    const roster = autoParty(25, pickFor('mage', 'dps')!)
+    const s = pulled(4242 + e * 17, 8, roster, 'heroic', e)
+    s.countdown = 0
+    const rng = new Rng(4242 + e)
+    const taken = new Set<number>([BOSS_ID, ...roster.map((_, i) => i + 1)])
+    const stolen = new Set<string>()
+    const clashes = new Set<string>()
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const seen = new Map<number, string>()
+      for (const a of s.actors) {
+        const other = seen.get(a.id)
+        if (other) clashes.add(`${a.id}: ${other} and ${a.name}`)
+        else seen.set(a.id, a.name)
+        // A summon is anything that was not dealt in: the roster is the first
+        // twenty-five ids and the boss is its own constant, so everything else
+        // came off the counter and must have come off it past both.
+        if (a.faction === 'boss' && a.id !== BOSS_ID && taken.has(a.id)) {
+          stolen.add(`${a.name} holds ${a.id}`)
+        }
+        if (a.faction === 'boss' && a.id !== BOSS_ID && a.id < FIRST_OBJECT_ID) {
+          stolen.add(`${a.name} holds ${a.id}, under the counter's floor`)
+        }
+      }
+    }
+    expect(
+      `${ENCOUNTERS[e]!.name}: nothing summoned holds a reserved id`,
+      stolen.size === 0 && clashes.size === 0,
+      [...stolen, ...clashes].join('; '),
+    )
+  }
+  // And the reason they cannot, stated where it can be read: the counter
+  // starts past everything that is not allocated from it.
+  expect(
+    'and the counter starts past every reserved id',
+    FIRST_OBJECT_ID > BOSS_ID && FIRST_OBJECT_ID > PLAYER_ID,
+    `${FIRST_OBJECT_ID} against ${BOSS_ID}`,
   )
 }
 

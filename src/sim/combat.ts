@@ -497,13 +497,22 @@ export function applyDamage(
     // else reached this line, and reading it as "everything doubles" would
     // now hand the melee a free second wind at the four minute mark.
     //
-    // And it grows, which it did not used to. A flat doubling is a wall a raid
-    // either gets through or dies to, unless it is neither — a healer and a
-    // tank left alive out of twenty-five, taking two people's worth of a
-    // mechanic that was written for twenty-five, healing through it forever.
-    // That pull is not lost and not won and never ends, and it is reachable:
-    // one turned up in the render suite as a twenty-five man still going at
-    // five minutes with the boss at forty percent and two people standing.
+    // And it grows, which it did not used to.
+    //
+    // It was put in for a pull that would not end — a twenty-five man still
+    // going at five minutes, boss at forty percent, two people standing — and
+    // that pull had nothing to do with the enrage. A summon had been handed
+    // `BOSS_ID` by the shared id counter and inherited the boss's
+    // untouchability with it; see `FIRST_OBJECT_ID`. Fixed there, the same
+    // seed wipes at 231 seconds with this ramp and without it.
+    //
+    // Kept anyway, and worth saying why rather than quietly leaving it in. A
+    // flat doubling is a wall a raid either gets through or dies to, unless it
+    // is neither, and "neither" is a pull that runs forever — which this game
+    // has now produced once, from a cause nobody predicted. This is the floor
+    // that says it cannot happen twice, whatever the reason. It is inert on
+    // every pull anybody plays: pulls resolve around 110 to 135 seconds and
+    // the enrage is at 233.
     //
     // Flat for the first half minute and doubling every half minute after.
     //

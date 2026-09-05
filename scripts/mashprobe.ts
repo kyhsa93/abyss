@@ -26,6 +26,7 @@ const played = (auto: boolean) => {
   const picked: Record<number, number> = {}
   let dry = 0
   let powerTicks = 0
+  const perPull: string[] = []
   const idleWhy: Record<string, number> = {}
   for (let n = 0; n < 6; n++) {
     const seed = 1000 + n * 137
@@ -67,10 +68,12 @@ const played = (auto: boolean) => {
       tick++
     }
     const own = run.actors.find((a) => a.isPlayer)!
-    damage += run.tally[own.id]?.damage ?? 0
+    const mine = run.tally[own.id]?.damage ?? 0
+    perPull.push(`${mine.toFixed(0)}@${run.time.toFixed(0)}s/${run.outcome}`)
+    damage += mine
     seconds += run.time
   }
-  return { damage, started, finished, alive, seconds, presses, idle, idleWhy, landed, picked, dry, powerTicks }
+  return { damage, started, finished, alive, seconds, presses, idle, idleWhy, landed, picked, dry, powerTicks, perPull }
 }
 
 for (const [name, hand] of [['mashing', false], ['autocast', true]] as const) {
@@ -82,6 +85,7 @@ for (const [name, hand] of [['mashing', false], ['autocast', true]] as const) {
       `  alive ${r.alive.toFixed(0)}s of ${r.seconds.toFixed(0)}s` +
       `\n          per second alive ${(r.damage / Math.max(1, r.alive)).toFixed(0)}` +
       `  slots ${JSON.stringify(r.picked)}` +
+      `\n          pulls ${r.perPull.join('  ')}` +
       `  too dry for a pyroblast ${((r.dry / Math.max(1, r.powerTicks)) * 100).toFixed(0)}% of the time`,
   )
 }
