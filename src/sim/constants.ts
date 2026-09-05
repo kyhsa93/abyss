@@ -822,3 +822,15 @@ export const BLOAT_SWAP_AT = BLOAT_BURST_AT - 1
 export const BLOAT_POWER = 0.09
 export const BLOAT_BURST = 4200
 export const BLOAT_SPLASH = 190
+
+/**
+ * The storm: how far it reaches, what it costs, and how fast it wanders.
+ *
+ * The reach is wide and the speed is most of a body's, which together are the
+ * mechanic: it cannot be outrun standing still and it can be outrun by
+ * running. Every other demand in this game is answered by being in the right
+ * place; this one is answered by not being in one place at all.
+ */
+export const STORM_REACH = 190
+export const STORM_TICK = 210
+export const STORM_SPEED = 0.82

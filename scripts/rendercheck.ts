@@ -3777,9 +3777,12 @@ for (const [label, w, h] of [
       new Set(encounter.ladder).size === encounter.ladder.length,
       encounter.ladder.join(','),
     )
+    // Three, which is the smallest fight that is still a fight — see
+    // `kitCount`. There is no upper bound any more: what a step buys scales
+    // with what the boss has to sell.
     expect(
-      `${encounter.name}: has a rung for every raid to climb to`,
-      encounter.ladder.length >= kitCount(25, 'heroic'),
+      `${encounter.name}: has enough to be a fight`,
+      encounter.ladder.length >= 3,
       `${encounter.ladder.length} rungs`,
     )
     // The armour break is answered by swapping tanks, and a five-man fields
@@ -3795,14 +3798,22 @@ for (const [label, w, h] of [
     }
   }
 
-  // Both axes buy something, and neither ever takes something away.
+  // Neither axis ever takes something away, and between them they buy the
+  // whole boss.
+  //
+  // "More at every step" was the rule while every fight owned six mechanics
+  // and there are six settings. A fight is allowed to own three now — the
+  // first boss does, and sells all three to everybody, because what a raid is
+  // unlocking there is itself rather than the fight. So the rule that survives
+  // is the one that was always the point: a bigger or harder setting never
+  // shows you less, and climbing the whole ladder shows you all of it.
   for (const encounter of ENCOUNTERS) {
     for (const size of [5, 10, 25]) {
       const normal = encounterKit(encounter, size, 'normal')
       const heroic = encounterKit(encounter, size, 'heroic')
       expect(
-        `${encounter.name} at ${size}: heroic asks for more than normal`,
-        heroic.length > normal.length,
+        `${encounter.name} at ${size}: heroic asks no less than normal`,
+        heroic.length >= normal.length,
         `${normal.length} vs ${heroic.length}`,
       )
       expect(
@@ -3811,13 +3822,23 @@ for (const [label, w, h] of [
         heroic.join(','),
       )
     }
+    // And the top of the ladder is the whole fight. This is what the two rules
+    // above used to guarantee between them and now do not: a boss could sell
+    // the same three at every setting and satisfy "no less" forever while
+    // three of its six sat in the table unreachable.
+    expect(
+      `${encounter.name}: the last rung is the whole boss`,
+      encounterKit(encounter, 25, 'heroic').length >=
+        encounter.ladder.length + (encounter.always?.length ?? 0),
+      `${encounterKit(encounter, 25, 'heroic').length} of ${encounter.ladder.length}`,
+    )
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       const five = encounterKit(encounter, 5, difficulty)
       const ten = encounterKit(encounter, 10, difficulty)
       const full = encounterKit(encounter, 25, difficulty)
       expect(
-        `${encounter.name} on ${difficulty}: a bigger raid meets more of it`,
-        five.length < ten.length && ten.length < full.length,
+        `${encounter.name} on ${difficulty}: a bigger raid meets no less of it`,
+        five.length <= ten.length && ten.length <= full.length,
         `${five.length}/${ten.length}/${full.length}`,
       )
       expect(
@@ -4323,7 +4344,10 @@ for (const [label, w, h] of [
   // can still roll the mechanic onto a party of five and something has to say
   // no when it does.
   {
-    const warden = ENCOUNTERS[0]!
+    // By name rather than by index. It was `ENCOUNTERS[0]`, which was the
+    // Warden until a boss was put in front of it — and a check that means one
+    // particular fight should say which one.
+    const warden = ENCOUNTERS.find((e) => e.id === 'warden')!
     expect('the warden breaks armour', warden.ladder.includes('sunder'), 'it does not')
 
     const stacksIn = (state: SimState): number => {
@@ -4343,7 +4367,15 @@ for (const [label, w, h] of [
     // And the boss that owns it, at the size that buys it: a twenty-five man
     // on normal is the first raid up the Warden's fourth rung.
     const raid = stacksIn(
-      pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'normal', 0),
+      // The boss that owns it, asked rather than remembered — the same
+      // correction as the pools above and the thralls below.
+      pulled(
+        0x51ed,
+        8,
+        autoParty(25, pickFor('mage', 'dps')!),
+        'normal',
+        ENCOUNTERS.findIndex((e) => e.id === 'warden'),
+      ),
     )
     expect('a raid with two does', raid > 0, 'it never landed')
     expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
@@ -7915,8 +7947,22 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 // pull as on the first, so an affix that leaked into ordinary play would undo
 // the reason the boss is a script at all.
 {
+  // On whichever boss owns the pools, asked rather than remembered. It was
+  // encounter zero, which was the Warden until a boss was put in front of it —
+  // and the affix under test multiplies how long hazardous ground lingers, so
+  // pointed at a fight with none of it the check compares nothing against
+  // nothing. The same mistake is written up two blocks below, about thralls,
+  // with the same conclusion: ask the ladder.
+  const pooled = ENCOUNTERS.findIndex((e) => e.ladder.includes('puddle'))
   const play = (affix: AffixId | null, seconds: number) => {
-    const fight = createState(0x51ed, 8, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, affix)
+    const fight = createState(
+      0x51ed,
+      8,
+      autoParty(5, pickFor('mage', 'dps')!),
+      'normal',
+      pooled,
+      affix,
+    )
     fight.countdown = 0
     const rng = new Rng(0x51ed)
     let adds = 0
@@ -10565,10 +10611,23 @@ for (const [label, w, h] of [
   // a mechanic on every rung would be lying on half of them, which is why the
   // screen has a second thing to say.
   const inside = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS !== 0)
+  //
+  // "More than its share", where this used to say "more than one".
+  //
+  // One was right while every boss owned six mechanics and there are six
+  // settings to sell them on. A fight is allowed to own more now, and a fight
+  // that owns nine cannot introduce them one at a time across six steps
+  // however the ladder is arranged -- so what the rule is actually protecting
+  // is that a step never introduces more than its share, which is a third of
+  // whatever the boss has above the floor of three.
+  const share = (i: number): number => {
+    const owns = encounterAt(tierAt(i).encounter).ladder.length
+    return Math.max(1, Math.ceil((Math.max(3, owns) - 3) / 3))
+  }
   expect(
-    'a rung never buys more than one mechanic',
-    LADDER.every((_, i) => rungBuys(i).length <= 1),
-    'a rung sold two ideas at once',
+    'a rung never buys more than its share of the boss',
+    LADDER.every((_, i) => rungBuys(i).length <= share(i)),
+    'a rung sold more than a step',
   )
   //
   // "At most one", where this used to say "exactly one when the kit grows".
@@ -10678,7 +10737,8 @@ for (const [label, w, h] of [
     // has to still be saying that the other three are up there.
     expect(
       'and a small kit leaves the rest of the boss unmet',
-      page.metCount === kitCount(5, 'normal') && page.rungs.length === fight.ladder.length,
+      page.metCount === kitCount(5, 'normal', fight.ladder.length) &&
+        page.rungs.length === fight.ladder.length,
       `${page.metCount} of ${page.rungs.length}`,
     )
     const billed = small.tally[small.actors.find((a) => a.isPlayer)!.id]?.byMechanic ?? {}
@@ -10697,7 +10757,7 @@ for (const [label, w, h] of [
     expect(
       'and a wider kit only ever adds to the page',
       page.rungs.every((r) => !r.met || wider.rungs.find((o) => o.id === r.id)?.met === true) &&
-        wider.metCount === kitCount(25, 'heroic'),
+        wider.metCount === kitCount(25, 'heroic', fight.ladder.length),
       `${wider.metCount} of ${wider.rungs.length}`,
     )
     // And a battleground has no boss to write about.

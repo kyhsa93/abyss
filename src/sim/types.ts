@@ -67,6 +67,15 @@ export type AuraId =
   | 'spiked'
   /** boss: how much of the room's air it has taken, and how hard it now hits. */
   | 'gorged'
+  /**
+   * boss: it has let go and is wandering, billing whoever it passes.
+   *
+   * The only aura in the game that takes the boss out of the fight's usual
+   * shape rather than putting something on a body. While it is up there is no
+   * tank and no front, and every rule about standing behind the thing is
+   * suspended along with the thing.
+   */
+  | 'storming'
   /** Marked with a spore, which bursts on whoever came to stand with them. */
   | 'spore'
   /**
@@ -843,6 +852,8 @@ export interface SimState {
    * size and the colour afterwards.
    */
   phaseAt: number
+  /** Seconds banked toward the storm's next bill. See `updateStorm`. */
+  stormTimer?: number
   /** Timers driving the boss script. */
   /**
    * Seconds to the next of each mechanic, keyed by the mechanic.

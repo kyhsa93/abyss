@@ -43,6 +43,7 @@ export type MechanicId =
   | 'spore'
   | 'vilegas'
   | 'bloat'
+  | 'bonestorm'
   | 'adds'
   | 'rot'
   | 'sunder'
@@ -111,6 +112,7 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   spore: true, // one spore per so many bodies, so a bigger raid gathers more often
   vilegas: true, // one mark per so many bodies, and it spreads to whoever is near
   bloat: false, // whoever is holding it, and one body holds it
+  bonestorm: false, // the boss itself, and there is one of it
   hand: false, // a wedge of a fixed angle, whoever it happens to turn onto
   echo: true, // one mark per so many bodies
   burden: true, // one weight per so many bodies, and a bigger raid has more hands
@@ -221,6 +223,7 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   spore: 'the spore',
   vilegas: 'the reek',
   bloat: 'the swelling',
+  bonestorm: 'the storm',
   echo: 'the echo',
   burden: 'the burden',
   yoke: 'the yoke',
@@ -502,6 +505,20 @@ export interface PhaseTiming {
    * the same rule already written down.
    */
   bloat: number
+  /**
+   * Seconds between one storm and the next.
+   *
+   * The boss stops being a thing you stand behind and becomes a thing you
+   * stay away from: it lets go of whoever was holding it, wanders, and bills
+   * everybody it passes. For half a minute the fight has no tank and no
+   * front, which is the only stretch in this game where where-you-stand is
+   * the whole of what you are doing.
+   *
+   * It is the first boss's one idea about movement, and it is deliberately
+   * the crudest one: run from the big thing. Everything else the raid learns
+   * about floors and shapes is built on knowing that first.
+   */
+  bonestorm: number
   adds: number
   /**
    * Physical damage to everyone standing in reach.
@@ -806,6 +823,7 @@ export interface Encounter {
     spore: number
     vilegas: number
     bloat: number
+    bonestorm: number
     spire: number
     verdict: number
     crush: number
@@ -863,6 +881,7 @@ export interface Encounter {
     spore: string
     vilegas: string
     bloat: string
+    bonestorm: string
     /** Empty where the boss does not use the mechanic. */
     rot: string
     sunder: string
@@ -960,6 +979,89 @@ export interface HeraldPlan {
 
 export const ENCOUNTERS: Encounter[] = [
   {
+    // The first thing a raid meets, and it is built to teach one rule.
+    //
+    // Three mechanics and no more, which is a thing a boss is allowed to be
+    // now: every setting sells all three, so a five-man on normal meets the
+    // whole fight and a twenty-five man on heroic meets the same fight with
+    // more of it landing. There is nothing here to unlock, because what is
+    // being unlocked is the player.
+    //
+    // All three are about where your feet are, in increasing order of how far
+    // they have to go. A line you step off. A body you cannot step at all,
+    // that somebody else has to come and free. And a thing that stops being
+    // tanked and comes at the room, which is answered by not being anywhere
+    // for half a minute.
+    //
+    // No interlude. Nothing about a first boss should be an aside.
+    herald: null,
+    id: 'marrow',
+    name: 'The Bonegrinder',
+    short: 'Marrow',
+    demand: 'get off the line, break the bone, and run when it lets go',
+    // Short for a boss and long enough to be a fight, which for this one is a
+    // hard floor rather than taste: the storm is its third idea and its
+    // longest count, so a pull that ends before the first one is a pull that
+    // taught two thirds of what this boss is for. At nineteen thousand a
+    // five-man was done in thirty-four seconds and never saw it.
+    hp: 52000,
+    enrage: 240,
+    phaseTwoHp: 0.66,
+    phaseThreeHp: 0.33,
+    swingDamage: 520,
+    slamDamage: 1050,
+    raidDamage: 120,
+    mechanicDamage: 0.75,
+    sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
+    accent: '#e7e5e4',
+    names: { slam: 'SABER LASH', breath: '' },
+    ladder: ['coldflame', 'spike', 'bonestorm'],
+    phases: {
+      1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 13, spike: 27, bonestorm: 62 }) },
+      2: { swing: 2.0, slam: 17, puddleCount: 1, raid: 11, ...beats({ coldflame: 11, spike: 24, bonestorm: 56 }) },
+      3: { swing: 1.8, slam: 15, puddleCount: 1, raid: 10, ...beats({ coldflame: 9.5, spike: 21, bonestorm: 50 }) },
+    },
+    opening: { slam: 14, raid: 13, ...beats({ coldflame: 11, spike: 22, bonestorm: 48 }) },
+    lines: {
+      phaseTwo: 'The floor is bone now',
+      phaseThree: 'GRIND THEM ALL',
+      adds: '',
+      shockwave: '',
+      coldflame: 'Cold on the floor — off the line',
+      spike: 'Bone through the floor — break it, get them out',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: 'IT HAS LET GO — RUN',
+      rot: '',
+      sunder: '',
+      brand: '',
+      verdict: '',
+      crush: '',
+      fault: '',
+      shallows: '',
+      spire: '',
+      soak: '',
+      hunt: '',
+      hand: '',
+      echo: '',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      toll: '',
+      grasp: '',
+      refuge: '',
+    },
+  },
+  {
     // The ground fight. Nothing to get behind and nothing to run into: what it
     // does is make the floor unusable and then punish whoever is still
     // standing in reach of it, and at the sizes that field a second tank it
@@ -1039,6 +1141,7 @@ export const ENCOUNTERS: Encounter[] = [
       spore: '',
       vilegas: '',
       bloat: '',
+      bonestorm: '',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
@@ -1141,6 +1244,7 @@ export const ENCOUNTERS: Encounter[] = [
       spore: '',
       vilegas: '',
       bloat: '',
+      bonestorm: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1206,7 +1310,12 @@ export const ENCOUNTERS: Encounter[] = [
     // is a fight that is lost on a first attempt and won by the ninth, and at
     // 0.7 it is not a fight at all. Another cliff, and the usable width of it
     // is about a tenth.
-    sizeMechanic: { 5: 0.78, 10: 1.15, 25: 0.85 },
+    // The ten-man weight came down when this boss handed the cold line back to
+    // the fight it belongs to. A five-rung ladder sells four at ten, and the
+    // fourth used to be the line — a step off — where it is now the floor
+    // caving in. Same count, harder kit, and the cell read 45% by a ninth pull
+    // against a floor of 50.
+    sizeMechanic: { 5: 0.78, 10: 0.98, 25: 0.85 },
     accent: '#22d3ee',
     names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
     // The ring where the sweep used to sit, which is the one change here
@@ -1235,19 +1344,19 @@ export const ENCOUNTERS: Encounter[] = [
     // 18% and 90% — the first pull still the second-hardest of the five
     // bosses, the ninth between the Choir and the Watcher. A wall, and one
     // that teaches.
-    ladder: ['breath', 'shockwave', 'hunt', 'coldflame', 'fault', 'shallows'],
+    ladder: ['breath', 'shockwave', 'hunt', 'fault', 'shallows'],
     phases: {
-      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, coldflame: 15, fault: 10, shallows: 13, hunt: 44 }) },
-      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, coldflame: 13, fault: 9, shallows: 12, hunt: 38 }) },
-      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, coldflame: 11, fault: 8, shallows: 11, hunt: 32 }) },
+      1: { swing: 1.9, slam: 14, puddleCount: 1, raid: 11, ...beats({ breath: 11, shockwave: 16, fault: 10, shallows: 13, hunt: 44 }) },
+      2: { swing: 1.7, slam: 12, puddleCount: 1, raid: 10, ...beats({ breath: 9.5, shockwave: 13, fault: 9, shallows: 12, hunt: 38 }) },
+      3: { swing: 1.5, slam: 10, puddleCount: 1, raid: 9, ...beats({ breath: 8, shockwave: 10.5, fault: 8, shallows: 11, hunt: 32 }) },
     },
-    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, coldflame: 14, fault: 10, shallows: 12, hunt: 45 }) },
+    opening: { slam: 11, raid: 13, ...beats({ breath: 10, shockwave: 15, fault: 10, shallows: 12, hunt: 45 }) },
     lines: {
       phaseTwo: 'The water turns',
       phaseThree: 'NOTHING STANDS',
       adds: '',
       shockwave: 'The undertow',
-      coldflame: 'Cold on the floor — off the line',
+      coldflame: '',
       spike: '',
       blight: '',
       inhale: '',
@@ -1255,6 +1364,7 @@ export const ENCOUNTERS: Encounter[] = [
       spore: '',
       vilegas: '',
       bloat: '',
+      bonestorm: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1325,26 +1435,27 @@ export const ENCOUNTERS: Encounter[] = [
     // ten-man buys on normal, and a wave scales with the roster while a
     // count does not, so the trade was a five-man walk for a ten-man wall.
     // The weight below is the dial that separates the two.
-    ladder: ['gaze', 'vessel', 'vigil', 'spike', 'adds', 'knell'],
+    ladder: ['gaze', 'vessel', 'vigil', 'adds', 'knell'],
     phases: {
-      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ gaze: 11, vessel: 23, vigil: 10, spike: 26, adds: 46, knell: 21 }) },
-      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ gaze: 9.5, vessel: 20, vigil: 9, spike: 22, adds: 40, knell: 18 }) },
-      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ gaze: 8, vessel: 17, vigil: 8, spike: 19, adds: 34, knell: 15 }) },
+      1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ gaze: 11, vessel: 23, vigil: 10, adds: 46, knell: 21 }) },
+      2: { swing: 1.8, slam: 13, puddleCount: 1, raid: 9, ...beats({ gaze: 9.5, vessel: 20, vigil: 9, adds: 40, knell: 18 }) },
+      3: { swing: 1.6, slam: 11, puddleCount: 1, raid: 8, ...beats({ gaze: 8, vessel: 17, vigil: 8, adds: 34, knell: 15 }) },
     },
-    opening: { slam: 12, raid: 12, ...beats({ gaze: 9, vessel: 14, vigil: 9, spike: 20, adds: 42, knell: 12 }) },
+    opening: { slam: 12, raid: 12, ...beats({ gaze: 9, vessel: 14, vigil: 9, adds: 42, knell: 12 }) },
     lines: {
       phaseTwo: 'It has not looked away',
       phaseThree: 'IT SEES ALL OF YOU',
       adds: 'More eyes open',
       shockwave: '',
       coldflame: '',
-      spike: 'Bone through the floor — break it, get them out',
+      spike: '',
       blight: '',
       inhale: '',
       pungent: '',
       spore: '',
       vilegas: '',
       bloat: '',
+      bonestorm: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1427,6 +1538,7 @@ export const ENCOUNTERS: Encounter[] = [
       spore: '',
       vilegas: '',
       bloat: '',
+      bonestorm: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1541,6 +1653,7 @@ export const ENCOUNTERS: Encounter[] = [
       spore: 'Spore — get to them, all of you',
       vilegas: 'That reek spreads — off them',
       bloat: 'Nine on the tank — swap now',
+      bonestorm: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1589,19 +1702,33 @@ export const FIRST_ENCOUNTER = 0
  * for longer" — and the difficulty button said so, in those words. A rung
  * costs the raid something a health bar never can.
  */
-export function kitCount(size: number, difficulty: DifficultyId): number {
+export function kitCount(size: number, difficulty: DifficultyId, owns = 6): number {
   // Three, so that the smallest fight anybody can buy is still a fight. Two
   // rungs meant a five-man on normal met one mechanic and its pair, and the
   // ladder above it was five steps of adding one thing to a fight that had
   // barely started -- which is also why two of the six rungs used to buy
-  // bodies without buying an idea. Five bosses of six now, one mechanic to
-  // each rung and no mechanic on two bosses, so a raid that climbs the whole
-  // thing meets all thirty and meets each of them in exactly one fight.
-  let rungs = 3
-  if (size >= 10) rungs++
-  if (size >= 25) rungs++
-  if (difficulty === 'heroic') rungs++
-  return rungs
+  // bodies without buying an idea.
+  //
+  // `owns` is how many the boss has, and it used to be six for everybody
+  // because six is how many settings there are: three sizes by two
+  // difficulties. That made the number of ideas a fight is allowed to hold a
+  // fact about the progression rather than about the fight, and it cut both
+  // ways -- a boss with seven had nowhere to put the seventh, and a boss with
+  // four had two settings that sold nothing.
+  //
+  // So what a step buys scales with what there is to sell. The three axes
+  // still buy the same three steps in the same order; each step is just worth
+  // a third of whatever is above the floor of three. At six that is one a
+  // step, which is exactly what this returned before and returns still. At
+  // nine it is two, and at three it is none -- a fight small enough that
+  // everyone meets all of it, which is the right shape for the boss a raid
+  // meets first.
+  const step = (Math.max(3, owns) - 3) / 3
+  let bought = 3
+  if (size >= 10) bought += step
+  if (size >= 25) bought += step
+  if (difficulty === 'heroic') bought += step
+  return Math.min(Math.max(3, owns), Math.round(bought))
 }
 
 /**
@@ -1654,7 +1781,7 @@ export function encounterKit(
 ): MechanicId[] {
   return withRequired([
     ...(encounter.always ?? []),
-    ...encounter.ladder.slice(0, kitCount(size, difficulty)),
+    ...encounter.ladder.slice(0, kitCount(size, difficulty, encounter.ladder.length)),
   ])
 }
 

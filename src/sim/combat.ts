@@ -128,6 +128,15 @@ export const AURA_DURATION: Record<AuraId, number> = {
    */
   gorged: 9999,
   /**
+   * How long the storm lasts.
+   *
+   * Long enough to be a stretch of the fight rather than a moment: the raid
+   * spends it running, which means the raid spends it not dealing damage, and
+   * that is the cost the mechanic charges. Short enough that a raid which
+   * handles it gets back to the boss with the enrage still far away.
+   */
+  storming: 24,
+  /**
    * Long enough to walk to, short enough that walking late is not walking.
    *
    * The spore is the one demand here answered by arriving rather than by

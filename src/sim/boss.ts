@@ -17,6 +17,9 @@ import {
   BLOAT_BURST_AT,
   BLOAT_SPLASH,
   INHALE_HASTE,
+  STORM_REACH,
+  STORM_SPEED,
+  STORM_TICK,
   INHALE_MAX,
   INHALE_POWER,
   INOCULATED_SHARE,
@@ -375,7 +378,11 @@ export function updateBoss(s: SimState, rng: Rng): void {
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: 'ENRAGE', age: 0 })
   }
 
-  const target = topThreatTarget(s)
+  // Nothing is holding it while it storms, which is the mechanic: it has let
+  // go, so the tank has nothing to hold and the raid has no front to stand
+  // behind. `updateStorm` does the walking for that stretch.
+  const storming = getAura(b, 'storming') !== undefined
+  const target = storming ? null : topThreatTarget(s)
   faceTarget(s, b, target)
 
   if (target && !b.castId) {
@@ -425,6 +432,8 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleBlight(s, b, timing)
   scheduleInhale(s, b, timing)
   schedulePungent(s, b, timing)
+  scheduleStorm(s, b, timing)
+  updateStorm(s, b)
   scheduleSpore(s, b, rng, timing)
   scheduleVileGas(s, b, rng, timing)
   scheduleBloat(s, b, timing)
@@ -758,6 +767,62 @@ function schedulePungent(s: SimState, b: Actor, timing: PhaseTiming): void {
  * them are linked in `REQUIRES` and why a fight is not allowed to sell the
  * breath out without this.
  */
+/**
+ * The boss letting go and wandering.
+ *
+ * For as long as it is up there is no tank and no front: it drops whoever was
+ * holding it, walks a circuit of its own, and bills everybody it passes. That
+ * is the whole of it, and being the whole of it is the point -- this is the
+ * first thing a raid meets in this game, and what it teaches is the one rule
+ * everything else is built on top of. A big thing is coming; be somewhere
+ * else.
+ */
+function scheduleStorm(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.bonestorm <= 0) return
+  if (getAura(b, 'storming')) return
+  s.next.bonestorm -= DT
+  if (s.next.bonestorm > 0) return
+  s.next.bonestorm = timing.bonestorm
+
+  addAura(b, 'storming', b.id)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'bonestorm'))
+  s.sounds.push('shockwave')
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_bonestorm', power: STORM_REACH })
+}
+
+/**
+ * One tick of the storm, and the wandering that makes it one.
+ *
+ * Its own function rather than part of the schedule above, because a storm is
+ * a stretch rather than an event: what it does happens on every tick it is up,
+ * and the movement is as much the mechanic as the damage.
+ */
+function updateStorm(s: SimState, b: Actor): void {
+  if (!getAura(b, 'storming')) return
+
+  // A circuit of its own rather than a chase. Chasing is answered by one
+  // person kiting and everybody else carrying on, which is a mechanic for one
+  // body; wandering is answered by the whole room paying attention to where a
+  // thing is, which is what this is for.
+  const step = b.moveSpeed * STORM_SPEED * DT
+  const drift = s.time * 0.6 + b.id
+  b.pos.x += Math.cos(drift) * step
+  b.pos.y += Math.sin(drift) * step
+  clampToArena(b.pos, b.radius)
+
+  // Billed on the same beat as everything else, so the healers read it the way
+  // they read the rest of the fight.
+  s.stormTimer = (s.stormTimer ?? 0) + DT
+  if (s.stormTimer < 1) return
+  s.stormTimer -= 1
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, b.pos) > STORM_REACH + a.radius) continue
+    const bite = mechanic(s, STORM_TICK)
+    applyDamage(s, a, bite, 'physical', { sourceId: b.id, mechanic: 'bonestorm' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_bonestorm', power: bite })
+  }
+}
+
 function scheduleSpore(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.spore <= 0) return
   s.next.spore -= DT
