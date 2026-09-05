@@ -1964,12 +1964,24 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
   // nine it is two, and at three it is none -- a fight small enough that
   // everyone meets all of it, which is the right shape for the boss a raid
   // meets first.
-  const step = (Math.max(3, owns) - 3) / 3
-  let bought = 3
+  //
+  // The floor is a fraction of the boss rather than the number three.
+  //
+  // Three was a cap wearing a floor's clothes. A fight with two ideas had one
+  // setting selling both and five selling nothing; a fight with twelve had its
+  // smallest setting showing a quarter of itself and no way to say otherwise.
+  // Half is the shape the ladder always had at six -- three of six at the
+  // bottom, all six at the top -- and it is now that shape at any size.
+  //
+  // Rounded up, so a boss with one mechanic sells it to everybody rather than
+  // selling nothing to a five-man.
+  const floor = Math.ceil(owns / 2)
+  const step = (owns - floor) / 3
+  let bought = floor
   if (size >= 10) bought += step
   if (size >= 25) bought += step
   if (difficulty === 'heroic') bought += step
-  return Math.min(Math.max(3, owns), Math.round(bought))
+  return Math.min(owns, Math.round(bought))
 }
 
 /**

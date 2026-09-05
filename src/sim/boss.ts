@@ -4258,18 +4258,19 @@ function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
 }
 
 /**
- * A spike broken, or a spike that outlasted the raid's attention.
+ * The spike that was holding somebody, taken off the field.
  *
- * Both ends are here because both have to leave the field in the same state:
- * the body walks again and the thing holding it is gone. Called from the aura
- * expiring and from the add dying, and it is written to be safe run twice.
+ * By the spike's own id rather than by looking the aura up on the victim,
+ * which is what this did and why it never once worked: the only caller is the
+ * aura running out, and `updateTimers` splices the aura off before it calls
+ * anything about it. So the lookup always missed, the function always returned
+ * on its first line, and every spike whose pin expired stayed standing —
+ * seven of them at the end of a pull, each one still a body the raid would
+ * stop and hit if the target call had not been taught to check.
  */
-export function freeSpiked(s: SimState, victim: Actor): void {
-  const held = getAura(victim, 'spiked')
-  if (!held) return
-  const spike = s.actors.find((a) => a.id === held.sourceId && a.spawn === 'spike')
+export function freeSpiked(s: SimState, spikeId: number): void {
+  const spike = s.actors.find((a) => a.id === spikeId && a.spawn === 'spike')
   if (spike) spike.alive = false
-  victim.auras = victim.auras.filter((au) => au.id !== 'spiked')
 }
 
 function knellHealth(s: SimState): number {

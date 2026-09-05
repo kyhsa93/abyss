@@ -635,6 +635,9 @@ export function applyDamage(
   if (target.isPlayer && final > 0 && !opts.silent) s.sounds.push('hit')
 
   if (target.hp <= 0) {
+    // Read before the auras are cleared, because clearing them is what used to
+    // lose it.
+    const held = target.auras.find((au) => au.id === 'spiked')
     target.alive = false
     target.castId = null
     target.auras.length = 0
@@ -646,6 +649,18 @@ export function applyDamage(
         const held = a.auras.find((au) => au.id === 'spiked' && au.sourceId === target.id)
         if (held) a.auras = a.auras.filter((au) => au !== held)
       }
+    }
+    // And the other way round, which is the half that was missing.
+    //
+    // A death clears every aura on the body, so a victim who died while pinned
+    // took the pin with them and left the spike standing over a corpse —
+    // holding nobody, killable by nothing that mattered, and still top of the
+    // raid's target list. Measured on the first boss, ten of them were up at
+    // five minutes with one person pinned, and the raid had spent the pull
+    // hitting furniture: the boss was at 28% and the fight never ended.
+    if (target.faction === 'party' && held) {
+      const spike = s.actors.find((a) => a.id === held.sourceId && a.spawn === 'spike')
+      if (spike) spike.alive = false
     }
     pushText(s, target.pos, 'DOWN', 'crit')
     if (target.faction === 'party') s.sounds.push('death')

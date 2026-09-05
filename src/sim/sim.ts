@@ -393,7 +393,7 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       // The pin running out on its own, which takes the spike with it: a
       // spike still standing over somebody who is free again is a target the
       // raid would keep answering for nothing.
-      if (aura.id === 'spiked' && a.alive) freeSpiked(s, a)
+      if (aura.id === 'spiked') freeSpiked(s, aura.sourceId)
       // The spore going, which is the moment everybody who came to stand in
       // it is covered against a mechanic that has not happened yet.
       if (aura.id === 'spore' && a.alive) burstSpore(s, a)

@@ -3806,12 +3806,17 @@ for (const [label, w, h] of [
       new Set(encounter.ladder).size === encounter.ladder.length,
       encounter.ladder.join(','),
     )
-    // Three, which is the smallest fight that is still a fight — see
-    // `kitCount`. There is no upper bound any more: what a step buys scales
-    // with what the boss has to sell.
+    // One, which is the smallest thing that is still a fight rather than a
+    // health bar. There is no bound above it in either direction now: what a
+    // step buys scales with what the boss has to sell, and how much that is
+    // is the fight's business.
+    //
+    // Three was the old floor and it was a judgement about pacing rather than
+    // about correctness — a fight with two ideas repeated is thin. That
+    // judgement is still true and it is not this file's to enforce.
     expect(
-      `${encounter.name}: has enough to be a fight`,
-      encounter.ladder.length >= 3,
+      `${encounter.name}: throws something`,
+      encounter.ladder.length >= 1,
       `${encounter.ladder.length} rungs`,
     )
     // The armour break is answered by swapping tanks, and a five-man fields
@@ -4925,14 +4930,20 @@ for (const [label, w, h] of [
     for (const e of ENCOUNTERS) {
       for (const m of e.ladder) owners.set(m, [...(owners.get(m) ?? []), e.short])
     }
-    const twice = [...owners].filter(([, who]) => who.length > 1)
-    expect(
-      'no mechanic is on two bosses',
-      twice.length === 0,
-      twice.map(([m, who]) => `${m}: ${who.join('+')}`).join('; '),
-    )
+    // Sharing is allowed now, and what is left is the half of the rule that
+    // was never about scarcity.
+    //
+    // "Each mechanic in exactly one boss" was two claims wearing one name. The
+    // first — no fight repeats another fight's idea — is a good rule and it is
+    // still true of every fight here; it is also a limit on how many ideas the
+    // bosses can hold between them, because thirty mechanics divided by eight
+    // fights is under four each. That is the limit being removed.
+    //
+    // The second claim is the one worth keeping: nothing is written down and
+    // then never thrown. A mechanic with a cadence table, a line of chat and
+    // an icon that no fight owns is dead weight that reads as content.
     const homeless = MECHANIC_IDS.filter((m) => !owners.has(m))
-    expect('and every one of them is on a boss', homeless.length === 0, homeless.join(','))
+    expect('every mechanic is on some boss', homeless.length === 0, homeless.join(','))
     expect(
       'so the ladders spend the whole vocabulary exactly once',
       [...owners].length === MECHANIC_IDS.length,
@@ -10675,23 +10686,20 @@ for (const [label, w, h] of [
   // screen has a second thing to say.
   const inside = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS !== 0)
   //
-  // "More than its share", where this used to say "more than one".
+  // How many a rung may sell is not capped any more.
   //
-  // One was right while every boss owned six mechanics and there are six
-  // settings to sell them on. A fight is allowed to own more now, and a fight
-  // that owns nine cannot introduce them one at a time across six steps
-  // however the ladder is arranged -- so what the rule is actually protecting
-  // is that a step never introduces more than its share, which is a third of
-  // whatever the boss has above the floor of three.
-  const share = (i: number): number => {
-    const owns = encounterAt(tierAt(i).encounter).ladder.length
-    return Math.max(1, Math.ceil((Math.max(3, owns) - 3) / 3))
-  }
-  expect(
-    'a rung never buys more than its share of the boss',
-    LADDER.every((_, i) => rungBuys(i).length <= share(i)),
-    'a rung sold more than a step',
-  )
+  // It was one, then a share of what the boss owns, and both were the same
+  // idea: this game introduces things one at a time. That is a good idea and
+  // it is a judgement about a particular fight's ladder rather than a rule
+  // every fight has to obey — a boss with twelve mechanics cannot introduce
+  // them one at a time across six settings, and telling it to try only means
+  // it may not have twelve.
+  //
+  // What replaces it is the pair below, which is the part that was actually
+  // load-bearing: a rung never sells something the setting did not widen for,
+  // and the top of the ladder is the whole boss. Between them a raid still
+  // meets more as it climbs and meets all of it by the end; how that is
+  // parcelled out is the fight's business.
   //
   // "At most one", where this used to say "exactly one when the kit grows".
   //

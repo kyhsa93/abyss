@@ -673,7 +673,21 @@ function targetCall(s: SimState, actor: Actor): string | null {
   // a count has not cost anybody anything yet. Nearest first: the walk is what
   // the mechanic charges, so the raid splitting itself across three spikes by
   // distance is the answer working rather than the AI being clever.
-  const spikes = s.actors.filter((a) => a.faction === 'boss' && a.spawn === 'spike' && a.alive)
+  //
+  // Only the ones actually holding somebody. A spike is worth the raid's whole
+  // damage for exactly as long as a body cannot move, and not one second
+  // longer — and this is the second guard on that, deliberately. The first is
+  // that a spike dies when its victim does; if that ever misses again, the
+  // cost of this rule missing too is a raid that spends a pull hitting a thing
+  // standing over a corpse.
+  const pinned = new Set(
+    livingParty(s)
+      .map((a) => getAura(a, 'spiked')?.sourceId)
+      .filter((id): id is number => id !== undefined),
+  )
+  const spikes = s.actors.filter(
+    (a) => a.faction === 'boss' && a.spawn === 'spike' && a.alive && pinned.has(a.id),
+  )
   if (spikes.length > 0) {
     let near = spikes[0]!
     for (const spike of spikes) {
