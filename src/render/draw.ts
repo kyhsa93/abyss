@@ -21,6 +21,7 @@ import {
 import { burdenTaker, dist, getAura, livingParty } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
+import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
@@ -118,17 +119,31 @@ export function focusOn(s: SimState, alpha = 1): Vec2 {
 /**
  * The thing the view sits behind, or nothing to leave it where it is.
  *
- * Whatever the mode is about: the boss in a raid, and in a battleground the
- * place this player's own orders point at. The battleground's is the steadier
- * of the two, because it is a place rather than a body — a node or a flag or a
- * rally stands still while the fight moves around it, and it is already held
- * deliberately still by the plan for the same reason a camera would want it
- * to be.
+ * Whatever the mode is about: what the player is fighting in a raid, and in a
+ * battleground the place this player's own orders point at. The
+ * battleground's is the steadier of the two, because it is a place rather than
+ * a body — a node or a flag or a rally stands still while the fight moves
+ * around it, and it is already held deliberately still by the plan for the
+ * same reason a camera would want it to be.
+ *
+ * The raid's used to be the boss and only ever the boss, which is right until
+ * the fight puts something else in front of you. A thrall, a stalker, a
+ * herald: those are the whole of what the raid is doing while they stand, and
+ * the camera stayed pointed past them at a boss nobody was hitting. This
+ * module's first sentence says the thing you are working on stays at the top
+ * of the screen, and for the minute an interlude lasts it was not true.
+ *
+ * `playerTarget` rather than a second opinion about what the player is
+ * fighting. It is what the health bar at the top reads, what a press aims at,
+ * and what the rotation is already built around — three places that would have
+ * to agree with a fourth if this asked the question itself.
  */
 function anchorOf(s: SimState): Vec2 | null {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return null
   if (s.mode === 'battleground') return bgAnchor(s, player)
+  const target = s.actors.find((a) => a.id === playerTarget(s) && a.alive)
+  if (target) return target.pos
   const b = s.actors.find((a) => a.id === BOSS_ID && a.alive)
   return b ? b.pos : null
 }
