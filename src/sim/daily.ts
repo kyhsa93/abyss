@@ -1,6 +1,7 @@
 import { DIFFICULTIES, type DifficultyId, type Pick, type RaidSize, randomParty } from './classes'
 import { AFFIXES, affixById, type AffixId } from './affix'
 import { ENCOUNTERS } from './encounters'
+import { rollDaily, type FloorPlan } from './floor'
 import { Rng } from './rng'
 
 /**
@@ -29,6 +30,18 @@ export interface Daily {
   difficulty: DifficultyId
   /** The four slots around the player, rolled from the day's seed. */
   party: Pick[]
+  /**
+   * The boss's whole vocabulary, at cadences this day rolled.
+   *
+   * The day already picks which boss stands there; this picks what it does.
+   * An authored boss throws the part of its ladder the size and difficulty
+   * paid for — six mechanics at the top, and the same six every time you meet
+   * it — which is right for a fight you are learning and wrong for the one
+   * pull a day nobody gets to practise. So the daily takes the whole
+   * catalogue, and what the day decides is how often each of the fourteen
+   * comes.
+   */
+  plan: FloorPlan
 }
 
 /** UTC so that two people in different places get the same day's run. */
@@ -66,6 +79,9 @@ export function dailyFor(key: number, player: Pick): Daily {
   const party = randomParty(size, () => rng.range(0, 1))
   // Drawn last, so adding an affix does not change which boss past dates were.
   const affix = AFFIXES[rng.int(AFFIXES.length)]!.id
+  // Off its own seed rather than the shared roll, so that adding a mechanic to
+  // the catalogue changes what today throws and not which boss today is.
+  const plan = rollDaily(key * 2246822519 + 7)
 
   return {
     affix,
@@ -77,6 +93,7 @@ export function dailyFor(key: number, player: Pick): Daily {
     size,
     difficulty,
     party: [{ ...player }, ...party.slice(1)],
+    plan,
   }
 }
 

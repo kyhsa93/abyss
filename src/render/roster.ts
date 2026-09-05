@@ -214,6 +214,16 @@ export function drawRoster(
   clock: number,
   encounter: number,
   mode: RosterMode = { kind: 'raid' },
+  /**
+   * What tonight actually throws, when it is not what the boss would.
+   *
+   * The daily rolls its own kit out of every boss's vocabulary, so the line
+   * below cannot be read off this boss's ladder — it would name six mechanics
+   * the fight is not going to use and leave out the six it is. This is the
+   * last screen before the pull, which makes it the one place a wrong list
+   * costs the player something.
+   */
+  throwing: string[] | null = null,
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
@@ -279,9 +289,9 @@ export function drawRoster(
     ctx.font = font(9)
     fitText(
       ctx,
-      encounterKit(fight, party.length, difficulty)
-        .map((id) => MECHANIC_NAMES[id])
-        .join(' · '),
+      (throwing ?? encounterKit(fight, party.length, difficulty).map((id) => MECHANIC_NAMES[id])).join(
+        ' · ',
+      ),
       L.w / 2,
       line(4),
       L.w - 16,

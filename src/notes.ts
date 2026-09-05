@@ -108,7 +108,18 @@ export function fold(notes: Notes, s: SimState): Notes {
 
   // Shown by this pull, whether or not it landed: the phase reached is what
   // says how much of the fight was actually in front of you.
-  for (const id of kitThrough(fight, s.party.length, s.difficulty, s.phase)) {
+  //
+  // Off the plan when there is one. A rolled fight throws what it bought and
+  // nothing the boss would otherwise have thrown, so reading the ladder here
+  // would file a mechanic as met on a night it never appeared — and the notes
+  // are the one page in the game whose whole job is to be true about what you
+  // have seen. A plan is not phase-gated the way a ladder is: `planned` lays
+  // the same cadences over every phase, so everything bought is in front of
+  // you from the first one.
+  const shown = s.plan
+    ? (Object.keys(s.plan.every) as MechanicId[])
+    : kitThrough(fight, s.party.length, s.difficulty, s.phase)
+  for (const id of shown) {
     met[id] = met[id] ?? 0
   }
 

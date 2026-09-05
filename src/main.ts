@@ -546,7 +546,7 @@ function buildState(): SimState {
   // pull runs on the house seed and carries none, because a fight you are
   // learning has to be the same fight on the ninth attempt as on the first.
   if (playingDaily) {
-    return createState(daily.seed, 0, party, difficulty, encounter, daily.affix)
+    return createState(daily.seed, 0, party, difficulty, encounter, daily.affix, 0, daily.plan)
   }
   if (depth > 0) {
     // Each floor is its own seed, so a descent is not the same fight three
@@ -1028,7 +1028,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, mode)
+  drawRoster(ctx, party, difficulty, clock, encounter, mode, playingDaily ? daily.plan.names : null)
 }
 
 /**

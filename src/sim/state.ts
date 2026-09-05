@@ -3,7 +3,7 @@ import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers }
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
-import { plannedOpening, rollFloor } from './floor'
+import { plannedOpening, rollFloor, type FloorPlan } from './floor'
 import { Rng } from './rng'
 import {
   CLASSES,
@@ -171,6 +171,11 @@ export function createState(
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,
   depth = 0,
+  /**
+   * A fight rolled somewhere else, for the one caller that does not derive it
+   * from a depth. See `rollDaily`.
+   */
+  rolled: FloorPlan | null = null,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
@@ -179,7 +184,7 @@ export function createState(
   const fight = encounterAt(encounter)
   // A floor rolls its own fight out of the same vocabulary the bosses are
   // written in; the ladder gets the boss exactly as it was authored.
-  const plan = depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null
+  const plan = rolled ?? (depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null)
   // The room the fight is fought in, rolled from the same seed as the fight.
   // Off the slots so nobody starts the pull standing inside a rock.
   const rocks = raidTerrain(

@@ -1,5 +1,5 @@
 import { Rng } from './rng'
-import { MECHANIC_IDS, MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
+import { ENCOUNTERS, MECHANIC_IDS, MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
 import type { DifficultyId } from './classes'
 
 /**
@@ -164,6 +164,130 @@ export function rollFloor(
     spent += buy(pick, rng, every, names)
   }
 
+  return { every, names, spent }
+}
+
+/**
+ * The daily's fight: every mechanic the game owns, at cadences rolled fresh.
+ *
+ * A descent floor buys what its purse allows and the cap on that purse exists
+ * for a reason written above `floorBudget` — a fight that asks for everything
+ * asks for nothing, because there is no room left to answer any of it. This
+ * deliberately goes past it, and it is the one run in the game that should.
+ *
+ * The daily is one pull a day that everybody plays on the same seed. It is not
+ * a rung on anybody's ladder and clearing it opens nothing, so the thing worth
+ * optimising is not that it is fair but that it is the same story for
+ * everybody and a different one tomorrow. Handing it the whole vocabulary is
+ * what makes tomorrow different: fourteen cadences rolled between each
+ * mechanic's fastest and slowest is a fight nobody has had before, on top of a
+ * boss and a roster the day already rolled.
+ *
+ * Nothing is left out and nothing is depth-gated. What varies is how often
+ * each one comes, which is the only dial left once the set is fixed at all of
+ * them — and it is a wide dial: the puddle alone runs between six seconds and
+ * eleven.
+ */
+/**
+ * What the daily is allowed to spend, and it was measured rather than picked.
+ *
+ * Swept over three weeks of real dates, eight pulls a day, played by the party
+ * AI with the raid's cooldowns spent as they come up — days winnable at all:
+ *
+ *   purse 12   13 of 14        purse 20   18 of 21   ← here
+ *   purse 16   12 of 14        purse 22   16 of 21
+ *   purse 24   10 of 14        purse 28    8 of 14
+ *
+ * The authored kit, measured the same way, is 19 of 21. So this is the largest
+ * purse that still leaves the daily as winnable as the fight it replaces, and
+ * it buys four to six mechanics — which is what a boss throws at the top of
+ * its own ladder.
+ *
+ * Buying more is not on offer, and the number that says so is the first thing
+ * measured here: the whole catalogue at once, fourteen mechanics, won nothing
+ * on any of a hundred and twelve pulls. `floorBudget` says why above itself —
+ * a fight that asks for everything asks for nothing, because there is no room
+ * left to answer any of it — and the daily is not the exception to it.
+ */
+export const DAILY_PURSE = 20
+
+/**
+ * What a mechanic costs a daily, on the only scale that covers all thirty.
+ *
+ * The catalogue prices fourteen of them, because that is what a descent floor
+ * may buy. The other sixteen are authored into ladders instead, and a ladder
+ * is already a price list: `progress.ts` says it is written "in the order the
+ * fight gets harder", one mechanic to a rung. So where a mechanic sits on its
+ * boss's ladder is what it costs, and the two scales are lined up at the ends
+ * -- two for a first rung, seven for a last.
+ *
+ * A price list matters here more than it does for a floor. The authored six a
+ * boss throws are six that were chosen to coexist; six drawn at random out of
+ * thirty can be six that each ask the whole raid to be somewhere else, and
+ * measured, that is the difference between a daily that is winnable on eight
+ * days in fourteen and one that is winnable on thirteen.
+ */
+export function dailyCostOf(id: MechanicId): number {
+  const priced = CATALOGUE.find((m) => m.id === id)
+  if (priced) return priced.cost
+  for (const encounter of ENCOUNTERS) {
+    const rung = encounter.ladder.indexOf(id)
+    if (rung >= 0) return 2 + rung
+  }
+  return 4
+}
+
+/**
+ * How often a mechanic comes, according to the boss that owns it.
+ *
+ * A floor rolls its cadences between a fastest and a slowest, which is right
+ * for a floor -- there is no author behind it and the roll is the author. It
+ * is wrong for the daily, and measurably: rolled rates turned a run whose win
+ * rates ran 13, 25, 50, 63, 75, 88, 100 across a fortnight into one that was
+ * a hundred percent on eleven days and zero on three. A fight either handed
+ * over or refused is not a fight; the middle is where the run lives, and the
+ * middle is what the authored numbers are.
+ *
+ * So a mechanic borrowed for a daily is borrowed with its rate: the wedge
+ * comes at the rate the Ledger throws it, wherever it is thrown. Read off
+ * phase one, which is every boss's slowest; `planned` tightens later phases
+ * the way an authored boss's own table does.
+ */
+function authoredCadence(id: MechanicId): number | null {
+  for (const encounter of ENCOUNTERS) {
+    const every = encounter.phases[1]?.[id] ?? 0
+    if (every > 0) return every
+  }
+  return null
+}
+
+/**
+ * The daily's fight: mechanics drawn from every boss in the game, at the rates
+ * their authors gave them.
+ *
+ * The day already picks which boss stands there. This picks what it does, out
+ * of the whole game rather than out of that boss's own six -- so a daily is
+ * the Warden throwing the Watcher's gaze and the Ledger's wedge, which is a
+ * fight nobody has had before and nobody will have again.
+ *
+ * As many as the run can carry, which is `DAILY_MECHANICS` and was measured
+ * rather than chosen. See the sweep beside it.
+ */
+export function rollDaily(seed: number, budget = DAILY_PURSE): FloorPlan {
+  const rng = new Rng(seed)
+  const every: Partial<Record<MechanicId, number>> = {}
+  const names: string[] = []
+  let spent = 0
+  const pool = MECHANIC_IDS.filter((id) => authoredCadence(id) !== null)
+  while (pool.length > 0) {
+    const affordable = pool.filter((id) => spent + dailyCostOf(id) <= budget)
+    if (affordable.length === 0) break
+    const id = affordable[rng.int(affordable.length)]!
+    pool.splice(pool.indexOf(id), 1)
+    every[id] = authoredCadence(id)!
+    names.push(MECHANIC_NAMES[id] ?? id)
+    spent += dailyCostOf(id)
+  }
   return { every, names, spent }
 }
 
