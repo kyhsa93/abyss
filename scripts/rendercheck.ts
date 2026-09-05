@@ -152,6 +152,7 @@ import {
   encounterAt,
   encounterIndex,
   encounterKit,
+  withRequired,
   MECHANIC_SCALES,
   MECHANIC_NAMES,
   hasNext,
@@ -4238,6 +4239,34 @@ for (const [label, w, h] of [
       switching.ground.map((g) => g.kind).join(','),
     )
     thrown.set('switching', ids)
+  }
+
+  // The blight and everything made of it.
+  //
+  // Driven together because they only exist together: `REQUIRES` pulls the
+  // air and the spore in behind the breath out, so asking a floor for the last
+  // of them is asking for all four. The breath out is also the one mechanic in
+  // the game that can throw nothing at all — it returns what was taken, and a
+  // fight where the boss has taken nothing has nothing to return — so the
+  // cadences here are set so a breath in lands well before it.
+  {
+    const air = floorWith(
+      { pungent: 26, inhale: 8, vilegas: 14, bloat: 6 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (air.outcome === 'ongoing' && air.time < 150) {
+      step(air, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of air.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can foul its own air', ids.has('boss_blight'), 'it drew nothing')
+    expect('and drink it', ids.has('boss_inhale'), 'it drew nothing')
+    expect('and give it back', ids.has('boss_pungent'), 'it drew nothing')
+    thrown.set('air', ids)
   }
 
   // And the three whose answer is a moment. On no ladder either, and collected
@@ -8582,7 +8611,14 @@ function floorWith(
 ): SimState {
   const s = pulled(0x51ed, 8, party, 'normal', 0, null, depth)
   s.countdown = 0
-  s.plan = { every, names: Object.keys(every), spent: 0 }
+  // Through the same rule the rolls use, so a floor asked for the breath out
+  // is a floor that also has air to breathe. Without it a test can ask for
+  // half a mechanic and get it.
+  const filled: Partial<Record<MechanicId, number>> = { ...every }
+  for (const id of withRequired(Object.keys(every) as MechanicId[])) {
+    if (filled[id] === undefined) filled[id] = 8
+  }
+  s.plan = { every: filled, names: Object.keys(filled), spent: 0 }
 
   // The opening timers were seeded from whatever the floor actually rolled,
   // so they have to be re-seeded from the plan being imposed. Without this a
@@ -8619,6 +8655,13 @@ function floorWith(
   s.next.toll = every.toll === undefined ? 0 : every.toll * 0.45
   s.next.grasp = every.grasp === undefined ? 0 : every.grasp * 0.45
   s.next.refuge = every.refuge === undefined ? 0 : every.refuge * 0.45
+  // The blight's own, which are not in the catalogue either.
+  s.next.blight = filled.blight === undefined ? 0 : filled.blight * 0.45
+  s.next.inhale = filled.inhale === undefined ? 0 : filled.inhale * 0.45
+  s.next.pungent = filled.pungent === undefined ? 0 : filled.pungent * 0.9
+  s.next.spore = filled.spore === undefined ? 0 : filled.spore * 0.45
+  s.next.vilegas = filled.vilegas === undefined ? 0 : filled.vilegas * 0.45
+  s.next.bloat = filled.bloat === undefined ? 0 : filled.bloat * 0.45
   return s
 }
 
@@ -10527,13 +10570,26 @@ for (const [label, w, h] of [
     LADDER.every((_, i) => rungBuys(i).length <= 1),
     'a rung sold two ideas at once',
   )
+  //
+  // "At most one", where this used to say "exactly one when the kit grows".
+  //
+  // The rule was written when every boss owned six mechanics, because six is
+  // how many rungs there are — three sizes by two difficulties — and that made
+  // the count of a boss's ideas a fact about the progression rather than about
+  // the boss. A fight that owns something which cannot be a rung now says so
+  // in `always`, and one of them owns five ladder entries and its room. Its
+  // last setting sells no new mechanic, and what a raid buys there is the size
+  // and the difficulty, which were always most of what a rung was.
+  //
+  // What must not happen is still checked above: no rung ever sells two ideas
+  // at once, because a rung is how this game introduces things one at a time.
   const grows = inside.every((i) => {
     const here = tierAt(i)
     const before = tierAt(i - 1)
     const wider = kitCount(here.size, here.difficulty) > kitCount(before.size, before.difficulty)
-    return (rungBuys(i).length === 1) === wider
+    return rungBuys(i).length === 0 || wider
   })
-  expect('and buys one exactly when the kit grows', grows, 'a rung paid the wrong thing')
+  expect('and never buys one where the kit does not grow', grows, 'a rung paid the wrong thing')
   // And the first rung of a boss buys a fight rather than a mechanic, so the
   // line that names one has to have something else to say.
   const firsts = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS === 0)

@@ -17,6 +17,8 @@ import {
   SCHISM_TELEGRAPH,
   SHALLOWS_TELEGRAPH,
   SOAK_TELEGRAPH,
+  BLOAT_SWAP_AT,
+  REEK_REACH,
   SPREAD_RADIUS,
   VIGIL_HELD,
   TOLL_TELEGRAPH,
@@ -1201,6 +1203,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     if (getAura(other, 'spread') && dist(actor.pos, other.pos) <= SPREAD_RADIUS + DANGER_MARGIN) {
       consider(`spread:${other.id}`, 55)
     }
+    // Standing next to a body that reeks, which costs the same and is quieter
+    // about it. Below the spread's urgency: that one is one hit at a known
+    // instant, and this is a tick you will pay a few of while you walk.
+    if (
+      getAura(actor, 'reek') === undefined &&
+      getAura(other, 'reek') &&
+      dist(actor.pos, other.pos) <= REEK_REACH + DANGER_MARGIN
+    ) {
+      consider(`reek:${other.id}`, 48)
+    }
   }
 
   return bestKey
@@ -1510,6 +1522,22 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     const otherCarries = getAura(other, 'spread') !== undefined
     if (!carrying && !otherCarries) continue
     if (dist(spot, other.pos) < SPREAD_RADIUS + DANGER_MARGIN) return false
+  }
+
+  // The reek, which is the spread's slower cousin and wants the same answer.
+  //
+  // It was written without one, and a mechanic with no answer is not a hard
+  // mechanic, it is a bill: a raid gathered at twenty-five had three marks in
+  // it and every one of them reached most of the room, so the fight read 0%
+  // won at that size and 100% at ten. What is different from the spread is
+  // only who has to move -- the mark ticks on its carrier either way, so the
+  // carrier gains nothing by walking and everybody else gains everything.
+  if (getAura(actor, 'reek') === undefined) {
+    for (const other of livingParty(s)) {
+      if (other.id === actor.id) continue
+      if (getAura(other, 'reek') === undefined) continue
+      if (dist(spot, other.pos) < REEK_REACH + DANGER_MARGIN) return false
+    }
   }
   return true
 }
@@ -2630,13 +2658,32 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   // taking nearly double by the top of it, and the answer is the other tank,
   // not the healer. Only downward — taunting a fresher stack onto a heavier
   // one is the trade backwards.
-  const mine = getAura(actor, 'sunder')?.stacks ?? 0
-  if (kit.taunt && mine < SWAP_AT) {
+  //
+  // Two things stack on a tank now and the swelling is the sharper of them.
+  // The armour break is a trade -- the holder takes nearly double and the
+  // other tank is a better answer than the healer -- and missing it costs
+  // health. The swelling is not a trade: the tenth kills whoever is holding it
+  // and everybody standing near them, so nine is not a preference, it is the
+  // last beat the swap can happen on. Both are read here because a tank
+  // deciding to take the boss should be looking at everything already on the
+  // body it is taking it from.
+  const load = (a: Actor | null): { stacks: number; at: number; of: 'sunder' | 'swelling' } => {
+    const sunder = a ? (getAura(a, 'sunder')?.stacks ?? 0) : 0
+    const swelling = a ? (getAura(a, 'swelling')?.stacks ?? 0) : 0
+    // Whichever is nearer its own line, not whichever number is bigger: five
+    // armour breaks and five swellings are not the same amount of trouble.
+    return swelling / BLOAT_SWAP_AT >= sunder / SWAP_AT
+      ? { stacks: swelling, at: BLOAT_SWAP_AT, of: 'swelling' }
+      : { stacks: sunder, at: SWAP_AT, of: 'sunder' }
+  }
+  const mineNow = load(actor)
+  if (kit.taunt && mineNow.stacks < mineNow.at) {
     const holder = topThreatTarget(s)
-    const theirs = holder ? (getAura(holder, 'sunder')?.stacks ?? 0) : 0
-    if (holder && holder.id !== actor.id && holder.role === 'tank' && theirs >= SWAP_AT && theirs > mine) {
+    const theirs = load(holder)
+    const mine = getAura(actor, theirs.of)?.stacks ?? 0
+    if (holder && holder.id !== actor.id && holder.role === 'tank' && theirs.stacks >= theirs.at && theirs.stacks > mine) {
       if (!rng.chance(ai.mistakeChance) && tryCast(s, actor, kit.taunt, b.id, rng, moving)) {
-        say(s, actor, `Swapping — you are at ${theirs}`)
+        say(s, actor, `Swapping — you are at ${theirs.stacks}`)
         return
       }
     }

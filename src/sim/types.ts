@@ -65,6 +65,23 @@ export type AuraId =
    * spike, so freeing them is a fact about the field rather than a timer.
    */
   | 'spiked'
+  /** boss: how much of the room's air it has taken, and how hard it now hits. */
+  | 'gorged'
+  /** Marked with a spore, which bursts on whoever came to stand with them. */
+  | 'spore'
+  /**
+   * Protected against the breath out, by having stood in a spore when it went.
+   *
+   * The only aura in this game that is bought before it is needed. Everything
+   * else the fight applies is a problem to solve now; this is a problem solved
+   * forty seconds early, which is why the mechanic that grants it and the one
+   * it answers are linked rather than sold apart.
+   */
+  | 'inoculated'
+  /** A rot that spreads to whoever is standing near the one wearing it. */
+  | 'reek'
+  /** Stacking on whoever holds the boss, and lethal at ten. */
+  | 'swelling'
   | 'spoil' // boss: you struck the thing that was not to be broken
   | 'refuge' // boss: which of the stones is yours, and there is one each
   | 'enrage' // boss damage amplifier

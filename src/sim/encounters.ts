@@ -37,6 +37,12 @@ export type MechanicId =
   | 'shockwave'
   | 'coldflame'
   | 'spike'
+  | 'blight'
+  | 'inhale'
+  | 'pungent'
+  | 'spore'
+  | 'vilegas'
+  | 'bloat'
   | 'adds'
   | 'rot'
   | 'sunder'
@@ -99,6 +105,12 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   shockwave: false, // a ring of a fixed radius
   coldflame: false, // a line of a fixed length, wherever it happens to point
   spike: true, // one spike per so many bodies, so nobody is safe by headcount
+  blight: false, // the whole room, so the room is the same room at any size
+  inhale: false, // the boss, and there is one of it
+  pungent: false, // everybody at once, which is everybody at any size
+  spore: true, // one spore per so many bodies, so a bigger raid gathers more often
+  vilegas: true, // one mark per so many bodies, and it spreads to whoever is near
+  bloat: false, // whoever is holding it, and one body holds it
   hand: false, // a wedge of a fixed angle, whoever it happens to turn onto
   echo: true, // one mark per so many bodies
   burden: true, // one weight per so many bodies, and a bigger raid has more hands
@@ -203,6 +215,12 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   hand: 'the hand',
   coldflame: 'the cold line',
   spike: 'the spikes',
+  blight: 'the blight',
+  inhale: 'the breath in',
+  pungent: 'the breath out',
+  spore: 'the spore',
+  vilegas: 'the reek',
+  bloat: 'the swelling',
   echo: 'the echo',
   burden: 'the burden',
   yoke: 'the yoke',
@@ -427,6 +445,63 @@ export interface PhaseTiming {
    * this, and the seconds spent turning are the mechanic.
    */
   spike: number
+  /**
+   * Seconds between one thickening of the blight and the next.
+   *
+   * The room itself, which is the only mechanic here that is not an event.
+   * Everything else on this table arrives, is answered, and is over; this is
+   * the air, and what it asks is that the fight be finished before the air
+   * is. It is also what the two below it are made of — the boss drinks it and
+   * then gives it back — so a fight that throws either of those without this
+   * is a fight throwing something out of nothing. See `REQUIRES`.
+   */
+  blight: number
+  /**
+   * Seconds between one breath in and the next.
+   *
+   * The boss takes the room's air into itself. The raid stops choking and
+   * starts being hit harder, which is the trade and the whole of it: every
+   * breath is the fight getting easier to stand in and harder to survive, and
+   * nobody is asked to do anything about it. What it is for is the breath out.
+   */
+  inhale: number
+  /**
+   * Seconds between one breath out and the next.
+   *
+   * Everything it took, returned at once. Lethal at three breaths to a raid
+   * that has not been inoculated, which is what makes the spore a mechanic
+   * rather than a chore — and why it will not be thrown without one.
+   */
+  pungent: number
+  /**
+   * Seconds between one spore and the next.
+   *
+   * A body is marked and the rest have to come and stand with it. The only
+   * demand in this game that asks the raid to gather for something other than
+   * a circle on the floor, and unlike the circle what it hands back is not
+   * survival now but survival later.
+   */
+  spore: number
+  /**
+   * Seconds between one reek and the next.
+   *
+   * A rot that does not stay where it was put: it spreads to whoever is
+   * standing near the body wearing it. The answer is distance, which makes it
+   * the exact opposite of the spore — and a fight that throws both is a fight
+   * asking the raid to come together and stay apart on two different clocks.
+   */
+  vilegas: number
+  /**
+   * Seconds between one swelling and the next.
+   *
+   * Stacks on whoever is holding the boss, and every stack makes them hit
+   * harder until the tenth kills them and everybody near. The answer is a
+   * second tank taking it at nine, which is the only mechanic here whose
+   * answer is a job rather than a place — and the reason a fight that has it
+   * cannot be sold to a raid that brings one tank. See the armour break for
+   * the same rule already written down.
+   */
+  bloat: number
   adds: number
   /**
    * Physical damage to everyone standing in reach.
@@ -635,6 +710,24 @@ export interface Encounter {
    * to change the shape of the fight rather than its difficulty.
    */
   herald: HeraldPlan | null
+  /**
+   * Mechanics this fight throws at every size, on top of what the rungs buy.
+   *
+   * The ladder is six long because a rung is a size-and-difficulty setting and
+   * there are exactly six of those — three sizes by two difficulties — so six
+   * was the most any boss could own. That was a limit on the shape of the
+   * progression leaking into a limit on how much a fight is allowed to be.
+   *
+   * What belongs here is what is not a rung: a thing that is true of the fight
+   * from the first pull rather than something a bigger or harder raid buys.
+   * The blight is the worked example — it is the room, not an event, and a
+   * five-man meeting a different room from a twenty-five would be two fights
+   * sharing a name.
+   *
+   * Everything a rung buys still has to be one mechanic, and the checks still
+   * say so. This is beside that rule rather than a hole in it.
+   */
+  always?: MechanicId[]
   /** Health fractions the phases turn on. */
   phaseTwoHp: number
   phaseThreeHp: number
@@ -707,6 +800,12 @@ export interface Encounter {
     brand: number
     coldflame: number
     spike: number
+    blight: number
+    inhale: number
+    pungent: number
+    spore: number
+    vilegas: number
+    bloat: number
     spire: number
     verdict: number
     crush: number
@@ -758,6 +857,12 @@ export interface Encounter {
     shockwave: string
     coldflame: string
     spike: string
+    blight: string
+    inhale: string
+    pungent: string
+    spore: string
+    vilegas: string
+    bloat: string
     /** Empty where the boss does not use the mechanic. */
     rot: string
     sunder: string
@@ -928,6 +1033,12 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: '',
       coldflame: '',
       spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       rot: 'Rot on me — need a heal',
       sunder: 'Your guard breaks',
       brand: 'It is burning through me — clear ground',
@@ -1024,6 +1135,12 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: '',
       coldflame: '',
       spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1132,6 +1249,12 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: 'The undertow',
       coldflame: 'Cold on the floor — off the line',
       spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1216,6 +1339,12 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: '',
       coldflame: '',
       spike: 'Bone through the floor — break it, get them out',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1292,6 +1421,12 @@ export const ENCOUNTERS: Encounter[] = [
       shockwave: '',
       coldflame: '',
       spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       rot: '',
       sunder: '',
       brand: '',
@@ -1313,6 +1448,120 @@ export const ENCOUNTERS: Encounter[] = [
       knell: '',
       vessel: '',
       toll: 'It wants one of us on the plate',
+      grasp: '',
+      refuge: '',
+    },
+  },
+  {
+    // The boss that changes the question while you are answering it.
+    //
+    // Every other fight here throws things at a raid standing in a room. This
+    // one is the room: the air is a bill nobody can dodge, the boss drinks the
+    // air, and every mouthful it takes makes the room kinder and the thing in
+    // front of you worse. Nothing about that is a demand -- there is no step,
+    // no target call, nothing to refuse -- and it is the spine of the fight,
+    // because what it is building toward is one moment that kills a raid which
+    // was not preparing for it forty seconds ago.
+    //
+    // The other three are the preparation and its price. A spore asks the raid
+    // to gather, and gathering is the one thing the reek punishes; the
+    // swelling asks the tanks to hand the boss back and forth on a public
+    // count. So the raid is being asked to come together, stay apart and swap
+    // over, on three clocks that do not line up, while the air gets thinner
+    // and the swings get harder.
+    //
+    // No interlude. The fight already has a beat that changes its shape and it
+    // is the breath: a summoned body to kill in the middle of that would be a
+    // second answer to a question the fight is not asking.
+    herald: null,
+    id: 'host',
+    name: 'The Reeking Host',
+    short: 'Host',
+    demand: 'share the air, and know who is holding it',
+    // Long, and the reason is the spine rather than the difficulty. This
+    // fight's shape is a count that builds and then empties, and at forty
+    // thousand a five-man pull was over in sixty-nine seconds -- before the
+    // first breath out had ever landed. A boss whose central mechanic does not
+    // reach the smallest raid that meets it is a boss with a different fight
+    // at every size.
+    hp: 66000,
+    enrage: 240,
+    phaseTwoHp: 0.68,
+    phaseThreeHp: 0.35,
+    swingDamage: 560,
+    slamDamage: 1200,
+    // Low, because the air is already a raid-wide bill running the whole
+    // fight. A tide on top of the blight is the same mechanic twice and the
+    // healers cannot tell them apart.
+    raidDamage: 70,
+    mechanicDamage: 0.62,
+    // Weighted toward the small rosters, which is the opposite of every other
+    // boss here and is a fact about this one's kit. Three of its demands are
+    // paid per body — the mark, the spore, the swelling — so a bigger raid
+    // brings more hands to each of them, while the air and the breath out are
+    // the same bill whoever turned up. Left flat it read 100% at five and ten
+    // on a first pull, which is a fight with nothing to learn.
+    sizeMechanic: { 5: 1.6, 10: 1.45, 25: 1.0 },
+    accent: '#84cc16',
+    names: { slam: 'GORGE', breath: '' },
+    // The air is the first rung rather than something outside the ladder, and
+    // that is a compromise worth writing down.
+    //
+    // It is not really a rung: it is the room, and a five-man breathing
+    // cleaner air than a twenty-five is a different fight wearing the same
+    // name. `always` exists for exactly that and this fight was built on it —
+    // but a ladder one short makes the last two settings identical, and
+    // measured, twenty-five normal and twenty-five heroic came out the same
+    // fight to the percentage point. Six rungs is three sizes by two
+    // difficulties; a boss with five things to sell has nothing to sell on the
+    // sixth.
+    //
+    // So the air is sold on the first rung, where the smallest raid buys it
+    // anyway, and the fight every raid meets is the same fight. Getting a
+    // seventh mechanic onto a boss needs the rung count itself to stop being
+    // the same number for everybody, which is a change to how the whole
+    // progression is indexed rather than a change to this fight.
+    ladder: ['blight', 'bloat', 'vilegas', 'spore', 'inhale', 'pungent'],
+    phases: {
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 11, vilegas: 17, spore: 24, inhale: 33, pungent: 68 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 10, vilegas: 15, spore: 21, inhale: 29, pungent: 60 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 9, vilegas: 13, spore: 18, inhale: 25, pungent: 52 }) },
+    },
+    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 10, vilegas: 16, spore: 20, inhale: 30, pungent: 64 }) },
+    lines: {
+      phaseTwo: 'The air thickens',
+      phaseThree: 'BREATHE IT ALL',
+      adds: '',
+      shockwave: '',
+      coldflame: '',
+      spike: '',
+      blight: 'The room is going bad',
+      inhale: 'It is drinking the air',
+      pungent: 'IT IS GIVING IT BACK — GET COVERED',
+      spore: 'Spore — get to them, all of you',
+      vilegas: 'That reek spreads — off them',
+      bloat: 'Nine on the tank — swap now',
+      rot: '',
+      sunder: '',
+      brand: '',
+      verdict: '',
+      crush: '',
+      fault: '',
+      shallows: '',
+      spire: '',
+      soak: '',
+      hunt: '',
+      hand: '',
+      echo: '',
+      burden: '',
+      yoke: '',
+      schism: '',
+      vigil: '',
+      chant: '',
+      gaze: '',
+      knell: '',
+      vessel: '',
+      toll: '',
       grasp: '',
       refuge: '',
     },
@@ -1355,13 +1604,58 @@ export function kitCount(size: number, difficulty: DifficultyId): number {
   return rungs
 }
 
+/**
+ * Mechanics that are half a mechanic without another one.
+ *
+ * Most of this game's vocabulary is independent: a pool and a cone know
+ * nothing about each other, and a fight that buys one and not the other is
+ * still a fight. Three of the blight's are not like that. The breath in is the
+ * boss drinking the room's air, so without the air it drinks nothing; the
+ * breath out is everything it drank, so without the breath in it returns
+ * nothing; and the breath out is lethal to a raid that was never inoculated,
+ * so without the spore it is not a mechanic, it is a wipe on a timer.
+ *
+ * Written here rather than left to the ladder's ordering. A ladder can be
+ * arranged so the prerequisite is always bought first -- this one is -- but
+ * two other places pick mechanics without ever seeing a ladder: a descent
+ * floor rolls its own, and the daily draws from the whole game. Either of
+ * those can hand a boss the breath out and nothing to breathe.
+ */
+const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
+  inhale: ['blight'],
+  pungent: ['blight', 'inhale', 'spore'],
+}
+
+/**
+ * A set of mechanics with everything they lean on pulled in beside them.
+ *
+ * Applied wherever a kit is decided, so there is one answer to "what does this
+ * fight throw" rather than one per caller.
+ */
+export function withRequired(kit: readonly MechanicId[]): MechanicId[] {
+  const out = [...kit]
+  // A queue rather than a pass, so a prerequisite that has prerequisites of
+  // its own is pulled in too. Nothing here is more than one deep today, and a
+  // rule that only works while that is true is a rule that breaks silently
+  // the day somebody adds a third breath.
+  for (let i = 0; i < out.length; i++) {
+    for (const need of REQUIRES[out[i]!] ?? []) {
+      if (!out.includes(need)) out.push(need)
+    }
+  }
+  return out
+}
+
 /** Which mechanics this boss throws at this size and difficulty. */
 export function encounterKit(
   encounter: Encounter,
   size: number,
   difficulty: DifficultyId,
 ): MechanicId[] {
-  return encounter.ladder.slice(0, kitCount(size, difficulty))
+  return withRequired([
+    ...(encounter.always ?? []),
+    ...encounter.ladder.slice(0, kitCount(size, difficulty)),
+  ])
 }
 
 /**

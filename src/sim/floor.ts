@@ -1,5 +1,12 @@
 import { Rng } from './rng'
-import { ENCOUNTERS, MECHANIC_IDS, MECHANIC_NAMES, type MechanicId, type PhaseTiming } from './encounters'
+import {
+  ENCOUNTERS,
+  MECHANIC_IDS,
+  MECHANIC_NAMES,
+  withRequired,
+  type MechanicId,
+  type PhaseTiming,
+} from './encounters'
 import type { DifficultyId } from './classes'
 
 /**
@@ -162,6 +169,7 @@ export function rollFloor(
     spent += buy(pick, rng, every, names)
   }
 
+  fillRequired(every, names)
   return { every, names, spent }
 }
 
@@ -286,7 +294,32 @@ export function rollDaily(seed: number, budget = DAILY_PURSE): FloorPlan {
     names.push(MECHANIC_NAMES[id] ?? id)
     spent += dailyCostOf(id)
   }
+  fillRequired(every, names)
   return { every, names, spent }
+}
+
+/**
+ * Whatever the roll leaned on, added to it.
+ *
+ * Both rolls need this and neither can see a ladder: a fight that bought the
+ * breath out and not the air it is made of would throw a mechanic with nothing
+ * behind it, and neither the purse nor the catalogue knows that.
+ *
+ * Free, deliberately. What is pulled in here was not chosen and is not part of
+ * what the roll was allowed to spend — it is the rest of a thing already
+ * bought, and charging for it would mean a floor could afford two thirds of a
+ * mechanic.
+ */
+function fillRequired(
+  every: Partial<Record<MechanicId, number>>,
+  names: string[],
+): void {
+  for (const id of withRequired(Object.keys(every) as MechanicId[])) {
+    if (every[id] !== undefined) continue
+    // Its author's rate if a boss has one, and the catalogue's slowest if not.
+    every[id] = authoredCadence(id) ?? CATALOGUE.find((m) => m.id === id)?.slow ?? 20
+    names.push(MECHANIC_NAMES[id] ?? id)
+  }
 }
 
 function buy(

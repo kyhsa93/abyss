@@ -120,6 +120,32 @@ export const AURA_DURATION: Record<AuraId, number> = {
    * no answer, which is the opposite of what this asks.
    */
   spiked: 14,
+  /**
+   * What the boss has taken, and it does not fade.
+   *
+   * The breath out is what ends it, so a count that expired on its own would
+   * be the mechanic solving itself while the raid watched.
+   */
+  gorged: 9999,
+  /**
+   * Long enough to walk to, short enough that walking late is not walking.
+   *
+   * The spore is the one demand here answered by arriving rather than by
+   * leaving, and the number is what separates a raid that gathers from a raid
+   * that happened to be standing together.
+   */
+  spore: 7,
+  /**
+   * Long enough to still be there when the breath out comes.
+   *
+   * Sized off the breath's cadence rather than off taste: a protection that
+   * expires before the thing it protects against is a mechanic that asks the
+   * raid to do the work and then takes it away.
+   */
+  inoculated: 46,
+  reek: 9,
+  /** It is cleared by the swap, not by the clock. */
+  swelling: 9999,
   // Long enough to be several beats rather than one, which is the mechanic:
   // a single piece of floor going out from under somebody is a puddle, and
   // what this asks is that they keep leaving.
@@ -242,12 +268,25 @@ export function clearAura(actor: Actor, id: AuraId): void {
 }
 
 /** Per-second effect of each periodic aura. */
+/**
+ * Which mechanic a ticking aura belongs to.
+ *
+ * Only the fight's own. A rogue's rupture is a rogue's, and naming it here
+ * would file the party's rotation under the boss's page.
+ */
+export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
+  rot: 'rot',
+  spiked: 'spike',
+  reek: 'vilegas',
+}
+
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
   // What being pinned costs while it lasts. Steady rather than sharp: the
   // demand is on everybody else's target list, and a spike that killed its
   // victim before a raid could plausibly turn round would be asking for a
   // reaction nobody has.
   spiked: { damage: 58 },
+  reek: { damage: 62 },
   living_bomb: { damage: 70 },
   serpent_sting: { damage: 60 },
   rupture: { damage: 85 },

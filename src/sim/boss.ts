@@ -5,11 +5,23 @@ import {
   readable,
   ECHO_BEAT,
   CRUSH_TELEGRAPH,
+  BLIGHT_RELIEF,
+  BLIGHT_TICK,
   COLDFLAME_CRAWL,
   COLDFLAME_RADIUS,
   COLDFLAME_REACH,
   COLDFLAME_STEP,
   COLDFLAME_TELEGRAPH,
+  BLOAT_BURST,
+  BLOAT_POWER,
+  BLOAT_BURST_AT,
+  BLOAT_SPLASH,
+  INHALE_HASTE,
+  INHALE_MAX,
+  INHALE_POWER,
+  INOCULATED_SHARE,
+  SPORE_REACH,
+  PUNGENT_PER_BREATH,
   DT,
   CHANT_CAST,
   FAULT_TELEGRAPH,
@@ -410,6 +422,12 @@ export function updateBoss(s: SimState, rng: Rng): void {
 
   scheduleSlam(s, b, target, timing)
   schedulePuddles(s, rng, timing)
+  scheduleBlight(s, b, timing)
+  scheduleInhale(s, b, timing)
+  schedulePungent(s, b, timing)
+  scheduleSpore(s, b, rng, timing)
+  scheduleVileGas(s, b, rng, timing)
+  scheduleBloat(s, b, timing)
   scheduleColdflame(s, b, rng, timing)
   scheduleSpikes(s, b, rng, timing)
   scheduleRaidHit(s, timing)
@@ -563,7 +581,19 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
   if (b.swingTimer > 0 || !target || b.castId) return
 
   if (dist(b.pos, target.pos) <= MELEE_RANGE + target.radius) {
-    const damage = hit(s, fight(s).swingDamage)
+    // Everything the boss has drunk, and everything the body in front of it is
+    // swollen with, lands here. Both are trades the fight makes without asking
+    // anybody's permission: the breath in buys the raid relief and pays for it
+    // out of the tank, and the swelling buys the tank damage and pays for it
+    // with the tank. Neither would be a mechanic if it only showed up as a
+    // number on a screen -- it has to arrive as the tank's health bar moving
+    // faster than the healers expected.
+    const breaths = getAura(b, 'gorged')?.stacks ?? 0
+    const swollen = getAura(target, 'swelling')?.stacks ?? 0
+    const damage = hit(
+      s,
+      fight(s).swingDamage * (1 + breaths * INHALE_POWER) * (1 + swollen * BLOAT_POWER),
+    )
     applyDamage(s, target, damage, 'physical', { sourceId: b.id })
     // The party's weapons have always drawn their swing and their landing.
     // The boss's did neither, which is most of why a fight it was winning
@@ -571,7 +601,8 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
     const facing = Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x)
     pushEffect(s, 'swing', b.pos, { angle: facing })
     pushEffect(s, 'impact', target.pos, { power: damage, angle: facing })
-    b.swingTimer = timing.swing
+    // And faster for every breath, which is the other half of the trade.
+    b.swingTimer = timing.swing / (1 + (getAura(b, 'gorged')?.stacks ?? 0) * INHALE_HASTE)
   } else {
     b.swingTimer = 0.2
   }
@@ -635,6 +666,204 @@ function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
  * the same thing. What a person answers here is one patch about to reach
  * them, and a line is only what a row of those looks like from above.
  */
+/**
+ * The room, the boss drinking it, and the boss giving it back.
+ *
+ * One idea in three mechanics, and they are scheduled together because they
+ * only mean anything together. The blight is the air: a steady bill on
+ * everybody that the raid cannot dodge and is not meant to, which makes it the
+ * only thing on this boss that is a clock rather than an event. Each breath in
+ * takes a share of that bill off the raid and puts it on whoever the boss is
+ * hitting. The breath out hands back everything taken, to everybody, and is
+ * lethal to a raid that never stood in a spore.
+ */
+function scheduleBlight(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.blight <= 0) return
+  s.next.blight -= DT
+  if (s.next.blight > 0) return
+  s.next.blight = timing.blight
+
+  // Thinner for every breath the boss has taken. The raid feels the fight get
+  // easier while the thing in front of it gets worse, which is the trade the
+  // whole boss is built on -- and it has to be felt on the healers rather than
+  // announced, or it is a line of chat instead of a mechanic.
+  const breaths = getAura(b, 'gorged')?.stacks ?? 0
+  const share = Math.max(0, 1 - breaths * BLIGHT_RELIEF)
+  if (share <= 0) return
+
+  for (const a of livingParty(s)) {
+    const bite = mechanic(s, BLIGHT_TICK * share)
+    applyDamage(s, a, bite, 'magic', { sourceId: b.id, mechanic: 'blight' })
+    // Drawn on every body it touches, which is everybody. Without this the
+    // air was the one mechanic in the game that left no mark at all: a
+    // health bar sliding with nothing on screen saying why, and a check that
+    // asks whether a boss throws what it sells could not see it either.
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_blight', power: bite })
+  }
+  s.sounds.push('raid')
+}
+
+function scheduleInhale(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.inhale <= 0) return
+  s.next.inhale -= DT
+  if (s.next.inhale > 0) return
+  s.next.inhale = timing.inhale
+
+  // Full is full. See `INHALE_MAX`.
+  if ((getAura(b, 'gorged')?.stacks ?? 0) >= INHALE_MAX) return
+  stackAura(b, 'gorged', b.id)
+  say(s, b, lineFor(fight(s), s.plan !== null, 'inhale'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_inhale' })
+}
+
+function schedulePungent(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.pungent <= 0) return
+  s.next.pungent -= DT
+  if (s.next.pungent > 0) return
+  s.next.pungent = timing.pungent
+
+  const breaths = getAura(b, 'gorged')?.stacks ?? 0
+  // Nothing taken, nothing to give back. Not a wasted cast: it is the raid
+  // having outrun the mechanic, which is a thing the fight should let happen.
+  if (breaths <= 0) return
+
+  say(s, b, lineFor(fight(s), s.plan !== null, 'pungent'))
+  s.sounds.push('raid')
+  const full = mechanic(s, PUNGENT_PER_BREATH * breaths)
+  for (const a of livingParty(s)) {
+    // What standing in somebody's spore was for, forty seconds ago.
+    const covered = getAura(a, 'inoculated') !== undefined
+    applyDamage(s, a, covered ? full * INOCULATED_SHARE : full, 'magic', {
+      sourceId: b.id,
+      mechanic: 'pungent',
+    })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_pungent', power: full })
+  }
+  // Emptied. The count starts again, which is what makes the breaths in
+  // between a thing to count rather than a thing that happened once.
+  b.auras = b.auras.filter((au) => au.id !== 'gorged')
+}
+
+/**
+ * A spore on somebody, and the raid coming to stand in it.
+ *
+ * The only demand in this game answered by arriving. Everything else the fight
+ * puts on a person is answered by that person leaving, or by everybody else
+ * leaving them alone; this one is answered by walking toward the marked body
+ * and being there when it goes.
+ *
+ * What it hands back is not survival now. It is survival forty seconds from
+ * now, against a mechanic that has not happened yet -- which is why the two of
+ * them are linked in `REQUIRES` and why a fight is not allowed to sell the
+ * breath out without this.
+ */
+function scheduleSpore(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.spore <= 0) return
+  s.next.spore -= DT
+  if (s.next.spore > 0) return
+  s.next.spore = timing.spore
+
+  const free = livingParty(s).filter((a) => !getAura(a, 'spore'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), s.plan !== null, 'spore'))
+  s.sounds.push('telegraph')
+  const count = Math.max(1, Math.round(s.party.length / 9))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const carrier = free.splice(rng.int(free.length), 1)[0]!
+    addAura(carrier, 'spore', b.id)
+    pushEffect(s, 'cast', carrier.pos, { abilityId: 'boss_spore' })
+  }
+}
+
+/**
+ * A spore going, and whoever was standing in it being covered.
+ *
+ * Exported because the aura running out is what bursts it, and aura expiry
+ * lives in `sim.ts` beside the others that resolve that way. The carrier is
+ * covered whatever happens -- they could hardly walk away from themselves --
+ * and everybody else is covered only if they came.
+ */
+export function burstSpore(s: SimState, carrier: Actor): void {
+  addAura(carrier, 'inoculated', BOSS_ID)
+  for (const a of livingParty(s)) {
+    if (a.id === carrier.id) continue
+    if (dist(a.pos, carrier.pos) > SPORE_REACH) continue
+    addAura(a, 'inoculated', BOSS_ID)
+  }
+  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_spore', radius: SPORE_REACH })
+}
+
+/**
+ * A rot that will not stay on the body it was put on.
+ *
+ * The spore's opposite number and deliberately on the same boss. One asks the
+ * raid to gather and the other punishes it for being gathered, on two clocks
+ * that do not line up -- so the answer is not a formation, it is knowing which
+ * of the two is running right now.
+ */
+function scheduleVileGas(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.vilegas <= 0) return
+  s.next.vilegas -= DT
+  if (s.next.vilegas > 0) return
+  s.next.vilegas = timing.vilegas
+
+  const free = livingParty(s).filter((a) => !getAura(a, 'reek'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), s.plan !== null, 'vilegas'))
+  const count = Math.max(1, Math.round(s.party.length / 9))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const marked = free.splice(rng.int(free.length), 1)[0]!
+    addAura(marked, 'reek', b.id)
+    pushEffect(s, 'cast', marked.pos, { abilityId: 'boss_vilegas' })
+  }
+}
+
+/**
+ * The swelling on whoever is holding the boss.
+ *
+ * Public, stacking, and lethal on the tenth. The answer is the other tank
+ * taking it at nine, which makes this the one mechanic in the game whose
+ * answer is a job rather than a place -- and the reason a fight carrying it
+ * cannot be sold to a raid that brings a single tank. The armour break already
+ * has that rule written down and this one shares it.
+ */
+function scheduleBloat(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.bloat <= 0) return
+  s.next.bloat -= DT
+  if (s.next.bloat > 0) return
+  s.next.bloat = timing.bloat
+
+  const held = topThreatTarget(s)
+  if (!held) return
+  stackAura(held, 'swelling', b.id)
+  const stacks = getAura(held, 'swelling')?.stacks ?? 0
+  // Every stack, not only the tenth. The count is the mechanic and a count
+  // nobody can see climbing is a count nobody swaps on.
+  pushEffect(s, 'cast', held.pos, { abilityId: 'boss_bloat', power: stacks })
+  if (stacks < BLOAT_BURST_AT) {
+    if (stacks === BLOAT_BURST_AT - 1) say(s, b, lineFor(fight(s), s.plan !== null, 'bloat'))
+    return
+  }
+
+  // The tenth. Whoever was holding it goes, and whoever was standing with them
+  // pays for having been there.
+  s.sounds.push('raid')
+  applyDamage(s, held, mechanic(s, BLOAT_BURST), 'magic', { sourceId: b.id, mechanic: 'bloat' })
+  for (const a of livingParty(s)) {
+    if (a.id === held.id) continue
+    if (dist(a.pos, held.pos) > BLOAT_SPLASH) continue
+    applyDamage(s, a, mechanic(s, BLOAT_BURST * 0.4), 'magic', {
+      sourceId: b.id,
+      mechanic: 'bloat',
+    })
+  }
+  pushEffect(s, 'impact', held.pos, { abilityId: 'boss_bloat', radius: BLOAT_SPLASH })
+  held.auras = held.auras.filter((au) => au.id !== 'swelling')
+}
+
 function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.coldflame <= 0) return
   s.next.coldflame -= DT

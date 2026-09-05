@@ -234,6 +234,12 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Bone rather than blood: it is a thing standing out of the floor, and what
   // it asks for is a target call, not a step.
   boss_spike: { colour: '#e7e5e4', style: 'pierce' },
+  boss_blight: { colour: '#3f6212', style: 'crush' },
+  boss_inhale: { colour: '#a3e635', style: 'burst' },
+  boss_pungent: { colour: '#4d7c0f', style: 'burst' },
+  boss_spore: { colour: '#bef264', style: 'burst' },
+  boss_vilegas: { colour: '#166534', style: 'burst' },
+  boss_bloat: { colour: '#a16207', style: 'crush' },
   boss_coldflame: { colour: '#22d3ee', style: 'burst' },
   boss_shockwave: { colour: '#facc15', style: 'pierce' },
   // The floor, in the floor's magenta, sinking in rather than pushing out.

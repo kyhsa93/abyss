@@ -760,3 +760,65 @@ export const COLDFLAME_REACH = 9
 export const COLDFLAME_RADIUS = 44
 export const COLDFLAME_CRAWL = 0.17
 export const COLDFLAME_TELEGRAPH = readable(0.9)
+
+/**
+ * The blight, and the two mechanics made out of it.
+ *
+ * The room fills with something the whole raid is breathing, the boss drinks
+ * it, and then gives it back. Three mechanics that are one idea, which is why
+ * `REQUIRES` will not let a fight throw the later ones without the earlier.
+ *
+ * The numbers are a trade written as a subtraction. Every breath the boss
+ * takes removes a share of what the room is doing to the raid and adds to what
+ * the boss is doing to whoever it is hitting -- so the fight visibly gets
+ * easier to stand in and harder to survive, and nobody is asked to do anything
+ * about it. What it is for is the third one: the breath out returns everything
+ * taken, at once, to everybody.
+ */
+export const BLIGHT_TICK = 19
+export const BLIGHT_RELIEF = 0.3
+/**
+ * How many breaths it can hold.
+ *
+ * Three, and the cap is not decoration. Without it the count only ever comes
+ * down when the boss breathes out — so a fight that bought the breath in and
+ * not the breath out is a boss that gets faster and harder for as long as the
+ * pull lasts, with nothing in the game able to stop it. That is a real
+ * configuration: the ladder sells the fifth rung to a twenty-five man on
+ * normal and the sixth only on heroic, and measured, normal read 8% won
+ * against heroic's 73% — the easier setting being the harder fight, because
+ * the harder one had the release valve.
+ *
+ * `REQUIRES` says the breath out needs the breath in. It cannot say the
+ * reverse: that would make the fifth rung buy the sixth and leave the sixth
+ * buying nothing. So the cap is what makes the pair safe to sell apart.
+ */
+export const INHALE_MAX = 3
+export const INHALE_POWER = 0.22
+export const INHALE_HASTE = 0.12
+export const PUNGENT_PER_BREATH = 470
+/** What standing in a spore when it burst is worth against the breath out. */
+export const INOCULATED_SHARE = 0.35
+/** How close a body has to be to catch a spore, and to catch the reek. */
+export const SPORE_REACH = 150
+export const REEK_REACH = 130
+/**
+ * The swelling, and the stack it becomes lethal on.
+ *
+ * Nine is the answer and ten is the price, which is the whole mechanic: the
+ * count is public, it climbs on a clock, and the raid either swaps in time or
+ * loses the body holding the boss and whoever was standing near it. The one
+ * demand in this game answered by a job rather than by a place.
+ */
+export const BLOAT_BURST_AT = 10
+/**
+ * The stack the other tank takes it on.
+ *
+ * One before the burst, which is what makes the count a decision rather than a
+ * countdown: it is public from the first stack and there is exactly one beat
+ * where the swap is both possible and necessary.
+ */
+export const BLOAT_SWAP_AT = BLOAT_BURST_AT - 1
+export const BLOAT_POWER = 0.09
+export const BLOAT_BURST = 4200
+export const BLOAT_SPLASH = 190

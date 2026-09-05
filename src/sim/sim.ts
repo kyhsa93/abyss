@@ -16,12 +16,14 @@ import {
   updateBoss,
   updateGround,
   breakChant,
+  burstSpore,
   freeSpiked,
   burnBrand,
   passJudgement,
   turnToward,
 } from './boss'
 import {
+  AURA_MECHANIC,
   AURA_TICK,
   addThreat,
   applyDamage,
@@ -50,7 +52,14 @@ import {
   urgencyOf,
   getAura,
 } from './combat'
-import { CRIT_CHANCE, CRIT_MULTIPLIER, DT, MELEE_RANGE, TICK_RATE } from './constants'
+import {
+  CRIT_CHANCE,
+  CRIT_MULTIPLIER,
+  DT,
+  MELEE_RANGE,
+  REEK_REACH,
+  TICK_RATE,
+} from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, clampToArena } from './state'
 import type { Ability } from './abilities'
@@ -129,7 +138,11 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
     a.prevPos.y = a.pos.y
   }
 
-  for (const a of s.actors) updateTimers(s, a)
+  // Who has already breathed the reek this tick. Held for the whole pass
+  // rather than per body, because the point of it is that two clouds over one
+  // person are still one lungful — see the reek inside `updateTimers`.
+  const breathed = new Set<number>()
+  for (const a of s.actors) updateTimers(s, a, breathed)
 
   if (input.call) answerCall(s, input.call, rng)
 
@@ -272,7 +285,7 @@ function nearestHostile(
   return best
 }
 
-function updateTimers(s: SimState, a: Actor): void {
+function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
   if (!a.alive) return
 
   a.gcd = Math.max(0, a.gcd - DT)
@@ -309,7 +322,42 @@ function updateTimers(s: SimState, a: Actor): void {
           aura.id === 'rot'
             ? rotBite(aura, tick.damage) * affixRot(s.affix) * fightScale(s)
             : tick.damage
-        applyDamage(s, a, bite, 'none', { sourceId: aura.sourceId, silent: true })
+        // Named where the fight is what put it there, so the page and every
+        // probe that reads the per-mechanic split can see it. A dot the boss
+        // applied is
+        // as much a mechanic hit as a pool stood in, and leaving it anonymous is
+        // why a sweep of "what actually lands on people" reported zero for three
+        // mechanics that land every pull.
+        const from = AURA_MECHANIC[aura.id]
+        applyDamage(s, a, bite, 'none', {
+          sourceId: aura.sourceId,
+          silent: true,
+          ...(from ? { mechanic: from } : {}),
+        })
+        // The reek does not stay where it was put. Everybody standing near the
+        // marked body pays the same tick, which is what makes the answer
+        // distance rather than a dispel — and what puts it at odds with the
+        // spore on the same boss, which asks the raid to come together.
+        //
+        // Once a second whoever it came from, which is the difference between
+        // a mechanic and a wall. A bigger raid carries more marks and stands
+        // closer together, so a body inside two clouds was paying twice: at
+        // twenty-five that was seventy-one ticks each against a ten-man's
+        // thirty-five, and the fight read 0% won at that size and 100% at ten.
+        // It is one bad air rather than three, and one lungful is one lungful.
+        if (aura.id === 'reek' && a.faction === 'party') {
+          for (const other of s.actors) {
+            if (other.faction !== 'party' || !other.alive || other.id === a.id) continue
+            if (breathed.has(other.id)) continue
+            if (dist(other.pos, a.pos) > REEK_REACH) continue
+            breathed.add(other.id)
+            applyDamage(s, other, bite, 'none', {
+              sourceId: aura.sourceId,
+              silent: true,
+              mechanic: 'vilegas',
+            })
+          }
+        }
         if (a.faction === 'boss') addThreat(s, aura.sourceId, bite)
       }
       if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
@@ -330,6 +378,9 @@ function updateTimers(s: SimState, a: Actor): void {
       // spike still standing over somebody who is free again is a target the
       // raid would keep answering for nothing.
       if (aura.id === 'spiked' && a.alive) freeSpiked(s, a)
+      // The spore going, which is the moment everybody who came to stand in
+      // it is covered against a mechanic that has not happened yet.
+      if (aura.id === 'spore' && a.alive) burstSpore(s, a)
     }
   }
 }
