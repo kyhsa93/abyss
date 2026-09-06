@@ -1133,6 +1133,36 @@ console.log(`rendered ${frames} frames with no exceptions`)
   )
 }
 
+// --- what a boss throws must be in the air ----------------------------------
+//
+// Both halves matter and they pull opposite ways. A boss with nothing in the
+// air bills bodies it is nowhere near and the health just goes; a boss that
+// throws a bolt for a mechanic answered by the floor is telling the raid to
+// watch the wrong thing. The list is the rule in `throwBolt`, written out.
+{
+  const THROWN = new Set(['boss_raid', 'boss_volley', 'boss_frostbolt', 'boss_rot', 'boss_dominate'])
+  const silent: string[] = []
+  const stray: string[] = []
+
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    const s = pulled(4242, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e)
+    const rng = new Rng(4242)
+    const seen = new Set<string>()
+    while (s.outcome === 'ongoing' && s.time < 70) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const p of s.projectiles) {
+        if (p.sourceId !== BOSS_ID) continue
+        seen.add(p.abilityId ?? '(unnamed)')
+      }
+    }
+    if (seen.size === 0) silent.push(ENCOUNTERS[e]!.short)
+    for (const id of seen) if (!THROWN.has(id)) stray.push(`${ENCOUNTERS[e]!.short}: ${id}`)
+  }
+
+  expect('every boss puts something in the air', silent.length === 0, silent.join(', '))
+  expect('and only what it actually throws', stray.length === 0, stray.join(', '))
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were

@@ -448,8 +448,15 @@ export interface Projectile {
   /** What threw it, so the renderer can colour it like its own icon. */
   abilityId: string | null
   /**
-   * Who threw it, when the bolt is carrying the ability rather than
-   * illustrating one that already happened. Null means it is scenery.
+   * What threw it. Null only where nothing did.
+   *
+   * This used to mean two things at once -- who threw it, and whether the bolt
+   * carries its ability to be resolved on arrival -- and the second meaning
+   * was the one being read. So anything drawn after the fact had to claim
+   * nothing threw it, and the renderer, which needs the thrower to know what
+   * height the shot leaves at, was told a boss's bolt came from nowhere and
+   * flew it out of a raider's chest. Carrying is decided by whether the
+   * `abilityId` names a real ability now; this says where it came from.
    */
   sourceId: number | null
   pos: Vec2

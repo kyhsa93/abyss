@@ -1104,9 +1104,14 @@ export function projectileKind(ability: Ability): ProjectileKind {
 /**
  * Puts a bolt in the air.
  *
- * With a `sourceId` it carries the ability and resolves it on arrival; with
- * none it is scenery, which is what a hunter's auto shot is — the weapon has
- * already dealt its damage where it stands.
+ * A bolt naming a real ability carries it and resolves it on arrival. One
+ * naming anything else is scenery, which is what a hunter's auto shot is and
+ * what every one of a boss's is — the weapon, or the mechanic, has already
+ * dealt its damage where it stands.
+ *
+ * Either way it remembers what threw it, because the picture needs that even
+ * when the simulation does not: a shot leaves the chest of whatever loosed it,
+ * and a boss's chest is three times the height of a raider's.
  */
 export function spawnBolt(
   s: SimState,
@@ -1114,7 +1119,7 @@ export function spawnBolt(
   targetId: number,
   kind: ProjectileKind,
   abilityId: string | null = null,
-  sourceId: number | null = null,
+  sourceId: number | null = from.id,
 ): void {
   const speed = PROJECTILE_SPEED[kind]
 

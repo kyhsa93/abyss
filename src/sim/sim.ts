@@ -592,14 +592,19 @@ function advanceCast(s: SimState, a: Actor, rng: Rng): void {
  * A bolt arriving.
  *
  * Only the ones carrying something resolve: a hunter's auto shot is drawn
- * after the fact and has nothing left to do. The caster is not required to
- * still be alive — a shot that was in the air when its owner died still
- * lands, which is the same rule every game this apes uses.
+ * after the fact and has nothing left to do, and so is every bolt a boss
+ * throws — its mechanic was billed where it was thrown. The caster is not
+ * required to still be alive — a shot that was in the air when its owner died
+ * still lands, which is the same rule every game this apes uses.
+ *
+ * Read off the ability rather than off the thrower. A boss's bolts name their
+ * mechanic so the renderer can colour them, and a mechanic is not an ability,
+ * so the lookup below is what says they are scenery.
  */
 function land(s: SimState, p: SimState['projectiles'][number], rng: Rng): void {
-  if (!p.abilityId || p.sourceId === null) return
+  if (!p.abilityId) return
   const ability = ABILITIES[p.abilityId]
-  const source = s.actors.find((a) => a.id === p.sourceId)
+  const source = p.sourceId === null ? undefined : s.actors.find((a) => a.id === p.sourceId)
   if (!ability || !source) return
   landAbility(s, source, ability, p.targetId, rng)
 }

@@ -87,6 +87,7 @@ import {
   interruptCast,
   pushEffect,
   applyDamage,
+  spawnBolt,
   type DamageOptions,
   boss,
   dist,
@@ -117,7 +118,7 @@ import {
 } from './encounters'
 import { affixAddWave, affixEnrage, affixLinger, affixTiming } from './affix'
 import { planned } from './floor'
-import type { Actor, GroundEffect, SimState, Vec2 } from './types'
+import type { Actor, GroundEffect, ProjectileKind, SimState, Vec2 } from './types'
 
 /**
  * The boss is deliberately NOT an AI.
@@ -858,6 +859,31 @@ function scheduleFrostbolt(s: SimState, b: Actor, timing: PhaseTiming): void {
   pushEffect(s, 'cast', b.pos, { abilityId: 'boss_frostbolt' })
 }
 
+/**
+ * A boss's shot, in the air.
+ *
+ * The rule for which mechanics get one, because most must not: a bolt is owed
+ * where the boss bills a body it is not touching, and the bill is the boss's
+ * own act rather than the floor's. Five of the forty pass that -- the tide,
+ * the shard, the volley, the rot and the turned mind, and the tide is on all
+ * eight bosses, so this is a thing the game does rather than a thing one boss
+ * does. Everything else this game throws is
+ * either the ground going bad under somebody or the boss arriving in person,
+ * and both of those already draw the thing that is happening; a pool that also
+ * threw a bolt would be claiming to be two mechanics, and a cone with a bolt
+ * in it would be telling the raid to dodge the wrong shape.
+ *
+ * Scenery, always, and that is not a shortcut. The mechanic is billed where it
+ * is thrown; the bolt is the tell that says where the bill came from. Damage
+ * that waited on a flight time would be a different fight, and every number in
+ * the harness was measured against this one. It names its mechanic so the
+ * renderer can colour it, and `land` reads the name not being an ability's as
+ * "this one carries nothing".
+ */
+function throwBolt(s: SimState, targetId: number, kind: ProjectileKind, mechanic: string): void {
+  spawnBolt(s, boss(s), targetId, kind, mechanic)
+}
+
 /** The shard landing, on whoever it was aimed at. */
 function loose(s: SimState, targetId: number | null): void {
   const b = boss(s)
@@ -866,6 +892,8 @@ function loose(s: SimState, targetId: number | null): void {
   const damage = mechanic(s, FROSTBOLT_DAMAGE)
   applyDamage(s, at, damage, 'magic', { sourceId: b.id, mechanic: 'frostbolt' })
   pushEffect(s, 'impact', at.pos, { abilityId: 'boss_frostbolt', power: damage })
+  // Something in the air between the two of them. See `throwBolt`.
+  throwBolt(s, at.id, 'heavy', 'boss_frostbolt')
   s.sounds.push('raid')
 }
 
@@ -890,6 +918,8 @@ function scheduleVolley(s: SimState, b: Actor, timing: PhaseTiming): void {
     const bite = mechanic(s, VOLLEY_DAMAGE)
     applyDamage(s, a, bite, 'magic', { sourceId: b.id, mechanic: 'volley' })
     pushEffect(s, 'impact', a.pos, { abilityId: 'boss_volley', power: bite })
+    // One each, which is what the word means. See `throwBolt`.
+    throwBolt(s, a.id, 'bolt', 'boss_volley')
   }
 }
 
@@ -1037,6 +1067,10 @@ function scheduleDominate(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     const taken = free.splice(rng.int(free.length), 1)[0]!
     addAura(taken, 'turned', b.id)
     pushEffect(s, 'cast', taken.pos, { abilityId: 'boss_dominate' })
+    // The only one of these that bills nothing, and the one that most needs
+    // the line drawn: what a raid has to know here is which of its own, and a
+    // burst appearing on a body says one turned without saying which.
+    throwBolt(s, taken.id, 'dot', 'boss_dominate')
   }
 }
 
@@ -1362,6 +1396,13 @@ function scheduleRaidHit(s: SimState, timing: PhaseTiming): void {
   for (const a of livingParty(s)) {
     applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID })
     pushEffect(s, 'impact', a.pos, { abilityId: 'boss_raid', power: damage })
+    // One each, from the boss, which is the whole of what this needed. The
+    // note below says an unavoidable hit with no tell reads as a broken
+    // hitbox; the flash it got says something happened, and a line from the
+    // boss to every body says the something was the boss and not the puddle
+    // they had just stepped out of. It is not a dodge cue and cannot be
+    // mistaken for one -- it arrives on the same frame as the number.
+    throwBolt(s, a.id, 'bolt', 'boss_raid')
   }
   s.nextRaidHit = timing.raid
   // Unavoidable damage with no tell reads as a broken hitbox: the player
@@ -2137,6 +2178,7 @@ function scheduleRot(s: SimState, rng: Rng, timing: PhaseTiming): void {
   const victim = rng.pick(victims)
   addAura(victim, 'rot', BOSS_ID)
   pushEffect(s, 'impact', victim.pos, { abilityId: 'boss_rot', power: 220 })
+  throwBolt(s, victim.id, 'dot', 'boss_rot')
   s.sounds.push('telegraph')
   if (victim.ai) say(s, victim, lineFor(fight(s), s.plan !== null, 'rot'))
 }
