@@ -1103,8 +1103,19 @@ export const ENCOUNTERS: Encounter[] = [
     // hard floor rather than taste: the storm is its third idea and its
     // longest count, so a pull that ends before the first one is a pull that
     // taught two thirds of what this boss is for. At nineteen thousand a
-    // five-man was done in thirty-four seconds and never saw it.
-    hp: 52000,
+    // five-man was done in thirty-four seconds and never saw it. The floor
+    // holds here -- every pull still meets a storm, and still at forty-eight
+    // seconds.
+    //
+    // Down from fifty-two thousand, which was the number a health bar wants
+    // when the storm costs the raid nothing. Once the raid could actually
+    // answer it, the answer was thirty seconds a pull of running instead of
+    // casting, and a bar sized against the old fight became a clock: a third
+    // of pulls ended on the enrage, against twelve percent for the worst of
+    // the other seven bosses and nothing at all for four of them. Losing a
+    // first boss to a timer teaches less than losing it to the thing that
+    // killed you, so the bar pays for the damage the mechanic now costs.
+    hp: 46000,
     enrage: 240,
     phaseTwoHp: 0.66,
     phaseThreeHp: 0.33,
