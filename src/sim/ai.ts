@@ -3,6 +3,7 @@ import {
   ARENA_RADIUS,
   BURDEN_REACH,
   CHANT_NOTICE,
+  COLDFLAME_TELEGRAPH,
   CRUSH_TELEGRAPH,
   DT,
   FAULT_TELEGRAPH,
@@ -20,6 +21,7 @@ import {
   BLOAT_SWAP_AT,
   REEK_REACH,
   SHADE_REACH,
+  STORM_REACH,
   SPREAD_RADIUS,
   VIGIL_HELD,
   TOLL_TELEGRAPH,
@@ -952,6 +954,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
   if (getAura(actor, 'spread')) consider('spread:self', 62)
 
+  // Inside a storming boss, which is the only danger in this game whose shape
+  // is the boss. Above a pool and under a spread: it is a walk rather than a
+  // step, and it is already on you rather than about to be.
+  {
+    const b = boss(s)
+    if (getAura(b, 'storming') && dist(actor.pos, b.pos) <= STORM_REACH + DANGER_MARGIN) {
+      consider('storm:self', 84)
+    }
+  }
+
   // Something closing on this body, which is answered by not being where it is
   // going. Ranked with the mark it most resembles: it is a walk rather than a
   // step, and being a second late costs a tick rather than a life.
@@ -1231,6 +1243,23 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     const d = dist(actor.pos, g.pos)
     if (d <= g.radius + DANGER_MARGIN) {
       // Standing in live fire is the most urgent state there is.
+    // The cold line, on its own channel rather than in the pool's.
+    //
+    // Not a nicety. A hazard answered only by `isSpotSafe` is answered by code
+    // that cannot be late — the spot is refused the instant it exists, on a
+    // first pull exactly as on a ninth — so the mechanic measures at zero
+    // whatever it costs, and this one measured at exactly that. The reaction
+    // delay and the fumble live on this path; a mechanic that never becomes
+    // the most urgent thing is a mechanic practice cannot touch.
+    //
+    // Above a pool and under a spread: a step rather than a walk, and being a
+    // beat late costs one patch rather than a life.
+    if (g.kind === 'coldflame') {
+      if (!g.detonated && dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`coldflame:${g.id}`, 84 + (COLDFLAME_TELEGRAPH - g.telegraph) * 10)
+      }
+      continue
+    }
       consider(`puddle:${g.id}`, g.detonated ? 100 : 80 + (PUDDLE_TELEGRAPH - g.telegraph) * 9)
     }
   }
@@ -1560,6 +1589,16 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     const otherCarries = getAura(other, 'spread') !== undefined
     if (!carrying && !otherCarries) continue
     if (dist(spot, other.pos) < SPREAD_RADIUS + DANGER_MARGIN) return false
+  }
+
+  // The boss itself, while it is storming. Nothing is on the floor to leave —
+  // the dangerous ground is the thing that is normally the safest place to
+  // stand — so a party that only reads `s.ground` walks into it and stays
+  // there. This is the one moment in the game where being on the boss is the
+  // mistake.
+  {
+    const b = boss(s)
+    if (getAura(b, 'storming') && dist(spot, b.pos) < STORM_REACH + DANGER_MARGIN) return false
   }
 
   // A shade closing on this body. The one thing here answered by moving away
@@ -2146,6 +2185,10 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   // standing in fire.
   const nearEdge = Math.max(CASTER_LAP, nearEdgeOn(actor, b))
 
+  // Whether the thing every other term here pulls a body towards is currently
+  // the hazard. See the block that scores it, below.
+  const storming = getAura(b, 'storming') !== undefined
+
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
   let bestScore = -Infinity
 
@@ -2392,9 +2435,34 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       else score -= Math.min(800, (d - HEAL_STAND) * 1.7)
     }
 
+    // 3b. The boss itself, while it is storming.
+    //
+    // The one hazard in the game that is not on the floor, and the only one
+    // whose shape is the thing every other term in this function argues for
+    // standing near. `isSpotSafe` already refuses a spot inside it -- and
+    // refusing is not choosing. This function had never heard of the storm,
+    // so every tick the destination was rejected and this function handed
+    // back another spot inside it. Measured over thirty thousand body-frames
+    // burning in the storm: the body knew what it was standing in 96% of the
+    // time, held a destination on 23% of those frames, and on 73% of those
+    // the destination it had picked was itself inside the storm -- re-picked
+    // on 56% of them, which is the jitter this file warns about twice
+    // elsewhere. A raid that is running and not leaving is a raid whose
+    // scoresheet is missing a row, not one that is reacting too slowly.
+    //
+    // Weighted above a pool and below the instants, which is where the same
+    // mechanic already sits in `currentDanger`: it is a walk out of a wide
+    // thing that bills every tick, not a step off a patch and not a hit that
+    // arrives whole.
+    if (storming) {
+      const d = dist(candidate, b.pos)
+      if (d <= STORM_REACH + DANGER_MARGIN) score -= 1500
+      else score += Math.min(220, (d - STORM_REACH) * 1.4)
+    }
+
     // 4. Role positioning.
     const bossDist = dist(candidate, b.pos)
-    if (soakActive || strandedActive || sentActive) {
+    if (storming || soakActive || strandedActive || sentActive) {
       // Standing in it beats standing in range of anything. Suspended the
       // same way the ring suspends the casters' spacing, and for melee too:
       // the boss is not going anywhere in five seconds.
@@ -2409,6 +2477,17 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // the plate it has to pay at and the stone it was given are both places
       // rather than distances, and a term that argues for standing where the
       // role wants to stand argues against the only spot that answers.
+      //
+      // And once more for the storm, which is the sharpest case of it in the
+      // game and the reason the melee branch below already carries the
+      // argument in its own words. The role terms are written against the
+      // boss's position -- melee are paid for being inside two hundred of it,
+      // casters for being inside two hundred and eighty -- and while it is
+      // storming those are payments for standing in the fire. Penalising the
+      // storm without suspending them leaves the two arguing, and what the
+      // raid does then is stand at the edge of the reach splitting the
+      // difference. There is no distance a role wants to hold from a thing
+      // that is chasing somebody.
     } else if (actor.role === 'tank' || actor.melee) {
       // A tank does not stand in fire to keep melee range; it drags the boss
       // out instead. The boss chases threat, so walking away relocates it.

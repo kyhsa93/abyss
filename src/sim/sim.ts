@@ -47,6 +47,7 @@ import {
   beginCast,
   castBlocker,
   rotBite,
+  spikeBite,
   breakRot,
   fightScale,
   urgencyOf,
@@ -337,7 +338,9 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
         const bite =
           aura.id === 'rot'
             ? rotBite(aura, tick.damage) * affixRot(s.affix) * fightScale(s)
-            : tick.damage
+            : aura.id === 'spiked'
+              ? spikeBite(aura, tick.damage) * fightScale(s)
+              : tick.damage
         // Named where the fight is what put it there, so the page and every
         // probe that reads the per-mechanic split can see it. A dot the boss
         // applied is

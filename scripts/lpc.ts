@@ -358,6 +358,18 @@ const BOSS: Record<string, Layer[]> = {
     { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
     { z: 100, dir: 'head/heads/alien/adult' },
   ],
+  // "get off the line, break the bone, and run when it lets go" — bone welded
+  // into a structure, and the bare skeleton is right here for the reason it is
+  // right for the Ledger: this wears nothing, and the set's armour is cut for
+  // the male, female and teen bodies only.
+  //
+  // The first thing a player ever sees in this game was a plain disc until
+  // this line existed, because `hasBody('boss-marrow')` was false and nothing
+  // said so.
+  marrow: [
+    { z: 10, dir: 'body/bodies/skeleton' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
+  ],
   // "decide who pays, then pay it" — a skeleton, wearing nothing, which is the
   // one boss the bare skeleton body is exactly right for.
   ledger: [

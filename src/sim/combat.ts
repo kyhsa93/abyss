@@ -309,7 +309,14 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // demand is on everybody else's target list, and a spike that killed its
   // victim before a raid could plausibly turn round would be asking for a
   // reaction nobody has.
-  spiked: { damage: 58 },
+  // Climbing, because a flat tick is a bill and a climbing one is a clock.
+  //
+  // Flat at fifty-eight it cost eight hundred over a full pin, which every
+  // healer covered without noticing and which measured at exactly zero points
+  // of teaching — a mechanic whose answer is "somebody stop and break it" has
+  // to get worse while nobody does. `rotBite` already does this for the rot
+  // and the shape is borrowed from there.
+  spiked: { damage: 34 },
   reek: { damage: 62 },
   haunted: { damage: 74 },
   living_bomb: { damage: 70 },
@@ -828,6 +835,25 @@ export function rotBite(aura: Aura, base: number): number {
   const spent = 1 - Math.max(0, aura.remaining) / AURA_DURATION.rot
   return base * (1 - ROT_RAMP / 2 + ROT_RAMP * spent)
 }
+
+/**
+ * What a pin costs on the tick it is paid, which climbs the longer it holds.
+ *
+ * The same shape as the rot's and for a sharper reason. This one's answer is
+ * somebody else stopping what they were doing, and a bill that is the same on
+ * the tenth second as on the first gives them no reason to hurry: flat at
+ * fifty-eight it cost eight hundred over a full pin, which the healers covered
+ * without noticing and which measured at exactly zero points of teaching. It
+ * ends at three times where it starts, so a raid that ignores one loses the
+ * body and a raid that turns immediately barely pays.
+ */
+export function spikeBite(aura: Aura, base: number): number {
+  const spent = 1 - Math.max(0, aura.remaining) / AURA_DURATION.spiked
+  return base * (1 + SPIKE_RAMP * spent)
+}
+
+/** How much steeper a pin gets by the end of it. See `spikeBite`. */
+const SPIKE_RAMP = 2
 
 /**
  * Whoever could take this weight, and has not had it yet.

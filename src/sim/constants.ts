@@ -824,16 +824,46 @@ export const BLOAT_BURST = 4200
 export const BLOAT_SPLASH = 190
 
 /**
- * The storm: how far it reaches, what it costs, and how fast it wanders.
+ * The storm: how far it reaches, what it costs, and how fast it charges.
  *
- * The reach is wide and the speed is most of a body's, which together are the
- * mechanic: it cannot be outrun standing still and it can be outrun by
- * running. Every other demand in this game is answered by being in the right
- * place; this one is answered by not being in one place at all.
+ * The reach is wide and the bill is flat inside it. Flat rather than steeper
+ * the closer, which is what the fight was first written to do and is the one
+ * shape `docs/mechanic-rules.md` says teaches nothing: a bill proportional to
+ * a distance is a bill everybody pays some of, and averaging a demand is how
+ * a demand stops being one. Inside is inside.
+ *
+ * The speed is the boss's own, undiminished, and that is the whole argument
+ * for the number. At eighty-two percent it was a hundred and forty-three
+ * against a roster that walks between a hundred and fifty-five and a hundred
+ * and seventy-five, so every class in the game outran it in a straight line
+ * and the pick was answered by noticing it. Undiminished, nobody walks out
+ * from under it, and what is left to decide is the thing worth deciding:
+ * where you already were when it looked at you, and which way you drag it.
+ *
+ * The bill is two hundred and sixty rather than the two hundred and ten it
+ * was carrying while the raid could not answer it at all. Measured across
+ * both fixes, that number is a cliff rather than a slope -- at three hundred
+ * and forty a twenty-five man wins four percent of its pulls and at four
+ * hundred and twenty it wins none -- because the reach holds six of them at
+ * once and the bill is not divided. Two hundred and sixty is the last value
+ * where a twenty-five man loses pulls and still learns its way out of them.
  */
 export const STORM_REACH = 190
-export const STORM_TICK = 210
-export const STORM_SPEED = 0.82
+export const STORM_TICK = 260
+export const STORM_SPEED = 1.0
+/**
+ * How long the storm keeps aiming at the same body.
+ *
+ * Five seconds, which over its twenty-four is four charges. Re-picking every
+ * tick would mean it never really aims at anybody — a body one step further
+ * out would turn it, and what a raid is deciding has to hold still long enough
+ * to be worth deciding.
+ *
+ * Counted on the aura's `beat`, never on its `tickTimer`. See `Aura.beat`:
+ * written on the wrong one this fired zero times in a pull and the storm was
+ * one charge and then a boss standing still.
+ */
+export const STORM_REPICK = 5
 
 /**
  * The Deathwhisper's numbers.

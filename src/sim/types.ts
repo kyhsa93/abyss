@@ -130,7 +130,12 @@ export interface Aura {
    */
   held?: number[]
   /**
-   * The body named to come and stand with this one, for the yoke.
+   * The body this aura has named.
+   *
+   * Two mechanics name one, and they name it for opposite reasons: the yoke
+   * names who has to come and stand with the carrier, and the storm names who
+   * it is coming for. What they share is the rule below, which is the reason
+   * the field exists at all.
    *
    * Written down when the yoke lands and never recomputed, which took a round
    * to learn. The first version asked "who is furthest from the carrier right
@@ -155,6 +160,17 @@ export interface Aura {
   struck?: number[]
   /** Accumulator for periodic ticks. */
   tickTimer: number
+  /**
+   * A count the mechanic owns, where `tickTimer` belongs to the aura system.
+   *
+   * `tickTimer` is not free to borrow. `updateTimers` adds to it every frame
+   * and drains it back under one every second, so anything measuring a longer
+   * beat on it waits for a number that cannot arrive. The storm's re-pick was
+   * written on it and fired exactly never: one charge, at a coordinate frozen
+   * when the storm began, and then twenty-two seconds of a boss standing on
+   * an empty spot while the raid it had already passed through watched.
+   */
+  beat?: number
 }
 
 /**

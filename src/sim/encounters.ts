@@ -1111,7 +1111,7 @@ export const ENCOUNTERS: Encounter[] = [
     swingDamage: 520,
     slamDamage: 1050,
     raidDamage: 120,
-    mechanicDamage: 0.75,
+    mechanicDamage: 0.9,
     sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
     accent: '#e7e5e4',
     names: { slam: 'SABER LASH', breath: '' },
@@ -1965,17 +1965,21 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
   // everyone meets all of it, which is the right shape for the boss a raid
   // meets first.
   //
-  // The floor is a fraction of the boss rather than the number three.
+  // Three, or the whole boss if it has fewer.
   //
-  // Three was a cap wearing a floor's clothes. A fight with two ideas had one
-  // setting selling both and five selling nothing; a fight with twelve had its
-  // smallest setting showing a quarter of itself and no way to say otherwise.
-  // Half is the shape the ladder always had at six -- three of six at the
-  // bottom, all six at the top -- and it is now that shape at any size.
+  // Three was a cap wearing a floor's clothes while it was written as the
+  // constant: a fight with two ideas had one setting selling both and five
+  // selling nothing. Taking the constant out is right; replacing it with half
+  // the boss was not, and the first boss is where that showed. It owns three
+  // and its own spec says every setting sells all three — a five-man meets the
+  // whole fight, because what is being unlocked there is the player — and half
+  // of three is two, so the smallest raid stopped being sold the storm, which
+  // is the third of its three ideas.
   //
-  // Rounded up, so a boss with one mechanic sells it to everybody rather than
-  // selling nothing to a five-man.
-  const floor = Math.ceil(owns / 2)
+  // Bounded by what there is rather than fixed at what there used to be. A
+  // fight with one sells it to everybody; a fight with twelve still opens on
+  // three and climbs to twelve.
+  const floor = Math.min(owns, 3)
   const step = (owns - floor) / 3
   let bought = floor
   if (size >= 10) bought += step

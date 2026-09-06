@@ -28,6 +28,7 @@ import {
   SHADE_SPEED,
   SLIGHT_SHARE,
   STORM_REACH,
+  STORM_REPICK,
   VOLLEY_DAMAGE,
   STORM_SPEED,
   STORM_TICK,
@@ -1062,15 +1063,52 @@ function scheduleStorm(s: SimState, b: Actor, timing: PhaseTiming): void {
 function updateStorm(s: SimState, b: Actor): void {
   if (!getAura(b, 'storming')) return
 
-  // A circuit of its own rather than a chase. Chasing is answered by one
-  // person kiting and everybody else carrying on, which is a mechanic for one
-  // body; wandering is answered by the whole room paying attention to where a
-  // thing is, which is what this is for.
-  const step = b.moveSpeed * STORM_SPEED * DT
-  const drift = s.time * 0.6 + b.id
-  b.pos.x += Math.cos(drift) * step
-  b.pos.y += Math.sin(drift) * step
-  clampToArena(b.pos, b.radius)
+  // At the body furthest from it, re-picked every few seconds.
+  //
+  // This is the line the mechanic is. Wandering on a circuit of its own is
+  // answered by "run from the big thing" and nothing else — a reaction, and
+  // the same reaction from everybody. Charging at whoever is furthest out
+  // turns the same damage and the same clock into a placement decision the
+  // raid makes together: somebody volunteers to be the far one, and the room
+  // decides which way the charge is dragged. It can be pulled across floor a
+  // cold line has already been through, and if nobody decides anything the
+  // pick ping-pongs between clumps of ranged and sweeps a few each time.
+  //
+  // Re-picked on a beat rather than every tick, so a body walking one step
+  // does not turn it. What it is aiming at has to stay legible for long enough
+  // to be worth reacting to.
+  //
+  // On `beat` rather than on `tickTimer`, which is the aura system's and is
+  // drained back under one every second -- written on that, this never once
+  // reached five, and the whole mechanic was a single charge at a frozen
+  // coordinate followed by twenty-two seconds of standing still.
+  //
+  // And at the body rather than at where the body was when it was picked. A
+  // remembered point is answered by walking off it once; a body is answered
+  // for as long as the storm lasts, which is what makes the pick worth the
+  // raid's attention. The one held is re-picked early if it dies, so the
+  // storm never spends the rest of its count chasing a corpse.
+  const mark = getAura(b, 'storming')!
+  mark.beat = (mark.beat ?? STORM_REPICK) + DT
+  let held = livingParty(s).find((a) => a.id === mark.bearer)
+  if (!held || mark.beat >= STORM_REPICK) {
+    mark.beat = 0
+    let far: Actor | null = null
+    for (const a of livingParty(s)) {
+      if (!far || dist(a.pos, b.pos) > dist(far.pos, b.pos)) far = a
+    }
+    if (far) {
+      mark.bearer = far.id
+      held = far
+    }
+  }
+  if (held) {
+    const gap = dist(b.pos, held.pos) || 1
+    const step = b.moveSpeed * STORM_SPEED * DT
+    b.pos.x += ((held.pos.x - b.pos.x) / gap) * step
+    b.pos.y += ((held.pos.y - b.pos.y) / gap) * step
+    clampToArena(b.pos, b.radius)
+  }
 
   // Billed on the same beat as everything else, so the healers read it the way
   // they read the rest of the fight.
@@ -1200,7 +1238,23 @@ function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
   s.sounds.push('telegraph')
   say(s, b, lineFor(fight(s), s.plan !== null, 'coldflame'))
 
-  const bearing = rng.range(0, Math.PI * 2)
+  // Aimed at a body rather than rolled.
+  //
+  // The two look alike in a screenshot and are not the same mechanic. A rolled
+  // bearing is a fact about nothing — nobody can change it, and where the raid
+  // stands has no bearing on where the line goes. A bearing taken from a body
+  // is a function of where the raid is standing: bunched at range and the line
+  // only ever comes at them; spread out and it divides the room evenly. That
+  // is a placement decision the raid can make, bought for one line.
+  //
+  // And not at melee, while anybody else is out there. Melee are already safe
+  // by construction — the first patch starts outside the boss's own edge — so
+  // aiming at one spends the cast on nobody. It falls back to whoever is there
+  // if nobody has left melee, which on this boss means the tank.
+  const away = livingParty(s).filter((a) => dist(a.pos, b.pos) > b.radius + COLDFLAME_RADIUS)
+  const at = rng.pick(away.length > 0 ? away : livingParty(s))
+  if (!at) return
+  const bearing = Math.atan2(at.pos.y - b.pos.y, at.pos.x - b.pos.x)
   for (let i = 0; i < COLDFLAME_REACH; i++) {
     // Outside the boss's own edge, so the hitbox is the safe spot.
     const out = b.radius + COLDFLAME_RADIUS + i * COLDFLAME_STEP
@@ -4231,10 +4285,15 @@ function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   if (s.next.spike > 0) return
   s.next.spike = timing.spike
 
-  // Never onto somebody already held. Two spikes on one body is one mechanic
-  // charged twice and a second body left alone, which is the opposite of what
-  // it is for.
-  const free = livingParty(s).filter((a) => !getAura(a, 'spiked'))
+  // Never onto somebody already held, and never onto the tank.
+  //
+  // The first is arithmetic: two spikes on one body is one mechanic charged
+  // twice and a second body left alone, which is the opposite of what it is
+  // for. The second is the same argument the reach already makes in its own
+  // comment — a tank pinned leaves the boss standing loose in the middle of
+  // the raid, so what arrives is not a decision, it is an accident. The
+  // original pins tanks; this engine cannot afford to.
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'spiked'))
   if (free.length === 0) return
 
   say(s, b, lineFor(fight(s), s.plan !== null, 'spike'))
