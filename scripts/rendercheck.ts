@@ -1070,6 +1070,69 @@ console.log(`rendered ${frames} frames with no exceptions`)
   expect('and the roster does not agree on one colour to do it in', accents.size > 1, `${accents.size} distinct accents`)
 }
 
+// --- every cast the boss makes must be announced as itself ------------------
+//
+// The bar named the cone and defaulted everything else to the slam, and there
+// are three casts. The third is the shard, which the second boss aims at
+// whoever is holding it and whose whole answer is reading this bar and cutting
+// the cast -- so the raid was told the interrupt coming at it was a tank slam.
+{
+  updateLayout(1440, 900)
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
+  const s = pulled(0x5ad0, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', e)
+  const rng = new Rng(0x5ad0)
+  const b = s.actors.find((a) => a.faction === 'boss')!
+
+  let caught = false
+  while (s.outcome === 'ongoing' && s.time < 90 && !caught) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    if (b.castId === 'boss_frostbolt') caught = true
+  }
+  expect('the second boss gets round to its shard', caught, `castId ${b.castId}`)
+
+  if (caught) {
+    const labels: Label[] = []
+    drawHud(recordingCtx([], labels), s, touchView(true))
+    const text = labels.map((l) => l.text)
+    const names = ENCOUNTERS[e]!.names
+    expect(
+      'and the bar over it says what it is',
+      text.includes(names.shard),
+      `${names.shard} not among ${text.slice(0, 12).join(' | ')}`,
+    )
+    expect(
+      'and not what the tank slam is called',
+      !text.includes(names.slam),
+      `the shard was announced as ${names.slam}`,
+    )
+  }
+}
+
+// --- a turned ally must be visible as one -----------------------------------
+//
+// The one mechanic in the game that asks a raid to stop hitting something. The
+// body keeps its class colour, its name and its party frame, because which of
+// your own it is is the question -- and that was all it kept: nothing on the
+// floor said it had turned at all.
+{
+  updateLayout(1440, 900)
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
+  const s = pulled(0x7047, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', e)
+  const mate = s.actors.find((a) => a.faction === 'party' && !a.isPlayer && a.role !== 'tank')!
+
+  const before: Circle[] = []
+  drawWorld(recordingCtx(before), s, 1, s.time, new Effects())
+  addAura(mate, 'turned', BOSS_ID)
+  const after: Circle[] = []
+  drawWorld(recordingCtx(after), s, 1, s.time, new Effects())
+
+  expect(
+    'a turned body is drawn differently from the body it was a second ago',
+    after.length > before.length,
+    `${before.length} shapes before, ${after.length} after`,
+  )
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were

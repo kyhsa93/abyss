@@ -6,6 +6,7 @@ parts by `npm run lpc`. The parts are variously licensed CC-BY-SA 3.0, GPL
 list is generated from the same definitions the layers are taken from and
 cannot fall behind a change to them.
 
+- `body/bodies/female` — Benjamin K. Smith (BenCreating),bluecarrot16,TheraHedwig,Evert,MuffinElZangano,Durrani,Pierre Vigier (pvigier),ElizaWy,Matthew Krohn (makrohn),Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `body/bodies/male` — bluecarrot16,JaidynReiman,Benjamin K. Smith (BenCreating),Evert,Eliza Wyatt (ElizaWy),TheraHedwig,MuffinElZangano,Durrani,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `body/bodies/muscular` — bluecarrot16,JaidynReiman,Evert,TheraHedwig,MuffinElZangano,Durrani,Sander Frenken (castelonia),Benjamin K. Smith (BenCreating),Eliza Wyatt (ElizaWy),dalonedrau,Stephen Challener (Redshrike) (CC-BY-SA 3.0,GPL 3.0)
 - `body/bodies/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
@@ -69,6 +70,7 @@ cannot fall behind a change to them.
 - `torso/armour/leather` — Johannes Sjölund (wulax),bluecarrot16,JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `torso/armour/plate/male` — Napsio (Vitruvian Studio),JaidynReiman,bluecarrot16,Michael Whitlock (bigbeargames),Johannes Sjölund (wulax) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `torso/chainmail` — Johannes Sjölund (wulax),Napsio (Vitruvian Studio),JaidynReiman (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `torso/clothes/robe` — Luke Mehl (CC-BY-SA 3.0,GPL 3.0)
 - `torso/clothes/shortsleeve/tshirt` — ElizaWy,JaidynReiman,Stephen Challener (Redshrike),Johannes Sjölund (wulax) (OGA-BY 3.0)
 - `weapon/blunt/flail` — Benjamin K. Smith (BenCreating),bluecarrot16,Sander Frenken (castelonia) (CC-BY-SA 3.0,GPL 3.0)
 - `weapon/blunt/mace` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)

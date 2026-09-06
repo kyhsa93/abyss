@@ -29,6 +29,11 @@ const HINTS: Record<string, Hint> = {
   coldflame: { title: 'COLD LINE', advice: 'It walks outward — step off it, or stand on the boss' },
   spike: { title: 'BONE SPIKE', advice: 'They cannot move — break it to get them out' },
   bonestorm: { title: 'BONE STORM', advice: 'It has let go and is coming — keep away from it' },
+  // The second boss's top rung, which is the one card in this table that has
+  // to stop a player doing the obvious thing rather than start them doing
+  // something. A body wearing the enemy ring has meant "kill it" everywhere
+  // else in the game, and here it does not.
+  dominate: { title: 'TURNED MIND', advice: 'Yours, and hostile — do NOT kill them; carry on without them' },
   raid: { title: 'CRUSHING TIDE', advice: 'Nothing to dodge — call a raid cooldown (6-0) before the next one' },
 }
 
@@ -77,7 +82,25 @@ export class Hints {
     }
     if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) this.trigger('spread')
     if (boss(s)?.castId === 'boss_slam') this.trigger('slam')
-    for (const sound of s.sounds) if (sound === 'raid') this.trigger('raid')
+    // One of the raid's own, turned. Watched on the aura rather than on the
+    // chat line the fight speaks, because the line has scrolled by the time
+    // anybody works out which body it meant.
+    if (
+      s.actors.some(
+        (a) => a.faction === 'party' && a.alive && a.auras.some((au) => au.id === 'turned'),
+      )
+    ) {
+      this.trigger('dominate')
+    }
+    // The raid-wide hit, on its own effect rather than on the shared sound.
+    //
+    // `sounds` carries 'raid' from about twenty places -- a shard landing, a
+    // mind turning, a wave arriving -- so this card fired on whichever of them
+    // happened first and told the player that thing was the unavoidable tide.
+    // On the second boss, whose tide is deliberately the smallest in the game,
+    // the first card it ever showed was about a mechanic that was not the one
+    // on screen.
+    for (const e of s.effects) if (e.abilityId === 'boss_raid') this.trigger('raid')
   }
 
   private trigger(key: string): void {

@@ -2215,6 +2215,30 @@ function drawActor(
     ctx.stroke()
   }
 
+  // And the one body that changed sides without changing faction.
+  //
+  // A turned mind keeps its class colour, its name and its party frame,
+  // because which of your own it is is the whole question — and until this,
+  // that was all it kept. Nothing on the floor said it had turned. The one
+  // mechanic in the game that asks a raid to stop hitting something was
+  // answered by the roster reading an aura and by a player reading a chat
+  // line that had already scrolled.
+  //
+  // The enemy ring, because it is hostile and that has to be the first true
+  // thing on screen. Dashed rather than solid, because the answer is not the
+  // answer a solid one gives: everything else wearing that ring is asking to
+  // be killed and this one is asking to be left alone, and a dash is what this
+  // renderer already uses for a body that is marked rather than merely there.
+  if (a.alive && a.faction === 'party' && getAura(a, 'turned')) {
+    footprint(ctx, p.x, p.y, r + 4 + Math.sin(clock * 6) * 1.5)
+    ctx.strokeStyle = COLORS.boss
+    ctx.lineWidth = 2.5
+    ctx.setLineDash([5, 4])
+    ctx.lineDashOffset = -clock * 24
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
   // A summon gets its own body rather than the boss's, which would say it is
   // the boss, and rather than a class's, which it does not have. The two named
   // kinds are drawn apart on purpose: telling them apart is the whole demand

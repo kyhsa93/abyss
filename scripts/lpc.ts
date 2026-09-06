@@ -325,6 +325,23 @@ function actions(): Map<string, string> {
  * a pull, so the picture cannot promise a fight the encounter does not run.
  */
 const BOSS: Record<string, Layer[]> = {
+  // "cut the shard, swap the hold, and hold off your own" — a lich. A woman
+  // dead a long time, in a heavy robe, and the weight of the picture is in the
+  // robe and the head rather than in anything she is holding, because the
+  // bodies walking in are hers. She carries nothing.
+  //
+  // She must not read as a monster. What the fight takes is a tank's hold, a
+  // body's harmlessness, the floor, and finally one of the raid — all of them
+  // things that were working a second ago — and that is somebody who used to
+  // be responsible for a place, not a beast.
+  //
+  // The robe decides the body: `torso/clothes/robe` exists in the female cut
+  // and nothing else.
+  whisper: [
+    { z: 10, dir: 'body/bodies/female' },
+    { z: 60, dir: 'torso/clothes/robe/female' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
+  ],
   // "the floor, and whoever is standing on it" — a drowned jailer in plate.
   warden: [
     { z: 10, dir: 'body/bodies/male' },

@@ -956,10 +956,19 @@ export interface Encounter {
    * Tidebreaker no spread and no rot — but nothing the player *reads* said so.
    */
   accent: string
-  /** What the two casts are called. Empty where the boss never casts it. */
+  /**
+   * What each of the boss's casts is called. Empty where it never casts it.
+   *
+   * One entry per cast rather than a pair plus a default, which is what this
+   * was and what let the second boss announce its shard as its tank slam --
+   * see the label in `hud.ts`. A cast with no line here is a cast the player
+   * is told the wrong name for, so a new one has to add a field and be made
+   * to say so.
+   */
   names: {
     slam: string
     breath: string
+    shard: string
   }
   lines: {
     phaseTwo: string
@@ -1125,7 +1134,7 @@ export const ENCOUNTERS: Encounter[] = [
     mechanicDamage: 0.9,
     sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
     accent: '#e7e5e4',
-    names: { slam: 'SABER LASH', breath: '' },
+    names: { slam: 'SABER LASH', breath: '', shard: '' },
     ladder: ['coldflame', 'spike', 'bonestorm'],
     phases: {
       1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 13, spike: 27, bonestorm: 62 }) },
@@ -1206,7 +1215,7 @@ export const ENCOUNTERS: Encounter[] = [
     mechanicDamage: 0.66,
     sizeMechanic: { 5: 1.05, 10: 1.0, 25: 0.9 },
     accent: '#38bdf8',
-    names: { slam: 'A WORD OF ENDING', breath: '' },
+    names: { slam: 'A WORD OF ENDING', breath: '', shard: 'WINTER SHARD' },
     // Cheapest idea first, and the two that need somebody else to act on them
     // last. The turned mind is the top rung on purpose: it is the only thing
     // in this game that asks a raid to stop hitting one of its own, and a raid
@@ -1321,7 +1330,7 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#ef4444',
     // No cone and nothing to run into: the only thing it casts is the one
     // that lands on whoever is holding it.
-    names: { slam: 'ABYSSAL SLAM', breath: '' },
+    names: { slam: 'ABYSSAL SLAM', breath: '', shard: '' },
     // Six rungs, all of them sold. This used to end on a mechanic no raid
     // reached, because there were ten mechanics for fifteen rungs and the
     // shortage had to go somewhere. With thirty for thirty it does not: the
@@ -1421,7 +1430,7 @@ export const ENCOUNTERS: Encounter[] = [
     // often on a first pull as a ninth.
     sizeMechanic: { 5: 0.92, 25: 0.8 },
     accent: '#e879f9',
-    names: { slam: 'DISCORDANT CHORD', breath: '' },
+    names: { slam: 'DISCORDANT CHORD', breath: '', shard: '' },
     // The three rungs a five-man buys are all about being named: the
     // judgement, the note, and the marks. None of them is answered by reading
     // the floor, which is what makes an opening here a different pull from an
@@ -1541,7 +1550,7 @@ export const ENCOUNTERS: Encounter[] = [
     // against a floor of 50.
     sizeMechanic: { 5: 0.78, 10: 0.98, 25: 0.85 },
     accent: '#22d3ee',
-    names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH' },
+    names: { slam: 'SHATTERING BLOW', breath: 'RIPTIDE BREATH', shard: '' },
     // The ring where the sweep used to sit, which is the one change here
     // that is not
     // a number. A five-man on normal buys the first three rungs, and with the
@@ -1659,7 +1668,7 @@ export const ENCOUNTERS: Encounter[] = [
     // took the fight past the enrage rather than past the healers.
     sizeMechanic: { 5: 0.72, 10: 1.15, 25: 0.85 },
     accent: '#c084fc',
-    names: { slam: 'UNBLINKING BLOW', breath: '' },
+    names: { slam: 'UNBLINKING BLOW', breath: '', shard: '' },
     // The vigil stays on the fourth rung even though a five-man on heroic
     // struggles with it. Swapping it with the thralls was measured and it
     // moves the problem rather than solving it: the same rung is also what a
@@ -1755,7 +1764,7 @@ export const ENCOUNTERS: Encounter[] = [
     // The ten is the size this boss was fitted at and it carries no weight.
     sizeMechanic: { 5: 0.61, 10: 0.85, 25: 0.85 },
     accent: '#f59e0b',
-    names: { slam: 'CALLING IT IN', breath: '' },
+    names: { slam: 'CALLING IT IN', breath: '', shard: '' },
     ladder: ['yoke', 'crush', 'burden', 'toll', 'spire', 'hand'],
     phases: {
       1: { swing: 2.0, slam: 15, puddleCount: 1, raid: 10, ...beats({ toll: 15, yoke: 10, crush: 9, burden: 4.6, spire: 20, hand: 14 }) },
@@ -1860,7 +1869,7 @@ export const ENCOUNTERS: Encounter[] = [
     // on a first pull, which is a fight with nothing to learn.
     sizeMechanic: { 5: 1.6, 10: 1.45, 25: 1.0 },
     accent: '#84cc16',
-    names: { slam: 'GORGE', breath: '' },
+    names: { slam: 'GORGE', breath: '', shard: '' },
     // The air is the first rung rather than something outside the ladder, and
     // that is a compromise worth writing down.
     //

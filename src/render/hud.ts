@@ -851,7 +851,19 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     // A floor can roll a cone onto a boss that owns none, and a boss that owns
     // none has no name for it — which drew an empty cast bar over a cast that
     // was very much happening. The fallback is the floor's own word for it.
-    const label = b.castId === 'boss_breath' ? named.breath || 'RISING CONE' : named.slam
+    //
+    // Every cast asked by name, rather than the cone asked by name and
+    // everything else defaulted to the slam. There are three casts in the game
+    // and that shape had room for two, so the third fell through — and the
+    // third is the shard, which the second boss aims at whoever is holding it
+    // and whose entire answer is reading this bar and cutting the cast. A raid
+    // was being told the incoming interrupt was the tank slam.
+    const label =
+      b.castId === 'boss_breath'
+        ? named.breath || 'RISING CONE'
+        : b.castId === 'boss_frostbolt'
+          ? named.shard || 'INCOMING SHARD'
+          : named.slam
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)
@@ -1007,8 +1019,18 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
   const chip = Math.max(7, h * 0.2)
   let ax = x + 5
   for (const aura of a.auras) {
+    // Green unless the chip is bad news. Every aura in the game was green,
+    // which is a colour that means "this is fine" — and the frame that most
+    // needs to be read at a glance is the one belonging to somebody the fight
+    // has taken off you.
     const color =
-      aura.id === 'spread' ? COLORS.spread : aura.id === 'shield' ? '#93c5fd' : '#4ade80'
+      aura.id === 'spread'
+        ? COLORS.spread
+        : aura.id === 'shield'
+          ? '#93c5fd'
+          : aura.id === 'turned'
+            ? COLORS.boss
+            : '#4ade80'
     ctx.fillStyle = color
     ctx.fillRect(ax, y + h - chip - 4, chip, chip)
     ctx.fillStyle = '#0a0a0f'
