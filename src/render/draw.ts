@@ -2254,8 +2254,15 @@ function drawActor(
   // for. But three bosses in the same red read as one boss, which is why each
   // has an accent at all — so the accent moves to a core on the disc and the
   // ring keeps it too. Threat on the outside, identity in the middle.
+  //
+  // And the core takes more of the disc for every ground the boss has given,
+  // which is the other half of the same argument. The red under it deepens
+  // with the phase already; if only the threat channel moves then a boss on
+  // its last third is a redder version of the boss on its first, and what has
+  // changed is how dangerous it is rather than what it is. Both move: it gets
+  // more dangerous and it gets more its own colour.
   if (isBoss && a.alive) {
-    footprint(ctx, p.x, p.y, r * 0.52)
+    footprint(ctx, p.x, p.y, r * (0.52 + phaseHeat(phase) * 0.18))
     ctx.fillStyle = accent
     ctx.globalAlpha = 0.85
     ctx.fill()
@@ -2280,14 +2287,32 @@ function drawActor(
 
   // The boss wears its phase on the floor: another ring for every ground it
   // has given, breathing faster each time.
+  //
+  // In its own colour rather than in the red every enemy shares. The red on
+  // the disc answers "is this dangerous", which is a question with the same
+  // answer under all eight of them; these rings answer "what has this one
+  // turned into", which does not. Drawn red they said a boss had turned and
+  // never which boss, so the one moment in a fight that is supposed to look
+  // like a different fight looked identical across the roster.
+  //
+  // The first boss is where that showed. Its second break says *The floor is
+  // bone now* and nothing in the frame agreed with the sentence: the thing is
+  // bone-white, and what it laid on the floor when it turned was the same
+  // pink every other boss lays. Bone rings under a bone boss are the
+  // sentence, and the drowned one gets the same treatment in its own colour
+  // without a line of code that knows which boss it is drawing.
   if (isBoss && a.alive && phase > 1) {
     for (let ring = 1; ring < phase; ring++) {
       const beat = 0.5 + 0.5 * Math.sin(clock * (2.2 + phase * 0.9) - ring * 0.8)
       footprint(ctx, p.x, p.y, r + 6 + ring * 6 + beat * 3)
-      ctx.strokeStyle = `rgba(248, 113, 113, ${(0.5 - ring * 0.12 + beat * 0.25).toFixed(2)})`
+      // Carried on the alpha channel rather than baked into the colour, so
+      // the accent can stay the hex string the encounter table wrote.
+      ctx.globalAlpha = Math.max(0, 0.5 - ring * 0.12 + beat * 0.25)
+      ctx.strokeStyle = accent
       ctx.lineWidth = 2
       ctx.stroke()
     }
+    ctx.globalAlpha = 1
   }
 
 

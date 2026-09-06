@@ -983,6 +983,93 @@ console.log(`rendered ${frames} frames with no exceptions`)
   if (missing.length > 0) throw new Error(`mechanics never fired: ${missing.join(', ')}`)
 }
 
+// --- a boss must wear its phase in its own colour --------------------------
+//
+// The break is the one moment in a fight that is meant to look like a
+// different fight, and the rings it leaves behind were the red every enemy in
+// the game shares -- so it looked like the same different fight on all eight.
+// Counted rather than eyeballed, because a colour is exactly the kind of thing
+// that goes back to a shared constant in a tidy-up and throws nothing.
+{
+  updateLayout(1440, 900)
+
+  interface Stroke {
+    r: number
+    style: string
+  }
+
+  const strokeRecorder = (out: Stroke[]): CanvasRenderingContext2D => {
+    const noop = () => {}
+    let pending = 0
+    let style = ''
+    const handler: ProxyHandler<Record<string, unknown>> = {
+      get(_t, prop) {
+        // The path is laid first and the colour set after it, so the radius is
+        // held until whatever closes the path asks for it.
+        if (prop === 'ellipse') {
+          return (_x: number, _y: number, rx: number) => {
+            pending = rx
+          }
+        }
+        if (prop === 'arc') {
+          return (_x: number, _y: number, r: number) => {
+            pending = r
+          }
+        }
+        if (prop === 'stroke') return () => out.push({ r: pending, style })
+        if (prop === 'measureText') return () => ({ width: 10 })
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+          return () => ({ addColorStop: noop })
+        }
+        if (prop === 'canvas') return { width: L.w, height: L.h }
+        return noop
+      },
+      set(_t, prop, value) {
+        if (prop === 'strokeStyle') style = String(value)
+        return true
+      },
+    }
+    return new Proxy({}, handler) as unknown as CanvasRenderingContext2D
+  }
+
+  const SHARED_RED = 'rgba(248, 113, 113'
+  const wrong: string[] = []
+  const accents = new Set<string>()
+
+  for (let i = 0; i < ENCOUNTERS.length; i++) {
+    const accent = ENCOUNTERS[i]!.accent
+    accents.add(accent)
+
+    // The same frame twice, differing only in how far the fight has turned, so
+    // everything the boss draws at every phase cancels out of the difference.
+    const at = (phase: number): { own: number; shared: number } => {
+      const s = pulled(2200 + i * 137, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', i)
+      s.phase = phase
+      // Long past the turn, so the one-second alarm ring is not in the count.
+      s.phaseAt = s.time - 60
+      const out: Stroke[] = []
+      drawWorld(strokeRecorder(out), s, 1, s.time, new Effects())
+      return {
+        own: out.filter((x) => x.style === accent).length,
+        shared: out.filter((x) => x.style.startsWith(SHARED_RED)).length,
+      }
+    }
+
+    const first = at(1)
+    const last = at(3)
+    const short = ENCOUNTERS[i]!.short
+    if (last.own - first.own !== 2) {
+      wrong.push(`${short}: ${last.own - first.own} rings in its own colour by phase three, wanted 2`)
+    }
+    if (last.shared > first.shared) {
+      wrong.push(`${short}: ${last.shared - first.shared} of them came out the shared red`)
+    }
+  }
+
+  expect('a boss lays a ring in its own colour for every ground it has given', wrong.length === 0, wrong.join('; '))
+  expect('and the roster does not agree on one colour to do it in', accents.size > 1, `${accents.size} distinct accents`)
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were
