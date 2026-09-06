@@ -1082,7 +1082,7 @@ export const PROJECTILE_MIN_RANGE = 120
  * as the shot being the hit, which is a different thing to look at and worth
  * the mismatch.
  */
-const PROJECTILE_SPEED: Record<ProjectileKind, number> = {
+export const PROJECTILE_SPEED: Record<ProjectileKind, number> = {
   bolt: 425,
   dot: 390,
   heavy: 350,
@@ -1120,8 +1120,16 @@ export function spawnBolt(
   kind: ProjectileKind,
   abilityId: string | null = null,
   sourceId: number | null = from.id,
+  /**
+   * Overridden only where the kind's own speed is the wrong answer.
+   *
+   * A raider's bolt crosses a gap that is most of the arena and the speed is
+   * about how the shot feels. A boss's crosses whatever gap the raid happens
+   * to be standing at, and at the range most of them stand the kind's speed
+   * puts the whole flight inside a fifth of a second. See `throwBolt`.
+   */
+  speed: number = PROJECTILE_SPEED[kind],
 ): void {
-  const speed = PROJECTILE_SPEED[kind]
 
   s.projectiles.push({
     id: s.nextObjectId++,

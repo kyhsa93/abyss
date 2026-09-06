@@ -234,10 +234,26 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Bone rather than blood: it is a thing standing out of the floor, and what
   // it asks for is a target call, not a step.
   boss_spike: { colour: '#e7e5e4', style: 'pierce' },
+  // The second boss's cold, at three sizes, and the one thing of its that is
+  // not cold at all.
+  //
+  // Its own page says so: the shard, the volley and the shade are the same
+  // material arriving three ways, and the rotting ground is the only demand it
+  // makes about your feet -- so the six that are not about your feet must not
+  // wear the colour that one does. Two of the three were not keeping their
+  // half of that. The volley was a sky-600, three steps darker than the shard
+  // and near enough to the floor that twenty-five of them going out at once
+  // read as nothing going out at all; the shade was a purple, which is not
+  // cold by any reading.
+  //
+  // Paler as it spreads: the shard is the whole of it in one place, the volley
+  // is the same thing thinned across everybody and is drawn thinner, and the
+  // shade steps sideways into cyan because it is the one that follows you
+  // rather than the one that is thrown at you.
   boss_decay: { colour: '#3f6212', style: 'crush' },
   boss_frostbolt: { colour: '#7dd3fc', style: 'pierce' },
-  boss_volley: { colour: '#0284c7', style: 'burst' },
-  boss_shade: { colour: '#6b21a8', style: 'burst' },
+  boss_volley: { colour: '#bae6fd', style: 'burst' },
+  boss_shade: { colour: '#67e8f9', style: 'burst' },
   boss_insignificance: { colour: '#64748b', style: 'crush' },
   boss_empower: { colour: '#c026d3', style: 'burst' },
   boss_dominate: { colour: '#7e22ce', style: 'crush' },

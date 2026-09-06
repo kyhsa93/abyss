@@ -1163,6 +1163,50 @@ console.log(`rendered ${frames} frames with no exceptions`)
   expect('and only what it actually throws', stray.length === 0, stray.join(', '))
 }
 
+// --- and a volley must be a volley ------------------------------------------
+//
+// One shot per body is what the word means, and each shot has to be in the air
+// long enough to be looked at. The second half is the one that failed quietly:
+// the bolts were all there and, at the range this game actually rings a boss
+// at, most of them crossed the gap in two or three frames. A tell that is over
+// before anybody looks up is a mechanic that reads as going to the far half of
+// the raid and nobody else.
+{
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
+  const s = pulled(4242, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e)
+  const rng = new Rng(4242)
+  const volley = () => s.projectiles.filter((p) => p.abilityId === 'boss_volley')
+
+  let casts = 0
+  let worst = Infinity
+  const missed: string[] = []
+
+  while (s.outcome === 'ongoing' && s.time < 40) {
+    const before = volley().length
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const now = volley()
+    if (now.length <= before) continue
+
+    casts++
+    const b = s.actors.find((a) => a.id === BOSS_ID)!
+    const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive).length
+    if (now.length !== bodies) missed.push(`${now.length} bolts for ${bodies} bodies`)
+    for (const p of now) {
+      const t = s.actors.find((a) => a.id === p.targetId)
+      if (!t) continue
+      worst = Math.min(worst, Math.hypot(t.pos.x - b.pos.x, t.pos.y - b.pos.y) / p.speed)
+    }
+  }
+
+  expect('the volley goes out', casts > 0, `${casts} casts in forty seconds`)
+  expect('and puts one shot on every body', missed.length === 0, missed.join('; '))
+  expect(
+    'and none of them is over before it is seen',
+    worst >= 0.45,
+    `the shortest was in the air ${worst.toFixed(2)}s`,
+  )
+}
+
 // --- the controls must actually reach the canvas ----------------------------
 //
 // Exceptions alone would not have caught the bug where touch controls were

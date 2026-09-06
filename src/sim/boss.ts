@@ -88,6 +88,7 @@ import {
   pushEffect,
   applyDamage,
   spawnBolt,
+  PROJECTILE_SPEED,
   type DamageOptions,
   boss,
   dist,
@@ -881,8 +882,29 @@ function scheduleFrostbolt(s: SimState, b: Actor, timing: PhaseTiming): void {
  * "this one carries nothing".
  */
 function throwBolt(s: SimState, targetId: number, kind: ProjectileKind, mechanic: string): void {
-  spawnBolt(s, boss(s), targetId, kind, mechanic)
+  const b = boss(s)
+  const at = s.actors.find((a) => a.id === targetId)
+  // Long enough to be seen, however short the gap is.
+  //
+  // A tell that is over before anybody looks up is not a tell, and at the
+  // ranges this game actually stands at it was. The raid rings the boss at
+  // ninety to a hundred and twenty-five, so the kind's own speed put most of
+  // a volley's flight inside a quarter of a second, and the bodies nearest --
+  // which is most of a twenty-five man -- got two or three frames. Measured,
+  // a full volley of twenty-five was on screen for between 0.08 and 0.67
+  // seconds depending on who it was aimed at: the mechanic whose whole point
+  // is that it goes to everybody looked like it went to the far half.
+  //
+  // So the gap sets the speed rather than the kind, and the kind's speed is
+  // the ceiling: nothing arrives sooner than half a second, and anything far
+  // enough away to take longer than that still takes longer.
+  const gap = at ? dist(b.pos, at.pos) : 0
+  const speed = Math.min(PROJECTILE_SPEED[kind], Math.max(gap, 1) / BOLT_TELL)
+  spawnBolt(s, b, targetId, kind, mechanic, b.id, speed)
 }
+
+/** How long a boss's shot is in the air at the least. See `throwBolt`. */
+const BOLT_TELL = 0.5
 
 /** The shard landing, on whoever it was aimed at. */
 function loose(s: SimState, targetId: number | null): void {
