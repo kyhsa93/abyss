@@ -2,6 +2,7 @@ import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
 import type { FloorPlan } from './floor'
 import type { MechanicId } from './encounters'
+import type { RoomShape } from './room'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -967,6 +968,16 @@ export interface SimState {
    * is a fact about the arena; a battleground is a set of rules played in one.
    */
   obstacles: Obstacle[]
+  /**
+   * The shape of the room this is being fought in.
+   *
+   * A fact about the fight rather than a constant, which is the whole of what
+   * changed: the clamp, the camera, the AI's sampling and the terrain roll all
+   * used to read one radius out of `constants.ts`, so every boss stood in the
+   * same circle by construction. They read this now. A fight that does not
+   * name a room gets `ROUND_ARENA`, which is that same circle.
+   */
+  room: RoomShape
   /** Class and role of each raid slot, in order. */
   party: Pick[]
   difficulty: DifficultyId

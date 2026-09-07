@@ -1,6 +1,5 @@
 import { ABILITIES } from './abilities'
 import {
-  ARENA_RADIUS,
   BURDEN_REACH,
   CHANT_NOTICE,
   COLDFLAME_TELEGRAPH,
@@ -63,8 +62,8 @@ import {
   tollPayer,
   topThreatTarget,
 } from './combat'
+import { pushInside, wallGap } from './room'
 import type { Rng } from './rng'
-import { clampToArena } from './state'
 import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
 /**
@@ -1758,6 +1757,15 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
 const SPACING = 46
 
 /**
+ * How close to a wall counts as hugging it.
+ *
+ * Sixty units, which is what the wall term was written with when it was a
+ * radius: a body inside the last sixty of the floor is scored down, harder
+ * the closer it gets, and the arithmetic is unchanged for a disc.
+ */
+const WALL_LAP = 60
+
+/**
  * What a body standing exactly on top of you is worth, in score.
  *
  * Small on the scale this function works at. A cone is fourteen hundred and
@@ -1944,6 +1952,20 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
     bearingY /= len
   }
 
+  // Not pushed into the room, deliberately.
+  //
+  // Part of this ring is outside any room the boss is standing near the edge
+  // of, and in a rectangle it can be outside while the boss is nowhere near a
+  // wall. Clamping the target here is the right answer to that and it is not
+  // free: it moves where the casters stand on the yardstick disc too, and
+  // measured across the whole balance table it moved every cell — the descent
+  // ran a floor deeper, a healerless party went from 68% to 100%. That is a
+  // tuning change wearing a refactor's clothes, so it belongs with the first
+  // room that needs it and the pull it is measured in, not here.
+  //
+  // Nothing walks out of the room in the meantime: the step itself is pushed
+  // back in, so what an unreachable target costs is a body standing against
+  // the wall nearest it rather than a body outside.
   return withinReach(s, actor, { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }, want)
 }
 
@@ -2253,7 +2275,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   let bestScore = -Infinity
 
   for (const candidate of candidates) {
-    clampToArena(candidate, actor.radius)
+    pushInside(s.room, candidate, actor.radius)
 
     let score = 0
 
@@ -2615,7 +2637,16 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     score -= dist(candidate, actor.pos) * 0.35
 
     // 7. Hugging the wall is bad; puddles there trap you.
-    score -= Math.max(0, Math.hypot(candidate.x, candidate.y) - (ARENA_RADIUS - 60)) * 2
+    //
+    // Measured off the room rather than off a radius. The two were the same
+    // number while every fight was a disc, and in a long room they are not:
+    // read as a distance from the middle, a body pressed against the side of
+    // a hall is comfortably "inside the arena" and a body in the middle of it,
+    // far down the long axis, is not. What the term means is how much floor
+    // there is between here and the nearest wall, which is what `wallGap`
+    // answers for any room. Candidates are pushed inside before they are
+    // scored, so this measures the wall a body would actually end up against.
+    score -= Math.max(0, WALL_LAP - wallGap(s.room, candidate)) * 2
 
     if (score > bestScore) {
       bestScore = score
@@ -2676,7 +2707,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   const stepY = ((target.y - actor.pos.y) / d) * stepLen
   actor.pos.x += stepX
   actor.pos.y += stepY
-  clampToArena(actor.pos, actor.radius)
+  pushInside(s.room, actor.pos, actor.radius)
   // And out of anything it walked into. The step is handed over as well as
   // the position, because being pushed back along the radius costs the whole
   // step and leaves a body re-walking into the same rock forever; what it does

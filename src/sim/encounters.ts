@@ -1,4 +1,5 @@
 import type { DifficultyId, RaidSize } from './classes'
+import type { RoomShape } from './room'
 
 /**
  * The bosses, in the order they are fought.
@@ -820,6 +821,22 @@ export interface Encounter {
   short: string
   /** One line on what this one asks of you, shown before the pull. */
   demand: string
+  /**
+   * The room this fight is fought in, or omitted for the circle everything
+   * used to be fought in.
+   *
+   * A room is a property of the encounter for the same reason the ladder is:
+   * what separates two bosses is what they ask for, and where you are standing
+   * is most of the answer to everything they ask. Three fights that light
+   * lines out of the middle, throw shards down a hall and thicken the air in a
+   * small room have three different rooms in the source and one circle here.
+   *
+   * Omitting it is not a placeholder — the first fight is deliberately the
+   * yardstick room, and every "narrow" or "wide" written on another one is a
+   * claim about this one. See `RoomShape` for the frame the coordinates are
+   * written in, and `roomArea` for the budget.
+   */
+  room?: RoomShape
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number

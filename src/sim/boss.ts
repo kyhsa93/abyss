@@ -1,5 +1,4 @@
 import {
-  ARENA_RADIUS,
   BURDEN_HANDS,
   BURDEN_REACH,
   readable,
@@ -110,8 +109,9 @@ import {
   mechanicScale,
   heraldUp,
 } from './combat'
+import { pushInside, roomReach } from './room'
 import type { Rng } from './rng'
-import { BOSS_ID, clampToArena } from './state'
+import { BOSS_ID } from './state'
 import { DIFFICULTIES, specOf } from './classes'
 import {
   encounterAt,
@@ -429,7 +429,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
     if (d > MELEE_RANGE) {
       b.pos.x += ((target.pos.x - b.pos.x) / d) * b.moveSpeed * DT
       b.pos.y += ((target.pos.y - b.pos.y) / d) * b.moveSpeed * DT
-      clampToArena(b.pos, b.radius)
+      pushInside(s.room, b.pos, b.radius)
     }
   }
 
@@ -529,7 +529,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
 function phaseBreak(s: SimState, b: Actor): void {
   // Sized off the room rather than off a number, so the fight's one signposted
   // turn stayed the same share of the floor when the floor doubled.
-  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_phase', power: ARENA_RADIUS * 2, crit: true })
+  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_phase', power: roomReach(s.room) * 2, crit: true })
   s.raidFlash = 0.5
   s.phaseAt = s.time
 }
@@ -564,7 +564,7 @@ function summonHerald(s: SimState, b: Actor): void {
   // past what `rendercheck` allows, with both melee specs at the bottom.
   const away = Math.atan2(b.pos.y, b.pos.x) + Math.PI
   const at = { x: Math.cos(away) * HERALD_WALK_IN, y: Math.sin(away) * HERALD_WALK_IN }
-  clampToArena(at, 30)
+  pushInside(s.room, at, 30)
 
   // Read back off the boss rather than recomputed from the encounter. What
   // `createState` took off is a share of a number that this fight may not be
@@ -851,7 +851,7 @@ function scheduleDecay(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   if (victims.length === 0) return
   const at = rng.pick(victims)
   const pos = { x: at.pos.x + rng.range(-30, 30), y: at.pos.y + rng.range(-30, 30) }
-  clampToArena(pos, DECAY_RADIUS)
+  pushInside(s.room, pos, DECAY_RADIUS)
   s.ground.push({
     ...blankGround(s),
     kind: 'decay',
@@ -1215,7 +1215,7 @@ function updateStorm(s: SimState, b: Actor): void {
     const step = b.moveSpeed * STORM_SPEED * DT
     b.pos.x += ((held.pos.x - b.pos.x) / gap) * step
     b.pos.y += ((held.pos.y - b.pos.y) / gap) * step
-    clampToArena(b.pos, b.radius)
+    pushInside(s.room, b.pos, b.radius)
   }
 
   // Billed on the same beat as everything else, so the healers read it the way
@@ -1391,7 +1391,7 @@ function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
       // Outside the boss's own edge, so the hitbox is the safe spot.
       const out = b.radius + COLDFLAME_RADIUS + i * COLDFLAME_STEP
       const pos = { x: b.pos.x + Math.cos(bearing) * out, y: b.pos.y + Math.sin(bearing) * out }
-      clampToArena(pos, COLDFLAME_RADIUS)
+      pushInside(s.room, pos, COLDFLAME_RADIUS)
       s.ground.push({
         ...blankGround(s),
         kind: 'coldflame',
@@ -1467,7 +1467,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
   for (let i = 0; i < count && victims.length > 0; i++) {
     const victim = rng.pick(victims)
     const pos = { x: victim.pos.x + rng.range(-20, 20), y: victim.pos.y + rng.range(-20, 20) }
-    clampToArena(pos, PUDDLE_RADIUS * 0.5)
+    pushInside(s.room, pos, PUDDLE_RADIUS * 0.5)
     s.sounds.push('telegraph')
     s.ground.push({
       ...blankGround(s),
@@ -1562,7 +1562,7 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   for (let i = 0; i < waves; i++) {
     const angle = rng.range(0, Math.PI * 2)
     const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
-    clampToArena(pos, 16)
+    pushInside(s.room, pos, 16)
     const thrall = makeAdd(s.nextObjectId++, pos.x, pos.y)
     thrall.maxHp = addHealth(s)
     thrall.hp = thrall.maxHp
@@ -1902,7 +1902,7 @@ function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     pos: { x: b.pos.x, y: b.pos.y },
     // Past the far wall, so the wedge is a slice of the whole arena however
     // far off centre the boss is standing when it starts turning.
-    radius: ARENA_RADIUS * 2,
+    radius: roomReach(s.room) * 2,
     telegraph: HAND_BEAT,
     lingering: 0,
     damage: HAND_DAMAGE,
@@ -1912,7 +1912,7 @@ function scheduleHand(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     turn: rng.chance(0.5) ? HAND_TURN : -HAND_TURN,
     pulses: HAND_PULSES,
   })
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_hand', power: ARENA_RADIUS })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_hand', power: roomReach(s.room) })
 }
 
 /**
@@ -1983,7 +1983,7 @@ function scheduleFault(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
     pos: { x: b.pos.x, y: b.pos.y },
     // The whole floor, because the half of it that is condemned reaches the
     // wall. What decides a hit is the bearing, not this.
-    radius: ARENA_RADIUS,
+    radius: roomReach(s.room),
     telegraph: FAULT_TELEGRAPH,
     // Nothing afterwards: a moment to be on the right side of, not a place to
     // avoid for the rest of the fight. Half an arena that stays dangerous is
@@ -1993,7 +1993,7 @@ function scheduleFault(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
     detonated: false,
     angle: rng.range(0, Math.PI * 2),
   })
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_fault', power: ARENA_RADIUS })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_fault', power: roomReach(s.room) })
 }
 
 /**
@@ -2072,7 +2072,7 @@ function scheduleShallows(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming):
     const angle = base + (i / SHALLOWS_COUNT) * Math.PI * 2 + rng.range(-0.4, 0.4)
     const away = rng.range(85, 195)
     const spot = { x: b.pos.x + Math.cos(angle) * away, y: b.pos.y + Math.sin(angle) * away }
-    clampToArena(spot, SHALLOWS_RADIUS)
+    pushInside(s.room, spot, SHALLOWS_RADIUS)
     spots.push(spot)
   }
 
@@ -2178,7 +2178,7 @@ function scheduleSoak(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   const angle = rng.range(0, Math.PI * 2)
   const away = rng.range(90, 170)
   const pos = { x: centre.x + Math.cos(angle) * away, y: centre.y + Math.sin(angle) * away }
-  clampToArena(pos, SOAK_RADIUS)
+  pushInside(s.room, pos, SOAK_RADIUS)
 
   s.ground.push({
     id: s.nextObjectId++,
@@ -2674,7 +2674,7 @@ function scheduleSpire(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
       pos.x = b.pos.x + Math.cos(bearing) * SPIRE_MELEE_ROOM
       pos.y = b.pos.y + Math.sin(bearing) * SPIRE_MELEE_ROOM
     }
-    clampToArena(pos, SPIRE_RADIUS)
+    pushInside(s.room, pos, SPIRE_RADIUS)
     s.ground.push({
       ...blankGround(s),
       kind: 'spire',
@@ -2754,7 +2754,7 @@ function scheduleHunt(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   // is the one that was tuned.
   const away = Math.atan2(victim.pos.y, victim.pos.x) + Math.PI
   const pos = { x: Math.cos(away) * STALKER_WALK, y: Math.sin(away) * STALKER_WALK }
-  clampToArena(pos, 20)
+  pushInside(s.room, pos, 20)
 
   const stalker = makeAdd(s.nextObjectId++, pos.x, pos.y)
   stalker.name = 'Stalker'
@@ -2877,7 +2877,7 @@ function updateAdds(s: SimState): void {
       const stepY = ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
       add.pos.x += stepX
       add.pos.y += stepY
-      clampToArena(add.pos, add.radius)
+      pushInside(s.room, add.pos, add.radius)
       clearTerrain(s.obstacles, add.pos, add.radius, stepX, stepY)
     }
 
@@ -3053,7 +3053,7 @@ export function updateGround(s: SimState): void {
           })
         }
       }
-      if (g.radius > ARENA_RADIUS + g.band) g.lingering = 0
+      if (g.radius > roomReach(s.room) + g.band) g.lingering = 0
       continue
     }
 
@@ -3115,7 +3115,7 @@ export function updateGround(s: SimState): void {
       pushEffect(s, 'impact', g.pos, {
         radius: g.radius,
         abilityId: 'boss_hand',
-        power: ARENA_RADIUS * 4,
+        power: roomReach(s.room) * 4,
         angle: g.angle,
         crit: true,
       })
@@ -3887,7 +3887,7 @@ function scheduleToll(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     detonated: false,
     named: named.id,
   }
-  clampToArena(plate.pos, TOLL_RADIUS)
+  pushInside(s.room, plate.pos, TOLL_RADIUS)
   s.ground.push(plate)
 
   pushEffect(s, 'cast', plate.pos, { abilityId: 'boss_toll' })
@@ -4012,7 +4012,7 @@ function scheduleRefuge(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
       x: b.pos.x + Math.cos(bearing) * REFUGE_RING,
       y: b.pos.y + Math.sin(bearing) * REFUGE_RING,
     }
-    clampToArena(spot, REFUGE_RADIUS)
+    pushInside(s.room, spot, REFUGE_RADIUS)
     spots.push(spot)
   }
 
@@ -4189,13 +4189,13 @@ function scheduleVigil(s: SimState, b: Actor, timing: PhaseTiming): void {
     // The arena, because there is no outside to it. Every other radius on
     // this list is a test; this one is only the picture, and it is drawn at
     // the full width of the floor so nobody reads it as somewhere to leave.
-    radius: ARENA_RADIUS,
+    radius: roomReach(s.room),
     telegraph: VIGIL_TELEGRAPH,
     lingering: 0,
     damage: VIGIL_DAMAGE,
     detonated: false,
   })
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_vigil', power: ARENA_RADIUS })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_vigil', power: roomReach(s.room) })
 }
 
 /**
@@ -4515,7 +4515,7 @@ function scheduleKnell(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
     x: b.pos.x + Math.cos(angle) * KNELL_REACH,
     y: b.pos.y + Math.sin(angle) * KNELL_REACH,
   }
-  clampToArena(pos, 20)
+  pushInside(s.room, pos, 20)
 
   const bell = makeAdd(s.nextObjectId++, pos.x, pos.y)
   bell.name = 'Knell'
@@ -4600,7 +4600,7 @@ function scheduleVessel(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // off from.
   const angle = rng.range(0, Math.PI * 2)
   const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
-  clampToArena(pos, 16)
+  pushInside(s.room, pos, 16)
 
   const jar = makeAdd(s.nextObjectId++, pos.x, pos.y)
   jar.name = 'Vessel'

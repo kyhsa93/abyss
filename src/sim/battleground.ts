@@ -1,4 +1,15 @@
-import { ARENA_RADIUS, DT } from './constants'
+import { DT } from './constants'
+import { ROUND_ARENA, roomReach, wallGap, type RoomShape } from './room'
+
+/**
+ * How far a battleground's floor reaches.
+ *
+ * A battleground has no encounter and therefore no room of its own: it is
+ * played in the yardstick circle, which is now a shape rather than a constant.
+ * Read off that shape here so there is still exactly one place in the game
+ * that knows how wide the default floor is.
+ */
+const ARENA = roomReach(ROUND_ARENA)
 import type { Rng } from './rng'
 import { dist } from './combat'
 import type {
@@ -198,8 +209,8 @@ const RALLY_OFFSET_MIN = 170
 const RALLY_OFFSET_MAX = 285
 
 const BASES: Record<Team, Vec2> = {
-  blue: { x: -ARENA_RADIUS + 90, y: 0 },
-  red: { x: ARENA_RADIUS - 90, y: 0 },
+  blue: { x: -ARENA + 90, y: 0 },
+  red: { x: ARENA - 90, y: 0 },
 }
 
 /** Whether this actor is currently carrying the other team's flag. */
@@ -256,7 +267,7 @@ function rollTerrain(
 
   const fits = (pos: Vec2, radius: number): boolean => {
     // Inside the floor, with a lane to spare against the wall.
-    if (Math.hypot(pos.x, pos.y) + radius > ARENA_RADIUS - LANE) return false
+    if (Math.hypot(pos.x, pos.y) + radius > ARENA - LANE) return false
     // Never on something that has to be stood on.
     for (const node of nodes) {
       if (dist(pos, node) < NODE_RADIUS + radius + 24) return false
@@ -289,8 +300,8 @@ function rollTerrain(
     for (let tries = 0; tries < 24; tries++) {
       const radius = rng.range(ROCK_MIN, ROCK_MAX)
       // Off the axis by at least a lane, or the pair would overlap itself.
-      const x = rng.range(LANE, ARENA_RADIUS - LANE * 2)
-      const y = rng.range(-ARENA_RADIUS + LANE, ARENA_RADIUS - LANE)
+      const x = rng.range(LANE, ARENA - LANE * 2)
+      const y = rng.range(-ARENA + LANE, ARENA - LANE)
       const right = { x, y }
       const left = { x: -x, y }
       if (!fits(right, radius) || !fits(left, radius)) continue
@@ -471,7 +482,15 @@ const RAID_CLEAR = 210
 const RAID_ROCK_MIN = 30
 const RAID_ROCK_MAX = 52
 
-export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
+/**
+ * A room's worth of rocks, rolled.
+ *
+ * Takes the room rather than assuming the circle: the wall a rock has to keep
+ * off is whichever wall is nearest, and in a rectangle that is not a radius.
+ * The roll itself is unchanged for a disc — same draws in the same order, so
+ * the fights that exist keep the floors they were tuned against.
+ */
+export function raidTerrain(room: RoomShape, rng: Rng, keepOff: Vec2[]): Obstacle[] {
   const rocks: Obstacle[] = []
   if (rng.chance(0.34)) return rocks
 
@@ -480,7 +499,7 @@ export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
     const out = Math.hypot(pos.x, pos.y)
     // Off the middle, and off the wall by a lane so nothing is ever pinned.
     if (out - radius < RAID_CLEAR) return false
-    if (out + radius > ARENA_RADIUS - LANE) return false
+    if (wallGap(room, pos, radius) < LANE) return false
     // Off wherever the raid is standing when the pull starts.
     for (const spot of keepOff) {
       if (dist(pos, spot) < radius + LANE) return false
@@ -498,15 +517,34 @@ export function raidTerrain(rng: Rng, keepOff: Vec2[]): Obstacle[] {
   for (let i = 0; i < wanted; i++) {
     for (let attempt = 0; attempt < 24; attempt++) {
       const radius = rng.range(RAID_ROCK_MIN, RAID_ROCK_MAX)
-      const angle = rng.range(0, Math.PI * 2)
-      const out = rng.range(RAID_CLEAR + radius, ARENA_RADIUS - LANE - radius)
-      const pos = { x: Math.cos(angle) * out, y: Math.sin(angle) * out }
+      const pos = rollSpot(room, rng, radius)
       if (!fits(pos, radius)) continue
       rocks.push({ pos, radius })
       break
     }
   }
   return rocks
+}
+
+/**
+ * One candidate spot for a rock, in whatever shape the room is.
+ *
+ * Polar in a disc, because that is how the roll was written and a different
+ * draw order would hand every existing fight a different floor. Rectangular in
+ * a hall, because a polar sample of a long room clusters everything in the
+ * short direction.
+ */
+function rollSpot(room: RoomShape, rng: Rng, radius: number): Vec2 {
+  if (room.kind === 'hall') {
+    const wide = Math.max(0, room.halfWidth - LANE - radius)
+    return {
+      x: rng.range(-wide, wide),
+      y: rng.range(-Math.max(0, room.back - LANE - radius), Math.max(0, room.front - LANE - radius)),
+    }
+  }
+  const angle = rng.range(0, Math.PI * 2)
+  const out = rng.range(RAID_CLEAR + radius, room.radius - LANE - radius)
+  return { x: Math.cos(angle) * out, y: Math.sin(angle) * out }
 }
 
 export function createBattleground(kind: BgKind, rng: Rng): BgState {

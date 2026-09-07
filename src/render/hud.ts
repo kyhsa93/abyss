@@ -12,7 +12,7 @@ import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, WORLD_RADIUS, classColor, resourceColor } from './theme'
+import { COLORS, L, classColor, resourceColor, worldReach } from './theme'
 
 export interface Rect {
   x: number
@@ -576,7 +576,9 @@ function bgName(kind: BgKind): string {
  */
 function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
   const { mapX: cx, mapY: cy, mapR: r } = L
-  const k = r / WORLD_RADIUS
+  // The map is the room scaled onto a disc, so what it divides by is how far
+  // the room reaches rather than a constant radius.
+  const k = r / worldReach()
   const at = (p: { x: number; y: number }) => ({ x: cx + p.x * k, y: cy + p.y * k })
 
   ctx.save()

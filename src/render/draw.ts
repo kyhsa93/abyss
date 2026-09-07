@@ -14,7 +14,6 @@ import {
   VIGIL_TELEGRAPH,
   TOLL_TELEGRAPH,
   YOKE_REACH,
-  ARENA_RADIUS,
   GLOBAL_COOLDOWN,
   PARTY_RADIUS,
 } from '../sim/constants'
@@ -38,7 +37,7 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawGrave, drawObstacles, floorTexture } from './scenery'
-import { COLORS, L, classColor } from './theme'
+import { COLORS, L, classColor, setWorldRoom, worldReach, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
 import { drawFxLoop } from './fximage'
@@ -292,6 +291,10 @@ export function drawWorld(
   clock: number,
   effects: Effects,
 ): void {
+  // Which room this is, before anything is measured against it: the layout's
+  // scale is how much world fits on the glass, and that is a fact about the
+  // room rather than a constant.
+  setWorldRoom(s.room)
   updateCamera(s, alpha, clock)
 
   // The shove goes on the world and nowhere else: a heads-up display that
@@ -697,7 +700,7 @@ function drawArena(
 
   ctx.save()
   ctx.beginPath()
-  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  arenaPath(ctx, c)
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
@@ -754,7 +757,7 @@ function drawArena(
     ctx.restore()
   }
 
-  const reach = ARENA_RADIUS * L.scale
+  const reach = worldReach() * L.scale
   const slab = 64 * L.scale
   const cols = Math.ceil((reach * 2) / slab) + 1
   for (let gx = 0; gx < cols; gx++) {
@@ -786,12 +789,44 @@ function drawArena(
   ctx.restore()
 
   ctx.beginPath()
-  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  arenaPath(ctx, c)
   ctx.strokeStyle = COLORS.floorEdge
   ctx.lineWidth = 2
   ctx.stroke()
 
-  drawFarWall(ctx, c)
+  // The bowl's far side, which is a fact about a disc. A rectangular room's
+  // walls are four flats and read nothing like this band; drawing them is the
+  // hall's own work, and a hall with no wall band is a floor that ends in an
+  // edge, which is at least true.
+  if (worldRoom().kind !== 'hall') drawFarWall(ctx, c)
+}
+
+/**
+ * The outline of the floor, in screen space.
+ *
+ * The one place the room's shape reaches the picture. A disc is the ellipse it
+ * always was; a rectangle is its four corners run through the same projection
+ * every body on the floor goes through, so it turns and tips with the camera
+ * like the ground it is.
+ */
+function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2): void {
+  const room = worldRoom()
+  if (room.kind !== 'hall') {
+    floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+    return
+  }
+  const corners: Vec2[] = [
+    { x: -room.halfWidth, y: -room.back },
+    { x: room.halfWidth, y: -room.back },
+    { x: room.halfWidth, y: room.front },
+    { x: -room.halfWidth, y: room.front },
+  ]
+  corners.forEach((corner, i) => {
+    const at = worldToScreen(corner)
+    if (i === 0) ctx.moveTo(at.x, at.y)
+    else ctx.lineTo(at.x, at.y)
+  })
+  ctx.closePath()
 }
 
 /**
@@ -1035,7 +1070,8 @@ function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number])
   // the line always crosses it twice; the guard is for the frame where the
   // camera has not caught up rather than for a case the fight can produce.
   const away = g.pos.x * nx + g.pos.y * ny
-  const half = Math.sqrt(Math.max(0, ARENA_RADIUS * ARENA_RADIUS - away * away))
+  const wall = worldReach()
+  const half = Math.sqrt(Math.max(0, wall * wall - away * away))
   if (half <= 0) return
   const footW = { x: nx * away, y: ny * away }
   const fromW = { x: footW.x - ny * half, y: footW.y + nx * half }
@@ -1424,7 +1460,7 @@ function drawHand(
   // wherever the boss happens to be standing. What gets drawn is clipped
   // back to the floor: a wedge painted over the void outside would read as
   // ground that can be stood on.
-  const reach = ARENA_RADIUS * 2 * L.scale
+  const reach = worldReach() * 2 * L.scale
   ctx.save()
   ctx.beginPath()
   floorArc(ctx, arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
@@ -1720,7 +1756,7 @@ function drawShockwave(
   // And the gap itself, marked out to the rim rather than at the ring's own
   // radius: the raid has to pick a bearing before the ring arrives, so what
   // it needs to see is the wedge, not the hole in a line.
-  const reach = ARENA_RADIUS * L.scale
+  const reach = worldReach() * L.scale
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
   floorArc(ctx, p.x, p.y, reach, angle - g.halfWidth, angle + g.halfWidth)

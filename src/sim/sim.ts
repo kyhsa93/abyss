@@ -61,8 +61,9 @@ import {
   REEK_REACH,
   TICK_RATE,
 } from './constants'
+import { pushInside } from './room'
 import type { Rng } from './rng'
-import { BOSS_ID, clampToArena } from './state'
+import { BOSS_ID } from './state'
 import type { Ability } from './abilities'
 import type { Actor, PlayerInput, SimState } from './types'
 
@@ -433,7 +434,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
     const stepY = (input.moveY / len) * stepLen
     player.pos.x += stepX
     player.pos.y += stepY
-    clampToArena(player.pos, player.radius)
+    pushInside(s.room, player.pos, player.radius)
     clearTerrain(s.obstacles, player.pos, player.radius, stepX, stepY)
     // Moving breaks your own cast — the core tension with Burst.
     if (player.castId) interruptCast(s, player, 'moved')

@@ -1,10 +1,11 @@
-import { ARENA_RADIUS, COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
+import { COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
 import { descentHealth } from './descent'
 import { plannedOpening, rollFloor, type FloorPlan } from './floor'
 import { Rng } from './rng'
+import { ROUND_ARENA } from './room'
 import {
   CLASSES,
   DEFAULT_PARTY,
@@ -182,12 +183,19 @@ export function createState(
   const scale =
     sizeHealth(party.length) * DIFFICULTIES[difficulty].health * descentHealth(depth)
   const fight = encounterAt(encounter)
+  // The room, before anything is placed in it. Everything below that used to
+  // read `ARENA_RADIUS` — the terrain's walls, the clamp, the camera — reads
+  // this instead, and a fight that names no room gets the circle they all
+  // assumed.
+  const room = fight.room ?? ROUND_ARENA
   // A floor rolls its own fight out of the same vocabulary the bosses are
   // written in; the ladder gets the boss exactly as it was authored.
   const plan = rolled ?? (depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null)
-  // The room the fight is fought in, rolled from the same seed as the fight.
-  // Off the slots so nobody starts the pull standing inside a rock.
+  // What is standing in that room, rolled from the same seed as the fight and
+  // placed against the room's own walls. Off the slots so nobody starts the
+  // pull inside a rock.
   const rocks = raidTerrain(
+    room,
     new Rng(seed * 13 + encounter * 7919 + 1049),
     slots.map((slot) => ({ x: slot.x, y: slot.y })),
   )
@@ -253,6 +261,7 @@ export function createState(
   return {
     mode: 'raid',
     bg: null,
+    room,
     only: null,
     healing: 1,
     time: 0,
@@ -359,6 +368,8 @@ export function createBattlegroundState(
   return {
     mode: 'battleground',
     bg,
+    // A battleground is played in the yardstick circle and always has been.
+    room: ROUND_ARENA,
     time: 0,
     tick: 0,
     actors: [...blue, ...red],
@@ -411,12 +422,4 @@ export function unattended(s: SimState, attempt = 6): SimState {
   return s
 }
 
-export function clampToArena(pos: { x: number; y: number }, radius: number): void {
-  const limit = ARENA_RADIUS - radius
-  const dist = Math.hypot(pos.x, pos.y)
-  if (dist > limit) {
-    const scale = limit / dist
-    pos.x *= scale
-    pos.y *= scale
-  }
-}
+

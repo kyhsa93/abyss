@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { insideRoom, pushInside, roomReach, wallGap } from '../src/sim/room'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
@@ -11455,6 +11456,113 @@ for (const [label, w, h] of [
     'and the counter starts past every reserved id',
     FIRST_OBJECT_ID > BOSS_ID && FIRST_OBJECT_ID > PLAYER_ID,
     `${FIRST_OBJECT_ID} against ${BOSS_ID}`,
+  )
+}
+
+// --- the room is a property of the fight, not a constant -------------------
+//
+// `ARENA_RADIUS` used to be read in twenty places: the clamp, the AI's wall
+// term, the idle ring, the terrain roll, the camera's scale, four shapes in
+// the renderer. Every one of them was a fight assuming it was being fought in
+// the same circle as every other fight, and the assumption was invisible
+// because it was spelled the same way each time.
+//
+// So the constant is allowed in exactly two files — where it is declared, and
+// where the default room is built out of it — and everything else asks a room.
+// Without this the next person to want "the whole floor" writes the constant
+// again, and it is right for eleven of the twelve rooms.
+{
+  const roots = ['src']
+  const offenders: string[] = []
+  let scanned = 0
+  const allowed = new Set(['src/sim/constants.ts', 'src/sim/room.ts'])
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(resolve(process.cwd(), dir), { withFileTypes: true })) {
+      const path = `${dir}/${entry.name}`
+      if (entry.isDirectory()) walk(path)
+      else if (path.endsWith('.ts')) {
+        scanned++
+        if (allowed.has(path)) continue
+        const source = readFileSync(resolve(process.cwd(), path), 'utf8')
+        // In code, not in prose: the comments that explain why the constant
+        // moved are the point of the comments.
+        for (const line of source.split('\n')) {
+          const code = line.replace(/\/\/.*$/, '').replace(/^\s*\*.*$/, '')
+          if (/\bARENA_RADIUS\b/.test(code)) offenders.push(`${path}: ${line.trim()}`)
+        }
+      }
+    }
+  }
+  for (const root of roots) walk(root)
+  expect('every source file was read for the arena constant', scanned > 30, `${scanned} files`)
+  expect(
+    'and nothing outside constants.ts and room.ts reads it',
+    offenders.length === 0,
+    offenders.join('; '),
+  )
+}
+
+// --- and the three shapes answer their own questions ------------------------
+//
+// The disc's arithmetic is the arithmetic `clampToArena` had, to the digit:
+// every number in `docs/mechanic-rules.md` was measured against it, so a room
+// module that rounded the yardstick differently would silently retune the
+// whole game. The rectangle is the one that has never existed before, and both
+// of its failure modes are corners.
+{
+  const disc = { kind: 'round', radius: 920 } as const
+  const hall = { kind: 'hall', halfWidth: 560, front: 1560, back: 720 } as const
+
+  // Written out the way `clampToArena` wrote it, down to the order of the
+  // multiplication: scaling by `limit / dist` and multiplying by `limit` then
+  // dividing by `dist` are the same number in arithmetic and not always the
+  // same double, and this check is about the double.
+  const oldClamp = (pos: Vec2, radius: number): Vec2 => {
+    const limit = 920 - radius
+    const d = Math.hypot(pos.x, pos.y)
+    if (d <= limit) return { ...pos }
+    const scale = limit / d
+    return { x: pos.x * scale, y: pos.y * scale }
+  }
+  let drift = 0
+  for (let i = 0; i < 400; i++) {
+    const angle = (i / 400) * Math.PI * 2
+    const out = 200 + (i % 7) * 180
+    const at = { x: Math.cos(angle) * out, y: Math.sin(angle) * out }
+    const was = oldClamp(at, 17)
+    const now = { ...at }
+    pushInside(disc, now, 17)
+    drift = Math.max(drift, Math.hypot(was.x - now.x, was.y - now.y))
+  }
+  expect('the disc clamps exactly where it always did', drift === 0, `${drift.toFixed(6)} off`)
+
+  // A corner is inside a hall and outside the circle that contains it, and the
+  // far end of a hall is the other way round. Both used to be answered by one
+  // radius, and both used to be answered wrong.
+  expect(
+    'a hall is not the circle around it',
+    insideRoom(hall, { x: 540, y: -700 }) && !insideRoom(hall, { x: 0, y: 1600 }),
+    'corner or far end read wrong',
+  )
+  const pinned = { x: 900, y: 2000 }
+  pushInside(hall, pinned, 17)
+  expect(
+    'and it pushes back on each axis rather than toward the middle',
+    pinned.x === 560 - 17 && pinned.y === 1560 - 17,
+    `${pinned.x}, ${pinned.y}`,
+  )
+  expect(
+    'a hall reaches furthest at a corner',
+    Math.abs(roomReach(hall) - Math.hypot(560, 1560)) < 1e-9 && roomReach(disc) === 920,
+    `${roomReach(hall).toFixed(2)}`,
+  )
+  // The wall term in `findSafeSpot` is written off this, so a body pressed
+  // against the long side of a hall has to read as against a wall — which,
+  // measured from the middle, it does not.
+  expect(
+    'and the wall a body is nearest is the wall it is scored against',
+    wallGap(hall, { x: 540, y: 0 }) === 20 && wallGap(disc, { x: 900, y: 0 }) === 20,
+    `${wallGap(hall, { x: 540, y: 0 })}`,
   )
 }
 

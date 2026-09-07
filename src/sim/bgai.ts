@@ -14,8 +14,8 @@ import {
   other,
   teamOf,
 } from './battleground'
+import { ROUND_ARENA, pushInside } from './room'
 import type { Rng } from './rng'
-import { clampToArena } from './state'
 import type { Actor, AuraId, BgPlan, BgState, Obstacle, SimState, Team, Vec2 } from './types'
 
 /**
@@ -540,7 +540,9 @@ function wander(obstacles: Obstacle[], actor: Actor, goal: Goal, target: Actor |
   if (range < near + target.radius) {
     const away = Math.atan2(actor.pos.y - target.pos.y, actor.pos.x - target.pos.x)
     const out = { x: target.pos.x + Math.cos(away) * (near + 40), y: target.pos.y + Math.sin(away) * (near + 40) }
-    clampToArena(out, actor.radius)
+    // The one room a battleground is ever played in. It has no encounter to
+    // take a room from, and its own arena is the yardstick circle.
+    pushInside(ROUND_ARENA, out, actor.radius)
     // Backing into a rock is backing into a corner: the push-out would hold
     // the actor against it while it kept trying. Stand where you are instead
     // and let the rock be cover.
@@ -612,7 +614,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   const stepY = ((target.y - actor.pos.y) / d) * step
   actor.pos.x += stepX
   actor.pos.y += stepY
-  clampToArena(actor.pos, actor.radius)
+  pushInside(s.room, actor.pos, actor.radius)
   clearTerrain(s.obstacles, actor.pos, actor.radius, stepX, stepY)
 
   if (actor.castId) interruptCast(s, actor, 'moved')

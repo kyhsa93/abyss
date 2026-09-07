@@ -1,7 +1,47 @@
-import { ARENA_RADIUS } from '../sim/constants'
+import { ROUND_ARENA, roomReach, type RoomShape } from '../sim/room'
 
-/** World radius of the arena. Taken from the simulation, never redeclared. */
-export const WORLD_RADIUS = ARENA_RADIUS
+/**
+ * The room the frame is drawing.
+ *
+ * This was `WORLD_RADIUS`, one constant taken from the simulation, and it was
+ * right for exactly as long as every fight was fought in the same circle. What
+ * the screen actually needs is how far the current room reaches from the
+ * middle, since that is what has to fit on the glass — a number that is the
+ * same 920 for the yardstick room and is not for anything else.
+ *
+ * Set once a frame by `drawWorld` off the fight's own room. It is render-side
+ * state on purpose: the simulation never learns there is a screen, which is
+ * the same reason the camera lives out here.
+ */
+let world: RoomShape = ROUND_ARENA
+let viewW = 960
+let viewH = 760
+
+export function worldRoom(): RoomShape {
+  return world
+}
+
+/** How far the room reaches from the middle — the world radius of the frame. */
+export function worldReach(): number {
+  return roomReach(world)
+}
+
+/**
+ * Points the frame at a room, and re-lays the screen if it changed.
+ *
+ * The layout holds `scale`, which is screen units per world unit, so a
+ * different room is a different scale and every position on the glass moves
+ * with it. Cheap enough to do on the change rather than per frame, and it
+ * changes at most once a pull.
+ */
+export function setWorldRoom(room: RoomShape): void {
+  if (roomReach(room) === roomReach(world) && room.kind === world.kind) {
+    world = room
+    return
+  }
+  world = room
+  updateLayout(viewW, viewH)
+}
 
 export const COLORS = {
   bg: '#0a0a0f',
@@ -271,7 +311,7 @@ export function computeLayout(w: number, h: number): Layout {
     w,
     h,
     portrait,
-    scale: arenaR / WORLD_RADIUS,
+    scale: arenaR / roomReach(world),
     cx: w / 2,
     cy: h / 2,
     arenaR,
@@ -399,6 +439,8 @@ export function setZoomLevel(level: number, w: number, h: number): boolean {
 export const L: Layout = computeLayout(960, 760)
 
 export function updateLayout(w: number, h: number): void {
+  viewW = w
+  viewH = h
   Object.assign(L, computeLayout(w, h))
 }
 
