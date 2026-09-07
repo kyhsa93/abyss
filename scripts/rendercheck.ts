@@ -9349,7 +9349,17 @@ function onScreenShare(scene: Ambience, zoom: number): number {
   // Measured off what the scene actually applies rather than off what it is
   // supposed to apply: asking the check to compute the intended factor is
   // asking it to agree with the bug.
+  //
+  // The room is pinned before each reading, and that is the whole of what
+  // makes this a check rather than a coin toss. `L.scale` is the fitted radius
+  // over the room's reach, so a scene in a smaller room is at a different
+  // scale for a reason that has nothing to do with the camera -- and an
+  // `Ambience` rolls its scene with `Math.random()`. Once fights stopped all
+  // sharing one room, two readings taken from two instances were comparing
+  // two rooms, and this passed or failed on which pair came up. It failed at
+  // 1.31 against 0.88, which is 920 over 620 and not a camera at all.
   const worldScale = (level: number): number => {
+    setWorldRoom(ROUND_ARENA)
     setZoomLevel(level, 1440, 900)
     const applied: number[] = []
     const spy = new Proxy(
