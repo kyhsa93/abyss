@@ -4,6 +4,7 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { viewAngle } from '../src/render/camera'
+import { HINT_KEYS } from '../src/render/hints'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
@@ -1232,6 +1233,28 @@ console.log(`rendered ${frames} frames with no exceptions`)
       `${plain.length} shapes before, ${marked.length} after`,
     )
   }
+}
+
+// --- every rung a boss sells must introduce itself once ----------------------
+//
+// The card module's own first line: a mechanic you have never seen named is
+// just an unexplained death. It was true of the first boss's three and of
+// nothing else -- the second boss sold eight demands and named one of them, so
+// a raid met seven things it had no word for on the fight straight after the
+// one that teaches it what a card means.
+{
+  const named = new Set(HINT_KEYS)
+  const missing: string[] = []
+  for (const e of [ENCOUNTERS.findIndex((x) => x.id === 'marrow'), ENCOUNTERS.findIndex((x) => x.id === 'whisper')]) {
+    for (const rung of [...(ENCOUNTERS[e]!.always ?? []), ...ENCOUNTERS[e]!.ladder]) {
+      if (!named.has(rung)) missing.push(`${ENCOUNTERS[e]!.short}: ${rung}`)
+    }
+  }
+  expect(
+    'the first two bosses name everything they sell',
+    missing.length === 0,
+    missing.join(', '),
+  )
 }
 
 // --- the raid must be able to kill its own, and mostly not ------------------

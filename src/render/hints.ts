@@ -35,9 +35,28 @@ const HINTS: Record<string, Hint> = {
   // something. A body wearing the enemy ring has meant "kill it" everywhere
   // else in the game, and here it does not.
   dominate: { title: 'TURNED MIND', advice: 'Yours, and hostile — do NOT kill them; carry on without them' },
+  // The second boss's six, for the reason at the top of this file rather than
+  // for any of their own: a raid meets eight new demands on the fight after
+  // the one that teaches it what a card is, and every one of them arrived
+  // unnamed. Nothing here is a hint about how to play well -- each says what
+  // the thing is and what it wants, once.
+  volley: { title: 'FROST VOLLEY', advice: 'Nothing to dodge — everybody at once; the healers carry it' },
+  decay: { title: 'ROTTING GROUND', advice: 'It stays where it fell — walk out, and do not walk back' },
+  // Titled by the fight, like the tide: the boss names its own shard.
+  frostbolt: { title: 'WINTER SHARD', advice: 'Aimed at whoever holds the boss — cut the cast' },
+  shade: { title: 'SHADE', advice: 'It follows the one it picked — keep walking, it cannot corner you' },
+  insignificance: { title: 'THE SLIGHT', advice: 'The tank loses more of its hold each time — the other tank takes it' },
+  empower: { title: 'CAME BACK WRONG', advice: 'One of the wave is stronger than the rest — kill that one first' },
   // Titled by the fight at trigger time; this is only the fallback.
   raid: { title: 'CRUSHING TIDE', advice: 'Nothing to dodge — call a raid cooldown (6-0) before the next one' },
 }
+
+/**
+ * Which mechanics have a card, for the check that asks whether a boss names
+ * everything it sells. Exported rather than reachable, so the table stays the
+ * one place a card is written down.
+ */
+export const HINT_KEYS: readonly string[] = Object.keys(HINTS)
 
 const SHOW_FOR = 4.5
 const SEEN_KEY = 'abyss.seen'
@@ -84,6 +103,18 @@ export class Hints {
     }
     if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) this.trigger('spread')
     if (boss(s)?.castId === 'boss_slam') this.trigger('slam')
+    // The second boss's rungs, each on the plainest thing that is true while
+    // it is happening: a cast on the boss, an aura on a body, a body in the
+    // wave wearing a mark. The rotting ground is already covered -- the sweep
+    // over `s.ground` above triggers on its own kind.
+    if (boss(s)?.castId === 'boss_frostbolt') {
+      this.trigger('frostbolt', encounterAt(s.encounter).names.shard)
+    }
+    if (s.actors.some((a) => a.auras.some((au) => au.id === 'haunted'))) this.trigger('shade')
+    if (s.actors.some((a) => a.auras.some((au) => au.id === 'slighted'))) this.trigger('insignificance')
+    if (s.actors.some((a) => a.faction === 'boss' && a.auras.some((au) => au.id === 'empowered'))) {
+      this.trigger('empower')
+    }
     // One of the raid's own, turned. Watched on the aura rather than on the
     // chat line the fight speaks, because the line has scrolled by the time
     // anybody works out which body it meant.
@@ -107,6 +138,7 @@ export class Hints {
       // countdown is: the card names a thing the player is about to see called
       // something else on the banner above it.
       if (e.abilityId === 'boss_raid') this.trigger('raid', encounterAt(s.encounter).names.raid)
+      if (e.abilityId === 'boss_volley') this.trigger('volley')
     }
   }
 

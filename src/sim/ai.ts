@@ -669,8 +669,7 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
   const held = ai.striking
   ai.striking = ai.switchTimer > 0 ? null : want
   if (ai.striking !== null && ai.striking !== held) {
-    if (ai.striking === 'hush') say(s, actor, 'Stop — everything comes back')
-    else if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
+    if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
     else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
     else if (ai.striking.startsWith('hold:')) say(s, actor, 'That is one of ours — off them')
     else if (ai.striking.startsWith('first:')) say(s, actor, 'That one came back wrong — it first')
@@ -783,7 +782,6 @@ export function mayStrike(s: SimState, actor: Actor, target: Actor): boolean {
   if (holdingStill(s, actor)) return false
   const call = actor.ai?.striking ?? null
   if (call === null) return true
-  if (call === 'hush') return target.id !== boss(s).id
   const spared = calledId(call, 'spare:')
   if (spared !== null && target.id === spared) return false
   // The weapon has to obey this one too, and for the reason above: a raid
@@ -3049,7 +3047,7 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
 
   // Nobody needs healing: help kill it, but keep enough mana in reserve to
   // answer the next spike.
-  if (kit.attack && powerLeft > 0.55 && actor.ai?.striking !== 'hush') {
+  if (kit.attack && powerLeft > 0.55) {
     const target = strikeTarget(s, actor, quarry(s, actor))
     tryCast(s, actor, kit.attack, target.id, rng, moving)
   }
@@ -3066,10 +3064,6 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
   if (wantsBrace(actor) && kit.defensive && !rng.chance(actor.ai!.mistakeChance)) {
     if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) return
   }
-
-  // Nothing at all goes out while the surface is closed. A dealer has no
-  // second job to fall back on, which is the cost of the mechanic.
-  if (actor.ai?.striking === 'hush') return
 
   // Adds first: they beeline for whoever is closest and shred a healer. The
   // two exceptions to that are decisions, and they are made in `readTheField`.

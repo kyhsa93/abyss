@@ -418,6 +418,19 @@ const BOSS: Record<string, Layer[]> = {
     { z: 10, dir: 'body/bodies/skeleton' },
     { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
+  // "share the air, and know who is holding it" — huge, bloated, stitched and
+  // leaking. It has to read as *full*, because the silhouette is the mechanic:
+  // the whole fight is a thing filling up and emptying out, and the raid is
+  // reading how far along that is off the body in the middle.
+  //
+  // The bandages are the only thing in the set that reads as surgery, and the
+  // head is the one stitched together out of other people's.
+  host: [
+    { z: 10, dir: 'body/bodies/muscular' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/bandage/male' },
+    { z: 100, dir: 'head/heads/frankenstein/adult' },
+  ],
   // "decide who pays, then pay it" — a skeleton, wearing nothing, which is the
   // one boss the bare skeleton body is exactly right for.
   ledger: [

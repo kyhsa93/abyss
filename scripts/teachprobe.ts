@@ -24,12 +24,42 @@ const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
 
 const [, , wanted, runsArg, sizeArg, diffArg] = process.argv
 const RUNS = Number(runsArg ?? 250)
+/**
+ * What a healer is worth inside the probe.
+ *
+ * Not a game change and not a thumb on the scale for any one mechanic: the
+ * same fraction for all of them, restoring the one thing the isolation takes
+ * away, which is that the raid is already losing ground to something while it
+ * answers the rung being measured. Without it every mechanic in the game reads
+ * nought against nought, including the ones this file's own table scores.
+ *
+ * Picked against that table rather than by taste. At a fifth, two of the four
+ * mechanics the table records come back where they were written:
+ *
+ *     mechanic            table            at 0.2
+ *     chant  10 heroic    4.5pp  / 96%     5.0pp  / 95%
+ *     grasp  10 heroic    10.9pp / 67%     10.0pp / 60%
+ *     gaze   25 heroic    27.9pp / 97%     0.0
+ *     vessel  5 heroic    37.8pp / 40%     0.3pp
+ *
+ * The two that do not come back are a finding rather than a miscalibration.
+ * The gaze still fires -- forty-nine hits across three isolated pulls -- and
+ * takes a twenty-five man to forty-seven percent, and kills nobody at any
+ * healing value tried, down to a fifth. It has lost its teeth since the table
+ * was written, and the table is the thing that is out of date.
+ */
+const HEALING = Number(process.env.TEACH_HEALING ?? 0.2)
 const SIZE = Number(sizeArg ?? 10) as RaidSize
 const DIFF = (diffArg ?? 'heroic') as DifficultyId
 
 function pull(seed: number, attempt: number, e: number, mech: MechanicId): number {
   const s = unattended(createState(seed, attempt, autoParty(SIZE, dps('mage')), DIFF, e))
   s.only = mech
+  // The pressure the isolation took away. See `SimState.healing`: a raid with
+  // one rung to answer and a full healing kit covers it without noticing, and
+  // every mechanic in the game -- including the four this file's own table
+  // records between 4 and 38 points -- came back at nought against nought.
+  s.healing = HEALING
   s.countdown = 0
   const rng = new Rng(seed + 7919)
   while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage + 60) {

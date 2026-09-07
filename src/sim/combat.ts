@@ -811,7 +811,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   // the dozen places one is cast. `HEALTH` rides along for the same reason:
   // a heal is a fraction of a bar, so it is worth whatever a bar is worth.
   amount *= HEALTH
-  target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix))
+  target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix) * s.healing)
   const healed = Math.round(target.hp - before)
 
   const credit = s.tally[sourceId]

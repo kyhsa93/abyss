@@ -934,6 +934,23 @@ export interface SimState {
    * actually learning. It reads the same override path a floor already uses.
    */
   only: MechanicId | null
+
+  /**
+   * What a healer's output is worth, for the same measurement.
+   *
+   * One everywhere the game itself runs, and its sibling above is why it has
+   * to exist. Narrowing a fight to a single rung also takes away most of what
+   * the healers were losing ground to, and a raid with nothing else to cover
+   * covers one mechanic without noticing -- so the death rate the field table
+   * is written in reads nought for every mechanic in the game, including the
+   * four the table itself records at between four and thirty-eight points.
+   *
+   * The mechanic is not touched. What is put back is the pressure the
+   * isolation removed, and it is put back on the healers rather than on the
+   * thing being measured, so what the number says is still what that mechanic
+   * costs a raid that is already busy.
+   */
+  healing: number
   /** A magic dot on somebody, which armour does not. */
   /** Counts down after party-wide damage lands, purely to drive a screen flash. */
   raidFlash: number
