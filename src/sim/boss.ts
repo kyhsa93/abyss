@@ -649,6 +649,16 @@ function scheduleSlam(s: SimState, b: Actor, target: Actor | null, timing: Phase
   s.nextSlam -= DT
   if (s.nextSlam > 0 || b.castId) return
 
+  // Not at nobody.
+  //
+  // `target` is whoever holds the boss, and it is null for exactly one reason:
+  // the boss has let go and is storming. The cast went out anyway -- twice a
+  // storm, measured -- so the bar over a thing that had stopped tanking read
+  // SABER LASH at a body it was not looking at, and then landed on nothing.
+  // The original casts nothing at all while it whirls, and a cast bar naming
+  // an attack that cannot arrive is worse than the silence.
+  if (!target) return
+
   b.castId = 'boss_slam'
   // The same gathering ring every caster in the game gets when it starts a
   // cast. The boss was setting its cast bar by hand and never got one.
@@ -4372,6 +4382,16 @@ function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   s.next.spike -= DT
   if (s.next.spike > 0) return
   s.next.spike = timing.spike
+
+  // Not while it is storming.
+  //
+  // The one stretch of this fight where the boss is doing a single thing, and
+  // it was doing three: the original pins nobody while it whirls, because
+  // pinning is what it does *instead* of whirling. Two spikes a storm, and
+  // each of them asked the raid to stop and turn round at the exact moment
+  // the rest of the fight is telling it to keep moving -- two demands that
+  // cannot both be answered, which is not difficulty, it is noise.
+  if (getAura(b, 'storming')) return
 
   // Never onto somebody already held, and never onto the tank.
   //

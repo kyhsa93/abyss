@@ -1164,6 +1164,57 @@ console.log(`rendered ${frames} frames with no exceptions`)
   expect('and only what it actually throws', stray.length === 0, stray.join(', '))
 }
 
+// --- a storming boss does one thing -----------------------------------------
+//
+// The original casts nothing but the cold line while it whirls, because
+// whirling is what it does *instead of* pinning and *instead of* swinging.
+// Both were still going out: two spikes and two slams a storm, and every one
+// of those slams named nobody -- the tank target is null for exactly one
+// reason and the cast went out on it anyway, so the bar read SABER LASH over a
+// thing that had let go of everybody and then landed on nothing.
+//
+// Two demands the raid cannot both answer is not difficulty. A spike says stop
+// and turn round; a storm says do not stop.
+{
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'marrow')
+  const s = pulled(4242, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', e)
+  const rng = new Rng(4242)
+  const b = s.actors.find((a) => a.id === BOSS_ID)!
+
+  let storms = 0
+  let spikes = 0
+  let slams = 0
+  let blind = 0
+  let lines = 0
+  let pinned = 0
+  let wasStorming = false
+  let wasCasting: string | null = null
+
+  while (s.outcome === 'ongoing' && s.time < 180) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const storming = b.auras.some((x) => x.id === 'storming')
+    if (storming && !wasStorming) storms++
+    const held = s.actors.filter((a) => a.spawn === 'spike' && a.alive).length
+    if (storming) {
+      if (held > pinned) spikes++
+      if (b.castId === 'boss_slam' && wasCasting !== 'boss_slam') {
+        slams++
+        if (b.castTargetId === null) blind++
+      }
+      if (s.ground.some((g) => g.kind === 'coldflame')) lines++
+    }
+    wasStorming = storming
+    pinned = held
+    wasCasting = b.castId
+  }
+
+  expect('the first boss gets to storm', storms >= 2, `${storms} storms in three minutes`)
+  expect('and pins nobody while it does', spikes === 0, `${spikes} spikes inside a storm`)
+  expect('and swings at nobody while it does', slams === 0, `${slams} slams inside a storm`)
+  expect('and never names a body it is not holding', blind === 0, `${blind} slams named nobody`)
+  expect('and the cold line is what it does instead', lines > 0, 'no line during any storm')
+}
+
 // --- and a volley must be a volley ------------------------------------------
 //
 // One shot per body is what the word means, and each shot has to be in the air
