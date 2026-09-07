@@ -1164,6 +1164,70 @@ console.log(`rendered ${frames} frames with no exceptions`)
   expect('and only what it actually throws', stray.length === 0, stray.join(', '))
 }
 
+// --- the raid must be able to kill its own, and mostly not ------------------
+//
+// The top rung of the second boss asks a raid to stop hitting something, and
+// for as long as it existed nothing could hit it: a turned body keeps its
+// faction and the raid only ever aimed at the other one, so the demand was a
+// rule the engine enforced. Three claims now, and the middle one is the one
+// that took the measuring -- with nothing keeping the hits out, twenty-five
+// raiders take one of their own off the floor inside the time it takes anybody
+// to notice, and the answer went from impossible to fail to impossible to
+// pass.
+{
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
+  const toll = (attempt: number): { turned: number; killed: number } => {
+    let turned = 0
+    let killed = 0
+    for (const seed of [11, 22, 33, 44, 55]) {
+      const s = unattended(
+        createState(seed, attempt, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e),
+      )
+      s.countdown = 0
+      const rng = new Rng(seed)
+      const watch = new Set<number>()
+      while (s.outcome === 'ongoing' && s.time < 130) {
+        step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        for (const a of s.actors) {
+          if (a.faction !== 'party' || !getAura(a, 'turned')) continue
+          if (!watch.has(a.id)) {
+            watch.add(a.id)
+            turned++
+          }
+        }
+        for (const id of watch) {
+          const a = s.actors.find((x) => x.id === id)!
+          if (!a.alive) {
+            killed++
+            watch.delete(id)
+          } else if (!getAura(a, 'turned')) {
+            watch.delete(id)
+          }
+        }
+      }
+    }
+    return { turned, killed }
+  }
+
+  const green = toll(0)
+  const vet = toll(8)
+  expect(
+    'a turned body is something the raid can kill',
+    green.killed > 0,
+    `${green.killed} of ${green.turned} unpractised`,
+  )
+  expect(
+    'and not something it always does',
+    green.killed < green.turned,
+    `${green.killed} of ${green.turned} unpractised`,
+  )
+  expect(
+    'and practice takes some of it back',
+    vet.killed < green.killed,
+    `${green.killed} unpractised against ${vet.killed} practised`,
+  )
+}
+
 // --- a storming boss does one thing -----------------------------------------
 //
 // The original casts nothing but the cold line while it whirls, because

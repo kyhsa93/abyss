@@ -771,6 +771,33 @@ export const COLDFLAME_TELEGRAPH = readable(0.9)
 export const COLDFLAME_LINGER = 1.6
 
 /**
+ * How much of a hit a turned body keeps out while the fight is holding it.
+ *
+ * Not toughness for its own sake -- it is the window the decision needs. A
+ * turned mind is a target now, and twenty-five raiders take a raider's health
+ * bar off in about a second, which is inside the time it takes anybody to
+ * notice: measured with no guard at all, the raid killed every single one of
+ * its own, first pull and ninth alike, and a demand nobody can pass is no
+ * better than one nobody can fail.
+ *
+ * The number is what the curve says rather than what sounded right. Measured
+ * over a hundred turned bodies, twenty-five heroic, unpractised against
+ * practised:
+ *
+ *     kept out    first pull    ninth pull
+ *     none          20 / 20       19 / 20
+ *     0.60          14 / 20       10 / 20
+ *     0.75          12 / 20        7 / 20
+ *     0.85           5 / 20        1 / 20
+ *
+ * At the low end the raid is a firing squad and practice barely shows; at
+ * 0.85 an unpractised raid kills one of its own about a quarter of the time
+ * and a practised one almost never, which is a rung rather than a tax. The
+ * fight is holding this body and does not want it dropped in a second either.
+ */
+export const TURNED_GUARD = 0.85
+
+/**
  * The same cold while the boss is spinning, which is a different mechanic
  * wearing the same patch.
  *

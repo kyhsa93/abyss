@@ -480,6 +480,27 @@ function beatNotice(call: string): number {
  * worst-off raider while casting on the tank beside them is a smaller lie than
  * a healer facing a wall.
  */
+/**
+ * What this body may aim at.
+ *
+ * The fight's own summons, and any of the raid's own the fight has turned. The
+ * second half is the point: a turned body is hostile and is hitting the raid,
+ * and it used to be invisible to every rotation in it -- so "do not kill them"
+ * was a rule the engine enforced rather than a demand the fight made.
+ *
+ * It goes in the same pool the thralls are in and is picked by the same rule,
+ * and comes back out through `hold:` once somebody has noticed. Leaving it to
+ * the weapon alone was tried first and is not enough: what a turned body walks
+ * up to is whoever is nearest, which is usually somebody with a bow and a near
+ * edge, so almost nothing landed and the numbers came out the same as not
+ * being able to hit them at all.
+ */
+function quarry(s: SimState, actor: Actor): Actor[] {
+  const summoned = adds(s)
+  if (summoned.length > 0) return summoned
+  return livingParty(s).filter((a) => a.id !== actor.id && getAura(a, 'turned'))
+}
+
 function lookTarget(s: SimState, actor: Actor): Actor | null {
   if (actor.role === 'healer') {
     const saving = rescueTarget(s, actor)
@@ -487,7 +508,7 @@ function lookTarget(s: SimState, actor: Actor): Actor | null {
     const hurt = mostHurt(s)
     return hurt && hurt.id !== actor.id ? hurt : null
   }
-  return strikeTarget(s, actor, adds(s))
+  return strikeTarget(s, actor, quarry(s, actor))
 }
 
 /** Whether a gaze is counting down on the floor right now. */
@@ -650,6 +671,7 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
     if (ai.striking === 'hush') say(s, actor, 'Stop — everything comes back')
     else if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
     else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
+    else if (ai.striking.startsWith('hold:')) say(s, actor, 'That is one of ours — off them')
     else say(s, actor, 'Leave that one alone')
   }
 }
@@ -704,6 +726,15 @@ function targetCall(s: SimState, actor: Actor): string | null {
   const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)
   if (jar) return `spare:${jar.id}`
 
+  // One of the raid's own, turned. The third of these calls and the only one
+  // about a body that was an ally a second ago, which is the whole of what it
+  // costs: everything else the rotation is told to leave alone never looked
+  // like a friend. Last, because the other two are things standing still that
+  // stop mattering the moment somebody breaks them, and this one is hitting
+  // the raid for its whole count whatever anybody does.
+  const taken = livingParty(s).find((a) => a.id !== actor.id && getAura(a, 'turned'))
+  if (taken) return `hold:${taken.id}`
+
   return null
 }
 
@@ -738,7 +769,12 @@ export function mayStrike(s: SimState, actor: Actor, target: Actor): boolean {
   if (call === null) return true
   if (call === 'hush') return target.id !== boss(s).id
   const spared = calledId(call, 'spare:')
-  return spared === null || target.id !== spared
+  if (spared !== null && target.id === spared) return false
+  // The weapon has to obey this one too, and for the reason above: a raid
+  // that stops casting at its own turned healer and keeps swinging at it has
+  // not stopped.
+  const held = calledId(call, 'hold:')
+  return held === null || target.id !== held
 }
 
 /**
@@ -795,7 +831,10 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   // call above is what knows that. Picked up here as well, a raid would keep
   // hitting whichever spike had least health left rather than the one nearest
   // the body it is freeing.
-  const summoned = pool.filter((a) => a.spawn !== 'knell' && a.spawn !== 'spike' && a.id !== spared)
+  const held = calledId(call, 'hold:')
+  const summoned = pool.filter(
+    (a) => a.spawn !== 'knell' && a.spawn !== 'spike' && a.id !== spared && a.id !== held,
+  )
   if (summoned.length === 0) return b
 
   let focus = summoned[0]!
@@ -2988,7 +3027,7 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   // Nobody needs healing: help kill it, but keep enough mana in reserve to
   // answer the next spike.
   if (kit.attack && powerLeft > 0.55 && actor.ai?.striking !== 'hush') {
-    const target = strikeTarget(s, actor, adds(s))
+    const target = strikeTarget(s, actor, quarry(s, actor))
     tryCast(s, actor, kit.attack, target.id, rng, moving)
   }
 }
@@ -3011,7 +3050,7 @@ function dpsRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): void
 
   // Adds first: they beeline for whoever is closest and shred a healer. The
   // two exceptions to that are decisions, and they are made in `readTheField`.
-  let target = strikeTarget(s, actor, adds(s))
+  let target = strikeTarget(s, actor, quarry(s, actor))
 
   // A bow has a near edge, and a thrall's whole plan is to stand on you. The
   // one it cannot shoot is not a target, so it shoots past it at the boss

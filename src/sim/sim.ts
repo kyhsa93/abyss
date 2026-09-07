@@ -272,17 +272,27 @@ function nearestHostile(
   // the win condition all read that, and a body that left the raid for twelve
   // seconds would have left all of them — and swings at the raid instead.
   //
-  // Nothing has to be told not to kill them, because nothing could: the raid
-  // only ever aims at the other faction, so the one answer the mechanic wants
-  // is the one the game already enforces. What the raid has to do about them
-  // is stop relying on them, which is not a rule, it is a fact.
+  // And can be swung at back. This said the opposite for as long as the
+  // mechanic existed: the raid aimed only at the other faction, so a turned
+  // body was untouchable, and "do not kill them" was a rule the game enforced
+  // rather than a demand it made. That reads as tidy and it empties the rung.
+  // The whole of this mechanic is that the thing you must not kill is wearing
+  // the face of somebody you were relying on a second ago, and a demand
+  // nobody can fail is not a demand -- the boss's own page says the raid
+  // killing its own healer has to be possible.
+  //
+  // So it is a target like any other, and stopping is the decision. It costs
+  // a reaction delay to reach, through `hold:` in `targetCall`, which is what
+  // makes noticing late cost something.
   const turned = getAura(from, 'turned') !== undefined
   const hostile =
     s.mode === 'battleground'
       ? (a: Actor) => teamOf(a) === otherTeam(teamOf(from))
       : turned
-        ? (a: Actor) => a.faction === 'party' && a.id !== from.id
-        : (a: Actor) => a.faction === 'boss'
+        ? // A turned body swings at whoever is still the raid, not at the
+          // other bodies the fight has taken.
+          (a: Actor) => a.faction === 'party' && a.id !== from.id && !getAura(a, 'turned')
+        : (a: Actor) => a.faction === 'boss' || (a.faction === 'party' && getAura(a, 'turned') !== undefined)
   for (const other of s.actors) {
     if (!hostile(other) || !other.alive) continue
     // Clamped at zero: standing inside something's radius is a gap of none,

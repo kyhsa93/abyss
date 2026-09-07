@@ -25,6 +25,7 @@ import {
   MELEE_CALL,
   ENRAGE_GRACE,
   ECHO_BEAT,
+  TURNED_GUARD,
 } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
@@ -552,6 +553,11 @@ export function applyDamage(
 
   final *= tankTrait(s, target, school)
 
+  // What the fight is holding, it holds on to. See `TURNED_GUARD`: this is the
+  // window the raid gets to notice whose body it is aiming at, and without it
+  // the answer arrives after the funeral.
+  if (getAura(target, 'turned') && steered(s, opts.sourceId)) final *= 1 - TURNED_GUARD
+
   if (school !== 'none') {
     const shield = getAura(target, 'shield')
     if (shield) final *= 0.4
@@ -734,6 +740,13 @@ export function mostHurt(s: SimState, faction: Actor['faction'] = 'party'): Acto
   let ratio = Infinity
   for (const a of s.actors) {
     if (a.faction !== faction || !a.alive) continue
+    // Not one of your own that the fight has taken. It is still in the party
+    // frames and still counts for the win, and it is not a patient: a healer
+    // topping up the thing swinging at the raid is the deadlock version of
+    // this mechanic, where the dealers cannot finish it and the healing that
+    // would have kept somebody else alive goes into it instead. Stopping
+    // relying on them starts here.
+    if (getAura(a, 'turned')) continue
     const r = a.hp / a.maxHp
     if (r < ratio) {
       ratio = r
