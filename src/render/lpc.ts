@@ -182,6 +182,10 @@ export const LPC_ARMS: Record<string, [number, number][]> = {
   'hunter-marksmanship': [[70, 71], [72, 73], [68, 69]],
   // sword/dagger, sword/rapier, sword/saber
   'rogue-assassination': [[78, 79], [82, 83], [86, 87]],
+  // blunt/waraxe
+  'boss-marrow': [[60, 61]],
+  // magic/simple
+  'boss-whisper': [[62, 63]],
 }
 
 /**
@@ -250,8 +254,8 @@ export const LPC_CELLS: [number, number, number, number, number][] = [
   [1800, 1319, 30, 64, 64],
   [0, 1383, 52, 64, 64],
   [1040, 1383, 28, 64, 64],
-  [1600, 1383, 52, 64, 64],
-  [2640, 1383, 30, 64, 64],
+  [1600, 1383, 44, 64, 64],
+  [2480, 1383, 30, 64, 64],
   [0, 1447, 52, 64, 64],
   [1040, 1447, 30, 64, 64],
   [1640, 1447, 52, 64, 64],

@@ -219,6 +219,22 @@ const ARMS: Record<string, string[]> = {
   'hunter-marksmanship': BOWS,
   'rogue-assassination': BLADES,
   // The two forms carry nothing. A bear has no hands.
+
+  // And two of the bosses, keyed the same way, because `LPC_ARMS` is a flat
+  // table of id to rows and a boss body is an id like any other.
+  //
+  // The first boss drags a two-handed axe: it is bone welded into a structure
+  // and the axe is the one thing in the set that reads as heavy without
+  // reading as armour, which it cannot wear. The second holds a staff, and
+  // that is the only thing she holds -- the weight of her picture is the robe
+  // and the head, and a lich with a staff is a lich rather than a woman in a
+  // robe.
+  //
+  // Only these two, and only where the set can draw it: the axe has no
+  // spellcast sheet and the staff no slash, so what a boss holds decides which
+  // of the two blocks its body is drawn in. See `actions`.
+  'boss-marrow': ['weapon/blunt/waraxe'],
+  'boss-whisper': STAFF,
 }
 
 /** Which of the three a thing in a hand is drawn doing. */
@@ -305,6 +321,21 @@ function actions(): Map<string, string> {
     for (const spec of CLASSES[classId].specs) {
       out.set(`${classId}-${spec.id}`, actionFor(`${classId}-${spec.id}`, spec.melee))
     }
+  }
+  // And the bosses, off what each is holding rather than off a rule about
+  // bosses. A thing in a hand does whatever the arm it is on is doing, so a
+  // staff over a slashing body plays a cast against a swing -- the same
+  // mismatch `beat` refuses the thirteen-frame swords for, and the set would
+  // not even have the frames: the axe has no spellcast sheet and the staff no
+  // slash.
+  //
+  // Empty handed, a boss slashes. Its mechanics are scripted rather than cast
+  // off an ability table and every one of them reads as something being done
+  // to the room, and slash is the closer of the two to that.
+  for (const id of Object.keys(BOSS)) {
+    const key = `boss-${id}`
+    const arms = ARMS[key]
+    out.set(key, arms && arms.length > 0 ? kindOf(arms[0]!) : 'slash')
   }
   return out
 }
@@ -876,11 +907,10 @@ function specs(): Subject[] {
       })
     }
   }
-  // A boss's mechanics are scripted rather than cast off an ability table, and
-  // every one of them reads as something being done to the room. Slash is the
-  // closer of the two to that.
+  // Whichever block what it is holding can be drawn in. See `actions`.
+  const played = actions()
   for (const [id, layers] of Object.entries(BOSS)) {
-    out.push({ id: `boss-${id}`, layers, action: 'slash' })
+    out.push({ id: `boss-${id}`, layers, action: played.get(`boss-${id}`) ?? 'slash' })
   }
   // A thrall swings. The other two never do anything a swing would describe,
   // but a block has to exist for every subject, and standing on frame zero of

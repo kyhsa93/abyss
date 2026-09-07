@@ -4,6 +4,7 @@ import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { viewAngle } from '../src/render/camera'
+import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
@@ -1204,6 +1205,43 @@ console.log(`rendered ${frames} frames with no exceptions`)
     'and none of them is over before it is seen',
     worst >= 0.45,
     `the shortest was in the air ${worst.toFixed(2)}s`,
+  )
+}
+
+// --- what a body is drawn holding must be in the sheet ----------------------
+//
+// `src/render/lpc.ts` is generated, and a generated table is exactly the thing
+// that comes back thinner after a rebuild with nothing thrown and nobody the
+// wiser -- a hand is simply empty. Two bosses carry something on purpose: the
+// first drags a two-handed axe and the second holds a staff, and both are
+// claims about a sheet that is rebuilt from an art checkout this repo does not
+// contain.
+{
+  const problems: string[] = []
+  for (const [id, pairs] of Object.entries(LPC_ARMS)) {
+    if (LPC_ROW[id] === undefined) problems.push(`${id} holds something and is not a body`)
+    if (pairs.length === 0) problems.push(`${id} has an empty hand`)
+    for (const [behind, front] of pairs) {
+      for (const row of [behind, front]) {
+        for (let block = 0; block < LPC_ANIMATIONS; block++) {
+          if (!LPC_CELLS[row * LPC_ANIMATIONS + block]) {
+            problems.push(`${id} points at row ${row} block ${block}, which is not in the sheet`)
+          }
+        }
+      }
+    }
+  }
+  expect(
+    'everything a body is drawn holding is in the sheet',
+    problems.length === 0,
+    problems.slice(0, 4).join('; '),
+  )
+
+  const armed = ['boss-marrow', 'boss-whisper'].filter((id) => (LPC_ARMS[id] ?? []).length > 0)
+  expect(
+    'and the two bosses that carry something still do',
+    armed.length === 2,
+    `armed: ${armed.join(', ') || 'neither'}`,
   )
 }
 
