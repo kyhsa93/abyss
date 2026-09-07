@@ -7,7 +7,12 @@ import {
   CRUSH_TELEGRAPH,
   BLIGHT_RELIEF,
   BLIGHT_TICK,
+  COLDFLAME_ARMS,
   COLDFLAME_CRAWL,
+  COLDFLAME_LINGER,
+  COLDFLAME_SPIN,
+  COLDFLAME_STORM_BEAT,
+  COLDFLAME_STORM_LINGER,
   COLDFLAME_RADIUS,
   COLDFLAME_REACH,
   COLDFLAME_STEP,
@@ -1290,9 +1295,16 @@ function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
   s.next.coldflame -= DT
   if (s.next.coldflame > 0) return
 
-  s.next.coldflame = timing.coldflame
+  // While it is storming, the same patch is a different mechanic. See
+  // `COLDFLAME_ARMS`: all the bearings at once, on a beat shorter than a patch
+  // holds, turning between casts -- so what the floor becomes is a lattice
+  // laid across itself rather than one line at a time.
+  const storming = getAura(b, 'storming') !== undefined
+  s.next.coldflame = storming ? COLDFLAME_STORM_BEAT : timing.coldflame
   s.sounds.push('telegraph')
-  say(s, b, lineFor(fight(s), s.plan !== null, 'coldflame'))
+  // Said once, when it is a line somebody has to step off. In a storm it is
+  // the floor rather than an event, and the storm has its own line for that.
+  if (!storming) say(s, b, lineFor(fight(s), s.plan !== null, 'coldflame'))
 
   // Aimed at a body rather than rolled.
   //
@@ -1307,33 +1319,45 @@ function scheduleColdflame(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming)
   // by construction — the first patch starts outside the boss's own edge — so
   // aiming at one spends the cast on nobody. It falls back to whoever is there
   // if nobody has left melee, which on this boss means the tank.
-  const away = livingParty(s).filter((a) => dist(a.pos, b.pos) > b.radius + COLDFLAME_RADIUS)
-  const at = rng.pick(away.length > 0 ? away : livingParty(s))
-  if (!at) return
-  const bearing = Math.atan2(at.pos.y - b.pos.y, at.pos.x - b.pos.x)
-  for (let i = 0; i < COLDFLAME_REACH; i++) {
-    // Outside the boss's own edge, so the hitbox is the safe spot.
-    const out = b.radius + COLDFLAME_RADIUS + i * COLDFLAME_STEP
-    const pos = { x: b.pos.x + Math.cos(bearing) * out, y: b.pos.y + Math.sin(bearing) * out }
-    clampToArena(pos, COLDFLAME_RADIUS)
-    s.ground.push({
-      ...blankGround(s),
-      kind: 'coldflame',
-      pos,
-      radius: COLDFLAME_RADIUS,
-      telegraph: COLDFLAME_TELEGRAPH + i * COLDFLAME_CRAWL,
-      // Long enough to be a line rather than a row of moments, short enough
-      // that the floor it took comes back before the next one is due.
-      lingering: 1.6,
-      damage: COLDFLAME_DAMAGE,
-      detonated: false,
+  const bearings: number[] = []
+  if (storming) {
+    // Off the clock rather than off a body, because it is not aiming at
+    // anybody -- and off the clock rather than rolled, so the fan turns
+    // instead of landing on itself.
+    const turn = s.time * COLDFLAME_SPIN
+    for (let a = 0; a < COLDFLAME_ARMS; a++) {
+      bearings.push(turn + (a / COLDFLAME_ARMS) * Math.PI * 2)
+    }
+  } else {
+    const away = livingParty(s).filter((a) => dist(a.pos, b.pos) > b.radius + COLDFLAME_RADIUS)
+    const at = rng.pick(away.length > 0 ? away : livingParty(s))
+    if (!at) return
+    bearings.push(Math.atan2(at.pos.y - b.pos.y, at.pos.x - b.pos.x))
+  }
+
+  for (const bearing of bearings) {
+    for (let i = 0; i < COLDFLAME_REACH; i++) {
+      // Outside the boss's own edge, so the hitbox is the safe spot.
+      const out = b.radius + COLDFLAME_RADIUS + i * COLDFLAME_STEP
+      const pos = { x: b.pos.x + Math.cos(bearing) * out, y: b.pos.y + Math.sin(bearing) * out }
+      clampToArena(pos, COLDFLAME_RADIUS)
+      s.ground.push({
+        ...blankGround(s),
+        kind: 'coldflame',
+        pos,
+        radius: COLDFLAME_RADIUS,
+        telegraph: COLDFLAME_TELEGRAPH + i * COLDFLAME_CRAWL,
+        lingering: storming ? COLDFLAME_STORM_LINGER : COLDFLAME_LINGER,
+        damage: COLDFLAME_DAMAGE,
+        detonated: false,
+      })
+    }
+    pushEffect(s, 'cast', b.pos, {
+      abilityId: 'boss_coldflame',
+      power: COLDFLAME_REACH * COLDFLAME_STEP,
+      angle: bearing,
     })
   }
-  pushEffect(s, 'cast', b.pos, {
-    abilityId: 'boss_coldflame',
-    power: COLDFLAME_REACH * COLDFLAME_STEP,
-    angle: bearing,
-  })
 }
 
 function scheduleShockwave(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {

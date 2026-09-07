@@ -760,6 +760,41 @@ export const COLDFLAME_REACH = 9
 export const COLDFLAME_RADIUS = 44
 export const COLDFLAME_CRAWL = 0.17
 export const COLDFLAME_TELEGRAPH = readable(0.9)
+/**
+ * How long a patch holds the floor it took.
+ *
+ * Long enough to be a line rather than a row of moments. Outside a storm it is
+ * also short enough that the floor comes back before the next cast is due,
+ * which is the whole of the mechanic's promise there: one wedge steps aside,
+ * the room carries on, and a second later the room is whole again.
+ */
+export const COLDFLAME_LINGER = 1.6
+
+/**
+ * The same cold while the boss is spinning, which is a different mechanic
+ * wearing the same patch.
+ *
+ * Outside a storm the line is one bearing, aimed, and gone before the next --
+ * a question asked of one wedge of the room. Inside a storm the boss is not
+ * facing anybody, and the original answer to "what does a thing that has
+ * stopped being tanked do with a line" is: all of them at once, over and over,
+ * turning as it goes, until the floor is a lattice you have to pick through
+ * while the thing that made it chases somebody across it.
+ *
+ * Three arms, because two is a road and four is a grid, and a beat under the
+ * time a patch holds -- so a cast is still burning when the next one crosses
+ * it, which is the picture. Turning between casts rather than repeating, so
+ * the lattice is one and not three lines drawn over themselves.
+ *
+ * The storm keeps its own damage and this keeps the line's, and neither is
+ * raised for the other: what changes in a storm is how much of the floor is
+ * spoken for, not what standing in it costs.
+ */
+export const COLDFLAME_ARMS = 3
+export const COLDFLAME_STORM_BEAT = 2.6
+export const COLDFLAME_STORM_LINGER = 4.2
+/** How fast the fan turns between casts, in radians a second. */
+export const COLDFLAME_SPIN = 0.7
 
 /**
  * The blight, and the two mechanics made out of it.
