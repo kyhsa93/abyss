@@ -37,7 +37,7 @@ function playerInput(s: SimState, pressed: number[]): PlayerInput {
 }
 
 function run(seed: number, attempt: number, party: Pick[], difficulty: DifficultyId, encounter: number) {
-  const s = createState(seed, attempt, party, difficulty, encounter, null, 0)
+  const s = createState(seed, attempt, party, difficulty, encounter)
   s.countdown = 0
   const rng = new Rng(seed + attempt * 7919)
   let ticks = 0

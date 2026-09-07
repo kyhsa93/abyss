@@ -127,7 +127,6 @@ import {
   type DailyResult,
 } from './daily-record'
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
-import { DESCENT_RECOVERY, DESCENT_REVIVE, descentEncounter } from './sim/descent'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -309,26 +308,6 @@ function loadMode(): RosterMode {
   }
 }
 
-const DEEPEST_KEY = 'abyss.deepest'
-
-function loadDeepest(): number {
-  try {
-    const raw = localStorage.getItem(DEEPEST_KEY)
-    const parsed = raw === null ? NaN : Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
-  } catch {
-    return 0
-  }
-}
-
-function saveDeepest(): void {
-  try {
-    localStorage.setItem(DEEPEST_KEY, String(deepest))
-  } catch {
-    // Not worth failing over.
-  }
-}
-
 function loadDifficulty(): DifficultyId {
   const raw = (() => {
     try {
@@ -449,17 +428,6 @@ function fresh(said: string | null, at: number): string | undefined {
 }
 let playingDaily = false
 
-/**
- * The descent: how deep this attempt has got, and how deep any attempt ever
- * has. Zero means we are not on one.
- *
- * The party carries its state down rather than starting each floor fresh —
- * otherwise the depth is only a number on the boss's health bar.
- */
-let depth = 0
-let deepest = loadDeepest()
-/** Set while the class screen is being used to start a descent rather than a pull. */
-let startingDescent = false
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
@@ -549,79 +517,9 @@ function buildState(): SimState {
   // pull runs on the house seed and carries none, because a fight you are
   // learning has to be the same fight on the ninth attempt as on the first.
   if (playingDaily) {
-    return createState(daily.seed, 0, party, difficulty, encounter, daily.affix, 0, daily.plan)
-  }
-  if (depth > 0) {
-    // Each floor is its own seed, so a descent is not the same fight three
-    // times with more health — and the party gets better as it goes, because
-    // they are the same five people who have now been through several fights
-    // together. Without that a descent is played entirely by a party on its
-    // first pull, which is the worst it ever is.
-    return createState(
-      BASE_SEED + depth * 7919,
-      Math.min(8, depth + 1),
-      party,
-      difficulty,
-      encounter,
-      null,
-      depth,
-    )
+    return createState(daily.seed, 0, party, difficulty, encounter, daily.affix)
   }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
-}
-
-/**
- * Starts a floor, carrying the party down in the state it finished the last
- * one in: whatever health it had, plus a little back, and one of the fallen on
- * their feet again.
- *
- * A full heal between floors would make every floor the first floor. Nothing
- * at all would mean a party that finished at ten percent has already lost the
- * next one and is only being told a minute later.
- */
-function descendTo(floor: number, carry: SimState | null): void {
-  depth = floor
-  encounter = descentEncounter(floor)
-  playingDaily = false
-  mode = { kind: 'raid' }
-  attempt = 0
-  recorded = false
-  graded = false
-  announced = []
-  state = newState()
-  rng = rngFor(state)
-
-  if (carry) {
-    const survivors = carry.actors.filter((a) => a.faction === 'party')
-    let revived = false
-    state.actors
-      .filter((a) => a.faction === 'party')
-      .forEach((a, i) => {
-        const was = survivors[i]
-        if (!was) return
-        if (was.alive) {
-          a.hp = Math.min(a.maxHp, Math.round(was.hp + a.maxHp * DESCENT_RECOVERY))
-          a.power = was.power
-          return
-        }
-        // One of the fallen gets up per floor, and no more: a wipe has to stay
-        // a wipe rather than being paid off one body at a time.
-        if (!revived) {
-          revived = true
-          a.hp = Math.round(a.maxHp * DESCENT_REVIVE)
-        } else {
-          a.alive = false
-          a.hp = 0
-        }
-      })
-  }
-
-  fightingParty = party.map((p) => ({ ...p }))
-  fightingDifficulty = difficulty
-  fightingEncounter = encounter
-  fightingMode = mode
-  timing = { ...timing, accumulator: 0 }
-  screen = 'fight'
 }
 
 let state: SimState = newState()
@@ -641,12 +539,6 @@ function rngFor(fight: SimState): Rng {
 let rng = rngFor(state)
 
 function restart(): void {
-  // A descent has no retry: pressing it starts a fresh run from the first
-  // floor, which is the whole point of there being a depth to lose.
-  if (depth > 0) {
-    descendTo(1, null)
-    return
-  }
   attempt++
   recorded = false
   graded = false
@@ -698,21 +590,12 @@ let fightingMode: RosterMode = mode
 function startFight(): void {
   // Face the fight the way it starts rather than the way the last one ended.
   // The view swings slowly on purpose, so one carried over would spend the
-  // opening seconds unwinding a bearing that belonged to a different floor.
+  // opening seconds unwinding a bearing that belonged to a different fight.
   resetView()
-
-  // The class screen is also where a descent begins, since the one thing a
-  // descent still asks is what you are bringing into it.
-  if (startingDescent) {
-    startingDescent = false
-    descendTo(1, null)
-    return
-  }
 
   // Anything started from the class screen is a normal pull, whatever was
   // played before it.
   playingDaily = false
-  depth = 0
   // The last gate before the fight actually starts. Every path that can move
   // the setting settles it already, so this catches nothing today — which is
   // the point: it is the one place a rung that was never earned would become
@@ -782,15 +665,6 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       screen = 'battleground'
       return
     }
-    if (hit === 'descent') {
-      startingDescent = true
-      mode = { kind: 'raid' }
-      if (party.length !== 5) resize(5)
-      saveSetup()
-      screen = 'roster'
-      return
-    }
-
     if (hit === 'daily') {
       // Rolled fresh each time it is opened, so a session left running over
       // midnight offers the new day rather than yesterday's.
@@ -1033,10 +907,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     if (hit?.kind === 'class') {
       chooseOwn(hit.pick)
     } else if (hit?.kind === 'back') {
-      // Backing out of a descent is backing out: the flag must not survive to
-      // turn somebody's next ordinary pull into floor one.
-      screen = startingDescent ? 'home' : mode.kind === 'raid' ? 'raid' : 'battleground'
-      startingDescent = false
+      screen = mode.kind === 'raid' ? 'raid' : 'battleground'
       return
     } else if (hit?.kind === 'compose') {
       // Seeded here rather than kept in step with `party`: the board has to
@@ -1050,7 +921,7 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, mode, playingDaily ? daily.plan.names : null)
+  drawRoster(ctx, party, difficulty, clock, encounter, mode)
 }
 
 /**
@@ -1288,10 +1159,7 @@ function frame(now: number): void {
       requestAnimationFrame(frame)
       return
     }
-    if (hit === 'next') {
-      if (depth > 0) descendTo(depth + 1, state)
-      else advanceTier()
-    }
+    if (hit === 'next') advanceTier()
     else if (hit === 'retry') restart()
   }
   // A tap on the call row, before anything else can claim the point.
@@ -1341,17 +1209,8 @@ function frame(now: number): void {
   if (state.outcome !== 'ongoing' && !graded && state.mode === 'raid') {
     graded = true
 
-    // A descent ends where it ends, and the only thing kept is how deep.
-    if (depth > 0 && state.outcome !== 'victory') {
-      if (depth > deepest) {
-        deepest = depth
-        saveDeepest()
-      }
-      depth = 0
-    }
-
-    // Every raid pull writes to the boss's page, a daily and a descent floor
-    // included: they are all that boss doing that to you.
+    // Every raid pull writes to the boss's page, the daily included: they are
+    // all that boss doing that to you.
     notes = foldNote(notes, state)
     saveNotes(notes)
 
@@ -1373,7 +1232,7 @@ function frame(now: number): void {
     // Read off the fight rather than off the setup screen: the player may
     // already have walked back and changed both while the corpse was still on
     // the floor, and what was cleared is what was fought.
-    if (state.outcome === 'victory' && state.mode === 'raid' && state.depth === 0) {
+    if (state.outcome === 'victory' && state.mode === 'raid') {
       const opened = cleared(unlocked, state.encounter, state.party.length, state.difficulty)
       if (opened !== unlocked) {
         unlocked = opened
@@ -1428,7 +1287,7 @@ function frame(now: number): void {
 
     // And anything that just beat its old number, announced the same way: the
     // difference between a record and a thing you notice is being told.
-    const moved = beat(bests, state, depth)
+    const moved = beat(bests, state)
     bests = moved.bests
     if (moved.beaten.length > 0) {
       saveBests(bests)

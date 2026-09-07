@@ -172,7 +172,6 @@ import {
   type MechanicId,
   MECHANIC_IDS,
   RETIRING,
-  lineFor,
 } from '../src/sim/encounters'
 import {
   BASE_RADIUS,
@@ -196,7 +195,6 @@ import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
 import { fold, pageFor } from '../src/notes'
 import { AFFIXES, type AffixId } from '../src/sim/affix'
-import { descentDamage, descentEncounter, descentHealth } from '../src/sim/descent'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { pressTarget, step } from '../src/sim/sim'
@@ -272,7 +270,6 @@ import {
   tierOf,
   type Setting,
 } from '../src/progress'
-import { floorBudget, planned, plannedOpening, rollFloor } from '../src/sim/floor'
 import {
   BURDEN_HANDS,
   BURDEN_REACH,
@@ -4461,11 +4458,7 @@ for (const [label, w, h] of [
     // they are actually out of the engine they still have to be shapes,
     // because a floor can put either in front of any party at any size.
     const shapeOf = (size: RaidSize): { cone: number; band: number; gap: number } => {
-      const s = floorWith(
-        { shockwave: 7, breath: 9 },
-        4,
-        autoParty(size, pickFor('mage', 'dps')!),
-      )
+      const s = floorWith({ shockwave: 7, breath: 9 }, autoParty(size, pickFor('mage', 'dps')!))
       const rng = new Rng(0x51ed)
       let cone = 0
       let band = 0
@@ -4532,19 +4525,6 @@ for (const [label, w, h] of [
     )
   }
 
-  // The purse the descent spends instead, moving on the same two axes.
-  expect(
-    'a floor gets more to spend for a bigger raid',
-    floorBudget(6, 25, 'normal') > floorBudget(6, 10, 'normal') &&
-      floorBudget(6, 10, 'normal') > floorBudget(6, 5, 'normal'),
-    `${floorBudget(6, 5, 'normal')} / ${floorBudget(6, 10, 'normal')} / ${floorBudget(6, 25, 'normal')}`,
-  )
-  expect(
-    'and for heroic',
-    floorBudget(6, 5, 'heroic') > floorBudget(6, 5, 'normal'),
-    `${floorBudget(6, 5, 'normal')} vs ${floorBudget(6, 5, 'heroic')}`,
-  )
-  expect('but nothing at all above the floor', floorBudget(0, 25, 'heroic') === 0, 'it spent')
 }
 
   // And the colour reaches the screen: the boss is drawn in its own, not in
@@ -4657,27 +4637,18 @@ for (const [label, w, h] of [
     )
   }
 
-  // Several mechanics are on no rung a ten-man heroic climbs — the circle the
-  // party stands in is the top of the Warden, the turning wedge and the echo
-  // are past the top of anything, and the two handoffs are on no ladder at
-  // all — and every one of them is rolled by the descent, so floors deep
-  // enough to ask for them are collected too. Otherwise the "nothing ever
-  // threw it" rule below would be right for the wrong reason.
-  // The schism is on no rung at all, and no floor buys it either -- it has a
-  // price in no catalogue -- so what the rule below asks of it is that its
-  // picture belongs to a mechanic that works when it is asked for, which is
-  // the most that can be true of it until a boss takes it on.
+  // The ones no boss throws any more, built to order.
   //
-  // Some mechanics are not on any rung a ten-man heroic climbs — the circle
-  // the party stands in is the top of the Warden and the turning wedge and
-  // the echo are past the top of anything, and all three are rolled by the
-  // descent — so a floor deep enough to ask for them is collected too.
-  // Otherwise the "nothing ever threw it" rule below would be right for the
-  // wrong reason.
+  // All of these are on `RETIRING`: the circle the party stands in, the
+  // turning wedge, the echo, the two handoffs and the split. The rule below
+  // asks that every picture belongs to a mechanic something actually throws,
+  // and it would pass for the wrong reason if these were simply never asked
+  // for -- an unthrown mechanic and a deleted one look identical to a check
+  // that only watches. So they are asked for, and they answer, right up until
+  // the commit that takes each of them out.
   {
     const deep = floorWith(
       { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13, schism: 12 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4691,7 +4662,7 @@ for (const [label, w, h] of [
     expect('a deep floor draws its circle', ids.has('boss_soak'), 'it drew nothing')
     expect('and its turning wedge', ids.has('boss_hand'), 'it drew nothing')
     expect('and the floor that follows somebody', ids.has('boss_echo'), 'it drew nothing')
-    thrown.set('descent', ids)
+    thrown.set('retiring', ids)
   }
 
   // And five that are on no boss's table at all yet.
@@ -4699,14 +4670,11 @@ for (const [label, w, h] of [
   // The floor giving way, all but the shallows drowning, the floor standing
   // up, and the two handoffs are each written, measured and drawn; which rung
   // of which ladder any of them belongs on is a question about the shape of a
-  // fight rather than about the mechanic, and it is not answered here. A floor
-  // can be handed any of them today, so that is where they are collected from
-  // — the same arrangement the gathering had while it lived only on the
-  // descent.
+  // fight rather than about the mechanic, and it is not answered here. So
+  // they are built to order too, for the reason above.
   {
     const collapsing = floorWith(
       { fault: 9, shallows: 10, spire: 12, puddle: 11 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4730,7 +4698,6 @@ for (const [label, w, h] of [
   {
     const billed = floorWith(
       { toll: 9, grasp: 8, refuge: 12 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4753,7 +4720,6 @@ for (const [label, w, h] of [
   {
     const handoff = floorWith(
       { burden: 5, yoke: 8 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4774,7 +4740,6 @@ for (const [label, w, h] of [
   {
     const switching = floorWith(
       { knell: 13, vessel: 15 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4809,7 +4774,6 @@ for (const [label, w, h] of [
   {
     const air = floorWith(
       { pungent: 26, inhale: 8, vilegas: 14, bloat: 6 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4833,7 +4797,6 @@ for (const [label, w, h] of [
   {
     const taken = floorWith(
       { decay: 12, empower: 9, dominate: 11, shade: 10, insignificance: 9, frostbolt: 8, volley: 7 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4856,7 +4819,6 @@ for (const [label, w, h] of [
   {
     const moment = floorWith(
       { vigil: 9, chant: 10, gaze: 9 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4881,7 +4843,6 @@ for (const [label, w, h] of [
   {
     const left = floorWith(
       { shockwave: 7, breath: 9, brand: 10, verdict: 9, crush: 8, rot: 7 },
-      4,
       autoParty(10, pickFor('mage', 'dps')!),
     )
     const rng = new Rng(0x51ed)
@@ -4950,12 +4911,12 @@ for (const [label, w, h] of [
     }
 
     const alone = stacksIn(
-      floorWith({ sunder: 10, puddle: 9 }, 4, autoParty(5, pickFor('mage', 'dps')!)),
+      floorWith({ sunder: 10, puddle: 9 }, autoParty(5, pickFor('mage', 'dps')!)),
     )
     expect('a party with one tank never sees it', alone === 0, `${alone} stacks`)
     // And a raid that fields two, on the same rolled floor.
     const raid = stacksIn(
-      floorWith({ sunder: 10, puddle: 9 }, 4, autoParty(25, pickFor('mage', 'dps')!)),
+      floorWith({ sunder: 10, puddle: 9 }, autoParty(25, pickFor('mage', 'dps')!)),
     )
     expect('a raid with two does', raid > 0, 'it never landed')
     expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
@@ -5017,7 +4978,7 @@ for (const [label, w, h] of [
     // reads off the floor and what the floor actually takes. A picture the
     // simulation does not honour is worse than no picture.
     {
-      const split = floorWith({ fault: 9 }, 4, size)
+      const split = floorWith({ fault: 9 }, size)
       split.next.fault = 0
       const rng = dice()
       step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -5068,7 +5029,7 @@ for (const [label, w, h] of [
     // rest of the fight, which is the sweep's failure — a mechanic whose
     // answer is where you already were teaches nothing.
     {
-      const s = floorWith({ fault: 9 }, 4, size)
+      const s = floorWith({ fault: 9 }, size)
       const rng = dice()
       const bearings = new Set<number>()
       while (s.outcome === 'ongoing' && s.time < 150) {
@@ -5086,7 +5047,7 @@ for (const [label, w, h] of [
     // The party has to actually cross. An unanswerable mechanic is a tax, and
     // the AI getting over the line is what makes it a decision instead.
     {
-      const s = floorWith({ fault: 9 }, 4, size)
+      const s = floorWith({ fault: 9 }, size)
       const rng = dice()
       let lands = 0
       let clear = 0
@@ -5111,7 +5072,7 @@ for (const [label, w, h] of [
     // every other piece of hazardous ground here says leave where you are and
     // this one says be on one of these three.
     {
-      const drown = floorWith({ shallows: 10 }, 4, size)
+      const drown = floorWith({ shallows: 10 }, size)
       drown.next.shallows = 0
       const rng = dice()
       step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -5163,7 +5124,7 @@ for (const [label, w, h] of [
     }
 
     {
-      const s = floorWith({ shallows: 10 }, 4, size)
+      const s = floorWith({ shallows: 10 }, size)
       const rng = dice()
       let lands = 0
       let bodies = 0
@@ -5195,7 +5156,7 @@ for (const [label, w, h] of [
     // of here bar three patches, is about to stop being floor. Asked directly
     // rather than waited for, the way the circle's own refusals are.
     {
-      const forced = floorWith({ soak: 24, fault: 9, shallows: 10 }, 4, size)
+      const forced = floorWith({ soak: 24, fault: 9, shallows: 10 }, size)
       forced.next.soak = 0
       const rng = dice()
       step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -5219,24 +5180,11 @@ for (const [label, w, h] of [
       )
     }
 
-    // The boss that owns them says so, and a floor that borrows them speaks
-    // for itself. This used to demand a line from all three bosses, on the
-    // grounds that a floor can be handed either shape -- true, and the wrong
-    // fix: it made every boss carry a word for a fight it was not having. A
-    // floor now announces out of the mechanic's own name, so the boss tables
-    // can say only what the boss does.
-    {
-      // No boss owns either any more -- both retire with the fight that did --
-      // so what is left is the half that was always load-bearing: a floor that
-      // borrows a shape speaks for it out of the mechanic's own name, because
-      // there is no boss table to read a line off.
-      expect(
-        'a floor that buys the split is not silent about it',
-        lineFor(ENCOUNTERS[0]!, true, 'fault') !== '',
-        'it said nothing',
-      )
-      expect('nor the drowning', lineFor(ENCOUNTERS[0]!, true, 'shallows') !== '', 'it said nothing')
-    }
+    // Nothing here checks that either is announced. Neither is on a ladder
+    // and neither has a boss, so every boss's line for them is empty -- which
+    // is exactly what "a line is present when the boss owns the mechanic"
+    // asks for, and that rule is checked over every boss and every mechanic
+    // where the tables are read. A second check here would only restate it.
 
     // Both are read off the arena rather than off the roster, which is what
     // `MECHANIC_SCALES` is for: a half of the floor is a half of it whether
@@ -5272,8 +5220,7 @@ for (const [label, w, h] of [
   //
   // Which is why it is the last rung of the one boss that has it, reached
   // only by a twenty-five man on heroic — a raid that expensive is exactly
-  // the raid with the bodies to pay for it — and a descent floor deep enough
-  // to afford the price.
+  // the raid with the bodies to pay for it.
   {
     for (const encounter of ENCOUNTERS) {
       const rung = encounter.ladder.indexOf('soak')
@@ -5297,13 +5244,6 @@ for (const [label, w, h] of [
         'a smaller raid gets the gathering',
       )
     }
-    expect(
-      'a shallow floor cannot afford it',
-      !rollable('soak', 1),
-      'floor one rolled the gathering',
-    )
-    expect('a deep one can', rollable('soak', 8), 'no floor ever rolled it')
-
     // The party has to actually go. An unanswerable mechanic is a tax, and
     // the AI reaching it is what makes it a decision instead.
     const s = floorWith({ soak: 24, puddle: 9, spread: 16 })
@@ -5430,10 +5370,10 @@ for (const [label, w, h] of [
   //
   // The only mechanic here aimed at a single person, and the only one with
   // two answers at once: the one it picked runs, and everybody else decides
-  // whether to break off and kill it. Like the circle it lives on the
-  // descent, and for a sharper version of the same reason — with its damage
-  // turned down to one point it still cost the Warden most of its win rate,
-  // because the party's output is what it spends, not anybody's health.
+  // whether to break off and kill it. Expensive for a sharper version of the
+  // circle's reason — with its damage turned down to one point it still cost
+  // the Warden most of its win rate, because the party's output is what it
+  // spends, not anybody's health.
   {
     // Every mechanic belongs to exactly one boss.
     //
@@ -5492,9 +5432,6 @@ for (const [label, w, h] of [
       `${[...owners].length} sold, ${RETIRING.length} retiring, of ${MECHANIC_IDS.length}`,
     )
 
-    expect('a first floor cannot afford one', !rollable('hunt', 1), 'floor one rolled a stalker')
-    expect('a deeper one can', rollable('hunt', 8), 'no floor ever rolled one')
-
     let sent = 0
     let onTank = 0
     let onHealer = 0
@@ -5505,7 +5442,7 @@ for (const [label, w, h] of [
     // fight throws three or four of these — enough to pass a rule it does not
     // actually keep.
     for (let run = 0; run < 6; run++) {
-    const s = floorWith({ hunt: 26, puddle: 9 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    const s = floorWith({ hunt: 26, puddle: 9 }, autoParty(10, pickFor('mage', 'dps')!))
     const rng = new Rng(0x51ed + run * 7919)
     while (s.outcome === 'ongoing' && s.time < 150) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -5573,159 +5510,6 @@ for (const [label, w, h] of [
     )
   }
 
-  // --- a floor rolls its own fight ------------------------------------------
-  //
-  // The five bosses are sentences written by hand out of a fixed vocabulary,
-  // one boss to each mechanic. The descent used to run the bosses in a loop,
-  // so floor four was the first boss again with more health. Now the floor keeps the boss's shape
-  // and numbers and rolls what it asks for, out of the same vocabulary and
-  // against a budget that grows with the depth.
-  {
-    // Deterministic, like everything else here. A floor has to be the same
-    // fight for the harness measuring it and the player walking into it, and
-    // a run that re-rolled on a redraw would not be a run.
-    const twice = JSON.stringify(rollFloor(1234, 5)) === JSON.stringify(rollFloor(1234, 5))
-    expect('a floor is the same floor twice', twice, 'it rolled differently')
-    const elsewhere = JSON.stringify(rollFloor(1234, 5)) !== JSON.stringify(rollFloor(5678, 5))
-    expect('and different seeds are different floors', elsewhere, 'they matched')
-
-    // Every floor has to have something happening in it, and no floor is
-    // allowed to spend money it does not have.
-    let overspent = 0
-    let empty = 0
-    let motionless = 0
-    let widest = 0
-    const everSeen = new Set<string>()
-    for (let depth = 1; depth <= 12; depth++) {
-      for (let seed = 1; seed <= 60; seed++) {
-        const plan = rollFloor(seed * 7919, depth)
-        if (plan.spent > floorBudget(depth)) overspent++
-        if (Object.keys(plan.every).length === 0) empty++
-        // Something that asks the party to be somewhere. A roll of nothing
-        // but a sweep, a rot and an armour break is a fight where nobody ever
-        // has to move, which is not a cheap fight — it is a damage meter.
-        const positional = (['puddle', 'spread', 'breath', 'shockwave', 'soak'] as const).some(
-          (id) => plan.every[id] !== undefined,
-        )
-        if (!positional) motionless++
-        widest = Math.max(widest, Object.keys(plan.every).length)
-        for (const id of Object.keys(plan.every)) everSeen.add(id)
-        for (const every of Object.values(plan.every)) {
-          // A cadence of zero is how the tables switch a mechanic off, so a
-          // roll that produced one would be a mechanic that fires every tick.
-          if (every !== undefined && every <= 0) overspent++
-        }
-      }
-    }
-    expect('no floor overspends', overspent === 0, `${overspent} did`)
-    expect('and none is empty', empty === 0, `${empty} were`)
-    expect('every floor asks the party to move', motionless === 0, `${motionless} did not`)
-    expect('the vocabulary is all reachable', everSeen.size >= 9, `${everSeen.size} of them`)
-
-    // A budget that grows without a ceiling ends as every mechanic at once,
-    // which asks for everything and therefore for nothing: there is no room
-    // left to answer any of it.
-    expect('and the deepest floor is still a fight', widest <= 9, `${widest} at once`)
-    expect(
-      'the purse grows with the depth',
-      floorBudget(9) > floorBudget(3) && floorBudget(3) > floorBudget(1),
-      `${floorBudget(1)}, ${floorBudget(3)}, ${floorBudget(9)}`,
-    )
-    expect('and stops growing', floorBudget(40) === floorBudget(80), `${floorBudget(40)}`)
-
-    // The expensive things are gated by depth as well as by price, so a first
-    // floor is a fight with two ideas in it rather than a lottery.
-    for (const id of ['soak', 'hunt', 'sunder'] as const) {
-      expect(`floor one never rolls ${id}`, !rollable(id, 1), 'it did')
-    }
-
-    // A fight assembled by a die is only interesting if you can see what it
-    // was assembled out of, and a floor is met once rather than learned by
-    // repeating it — so the three seconds before it starts are the only
-    // chance to read what is coming.
-    {
-      updateLayout(1440, 900)
-      const labels: Label[] = []
-      const card = floorWith({ soak: 24, hunt: 30, puddle: 9 }, 5)
-      card.countdown = 60
-      drawHud(recordingCtx([], labels), card, touchView(false))
-      const said = labels.map((l) => l.text).join(' | ')
-      expect('a floor says what it rolled', said.includes('FLOOR 5'), said)
-      expect(
-        'and names what it bought',
-        card.plan!.names.every((name) => said.includes(name)),
-        said,
-      )
-
-      // Only on a floor. A raid boss is the same fight every pull and has
-      // nothing to announce.
-      const ladder: Label[] = []
-      const pull = pulled(0x51ed, 0)
-      pull.countdown = 60
-      drawHud(recordingCtx([], ladder), pull, touchView(false))
-      expect(
-        'a raid says nothing of the sort',
-        !ladder.map((l) => l.text).join(' | ').includes('FLOOR'),
-        ladder.map((l) => l.text).join(' | '),
-      )
-    }
-
-    // A floor has to be winnable near the top and hopeless a long way down,
-    // or the run has no shape. Sampled rather than reasoned about: the budget
-    // is what is being checked here, not any one roll.
-    {
-      const survive = (depth: number, runs: number): number => {
-        let wins = 0
-        for (let i = 0; i < runs; i++) {
-          const seed = 4000 + i * 7919
-          const fight = pulled(seed, Math.min(8, depth + 1), undefined, 'normal', (depth - 1) % 3, null, depth)
-          fight.countdown = 0
-          const dice = new Rng(seed + 13)
-          let ticks = 0
-          while (fight.outcome === 'ongoing' && fight.time < 300) {
-            const pressed: number[] = []
-            if (ticks % 45 === 0) pressed.push(0)
-            if (ticks % 360 === 0) pressed.push(1)
-            step(fight, { moveX: 0, moveY: 0, pressed }, dice)
-            ticks++
-          }
-          if (fight.outcome === 'victory') wins++
-        }
-        return wins
-      }
-      const top = survive(1, 6)
-      const bottom = survive(20, 6)
-      expect('the first floor is a fight you win', top >= 4, `${top} of 6`)
-      expect('and the twentieth is not', bottom <= 1, `${bottom} of 6`)
-    }
-
-    // And a floor is the boss's shape with the floor's sentence: the plan
-    // replaces every cadence it covers and leaves the swing and the slam,
-    // which are what make one boss hit differently from another.
-    const s = pulled(0x51ed, 8, undefined, 'normal', 0, null, 6)
-    expect('a floor rolls a plan', s.plan !== null, 'it had none')
-    expect('and the ladder does not', pulled(0x51ed, 8).plan === null, 'a raid rolled one')
-    if (s.plan) {
-      const table = ENCOUNTERS[s.encounter]!.phases[1]!
-      const laid = planned(table, s.plan, 1)
-      expect('the swing survives the plan', laid.swing === table.swing, `${laid.swing}`)
-      expect('and the slam does', laid.slam === table.slam, `${laid.slam}`)
-      // Over every mechanic there is, not a list written out here. This check
-      // and the code it checks both used to carry the same hand-kept list, and
-      // both were missing `brand` -- which is exactly why a floor throwing an
-      // unbought brand went unnoticed. A check that repeats the shape of the
-      // thing it is checking cannot catch the thing they get wrong together.
-      const leaked = MECHANIC_IDS.filter((id) =>
-        s.plan!.every[id] === undefined ? laid[id] !== 0 : !(laid[id] > 0),
-      )
-      expect(
-        'what it did not buy is off',
-        Object.keys(s.plan.every).length > 0 && leaked.length === 0,
-        `${leaked.join(',')} of ${JSON.stringify(s.plan.every)}`,
-      )
-    }
-  }
-
   // An index from a save older than the list must not open a fight that is
   // not there.
   expect('a wild index clamps', encounterIndex(99) === ENCOUNTERS.length - 1, `${encounterIndex(99)}`)
@@ -5747,7 +5531,7 @@ for (const [label, w, h] of [
   // to, and a plan written by hand is also the only way to have one of them
   // in a fight without the other twelve mechanics landing in the same tick.
   const withHand = (): SimState =>
-    floorWith({ hand: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    floorWith({ hand: 12 }, autoParty(10, pickFor('mage', 'dps')!))
 
   // --- the wedge turns, and it is one shape doing it ------------------------
   {
@@ -5898,7 +5682,7 @@ for (const [label, w, h] of [
 
   // --- the echo drops where the body is, again and again --------------------
   {
-    const s = floorWith({ echo: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    const s = floorWith({ echo: 12 }, autoParty(10, pickFor('mage', 'dps')!))
     const rng = new Rng(0x51ed)
     let drops = 0
     let onTheMark = 0
@@ -5941,7 +5725,7 @@ for (const [label, w, h] of [
   // measured, so what is being compared is the mechanic rather than two
   // rolls of a reaction.
   const echoRun = (walk: boolean): { hits: number; beats: number } => {
-    const s = floorWith({ echo: 12 }, 4, autoParty(10, pickFor('mage', 'dps')!))
+    const s = floorWith({ echo: 12 }, autoParty(10, pickFor('mage', 'dps')!))
     const rng = new Rng(0x51ed)
     // Whoever the mark actually lands on, adopted at the moment it lands,
     // rather than a body chosen up front and hoped for. One in ten is marked,
@@ -6012,19 +5796,6 @@ for (const [label, w, h] of [
     expect('and the hand asks again on its own beat', HAND_BEAT < 1.6, `${HAND_BEAT}`)
   }
 
-  // --- and somebody can actually meet them ---------------------------------
-  //
-  // Neither sits on a rung `kitCount` reaches, so the descent is the whole of
-  // where they are played. A mechanic that is only ever built by a check is a
-  // colour and a paragraph rather than a mechanic, and the rule that says so
-  // would be passing here for the wrong reason without this.
-  {
-    expect('a floor deep enough rolls the turning wedge', rollable('hand', 8), 'none ever did')
-    expect('and one rolls the echo', rollable('echo', 8), 'none ever did')
-    // Both are ground that keeps asking, which is the expensive kind: a first
-    // floor is meant to be a fight with two ideas in it.
-    expect('and floor one does neither', !rollable('hand', 1) && !rollable('echo', 1), 'it did')
-  }
 }
 
 // --- the shape the raid stands in ---------------------------------------------
@@ -6203,7 +5974,7 @@ for (const [label, w, h] of [
   // is also the property that keeps it the same length at twenty-five as at
   // ten.
   {
-    const s = unattended(floorWith({ schism: 9 }, 4, autoParty(10, pickFor('mage', 'dps')!)))
+    const s = unattended(floorWith({ schism: 9 }, autoParty(10, pickFor('mage', 'dps')!)))
     s.next.schism = 0.4
     const rng = new Rng(0x51ed)
     let spans: number[] = []
@@ -7153,7 +6924,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'battleground', 'daily', 'descent', 'settings'] as const
+  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -8487,65 +8258,6 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   expect('and it is more rather than less', paidHit.length > plainHit.length, `${plainHit.length} -> ${paidHit.length}`)
 }
 
-// --- the descent -------------------------------------------------------------
-//
-// One attempt, boss after boss, each harder than the last. The rules that
-// matter: it gets harder, it starts easier than a raid, the bosses come round
-// rather than running out, and a floor cleared always has another below it.
-{
-  expect(
-    'each floor is harder than the one above',
-    [1, 2, 3, 5, 8, 12].every((d, i, all) => i === 0 || descentHealth(d) > descentHealth(all[i - 1]!)) &&
-      [1, 2, 3, 5, 8, 12].every((d, i, all) => i === 0 || descentDamage(d) > descentDamage(all[i - 1]!)),
-    `${[1, 5, 12].map((d) => descentHealth(d).toFixed(2)).join(', ')}`,
-  )
-
-  // The first floors are below an ordinary pull on purpose: a run that ends on
-  // floor one most of the time is a raid with the retry button taken away.
-  expect('and the first is easier than a raid', descentHealth(1) < 0.8, `${descentHealth(1).toFixed(2)}`)
-  expect('while the fifth is not', descentHealth(5) >= 1, `${descentHealth(5).toFixed(2)}`)
-
-  // The bosses come round rather than running out.
-  const floors = Array.from({ length: 9 }, (_, i) => descentEncounter(i + 1))
-  expect(
-    'the bosses come round',
-    new Set(floors).size === ENCOUNTERS.length && floors[0] === floors[ENCOUNTERS.length],
-    floors.join(','),
-  )
-
-  // A cleared floor always has another below it, however deep — where a raid
-  // eventually runs out of bosses and stops offering.
-  const deep = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', ENCOUNTERS.length - 1, null, 7)
-  deep.outcome = 'victory'
-  expect('a descent always goes deeper', canAdvance(deep), 'it offered no floor')
-  // The last rung rather than the last boss: a raid runs out at the end of the
-  // chain, which is the hardest setting of the last fight and not its easiest.
-  const lastRaid = pulled(
-    0x51ed,
-    0,
-    autoParty(25, pickFor('mage', 'dps')!),
-    'heroic',
-    ENCOUNTERS.length - 1,
-  )
-  lastRaid.outcome = 'victory'
-  expect('a raid still runs out', !canAdvance(lastRaid), 'the last rung offered another')
-
-  // Depth is carried by the fight rather than by the screen, and an ordinary
-  // pull has none.
-  expect('a descent knows its floor', deep.depth === 7, `${deep.depth}`)
-  expect('an ordinary pull has no floor', lastRaid.depth === 0, `${lastRaid.depth}`)
-
-  // The boss at a depth is actually bigger, which is what the multiplier is
-  // for — read off the actor rather than the function.
-  const shallow = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 1)
-  const deeper = pulled(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, null, 9)
-  expect(
-    'and it is built with more health',
-    boss(deeper).maxHp > boss(shallow).maxHp * 1.5,
-    `${boss(shallow).maxHp} -> ${boss(deeper).maxHp}`,
-  )
-}
-
 // --- affixes -----------------------------------------------------------------
 //
 // Each one has to change the fight, and none of them may touch a fight that
@@ -8801,7 +8513,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // Narrowing to the ticks where they differed then measured which of the two
   // a wandering thrall happened to walk to. The claim is about a number, and
   // the number is available directly.
-  const s = floorWith({ rot: 16 }, 4, [
+  const s = floorWith({ rot: 16 }, [
     pickFor('warrior', 'dps')!,
     pickFor('warrior', 'tank')!,
     pickFor('priest', 'healer')!,
@@ -9138,7 +8850,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
 
   // The front page's share is about the game rather than a fight, so it has no
   // fragment to decode — but it must not claim a record that is not there.
-  const nothing = gameMessage({ kills: {}, clean: {}, depth: 0, damage: 0 })
+  const nothing = gameMessage({ kills: {}, clean: {}, damage: 0 })
   expect(
     'a first-time share claims nothing',
     !nothing.includes('bosses down') && !nothing.includes('floor'),
@@ -9147,11 +8859,9 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const some = gameMessage({
     kills: { [ENCOUNTERS[0]!.id]: 118.4, [ENCOUNTERS[1]!.id]: 204.25 },
     clean: {},
-    depth: 7,
     damage: 0,
   })
   expect('a played share counts the bosses', some.includes(`2 of ${ENCOUNTERS.length} bosses down`), some)
-  expect('and the descent', some.includes('deepest floor 7'), some)
   expect(
     'and names the furthest one it has killed',
     some.includes(`${ENCOUNTERS[1]!.name} in 204.3s`),
@@ -9246,89 +8956,47 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   }
 }
 
-/** Whether any floor at this depth can roll a given mechanic at all. */
-function rollable(id: MechanicId, depth: number): boolean {
-  for (let seed = 1; seed <= 200; seed++) {
-    if (rollFloor(seed * 7919, depth).every[id] !== undefined) return true
-  }
-  return false
-}
-
 /**
- * A descent floor built to order.
+ * A fight built to order, for a mechanic no boss owns.
  *
- * The floors roll their own fight now, so a check that wants a particular
- * mechanic cannot wait for one to turn up — it says which, and the plan is
- * written by hand over whatever the roll produced.
+ * Twenty-seven mechanics are still implemented and belong to nobody -- see
+ * `RETIRING` -- and each is live code until the commit that takes it out. A
+ * check cannot reach them through a boss, because no boss's table has a
+ * cadence for them, so it says which it wants and `SimState.imposed` puts
+ * them on the boss in place of its own.
+ *
+ * It dies with the list. Every caller here names something on it.
  */
 function floorWith(
   every: Partial<Record<MechanicId, number>>,
-  depth = 4,
   party?: Parameters<typeof createState>[2],
 ): SimState {
-  const s = pulled(0x51ed, 8, party, 'normal', 0, null, depth)
+  const s = pulled(0x51ed, 8, party, 'normal', 0)
   s.countdown = 0
-  // Through the same rule the rolls use, so a floor asked for the breath out
-  // is a floor that also has air to breathe. Without it a test can ask for
-  // half a mechanic and get it.
+  // Through the same rule the ladders use, so a fight asked for the breath out
+  // is one that also has air to breathe. Without it a check can ask for half a
+  // mechanic and get it.
   const filled: Partial<Record<MechanicId, number>> = { ...every }
   for (const id of withRequired(Object.keys(every) as MechanicId[])) {
     if (filled[id] === undefined) filled[id] = 8
   }
-  s.plan = { every: filled, names: Object.keys(filled), spent: 0 }
+  s.imposed = filled
 
-  // The opening timers were seeded from whatever the floor actually rolled,
-  // so they have to be re-seeded from the plan being imposed. Without this a
-  // check about one mechanic is quietly also about whatever the roll happened
-  // to schedule in the same second — which is how a check ends up failing for
-  // a reason that has nothing to do with what it is testing.
-  const opening = plannedOpening(s.plan)
-  s.next.puddle = opening.puddle
-  s.next.spread = opening.spread
-  s.next.breath = opening.breath
-  s.next.shockwave = opening.shockwave
-  s.next.adds = opening.adds
-  s.next.rot = opening.rot
-  s.next.sunder = opening.sunder
-  s.next.soak = opening.soak
-  s.next.hunt = opening.hunt
-  s.next.hand = opening.hand
-  s.next.echo = opening.echo
-  // Not in the catalogue, so `plannedOpening` has nothing to say about them
-  // and the boss's own table would decide when they arrive. A floor built to
-  // order has to start its own clocks.
-  s.next.fault = every.fault === undefined ? 0 : every.fault * 0.45
-  s.next.shallows = every.shallows === undefined ? 0 : every.shallows * 0.9
-  s.next.burden = opening.burden
-  s.next.yoke = opening.yoke
-  s.next.spire = every.spire === undefined ? 0 : every.spire * 0.45
-  s.next.schism = every.schism === undefined ? 0 : every.schism * 0.45
-  s.next.knell = every.knell === undefined ? 0 : every.knell * 0.45
-  s.next.vessel = every.vessel === undefined ? 0 : every.vessel * 0.45
-  // And the three whose answer is an instant, for the same reason again.
-  s.next.vigil = every.vigil === undefined ? 0 : every.vigil * 0.45
-  s.next.chant = every.chant === undefined ? 0 : every.chant * 0.45
-  s.next.gaze = every.gaze === undefined ? 0 : every.gaze * 0.45
-  s.next.toll = every.toll === undefined ? 0 : every.toll * 0.45
-  s.next.grasp = every.grasp === undefined ? 0 : every.grasp * 0.45
-  s.next.refuge = every.refuge === undefined ? 0 : every.refuge * 0.45
-  // The whisper's, which are not in the catalogue either.
-  s.next.decay = filled.decay === undefined ? 0 : filled.decay * 0.45
-  s.next.frostbolt = filled.frostbolt === undefined ? 0 : filled.frostbolt * 0.45
-  s.next.volley = filled.volley === undefined ? 0 : filled.volley * 0.45
-  s.next.shade = filled.shade === undefined ? 0 : filled.shade * 0.45
-  s.next.insignificance =
-    filled.insignificance === undefined ? 0 : filled.insignificance * 0.45
-  s.next.empower = filled.empower === undefined ? 0 : filled.empower * 0.9
-  s.next.dominate = filled.dominate === undefined ? 0 : filled.dominate * 0.45
-  s.next.bonestorm = filled.bonestorm === undefined ? 0 : filled.bonestorm * 0.45
-  // The blight's own, which are not in the catalogue either.
-  s.next.blight = filled.blight === undefined ? 0 : filled.blight * 0.45
-  s.next.inhale = filled.inhale === undefined ? 0 : filled.inhale * 0.45
-  s.next.pungent = filled.pungent === undefined ? 0 : filled.pungent * 0.9
-  s.next.spore = filled.spore === undefined ? 0 : filled.spore * 0.45
-  s.next.vilegas = filled.vilegas === undefined ? 0 : filled.vilegas * 0.45
-  s.next.bloat = filled.bloat === undefined ? 0 : filled.bloat * 0.45
+  // And the opening timers, which were seeded from the boss's own table and
+  // would otherwise start clocks for mechanics this fight is not having --
+  // that is how a check about one mechanic ends up failing for a reason that
+  // has nothing to do with what it is testing.
+  //
+  // Over every mechanic rather than a list written out here. It used to be
+  // forty-odd hand-written lines, one per id, which is a list that is wrong
+  // the day somebody adds a mechanic and never says so.
+  for (const id of MECHANIC_IDS) {
+    const rate = filled[id]
+    // The two that need something else to have happened first come at nine
+    // tenths rather than at a little under half: the breath out is what was
+    // breathed in, and the empowered one is one of a wave that has to arrive.
+    s.next[id] = rate === undefined ? 0 : rate * (id === 'pungent' || id === 'empower' ? 0.9 : 0.45)
+  }
   return s
 }
 
@@ -10094,7 +9762,7 @@ for (const [label, w, h] of [
 
   // --- the weight ----------------------------------------------------------
   {
-    const s = floorWith({ burden: 5 }, 4, raid)
+    const s = floorWith({ burden: 5 }, raid)
     const rng = new Rng(0x51ed)
 
     let everCarried = false
@@ -10165,7 +9833,7 @@ for (const [label, w, h] of [
   // that the price rises with the hands it went through, so both weights are
   // built here and both are dropped.
   {
-    const s = floorWith({ burden: 5 }, 4, raid)
+    const s = floorWith({ burden: 5 }, raid)
     const party = s.actors.filter((a) => a.faction === 'party' && a.alive && a.role === 'dps')
     const fresh = party[0]!
     const late = party[1]!
@@ -10193,7 +9861,7 @@ for (const [label, w, h] of [
 
   // --- the yoke ------------------------------------------------------------
   {
-    const s = floorWith({ yoke: 8 }, 4, raid)
+    const s = floorWith({ yoke: 8 }, raid)
     const rng = new Rng(0x51ed)
 
     let everOwed = false
@@ -10255,7 +9923,7 @@ for (const [label, w, h] of [
   // so the picture has to be the line between them, the clock on the one
   // holding it, and a ring where "arrived" is.
   {
-    const s = floorWith({ burden: 5, yoke: 8 }, 4, raid)
+    const s = floorWith({ burden: 5, yoke: 8 }, raid)
     const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
     const holder = party.find((a) => a.role === 'dps')!
     const owing = party.find((a) => a.role === 'dps' && a.id !== holder.id)!
@@ -10496,7 +10164,7 @@ for (const [label, w, h] of [
   // in the same tick. The cadence is long and the timer is set by hand, the
   // way every other forced check here does it.
   const only = (id: (typeof MOMENTS)[number]): SimState => {
-    const s = unattended(floorWith({ [id]: 900 }, 4, autoParty(10, pickFor('mage', 'dps')!)))
+    const s = unattended(floorWith({ [id]: 900 }, autoParty(10, pickFor('mage', 'dps')!)))
     s.next[id] = 0
     return s
   }

@@ -17,8 +17,6 @@ export interface Bests {
   kills: Record<string, number>
   /** Fewest mechanics eaten in a kill, per boss. */
   clean: Record<string, number>
-  /** Deepest floor of a descent. */
-  depth: number
   /** Most damage dealt in one pull, by you. */
   damage: number
 }
@@ -26,7 +24,7 @@ export interface Bests {
 const KEY = 'abyss.bests'
 
 export function empty(): Bests {
-  return { kills: {}, clean: {}, depth: 0, damage: 0 }
+  return { kills: {}, clean: {}, damage: 0 }
 }
 
 export function load(): Bests {
@@ -39,7 +37,6 @@ export function load(): Bests {
     return {
       kills: typeof value.kills === 'object' && value.kills !== null ? value.kills : {},
       clean: typeof value.clean === 'object' && value.clean !== null ? value.clean : {},
-      depth: typeof value.depth === 'number' ? value.depth : 0,
       damage: typeof value.damage === 'number' ? value.damage : 0,
     }
   } catch {
@@ -68,12 +65,11 @@ export interface Beaten {
  * kill of a boss you have killed once" is every kill, and an announcement that
  * fires every time announces nothing.
  */
-export function beat(bests: Bests, s: SimState, depth: number): { bests: Bests; beaten: Beaten[] } {
+export function beat(bests: Bests, s: SimState): { bests: Bests; beaten: Beaten[] } {
   const beaten: Beaten[] = []
   const next: Bests = {
     kills: { ...bests.kills },
     clean: { ...bests.clean },
-    depth: bests.depth,
     damage: bests.damage,
   }
 
@@ -105,14 +101,6 @@ export function beat(bests: Bests, s: SimState, depth: number): { bests: Bests; 
             ? `${boss.name} without eating a single mechanic`
             : `${boss.name} on ${hits} mechanic hits, down from ${cleanest}`,
       })
-    }
-  }
-
-  if (depth > 0 && depth > next.depth) {
-    const had = next.depth
-    next.depth = depth
-    if (had > 0) {
-      beaten.push({ name: 'DEEPER THAN EVER', detail: `floor ${depth}, past your old ${had}` })
     }
   }
 

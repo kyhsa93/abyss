@@ -36,7 +36,6 @@ const label = (line: string) => line.split(/\s{2,}/)[0].trim()
 
 const SPEC_FLOOR = 50
 const CELL_FLOOR = 50
-const DESCENT_RANGE: [number, number] = [4, 10]
 const BG_MARGIN = 20
 
 const BANDS: Band[] = [
@@ -73,21 +72,6 @@ const BANDS: Band[] = [
         }
       }
       return bad
-    },
-  },
-  {
-    name: 'the descent ends somewhere worth telling',
-    why:
-      'one attempt, boss after boss. A median of two is a wall and a median of fifteen is a ' +
-      'treadmill; either way there is no sentence in it',
-    check: (text) => {
-      const found = /descent runs: median floor (\d+)/.exec(text)
-      if (!found) return ['the descent line is gone from the harness output']
-      const median = Number(found[1])
-      const [low, high] = DESCENT_RANGE
-      return median < low || median > high
-        ? [`median floor ${median} (want ${low}-${high})`]
-        : []
     },
   },
   {

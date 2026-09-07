@@ -34,7 +34,6 @@ about sixteen points, so anything tighter would be measuring the seed.
 |---|---|---|
 | No spec is a trap | every spec wins ≥ 50% | lowest is 70% (Warrior DPS, Warlock, Paladin Heal, two tanks) |
 | Every fight is winnable by pull 9 | every size/difficulty cell ≥ 50% | lowest is 68% (Choir 5 normal) |
-| The descent ends somewhere worth telling | median floor 4–10 | 7 |
 | A battleground rewards playing it | `ai` beats `idle` by ≥ 20 points | 47, 50 and 57 across the three maps |
 
 **No spec is a trap.** The class screen is the one decision this game asks of
@@ -43,17 +42,13 @@ you, and a spec that cannot clear the reference fight makes that screen a lie.
 **Every fight is winnable by pull 9.** A fight is learned by repeating it. A
 cell still unwinnable after nine attempts is not teaching, it is refusing.
 
-**The descent ends somewhere worth telling.** A median of two is a wall and a
-median of fifteen is a treadmill; neither is a sentence anybody would say out
-loud.
-
 **A battleground rewards playing it.** The four drives are the same five players
 told to care about different things. If standing still scores like playing, the
 map is scenery.
 
 Every band was checked by breaking it on purpose before it went in — a doctored
-harness output with a 41% spec, a 44% cell, a median floor of 2 and a map where
-playing beats idling by 15 points each fail with the line named. A band nobody
+harness output with a 41% spec, a 44% cell and a map where playing beats
+idling by 15 points each fail with the line named. A band nobody
 has seen fail is a band nobody knows works.
 
 `ABYSS_HARNESS_OUT=<file>` reads saved tables instead of running the harness,

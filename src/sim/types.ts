@@ -1,6 +1,5 @@
 import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
-import type { FloorPlan } from './floor'
 import type { MechanicId } from './encounters'
 import type { RoomShape } from './room'
 
@@ -865,12 +864,6 @@ export interface SimState {
    */
   affix: AffixId | null
   /**
-   * How far down this fight is, or zero for one that is not a descent.
-   *
-   * The boss reads it for its health and its damage; nothing else does.
-   */
-  depth: number
-  /**
    * Ticks left before the pull starts, counting down to zero.
    *
    * Ticks rather than seconds because a float subtracted every tick does not
@@ -905,26 +898,10 @@ export interface SimState {
    * one field, and the compiler will not accept a map that is missing one.
    */
   next: Record<MechanicId, number>
-  /** Next cast of the wedge that turns across the arena. */
-  /** Next time half the floor gives way. */
-  /** Next time everything but a few patches does. */
+  /** Next slam on whoever is holding the boss. */
   nextSlam: number
+  /** Next unavoidable hit on the whole raid. */
   nextRaidHit: number
-  /** Physical damage to everyone in reach, which armour actually answers. */
-  /** Next stack of the boss's armour break on whoever is holding it. */
-  /** Next circle the whole party has to stand in. */
-  /** Next thing that picks somebody and follows them. */
-  /** Next weight that has to be walked into somebody else's hands. */
-  /** Next debt that is paid by whoever came to stand with the one who owes it. */
-  /**
-   * What this floor was rolled to ask for, on a descent.
-   *
-   * Null on the ladder and in a battleground, where the fight is whatever the
-   * boss's own table says it is. On a floor it replaces those cadences
-   * entirely: the boss lends its shape, its health and its damage, and the
-   * plan decides what it does with them.
-   */
-  plan: FloorPlan | null
 
   /**
    * One mechanic, and nothing else, for measuring what a mechanic is worth.
@@ -932,9 +909,26 @@ export interface SimState {
    * Null everywhere the game itself runs. The harness sets it because there is
    * no other way to ask the question it needs answered: a boss's rungs arrive
    * together, so a table of win rates cannot say which of them the raid is
-   * actually learning. It reads the same override path a floor already uses.
+   * actually learning.
    */
   only: MechanicId | null
+
+  /**
+   * Cadences put on the boss in place of its own, keyed by mechanic. Anything
+   * left out is switched off.
+   *
+   * Null everywhere the game itself runs, and it has one caller: the render
+   * check, asking a boss for a mechanic no boss owns any more. Twenty-seven
+   * of those are still implemented and on their way out a family at a time
+   * (see `RETIRING`), and until each one goes it is live code -- so it is
+   * checked, and nothing else can make it fire.
+   *
+   * It goes when `RETIRING` empties. What is left then is a game where every
+   * fight throws its own kit and only that, which is the whole point of the
+   * removal, and a field that lets a check say otherwise would be the one
+   * remaining way to pretend a boss can be handed somebody else's mechanic.
+   */
+  imposed: Partial<Record<MechanicId, number>> | null
 
   /**
    * What a healer's output is worth, for the same measurement.

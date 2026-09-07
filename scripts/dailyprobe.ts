@@ -2,10 +2,15 @@
  * Is the daily a fight or a formality?
  *
  * It is the one pull in the game nobody gets to practise -- one a day, and
- * tomorrow is a different boss with different rates -- so the usual answer of
- * "winnable by the ninth attempt" does not apply to it. What it has to be is
- * winnable on the first, by a raid playing well, often enough that a person
- * who turns up every day is not being handed a loss.
+ * tomorrow is a different boss under a different twist -- so the usual answer
+ * of "winnable by the ninth attempt" does not apply to it. What it has to be
+ * is winnable on the first, by a raid playing well, often enough that a
+ * person who turns up every day is not being handed a loss.
+ *
+ * The fight itself is now the boss's own kit, so what this measures is the
+ * affix: what a day is, on top of a fight the ladder already tuned, is the
+ * twist and the twenty-five bodies. A twist that makes a boss unwinnable at a
+ * size the ladder cleared is the twist being a wall rather than a variation.
  */
 import { Rng } from '../src/sim/rng'
 import { createState, unattended } from '../src/sim/state'
@@ -14,10 +19,8 @@ import { encounterAt } from '../src/sim/encounters'
 import { dailyFor, dailyKey } from '../src/sim/daily'
 import { pickFor, specOf, type ClassId } from '../src/sim/classes'
 import type { SimState } from '../src/sim/types'
-import { rollDaily } from '../src/sim/floor'
 
 const DAYS = Number(process.argv[2] ?? 30)
-const COUNT = Number(process.argv[3] ?? 14)
 const from = new Date(Date.UTC(2026, 8, 5))
 let won = 0
 const rows: string[] = []
@@ -30,7 +33,7 @@ for (let d = 0; d < DAYS; d++) {
   const RUNS = 8
   for (let n = 0; n < RUNS; n++) {
     const s = unattended(
-      createState(daily.seed + n * 7919, 0, party, daily.difficulty, daily.encounter, daily.affix, 0, COUNT > 0 ? rollDaily(daily.key * 2246822519 + 7, COUNT) : null),
+      createState(daily.seed + n * 7919, 0, party, daily.difficulty, daily.encounter, daily.affix),
     )
     s.countdown = 0
     const rng = new Rng(daily.seed + n)
@@ -46,7 +49,7 @@ for (let d = 0; d < DAYS; d++) {
   if (wins > 0) won++
   rows.push(
     `${daily.key}  ${encounterAt(daily.encounter).name.padEnd(22)} ${daily.difficulty.padEnd(7)} ` +
-      `${((wins / RUNS) * 100).toFixed(0).padStart(3)}% won  ${COUNT > 0 ? rollDaily(daily.key * 2246822519 + 7, COUNT).names.length : 'authored'} mechanics`,
+      `${daily.affix.padEnd(10)} ${((wins / RUNS) * 100).toFixed(0).padStart(3)}% won`,
   )
 }
 
@@ -60,4 +63,4 @@ function ready(s: SimState): ClassId | null {
 }
 
 for (const row of rows) console.log(row)
-console.log(`${COUNT} mechanics: ${won} of ${DAYS} days winnable at all`)
+console.log(`${won} of ${DAYS} days winnable at all`)

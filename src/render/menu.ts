@@ -39,7 +39,6 @@ export type HomeChoice =
   | 'raid'
   | 'battleground'
   | 'daily'
-  | 'descent'
   | 'settings'
   | 'record'
   | 'share'
@@ -226,7 +225,7 @@ export function homeLayout(): HomeLayout {
   }
 }
 
-const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'descent', 'settings']
+const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
 
 export function drawHome(
   ctx: CanvasRenderingContext2D,
@@ -242,7 +241,6 @@ export function drawHome(
     ['RAID', `${ENCOUNTERS.length} bosses · 5, 10 or 25 players`, COLORS.castBar],
     ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
     ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
-    ['THE DESCENT', 'boss after boss, no second try', COLORS.hpBarLow],
     ['SETTINGS', 'sound', COLORS.textDim],
   ]
   // One measurement for the stack: BATTLEGROUND is half again as long as

@@ -88,9 +88,9 @@ export function save(notes: Notes): void {
 /**
  * Folds one finished pull into the page for the boss it was against.
  *
- * Every raid pull counts, a daily and a floor of a descent included: they are
- * all that boss doing that thing to you, and a page that only counted the
- * ordinary rungs would be blank for a player who mostly plays the daily.
+ * Every raid pull counts, the daily included: they are all that boss doing
+ * that thing to you, and a page that only counted the ordinary rungs would be
+ * blank for a player who mostly plays the daily.
  * Battlegrounds have no boss and no page.
  *
  * What it does not do is judge. The best kill and the cleanest one are kept by
@@ -108,17 +108,7 @@ export function fold(notes: Notes, s: SimState): Notes {
 
   // Shown by this pull, whether or not it landed: the phase reached is what
   // says how much of the fight was actually in front of you.
-  //
-  // Off the plan when there is one. A rolled fight throws what it bought and
-  // nothing the boss would otherwise have thrown, so reading the ladder here
-  // would file a mechanic as met on a night it never appeared — and the notes
-  // are the one page in the game whose whole job is to be true about what you
-  // have seen. A plan is not phase-gated the way a ladder is: `planned` lays
-  // the same cadences over every phase, so everything bought is in front of
-  // you from the first one.
-  const shown = s.plan
-    ? (Object.keys(s.plan.every) as MechanicId[])
-    : kitThrough(fight, s.party.length, s.difficulty, s.phase)
+  const shown = kitThrough(fight, s.party.length, s.difficulty, s.phase)
   for (const id of shown) {
     met[id] = met[id] ?? 0
   }

@@ -482,9 +482,9 @@ not be used to argue that a mechanic is alive, only to explain why it is not.
   general fix (running `idlePosition` through `isSpotSafe`) cost the brand
   10pp, because not walking back onto your own floor is most of what the brand
   teaches. Narrow it to the live mechanic.
-- **Hand-kept lists of mechanic ids.** `planned()` carried one, `brand` was
-  never added to it, and a descent floor built to the Warden's shape threw
-  brands nobody bought -- while the check written to catch exactly that
+- **Hand-kept lists of mechanic ids.** The old `planned()` carried one,
+  `brand` was never added to it, and a fight built to the Warden's shape threw
+  brands nobody had asked for -- while the check written to catch exactly that
   carried a copy of the same list with the same name missing. Read the set off
   `MECHANIC_IDS`, which comes from a table the compiler forces to be complete.
 - **An id is not a name.** `nextObjectId` numbers every object in a fight --

@@ -36,16 +36,15 @@ What the sentence rules out: character progression, loot, gacha, matchmaking,
 live services, and anything that needs an artist. Those are not omissions to be
 filled in later. Each of them breaks one of the four above.
 
-### Four shapes of the same promise
+### Shapes of the same promise
 
 | Mode | The promise | Where it lives |
 |---|---|---|
 | `raid` | learn one fight by repeating it | the whole engine |
 | `battleground` | a team fight, five against five | `sim/battleground.ts`, `sim/bgai.ts` |
 | `daily` | the run everybody else got today | `sim/daily.ts`, `sim/affix.ts` |
-| `descent` | one attempt, boss after boss | `sim/descent.ts` |
 
-The raid is the engine and the other three are framings of it. A mode that
+The raid is the engine and the other two are framings of it. A mode that
 cannot be described as *content that would otherwise need other people* does
 not belong on the front screen. `npm run conceptcheck` fails if the home screen
 grows a mode this table has not heard of, because a menu is easier to add to
@@ -641,11 +640,25 @@ stalker, on a boss whose shapes are already widened for the size.
 
 ## Today's run
 
-One fight a day, the same one for everybody. The date picks the boss, the raid
-size, the difficulty, the seed the fight runs on and the four people rolled
-around you; the only thing left to you is which class you bring — that is the
-choice the game is about, and taking it away to make the comparison tidier
-would be trading the game for the scoreboard.
+One fight a day, the same one for everybody. The date picks the boss, the
+difficulty, the seed the fight runs on and the party rolled around you; the
+only thing left to you is which class you bring — that is the choice the game
+is about, and taking it away to make the comparison tidier would be trading
+the game for the scoreboard. The size is always twenty-five, because a
+five-player daily and a twenty-five-player daily are not one fight at two
+scales — the mechanics that split their damage among the people standing in
+them ask a different question of four bodies than of twenty-four, and a
+scoreboard across the two compares nothing.
+
+**What the day does not decide is what the boss does.** It used to: the daily
+drew its own kit out of every boss's vocabulary and rolled cadences for it, so
+a daily was one fight's shape throwing another fight's mechanics. That was
+worth having while five of the eight bosses were invented and a rolled fight
+was the only way to see the vocabulary used differently. It also meant the one
+pull a day everybody shares was the one pull nobody could prepare for, and
+everything learned about a boss was worth nothing on the day it came up. The
+boss throws its own kit now, exactly as it does on the ladder, and the affix
+is the whole of what makes today different.
 
 This is the first thing here that uses reproducibility as a *feature* rather
 than as a testing property. The simulation has always replayed exactly from a
@@ -693,72 +706,6 @@ run you cannot practise is one you only ever see once. The record keeps the
 best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
-
-## A floor rolls its own fight
-
-The three bosses on the ladder are sentences written by hand out of a fixed
-vocabulary — the Warden no cone and no ring, the Choir nothing on the floor
-until its fourth rung, the Tidebreaker no marks and no rot. The descent used to
-run those same three in a loop, `(depth - 1) % 3`, so floor four was the first
-boss again with more health and floor seven was it a third time.
-
-Now a floor takes a boss for its shape, its health and its damage, and rolls
-what it *asks for*: a budget that grows with the depth, spent on mechanics from
-the same vocabulary. The boss's swing and slam survive, since that is what
-makes one hit differently from another; everything else the plan decides, and
-anything it does not buy is switched off — including the boss's own ladder,
-which a floor replaces outright rather than climbing.
-
-The purse moves on the same two axes the ladders do: a ten-man is worth one
-and a half more, a twenty-five three, and heroic another one and a half.
-Without that the descent would be the one place in the game where bringing
-twenty-five people and ticking heroic bought nothing but a longer health
-bar.
-
-**The prices are measured, and they are not what they look like.** A
-mechanic's cost here is not the damage it deals, it is what it takes out of
-the party's output — this party heals by standing still and casting, so
-anything that moves people is expensive and anything that only hurts them is
-cheap. The gathering costs six and the stalker five, because they were measured
-at thirty points of win rate and sixteen percent of the raid's damage; the
-armour break, the sweep and the rot cost two apiece, because they move nobody
-at all.
-
-| | cost | from floor |
-| --- | --- | --- |
-| pools, the sweep, rot | 2 | 1 |
-| marks, the cone | 3 | 1 |
-| the armour break | 2 | 3 |
-| the ring, thralls | 4 | 2 |
-| the stalker | 5 | 2 |
-| the gathering | 6 | 3 |
-
-Two rules keep a roll from being a lottery. Every floor buys something that
-asks the party to *be somewhere* before it buys anything else, because a roll
-of nothing but a sweep, a rot and an armour break is a fight where nobody ever
-has to move — not a cheap fight, a damage meter. And the budget has a ceiling,
-because a floor that can afford every mechanic at once asks for everything and
-therefore for nothing: there is no room left to answer any of it.
-
-The floor says what it rolled during the three-second countdown, next to the
-boss's name. A fight assembled by a die is only interesting if you can see what
-it was assembled out of, and unlike a raid boss — learned by repeating it — a
-floor is met once.
-
-**What is checked is the budget, not any one floor.** Nothing here is authored,
-so there is nothing to hand-tune: the checks sample seven hundred rolls across
-twelve depths and assert that none overspends, none is empty, none is
-motionless, the whole vocabulary is reachable, the expensive things are gated
-by depth as well as by price, and the same seed is the same floor twice. The
-harness samples floors for a win-rate curve, and then walks whole runs the way
-the game does — half a health bar back between floors, one of the fallen up per
-floor — because the difficulty of a descent is the product of its floors
-rather than the hardest one. Runs currently end at a median and a mean of floor
-four, with the harness's deliberately mediocre player.
-The depth curve was pulled down when the ladders went in — the multiplier is
-against the boss's own health and the bosses got heavier, so the same curve had
-quietly become a third steeper and the median had fallen to under four, which
-is a different game rather than a harder one.
 
 ## The armour break, and the second tank
 
@@ -841,10 +788,8 @@ the circle from 250 units away to just outside the party helped; it did not
 fix it. At a cost small enough for the ladder to absorb, the mechanic was not
 worth having.
 
-So it goes where its cost is the intention. On the descent that is from the
-third floor down, tightening as it goes — every floor there is meant to be
-worse than the last, so there is no fixed difficulty to protect. On the ladder
-it is **the Warden's last rung and nothing else's**: reached only by a
+So it goes where its cost is the intention, which on a ladder means the very
+top of one. It is **the Warden's last rung and nothing else's**: reached only by a
 twenty-five man on heroic, which is both the raid with the bodies to pay for
 it and the one that ticked the box asking to. Every smaller raid, and every
 other boss, meets the same fight without it. A mechanic that costs thirty
@@ -872,8 +817,8 @@ healer that runs stops healing, and in this party that is the whole fight:
 hunting the healer one pull in four raised deaths in *every* role, including
 the tank, who is never picked at all.
 
-It is on the descent, from the second floor down, and finding out why was the
-most useful measurement of the round. A stalker with its damage turned down to
+Finding out what it costs was the most useful measurement of the round. A
+stalker with its damage turned down to
 **one point of damage** and less health than an ordinary thrall still took the
 Warden from 65% to 8%. Nothing it does is dangerous; what it costs is 16% of
 the party's damage output, because three dealers break off to kill it and the
@@ -884,9 +829,9 @@ That is the finding, and it is not a fact about stalkers. **This ladder is
 balanced on a party that stands still and casts, so movement and
 target-switching are the expensive currency here — not damage.** The armour
 break was affordable on the ladder because it moves nobody. The circle and the
-stalker both cost a third of a fight's margin, so both live on the descent,
-where every floor being worse than the last is the design rather than a
-regression. All three tuned encounters still sit on the exact numbers they
+stalker both cost a third of a fight's margin, so neither can sit anywhere but
+the last rung of a ladder, where being the hardest thing asked is the point.
+All three tuned encounters still sit on the exact numbers they
 were tuned to: 18/55/65, 43/65/68, 8/13/15.
 
 One AI weighting had to be measured too. The first version scored a chaser as
@@ -1017,9 +962,9 @@ button people press twice.
 The front page's is the odd one out: it is about the game rather than about a
 fight, so its link carries no fragment at all — there is nothing to reproduce,
 only somewhere to arrive. What makes it worth sending rather than a bare URL
-is the line under it, which counts the bosses down, the deepest floor reached
-and the fastest kill of the furthest boss. One best rather than a table: a
-list of three is a spreadsheet. A player who has done nothing yet claims
+is the line under it, which counts the bosses down and names the fastest kill
+of the furthest boss. One best rather than a table: a list of three is a
+spreadsheet. A player who has done nothing yet claims
 nothing, and the check fails if that message ever grows a number.
 
 The link is a fragment — `#d=20260820` for a day, `#b=warden&s=10&h=1` for a
@@ -1047,36 +992,6 @@ that a wipe offers none, and — on today's screen, where `SHARE` was carved out
 of `PULL`'s width — that the two do not overlap, since a share that also pulls
 would start the run you meant to send.
 
-## The descent
-
-One attempt, boss after boss, each floor harder than the last, and the party
-arrives at the next one in whatever state it left the last. No retry: pressing
-it starts a fresh run from the first floor, which is the point of there being
-a depth to lose. What is kept between runs is one number — how deep you got.
-
-Nothing is gained on the way down. That is the same rule the rest of the game
-keeps: what improves between attempts is you, not a number on a character.
-What the depth buys is a sentence worth saying — eleven floors is a different
-story from four.
-
-The floors start *below* an ordinary pull and pass it around the fifth: a run
-that ends on floor one most of the time is a raid with the retry button taken
-away. Between floors the survivors get a little over half their health back
-and one of the fallen gets up. A full heal would make every floor the first
-floor; nothing at all would mean a party that finished at ten percent had
-already lost the next one and was only being told a minute later.
-
-The party gets better as it goes, too — they are the same five people who have
-now been through several fights together — so the AI's learning is tied to the
-floor rather than to a pull count that a descent never has.
-
-Tuning it took four rounds against the harness, which kept ending runs on the
-first or second floor, and the fix in the middle of that was the interesting
-one: reading the depth multiplier as `depth || 1` gave **every ordinary raid
-in the game the first floor's numbers** — a boss with 42% of its health. The
-harness caught it because the boss stopped holding threat, and no amount of
-looking at the screen would have.
-
 ## Getting better at it
 
 Nothing on the character gets stronger, which leaves a problem: the party
@@ -1094,7 +1009,7 @@ So the evidence is the record, and the record now speaks up:
   nothing until there are two.
 - **Personal bests announce themselves** as they are beaten, in the same banner
   the awards use: fastest kill of a boss, fewest mechanics eaten in a kill,
-  deepest floor, biggest pull. The first time something is recorded is not a
+  biggest pull. The first time something is recorded is not a
   best — an announcement that fires every time announces nothing — so it stays
   quiet until there is something to beat.
 
@@ -2048,7 +1963,7 @@ Two constraints shaped where things sit. The armour break is answered by
 swapping tanks and a five-man fields one, so no ladder sells it before the
 rung a five-man cannot reach. The gathering costs about thirty points of win
 rate wherever it is put, so it is the Warden's last word and belongs to a
-heroic twenty-five or a deep descent floor and to nothing else.
+heroic twenty-five and to nothing else.
 
 | Boss | Asks for | Leans on |
 | --- | --- | --- |

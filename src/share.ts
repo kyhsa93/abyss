@@ -134,7 +134,6 @@ export function gameMessage(bests: Bests): string {
   const killed = ENCOUNTERS.filter((e) => bests.kills[e.id] !== undefined)
   const done: string[] = []
   if (killed.length > 0) done.push(`${killed.length} of ${ENCOUNTERS.length} bosses down`)
-  if (bests.depth > 0) done.push(`deepest floor ${bests.depth}`)
   if (done.length > 0) lines.push(done.join(' · '))
 
   // One best rather than a table: the fastest kill of the furthest boss is the

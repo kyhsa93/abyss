@@ -22,8 +22,8 @@ import type { Obstacle, Vec2 } from './types'
 /**
  * The whole vocabulary, named once.
  *
- * `floor.ts` prices these and `boss.ts` schedules them; this is the list both
- * of them agree on. Everything a boss or a floor can ask for is here, and
+ * `boss.ts` schedules them and every ladder is written out of them; this is
+ * the list all of it agrees on. Everything a boss can ask for is here, and
  * nothing else is.
  */
 export type MechanicId =
@@ -175,9 +175,8 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
  * Every mechanic there is.
  *
  * Read off a table the compiler already forces to be complete, so that code
- * which has to touch all of them cannot quietly miss one. It used to be spelt
- * out by hand in `planned()` and `brand` was left off, which meant a descent
- * floor threw a mark nobody had paid for.
+ * which has to touch all of them cannot quietly miss one. Every hand-written
+ * copy of this list in the repo's history has ended up missing a name.
  */
 /**
  * The vocabulary no boss sells any more, on its way out.
@@ -1115,11 +1114,12 @@ export interface Encounter {
      * Every boss has one of these, where most lines are empty on the bosses
      * that do not own the mechanic.
      *
-     * The floor giving way is not on anybody's ladder yet — where it belongs
-     * on one is a question about the shape of a fight rather than about the
-     * mechanic — but a descent floor can already be handed it, and a descent
-     * borrows whichever boss it likes for its shape. A mechanic that any of
-     * the three can throw needs a line from all three.
+     * The floor giving way is not on anybody's ladder — where it belongs on
+     * one is a question about the shape of a fight rather than about the
+     * mechanic — so nothing says these lines today. They are kept because the
+     * mechanic is kept: the day it is put on a ladder, the fight that gets it
+     * has to have a word for it, and an empty string is a mechanic that goes
+     * off in silence.
      */
     fault: string
     shallows: string
@@ -1138,8 +1138,8 @@ export interface Encounter {
      * mechanic exactly when its ladder has a rung for it, and that rule is
      * checked. This one is on no ladder at all yet — where it belongs is a
      * question about which fight wants the demand, and it is not answered
-     * here — so every boss carries a voice for it, the way the fault and the
-     * shallows do, and it already has something to say if it takes a rung.
+     * here — so every boss carries a key for it, empty, the way the fault and
+     * the shallows do.
      */
     schism: string
     /**
@@ -1147,20 +1147,14 @@ export interface Encounter {
      *
      * On no ladder, for the reason the fault and the shallows are on none:
      * which fight wants which demand is a question about the shape of a
-     * boss, and it is not answered here. Every boss carries a voice for them
-     * so that whichever one takes a rung already has something to say.
+     * boss, and it is not answered here. Keyed and empty everywhere.
      */
     vigil: string
     chant: string
     gaze: string
     /**
-     * The three that are answered by target rather than by footing.
-     *
-     * On no ladder either, and authored on every boss for the reason the
-     * fault and the shallows are. A boss speaks for the six on its own ladder
-     * and is silent about the other twenty-four; a descent floor borrows a
-     * boss for its shape and buys its own mechanics, so it announces out of
-     * the mechanic's own name instead -- see `lineFor`.
+     * The two that are answered by target rather than by footing. On no
+     * ladder either, and empty everywhere for the reason above.
      */
     knell: string
     vessel: string
@@ -1542,7 +1536,9 @@ export const ENCOUNTERS: Encounter[] = [
     // boss here and is a fact about this one's kit. Three of its demands are
     // paid per body — the mark, the spore, the swelling — so a bigger raid
     // brings more hands to each of them, while the air and the breath out are
-    // the same bill whoever turned up. Left flat it read 100% at five and ten
+    // the same bill whoever turned up.
+    //
+    // Left flat it read 100% at five and ten
     // on a first pull, which is a fight with nothing to learn.
     sizeMechanic: { 5: 1.6, 10: 1.45, 25: 1.0 },
     accent: '#84cc16',
@@ -1734,11 +1730,11 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
  * nothing; and the breath out is lethal to a raid that was never inoculated,
  * so without the spore it is not a mechanic, it is a wipe on a timer.
  *
- * Written here rather than left to the ladder's ordering. A ladder can be
- * arranged so the prerequisite is always bought first -- this one is -- but
- * two other places pick mechanics without ever seeing a ladder: a descent
- * floor rolls its own, and the daily draws from the whole game. Either of
- * those can hand a boss the breath out and nothing to breathe.
+ * Written here rather than left to the ladder's ordering. A ladder is
+ * arranged so the prerequisite comes first -- these ones are -- but a ladder
+ * is not bought whole: `kitCount` buys the first few rungs by size and
+ * difficulty, and `always` adds mechanics from outside the ordering
+ * altogether. Neither of those can see that the breath out needs the air.
  */
 const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   inhale: ['blight'],
@@ -1861,23 +1857,14 @@ export function gated(
 /**
  * What gets shouted when a mechanic goes off.
  *
- * A boss speaks for the six mechanics on its own ladder and is silent about
- * the other twenty-four, which is the rule that stops five fights sounding
- * like one. A descent floor is not one of the five: it borrows a boss for its
- * shape and then buys its own sentence out of the whole vocabulary, so it can
- * and does throw mechanics that boss has never had a word for. Left to read
- * the borrowed table it threw them in silence.
- *
- * So a floor announces from the mechanic's own name instead. It reads plainer
- * than an authored line, which is right: a floor is a fight nobody wrote.
+ * A boss speaks for the mechanics on its own ladder and is silent about the
+ * rest, which is the rule that stops the fights sounding like one another.
+ * Silence is the right answer for a mechanic it does not own, because there
+ * is now nothing that can hand a boss one: every fight in the game throws its
+ * own kit and only that.
  */
-export function lineFor(encounter: Encounter, onAFloor: boolean, key: MechanicId): string {
-  if (!onAFloor) return key in encounter.lines ? (encounter.lines as Record<string, string>)[key]! : ''
-  if (encounter.ladder.includes(key)) {
-    const own = key in encounter.lines ? (encounter.lines as Record<string, string>)[key]! : ''
-    if (own !== '') return own
-  }
-  return `Here comes ${MECHANIC_NAMES[key]}`
+export function lineFor(encounter: Encounter, key: MechanicId): string {
+  return key in encounter.lines ? (encounter.lines as Record<string, string>)[key]! : ''
 }
 
 /** Clamped rather than checked: a saved index outliving its boss is not fatal. */

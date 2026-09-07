@@ -2,8 +2,6 @@ import { COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
-import { descentHealth } from './descent'
-import { plannedOpening, rollFloor, type FloorPlan } from './floor'
 import { Rng } from './rng'
 import { ROUND_ARENA } from './room'
 import {
@@ -171,45 +169,34 @@ export function createState(
   difficulty: DifficultyId = 'normal',
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,
-  depth = 0,
-  /**
-   * A fight rolled somewhere else, for the one caller that does not derive it
-   * from a depth. See `rollDaily`.
-   */
-  rolled: FloorPlan | null = null,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
-  const scale =
-    sizeHealth(party.length) * DIFFICULTIES[difficulty].health * descentHealth(depth)
+  const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
   const fight = encounterAt(encounter)
   // The room, before anything is placed in it. Everything below that used to
   // read `ARENA_RADIUS` — the terrain's walls, the clamp, the camera — reads
   // this instead, and a fight that names no room gets the circle they all
   // assumed.
   const room = fight.room ?? ROUND_ARENA
-  // A floor rolls its own fight out of the same vocabulary the bosses are
-  // written in; the ladder gets the boss exactly as it was authored.
-  const plan = rolled ?? (depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null)
   // What is standing in that room: the fight's own, or rolled.
   //
   // A fight that names its terrain gets exactly that, every pull, because a
-  // floor is part of what there is to learn. A floor that was rolled in the
-  // first place — a descent's, a daily's — rolls its rocks too, which is the
-  // one place a room that is different every time is the right answer.
+  // floor is part of what there is to learn. One that names none gets rocks
+  // rolled off the pull's seed, which is where every fight was before any of
+  // them was furnished.
   //
   // Copied rather than handed over. The list on the encounter is the fight as
   // written and outlives the pull; `s.obstacles` is a room being fought in,
   // and a mechanic that leaves a wall behind it writes there.
-  const rocks =
-    plan === null && fight.terrain
-      ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
-      : raidTerrain(
-          room,
-          new Rng(seed * 13 + encounter * 7919 + 1049),
-          slots.map((slot) => ({ x: slot.x, y: slot.y })),
-        )
-  const opening = plan ? { ...fight.opening, ...plannedOpening(plan) } : fight.opening
+  const rocks = fight.terrain
+    ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
+    : raidTerrain(
+        room,
+        new Rng(seed * 13 + encounter * 7919 + 1049),
+        slots.map((slot) => ({ x: slot.x, y: slot.y })),
+      )
+  const opening = fight.opening
 
   const boss: Actor = {
     id: BOSS_ID,
@@ -274,6 +261,7 @@ export function createState(
     room,
     nextDoor: 0,
     only: null,
+    imposed: null,
     healing: 1,
     time: 0,
     tick: 0,
@@ -286,7 +274,6 @@ export function createState(
     outcome: 'ongoing',
     encounter: encounterIndex(encounter),
     affix,
-    depth,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     phaseAt: 0,
@@ -296,7 +283,6 @@ export function createState(
     next: openingTimers(opening),
     nextSlam: opening.slam,
     nextRaidHit: opening.raid,
-    plan,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
     nextObjectId: FIRST_OBJECT_ID,
@@ -393,7 +379,6 @@ export function createBattlegroundState(
     outcome: 'ongoing',
     encounter: FIRST_ENCOUNTER,
     affix: null,
-    depth: 0,
     countdown: COUNTDOWN_TICKS,
     phase: 1,
     phaseAt: 0,
@@ -401,8 +386,8 @@ export function createBattlegroundState(
     nextSlam: 0,
     nextRaidHit: 0,
     only: null,
+    imposed: null,
     healing: 1,
-    plan: null,
     bossFacing: Math.PI,
     raidFlash: 0,
     nextObjectId: FIRST_OBJECT_ID,

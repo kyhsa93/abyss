@@ -31,8 +31,6 @@ const SHARDS = [
   'size:2',
   'size:3',
   'size:4',
-  'descent',
-  'run',
   'member',
   'spec',
   'mechanic',

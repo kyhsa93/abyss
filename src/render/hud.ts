@@ -114,15 +114,13 @@ export function hitOutcome(
 /** Whether this pull earned the way out of where it was fought. */
 export function canAdvance(s: SimState): boolean {
   if (s.mode !== 'raid' || s.outcome !== 'victory') return false
-  // A descent always has another floor. A raid has another rung — which is
-  // usually this same boss one setting harder, and only at the top of the six
-  // is it the next boss at all.
-  return s.depth > 0 || hasNextTier(s.encounter, s.party.length, s.difficulty)
+  // A rung, which is usually this same boss one setting harder, and only at
+  // the top of the six is it the next boss at all.
+  return hasNextTier(s.encounter, s.party.length, s.difficulty)
 }
 
 /** What the button that walks onto the next rung should say. */
 export function advanceLabel(s: SimState): string {
-  if (s.depth > 0) return 'GO DEEPER'
   const here = tierOf(s.encounter, s.party.length, s.difficulty)
   if (here < 0) return 'NEXT BOSS'
   const next = tierAt(here + 1)
@@ -425,20 +423,6 @@ function drawCountdown(ctx: CanvasRenderingContext2D, s: SimState): void {
   ctx.font = font(11)
   ctx.fillText(boss(s).name, L.cx, L.cy - base * 0.1)
 
-  // What this floor rolled, while there is still time to read it.
-  //
-  // A fight assembled by a die is only interesting if you can see what it was
-  // assembled out of. The bosses on the ladder are learned by repeating them;
-  // a floor is met once, so the one chance to know what is coming is the three
-  // seconds before it starts.
-  if (s.plan && s.plan.names.length > 0) {
-    ctx.fillStyle = COLORS.hpBar
-    ctx.font = font(11, true)
-    ctx.fillText(`FLOOR ${s.depth}`, L.cx, L.cy + base * 0.11)
-    ctx.fillStyle = COLORS.text
-    ctx.font = font(12)
-    ctx.fillText(s.plan.names.join('   ·   '), L.cx, L.cy + base * 0.15)
-  }
 }
 
 /**
@@ -1102,8 +1086,7 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
   }
 
   const enrageIn = Math.max(0, encounterAt(s.encounter).enrage - s.time)
-  // A descent counts floors rather than attempts: there is only ever one.
-  ctx.fillText(s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`, L.infoX, y)
+  ctx.fillText(`pull ${s.attempt + 1}`, L.infoX, y)
   y += line
   ctx.fillText(`phase ${s.phase}`, L.infoX, y)
   y += line
@@ -1692,7 +1675,7 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillText(
     bg
       ? `${bgName(bg.kind)}   ·   ${s.time.toFixed(0)}s   ·   ${Math.floor(bg.score.blue)} — ${Math.floor(bg.score.red)}`
-      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   ${s.depth > 0 ? `floor ${s.depth}` : `pull ${s.attempt + 1}`}`,
+      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )
@@ -1753,14 +1736,6 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   if (s.mode === 'battleground') {
     ctx.fillText(
       s.outcome === 'victory' ? 'the other five go home' : 'the other five hold it',
-      L.w / 2,
-      buttons.retry.y + buttons.retry.h + 20,
-    )
-  } else if (s.depth > 0) {
-    ctx.fillText(
-      s.outcome === 'victory'
-        ? `floor ${s.depth} cleared — you take what is left of you into the next one`
-        : `the descent ended on floor ${s.depth}`,
       L.w / 2,
       buttons.retry.y + buttons.retry.h + 20,
     )

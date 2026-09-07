@@ -10,7 +10,7 @@ import { resolve } from 'node:path'
  * how this project ended up with four different promises on one screen before
  * anybody wrote down which of them was the point.
  *
- * So the table in "Four shapes of the same promise" is pinned to HOME_ORDER.
+ * So the table in "Shapes of the same promise" is pinned to HOME_ORDER.
  * Adding a mode now means saying, in one line, what it promises a player — and
  * if it cannot be described as content that would otherwise need other people,
  * that is the check doing its job.
@@ -34,8 +34,8 @@ const modes = [...order!.matchAll(/'([a-z]+)'/g)].map((m) => m[1])
 const played = modes.filter((mode) => mode !== 'settings')
 
 const readme = read('README.md')
-const table = /### Four shapes of the same promise\n([\s\S]*?)\n\n/.exec(readme)?.[1]
-if (!table) fail('the "Four shapes of the same promise" table is gone from README.md')
+const table = /### Shapes of the same promise\n([\s\S]*?)\n\n/.exec(readme)?.[1]
+if (!table) fail('the "Shapes of the same promise" table is gone from README.md')
 
 const documented = [...table!.matchAll(/^\| `([a-z]+)` \| ([^|]+?) \|/gm)].map((m) => ({
   mode: m[1],

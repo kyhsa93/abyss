@@ -3,7 +3,6 @@ import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
 import { affixHealing, affixSpread } from './affix'
 import { encounterAt, type MechanicId } from './encounters'
-import { descentDamage } from './descent'
 import {
   BURDEN_DAMAGE,
   BURDEN_SLOW,
@@ -891,7 +890,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
  * It lives here rather than in `boss.ts` because one mechanic never reached
  * it. The spread's detonation is written where the aura expires, which is
  * outside the timeline, and it applied `760 * difficulty` straight — no
- * boss `mechanicDamage`, no size weight, no descent. So the Choir's signature
+ * boss `mechanicDamage` and no size weight. So the Choir's signature
  * mechanic ignored the Choir's own dial: turning that dial from 1.35 to 3.0
  * moved its twenty-five man rungs and left its five and ten exactly where
  * they were, because those two rungs are a spread and a rot and the rot is
@@ -900,7 +899,7 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
  * A funnel with something outside it is not a funnel. Both of them read this.
  */
 export function fightScale(s: SimState): number {
-  return DIFFICULTIES[s.difficulty].damage * descentDamage(s.depth) * sizeScale(s)
+  return DIFFICULTIES[s.difficulty].damage * sizeScale(s)
 }
 
 /** This boss's own weight at this raid size. One unless it says otherwise. */
