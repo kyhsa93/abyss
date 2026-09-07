@@ -26,6 +26,10 @@ import {
   ENRAGE_GRACE,
   ECHO_BEAT,
   TURNED_GUARD,
+  INHALE_MAX,
+  BLOAT_BURST_AT,
+  SLIGHT_MAX,
+  SLIGHT_SHARE,
 } from './constants'
 import type { Rng } from './rng'
 import { BOSS_ID, PLAYER_ID } from './state'
@@ -252,6 +256,26 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   eclipse: 3,
   pact: PACT_CHARGES,
   sunder: 5,
+  // The three the fight counts on a body rather than the party counting on
+  // itself, and every one of them was missing.
+  //
+  // A missing entry is a cap of one, silently, so `stackAura` was refusing to
+  // count past the first for all three -- and each of them has a written
+  // number somewhere else in the codebase that has never once been reached.
+  // The breath in is checked against three in `scheduleInhale` and never got
+  // past one, so the breath out has always billed for a single lungful and
+  // the doc comment describing what three does to an uninoculated raid was
+  // describing something that could not happen. The swelling is documented as
+  // lethal at ten and the tanks are told to swap at nine; it has been one
+  // stack that never grew. The slight is meant to climb to a tank that cannot
+  // hold anything.
+  //
+  // The numbers are read from the constants that name them rather than
+  // written again here, so the two cannot drift apart the way they already
+  // had.
+  gorged: INHALE_MAX,
+  swelling: BLOAT_BURST_AT,
+  slighted: SLIGHT_MAX,
 }
 
 /**
@@ -436,7 +460,31 @@ export function pushEffect(
 }
 
 export function addThreat(s: SimState, actorId: number, amount: number): void {
-  s.threat[actorId] = (s.threat[actorId] ?? 0) + amount
+  // Less of it for every slight on the body making it.
+  //
+  // Taken off what is being generated rather than off what has been banked,
+  // which is the difference between a clock and an accident. Struck off the
+  // pile, one slight was enough to hand the boss to the other tank on the
+  // spot -- so the count never reached two, the swap happened every time it
+  // landed, and nobody chose anything. Taken off the rate, the tank wearing
+  // them falls behind at a speed everybody can see, and the swap happens when
+  // the raid decides it should rather than when the fight says so.
+  //
+  // At `SLIGHT_MAX` it is exactly nothing, which is the original's shape: a
+  // tank that has been told often enough that it does not matter stops being
+  // able to hold anything at all.
+  const slighted = threatOf(s, actorId)
+  s.threat[actorId] = (s.threat[actorId] ?? 0) + amount * slighted
+}
+
+/** What a body's slights leave of the threat it makes. See `addThreat`. */
+function threatOf(s: SimState, actorId: number): number {
+  for (const a of s.actors) {
+    if (a.id !== actorId) continue
+    const stacks = getAura(a, 'slighted')?.stacks ?? 0
+    return stacks === 0 ? 1 : Math.max(0, 1 - stacks * SLIGHT_SHARE)
+  }
+  return 1
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   BLOAT_SWAP_AT,
   REEK_REACH,
   SHADE_REACH,
+  SLIGHT_MAX,
   STORM_REACH,
   SPREAD_RADIUS,
   VIGIL_HELD,
@@ -2856,16 +2857,16 @@ function tankRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): voi
   ): { stacks: number; at: number; of: 'sunder' | 'swelling' | 'slighted' } => {
     const sunder = a ? (getAura(a, 'sunder')?.stacks ?? 0) : 0
     const swelling = a ? (getAura(a, 'swelling')?.stacks ?? 0) : 0
-    // The slight is not a count. It is one fact — the hold has been taken —
-    // and a tank wearing it is already behind, so it reads as a full line
-    // rather than as a number climbing toward one.
-    const slighted = a && getAura(a, 'slighted') ? 1 : 0
+    // The slight is a count now, and reads like the other two: a tank three
+    // slights in is most of the way to holding nothing, and the swap wants to
+    // happen before the fifth rather than after the first.
+    const slighted = a ? (getAura(a, 'slighted')?.stacks ?? 0) : 0
     // Whichever is nearest its own line, not whichever number is bigger: five
     // armour breaks and five swellings are not the same amount of trouble.
     const reads: Array<{ stacks: number; at: number; of: 'sunder' | 'swelling' | 'slighted' }> = [
       { stacks: sunder, at: SWAP_AT, of: 'sunder' },
       { stacks: swelling, at: BLOAT_SWAP_AT, of: 'swelling' },
-      { stacks: slighted, at: 1, of: 'slighted' },
+      { stacks: slighted, at: SLIGHT_MAX, of: 'slighted' },
     ]
     let worst = reads[0]!
     for (const read of reads) if (read.stacks / read.at > worst.stacks / worst.at) worst = read

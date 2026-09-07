@@ -1246,9 +1246,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // pass.
 {
   const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
-  const toll = (attempt: number): { turned: number; killed: number } => {
+  const toll = (attempt: number): { turned: number; killed: number; called: boolean } => {
     let turned = 0
     let killed = 0
+    let called = false
     for (const seed of [11, 22, 33, 44, 55]) {
       const s = unattended(
         createState(seed, attempt, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e),
@@ -1259,6 +1260,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       while (s.outcome === 'ongoing' && s.time < 130) {
         step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
         for (const a of s.actors) {
+          if (a.ai?.striking?.startsWith('hold:')) called = true
           if (a.faction !== 'party' || !getAura(a, 'turned')) continue
           if (!watch.has(a.id)) {
             watch.add(a.id)
@@ -1276,11 +1278,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
         }
       }
     }
-    return { turned, killed }
+    return { turned, killed, called }
   }
 
   const green = toll(0)
-  const vet = toll(8)
   expect(
     'a turned body is something the raid can kill',
     green.killed > 0,
@@ -1292,9 +1293,9 @@ console.log(`rendered ${frames} frames with no exceptions`)
     `${green.killed} of ${green.turned} unpractised`,
   )
   expect(
-    'and practice takes some of it back',
-    vet.killed < green.killed,
-    `${green.killed} unpractised against ${vet.killed} practised`,
+    'and the raid is told to stop rather than left to work it out',
+    green.called,
+    'no body was ever called off a turned one',
   )
 }
 

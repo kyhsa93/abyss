@@ -31,7 +31,8 @@ import {
   FROSTBOLT_DAMAGE,
   SHADE_REACH,
   SHADE_SPEED,
-  SLIGHT_SHARE,
+  SLIGHT_MAX,
+  STORM_BITE,
   STORM_REACH,
   STORM_REPICK,
   VOLLEY_DAMAGE,
@@ -1030,11 +1031,15 @@ function scheduleSlight(s: SimState, b: Actor, timing: PhaseTiming): void {
 
   const held = topThreatTarget(s)
   if (!held) return
-  addAura(held, 'slighted', b.id)
-  // Taken off the table rather than applied as a multiplier on what comes
-  // next, so the swap is worth making immediately: a tank that has just lost
-  // half its hold is behind now, not behind eventually.
-  s.threat[held.id] = (s.threat[held.id] ?? 0) * (1 - SLIGHT_SHARE)
+  // Stacked rather than refreshed. See `SLIGHT_SHARE`: what the original does
+  // is count up to a tank that cannot hold anything at all, which is a clock
+  // the other tank reads and answers on a beat it can see coming. Applied as
+  // one fact every twenty-four seconds it was answered once and forgotten.
+  if ((getAura(held, 'slighted')?.stacks ?? 0) >= SLIGHT_MAX) {
+    getAura(held, 'slighted')!.remaining = AURA_DURATION.slighted
+  } else {
+    stackAura(held, 'slighted', b.id)
+  }
   say(s, b, lineFor(fight(s), s.plan !== null, 'insignificance'))
   pushEffect(s, 'cast', held.pos, { abilityId: 'boss_insignificance' })
 }
@@ -1200,8 +1205,12 @@ function updateStorm(s: SimState, b: Actor): void {
   if (s.stormTimer < 1) return
   s.stormTimer -= 1
   for (const a of livingParty(s)) {
-    if (dist(a.pos, b.pos) > STORM_REACH + a.radius) continue
-    const bite = mechanic(s, STORM_TICK)
+    const gap = dist(a.pos, b.pos)
+    if (gap > STORM_REACH + a.radius) continue
+    // Worst at the middle. See `STORM_BITE`: outside is still nothing, and
+    // inside it now says how far inside.
+    const close = 1 - Math.min(1, gap / STORM_REACH)
+    const bite = mechanic(s, STORM_TICK * (STORM_BITE + (1 - STORM_BITE) * close))
     applyDamage(s, a, bite, 'physical', { sourceId: b.id, mechanic: 'bonestorm' })
     pushEffect(s, 'impact', a.pos, { abilityId: 'boss_bonestorm', power: bite })
   }

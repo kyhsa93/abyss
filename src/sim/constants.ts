@@ -888,11 +888,19 @@ export const BLOAT_SPLASH = 190
 /**
  * The storm: how far it reaches, what it costs, and how fast it charges.
  *
- * The reach is wide and the bill is flat inside it. Flat rather than steeper
- * the closer, which is what the fight was first written to do and is the one
- * shape `docs/mechanic-rules.md` says teaches nothing: a bill proportional to
- * a distance is a bill everybody pays some of, and averaging a demand is how
- * a demand stops being one. Inside is inside.
+ * The reach is wide and the bill is worst at the middle.
+ *
+ * Flat inside it was the first shape, on the argument that a bill scaled to a
+ * distance is a bill everybody pays some of. That reading holds for a mechanic
+ * whose whole judgement is the gradient; it does not hold here, because the
+ * pass and the fail are still binary -- outside the reach is nothing at all,
+ * and the gradient only says how badly you failed once you are inside it. What
+ * it buys is the thing a flat bill could not: a raid at the edge is nearly out
+ * and a raid in the middle is being killed, so "get away" has a direction and
+ * a degree rather than being one step over a line.
+ *
+ * `STORM_BITE` is what is left at the very edge. Full weight at the centre,
+ * that fraction at the rim, straight line between.
  *
  * The speed is the boss's own, undiminished, and that is the whole argument
  * for the number. At eighty-two percent it was a hundred and forty-three
@@ -910,8 +918,9 @@ export const BLOAT_SPLASH = 190
  * once and the bill is not divided. Two hundred and sixty is the last value
  * where a twenty-five man loses pulls and still learns its way out of them.
  */
-export const STORM_REACH = 190
+export const STORM_REACH = 260
 export const STORM_TICK = 260
+export const STORM_BITE = 0.35
 export const STORM_SPEED = 1.0
 /**
  * How long the storm keeps aiming at the same body.
@@ -947,7 +956,28 @@ export const VOLLEY_DAMAGE = 300
 export const SHADE_REACH = 90
 export const SHADE_SPEED = 0.72
 /** What the slight takes off the tank's hold. */
-export const SLIGHT_SHARE = 0.45
+/**
+ * What one slight takes off the hold, and how many the tank has before the
+ * hold is gone.
+ *
+ * A count rather than an event, which is what the original is: it lands every
+ * few seconds and at five the tank generates nothing at all, so it is a clock
+ * that forces a swap rather than an accident that happens to cost one. Written
+ * as a single application it was the second: one fact, arriving every
+ * twenty-four seconds, that the other tank answered once and forgot.
+ *
+ * Off the rate rather than off the pile. Struck off what a tank has already
+ * banked, one slight handed the boss straight to the other tank -- so the
+ * count never reached two and there was nothing to decide. Off what it makes
+ * from now on, the tank falls behind visibly and the raid swaps when it reads
+ * that, which is the mechanic.
+ *
+ * A fifth of the rate each, five of them, so the last one leaves exactly
+ * nothing: a tank told often enough that it does not matter cannot hold
+ * anything at all.
+ */
+export const SLIGHT_SHARE = 0.2
+export const SLIGHT_MAX = 5
 /** What coming back wrong is worth, in damage and in health. */
 export const EMPOWER_POWER = 2.1
 export const EMPOWER_HEALTH = 1.6
