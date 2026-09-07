@@ -139,7 +139,7 @@ const list: Ability[] = [
   // --- hunter: everything instant, so it never stops damaging --------------
   { id: 'steady_shot', name: 'Steady Draw', role: 'dps', kind: 'damage', castTime: 0, cooldown: 0, cost: 14, amount: 109, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
   { id: 'serpent_sting', name: 'Venom Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 16, cost: 20, amount: 44, threatMult: 1, aura: 'serpent_sting', range: SPELL, minRange: SHOT_MIN_RANGE },
-  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 348, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
+  { id: 'aimed_shot', name: 'Long Shot', role: 'dps', kind: 'damage', castTime: 0, cooldown: 7, cost: 25, amount: 328, threatMult: 1, aura: null, range: SPELL, minRange: SHOT_MIN_RANGE },
 
   // --- leather melee: brief speed on a long cooldown -----------------------
   //
