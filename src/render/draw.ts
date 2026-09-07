@@ -636,7 +636,7 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
 
   const c = worldToScreen({ x: 0, y: 0 })
   ctx.beginPath()
-  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  arenaPath(ctx, c)
   ctx.strokeStyle = `rgba(239, 68, 68, ${(0.85 * a).toFixed(3)})`
   ctx.lineWidth = 2 + 6 * a
   ctx.stroke()
@@ -817,8 +817,11 @@ function drawArena(
  */
 function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
   const room = worldRoom()
-  if (!roomHasOutside(room)) return
-  const outer = L.arenaR
+  // Narrowed on the kind rather than through `roomHasOutside`, which answers
+  // the question but does not tell the compiler that the answer implies a
+  // radius. Both are checked so the two cannot drift apart.
+  if (room.kind !== 'platform' || !roomHasOutside(room)) return
+  const outer = room.radius * L.scale
   const inner = Math.max(1, outer - EDGE_LAP * L.scale)
 
   ctx.save()
@@ -838,6 +841,11 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
   ctx.restore()
 }
 
+/** How far the room reaches, on the glass. */
+function floorReach(): number {
+  return worldReach() * L.scale
+}
+
 /**
  * The outline of the floor, in screen space.
  *
@@ -849,7 +857,7 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
 function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2): void {
   const room = worldRoom()
   if (room.kind !== 'hall') {
-    floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+    floorArc(ctx, c.x, c.y, room.radius * L.scale, 0, Math.PI * 2)
     return
   }
   const corners: Vec2[] = [
@@ -893,8 +901,8 @@ const WALL = 34
  * inside a bowl looks like.
  */
 function drawFarWall(ctx: CanvasRenderingContext2D, c: Vec2): void {
-  const rx = L.arenaR
-  const ry = L.arenaR * TILT
+  const rx = floorReach()
+  const ry = rx * TILT
   const h = WALL * L.scale
   if (h < 1) return
 
@@ -1092,7 +1100,7 @@ function drawFault(ctx: CanvasRenderingContext2D, g: SimState['ground'][number])
   if (g.detonated) return
   const closing = Math.max(0, Math.min(1, 1 - g.telegraph / FAULT_TELEGRAPH))
   const c = worldToScreen({ x: 0, y: 0 })
-  const radius = L.arenaR
+  const radius = floorReach()
 
   // Worked out in the world and then projected, rather than worked out on the
   // glass. It used to step along `(cos, sin)` in screen space from a bearing
@@ -1165,7 +1173,7 @@ function drawShallows(
 
   ctx.save()
   ctx.beginPath()
-  floorArc(ctx, c.x, c.y, L.arenaR, 0, Math.PI * 2)
+  arenaPath(ctx, c)
   ctx.fillStyle = `rgba(29, 78, 216, ${(0.18 + 0.3 * closing).toFixed(3)})`
   ctx.fill()
 
@@ -1500,7 +1508,7 @@ function drawHand(
   const reach = worldReach() * 2 * L.scale
   ctx.save()
   ctx.beginPath()
-  floorArc(ctx, arena.x, arena.y, L.arenaR, 0, Math.PI * 2)
+  arenaPath(ctx, arena)
   ctx.clip()
 
   // The wedge is drawn against screen coordinates, so its bearing has to be

@@ -37,7 +37,7 @@ import {
   repair,
   summary as composeSummary,
 } from '../src/compose'
-import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '../src/render/theme'
+import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setWorldRoom, setZoomLevel, zoomLevel } from '../src/render/theme'
 import {
   RAID_FIELDS,
   bgSetupLayout,
@@ -11911,6 +11911,70 @@ for (const [label, w, h] of [
     )
   }
   updateLayout(1440, 900)
+}
+
+// --- the zoom is a zoom, and the floor is the room --------------------------
+//
+// The camera follows the player, so what the layout's `scale` decides is how
+// big a body is on the glass rather than how much room fits on it. Scaled to
+// fit the room instead — which is what it did when rooms arrived — a hall
+// twice as long would draw every body at half the size and the small room
+// would draw them at twice it: the game would zoom by boss while claiming to
+// be one game. What must vary with the room is the *floor*, and only that.
+{
+  updateLayout(1440, 900)
+  const zoom = L.scale
+  const sizes: Record<string, number> = {}
+  for (const [label, room] of [
+    ['disc', ROUND_ARENA],
+    ['small', { kind: 'round', radius: 620 } as const],
+    ['hall', { kind: 'hall', halfWidth: 560, front: 1560, back: 720 } as const],
+    ['platform', { kind: 'platform', radius: 880 } as const],
+  ] as const) {
+    setWorldRoom(room)
+    expect(`${label}: a body is the same size in it`, L.scale === zoom, `${L.scale} against ${zoom}`)
+    // What the floor paints, measured off the widest thing drawn on it.
+    const xs: number[] = []
+    const spy = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'ellipse') {
+            return (x: number, _y: number, rx: number) => {
+              xs.push(x - rx, x + rx)
+            }
+          }
+          if (prop === 'moveTo' || prop === 'lineTo') return (x: number) => xs.push(x)
+          if (prop === 'measureText') return () => ({ width: 10 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+            return () => ({ addColorStop: () => {} })
+          }
+          if (prop === 'createPattern') return () => null
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return () => {}
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D
+    focusOn(pulled(11, 1, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0), 1)
+    drawWorld(spy, (() => {
+      const s = pulled(11, 1, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0)
+      s.room = room
+      return s
+    })(), 1, 0, { offset: () => ({ x: 0, y: 0 }), draw: () => {} } as never)
+    sizes[label] = Math.max(...xs) - Math.min(...xs)
+  }
+  setWorldRoom(ROUND_ARENA)
+  expect(
+    'a smaller room is drawn smaller',
+    sizes.small! < sizes.disc!,
+    `${sizes.small!.toFixed(0)} against ${sizes.disc!.toFixed(0)}`,
+  )
+  expect(
+    'and a longer one is drawn longer',
+    sizes.hall! > sizes.disc!,
+    `${sizes.hall!.toFixed(0)} against ${sizes.disc!.toFixed(0)}`,
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

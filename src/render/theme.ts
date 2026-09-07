@@ -14,8 +14,6 @@ import { ROUND_ARENA, roomReach, type RoomShape } from '../sim/room'
  * the same reason the camera lives out here.
  */
 let world: RoomShape = ROUND_ARENA
-let viewW = 960
-let viewH = 760
 
 export function worldRoom(): RoomShape {
   return world
@@ -27,20 +25,13 @@ export function worldReach(): number {
 }
 
 /**
- * Points the frame at a room, and re-lays the screen if it changed.
+ * Points the frame at a room.
  *
- * The layout holds `scale`, which is screen units per world unit, so a
- * different room is a different scale and every position on the glass moves
- * with it. Cheap enough to do on the change rather than per frame, and it
- * changes at most once a pull.
+ * Only the shape of the floor and the minimap read this. The zoom does not —
+ * see `scale` below — so nothing has to be re-laid out when it changes.
  */
 export function setWorldRoom(room: RoomShape): void {
-  if (roomReach(room) === roomReach(world) && room.kind === world.kind) {
-    world = room
-    return
-  }
   world = room
-  updateLayout(viewW, viewH)
 }
 
 export const COLORS = {
@@ -311,7 +302,16 @@ export function computeLayout(w: number, h: number): Layout {
     w,
     h,
     portrait,
-    scale: arenaR / roomReach(world),
+    // The zoom, and it is a zoom rather than a fit.
+    //
+    // The camera follows the player, so what this decides is how big a body is
+    // on the glass — not how much room is on it. Taken from the yardstick room
+    // and left there: scaled to fit whatever room the fight is in, a hall
+    // twice as long would draw every body at half the size and a small room
+    // would draw them at twice it, so the game would zoom in and out by boss
+    // while claiming to be the same game. A room bigger than the view simply
+    // runs off it, which is what a long room is.
+    scale: arenaR / roomReach(ROUND_ARENA),
     cx: w / 2,
     cy: h / 2,
     arenaR,
@@ -439,8 +439,6 @@ export function setZoomLevel(level: number, w: number, h: number): boolean {
 export const L: Layout = computeLayout(960, 760)
 
 export function updateLayout(w: number, h: number): void {
-  viewW = w
-  viewH = h
   Object.assign(L, computeLayout(w, h))
 }
 
