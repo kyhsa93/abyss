@@ -211,6 +211,19 @@ function computeScaled(base: PhaseTiming, s: SimState): PhaseTiming {
   return { ...timing, ...faster, slam: timing.slam * cadence, raid: timing.raid * cadence }
 }
 
+/**
+ * How fast the floor gives back what it took.
+ *
+ * One place rather than at each of the twenty `lingering:` values, because
+ * what heroic lengthens is every hazard rather than a chosen few -- and
+ * because a difficulty written into twenty literals is a difficulty that gets
+ * half applied the next time somebody adds a hazard. The count runs slower, so
+ * the same cast holds the same ground for longer.
+ */
+function lingerStep(s: SimState): number {
+  return DT / DIFFICULTIES[s.difficulty].linger
+}
+
 /** Every point of boss damage passes through here. */
 function hit(s: SimState, amount: number): number {
   return amount * fightScale(s)
@@ -3080,7 +3093,7 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'breath') {
       // Purely a telegraph; the damage lands when the cast resolves.
       if (!g.detonated) g.telegraph -= DT
-      else g.lingering -= DT
+      else g.lingering -= lingerStep(s)
       continue
     }
 
@@ -3376,7 +3389,7 @@ if (g.kind === 'schism') {
       // Standing stone. The same silent residue a pool leaves, which is what
       // makes the ground denied rather than decorative — nobody is meant to be
       // in here, and the AI treats it as live fire for as long as it stands.
-      g.lingering -= DT
+      g.lingering -= lingerStep(s)
       for (const a of livingParty(s)) {
         if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
           applyDamage(s, a, mechanic(s, 110 * DT), 'magic', { sourceId: BOSS_ID, silent: true })
@@ -3515,7 +3528,7 @@ if (g.kind === 'schism') {
       continue
     }
 
-    g.lingering -= DT
+    g.lingering -= lingerStep(s)
     for (const a of livingParty(s)) {
       if (dist(a.pos, g.pos) <= g.radius - a.radius * 0.6) {
         // Per-tick residue: silent, and not a separate "mechanic hit" each frame.

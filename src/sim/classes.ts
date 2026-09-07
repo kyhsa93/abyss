@@ -999,28 +999,60 @@ export interface Difficulty {
   cadence: number
   /** Heroic doubles up the ground it denies you. */
   extraPuddle: number
+  /**
+   * How much longer whatever the fight puts on the floor stays there.
+   *
+   * Above one means the ground the raid has to give up is given up for longer,
+   * which is the difficulty lever that is about the room rather than about the
+   * numbers: the same cast denies more of the same arena because the last one
+   * has not gone out yet.
+   */
+  linger: number
 }
 
 export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
-  normal: { id: 'normal', name: 'Normal', health: 1, damage: 1, cadence: 1, extraPuddle: 0 },
-  // Not just bigger numbers: the floor fills faster, which is what actually
-  // separates a heroic pull from a normal one.
-  // Four multipliers compound fast; these are deliberately mild individually.
-  // An extra puddle per cast turned out to dwarf everything else, especially
-  // once raid-size scaling multiplied it as well. Heroic hits harder and comes
-  // round faster instead.
-  // Cadence is the strongest lever by far: time spent dodging is damage not
-  // dealt, which lengthens the fight, which brings more mechanics. It gets the
-  // gentlest nudge of the three.
-  // No health bonus. It was 1.12 from before the ladders existed, when heroic
-  // was twenty-two percent more health and nothing else -- and the note that
-  // introduced the rungs says as much, that a rung costs a raid something a
-  // health bar never can. The bonus stayed anyway, so heroic was buying a rung
-  // *and* a longer fight, and the two compounded: measured across the five
-  // bosses at ten and twenty-five, every heroic ceiling was between three and
-  // fifty-seven percent with it and between ten and ninety without. Heroic
-  // buys one more mechanic. That is the whole of it.
-  heroic: { id: 'heroic', name: 'Heroic', health: 1.0, damage: 1.0, cadence: 1.0, extraPuddle: 0 },
+  normal: { id: 'normal', name: 'Normal', health: 1, damage: 1, cadence: 1, extraPuddle: 0, linger: 1 },
+  // Not just bigger numbers, and not *only* one more mechanic either.
+  //
+  // Both extremes have been tried on this line. It started as twenty-two
+  // percent more health and nothing else, which is the worst version: a longer
+  // fight is more mechanics as well, so heroic was buying a rung and a longer
+  // fight and the two compounded -- measured across the five bosses at ten and
+  // twenty-five, every heroic ceiling sat between three and fifty-seven
+  // percent with the health bonus and between ten and ninety without. So it
+  // was stripped to nothing at all, and heroic became "buys one more
+  // mechanic", full stop.
+  //
+  // That is empty wherever a boss has no more to sell. The first boss owns
+  // three rungs and every setting buys all three, so heroic and normal came
+  // out the same fight to the last decimal -- identical win rates, identical
+  // average time, at all three sizes. A difficulty that changes nothing is not
+  // a difficulty, and the rung count is the wrong thing to hang it on when
+  // some fights are short of rungs.
+  //
+  // So: small multipliers, and the extra rung on top where there is one. They
+  // have to be small, because the rung is most of the difficulty already and
+  // the two compound. The first attempt at this was health 1.08, damage 1.15,
+  // cadence 0.92 and a floor held 40% longer, which reads modest and is not:
+  // five of the eight bosses went to nought percent at twenty-five heroic on
+  // the first pull and stayed under ten on the ninth, against fifty-seven to a
+  // hundred on normal.
+  //
+  //     25 heroic, pull1 -> pull9      first try        settled
+  //     Warden                         0 -> 10          40 -> 75
+  //     Choir                          0 ->  5          55 -> 80
+  //
+  // Health is left alone entirely: it is the one channel that buys itself more
+  // of every other, because a longer fight is more casts of everything. What
+  // is left is a nudge on the damage, a nudge on the clock, and the floor --
+  // which is where most of heroic actually lives, because ground held longer
+  // changes what the room is rather than what the numbers are.
+  //
+  // And it works on the fight that had nothing: the first boss owns three
+  // rungs, so every setting buys all three and heroic used to be normal to the
+  // last decimal. It now kills two percent of a twenty-five man on normal and
+  // twenty-four on heroic.
+  heroic: { id: 'heroic', name: 'Heroic', health: 1.0, damage: 1.05, cadence: 0.98, extraPuddle: 0, linger: 1.15 },
 }
 
 /**

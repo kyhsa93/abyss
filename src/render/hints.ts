@@ -1,4 +1,5 @@
 import { getAura } from '../sim/combat'
+import { encounterAt } from '../sim/encounters'
 import type { SimState } from '../sim/types'
 import { COLORS, L, MENU_TEXT, fitText } from './theme'
 
@@ -34,6 +35,7 @@ const HINTS: Record<string, Hint> = {
   // something. A body wearing the enemy ring has meant "kill it" everywhere
   // else in the game, and here it does not.
   dominate: { title: 'TURNED MIND', advice: 'Yours, and hostile — do NOT kill them; carry on without them' },
+  // Titled by the fight at trigger time; this is only the fallback.
   raid: { title: 'CRUSHING TIDE', advice: 'Nothing to dodge — call a raid cooldown (6-0) before the next one' },
 }
 
@@ -100,16 +102,21 @@ export class Hints {
     // On the second boss, whose tide is deliberately the smallest in the game,
     // the first card it ever showed was about a mechanic that was not the one
     // on screen.
-    for (const e of s.effects) if (e.abilityId === 'boss_raid') this.trigger('raid')
+    for (const e of s.effects) {
+      // Titled by the fight rather than by the table, for the same reason the
+      // countdown is: the card names a thing the player is about to see called
+      // something else on the banner above it.
+      if (e.abilityId === 'boss_raid') this.trigger('raid', encounterAt(s.encounter).names.raid)
+    }
   }
 
-  private trigger(key: string): void {
+  private trigger(key: string, title?: string): void {
     if (this.seen.has(key)) return
     const hint = HINTS[key]
     if (!hint) return
 
     this.seen.add(key)
-    this.active = { hint, age: 0 }
+    this.active = { hint: title ? { ...hint, title } : hint, age: 0 }
     try {
       localStorage.setItem(SEEN_KEY, JSON.stringify([...this.seen]))
     } catch {
