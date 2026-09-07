@@ -61,11 +61,13 @@ import {
   drawDaily,
   drawHome,
   drawRaidSetup,
+  drawCredits,
   drawSettings,
   hitBgSetup,
   hitDaily,
   hitHome,
   hitRaidSetup,
+  hitCredits,
   hitSettings,
   settingsLayout,
   type RaidField,
@@ -476,6 +478,7 @@ let screen:
   | 'roster'
   | 'composition'
   | 'settings'
+  | 'credits'
   | 'fight'
   | 'history' = 'home'
 
@@ -972,6 +975,10 @@ function updateSettings(tap: { x: number; y: number } | null): void {
       })
       return
     }
+    if (hit?.kind === 'credits') {
+      screen = 'credits'
+      return
+    }
     if (hit?.kind === 'sound') {
       sfx.toggleMute()
     } else if (hit?.kind === 'volume') {
@@ -1003,6 +1010,21 @@ function updateSettings(tap: { x: number; y: number } | null): void {
     zoomLevel(),
     playerName,
   )
+}
+
+/**
+ * The credits screen, which asks nothing and answers one button.
+ *
+ * Its own screen rather than a panel on the settings one: what is on it is a
+ * licence condition rather than a preference, and a condition folded into a
+ * row of toggles is a condition nobody reads.
+ */
+function updateCredits(tap: { x: number; y: number } | null): void {
+  if (tap && hitCredits(tap.x, tap.y) === 'back') {
+    screen = 'settings'
+    return
+  }
+  drawCredits(ctx)
 }
 
 function updateRoster(tap: { x: number; y: number } | null, clock: number): void {
@@ -1167,6 +1189,7 @@ function frame(now: number): void {
     else if (screen === 'battleground') updateBgSetup(tap)
     else if (screen === 'daily') updateDaily(tap)
     else if (screen === 'settings') updateSettings(tap)
+    else if (screen === 'credits') updateCredits(tap)
     else if (screen === 'composition') updateComposition(tap)
     else updateRoster(tap, clock)
     requestAnimationFrame(frame)

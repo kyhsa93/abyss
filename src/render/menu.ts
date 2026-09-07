@@ -1,4 +1,5 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
+import { ART } from '../credits'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { bossOpen, isOpen } from '../progress'
@@ -830,9 +831,113 @@ export function hitBgSetup(x: number, y: number): { kind: 'map'; map: BgKind } |
   return null
 }
 
+// --- credits -----------------------------------------------------------------
+
+/**
+ * Who drew what, on a screen rather than in a file nobody in the game can open.
+ *
+ * Attribution is a condition of most of the licences this art is under, and a
+ * condition met only in the repository is met only for people who read
+ * repositories. What is written here is every name and every licence, once —
+ * the piece-by-piece lists run to seventy lines and belong in the files the
+ * screen names.
+ *
+ * Wrapped rather than scrolled. A scrolling list is a second kind of control
+ * on a screen with one button, and the whole of what has to fit is a paragraph
+ * of names: at the small size it fits a phone.
+ */
+export interface CreditsLayout {
+  back: Rect
+  top: number
+  width: number
+}
+
+export function creditsLayout(): CreditsLayout {
+  const p = pad()
+  return {
+    back: backRect(),
+    top: titleY() + 34 * L.ui * MENU_TEXT,
+    width: Math.min(560, L.w - p * 2),
+  }
+}
+
+/**
+ * Lays a run of text out inside a width, and says how tall it came out.
+ *
+ * The only wrapping in this file, because it is the only screen made of prose.
+ * Words rather than characters, and a line that is one long word wide is left
+ * long rather than broken — a name is not a thing to hyphenate.
+ */
+function paragraph(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  step: number,
+): number {
+  let line = ''
+  let at = y
+  for (const word of text.split(' ')) {
+    const next = line === '' ? word : `${line} ${word}`
+    if (ctx.measureText(next).width > width && line !== '') {
+      ctx.fillText(line, x, at)
+      at += step
+      line = word
+    } else {
+      line = next
+    }
+  }
+  if (line !== '') {
+    ctx.fillText(line, x, at)
+    at += step
+  }
+  return at
+}
+
+export function drawCredits(ctx: CanvasRenderingContext2D): void {
+  backdrop(ctx)
+  screenTitle(ctx, 'CREDITS', 'none of this game\'s art was drawn by this game')
+
+  const layout = creditsLayout()
+  const left = L.w / 2 - layout.width / 2
+  let y = layout.top
+
+  ctx.textAlign = 'left'
+  for (const set of ART) {
+    ctx.fillStyle = COLORS.text
+    ctx.font = font(11, true)
+    ctx.fillText(`${set.what.toUpperCase()} — ${set.set}`, left, y)
+    y += 15 * L.ui
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(9)
+    y = paragraph(ctx, `${set.licences.join(' / ')} — ${set.url}`, left, y, layout.width, 12 * L.ui)
+    y += 4 * L.ui
+
+    ctx.fillStyle = COLORS.text
+    ctx.font = font(9)
+    y = paragraph(ctx, set.authors.join(', '), left, y, layout.width, 12 * L.ui)
+    y += 4 * L.ui
+
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(8)
+    y = paragraph(ctx, `piece by piece in ${set.file}`, left, y, layout.width, 11 * L.ui)
+    y += 12 * L.ui
+  }
+
+  ctx.textAlign = 'center'
+  button(ctx, layout.back, 'BACK', '', COLORS.textDim)
+}
+
+export function hitCredits(x: number, y: number): 'back' | null {
+  return inside(creditsLayout().back, x, y) ? 'back' : null
+}
+
 // --- settings ---------------------------------------------------------------
 
 export type SettingsHit =
+  | { kind: 'credits' }
   | { kind: 'sound' }
   | { kind: 'volume'; level: number }
   | { kind: 'backdrop' }
@@ -846,6 +951,7 @@ export interface SettingsLayout {
   volumes: Rect[]
   backdrop: Rect
   cameras: Rect[]
+  credits: Rect
   back: Rect
   headings: number[]
 }
@@ -854,18 +960,23 @@ export function settingsLayout(): SettingsLayout {
   const p = pad()
   const back = backRect()
   const top = titleY() + 40 * L.ui * MENU_TEXT
-  const rowH = Math.max(38, Math.min(52, L.h * 0.07))
   const w = Math.min(340, L.w - p * 2)
   const gap = 6
 
-  // Four labelled rows now, so the space between them is what gives rather
-  // than the rows themselves: a settings screen that runs off the bottom of a
-  // small phone is worse than a cramped one.
-  const rows = 5
-  const spare = back.y - 14 - (top + 14 * L.ui) - rowH * rows
-  const step = rowH + Math.max(18 * L.ui, Math.min(34 * L.ui, spare / (rows - 1)))
+  // Six labelled rows, fitted to what there is between the title and the way
+  // out. The gaps give first and the rows themselves give after that, which is
+  // the order that keeps a row readable for as long as possible — but only
+  // that order. The sixth row arrived with the credits and a layout that only
+  // ever squeezed the gaps put it straight through the BACK button on a
+  // landscape phone, which is the shape with the least height in the game.
+  const rows = 6
+  const first = top + 14 * L.ui
+  const room = Math.max(0, back.y - 14 - first)
+  const rowH = Math.max(26, Math.min(52, Math.min(L.h * 0.07, room / rows - 4)))
+  const spare = room - rowH * rows
+  const step = rowH + Math.max(0, Math.min(34 * L.ui, spare / (rows - 1)))
 
-  const rowY = (i: number): number => top + 14 * L.ui + step * i
+  const rowY = (i: number): number => first + step * i
   const spread = (count: number, y: number): Rect[] => {
     const cw = (w - gap * (count - 1)) / count
     return Array.from({ length: count }, (_, i) => ({
@@ -881,6 +992,7 @@ export function settingsLayout(): SettingsLayout {
   const volumes = spread(VOLUME_NAMES.length, rowY(2))
   const cameras = spread(ZOOM_NAMES.length, rowY(3))
   const backdrop = { x: L.w / 2 - w / 2, y: rowY(4), w, h: rowH }
+  const credits = { x: L.w / 2 - w / 2, y: rowY(5), w, h: rowH }
 
   return {
     name,
@@ -888,8 +1000,9 @@ export function settingsLayout(): SettingsLayout {
     volumes,
     cameras,
     backdrop,
+    credits,
     back,
-    headings: [0, 1, 2, 3, 4].map((i) => rowY(i) - 10 * L.ui),
+    headings: [0, 1, 2, 3, 4, 5].map((i) => rowY(i) - 10 * L.ui),
   }
 }
 
@@ -955,12 +1068,16 @@ export function drawSettings(
     scene,
   )
 
+  heading('ART', layout.headings[5]!)
+  button(ctx, layout.credits, 'CREDITS', 'who drew what, and under which licence', COLORS.text)
+
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
 }
 
 export function hitSettings(x: number, y: number): SettingsHit | null {
   const layout = settingsLayout()
   if (inside(layout.back, x, y)) return { kind: 'back' }
+  if (inside(layout.credits, x, y)) return { kind: 'credits' }
   if (inside(layout.name, x, y)) return { kind: 'name' }
   if (inside(layout.sound, x, y)) return { kind: 'sound' }
   if (inside(layout.backdrop, x, y)) return { kind: 'backdrop' }

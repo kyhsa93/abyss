@@ -969,8 +969,20 @@ function credits(paths: Set<string>): string[] {
           const file = String(row.file ?? '')
           if (!file) continue
           // A definition credits a directory; the layer table names a file
-          // inside it, so the match is by prefix in either direction.
-          const used = [...paths].some((p) => p.startsWith(file) || file.startsWith(p.split('/').slice(0, -1).join('/')))
+          // inside it, so the match is by prefix in either direction — but by
+          // a *path* prefix, on a segment boundary, in both.
+          //
+          // It used to compare the definition against the parent directory of
+          // the used path, which credits every sibling variant in that
+          // directory as well: one human male head in the layer table pulled
+          // in the elderly, gaunt, plump and small ones too. Crediting people
+          // whose work is not in the build is not a licence problem, but it
+          // makes this file useless as a statement of what is used — and it is
+          // how a line reading `?? (CC-BY-SA 3.0)` ended up in it, from a
+          // variant nothing draws.
+          const used = [...paths].some(
+            (p) => p === file || p.startsWith(`${file}/`) || file.startsWith(`${p}/`),
+          )
           if (!used) continue
           const authors = row.authors ?? row.notes ?? ''
           const licence = row.licenses ?? row.license ?? ''

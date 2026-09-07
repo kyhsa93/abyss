@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
 import { terrainFaults } from '../src/sim/battleground'
+import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
@@ -40,11 +41,14 @@ import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setZoomLevel, zoomLevel } from '.
 import {
   RAID_FIELDS,
   bgSetupLayout,
+  creditsLayout,
   drawBgSetup,
+  drawCredits,
   drawHome,
   drawRaidSetup,
   drawSettings,
   hitBgSetup,
+  hitCredits,
   hitHome,
   hitRaidSetup,
   hitSettings,
@@ -11817,6 +11821,96 @@ for (const [label, w, h] of [
     if (kept) fight.room = kept
     else delete fight.room
   }
+}
+
+// --- the names ship with the build ------------------------------------------
+//
+// Attribution is a condition of most of the licences this game's art is under,
+// and until now it was met in two markdown files in the repository — which
+// meets it for people who read repositories. What is distributed is the build,
+// so the build has to carry the names.
+//
+// `npm run artcheck` proves the list is complete against the generated credit
+// files. What is checked here is that it is *on the screen*: every name drawn,
+// on a phone as well as a desktop, with the one button that leaves.
+{
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+    const drawn: string[] = []
+    let lowest = 0
+    const spy = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          if (prop === 'fillText') {
+            return (text: string, _x: number, y: number) => {
+              drawn.push(text)
+              // The button that leaves is drawn last and sits below its own
+              // rectangle's top; what is being measured is the prose above it.
+              if (text !== 'BACK') lowest = Math.max(lowest, y)
+            }
+          }
+          // A width that grows with the text, so the wrapping in `drawCredits`
+          // is exercised rather than short-circuited by a stub that answers
+          // ten for everything.
+          if (prop === 'measureText') return (text: string) => ({ width: text.length * 6 })
+          if (prop === 'createRadialGradient' || prop === 'createLinearGradient') {
+            return () => ({ addColorStop: () => {} })
+          }
+          if (prop === 'canvas') return { width: L.w, height: L.h }
+          return () => {}
+        },
+        set: () => true,
+      },
+    ) as unknown as CanvasRenderingContext2D
+
+    drawCredits(spy)
+    const page = drawn.join(' ')
+    const missing = everyAuthor().filter((name) => !page.includes(name))
+    expect(`${label}: every name in the art is on the screen`, missing.length === 0, missing.join(', '))
+
+    const layout = creditsLayout()
+    expect(
+      `${label}: and the last of them is above the way out`,
+      lowest < layout.back.y,
+      `${lowest.toFixed(0)} against ${layout.back.y.toFixed(0)}`,
+    )
+    const fits = layout.back.x >= 0 && layout.back.y >= 0 &&
+      layout.back.x + layout.back.w <= w && layout.back.y + layout.back.h <= h
+    expect(`${label}: the way out is on screen`, fits, JSON.stringify(layout.back))
+    expect(
+      `${label}: and answers a tap`,
+      hitCredits(layout.back.x + layout.back.w / 2, layout.back.y + layout.back.h / 2) === 'back',
+      'the button does not answer',
+    )
+    expect(
+      `${label}: and the settings row that opens it does too`,
+      hitSettings(
+        settingsLayout().credits.x + settingsLayout().credits.w / 2,
+        settingsLayout().credits.y + settingsLayout().credits.h / 2,
+      )?.kind === 'credits',
+      'the credits row does not answer',
+    )
+    // Every row of the settings screen still fits, with the new one on it.
+    const rows = settingsLayout()
+    const all = [rows.name, rows.sound, rows.backdrop, rows.credits, rows.back, ...rows.volumes, ...rows.cameras]
+    expect(
+      `${label}: and the settings screen still holds all six rows`,
+      all.every((r) => r.x >= 0 && r.y >= 0 && r.x + r.w <= w && r.y + r.h <= h),
+      JSON.stringify(rows.credits),
+    )
+    expect(
+      `${label}: with nothing under the way out`,
+      rows.credits.y + rows.credits.h <= rows.back.y,
+      `${rows.credits.y + rows.credits.h} against ${rows.back.y}`,
+    )
+  }
+  updateLayout(1440, 900)
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
