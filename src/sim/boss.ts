@@ -215,13 +215,19 @@ function computeScaled(base: PhaseTiming, s: SimState): PhaseTiming {
  * How fast the floor gives back what it took.
  *
  * One place rather than at each of the twenty `lingering:` values, because
- * what heroic lengthens is every hazard rather than a chosen few -- and
- * because a difficulty written into twenty literals is a difficulty that gets
- * half applied the next time somebody adds a hazard. The count runs slower, so
- * the same cast holds the same ground for longer.
+ * what lengthens ground is every hazard rather than a chosen few -- and
+ * because a rule written into twenty literals is a rule that gets half applied
+ * the next time somebody adds a hazard. The count runs slower, so the same
+ * cast holds the same ground for longer.
+ *
+ * The day's twist rides here too, for exactly that reason. It was multiplied
+ * into three `lingering:` values at the point the hazard was made -- the pool,
+ * the spire and the brand -- and all three are retiring, so an affix whose
+ * whole content is "ground stays" had quietly stopped touching anything the
+ * live roster throws.
  */
 function lingerStep(s: SimState): number {
-  return DT / DIFFICULTIES[s.difficulty].linger
+  return DT / (DIFFICULTIES[s.difficulty].linger * affixLinger(s.affix))
 }
 
 /** Every point of boss damage passes through here. */
@@ -1469,7 +1475,7 @@ function schedulePuddles(s: SimState, rng: Rng, timing: PhaseTiming): void {
       pos,
       radius: PUDDLE_RADIUS,
       telegraph: PUDDLE_TELEGRAPH,
-      lingering: 5.5 * affixLinger(s.affix),
+      lingering: 5.5,
       damage: PUDDLE_DAMAGE,
     })
   }
@@ -2675,7 +2681,7 @@ function scheduleSpire(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
       pos,
       radius: SPIRE_RADIUS,
       telegraph: PUDDLE_TELEGRAPH,
-      lingering: SPIRE_LINGER * affixLinger(s.affix),
+      lingering: SPIRE_LINGER,
       damage: SPIRE_DAMAGE,
     })
     pushEffect(s, 'cast', pos, { abilityId: 'boss_spire' })
@@ -2692,7 +2698,7 @@ export function burnBrand(s: SimState, at: Vec2): void {
     pos: { x: at.x, y: at.y },
     radius: BRAND_RADIUS,
     telegraph: PUDDLE_TELEGRAPH,
-    lingering: BRAND_LINGER * affixLinger(s.affix),
+    lingering: BRAND_LINGER,
     damage: BRAND_DAMAGE,
     detonated: false,
   })

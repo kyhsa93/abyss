@@ -163,6 +163,7 @@ import {
   kitThrough,
   type MechanicId,
   MECHANIC_IDS,
+  RETIRING,
   lineFor,
 } from '../src/sim/encounters'
 import {
@@ -956,28 +957,43 @@ console.log(`rendered ${frames} frames with no exceptions`)
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
       for (const g of s.ground) seen.add(g.kind)
       if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
+      // Whatever billed anybody, which is the one detector that needs no list:
+      // a mechanic that took health off a raider says its own name on the way
+      // past. The floor kinds above and the auras below are for the ones that
+      // cost nothing at the instant they land.
+      for (const t of Object.values(s.tally)) {
+        for (const id of Object.keys(t.byMechanic)) seen.add(id)
+      }
       for (const [aura, id] of [
         ['spread', 'spread'],
         ['rot', 'rot'],
         ['sunder', 'sunder'],
         ['hunted', 'hunt'],
+        ['spiked', 'spike'],
+        ['storming', 'bonestorm'],
+        ['haunted', 'shade'],
+        ['slighted', 'insignificance'],
+        ['empowered', 'empower'],
+        ['turned', 'dominate'],
+        ['gorged', 'inhale'],
+        ['swelling', 'bloat'],
+        ['spore', 'spore'],
+        ['reek', 'vilegas'],
       ] as const) {
         if (s.actors.some((a) => a.auras.some((au) => au.id === aura))) seen.add(id)
       }
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
+  // Asked of the roster rather than written out. It was nine names typed in by
+  // hand and it went stale the moment the roster changed: five fights left and
+  // it was still demanding the pools, the cone and the ring that went with
+  // them. What it means is "everything a boss sells, a boss throws", and that
+  // reads straight off the table -- so a fight added tomorrow has its rungs
+  // guarded without anybody remembering to come back here.
   const want = [
-    'puddle',
-    'spread',
-    'breath',
-    'shockwave',
-    'adds',
-    'rot',
-    'sunder',
-    'soak',
-    'hunt',
-  ]
+    ...new Set(ENCOUNTERS.flatMap((e) => [...(e.always ?? []), ...e.ladder])),
+  ] as string[]
   const missing = want.filter((w) => !seen.has(w))
   console.log(
     missing.length === 0 ? 'ok  ' : 'FAIL',
@@ -4432,9 +4448,16 @@ for (const [label, w, h] of [
     // out across five bosses, at which point a five-man on normal stopped
     // buying a ring at all and the check read a band of zero as a bug in the
     // ring rather than as a fight that never had one.
-    const ringed = ENCOUNTERS.findIndex((e) => e.ladder.includes('shockwave'))
+    // On a rolled floor rather than on the boss that used to sell both. Both
+    // shapes are retiring -- the fight that threw them is gone -- and until
+    // they are actually out of the engine they still have to be shapes,
+    // because a floor can put either in front of any party at any size.
     const shapeOf = (size: RaidSize): { cone: number; band: number; gap: number } => {
-      const s = pulled(0x51ed, 8, autoParty(size, pickFor('mage', 'dps')!), 'heroic', ringed)
+      const s = floorWith(
+        { shockwave: 7, breath: 9 },
+        4,
+        autoParty(size, pickFor('mage', 'dps')!),
+      )
       const rng = new Rng(0x51ed)
       let cone = 0
       let band = 0
@@ -4842,6 +4865,30 @@ for (const [label, w, h] of [
     thrown.set('moment', ids)
   }
 
+  // And the shapes that went with the fights that were removed. On no ladder
+  // now, reachable only through a rolled floor, and worth sweeping for exactly
+  // as long as they are still in the engine: a colour for a mechanic nothing
+  // can throw is dead weight, and a mechanic a floor can still roll is not
+  // that yet.
+  {
+    const left = floorWith(
+      { shockwave: 7, breath: 9, brand: 10, verdict: 9, crush: 8, rot: 7 },
+      4,
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (left.outcome === 'ongoing' && left.time < 150) {
+      step(left, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of left.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor still throws the ring', ids.has('boss_shockwave'), 'it drew nothing')
+    expect('and the cone', ids.has('boss_breath'), 'it drew nothing')
+    thrown.set('left', ids)
+  }
+
   // A mechanic with no entry falls back to one orange ring shared with every
   // other boss cast, and an entry nothing throws is a colour for a mechanic
   // that does not exist. Both are the same rot the names had.
@@ -4850,6 +4897,12 @@ for (const [label, w, h] of [
     expect(`${id} has a look of its own`, bossEffect(id) !== null, 'it falls back to the shared one')
   }
   for (const id of bossEffectIds()) {
+    // The interlude is the one thing here nothing can produce any more. It is
+    // a per-encounter field rather than a mechanic a floor can roll, and every
+    // fight that declared one was removed -- so the feature is still in the
+    // engine with nothing using it. Exempted by name rather than deleted,
+    // because the icon is not the thing that is missing.
+    if (id === 'boss_herald') continue
     expect(`${id} is something a boss actually does`, everything.has(id), 'nothing ever threw it')
   }
   const shades = bossEffectIds().map((id) => bossEffect(id)!.colour)
@@ -4873,12 +4926,11 @@ for (const [label, w, h] of [
   // can still roll the mechanic onto a party of five and something has to say
   // no when it does.
   {
-    // By name rather than by index. It was `ENCOUNTERS[0]`, which was the
-    // Warden until a boss was put in front of it — and a check that means one
-    // particular fight should say which one.
-    const warden = ENCOUNTERS.find((e) => e.id === 'warden')!
-    expect('the warden breaks armour', warden.ladder.includes('sunder'), 'it does not')
-
+    // Through a rolled floor at both sizes rather than through the boss that
+    // owned it. The break is retiring with its fight, and the guard underneath
+    // is more load-bearing for that rather than less: a floor is now the only
+    // thing that can put this in front of a party at all, which is the case
+    // the comment above says has to be checked.
     const stacksIn = (state: SimState): number => {
       const rng = new Rng(0x51ed)
       let most = 0
@@ -4893,18 +4945,9 @@ for (const [label, w, h] of [
       floorWith({ sunder: 10, puddle: 9 }, 4, autoParty(5, pickFor('mage', 'dps')!)),
     )
     expect('a party with one tank never sees it', alone === 0, `${alone} stacks`)
-    // And the boss that owns it, at the size that buys it: a twenty-five man
-    // on normal is the first raid up the Warden's fourth rung.
+    // And a raid that fields two, on the same rolled floor.
     const raid = stacksIn(
-      // The boss that owns it, asked rather than remembered — the same
-      // correction as the pools above and the thralls below.
-      pulled(
-        0x51ed,
-        8,
-        autoParty(25, pickFor('mage', 'dps')!),
-        'normal',
-        ENCOUNTERS.findIndex((e) => e.id === 'warden'),
-      ),
+      floorWith({ sunder: 10, puddle: 9 }, 4, autoParty(25, pickFor('mage', 'dps')!)),
     )
     expect('a raid with two does', raid > 0, 'it never landed')
     expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
@@ -5175,16 +5218,16 @@ for (const [label, w, h] of [
     // floor now announces out of the mechanic's own name, so the boss tables
     // can say only what the boss does.
     {
-      const owner = ENCOUNTERS.find((e) => e.ladder.includes('fault'))
-      expect('one boss owns the split', owner !== undefined, 'none does')
-      expect('and announces it', owner !== undefined && owner.lines.fault !== '', 'it said nothing')
+      // No boss owns either any more -- both retire with the fight that did --
+      // so what is left is the half that was always load-bearing: a floor that
+      // borrows a shape speaks for it out of the mechanic's own name, because
+      // there is no boss table to read a line off.
       expect(
-        'and the drowning',
-        owner !== undefined && owner.lines.shallows !== '',
+        'a floor that buys the split is not silent about it',
+        lineFor(ENCOUNTERS[0]!, true, 'fault') !== '',
         'it said nothing',
       )
-      const borrowed = lineFor(ENCOUNTERS[0]!, true, 'fault')
-      expect('a floor that buys one is not silent about it', borrowed !== '', 'it said nothing')
+      expect('nor the drowning', lineFor(ENCOUNTERS[0]!, true, 'shallows') !== '', 'it said nothing')
     }
 
     // Both are read off the arena rather than off the roster, which is what
@@ -5397,9 +5440,15 @@ for (const [label, w, h] of [
     // real rule can be stated: no fight repeats another fight's idea. A raid
     // that climbs all five ladders meets all thirty mechanics and meets each
     // of them in exactly one boss.
+    // Carried counts as sold. A fight that has a mechanic at every setting owns
+    // it every bit as much as one that unlocks it at the fourth rung -- and
+    // reading only the ladder said the wave belonged to nobody while a boss was
+    // throwing it on every pull.
     const owners = new Map<MechanicId, string[]>()
     for (const e of ENCOUNTERS) {
-      for (const m of e.ladder) owners.set(m, [...(owners.get(m) ?? []), e.short])
+      for (const m of [...(e.always ?? []), ...e.ladder]) {
+        owners.set(m, [...(owners.get(m) ?? []), e.short])
+      }
     }
     // Sharing is allowed now, and what is left is the half of the rule that
     // was never about scarcity.
@@ -5413,12 +5462,26 @@ for (const [label, w, h] of [
     // The second claim is the one worth keeping: nothing is written down and
     // then never thrown. A mechanic with a cadence table, a line of chat and
     // an icon that no fight owns is dead weight that reads as content.
-    const homeless = MECHANIC_IDS.filter((m) => !owners.has(m))
-    expect('every mechanic is on some boss', homeless.length === 0, homeless.join(','))
+    //
+    // Read against `RETIRING` rather than against nothing. Five fights were
+    // removed and twenty-seven names went homeless with them; they are being
+    // taken out a family at a time, because one edit that deleted all of them
+    // at once produced a diff nobody could review. The rule is not relaxed --
+    // the exception is written down by name, next to the vocabulary it names,
+    // and what is checked here is that the two agree. A mechanic with no boss
+    // is either on that list or it is dead weight nobody noticed.
+    const retiring = new Set<string>(RETIRING)
+    const homeless = MECHANIC_IDS.filter((m) => !owners.has(m) && !retiring.has(m))
+    expect('every mechanic is on some boss or on its way out', homeless.length === 0, homeless.join(','))
     expect(
-      'so the ladders spend the whole vocabulary exactly once',
-      [...owners].length === MECHANIC_IDS.length,
-      `${[...owners].length} of ${MECHANIC_IDS.length}`,
+      'and nothing is retiring that a boss still sells',
+      RETIRING.every((m) => !owners.has(m)),
+      RETIRING.filter((m) => owners.has(m)).join(','),
+    )
+    expect(
+      'so the ladders and the list spend the whole vocabulary exactly once',
+      [...owners].length + RETIRING.length === MECHANIC_IDS.length,
+      `${[...owners].length} sold, ${RETIRING.length} retiring, of ${MECHANIC_IDS.length}`,
     )
 
     expect('a first floor cannot afford one', !rollable('hunt', 1), 'floor one rolled a stalker')
@@ -8488,7 +8551,13 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // pointed at a fight with none of it the check compares nothing against
   // nothing. The same mistake is written up two blocks below, about thralls,
   // with the same conclusion: ask the ladder.
-  const pooled = ENCOUNTERS.findIndex((e) => e.ladder.includes('puddle'))
+  // Whichever fight still lays ground that stays. The pools are retiring, so
+  // asking for them by name finds nobody and the affix gets measured against a
+  // fight with nothing on the floor -- the exact mistake this comment was
+  // written about, arriving from the other direction.
+  const pooled = ENCOUNTERS.findIndex((e) =>
+    [...(e.always ?? []), ...e.ladder].some((m) => m === 'decay' || m === 'coldflame'),
+  )
   const play = (affix: AffixId | null, seconds: number) => {
     const fight = createState(
       0x51ed,
@@ -8511,12 +8580,11 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
       const before = new Map(fight.actors.map((a) => [a.id, a.hp]))
       step(fight, { moveX: 0, moveY: 0, pressed: [] }, rng)
       adds = Math.max(adds, fight.actors.filter((a) => a.faction === 'boss' && a.alive).length - 1)
-      // Both kinds of hazardous floor. The affix is about ground rather than
-      // about one boss's version of it, and reading only the puddle meant the
-      // check went quiet the moment a boss carried the other one.
-      lingerTicks += fight.ground.filter(
-        (g) => (g.kind === 'puddle' || g.kind === 'brand') && g.detonated,
-      ).length
+      // Any ground still burning, by the one property that says so. Two kinds
+      // were named here and both are retiring, which is how a check written
+      // against "the affix is about ground rather than one boss's version of
+      // it" ended up naming two bosses' versions of it.
+      lingerTicks += fight.ground.filter((g) => g.detonated && g.lingering > 0).length
       if (boss(fight).auras.some((a) => a.id === 'enrage')) enraged = true
       for (const a of fight.actors) {
         const was = before.get(a.id)
@@ -8546,7 +8614,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // passing until the ladders were redealt and the thralls moved, which is
   // the argument for asking the ladder rather than remembering a number.
   {
-    const summoner = ENCOUNTERS.findIndex((e) => e.ladder.includes('adds'))
+    const summoner = ENCOUNTERS.findIndex((e) => [...(e.always ?? []), ...e.ladder].includes('adds'))
     expect('some boss summons at all', summoner >= 0, 'none has thralls')
     const addsUnder = (affix: AffixId | null): number => {
       const fight = createState(

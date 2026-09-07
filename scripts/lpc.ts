@@ -373,39 +373,6 @@ const BOSS: Record<string, Layer[]> = {
     { z: 60, dir: 'torso/clothes/robe/female' },
     { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
-  // "the floor, and whoever is standing on it" — a drowned jailer in plate.
-  warden: [
-    { z: 10, dir: 'body/bodies/male' },
-    { z: 15, dir: 'feet/armour/plate/male' },
-    { z: 20, dir: 'legs/armour/plate/male' },
-    { z: 60, dir: 'torso/armour/plate/male' },
-    { z: 100, dir: 'head/heads/zombie/adult' },
-  ],
-  // "stay apart, and out-heal the singing" — something robed with a lantern
-  // for a head, which is as close to a many-mouthed chorus as the set goes.
-  choir: [
-    { z: 10, dir: 'body/bodies/male' },
-    { z: 15, dir: 'feet/shoes/basic/male' },
-    { z: 20, dir: 'legs/pants/male' },
-    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
-    { z: 100, dir: 'head/heads/jack/adult' },
-  ],
-  // "come in, get behind, change target" — an armoured thing from the water.
-  tidebreaker: [
-    { z: 10, dir: 'body/bodies/male' },
-    { z: 15, dir: 'feet/armour/plate/male' },
-    { z: 20, dir: 'legs/armour/plate/male' },
-    { z: 60, dir: 'torso/armour/plate/male' },
-    { z: 100, dir: 'head/heads/lizard/male' },
-  ],
-  // "stop, look away, and leave it whole" — the head is all eyes.
-  watcher: [
-    { z: 10, dir: 'body/bodies/male' },
-    { z: 15, dir: 'feet/shoes/basic/male' },
-    { z: 20, dir: 'legs/pants/male' },
-    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
-    { z: 100, dir: 'head/heads/alien/adult' },
-  ],
   // "get off the line, break the bone, and run when it lets go" — bone welded
   // into a structure, and the bare skeleton is right here for the reason it is
   // right for the Ledger: this wears nothing, and the set's armour is cut for
@@ -430,12 +397,6 @@ const BOSS: Record<string, Layer[]> = {
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/bandage/male' },
     { z: 100, dir: 'head/heads/frankenstein/adult' },
-  ],
-  // "decide who pays, then pay it" — a skeleton, wearing nothing, which is the
-  // one boss the bare skeleton body is exactly right for.
-  ledger: [
-    { z: 10, dir: 'body/bodies/skeleton' },
-    { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
 }
 
