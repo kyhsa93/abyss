@@ -225,10 +225,6 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
-  // Only a memory, and only for as long as the thing it was struck on can
-  // still be broken. It outlives the vessel's own clock by a little so that a
-  // hit landed in the last tenth of a second is still a hit that was landed.
-  spoil: 12,
 }
 
 /** How many fillers one mouthful of health lights up. See the `pact` case. */
@@ -736,7 +732,6 @@ export function applyDamage(
   if (final > 0 && !opts.silent) gainPower(target, RESOURCES[target.resource].onHit)
   if (final > 0) mendAfterHit(target, final)
 
-  if (final > 0 && !opts.silent) remember(s, target, opts.sourceId)
 
   record(s, target, final, opts)
   // Only the player's own hits are audible; everyone's would be a wall of noise.
@@ -777,33 +772,6 @@ export function applyDamage(
   }
 }
 
-/**
- * Who struck what, for the two mechanics that bill at an instant rather than
- * as the hits go in.
- *
- * Silent damage is deliberately not a strike. A dot ticking on the boss is
- * damage nobody pressed, and it keeps ticking whatever the body that applied
- * it decides to do next — billing it would bill a raid for having played the
- * first ten seconds of the fight, identically on a first pull and a ninth,
- * which is exactly the shape that averages skill out. What it catches is a
- * press and a swing, which are the two things a raid can hold.
- */
-function remember(s: SimState, target: Actor, sourceId: number | undefined): void {
-  if (sourceId === undefined) return
-  // By faction as well as by id. One counter numbers every object in the
-  // fight, so a body the boss summoned early can carry a raider's id.
-  const source = s.actors.find((a) => a.faction === 'party' && a.id === sourceId)
-  if (!source) return
-
-  // And the one that must not be broken open remembers whoever put a hand on
-  // it. Kept on the striker rather than on the thing struck, so the bill
-  // survives the corpse it is a bill for.
-  if (target.spawn === 'vessel') {
-    const mark = getAura(source, 'spoil')
-    if (mark) mark.sourceId = target.id
-    else addAura(source, 'spoil', target.id)
-  }
-}
 
 function record(s: SimState, target: Actor, final: number, opts: DamageOptions): void {
   const credit = opts.sourceId === undefined ? undefined : s.tally[opts.sourceId]

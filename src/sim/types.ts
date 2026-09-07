@@ -104,7 +104,6 @@ export type AuraId =
   | 'reek'
   /** Stacking on whoever holds the boss, and lethal at ten. */
   | 'swelling'
-  | 'spoil' // boss: you struck the thing that was not to be broken
   | 'refuge' // boss: which of the stones is yours, and there is one each
   | 'enrage' // boss damage amplifier
 
@@ -329,7 +328,7 @@ export interface Actor {
    * the other hurts somebody and must not be killed. Neither can be read off
    * a health bar, and both are the whole demand.
    */
-  spawn?: 'knell' | 'vessel' | 'herald' | 'spike'
+  spawn?: 'herald' | 'spike'
 }
 
 export type GroundKind =

@@ -493,7 +493,6 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
   ai.striking = ai.switchTimer > 0 ? null : want
   if (ai.striking !== null && ai.striking !== held) {
     if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
-    else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
     else if (ai.striking.startsWith('hold:')) say(s, actor, 'That is one of ours — off them')
     else if (ai.striking.startsWith('first:')) say(s, actor, 'That one came back wrong — it first')
     else say(s, actor, 'Leave that one alone')
@@ -503,16 +502,13 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
 /**
  * The one call worth making, as a stable key.
  *
- * Ranked rather than merged, the way `currentDanger` is: while the surface is
- * closed nothing is hit at all, so a bell and a vessel on the field at the
- * same time are both answered by the same silence. Below that the bell comes
- * first because it is the one with a deadline on it — hitting the bell is
- * already not hitting the vessel, so ranking that way costs the second call
- * nothing.
+ * Ranked rather than merged, the way `currentDanger` is: a body can be aiming
+ * at one thing, so two calls at once have to be settled here rather than left
+ * to whichever was written last.
  *
  * A key rather than a target, so the reaction delay is rolled once per
  * decision instead of once per tick. The id is in it deliberately: a second
- * bell is a second decision and has to be paid for again.
+ * spike is a second decision and has to be paid for again.
  */
 function targetCall(s: SimState, actor: Actor): string | null {
   if (actor.role === 'healer' && actor.ai?.answering !== null) return null
@@ -544,18 +540,11 @@ function targetCall(s: SimState, actor: Actor): string | null {
     return `spike:${near.id}`
   }
 
-  const bell = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)
-  if (bell) return `knell:${bell.id}`
-
-  const jar = s.actors.find((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)
-  if (jar) return `spare:${jar.id}`
-
-  // One of the raid's own, turned. The third of these calls and the only one
-  // about a body that was an ally a second ago, which is the whole of what it
-  // costs: everything else the rotation is told to leave alone never looked
-  // like a friend. Last, because the other two are things standing still that
-  // stop mattering the moment somebody breaks them, and this one is hitting
-  // the raid for its whole count whatever anybody does.
+  // One of the raid's own, turned. The only one of these calls about a body
+  // that was an ally a second ago, which is the whole of what it costs. Last,
+  // because the spike is a thing standing still that stops mattering the
+  // moment somebody breaks it, and this one is hitting the raid for its whole
+  // count whatever anybody does.
   const taken = livingParty(s).find((a) => a.id !== actor.id && getAura(a, 'turned'))
   if (taken) return `hold:${taken.id}`
 
@@ -596,8 +585,6 @@ function calledId(call: string | null, prefix: string): number | null {
 export function mayStrike(actor: Actor, target: Actor): boolean {
   const call = actor.ai?.striking ?? null
   if (call === null) return true
-  const spared = calledId(call, 'spare:')
-  if (spared !== null && target.id === spared) return false
   // The weapon has to obey this one too, and for the reason above: a raid
   // that stops casting at its own turned healer and keeps swinging at it has
   // not stopped.
@@ -611,10 +598,9 @@ export function mayStrike(actor: Actor, target: Actor): boolean {
  * The default is untouched and has to be: summons that walk in and hit
  * somebody are picked the way they always were, lowest health bar first, so
  * the thralls and the stalker are the same mechanic they were measured as.
- * What is new is the two exceptions, and both of them cost a reaction delay
- * to reach — the bell is invisible to a rotation until somebody decides to
- * look at it, and the vessel stops being a target only once somebody decides
- * to leave it alone.
+ * What is new is the exceptions, and each of them costs a reaction delay to
+ * reach: a spike is invisible to a rotation aimed at whatever is hurting the
+ * raid until somebody decides to look at it.
  */
 function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const b = boss(s)
@@ -639,26 +625,11 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
     if (spike && spike.alive) return spike
   }
 
-  const ringing = calledId(call, 'knell:')
-  if (ringing !== null) {
-    // By faction as well as by id: one counter numbers every object in the
-    // fight and the raid's own ids start at one, so a body summoned early
-    // enough can share an id with a raider standing in front of it.
-    const bell = s.actors.find((a) => a.faction === 'boss' && a.id === ringing)
-    if (bell && bell.alive) return bell
-  }
+  // Spikes are left out of the ordinary sweep below: a spike is worth hitting
+  // exactly while it holds somebody, and the call above is what knows that.
+  // Picked up by the sweep as well, a raid would keep hitting whichever spike
+  // had least health left rather than the one nearest the body it is freeing.
 
-  const spared = calledId(call, 'spare:')
-  // A summon that is not hurting anybody is not what a rotation aimed at
-  // whatever is hurting the raid would ever pick. That is the read the bell
-  // is built on, so it is a rule about the party rather than a rule about the
-  // bell: nothing here knows what a bell is, only that this one is standing
-  // still doing nothing.
-  // Spikes are left out of the ordinary sweep for the bell's reason and one
-  // more: a spike is worth hitting exactly while it holds somebody, and the
-  // call above is what knows that. Picked up here as well, a raid would keep
-  // hitting whichever spike had least health left rather than the one nearest
-  // the body it is freeing.
   // The one that came back wrong, ahead of the rule that would pick it last.
   const wrong = calledId(call, 'first:')
   if (wrong !== null) {
@@ -667,9 +638,7 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   }
 
   const held = calledId(call, 'hold:')
-  const summoned = pool.filter(
-    (a) => a.spawn !== 'knell' && a.spawn !== 'spike' && a.id !== spared && a.id !== held,
-  )
+  const summoned = pool.filter((a) => a.spawn !== 'spike' && a.id !== held)
   if (summoned.length === 0) return b
 
   let focus = summoned[0]!

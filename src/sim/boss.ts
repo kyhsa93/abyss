@@ -539,8 +539,6 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleHunt(s, b, rng, timing)
   scheduleBurden(s, b, rng, timing)
   scheduleYoke(s, b, rng, timing)
-  scheduleKnell(s, b, rng, timing)
-  scheduleVessel(s, b, rng, timing)
   scheduleToll(s, b, rng, timing)
   scheduleGrasp(s, rng, timing)
   scheduleRefuge(s, b, rng, timing)
@@ -2910,11 +2908,9 @@ function makeHerald(id: number, x: number, y: number, name: string, hp: number):
 /** Adds simply chase the nearest living party member. */
 function updateAdds(s: SimState): void {
   for (const add of adds(s)) {
-    // The one summon that does nothing at all. It does not walk and it does
-    // not swing: what it does is finish, and the only thing on the field that
-    // can stop it is somebody deciding to hit it. That is the read, so it has
-    // to be true of the thing and not only of its description.
-    if (add.spawn === 'knell' || add.spawn === 'spike') continue
+    // A spike does not walk and does not swing: it stands on the body it
+    // pinned, and what the raid does about it is break it.
+    if (add.spawn === 'spike') continue
 
     let nearest: Actor | null = null
     let best = Infinity
@@ -2982,9 +2978,6 @@ function updateAdds(s: SimState): void {
     }
   }
 
-  // Before the corpses go, since one kind of corpse is a bill.
-  shatterVessels(s)
-
   // Corpses are dropped once they stop being useful to draw.
   s.actors = s.actors.filter((a) => a.faction !== 'boss' || a.alive || a.id === boss(s).id)
 }
@@ -3024,16 +3017,6 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
         angle: Math.atan2(target.pos.y - b.pos.y, target.pos.x - b.pos.x),
       })
     }
-    return
-  }
-
-  if (castId === 'boss_knell') {
-    toll(s, targetId)
-    return
-  }
-
-  if (castId === 'boss_vessel') {
-    sink(s, targetId)
     return
   }
 
@@ -4074,71 +4057,19 @@ export function yokeSharers(s: SimState, carrier: Actor): number {
 
 // --- what the raid is hitting, rather than where it is standing ------------
 //
-// Three mechanics that ask the same kind of question, and no other mechanic on
-// this table asks it: not "where do I stand" but "what do I hit, and when do I
-// stop". They exist because the one thing here that already claimed to ask it
-// — the thralls — measured at nothing, and it is worth writing down why. A
-// wave of thralls walks in and hits somebody, so every rule the party already
-// has aims it at them: there is no instant at which a raid either did the
-// thing or did not, and a mechanic with no such instant has nothing a
-// reaction delay can be charged against. It is a damage check wearing a
-// mechanic's clothes.
+// One mechanic that asks a different kind of question from every other on this
+// table: not "where do I stand" but "what do I hit". It exists because the one
+// thing here that already claimed to ask it — the thralls — measured at
+// nothing, and it is worth writing down why. A wave of thralls walks in and
+// hits somebody, so every rule the party already has aims it at them: there is
+// no instant at which a raid either did the thing or did not, and a mechanic
+// with no such instant has nothing a reaction delay can be charged against. It
+// is a damage check wearing a mechanic's clothes.
 //
-// So each of these three has an instant, and the instant is not a place:
-//
-//   the knell   finishes a count, and the raid pays unless it was broken
-//   the vessel  breaks, and whoever broke it pays
-//   the mirror  opens, and everything put into it while it was closed is
-//               handed back at that moment
-//
-// And each of them is answered through the third reaction channel in `ai.ts`,
-// which is the only reason any of them can be practised at all. Reaction
-// delay and the fumble roll live there and nowhere else.
-
-/**
- * How long the count runs before it finishes.
- *
- * Long enough that a raid which reads it can cross the gap between deciding
- * and landing — a global cooldown is a second and a half, so a count much
- * shorter than this is answered by whoever happened to be off cooldown rather
- * than by whoever noticed.
- */
-const KNELL_FUSE = 6
-
-/**
- * What it takes to break, per body that could be hitting it.
- *
- * Per body rather than flat, and linear rather than the thralls' gentle
- * curve, because what this measures is *seconds of the raid's damage* and a
- * raid's damage is very nearly linear in its headcount. A flat number would
- * make the same count a formality at twenty-five and impossible at five,
- * which is a mechanic that only exists at one raid size.
- */
-const KNELL_HP_PER_BODY = 150
-
-/** What the note costs everybody, when nobody silenced it. */
-const KNELL_DAMAGE = 170
-
-/** How far off the boss it surfaces. */
-const KNELL_REACH = 74
-
-/**
- * A summoned body, by id.
- *
- * The faction is half of the lookup and not decoration. `nextObjectId` is one
- * counter for every object in the fight -- actors, ground, chat lines,
- * floating numbers -- and it starts at one, while the raid's own ids are one
- * up to the headcount. So a body summoned in the first seconds of a pull can
- * carry the same id as a raider, and `find` walks the party first because the
- * party is at the front of `actors`. Everything summoned so far arrives forty
- * seconds in, by which time the counter is in the hundreds and the collision
- * cannot happen; that is luck, not a rule, and a check that starts a mechanic
- * at t=0 finds it immediately.
- */
-function spawned(s: SimState, id: number | null): Actor | undefined {
-  if (id === null) return undefined
-  return s.actors.find((a) => a.faction === 'boss' && a.id === id)
-}
+// The spike has such an instant. A body is pinned and stays pinned until
+// somebody stops hitting the boss and breaks it, and the raid either did that
+// or it did not. It is answered through the target call in `ai.ts`, which is
+// where the reaction delay and the fumble roll live.
 
 /**
  * Spikes: how many go up, how much each holds, and how far off the victim.
@@ -4146,8 +4077,8 @@ function spawned(s: SimState, id: number | null): Actor | undefined {
  * Per body rather than flat, like every other summon here, so a bigger raid is
  * not the raid where nobody is ever pinned. Small health on purpose: the
  * demand is that somebody stops and turns, not that the raid brings a second
- * damage phase — measured against the knell, an add that takes real seconds to
- * kill stops being a target call and becomes a second boss.
+ * damage phase — measured, an add that takes real seconds to kill stops being
+ * a target call and becomes a second boss.
  *
  * The first draft said all of that and then set the number at 210 a body,
  * which at twenty-five is three spikes of five thousand every twenty seconds —
@@ -4240,174 +4171,3 @@ export function freeSpiked(s: SimState, spikeId: number): void {
   const spike = s.actors.find((a) => a.id === spikeId && a.spawn === 'spike')
   if (spike) spike.alive = false
 }
-
-function knellHealth(s: SimState): number {
-  return Math.round(KNELL_HP_PER_BODY * livingParty(s).length)
-}
-
-/**
- * Something that has to be broken before it finishes.
- *
- * The read is that it is not hurting anybody. Every other hostile in this
- * game walks at the nearest body and swings, which is a rule the party
- * answers without deciding anything; this one stands where it surfaced and
- * counts, so a rotation aimed at whatever is currently dealing damage has no
- * reason ever to look at it. Leaving the health bar you are on for one that
- * is not asking to be left for is the whole mechanic, and the count is what
- * gives the decision a deadline.
- */
-function scheduleKnell(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  if (timing.knell <= 0) return
-  s.next.knell -= DT
-  if (s.next.knell > 0) return
-  s.next.knell = timing.knell
-
-  // One at a time. Two counts running together is not two reads, it is one
-  // read and a damage check — and a raid that cannot break both was never
-  // being asked which to break.
-  if (s.actors.some((a) => a.faction === 'boss' && a.spawn === 'knell' && a.alive)) return
-
-  say(s, b, lineFor(fight(s), 'knell'))
-  s.sounds.push('telegraph')
-
-  const angle = rng.range(0, Math.PI * 2)
-  const pos = {
-    x: b.pos.x + Math.cos(angle) * KNELL_REACH,
-    y: b.pos.y + Math.sin(angle) * KNELL_REACH,
-  }
-  pushInside(s.room, pos, 20)
-
-  const bell = makeAdd(s.nextObjectId++, pos.x, pos.y)
-  bell.name = 'Knell'
-  bell.spawn = 'knell'
-  // It does not walk and it does not swing; `updateAdds` leaves it alone.
-  bell.moveSpeed = 0
-  bell.maxHp = knellHealth(s)
-  bell.hp = bell.maxHp
-  // The count is a cast bar on the thing itself, which is the most literal
-  // telegraph in the game: it is drawn where the answer has to go, it is
-  // cancelled by the thing that answers it, and `advanceCast` already owns
-  // every rule about how a cast finishes.
-  bell.castId = 'boss_knell'
-  bell.castRemaining = KNELL_FUSE
-  bell.castTotal = KNELL_FUSE
-  bell.castTargetId = bell.id
-  s.actors.push(bell)
-  pushEffect(s, 'cast', pos, { abilityId: 'boss_knell' })
-}
-
-/** The note the raid pays for, at the instant the count runs out. */
-function toll(s: SimState, ringer: number | null): void {
-  const b = boss(s)
-  const bell = spawned(s, ringer)
-  if (bell) bell.alive = false
-
-  for (const a of livingParty(s)) {
-    const damage = mechanic(s, KNELL_DAMAGE)
-    applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: 'knell' })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_knell', power: damage })
-  }
-  s.raidFlash = 0.4
-  s.sounds.push('raid')
-}
-
-/** How long it floats before it sinks on its own and costs nothing. */
-const VESSEL_FUSE = 9
-
-/**
- * What it takes to break open, per body that could be hitting it.
- *
- * Sits where the raid's damage sits after about a second, which is the whole
- * dial: what separates a raid that held off from one that did not is roughly
- * the difference between two reaction delays, and this number is what turns
- * that difference into a body either breaking it or not.
- */
-const VESSEL_HP_PER_BODY = 120
-
-/** What comes out of it, and only onto whoever opened it. */
-const VESSEL_BREAK = 1500
-
-/**
- * Something that must not be killed.
- *
- * The knell read backwards, and the reason both are here. This one does walk
- * in and swing, so every rule the party has says kill it — and killing it is
- * the failure. Left alone it sinks on its own clock and costs the raid
- * nothing but the swings it landed on the way.
- *
- * What it asks for is restraint, and restraint is the one thing a damage
- * rotation has no vocabulary for at all. The bill goes to the bodies that
- * actually struck it rather than to the raid, which is deliberate: billed
- * raid-wide it would be a coin flip on the greediest dealer in the party, and
- * nothing a practised body did for itself would show.
- */
-function scheduleVessel(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
-  if (timing.vessel <= 0) return
-  s.next.vessel -= DT
-  if (s.next.vessel > 0) return
-  s.next.vessel = timing.vessel
-
-  // One at a time, for the knell's reason and one of its own: the mark that
-  // remembers who struck it is carried by the striker and names the thing it
-  // was struck on, so two alive at once is one memory for two bills.
-  if (s.actors.some((a) => a.faction === 'boss' && a.spawn === 'vessel' && a.alive)) return
-
-  say(s, b, lineFor(fight(s), 'vessel'))
-  s.sounds.push('telegraph')
-
-  // Where the thralls come from, and walking in the way they do. It has to be
-  // the thing the party's own rules would pick, or there is nothing to hold
-  // off from.
-  const pos = spawnSpot(s, rng, 16)
-
-  const jar = makeAdd(s.nextObjectId++, pos.x, pos.y)
-  jar.name = 'Vessel'
-  jar.spawn = 'vessel'
-  jar.maxHp = Math.round(VESSEL_HP_PER_BODY * livingParty(s).length)
-  jar.hp = jar.maxHp
-  jar.castId = 'boss_vessel'
-  jar.castRemaining = VESSEL_FUSE
-  jar.castTotal = VESSEL_FUSE
-  jar.castTargetId = jar.id
-  s.actors.push(jar)
-  pushEffect(s, 'cast', pos, { abilityId: 'boss_vessel' })
-}
-
-/** It reached the end of its own clock. Nothing happens, which is the point. */
-function sink(s: SimState, floated: number | null): void {
-  const jar = spawned(s, floated)
-  if (!jar) return
-  // Cleared off everyone who struck it, so a body that held off on the next
-  // one is not still carrying a bill for this one.
-  for (const a of livingParty(s)) {
-    const mark = getAura(a, 'spoil')
-    if (mark && mark.sourceId === jar.id) clearAura(a, 'spoil')
-  }
-  jar.alive = false
-  pushEffect(s, 'impact', jar.pos, { abilityId: 'boss_vessel', power: 0 })
-}
-
-/**
- * Everything that was broken open, and the bill for it.
- *
- * Read off the corpses rather than hooked into the damage funnel, because
- * what has to happen is one bill at one instant and the funnel is called from
- * half a dozen places a tick. Every dead summon passes through here exactly
- * once — the corpse filter at the bottom of `updateAdds` drops it in the same
- * call — so the bill cannot be paid twice.
- */
-function shatterVessels(s: SimState): void {
-  for (const broken of s.actors) {
-    if (broken.faction !== 'boss' || broken.spawn !== 'vessel' || broken.alive) continue
-    for (const a of livingParty(s)) {
-      const mark = getAura(a, 'spoil')
-      if (!mark || mark.sourceId !== broken.id) continue
-      clearAura(a, 'spoil')
-      const damage = mechanic(s, VESSEL_BREAK)
-      applyDamage(s, a, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'vessel' })
-      pushEffect(s, 'impact', a.pos, { abilityId: 'boss_vessel', power: damage })
-    }
-    s.sounds.push('raid')
-  }
-}
-

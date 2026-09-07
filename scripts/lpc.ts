@@ -434,18 +434,17 @@ const HAIR: Record<string, string> = {
 }
 
 /**
- * The three things a boss puts on the floor.
+ * What a boss puts on the floor.
  *
  * A thrall and a stalker walk in and hit somebody, which is what every summon
  * before them did and what the party's rules already understand — one body
- * covers both.
+ * covers both. The herald is the same thing promoted.
  *
- * The other two break that rule in opposite directions and the whole demand of
- * their fights is telling them apart, so they are drawn to be told apart. The
- * knell hurts nobody and has to be killed anyway: it is a skeleton, a thing.
- * The vessel hurts somebody and must not be killed: it is a person, in cloth,
- * with a human face — the one summon on the floor that does not look like
- * something to swing at.
+ * Two more were drawn for a pair of fights that have since been retired: a
+ * skeleton that hurt nobody and had to be killed anyway, and a person in cloth
+ * that hurt somebody and must not be killed. They were the only summons the
+ * set ever had that were not something to swing at, and that is the shape to
+ * come back to if a fight ever asks the question again.
  */
 const ADD: Record<string, Layer[]> = {
   thrall: [
@@ -455,10 +454,6 @@ const ADD: Record<string, Layer[]> = {
     { z: 60, dir: 'torso/armour/leather/male' },
     { z: 100, dir: 'head/heads/goblin/adult' },
     { z: 140, dir: 'weapon/sword/dagger' },
-  ],
-  knell: [
-    { z: 10, dir: 'body/bodies/skeleton' },
-    { z: 100, dir: 'head/heads/skeleton/adult' },
   ],
   // The interlude's elite. A thrall's kin in heavier plate — the same kind of
   // thing the escort beside it is, promoted, which is what the fight is
@@ -474,15 +469,6 @@ const ADD: Record<string, Layer[]> = {
     // height are what say which of them is the one the fight stopped for; a
     // different weapon on a body this size is a detail nobody can see.
     { z: 140, dir: 'weapon/sword/dagger' },
-  ],
-  vessel: [
-    { z: 10, dir: 'body/bodies/male' },
-    // Barefoot, like the rest of it: the one summon that is a person rather
-    // than a thing, and nothing about it should look equipped.
-    { z: 20, dir: 'legs/pants/male' },
-    { z: 60, dir: 'torso/clothes/shortsleeve/tshirt/male' },
-    { z: 100, dir: 'head/heads/human/male' },
-    { z: 110, dir: 'hair/long' },
   ],
 }
 

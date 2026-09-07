@@ -63,8 +63,6 @@ export type MechanicId =
   | 'burden'
   | 'yoke'
   | 'schism'
-  | 'knell'
-  | 'vessel'
   | 'toll'
   | 'grasp'
   | 'refuge'
@@ -146,8 +144,6 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // where it is standing, and all three are aimed at the roster rather than
   // at the arena: every extra body is another pair of hands that has to stop,
   // switch or hold, and pays for itself when it does not.
-  knell: true, // its health is dealt by whoever came, so its health is per body
-  vessel: true, // one more body is one more hand that can break it
   // One plate, one nominee, one bill. A bigger raid does not get a second
   // toll and does not get a discount on the one it has -- what changes with
   // the roster is only how many bodies there are to nominate from, which
@@ -195,8 +191,7 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
 export const RETIRING: MechanicId[] = [
   'brand', 'verdict', 'crush', 'spire', 'fault', 'shallows', 'puddle',
   'spread', 'soak', 'rot', 'sunder', 'hunt', 'breath', 'shockwave', 'hand',
-  'echo', 'burden', 'yoke', 'schism', 'knell',
-  'vessel', 'toll', 'grasp', 'refuge',
+  'echo', 'burden', 'yoke', 'schism', 'toll', 'grasp', 'refuge',
 ]
 
 export const MECHANIC_IDS = Object.keys(MECHANIC_SCALES) as MechanicId[]
@@ -271,8 +266,6 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   burden: 'the burden',
   yoke: 'the yoke',
   schism: 'the schism',
-  knell: 'the knell',
-  vessel: 'the vessel',
   toll: 'the toll',
   grasp: 'the grasp',
   refuge: 'the refuge',
@@ -652,68 +645,6 @@ export interface PhaseTiming {
    */
   yoke: number
   /**
-   * Seconds between one knell and the next.
-   *
-   * Something surfaces that has to be broken before it finishes, and it is
-   * the one hostile in this game that is not hurting anybody. That is the
-   * whole read. A rotation aimed at whatever is currently doing damage has no
-   * reason to look at it, so the raid has to decide to leave the health bar
-   * it was working on for one that is not asking to be worked on — and it has
-   * to decide inside the count, because what the count ends in is a note the
-   * whole raid pays for.
-   *
-   * The thralls are the same sentence with the read taken out: they walk in
-   * and hit somebody, so the party is already aimed at them and there is no
-   * instant at which a raid either did the thing or did not. Measured, that
-   * is worth nothing. This one has an instant.
-   *
-   * And measured, it is the one of the three that does not earn a rung.
-   * Against a Warden over paired seeds:
-   *
-   *     5 heroic     0.0pp
-   *    10 heroic     7.0 +/- 3.0, removes 41%
-   *    25 heroic     0.0pp
-   *
-   * It fires perfectly well at the sizes where it reads zero -- a twenty-five
-   * man pull hung nine bells, broke seven and let two finish -- and nobody
-   * died of either of them. The reason is the shape of the bill rather than
-   * anything about the read: what a finished count costs is one hit spread
-   * across the whole raid, and a hit spread across a raid is a rate, which is
-   * what healing is. Thin enough to be survivable at ten, a bigger raid's
-   * healers absorb it outright; one step heavier and the ten-man wipes. There
-   * is no number between the two, so this wants a per-size weight on the boss
-   * carrying it rather than a rung of its own. See `docs/mechanic-rules.md`.
-   */
-  knell: number
-  /**
-   * Seconds between one vessel and the next.
-   *
-   * The knell read backwards, and the reason both exist. This one *does* walk
-   * in and hit somebody, so every rule the party has says kill it — and
-   * killing it is the failure. It carries what the boss swallowed, it gives
-   * it back to whoever broke it open, and if it is left alone it sinks on its
-   * own clock and costs nothing but the swings it landed.
-   *
-   * What it asks for is restraint, which is the one thing a damage rotation
-   * has no vocabulary for. The bill goes to the bodies that actually struck
-   * it rather than to the raid, so the mechanic is not a coin flip on the
-   * greediest dealer in the party: everyone who held off is clear, and
-   * everyone who did not pays for themselves.
-   *
-   * Measured against a Warden over paired seeds:
-   *
-   *     5 heroic    37.8pp +/- 8.9, removes 40%
-   *    10 heroic     7.5   +/- 2.5, removes 39%
-   *    25 heroic    33.3   +/- 2.6, removes 76%
-   *
-   * Real at every size, and three or four times the mechanic at the sizes
-   * either side of the one it was tuned at -- 94% of unpractised five-mans
-   * die to it. A near-lethal bill per body caught super-scales the way area
-   * denial does, so this wants a cap on how many bills one instant may write,
-   * or a rung a five-man cannot reach.
-   */
-  vessel: number
-  /**
    * Seconds between one toll and the next.
    *
    * A plate laid out past where the raid stands, a count, and a price that is
@@ -984,8 +915,6 @@ export interface Encounter {
     hunt: number
     burden: number
     yoke: number
-    knell: number
-    vessel: number
     toll: number
     grasp: number
     refuge: number
@@ -1091,12 +1020,6 @@ export interface Encounter {
      * which fight wants which demand is a question about the shape of a
      * boss, and it is not answered here. Keyed and empty everywhere.
      */
-    /**
-     * The two that are answered by target rather than by footing. On no
-     * ladder either, and empty everywhere for the reason above.
-     */
-    knell: string
-    vessel: string
     /**
      * The three that belong to the round about who pays. Authored on every
      * boss for the schism's reason above: none of them has a rung anywhere
@@ -1259,8 +1182,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      knell: '',
-      vessel: '',
       toll: '',
       grasp: '',
       refuge: '',
@@ -1430,8 +1351,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      knell: '',
-      vessel: '',
       toll: '',
       grasp: '',
       refuge: '',
@@ -1611,8 +1530,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      knell: '',
-      vessel: '',
       toll: '',
       grasp: '',
       refuge: '',
