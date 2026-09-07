@@ -1,6 +1,6 @@
 import { ABILITIES } from './abilities'
 import { specOf } from './classes'
-import { beginCast, dist, getAura, hasteOf, interruptCast } from './combat'
+import { beginCast, dist, getAura, hasteOf, holdOrFall, interruptCast } from './combat'
 import { DT, MELEE_RANGE, SPELL_RANGE } from './constants'
 import {
   CARRIER_SPEED,
@@ -614,7 +614,7 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   const stepY = ((target.y - actor.pos.y) / d) * step
   actor.pos.x += stepX
   actor.pos.y += stepY
-  pushInside(s.room, actor.pos, actor.radius)
+  holdOrFall(s, actor)
   clearTerrain(s.obstacles, actor.pos, actor.radius, stepX, stepY)
 
   if (actor.castId) interruptCast(s, actor, 'moved')

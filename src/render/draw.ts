@@ -37,6 +37,7 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawGrave, drawObstacles, floorTexture } from './scenery'
+import { EDGE_LAP, roomHasOutside } from '../sim/room'
 import { COLORS, L, classColor, setWorldRoom, worldReach, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
@@ -794,11 +795,47 @@ function drawArena(
   ctx.lineWidth = 2
   ctx.stroke()
 
-  // The bowl's far side, which is a fact about a disc. A rectangular room's
-  // walls are four flats and read nothing like this band; drawing them is the
-  // hall's own work, and a hall with no wall band is a floor that ends in an
-  // edge, which is at least true.
-  if (worldRoom().kind !== 'hall') drawFarWall(ctx, c)
+  // The bowl's far side, which is a fact about a disc with a wall around it. A
+  // rectangle's walls are four flats and read nothing like this band; a
+  // platform has no wall at all, and drawing one there would be the single
+  // most misleading thing on the screen — the whole of what a player has to
+  // read off that room is that the floor ends.
+  if (worldRoom().kind === 'round') drawFarWall(ctx, c)
+  drawBrink(ctx, c)
+}
+
+/**
+ * The last lane of a floor that has nothing under it.
+ *
+ * Drawn as ground rather than as a warning: a hazard ring painted round the
+ * rim would read as a mechanic that had just been cast, and this is a fact
+ * about the room that is true for the whole fight. What it has to say is only
+ * "the floor is thinning here", which is what the fade does.
+ *
+ * The AI reads the same strip as a reason to move (`onEdge`), so what is drawn
+ * and what is played are the same lane.
+ */
+function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
+  const room = worldRoom()
+  if (!roomHasOutside(room)) return
+  const outer = L.arenaR
+  const inner = Math.max(1, outer - EDGE_LAP * L.scale)
+
+  ctx.save()
+  ctx.beginPath()
+  floorArc(ctx, c.x, c.y, outer, 0, Math.PI * 2)
+  floorArc(ctx, c.x, c.y, inner, 0, Math.PI * 2, true)
+  ctx.fillStyle = 'rgba(10, 10, 16, 0.45)'
+  ctx.fill('evenodd')
+
+  // And the line itself, brighter than the wall's, because it is the one edge
+  // in this game that is worth looking at.
+  ctx.beginPath()
+  floorArc(ctx, c.x, c.y, outer, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.55)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  ctx.restore()
 }
 
 /**

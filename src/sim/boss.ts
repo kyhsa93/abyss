@@ -108,6 +108,7 @@ import {
   fightScale,
   mechanicScale,
   heraldUp,
+  holdOrFall,
 } from './combat'
 import { pushInside, roomReach } from './room'
 import type { Rng } from './rng'
@@ -2920,7 +2921,10 @@ function updateAdds(s: SimState): void {
       const stepY = ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
       add.pos.x += stepX
       add.pos.y += stepY
-      pushInside(s.room, add.pos, add.radius)
+      // Whatever the fight summoned is held to the same floor the raid is. It
+      // walks at a body and bodies are on the floor, so this is the fall the
+      // room does rather than one it chooses.
+      holdOrFall(s, add)
       clearTerrain(s.obstacles, add.pos, add.radius, stepX, stepY)
     }
 

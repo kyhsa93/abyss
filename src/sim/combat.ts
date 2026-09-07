@@ -32,6 +32,7 @@ import {
   SLIGHT_SHARE,
 } from './constants'
 import type { Rng } from './rng'
+import { pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
   Actor,
@@ -562,6 +563,59 @@ export interface DamageOptions {
    * as truthy by the fight itself.
    */
   mechanic?: MechanicId
+}
+
+/**
+ * Holds a body inside its room, or drops it out of the fight.
+ *
+ * Every step in this game used to end with the same line: put the body back
+ * inside the arena. That is what a wall is, and three of the rooms this game
+ * is being given do not have one — the floor ends and there is air under it.
+ *
+ * Two rules, and the second is why this is a function rather than a branch at
+ * each of the six places that move a body:
+ *
+ *   a room with a wall     the step is clamped, exactly as it always was
+ *   a room with an outside a body whose middle has left the floor falls
+ *
+ * The middle rather than the edge of the body, because "you stepped off" is a
+ * sentence a player can read off the screen and "your radius crossed the line"
+ * is not.
+ *
+ * The boss never falls. It is the thing the whole room is arranged around, and
+ * a fight that can end by its own boss wandering over the side is a fight with
+ * a bug in it rather than a mechanic.
+ */
+export function holdOrFall(s: SimState, actor: Actor): void {
+  if (!roomHasOutside(s.room) || actor.id === BOSS_ID) {
+    pushInside(s.room, actor.pos, actor.radius)
+    return
+  }
+  if (wallGap(s.room, actor.pos) >= 0) return
+  fall(s, actor)
+}
+
+/**
+ * What the outside costs, which is everything.
+ *
+ * Not a large hit: a death. `mechanic-rules.md` rule 1 is that failure is
+ * binary at a single moment, and a fall that took a share of a health bar
+ * would be the proportional damage that rule was written against — it would
+ * average out, and a raid would learn nothing from the third time it happened.
+ *
+ * Dealt as damage rather than by setting the flag, so that everything that
+ * happens when a body goes down happens: the pin it was holding lets go, the
+ * report gets a time of death, the sound plays.
+ */
+export function fall(s: SimState, actor: Actor): void {
+  if (!actor.alive) return
+  pushText(s, actor.pos, 'FELL', 'crit')
+  // Laid on the rim rather than left where it went over. What is drawn after a
+  // death is a body on the floor, and a body drawn in the air outside the
+  // floor is a rendering bug that reads as one; the rim is where the raid
+  // watched it go, which is the same information.
+  pushInside(s.room, actor.pos, actor.radius)
+  applyDamage(s, actor, actor.maxHp * 10, 'magic', { silent: true })
 }
 
 export function applyDamage(

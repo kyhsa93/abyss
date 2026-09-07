@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ROUND_ARENA, insideRoom, pushInside, roomReach, wallGap } from '../src/sim/room'
+import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
 import { terrainFaults } from '../src/sim/battleground'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
@@ -105,6 +105,7 @@ import {
   adds,
   getAura,
   hasteOf,
+  holdOrFall,
   stackAura,
   clearAura,
   pushText,
@@ -11740,6 +11741,81 @@ for (const [label, w, h] of [
   } finally {
     if (kept) fight.doors = kept
     else delete fight.doors
+  }
+}
+
+// --- a room with nothing under its edge -------------------------------------
+//
+// Three of the twelve rooms have an outside, and until now the edge of the
+// floor was the one thing in this game that could not hurt anybody: the clamp
+// pushed a body back in and that was the whole rule. A platform ends instead,
+// which is a new cause of death — so the thing to check is not that the fall
+// works but that the party never meets it by walking.
+{
+  const disc = { kind: 'round', radius: 920 } as const
+  const stage = { kind: 'platform', radius: 880 } as const
+  expect(
+    'only a platform has an outside',
+    roomHasOutside(stage) && !roomHasOutside(disc) &&
+      !roomHasOutside({ kind: 'hall', halfWidth: 560, front: 1560, back: 720 }),
+    'a room answered wrong about its own edge',
+  )
+  expect(
+    'and the brink is the last lane of it, and only there',
+    onEdge(stage, { x: 860, y: 0 }) && !onEdge(stage, { x: 700, y: 0 }) && !onEdge(disc, { x: 915, y: 0 }),
+    'the brink is in the wrong place',
+  )
+
+  // A body over the side. Through `holdOrFall`, which is what every step in
+  // the game ends with, rather than by calling the fall directly.
+  const s = pulled(2024, 4, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0)
+  const walker = s.actors.find((a) => a.faction === 'party')!
+  s.room = disc
+  walker.pos = { x: 1400, y: 0 }
+  holdOrFall(s, walker)
+  expect(
+    'a wall holds a body in, as it always did',
+    walker.alive && Math.hypot(walker.pos.x, walker.pos.y) <= 920,
+    `${Math.hypot(walker.pos.x, walker.pos.y).toFixed(0)} out, alive ${walker.alive}`,
+  )
+  s.room = stage
+  walker.pos = { x: 1400, y: 0 }
+  holdOrFall(s, walker)
+  expect(
+    'and an outside does not',
+    !walker.alive && Math.hypot(walker.pos.x, walker.pos.y) <= 880,
+    `alive ${walker.alive}, at ${Math.hypot(walker.pos.x, walker.pos.y).toFixed(0)}`,
+  )
+  expect(
+    'and the body is laid on the rim rather than left in the air',
+    Math.hypot(walker.pos.x, walker.pos.y) > 880 - 60,
+    `${Math.hypot(walker.pos.x, walker.pos.y).toFixed(0)}`,
+  )
+
+  // And the part that matters: a whole pull on a platform, with nobody
+  // steering the player, and nobody goes over. A fall the AI walks into on its
+  // own is a death that cannot be practised, which rule 1 says is not a
+  // mechanic at all.
+  const fight = ENCOUNTERS[0]!
+  const kept = fight.room
+  fight.room = stage
+  try {
+    const run = pulled(5150, 2, autoParty(25, pickFor('mage', 'dps')!), 'heroic', 0)
+    const rng = new Rng(5150)
+    let fell = 0
+    let outside = 0
+    while (run.outcome === 'ongoing' && run.time < encounterAt(run.encounter).enrage) {
+      step(run, { moveX: 0, moveY: 0, pressed: run.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const text of run.texts) if (text.text === 'FELL' && text.age === 0) fell++
+      for (const a of run.actors) {
+        if (a.alive && !insideRoom(run.room, a.pos, a.radius * 0.9)) outside++
+      }
+    }
+    expect('a raid on a platform walks off it never', fell === 0, `${fell} went over`)
+    expect('and stands on it the whole time', outside === 0, `${outside} body-ticks outside`)
+  } finally {
+    if (kept) fight.room = kept
+    else delete fight.room
   }
 }
 

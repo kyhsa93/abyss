@@ -59,10 +59,11 @@ import {
   mostHurt,
   refugeStone,
   say,
+  holdOrFall,
   tollPayer,
   topThreatTarget,
 } from './combat'
-import { pushInside, wallGap } from './room'
+import { EDGE_LAP, onEdge, pushInside, roomHasOutside, wallGap } from './room'
 import type { Rng } from './rng'
 import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
@@ -1694,6 +1695,12 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
   const b = boss(s)
   const d = dist(actor.pos, b.pos)
 
+  // The edge of a platform, before anything else and for everybody including
+  // the tank. Every other line in this function is about doing your job from
+  // the wrong distance; this one is about standing somewhere one push from
+  // being out of the fight, and there is no job that is worth that.
+  if (onEdge(s.room, actor.pos, actor.radius)) return true
+
   // Standing on somebody counts as being out of position.
   //
   // Nothing here used to say so, so a raid that started in a heap stayed in
@@ -1966,7 +1973,12 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
   // Nothing walks out of the room in the meantime: the step itself is pushed
   // back in, so what an unreachable target costs is a body standing against
   // the wall nearest it rather than a body outside.
-  return withinReach(s, actor, { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }, want)
+  const home = { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }
+  // Pushed in only where the outside kills. On a disc the clamp is a tuning
+  // change and is measured as one (see above); on a platform the unclamped
+  // ring is a body walking off the floor to stand at a range.
+  if (roomHasOutside(s.room)) pushInside(s.room, home, actor.radius)
+  return withinReach(s, actor, home, want)
 }
 
 /**
@@ -2646,7 +2658,17 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     // there is between here and the nearest wall, which is what `wallGap`
     // answers for any room. Candidates are pushed inside before they are
     // scored, so this measures the wall a body would actually end up against.
-    score -= Math.max(0, WALL_LAP - wallGap(s.room, candidate)) * 2
+    const gap = wallGap(s.room, candidate)
+    if (roomHasOutside(s.room)) {
+      // On a platform the last lane is not an untidy place to stand, it is one
+      // step from the end of the fight. Weighted with the shapes that kill --
+      // the cone, the caving floor -- rather than with the wall, and graded
+      // across the lane so a body pushed to the edge walks in rather than
+      // along it.
+      score -= Math.max(0, (EDGE_LAP - gap) / EDGE_LAP) * 1700
+    } else {
+      score -= Math.max(0, WALL_LAP - gap) * 2
+    }
 
     if (score > bestScore) {
       bestScore = score
@@ -2693,6 +2715,14 @@ function partyCentroid(s: SimState, exclude: Actor): Vec2 {
 
 function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   if (!target) return
+  // Nothing the party is steered by ever aims at a point off the floor.
+  //
+  // The rule the whole platform rests on: the fight may push a body over the
+  // side, and the body may walk over it if a person is driving, but the AI
+  // never chooses it. Without this an idle ring drawn around a boss standing
+  // near the edge is a queue of casters walking into the air, and a death
+  // nobody could have answered is not a mechanic.
+  if (roomHasOutside(s.room)) pushInside(s.room, target, actor.radius)
   // Pinned bodies do not walk. The one mechanic in the game whose answer is
   // not a step, because it takes the step away.
   if (getAura(actor, 'spiked')) return
@@ -2707,7 +2737,11 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   const stepY = ((target.y - actor.pos.y) / d) * stepLen
   actor.pos.x += stepX
   actor.pos.y += stepY
-  pushInside(s.room, actor.pos, actor.radius)
+  // Held in, or dropped. In a room with a wall this is the clamp it always
+  // was; on a platform a body that has walked off the floor falls, and the
+  // party never walks off on purpose because the targets it is given are
+  // pushed inside before the step is taken -- see below.
+  holdOrFall(s, actor)
   // And out of anything it walked into. The step is handed over as well as
   // the position, because being pushed back along the radius costs the whole
   // step and leaves a body re-walking into the same rock forever; what it does

@@ -48,6 +48,37 @@ export type RoomShape =
 export const ROUND_ARENA: RoomShape = { kind: 'round', radius: ARENA_RADIUS }
 
 /**
+ * How wide the strip of floor next to an outside is.
+ *
+ * One lane, the same distance everything else in this game keeps off a wall. A
+ * rule that only bites at the line itself is a rule half a step behind it does
+ * not notice, and the bodies here are steered by an AI that is deliberately
+ * late: what it needs is somewhere to start being wrong, not a cliff that is
+ * safe until it is not.
+ */
+export const EDGE_LAP = 64
+
+/**
+ * Whether stepping off the edge of this room is a fall rather than a wall.
+ *
+ * The one thing that makes a platform a platform. Kept as a question about the
+ * room rather than a check on `kind` at every call site, because the answer is
+ * what callers actually want to know and a fourth shape may answer it too.
+ */
+export function roomHasOutside(room: RoomShape): boolean {
+  return room.kind === 'platform'
+}
+
+/**
+ * Whether this is the strip of floor a fall is one step away from.
+ *
+ * False in a room with no outside: a wall is not a hazard, it is furniture.
+ */
+export function onEdge(room: RoomShape, pos: Vec2, radius = 0): boolean {
+  return roomHasOutside(room) && wallGap(room, pos, radius) < EDGE_LAP
+}
+
+/**
  * How far inside the wall a point is, in units, for a body of that radius.
  *
  * Negative outside. This is the one question the room is actually asked —

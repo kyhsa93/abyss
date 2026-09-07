@@ -13,7 +13,7 @@ import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { inTerrain } from '../src/sim/battleground'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
-import { insideRoom, type RoomShape } from '../src/sim/room'
+import { insideRoom, onEdge, type RoomShape } from '../src/sim/room'
 import { autoParty, pickFor, type Pick, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput } from '../src/sim/types'
 
@@ -60,6 +60,8 @@ for (const shape of SHAPES) {
   const counts: number[] = []
   let stuckTicks = 0
   let outsideTicks = 0
+  let edgeTicks = 0
+  let falls = 0
   let ticks = 0
 
   for (let e = 0; e < ENCOUNTERS.length; e++) {
@@ -84,6 +86,14 @@ for (const shape of SHAPES) {
           // Nine tenths, so a body brushing a rock is not counted as inside it.
           if (inTerrain(s.obstacles, a.pos, a.radius * 0.9)) stuckTicks++
           if (!insideRoom(s.room, a.pos, a.radius * 0.9)) outsideTicks++
+          if (onEdge(s.room, a.pos, a.radius)) edgeTicks++
+        }
+        // The one death this room can deal that nothing else can. Counted off
+        // the word the fall writes on the floor rather than off the tally,
+        // because what is being asked is "did anybody go over the side",
+        // which is a different question from "did anybody die".
+        for (const text of s.texts) {
+          if (text.text === 'FELL' && text.age === 0) falls++
         }
       }
     }
@@ -105,13 +115,19 @@ for (const shape of SHAPES) {
   )
   console.log(`  bodies inside a rock: ${stuck.toFixed(3)}% of body-ticks`)
   console.log(`  bodies outside the room: ${outside.toFixed(3)}% of body-ticks`)
-  if (stuck > STUCK_BAR || outside > 0) failed = true
+  console.log(`  bodies on the brink: ${((edgeTicks / ticks) * 100).toFixed(3)}% of body-ticks`)
+  console.log(`  bodies that fell off: ${falls}`)
+  // Falls are the bar the platform is held to. Nothing in the game pushes a
+  // body yet, and the party is never handed a target off the floor, so a fall
+  // here is the AI walking over the side on its own -- a death nobody could
+  // have answered, which rule 1 in the mechanic doc says is not a mechanic.
+  if (stuck > STUCK_BAR || outside > 0 || falls > 0) failed = true
 }
 
 if (failed) {
   console.error(
-    `\nroomprobe: a body stood outside its room, or inside a rock past ${STUCK_BAR}% of body-ticks`,
+    `\nroomprobe: a body fell, stood outside its room, or sat inside a rock past ${STUCK_BAR}% of body-ticks`,
   )
   process.exit(1)
 }
-console.log('\nroomprobe: nobody outside a room, nobody held in a rock')
+console.log('\nroomprobe: nobody outside a room, nobody over the side, nobody held in a rock')
