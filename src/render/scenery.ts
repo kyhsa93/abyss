@@ -18,6 +18,7 @@
  * half the raid is standing in.
  */
 
+import { encounterAt } from '../sim/encounters'
 import { Rng } from '../sim/rng'
 import { PROPS, PROPS_SRC, PROP_IDS } from './props'
 import type { Obstacle, Vec2 } from '../sim/types'
@@ -64,8 +65,16 @@ export function floorTexture(
   const key = `${seed}:${encounter}`
   if (floorPattern !== undefined && floorFor === ctx && floorKey === key) return floorPattern
 
-  // Rolled off the fight, like the room around it.
-  const pick = FLOORS[new Rng(seed * 17 + encounter * 104729 + 7919).int(FLOORS.length)]!
+  // The fight's own, or rolled. A room that is written down is written down to
+  // the grain: its shape, what stands in it and what it is made of are all
+  // things a player is meant to recognise on the second pull. A floor rolled
+  // somewhere else — a descent's — borrows the boss it borrowed its shape
+  // from, which is the same answer the terrain gives.
+  const written = encounterAt(encounter).floor
+  const pick =
+    written && PROPS[written]
+      ? written
+      : FLOORS[new Rng(seed * 17 + encounter * 104729 + 7919).int(FLOORS.length)]!
   const rect = PROPS[pick]
   if (!rect) return null
   const [sx, sy, sw, sh] = rect

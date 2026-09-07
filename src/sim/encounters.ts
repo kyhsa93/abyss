@@ -881,6 +881,20 @@ export interface Encounter {
    * two and a half times the wave through the same two doorways.
    */
   doors?: Door[]
+  /**
+   * Which of the floor grains this room is laid with, or omitted to roll one.
+   *
+   * The same problem the terrain had, one layer down: the grain under the
+   * slabs is picked from the seed, so the same boss twice is the same shape of
+   * room with a different surface. A room somebody is meant to learn should
+   * look the way it looked last time.
+   *
+   * A prop id — the ids beginning `floor-` in `PROPS`. The colour of the tile
+   * is thrown away and only its grain is kept (see `floorTexture`), so what
+   * this picks is how coarse the ground reads, not what colour it is. That
+   * stays the encounter's accent.
+   */
+  floor?: string
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number
@@ -1242,6 +1256,22 @@ export const ENCOUNTERS: Encounter[] = [
     // the other seven bosses and nothing at all for four of them. Losing a
     // first boss to a timer teaches less than losing it to the thing that
     // killed you, so the bar pays for the damage the mechanic now costs.
+    // The room, and it is the one every other room in this game is described
+    // against. Round nine hundred and twenty, which is what every fight was
+    // fought in and what every number in `docs/mechanic-rules.md` was measured
+    // in, so it is left unwritten: `room` omitted *is* this room.
+    //
+    // Nothing standing in it, said on purpose rather than rolled empty. The
+    // three things this fight does all reach the wall — a line out of the
+    // middle, a storm crossing the floor, a body pinned where it stood — and a
+    // rock in the way turns "step off the line" into "walk around the rock".
+    // The first boss teaches one rule and the floor has to be saying one
+    // thing.
+    terrain: [],
+    // Flagstone rather than whatever the seed picked. What is kept from the
+    // tile is its grain and not its colour, so this is how coarse the ground
+    // reads: the coarsest of the five, for a hall that has been ground down.
+    floor: 'floor-cobble',
     hp: 46000,
     enrage: 240,
     phaseTwoHp: 0.66,
@@ -1468,6 +1498,44 @@ export const ENCOUNTERS: Encounter[] = [
     // the same number for everybody, which is a change to how the whole
     // progression is indexed rather than a change to this fight.
     ladder: ['blight', 'bloat', 'vilegas', 'spore', 'inhale', 'pungent'],
+    /**
+     * Two thirds of the yardstick's radius, which is 45% of its floor.
+     *
+     * The only room in this game that is itself the mechanic. What this fight
+     * does is drink the room's air and give it back, and "there is less of it
+     * in here" has to be readable as a shape before it is readable as a
+     * number. Every other room is described against the first one; this one is
+     * *small*, and that word is the fight.
+     *
+     * The consequence is not free and is written here so it is not discovered
+     * later: rule 5 in `docs/mechanic-rules.md` — area denial super-scales —
+     * is written against a fixed floor, and at 45% of one, anything that eats
+     * ground is worth about twice what the table says. This fight's ladder has
+     * nothing on it that takes floor, which is why it is the one that can
+     * afford to be small.
+     */
+    room: { kind: 'round', radius: 620 },
+    /**
+     * Two tables, behind the boss.
+     *
+     * Somewhere for a gathering to happen against. In a room this size,
+     * "spread out" is expensive — rule 4, proximity mechanics anti-scale — and
+     * what this fight asks for instead is that people come together, which
+     * needs a place to come to.
+     *
+     * Behind rather than in front: the raid comes in at +y and a table between
+     * the door and the boss narrows the one room in the game that is already
+     * narrow. The numbers are up against the rules and deliberately so — 320
+     * out with a radius of 95 leaves 225 to the middle, against a floor of
+     * 210, and 205 to the wall against a lane of 64. `rendercheck` measures
+     * both at all three raid sizes.
+     */
+    terrain: [
+      { pos: { x: -320, y: -60 }, radius: 95 },
+      { pos: { x: 320, y: -60 }, radius: 95 },
+    ],
+    /** Fine and flat: a room that is worked in rather than fought over. */
+    floor: 'floor-slate',
     phases: {
       1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 11, vilegas: 17, spore: 24, inhale: 33, pungent: 99 }) },
       2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 10, vilegas: 15, spore: 21, inhale: 29, pungent: 87 }) },
