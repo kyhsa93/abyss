@@ -15,7 +15,6 @@ import {
   resolveBossCast,
   updateBoss,
   updateGround,
-  breakChant,
   burstSpore,
   freeSpiked,
   burnBrand,
@@ -215,7 +214,7 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // hitting something would be answered by nobody if the weapon carried on
     // regardless. The swing timer is deliberately left where it is rather
     // than reset: holding fire costs the swing, not the next one.
-    if (!mayStrike(s, a, target)) continue
+    if (!mayStrike(a, target)) continue
 
     a.swingTimer = auto.speed
     // Physical, so it answers armour and block the way a weapon should. The
@@ -449,13 +448,13 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   // There is no button for it and there is not going to be one: a keyboard
   // that turns you is a keyboard with a camera on it, and this game is played
   // from above. So a player faces where they are walking, and faces the boss
-  // when they are standing still — which leaves the gaze with a real answer,
-  // and one a player finds rather than reads. Walk away from it for a moment.
+  // when they are standing still.
   //
-  // The AI turns on the spot instead, and the difference is deliberate. Its
-  // answer has to cost only the reaction, or the mechanic would be measuring
-  // a walk. A player's answer costs a step, which is the same price every
-  // other mechanic here charges them.
+  // Nothing is decided by a bearing today. This is kept because the drawing
+  // reads it -- a raid all pointing one way regardless of what any of them
+  // was doing looks like a row of cardboard -- and because the day something
+  // asks for a bearing again, a player who has to be told which way they are
+  // facing has already lost the mechanic.
   const b = boss(s)
   turnToward(
     player,
@@ -481,12 +480,6 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
       reportReach(s, player, blocked === 'close' ? TOO_CLOSE : OUT_OF_RANGE)
       continue
     }
-    // Anything at all cuts the note. The AI answers the chant through its
-    // reaction delay, which is the only place skill lives for it; a player's
-    // reaction is their own, so what is asked of them is a press and not a
-    // particular one. Before the cast rather than after, so a press that
-    // fizzles on mana still counts as having answered in time.
-    breakChant(s, player)
     beginCast(s, player, abilityId, target, rng)
   }
 }

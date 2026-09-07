@@ -43,10 +43,15 @@ const RUNS = Number(runsArg ?? 250)
  *     vessel  5 heroic    37.8pp / 40%     0.3pp
  *
  * The two that do not come back are a finding rather than a miscalibration.
- * The gaze still fires -- forty-nine hits across three isolated pulls -- and
- * takes a twenty-five man to forty-seven percent, and kills nobody at any
- * healing value tried, down to a fifth. It has lost its teeth since the table
- * was written, and the table is the thing that is out of date.
+ * The gaze still fired -- forty-nine hits across three isolated pulls -- and
+ * took a twenty-five man to forty-seven percent while killing nobody at any
+ * healing value tried, down to a fifth. It had lost its teeth.
+ *
+ * Two of the four rows name mechanics that have since been retired with the
+ * fights that sold them, and the rows are kept because the number below was
+ * calibrated against them. A figure whose working has been deleted is a
+ * figure nobody can check; recalibrating it is a job for the round that has
+ * four live mechanics to calibrate against.
  */
 const HEALING = Number(process.env.TEACH_HEALING ?? 0.2)
 const SIZE = Number(sizeArg ?? 10) as RaidSize

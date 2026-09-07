@@ -54,7 +54,6 @@ export type AuraId =
   | 'burden' // boss: a weight that has to be walked into fresh hands
   | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
   | 'schism' // boss: which group you belong to, and they must not touch
-  | 'chant' // boss: named to cut the note, and the raid pays if it is not cut
   /**
    * Pinned by a spike, which is the one thing in this game that takes a body's
    * feet away.
@@ -302,10 +301,9 @@ export interface Actor {
    * answers is answered by being somewhere, and where a body is does not
    * depend on which way it is pointing.
    *
-   * The gaze asks. It takes whoever is still turned toward the boss at the
-   * instant it opens, and since a party fights what it is looking at, the
-   * resting state of every body here is the failing one -- which is the only
-   * way a mechanic with no shape on the floor can have a wrong answer at all.
+   * It is drawn rather than tested: a body faces what it is working on, and
+   * a raid all pointing one way regardless of what any of them was doing read
+   * as a row of cardboard from above. Nothing decides a mechanic by it today.
    */
   facing: number
 
@@ -353,13 +351,6 @@ export type GroundKind =
   | 'fault'
   | 'shallows'
   | 'schism'
-  // The three whose shape is a moment. They are kept on the ground list with
-  // everything else because a telegraph counting down to one instant is what
-  // that list is for -- but none of them has an inside or an outside, and
-  // `radius` on all three is a picture rather than a test.
-  | 'vigil'
-  | 'chant'
-  | 'gaze'
   // The plate somebody has to walk into and pay at, so that the rest of them
   // do not.
   | 'toll'

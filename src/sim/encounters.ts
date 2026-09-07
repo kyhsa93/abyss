@@ -63,9 +63,6 @@ export type MechanicId =
   | 'burden'
   | 'yoke'
   | 'schism'
-  | 'vigil'
-  | 'chant'
-  | 'gaze'
   | 'knell'
   | 'vessel'
   | 'toll'
@@ -141,13 +138,10 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // bigger raid meets exactly the fight a smaller one does. Nothing is
   // dropped *on* anybody and nothing is aimed at the arena either: what they
   // cover is an instant, and an instant is the same width at any headcount.
-  vigil: false,
   // With one exception, and it is the mechanic's whole shape. One body is
   // named and everybody pays for it, so a bigger raid does not bring more
   // hands to the problem -- it brings more people to be let down by the one
   // pair that were already there.
-  chant: false,
-  gaze: false,
   // The three that are answered by what the raid is hitting rather than by
   // where it is standing, and all three are aimed at the roster rather than
   // at the arena: every extra body is another pair of hands that has to stop,
@@ -201,7 +195,7 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
 export const RETIRING: MechanicId[] = [
   'brand', 'verdict', 'crush', 'spire', 'fault', 'shallows', 'puddle',
   'spread', 'soak', 'rot', 'sunder', 'hunt', 'breath', 'shockwave', 'hand',
-  'echo', 'burden', 'yoke', 'schism', 'vigil', 'chant', 'gaze', 'knell',
+  'echo', 'burden', 'yoke', 'schism', 'knell',
   'vessel', 'toll', 'grasp', 'refuge',
 ]
 
@@ -277,9 +271,6 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   burden: 'the burden',
   yoke: 'the yoke',
   schism: 'the schism',
-  vigil: 'the vigil',
-  chant: 'the chant',
-  gaze: 'the gaze',
   knell: 'the knell',
   vessel: 'the vessel',
   toll: 'the toll',
@@ -413,52 +404,6 @@ export interface PhaseTiming {
    * fail — what catches you is that somebody else walked toward you.
    */
   schism: number
-  /**
-   * Seconds between one vigil and the next.
-   *
-   * The first thing on any of these tables whose answer is not a place at
-   * all. Everything above it is a shape and a step: be over there, be behind
-   * it, be inside it, be apart from them. This is a shape nobody can leave --
-   * it covers the arena -- and what it judges is not where a body is but
-   * whether it was *doing* anything at the instant it seals.
-   *
-   * So the answer is to stop. Hold the button, let the global run out, and
-   * stand there hitting nothing while the count finishes. What it costs is
-   * the one currency no dodge has ever billed here: not the walk out and back
-   * but the seconds of a rotation, paid by everybody at once, and paid
-   * whether or not the raid was standing anywhere in particular.
-   */
-  vigil: number
-  /**
-   * Seconds between one chant and the next.
-   *
-   * The vigil turned over, and the only demand in the game that asks one
-   * person to act rather than everybody to refrain. The boss begins a long
-   * note, names one body, and that body has to cut it -- and if it does not,
-   * the note lands on the whole raid.
-   *
-   * Nobody else has an answer. Every other mechanic that involves a second
-   * person hands them a job as well: the weight has to be taken, the yoke has
-   * to be joined, the split has to be sorted into. This hands twenty-four
-   * people nothing to do but find out, a beat later, whether the
-   * twenty-fifth was quick. That is the mechanic -- a raid is only as fast as
-   * the one it happened to name, and it is a different one every time.
-   */
-  chant: number
-  /**
-   * Seconds between one gaze and the next.
-   *
-   * The third of the same family, and the one that cannot be answered by
-   * stopping or by starting. It opens, and at the instant it opens it takes
-   * everyone still turned toward the boss.
-   *
-   * Which is everybody, always: a party fights what it is looking at, so the
-   * default state of every body in this game is the failing one. There is no
-   * ground to read and no shape to leave -- the whole of it is a bearing held
-   * by a person rather than by the floor, and the only way to hold the right
-   * one is to have started turning before the count ran out.
-   */
-  gaze: number
   puddle: number
   spread: number
   slam: number
@@ -1022,9 +967,6 @@ export interface Encounter {
     verdict: number
     crush: number
     schism: number
-    vigil: number
-    chant: number
-    gaze: number
     hand: number
     echo: number
     fault: number
@@ -1149,9 +1091,6 @@ export interface Encounter {
      * which fight wants which demand is a question about the shape of a
      * boss, and it is not answered here. Keyed and empty everywhere.
      */
-    vigil: string
-    chant: string
-    gaze: string
     /**
      * The two that are answered by target rather than by footing. On no
      * ladder either, and empty everywhere for the reason above.
@@ -1320,9 +1259,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      vigil: '',
-      chant: '',
-      gaze: '',
       knell: '',
       vessel: '',
       toll: '',
@@ -1494,9 +1430,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      vigil: '',
-      chant: '',
-      gaze: '',
       knell: '',
       vessel: '',
       toll: '',
@@ -1678,9 +1611,6 @@ export const ENCOUNTERS: Encounter[] = [
       burden: '',
       yoke: '',
       schism: '',
-      vigil: '',
-      chant: '',
-      gaze: '',
       knell: '',
       vessel: '',
       toll: '',

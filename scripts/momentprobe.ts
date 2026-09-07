@@ -1,4 +1,4 @@
-// Throughput and failure counts for the three "answer is a moment" mechanics.
+// Throughput and failure counts for one mechanic.
 //
 // `teachprobe` answers the only question that decides a mechanic -- what does
 // practice remove -- and deliberately answers nothing else. When the answer is
@@ -6,9 +6,10 @@
 // tell them apart: the demand may be going out and being met by everybody, or
 // it may be being failed and costing too little to notice. This counts both.
 //
-// It found one of each. The chant was cut 12.6 times a pull and failed 0.1
-// times, which is a demand nobody had to answer and no amount of damage would
-// have rescued; the same code with a shorter count went to 2.6 failures and
+// Written for a family of three that has since been retired, and kept for what
+// it found on one of them: the chant went out 12.6 times a pull and was failed
+// 0.1 times, which is a demand nobody had to answer and no amount of damage
+// would have rescued. The same code with a shorter count read 2.6 failures and
 // 19.1 points. Nothing here decides a mechanic -- `teachprobe` does that, and
 // a failure count may never be used to argue that a mechanic is alive. This
 // says why a zero is a zero.
@@ -27,7 +28,7 @@ import { autoParty, pickFor, type DifficultyId, type Pick, type RaidSize } from 
 const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
 
 const [, , wanted, runsArg, sizeArg, diffArg] = process.argv
-const MECH = (wanted ?? 'chant') as MechanicId
+const MECH = (wanted ?? 'coldflame') as MechanicId
 const RUNS = Number(runsArg ?? 40)
 const SIZE = Number(sizeArg ?? 10) as RaidSize
 const DIFF = (diffArg ?? 'heroic') as DifficultyId
