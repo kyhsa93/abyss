@@ -672,6 +672,7 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
     else if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
     else if (ai.striking.startsWith('knell:')) say(s, actor, 'Onto the bell, all of you')
     else if (ai.striking.startsWith('hold:')) say(s, actor, 'That is one of ours — off them')
+    else if (ai.striking.startsWith('first:')) say(s, actor, 'That one came back wrong — it first')
     else say(s, actor, 'Leave that one alone')
   }
 }
@@ -734,6 +735,20 @@ function targetCall(s: SimState, actor: Actor): string | null {
   // the raid for its whole count whatever anybody does.
   const taken = livingParty(s).find((a) => a.id !== actor.id && getAura(a, 'turned'))
   if (taken) return `hold:${taken.id}`
+
+  // The one out of the wave that came back wrong, and below the turned body
+  // because the two mistakes are not worth the same: letting this one live
+  // costs damage for as long as it lives, and killing one of your own costs
+  // that body for the rest of the pull.
+  //
+  // It needs saying at all because the default rule works against it. A
+  // rotation picks the summon with the least health left, and empowering one
+  // gives it more health and fills it -- so the instant the fight marks the
+  // dangerous one, it also marks it as the last one anybody will aim at.
+  // Measured: of the empowered bodies that died, every one died after every
+  // other body in its wave.
+  const wrong = adds(s).find((a) => getAura(a, 'empowered'))
+  if (wrong) return `first:${wrong.id}`
 
   return null
 }
@@ -831,6 +846,13 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   // call above is what knows that. Picked up here as well, a raid would keep
   // hitting whichever spike had least health left rather than the one nearest
   // the body it is freeing.
+  // The one that came back wrong, ahead of the rule that would pick it last.
+  const wrong = calledId(call, 'first:')
+  if (wrong !== null) {
+    const one = s.actors.find((a) => a.faction === 'boss' && a.id === wrong)
+    if (one && one.alive) return one
+  }
+
   const held = calledId(call, 'hold:')
   const summoned = pool.filter(
     (a) => a.spawn !== 'knell' && a.spawn !== 'spike' && a.id !== spared && a.id !== held,

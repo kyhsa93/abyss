@@ -99,6 +99,7 @@ import {
   addAura,
   burdenTaker,
   dropBurden,
+  adds,
   getAura,
   hasteOf,
   stackAura,
@@ -1162,6 +1163,75 @@ console.log(`rendered ${frames} frames with no exceptions`)
 
   expect('every boss puts something in the air', silent.length === 0, silent.join(', '))
   expect('and only what it actually throws', stray.length === 0, stray.join(', '))
+}
+
+// --- the one that came back wrong must happen, and be killed first ----------
+//
+// Two failures that hid each other. Its beat ran alongside the summoning one
+// rather than off it -- forty-seven seconds against forty-four, independent --
+// and when it came round to an empty floor it reset anyway, so over five pulls
+// where fifteen were due it fired twice. And the twice it fired, the raid
+// killed it last: a rotation aims at the summon with the least health left,
+// and empowering one gives it more and fills it, so marking the dangerous body
+// also marked it as the last one anybody would aim at.
+{
+  const e = ENCOUNTERS.findIndex((x) => x.id === 'whisper')
+  let fired = 0
+  let died = 0
+  let last = 0
+
+  for (const seed of [11, 22, 33, 44, 55]) {
+    const s = unattended(createState(seed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e))
+    s.countdown = 0
+    const rng = new Rng(seed)
+    const watch = new Set<number>()
+    const peers = new Map<number, number[]>()
+    while (s.outcome === 'ongoing' && s.time < 140) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const a of adds(s)) {
+        if (!getAura(a, 'empowered') || watch.has(a.id)) continue
+        watch.add(a.id)
+        fired++
+        peers.set(a.id, adds(s).filter((x) => x.id !== a.id).map((x) => x.id))
+      }
+      for (const id of [...watch]) {
+        const one = s.actors.find((x) => x.id === id)
+        if (one && one.alive) continue
+        died++
+        const wave = (peers.get(id) ?? []).map((pid) => s.actors.find((x) => x.id === pid))
+        if (wave.length > 0 && wave.every((x) => !x || !x.alive)) last++
+        watch.delete(id)
+      }
+    }
+  }
+
+  expect('the wave brings one back wrong, often', fired >= 10, `${fired} in five pulls`)
+  expect(
+    'and the raid does not leave it for last',
+    died > 0 && last / died < 0.4,
+    `${last} of ${died} died after their whole wave`,
+  )
+
+  // And a body cannot be told to kill one it cannot pick out.
+  const s = pulled(0x3117, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', e)
+  const rng = new Rng(0x3117)
+  while (s.outcome === 'ongoing' && adds(s).length === 0 && s.time < 60) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  }
+  const one = adds(s)[0]
+  expect('a wave turns up to mark', one !== undefined, `${adds(s).length} adds by ${s.time.toFixed(0)}s`)
+  if (one) {
+    const plain: Circle[] = []
+    drawWorld(recordingCtx(plain), s, 1, s.time, new Effects())
+    addAura(one, 'empowered', BOSS_ID)
+    const marked: Circle[] = []
+    drawWorld(recordingCtx(marked), s, 1, s.time, new Effects())
+    expect(
+      'and the wrong one is drawn as the wrong one',
+      marked.length > plain.length,
+      `${plain.length} shapes before, ${marked.length} after`,
+    )
+  }
 }
 
 // --- the raid must be able to kill its own, and mostly not ------------------

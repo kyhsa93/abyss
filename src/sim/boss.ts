@@ -1050,12 +1050,25 @@ function scheduleEmpower(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): 
   if (timing.empower <= 0) return
   s.next.empower -= DT
   if (s.next.empower > 0) return
-  s.next.empower = timing.empower
 
+  // The wave first, and the beat is only spent if there is one.
+  //
+  // This is a fact about a summon that was already coming, and it was written
+  // as a clock of its own that happened to run alongside the summoning one --
+  // forty-seven seconds against forty-four, independent, so the two almost
+  // never lined up. When the beat came round to an empty floor it reset
+  // anyway and waited another forty-seven. Measured over five pulls of a
+  // twenty-five man heroic, where fifteen were due: it fired twice.
+  //
+  // Held instead of spent, so it goes off within a tick of the next wave
+  // landing. Same shape as the third breath that never arrives on the boss
+  // two rungs along -- two timers that were meant to be one.
   const wave = s.actors.filter(
     (a) => a.faction === 'boss' && a.id !== BOSS_ID && a.alive && !getAura(a, 'empowered'),
   )
   if (wave.length === 0) return
+  s.next.empower = timing.empower
+
   const one = rng.pick(wave)
   addAura(one, 'empowered', b.id)
   one.maxHp = Math.round(one.maxHp * EMPOWER_HEALTH)

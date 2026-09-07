@@ -2419,6 +2419,24 @@ function drawActor(
   // A stalker looks like every other add on the floor, and the mechanic is
   // entirely about which one of you it is coming for — so the answer is drawn
   // rather than left to be worked out from six moving circles.
+  // The one out of the wave that came back wrong.
+  //
+  // Nothing said which. It is the same body as the other three, drawn the same
+  // way, and the only thing separating it was a health bar that is longer --
+  // which reads as "this one is fine" rather than "this one is the problem".
+  // The fight names it in chat once and the raid is told to kill it first, and
+  // a raid cannot be told which one if the picture does not say.
+  //
+  // In the mechanic's own colour, and pulsing, because it is not a place to
+  // leave or a count to read: it is a target call, and the only thing the ring
+  // has to do is answer "which one".
+  if (a.alive && getAura(a, 'empowered')) {
+    footprint(ctx, p.x, p.y, r + 6 + Math.sin(clock * 5) * 2)
+    ctx.strokeStyle = iconFor('boss_empower').colour
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
   const hunted = getAura(a, 'hunted')
   if (hunted && a.alive) {
     ctx.beginPath()
