@@ -1974,10 +1974,17 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
   // back in, so what an unreachable target costs is a body standing against
   // the wall nearest it rather than a body outside.
   const home = { x: b.pos.x + bearingX * want, y: b.pos.y + bearingY * want }
-  // Pushed in only where the outside kills. On a disc the clamp is a tuning
-  // change and is measured as one (see above); on a platform the unclamped
-  // ring is a body walking off the floor to stand at a range.
-  if (roomHasOutside(s.room)) pushInside(s.room, home, actor.radius)
+  // Pushed in wherever the ring can leave the room, which is every room that
+  // is not the yardstick disc.
+  //
+  // On a disc it is left alone deliberately: the ring only escapes when the
+  // boss is against the wall, and clamping it there moved every cell of the
+  // balance table — a tuning change wearing a refactor's clothes, measured and
+  // backed out when the rooms were built. In a rectangle the ring leaves the
+  // room with the boss standing in the middle of it, and what an unreachable
+  // target costs is a body pressed into a wall for as long as it stands, which
+  // is a raid queued along the sides of a hall.
+  if (s.room.kind !== 'round') pushInside(s.room, home, actor.radius)
   return withinReach(s, actor, home, want)
 }
 

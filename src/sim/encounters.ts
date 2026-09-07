@@ -1353,6 +1353,73 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Last Whisper',
     short: 'Whisper',
     demand: 'cut the shard, swap the hold, and hold off your own',
+    /**
+     * A long room instead of a round one — the first in the game.
+     *
+     * Everything this fight throws travels in a straight line: the shard, the
+     * shade, the mind it turns and sends back. In a disc every bearing is the
+     * same bearing and a line is a line wherever it points; in a hall there is
+     * an axis, and "am I on it" becomes a thing to know. That is the whole
+     * reason this room is not round.
+     *
+     * The floor is 1120 by 2280, which is two and a half million square units
+     * against the yardstick's two and two thirds — the same amount of room,
+     * differently shaped. A long room that was also a smaller one would be two
+     * changes measured as one.
+     *
+     * The frame is `RoomShape`'s: the boss at the origin, the raid coming in
+     * from `+y`. So `front` is the length of hall the raid fights down and
+     * `back` is what is behind the lich.
+     */
+    room: { kind: 'hall', halfWidth: 560, front: 1560, back: 720 },
+    /**
+     * Two rows of seats down the sides, and a clear middle.
+     *
+     * Five blocks a side rather than a wall, because a wall is a concave shape
+     * and this game does not buy path-finding — the gaps between them are what
+     * that decision costs, and they read as the aisles between benches. The
+     * middle is left empty on purpose: it is where the straight lines travel
+     * and where the rotting floor is laid.
+     *
+     * Against the rules the terrain roll obeys: 75 units off the side wall
+     * (a lane is 64), 382 off the middle at the nearest (the melee ring is
+     * 210), 200 between neighbours, and clear of every starting mark at all
+     * three raid sizes. `rendercheck` measures all four.
+     */
+    terrain: [
+      { pos: { x: -415, y: -520 }, radius: 70 },
+      { pos: { x: -415, y: -180 }, radius: 70 },
+      { pos: { x: -415, y: 160 }, radius: 70 },
+      { pos: { x: -415, y: 500 }, radius: 70 },
+      { pos: { x: -415, y: 840 }, radius: 70 },
+      { pos: { x: 415, y: -520 }, radius: 70 },
+      { pos: { x: 415, y: -180 }, radius: 70 },
+      { pos: { x: 415, y: 160 }, radius: 70 },
+      { pos: { x: 415, y: 500 }, radius: 70 },
+      { pos: { x: 415, y: 840 }, radius: 70 },
+    ],
+    /**
+     * Four side doors, and two of them only open for a big raid.
+     *
+     * This fight's wave used to arrive at a rolled bearing, which is not a
+     * place. Now it walks in through a door, the doors are taken in turn, and
+     * "which side first" is a decision bought with no new mechanic.
+     *
+     * The back pair opens at twenty-five, which is the room being bigger for a
+     * bigger raid rather than a difficulty setting. `adds` scales with the
+     * roster, so two doorways at twenty-five would put two and a half times
+     * the wave through the same two gaps; four keeps what arrives at one door
+     * roughly what a ten-man meets. A five and a ten fight the front half of
+     * the hall and never look behind them.
+     */
+    doors: [
+      { pos: { x: -560, y: 240 } },
+      { pos: { x: 560, y: 240 } },
+      { pos: { x: -560, y: -420 }, from: 25 },
+      { pos: { x: 560, y: -420 }, from: 25 },
+    ],
+    /** Cut stone, laid in courses: a room that is still in use. */
+    floor: 'floor-slate',
     hp: 58000,
     enrage: 240,
     phaseTwoHp: 0.7,

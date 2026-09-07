@@ -11704,11 +11704,16 @@ for (const [label, w, h] of [
   expect('a fight that summons exists to hang doors on', subject >= 0, 'no boss on the roster summons')
   const fight = ENCOUNTERS[subject]!
   const kept = fight.doors
-  const wall = (fight.room ?? ROUND_ARENA).kind === 'round' ? 920 : 0
+  // In a room of the check's own making rather than the fight's. The fixture
+  // used to read the fight's room to find its wall, and the day that fight
+  // grew a hall the three doors collapsed onto the origin and every arrival
+  // matched the first of them -- a fixture failing as if the rotation had.
+  const keptRoom = fight.room
+  fight.room = { kind: 'round', radius: 920 }
   fight.doors = [
-    { pos: { x: -wall + 1, y: 0 } },
-    { pos: { x: wall - 1, y: 0 } },
-    { pos: { x: 0, y: -wall + 1 }, from: 25 },
+    { pos: { x: -919, y: 0 } },
+    { pos: { x: 919, y: 0 } },
+    { pos: { x: 0, y: -919 }, from: 25 },
   ]
   try {
     expect(
@@ -11745,6 +11750,8 @@ for (const [label, w, h] of [
   } finally {
     if (kept) fight.doors = kept
     else delete fight.doors
+    if (keptRoom) fight.room = keptRoom
+    else delete fight.room
   }
 }
 
