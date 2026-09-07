@@ -1422,7 +1422,22 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1150,
     raidDamage: 95,
     mechanicDamage: 0.66,
-    sizeMechanic: { 5: 1.05, 10: 1.0, 25: 0.9 },
+    // Not monotone, and that is the finding rather than a slip. The ten-man
+    // is the size this ladder was written for and pays full; both ends need
+    // relief, for opposite reasons. A five-man fields one tank and one
+    // healer, so every demand aimed at one body lands on a third of the
+    // people who can answer it -- the shade at four rungs took five heroic to
+    // 15% while a ten-man with the same four kit sat at 100%. A twenty-five
+    // man on heroic is the only cell that buys the whole ladder, and the last
+    // rung arrives on top of six others rather than on its own: 28%, against
+    // 100% for the twenty-five man normal one rung below it.
+    //
+    // At 0.95/1.0/0.82, forty pulls a cell: 100, 65, 100, 98, 100, 75, with
+    // the two that were broken now killing about half the raid on the way to
+    // the kill and the twenty-five heroic climbing 50 to 75 between a first
+    // pull and a ninth. Taking them further -- 0.85/1.0/0.72 -- puts all six
+    // cells at 95 or better, which is the fight being handed over.
+    sizeMechanic: { 5: 0.95, 10: 1.0, 25: 0.82 },
     accent: '#38bdf8',
     names: { slam: 'A WORD OF ENDING', breath: '', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
@@ -1515,13 +1530,22 @@ export const ENCOUNTERS: Encounter[] = [
     name: 'The Reeking Host',
     short: 'Host',
     demand: 'share the air, and know who is holding it',
-    // Long, and the reason is the spine rather than the difficulty. This
-    // fight's shape is a count that builds and then empties, and at forty
-    // thousand a five-man pull was over in sixty-nine seconds -- before the
-    // first breath out had ever landed. A boss whose central mechanic does not
-    // reach the smallest raid that meets it is a boss with a different fight
-    // at every size.
-    hp: 66000,
+    // Sixty thousand, and the number it replaces was defending something that
+    // could not happen.
+    //
+    // Sixty-six was argued as "at forty thousand a five-man pull was over
+    // before the first breath out had ever landed". A five-man never buys the
+    // breath out: its kit is the first three rungs, and the breath out is the
+    // sixth. The smallest raid that meets it is a twenty-five man on heroic.
+    // No amount of health puts that mechanic in a five-man pull.
+    //
+    // What the health actually decides is how long everyone stands in the
+    // room, which for this boss is the whole bill -- see `sizeMechanic` below.
+    // Measured across all six cells at forty pulls each, sixty thousand is
+    // where the smallest raid clears at 95% and the twenty-five man normal,
+    // which is the longest fight on the roster, sits at 65% with seven in ten
+    // of the raid dead at the end of it.
+    hp: 60000,
     enrage: 240,
     phaseTwoHp: 0.68,
     phaseThreeHp: 0.35,
@@ -1538,9 +1562,22 @@ export const ENCOUNTERS: Encounter[] = [
     // brings more hands to each of them, while the air and the breath out are
     // the same bill whoever turned up.
     //
-    // Left flat it read 100% at five and ten
-    // on a first pull, which is a fight with nothing to learn.
-    sizeMechanic: { 5: 1.6, 10: 1.45, 25: 1.0 },
+    // The twenty-five is far below one, and that is the entry in this table
+    // with a different meaning from every other. `MECHANIC_SCALES` says the
+    // air is `false`: the room is the same room at any headcount. That is true
+    // of one tick and false of one pull. The air is billed per body per
+    // second, and a boss's health grows with the roster, so a twenty-five man
+    // stands in it for 165 seconds where a five-man stands in it for 104. The
+    // same room for sixty percent longer is not the same bill.
+    //
+    // Which is why the first attempt to fix this cell did nothing. Taking the
+    // twenty-five from 1.0 to 0.85 -- a sixth off every mechanic it meets --
+    // moved a nought percent cell to five. It is 0.65 because that is roughly
+    // 104/165, and at 0.65 the cell reads 65%.
+    //
+    // The old row was 1.6/1.45/1.0 and no measurement of it existed: the
+    // harness never printed a size table for this boss. See `SHARDS`.
+    sizeMechanic: { 5: 1.25, 10: 1.1, 25: 0.65 },
     accent: '#84cc16',
     names: { slam: 'GORGE', breath: '', shard: '', raid: 'BAD AIR' },
     // The air is the first rung rather than something outside the ladder, and

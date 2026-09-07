@@ -856,6 +856,30 @@ export const BLIGHT_RELIEF = 0.3
  * buying nothing. So the cap is what makes the pair safe to sell apart.
  */
 export const INHALE_MAX = 3
+/**
+ * And how many it may hold when nothing in the kit can make it let go.
+ *
+ * `INHALE_MAX` above says the cap is what makes the breath in and the breath
+ * out safe to sell on separate rungs. It is not, and the number that says so
+ * is a straight measurement of the same fight with the breath in switched off:
+ *
+ *   cell            breath in on    off
+ *   10 heroic            15%       100%
+ *   25 normal             5%        35%
+ *
+ * Those are the two cells that buy the breath in and not the breath out, and
+ * they are the two that move. Three breaths is +66% on the swing and a swing
+ * timer at 0.74 of its own -- the body holding the boss takes two and a
+ * quarter times the melee, for the rest of the pull, and nothing anybody does
+ * takes it off. The cap stops it climbing; it does not make it a mechanic.
+ *
+ * So the cap asks the kit. With a way to let go, it may hold three and the
+ * fight is the one it was written as: fill up, and then give it all back at
+ * once. Without one, it holds a single breath -- the trade is still there and
+ * still legible (the room thins, the tank's bill grows) and it stops being a
+ * buff the raid cannot answer.
+ */
+export const INHALE_HELD_ALONE = 1
 export const INHALE_POWER = 0.22
 export const INHALE_HASTE = 0.12
 export const PUNGENT_PER_BREATH = 470

@@ -11321,19 +11321,23 @@ for (const [label, w, h] of [
     )
   }
 
-  // A descent floor still rolls. Its whole promise is that it is somewhere
-  // nobody has been, and a floor identical to the one above it is not that.
-  const floors = [1, 2, 3, 4, 5, 6].map((depth) =>
-    JSON.stringify(
-      createState(700 + depth * 31, 3, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, depth)
-        .obstacles,
-    ),
-  )
-  expect(
-    'and a descent floor is still rolled, floor by floor',
-    new Set(floors).size > 1,
-    'every floor came up with the same room',
-  )
+  // And a fight that names no terrain still rolls one, seed by seed. This is
+  // the other half of the pair above: a written room has to be the same room
+  // every pull because it is part of what there is to learn, and an unwritten
+  // one has to not be, or the roll is decoration.
+  const unwritten = ENCOUNTERS.findIndex((e) => !e.terrain)
+  if (unwritten >= 0) {
+    const rooms = [1, 2, 3, 4, 5, 6].map((n) =>
+      JSON.stringify(
+        pulled(700 + n * 31, 3, autoParty(10, pickFor('mage', 'dps')!), 'normal', unwritten).obstacles,
+      ),
+    )
+    expect(
+      'and an unwritten room is rolled, seed by seed',
+      new Set(rooms).size > 1,
+      'every seed came up with the same room',
+    )
+  }
 }
 
 // --- and a wave comes in through a door ------------------------------------

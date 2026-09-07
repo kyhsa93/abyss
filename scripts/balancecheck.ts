@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { ENCOUNTERS } from '../src/sim/encounters'
 
 /**
  * The harness prints a few hundred numbers and nobody reads them.
@@ -29,6 +30,24 @@ const rows = (text: string, header: RegExp): string[] => {
   return (end < 0 ? body : body.slice(0, end)).split('\n').filter((line) => line.trim())
 }
 
+/**
+ * How many rows a section must have before its band is allowed to pass.
+ *
+ * A band reads a table by finding its header and taking the lines under it. If
+ * the header moves, or the shard that prints those lines stops running, `rows`
+ * returns nothing and every band over it passes -- having checked nothing.
+ *
+ * That is not hypothetical. The per-boss shards were a hand-typed list that
+ * stopped at the fifth boss while eight were being written, so three fights
+ * had no rows in the size-and-difficulty table at all, and the band below
+ * reported ok for a boss sitting at nought percent in every cell it had.
+ *
+ * So a band that finds an empty table fails, and says so. An assertion with
+ * nothing to assert on is the one failure mode a green run cannot show you.
+ */
+const atLeast = (found: string[], want: number, what: string): string[] =>
+  found.length >= want ? [] : [`${what}: ${found.length} rows in the harness output, expected ${want}`]
+
 const percents = (line: string) => [...line.matchAll(/(\d+)%/g)].map((m) => Number(m[1]))
 
 /** Everything before the first run of two spaces. Names have single spaces in them. */
@@ -47,7 +66,9 @@ const BANDS: Band[] = [
     check: (text) => {
       const bad: string[] = []
       for (const section of ['dps', 'healer', 'tank']) {
-        for (const line of rows(text, new RegExp(`^spec: ${section} `, 'm')).slice(1)) {
+        const found = rows(text, new RegExp(`^spec: ${section} `, 'm')).slice(1)
+        bad.push(...atLeast(found, 1, `the ${section} spec table`))
+        for (const line of found) {
           if (line.startsWith('  spread')) continue
           const win = percents(line).at(-1)
           if (win !== undefined && win < SPEC_FLOOR) {
@@ -65,7 +86,12 @@ const BANDS: Band[] = [
       'not teaching anything, it is refusing',
     check: (text) => {
       const bad: string[] = []
-      for (const line of rows(text, /^boss \/ size \/ difficulty /m).slice(1)) {
+      const found = rows(text, /^boss \/ size \/ difficulty /m).slice(1)
+      // Three sizes by two difficulties for every boss on the roster. Counted
+      // rather than "more than none", because the way this table went wrong
+      // was a boss missing from it while the others were all present.
+      bad.push(...atLeast(found, ENCOUNTERS.length * 6, 'the size and difficulty table'))
+      for (const line of found) {
         const pulls = percents(line)
         if (pulls.length >= 2 && pulls[1] < CELL_FLOOR) {
           bad.push(`${label(line)} is at ${pulls[1]}% by pull 9 (floor ${CELL_FLOOR}%)`)

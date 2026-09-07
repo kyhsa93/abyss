@@ -21,16 +21,31 @@
 import { execFile } from 'node:child_process'
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
+import { ENCOUNTERS } from '../src/sim/encounters'
 
-/** In the order `harness.ts` prints them. Nothing else decides the output. */
+/**
+ * In the order `harness.ts` prints them. Nothing else decides the output.
+ *
+ * The per-boss shards are counted off the roster rather than typed out, and
+ * that is not tidiness. They were typed out, `size:0` through `size:4`, from a
+ * round where there were five bosses. Three more were written afterwards and
+ * nobody added a line here, so the size-and-difficulty table -- the one the
+ * "every fight is winnable by the ninth pull" band reads, and the only place a
+ * cell is measured at all -- simply had no rows for the last three fights.
+ *
+ * The band did not fail, because `rows()` finds nothing and a band with
+ * nothing to read passes. So a boss could be built, tuned by eye, shipped and
+ * left at nought percent across every size and difficulty, and every check in
+ * the repo would agree it was fine. One was: see the Reeking Host's numbers in
+ * the commit that found this.
+ *
+ * A list of shards that has to be extended by hand every time a boss is added
+ * will be short again. This one cannot be.
+ */
 const SHARDS = [
   'composition',
   'boss',
-  'size:0',
-  'size:1',
-  'size:2',
-  'size:3',
-  'size:4',
+  ...ENCOUNTERS.map((_, i) => `size:${i}`),
   'member',
   'spec',
   'mechanic',

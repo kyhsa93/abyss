@@ -37,6 +37,7 @@ import {
   VOLLEY_DAMAGE,
   STORM_SPEED,
   STORM_TICK,
+  INHALE_HELD_ALONE,
   INHALE_MAX,
   INHALE_POWER,
   INOCULATED_SHARE,
@@ -799,8 +800,12 @@ function scheduleInhale(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (s.next.inhale > 0) return
   s.next.inhale = timing.inhale
 
-  // Full is full. See `INHALE_MAX`.
-  if ((getAura(b, 'gorged')?.stacks ?? 0) >= INHALE_MAX) return
+  // Full is full, and how full depends on whether tonight's kit sold the
+  // breath out. See `INHALE_HELD_ALONE`.
+  const cap = encounterKit(fight(s), s.party.length, s.difficulty).includes('pungent')
+    ? INHALE_MAX
+    : INHALE_HELD_ALONE
+  if ((getAura(b, 'gorged')?.stacks ?? 0) >= cap) return
   stackAura(b, 'gorged', b.id)
   say(s, b, lineFor(fight(s), 'inhale'))
   s.sounds.push('telegraph')
