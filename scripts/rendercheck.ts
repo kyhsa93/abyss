@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { insideRoom, pushInside, roomReach, wallGap } from '../src/sim/room'
+import { ROUND_ARENA, insideRoom, pushInside, roomReach, wallGap } from '../src/sim/room'
+import { terrainFaults } from '../src/sim/battleground'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
@@ -154,6 +155,7 @@ import {
 import {
   ENCOUNTERS,
   encounterAt,
+  openDoors,
   encounterIndex,
   encounterKit,
   withRequired,
@@ -11564,6 +11566,181 @@ for (const [label, w, h] of [
     wallGap(hall, { x: 540, y: 0 }) === 20 && wallGap(disc, { x: 900, y: 0 }) === 20,
     `${wallGap(hall, { x: 540, y: 0 })}`,
   )
+}
+
+// --- a written room is the same room every pull ----------------------------
+//
+// Terrain was rolled: a third of pulls came up empty and the rest got one to
+// four rocks wherever they landed, so the same boss twice was two different
+// rooms. A fight can write its own now, and the moment it does, two things
+// have to hold that nothing checked before — the floor is identical from pull
+// to pull, and the rocks somebody typed out obey the rules the roll obeyed.
+//
+// The rules themselves are `terrainFaults`, which the roll now calls too, so
+// there is one statement of them rather than two that drift.
+{
+  let authored = 0
+  const faults: string[] = []
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    const written = ENCOUNTERS[e]!.terrain
+    if (!written) continue
+    authored++
+    for (const size of RAID_SIZES) {
+      const slots = makeSlots(size).map((slot) => ({ x: slot.x, y: slot.y }))
+      const room = ENCOUNTERS[e]!.room ?? ROUND_ARENA
+      for (const rock of written) {
+        for (const fault of terrainFaults(room, rock, slots, written)) {
+          faults.push(`${ENCOUNTERS[e]!.short} at ${size}: a rock is ${fault}`)
+        }
+      }
+    }
+  }
+  expect(`${authored} written room(s) obey the rules the roll obeys`, faults.length === 0, faults.join('; '))
+
+  // And the checker itself, because a check that has nothing to look at yet is
+  // a check nobody has ever seen fail. One rock in the middle of the floor,
+  // one against the wall, one on top of another, one on the raid's own mark.
+  const room = ROUND_ARENA
+  const marks = makeSlots(25).map((slot) => ({ x: slot.x, y: slot.y }))
+  const good = { pos: { x: 420, y: -380 }, radius: 44 }
+  expect(
+    'and the rule is one a legal rock passes',
+    terrainFaults(room, good, marks, [good]).length === 0,
+    terrainFaults(room, good, marks, [good]).join('; '),
+  )
+  const bad: Array<[string, { pos: Vec2; radius: number }]> = [
+    ['in the middle', { pos: { x: 80, y: 0 }, radius: 44 }],
+    ['against the wall', { pos: { x: 900, y: 0 }, radius: 44 }],
+    ['on a starting mark', { pos: { x: marks[6]!.x, y: marks[6]!.y }, radius: 44 }],
+  ]
+  for (const [what, rock] of bad) {
+    expect(
+      `and one a rock ${what} fails`,
+      terrainFaults(room, rock, marks, [rock]).length > 0,
+      'passed when it should not have',
+    )
+  }
+  const touching = [
+    { pos: { x: 420, y: -380 }, radius: 44 },
+    { pos: { x: 470, y: -380 }, radius: 44 },
+  ]
+  expect(
+    'and two rocks a lane apart are two rocks, closer than that they are a corner',
+    terrainFaults(room, touching[0]!, marks, touching).length > 0,
+    'a pair that touches passed',
+  )
+
+  // The floor is the same floor twice, and a rolled one is not.
+  const written = ENCOUNTERS.findIndex((e) => e.terrain)
+  if (written >= 0) {
+    const a = pulled(4242, 3, autoParty(10, pickFor('mage', 'dps')!), 'normal', written)
+    const b = pulled(9999, 5, autoParty(10, pickFor('mage', 'dps')!), 'normal', written)
+    expect(
+      'a written room comes up the same on a different seed',
+      JSON.stringify(a.obstacles) === JSON.stringify(b.obstacles),
+      `${a.obstacles.length} against ${b.obstacles.length}`,
+    )
+    a.obstacles.push({ pos: { x: 0, y: 0 }, radius: 1 })
+    expect(
+      'and the fight as written is not what the pull writes into',
+      ENCOUNTERS[written]!.terrain!.length !== a.obstacles.length,
+      'the encounter shares its list with the state',
+    )
+  }
+
+  // A descent floor still rolls. Its whole promise is that it is somewhere
+  // nobody has been, and a floor identical to the one above it is not that.
+  const floors = [1, 2, 3, 4, 5, 6].map((depth) =>
+    JSON.stringify(
+      createState(700 + depth * 31, 3, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0, null, depth)
+        .obstacles,
+    ),
+  )
+  expect(
+    'and a descent floor is still rolled, floor by floor',
+    new Set(floors).size > 1,
+    'every floor came up with the same room',
+  )
+}
+
+// --- and a wave comes in through a door ------------------------------------
+//
+// A wave used to appear at a rolled bearing on a ring of 230, which is not a
+// place: whichever side it came from, the answer was the same. Doors make
+// "which side first" a question, and the room says where they are before
+// anything comes through them.
+//
+// Nothing declares doors yet — the rooms that want them are #27 and #35 — so
+// what is checked here is the rule and the machinery: a declared door has to
+// be on a wall, the mouth has to be clear, the size gate has to open and shut,
+// and a fight given doors has to actually use them, in turn.
+{
+  const faults: string[] = []
+  let declared = 0
+  for (const fight of ENCOUNTERS) {
+    for (const door of fight.doors ?? []) {
+      declared++
+      const room = fight.room ?? ROUND_ARENA
+      const gap = wallGap(room, door.pos)
+      if (Math.abs(gap) > 64) faults.push(`${fight.short}: a door sits ${gap.toFixed(0)} off its wall`)
+      const away = Math.hypot(door.pos.x, door.pos.y) || 1
+      const mouth = { x: door.pos.x * (1 - 64 / away), y: door.pos.y * (1 - 64 / away) }
+      if (inTerrain(fight.terrain ?? [], mouth, 16)) {
+        faults.push(`${fight.short}: a door opens into a rock`)
+      }
+    }
+  }
+  expect(`${declared} declared door(s) are on a wall with a clear mouth`, faults.length === 0, faults.join('; '))
+
+  // The gate, on a fight given one door of each kind.
+  const subject = ENCOUNTERS.findIndex(
+    (e) => e.ladder.includes('adds') || (e.always ?? []).includes('adds'),
+  )
+  expect('a fight that summons exists to hang doors on', subject >= 0, 'no boss on the roster summons')
+  const fight = ENCOUNTERS[subject]!
+  const kept = fight.doors
+  const wall = (fight.room ?? ROUND_ARENA).kind === 'round' ? 920 : 0
+  fight.doors = [
+    { pos: { x: -wall + 1, y: 0 } },
+    { pos: { x: wall - 1, y: 0 } },
+    { pos: { x: 0, y: -wall + 1 }, from: 25 },
+  ]
+  try {
+    expect(
+      'a door with a floor opens for the raid that reaches it and not below',
+      openDoors(fight, 5).length === 2 && openDoors(fight, 10).length === 2 && openDoors(fight, 25).length === 3,
+      `${openDoors(fight, 5).length} / ${openDoors(fight, 10).length} / ${openDoors(fight, 25).length}`,
+    )
+
+    // And a pull actually uses them. Every body that was not there a tick ago
+    // has to have arrived within a step of a doorway, and the doorways have to
+    // be taken in turn rather than one of them taking the lot.
+    const s = pulled(3131, 2, autoParty(25, pickFor('mage', 'dps')!), 'heroic', subject)
+    const rng = new Rng(3131)
+    const known = new Set(s.actors.map((a) => a.id))
+    const arrivals: number[] = []
+    let strays = 0
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const a of s.actors) {
+        if (known.has(a.id)) continue
+        known.add(a.id)
+        if (a.faction !== 'boss') continue
+        const at = openDoors(fight, 25).findIndex((door) => dist(door.pos, a.pos) < 64 + 24)
+        if (at < 0) strays++
+        else arrivals.push(at)
+      }
+    }
+    expect('and a summoned body arrives in a doorway', arrivals.length > 0 && strays === 0, `${strays} arrived elsewhere`)
+    expect(
+      'and the doorways are taken in turn',
+      new Set(arrivals).size > 1 && arrivals.slice(0, 3).join() === [0, 1, 2].slice(0, Math.min(3, arrivals.length)).join(),
+      arrivals.slice(0, 6).join(', '),
+    )
+  } finally {
+    if (kept) fight.doors = kept
+    else delete fight.doors
+  }
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

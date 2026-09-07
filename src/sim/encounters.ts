@@ -1,5 +1,6 @@
 import type { DifficultyId, RaidSize } from './classes'
 import type { RoomShape } from './room'
+import type { Obstacle, Vec2 } from './types'
 
 /**
  * The bosses, in the order they are fought.
@@ -837,6 +838,49 @@ export interface Encounter {
    * written in, and `roomArea` for the budget.
    */
   room?: RoomShape
+  /**
+   * What is standing in that room, written out, or omitted to roll it.
+   *
+   * Terrain used to be rolled for every pull: a third of rooms came up empty
+   * and the rest got one to four rocks wherever they landed. That made the
+   * floor a fact about the attempt rather than about the fight — the same boss
+   * twice was two different rooms — and a room nobody can learn is the one
+   * part of a fight that is learned by nobody.
+   *
+   * So a fight names its own, and it is the same list every pull. `terrain: []`
+   * is a room with nothing in it, said on purpose, which is not the same as
+   * omitting the field: the first boss wants an empty floor because its lines
+   * reach the wall, and that is a decision rather than a roll that came up
+   * empty.
+   *
+   * Rolled floors keep rolling — see `createState`. A descent floor is a
+   * different room every time by design, and that is the one place where a
+   * floor nobody can learn is the right answer.
+   *
+   * Every rock here is checked at build time against the rules the roll
+   * applies: off the middle, a lane off the wall, a lane off every other rock,
+   * and clear of where the raid stands at the pull. See `terrainFaults`.
+   */
+  terrain?: Obstacle[]
+  /**
+   * Where whatever this fight summons walks in from, or omitted to roll it.
+   *
+   * A wave used to appear at a random bearing on a ring of 230. A random
+   * bearing is not a decision: whichever way it came from, the answer was the
+   * same, and the room said nothing about where things come from. Two doors
+   * make "which side first" a question, and that is a decision bought with no
+   * new mechanic at all — the cheapest kind this game has.
+   *
+   * Doors are used in turn, never rolled. The only randomness in this game is
+   * *who* gets picked, and a door order that is rolled as well takes away the
+   * one thing about a wave that can be learned: left, then right.
+   *
+   * `from` is the smallest raid a door opens for. It is not difficulty — it is
+   * the room being bigger for a bigger raid. `adds` scales with the roster
+   * (see `MECHANIC_SCALES`), so a room whose doors do not scale with it puts
+   * two and a half times the wave through the same two doorways.
+   */
+  doors?: Door[]
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number
@@ -1117,6 +1161,24 @@ export interface Encounter {
     grasp: string
     refuge: string
   }
+}
+
+/**
+ * A way into the room, and the smallest raid it opens for.
+ *
+ * On the wall — the build checks it — because a door in the middle of the
+ * floor is a spawn point wearing a door's name, and the whole value of a door
+ * is that the raid can see where it is before anything comes out of it.
+ */
+export interface Door {
+  pos: Vec2
+  /** Omitted means always open. */
+  from?: RaidSize
+}
+
+/** The doors this fight opens for a raid of that size, in the order they are used. */
+export function openDoors(fight: Encounter, size: number): Door[] {
+  return (fight.doors ?? []).filter((door) => door.from === undefined || size >= door.from)
 }
 
 /** A fight's interlude: what walks in at the first phase break. */

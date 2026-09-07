@@ -191,14 +191,24 @@ export function createState(
   // A floor rolls its own fight out of the same vocabulary the bosses are
   // written in; the ladder gets the boss exactly as it was authored.
   const plan = rolled ?? (depth > 0 ? rollFloor(seed, depth, party.length, difficulty) : null)
-  // What is standing in that room, rolled from the same seed as the fight and
-  // placed against the room's own walls. Off the slots so nobody starts the
-  // pull inside a rock.
-  const rocks = raidTerrain(
-    room,
-    new Rng(seed * 13 + encounter * 7919 + 1049),
-    slots.map((slot) => ({ x: slot.x, y: slot.y })),
-  )
+  // What is standing in that room: the fight's own, or rolled.
+  //
+  // A fight that names its terrain gets exactly that, every pull, because a
+  // floor is part of what there is to learn. A floor that was rolled in the
+  // first place — a descent's, a daily's — rolls its rocks too, which is the
+  // one place a room that is different every time is the right answer.
+  //
+  // Copied rather than handed over. The list on the encounter is the fight as
+  // written and outlives the pull; `s.obstacles` is a room being fought in,
+  // and a mechanic that leaves a wall behind it writes there.
+  const rocks =
+    plan === null && fight.terrain
+      ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
+      : raidTerrain(
+          room,
+          new Rng(seed * 13 + encounter * 7919 + 1049),
+          slots.map((slot) => ({ x: slot.x, y: slot.y })),
+        )
   const opening = plan ? { ...fight.opening, ...plannedOpening(plan) } : fight.opening
 
   const boss: Actor = {
@@ -262,6 +272,7 @@ export function createState(
     mode: 'raid',
     bg: null,
     room,
+    nextDoor: 0,
     only: null,
     healing: 1,
     time: 0,
@@ -370,6 +381,7 @@ export function createBattlegroundState(
     bg,
     // A battleground is played in the yardstick circle and always has been.
     room: ROUND_ARENA,
+    nextDoor: 0,
     time: 0,
     tick: 0,
     actors: [...blue, ...red],

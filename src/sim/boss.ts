@@ -119,6 +119,7 @@ import {
   gated,
   lineFor,
   MECHANIC_IDS,
+  openDoors,
   type Encounter,
   type MechanicId,
   type PhaseTiming,
@@ -1537,6 +1538,48 @@ function scheduleSpread(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   s.next.spread = timing.spread
 }
 
+/**
+ * How far inside the room a body starts, measured from the door it came through.
+ *
+ * One lane, which is the same distance everything else in this game keeps off
+ * a wall. It is what makes the arrival read as walking in rather than
+ * appearing: a body exactly on the wall is a body standing in the doorway, and
+ * a body a lane inside it has already taken a step.
+ */
+const DOOR_STEP = 64
+
+/**
+ * Where the next thing this fight summons comes from.
+ *
+ * A door if the fight has any open at this size, taken in turn; the old ring
+ * of 230 at a rolled bearing if it has none. Both are pushed inside the room,
+ * because a door sits on the wall and a body has a width.
+ *
+ * The counter lives on the state rather than here so that two waves in one
+ * pull continue the rotation, and so that the same seed replays the same
+ * order — which is the point of not rolling it.
+ */
+function spawnSpot(s: SimState, rng: Rng, radius: number): Vec2 {
+  const doors = openDoors(fight(s), s.party.length)
+  if (doors.length > 0) {
+    const door = doors[s.nextDoor % doors.length]!
+    s.nextDoor++
+    // A step inward, along the line to the middle of the room. Every room here
+    // is convex, so that line never leaves it.
+    const away = Math.hypot(door.pos.x, door.pos.y) || 1
+    const pos = {
+      x: door.pos.x - (door.pos.x / away) * DOOR_STEP,
+      y: door.pos.y - (door.pos.y / away) * DOOR_STEP,
+    }
+    pushInside(s.room, pos, radius)
+    return pos
+  }
+  const angle = rng.range(0, Math.PI * 2)
+  const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
+  pushInside(s.room, pos, radius)
+  return pos
+}
+
 function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
   if (timing.adds <= 0) return
   s.next.adds -= DT
@@ -1560,9 +1603,9 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
   const waves =
     Math.max(1, Math.round(livingParty(s).length / 6)) * affixAddWave(s.affix)
   for (let i = 0; i < waves; i++) {
-    const angle = rng.range(0, Math.PI * 2)
-    const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
-    pushInside(s.room, pos, 16)
+    // Spread across the open doors rather than all through one: a wave that
+    // arrives in a single doorway is one pack with extra steps.
+    const pos = spawnSpot(s, rng, 16)
     const thrall = makeAdd(s.nextObjectId++, pos.x, pos.y)
     thrall.maxHp = addHealth(s)
     thrall.hp = thrall.maxHp
@@ -4598,9 +4641,7 @@ function scheduleVessel(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   // Where the thralls come from, and walking in the way they do. It has to be
   // the thing the party's own rules would pick, or there is nothing to hold
   // off from.
-  const angle = rng.range(0, Math.PI * 2)
-  const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
-  pushInside(s.room, pos, 16)
+  const pos = spawnSpot(s, rng, 16)
 
   const jar = makeAdd(s.nextObjectId++, pos.x, pos.y)
   jar.name = 'Vessel'

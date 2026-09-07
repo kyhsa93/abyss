@@ -978,6 +978,16 @@ export interface SimState {
    * name a room gets `ROUND_ARENA`, which is that same circle.
    */
   room: RoomShape
+  /**
+   * Which door the next thing summoned comes through.
+   *
+   * A counter rather than a roll. The only randomness in this game is who gets
+   * picked, and a wave that also rolls its doorway takes away the one thing
+   * about a wave that can be learned — left, then right, then left. Kept on
+   * the state so a second wave carries on where the first stopped and the same
+   * seed replays the same order.
+   */
+  nextDoor: number
   /** Class and role of each raid slot, in order. */
   party: Pick[]
   difficulty: DifficultyId

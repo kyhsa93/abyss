@@ -490,27 +490,59 @@ const RAID_ROCK_MAX = 52
  * The roll itself is unchanged for a disc — same draws in the same order, so
  * the fights that exist keep the floors they were tuned against.
  */
+/**
+ * Why a rock does not belong where it is, or an empty list.
+ *
+ * The four rules the roll has always applied, pulled out of it and named, so
+ * that a floor somebody typed out by hand is held to exactly what a rolled one
+ * is held to. That is the whole point of writing them down: the moment a room
+ * is authored, the check that its rocks are legal stops being "the roll would
+ * not have done that" and becomes something a build can run.
+ *
+ * Complaints rather than a boolean, because the two callers want different
+ * things from the same question. The roll wants "no" and another try; a check
+ * on an authored room wants to say which rock and which rule.
+ */
+export function terrainFaults(
+  room: RoomShape,
+  rock: Obstacle,
+  keepOff: readonly Vec2[],
+  others: readonly Obstacle[],
+): string[] {
+  const faults: string[] = []
+  const out = Math.hypot(rock.pos.x, rock.pos.y)
+  // Off the middle, and off the wall by a lane so nothing is ever pinned.
+  if (out - rock.radius < RAID_CLEAR) {
+    faults.push(`${(out - rock.radius).toFixed(0)} from the middle, wants ${RAID_CLEAR}`)
+  }
+  const gap = wallGap(room, rock.pos, rock.radius)
+  if (gap < LANE) faults.push(`${gap.toFixed(0)} from the wall, wants ${LANE}`)
+  // Off wherever the raid is standing when the pull starts.
+  for (const spot of keepOff) {
+    if (dist(rock.pos, spot) < rock.radius + LANE) {
+      faults.push(`on a starting spot at ${spot.x.toFixed(0)}, ${spot.y.toFixed(0)}`)
+      break
+    }
+  }
+  // And a lane between it and everything else: two rocks that touch make a
+  // concave shape, and concave shapes need path-finding.
+  for (const other of others) {
+    if (other === rock) continue
+    if (dist(rock.pos, other.pos) < other.radius + rock.radius + LANE) {
+      faults.push('within a lane of another rock')
+      break
+    }
+  }
+  return faults
+}
+
 export function raidTerrain(room: RoomShape, rng: Rng, keepOff: Vec2[]): Obstacle[] {
   const rocks: Obstacle[] = []
   if (rng.chance(0.34)) return rocks
 
   const wanted = 1 + rng.int(4)
-  const fits = (pos: Vec2, radius: number): boolean => {
-    const out = Math.hypot(pos.x, pos.y)
-    // Off the middle, and off the wall by a lane so nothing is ever pinned.
-    if (out - radius < RAID_CLEAR) return false
-    if (wallGap(room, pos, radius) < LANE) return false
-    // Off wherever the raid is standing when the pull starts.
-    for (const spot of keepOff) {
-      if (dist(pos, spot) < radius + LANE) return false
-    }
-    // And a lane between it and everything already placed: two rocks that
-    // touch make a concave shape, and concave shapes need path-finding.
-    for (const rock of rocks) {
-      if (dist(pos, rock.pos) < rock.radius + radius + LANE) return false
-    }
-    return true
-  }
+  const fits = (pos: Vec2, radius: number): boolean =>
+    terrainFaults(room, { pos, radius }, keepOff, rocks).length === 0
 
   // Tried rather than solved. Placement is cheap and a failed roll costs one
   // rock, which is a floor with three instead of four on it.
