@@ -614,23 +614,35 @@ const SPEC_RUNS = 20
 const SPEC_SIZE: RaidSize = 10
 if (want('spec')) {
   const roleOf = (p: Pick) => specOf(p).role
-  const ref: Record<string, Pick> = {
-    tank: SPEC_OPTIONS.find((p) => roleOf(p) === 'tank')!,
-    healer: SPEC_OPTIONS.find((p) => roleOf(p) === 'healer')!,
-    dps: SPEC_OPTIONS.find((p) => roleOf(p) === 'dps')!,
-  }
-  const TANKS = 2
-  const HEALERS = 2
-  const slotOf: Record<string, number> = { tank: 0, healer: TANKS, dps: TANKS + HEALERS }
-
-  const lineup = (test: Pick): Pick[] => {
-    const out: Pick[] = []
-    for (let i = 0; i < TANKS; i++) out.push(ref.tank!)
-    for (let i = 0; i < HEALERS; i++) out.push(ref.healer!)
-    while (out.length < SPEC_SIZE) out.push(ref.dps!)
-    out[slotOf[roleOf(test)]!] = test
-    return out
-  }
+  /**
+   * The raid the spec under test is dropped into, and the slot it lands in.
+   *
+   * A real composition rather than nine copies of one spec, and that is the
+   * whole of what this fixes. The old backdrop was two of the first tank, two
+   * of the first healer and six of the first damage spec -- which is a warrior
+   * tank, a paladin healer and six warrior damage: a ten-man with no ranged
+   * damage in it at all, built out of the weakest damage spec on the table.
+   *
+   * Measured, that raid wins the first boss and nothing else. Twenty pulls a
+   * boss at ten normal: 100%, 10%, 0%. The same size and difficulty with
+   * `autoParty`'s mix reads 100%, 100%, 100%, and pressing the raid's
+   * cooldowns moves the uniform one by four points -- so what the band was
+   * reading was the backdrop, not the spec. Thirteen of fourteen specs failed
+   * it at once, in a band of 33 to 47, which cannot mean thirteen specs are
+   * traps.
+   *
+   * It passed for years because there were eight bosses and five of them were
+   * invented and easy; the average carried it. Cutting the roster to three
+   * took the carry away. `rendercheck` already had the rule written down, in
+   * the note above the damage spread: a party built out of one spec "loses for
+   * reasons that are not the spec's".
+   *
+   * `autoParty` puts the spec under test at slot zero and fills the other nine
+   * by role, in a fixed order, so the backdrop is identical for every spec of
+   * a given role -- which is the property the old lineup was reaching for.
+   */
+  const SLOT = 0
+  const lineup = (test: Pick): Pick[] => autoParty(SPEC_SIZE, test)
 
   const measure = (test: Pick) => {
     const role = roleOf(test)
@@ -645,7 +657,7 @@ if (want('spec')) {
         const s = unattended(createState(seed, 6, lineup(test), 'normal', boss))
         s.countdown = 0
         const rng = new Rng(seed + 7919)
-        const me = s.actors.filter((a) => a.faction === 'party')[slotOf[role]!]!
+        const me = s.actors.filter((a) => a.faction === 'party')[SLOT]!
         let healed = 0
         let prevTaken = 0
         let prevHp = me.hp
