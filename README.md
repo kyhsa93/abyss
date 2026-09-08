@@ -387,9 +387,8 @@ const target = ability.kind === 'taunt' ? BOSS_ID : playerTarget(s)
 which is right for everything that hurts something and wrong for the one kind
 that does not. The heal was aimed at the boss, so the bolt flew there, the
 landing code healed whatever it arrived at, and the player was credited with
-the healing on their own meter. Measured at 473 health handed to the Drowned
-Warden per press of a discipline priest's filler, with the party getting
-nothing.
+the healing on their own meter. Measured at 473 health handed to the boss
+per press of a discipline priest's filler, with the party getting nothing.
 
 The autocast had already worked this out and had the right rule — the wrong
 one downstream simply overwrote its answer — and the action bar had the same
@@ -570,12 +569,6 @@ than banded now, and floored at one rather than two: three thralls against ten
 and five against twenty-five is not the same ask, and neither is two against
 five.
 
-**The shapes aimed at the arena grow.** Everything above is dropped *on
-people*; a cone and a ring are aimed at the floor, and a cone of a fixed angle
-catches roughly the same fraction of a raid whatever its size. That is not
-"slightly easier", because everything else about a bigger raid is slack — see
-[The Tidebreaker, and the size that was too safe](#the-tidebreaker-and-the-size-that-was-too-safe).
-
 **And the *number* of them scales**, which is the ladder below.
 
 Boss health is not linear with headcount either: larger groups lose
@@ -598,8 +591,8 @@ cannot do is ask for something the normal fight never asked for, and a rung
 can.
 
 **A short kit is paid back as tempo.** Two mechanics on the boss's own cadence
-is not an easier fight, it is a quieter one: measured, a five-man normal
-Warden went from winning a fifth of its first pulls to winning all of them,
+is not an easier fight, it is a quieter one: measured, a five-man normal pull
+went from winning a fifth of its first pulls to winning all of them,
 and the pulls were shorter and emptier rather than gentler. So the rungs a
 raid did not buy come back as speed — a kit of two runs at about five-eighths
 of the table's interval, and by the full five it is on the table's own
@@ -613,16 +606,17 @@ to be a cliff, not a slope. It holds until healing throughput is exceeded,
 then collapses. The rung is the lever that does not behave that way, because
 what it costs is attention rather than health.
 
-Measured against the Drowned Warden, a balanced roster at each size:
+Measured against the Last Whisper, a balanced roster at each size, forty pulls
+a cell:
 
 | | 1st pull | 9th pull | kit |
 | --- | --- | --- | --- |
-| 5-player normal | 29% | 79% | pools, the sweep |
-| 5-player heroic | 14% | 57% | + rot |
-| 10-player normal | 14% | 86% | pools, the sweep, rot |
-| 10-player heroic | 14% | 50% | + the armour break |
-| 25-player normal | 0% | 79% | pools, the sweep, rot, the armour break |
-| 25-player heroic | 0% | 50% | + the gathering |
+| 5-player normal | 98% | 98% | thralls, the volley, the rotting ground, the shard |
+| 5-player heroic | 63% | 60% | + the shade |
+| 10-player normal | 98% | 98% | thralls, the volley, the rotting ground, the shard, the shade |
+| 10-player heroic | 88% | 98% | + the slight, the empowered |
+| 25-player normal | 100% | 100% | thralls, the volley, the rotting ground, the shard, the shade, the slight, the empowered |
+| 25-player heroic | 5% | 38% | + the turned |
 
 **Heroic never wins more than normal at the same size, and wins clearly less
 by the ninth pull, in all nine boss-and-size cells.** That is the thing the
@@ -632,12 +626,12 @@ had health to spare. The harness prints the kit beside every row, so a
 difficulty that stopped costing anything would show up as two rows asking for
 the same list.
 
-Two cells sit at the edges and are left there. A heroic twenty-five man Choir
-is the hardest fight in the game and the harness has not won one: it is the
-only place the marks, the stalker, the floor and the chorus arrive together.
-And a heroic twenty-five man Tidebreaker is the other, for a related reason:
-it is the only place a raid meets a cone, a ring, a sweep, thralls *and* a
-stalker, on a boss whose shapes are already widened for the size.
+The cells that sit at the edges are the ones where a ladder is bought whole. A
+heroic twenty-five man is the only setting that reaches a boss's last rung, so
+it is the only place every demand a fight owns arrives at once — and the last
+rung is, by construction, the one the fight was least able to afford anywhere
+else. Those cells are meant to be the hardest thing in the game and they are
+left there.
 
 ## Today's run
 
@@ -708,218 +702,7 @@ best answer to a day rather than the last: a kill always beats a loss, a
 faster kill beats a slower one, and between two losses the one that left the
 boss lower.
 
-## The armour break, and the second tank
-
-Every mechanic in this game is answered by moving. Puddles say leave where you
-stand, the cone says get behind, the ring says come in, spread says separate.
-That is one verb, and a fight built entirely out of it asks the party exactly
-one kind of question.
-
-The armour break asks a different one: it stacks on whoever is holding the
-boss, takes twelve hundred armour off them a stack, and lasts sixteen seconds.
-Nothing about it is dodgeable. The answer is to decide who is standing there —
-the other tank takes it at three stacks and the first one's falls off while
-they hold — which is a decision about composition rather than about position,
-and the only one in the game so far.
-
-**A five-man never sees it.** A party of five fields one tank and one healer,
-so it cannot answer the question, and asking anyway measured as a straight tax
-on the size least able to pay it: five-man heroic fell from 12% to 5% over
-sixty pulls a cell. So the mechanic is what the second tank is *for*, and the
-fight does not have it without one — asserted in the checks, not left to the
-table. The five-man rows in the harness are unchanged to the point.
-
-It also had to be armour rather than a damage multiplier, which is what it was
-first written as. The two are not the same mechanic under different names: a
-multiplier compounds with everything else already scaling — heroic's damage,
-the enrage — and it did, taking ten-man heroic from 17% to 3% while normal
-barely moved. Run through the same curve plate and cloth already sit on, it
-bites hardest on the target that had the most armour to lose, cannot take more
-than there was, and lands near half again rather than near double.
-
-One AI rule had to be measured the same way. The first version let any tank
-spend its wall on a heavy stack, which meant the wall was on cooldown when the
-slam landed — the swap already answers the stack, and the wall is the answer
-to the slam. Tanks with a partner now trade instead.
-
-## The circle, and where a mechanic can afford to live
-
-Spread says separate. The circle says the opposite: everyone stands in one
-place at one moment, what lands is divided by however many did, and then it is
-dealt to *everybody* — so staying out is not an escape, it is a cost passed to
-the people who went. It is the only thing here the party answers together.
-
-Three things had to be measured rather than assumed.
-
-**The damage had to be per head, not a flat pool.** A pool divided by the
-soakers keeps its size as people die, so a party down to two takes half of it
-each, which kills them, which makes it worse for whoever is left. Measured, a
-late circle in a five-man was dealing 2,922 to people with 2,900 health. The
-share is taken against the living headcount instead: everybody in is the same
-number whatever the size of the raid, half in is double, and the multiplier
-stops at four so a circle nobody reached is a disaster rather than an
-extinction.
-
-**Two mechanics that cancel are not a hard fight.** Puddles are dropped on
-people, so a party gathered into a circle got the whole set inside it and was
-then told to leave; a spread detonates on its carrier and catches everyone
-within 110 units, which is every one of a party standing in a circle of 135.
-Both are held while the circle is out — the spread for three seconds past it,
-long enough to walk out of each other's radius, the floor for barely half a
-second, because holding the whole floor for eight seconds of every twenty-four
-turned out to be a bigger gift than the mechanic was a cost. That one was
-worth 37 points of first-pull win rate on its own.
-
-The rule needed its other half, which was missing for as long as nothing
-happened to expose it. The floor held itself back while a circle was live, and
-nothing held the circle back while the floor was still *in the air*: a pool
-with a second left on its telegraph goes off and then lingers for five and a
-half, which is most of the walk into a circle the party has just been told to
-stand in. The check that guards this counted zero for months and then
-forty-two the first time the timings moved underneath it — it had been passing
-on luck. The circle now waits for a clear floor as well as a clear spread, and
-only for the telegraph: waiting out every pool's residue would be waiting out
-the fight.
-
-**And its real price is not damage.** With the damage turned down to nothing
-the Warden still lost thirty points of win rate: this party heals by standing
-still and casting, so a mechanic that moves all five of them at once takes the
-healer's output away in the same seconds it takes health off everybody. Moving
-the circle from 250 units away to just outside the party helped; it did not
-fix it. At a cost small enough for the ladder to absorb, the mechanic was not
-worth having.
-
-So it goes where its cost is the intention, which on a ladder means the very
-top of one. It is **the Warden's last rung and nothing else's**: reached only by a
-twenty-five man on heroic, which is both the raid with the bodies to pay for
-it and the one that ticked the box asking to. Every smaller raid, and every
-other boss, meets the same fight without it. A mechanic that costs thirty
-points of win rate is not a bad mechanic, it is a mechanic that needs
-somewhere to be the last thing asked rather than one of the first.
-
-It is also the one mechanic here that is *not* multiplied by the boss it is
-attached to. Everything else on the floor runs through the encounter's own
-multiplier, which is half again as heavy on the Tidebreaker as on the
-Warden — and the gathering asks the same question on both, "is everybody
-standing here", so the tax attached to it is the same on both.
-
-## The thing that follows one of you
-
-The only mechanic here aimed at a single person, and the only one with two
-answers at the same time. Something walks out of the dark, picks a damage
-dealer, and goes after them and nobody else — slower than they are, so it is
-always kiteable, but heavy enough on contact that being caught is a real
-mistake. The one it picked has to keep moving, which costs them every cast
-they would have made standing still; everyone else has to decide whether to
-break off and kill it or leave them to it.
-
-Never a tank, and never a healer. A tank that runs takes the boss with it. A
-healer that runs stops healing, and in this party that is the whole fight:
-hunting the healer one pull in four raised deaths in *every* role, including
-the tank, who is never picked at all.
-
-Finding out what it costs was the most useful measurement of the round. A
-stalker with its damage turned down to
-**one point of damage** and less health than an ordinary thrall still took the
-Warden from 65% to 8%. Nothing it does is dangerous; what it costs is 16% of
-the party's damage output, because three dealers break off to kill it and the
-one it picked walks instead of casting. Sixteen percent is most of the margin
-a tuned fight has.
-
-That is the finding, and it is not a fact about stalkers. **This ladder is
-balanced on a party that stands still and casts, so movement and
-target-switching are the expensive currency here — not damage.** The armour
-break was affordable on the ladder because it moves nobody. The circle and the
-stalker both cost a third of a fight's margin, so neither can sit anywhere but
-the last rung of a ladder, where being the hardest thing asked is the point.
-All three tuned encounters still sit on the exact numbers they
-were tuned to: 18/55/65, 43/65/68, 8/13/15.
-
-One AI weighting had to be measured too. The first version scored a chaser as
-worse than fire, so the one being hunted would stand in a puddle to put eight
-paces between itself and something walking. Its deaths were the mechanic's
-real damage, not anything it landed.
-
-## The Tidebreaker, and the size that was too safe
-
-The ladders left one row of the table reading a hundred percent: a ten-man on
-normal against the third boss, every pull won, and a twenty-five man alongside
-it at ninety-three. Nothing about the boss moved it. Its health, its weapon,
-its unavoidable damage and its floor multiplier were each tried and each moved
-all three sizes together — a number that makes a ten-man sweat makes a
-five-man unwinnable, and the five-man was already at fifty-five.
-
-What the harness said, once it was asked the right question, was that the
-ten-man was not surviving by dodging. It ate **sixty-three mechanic hits a
-pull, lost one body out of ten, and finished with the healers on eleven
-percent of their mana.** The five-man ate four. So the mechanics were landing;
-the raid was simply healing through them, and it could do that because of two
-things that have nothing to do with the boss.
-
-**A ten-man is the safe size, by construction.** It fields the same one healer
-per five bodies a five-man does, and *two tanks* — and the boss's weapon and
-its slam are one target's worth of damage whoever is holding it. So it covers
-the same raid damage with the same healing and half the tank load. A
-twenty-five man does not get that: three healers to twenty-five bodies is
-thinner than one to five.
-
-**And the Tidebreaker is the only boss made entirely of shapes aimed at the
-arena.** Everything else in the vocabulary is dropped *on people* and already
-scales with the roster — pools per cast, marks, thrall waves — because a fixed
-number of them across twenty-five means nobody is ever the target. A cone of a
-fixed angle catches about the same fraction of a raid whatever its size, and a
-ring sweeps everyone regardless. The one boss built out of those was the one
-boss that got easier the more people turned up.
-
-So the cone and the ring widen with the roster, by a table per shape and per
-size. Four things it took to get right:
-
-**The widest correction goes to the ten-man, not the twenty-five.** The table
-is aimed at how safe a size is, not at how many people it has.
-
-**The cone has a cliff and the ring does not.** Past about 0.85 radians the
-cone stops being a cone: twenty-five bodies do not spread far enough to get
-out of one, so it becomes a raid-wide hit for two thousand every eight
-seconds. The twenty-five man went from winning every pull at 0.83 to winning
-one in twenty-five at 0.86. A number sitting on that edge is a number the next
-change to the AI would flip, so the twenty-five's correction is carried by its
-ring instead — which is answered by running *in*, and a wider band only makes
-the pocket smaller.
-
-**Banded, not interpolated**, for the same reason `sizeHealth` is: the sizes
-are three fixed rosters, not a slider. A straight line through them read as
-nothing at ten — an eighth wider against twice the raid.
-
-**Not the sweep.** It already scales, and by a better rule: it catches whoever
-is in reach, who is the melee, and a bigger raid brings more of them.
-Multiplying its range as well took it past the arena's own radius, which is
-not a wider sweep, it is a sweep with no outside.
-
-| Tidebreaker, normal | before | after |
-| --- | --- | --- |
-| 5-player | 57% / 86% | 86% / 100% |
-| 10-player | 100% / 100% | 29% / 93% |
-| 25-player | 93% / 100% | 7% / 36% |
-
-The first and ninth pull of each. The order it leaves is the one the size was
-always supposed to have — a bigger raid is a harder fight, not a safer one.
-
-One cell is left at zero and named rather than tuned away: a heroic
-twenty-five man Tidebreaker is the only place a raid meets the cone, the ring,
-the sweep, thralls and a stalker at once, on shapes already widened for the
-size.
-
-**And one real bug came out of writing it.** The size tables were first
-written as `{ 5: SHOCKWAVE_BAND, 10: 96, 25: 104 }`, above the line that
-declares `SHOCKWAVE_BAND`. A five-man's ring got a band of `undefined` and its
-cone an angle of `undefined` — and an `undefined` half-width fails every
-comparison it is in, so the cone silently stopped hitting anybody at one size
-only. Nothing threw. It read as a tuning result for two rounds. The check now
-plays a pull at each size and asserts both shapes have a real width, that
-neither has grown past having an outside, and that both are wider than a
-five-man's.
-
-### The backdrop, and a check that was passing on luck
+## The backdrop, and a check that was passing on luck
 
 The menu backdrop is a real pull, stepped at the same rate as a played one
 with the player's slot handed to the AI, and there is a check that says it
@@ -1399,8 +1182,8 @@ else, and it lands at 128, seventh of ten. Nothing else about it moved.
 
 What it does with the fights is the part worth having. The rotation stops
 tapping below half a bar, so the boss decides how much of the class you get to
-play: the same warlock taps fourteen times on the Warden and seven on the
-Unblinking Watch, because one of them keeps hitting it. A spec whose output is
+play: the same warlock taps twice as often on one boss as on another, because
+one of them keeps hitting it. A spec whose output is
 throttled by the fight rather than by its own cooldowns is the one thing none
 of the other nine do.
 
@@ -1803,32 +1586,29 @@ were hard-coded in the cast bar for all three, the two shared telegraphs said
 `Sweeping` and `Rotting — need a heal` whoever was fighting, and the boss was
 one colour. A fight that asks for something different has to say something
 different, so the names and the colour moved into the table with the numbers:
-the Choir's `DISCORDANT CHORD`, the Tidebreaker's `SHATTERING BLOW` and
-`RIPTIDE BREATH`, a line each for the sweep and the rot, and an accent apiece.
+the Bonegrinder's `SABER LASH`, the Whisper's `A WORD OF ENDING` and
+`WINTER SHARD`, the Host's `GORGE` and `BAD AIR`, a line for every mechanic a
+boss owns, and an accent apiece.
 
 They also had to *land* like different things, and until now they did not
 land like anything. Every damaging ability the party owns has drawn its own
 hit since there were hit styles at all — an arc for a blade, a streak for an
 arrow, something that sinks in for poison. The boss's arsenal pushed no effect
-of any kind: the slam, the cone, the ring, the floor going off and the
-party-wide hit all arrived as a number over somebody's head and a shape on the
-floor changing state, and the only thing a boss did that made a picture was
-its sweep.
+of any kind: the slam, the floor going off and the party-wide hit all arrived
+as a number over somebody's head and a shape on the floor changing state, and
+nothing a boss did made a picture of its own.
 
 So each mechanic got a look, taken from what it already is on the floor: the
-slam crushes in orange, the cone streaks through you in the cone's own blue,
-the ring runs you down in amber and along the line it caught you on, the floor
-sinks in in magenta and throws a ring the size it went off at, the sweep is
-steel because it is the one thing armour answers, the party-wide hit bursts on
-all of you at once, and a phase break throws a ring off the boss. The casts
-gather a ring on the wind-up like every other caster in the game — the boss
-was setting its cast bar by hand and never got one.
+slam crushes in orange, the cold line lights outward one patch at a time, the
+floor sinks in and throws a ring the size it went off at, the party-wide hit
+bursts on all of you at once, and a phase break throws a ring off the boss.
+The casts gather a ring on the wind-up like every other caster in the game —
+the boss was setting its cast bar by hand and never got one.
 
-The floor got the same treatment: the puddle has a core that breathes, the
-ring drags three fading rings of wake behind its edge so it reads as
-travelling rather than being redrawn bigger, and the cone runs arcs out along
-itself while it is actually firing, which is the one thing its shape never
-said.
+Most of that table has since been retired with the fights that sold it; the
+rule it was written to establish is the one that outlived it. A mechanic with
+no picture of its own is a mechanic a player reads off a health bar, and every
+mechanic added since has arrived with one.
 
 None of it touches the fight. Effects live in the renderer for the same reason
 sound does — a pull replays exactly from its seed, and particles that aged
@@ -1856,7 +1636,7 @@ Three of them, fought in order — and each of them six times over, which is
 [the chain](#the-chain) below. A kill puts a button on the results screen to
 the left of PULL AGAIN, and taking it moves you on with the pull count back at
 zero: the party's learning is learning *this* fight, and a group that killed
-the Warden nine times at five has not seen the rot the heroic rung buys.
+a boss nine times at five has not seen the rung a heroic ten buys.
 
 Killing something is what opens the next thing, not pressing the button:
 leaving through CHANGE PARTY after a kill keeps the progress. Where you are
@@ -1870,8 +1650,7 @@ worth knowing.
 The raid used to be three locked doors and nothing else. A boss opened when
 the one before it died, and the size and the difficulty were free from the
 first pull — so the first thing a new player could do was walk a heroic
-twenty-five man into the Drowned Warden and meet all five of its rungs at
-once. The ladders made that worse rather than better: their whole point is
+twenty-five man into the first boss and meet its whole ladder at once. The ladders made that worse rather than better: their whole point is
 that a size and a difficulty each buy a mechanic, and a game that hands you
 the top of a ladder is a game with no rungs.
 
@@ -1879,8 +1658,8 @@ So there is one chain, and it runs *through* the settings rather than past
 them. Six rungs a boss, in the order the fight gets harder, and the last of
 one boss opens the first of the next:
 
-> Warden 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal → 25 heroic →
-> Choir 5 normal → … → Tidebreaker 25 heroic
+> Bonegrinder 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal →
+> 25 heroic → Whisper 5 normal → … → Reeking Host 25 heroic
 
 Eighteen kills to open the game. **Clearing a rung opens the one after it, and
 nothing else does** — not reaching it, not clearing something harder somewhere
@@ -1903,9 +1682,9 @@ Three places can hand the setup screen a setting it has not earned: a save
 written before the chain existed, a shared link to somebody else's fight, and
 pressing a boss whose top rungs are still locked. All three settle the same
 way — down to the best rung *of the boss that was asked for*, never sideways
-onto a different one. A player who pressed the Choir and got moved to the
-Warden because their difficulty was locked would be reading a stranger answer
-than a player who got moved to normal.
+onto a different one. A player who pressed the second boss and got moved to
+the first because their difficulty was locked would be reading a stranger
+answer than a player who got moved to normal.
 
 A save from before the chain held a boss index, since a boss was the only
 thing that was ever locked. It is read as the *first* rung of that boss: the
@@ -1922,74 +1701,77 @@ different fight for everybody.
 
 ### The ladders
 
-For a long time the three tables differed and the first one owned nearly
-everything: the Warden threw pools, marks, the cone, the ring, thralls, the
-sweep, the rot and the armour break, and the other two were the Warden with
-things taken away. Three fights that opened on the same two mechanics and only
-diverged once the party was already dead — which is not three fights, it is
-one fight with two shorter versions of itself. The check that said they
-differed passed the whole time, because it compared the full tables rather
-than what any raid actually meets.
+For a long time the tables differed and the first boss owned nearly everything,
+so the others were that boss with things taken away. Three fights that opened
+on the same two mechanics and only diverged once the party was already dead is
+not three fights, it is one fight with two shorter versions of itself. The
+check that said they differed passed the whole time, because it compared the
+full tables rather than what any raid actually meets.
 
-So each boss now owns a **ladder**: the mechanics it asks for, in the order it
+So each boss owns a **ladder**: the mechanics it asks for, in the order it
 starts asking. How far up tonight's raid climbs is `kitCount`, and it moves on
-the two axes the setup screen already had — a five-man on normal gets two
-rungs, and every step up the size or across to heroic buys one more.
+the two axes the setup screen already had — every step up the size or across to
+heroic buys another rung. A ladder is also a price list, read top to bottom in
+the order the fight gets harder.
 
-| | normal | heroic |
-| --- | --- | --- |
-| 5 | 2 | 3 |
-| 10 | 3 | 4 |
-| 25 | 4 | 5 |
-
-| Rung | The Drowned Warden | The Choir Beneath | The Tidebreaker |
+| Rung | The Bonegrinder | The Last Whisper | The Reeking Host |
 | --- | --- | --- | --- |
-| 1 | pools | marks | the cone |
-| 2 | the sweep | rot | the ring |
-| 3 | rot | the stalker | the sweep |
-| 4 | the armour break | pools | thralls |
-| 5 | the gathering | thralls | the stalker |
+| carried | — | thralls | — |
+| 1 | the cold line | the volley | the blight |
+| 2 | the spikes | the rotting ground | the swelling |
+| 3 | the storm | the shard | the reek |
+| 4 | — | the shade | the spore |
+| 5 | — | the slight | the breath in |
+| 6 | — | the empowered | the breath out |
+| 7 | — | the turned | — |
 
-The order is the design, not the contents. **The first two rungs are disjoint
-across all three**, so the fight everybody sees — a five-man on normal, and
-the first forty percent of any pull that goes wrong — is a different fight per
-boss: the floor and a wide swing, marks and something walking after you, a
-cone and a ring. The sets only begin to rhyme at the sizes where a raid has
-the bodies to notice, and **no boss's kit is ever a subset of another's** at
-any rung. Both of those are asserted rather than eyeballed, along with the
-containment down each column: heroic asks for everything normal did and one
-thing more, and so does each size against the one below it.
+The order is the design, not the contents. The first rungs are disjoint across
+all three, so the fight everybody sees — the smallest raid, and the first
+stretch of any pull that goes wrong — is a different fight per boss: a line
+walking outward, a shard aimed at whoever is holding it, and a room that has
+gone bad. **No boss's kit is ever a subset of another's** at any rung, and the
+containment down each column holds: heroic asks for everything normal did and
+one thing more, and so does each size against the one below it. Both are
+asserted rather than eyeballed.
 
-Two constraints shaped where things sit. The armour break is answered by
-swapping tanks and a five-man fields one, so no ladder sells it before the
-rung a five-man cannot reach. The gathering costs about thirty points of win
-rate wherever it is put, so it is the Warden's last word and belongs to a
-heroic twenty-five and to nothing else.
+Two of the three ladders are longer than any raid climbs, which is the point of
+a ladder rather than a list. The Whisper sells seven and a heroic twenty-five
+reaches all of them; a five-man on normal meets three and never learns what the
+fight is called after that.
+
+The Bonegrinder is the exception and it is deliberate: three rungs, and every
+size and difficulty buys all three. It is the first fight, and a first fight
+that shows a five-man two thirds of itself is a first fight that teaches two
+thirds of what the game is. What size and difficulty change there is how hard
+it hits and how often, which is the other half of the pair and the half a
+player meets before they have a vocabulary to meet the first with.
+
+The wave is *carried* rather than sold, which is the one entry above that is
+not a rung. It is not one of the Whisper's ideas; it is the thing one of its
+ideas is about, since the empowered body is a fact about a summon that was
+already coming. Every setting gets a wave and what the ladder sells is the one
+that comes back wrong.
 
 | Boss | Asks for | Leans on |
 | --- | --- | --- |
-| The Drowned Warden | the floor, and whoever is standing on it | pools, the sweep, the armour break — nobody has to go far |
-| The Choir Beneath | stay apart, and out-heal the singing | marks, rot, one thing walking after you |
-| The Tidebreaker | come in, get behind, change target | the cone, the ring, thralls |
+| The Bonegrinder | get off the line, break the bone, and run when it lets go | a line that walks outward, bodies pinned where they stand, and a boss that lets go of everything |
+| The Last Whisper | cut the shard, swap the hold, and hold off your own | a cast to interrupt, a stacking hold on the tank, and one of your own turned against you |
+| The Reeking Host | share the air, and know who is holding it | a room that is a bill nobody can dodge, a count on whoever is tanking, and a breath given back all at once |
 
 They are one script and three tables (`src/sim/encounters.ts`). A second boss
-written as a second timeline would be a second copy of what a shockwave does,
-and that rule — the ring outruns you, so the answer is to already be inside —
-took three attempts to get right. It is not being written twice.
+written as a second timeline would be a second copy of what each mechanic does,
+and those rules took several attempts each to get right. They are not being
+written twice.
 
 What separates them is which mechanics they lean on, in what order, and how
-hard the floor hits. The Warden is the ground fight: nothing to get behind and
-nothing to run into, a floor that goes unusable and a wide swing for whoever
-is still in reach, and at the sizes that field a second tank it starts asking
-who that is. The Choir has no cone, no ring and nothing on the floor until its
-fourth rung: everything it does lands on one person at a time while the
-unavoidable damage never stops, so it ends on healer mana. The Tidebreaker is
-the opposite of both — almost nothing to stand in, and almost no time standing
-anywhere, with a ring to run into, a cone to get behind and something new to
-hit every time you have settled on a target. Its floor hits half again as hard
-as the Warden's, because a mechanic you have room to dodge has to be worth
-dodging — and its two shapes are the ones that widen with the roster, which is
-its own section below.
+hard the floor hits. The Bonegrinder is the movement fight: a line to step off,
+a body to go and free, and a stretch where the thing you are hitting stops
+being tankable at all. The Whisper is the target fight — a cast that has to be
+cut, a hold that has to be swapped, a wave with one body in it worth killing
+first, and at the top one of your own that must not be killed at all. The Host
+is neither: almost nothing to dodge and almost nothing to re-aim at, just a
+room that costs everybody something every second and a count on the one body
+holding it.
 
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |
@@ -2004,28 +1786,35 @@ hit would be a tax on exactly the people whose armour was supposed to be the
 reward — and the rot is the counterweight, so no stat block is the whole answer
 to a fight.
 
-| Mechanic | What it asks of you | Warden | Choir | Tidebreaker |
+| Mechanic | What it asks of you | Bonegrinder | Whisper | Host |
 | --- | --- | --- | --- | --- |
 | Slam | Tank cooldown, or the tank takes a large hit | always | always | always |
 | Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always |
 | The boss itself | Faster than the whole party; you cannot outrun it | always | always | always |
-| Pools | Move out fast; the warning is short and they linger | rung 1 | rung 4 | |
-| Sweep | Get out of reach, or wear something | rung 2 | | rung 3 |
-| Rot | Nothing — it is the healer's to answer | rung 3 | rung 2 | |
-| The armour break | Trade the boss, or survive the top of the stack | rung 4 | | |
-| The gathering | Everyone in one circle, and it is divided by who came | rung 5 | | |
-| Marks | The target walks away from everyone else | | rung 1 | |
-| The stalker | One dealer kites; the rest decide whether to chase | | rung 3 | rung 5 |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch | | rung 5 | rung 4 |
-| The cone | A frontal cone — get out of the front, or behind it | | | rung 1 |
-| The ring | It outruns you, so the answer is **in**, not out | | | rung 2 |
-| Enrage | A hard damage check | 240s | 230s | 250s |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | |
+| The cold line | It walks outward from the boss — step off it | rung 1 | | |
+| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | |
+| The storm | It lets go of the tank and comes for the room | rung 3 | | |
+| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | |
+| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | |
+| The shard | A cast at whoever is holding it — cut it | | rung 3 | |
+| The shade | It follows the one it picked; keep walking | | rung 4 | |
+| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | |
+| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | |
+| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | |
+| The blight | The room itself, billing everybody every few seconds | | | rung 1 |
+| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 |
+| The reek | A mark that spreads to whoever is standing near it | | | rung 3 |
+| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 |
+| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 |
+| The breath out | Everything it drank, returned to everybody at once | | | rung 6 |
+| Enrage | A hard damage check | 240s | 240s | 240s |
 
 A cadence of zero disables a mechanic, and that is also how a rung the raid
 did not buy is switched off: one rule for a mechanic being absent rather than
 two. Zero is where it went wrong first, too — the schedulers counted down from
-it and fired every tick instead of never, so the Tidebreaker marked the whole
-raid for spread thirty times a second. Every scheduler checks its own cadence
+it and fired every tick instead of never, so a boss marked the whole raid
+thirty times a second. Every scheduler checks its own cadence
 now, and the render check plays each boss through to the end and asserts that
 what reached the floor is exactly tonight's kit: everything on it seen, and
 nothing off it, including the rungs the boss owns and this raid did not
@@ -2206,19 +1995,29 @@ be measured rather than assumed to be in range:
 
 | Boss | 1st pull | 5th | 9th | avg time | lost to enrage |
 | --- | --- | --- | --- | --- | --- |
-| The Drowned Warden | 33% | 50% | 73% | 126s | 0% |
-| The Choir Beneath | 28% | 50% | 68% | 118s | 0% |
-| The Tidebreaker | 13% | 43% | 68% | 203s | 22% |
+| The Bonegrinder | 100% | 98% | 100% | 134s | 0% |
+| The Last Whisper | 3% | 5% | 0% | 155s | 0% |
+| The Reeking Host | 0% | 0% | 0% | 130s | 0% |
 
-The order is the point: a first pull gets harder down the list while a ninth
-stays winnable, so each boss is a wall you learn rather than one you cannot
-pass. The Tidebreaker is the only one that loses pulls to the enrage, which is
-what the fight is — it has the most to dodge, and time spent dodging is damage
-not dealt.
+What this table is meant to show is a first pull getting harder down the list
+while a ninth stays winnable, so each boss is a wall you learn rather than one
+you cannot pass. It does not show that today, and the honest thing is to say so
+rather than to print a number and a sentence that disagree.
+
+This is one fixed party at one size. The per-cell table — three sizes by two
+difficulties, which is where a fight is actually judged — reads 100/100 across
+the Bonegrinder, 98 down to 60 across the Whisper's six, and 98 down to 60
+across the Host's. What this row is catching is the one composition it uses
+against the two fights that ask for a target call and a second tank, neither of
+which a fixed party makes well.
+
+It is also being read against rooms that are still being written. The bands
+that would normally hold this line are switched off by name until the twelve
+rooms are in; see `SUSPENDED` in `scripts/balancecheck.ts`.
 
 Tuning them showed the same cliff the difficulties did. Six thousand health on
-the Choir, about a tenth, moved its first pull from 43% to 5%: it is a fight
-that ends on healer mana, and mana either lasts to the kill or it does not.
+a fight that ends on healer mana, about a tenth of its bar, moved its first
+pull from 43% to 5%: mana either lasts to the kill or it does not.
 
 Per-member detail for the default composition, `puddle uptime / units walked
 per second`:
@@ -2308,9 +2107,9 @@ rungs, one owner each — so every size and difficulty meets the same interlude.
 That is right for a beat whose job is to change the shape of a fight rather
 than its difficulty.
 
-The Watcher has none. Two of its own rungs already put things on the floor to
-kill and a third puts one there that must not be, so the beat an interlude adds
-is the beat that fight already is.
+The Whisper has none. Its wave is carried at every setting and one of its
+rungs puts a body on the floor that must not be killed, so the beat an
+interlude adds is the beat that fight already is.
 
 ## The floor is a plane
 
