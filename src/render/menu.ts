@@ -1,6 +1,14 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
-import { CHAMBERS, CITADEL_PLAN, PASSAGES, chamberAt, passageKey, passageOpen } from '../dungeon'
+import {
+  CHAMBERS,
+  CITADEL_PLAN,
+  PASSAGES,
+  chamberAt,
+  passageKey,
+  passageOpen,
+  roomOf,
+} from '../dungeon'
 import { isCleared, isWalked, open, stepTo, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS } from '../sim/encounters'
@@ -9,6 +17,7 @@ import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
 import { COLORS, L, ZOOM_NAMES, MENU_TEXT, fitText, groupSize } from './theme'
+import { roomArea } from '../sim/room'
 import { drawBackdrop } from './ambience'
 
 /**
@@ -974,7 +983,9 @@ export function citadelLayout(
     return true
   }
   const wMax = Math.min(150, span)
-  const hMax = Math.min(32, vspan)
+  // Taller than a line of text, because a room is drawn in here now and not
+  // just named: the shape takes the top of the box and the name the bottom.
+  const hMax = Math.min(72, vspan)
   let lo = 0
   let hi = 1
   for (let i = 0; i < 24; i++) {
@@ -1082,20 +1093,34 @@ export function drawCitadel(
         : `${rung} — ${down} down, ${run.entered} rooms entered`,
   )
 
-  // The doors first, under the rooms, because that is what they are: a line
-  // between two boxes says the citadel is a building rather than a list, and a
-  // line that is not there says why you cannot go that way.
+  // The passages first, under the rooms: a corridor is ground the party walks
+  // and a hairline between two boxes is a wiring diagram, so they are drawn
+  // with a width. Dim and dashed for a door that has not opened, red for one
+  // with somebody still standing on the ground behind it.
   const cleared = new Set(run.cleared)
   const at = (id: string) => {
     const row = layout.rows.find((r) => r.id === id)
     return row ? { x: row.rect.x + row.rect.w / 2, y: row.rect.y + row.rect.h / 2 } : null
   }
+  const lane = Math.max(3, Math.min(9, layout.rows[0]!.rect.h * 0.22))
   for (const passage of PASSAGES) {
     const a = at(passage.from)
     const b = at(passage.to)
     if (!a || !b) continue
     const shut = !passageOpen(passage.gate, cleared)
     const held = passage.corridor !== undefined && !isWalked(run, passageKey(passage.from, passage.to))
+    ctx.save()
+    ctx.lineCap = 'round'
+    if (!shut) {
+      // The floor of it first, so it reads as somewhere with a width rather
+      // than as a join between two things.
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.strokeStyle = 'rgba(30, 33, 42, 0.95)'
+      ctx.lineWidth = lane
+      ctx.stroke()
+    }
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(b.x, b.y)
@@ -1104,47 +1129,76 @@ export function drawCitadel(
     ctx.setLineDash(shut ? [3, 5] : held ? [6, 4] : [])
     ctx.stroke()
     ctx.setLineDash([])
+    ctx.restore()
   }
 
+  // And the rooms as rooms.
+  //
+  // Every one of them used to be the same button, which is why this screen
+  // read as a list with lines drawn on it: a citadel where the oratory, the
+  // crossing and the bridge to the lair are one rectangle each is a citadel
+  // with no architecture in it. A room is drawn at its own shape and its own
+  // size — a disc for a disc, a rectangle at the hall's proportions, the big
+  // ones bigger — inside the box the layout solved for, never over it, so the
+  // spacing still holds whatever the shapes turn out to be.
+  const biggest = Math.max(...CITADEL_PLAN.map((entry) => roomArea(roomOf(entry.id))))
   for (const row of layout.rows) {
     const chamber = chamberAt(row.id)
     if (!chamber) continue
+    const room = roomOf(row.id)
     const colour =
       row.state === 'here'
         ? COLORS.player
         : row.state === 'cleared'
           ? COLORS.textDim
-          : row.state === 'open'
+          : row.state === 'open' || row.state === 'through'
             ? COLORS.text
             : COLORS.dead
-    // What is there and how far off it is, said in the row. Not what a press
-    // would do: on this screen a press does nothing unless there is a pad
-    // under it, and the row says which those are.
-    const step = row.id === run.at ? null : stepTo(run, row.id)
-    const detail =
-      row.state === 'here'
-        ? 'you are here'
-        : row.state === 'cleared'
-          ? 'down'
-          : row.state === 'waiting'
-            ? (chamber.awaiting ?? 'nothing here yet')
-            : row.state === 'shut'
-              ? 'shut'
-              : step?.kind === 'jump'
-                ? 'a pad — press to go'
-                : step?.kind === 'walk'
-                  ? `one door away — ${step.corridor.packs.length} packs on the ground`
-                  : step?.kind === 'step'
-                    ? 'one door away'
-                    : row.state === 'through'
-                      ? 'a way through'
-                      : 'further on'
+
+    const nameH = Math.max(9, row.rect.h * 0.26)
+    const boxW = row.rect.w * 0.92
+    const boxH = row.rect.h - nameH
+    const wide = room.kind === 'hall' ? room.halfWidth * 2 : room.radius * 2
+    const deep = room.kind === 'hall' ? room.front + room.back : room.radius * 2
+    // Bigger rooms draw bigger, but only within their own box: the smallest
+    // still has to be a room rather than a dot.
+    const share = 0.68 + 0.32 * Math.sqrt(roomArea(room) / biggest)
+    const fit = Math.min(boxW / wide, boxH / deep) * share
+    const w = Math.max(6, wide * fit)
+    const h = Math.max(6, deep * fit)
+    const cx = row.rect.x + row.rect.w / 2
+    const cy = row.rect.y + boxH / 2
+
+    ctx.save()
+    ctx.fillStyle = row.state === 'here' ? 'rgba(250, 204, 21, 0.14)' : COLORS.panel
+    ctx.strokeStyle = colour
+    ctx.lineWidth = row.state === 'here' ? 2 : 1
+    ctx.beginPath()
+    if (room.kind === 'hall') ctx.rect(cx - w / 2, cy - h / 2, w, h)
+    else ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    // A platform has no wall, which is the one thing about a room worth
+    // knowing before walking into it.
+    if (room.kind === 'platform' && w > 12) {
+      ctx.globalAlpha = 0.5
+      ctx.setLineDash([3, 3])
+      ctx.beginPath()
+      ctx.ellipse(cx, cy, w / 2 - 2, h / 2 - 2, 0, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.globalAlpha = 1
+    }
+    ctx.restore()
+
     // Without the article, which every room has and none of them is told
-    // apart by: the boxes are placed off the building's own plan now, so they
-    // are as wide as the closest pair of rooms allows and four characters is
-    // a quarter of that.
-    const name = chamber.name.replace(/^The /, '')
-    button(ctx, row.rect, name, detail, colour, row.state === 'here' || row.enterable)
+    // apart by.
+    ctx.save()
+    ctx.textAlign = 'center'
+    ctx.fillStyle = colour
+    ctx.font = font(9, row.state === 'here')
+    fitText(ctx, chamber.name.replace(/^The /, ''), cx, row.rect.y + row.rect.h - 2, row.rect.w)
+    ctx.restore()
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
