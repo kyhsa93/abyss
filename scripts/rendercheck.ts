@@ -8990,6 +8990,46 @@ for (const [label, w, h] of [
   }
 }
 
+// --- a wave that has to walk -----------------------------------------------
+//
+// On the one fight where how long that takes is the mechanic. A beast's hits
+// are what fills the gorged one's gauge, so the distance between the door it
+// came out of and the body it picked is the raid's whole window to stop it --
+// and a wave that arrived already standing on somebody would be a window of
+// nothing, which is the same mechanic with its answer removed.
+//
+// Written against the fight's own doors rather than a fixture's, because the
+// thing being checked is exactly that those doors are far enough from where a
+// raid stands.
+{
+  const gorged = ENCOUNTERS.findIndex((e) => e.id === 'gorged')
+  expect('the fight whose clock is a walk is on the roster', gorged >= 0, `${gorged}`)
+  const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', gorged)
+  const rng = new Rng(0x51ed)
+  const known = new Set(s.actors.map((a) => a.id))
+  let waves = 0
+  let closest = Infinity
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+    step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+    for (const a of s.actors) {
+      if (known.has(a.id)) continue
+      known.add(a.id)
+      if (a.faction !== 'boss' || a.spawn !== 'beast') continue
+      waves++
+      for (const p of s.actors) {
+        if (p.faction !== 'party' || !p.alive) continue
+        closest = Math.min(closest, dist(a.pos, p.pos))
+      }
+    }
+  }
+  expect(`${waves} beast(s) walked in`, waves > 0, 'none arrived')
+  expect(
+    'and every one of them arrived with ground to cross',
+    closest > MELEE_RANGE * 3,
+    `one arrived ${closest.toFixed(0)} from somebody`,
+  )
+}
+
 // --- a room with nothing under its edge -------------------------------------
 //
 // Three of the twelve rooms have an outside, and until now the edge of the

@@ -287,6 +287,7 @@ export function drawWorld(
     s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss,
     s.seed,
     s.encounter,
+    s.mode === 'raid' ? s.gauge : 0,
   )
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
@@ -666,6 +667,17 @@ function drawRaidFlash(ctx: CanvasRenderingContext2D, s: SimState): void {
  */
 const FLOOR_STONE = 0.35
 
+/**
+ * How far a full gauge stains the floor it is standing on.
+ *
+ * A fifth, which is the largest a wash over the whole room can be before it
+ * starts arguing with what is drawn on it. The rule the generated floor was
+ * thrown out for applies here too and applies harder, because this one moves:
+ * the ground may say something, and it may not have an opinion loud enough to
+ * be read before a telegraph is.
+ */
+const FLOOR_GORGE = 0.2
+
 function slabAccent(colour: string, alpha: number): string {
   // The accent table is all six-digit hex, which is the only form this reads.
   if (!/^#[0-9a-f]{6}$/i.test(colour)) return colour
@@ -688,6 +700,19 @@ function drawArena(
   accent: string = COLORS.boss,
   seed = 0,
   encounter = 0,
+  /**
+   * How full the gorged one's gauge is, which its room wears.
+   *
+   * The only room in the game that says something about the fight in it rather
+   * than about itself. It is worth the exception because of what that fight
+   * is: the bar is filled by the raid's own mistakes, and a mistake that shows
+   * up as a number on a boss frame is a mistake nobody feels. The floor going
+   * darker under everybody is the version of it that cannot be missed, and it
+   * costs one wash in the encounter's own colour.
+   *
+   * Zero everywhere else, which is every other room.
+   */
+  gauge = 0,
 ): void {
   // The arena is centred on the world origin; the camera decides where that
   // lands on screen. The grid is drawn in world space too, so it slides past
@@ -783,6 +808,25 @@ function drawArena(
     ctx.stroke()
   }
   ctx.restore()
+
+  // What the raid has let happen, on the ground it is standing on.
+  //
+  // Inside the clip and over the slabs, so it darkens the stone rather than
+  // sitting on top of the mechanics: everything drawn after this -- the
+  // telegraphs, the circles, the bodies -- is drawn over it and stays exactly
+  // as readable as it was. A full bar is a floor a fifth of the way to the
+  // boss's own colour, which is a room that has visibly changed without ever
+  // becoming a thing to read.
+  if (gauge > 0) {
+    ctx.save()
+    ctx.beginPath()
+    arenaPath(ctx, c)
+    ctx.clip()
+    ctx.globalAlpha = Math.min(1, gauge) * FLOOR_GORGE
+    ctx.fillStyle = accent
+    ctx.fillRect(c.x - L.w, c.y - L.h, L.w * 2, L.h * 2)
+    ctx.restore()
+  }
 
   ctx.beginPath()
   arenaPath(ctx, c)
