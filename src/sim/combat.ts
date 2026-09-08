@@ -21,6 +21,12 @@ import {
   ENGULF_MAX,
   REAGENT_MAX,
   NUCLEUS_HOLD,
+  GIFT_LIFE,
+  GIFT_SOURING,
+  GIFT_POWER,
+  GIFT_LEECH,
+  BOND_LIFE,
+  FLIGHT_LIFE,
   INFECTION_HEALING,
   FLOOD_SLOW,
 } from './constants'
@@ -239,6 +245,10 @@ export const AURA_DURATION: Record<AuraId, number> = {
   drained: 0.2,
   carrying: NUCLEUS_HOLD,
   bound: 10,
+  gifted: GIFT_LIFE,
+  souring: GIFT_SOURING,
+  bonded: BOND_LIFE,
+  aloft: FLIGHT_LIFE,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -883,6 +893,15 @@ export function applyDamage(
 function record(s: SimState, target: Actor, final: number, opts: DamageOptions): void {
   const credit = opts.sourceId === undefined ? undefined : s.tally[opts.sourceId]
   if (credit) credit.damage += final
+
+  // A fifth of it back, for whoever is holding the gift. Written where credit
+  // is, because it is the same fact read twice: what this body dealt.
+  if (s.mode === 'raid' && target.faction === 'boss' && opts.sourceId !== undefined) {
+    const holder = s.actors.find((a) => a.id === opts.sourceId)
+    if (holder && holder.alive && getAura(holder, 'gifted')) {
+      holder.hp = Math.min(holder.maxHp, holder.hp + final * GIFT_LEECH)
+    }
+  }
 
   // In a raid only the party has a row, so a hit on the boss is credit and
   // nothing else. In a battleground everyone has one, and half a scoreboard
@@ -1649,7 +1668,12 @@ export function urgencyOf(actor: Actor): number {
   // asked. It rides the same multiplier as the raid's own press because it is
   // the same idea with the sign flipped.
   const rally = getAura(actor, 'urgency') ? 1.3 : 1
-  return getAura(actor, 'turned') ? rally * TURNED_POWER : rally
+  // And the one thing a fight has ever handed somebody that they want. It
+  // rides here for the same reason the raid's own cooldown does: it is the
+  // body hitting harder rather than the target being softer, which is what
+  // makes passing it round the raid's own damage decision.
+  const given = getAura(actor, 'gifted') ? 1 + GIFT_POWER : 1
+  return (getAura(actor, 'turned') ? rally * TURNED_POWER : rally) * given
 }
 
 /** What the fight gets out of a body it has taken. See `urgencyOf`. */

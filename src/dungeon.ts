@@ -208,8 +208,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'sanctum',
     name: 'The Sanctum',
     wing: 'crimson',
-    encounter: null,
-    awaiting: 'the gift that has to be passed (#10)',
+    encounter: 7,
     room: { kind: 'round', radius: 460 },
   },
 

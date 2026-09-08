@@ -246,6 +246,7 @@ export function createTravelState(
     room: corridor.room,
     chamber: null,
     gauge: 0,
+    held: [],
     travel: {
       corridor,
       woken: corridor.packs.map(() => false),

@@ -16,6 +16,8 @@ import {
   updateGround,
   billWalking,
   birthOoze,
+  dropGift,
+  landFlight,
   burstSpore,
   detonateSpill,
   freeSpiked,
@@ -28,6 +30,7 @@ import {
   holdOrFall,
   AURA_MECHANIC,
   AURA_TICK,
+  addAura,
   addThreat,
   applyDamage,
   applyHeal,
@@ -486,6 +489,13 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       // the carrier chose it by walking and the healer chose the moment by
       // deciding whether to take the dot off early.
       if (aura.id === 'infected' && a.alive) birthOoze(s, a)
+      // A gift that ran out of warning, which is the raid losing one of its
+      // own -- and a gift that has only run out of its good half, which is
+      // the warning starting.
+      if (aura.id === 'gifted' && a.alive) addAura(a, 'souring', BOSS_ID)
+      if (aura.id === 'souring' && a.alive) dropGift(s, a)
+      // And the boss coming down.
+      if (aura.id === 'aloft' && a.alive) landFlight(s, a)
     }
   }
 }

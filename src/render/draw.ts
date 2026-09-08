@@ -18,6 +18,11 @@ import {
   THIRST_REACH,
   BALLAST_REACH,
   NUCLEUS_LIFE,
+  STAIN_LIFE,
+  BOND_REACH,
+  FLIGHT_REACH,
+  FLIGHT_WARNING,
+  FLIGHT_LIFE,
   HOUND_REACH,
   REAGENT_MAX,
   MERGE_BURST_AT,
@@ -345,6 +350,8 @@ export function drawWorld(
   drawHounds(ctx, s, alpha, clock)
   drawCourt(ctx, s, alpha)
   drawBallast(ctx, s, alpha)
+  drawGifts(ctx, s, alpha, clock)
+  drawFlight(ctx, s, alpha)
 
   for (const a of drawOrder(s, alpha)) {
     // A body inside the boss is not on the floor. It is drawn as a ring under
@@ -352,6 +359,18 @@ export function drawWorld(
     // has to be answerable, and a figure standing in the middle of the arena
     // taking no damage and casting nothing would answer it wrongly.
     if (getAura(a, 'swallowed')) continue
+    // And a boss that is off the floor is drawn above where it was. Everything
+    // in this game stands in a footprint, so lifting one out of it is the
+    // strongest thing the picture can say about a rule having changed --
+    // `drawFlight` leaves the empty outline behind.
+    if (getAura(a, 'aloft')) {
+      const lift = Math.max(0, Math.min(1, 1 - getAura(a, 'aloft')!.remaining / FLIGHT_LIFE))
+      ctx.save()
+      ctx.translate(0, -Math.sin(Math.min(1, lift * 2 + 0.15) * Math.PI * 0.5) * 34 * L.scale)
+      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s, a), s.seed, s.phase)
+      ctx.restore()
+      continue
+    }
     if (a.faction === 'boss') {
       drawActor(
         ctx,
@@ -1107,6 +1126,22 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     // The room going under. Drawn as a pool with a different edge -- solid and
     // still rather than dashed and travelling -- because it is not something
     // that was cast at anybody: it is the floor doing what this room does.
+    // Blood where the raid doubled a gift. Darker than any other floor here,
+    // because it is the one the raid put there itself and it should read as
+    // something that happened rather than something that was cast.
+    if (g.kind === 'stain') {
+      const left = Math.max(0, Math.min(1, g.lingering / STAIN_LIFE))
+      footprint(ctx, p.x, p.y, r)
+      ctx.fillStyle = `rgba(136, 19, 55, ${(0.08 + left * 0.16).toFixed(2)})`
+      ctx.fill()
+      ctx.strokeStyle = iconFor('boss_stain').colour
+      ctx.globalAlpha = 0.35 + left * 0.5
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.globalAlpha = 1
+      continue
+    }
+
     // A grain: the one piece of ground in this game worth standing on, so it
     // is drawn as a light rather than as a shape to leave.
     if (g.kind === 'nucleus') {
@@ -1566,6 +1601,126 @@ function drawBallast(ctx: CanvasRenderingContext2D, s: SimState, alpha: number):
     ctx.fillStyle = `rgba(10, 10, 16, ${(0.15 + (1 - height) * 0.45).toFixed(2)})`
     ctx.fill()
   }
+}
+
+/**
+ * The gift, the bodies that have never held it, and the ties between pairs.
+ *
+ * Three things and one purpose: this fight is entirely about which body is
+ * near which, and none of it can be read off a party frame at this camera.
+ *
+ * The clean bodies are outlined because that is where the holder has to go --
+ * without it the answer lives in a list the player cannot see, and the
+ * mechanic becomes "walk about until something happens".
+ */
+function drawGifts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, clock: number): void {
+  const anyGift = s.actors.some(
+    (a) => getAura(a, 'gifted') !== undefined || getAura(a, 'souring') !== undefined,
+  )
+
+  if (anyGift) {
+    // Everybody who has never held one, faintly. This is the map of where the
+    // fight can still go.
+    for (const a of s.actors) {
+      if (a.faction !== 'party' || !a.alive || s.held.includes(a.id)) continue
+      const p = screenPos(a, alpha)
+      footprint(ctx, p.x, p.y, Math.max(4, a.radius * L.scale) + 7)
+      ctx.strokeStyle = 'rgba(255, 228, 230, 0.45)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+  }
+
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const p = screenPos(a, alpha)
+    const r = Math.max(4, a.radius * L.scale)
+
+    // The tie, drawn as a length: slack while it is inside its reach and
+    // straight and bright once it is not. The only thing in this game that
+    // draws a distance rather than a place.
+    const tie = getAura(a, 'bonded')
+    if (tie?.bearer !== undefined && a.id < tie.bearer) {
+      const other = s.actors.find((one) => one.id === tie.bearer)
+      if (other && other.alive) {
+        const to = screenPos(other, alpha)
+        const away = dist(a.pos, other.pos)
+        const taut = away > BOND_REACH
+        ctx.save()
+        ctx.strokeStyle = taut ? iconFor('boss_bond').colour : 'rgba(253, 164, 175, 0.5)'
+        ctx.lineWidth = taut ? 3 : 1.5
+        ctx.beginPath()
+        ctx.moveTo(p.x, p.y)
+        if (taut) {
+          ctx.lineTo(to.x, to.y)
+        } else {
+          // Slack, so that "inside" and "outside" are two different pictures
+          // rather than two widths of the same one.
+          const sag = (1 - away / BOND_REACH) * 26
+          ctx.quadraticCurveTo((p.x + to.x) / 2, (p.y + to.y) / 2 + sag, to.x, to.y)
+        }
+        ctx.stroke()
+        ctx.restore()
+      }
+    }
+
+    const gift = getAura(a, 'gifted')
+    const souring = getAura(a, 'souring')
+    if (!gift && !souring) continue
+    footprint(ctx, p.x, p.y, r + 5)
+    if (souring) {
+      // The warning half: the same ring, running. Everything in this game that
+      // moves means "soon".
+      ctx.strokeStyle = iconFor('boss_gift').colour
+      ctx.lineWidth = 3
+      ctx.setLineDash([6, 5])
+      ctx.lineDashOffset = -clock * 40
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = iconFor('boss_gift').colour
+      ctx.font = font(11, true)
+      ctx.textAlign = 'center'
+      ctx.fillText(`${Math.ceil(souring.remaining)}`, p.x, p.y - r - 8)
+      continue
+    }
+    ctx.fillStyle = 'rgba(244, 63, 94, 0.18)'
+    ctx.fill()
+    ctx.strokeStyle = iconFor('boss_gift').colour
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+}
+
+/**
+ * A boss that is off the floor, and the circle it is coming down into.
+ *
+ * Everything in this game stands in a footprint, so taking the footprint away
+ * is the strongest thing the picture can say: the body lifts, its shadow
+ * shrinks, and what is left on the tiles is an empty outline of where it was.
+ */
+function drawFlight(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  const b = s.actors.find((a) => a.id === BOSS_ID)
+  const aloft = b ? getAura(b, 'aloft') : undefined
+  if (!b || !aloft) return
+  const p = screenPos(b, alpha)
+  const r = Math.max(4, b.radius * L.scale)
+
+  footprint(ctx, p.x, p.y, r)
+  ctx.strokeStyle = iconFor('boss_flight').colour
+  ctx.globalAlpha = 0.5
+  ctx.lineWidth = 2
+  ctx.setLineDash([5, 5])
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.globalAlpha = 1
+
+  if (aloft.remaining > FLIGHT_WARNING) return
+  footprint(ctx, p.x, p.y, FLIGHT_REACH * L.scale)
+  ctx.fillStyle = 'rgba(244, 63, 94, 0.12)'
+  ctx.fill()
+  ctx.strokeStyle = iconFor('boss_flight').colour
+  ctx.lineWidth = 3
+  ctx.stroke()
 }
 
 function drawOozeLines(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {

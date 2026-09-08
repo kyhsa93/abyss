@@ -416,6 +416,22 @@ const BOSS: Record<string, Layer[]> = {
   // still reads as a soldier rather than as a corpse -- the skeleton and the
   // stitched one are already the first and third bosses, and three dead things
   // in four rooms is a building with one idea.
+  // "pass it and it doubles; drop it and it is one of you" -- pale, crowned,
+  // and in a torn cloak. The one boss here that is dressed rather than
+  // armoured or rotting, because what she hands the raid is a *gift*: the
+  // fight's whole trick is that the thing making you stronger is the thing
+  // that turns one of you, and a monster cannot say that.
+  //
+  // The cape is two sheets, one hanging behind the body and one falling over
+  // it, which is the convention the weapons already use. Nothing else in this
+  // game wears one.
+  gift: [
+    { z: 5, dir: 'cape/tattered/bg', half: 'behind' },
+    { z: 10, dir: 'body/bodies/female' },
+    { z: 60, dir: 'torso/clothes/corset/female' },
+    { z: 100, dir: 'head/heads/vampire/adult' },
+    { z: 130, dir: 'cape/tattered/fg' },
+  ],
   // "only one is real, and it is not the one you are hitting" -- three of
   // them, and the picture's whole job is that a player can tell which is
   // which from directly above. So they are separated by the two things that
@@ -428,7 +444,7 @@ const BOSS: Record<string, Layer[]> = {
   crowns: [
     { z: 10, dir: 'body/bodies/male' },
     { z: 20, dir: 'legs/pants/male' },
-    { z: 60, dir: 'torso/clothes/robe/male' },
+    { z: 60, dir: 'torso/clothes/longsleeve/longsleeve/male' },
     { z: 100, dir: 'head/heads/vampire/adult' },
   ],
   'crowns-2': [
@@ -441,7 +457,7 @@ const BOSS: Record<string, Layer[]> = {
   'crowns-3': [
     { z: 10, dir: 'body/bodies/male' },
     { z: 20, dir: 'legs/pants/male' },
-    { z: 60, dir: 'torso/clothes/shortsleeve/male' },
+    { z: 60, dir: 'torso/clothes/vest_open/male' },
     { z: 100, dir: 'head/heads/vampire/adult' },
   ],
   // "two answers at once, and neither of them waits" -- the person who worked

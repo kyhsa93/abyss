@@ -282,6 +282,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The three crowns' five. The crown itself is the fight's own red because it
   // is the one thing on the screen the raid is reading; everything else here
   // stands away from it.
+  // The crimson gift's five. The gift itself is the only thing in this game
+  // drawn in a colour that means "come here" rather than "leave".
+  boss_gift: { colour: '#f43f5e', style: 'burst' },
+  boss_turning: { colour: '#6b21a8', style: 'crush' },
+  boss_bond: { colour: '#fda4af', style: 'pierce' },
+  boss_stain: { colour: '#4c0519', style: 'crush' },
+  boss_flight: { colour: '#ffe4e6', style: 'crush' },
+  boss_crimson: { colour: '#a30b2e', style: 'burst' },
   boss_rotation: { colour: '#be123c', style: 'burst' },
   boss_thirst: { colour: '#9f1239', style: 'pierce' },
   boss_ballast: { colour: '#e11d48', style: 'crush' },

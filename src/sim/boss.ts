@@ -47,6 +47,18 @@ import {
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  GIFT_REACH,
+  BOND_REACH,
+  BOND_TICK,
+  STAIN_RADIUS,
+  STAIN_TICK,
+  STAIN_LIFE,
+  FLIGHT_TICK,
+  FLIGHT_REACH,
+  FLIGHT_LANDING,
+  CRIMSON_BASE,
+  CRIMSON_PER_GIFT,
+  CRIMSON_CAST,
   CROWN_TELEGRAPH,
   THIRST_REACH,
   THIRST_TICK,
@@ -433,7 +445,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   // Nothing is holding it while it storms, which is the mechanic: it has let
   // go, so the tank has nothing to hold and the raid has no front to stand
   // behind. `updateStorm` does the walking for that stretch.
-  const storming = getAura(b, 'storming') !== undefined
+  const storming = getAura(b, 'storming') !== undefined || getAura(b, 'aloft') !== undefined
   const target = storming ? null : topThreatTarget(s)
   faceTarget(s, b, target)
 
@@ -520,6 +532,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
   updateBallast(s)
   scheduleNuclei(s, b, rng, timing)
   schedulePrison(s, b, timing)
+  scheduleGift(s, b, rng, timing)
+  updateGifts(s, timing)
+  scheduleBond(s, b, rng, timing)
+  updateBonds(s)
+  scheduleFlight(s, b, timing)
+  updateFlight(s, b)
+  scheduleCrimson(s, b, timing)
   updateHounds(s)
 
   updateAdds(s)
@@ -2829,6 +2848,11 @@ export function crowned(s: SimState): Actor | null {
  */
 export function untouchable(s: SimState, target: Actor): boolean {
   if (target.faction !== 'boss') return false
+  // Off the floor, which is the one state in this game where there is nothing
+  // to hit at all. The storm is the nearest thing to it and is not close: a
+  // storming boss has let go of the tank and is walking, and it can still be
+  // hit.
+  if (getAura(target, 'aloft')) return true
   if (target.id !== BOSS_ID && target.spawn !== 'crown') return false
   const wearer = crowned(s)
   if (!wearer) return false
@@ -3123,6 +3147,282 @@ export function billWalking(s: SimState, a: Actor): void {
   })
 }
 
+// --- the crimson gift -----------------------------------------------------
+//
+// A handoff with its sign flipped. Every weight that has changed hands in this
+// game was a debt; this one makes the body holding it stronger, and passing it
+// leaves both of them holding one. What the raid decides is how many to run,
+// and the last rung is the bill for that decision.
+
+/**
+ * Whether tonight's raid bought a given rung.
+ *
+ * The two mechanics on this fight that have no cadence of their own -- the
+ * floor a pass leaves and the body a dropped gift turns -- cannot be gated by
+ * a row on the timing table, because they do not have one. This is the same
+ * question the table answers for everything else, asked directly.
+ */
+function kitHas(s: SimState, id: MechanicId): boolean {
+  return encounterKit(fight(s), s.party.length, s.difficulty).includes(id)
+}
+
+/** Bodies holding a gift, which is what the raid's own bill is counted in. */
+export function gifted(s: SimState): Actor[] {
+  return livingParty(s).filter((a) => getAura(a, 'gifted') !== undefined)
+}
+
+/**
+ * The first gift, and only the first.
+ *
+ * The one row on this fight's table that is an opening rather than a cadence.
+ * After this the schedule is the raid's: a gift that is passed becomes two,
+ * and two that are passed become four.
+ *
+ * Never the tank, because holding one means walking to somebody who has never
+ * held one, and a tank that walks takes the fight with it.
+ */
+function scheduleGift(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.gift <= 0) return
+  s.next.gift -= DT
+  if (s.next.gift > 0) return
+  // Once only: the raid makes the rest. Set far enough out that nothing rolls
+  // it again, rather than left at zero, which every scheduler here reads as
+  // "this fight does not do that".
+  s.next.gift = 9999
+  const clean = livingParty(s).filter((a) => a.role !== 'tank' && !hasHeld(s, a.id))
+  if (clean.length === 0) return
+  const first = rng.pick(clean)
+  addAura(first, 'gifted', b.id)
+  remember(s, first.id)
+  say(s, b, lineFor(fight(s), 'gift'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', first.pos, { abilityId: 'boss_gift' })
+}
+
+/**
+ * Who has held one, which is the only thing the passing is measured against.
+ *
+ * Kept on the state rather than on a body, because it has to outlive the aura
+ * -- what a holder is looking for is somebody who has *never* held one, and a
+ * body that had one two minutes ago is not that.
+ */
+function remember(s: SimState, id: number): void {
+  if (!s.held.includes(id)) s.held.push(id)
+}
+
+function hasHeld(s: SimState, id: number): boolean {
+  return s.held.includes(id)
+}
+
+/**
+ * The gifts running, souring, being passed, and being dropped.
+ *
+ * The passing is proximity rather than a press, for the reason every handoff
+ * in this game is: what a player does about it is walk, and a button would put
+ * the mechanic behind a decision the party AI cannot make and a person would
+ * make instantly.
+ */
+function updateGifts(s: SimState, timing: PhaseTiming): void {
+  if (timing.gift <= 0) return
+  for (const holder of livingParty(s)) {
+    // Only the warning half can be passed, and that is the whole schedule of
+    // this fight.
+    //
+    // Read the other way -- a gift that could be handed on the moment it
+    // landed -- the doubling is not a decision at all: a raid stands together,
+    // so one becomes two becomes four becomes everybody inside a minute.
+    // Measured, a twenty-five man had every body holding one at sixty seconds
+    // and wiped to its own bill at sixty-four.
+    //
+    // Sixty seconds of holding it and then ten to hand it on makes the
+    // doubling a seventy-second clock: one, then two, then four, and a pull
+    // that is over at two hundred and thirty never sees more than a handful.
+    const gift = getAura(holder, 'souring')
+    if (!gift) continue
+    // Touching somebody who has never held one doubles it: both walk away
+    // holding a fresh sixty seconds, and the floor keeps the mark of where it
+    // happened.
+    const clean = livingParty(s).find(
+      (a) => a.id !== holder.id && !hasHeld(s, a.id) && dist(a.pos, holder.pos) <= GIFT_REACH,
+    )
+    if (!clean) continue
+    holder.auras = holder.auras.filter((au) => au.id !== 'souring')
+    addAura(holder, 'gifted', BOSS_ID)
+    addAura(clean, 'gifted', BOSS_ID)
+    remember(s, clean.id)
+    pushEffect(s, 'impact', clean.pos, { abilityId: 'boss_gift', power: 300, crit: true })
+    if (kitHas(s, 'stain')) leaveStain(s, holder.pos)
+  }
+}
+
+/**
+ * The floor a doubling leaves behind.
+ *
+ * The one piece of ground in this game the raid puts there itself, and its
+ * answer is not walking out of it: it is choosing where to be standing when
+ * the pass happens, which is a decision taken a minute before the floor
+ * exists.
+ */
+function leaveStain(s: SimState, at: Vec2): void {
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'stain',
+    pos: { x: at.x, y: at.y },
+    radius: STAIN_RADIUS,
+    telegraph: 0,
+    detonated: true,
+    lingering: STAIN_LIFE,
+    damage: STAIN_TICK,
+  })
+  // The moment it lands, which is the one frame of this mechanic that is an
+  // event: everything after it is a floor.
+  pushEffect(s, 'impact', at, { abilityId: 'boss_stain', radius: STAIN_RADIUS, power: 200 })
+}
+
+/**
+ * A gift that ran all the way out, which is the raid losing one of its own.
+ *
+ * Exported for the reason the spore's burst is: what turns a body is an aura
+ * ending, and expiry lives in `sim.ts`. The same mechanic the Whisper owns,
+ * saying a different sentence -- there a clock takes somebody, and here the
+ * raid dropped them.
+ */
+export function dropGift(s: SimState, holder: Actor): void {
+  if (s.mode !== 'raid' || !kitHas(s, 'turning')) return
+  addAura(holder, 'turned', BOSS_ID)
+  s.sounds.push('raid')
+  pushEffect(s, 'impact', holder.pos, { abilityId: 'boss_turning', power: 500, crit: true })
+}
+
+/**
+ * Two bodies tied to each other, paying for the length between them.
+ *
+ * It is on this ladder to pull against the rung below it. The gift says go and
+ * find somebody who has never held one; this says do not leave your partner.
+ * A body carrying both has two demands pointing in different directions, and
+ * the fight is at its hardest exactly there -- so the pairing is deliberately
+ * *not* filtered to avoid the gift's holder.
+ */
+function scheduleBond(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.bond <= 0) return
+  s.next.bond -= DT
+  if (s.next.bond > 0) return
+  s.next.bond = timing.bond
+
+  const free = livingParty(s).filter((a) => !getAura(a, 'bonded'))
+  if (free.length < 2) return
+  say(s, b, lineFor(fight(s), 'bond'))
+  s.sounds.push('telegraph')
+  const pairs = Math.max(1, Math.round(s.party.length / 10))
+  for (let i = 0; i < pairs && free.length >= 2; i++) {
+    const one = free.splice(rng.int(free.length), 1)[0]!
+    const other = free.splice(rng.int(free.length), 1)[0]!
+    addAura(one, 'bonded', b.id)
+    addAura(other, 'bonded', b.id)
+    const first = getAura(one, 'bonded')
+    const second = getAura(other, 'bonded')
+    if (first) first.bearer = other.id
+    if (second) second.bearer = one.id
+    pushEffect(s, 'cast', one.pos, { abilityId: 'boss_bond' })
+  }
+}
+
+/** What the length between two bound bodies costs, once it is a length. */
+function updateBonds(s: SimState): void {
+  for (const one of livingParty(s)) {
+    const tie = getAura(one, 'bonded')
+    if (!tie || tie.bearer === undefined) continue
+    const other = s.actors.find((a) => a.id === tie.bearer)
+    if (!other || !other.alive) continue
+    const away = dist(one.pos, other.pos)
+    if (away <= BOND_REACH) continue
+    applyDamage(s, one, mechanic(s, (away - BOND_REACH) * BOND_TICK) * DT, 'magic', {
+      sourceId: BOSS_ID,
+      mechanic: 'bond',
+      silent: true,
+    })
+  }
+}
+
+/**
+ * Off the floor, and out of reach of everything.
+ *
+ * The only state in this game where there is nothing to hit at all. What it
+ * costs is not the damage: it is fourteen seconds of a raid's damage, four
+ * times a pull, against the shortest enrage on the roster.
+ */
+function scheduleFlight(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.flight <= 0) return
+  s.next.flight -= DT
+  if (s.next.flight > 0 || getAura(b, 'aloft')) return
+  s.next.flight = timing.flight
+
+  addAura(b, 'aloft', b.id)
+  say(s, b, lineFor(fight(s), 'flight'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_flight', power: 500, crit: true })
+}
+
+/** What being off the floor costs the raid, and what coming back costs. */
+function updateFlight(s: SimState, b: Actor): void {
+  if (!getAura(b, 'aloft')) return
+  for (const a of livingParty(s)) {
+    applyDamage(s, a, mechanic(s, FLIGHT_TICK) * DT, 'magic', {
+      sourceId: b.id,
+      mechanic: 'flight',
+      silent: true,
+    })
+  }
+}
+
+/**
+ * Coming down, which is the instant the flight is.
+ *
+ * Exported for the same reason the others are: the landing is an aura ending.
+ */
+export function landFlight(s: SimState, b: Actor): void {
+  const bill = mechanic(s, FLIGHT_LANDING)
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, b.pos) > FLIGHT_REACH) continue
+    applyDamage(s, a, bill, 'magic', { sourceId: b.id, mechanic: 'flight' })
+  }
+  pushEffect(s, 'impact', b.pos, {
+    abilityId: 'boss_flight',
+    radius: FLIGHT_REACH,
+    power: bill,
+    crit: true,
+  })
+  s.sounds.push('raid')
+}
+
+/**
+ * The bill for the raid's own doubling.
+ *
+ * What closes this fight. Nothing about it can be dodged and nothing about it
+ * is a surprise: it is a raid-wide hit whose size is the number of gifts in
+ * play, so the answer to it was given a minute earlier by deciding how many to
+ * run.
+ */
+function scheduleCrimson(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.crimson <= 0) return
+  s.next.crimson -= DT
+  if (s.next.crimson > 0 || b.castId) return
+  s.next.crimson = timing.crimson
+
+  say(s, b, lineFor(fight(s), 'crimson'))
+  s.sounds.push('telegraph')
+  b.castId = 'boss_crimson'
+  b.castRemaining = CRIMSON_CAST
+  b.castTotal = CRIMSON_CAST
+  b.castTargetId = null
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_crimson' })
+}
+
+/** What the crimson costs, which is what the raid has been enjoying. */
+export function crimsonBill(s: SimState): number {
+  return mechanic(s, CRIMSON_BASE + gifted(s).length * CRIMSON_PER_GIFT)
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -3346,6 +3646,22 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     return
   }
 
+  if (castId === 'boss_crimson') {
+    const bill = crimsonBill(s)
+    for (const a of livingParty(s)) {
+      applyDamage(s, a, bill, 'magic', { sourceId: b.id, mechanic: 'crimson' })
+    }
+    pushEffect(s, 'impact', b.pos, {
+      abilityId: 'boss_crimson',
+      radius: roomReach(s.room),
+      power: bill,
+      crit: true,
+    })
+    s.raidFlash = 0.5
+    s.sounds.push('raid')
+    return
+  }
+
   if (castId === 'boss_frostbolt') {
     loose(s, targetId)
     return
@@ -3510,6 +3826,22 @@ export function updateGround(s: SimState): void {
         crit: true,
       })
       s.sounds.push('raid')
+      continue
+    }
+
+    // Blood where a gift was doubled. It behaves like a pool and is not one:
+    // nobody cast it, the raid left it there by succeeding, and where it is
+    // was decided by where somebody chose to stand a minute ago.
+    if (g.kind === 'stain') {
+      g.lingering -= lingerStep(s)
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+        applyDamage(s, a, mechanic(s, g.damage * DT), 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: 'stain',
+          silent: true,
+        })
+      }
       continue
     }
 

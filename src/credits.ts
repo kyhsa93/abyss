@@ -48,6 +48,7 @@ export const ART: ArtSet[] = [
       'GPL 3.0',
       'OGA-BY 3.0',
       'OGA-BY 3.0+',
+      'OGA-SA 3.0',
     ],
     authors: [
       'Benjamin K. Smith (BenCreating)',
@@ -75,6 +76,7 @@ export const ART: ArtSet[] = [
       'Radomir Dopieralski',
       'Sander Frenken (castelonia)',
       'Stephen Challener (Redshrike)',
+      'Thane Brimhall (pennomi)',
       'TheraHedwig',
       'Tuomo Untinen (reemax)',
       'William.Thompsonj',
@@ -84,6 +86,7 @@ export const ART: ArtSet[] = [
       'dalonedrau',
       'gr3yh47',
       'kcilds/Rocetti/Eredah',
+      'laetissima',
       'thecilekli',
     ],
     file: 'art/LPC-CREDITS.md',

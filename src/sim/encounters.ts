@@ -67,6 +67,12 @@ export type MechanicId =
   | 'ballast'
   | 'nuclei'
   | 'prison'
+  | 'gift'
+  | 'bond'
+  | 'stain'
+  | 'flight'
+  | 'crimson'
+  | 'turning'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -156,6 +162,12 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   ballast: false, // always two, whatever the roster -- rule 5
   nuclei: false, // one errand at a time, and one body goes on it
   prison: false, // everybody at once, which is everybody at any size
+  gift: true, // a bigger raid has more bodies to cover and less time to do it
+  bond: true, // one pair per so many bodies
+  stain: false, // one per doubling, and the doublings already carry the roster
+  flight: false, // one boss, one landing, one circle
+  crimson: false, // everybody at once
+  turning: false, // one body, and the raid chose which by dropping it
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -230,6 +242,12 @@ export function noTimers(): Record<MechanicId, number> {
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   caustic: 'the caustic',
   slime: 'the rising',
+  gift: 'the gift',
+  turning: 'the turning',
+  bond: 'the bond',
+  stain: 'the stain',
+  flight: 'the flight',
+  crimson: 'the crimson',
   rotation: 'the crown',
   thirst: 'the thirst',
   ballast: 'the ballast',
@@ -650,6 +668,59 @@ export interface PhaseTiming {
    */
   thirst: number
   /**
+   * Seconds before the first gift, and nothing after that.
+   *
+   * The only row on this table that is an opening rather than a cadence: once
+   * one is out, what schedules the next is the raid passing this one, which
+   * doubles it. A fight that kept handing them out on a clock would be a fight
+   * where the raid's own passing did not matter.
+   */
+  gift: number
+  /**
+   * Seconds between one pair being bound and the next.
+   *
+   * It pulls against the gift on purpose: one says go and find somebody who
+   * has never held it, the other says do not leave your partner. A body with
+   * both has two demands pointing in different directions, which is the
+   * hardest moment in that fight.
+   */
+  bond: number
+  /**
+   * Seconds -- and it is always nought. Blood is left where a gift was
+   * doubled, so what schedules it is the raid.
+   */
+  stain: number
+  /**
+   * Seconds between one flight and the next.
+   *
+   * Fourteen seconds with nothing to hit at all. Read against the enrage
+   * rather than on its own: four of them is fifty-six seconds of a raid doing
+   * no damage, which is why that fight's clock is the shortest here.
+   */
+  flight: number
+  /**
+   * Seconds between one crimson and the next.
+   *
+   * A raid-wide hit whose size is the number of gifts in play. It is what
+   * closes that fight: the first rung says passing doubles it and this one
+   * says every doubling is on the bill, so how many to run is a decision the
+   * raid makes and then pays for.
+   */
+  crimson: number
+  /**
+   * Seconds -- and always nought, like the stain and the two on the
+   * confluence.
+   *
+   * What turns a body here is the raid dropping a gift, so there is no clock
+   * to write. It is a rung of its own rather than the Whisper's `dominate`
+   * because the two are different sentences said with the same aura: there a
+   * clock takes somebody, and here the raid lost one. A single id would have
+   * meant one line of dialogue for both, and `REQUIRES` is global -- an entry
+   * saying the turned body needs a gift would have handed the gift to the
+   * Whisper.
+   */
+  turning: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -898,6 +969,12 @@ export interface Encounter {
     ballast: number
     nuclei: number
     prison: number
+    gift: number
+    bond: number
+    stain: number
+    flight: number
+    crimson: number
+    turning: number
   }
   /**
    * Where a fight with more than one body puts them.
@@ -986,6 +1063,12 @@ export interface Encounter {
     slime: string
     rotation: string
     thirst: string
+    gift: string
+    bond: string
+    flight: string
+    crimson: string
+    // The stain has no key: what leaves it is the raid's own pass, and a boss
+    // announcing the raid's success would be a boss doing the reading.
     ballast: string
     nuclei: string
     prison: string
@@ -1123,6 +1206,10 @@ export const ENCOUNTERS: Encounter[] = [
       caustic: '',
       slime: '',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -1293,6 +1380,10 @@ export const ENCOUNTERS: Encounter[] = [
       caustic: '',
       slime: '',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -1473,6 +1564,10 @@ export const ENCOUNTERS: Encounter[] = [
       caustic: '',
       slime: '',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -1629,6 +1724,10 @@ export const ENCOUNTERS: Encounter[] = [
       caustic: '',
       slime: '',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -1778,6 +1877,10 @@ export const ENCOUNTERS: Encounter[] = [
       caustic: '',
       slime: 'The floor is coming up — off the edge',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -1902,6 +2005,10 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'BOTH OF THEM, THEN',
       slime: '',
       rotation: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       thirst: '',
       ballast: '',
       nuclei: '',
@@ -2040,6 +2147,10 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
       rotation: 'The crown is moving — look up',
       thirst: 'It drinks from whoever is close',
       ballast: 'It is coming down — put it back up',
@@ -2077,6 +2188,125 @@ export const ENCOUNTERS: Encounter[] = [
       gather: '',
       decant: '',
       reagent: '',
+    },
+  },
+  {
+    // The eighth fight, and the first handoff in this game with its sign
+    // flipped.
+    //
+    // Every weight that has ever changed hands here was a debt: somebody takes
+    // it because it has to be taken. This one makes the body holding it
+    // stronger, and passing it leaves *both* of them holding one -- so the
+    // raid's own success is what fills the room, and the last rung charges for
+    // exactly that. How many to run is a decision the raid makes and then pays
+    // for on a thirty-three second clock.
+    //
+    // And if one is dropped, it does not explode. One of the raid turns.
+    id: 'gift',
+    name: 'The Crimson Gift',
+    short: 'Gift',
+    demand: 'pass it and it doubles; drop it and it is one of you',
+    /**
+     * Issue #34's room: a plain circle with nothing standing in it.
+     *
+     * The one room in the citadel with no terrain at all, and the absence is
+     * the point: this fight is about where bodies are relative to each other
+     * -- who is near enough to be passed to, who is too far from their partner
+     * -- and furniture in the middle of that is a third party deciding the
+     * distances.
+     */
+    room: { kind: 'round', radius: 800 },
+    terrain: [],
+    /** Red stone, and a balcony that is a painting rather than a place. */
+    floor: 'floor-slate',
+    hp: 52000,
+    // The shortest clock on the roster, and it is the flight that decides it:
+    // fourteen seconds with nothing to hit, four times a pull, is fifty-six
+    // seconds of a raid doing no damage at all.
+    enrage: 230,
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.35,
+    swingDamage: 570,
+    slamDamage: 1180,
+    // High, because the aura this fight runs on is always up and cannot be
+    // dodged: what the healers are answering here is a floor rather than a
+    // series of instants.
+    // Low, and it is the second fight here to want that for the same reason the
+    // Host does: the floor under the healers is already a mechanic. Fourteen
+    // seconds of flight is a raid-wide bill nobody can dodge, and the crimson
+    // is another one on a thirty-three second clock -- a tide on top of those
+    // is the same demand three times, and the healers cannot tell them apart.
+    raidDamage: 70,
+    mechanicDamage: 0.7,
+    sizeMechanic: { 5: 1.25, 10: 1.0, 25: 0.85 },
+    // The gift first, because nothing else here means anything without it. The
+    // bond second, because it is what makes the gift a decision rather than a
+    // walk: one says go and find somebody clean, the other says do not leave
+    // your partner. Then the floor the raid's own passing leaves, the flight,
+    // the body that turns when a gift is dropped -- which is the same mechanic
+    // the Whisper owns saying a different sentence, because there a clock
+    // takes somebody and here *the raid lost one* -- and finally the bill for
+    // all of it.
+    ladder: ['gift', 'bond', 'stain', 'flight', 'turning', 'crimson'],
+    herald: null,
+    accent: '#e11d48',
+    names: { slam: 'THE RED HAND', shard: '', raid: 'THE COURT BLEEDS' },
+    phases: {
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 18, bond: 26, flight: 52, crimson: 33 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 17, bond: 23, flight: 46, crimson: 29 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ gift: 16, bond: 20, flight: 40, crimson: 25 }) },
+    },
+    // The crimson opens well before the first flight rather than on top of it.
+    //
+    // Two unavoidable raid-wide bills in the same second is not a harder
+    // fight, it is a wipe with two names: at thirty-one the first crimson
+    // landed inside the first landing and took a twenty-five man from
+    // fifty-four percent to twenty-eight in one tick.
+    opening: { slam: 14, raid: 14, ...beats({ gift: 18, bond: 24, flight: 50, crimson: 22 }) },
+    lines: {
+      phaseTwo: 'Take it, all of you',
+      phaseThree: 'IT IS EVERYWHERE NOW',
+      gift: 'A gift — carry it, then give it away',
+      bond: 'Two of you are bound — stay together',
+      flight: 'She is up — nothing to hit',
+      crimson: 'All of it back at once',
+      dominate: '',
+      adds: '',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
+      caustic: '',
+      slime: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
     },
   },
 ]
@@ -2174,6 +2404,14 @@ const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   gather: ['hound'],
   // And the chase is a rule about that circle, so it needs both halves of it.
   chase: ['hound', 'gather'],
+  // The gift's two consequences -- blood where it was doubled, and a body that
+  // turns when it was dropped -- are deliberately *not* here, though the issue
+  // asked for them. `REQUIRES` is global: an entry saying the turned body
+  // needs the gift would hand the gift to the Whisper, which owns the turned
+  // body and has never seen a gift in its life. What guarantees it instead is
+  // the ladder's own order, which is what guarantees it for every other pair
+  // of rungs in this game: a kit is a prefix, so a raid that bought the fifth
+  // rung bought the first.
   pungent: ['blight', 'inhale', 'spore'],
   // One of the wave, come back wrong. Without a wave there is nothing for it
   // to be one of: it is not a summon of its own, it is a fact about one that

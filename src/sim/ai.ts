@@ -18,6 +18,10 @@ import {
   MERGE_REACH,
   HOUND_REACH,
   THIRST_REACH,
+  GIFT_SOURING,
+  BOND_REACH,
+  FLIGHT_REACH,
+  FLIGHT_WARNING,
   CAUSTIC_TELEGRAPH,
   DECANT_COUNT,
 } from './constants'
@@ -257,6 +261,14 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
       say(s, actor, 'Going to help carry')
+    } else if (danger === 'gift:self') {
+      say(s, actor, 'Who has not had it?')
+    } else if (danger.startsWith('bond')) {
+      say(s, actor, 'Coming back to you')
+    } else if (danger.startsWith('stain')) {
+      say(s, actor, 'Off our own blood')
+    } else if (danger.startsWith('flight')) {
+      say(s, actor, 'She is coming down')
     } else if (danger.startsWith('crown')) {
       say(s, actor, 'It has moved — switch')
     } else if (danger.startsWith('grain')) {
@@ -1080,6 +1092,40 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     }
   }
 
+  // Holding the gift, which is answered by walking to somebody who has never
+  // held one. Its urgency climbs as the warning runs out, because what it
+  // costs at the end is not damage -- it is this body turning.
+  {
+    // Only while it is souring. The sixty seconds before that are the half a
+    // body is meant to *enjoy* -- a raid that spent them hunting for somebody
+    // clean would be a raid answering a mechanic sixty seconds early, which is
+    // the same as not having one.
+    const souring = getAura(actor, 'souring')
+    if (souring) consider('gift:self', 64 + (GIFT_SOURING - souring.remaining) * 2)
+  }
+
+  // Bound to somebody, and too far from them. The one demand in this game
+  // that is about a length rather than a place.
+  {
+    const tie = getAura(actor, 'bonded')
+    const other = tie?.bearer === undefined ? undefined : s.actors.find((a) => a.id === tie.bearer)
+    if (other && other.alive && dist(actor.pos, other.pos) > BOND_REACH) {
+      consider(`bond:${other.id}`, 68)
+    }
+  }
+
+  // The circle a flying boss is coming down into. It is not on the floor --
+  // there is nothing on the floor while she is up -- so it is read off the
+  // boss's own aura, and only in the last seconds, which is when the picture
+  // shows it.
+  {
+    const b = boss(s)
+    const aloft = getAura(b, 'aloft')
+    if (aloft && aloft.remaining <= FLIGHT_WARNING && dist(actor.pos, b.pos) <= FLIGHT_REACH) {
+      consider('flight:landing', 86)
+    }
+  }
+
   // Standing inside the reach of a body that drinks. Ranked with the reek,
   // which is the mark it most resembles -- a tick paid while you walk out
   // rather than a hit at an instant -- and above it because what this one
@@ -1180,6 +1226,14 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
 
 
+
+    // Blood the raid left itself. Priced like a pool, because that is what it
+    // is once it exists -- the decision that put it there was taken a minute
+    // ago and is somebody else's.
+    if (g.kind === 'stain') {
+      if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) consider(`stain:${g.id}`, 74)
+      continue
+    }
 
     // Glass on the floor, which is a step off a patch and climbs as the count
     // runs out -- the cold line's shape, and priced the same way.
@@ -1346,6 +1400,28 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // about the person rather than about the room, so it is kept on the mark.
   const shade = getAura(actor, 'haunted')
   if (shade?.at && dist(spot, shade.at) < SHADE_REACH + DANGER_MARGIN) return false
+
+  // Blood on the floor, which is a pool by the time anybody is choosing a
+  // spot to stand in.
+  for (const g of s.ground) {
+    if (g.kind !== 'stain') continue
+    if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
+  }
+
+  // The floor a flying boss is about to come down onto.
+  {
+    const b = boss(s)
+    const aloft = getAura(b, 'aloft')
+    if (aloft && aloft.remaining <= FLIGHT_WARNING && dist(spot, b.pos) < FLIGHT_REACH) return false
+  }
+
+  // And the far end of a bond, which is the one rule here that makes a spot
+  // unsafe for being too far from a *person* rather than too near a thing.
+  {
+    const tie = getAura(actor, 'bonded')
+    const other = tie?.bearer === undefined ? undefined : s.actors.find((a) => a.id === tie.bearer)
+    if (other && other.alive && dist(spot, other.pos) > BOND_REACH - DANGER_MARGIN) return false
+  }
 
   // Inside the reach of a body that drinks. Refused rather than merely
   // scored, because what it costs is continuous and what it gives back is the
@@ -1861,6 +1937,13 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
 
   // The two the gorged one asks for, read once rather than per candidate: a
   // sweep is a few dozen spots and both of these are facts about the field.
+  // Whether this body is carrying something it has to hand on, read once
+  // rather than per candidate.
+  const giving = getAura(actor, 'souring') !== undefined
+  // Whether the boss is about to come down, read once rather than per
+  // candidate.
+  const aloft = getAura(b, 'aloft')
+  const landing = aloft !== undefined && aloft.remaining <= FLIGHT_WARNING
   const spillActive = livingParty(s).some((a) => getAura(a, 'spilling') !== undefined)
   const swallowActive = s.actors.some((a) => getAura(a, 'swallowed') !== undefined)
 
@@ -1903,6 +1986,21 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       const d = dist(candidate, g.pos)
       if (d <= g.radius + DANGER_MARGIN) score -= 1000
       else score -= Math.max(0, 200 - d) * 0.5
+    }
+
+    // Somebody who has never held the gift, for whoever is holding one.
+    //
+    // The one term in this file that pulls a body *towards* another body
+    // rather than away from one. Scored below the floor, like every errand
+    // here: a holder that valued the pass above a puddle would walk the gift
+    // through fire to deliver it.
+    if (giving) {
+      let closest = Infinity
+      for (const other of livingParty(s)) {
+        if (other.id === actor.id || s.held.includes(other.id)) continue
+        closest = Math.min(closest, dist(candidate, other.pos))
+      }
+      if (closest < Infinity) score -= Math.min(800, closest * 0.9)
     }
 
     // The grain, for whoever has been sent for it. Scored below the floor for
@@ -1983,6 +2081,20 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         if (d < SPILL_RADIUS + DANGER_MARGIN) score -= 900
         else score += Math.min(260, d) * 0.4
       }
+    }
+
+    // The circle a flying boss is coming down into.
+    //
+    // Scored as well as refused, and the scoring is what actually moves the
+    // raid: `isSpotSafe` only validates a spot that has already been chosen,
+    // and every other term here pulls a body *towards* the boss -- so without
+    // this the whole raid stood in the landing and took it. It costs nothing
+    // to leave, either, which is the one thing that makes this demand cheap:
+    // there is nothing to hit while she is up.
+    if (landing) {
+      const d = dist(candidate, b.pos)
+      if (d <= FLIGHT_REACH + DANGER_MARGIN) score -= 1600
+      else score += Math.min(300, (d - FLIGHT_REACH) * 2)
     }
 
     // The circle the boss is about to throw somebody out of. Scored above the

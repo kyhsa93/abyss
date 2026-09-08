@@ -1335,3 +1335,85 @@ export const PRISON_TICK = 120
  * something a raid can decide to pay.
  */
 export const PRISON_CAP = 6
+
+// --- the crimson gift, which is a handoff with its sign flipped -------------
+
+/**
+ * The gift, and the two clocks that make it one.
+ *
+ * Every handoff in this game has been a debt: somebody takes it because it has
+ * to be taken. This one makes the body holding it stronger, and passing it
+ * leaves *both* of them holding one -- so the raid's own success is what fills
+ * the room with them.
+ *
+ * Two clocks rather than one, and that is the difference between a mechanic
+ * and an ambush. The first sixty seconds are the gift; the ten after it are
+ * the warning, and during those ten everybody -- the holder included -- knows
+ * that this body is now a problem. A version that simply turned hostile at the
+ * end of the first clock would be a mechanic with no telegraph, which is the
+ * one thing every other demand in this game has.
+ */
+export const GIFT_REACH = 55
+export const GIFT_POWER = 0.45
+export const GIFT_LEECH = 0.2
+export const GIFT_LIFE = 60
+export const GIFT_SOURING = 10
+
+/**
+ * The bond, and how far two bodies may be from each other.
+ *
+ * It exists to pull against the gift: the gift says go and find somebody
+ * clean, and this says do not leave your partner -- and when the same body
+ * has both, the two demands point in different directions, which is the
+ * hardest moment in the fight and the reason both are on the ladder.
+ */
+export const BOND_REACH = 200
+export const BOND_TICK = 3
+export const BOND_LIFE = 18
+
+/**
+ * What a doubling leaves on the floor.
+ *
+ * The one piece of ground in this game made by the raid rather than by the
+ * boss. Its answer is not walking out of it -- it is *choosing where to stand
+ * when passing*, which is a decision taken a full minute before the floor
+ * exists.
+ */
+export const STAIN_RADIUS = 120
+export const STAIN_TICK = 290
+export const STAIN_LIFE = 35
+
+/**
+ * The flight: fourteen seconds in which there is nothing to hit.
+ *
+ * The storm is the nearest thing this game has and it is not close: a storming
+ * boss has let go and is walking, and it can still be hit. This one cannot be
+ * touched at all, which is why the enrage on that fight is the shortest on the
+ * roster -- four flights is fifty-six seconds of a raid doing no damage.
+ */
+export const FLIGHT_LIFE = 14
+export const FLIGHT_TICK = 35
+export const FLIGHT_REACH = 300
+export const FLIGHT_LANDING = 1400
+/**
+ * How long the circle she is coming down into is on the floor before she is.
+ *
+ * Five seconds rather than three, and the difference is twenty-five bodies:
+ * the landing covers three hundred units of a room eight hundred across, so
+ * what it asks is that the whole raid cross most of a radius. At three
+ * seconds -- plus a reaction delay -- that is not a demand, it is a bill, and
+ * measured it took a twenty-five man from sixty-three percent health to two
+ * bodies alive inside half a minute.
+ */
+export const FLIGHT_WARNING = 5
+
+/**
+ * The crimson: a raid-wide hit that costs what the raid has been enjoying.
+ *
+ * This is what closes the fight. The first rung says pass it and it doubles;
+ * this one says every doubling is on the bill, so how many to run is a
+ * decision the raid makes and then pays for on a thirty-three second clock.
+ */
+export const CRIMSON_BASE = 420
+export const CRIMSON_PER_GIFT = 230
+export const CRIMSON_CAST = readable(2.2)

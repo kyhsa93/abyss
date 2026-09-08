@@ -107,6 +107,7 @@ import {
 import {
   PROJECTILE_MIN_RANGE,
   addAura,
+  AURA_DURATION,
   adds,
   getAura,
   hasteOf,
@@ -130,6 +131,7 @@ import {
   CHARGE_RAGE,
   COUNTDOWN,
   COUNTDOWN_TICKS,
+  TICK_RATE,
   GLOBAL_COOLDOWN,
   INHALE_MAX,
   PUNGENT_PER_BREATH,
@@ -992,6 +994,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ['sunder', 'sunder'],
         ['championed', 'champion'],
         ['crowned', 'rotation'],
+        ['gifted', 'gift'],
+        ['souring', 'gift'],
+        ['bonded', 'bond'],
+        ['aloft', 'flight'],
         ['carrying', 'nuclei'],
         ['bound', 'prison'],
         ['drained', 'thirst'],
@@ -1026,6 +1032,16 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // bill, no aura and no floor of its own -- what says it happened is that
       // the circle is following somebody.
       if (s.ground.some((g) => g.kind === 'gather' && g.named !== undefined)) seen.add('chase')
+      // A body that turned, on the fight where turning is what the raid did
+      // rather than what the clock did. Two mechanics share the aura and say
+      // opposite things with it, so which one this was is a fact about the
+      // fight rather than about the body.
+      if (
+        encounterAt(s.encounter).ladder.includes('turning') &&
+        s.actors.some((a) => a.faction === 'party' && a.auras.some((au) => au.id === 'turned'))
+      ) {
+        seen.add('turning')
+      }
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -1037,7 +1053,17 @@ console.log(`rendered ${frames} frames with no exceptions`)
   // guarded without anybody remembering to come back here.
   const want = [
     ...new Set(ENCOUNTERS.flatMap((e) => [...(e.always ?? []), ...e.ladder])),
-  ] as string[]
+    // Except the one rung in the game that only happens when the raid fails.
+    //
+    // Everything else here is something a boss does; this is what is left when
+    // the raid did not hand the gift on in time, and a pull the party plays
+    // well never contains one. A sweep that demanded it would be a sweep
+    // demanding the roster make a mistake, and the day the AI got better at
+    // this fight the check would have failed for the best possible reason.
+    //
+    // It is not unchecked: the block below puts a gift on somebody with
+    // nowhere to hand it and asserts that they turn.
+  ].filter((id) => id !== 'turning') as string[]
   const missing = want.filter((w) => !seen.has(w))
   console.log(
     missing.length === 0 ? 'ok  ' : 'FAIL',
@@ -4672,6 +4698,30 @@ for (const [label, w, h] of [
     thrown.set('bench', ids)
   }
 
+  // The crimson gift's five, and this one cannot be driven off an imposed
+  // floor at all: what schedules four of them is the raid passing something.
+  // So it is a real pull of the fight, long enough for a gift to be handed on
+  // once, to sour once, and for the boss to leave the floor.
+  {
+    const held = ENCOUNTERS.findIndex((e) => e.id === 'gift')
+    expect('the fight that hands something over is on the roster', held >= 0, `${held}`)
+    const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', held)
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const event of s.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a fight can hand somebody a gift', ids.has('boss_gift'), 'it drew nothing')
+    expect('and tie two of them together', ids.has('boss_bond'), 'it drew nothing')
+    expect('and leave blood where it was passed', ids.has('boss_stain'), 'it drew nothing')
+    expect('and leave the floor entirely', ids.has('boss_flight'), 'it drew nothing')
+    expect('and charge for every one in play', ids.has('boss_crimson'), 'it drew nothing')
+    thrown.set('gift', ids)
+  }
+
   // The three crowns' five. The crown itself needs three bodies to move
   // between, which only its own fight has -- so this one is run against that
   // fight rather than through the imposed floor, and the imposed floor covers
@@ -4729,6 +4779,12 @@ for (const [label, w, h] of [
     // engine with nothing using it. Exempted by name rather than deleted,
     // because the icon is not the thing that is missing.
     if (id === 'boss_herald') continue
+    // And the one picture in the game that only a mistake produces. A raid
+    // that hands the gift on in time never draws it, and the sweeps above are
+    // played by a roster that hands it on in time -- so demanding it here
+    // would be demanding the party play badly. The block that puts a gift
+    // somewhere it cannot be handed on asserts the rule instead.
+    if (id === 'boss_turning') continue
     expect(`${id} is something a boss actually does`, everything.has(id), 'nothing ever threw it')
   }
   const shades = bossEffectIds().map((id) => bossEffect(id)!.colour)
@@ -9164,6 +9220,35 @@ for (const [label, w, h] of [
     if (keptRoom) fight.room = keptRoom
     else delete fight.room
   }
+}
+
+// --- a gift with nowhere to go ---------------------------------------------
+//
+// The one rung in this game that is a failure rather than an action, so it
+// cannot be swept for: a raid that plays the fight well never produces one.
+// What is checked instead is the rule itself -- a gift whose warning runs out
+// with nobody clean to hand it to turns the body holding it.
+{
+  const held = ENCOUNTERS.findIndex((e) => e.id === 'gift')
+  expect('the fight that hands something over is on the roster', held >= 0, `${held}`)
+  const s = pulled(6100, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', held)
+  const rng = new Rng(6100)
+  // Everybody has already held one, which is the state a long pull walks into
+  // on its own and the state this check needs on the first tick.
+  for (const a of s.actors) if (a.faction === 'party') s.held.push(a.id)
+  const holder = s.actors.find((a) => a.faction === 'party' && a.role !== 'tank')!
+  addAura(holder, 'souring', BOSS_ID)
+  let turned = false
+  // Counted in ticks rather than in seconds. The clock does not move while a
+  // pull is counting down, so a loop written against `s.time` is a loop that
+  // never ends if anything ever changes about how a fixture starts -- which is
+  // exactly what happened: this hung the whole check on its first run.
+  const ticks = Math.ceil((AURA_DURATION.souring + 2) * TICK_RATE)
+  for (let n = 0; n < ticks && s.outcome === 'ongoing'; n++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    if (holder.auras.some((au) => au.id === 'turned')) turned = true
+  }
+  expect('a gift with nowhere to go turns the body holding it', turned, 'nothing happened')
 }
 
 // --- a room that floods, and the two rules that keep it answerable ---------

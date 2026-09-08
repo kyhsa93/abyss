@@ -157,6 +157,38 @@ export type AuraId =
    */
   | 'bound'
   /**
+   * Holding the gift, which is the one thing a fight has ever handed anybody
+   * that they want.
+   *
+   * It makes the body stronger while it lasts and it does not come off by
+   * being survived: it comes off by being *given away*, and giving it away
+   * leaves both bodies holding one.
+   */
+  | 'gifted'
+  /**
+   * The ten seconds after a gift runs out, in which it is a warning.
+   *
+   * The holder and the raid both know that this body is the problem now. What
+   * ends it is touching somebody who has never held one; what ends it badly is
+   * nothing, and then the body turns.
+   */
+  | 'souring'
+  /**
+   * Bound to somebody, and the two of you pay for the distance between you.
+   *
+   * The only aura in this game that is about a length. `bearer` is the other
+   * end of it.
+   */
+  | 'bonded'
+  /**
+   * Off the floor, and out of reach of everything.
+   *
+   * The storm is the closest thing this game has and it is not close: a
+   * storming boss has let go of the tank and is walking, and it can still be
+   * hit. This one cannot be hit at all.
+   */
+  | 'aloft'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -487,6 +519,9 @@ export type GroundKind =
   // The sludgeworks rising. Patches along an arc of the wall, never in the
   // middle, and it belongs to the room rather than to the thing in it.
   | 'slime'
+  // Blood left where a gift was doubled: the one piece of ground in this game
+  // that the raid puts there itself.
+  | 'stain'
   // A grain to be picked up, which is the only piece of ground in this game
   // that is worth standing on.
   | 'nucleus'
@@ -1139,6 +1174,19 @@ export interface SimState {
    * Zero in every fight that does not sell it, which is every fight but one.
    */
   gauge: number
+  /**
+   * Everybody who has ever held the gift, on the fight that passes one.
+   *
+   * On the state rather than on a body because it has to outlive the aura: a
+   * holder is looking for somebody who has *never* held one, and a body that
+   * had one two minutes ago is not that. It is also the only list in this game
+   * that only ever grows -- when everybody is on it the fight has run out of
+   * clean bodies, and what happens then is the raid stops doubling.
+   *
+   * Empty in every fight that does not pass anything, which is every fight
+   * but one.
+   */
+  held: number[]
   /**
    * The corridor being walked, or null everywhere else.
    *
