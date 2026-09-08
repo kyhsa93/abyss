@@ -945,24 +945,45 @@ export function citadelLayout(
   // build caught it on a phone: seven rooms overlapping in portrait.
   const span = L.w - p * 2
   const vspan = bottom - top
-  let closestX = 1
-  let closestY = 1
-  for (const a of CITADEL_PLAN) {
-    for (const b of CITADEL_PLAN) {
-      if (a === b) continue
-      const dx = Math.abs(a.x - b.x)
-      const dy = Math.abs(a.y - b.y)
-      if (dy < 0.05) closestX = Math.min(closestX, dx)
-      if (dx < 0.05) closestY = Math.min(closestY, dy)
+
+  // The biggest box that leaves no two rooms touching, solved rather than
+  // guessed.
+  //
+  // It used to be worked out from the closest pair sharing a row and the
+  // closest sharing a column, which is the right answer only while the plan is
+  // a grid. The plan is a building now — traced off the raid's own map — and
+  // the pair that collides first is usually diagonal, so on a landscape phone
+  // three rooms were drawn through each other while both of those numbers
+  // said there was room.
+  //
+  // Width and height are one question, not two: a box placed at a fraction of
+  // the space *left over* moves when it is resized, so widening it closes the
+  // gap it has to fit in. This asks for the largest scale at which every pair
+  // still clears on one axis or the other, which is monotone in the scale and
+  // so is found by halving.
+  const clear = (w: number, h: number): boolean => {
+    for (let i = 0; i < CITADEL_PLAN.length; i++) {
+      for (let j = i + 1; j < CITADEL_PLAN.length; j++) {
+        const a = CITADEL_PLAN[i]!
+        const b = CITADEL_PLAN[j]!
+        const apart =
+          Math.abs(a.x - b.x) * (span - w) >= w || Math.abs(a.y - b.y) * (vspan - h) >= h
+        if (!apart) return false
+      }
     }
+    return true
   }
-  // The boxes are laid out across what is left after a box's own width, so the
-  // gap between two of them is `closest * (span - width)` and not
-  // `closest * span`. Solved for the width that leaves them just touching, and
-  // then a tenth off that so they do not.
-  const fit = (room: number, closest: number) => (closest * room) / (1 + closest)
-  const width = Math.max(44, Math.min(150, fit(span, closestX) * 0.9))
-  const height = Math.max(16, Math.min(32, fit(vspan, closestY) * 0.85))
+  const wMax = Math.min(150, span)
+  const hMax = Math.min(32, vspan)
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2
+    if (clear(wMax * mid, hMax * mid)) lo = mid
+    else hi = mid
+  }
+  const width = Math.max(30, wMax * lo)
+  const height = Math.max(12, hMax * lo)
   const left = p + width / 2
   const right = L.w - p - width / 2
   const high = top + height / 2
@@ -1118,7 +1139,12 @@ export function drawCitadel(
                     : row.state === 'through'
                       ? 'a way through'
                       : 'further on'
-    button(ctx, row.rect, chamber.name, detail, colour, row.state === 'here' || row.enterable)
+    // Without the article, which every room has and none of them is told
+    // apart by: the boxes are placed off the building's own plan now, so they
+    // are as wide as the closest pair of rooms allows and four characters is
+    // a quarter of that.
+    const name = chamber.name.replace(/^The /, '')
+    button(ctx, row.rect, name, detail, colour, row.state === 'here' || row.enterable)
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)

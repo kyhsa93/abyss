@@ -408,34 +408,38 @@ export const PASSAGES: Passage[] = [
  * map says it is. One table, or the picture and the building disagree.
  */
 export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
-  // Up, because the citadel goes up. The way in is at the bottom of the spire
-  // and the throne is on top of it, and a plan drawn the other way round is a
-  // plan of a different building — which is what this was: the rooms in the
-  // right order, descending a page.
-  { id: 'threshold', x: 0.5, y: 0.985 },
-  { id: 'spire', x: 0.5, y: 0.9 },
-  { id: 'oratory', x: 0.5, y: 0.815 },
-  { id: 'mooring', x: 0.5, y: 0.73 },
-  { id: 'rise', x: 0.5, y: 0.645 },
-  { id: 'crossing', x: 0.5, y: 0.55 },
+  // Traced off the raid's own map rather than arranged by hand, which is what
+  // this was before and why it was wrong: a tidy column with the wings hung
+  // under it is a diagram of the boss order, not a drawing of a building. The
+  // real one is a U. You come in halfway up the left side, go *down* past the
+  // first two, along the bottom to the ships, and then climb the middle.
+  { id: 'threshold', x: 0.1, y: 0.62 },
+  { id: 'spire', x: 0.1, y: 0.79 },
+  { id: 'oratory', x: 0.1, y: 0.94 },
+  { id: 'mooring', x: 0.44, y: 0.94 },
+  { id: 'rise', x: 0.44, y: 0.72 },
+  { id: 'crossing', x: 0.44, y: 0.46 },
 
-  // The three wings go sideways off the hub and climb their own way, which is
-  // how the upper spire is laid out: you leave the middle to take one.
-  { id: 'vats', x: 0.19, y: 0.5 },
-  { id: 'sludge', x: 0.06, y: 0.37 },
-  { id: 'airless', x: 0.32, y: 0.37 },
-  { id: 'laboratory', x: 0.19, y: 0.23 },
+  // The plagueworks goes off to the left and above the way in: a short hall,
+  // a room above and a room below it, and the laboratory behind both.
+  { id: 'vats', x: 0.3, y: 0.34 },
+  { id: 'sludge', x: 0.18, y: 0.2 },
+  { id: 'airless', x: 0.18, y: 0.46 },
+  { id: 'laboratory', x: 0.05, y: 0.33 },
 
-  { id: 'crimson', x: 0.72, y: 0.42 },
-  { id: 'sanctum', x: 0.72, y: 0.27 },
+  // The crimson wing is straight up from the middle, and the throne is up and
+  // to the right of it — not above it. Drawn on the middle line, the way to
+  // the top ran through two rooms it does not go through.
+  { id: 'crimson', x: 0.44, y: 0.22 },
+  { id: 'sanctum', x: 0.44, y: 0.05 },
 
-  { id: 'dream', x: 0.92, y: 0.42 },
-  { id: 'gauntlet', x: 0.92, y: 0.27 },
-  { id: 'lair', x: 0.92, y: 0.13 },
+  // The frostwing halls run away to the right, and the lair is reached the
+  // long way round from the dragon rather than straight on.
+  { id: 'dream', x: 0.68, y: 0.56 },
+  { id: 'gauntlet', x: 0.87, y: 0.64 },
+  { id: 'lair', x: 0.95, y: 0.42 },
 
-  // Above everything, on the middle line, with nothing drawn between it and
-  // the hub: it is reached from the hub and not by way of a wing.
-  { id: 'throne', x: 0.5, y: 0.08 },
+  { id: 'throne', x: 0.73, y: 0.24 },
 ]
 
 /**

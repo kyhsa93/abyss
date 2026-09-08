@@ -1044,14 +1044,17 @@ function doorName(id: string): string {
 }
 
 /**
- * The ways out, on the floor.
+ * The ways out, as doorways.
  *
  * A door you cannot see is a menu with extra steps, so this is the whole of
- * what makes the citadel walkable: a mouth in the wall where the room opens,
- * the name of what is through it, and a brighter one for the door the party
- * is nearest — which is the door it will take, because the raid follows you.
+ * what makes the citadel walkable — but *what* it is drawn as matters as much
+ * as that it is drawn. The first version was a lit oval on the floor, and an
+ * oval on the floor in this game is a pad you stand on: the rooms read as
+ * discs with a teleporter stuck to each of them, which is not a building.
  *
- * Drawn with the rest of the floor and under the bodies. A door is ground.
+ * So it is built rather than marked: two posts a doorway apart, a lintel
+ * across them, and the dark of the next room in between. The one the party is
+ * nearest is lit, because that is the one it will take — the raid follows you.
  */
 function drawDoors(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
   const travel = s.travel
@@ -1060,28 +1063,61 @@ function drawDoors(ctx: CanvasRenderingContext2D, s: SimState, clock: number): v
   // something to read after the fight, and the floor is busy.
   if (awake(s).length > 0) return
   const going = heading(s)
-  const pulse = 0.55 + 0.45 * Math.sin(clock * 2.6)
-  const r = EXIT_REACH * L.scale
+  const pulse = 0.6 + 0.4 * Math.sin(clock * 2.6)
+  const h = WALL * L.scale * 1.5
   for (const way of travel.corridor.ways) {
     const lit = way.to === going?.to
-    const at = worldToScreen(way.at)
+    // Across the opening rather than along it: the doorway is a gap in a wall,
+    // so its width runs at right angles to the way you go through it.
+    const across = Math.atan2(way.at.y, way.at.x) + Math.PI / 2
+    const half = EXIT_REACH * 0.85
+    const a = worldToScreen({
+      x: way.at.x + Math.cos(across) * half,
+      y: way.at.y + Math.sin(across) * half,
+    })
+    const b = worldToScreen({
+      x: way.at.x - Math.cos(across) * half,
+      y: way.at.y - Math.sin(across) * half,
+    })
+
     ctx.save()
-    ctx.globalAlpha = lit ? pulse : 0.4
+    // The opening: what is through it is a room nobody has lit yet.
     ctx.beginPath()
-    floorArc(ctx, at.x, at.y, r)
-    ctx.fillStyle = lit ? 'rgba(250, 204, 21, 0.20)' : 'rgba(168, 162, 158, 0.10)'
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
+    ctx.lineTo(b.x, b.y - h)
+    ctx.lineTo(a.x, a.y - h)
+    ctx.closePath()
+    const inside = ctx.createLinearGradient(0, Math.min(a.y, b.y) - h, 0, Math.max(a.y, b.y))
+    inside.addColorStop(0, 'rgba(6, 6, 10, 0.92)')
+    inside.addColorStop(1, lit ? 'rgba(120, 90, 20, 0.55)' : 'rgba(10, 10, 16, 0.75)')
+    ctx.fillStyle = inside
     ctx.fill()
-    ctx.strokeStyle = lit ? COLORS.castBar : COLORS.panelEdge
-    ctx.lineWidth = lit ? 2 : 1
-    ctx.setLineDash(lit ? [] : [5, 5])
+
+    // The frame. Two posts and a lintel, which is the whole of what makes a
+    // gap read as a door rather than as a hole.
+    ctx.globalAlpha = lit ? pulse : 0.55
+    ctx.strokeStyle = lit ? COLORS.castBar : 'rgba(148, 163, 184, 0.55)'
+    ctx.lineWidth = lit ? 3 : 2
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(a.x, a.y - h)
+    ctx.lineTo(b.x, b.y - h)
+    ctx.lineTo(b.x, b.y)
     ctx.stroke()
-    ctx.setLineDash([])
-    // And what is behind it, because a door with no name is a coin toss.
-    ctx.globalAlpha = lit ? 1 : 0.65
+
+    // And the threshold on the floor, so the doorway is standing on something.
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
+    ctx.lineWidth = lit ? 3 : 1
+    ctx.stroke()
+
+    ctx.globalAlpha = lit ? 1 : 0.7
     ctx.fillStyle = lit ? COLORS.castBar : COLORS.textDim
     ctx.font = font(11, lit)
     ctx.textAlign = 'center'
-    ctx.fillText(doorName(way.to), at.x, at.y - r * TILT - 6)
+    ctx.fillText(doorName(way.to), (a.x + b.x) / 2, Math.min(a.y, b.y) - h - 6)
     ctx.restore()
   }
 }
