@@ -27,16 +27,6 @@ import type { Obstacle, Vec2 } from './types'
  * nothing else is.
  */
 export type MechanicId =
-  | 'brand'
-  | 'verdict'
-  | 'crush'
-  | 'spire'
-  | 'fault'
-  | 'shallows'
-  | 'puddle'
-  | 'spread'
-  | 'breath'
-  | 'shockwave'
   | 'coldflame'
   | 'spike'
   | 'blight'
@@ -54,18 +44,6 @@ export type MechanicId =
   | 'empower'
   | 'dominate'
   | 'adds'
-  | 'rot'
-  | 'sunder'
-  | 'soak'
-  | 'hunt'
-  | 'hand'
-  | 'echo'
-  | 'burden'
-  | 'yoke'
-  | 'schism'
-  | 'toll'
-  | 'grasp'
-  | 'refuge'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -88,26 +66,12 @@ export type MechanicId =
  *   Tidebreaker  2/5, and 0/2 at its opening — a bigger raid gets it free
  */
 export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
-  brand: true, // one mark per so many bodies
-  verdict: true, // one judgement per so many bodies
-  crush: false, // a band of a fixed radius, which is where the melee stand
   // The one entry here that is false for a reason the column was not built
   // for. What a spire spends is floor, and the arena is 460 across whoever
   // turns up — counted per body a twenty-five man met twelve eruptions at
   // once, into a footprint no wider than a ten-man's, and wiped on every
   // first pull while the ten-man never noticed. Area denial super-scales.
-  spire: false,
-  fault: false, // half the arena, which is half of it at any headcount
-  shallows: false, // a fixed number of patches, and nothing collides on them
-  puddle: true, // `puddleCount` per cast
-  spread: true, // one mark per so many bodies
   adds: true, // a wave of `living / 6`
-  soak: true, // split among whoever stands in it
-  rot: true, // applied to each of them
-  sunder: true, // the tank's, and a bigger raid brings a second
-  hunt: true, // one stalker per quarry
-  breath: false, // a cone of a fixed angle
-  shockwave: false, // a ring of a fixed radius
   coldflame: false, // a line of a fixed length, wherever it happens to point
   spike: true, // one spike per so many bodies, so nobody is safe by headcount
   blight: false, // the whole room, so the room is the same room at any size
@@ -124,14 +88,9 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   insignificance: false, // whoever is holding it, and one body holds it
   empower: false, // one body of the wave, and a wave is a wave
   dominate: true, // one mind per so many bodies, so a bigger raid loses more
-  hand: false, // a wedge of a fixed angle, whoever it happens to turn onto
-  echo: true, // one mark per so many bodies
-  burden: true, // one weight per so many bodies, and a bigger raid has more hands
-  yoke: true, // one yoke per so many bodies, and the share is split among who came
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
-  schism: true,
   // The three below are the same question asked of every body at once, so a
   // bigger raid meets exactly the fight a smaller one does. Nothing is
   // dropped *on* anybody and nothing is aimed at the arena either: what they
@@ -148,17 +107,14 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // toll and does not get a discount on the one it has -- what changes with
   // the roster is only how many bodies there are to nominate from, which
   // makes it easier rather than more, and that is what `false` means here.
-  toll: false,
   // One reach, whatever the headcount, and it writes one bill. What a bigger
   // raid changes is how many bodies are inside the circle when it closes,
   // which makes the single bill larger rather than making a second one -- so
   // the demand on any one body is the same at every size.
-  grasp: false,
   // Marks per body, and a stone per mark. Both halves scale together, which
   // is the property that keeps it the same question at every size: a quarter
   // of the raid is sorting itself onto its own ground whether that is two
   // people or six.
-  refuge: true,
 }
 
 /**
@@ -168,32 +124,6 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
  * which has to touch all of them cannot quietly miss one. Every hand-written
  * copy of this list in the repo's history has ended up missing a name.
  */
-/**
- * The vocabulary no boss sells any more, on its way out.
- *
- * Five fights were removed and their rungs went with them, which leaves
- * twenty-seven names still in the type, still implemented, and belonging to
- * nobody. They are being retired a family at a time rather than in one sweep:
- * each is a scheduler, a floor kind, a stretch of the party AI and a run of
- * checks, and a single edit that took all of them out at once produced six
- * thousand deleted lines nobody could review.
- *
- * The list exists so the rule that guards the ladders keeps running while that
- * happens. "Every mechanic belongs to a boss" is what this game is built on
- * and it is not being relaxed -- what is written here is the exception, by
- * name, and the check reads it rather than being widened. When the last family
- * is gone this is an empty array and the rule is what it always was.
- *
- * Nothing may be added to it. A mechanic with no boss is either on its way out
- * or an oversight, and the only thing that tells them apart is that somebody
- * wrote it down here on purpose.
- */
-export const RETIRING: MechanicId[] = [
-  'brand', 'verdict', 'crush', 'spire', 'fault', 'shallows', 'puddle',
-  'spread', 'soak', 'rot', 'sunder', 'hunt', 'breath', 'shockwave', 'hand',
-  'echo', 'burden', 'yoke', 'schism', 'toll', 'grasp', 'refuge',
-]
-
 export const MECHANIC_IDS = Object.keys(MECHANIC_SCALES) as MechanicId[]
 
 /**
@@ -230,22 +160,7 @@ export function noTimers(): Record<MechanicId, number> {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
-  brand: 'the brand',
-  verdict: 'the judgement',
-  crush: 'the crush',
-  spire: 'the spires',
-  fault: 'the fault',
-  shallows: 'the shallows',
-  puddle: 'pools',
-  spread: 'marks',
-  breath: 'the cone',
-  shockwave: 'the ring',
   adds: 'thralls',
-  rot: 'rot',
-  sunder: 'the armour break',
-  soak: 'the gathering',
-  hunt: 'the stalker',
-  hand: 'the hand',
   coldflame: 'the cold line',
   spike: 'the spikes',
   blight: 'the blight',
@@ -262,150 +177,15 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   insignificance: 'the slight',
   empower: 'the empowered',
   dominate: 'the turned',
-  echo: 'the echo',
-  burden: 'the burden',
-  yoke: 'the yoke',
-  schism: 'the schism',
-  toll: 'the toll',
-  grasp: 'the grasp',
-  refuge: 'the refuge',
 }
 
 export interface PhaseTiming {
   swing: number
-  /**
-   * Seconds between one brand and the next.
-   *
-   * A mark that leaves ground where it burns out. The two things measured to
-   * teach in this game are both about the floor — a puddle is worth 34 points
-   * of survival between a first pull and a ninth and a cone 29, and nothing
-   * else clears 6 — because a telegraph is dodged once and learnt while a
-   * floor is failed again and again.
-   *
-   * What a puddle does not ask is *where* the ground goes. This does: the
-   * marked choose the spot by standing in it, so the fight is over which part
-   * of the floor the raid is willing to give up. Ground the melee needs is a
-   * different price from ground nobody was using.
-   */
-  brand: number
-  /**
-   * Seconds between one eruption of spires and the next.
-   *
-   * Stone comes up on telegraphed spots — you are on one or you are not, and
-   * there is no half of it — and then it stands there while the next casts
-   * land on whatever floor is left. Every other hazard here is a place to not
-   * be for a few seconds and then the arena is whole again; this one hands
-   * back less than it took.
-   *
-   * It was built to ask a second question on top of a pool's — not "where do I
-   * stand now" but "which of this floor will still be floor in a minute" —
-   * and measurement does not support that it does. How long the stone stands
-   * barely moves the teaching at all; see `SPIRE_LINGER`. What it is worth, it
-   * is worth at the instant it comes up.
-   */
-  spire: number
-  /**
-   * Seconds between one judgement and the next.
-   *
-   * The one thing on any of these tables that is not answered by standing
-   * somewhere else. It picks somebody, counts, and then kills them outright
-   * unless they are above a line when it lands — so the answer belongs to
-   * whoever can move a health bar, and it has to be paid before the count
-   * runs out rather than after the hit, which is where healing normally sits.
-   *
-   * What that costs a healer is not throughput, it is attention: the marked
-   * are rarely the most hurt person in the raid, so answering means looking
-   * away from the body the rotation would otherwise pick.
-   */
-  verdict: number
-  /**
-   * Seconds between one crush and the next.
-   *
-   * The band of floor the melee stand in, announced and then caved in.
-   *
-   * It was written as the answer to a mechanic that is no longer here. The
-   * sweep hit the same band with no warning at all and measured at exactly
-   * zero points of teaching, because the question it asked was "are you melee"
-   * and a role is not a skill; this announced itself a second ahead and turned
-   * the same band into a moment of judgement. The sweep has since been deleted
-   * for the same reason it taught nothing — it could not be seen — and this
-   * one is now simply the mechanic, rather than the reply to one.
-   */
-  crush: number
-  /**
-   * Seconds between one pass of the hand and the next.
-   *
-   * A wedge anchored on the boss that fires, turns, and fires again, five
-   * times to a cast. Every other shape in this game is answered by finding
-   * the spot it is not: the pool says leave where you stand, the cone says
-   * get behind, the ring says come in, and once the answer is taken it is
-   * taken. This one moves onto the answer.
-   *
-   * What that costs is not a step, it is the *direction* of the step. The
-   * floor the hand has just left is the floor that is safe next, and the
-   * floor a pace ahead of it is the floor that is about to stop being floor,
-   * so a raid that reads the shape and not its bearing walks into the pulse
-   * after the one it dodged. There is no place to end up: there is only
-   * being behind it, again, on every beat.
-   */
-  hand: number
-  /**
-   * Seconds between one echo and the next.
-   *
-   * A mark that answers itself, a beat late. The floor under whoever carries
-   * it gives way on the boss's drum for as long as it lasts, so standing
-   * still is the one thing that cannot be done with it — and unlike the
-   * brand, which asks for one walk to somewhere the raid was not using, this
-   * asks for the walk again before the last one has finished being paid for.
-   */
-  echo: number
-  /**
-   * Seconds between one fault and the next.
-   *
-   * A line drawn across the arena, and the half of the floor on one side of
-   * it is condemned. The crush asks the melee whether they noticed; this asks
-   * the whole raid, because a half-plane through the boss does not care where
-   * anybody's role stands — the tank at fifty-two and a caster at two hundred
-   * are on one side of it or the other on the same terms.
-   *
-   * The bearing is rolled every cast, so it is read off the floor rather than
-   * remembered. What it costs is the crossing: the answer is always the same
-   * shape and never the same direction.
-   */
-  fault: number
-  /**
-   * Seconds between one drowning of the floor and the next.
-   *
-   * The inverse of every other piece of hazardous ground here. A pool says
-   * leave where you stand and a fault says leave that half; this condemns the
-   * arena and leaves a few patches of it standing, so the answer is not a
-   * step off something but a walk to somewhere, chosen from three.
-   *
-   * It is the gathering's opposite as well, and deliberately: the circle asks
-   * the whole party into one place, which is a mechanic that gets easier the
-   * more bodies there are to divide it between. Three patches ask each body
-   * the same question whatever the headcount, and nothing here collides, so a
-   * raid of twenty-five is not punished for being a crowd.
-   */
-  shallows: number
-  /**
-   * Seconds between one schism and the next.
-   *
-   * The other half of the same question. Instead of moving the whole party at
-   * once it cuts the party into groups and asks that the groups do not touch,
-   * which is the one demand on this table a body standing perfectly still can
-   * fail — what catches you is that somebody else walked toward you.
-   */
-  schism: number
-  puddle: number
-  spread: number
   slam: number
   puddleCount: number
   /** Unavoidable party-wide damage; the healer's actual test. */
   raid: number
   /** 0 disables the mechanic for that phase. */
-  breath: number
-  shockwave: number
   /**
    * Seconds between one cold line and the next.
    *
@@ -580,114 +360,6 @@ export interface PhaseTiming {
    * table rather than a reason to bring one.
    */
   /** A dot on somebody. Slow, unavoidable, and the healer's to solve. */
-  rot: number
-  /**
-   * How often the armour break lands on whoever is holding the boss.
-   *
-   * The one mechanic aimed at the tanks rather than at the raid: it stacks on
-   * the current target and makes everything physical hurt more, so a party
-   * with two of them trades the boss and a party with one has to survive the
-   * top of the stack. Every other mechanic here is answered by moving; this
-   * one is answered by deciding who is standing there — which is why no boss
-   * puts it on its ladder before the fourth rung, since a five-man fields one
-   * tank and is not allowed to answer it.
-   */
-  sunder: number
-  /**
-   * How often the whole party has to stand in one circle.
-   *
-   * The inverse of spread, and the only mechanic here that asks the party to
-   * do something *together* rather than each get themselves out of the way.
-   * What lands is divided by however many stood in it and then dealt to
-   * everybody, so being outside does not save you — it costs the people who
-   * went.
-   */
-  soak: number
-  /**
-   * How often something picks one of you and walks after it.
-   *
-   * The only mechanic here aimed at a single person, and the only one with
-   * two answers: the one it picked runs, and everybody else decides whether
-   * to chase it down or keep hitting the boss. Every other hostile in this
-   * game goes for whoever is nearest, which the party answers by standing
-   * somewhere else.
-   */
-  hunt: number
-  /**
-   * Seconds between one burden and the next.
-   *
-   * A weight that has to change hands. It lands on a fraction of the raid,
-   * counts down, and the only way it comes off is by being walked into
-   * somebody who has not held it yet — three fresh pairs of hands and it is
-   * spent. Miss the window and it goes off on whoever is still holding it,
-   * for more the further along the chain it got.
-   *
-   * The whole mechanic is the handoff. Every other mark in this game is
-   * answered by the person wearing it and nobody else: a brand is walked to
-   * empty floor, a spread is walked away from the raid, a stalker is kited.
-   * This one cannot be answered alone at all, because the answer is another
-   * body, and the body has to be one that has not already taken its turn.
-   */
-  burden: number
-  /**
-   * Seconds between one yoke and the next.
-   *
-   * The other half of the same idea, with the debt shared instead of passed.
-   * It matures on the one it picked and the damage is divided among everyone
-   * standing close enough to take a piece of it. Alone it kills them; four
-   * deep it is a heavy hit nobody remembers.
-   *
-   * It is the gathering read the other way round. The gathering is a circle
-   * on the floor and the raid walks to a place; this is a circle on a person
-   * and the raid walks to *them*, while they are still trying to answer
-   * everything else the fight is asking. That is the difference between
-   * standing somewhere and being met.
-   */
-  yoke: number
-  /**
-   * Seconds between one toll and the next.
-   *
-   * A plate laid out past where the raid stands, a count, and a price that is
-   * paid by exactly one body or by all of them. Nobody is marked and nothing
-   * is aimed: what the boss asks for is a name, and the raid has to produce
-   * one before the count runs out.
-   *
-   * It is the judgement's opposite number. The judgement picks somebody and
-   * the raid answers; this picks nobody and the raid has to do the picking,
-   * which is the one demand on this table that is a decision before it is a
-   * walk. The choice is real because the price is flat: it is a scratch on
-   * whoever still has most of a bar and it finishes whoever does not.
-   */
-  toll: number
-  /**
-   * Seconds between one grasp and the next.
-   *
-   * A reach that closes on a piece of floor and takes hold of the single body
-   * left nearest to it. Everything else here that lands on ground bills
-   * everyone standing in it; this bills one, and it bills them for the others
-   * as well -- the more of the raid that was still inside when it closed, the
-   * more the one it caught pays.
-   *
-   * So there is no safety in a crowd and none in being outside a line either.
-   * There is only being further out than somebody else, and the raid decides
-   * who that is by who it leaves behind.
-   */
-  grasp: number
-  /**
-   * Seconds between one refuge and the next.
-   *
-   * Stones enough for exactly the bodies it marks, and one body to a stone.
-   * The shallows leave three patches and every one of them holds the whole
-   * raid; these hold one each, so the question is not where the floor is, it
-   * is which piece of it is yours -- and a body that walks to the nearest one
-   * without asking who else was walking there has taken somebody's place
-   * rather than found its own.
-   *
-   * Nobody has to pay it. That is the design rather than a softness: a
-   * mechanic one stone short kills somebody on every cast however well it is
-   * answered, which is a fixed bill and not a lesson.
-   */
-  refuge: number
 }
 
 export interface Encounter {
@@ -877,7 +549,6 @@ export interface Encounter {
    * phase one doing nothing.
    */
   opening: {
-    brand: number
     coldflame: number
     spike: number
     blight: number
@@ -894,30 +565,9 @@ export interface Encounter {
     insignificance: number
     empower: number
     dominate: number
-    spire: number
-    verdict: number
-    crush: number
-    schism: number
-    hand: number
-    echo: number
-    fault: number
-    shallows: number
-    puddle: number
-    spread: number
     slam: number
     raid: number
-    breath: number
-    shockwave: number
     adds: number
-    rot: number
-    sunder: number
-    soak: number
-    hunt: number
-    burden: number
-    yoke: number
-    toll: number
-    grasp: number
-    refuge: number
   }
   /**
    * The colour this one is drawn in.
@@ -939,7 +589,6 @@ export interface Encounter {
    */
   names: {
     slam: string
-    breath: string
     shard: string
     /**
      * The unavoidable one, which every boss has and which every boss called by
@@ -958,7 +607,6 @@ export interface Encounter {
     phaseTwo: string
     phaseThree: string
     adds: string
-    shockwave: string
     coldflame: string
     spike: string
     blight: string
@@ -976,60 +624,7 @@ export interface Encounter {
     empower: string
     dominate: string
     /** Empty where the boss does not use the mechanic. */
-    rot: string
-    sunder: string
-    brand: string
-    verdict: string
-    crush: string
-    /**
-     * Every boss has one of these, where most lines are empty on the bosses
-     * that do not own the mechanic.
-     *
-     * The floor giving way is not on anybody's ladder — where it belongs on
-     * one is a question about the shape of a fight rather than about the
-     * mechanic — so nothing says these lines today. They are kept because the
-     * mechanic is kept: the day it is put on a ladder, the fight that gets it
-     * has to have a word for it, and an empty string is a mechanic that goes
-     * off in silence.
-     */
-    fault: string
-    shallows: string
     /** Unplaced too, and for the same reason. See `fault` above. */
-    spire: string
-    soak: string
-    hunt: string
-    hand: string
-    echo: string
-    burden: string
-    yoke: string
-    /**
-     * Authored on every boss rather than on the one that throws it.
-     *
-     * The rule everywhere else on this table is that a boss has a line for a
-     * mechanic exactly when its ladder has a rung for it, and that rule is
-     * checked. This one is on no ladder at all yet — where it belongs is a
-     * question about which fight wants the demand, and it is not answered
-     * here — so every boss carries a key for it, empty, the way the fault and
-     * the shallows do.
-     */
-    schism: string
-    /**
-     * The three whose answer is an instant rather than a place.
-     *
-     * On no ladder, for the reason the fault and the shallows are on none:
-     * which fight wants which demand is a question about the shape of a
-     * boss, and it is not answered here. Keyed and empty everywhere.
-     */
-    /**
-     * The three that belong to the round about who pays. Authored on every
-     * boss for the schism's reason above: none of them has a rung anywhere
-     * yet, where they belong is a question about the shape of a fight rather
-     * than about the mechanic, and a fight that takes one on should not also
-     * have to be given a voice for it.
-     */
-    toll: string
-    grasp: string
-    refuge: string
   }
 }
 
@@ -1138,7 +733,7 @@ export const ENCOUNTERS: Encounter[] = [
     mechanicDamage: 0.9,
     sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
     accent: '#e7e5e4',
-    names: { slam: 'SABER LASH', breath: '', shard: '', raid: 'THE GRINDING' },
+    names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
     ladder: ['coldflame', 'spike', 'bonestorm'],
     phases: {
       1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 13, spike: 27, bonestorm: 62 }) },
@@ -1150,7 +745,6 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
       adds: '',
-      shockwave: '',
       coldflame: 'Cold on the floor — off the line',
       spike: 'Bone through the floor — break it, get them out',
       blight: '',
@@ -1167,24 +761,6 @@ export const ENCOUNTERS: Encounter[] = [
       insignificance: '',
       empower: '',
       dominate: '',
-      rot: '',
-      sunder: '',
-      brand: '',
-      verdict: '',
-      crush: '',
-      fault: '',
-      shallows: '',
-      spire: '',
-      soak: '',
-      hunt: '',
-      hand: '',
-      echo: '',
-      burden: '',
-      yoke: '',
-      schism: '',
-      toll: '',
-      grasp: '',
-      refuge: '',
     },
   },
   {
@@ -1296,7 +872,7 @@ export const ENCOUNTERS: Encounter[] = [
     // cells at 95 or better, which is the fight being handed over.
     sizeMechanic: { 5: 0.95, 10: 1.0, 25: 0.82 },
     accent: '#38bdf8',
-    names: { slam: 'A WORD OF ENDING', breath: '', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
+    names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
     // last. The turned mind is the top rung on purpose: it is the only thing
     // in this game that asks a raid to stop hitting one of its own, and a raid
@@ -1319,7 +895,6 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
       adds: 'The faithful answer',
-      shockwave: '',
       coldflame: '',
       spike: '',
       blight: '',
@@ -1336,24 +911,6 @@ export const ENCOUNTERS: Encounter[] = [
       insignificance: 'It has stopped looking at me — take it',
       empower: 'That one came back wrong — kill it first',
       dominate: 'One of ours is turned — hold off them',
-      rot: '',
-      sunder: '',
-      brand: '',
-      verdict: '',
-      crush: '',
-      fault: '',
-      shallows: '',
-      spire: '',
-      soak: '',
-      hunt: '',
-      hand: '',
-      echo: '',
-      burden: '',
-      yoke: '',
-      schism: '',
-      toll: '',
-      grasp: '',
-      refuge: '',
     },
   },
   {
@@ -1431,7 +988,7 @@ export const ENCOUNTERS: Encounter[] = [
     // harness never printed a size table for this boss. See `SHARDS`.
     sizeMechanic: { 5: 1.25, 10: 1.1, 25: 0.65 },
     accent: '#84cc16',
-    names: { slam: 'GORGE', breath: '', shard: '', raid: 'BAD AIR' },
+    names: { slam: 'GORGE', shard: '', raid: 'BAD AIR' },
     // The air is the first rung rather than something outside the ladder, and
     // that is a compromise worth writing down.
     //
@@ -1498,7 +1055,6 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
       adds: '',
-      shockwave: '',
       coldflame: '',
       spike: '',
       blight: 'The room is going bad',
@@ -1515,24 +1071,6 @@ export const ENCOUNTERS: Encounter[] = [
       insignificance: '',
       empower: '',
       dominate: '',
-      rot: '',
-      sunder: '',
-      brand: '',
-      verdict: '',
-      crush: '',
-      fault: '',
-      shallows: '',
-      spire: '',
-      soak: '',
-      hunt: '',
-      hand: '',
-      echo: '',
-      burden: '',
-      yoke: '',
-      schism: '',
-      toll: '',
-      grasp: '',
-      refuge: '',
     },
   },
 ]

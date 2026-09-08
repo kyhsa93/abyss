@@ -1,28 +1,17 @@
 import { ABILITIES, type Ability } from './abilities'
 import { DIFFICULTIES, RESOURCES, mitigation, specOf } from './classes'
 import { CARRIER_FRAGILITY, carrying, clearTerrain } from './battleground'
-import { affixHealing, affixSpread } from './affix'
+import { affixHealing } from './affix'
 import { encounterAt, type MechanicId } from './encounters'
 import {
-  BURDEN_DAMAGE,
-  BURDEN_SLOW,
-  BURDEN_PER_HAND,
   CHARGE_RAGE,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
   GLOBAL_COOLDOWN,
   HEALTH,
-  HUNT_DURATION,
   MELEE_RANGE,
-  SPREAD_RADIUS,
-  YOKE_ALONE,
-  GRASP_CAP,
-  GRASP_PER_HEAD,
-  YOKE_REACH,
-  YOKE_SHARE,
   MELEE_CALL,
   ENRAGE_GRACE,
-  ECHO_BEAT,
   TURNED_GUARD,
   INHALE_MAX,
   BLOAT_BURST_AT,
@@ -38,7 +27,6 @@ import type {
   AuraId,
   EffectEvent,
   FloatingText,
-  GroundEffect,
   ProjectileKind,
   SimState,
   Vec2,
@@ -111,9 +99,6 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // stretch of the fight.
   brace: 4,
   beacon: 12,
-  spread: 4,
-  // Short enough that a reaction is a reaction rather than a stroll.
-  brand: 1.8,
   /**
    * How long a spike stands if nobody breaks it.
    *
@@ -173,32 +158,6 @@ export const AURA_DURATION: Record<AuraId, number> = {
   reek: 9,
   /** It is cleared by the swap, not by the clock. */
   swelling: 9999,
-  // Long enough to be several beats rather than one, which is the mechanic:
-  // a single piece of floor going out from under somebody is a puddle, and
-  // what this asks is that they keep leaving.
-  //
-  // Measured in beats, not in seconds, which is why it moved when the drum
-  // did: `NOTICE_GRANT` slowed `ECHO_BEAT` from 1.05 to 1.45, and five seconds
-  // that had been four beats and a bit became three. Four beats is the
-  // mechanic — the same number of times you are asked to leave, spread over
-  // the longer count a person needs to see each one coming.
-  echo: 4 * ECHO_BEAT + 0.2,
-  // The count on a judgement. Long enough that a healer who started on it
-  // lands the heal, short enough that one who waited out a global cooldown
-  // first does not — which is the whole question the mechanic asks.
-  verdict: 3,
-  // The same: a label saying which stone is yours, alive only for as long as
-  // the count on the stones. What decides the mechanic is the ground effect
-  // resolving, not this running out.
-  refuge: 2.8,
-  // Only a label, and only until the split resolves. What decides the
-  // mechanic is the ground effect counting down, not this running out; this
-  // is what says which group you are in while it does.
-  schism: 2.4,
-  // Long enough that a second tank has to take it, short enough that a party
-  // with only one tank gets it back off eventually.
-  sunder: 16,
-  hunted: HUNT_DURATION,
   enrage: 9999,
   // Bookkeeping for the spec traits. Long enough that a rotation keeps them
   // between presses, short enough that they are gone by the next pull.
@@ -211,17 +170,8 @@ export const AURA_DURATION: Record<AuraId, number> = {
   pact: 12,
   ward: 10,
   mending: 6,
-  rot: 15,
   // Short on purpose: it is for one exit and one return, not for a fight.
   sprint: 5,
-  // The fuse on a weight that has to change hands. Long enough to cross the
-  // gap to somebody who has not held it, short enough that the crossing has
-  // to start now — which is the only place a reaction can be charged for.
-  burden: 1.9,
-  // Longer, because what it asks for is not one person moving but everybody
-  // else arriving, and they are arriving from wherever the rest of the fight
-  // left them standing.
-  yoke: 1.1,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -245,7 +195,6 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   momentum: 3,
   eclipse: 3,
   pact: PACT_CHARGES,
-  sunder: 5,
   // The three the fight counts on a body rather than the party counting on
   // itself, and every one of them was missing.
   //
@@ -268,22 +217,6 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   slighted: SLIGHT_MAX,
 }
 
-/**
- * What each stack of a sunder takes off the armour it broke.
- *
- * Armour rather than a damage multiplier, which is what it was first written
- * as. The two are not the same mechanic wearing different names: a multiplier
- * compounds with everything else that is already scaling — heroic's damage,
- * the enrage — and it did exactly that, taking a ten-man heroic from
- * seventeen percent to three while normal barely moved. Run through the
- * armour curve instead, the same curve plate and cloth already sit on, it
- * bites hardest on the target that had the most to lose and cannot take more
- * than there was.
- *
- * Physical only either way, so it stays the tank's problem rather than the
- * raid's.
- */
-const SUNDER_ARMOR = 1200
 
 /** How many fillers one finisher lights up. See the `eclipse` case in onCast. */
 const ECLIPSE_CHARGES = 3
@@ -313,7 +246,6 @@ export function clearAura(actor: Actor, id: AuraId): void {
  * would file the party's rotation under the boss's page.
  */
 export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
-  rot: 'rot',
   spiked: 'spike',
   reek: 'vilegas',
   haunted: 'shade',
@@ -356,9 +288,6 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // has just taken one hit together, which is the one thing a healer cannot
   // fix one bar at a time.
   renewal: { heal: 54 },
-  // The boss's own dot. Unavoidable, slow, and the reason a healer cannot
-  // spend a whole fight watching one health bar.
-  rot: { damage: 36 },
 }
 
 export function addAura(actor: Actor, id: AuraId, sourceId: number): void {
@@ -635,8 +564,7 @@ export function applyDamage(
   if (school === 'physical') {
     // Block comes off the top, then armour.
     final = Math.max(0, final - target.block)
-    const broken = (getAura(target, 'sunder')?.stacks ?? 0) * SUNDER_ARMOR
-    final *= 1 - mitigation(Math.max(0, target.armor - broken))
+    final *= 1 - mitigation(target.armor)
   }
   // Carrying their flag makes you easier to bring down, whatever hit you.
   // Outside a battleground this is never true.
@@ -881,39 +809,6 @@ export function mechanicScale(s: SimState): number {
   return fightScale(s) * encounterAt(s.encounter).mechanicDamage
 }
 
-/**
- * The note, getting louder, and what it does when it finally breaks.
- *
- * A flat drip is the one shape a healer never has to think about: it arrives
- * at the same rate it is covered at, so the fight asks nothing and a raid
- * that has never seen it wins as often as one that has. Measured, the
- * Choir's three normal rungs improved by 0, -5 and +10 points between a first
- * pull and a ninth, against the Warden's 35, 60 and 93 — and the Warden's
- * curve is a puddle, which is to say a spike somebody failed to avoid.
- *
- * This is the same idea for a mechanic that cannot be avoided at all: the
- * spike is not dodged, it is anticipated. The note builds over its fifteen
- * seconds and bursts at the end, so a healer that is watching tops the
- * carrier before it lands and one that is not loses them — which is exactly
- * what this boss already asks for out loud. `demand` says out-heal the
- * singing and the carrier says a note is caught in me.
- *
- * The ramp is centred on one, so the total the drip used to do is unchanged.
- * What moved is when it arrives.
- */
-const ROT_RAMP = 1.2
-// 200 rather than the 430 this started at. The break is a real spike at that
-// size — a fifth of a bar, landing on a body the drip has already worked on —
-// and it leaves the ladder where the last round put it. Larger, and it stops
-// being the Choir's mechanic and becomes everybody's: the Warden buys `rot` on
-// its second rung and holds it for the rest of the ladder, so this number is
-// paid four times by the boss it does not belong to.
-const ROT_BREAK = 200
-
-export function rotBite(aura: Aura, base: number): number {
-  const spent = 1 - Math.max(0, aura.remaining) / AURA_DURATION.rot
-  return base * (1 - ROT_RAMP / 2 + ROT_RAMP * spent)
-}
 
 /**
  * What a pin costs on the tick it is paid, which climbs the longer it holds.
@@ -934,220 +829,7 @@ export function spikeBite(aura: Aura, base: number): number {
 /** How much steeper a pin gets by the end of it. See `spikeBite`. */
 const SPIKE_RAMP = 2
 
-/**
- * Whoever could take this weight, and has not had it yet.
- *
- * The chain's memory is what makes this a search rather than a lookup: by the
- * last leg the bodies standing closest are exactly the ones that have already
- * had their turn.
- */
-export function freshHands(s: SimState, carrier: Actor): Actor[] {
-  const weight = getAura(carrier, 'burden')
-  if (!weight) return []
-  const held = weight.held ?? [carrier.id]
-  return livingParty(s).filter(
-    (a) => a.id !== carrier.id && !held.includes(a.id) && !getAura(a, 'burden'),
-  )
-}
-
-/**
- * The one body being asked to take it, which is the furthest one that can.
- *
- * The furthest rather than the nearest, and this is the entire mechanic.
- *
- * Nearest was the first version and it measured at nothing, for a reason that
- * is worth writing down because it will be true of the next mechanic somebody
- * builds about proximity: this party stands thirty units apart. A raid at rest
- * is already touching, so a handoff to whoever is nearest completes on the
- * tick it is handed out, before anybody has noticed it exists — four hundred
- * of them in one pull and not one dropped. It was not an easy mechanic, it was
- * an absent one, and no amount of shortening the fuse would have found it,
- * because the fuse was never what it was failing to fit inside.
- *
- * Sent to the far side instead, the pass is a run across the arena — the melee
- * stand at the boss and the casters two hundred units out, so the raid is wide
- * even when it is packed. Now the fuse has a journey to be too short for, and
- * the reaction that delays the start of the journey is charged for.
- *
- * It also says something true: a hand that happened to be there did not accept
- * anything. Somebody has to come and get it.
- */
-export function burdenTaker(s: SimState, carrier: Actor): Actor | null {
-  let best: Actor | null = null
-  let furthest = -1
-  for (const hand of freshHands(s, carrier)) {
-    const d = dist(carrier.pos, hand.pos)
-    if (d > furthest) {
-      furthest = d
-      best = hand
-    }
-  }
-  return best
-}
-
-/**
- * The one named to stand with a carrier, read off the mark itself.
- *
- * The mark rather than the carrier, because the one place this has to be right
- * is the one place the carrier no longer has it: aura expiry splices the entry
- * out of the actor before it calls the thing that resolves it, so a lookup
- * through `getAura` answers "nobody was named" for every yoke that ever
- * matured. That read as a mechanic the raid never once answered — thirty-two
- * of them a pull, every one resolved alone — and it was not the raid failing
- * to walk, it was the question being asked of an actor that had already been
- * cleaned up.
- */
-export function yokeBearerOf(s: SimState, mark: Aura): Actor | null {
-  if (mark.bearer === undefined) return null
-  const bearer = s.actors.find((a) => a.id === mark.bearer)
-  return bearer && bearer.alive ? bearer : null
-}
-
-/**
- * What a weight costs whoever is carrying it, in speed.
- *
- * The one thing the mechanic charges before it resolves. Without it the
- * handoff is free — a carrier walks to the nearest fresh body at exactly the
- * speed it would have moved anyway, and the fuse is the only cost there is.
- * With it, the last leg of a chain is a walk the raid can watch fail.
- *
- * Lives here rather than in either mover, because the player and the AI have
- * separate movement code and a drag that only one of them pays is a drag that
- * makes the mechanic mean two different things.
- */
-export function carryDrag(actor: Actor): number {
-  return getAura(actor, 'burden') ? BURDEN_SLOW : 1
-}
-
-/**
- * How long the next pair of hands gets.
- *
- * Tightening down the chain. A relay whose every leg is the same length is a
- * relay that is either always finished or never started; shortening it means
- * the raid is racing something that is getting harder as it goes, and the
- * last leg is the one that is actually in doubt.
- */
-export function burdenFuse(hands: number): number {
-  return AURA_DURATION.burden * Math.pow(0.9, Math.max(0, hands))
-}
-
-/**
- * The weight going off in the hands it was left in.
- *
- * Priced off the chain rather than off the clock: what it cost the raid is
- * the walking already spent on it, and a burden dropped on its last leg spent
- * the most. `stacks` counts the hands it has been through, so a weight that
- * never moved is the cheap one and a weight that nearly made it is not.
- */
-export function dropBurden(s: SimState, carrier: Actor, weight: Aura): void {
-  const hands = Math.max(0, weight.stacks - 1)
-  const damage = Math.round(BURDEN_DAMAGE * (1 + hands * BURDEN_PER_HAND) * mechanicScale(s))
-  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'burden' })
-  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_burden', power: damage })
-  s.sounds.push('raid')
-}
-
-/**
- * The yoke coming due, and whether the one who was called for came.
- *
- * The gathering read the other way round, and then narrowed. A gathering is a
- * circle on the floor and the raid walks to a place; this is a debt on a
- * person, and what it asks is that one named body drops what it is doing and
- * goes to stand with them so that it can be halved.
- *
- * The bearer is the whole mechanic. If it arrived, the two of them split it
- * and it is a hit nobody remembers. If it did not, there is nobody to split it
- * with, and the whole of it lands on the one person in the raid who did
- * nothing wrong.
- *
- * That last part is the point. Every other mechanic here bills whoever made
- * the mistake: the one who stood in the fire, the one who did not spread, the
- * one still in the band when it came down. This one bills somebody else, and
- * it is the only thing in the fight that does.
- */
-export function shareYoke(s: SimState, carrier: Actor, mark: Aura): void {
-  const bearer = yokeBearerOf(s, mark)
-  const came = bearer !== null && dist(bearer.pos, carrier.pos) <= YOKE_REACH
-
-  if (!came) {
-    const alone = Math.round(YOKE_ALONE * mechanicScale(s))
-    applyDamage(s, carrier, alone, 'magic', { sourceId: BOSS_ID, mechanic: 'yoke' })
-    pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: alone })
-    s.sounds.push('raid')
-    return
-  }
-
-  const share = Math.round(YOKE_SHARE * mechanicScale(s))
-  for (const a of [carrier, bearer]) {
-    applyDamage(s, a, share, 'magic', { sourceId: BOSS_ID, mechanic: 'yoke' })
-  }
-  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_yoke', power: share })
-  s.sounds.push('raid')
-}
-
-/** What is left of the note when it lets go. */
-export function breakRot(s: SimState, carrier: Actor): void {
-  const damage = Math.round(ROT_BREAK * fightScale(s))
-  applyDamage(s, carrier, damage, 'magic', { sourceId: BOSS_ID, mechanic: 'rot' })
-  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_rot', power: damage })
-  s.sounds.push('raid')
-}
-
-/**
- * The one the raid nominated to go and pay the toll, read off the plate.
- *
- * Off the ground effect rather than worked out again, which is the yoke's
- * lesson applied before it could be learnt a second time here. "Whoever can
- * best afford this" moves every time anybody in the raid takes a hit, so a
- * nomination computed on demand is answered by a different person on almost
- * every tick of the count -- and a plate two people set off for and one
- * turned back from is a plate nobody stood on.
- */
-export function tollPayer(s: SimState, g: GroundEffect): Actor | null {
-  if (g.named === undefined) return null
-  const payer = s.actors.find((a) => a.id === g.named)
-  return payer && payer.alive ? payer : null
-}
-
-/**
- * What the grasp charges the body it took hold of.
- *
- * One bill, raised by everybody else who was still inside when it closed.
- * Divided, this would be the shape that has already failed twice here -- the
- * same total goes into the raid whatever it does, so practice moves who pays
- * and never how much. Concentrated, the raid pays one hit a cast and what
- * practice moves is its size.
- */
-export function graspBill(caught: number): number {
-  return Math.min(GRASP_CAP, 1 + GRASP_PER_HEAD * Math.max(0, caught - 1))
-}
-
-/**
- * Which stone this one was told to take.
- *
- * Kept on the mark, the way the split keeps which group you are in, and for
- * the same reason both of them keep it rather than deriving it: the nearest
- * free stone is a different stone once somebody has started walking, and a
- * raid that re-answers it every tick is a raid where two bodies trade places
- * for two seconds and neither of them arrives.
- */
-export function refugeStone(g: GroundEffect, mark: Aura): Vec2 | null {
-  const spots = g.spots ?? []
-  const at = mark.stacks - 1
-  return at >= 0 && at < spots.length ? spots[at]! : null
-}
-
 /** Everything a spread debuff hits when it expires on someone. */
-export function detonateSpread(s: SimState, carrier: Actor): void {
-  for (const a of livingParty(s)) {
-    if (dist(a.pos, carrier.pos) <= SPREAD_RADIUS * affixSpread(s.affix)) {
-      applyDamage(s, a, 760 * mechanicScale(s), 'magic', {
-        sourceId: BOSS_ID,
-        mechanic: 'spread',
-      })
-    }
-  }
-}
 
 /** Anything thrown from further away than melee gets a visible bolt. */
 export const PROJECTILE_MIN_RANGE = 120

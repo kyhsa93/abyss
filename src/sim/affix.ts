@@ -17,10 +17,7 @@ export type AffixId =
   | 'lingering'
   | 'swarming'
   | 'faltering'
-  | 'restless'
   | 'quickened'
-  | 'festering'
-  | 'scattering'
   | 'hastened'
 
 export interface Affix {
@@ -30,14 +27,22 @@ export interface Affix {
   detail: string
 }
 
+/**
+ * Five, and it was eight.
+ *
+ * Three of them named mechanics that are gone: the rot to bite harder, the
+ * spread to reach further, the ring and the cone to come round sooner. An
+ * affix whose whole content is a number on a mechanic nobody throws is a twist
+ * that changes nothing, and the daily has exactly one of these a day -- so a
+ * dead one is a day with no twist at all, announced as though it had one. That
+ * happened once already to `lingering`, which spent a round multiplying values
+ * on hazards that were all on their way out.
+ */
 export const AFFIXES: Affix[] = [
   { id: 'lingering', name: 'Lingering', detail: 'what the floor keeps, it keeps twice as long' },
   { id: 'swarming', name: 'Swarming', detail: 'twice as many thralls, half as often' },
   { id: 'faltering', name: 'Faltering', detail: 'healing lands for a quarter less' },
-  { id: 'restless', name: 'Restless', detail: 'shockwaves and breaths come round faster' },
   { id: 'quickened', name: 'Quickened', detail: 'the boss swings a third faster' },
-  { id: 'festering', name: 'Festering', detail: 'the rot bites twice as hard' },
-  { id: 'scattering', name: 'Scattering', detail: 'spread marks reach further' },
   { id: 'hastened', name: 'Hastened', detail: 'the enrage arrives more than two minutes early' },
 ]
 
@@ -51,16 +56,6 @@ export function affixTiming(timing: PhaseTiming, affix: AffixId | null): PhaseTi
   switch (affix) {
     case 'swarming':
       return { ...timing, adds: timing.adds > 0 ? timing.adds * 2 : 0 }
-    case 'restless':
-      return {
-        ...timing,
-        // Half rather than two thirds. At the gentler figure the party simply
-        // stood closer together and took *less* damage overall — the shockwave
-        // asks people to come in, and asking more often was doing them a
-        // favour.
-        shockwave: timing.shockwave > 0 ? timing.shockwave * 0.45 : 0,
-        breath: timing.breath > 0 ? timing.breath * 0.5 : 0,
-      }
     case 'quickened':
       return { ...timing, swing: timing.swing * 0.82 }
     default:
@@ -83,15 +78,7 @@ export function affixHealing(affix: AffixId | null): number {
   return affix === 'faltering' ? 0.75 : 1
 }
 
-/** What the boss's dot is worth. */
-export function affixRot(affix: AffixId | null): number {
-  return affix === 'festering' ? 1.55 : 1
-}
 
-/** How far a spread mark reaches. */
-export function affixSpread(affix: AffixId | null): number {
-  return affix === 'scattering' ? 1.5 : 1
-}
 
 /** Seconds taken off the enrage. */
 export function affixEnrage(affix: AffixId | null): number {

@@ -135,7 +135,6 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
         if (
           s.ground.some(
             (g) =>
-              g.kind === 'puddle' &&
               g.detonated &&
               Math.hypot(a.pos.x - g.pos.x, a.pos.y - g.pos.y) <= g.radius,
           )

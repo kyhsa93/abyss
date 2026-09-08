@@ -1,7 +1,6 @@
 import { ABILITIES } from './abilities'
 import { RESOURCES, SWING_BASELINE_DAMAGE, abilityBar, specOf, type ClassId } from './classes'
 import { mayStrike, updatePartyAi } from './ai'
-import { affixRot } from './affix'
 import { updateBattlegroundAi, updateBattlegroundPlans } from './bgai'
 import {
   CARRIER_SPEED,
@@ -17,8 +16,6 @@ import {
   updateGround,
   burstSpore,
   freeSpiked,
-  burnBrand,
-  passJudgement,
   turnToward,
 } from './boss'
 import {
@@ -29,10 +26,6 @@ import {
   applyDamage,
   applyHeal,
   boss,
-  carryDrag,
-  detonateSpread,
-  dropBurden,
-  shareYoke,
   interruptCast,
   dist,
   gainPower,
@@ -46,9 +39,7 @@ import {
   resolveAbility,
   beginCast,
   castBlocker,
-  rotBite,
   spikeBite,
-  breakRot,
   fightScale,
   urgencyOf,
   getAura,
@@ -346,14 +337,8 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       // still is as good an answer as running.
       if (aura.id === 'haunted' && aura.stacks === 0) continue
       if (tick.damage !== undefined) {
-        // The boss's own dot is the one an affix can sharpen; the party's are
-        // theirs and stay as they are.
         const bite =
-          aura.id === 'rot'
-            ? rotBite(aura, tick.damage) * affixRot(s.affix) * fightScale(s)
-            : aura.id === 'spiked'
-              ? spikeBite(aura, tick.damage) * fightScale(s)
-              : tick.damage
+          aura.id === 'spiked' ? spikeBite(aura, tick.damage) * fightScale(s) : tick.damage
         // Named where the fight is what put it there, so the page and every
         // probe that reads the per-mechanic split can see it. A dot the boss
         // applied is
@@ -397,15 +382,6 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
 
     if (aura.remaining <= 0) {
       a.auras.splice(i, 1)
-      if (aura.id === 'spread') detonateSpread(s, a)
-      if (aura.id === 'brand' && a.alive) burnBrand(s, aura.at ?? a.pos)
-      if (aura.id === 'verdict' && a.alive) passJudgement(s, a)
-      if (aura.id === 'rot' && a.alive) breakRot(s, a)
-      // The two that are somebody else's problem as much as their own. A
-      // burden that ran out of clock was never passed on; a yoke that ran out
-      // is paid by whoever happened to be standing there when it did.
-      if (aura.id === 'burden' && a.alive) dropBurden(s, a, aura)
-      if (aura.id === 'yoke' && a.alive) shareYoke(s, a, aura)
       // The pin running out on its own, which takes the spike with it: a
       // spike still standing over somebody who is free again is a target the
       // raid would keep answering for nothing.
@@ -430,8 +406,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
       player.moveSpeed *
       DT *
       (carrying(s, player) ? CARRIER_SPEED : 1) *
-      hasteOf(player) *
-      carryDrag(player)
+      hasteOf(player)
     const stepX = (input.moveX / len) * stepLen
     const stepY = (input.moveY / len) * stepLen
     player.pos.x += stepX

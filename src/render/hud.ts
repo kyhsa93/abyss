@@ -625,25 +625,6 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
     const p = at(g.pos)
     const gr = Math.max(1, g.radius * k)
 
-    if (g.kind === 'breath') {
-      ctx.beginPath()
-      ctx.moveTo(p.x, p.y)
-      ctx.arc(p.x, p.y, gr, g.angle - g.halfWidth, g.angle + g.halfWidth)
-      ctx.closePath()
-      ctx.fillStyle = g.detonated ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.2)'
-      ctx.fill()
-      continue
-    }
-
-    if (g.kind === 'shockwave') {
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, gr, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(253, 224, 71, 0.9)'
-      ctx.lineWidth = Math.max(1, g.band * k)
-      ctx.stroke()
-      continue
-    }
-
     ctx.beginPath()
     ctx.arc(p.x, p.y, gr, 0, Math.PI * 2)
     ctx.fillStyle = g.detonated ? COLORS.puddle : COLORS.telegraph
@@ -880,11 +861,7 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     // and whose entire answer is reading this bar and cutting the cast. A raid
     // was being told the incoming interrupt was the tank slam.
     const label =
-      b.castId === 'boss_breath'
-        ? named.breath || 'RISING CONE'
-        : b.castId === 'boss_frostbolt'
-          ? named.shard || 'INCOMING SHARD'
-          : named.slam
+      b.castId === 'boss_frostbolt' ? named.shard || 'INCOMING SHARD' : named.slam
     bar(ctx, x + w / 2 - cw / 2, y + 22 * L.ui, cw, 9 * L.ui, progress, COLORS.bossCast)
     ctx.fillStyle = COLORS.bossCast
     ctx.font = font(10, true)
@@ -1049,9 +1026,7 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
     // needs to be read at a glance is the one belonging to somebody the fight
     // has taken off you.
     const color =
-      aura.id === 'spread'
-        ? COLORS.spread
-        : aura.id === 'shield'
+      aura.id === 'shield'
           ? '#93c5fd'
           : aura.id === 'turned'
             ? COLORS.boss

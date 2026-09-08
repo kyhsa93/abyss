@@ -97,12 +97,12 @@ function run(
         if (deaths[a.name] === undefined) deaths[a.name] = Math.round(s.time * 10) / 10
         continue
       }
-      // Puddles only. A shockwave is also "detonated" and its radius grows to
-      // cover the arena, so counting it here marked the whole party as
-      // standing in fire every time one went off.
+      // Anything on the floor that has gone off. It used to name the pool,
+      // because a growing ring is also "detonated" and its radius covers the
+      // arena, which marked the whole party as standing in fire. Both of those
+      // shapes are gone: what is left is floor that burns where it landed.
       const inside = s.ground.some(
         (g) =>
-          g.kind === 'puddle' &&
           g.detonated &&
           Math.hypot(a.pos.x - g.pos.x, a.pos.y - g.pos.y) <= g.radius,
       )

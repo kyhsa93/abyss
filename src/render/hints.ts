@@ -16,10 +16,6 @@ interface Hint {
 }
 
 const HINTS: Record<string, Hint> = {
-  puddle: { title: 'VOID PUDDLE', advice: 'Move out — it detonates, then lingers' },
-  breath: { title: 'TIDAL BREATH', advice: 'Get out of the cone, or behind the boss' },
-  shockwave: { title: 'SHOCKWAVE', advice: 'It outruns you — get INSIDE the ring, toward the boss' },
-  spread: { title: 'SPREAD', advice: 'Marked player walks away from everyone else' },
   adds: { title: 'THRALLS', advice: 'They chase the nearest player — kill them first' },
   slam: { title: 'ABYSSAL SLAM', advice: 'Aimed at the tank; it needs a defensive' },
   // The only hint that points at a control rather than at the floor, and it
@@ -101,7 +97,6 @@ export class Hints {
     ) {
       this.trigger('adds')
     }
-    if (s.actors.some((a) => a.auras.some((au) => au.id === 'spread'))) this.trigger('spread')
     if (boss(s)?.castId === 'boss_slam') this.trigger('slam')
     // The second boss's rungs, each on the plainest thing that is true while
     // it is happening: a cast on the boss, an aura on a body, a body in the

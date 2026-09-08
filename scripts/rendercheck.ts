@@ -104,11 +104,8 @@ import {
   type RaidSize,
 } from '../src/sim/classes'
 import {
-  AURA_TICK,
   PROJECTILE_MIN_RANGE,
   addAura,
-  burdenTaker,
-  dropBurden,
   adds,
   getAura,
   hasteOf,
@@ -125,7 +122,6 @@ import {
   projectileKind,
   resolveAbility,
   topThreatTarget,
-  mechanicScale,
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
@@ -136,37 +132,23 @@ import {
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
-  CRUSH_TELEGRAPH,
-  FAULT_TELEGRAPH,
   MELEE_RANGE,
-  PUDDLE_TELEGRAPH,
-  SHALLOWS_RADIUS,
-  SHALLOWS_TELEGRAPH,
-  SPREAD_RADIUS,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
-  SCHISM_ROOM,
-  SCHISM_TELEGRAPH,
   MELEE_CALL,
-  GRASP_REACH,
-  REFUGE_RADIUS,
-  TOLL_RADIUS,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
   encounterAt,
   openDoors,
-  encounterIndex,
   encounterKit,
   withRequired,
   MECHANIC_SCALES,
   MECHANIC_NAMES,
-  hasNext,
   kitCount,
   kitThrough,
   type MechanicId,
   MECHANIC_IDS,
-  RETIRING,
 } from '../src/sim/encounters'
 import {
   BASE_RADIUS,
@@ -231,14 +213,6 @@ import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 let failures = 0
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
-  ECHO_TELEGRAPH,
-  HAND_BEAT,
-  SUNDER_MAX,
-  condemned,
-  onShallows,
-  schismMuster,
-  schismSides,
-  underHand,
 } from '../src/sim/boss'
 import {
   FIRST_TIER,
@@ -260,18 +234,6 @@ import {
   tierOf,
   type Setting,
 } from '../src/progress'
-import {
-  BURDEN_HANDS,
-  BURDEN_REACH,
-  DT,
-  SOAK_EACH,
-  SOAK_MAX_SHARE,
-  SOAK_RADIUS,
-  STALKER_SPEED,
-  YOKE_ALONE,
-  YOKE_REACH,
-  YOKE_SHARE,
-} from '../src/sim/constants'
 import { Ambience, ZOOM, backdropZoom, drawBackdrop, setAmbience } from '../src/render/ambience'
 import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
 
@@ -1781,7 +1743,7 @@ for (const [label, w, h] of [
 
   const hit = (mechanic: boolean): number => {
     you.hp = you.maxHp
-    if (mechanic) applyDamage(s, you, 400, 'magic', { sourceId: monster.id, mechanic: 'puddle' })
+    if (mechanic) applyDamage(s, you, 400, 'magic', { sourceId: monster.id, mechanic: 'decay' })
     else applyDamage(s, you, 400, 'magic', { sourceId: monster.id })
     return you.maxHp - you.hp
   }
@@ -4123,30 +4085,19 @@ for (const [label, w, h] of [
   const seen = new Map<string, Set<string>>()
   for (let i = 0; i < ENCOUNTERS.length; i++) {
     const kinds = new Set<string>()
-    let spreads = 0
     let adds = 0
     const s = pulled(0x51ed, 8, undefined, 'normal', i)
     const rng = new Rng(0x51ed)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
       for (const g of s.ground) kinds.add(g.kind)
-      for (const a of s.actors) {
-        if (a.faction === 'party' && a.auras.some((aura) => aura.id === 'spread')) spreads++
-      }
-      // Thralls only. Four mechanics put a body on the boss's side now -- a
-      // wave, a stalker, a bell and a jar -- and counting them all as thralls
-      // said a boss had adds on a rung where it has one of the other three.
-      // The stalker is told apart by its quarry and the other two by `spawn`,
-      // which is what that field is for.
+      // Thralls only, told apart by `spawn`: a herald and a spike are also
+      // bodies on the boss's side, and counting them as a wave said a boss had
+      // adds on a rung where it has one of those instead.
       adds += s.actors.filter(
-        (a) =>
-          a.faction === 'boss' &&
-          a.id !== bossOf(s).id &&
-          a.hunting === null &&
-          a.spawn === undefined,
+        (a) => a.faction === 'boss' && a.id !== bossOf(s).id && a.spawn === undefined,
       ).length
     }
-    if (spreads > 0) kinds.add('spread')
     if (adds > 0) kinds.add('adds')
     seen.set(ENCOUNTERS[i]!.id, kinds)
 
@@ -4157,14 +4108,14 @@ for (const [label, w, h] of [
     // left on the ladder, it never does. Read at the size and difficulty this
     // pull was actually run at, since that is what decides the kit.
     const kit = encounterKit(encounter, 5, 'normal')
-    for (const key of ['breath', 'shockwave', 'adds', 'spread'] as const) {
+    for (const key of ['adds'] as const) {
       const wanted = kit.includes(key)
       const happened = kinds.has(key)
       // A mechanic can be scheduled and still not reach the floor inside one
       // pull, so only the negative is asserted in both directions.
       if (!wanted) {
         expect(`${label}: no ${key}`, !happened, `${key} fired on a boss with none`)
-      } else if (key === 'spread' || key === 'adds') {
+      } else {
         expect(`${label}: ${key} happens`, happened, `${key} never fired`)
       }
     }
@@ -4208,11 +4159,6 @@ for (const [label, w, h] of [
       encounter.ladder.includes(key) || (encounter.always ?? []).includes(key)
 
     expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
-    expect(
-      `${label}: and its breath is named exactly when it has one`,
-      uses('breath') === (encounter.names.breath !== ''),
-      `uses ${uses('breath')}, named "${encounter.names.breath}"`,
-    )
     // Every mechanic, not a list written out here. The list version named ten
     // of them and was never extended, so twenty could have been announced by a
     // boss that does not throw them, or thrown in silence, and nothing would
@@ -4251,7 +4197,6 @@ for (const [label, w, h] of [
   // reading a cast bar, which is the only place either name is ever seen.
   const spoken = ENCOUNTERS.flatMap((e) => [
     e.names.slam,
-    e.names.breath,
     ...Object.values(e.lines),
   ]).filter((line) => line !== '')
   expect(
@@ -4301,17 +4246,6 @@ for (const [label, w, h] of [
       encounter.ladder.length >= 1,
       `${encounter.ladder.length} rungs`,
     )
-    // The armour break is answered by swapping tanks, and a five-man fields
-    // one. A boss that sells it to a party that cannot use it has sold them
-    // nothing at all, which is worse than selling them a harder mechanic.
-    const sunder = encounter.ladder.indexOf('sunder')
-    if (sunder >= 0) {
-      expect(
-        `${encounter.name}: does not sell the armour break to a single tank`,
-        kitCount(5, 'heroic') <= sunder,
-        `rung ${sunder + 1}`,
-      )
-    }
   }
 
   // Neither axis ever takes something away, and between them they buy the
@@ -4425,95 +4359,6 @@ for (const [label, w, h] of [
     }
   }
 
-  // The two shapes aimed at the arena rather than at anybody, which grow with
-  // the roster instead.
-  //
-  // Read off a real pull rather than out of the table, because the table was
-  // where this went wrong: the sizes were written as `{ 5: SHOCKWAVE_BAND }`
-  // above the line that declares `SHOCKWAVE_BAND`, so a five-man's ring had a
-  // band of `undefined` and its cone an angle of `undefined` — and an
-  // `undefined` half-width fails every comparison it is in, so the cone simply
-  // stopped hitting anybody. Nothing threw. The fights got quietly easier at
-  // one size only, which read as a tuning result for two rounds.
-  {
-    // Heroic, and the boss found by asking which ladder carries the ring
-    // rather than by remembering an index. What this measures is the shape of
-    // the ring at each size, so it has to be run at a difficulty every size
-    // reaches the rung on -- and the rung moved when the ladders were dealt
-    // out across five bosses, at which point a five-man on normal stopped
-    // buying a ring at all and the check read a band of zero as a bug in the
-    // ring rather than as a fight that never had one.
-    // On a rolled floor rather than on the boss that used to sell both. Both
-    // shapes are retiring -- the fight that threw them is gone -- and until
-    // they are actually out of the engine they still have to be shapes,
-    // because a floor can put either in front of any party at any size.
-    const shapeOf = (size: RaidSize): { cone: number; band: number; gap: number } => {
-      const s = floorWith({ shockwave: 7, breath: 9 }, autoParty(size, pickFor('mage', 'dps')!))
-      const rng = new Rng(0x51ed)
-      let cone = 0
-      let band = 0
-      let gap = 0
-      while (s.outcome === 'ongoing' && s.time < 120 && !(cone && band)) {
-        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-        for (const g of s.ground) {
-          if (g.kind === 'breath') cone = Math.max(cone, g.halfWidth)
-          if (g.kind === 'shockwave') {
-            band = Math.max(band, g.band)
-            gap = Math.max(gap, g.halfWidth)
-          }
-        }
-      }
-      return { cone, band, gap }
-    }
-
-    const shapes = ([5, 10, 25] as RaidSize[]).map((size) => ({ size, ...shapeOf(size) }))
-    for (const { size, cone, band, gap } of shapes) {
-      expect(
-        `${size}-player: the cone has an angle and the ring a band`,
-        Number.isFinite(cone) && cone > 0 && Number.isFinite(band) && band > 0,
-        `cone ${cone}, band ${band}`,
-      )
-      // A cone that reaches behind the boss is not a cone. The ring is judged
-      // on its gap instead of on a pocket, which it no longer has: the wedge
-      // has to be somewhere to stand and the rest of the floor has to be
-      // somewhere not to. Both halves matter — a gap of zero is a mechanic
-      // with no answer, and a gap of pi is a mechanic with no question.
-      expect(
-        `${size}-player: and both still have an outside`,
-        cone < Math.PI / 2 && gap > 0 && gap < Math.PI * 0.75,
-        `cone ${cone.toFixed(2)}, gap ${gap.toFixed(2)}`,
-      )
-    }
-    // The cone widens with the raid, and *not* monotonically: the ten-man has
-    // the widest of all, which is the finding rather than a slip. The
-    // correction is aimed at how safe a size is rather than at how many people
-    // it has, and a ten-man fields the same one healer per five bodies a
-    // five-man does and two tanks — the same raid damage covered by the same
-    // healing at half the tank load. It is the soft size, so it takes the
-    // widest correction.
-    const five = shapes[0]!
-    for (const { size, cone } of shapes.slice(1)) {
-      expect(
-        `${size}-player: aimed at more widely than a five-man`,
-        cone > five.cone,
-        `${cone.toFixed(2)} against ${five.cone.toFixed(2)}`,
-      )
-    }
-
-    // The ring does not, and this is the check that says so out loud, because
-    // widening it by size is the obvious idea and it is a trap. A band is
-    // answered by running in, so a wider one shrinks the pocket, and the
-    // pocket has a floor the raid physically occupies. The table that used to
-    // live here put ten at 96 and twenty-five at 104 — pockets of 104 and 96
-    // against a raid that operates at a spread of about ninety — and the
-    // result was a coin on its edge: the ten-man's heroic ran 30% at a band of
-    // 96 and 100% at 80, the twenty-five's 5% at 104 and 80% at 85.
-    expect(
-      'the ring is one band for every size',
-      shapes.every((sh) => sh.band === five.band),
-      shapes.map((sh) => `${sh.size}:${sh.band}`).join(' '),
-    )
-  }
 
 }
 
@@ -4578,12 +4423,6 @@ for (const [label, w, h] of [
         ids.add(event.abilityId)
         if (event.kind === 'impact') landed.add(event.abilityId)
       }
-      // The ring is the one mechanic with no effect of its own until it
-      // catches somebody: it is a shape on the floor that grows, and a raid
-      // that answers it correctly is a raid it never draws a hit on. Counting
-      // the shape is what makes "the boss threw it" true for the ring in the
-      // same sense it is true for everything else.
-      if (s.ground.some((g) => g.kind === 'shockwave')) ids.add('boss_shockwave')
     }
     thrown.set(ENCOUNTERS[i]!.id, ids)
 
@@ -4593,19 +4432,7 @@ for (const [label, w, h] of [
     // nothing with the boss's name on it, so it is checked by its aura in the
     // pass above rather than by a picture here.
     const DRAWN: Partial<Record<MechanicId, string>> = {
-      puddle: 'boss_puddle',
-      brand: 'boss_brand',
-      verdict: 'boss_verdict',
-      crush: 'boss_crush',
-      breath: 'boss_breath',
-      shockwave: 'boss_shockwave',
       adds: 'boss_thrall',
-      rot: 'boss_rot',
-      sunder: 'boss_sunder',
-      soak: 'boss_soak',
-      hunt: 'boss_stalk',
-      hand: 'boss_hand',
-      echo: 'boss_echo',
     }
     for (const [key, id] of Object.entries(DRAWN) as Array<[MechanicId, string]>) {
       if (kit.includes(key)) {
@@ -4624,105 +4451,6 @@ for (const [label, w, h] of [
       'no cast was ever drawn',
     )
   }
-
-  // The ones no boss throws any more, built to order.
-  //
-  // All of these are on `RETIRING`: the circle the party stands in, the
-  // turning wedge, the echo, the two handoffs and the split. The rule below
-  // asks that every picture belongs to a mechanic something actually throws,
-  // and it would pass for the wrong reason if these were simply never asked
-  // for -- an unthrown mechanic and a deleted one look identical to a check
-  // that only watches. So they are asked for, and they answer, right up until
-  // the commit that takes each of them out.
-  {
-    const deep = floorWith(
-      { soak: 26, hunt: 30, puddle: 9, sunder: 12, hand: 14, echo: 13, schism: 12 },
-      autoParty(10, pickFor('mage', 'dps')!),
-    )
-    const rng = new Rng(0x51ed)
-    const ids = new Set<string>()
-    while (deep.outcome === 'ongoing' && deep.time < 150) {
-      step(deep, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of deep.effects) {
-        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
-      }
-    }
-    expect('a deep floor draws its circle', ids.has('boss_soak'), 'it drew nothing')
-    expect('and its turning wedge', ids.has('boss_hand'), 'it drew nothing')
-    expect('and the floor that follows somebody', ids.has('boss_echo'), 'it drew nothing')
-    thrown.set('retiring', ids)
-  }
-
-  // And five that are on no boss's table at all yet.
-  //
-  // The floor giving way, all but the shallows drowning, the floor standing
-  // up, and the two handoffs are each written, measured and drawn; which rung
-  // of which ladder any of them belongs on is a question about the shape of a
-  // fight rather than about the mechanic, and it is not answered here. So
-  // they are built to order too, for the reason above.
-  {
-    const collapsing = floorWith(
-      { fault: 9, shallows: 10, spire: 12, puddle: 11 },
-      autoParty(10, pickFor('mage', 'dps')!),
-    )
-    const rng = new Rng(0x51ed)
-    const ids = new Set<string>()
-    while (collapsing.outcome === 'ongoing' && collapsing.time < 150) {
-      step(collapsing, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of collapsing.effects) {
-        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
-      }
-    }
-    expect('a floor can split its own arena', ids.has('boss_fault'), 'it drew nothing')
-    expect('and drown all but the shallows', ids.has('boss_shallows'), 'it drew nothing')
-    expect('and stand stone up in its own floor', ids.has('boss_spire'), 'it drew nothing')
-    thrown.set('collapse', ids)
-  }
-
-  // The three about who pays. Like the five above they are on no ladder yet,
-  // and like the two handoffs they resolve on a clock rather than on contact,
-  // so a floor that buys them throws them whether or not the party manages
-  // anything about it.
-  {
-    const billed = floorWith(
-      { toll: 9, grasp: 8, refuge: 12 },
-      autoParty(10, pickFor('mage', 'dps')!),
-    )
-    const rng = new Rng(0x51ed)
-    const ids = new Set<string>()
-    while (billed.outcome === 'ongoing' && billed.time < 150) {
-      step(billed, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of billed.effects) {
-        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
-      }
-    }
-    expect('a floor that lays a plate collects on it', ids.has('boss_toll'), 'it drew nothing')
-    expect('and one that reaches takes hold of somebody', ids.has('boss_grasp'), 'it drew nothing')
-    expect('and one that counts out stones counts them', ids.has('boss_refuge'), 'it drew nothing')
-    thrown.set('billed', ids)
-  }
-
-  // The two whose answer is another person. Both resolve on a clock rather
-  // than on contact, so a floor that buys them throws them whatever the party
-  // does — which is what makes them checkable here at all.
-  {
-    const handoff = floorWith(
-      { burden: 5, yoke: 8 },
-      autoParty(10, pickFor('mage', 'dps')!),
-    )
-    const rng = new Rng(0x51ed)
-    const ids = new Set<string>()
-    while (handoff.outcome === 'ongoing' && handoff.time < 150) {
-      step(handoff, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of handoff.effects) {
-        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
-      }
-    }
-    expect('a floor that buys the weight passes it round', ids.has('boss_burden'), 'it drew nothing')
-    expect('and a floor that buys the yoke calls somebody over', ids.has('boss_yoke'), 'it drew nothing')
-    thrown.set('handoff', ids)
-  }
-
 
   // The blight and everything made of it.
   //
@@ -4774,29 +4502,6 @@ for (const [label, w, h] of [
     thrown.set('taken', ids)
   }
 
-  // And the shapes that went with the fights that were removed. On no ladder
-  // now, reachable only through a rolled floor, and worth sweeping for exactly
-  // as long as they are still in the engine: a colour for a mechanic nothing
-  // can throw is dead weight, and a mechanic a floor can still roll is not
-  // that yet.
-  {
-    const left = floorWith(
-      { shockwave: 7, breath: 9, brand: 10, verdict: 9, crush: 8, rot: 7 },
-      autoParty(10, pickFor('mage', 'dps')!),
-    )
-    const rng = new Rng(0x51ed)
-    const ids = new Set<string>()
-    while (left.outcome === 'ongoing' && left.time < 150) {
-      step(left, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of left.effects) {
-        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
-      }
-    }
-    expect('a floor still throws the ring', ids.has('boss_shockwave'), 'it drew nothing')
-    expect('and the cone', ids.has('boss_breath'), 'it drew nothing')
-    thrown.set('left', ids)
-  }
-
   // A mechanic with no entry falls back to one orange ring shared with every
   // other boss cast, and an entry nothing throws is a colour for a mechanic
   // that does not exist. Both are the same rot the names had.
@@ -4820,1169 +4525,6 @@ for (const [label, w, h] of [
     shades.join(','),
   )
 
-  // --- the armour break is a two-tank mechanic ------------------------------
-  //
-  // Every other mechanic here is answered by moving. This one is answered by
-  // deciding who is standing there, which is a decision a five-man does not
-  // get to make: it fields one tank. Asking anyway measured as a tax on the
-  // size least able to pay it — five-man heroic went from twelve percent to
-  // five — so the fight does not have the mechanic without a second tank.
-  //
-  // The ladders answer half of that on their own: no boss sells the break
-  // before the rung a five-man cannot reach, which is checked with the other
-  // ladder rules. What is checked here is the guard underneath, since a floor
-  // can still roll the mechanic onto a party of five and something has to say
-  // no when it does.
-  {
-    // Through a rolled floor at both sizes rather than through the boss that
-    // owned it. The break is retiring with its fight, and the guard underneath
-    // is more load-bearing for that rather than less: a floor is now the only
-    // thing that can put this in front of a party at all, which is the case
-    // the comment above says has to be checked.
-    const stacksIn = (state: SimState): number => {
-      const rng = new Rng(0x51ed)
-      let most = 0
-      while (state.outcome === 'ongoing' && state.time < 150) {
-        step(state, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-        for (const a of state.actors) most = Math.max(most, getAura(a, 'sunder')?.stacks ?? 0)
-      }
-      return most
-    }
-
-    const alone = stacksIn(
-      floorWith({ sunder: 10, puddle: 9 }, autoParty(5, pickFor('mage', 'dps')!)),
-    )
-    expect('a party with one tank never sees it', alone === 0, `${alone} stacks`)
-    // And a raid that fields two, on the same rolled floor.
-    const raid = stacksIn(
-      floorWith({ sunder: 10, puddle: 9 }, autoParty(25, pickFor('mage', 'dps')!)),
-    )
-    expect('a raid with two does', raid > 0, 'it never landed')
-    expect('and never past its ceiling', raid <= SUNDER_MAX, `${raid} stacks`)
-
-    // Broken armour is armour: run through the same curve plate and cloth
-    // already sit on, rather than as a multiplier on the damage. The two are
-    // not the same mechanic, and the multiplier compounded with heroic badly
-    // enough to take a ten-man from seventeen percent to three.
-    const s = pulled(0x51ed, 0, autoParty(10, pickFor('mage', 'dps')!), 'normal', 0)
-    const tank = s.actors.find((a) => a.role === 'tank')!
-    const before = tank.hp
-    applyDamage(s, tank, 1000, 'physical', { sourceId: BOSS_ID, silent: true })
-    const clean = before - tank.hp
-
-    tank.hp = tank.maxHp
-    for (let i = 0; i < SUNDER_MAX; i++) stackAura(tank, 'sunder', BOSS_ID)
-    const full = tank.maxHp
-    applyDamage(s, tank, 1000, 'physical', { sourceId: BOSS_ID, silent: true })
-    const broken = full - tank.hp
-    expect('a broken guard takes more', broken > clean, `${clean} then ${broken}`)
-    // The curve is what keeps it from being a straight multiplier: five
-    // stacks off nine thousand armour lands near half again, where a flat
-    // multiplier of the size this started as lands near double.
-    expect('but only about half again', broken < clean * 1.6, `${clean} then ${broken}`)
-
-    // And it is physical only, so it stays the tank's problem rather than
-    // becoming a second raid-wide damage source the healers have to cover.
-    tank.hp = tank.maxHp
-    applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
-    const magic = tank.maxHp - tank.hp
-    tank.hp = tank.maxHp
-    clearAura(tank, 'sunder')
-    applyDamage(s, tank, 1000, 'magic', { sourceId: BOSS_ID, silent: true })
-    expect('and magic does not care', tank.maxHp - tank.hp === magic, `${magic}`)
-  }
-
-  // --- the floor that stops being floor -------------------------------------
-  //
-  // Two mechanics aimed at the arena rather than at anybody in it: a line
-  // across the floor with one half of it condemned, and the floor going under
-  // everywhere except three patches. Both are the crush's shape rather than a
-  // pool's — announced, and then the whole of it in a single frame — because
-  // that is the shape that measures as teaching anything. A pull that is
-  // punished in proportion is a pull whose mistakes come out in the average:
-  // measured against a ten-man heroic over 250 paired seeds, the split is
-  // worth 8.3 points of survival between a first pull and a ninth and takes
-  // 96% of the deaths there were to take, and the drowning 2.4 points and
-  // 98% — where a mechanic that merely leans on people is worth none.
-  //
-  // Neither is on a ladder. Which rung of which boss they belong to is a
-  // question about the shape of a fight, and it is not answered here; what is
-  // checked is that a floor handed either of them gets the mechanic the
-  // measurement was taken of.
-  {
-    const size = autoParty(10, pickFor('mage', 'dps')!)
-    const dice = (): Rng => new Rng(0x51ed)
-
-    // The line, and the two things that have to agree about it: what the AI
-    // reads off the floor and what the floor actually takes. A picture the
-    // simulation does not honour is worse than no picture.
-    {
-      const split = floorWith({ fault: 9 }, size)
-      split.next.fault = 0
-      const rng = dice()
-      step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const line = split.ground.find((g) => g.kind === 'fault')
-      expect('a fault is drawn on the floor', line !== undefined, 'nothing was announced')
-      if (line) {
-        const party = split.actors.filter((a) => a.faction === 'party' && a.alive)
-        // Well clear of the line on one side or the other, so a stride taken
-        // inside the frame it lands on cannot move anybody across it.
-        party.forEach((a, i) => {
-          const side = i % 2 === 0 ? 1 : -1
-          a.pos = {
-            x: line.pos.x + Math.cos(line.angle) * side * 150,
-            y: line.pos.y + Math.sin(line.angle) * side * 150,
-          }
-        })
-        const doomed = party.filter((a) => condemned(a.pos, line))
-        expect('and it condemns one half of the arena', doomed.length === party.length / 2, `${doomed.length} of ${party.length}`)
-
-        const before = new Map(party.map((a) => [a.id, split.tally[a.id]?.mechanicHits ?? 0]))
-        line.telegraph = DT * 0.5
-        step(split, { moveX: 0, moveY: 0, pressed: [] }, rng)
-        const hit = party.filter(
-          (a) => (split.tally[a.id]?.mechanicHits ?? 0) > (before.get(a.id) ?? 0),
-        )
-        expect(
-          'everybody the line condemned is caught',
-          doomed.every((a) => hit.includes(a)),
-          `${hit.length} of ${doomed.length}`,
-        )
-        expect(
-          'and nobody on the other side of it is',
-          hit.length === doomed.length,
-          `${hit.length} caught, ${doomed.length} condemned`,
-        )
-        // A moment, not a place. Half an arena that stays dangerous is not a
-        // mechanic, it is a smaller arena.
-        expect(
-          'and the floor is floor again afterwards',
-          !split.ground.some((g) => g.kind === 'fault'),
-          'the condemned half stayed on the floor',
-        )
-      }
-    }
-
-    // Rolled every cast rather than fixed. A line that always falls the same
-    // way is answered by standing on the correct side of the arena for the
-    // rest of the fight, which is the sweep's failure — a mechanic whose
-    // answer is where you already were teaches nothing.
-    {
-      const s = floorWith({ fault: 9 }, size)
-      const rng = dice()
-      const bearings = new Set<number>()
-      while (s.outcome === 'ongoing' && s.time < 150) {
-        for (const g of s.ground) if (g.kind === 'fault') bearings.add(Math.round(g.angle * 100))
-        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      }
-      expect('a floor asks for it more than once', bearings.size > 4, `${bearings.size} faults`)
-      expect(
-        'and never twice along the same bearing',
-        bearings.size > 4,
-        `${bearings.size} distinct`,
-      )
-    }
-
-    // The party has to actually cross. An unanswerable mechanic is a tax, and
-    // the AI getting over the line is what makes it a decision instead.
-    {
-      const s = floorWith({ fault: 9 }, size)
-      const rng = dice()
-      let lands = 0
-      let clear = 0
-      while (s.outcome === 'ongoing' && s.time < 150) {
-        // The same tick and a half of slack the gathering is measured with:
-        // the timer is decremented by DT and the shape is gone inside the tick
-        // it fires.
-        for (const g of s.ground) {
-          if (g.kind !== 'fault' || g.detonated || g.telegraph > DT * 1.5) continue
-          lands++
-          const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
-          const caught = alive.filter((a) => condemned(a.pos, g))
-          if (caught.length <= alive.length / 4) clear++
-        }
-        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      }
-      expect('a floor calls for the split', lands > 0, 'it never did')
-      expect('and the raid gets across it', clear >= lands - 2, `${clear} of ${lands}`)
-    }
-
-    // The drowning, which is the same question asked the other way round:
-    // every other piece of hazardous ground here says leave where you are and
-    // this one says be on one of these three.
-    {
-      const drown = floorWith({ shallows: 10 }, size)
-      drown.next.shallows = 0
-      const rng = dice()
-      step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const tide = drown.ground.find((g) => g.kind === 'shallows')
-      expect('the shallows are marked out', tide !== undefined, 'nothing was announced')
-      if (tide) {
-        const spots = tide.spots ?? []
-        expect('there are three of them', spots.length === 3, `${spots.length}`)
-        expect(
-          'each the size the mechanic measures against',
-          tide.radius === SHALLOWS_RADIUS,
-          `${tide.radius}`,
-        )
-        // Reachable, or the mechanic is a tax rather than a question. The raid
-        // operates between ninety and a hundred and twenty-five from the boss.
-        const b = boss(drown)
-        const nearest = Math.min(...spots.map((spot) => dist(spot, b.pos)))
-        expect('and the nearest is a walk rather than a journey', nearest < 240, `${nearest.toFixed(0)}`)
-
-        const party = drown.actors.filter((a) => a.faction === 'party' && a.alive)
-        party.forEach((a, i) => {
-          a.pos = i % 2 === 0 ? { ...spots[i % spots.length]! } : { x: 0, y: -430 }
-        })
-        const safe = party.filter((a) => onShallows(a.pos, tide))
-        expect('half of them stand on one', safe.length === party.length / 2, `${safe.length}`)
-
-        const before = new Map(party.map((a) => [a.id, drown.tally[a.id]?.mechanicHits ?? 0]))
-        tide.telegraph = DT * 0.5
-        step(drown, { moveX: 0, moveY: 0, pressed: [] }, rng)
-        const hit = party.filter(
-          (a) => (drown.tally[a.id]?.mechanicHits ?? 0) > (before.get(a.id) ?? 0),
-        )
-        expect(
-          'nobody standing on a patch is taken',
-          !hit.some((a) => safe.includes(a)),
-          `${hit.length} caught`,
-        )
-        expect(
-          'and everybody who is not is',
-          hit.length === party.length - safe.length,
-          `${hit.length} of ${party.length - safe.length}`,
-        )
-        expect(
-          'and the floor comes back afterwards',
-          !drown.ground.some((g) => g.kind === 'shallows'),
-          'the arena stayed underwater',
-        )
-      }
-    }
-
-    {
-      const s = floorWith({ shallows: 10 }, size)
-      const rng = dice()
-      let lands = 0
-      let bodies = 0
-      let safe = 0
-      while (s.outcome === 'ongoing' && s.time < 150) {
-        for (const g of s.ground) {
-          if (g.kind !== 'shallows' || g.detonated || g.telegraph > DT * 1.5) continue
-          lands++
-          const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
-          bodies += alive.length
-          safe += alive.filter((a) => onShallows(a.pos, g)).length
-        }
-        step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      }
-      // Counted in bodies rather than in casts, which is the honest unit for
-      // this one: the split asks the same thing of the whole raid at once and
-      // is answered by all of it or by none, while three patches are answered
-      // one raider at a time, so a single straggler is not a failed cast.
-      expect('a floor drowns itself more than once', lands > 0, 'it never did')
-      expect(
-        'and a practised raid is standing on a patch when it lands',
-        safe > bodies * 0.85,
-        `${safe} of ${bodies}`,
-      )
-    }
-
-    // Neither goes off while the party is being told to stand in one circle.
-    // The gathering says all of you here; these say that half of here, or all
-    // of here bar three patches, is about to stop being floor. Asked directly
-    // rather than waited for, the way the circle's own refusals are.
-    {
-      const forced = floorWith({ soak: 24, fault: 9, shallows: 10 }, size)
-      forced.next.soak = 0
-      const rng = dice()
-      step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      expect(
-        'the circle is out',
-        forced.ground.some((g) => g.kind === 'soak'),
-        'it never appeared',
-      )
-      forced.next.fault = 0
-      forced.next.shallows = 0
-      for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      expect(
-        'and the floor does not split under it',
-        !forced.ground.some((g) => g.kind === 'fault'),
-        'a fault opened under a gathering',
-      )
-      expect(
-        'nor drown around it',
-        !forced.ground.some((g) => g.kind === 'shallows'),
-        'the arena went under a gathering',
-      )
-    }
-
-    // Nothing here checks that either is announced. Neither is on a ladder
-    // and neither has a boss, so every boss's line for them is empty -- which
-    // is exactly what "a line is present when the boss owns the mechanic"
-    // asks for, and that rule is checked over every boss and every mechanic
-    // where the tables are read. A second check here would only restate it.
-
-    // Both are read off the arena rather than off the roster, which is what
-    // `MECHANIC_SCALES` is for: a half of the floor is a half of it whether
-    // five people or twenty-five are standing on it, and three patches are
-    // three patches. Measured, neither gets easier with the headcount — the
-    // split costs an unpractised twenty-five man more than a ten, not less.
-    expect('the split is aimed at the arena', !MECHANIC_SCALES.fault, 'it says it scales')
-    expect('and so is the drowning', !MECHANIC_SCALES.shallows, 'it says it scales')
-
-    // The two telegraphs are the whole of both mechanics, and they are the
-    // crush's dial with a longer walk in front of them. The crush measured a
-    // cliff two tenths of a second wide; these sit on the same shelf.
-    expect(
-      'the split gives about as long as the crush does',
-      FAULT_TELEGRAPH > CRUSH_TELEGRAPH && FAULT_TELEGRAPH < PUDDLE_TELEGRAPH,
-      `${FAULT_TELEGRAPH}`,
-    )
-    expect(
-      'and the drowning no longer, for a longer walk',
-      SHALLOWS_TELEGRAPH >= FAULT_TELEGRAPH,
-      `${SHALLOWS_TELEGRAPH}`,
-    )
-  }
-
-  // --- the circle the whole party stands in ---------------------------------
-  //
-  // The inverse of spread, and the only mechanic here that asks the party to
-  // do something together. Measured against the ladder it costs about thirty
-  // points of win rate wherever it is put — not through its damage, which is
-  // small, but because this party heals by standing still and casting, so
-  // moving everybody at once takes the healer's output away in the same
-  // seconds it takes health off everybody.
-  //
-  // Which is why it is the last rung of the one boss that has it, reached
-  // only by a twenty-five man on heroic — a raid that expensive is exactly
-  // the raid with the bodies to pay for it.
-  {
-    for (const encounter of ENCOUNTERS) {
-      const rung = encounter.ladder.indexOf('soak')
-      if (rung < 0) continue
-      // The last rung anybody climbs to, rather than the last one written
-      // down. A ladder is allowed to be longer than `kitCount` reaches — that
-      // is where a mechanic waits while its place among the others is still
-      // being argued about — and what this check is about is what the raid
-      // meets: the gathering is the top of the fight for the raid that is
-      // sold the whole fight. For a ladder of five the two readings are the
-      // same sentence.
-      const top = Math.min(encounter.ladder.length, kitCount(25, 'heroic'))
-      expect(
-        `${encounter.name}: the circle is its last word`,
-        rung === top - 1,
-        `rung ${rung + 1} of ${top}`,
-      )
-      expect(
-        'and no raid short of a heroic twenty-five reaches it',
-        kitCount(10, 'heroic') <= rung && kitCount(25, 'normal') <= rung,
-        'a smaller raid gets the gathering',
-      )
-    }
-    // The party has to actually go. An unanswerable mechanic is a tax, and
-    // the AI reaching it is what makes it a decision instead.
-    const s = floorWith({ soak: 24, puddle: 9, spread: 16 })
-    const rng = new Rng(0x51ed)
-    let circles = 0
-    let full = 0
-    let clashes = 0
-    while (s.outcome === 'ongoing' && s.time < 150) {
-      // A tick and a half of slack: the timer is decremented by DT and the
-      // circle is gone inside the same tick it fires, so the last frame it
-      // can be seen on is a floating-point hair away from exactly DT.
-      const about = s.ground.filter(
-        (g) => g.kind === 'soak' && !g.detonated && g.telegraph <= DT * 1.5,
-      )
-      for (const g of about) {
-        circles++
-        const alive = s.actors.filter((a) => a.faction === 'party' && a.alive)
-        const inside = alive.filter((a) => dist(a.pos, g.pos) <= g.radius)
-        if (inside.length >= alive.length - 1) full++
-      }
-      // Two mechanics that cancel are not a hard fight, they are a broken
-      // one: a spread detonates on its carrier and catches everyone within a
-      // hundred and ten units, which is every one of a party standing in a
-      // circle of a hundred and thirty five.
-      if (s.ground.some((g) => g.kind === 'soak' && !g.detonated)) {
-        if (s.actors.some((a) => getAura(a, 'spread'))) clashes++
-        if (s.ground.some((g) => g.kind === 'puddle' && !g.detonated)) clashes++
-      }
-      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-    }
-    expect('a deep floor calls for it', circles > 0, 'it never did')
-    expect('and the party gets there', full >= circles - 1, `${full} of ${circles}`)
-    expect('never against a spread or the floor', clashes === 0, `${clashes} contradictions`)
-
-    // Asked directly rather than waited for. Two timers coinciding inside one
-    // sampled pull is luck; what matters is that the boss refuses when it is
-    // due, so the refusal is put on the spot.
-    {
-      const forced = floorWith({ soak: 24, puddle: 9, spread: 16 })
-      forced.next.soak = 0
-      const dice = new Rng(7)
-      step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
-      expect(
-        'the circle is out',
-        forced.ground.some((g) => g.kind === 'soak'),
-        'it never appeared',
-      )
-      forced.next.spread = 0
-      forced.next.puddle = 0
-      for (let i = 0; i < 30; i++) step(forced, { moveX: 0, moveY: 0, pressed: [] }, dice)
-      expect(
-        'and nothing is marked while it is',
-        !forced.actors.some((a) => getAura(a, 'spread')),
-        'a spread landed on a gathered party',
-      )
-      expect(
-        'nor is the floor lit',
-        !forced.ground.some((g) => g.kind === 'puddle'),
-        'a puddle landed under one',
-      )
-    }
-
-    // What it costs is divided by however many stood in it, measured against
-    // the living headcount rather than a flat pool — a flat pool keeps its
-    // size as people die, so a party down to two takes half of it each, which
-    // kills them, which makes it worse for whoever is left.
-    const took = (present: number, buried = 0): number => {
-      const fight = floorWith({ soak: 24 })
-      const party = fight.actors.filter((a) => a.faction === 'party')
-      const spot = { x: 300, y: 300 }
-      party.forEach((a, i) => {
-        a.pos = i < present ? { ...spot } : { x: -600, y: -600 }
-        a.hp = a.maxHp
-      })
-      // Taken off the back of the party, so the ones being measured are the
-      // ones standing in it.
-      for (let i = 0; i < buried; i++) {
-        const gone = party[party.length - 1 - i]!
-        gone.alive = false
-      }
-      fight.ground = [
-        {
-          id: 1,
-          kind: 'soak',
-          pos: spot,
-          radius: SOAK_RADIUS,
-          turn: 0,
-          pulses: 0,
-          telegraph: 0,
-          lingering: 0,
-          damage: SOAK_EACH,
-          detonated: false,
-          angle: 0,
-          halfWidth: 0,
-          growth: 0,
-          band: 0,
-          caught: [],
-        },
-      ]
-      const marked = party[0]!
-      const before = marked.hp
-      step(fight, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-      return before - marked.hp
-    }
-
-    const all = took(5)
-    const half = took(2)
-    const none = took(1)
-    // The same circle with two of the party already dead. A flat pool divided
-    // by the soakers keeps its size as people die, so the survivors take more
-    // each for being fewer — which kills them, which makes it worse again.
-    const short = took(3, 2)
-    expect('everyone in is the cheapest it gets', all > 0 && all <= SOAK_EACH * 1.4, `${all}`)
-    expect('fewer in costs those who went more', half > all * 1.5, `${all} then ${half}`)
-    expect('and it stops rather than spiralling', none <= SOAK_EACH * SOAK_MAX_SHARE * 1.4, `${none}`)
-    expect(
-      'a party that has lost people does not pay for them',
-      Math.abs(short - all) <= all * 0.1,
-      `${all} at full strength, ${short} with two down`,
-    )
-  }
-
-  // --- the thing that follows one of you -----------------------------------
-  //
-  // The only mechanic here aimed at a single person, and the only one with
-  // two answers at once: the one it picked runs, and everybody else decides
-  // whether to break off and kill it. Expensive for a sharper version of the
-  // circle's reason — with its damage turned down to one point it still cost
-  // the Warden most of its win rate, because the party's output is what it
-  // spends, not anybody's health.
-  {
-    // Every mechanic belongs to exactly one boss.
-    //
-    // This rule has been rewritten twice and each version was a smaller claim
-    // than the one it replaced. First it named the stalker and said two bosses
-    // own it; then, when a new mechanic pushed the stalker off a ladder, it
-    // said some mechanic is shared by two. Both were describing a shortage --
-    // there were ten mechanics and fifteen rungs, so sharing was not a design
-    // decision, it was arithmetic.
-    //
-    // There are thirty now and thirty rungs, so the shortage is gone and the
-    // real rule can be stated: no fight repeats another fight's idea. A raid
-    // that climbs all five ladders meets all thirty mechanics and meets each
-    // of them in exactly one boss.
-    // Carried counts as sold. A fight that has a mechanic at every setting owns
-    // it every bit as much as one that unlocks it at the fourth rung -- and
-    // reading only the ladder said the wave belonged to nobody while a boss was
-    // throwing it on every pull.
-    const owners = new Map<MechanicId, string[]>()
-    for (const e of ENCOUNTERS) {
-      for (const m of [...(e.always ?? []), ...e.ladder]) {
-        owners.set(m, [...(owners.get(m) ?? []), e.short])
-      }
-    }
-    // Sharing is allowed now, and what is left is the half of the rule that
-    // was never about scarcity.
-    //
-    // "Each mechanic in exactly one boss" was two claims wearing one name. The
-    // first — no fight repeats another fight's idea — is a good rule and it is
-    // still true of every fight here; it is also a limit on how many ideas the
-    // bosses can hold between them, because thirty mechanics divided by eight
-    // fights is under four each. That is the limit being removed.
-    //
-    // The second claim is the one worth keeping: nothing is written down and
-    // then never thrown. A mechanic with a cadence table, a line of chat and
-    // an icon that no fight owns is dead weight that reads as content.
-    //
-    // Read against `RETIRING` rather than against nothing. Five fights were
-    // removed and twenty-seven names went homeless with them; they are being
-    // taken out a family at a time, because one edit that deleted all of them
-    // at once produced a diff nobody could review. The rule is not relaxed --
-    // the exception is written down by name, next to the vocabulary it names,
-    // and what is checked here is that the two agree. A mechanic with no boss
-    // is either on that list or it is dead weight nobody noticed.
-    const retiring = new Set<string>(RETIRING)
-    const homeless = MECHANIC_IDS.filter((m) => !owners.has(m) && !retiring.has(m))
-    expect('every mechanic is on some boss or on its way out', homeless.length === 0, homeless.join(','))
-    expect(
-      'and nothing is retiring that a boss still sells',
-      RETIRING.every((m) => !owners.has(m)),
-      RETIRING.filter((m) => owners.has(m)).join(','),
-    )
-    expect(
-      'so the ladders and the list spend the whole vocabulary exactly once',
-      [...owners].length + RETIRING.length === MECHANIC_IDS.length,
-      `${[...owners].length} sold, ${RETIRING.length} retiring, of ${MECHANIC_IDS.length}`,
-    )
-
-    let sent = 0
-    let onTank = 0
-    let onHealer = 0
-    let orphaned = 0
-    let closest = Infinity
-    const seen = new Set<number>()
-    // Several pulls rather than one. Who gets picked is a roll, and a single
-    // fight throws three or four of these — enough to pass a rule it does not
-    // actually keep.
-    for (let run = 0; run < 6; run++) {
-    const s = floorWith({ hunt: 26, puddle: 9 }, autoParty(10, pickFor('mage', 'dps')!))
-    const rng = new Rng(0x51ed + run * 7919)
-    while (s.outcome === 'ongoing' && s.time < 150) {
-      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const a of s.actors) {
-        if (a.name !== 'Stalker' || seen.has(a.id)) continue
-        seen.add(a.id)
-        sent++
-        const quarry = s.actors.find((x) => x.id === a.hunting)
-        if (quarry?.role === 'tank') onTank++
-        if (quarry?.role === 'healer') onHealer++
-      }
-      for (const a of s.actors) {
-        if (a.name !== 'Stalker' || !a.alive) continue
-        const quarry = s.actors.find((x) => x.id === a.hunting)
-        // It follows the one it picked and nobody else, so the nearest party
-        // member is allowed to be somebody it walks straight past.
-        if (!quarry || !quarry.alive || !getAura(quarry, 'hunted')) orphaned++
-        else closest = Math.min(closest, dist(a.pos, quarry.pos))
-      }
-    }
-    }
-
-    expect('a deep floor sends them', sent > 5, `${sent} in six pulls`)
-    // A tank that runs takes the boss with it; a healer that runs stops
-    // healing, which measured as more deaths in every role including the
-    // tank, who is never picked at all.
-    expect('never after a tank', onTank === 0, `${onTank} of ${sent}`)
-    expect('nor after a healer', onHealer === 0, `${onHealer} of ${sent}`)
-    // A tick apiece is the ordering, not a leak: auras are aged before the
-    // adds are updated, so the frame a mark expires on is a frame where the
-    // stalker is still standing there. Anything beyond that is one that
-    // forgot to leave.
-    expect(
-      'and none outlives what it was following',
-      orphaned <= sent,
-      `${orphaned} ticks orphaned across ${sent} stalkers`,
-    )
-    expect('it does close on the one it picked', closest < 200, `${closest.toFixed(0)} units at best`)
-
-    // And it goes when its mark does. Asked directly: a stalker whose quarry
-    // is no longer marked has nothing to follow, and one left walking after
-    // an expired aura is a permanent add nobody was told about.
-    {
-      const fight = floorWith({ hunt: 26 })
-      fight.next.hunt = 0
-      const dice = new Rng(3)
-      step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
-      const stalker = fight.actors.find((a) => a.name === 'Stalker')
-      expect('one is sent on demand', stalker !== undefined, 'none appeared')
-      if (stalker) {
-        const quarry = fight.actors.find((a) => a.id === stalker.hunting)!
-        clearAura(quarry, 'hunted')
-        step(fight, { moveX: 0, moveY: 0, pressed: [] }, dice)
-        expect('and it goes when the mark does', !stalker.alive, 'it kept walking')
-      }
-    }
-
-    // Slower than anybody it can pick, which is what makes it kiteable rather
-    // than a death sentence.
-    const anyone = floorWith({ hunt: 26 }).actors.filter((a) => a.faction === 'party')
-    expect(
-      'slower than everyone it hunts',
-      anyone.every((a) => a.role !== 'dps' || a.moveSpeed > STALKER_SPEED),
-      `${STALKER_SPEED} against ${anyone.map((a) => a.moveSpeed).join(',')}`,
-    )
-  }
-
-  // An index from a save older than the list must not open a fight that is
-  // not there.
-  expect('a wild index clamps', encounterIndex(99) === ENCOUNTERS.length - 1, `${encounterIndex(99)}`)
-  expect('and so does a negative one', encounterIndex(-5) === 0, `${encounterIndex(-5)}`)
-  expect('the last boss has no next', !hasNext(ENCOUNTERS.length - 1), 'it claims one')
-}
-
-// --- the two shapes whose answer is a bearing rather than a place -----------
-//
-// Everything else on any of these tables is answered by finding the ground
-// the mechanic is not on, and once that is found the mechanic has stopped
-// asking. These two keep asking: the wedge turns onto the answer and the
-// echo follows the body that took it. So what has to be checked is not that
-// they land — that is the easy half — but that the ground they have just
-// left is safe and the ground they are about to reach is not, since that is
-// the only sentence either of them is trying to say.
-{
-  // A floor rather than a boss. Both sit past the last rung any raid climbs
-  // to, and a plan written by hand is also the only way to have one of them
-  // in a fight without the other twelve mechanics landing in the same tick.
-  const withHand = (): SimState =>
-    floorWith({ hand: 12 }, autoParty(10, pickFor('mage', 'dps')!))
-
-  // --- the wedge turns, and it is one shape doing it ------------------------
-  {
-    const s = withHand()
-    const rng = new Rng(0x51ed)
-    const bearings: number[] = []
-    let id = -1
-    let turns = 0
-    while (s.outcome === 'ongoing' && s.time < 90 && bearings.length < 4) {
-      const before = s.ground.find((g) => g.kind === 'hand')
-      const was = before ? before.angle : null
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const now = s.ground.find((g) => g.kind === 'hand')
-      if (!now) continue
-      if (id === -1) id = now.id
-      if (was !== null && now.angle !== was && now.id === id) {
-        bearings.push(now.angle)
-        turns++
-      }
-    }
-    expect('the hand turns rather than being thrown again', turns >= 3, `${turns} turns`)
-    expect(
-      'and it is one shape doing it, not four',
-      new Set(bearings).size === bearings.length && bearings.length >= 3,
-      `${bearings.length} bearings`,
-    )
-    // Every step the same size and the same way round: a hand that wandered
-    // would be unreadable, and reading it is the whole answer.
-    const steps = bearings.slice(1).map((b, i) => b - bearings[i]!)
-    const even = steps.every((d) => Math.abs(Math.abs(d) - Math.abs(steps[0]!)) < 1e-9)
-    const oneWay = steps.every((d) => Math.sign(d) === Math.sign(steps[0]!))
-    expect('by the same amount each beat', even, steps.map((d) => d.toFixed(3)).join(','))
-    expect('and always the same way round', oneWay, steps.map((d) => d.toFixed(3)).join(','))
-  }
-
-  // --- behind it is safe, in front of it is not -----------------------------
-  //
-  // The claim the mechanic rests on, read off the shape rather than out of
-  // the tuning: the ground the wedge has just left is not asked about again
-  // on the next beat, and the ground a pace ahead of it is.
-  {
-    const s = withHand()
-    const rng = new Rng(0x51ed)
-    let checked = 0
-    while (s.outcome === 'ongoing' && s.time < 90 && checked === 0) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const g = s.ground.find((h) => h.kind === 'hand')
-      if (!g || g.pulses < 2) continue
-      const back = g.turn >= 0 ? -1 : 1
-      const out = 140
-      const behind = {
-        x: g.pos.x + Math.cos(g.angle + back * (g.halfWidth + 0.05)) * out,
-        y: g.pos.y + Math.sin(g.angle + back * (g.halfWidth + 0.05)) * out,
-      }
-      const ahead = {
-        x: g.pos.x + Math.cos(g.angle - back * (g.halfWidth + 0.05)) * out,
-        y: g.pos.y + Math.sin(g.angle - back * (g.halfWidth + 0.05)) * out,
-      }
-      expect('the floor behind the hand is out of this pulse', !underHand(behind, g), 'it was not')
-      expect('and out of the next one too', !underHand(behind, g, 1), 'the turn caught it')
-      expect('the floor in front of it is out of this pulse', !underHand(ahead, g), 'it was not')
-      expect('and squarely inside the next', underHand(ahead, g, 1), 'the turn missed it')
-      checked++
-    }
-    expect('a hand was there to be read', checked === 1, `${checked}`)
-  }
-
-  // --- a pulse is a moment, not a place -------------------------------------
-  //
-  // The first rule any of these have to pass: all of it at one instant, or
-  // none of it. A wedge that ticked while it was overhead would be a loss to
-  // be averaged rather than a mistake to be made — measured, that is the
-  // difference between the pool's thirty-four points of teaching and the
-  // rotating cone's zero.
-  {
-    const s = withHand()
-    const rng = new Rng(0x51ed)
-    const victim = s.actors.find((a) => a.faction === 'party' && a.role === 'dps')!
-    victim.ai = null
-    let hitTicks = 0
-    let coveredTicks = 0
-    let took = 0
-    while (s.outcome === 'ongoing' && s.time < 90) {
-      const g = s.ground.find((h) => h.kind === 'hand')
-      if (g) {
-        // Pinned in the middle of the live wedge, and healed back up, so what
-        // is being counted is how many ticks it hurts on rather than whether
-        // one body could live through it.
-        victim.pos = {
-          x: g.pos.x + Math.cos(g.angle) * 150,
-          y: g.pos.y + Math.sin(g.angle) * 150,
-        }
-        coveredTicks++
-      }
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      // Read off the mechanic's own hits rather than off the health bar: the
-      // boss is still swinging and still landing on everybody, and a check
-      // about whether *this* shape ticks cannot be answered by a bar that
-      // several other things are also moving.
-      for (const event of s.effects) {
-        if (event.abilityId !== 'boss_hand' || event.kind !== 'impact' || event.crit) continue
-        if (dist(event.pos, victim.pos) > 40) continue
-        hitTicks++
-        took += event.power ?? 0
-      }
-      victim.alive = true
-      victim.hp = victim.maxHp
-    }
-    expect('the hand lands on somebody standing in it', hitTicks > 0, 'it never did')
-    expect(
-      'and only on the frames it goes off',
-      coveredTicks > hitTicks * 8,
-      `${hitTicks} of ${coveredTicks} covered ticks hurt`,
-    )
-    expect('each of them for a whole mechanic', took / Math.max(1, hitTicks) > 400, `${took}`)
-  }
-
-  // --- and the party answers it through the path practice reaches ----------
-  //
-  // The rule that killed four designs before these two: an answer that does
-  // not go through `currentDanger` cannot be practised, because the reaction
-  // delay and the fumble live nowhere else. Read the same way the crush's
-  // was — whether the AI standing under a live wedge is calling it the thing
-  // it is reacting to.
-  {
-    const s = withHand()
-    const rng = new Rng(0x51ed)
-    let underIt = 0
-    let naming = 0
-    while (s.outcome === 'ongoing' && s.time < 120) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const g = s.ground.find((h) => h.kind === 'hand')
-      if (!g) continue
-      for (const a of s.actors) {
-        if (a.faction !== 'party' || !a.alive || !a.ai) continue
-        if (!underHand(a.pos, g)) continue
-        underIt++
-        if (a.ai.reactingTo?.startsWith('hand')) naming++
-      }
-    }
-    expect('bodies do end up under the wedge', underIt > 200, `${underIt} ticks`)
-    expect(
-      'and while they are there it is what they are reacting to',
-      naming > underIt * 0.8,
-      `${naming} of ${underIt}`,
-    )
-  }
-
-  // --- the echo drops where the body is, again and again --------------------
-  {
-    const s = floorWith({ echo: 12 }, autoParty(10, pickFor('mage', 'dps')!))
-    const rng = new Rng(0x51ed)
-    let drops = 0
-    let onTheMark = 0
-    let mostForOne = 0
-    const perMark = new Map<number, number>()
-    let lingered = 0
-    while (s.outcome === 'ongoing' && s.time < 120) {
-      const known = new Set(s.ground.filter((g) => g.kind === 'echo').map((g) => g.id))
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      for (const g of s.ground) {
-        if (g.kind !== 'echo' || known.has(g.id)) continue
-        drops++
-        const carrying = s.actors.filter((a) => a.alive && getAura(a, 'echo') !== undefined)
-        // Under one of the marked, rather than anywhere the boss fancied.
-        const owner = carrying.find((a) => dist(a.pos, g.pos) < 4)
-        if (owner) {
-          onTheMark++
-          const count = (perMark.get(owner.id) ?? 0) + 1
-          perMark.set(owner.id, count)
-          mostForOne = Math.max(mostForOne, count)
-        }
-      }
-      lingered += s.ground.filter((g) => g.kind === 'echo' && g.detonated).length
-    }
-    expect('the echo drops at all', drops > 20, `${drops} drops`)
-    expect(
-      'and always under the body it marked',
-      onTheMark === drops,
-      `${onTheMark} of ${drops}`,
-    )
-    expect('one mark is a drum rather than a single pool', mostForOne >= 3, `${mostForOne} beats`)
-    expect('and it leaves nothing behind it', lingered === 0, `${lingered} ticks of residue`)
-  }
-
-  // --- standing still is the one answer that is always wrong ---------------
-  //
-  // The sentence, checked as a pair: a body held in place is caught by every
-  // beat of its own mark, and the same body walking is caught by none of
-  // them. Both are run with the party AI switched off for the one being
-  // measured, so what is being compared is the mechanic rather than two
-  // rolls of a reaction.
-  const echoRun = (walk: boolean): { hits: number; beats: number } => {
-    const s = floorWith({ echo: 12 }, autoParty(10, pickFor('mage', 'dps')!))
-    const rng = new Rng(0x51ed)
-    // Whoever the mark actually lands on, adopted at the moment it lands,
-    // rather than a body chosen up front and hoped for. One in ten is marked,
-    // so naming a raider in advance is a bet on the roll -- and the bet was
-    // being won by an unrelated bug, which threw a mechanic this floor had
-    // not bought and moved the stream. Both runs are identical up to the
-    // adoption, so both adopt the same body.
-    let victim: Actor | null = null
-    let hits = 0
-    let beats = 0
-    while (s.outcome === 'ongoing' && s.time < 120) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      if (victim === null) {
-        victim = s.actors.filter((a) => a.faction === 'party' && a.alive).find((a) => getAura(a, 'echo') !== undefined) ?? null
-        if (victim !== null) {
-          victim.ai = null
-          victim.pos = { x: 240, y: 0 }
-        }
-      }
-      if (victim === null) continue
-      // The mechanic's own hits, not the health bar: the boss is still
-      // swinging at somebody and still landing on everybody.
-      for (const event of s.effects) {
-        if (event.abilityId !== 'boss_echo' || event.kind !== 'impact' || event.crit) continue
-        if (dist(event.pos, victim.pos) > 40) continue
-        hits++
-      }
-      // The walk is a circle a little wider than the drop, taken at the pace
-      // a raider actually moves: the mechanic's claim is that leaving is
-      // enough, not that leaving fast is.
-      if (walk) {
-        const angle = s.time * 1.5
-        victim.pos = { x: 240 + Math.cos(angle) * 90, y: Math.sin(angle) * 90 }
-      }
-      victim.alive = true
-      victim.hp = victim.maxHp
-      if (getAura(victim, 'echo')) beats++
-    }
-    return { hits, beats }
-  }
-  {
-    const still = echoRun(false)
-    const moving = echoRun(true)
-    expect('a body that never moves is asked something', still.beats > 60, `${still.beats} ticks`)
-    // Four or more, which is a mark's worth of beats: this one is picked at
-    // random out of ten, so a run is one mark or two rather than a count to
-    // be predicted, and what is being claimed is that a mark it does not
-    // move for takes all of it.
-    expect(
-      'and the floor takes it on every beat of the mark',
-      still.hits >= 4,
-      `${still.hits} hits over ${still.beats} ticks of carrying it`,
-    )
-    expect(
-      'the same body walking is caught by far less of it',
-      moving.hits < still.hits / 2,
-      `${still.hits} standing, ${moving.hits} walking`,
-    )
-  }
-
-  // --- neither of them is a place to keep off afterwards -------------------
-  //
-  // Both are moments. A residue would turn either into a map of ground to
-  // avoid, which is a question the pool and the brand already ask, and
-  // answering it does not require anybody to keep moving.
-  {
-    expect('a beat of the echo is over the moment it lands', ECHO_TELEGRAPH < 1.6, `${ECHO_TELEGRAPH}`)
-    expect('and the hand asks again on its own beat', HAND_BEAT < 1.6, `${HAND_BEAT}`)
-  }
-
-}
-
-// --- the shape the raid stands in ---------------------------------------------
-//
-// One mechanic whose demand is on the party's formation rather than on
-// anybody's footwork: the schism cuts the raid into groups and asks that the
-// groups do not touch, and the three after it are all about who pays -- a
-// plate one body has to be standing on, a reach that bills whoever it was
-// left nearest, and stones there are exactly enough of.
-//
-// None of them is on a boss's ladder. Which rung of which one they belong on
-// is a question about the shape of a fight rather than about the mechanic and
-// it is not answered here, so what is checked below is that they work rather
-// than that they are placed — the rule that ties a boss's line to a boss's
-// rung is the one part of the usual plumbing that cannot be applied to a
-// mechanic no rung has reached.
-{
-
-  // A quiet Warden with nothing scheduled inside the window a check looks at,
-  // so a reading is about the shape put on the floor and not about whatever
-  // else the boss was going to do in the same tick.
-  const quiet = (): SimState => floorWith({ schism: 900 })
-
-  const splitGround = (): SimState['ground'][number] => ({
-    id: 1,
-    kind: 'schism',
-    pos: { x: 0, y: 0 },
-    radius: SCHISM_ROOM,
-    telegraph: 0,
-    lingering: 0,
-    damage: 400,
-    detonated: false,
-    angle: 0,
-    halfWidth: 0,
-    growth: 0,
-    band: 0,
-    caught: [],
-    // The wedge's two, which every `GroundEffect` carries whether or not the
-    // shape has any use for them.
-    turn: 0,
-    pulses: 0,
-    sides: 2,
-  })
-
-  // --- the schism: groups, and the room between them -------------------------
-  expect('ten people come apart into two groups', schismSides(10) === 2, `${schismSides(10)}`)
-  expect('twenty-five into three', schismSides(25) === 3, `${schismSides(25)}`)
-  for (const sides of [2, 3]) {
-    const shape = { ...splitGround(), sides, angle: 0.4 }
-    let closest = Infinity
-    for (let a = 0; a < sides; a++) {
-      for (let b = a + 1; b < sides; b++) {
-        closest = Math.min(closest, dist(schismMuster(shape, a), schismMuster(shape, b)))
-      }
-    }
-    expect(
-      `${sides} muster points are further apart than the room they have to keep`,
-      closest > SCHISM_ROOM,
-      `${closest.toFixed(0)} against ${SCHISM_ROOM}`,
-    )
-  }
-
-  {
-    // Two bodies, two marks, one distance. Everything else is held still.
-    const clashCost = (sameSide: boolean, apart: number): number => {
-      const s = quiet()
-      const party = s.actors.filter((a) => a.faction === 'party')
-      party.forEach((a, i) => {
-        a.pos = { x: 400, y: 400 + i * 40 }
-        a.hp = a.maxHp
-        a.ai = null
-      })
-      const one = party[0]!
-      const two = party[1]!
-      one.pos = { x: 0, y: 0 }
-      two.pos = { x: apart, y: 0 }
-      addAura(one, 'schism', BOSS_ID)
-      addAura(two, 'schism', BOSS_ID)
-      getAura(one, 'schism')!.stacks = 1
-      getAura(two, 'schism')!.stacks = sameSide ? 1 : 2
-      s.ground = [
-        { ...splitGround(), sides: 2, damage: 400 },
-      ]
-      const before = one.hp
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-      return before - one.hp
-    }
-
-    expect('the other group standing on you is the danger', clashCost(false, 60) > 0, '0')
-    expect('your own group is not', clashCost(true, 60) === 0, 'it hit anyway')
-    expect(
-      'and far enough is far enough',
-      clashCost(false, SCHISM_ROOM + 60) === 0,
-      'it hit from outside the room',
-    )
-  }
-
-  {
-    // The marks do not outlive the count, and the split is an even one.
-    const s = unattended(floorWith({ schism: 9 }))
-    s.next.schism = 0.4
-    const rng = new Rng(0x51ed)
-    let counted = false
-    let tanksMarked = 0
-    let sizes: number[] = []
-    let clashing = 0
-    let onIt = 0
-    while (s.outcome === 'ongoing' && s.time < 60) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const live = s.ground.find((g) => g.kind === 'schism' && !g.detonated)
-      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
-      if (live && !counted) {
-        counted = true
-        const per = new Map<number, number>()
-        for (const a of party) {
-          const mark = getAura(a, 'schism')
-          if (!mark) continue
-          per.set(mark.stacks, (per.get(mark.stacks) ?? 0) + 1)
-          if (a.role === 'tank') tanksMarked++
-        }
-        sizes = [...per.values()]
-      }
-      if (live) {
-        for (const a of party) {
-          const mine = getAura(a, 'schism')
-          // Tanks are left out of the split, so they are neither in danger
-          // from it nor a danger to anybody: reading them as clashing counted
-          // every body standing near the boss and buried the answer.
-          if (!a.ai || !mine) continue
-          const near = party.some(
-            (other) =>
-              other.id !== a.id &&
-              getAura(other, 'schism') !== undefined &&
-              getAura(other, 'schism')!.stacks !== mine.stacks &&
-              dist(a.pos, other.pos) <= SCHISM_ROOM,
-          )
-          if (!near) continue
-          clashing++
-          if (a.ai.reactingTo?.startsWith('schism')) onIt++
-        }
-      }
-      if (!live && counted) {
-        expect(
-          'the marks do not outlive the count',
-          party.every((a) => getAura(a, 'schism') === undefined),
-          'somebody is still wearing one',
-        )
-        break
-      }
-    }
-    expect('the schism is thrown at all', counted, 'it never landed')
-    expect(
-      'and it cuts the raid into even groups',
-      sizes.length > 1 && Math.max(...sizes) - Math.min(...sizes) <= 1,
-      sizes.join('/'),
-    )
-    expect(
-      'and leaves whoever is holding the boss out of it',
-      tanksMarked === 0,
-      `${tanksMarked} tanks were sent to a muster point`,
-    )
-    expect(
-      'a raid standing with the wrong group is reacting to it',
-      onIt / Math.max(1, clashing) > 0.8,
-      `${((onIt / Math.max(1, clashing)) * 100).toFixed(0)}% of ${clashing} ticks`,
-    )
-  }
-
-  // The cut follows the raid rather than the arena.
-  //
-  // Marks handed out at random are the version of this mechanic that cannot be
-  // performed: half the party is sent past the other half to reach the group
-  // it was put in, and no count that is long enough for that is short enough
-  // to be worth anything. Cut by bearing, each group is already most of the
-  // way to being a group and the walk is the same length for everybody — which
-  // is also the property that keeps it the same length at twenty-five as at
-  // ten.
-  {
-    const s = unattended(floorWith({ schism: 9 }, autoParty(10, pickFor('mage', 'dps')!)))
-    s.next.schism = 0.4
-    const rng = new Rng(0x51ed)
-    let spans: number[] = []
-    while (s.outcome === 'ongoing' && s.time < 40) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      const live = s.ground.find((g) => g.kind === 'schism' && !g.detonated)
-      if (!live || spans.length > 0) continue
-      const b = bossOf(s)
-      const groups = new Map<number, number[]>()
-      for (const a of s.actors) {
-        if (a.faction !== 'party' || !a.alive) continue
-        const mark = getAura(a, 'schism')
-        if (!mark) continue
-        const bearing = Math.atan2(a.pos.y - b.pos.y, a.pos.x - b.pos.x)
-        groups.set(mark.stacks, [...(groups.get(mark.stacks) ?? []), bearing])
-      }
-      // Each group occupies an arc of its own rather than being scattered
-      // round the whole circle, which is what "cut where they stand" means.
-      spans = [...groups.values()].map((bearings) => {
-        const sorted = [...bearings].sort((one, two) => one - two)
-        let widest = sorted[sorted.length - 1]! - sorted[0]!
-        for (let i = 1; i < sorted.length; i++) {
-          const gap = sorted[i]! - sorted[i - 1]!
-          if (gap > widest - gap) widest = Math.min(widest, Math.PI * 2 - gap)
-        }
-        return widest
-      })
-    }
-    expect('a split was made at all', spans.length > 1, `${spans.length} groups`)
-    expect(
-      'and each group is an arc of the raid rather than a scattering of it',
-      spans.every((span) => span < Math.PI * 1.2),
-      spans.map((span) => span.toFixed(2)).join('/'),
-    )
-  }
-
-  // --- both of them are visible ---------------------------------------------
-  {
-    const s = quiet()
-    const b = bossOf(s)
-    b.pos = { x: 0, y: 0 }
-    s.actors.filter((a) => a.faction === 'party').forEach((a) => (a.pos = { x: 0, y: 0 }))
-    focusOn(s, 1)
-
-    const split = {
-      ...splitGround(),
-      sides: 2,
-      angle: 0,
-      telegraph: SCHISM_TELEGRAPH,
-    }
-    const marked = s.actors.find((a) => a.faction === 'party')!
-    addAura(marked, 'schism', BOSS_ID)
-    getAura(marked, 'schism')!.stacks = 1
-    const splitCircles: Circle[] = []
-    s.ground = [split]
-    drawWorld(recordingCtx(splitCircles), s, 1, s.time, new Effects())
-    const muster = schismMuster(split, 0)
-    expect(
-      'the schism draws where each group is supposed to go',
-      splitCircles.length > 0 &&
-        splitCircles.some((c) => Math.abs(c.r - SCHISM_ROOM * L.scale) < 2),
-      `${splitCircles.length} circles, none the size of the room`,
-    )
-    expect(
-      'and puts a muster point out at the bearing it named',
-      Math.hypot(muster.x - split.pos.x, muster.y - split.pos.y) > SCHISM_ROOM * 0.5,
-      `${muster.x.toFixed(0)},${muster.y.toFixed(0)}`,
-    )
-  }
 }
 
 // --- NEXT BOSS appears exactly when there is one ----------------------------
@@ -8231,9 +6773,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     let adds = 0
     let lingerTicks = 0
     let healing = 0
-    let rotDamage = 0
     let enraged = false
-    let spreadReach = 0
 
     while (fight.outcome === 'ongoing' && fight.time < seconds) {
       const before = new Map(fight.actors.map((a) => [a.id, a.hp]))
@@ -8249,19 +6789,9 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
         const was = before.get(a.id)
         if (was === undefined) continue
         if (a.hp > was) healing += a.hp - was
-        if (a.hp < was && getAura(a, 'rot')) rotDamage += was - a.hp
-      }
-      const carrier = fight.actors.find((a) => getAura(a, 'spread'))
-      if (carrier) {
-        spreadReach = Math.max(
-          spreadReach,
-          fight.actors.filter(
-            (a) => a.faction === 'party' && a.alive && dist(a.pos, carrier.pos) <= SPREAD_RADIUS * 1.5,
-          ).length,
-        )
       }
     }
-    return { adds, lingerTicks, healing, rotDamage, enraged, spreadReach }
+    return { adds, lingerTicks, healing, enraged }
   }
 
   const plain = play(null, 150)
@@ -8296,7 +6826,6 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
               a.faction === 'boss' &&
               a.alive &&
               a.id !== bossOf(fight).id &&
-              a.hunting === null &&
               a.spawn === undefined,
           ).length,
         )
@@ -8330,35 +6859,6 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const bare = healed(null)
     expect('faltering heals for less', healed('faltering') < bare * 0.95, `${bare}`)
   }
-  // Measured on its own rather than inside a pull: everything else the boss
-  // does lands on the same health bar, and a whole fight's worth of that
-  // drowned the difference the first time this was written.
-  {
-    const rotOnly = (affix: AffixId | null): number => {
-      const fight = createState(0x51ed, 0, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, affix)
-      fight.countdown = 0
-      const victim = fight.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
-      // Far from anything the boss can reach, so the only thing touching this
-      // health bar is the dot.
-      victim.pos = { x: 0, y: -430 }
-      victim.hp = victim.maxHp
-      addAura(victim, 'rot', boss(fight).id)
-
-      const before = victim.hp
-      const rng = new Rng(1)
-      for (let i = 0; i < 30 * 6; i++) {
-        victim.pos = { x: 0, y: -430 }
-        step(fight, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      }
-      return before - victim.hp
-    }
-    const bare = rotOnly(null)
-    const festering = rotOnly('festering')
-    // Half again, not double: the affixes are levelled against each other and
-    // this one was the heaviest of the eight before it came down.
-    expect('festering bites harder', festering > bare * 1.4, `${bare} -> ${festering}`)
-  }
-
   // The enrage lands early enough to be the thing that ends a slow pull.
   const hastened = createState(0x51ed, 8, autoParty(5, pickFor('mage', 'dps')!), 'normal', 0, 'hastened')
   hastened.countdown = 0
@@ -8452,7 +6952,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // Narrowing to the ticks where they differed then measured which of the two
   // a wandering thrall happened to walk to. The claim is about a number, and
   // the number is available directly.
-  const s = floorWith({ rot: 16 }, [
+  const s = floorWith({ decay: 16 }, [
     pickFor('warrior', 'dps')!,
     pickFor('warrior', 'tank')!,
     pickFor('priest', 'healer')!,
@@ -8481,21 +6981,28 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     `plate ${plateTook}, cloth ${clothTook}`,
   )
 
-  // The rot is magic, so armour must make no difference to it at all.
-  const rotTick = AURA_TICK.rot?.damage ?? 0
-  const rotOnPlate = (() => {
+  // Magic ignores armour entirely, which is the other half of the claim above:
+  // plate is worth something against a swing and nothing against a spell, or
+  // the tank's job would be "wear the heaviest thing" rather than "be the one
+  // it is aimed at". Any magic number will do; the ground's is to hand.
+  const magic = 400
+  const magicOnPlate = (() => {
     plate.hp = plate.maxHp
     const before = plate.hp
-    applyDamage(s, plate, rotTick, 'none', { sourceId: boss.id, silent: true })
+    applyDamage(s, plate, magic, 'magic', { sourceId: boss.id, silent: true })
     return before - plate.hp
   })()
-  const rotOnCloth = (() => {
+  const magicOnCloth = (() => {
     cloth.hp = cloth.maxHp
     const before = cloth.hp
-    applyDamage(s, cloth, rotTick, 'none', { sourceId: boss.id, silent: true })
+    applyDamage(s, cloth, magic, 'magic', { sourceId: boss.id, silent: true })
     return before - cloth.hp
   })()
-  expect('and the rot does not care about armour', rotOnPlate === rotOnCloth, `${rotOnPlate} vs ${rotOnCloth}`)
+  expect(
+    'and magic goes through armour untouched',
+    Math.abs(magicOnPlate - magicOnCloth) < 0.001,
+    `plate ${magicOnPlate}, cloth ${magicOnCloth}`,
+  )
 }
 
 // --- everything that has to reach the boss can -------------------------------
@@ -9698,452 +8205,6 @@ for (const [label, w, h] of [
 }
 
 
-// --- the two mechanics whose answer is another person -----------------------
-//
-// Everything else the bosses throw is answered by the person it lands on: get
-// out of the fire, get behind the cone, get away from the raid. These two
-// cannot be answered by their carrier at all — one has to be walked into
-// somebody else's hands and the other has to be come to — so what is checked
-// here is the half that lives in another body, since that is the half a
-// mechanic like this gets wrong.
-{
-  const raid = autoParty(10, pickFor('mage', 'dps')!)
-
-  // --- the weight ----------------------------------------------------------
-  {
-    const s = floorWith({ burden: 5 }, raid)
-    const rng = new Rng(0x51ed)
-
-    let everCarried = false
-    let longestChain = 0
-    let drops = 0
-    // The invariant that makes the mechanic a journey rather than a formality.
-    let takerAlwaysFurthest = true
-    // And the evidence that the journey is real: at least once, the body it
-    // was sent to was not the body standing nearest.
-    let sentPastSomebodyNearer = false
-
-    while (s.outcome === 'ongoing' && s.time < 150) {
-      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      for (const event of s.effects) {
-        if (event.abilityId === 'boss_burden' && event.kind === 'impact') {
-          drops++
-        }
-      }
-
-      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
-      for (const a of party) {
-        const weight = getAura(a, 'burden')
-        if (!weight) continue
-        everCarried = true
-        longestChain = Math.max(longestChain, weight.stacks)
-
-        const held = weight.held ?? [a.id]
-        const fresh = party.filter(
-          (b) => b.id !== a.id && !held.includes(b.id) && !getAura(b, 'burden'),
-        )
-        if (fresh.length === 0) continue
-        const taker = burdenTaker(s, a)
-        if (!taker) continue
-        const far = Math.max(...fresh.map((b) => dist(a.pos, b.pos)))
-        if (dist(a.pos, taker.pos) < far - 0.001) takerAlwaysFurthest = false
-        const near = Math.min(...fresh.map((b) => dist(a.pos, b.pos)))
-        if (dist(a.pos, taker.pos) > near + BURDEN_REACH) sentPastSomebodyNearer = true
-      }
-    }
-
-    expect('a floor that buys the weight hands one out', everCarried, 'nobody ever held it')
-    expect(
-      'it is sent to the furthest pair of hands that has not had it',
-      takerAlwaysFurthest,
-      'something nearer was chosen',
-    )
-    expect(
-      'and past somebody who was standing closer, so the answer is a walk',
-      sentPastSomebodyNearer,
-      'it never had further to go than the next body over',
-    )
-    expect(
-      `the chain runs to ${BURDEN_HANDS} pairs of hands`,
-      longestChain >= BURDEN_HANDS,
-      `longest was ${longestChain}`,
-    )
-    expect('and one that is not passed goes off', drops > 0, 'it never once landed')
-  }
-
-  // --- and it is priced off the chain, not the clock -----------------------
-  //
-  // Asked of the rule rather than of a run. The first version of this check
-  // watched a floor for drops and compared the largest against the smallest,
-  // which is a bet that one pull happens to drop a weight on its first leg and
-  // another on its third. It passed until the tempo was corrected, at which
-  // point every drop in the sample landed at the same stack count and two
-  // identical numbers read as a broken mechanic. What is actually claimed is
-  // that the price rises with the hands it went through, so both weights are
-  // built here and both are dropped.
-  {
-    const s = floorWith({ burden: 5 }, raid)
-    const party = s.actors.filter((a) => a.faction === 'party' && a.alive && a.role === 'dps')
-    const fresh = party[0]!
-    const late = party[1]!
-
-    const paid = (victim: Actor, hands: number): number => {
-      addAura(victim, 'burden', BOSS_ID)
-      const weight = getAura(victim, 'burden')!
-      weight.stacks = hands
-      const before = victim.hp
-      dropBurden(s, victim, weight)
-      clearAura(victim, 'burden')
-      const spent = before - victim.hp
-      victim.hp = before
-      return spent
-    }
-
-    const first = paid(fresh, 1)
-    const third = paid(late, BURDEN_HANDS)
-    expect(
-      'a weight that never moved is the cheap one',
-      first > 0 && third > first,
-      `${first} on the first leg against ${third} on the last`,
-    )
-  }
-
-  // --- the yoke ------------------------------------------------------------
-  {
-    const s = floorWith({ yoke: 8 }, raid)
-    const rng = new Rng(0x51ed)
-
-    let everOwed = false
-    let everNamed = false
-    let namedATank = false
-    // A name that moves is a name nobody can answer: see `Aura.bearer`.
-    let nameHeld = true
-    const promised = new Map<number, number>()
-    let namedTwice = false
-
-    while (s.outcome === 'ongoing' && s.time < 150) {
-      step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
-      const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
-      const seen = new Map<number, number>()
-      for (const a of party) {
-        const owed = getAura(a, 'yoke')
-        if (!owed) continue
-        everOwed = true
-        if (owed.bearer === undefined) continue
-        everNamed = true
-        const bearer = party.find((b) => b.id === owed.bearer)
-        if (bearer && bearer.role === 'tank') namedATank = true
-        const before = promised.get(a.id)
-        if (before !== undefined && before !== owed.bearer) nameHeld = false
-        promised.set(a.id, owed.bearer)
-        if (seen.has(owed.bearer)) namedTwice = true
-        seen.set(owed.bearer, a.id)
-      }
-      // Cleared when the yoke goes, so the next one on the same body is
-      // allowed a different name.
-      for (const id of [...promised.keys()]) {
-        if (!party.some((a) => a.id === id && getAura(a, 'yoke'))) promised.delete(id)
-      }
-    }
-
-    expect('a floor that buys the yoke puts one on somebody', everOwed, 'nobody ever owed it')
-    expect('and calls somebody over for it', everNamed, 'it never named anybody')
-    expect(
-      'never the tank, which would bring the boss with it',
-      !namedATank,
-      'a tank was called across the arena',
-    )
-    expect('the name it called does not change under them', nameHeld, 'the bearer moved mid-yoke')
-    expect(
-      'and two of them never call the same body',
-      !namedTwice,
-      'one body was promised to two carriers at once',
-    )
-    expect(
-      'carrying it alone costs more than halving it',
-      YOKE_ALONE > YOKE_SHARE * 2,
-      `${YOKE_ALONE} against ${YOKE_SHARE}`,
-    )
-  }
-
-  // --- both of them are drawn as the line they are -------------------------
-  //
-  // A relationship drawn as two unrelated marks is two marks nobody connects,
-  // so the picture has to be the line between them, the clock on the one
-  // holding it, and a ring where "arrived" is.
-  {
-    const s = floorWith({ burden: 5, yoke: 8 }, raid)
-    const party = s.actors.filter((a) => a.faction === 'party' && a.alive)
-    const holder = party.find((a) => a.role === 'dps')!
-    const owing = party.find((a) => a.role === 'dps' && a.id !== holder.id)!
-    addAura(holder, 'burden', BOSS_ID)
-    getAura(holder, 'burden')!.held = [holder.id]
-    addAura(owing, 'yoke', BOSS_ID)
-    getAura(owing, 'yoke')!.bearer = party.find(
-      (a) => a.id !== owing.id && a.role !== 'tank',
-    )!.id
-
-    updateLayout(1440, 900)
-    const circles: Circle[] = []
-    const labels: Label[] = []
-    drawWorld(recordingCtx(circles, labels), s, 1, 0, new Effects(false))
-
-    const ring = (r: number) => circles.some((c) => Math.abs(c.r - r * L.scale) < 1)
-    expect(
-      'the weight draws the distance that counts as arrived',
-      ring(BURDEN_REACH),
-      circles.map((c) => Math.round(c.r)).join(','),
-    )
-    expect('and so does the yoke', ring(YOKE_REACH), circles.map((c) => Math.round(c.r)).join(','))
-    expect(
-      'and both put a clock on whoever is holding it',
-      labels.filter((l) => /^\d+\.\d($| \()/.test(l.text)).length >= 2,
-      labels.map((l) => l.text).join(' | '),
-    )
-  }
-}
-
-// --- the three about who pays ---------------------------------------------
-//
-// A plate one body has to be standing on, a reach that bills whoever it was
-// left nearest, and stones there are exactly enough of. What they have in
-// common is that the raid decides who takes the hit, so what is checked here
-// is the deciding: that the nomination is written down rather than worked out
-// again, that the bill lands on one body rather than being spread across
-// everybody who was slow, and that a stone holds one.
-//
-// Nothing below names a raider up front and hopes a roll lands on them. Where
-// a body has to be the one the mechanic chose, it is read off the mechanic;
-// where the state matters, it is assigned here.
-{
-  // A floor that buys one thing, so a reading is about the shape on the floor
-  // and not about whatever else was scheduled in the same second. Bars are
-  // raised out of range of anything else the boss does, so a hit from this
-  // mechanic cannot be confused with a swing, and nobody dies mid-check.
-  const staged = (every: Partial<Record<MechanicId, number>>): SimState => {
-    const s = unattended(floorWith(every))
-    for (const a of s.actors) {
-      if (a.faction !== 'party') continue
-      a.ai = null
-      a.maxHp = 200000
-      a.hp = a.maxHp
-      a.pos = { x: 330, y: 330 }
-    }
-    return s
-  }
-
-  const STAGED = 6000
-
-  const blank = (kind: SimState['ground'][number]['kind']): SimState['ground'][number] => ({
-    id: 1,
-    kind,
-    pos: { x: 0, y: 0 },
-    radius: 0,
-    // Half a tick, so one step takes it past zero and resolves it.
-    telegraph: DT * 0.5,
-    lingering: 0,
-    damage: STAGED,
-    detonated: false,
-    angle: 0,
-    halfWidth: 0,
-    growth: 0,
-    band: 0,
-    caught: [],
-    turn: 0,
-    pulses: 0,
-  })
-
-  // A floor under what counts as this mechanic's hit, so a swing landing in
-  // the same tick cannot be read as one. The shapes below are staged with a
-  // payload far above anything else the boss does, and the floor is a share of
-  // that payload *after the fight's own dials* -- which is the part that was
-  // wrong. It was 1500 flat, fitted while the host boss multiplied mechanics
-  // by 1.7 and carried no weight at its size; a weight of 0.8 and a
-  // multiplier of 0.75 put the same correct hit under the floor and six
-  // checks reported that nothing had happened at all. A threshold a boss's
-  // own tuning can walk past is not measuring the mechanic.
-  const billed = (s: SimState, before: Map<number, number>, share = 0.25): number[] => {
-    const floor = STAGED * mechanicScale(s) * share
-    return s.actors
-      .filter((a) => a.faction === 'party' && (before.get(a.id) ?? 0) - a.hp > floor)
-      .map((a) => a.id)
-  }
-
-  const resolve = (s: SimState): number[] => {
-    const before = new Map(s.actors.map((a) => [a.id, a.hp]))
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-    return billed(s, before)
-  }
-
-  const dealers = (s: SimState) =>
-    s.actors.filter((a) => a.faction === 'party' && a.alive && a.role !== 'tank')
-
-  // --- the plate -----------------------------------------------------------
-  {
-    const s = staged({ toll: 900 })
-    const free = dealers(s)
-    const near = free[0]!
-    const also = free[1]!
-    near.pos = { x: 8, y: 0 }
-    also.pos = { x: 45, y: 0 }
-    s.ground = [{ ...blank('toll'), radius: TOLL_RADIUS, named: near.id }]
-    const paid = resolve(s)
-    expect('somebody on the plate pays it alone', paid.length === 1, `${paid.length} paid`)
-    expect(
-      'and it is whoever is nearest the middle of it',
-      paid[0] === near.id,
-      `${paid[0]} against ${near.id}`,
-    )
-  }
-  {
-    // Nobody went, so the body that was asked to go pays it -- and only that
-    // body. It was written to the whole raid first, and a raid-wide bill is a
-    // rate that a bigger roster absorbs and a smaller one cannot: measured,
-    // the same code taught 13.0 points at twenty-five, 7.6 at ten and nothing
-    // at five. What is checked here is that the bill lands where the choosing
-    // did, and that one instant writes one of them.
-    const s = staged({ toll: 900 })
-    const free = dealers(s)
-    const named = free[0]!
-    s.ground = [{ ...blank('toll'), radius: TOLL_RADIUS, named: named.id }]
-    const before = new Map(s.actors.map((a) => [a.id, a.hp]))
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-    const unpaid = billed(s, before, 0.15)
-    expect(
-      'and a plate nobody stood on is paid by the one who was asked',
-      unpaid.length === 1 && unpaid[0] === named.id,
-      `${unpaid.join(',')} against ${named.id}`,
-    )
-  }
-  {
-    // The nomination, over a real pull. Read off the plate rather than worked
-    // out here, and watched for the whole of its count: a name that is
-    // recomputed answers with a different body every time anybody takes a hit,
-    // which is the failure the yoke already paid for.
-    const s = unattended(floorWith({ toll: 8 }))
-    const rng = new Rng(0x51ed)
-    const said = new Map<number, number>()
-    let plates = 0
-    let moved = 0
-    let tanks = 0
-    while (s.outcome === 'ongoing' && s.time < 90) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      for (const g of s.ground) {
-        if (g.kind !== 'toll' || g.named === undefined) continue
-        const was = said.get(g.id)
-        if (was === undefined) {
-          said.set(g.id, g.named)
-          plates++
-          if (s.actors.find((a) => a.id === g.named)?.role === 'tank') tanks++
-        } else if (was !== g.named) {
-          moved++
-        }
-      }
-    }
-    expect('a pull is full of plates', plates >= 4, `${plates} in ninety seconds`)
-    expect('each names one body and keeps naming it', moved === 0, `${moved} changed name`)
-    expect('and never the one holding the boss', tanks === 0, `${tanks} tanks named`)
-  }
-
-  // --- the reach -----------------------------------------------------------
-  {
-    const bill = (extra: number): { paid: number[]; lost: number } => {
-      const s = staged({ grasp: 900 })
-      const free = dealers(s)
-      free[0]!.pos = { x: 6, y: 0 }
-      for (let i = 1; i <= extra; i++) free[i]!.pos = { x: 40 + i * 12, y: 0 }
-      s.ground = [{ ...blank('grasp'), radius: GRASP_REACH }]
-      const before = new Map(s.actors.map((a) => [a.id, a.hp]))
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, new Rng(1))
-      const paid = billed(s, before)
-      return { paid, lost: (before.get(free[0]!.id) ?? 0) - free[0]!.hp }
-    }
-    const alone = bill(0)
-    const crowd = bill(3)
-    expect('the reach bills one body', alone.paid.length === 1, `${alone.paid.length}`)
-    expect('and still one when it caught four', crowd.paid.length === 1, `${crowd.paid.length}`)
-    expect(
-      'and it is dearer for the ones it did not bill',
-      crowd.lost > alone.lost * 1.4,
-      `${crowd.lost.toFixed(0)} against ${alone.lost.toFixed(0)}`,
-    )
-  }
-  {
-    // The one holding the boss cannot answer it, so it does not reach for
-    // them -- even standing on the middle of it.
-    const s = staged({ grasp: 900 })
-    const tank = s.actors.find((a) => a.faction === 'party' && a.role === 'tank')
-    const free = dealers(s).filter((a) => a.role !== 'tank')
-    expect('the party fields somebody holding the boss', tank !== undefined, 'it does not')
-    if (tank) tank.pos = { x: 0, y: 0 }
-    free[0]!.pos = { x: 50, y: 0 }
-    s.ground = [{ ...blank('grasp'), radius: GRASP_REACH }]
-    const paid = resolve(s)
-    expect(
-      'and the reach passes over them for somebody further out',
-      paid.length === 1 && paid[0] === free[0]!.id,
-      paid.join(','),
-    )
-  }
-
-  // --- the stones ----------------------------------------------------------
-  {
-    const stones = [
-      { x: 0, y: 0 },
-      { x: 300, y: 0 },
-    ]
-    const counted = (together: boolean): { paid: number[]; cleared: boolean } => {
-      const s = staged({ refuge: 900 })
-      const free = dealers(s)
-      const one = free[0]!
-      const two = free[1]!
-      addAura(one, 'refuge', BOSS_ID)
-      getAura(one, 'refuge')!.stacks = 1
-      addAura(two, 'refuge', BOSS_ID)
-      getAura(two, 'refuge')!.stacks = 2
-      one.pos = { x: 0, y: 0 }
-      two.pos = together ? { x: 18, y: 0 } : { x: 300, y: 0 }
-      s.ground = [
-        { ...blank('refuge'), radius: REFUGE_RADIUS, spots: stones.map((spot) => ({ ...spot })) },
-      ]
-      const paid = resolve(s)
-      return { paid, cleared: getAura(one, 'refuge') === undefined }
-    }
-
-    const apart = counted(false)
-    const stacked = counted(true)
-    expect('a stone each and nobody pays', apart.paid.length === 0, apart.paid.join(','))
-    expect('two on one stone and one of them does', stacked.paid.length === 1, stacked.paid.join(','))
-    expect('and the marks do not outlive the stones', apart.cleared, 'one was still wearing it')
-  }
-  {
-    // Over a real pull: as many stones as marks, and never a mark on whoever
-    // is holding the boss.
-    const s = unattended(floorWith({ refuge: 11 }))
-    const rng = new Rng(0x51ed)
-    let counts = 0
-    let mismatched = 0
-    let tanks = 0
-    const seen = new Set<number>()
-    while (s.outcome === 'ongoing' && s.time < 90) {
-      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-      for (const g of s.ground) {
-        if (g.kind !== 'refuge' || g.detonated || seen.has(g.id)) continue
-        seen.add(g.id)
-        counts++
-        const marked = s.actors.filter(
-          (a) => a.faction === 'party' && a.alive && getAura(a, 'refuge') !== undefined,
-        )
-        if (marked.length !== (g.spots ?? []).length) mismatched++
-        tanks += marked.filter((a) => a.role === 'tank').length
-      }
-    }
-    expect('a pull is full of stones', counts >= 3, `${counts} in ninety seconds`)
-    expect('there is one stone a mark', mismatched === 0, `${mismatched} counts were short`)
-    expect('and the one holding the boss is never sent for one', tanks === 0, `${tanks}`)
-  }
-}
-
 // --- no mechanic's branch answers for another mechanic --------------------
 //
 // Read off the source rather than run, because what this catches is a shape
@@ -10230,7 +8291,6 @@ for (const [label, w, h] of [
         for (const a of s.actors) {
           if (a.faction !== 'boss' || a.id === monster.id) continue
           if (a.spawn !== undefined) seen.add(a.spawn)
-          else if (a.hunting !== null) seen.add('hunt')
           else seen.add('adds')
         }
         for (const a of s.actors) {

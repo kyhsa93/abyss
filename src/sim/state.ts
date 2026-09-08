@@ -115,7 +115,6 @@ function makeMember(
     ai: isPlayer ? null : makeAi(slot.personality, attempt),
     swingTimer: 0,
     facing: 0,
-    hunting: null,
   }
 }
 
@@ -235,7 +234,6 @@ export function createState(
     ai: null,
     swingTimer: 2,
     facing: 0,
-    hunting: null,
   }
 
   const threat: Record<number, number> = {}

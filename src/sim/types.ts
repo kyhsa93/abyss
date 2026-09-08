@@ -32,7 +32,6 @@ export type AuraId =
   | 'momentum' // mage: stacks while it stands and casts, gone the moment it moves
   | 'eclipse' // balance druid: the window a finisher opens for its filler
   | 'pact' // warlock: the window it bought with its own health
-  | 'rot' // boss: a stacking magic dot, the healer's slow problem
   // The two a raid cooldown leaves on everybody. Named for what they are
   // rather than for the class that called them, because more than one class
   // brings each and a raid should not be able to stack two of the same thing
@@ -46,15 +45,6 @@ export type AuraId =
   | 'shield' // damage reduction on the tank
   | 'brace' // the lesser one everybody else carries
   | 'beacon' // heal over time on a party member
-  | 'sunder' // boss: stacks on whoever is holding it, and makes them softer
-  | 'hunted' // boss: something has picked you, and it is walking over
-  | 'spread' // detonates on expiry, damages everyone nearby
-  | 'brand' // boss: leaves ground where it burns out
-  | 'echo' // boss: the floor under you gives way on a beat until it fades
-  | 'verdict' // boss: judgement pending, and it kills anyone under the line
-  | 'burden' // boss: a weight that has to be walked into fresh hands
-  | 'yoke' // boss: matures on one, and is paid by whoever came to stand with them
-  | 'schism' // boss: which group you belong to, and they must not touch
   /**
    * Pinned by a spike, which is the one thing in this game that takes a body's
    * feet away.
@@ -105,7 +95,6 @@ export type AuraId =
   | 'reek'
   /** Stacking on whoever holds the boss, and lethal at ten. */
   | 'swelling'
-  | 'refuge' // boss: which of the stones is yours, and there is one each
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -308,15 +297,6 @@ export interface Actor {
   facing: number
 
   /**
-   * Who this one is following, ignoring everything else.
-   *
-   * Only a stalker has it. Every other hostile in the game goes for whoever
-   * is nearest, which is a rule the party answers by standing somewhere else
-   * — this one answers by walking after you.
-   */
-  hunting: number | null
-
-  /**
    * What kind of thing this is, for the two that are not thralls.
    *
    * Absent means a thrall or a stalker, which is every summon that came
@@ -333,32 +313,12 @@ export interface Actor {
 }
 
 export type GroundKind =
-  | 'puddle'
-  | 'brand'
-  | 'crush'
-  | 'spire'
-  | 'breath'
-  | 'shockwave'
   // A line of patches lit one after the next, outward from the boss. Circles,
   // like the pool, because the shape a person answers is one patch at a time
   // and a line is what the sequence of them looks like from above.
   | 'coldflame'
   // A patch that is simply bad to stand in, and stays.
   | 'decay'
-  | 'soak'
-  | 'hand'
-  | 'echo'
-  | 'fault'
-  | 'shallows'
-  | 'schism'
-  // The plate somebody has to walk into and pay at, so that the rest of them
-  // do not.
-  | 'toll'
-  // The reach that takes hold of whoever it is left nearest to, and bills
-  // them for everybody else who was slow as well.
-  | 'grasp'
-  // The stones there are exactly enough of, one body to each.
-  | 'refuge'
 
 export interface GroundEffect {
   id: number
@@ -576,6 +536,8 @@ export type SoundEvent =
   | 'countdown'
   | 'pull'
   | 'telegraph'
+  // Named for the mechanic it was written for, which is gone; the storm uses
+  // it, and it is a sound rather than a mechanic.
   | 'shockwave'
   | 'raid'
   | 'hit'

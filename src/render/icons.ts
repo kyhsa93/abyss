@@ -226,8 +226,6 @@ const STYLE_BY_SHAPE: Record<IconShape, HitStyle> = {
 const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The tank's problem: heavy, close, and it arrives rather than travels.
   boss_slam: { colour: '#f97316', style: 'crush' },
-  // The cone, in the cone's own blue, thrown along the way it was facing.
-  boss_breath: { colour: '#38bdf8', style: 'pierce' },
   // The ring, in the ring's amber.
   // Blue on the floor, and a burst rather than a slash: it arrives as a patch
   // lighting up, not as something swung.
@@ -265,32 +263,8 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_vilegas: { colour: '#166534', style: 'burst' },
   boss_bloat: { colour: '#a16207', style: 'crush' },
   boss_coldflame: { colour: '#22d3ee', style: 'burst' },
-  boss_shockwave: { colour: '#facc15', style: 'pierce' },
-  // The floor, in the floor's magenta, sinking in rather than pushing out.
-  boss_puddle: { colour: '#be185d', style: 'wither' },
-  boss_brand: { colour: '#f472b6', style: 'wither' },
-  // The judgement, in a colour nothing else here owns: it is the one thing on
-  // any of these bosses that no amount of walking answers.
-  boss_verdict: { colour: '#4f46e5', style: 'pierce' },
-  // The one thing armour answers, so it is drawn as steel.
-  // The same band as the sweep and deliberately not the same colour: one is a
-  // swing that arrives and the other is the floor itself coming down, and a
-  // player who cannot tell them apart cannot learn that one of them warned.
-  boss_crush: { colour: '#dc2626', style: 'crush' },
-  // The floor splitting, which is a line rather than a circle: stone, and
-  // cleaving, because what it does is come apart along one.
-  boss_fault: { colour: '#475569', style: 'cleave' },
-  // The floor standing up, which is the split's opposite and must not be its
-  // colour: warm stone against that cold slate, and crushing rather than
-  // cleaving, because what it does is arrive from underneath.
-  boss_spire: { colour: '#a8a29e', style: 'crush' },
-  // The floor going under everywhere but three patches. Deep water rather
-  // than the shallow teal the gathering owns, and the only mechanic here whose
-  // colour means the ground rather than the thing standing on it.
-  boss_shallows: { colour: '#1d4ed8', style: 'wither' },
   // Everyone at once, which is the healer's whole fight.
   boss_raid: { colour: '#a78bfa', style: 'burst' },
-  boss_rot: { colour: '#65a30d', style: 'wither' },
   // The fight changing under you. Its own id rather than borrowed from the
   // slam, because a check that asks whether the slam ever landed must not be
   // answerable by the phase break.
@@ -301,45 +275,6 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // and because a fight that has stopped for one thing should not be drawing
   // it in another boss's colour.
   boss_herald: { colour: '#eab308', style: 'cleave' },
-  // Armour coming apart: the same steel as the sweep would say "physical",
-  // but this is the thing that makes physical hurt, so it is rust.
-  boss_sunder: { colour: '#b45309', style: 'crush' },
-  // The one the party answers together, so it arrives on everybody at once
-  // and reads as something settling rather than something thrown.
-  boss_soak: { colour: '#2dd4bf', style: 'wither' },
-  // The wedge that turns, in a colour nothing else on the floor owns. It has
-  // to be read as one shape moving rather than as a series of cones, so it
-  // cannot borrow the cone's blue.
-  boss_hand: { colour: '#84cc16', style: 'cleave' },
-  // The floor answering under the one it marked. Its own violet rather than
-  // a shade of the brand's pink, which is the closest thing to it: both
-  // arrive where somebody was standing, and they are opposite mechanics
-  // about it — the brand is ground to keep off afterwards and this is gone
-  // before anybody could.
-  boss_echo: { colour: '#c084fc', style: 'wither' },
-  // The split, in the one colour left that reads as a division rather than a
-  // hazard: nothing is on fire, the person beside you is simply wrong.
-  boss_schism: { colour: '#059669', style: 'cleave' },
-  // The thing that followed you, in a colour nothing else uses: whatever else
-  // is happening, this one is about you specifically.
-  boss_stalk: { colour: '#fb923c', style: 'cleave' },
-  // A weight coming down in the hands it was left in. Drawn as a crush
-  // because that is what it is — the difference from the boss's own is that
-  // this one landed somewhere a person walked it to.
-  boss_burden: { colour: '#818cf8', style: 'crush' },
-  // A debt falling due, which either splits or does not. A burst rather than
-  // a wither: it arrives all at once and it is over.
-  boss_yoke: { colour: '#f0abfc', style: 'burst' },
-  // A price being collected, in a metal nothing else here is: the fight's one
-  // hit that a body walked to rather than failed to leave.
-  boss_toll: { colour: '#10b981', style: 'burst' },
-  // Something closing on one body out of the crowd. Deep violet, and crushing,
-  // because what it does is take hold rather than burn.
-  boss_grasp: { colour: '#c2410c', style: 'crush' },
-  // Ground rationed out. Its own cold blue rather than a shade of the water
-  // that drowns the floor -- these are the pieces that are left, and a player
-  // who reads them as the same mechanic reads standing on one as a mistake.
-  boss_refuge: { colour: '#0e7490', style: 'pierce' },
 }
 
 export function bossEffect(abilityId: string): { colour: string; style: HitStyle } | null {
