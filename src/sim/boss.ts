@@ -46,6 +46,12 @@ import {
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  SLIME_PATCH,
+  SLIME_ARC,
+  SLIME_DRY,
+  SLIME_TELEGRAPH,
+  SLIME_LINGER,
+  SLIME_TICK,
   CAUSTIC_RADIUS,
   CAUSTIC_TELEGRAPH,
   CAUSTIC_LANDING,
@@ -492,6 +498,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleGather(s, b, timing)
   scheduleDecant(s, b, rng, timing)
   scheduleReagent(s, b, timing)
+  scheduleSlime(s, b, rng, timing)
   updateHounds(s)
 
   updateAdds(s)
@@ -2701,6 +2708,61 @@ function reagentPower(s: SimState): number {
   return 1 + count * REAGENT_POWER
 }
 
+/**
+ * The room rising, which is the one mechanic here that belongs to a room.
+ *
+ * An arc of the wall goes under and the middle never does. Both halves are the
+ * rule rather than the flavour: floor taken away super-scales -- rule 5 -- and
+ * a room with merging bodies in it and nowhere dry to put them is a moment
+ * with no answer, so the inner circle is guaranteed and the arc is capped.
+ *
+ * Circles along an arc rather than a shape of its own, for the reason the cold
+ * line is circles: the floor already knows how to draw one, the party already
+ * knows how to leave one, and what a person answers is one patch reaching
+ * them. An arc is only what a row of them looks like from above -- and an arc
+ * is concave, which is a shape terrain may not be and ground may.
+ */
+function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.slime <= 0) return
+  s.next.slime -= DT
+  if (s.next.slime > 0) return
+  s.next.slime = timing.slime
+
+  // The lane the patches sit in: far enough out that the dry middle is
+  // guaranteed by arithmetic rather than by hope, and inside the wall by their
+  // own radius so none of them is half outside the room.
+  const reach = roomReach(s.room)
+  const lane = Math.max(SLIME_DRY + SLIME_PATCH, reach - SLIME_PATCH)
+  if (lane + SLIME_PATCH > reach + SLIME_PATCH * 0.5) {
+    // A room too small to have an outside without swallowing its middle keeps
+    // its floor. Nothing in the citadel is that small today; the day one is,
+    // this is the line that decides it rather than a wipe nobody expected.
+  }
+  say(s, b, lineFor(fight(s), 'slime'))
+  s.sounds.push('telegraph')
+  const from = rng.range(0, Math.PI * 2)
+  // A fixed number of patches whatever the headcount. The room is the room.
+  const step = (Math.PI * 2) / (SLIME_ARC * 2.4)
+  for (let i = 0; i < SLIME_ARC; i++) {
+    const bearing = from + (i - (SLIME_ARC - 1) / 2) * step
+    const at = { x: Math.cos(bearing) * lane, y: Math.sin(bearing) * lane }
+    pushInside(s.room, at, SLIME_PATCH)
+    // And never over the middle, whatever the room's shape did to the point
+    // above: a hall is not a circle, and pushing a patch inside one can walk
+    // it inwards.
+    if (Math.hypot(at.x, at.y) < SLIME_DRY + SLIME_PATCH) continue
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'slime',
+      pos: at,
+      radius: SLIME_PATCH,
+      telegraph: SLIME_TELEGRAPH,
+      lingering: SLIME_LINGER,
+      damage: SLIME_TICK,
+    })
+  }
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -3074,6 +3136,34 @@ export function updateGround(s: SimState): void {
         crit: true,
       })
       s.sounds.push('raid')
+      continue
+    }
+
+    // The room going under, which behaves like a pool and is not one: what it
+    // costs is the same every tick it is stood in, and what it is for is that
+    // the outside of the room stops being floor for a while.
+    if (g.kind === 'slime') {
+      if (!g.detonated) {
+        g.telegraph -= DT
+        if (g.telegraph <= 0) {
+          g.detonated = true
+          pushEffect(s, 'impact', g.pos, {
+            radius: g.radius,
+            abilityId: 'boss_slime',
+            power: g.radius * 6,
+          })
+        }
+        continue
+      }
+      g.lingering -= lingerStep(s)
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+        applyDamage(s, a, mechanic(s, g.damage * DT), 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: 'slime',
+          silent: true,
+        })
+      }
       continue
     }
 

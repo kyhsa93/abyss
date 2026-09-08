@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
+import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
 import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
@@ -133,6 +133,7 @@ import {
   GLOBAL_COOLDOWN,
   INHALE_MAX,
   PUNGENT_PER_BREATH,
+  SLIME_DRY,
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
@@ -9102,6 +9103,57 @@ for (const [label, w, h] of [
     if (keptRoom) fight.room = keptRoom
     else delete fight.room
   }
+}
+
+// --- a room that floods, and the two rules that keep it answerable ---------
+//
+// Taking floor away super-scales -- `docs/mechanic-rules.md` rule 5 -- so a
+// room that rises has to promise two things or it is not a hard room, it is a
+// moment with no answer in it: the middle never goes under, and what is under
+// at any one instant stays under a third of the floor.
+//
+// Both are measured off a real pull rather than argued from the constants,
+// because what decides them is where the patches actually land after the
+// room has pushed them inside itself.
+{
+  const sludge = ENCOUNTERS.findIndex((e) => e.id === 'confluence')
+  expect('the fight in the room that rises is on the roster', sludge >= 0, `${sludge}`)
+  const room = ENCOUNTERS[sludge]!.room ?? ROUND_ARENA
+  const floor = roomArea(room)
+  const s = pulled(4700, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', sludge)
+  const rng = new Rng(4700)
+  let wettest = 0
+  let dry = Infinity
+  let risings = 0
+  const counted = new Set<number>()
+  while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+    step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+    let wet = 0
+    for (const g of s.ground) {
+      if (g.kind !== 'slime') continue
+      if (!counted.has(g.id)) {
+        counted.add(g.id)
+        risings++
+      }
+      wet += Math.PI * g.radius * g.radius
+      dry = Math.min(dry, Math.hypot(g.pos.x, g.pos.y) - g.radius)
+    }
+    wettest = Math.max(wettest, wet)
+  }
+  expect(`${risings} patch(es) of the room went under`, risings > 0, 'the floor never rose')
+  // Counted as circles rather than as their union, which is the harsh reading:
+  // two patches that overlap are counted twice, so a run that passes here has
+  // a real margin rather than an arithmetic one.
+  expect(
+    `and at most ${((wettest / floor) * 100).toFixed(0)}% of the floor was under at once`,
+    wettest <= floor / 3,
+    `${((wettest / floor) * 100).toFixed(0)}% of ${Math.round(floor)}`,
+  )
+  expect(
+    `and the middle stayed dry (nearest edge ${dry === Infinity ? 'n/a' : dry.toFixed(0)})`,
+    dry >= SLIME_DRY,
+    `${dry.toFixed(0)} from the middle, wants ${SLIME_DRY}`,
+  )
 }
 
 // --- two answers that can both be right at once -----------------------------

@@ -443,6 +443,9 @@ export type GroundKind =
   // The circle everybody has to be inside, which is drawn shrinking rather
   // than growing because what it says is "come here" rather than "leave".
   | 'gather'
+  // The sludgeworks rising. Patches along an arc of the wall, never in the
+  // middle, and it belongs to the room rather than to the thing in it.
+  | 'slime'
   // A flask on the floor with a long count on it. The only piece of ground in
   // this game that is a *thing* rather than a hazard, and the only one whose
   // count stops while somebody is standing on it.

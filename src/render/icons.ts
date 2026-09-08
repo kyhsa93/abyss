@@ -276,6 +276,9 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The two flasks' five. The workshop's own colours, and the gathering is the
   // brightest of them because it is the one shape here that means come rather
   // than leave.
+  // The sludgeworks itself, which is the one entry here that is a room rather
+  // than a thing a boss does.
+  boss_slime: { colour: '#4b830d', style: 'crush' },
   boss_caustic: { colour: '#c0ca33', style: 'burst' },
   boss_hound: { colour: '#7cb342', style: 'cleave' },
   boss_gather: { colour: '#dce775', style: 'crush' },

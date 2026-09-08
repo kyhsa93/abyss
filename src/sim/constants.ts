@@ -1201,3 +1201,26 @@ export const REAGENT_POWER = 0.11
 export const REAGENT_MAX = 7
 export const REAGENT_BURST = 4000
 export const REAGENT_BURST_REACH = 160
+
+// --- the sludgeworks, whose floor is part of the fight ----------------------
+
+/**
+ * The slime that rises at the edge of the sludgeworks, and never in the
+ * middle.
+ *
+ * A room mechanic rather than a boss's, which is why it is carried at every
+ * size rather than sold on a rung: what it does is take away the outside of
+ * the floor for a while, and a room that is smaller for a five-man than for a
+ * twenty-five is a different room rather than an easier one.
+ *
+ * Two numbers hold rule 5 down. The middle never floods, so there is always
+ * somewhere to be; and the arc is capped so that what is covered at any one
+ * moment stays under a third of the floor. Area denial super-scales, and a
+ * flooded room with merging bodies in it is a moment with no answer in it.
+ */
+export const SLIME_PATCH = 210
+export const SLIME_ARC = 4
+export const SLIME_DRY = 300
+export const SLIME_TELEGRAPH = readable(1.8)
+export const SLIME_LINGER = 10
+export const SLIME_TICK = 190

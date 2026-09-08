@@ -13,6 +13,7 @@ import {
   MERGE_REACH,
   ENGULF_MAX,
   GATHER_TELEGRAPH,
+  SLIME_TELEGRAPH,
   HOUND_REACH,
   REAGENT_MAX,
   MERGE_BURST_AT,
@@ -1091,6 +1092,21 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 
     if (g.kind === 'flood') {
       drawFlood(ctx, p, r, clock)
+      continue
+    }
+
+    // The room going under. Drawn as a pool with a different edge -- solid and
+    // still rather than dashed and travelling -- because it is not something
+    // that was cast at anybody: it is the floor doing what this room does.
+    if (g.kind === 'slime') {
+      const rising = !g.detonated
+      footprint(ctx, p.x, p.y, r * (rising ? 1 - g.telegraph / SLIME_TELEGRAPH : 1))
+      ctx.fillStyle = rising ? 'rgba(75, 131, 13, 0.18)' : 'rgba(75, 131, 13, 0.34)'
+      ctx.fill()
+      footprint(ctx, p.x, p.y, r)
+      ctx.strokeStyle = iconFor('boss_slime').colour
+      ctx.lineWidth = 2
+      ctx.stroke()
       continue
     }
 

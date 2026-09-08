@@ -1795,7 +1795,7 @@ the order the fight gets harder.
 
 | Rung | The Bonegrinder | The Last Whisper | The Reeking Host | The Bloodgorged | The Confluence | The Two Flasks |
 | --- | --- | --- | --- | --- | --- | --- |
-| carried | — | thralls | — | — | — | — |
+| carried | — | thralls | — | — | the rising | — |
 | 1 | the cold line | the volley | the blight | the spill | the spray | the caustic |
 | 2 | the spikes | the rotting ground | the swelling | the gorging | the infection | the hound |
 | 3 | the storm | the shard | the reek | the festering | the small things | the gathering |
@@ -1924,6 +1924,7 @@ to a fight.
 | Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | | |
 | The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | | |
 | Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | |
+| The rising | The sludgeworks floods its own edge; the middle never goes | | | | | carried | |
 | The cold line | It walks outward from the boss — step off it | rung 1 | | | | | |
 | The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | | |
 | The storm | It lets go of the tank and comes for the room | rung 3 | | | | | |

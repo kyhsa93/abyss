@@ -61,6 +61,7 @@ export type MechanicId =
   | 'decant'
   | 'reagent'
   | 'chase'
+  | 'slime'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -142,6 +143,9 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // changes the same instant from "walk to a place" into "walk to a person who
   // is still walking", and one moving point is one moving point at any size.
   chase: false,
+  // The room, and a room is the same room at any headcount. It is also the one
+  // entry here that is not the boss's doing at all.
+  slime: false,
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -215,6 +219,7 @@ export function noTimers(): Record<MechanicId, number> {
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   caustic: 'the caustic',
+  slime: 'the rising',
   chase: 'the chase',
   hound: 'the hound',
   gather: 'the gathering',
@@ -582,6 +587,15 @@ export interface PhaseTiming {
    */
   chase: number
   /**
+   * Seconds between one rising of the sludgeworks and the next.
+   *
+   * The floor of one room, carried at every size rather than sold on a rung:
+   * what it does is take the outside of the room away for a while, and a room
+   * that is smaller for a five-man than for a twenty-five is a different room
+   * rather than an easier one.
+   */
+  slime: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -824,6 +838,7 @@ export interface Encounter {
     reagent: number
     /** A flag rather than a beat: see `PhaseTiming`. */
     chase: number
+    slime: number
   }
   /**
    * The colour this one is drawn in.
@@ -897,6 +912,7 @@ export interface Encounter {
     flood: string
     engulf: string
     caustic: string
+    slime: string
     hound: string
     gather: string
     decant: string
@@ -1029,6 +1045,7 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
       caustic: '',
+      slime: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1193,6 +1210,7 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
       caustic: '',
+      slime: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1367,6 +1385,7 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
       caustic: '',
+      slime: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1517,6 +1536,7 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
       caustic: '',
+      slime: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1609,14 +1629,14 @@ export const ENCOUNTERS: Encounter[] = [
     swingDamage: 580,
     slamDamage: 1180,
     raidDamage: 130,
-    mechanicDamage: 0.8,
+    mechanicDamage: 0.92,
     // Lightest at five, which is the opposite of what this table usually says
     // and follows from where the fight's weight sits. Most of what this boss
     // does lands on one named body at a time -- a carrier, a small thing
     // walking at whoever made it -- and a five-man answers all of it with one
     // healer and three dealers. Written the other way round the smallest raid
     // won a pull in six while the ten-man won every one of them.
-    sizeMechanic: { 5: 0.85, 10: 1.15, 25: 1.1 },
+    sizeMechanic: { 5: 1.15, 10: 1.3, 25: 0.85 },
     // The spray is first because it is the only thing here a player has met
     // before, and a fight whose every rung is a new idea is a fight with no
     // way in. Everything above it is the one idea this boss is made of, added
@@ -1625,13 +1645,21 @@ export const ENCOUNTERS: Encounter[] = [
     // finally the boss eating what nobody cleared and handing the bill to the
     // tank.
     ladder: ['spray', 'infection', 'ooze', 'flood', 'merge', 'engulf'],
+    /**
+     * The room rises, at every size and difficulty.
+     *
+     * Carried rather than sold, because it is not this boss's idea -- it is
+     * the sludgeworks, and the room is the room whoever walks into it. The
+     * ladder is what the fight asks; this is where the fight happens.
+     */
+    always: ['slime'],
     herald: null,
     accent: '#4d7c0f',
     names: { slam: 'THE BIG ARM', shard: '', raid: 'THE SEEPING' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 14, infection: 26, flood: 34, engulf: 9 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 12, infection: 23, flood: 30, engulf: 8 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ spray: 10, infection: 20, flood: 26, engulf: 7 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 11, infection: 21, flood: 27, engulf: 7, slime: 24 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 10, infection: 18, flood: 24, engulf: 6.5, slime: 21 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ spray: 8, infection: 16, flood: 21, engulf: 6, slime: 18 }) },
     },
     // The infection is written slower than it plays, on purpose and against
     // the rule of thumb that a cadence is what a raid meets. A short kit is
@@ -1640,11 +1668,19 @@ export const ENCOUNTERS: Encounter[] = [
     // infection and two things that answer it, so the amplifier lands on the
     // one mechanic that carries the fight. Written at eighteen the smallest
     // raid met it every eleven seconds and lost nine pulls in ten.
-    opening: { slam: 13, raid: 14, ...beats({ spray: 12, infection: 24, flood: 32, engulf: 10 }) },
+    // Every row here is written about a fifth tighter than the numbers this
+    // fight was first measured at, and the reason is the room rather than the
+    // fight. Carrying the sludgeworks adds a mechanic to every kit, and a
+    // longer kit runs at a slower tempo -- so the day the floor started rising
+    // the whole boss slowed down by a fifth and went to a hundred percent at
+    // every size with nobody dying. What `kitCadence` gives back for variety
+    // has to be taken out of the table, or a room becomes a discount.
+    opening: { slam: 13, raid: 14, ...beats({ spray: 10, infection: 19, flood: 26, engulf: 8, slime: 22 }) },
     lines: {
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
       caustic: '',
+      slime: 'The floor is coming up — off the edge',
       hound: '',
       gather: '',
       decant: '',
@@ -1763,6 +1799,7 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
+      slime: '',
       caustic: 'Glass on the floor — off it',
       hound: 'It has picked one of you — keep walking',
       gather: 'On them, all of you, now',
