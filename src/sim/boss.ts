@@ -693,28 +693,47 @@ function scheduleInhale(s: SimState, b: Actor, timing: PhaseTiming): void {
   pushEffect(s, 'cast', b.pos, { abilityId: 'boss_inhale' })
 }
 
+/**
+ * The breath out, driven by the count rather than by a clock of its own.
+ *
+ * It used to have its own cadence, and the two timers could not be made to
+ * agree: the ratio between them sat a hair over two in every phase, so the
+ * third breath never happened — not rarely, never — and `INHALE_MAX = 3` was a
+ * ceiling nobody could reach. Every comment on this fight, including the one
+ * on this mechanic, describes a count that fills to three and empties; the
+ * fight itself was a fixed bill on a fixed clock wearing a stack's clothes.
+ *
+ * So the stack is the clock. It goes off when the boss is full, and the row on
+ * the phase table is a ceiling under it rather than a cadence: if a raid is
+ * somehow still short of full after that long, it goes anyway, so a short pull
+ * cannot miss the mechanic the fight is about. In practice the count gets
+ * there first — the check downstairs measures that every breath out is a
+ * breath out at three.
+ */
 function schedulePungent(s: SimState, b: Actor, timing: PhaseTiming): void {
   if (timing.pungent <= 0) return
   s.next.pungent -= DT
-  if (s.next.pungent > 0) return
-  s.next.pungent = timing.pungent
 
   const breaths = getAura(b, 'gorged')?.stacks ?? 0
+  const full = breaths >= INHALE_MAX
+  if (!full && s.next.pungent > 0) return
+  s.next.pungent = timing.pungent
+
   // Nothing taken, nothing to give back. Not a wasted cast: it is the raid
   // having outrun the mechanic, which is a thing the fight should let happen.
   if (breaths <= 0) return
 
   say(s, b, lineFor(fight(s), 'pungent'))
   s.sounds.push('raid')
-  const full = mechanic(s, PUNGENT_PER_BREATH * breaths)
+  const bill = mechanic(s, PUNGENT_PER_BREATH * breaths)
   for (const a of livingParty(s)) {
     // What standing in somebody's spore was for, forty seconds ago.
     const covered = getAura(a, 'inoculated') !== undefined
-    applyDamage(s, a, covered ? full * INOCULATED_SHARE : full, 'magic', {
+    applyDamage(s, a, covered ? bill * INOCULATED_SHARE : bill, 'magic', {
       sourceId: b.id,
       mechanic: 'pungent',
     })
-    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_pungent', power: full })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_pungent', power: bill })
   }
   // Emptied. The count starts again, which is what makes the breaths in
   // between a thing to count rather than a thing that happened once.

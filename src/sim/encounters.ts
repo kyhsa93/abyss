@@ -236,11 +236,17 @@ export interface PhaseTiming {
    */
   inhale: number
   /**
-   * Seconds between one breath out and the next.
+   * The longest the breath out will wait, which is not a cadence.
    *
    * Everything it took, returned at once. Lethal at three breaths to a raid
    * that has not been inoculated, which is what makes the spore a mechanic
    * rather than a chore — and why it will not be thrown without one.
+   *
+   * The count is what drives it: the boss breathes out when it is full, and
+   * this is only the ceiling under that — a raid somehow still short of three
+   * after this long gets it anyway, so a short pull cannot miss the mechanic
+   * the fight is about. Kept well above three inhales on purpose. Sat a hair
+   * under them once, and the third breath then never happened at all.
    */
   pungent: number
   /**
@@ -1046,11 +1052,11 @@ export const ENCOUNTERS: Encounter[] = [
     /** Fine and flat: a room that is worked in rather than fought over. */
     floor: 'floor-slate',
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 11, vilegas: 17, spore: 24, inhale: 33, pungent: 99 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 10, vilegas: 15, spore: 21, inhale: 29, pungent: 87 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 9, vilegas: 13, spore: 18, inhale: 25, pungent: 75 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 11, vilegas: 17, spore: 24, inhale: 33, pungent: 116 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 10, vilegas: 15, spore: 21, inhale: 29, pungent: 102 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 9, vilegas: 13, spore: 18, inhale: 25, pungent: 88 }) },
     },
-    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 10, vilegas: 16, spore: 20, inhale: 30, pungent: 90 }) },
+    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 10, vilegas: 16, spore: 20, inhale: 30, pungent: 112 }) },
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',

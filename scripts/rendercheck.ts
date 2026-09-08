@@ -123,6 +123,7 @@ import {
   projectileKind,
   resolveAbility,
   topThreatTarget,
+  mechanicScale,
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
@@ -130,6 +131,8 @@ import {
   COUNTDOWN,
   COUNTDOWN_TICKS,
   GLOBAL_COOLDOWN,
+  INHALE_MAX,
+  PUNGENT_PER_BREATH,
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
@@ -9328,6 +9331,50 @@ for (const [label, w, h] of [
     'a way on with nowhere to go',
   )
   drawCitadel(ctx, stuck, new Set(['spire', 'oratory']), '10-MAN NORMAL')
+}
+
+// --- the third breath happens -----------------------------------------------
+//
+// `INHALE_MAX` is three and every comment on that fight describes a count that
+// fills to three and empties. It never reached three: the breath in and the
+// breath out ran on unrelated timers whose ratio sat a hair over two in every
+// phase, so the stack was two, forever, and the mechanic the fight is built
+// around was a fixed bill on a fixed clock.
+//
+// The count drives it now, and this is the check that says so: every breath
+// out in a full pull is a breath out at three. Written against the fight
+// rather than the constants, so moving a cadence cannot quietly put it back.
+{
+  const host = ENCOUNTERS.findIndex((e) => e.id === 'host')
+  expect('the fight that counts breaths is on the roster', host >= 0, `${host}`)
+  // Read off the bill rather than off the stack.
+  //
+  // The breath in and the breath out resolve in the same tick, so a stack read
+  // after the step has already been emptied — sampling it says two and means
+  // three. What it was worth is on the effect the exhale pushes, and the bill
+  // is `PUNGENT_PER_BREATH` a breath, so the bill divided by one breath is the
+  // count the fight actually paid at.
+  const at: number[] = []
+  for (let n = 0; n < 6; n++) {
+    const seed = 4000 + n * 137
+    const s = unattended(createState(seed, 6, autoParty(25, pickFor('mage', 'dps')!), 'heroic', host))
+    s.countdown = 0
+    const rng = new Rng(seed)
+    while (s.outcome === 'ongoing' && s.time < encounterAt(host).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      const one = PUNGENT_PER_BREATH * mechanicScale(s)
+      for (const fx of s.effects) {
+        if (fx.abilityId !== 'boss_pungent' || fx.power === undefined) continue
+        at.push(Math.round(fx.power / one))
+        break
+      }
+    }
+  }
+  expect(
+    `${at.length} breaths out, every one of them at ${INHALE_MAX}`,
+    at.length > 0 && at.every((n) => n === INHALE_MAX),
+    at.join(', '),
+  )
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
