@@ -263,6 +263,16 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_fester: { colour: '#c2410c', style: 'pierce' },
   boss_champion: { colour: '#b91c1c', style: 'cleave' },
   boss_gorge: { colour: '#450a0a', style: 'crush' },
+  // The confluence's six. All in its own green and none of them the same
+  // green: the spray is the arm, the infection is what it leaves on a body,
+  // the small things and the merging are the fight itself, the flood is the
+  // floor, and the engulfing is what the boss does with what nobody cleared.
+  boss_spray: { colour: '#65a30d', style: 'cleave' },
+  boss_infection: { colour: '#84cc16', style: 'pierce' },
+  boss_ooze: { colour: '#6b8e23', style: 'crush' },
+  boss_flood: { colour: '#9acd32', style: 'burst' },
+  boss_merge: { colour: '#d9f99d', style: 'burst' },
+  boss_engulf: { colour: '#1a2e05', style: 'crush' },
   boss_bonestorm: { colour: '#d6d3d1', style: 'crush' },
   boss_blight: { colour: '#365314', style: 'crush' },
   boss_inhale: { colour: '#a3e635', style: 'burst' },

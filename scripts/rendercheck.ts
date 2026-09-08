@@ -978,6 +978,8 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ['rot', 'rot'],
         ['sunder', 'sunder'],
         ['championed', 'champion'],
+        ['infected', 'infection'],
+        ['engulfed', 'engulf'],
         ['hunted', 'hunt'],
         ['spiked', 'spike'],
         ['storming', 'bonestorm'],
@@ -998,6 +1000,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // and the day there is a second one this line is where it will be
       // noticed.
       if (s.gauge > 0) seen.add('siphon')
+      // And the other mechanic with no bill and no aura: two small things
+      // becoming one leaves nothing behind but a body that has eaten. Only the
+      // fifth merging bills anybody, so waiting for damage here would be
+      // waiting for the one merging in five that the fight is trying to stop.
+      if (s.actors.some((a) => (a.eaten ?? 0) > 0)) seen.add('merge')
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -4591,6 +4598,32 @@ for (const [label, w, h] of [
     expect('and be paid for all of it', ids.has('boss_siphon'), 'it drew nothing')
     expect('and spend what it was paid', ids.has('boss_champion'), 'it drew nothing')
     thrown.set('blood', ids)
+  }
+
+  // The confluence's six, driven together because five of them are one idea.
+  // The merging has no cadence at all -- two small things touch or they do not
+  // -- so what this has to do is make small things and let the floor decide,
+  // which means an infection often enough that two of them are alive at once.
+  {
+    const seep = floorWith(
+      { spray: 11, infection: 5, flood: 14, engulf: 4 },
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (seep.outcome === 'ongoing' && seep.time < 150) {
+      step(seep, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of seep.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can spray its own front', ids.has('boss_spray'), 'it drew nothing')
+    expect('and leave something on a body', ids.has('boss_infection'), 'it drew nothing')
+    expect('and that body can leave something behind', ids.has('boss_ooze'), 'it drew nothing')
+    expect('and the floor can spread', ids.has('boss_flood'), 'it drew nothing')
+    expect('and two of them can become one', ids.has('boss_merge'), 'it drew nothing')
+    expect('and the boss can eat one', ids.has('boss_engulf'), 'it drew nothing')
+    thrown.set('seep', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every

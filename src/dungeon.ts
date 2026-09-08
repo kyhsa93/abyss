@@ -187,9 +187,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'sludge',
     name: 'The Sludgeworks',
     wing: 'plague',
-    encounter: null,
-    awaiting: 'the adds that merge (#7)',
-    room: { kind: 'round', radius: 480 },
+    encounter: 4,
   },
   { id: 'airless', name: 'The Airless Room', wing: 'plague', encounter: 2 },
   {

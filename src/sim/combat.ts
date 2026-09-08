@@ -17,6 +17,10 @@ import {
   BLOAT_BURST_AT,
   SLIGHT_MAX,
   SLIGHT_SHARE,
+  INFECTION_TICK,
+  ENGULF_MAX,
+  INFECTION_HEALING,
+  FLOOD_SLOW,
 } from './constants'
 import type { Rng } from './rng'
 import { CHAMPION_HEAL } from './boss'
@@ -207,6 +211,18 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // shorter and the second tank never has to move; any longer and the fight
   // is a fight with a tank missing rather than a fight with a handover in it.
   swallowed: 4,
+  // Fourteen seconds, which is long enough to be a decision twice: the carrier
+  // chooses where to be standing and the healer chooses when it ends, and
+  // neither choice is worth making if there is no time to make the other one.
+  infected: 14,
+  // It does not run out on its own -- the eighth is what ends it, and the swap
+  // is what stops the eighth. Long enough to outlast a pull.
+  engulfed: 3600,
+  // Refreshed every tick by the floor it belongs to, so what this number
+  // decides is only how long a body stays slow after walking out: a fifth of a
+  // second, which is the difference between a slow that ends when you leave
+  // and one that flickers off between two ticks of the same puddle.
+  mired: 0.2,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -250,6 +266,7 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   gorged: INHALE_MAX,
   swelling: BLOAT_BURST_AT,
   slighted: SLIGHT_MAX,
+  engulfed: ENGULF_MAX,
 }
 
 
@@ -286,6 +303,7 @@ export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
   haunted: 'shade',
   festering: 'fester',
   swallowed: 'gorge',
+  infected: 'infection',
 }
 
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
@@ -311,6 +329,10 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // asks for in six ticks of a hundred and eighty; the engine ticks auras
   // once a second, and a bill split finer is the same bill.
   festering: { damage: 90 },
+  // Small on purpose. What this one costs is not the ticking -- it is the
+  // third of every heal it refuses while it runs, and the body standing where
+  // it ends.
+  infected: { damage: INFECTION_TICK },
   // What being inside it costs, which is steep and is not the point. The
   // point is the four seconds the raid spends without whoever was holding
   // the boss, and this is only what makes those seconds a real loss rather
@@ -839,6 +861,12 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   // the dozen places one is cast. `HEALTH` rides along for the same reason:
   // a heal is a fraction of a bar, so it is worth whatever a bar is worth.
   amount *= HEALTH
+  // And a third of it refused while a body is carrying something.
+  //
+  // The one mechanic here that makes healing *wrong* rather than insufficient:
+  // what the healer is deciding is when the dot ends, and a heal that ends it
+  // now is a heal that puts a body on the floor where this one is standing.
+  if (getAura(target, 'infected')) amount *= 1 - INFECTION_HEALING
   target.hp = Math.min(target.maxHp, target.hp + amount * affixHealing(s.affix) * s.healing)
   const healed = Math.round(target.hp - before)
 
@@ -1551,5 +1579,10 @@ export function urgencyOf(actor: Actor): number {
 const TURNED_POWER = 1.3
 
 export function hasteOf(actor: Actor): number {
-  return getAura(actor, 'sprint') ? 1.5 : 1
+  // The one place speed is decided, so the one place the flood can take it.
+  // Everything that walks reads this -- the party, the player and the fight's
+  // own bodies -- which is what makes the flood a fact about the room rather
+  // than a tax on the raid.
+  const mired = getAura(actor, 'mired') ? FLOOD_SLOW : 1
+  return (getAura(actor, 'sprint') ? 1.5 : 1) * mired
 }

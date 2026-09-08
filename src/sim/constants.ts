@@ -973,3 +973,140 @@ export const FESTER_BITE = 0.25
  */
 export const GORGE_RADIUS = 150
 export const GORGE_BURST = 900
+
+// --- the confluence, which asks about the geometry between its own bodies ---
+
+/**
+ * The spray: a cone off the big arm, and the only ordinary demand this fight
+ * makes.
+ *
+ * Deliberately ordinary. Five of the six rungs above it are about what the
+ * fight's own bodies are doing to each other, and a boss whose every demand is
+ * a new idea is a boss with nothing a player already knows how to answer.
+ */
+export const SPRAY_HALF_WIDTH = 0.7
+export const SPRAY_RANGE = 420
+export const SPRAY_DAMAGE = 640
+export const SPRAY_CAST = readable(1.7)
+
+/**
+ * The infection: a dot whose expiry is a place rather than a number.
+ *
+ * What it costs while it runs is small and what it costs when it ends depends
+ * on where the body wearing it was standing, which is the whole mechanic. The
+ * healing it refuses is what makes the healer's timing a decision: taking it
+ * off early is a choice about where the next small thing is born.
+ */
+/**
+ * What the infection ticks for, which is small and has to be.
+ *
+ * The bill is not the mechanic: what it costs is a third of every heal aimed
+ * at the carrier and a body on the floor where they were standing. At
+ * seventy-five it was the largest single bill in the fight -- five hundred
+ * ticks across a twenty-five man pull -- and a dot that big is answered by
+ * healing rather than by walking, which is the mechanic replaced by its own
+ * side effect.
+ */
+export const INFECTION_TICK = 45
+export const INFECTION_HEALING = 0.35
+
+/**
+ * The health a carrier has to be taken to for it to burn out early.
+ *
+ * This is the healer's half of the mechanic and the reason it is a decision
+ * rather than a dot. Left alone it runs its fourteen seconds and the small
+ * thing is born wherever the carrier has ended up; pushed to full it ends
+ * *now*, where they are standing now, which is a place somebody chose.
+ *
+ * Full rather than a line partway up, because the choice has to cost
+ * something: a third of every heal aimed at that body is refused while it
+ * runs, so ending it early is a real spend out of a healer who has a raid to
+ * keep up. A cheap version of this is a mechanic that always ends early and
+ * therefore never asks anything.
+ */
+export const INFECTION_FLUSH = 0.98
+
+/** What one of the small things is, which is deliberately almost nothing. */
+/**
+ * What one of them hits for, which has to be almost nothing.
+ *
+ * The mechanic is a judgement rather than a bill: what the raid decides is
+ * which of them to kill, which to leave, and which two must not meet. That
+ * only holds while leaving one alone is cheap. At ninety-five a five-man died
+ * to the small things themselves in every pull -- which is a fight about
+ * damage wearing a fight about geometry's clothes.
+ *
+ * It is multiplied by what the thing has eaten, so the answer to a big one is
+ * still to kill it, and the answer to a small one is still to watch it.
+ */
+export const OOZE_DAMAGE = 50
+/**
+ * How much health one of them has, per body in the raid.
+ *
+ * Not "how long does it take to kill" -- it is "does it survive being stood
+ * next to". At forty a small thing died to the white damage of whoever it
+ * walked at, so a ten-man never had two of them alive at once and the mechanic
+ * the fight is built on could not happen at all below twenty-five. Killing one
+ * has to be a thing somebody decided to do.
+ */
+export const OOZE_HP_PER_BODY = 120
+export const OOZE_SPEED = 0.55
+
+/**
+ * How close two of them have to be, and what a merged one is worth.
+ *
+ * Seventy is a little over three body widths: close enough that two walking at
+ * the same person will find each other, and far enough that a raid watching
+ * for it has somewhere to stand between them.
+ *
+ * Five is where it stops being a body and becomes an event. The count is drawn
+ * on it, so the raid is answering a number it can read rather than a size it
+ * has to judge.
+ */
+export const MERGE_REACH = 70
+export const MERGE_BURST_AT = 5
+export const MERGE_BURST_REACH = 200
+export const MERGE_BURST_DAMAGE = 2400
+
+/**
+ * How many of the small things may be alive at once, whatever the headcount.
+ *
+ * Rule 5, and the one place this fight could have broken it. What a bigger
+ * raid should meet is a harder geometry, not an unanswerable one -- twelve of
+ * them on a twenty-five man is not a geometry, it is noise. The roster buys
+ * them more often instead, which is the same pressure with an answer still
+ * attached.
+ */
+export const OOZE_CAP = 8
+
+/**
+ * The flood: ground that spreads from the boss and slows what stands on it.
+ *
+ * It hurts nobody, and rule 1 says that on its own it teaches nothing -- which
+ * is true and is not what it is for. What it does is make the geometry
+ * expensive to fix late: a raid that sees two of them converging with ten
+ * seconds to spare can walk between them, and one that sees it with three
+ * cannot, because the floor in between is slow.
+ *
+ * The small things are slowed by it too. Without that it would be a tax on the
+ * raid rather than a fact about the room, which is a different mechanic
+ * wearing this one's name.
+ */
+export const FLOOD_REACH = 340
+export const FLOOD_SPREAD = 12
+export const FLOOD_LINGER = 30
+export const FLOOD_SLOW = 0.6
+
+/**
+ * The engulfing: what the boss does with the small things nobody cleared.
+ *
+ * A tank swap made out of this fight's own material. Every other stack in this
+ * game is a thing the boss does on a clock; this one is the dealers' mistake
+ * arriving on the tank, which is what makes the swap a consequence rather than
+ * a chore.
+ */
+export const ENGULF_REACH = 150
+export const ENGULF_POWER = 0.12
+export const ENGULF_MAX = 8
+export const ENGULF_BURST = 3800
+export const ENGULF_BURST_REACH = 170

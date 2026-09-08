@@ -93,6 +93,33 @@ export type AuraId =
    */
   | 'swallowed'
   /**
+   * Carrying something that will be a body when it stops.
+   *
+   * The one dot in this game whose expiry is a *place*. What it costs while it
+   * runs is small and refuses a third of the healing that lands on it; what it
+   * costs when it ends is a small hostile thing standing exactly where the
+   * body wearing it was. Both halves of the answer are decisions -- the
+   * carrier picks the place, and the healer picks the moment.
+   */
+  | 'infected'
+  /**
+   * What the boss has eaten, on whoever is holding it.
+   *
+   * A tank swap made of the dealers' mistake: every small thing nobody cleared
+   * is one the boss swallows, and the count is paid by the tank rather than by
+   * the people who left it there.
+   */
+  | 'engulfed'
+  /**
+   * Standing in something that has spread, and slowed by it.
+   *
+   * Refreshed every tick by the floor rather than applied once, so it goes the
+   * moment the body leaves. It costs no health at all: what it costs is that
+   * fixing a geometry late is slower than fixing it early, which is the only
+   * thing the flood is for.
+   */
+  | 'mired'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -350,7 +377,7 @@ export interface Actor {
    * gauge. A wave that goes for the nearest body dies where the damage already
    * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike' | 'beast'
+  spawn?: 'herald' | 'spike' | 'beast' | 'ooze'
 
   /**
    * The body a beast has picked, which is the whole of what makes it one.
@@ -367,6 +394,18 @@ export interface Actor {
    * thrall that happens to have chosen.
    */
   quarry?: number
+
+  /**
+   * How many other small things this one has taken in.
+   *
+   * Only an ooze has it, and it is the whole of what makes that mechanic a
+   * mechanic rather than a wave: two of them that touch become one that is
+   * worth what both were, and the fifth is not a body any more -- it is an
+   * event with a radius. Drawn on it as a number, because a raid answering a
+   * count it can read is a raid making a decision and one judging a size is a
+   * raid guessing.
+   */
+  eaten?: number
 }
 
 export type GroundKind =
@@ -376,6 +415,12 @@ export type GroundKind =
   | 'coldflame'
   // A patch that is simply bad to stand in, and stays.
   | 'decay'
+  // A cone off the big arm, drawn on the floor for the whole cast and gone
+  // the instant it lands. The only shape here that is not a circle.
+  | 'spray'
+  // Ground that spreads from the boss and hurts nobody. What it takes is
+  // speed, from the raid and from the fight's own bodies alike.
+  | 'flood'
 
 export interface GroundEffect {
   id: number

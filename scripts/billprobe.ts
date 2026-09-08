@@ -64,6 +64,9 @@ let deaths = 0
 let gauge = 0
 let ticks = 0
 let wins = 0
+let crowd = 0
+let biggest = 0
+let deepest = 0
 
 for (let n = 0; n < RUNS; n++) {
   const seed = 1000 + n * 137
@@ -91,6 +94,18 @@ for (let n = 0; n < RUNS; n++) {
         }
       }
     }
+    // The two things this roster does that no bill can show: bodies that
+    // combine, and a count on a tank that only bills at the top.
+    let live = 0
+    for (const a of s.actors) {
+      if (a.faction === 'boss' && a.alive && a.spawn === 'ooze') {
+        live++
+        biggest = Math.max(biggest, a.eaten ?? 0)
+      }
+      const stack = a.auras.find((au) => au.id === 'engulfed')
+      if (stack) deepest = Math.max(deepest, stack.stacks)
+    }
+    crowd = Math.max(crowd, live)
     gauge += s.gauge
     ticks++
     t++
@@ -114,6 +129,11 @@ console.log(
 console.log('  ' + outcomes.join(' | '))
 for (const [id, hits] of Object.entries(bill).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${id.padEnd(12)} ${(hits / RUNS).toFixed(1)} hits a pull`)
+}
+if (crowd > 0 || deepest > 0) {
+  console.log(
+    `  at most ${crowd} small thing(s) at once, biggest ate ${biggest}, deepest stack ${deepest}`,
+  )
 }
 for (const id of ANSWERED) {
   const answered = (early[id] ?? 0) / RUNS

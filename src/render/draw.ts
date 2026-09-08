@@ -9,6 +9,10 @@ import {
   SHADE_REACH,
   SPORE_REACH,
   SPILL_RADIUS,
+  SPRAY_CAST,
+  MERGE_REACH,
+  ENGULF_MAX,
+  MERGE_BURST_AT,
   GORGE_RADIUS,
   STORM_REACH,
 } from '../sim/constants'
@@ -321,6 +325,8 @@ export function drawWorld(
   // into it. Bodies swapped in front of each other as the player walked round
   // the boss.
   drawSwallowed(ctx, s, alpha, clock)
+  drawOozeLines(ctx, s, alpha)
+  drawQuarryLines(ctx, s, alpha, clock)
 
   for (const a of drawOrder(s, alpha)) {
     // A body inside the boss is not on the floor. It is drawn as a ring under
@@ -1074,6 +1080,16 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     const p = worldToScreen(g.pos)
     const r = g.radius * L.scale
 
+    if (g.kind === 'spray') {
+      drawSpray(ctx, g, p, r)
+      continue
+    }
+
+    if (g.kind === 'flood') {
+      drawFlood(ctx, p, r, clock)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       //
@@ -1138,6 +1154,161 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.restore()
     }
   }
+}
+
+/**
+ * The cone off the big arm, filling toward its tip as the cast completes.
+ *
+ * A wedge rather than a circle, and the only one in the game: what the raid
+ * answers is which side of the boss it is standing on, and the only
+ * unambiguous way to say that is to colour one side in.
+ */
+function drawSpray(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  const firing = g.detonated
+  const progress = firing ? 1 : Math.max(0, 1 - g.telegraph / Math.max(0.001, SPRAY_CAST))
+  // The wedge is drawn in screen coordinates, so its bearing has to be one
+  // too: what the simulation tests is a bearing in the world, and the world
+  // turns under the camera.
+  const angle = screenAngle(g.angle)
+  const colour = iconFor('boss_spray').colour
+
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  floorArc(ctx, p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
+  ctx.closePath()
+  ctx.fillStyle = firing ? 'rgba(77, 124, 15, 0.42)' : 'rgba(77, 124, 15, 0.12)'
+  ctx.fill()
+
+  if (!firing) {
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    floorArc(ctx, p.x, p.y, r * progress, angle - g.halfWidth, angle + g.halfWidth)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(77, 124, 15, 0.22)'
+    ctx.fill()
+  }
+
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  floorArc(ctx, p.x, p.y, r, angle - g.halfWidth, angle + g.halfWidth)
+  ctx.closePath()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 2.5
+  ctx.stroke()
+}
+
+/**
+ * The flood: ground that spreads and costs nothing to stand in.
+ *
+ * Faint, and that is the whole brief. Every other hazard on this floor is
+ * drawn to be left; this one is drawn to be *noticed and accepted* -- a raid
+ * that treats it like fire is a raid that has stopped fighting for a thing
+ * that does not hurt. The dashed edge is what separates it from the puddles,
+ * which are solid.
+ */
+function drawFlood(
+  ctx: CanvasRenderingContext2D,
+  p: Vec2,
+  r: number,
+  clock: number,
+): void {
+  ctx.save()
+  ctx.beginPath()
+  floorArc(ctx, p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(77, 124, 15, 0.08)'
+  ctx.fill()
+  ctx.strokeStyle = iconFor('boss_flood').colour
+  ctx.lineWidth = 1.5
+  ctx.globalAlpha = 0.6
+  ctx.setLineDash([10, 8])
+  ctx.lineDashOffset = -clock * 10
+  ctx.stroke()
+  ctx.restore()
+}
+
+/**
+ * The small things, and the lines between the ones that are about to be one.
+ *
+ * This is the fight's whole picture. Without the lines a raid learns about a
+ * merging by seeing the thing that came out of it, which is a mechanic nobody
+ * can be early for: the line is the only warning, and it gets brighter and
+ * heavier as the gap closes so that "soon" is something read at a glance
+ * rather than measured.
+ *
+ * Drawn under the bodies, on the floor, because that is where the geometry is.
+ */
+/**
+ * What a beast has picked, drawn as a line to them.
+ *
+ * A wave that walks at whoever is nearest needs no picture: the answer is
+ * wherever it already is. One that has chosen somebody does, because the
+ * answer is *that body bringing it to the damage*, and nothing on the screen
+ * says which body until this does.
+ *
+ * Dashed and moving, the way everything in this game that is coming for you
+ * is drawn.
+ */
+function drawQuarryLines(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  alpha: number,
+  clock: number,
+): void {
+  const hunters = s.actors.filter(
+    (a) => a.faction === 'boss' && a.alive && a.spawn === 'beast' && a.quarry !== undefined,
+  )
+  if (hunters.length === 0) return
+  ctx.save()
+  ctx.strokeStyle = iconFor('boss_thrall').colour
+  ctx.lineWidth = 1.5
+  ctx.globalAlpha = 0.55
+  ctx.setLineDash([6, 7])
+  ctx.lineDashOffset = -clock * 26
+  for (const one of hunters) {
+    const quarry = s.actors.find((a) => a.id === one.quarry)
+    if (!quarry || !quarry.alive) continue
+    const from = screenPos(one, alpha)
+    const to = screenPos(quarry, alpha)
+    ctx.beginPath()
+    ctx.moveTo(from.x, from.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawOozeLines(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  const here = s.actors.filter((a) => a.faction === 'boss' && a.alive && a.spawn === 'ooze')
+  if (here.length < 2) return
+  const colour = iconFor('boss_merge').colour
+  ctx.save()
+  for (let i = 0; i < here.length; i++) {
+    for (let j = i + 1; j < here.length; j++) {
+      const one = here[i]!
+      const other = here[j]!
+      const gap = dist(one.pos, other.pos)
+      if (gap > MERGE_REACH) continue
+      // One at touching, nought at the edge of reach. Both the width and the
+      // alpha ride it, because a line that only changes colour is a line that
+      // reads as one line in a still frame.
+      const close = 1 - gap / MERGE_REACH
+      const a = screenPos(one, alpha)
+      const b = screenPos(other, alpha)
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.strokeStyle = colour
+      ctx.globalAlpha = 0.2 + close * 0.7
+      ctx.lineWidth = 1 + close * 3
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
 }
 
 /**
@@ -1455,7 +1626,12 @@ function drawActor(
   gauge = 0,
 ): void {
   const p = screenPos(a, alpha)
-  const r = Math.max(4, a.radius * L.scale)
+  // A small thing wears what it has eaten. The simulation's radius is left
+  // alone on purpose -- a body whose reach grew as it merged would be a
+  // mechanic changing shape under the raid's feet -- so what grows is the
+  // picture, which is the thing the decision is made against.
+  const swell = a.spawn === 'ooze' ? 1 + (a.eaten ?? 0) * 0.2 : 1
+  const r = Math.max(4, a.radius * L.scale * swell)
   // In a battleground the other side is five people, not a boss and its
   // thralls: they keep their class colours and are told apart by a ring.
   const isBoss = a.id === BOSS_ID && !battleground
@@ -1522,7 +1698,10 @@ function drawActor(
   const token = isBoss
     ? bossBody
     : isAdd
-      ? `add-${a.spawn ?? 'thrall'}`
+      ? // A beast is a thrall that has chosen somebody, so it is drawn as one.
+        // What tells it apart is not its body, it is the line to whoever it
+        // picked -- see `drawQuarryLines`.
+        `add-${a.spawn === 'beast' ? 'thrall' : (a.spawn ?? 'thrall')}`
       : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
@@ -1868,6 +2047,68 @@ function drawActor(
       ctx.lineWidth = 2.5
       ctx.stroke()
     }
+  }
+
+  // Standing in something slow. Under the feet rather than around the body,
+  // because it is a fact about the floor rather than about the person: a ring
+  // would read as a mark the fight put on them, and this is only where they
+  // happen to be standing.
+  if (a.alive && getAura(a, 'mired')) {
+    footprint(ctx, p.x, p.y, r + 3)
+    ctx.strokeStyle = iconFor('boss_flood').colour
+    ctx.lineWidth = 2
+    ctx.setLineDash([3, 4])
+    ctx.lineDashOffset = clock * 8
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // Carrying something that will be a body when it stops, and how long is
+  // left of it. An arc rather than a ring, because what the healer is deciding
+  // is *when* -- and a decision about a moment needs the moment drawn.
+  const infected = a.alive ? getAura(a, 'infected') : undefined
+  if (infected) {
+    const left = Math.max(0, Math.min(1, infected.remaining / AURA_DURATION.infected))
+    footprint(ctx, p.x, p.y, r + 6)
+    ctx.strokeStyle = 'rgba(101, 163, 13, 0.35)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.beginPath()
+    floorArc(ctx, p.x, p.y, r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left)
+    ctx.strokeStyle = iconFor('boss_infection').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+  }
+
+  // What the boss has eaten, on whoever is holding it: eight ticks around the
+  // body, the swelling's own idiom, because the answer is the same answer --
+  // swap before the last one -- and two mechanics that ask for the same thing
+  // should not have to be learned twice.
+  const engulfed = a.alive ? getAura(a, 'engulfed') : undefined
+  if (engulfed && engulfed.stacks > 0) {
+    for (let i = 0; i < Math.min(engulfed.stacks, ENGULF_MAX); i++) {
+      const from = -Math.PI / 2 + (i * Math.PI * 2) / ENGULF_MAX
+      ctx.beginPath()
+      floorArc(ctx, p.x, p.y, r + 7, from + 0.08, from + (Math.PI * 2) / ENGULF_MAX - 0.08)
+      ctx.strokeStyle =
+        i >= ENGULF_MAX - 2 ? iconFor('boss_engulf').colour : 'rgba(77, 124, 15, 0.55)'
+      ctx.lineWidth = i >= ENGULF_MAX - 2 ? 3.5 : 2.5
+      ctx.stroke()
+    }
+  }
+
+  // What a small thing has eaten, as a number on it.
+  //
+  // A number rather than a size, because the demand is a count: the fifth is
+  // an event and the fourth is a body, and a raid judging that off how big
+  // something looks is a raid guessing. The colour turns at four, which is the
+  // last one it is still safe to let merge.
+  if (a.alive && a.spawn === 'ooze' && (a.eaten ?? 0) > 0) {
+    ctx.fillStyle =
+      (a.eaten ?? 0) >= MERGE_BURST_AT - 1 ? iconFor('boss_merge').colour : COLORS.text
+    ctx.font = font(12, true)
+    ctx.textAlign = 'center'
+    ctx.fillText(`${a.eaten}`, p.x, p.y - r - 6)
   }
 
   const glyph = isBoss ? 'B' : isAdd ? 'x' : a.role === 'tank' ? 'T' : a.role === 'healer' ? 'H' : 'D'

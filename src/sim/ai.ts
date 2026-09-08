@@ -13,10 +13,14 @@ import {
   GORGE_RADIUS,
   SPILL_RADIUS,
   FESTER_LINE,
+  INFECTION_FLUSH,
+  SPRAY_CAST,
+  MERGE_REACH,
 } from './constants'
 import {
   turnToward,
   MARK_REACH,
+  insideCone,
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -234,6 +238,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
       say(s, actor, 'Going to help carry')
+    } else if (danger.startsWith('spray')) {
+      say(s, actor, 'Behind the arm')
+    } else if (danger === 'infection:self') {
+      say(s, actor, 'Carrying — taking it wide')
     } else if (danger === 'spill:self') {
       say(s, actor, 'It is on me — clear off')
     } else if (danger.startsWith('spill:')) {
@@ -317,7 +325,21 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
  * being able to hit them at all.
  */
 function quarry(s: SimState, actor: Actor): Actor[] {
-  const summoned = adds(s)
+  // Everything the fight has put on the floor, except the small things that
+  // nobody has called for.
+  //
+  // This is the one place a summon is *not* a target by default, and it is the
+  // whole of what makes the confluence a fight rather than a chore. A small
+  // thing alone is almost harmless and dies in a second; a raid that turns and
+  // kills every one of them has spent its damage on nothing and still lost to
+  // the pair it did not watch. What is worth hitting is the one `targetCall`
+  // has named -- half of a pair about to become one thing -- and everything
+  // else on this floor is left alone, which is the answer being made rather
+  // than a rotation defaulting into it.
+  const called = actor.ai?.striking ?? null
+  const summoned = adds(s).filter(
+    (a) => a.spawn !== 'ooze' || called === `ooze:${a.id}`,
+  )
   if (summoned.length > 0) return summoned
   return livingParty(s).filter((a) => a.id !== actor.id && getAura(a, 'turned'))
 }
@@ -453,6 +475,37 @@ function targetCall(s: SimState, actor: Actor): string | null {
     return `beast:${near.id}`
   }
 
+  // Two small things about to become one, which is the only target call in
+  // this game that is about where the enemy is rather than what it is.
+  //
+  // The rule is not "kill the small things": most of the time the answer is to
+  // leave them alone, because each one alone is almost harmless and killing
+  // one that was going nowhere is damage spent on nothing. What has to be
+  // answered is a *pair* -- two of them closing on each other -- and the way
+  // to answer it is to put one of them down before they touch.
+  //
+  // The bigger of the pair, because what a merging is worth is what it has
+  // already eaten: letting a four take a one is the instant the mechanic is
+  // about, and letting two ones meet is a body with a two on it.
+  {
+    const here = adds(s).filter((a) => a.spawn === 'ooze')
+    let pair: [Actor, Actor] | null = null
+    let closest = OOZE_WATCH
+    for (let i = 0; i < here.length; i++) {
+      for (let j = i + 1; j < here.length; j++) {
+        const gap = dist(here[i]!.pos, here[j]!.pos)
+        if (gap < closest) {
+          closest = gap
+          pair = [here[i]!, here[j]!]
+        }
+      }
+    }
+    if (pair) {
+      const bigger = (pair[0].eaten ?? 0) >= (pair[1].eaten ?? 0) ? pair[0] : pair[1]
+      return `ooze:${bigger.id}`
+    }
+  }
+
   // One of the raid's own, turned. The only one of these calls about a body
   // that was an ally a second ago, which is the whole of what it costs. Last,
   // because the spike is a thing standing still that stops mattering the
@@ -547,6 +600,14 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const wrong = calledId(call, 'first:')
   if (wrong !== null) {
     const one = s.actors.find((a) => a.faction === 'boss' && a.id === wrong)
+    if (one && one.alive) return one
+  }
+
+  // The small thing that was called, which is one half of a pair that is about
+  // to stop being two things.
+  const closing = calledId(call, 'ooze:')
+  if (closing !== null) {
+    const one = s.actors.find((a) => a.faction === 'boss' && a.id === closing)
     if (one && one.alive) return one
   }
 
@@ -742,15 +803,28 @@ function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
   if (actor.role !== 'healer') return
 
   const named = livingParty(s).filter(
-    (a) => getAura(a, 'championed') !== undefined || getAura(a, 'festering') !== undefined,
+    (a) =>
+      getAura(a, 'championed') !== undefined ||
+      getAura(a, 'festering') !== undefined ||
+      getAura(a, 'infected') !== undefined,
   )
 
   const claim = (a: Actor): string =>
-    getAura(a, 'festering') !== undefined ? `fester:${a.id}` : `champion:${a.id}`
+    getAura(a, 'festering') !== undefined
+      ? `fester:${a.id}`
+      : getAura(a, 'infected') !== undefined
+        ? `infection:${a.id}`
+        : `champion:${a.id}`
+  // Three lines, and the third is the odd one: a wound and a mark are answered
+  // by keeping somebody off the bottom, and a carrier is answered by taking
+  // them all the way to the top -- which is a heal aimed at a body that is
+  // nowhere near dying, and the only reason to aim one there in this game.
   const shaky = (a: Actor): boolean =>
     getAura(a, 'festering') !== undefined
       ? a.hp <= a.maxHp * FESTER_LINE
-      : a.hp <= a.maxHp * CHAMPION_LINE
+      : getAura(a, 'infected') !== undefined
+        ? a.hp < a.maxHp * INFECTION_FLUSH
+        : a.hp <= a.maxHp * CHAMPION_LINE
 
   // A claim is kept until the body it was made about is out of danger, one way
   // or the other. Re-deciding every tick is what a raid calling targets out
@@ -791,16 +865,44 @@ function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
 }
 
 /** The body this healer has called, once it has finished noticing. */
-function rescueTarget(s: SimState, actor: Actor): Actor | null {
+function calledBody(s: SimState, actor: Actor): Actor | null {
   const id = actor.ai?.answering
   if (id === null || id === undefined) return null
   const target = s.actors.find((a) => a.id === id)
-  if (!target || !target.alive) return null
-  // Either of the two things this channel claims. Reading only one of them
-  // would mean the other could be claimed upstairs and thrown away here -- a
-  // mechanic wired into the channel that answers it and measured at nothing
-  // because the answer never reached the rotation.
+  return target && target.alive ? target : null
+}
+
+/**
+ * A body that will die if this heal does not land, which is two of the three.
+ *
+ * A wound and a mark are answered above everything, including whoever is
+ * lowest: both are bodies the fight has named and neither is answered by the
+ * rotation's own habits.
+ */
+function rescueTarget(s: SimState, actor: Actor): Actor | null {
+  const target = calledBody(s, actor)
+  if (!target) return null
   return getAura(target, 'championed') || getAura(target, 'festering') ? target : null
+}
+
+/**
+ * A body that will leave something behind, which is the third and is not
+ * urgent.
+ *
+ * Deliberately not a rescue. A carrier is in no danger -- what the heal buys
+ * is *where* the thing it leaves will stand -- so answering it above somebody
+ * who is actually dying is the raid trading a life for a tidier floor. Read
+ * after the emergency rather than before it, which is the whole difference
+ * between this and the two above.
+ *
+ * It was written as a rescue first and every cell of the fight wiped: healers
+ * poured a pull's worth of casting into bodies at ninety percent while the
+ * rest of the raid went down behind them.
+ */
+function flushTarget(s: SimState, actor: Actor): Actor | null {
+  const target = calledBody(s, actor)
+  if (!target) return null
+  return getAura(target, 'infected') ? target : null
 }
 
 /**
@@ -831,6 +933,12 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     }
   }
 
+  // Carrying something that will be a body when it stops. Answered by walking
+  // rather than by anything the carrier can do about the dot itself: what the
+  // walk buys is that the thing is born somewhere the raid can afford, which
+  // is the only half of this mechanic the carrier owns.
+  if (getAura(actor, 'infected')) consider('infection:self', 60)
+
   // Blood on this body, which is the one hazard here nobody can dodge: it goes
   // off where they are standing. What the carrier can do is be standing
   // somewhere nobody else is, so it is ranked above every mark that is
@@ -857,6 +965,25 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
 
   for (const g of s.ground) {
+    // The cone off the big arm, which is answered by being behind it. Its
+    // urgency climbs as the cast runs out, the way the cold line's does: what
+    // is being priced is a walk that gets less possible every tenth of a
+    // second.
+    if (g.kind === 'spray') {
+      if (!g.detonated && insideCone(actor.pos, g)) {
+        consider(`spray:${g.id}`, 70 + (SPRAY_CAST - g.telegraph) * 8)
+      }
+      continue
+    }
+    // The flood is deliberately answered by nobody. It costs no health, so a
+    // party that treated it as danger would drop what it was doing to walk out
+    // of a thing that does not hurt -- and what it is for is that fixing a
+    // geometry late is slow, which is a cost the raid should pay rather than
+    // dodge.
+    if (g.kind === 'flood') {
+      continue
+    }
+
 
 
 
@@ -932,6 +1059,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   return bestKey
 }
 
+/**
+ * How close two small things have to be before the raid is watching them.
+ *
+ * Three times the distance at which they merge. Nearer than this and a raid
+ * that has not already started is too late; further and every pair in the room
+ * is a pair, which is a call that names something every tick and therefore
+ * names nothing.
+ */
+const OOZE_WATCH = MERGE_REACH * 3
+
 /** How close the thing chasing you has to be before it is worth running. */
 
 /** Is this spot under the wedge, on the pulse coming or the one after it? */
@@ -950,6 +1087,16 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // the same as not dodging.
   if (inTerrain(s.obstacles, spot, actor.radius)) return false
   for (const g of s.ground) {
+    if (g.kind === 'spray') {
+      if (!g.detonated && insideCone(spot, g)) return false
+      continue
+    }
+    // Slow ground is still ground. A spot refused for being inside it would be
+    // a party that never stands in the one hazard here it is supposed to have
+    // to stand in.
+    if (g.kind === 'flood') {
+      continue
+    }
     if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
   }
 
@@ -2061,6 +2208,14 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   // Timid healers panic earlier and burn mana; greedy ones let people ride low.
   const emergency = emergencyFor(actor)
   const topOff = topOffFor(actor)
+
+  // The carrier, and only while nobody is actually in trouble. This is the one
+  // heal in the game aimed at somebody who is fine, and it stays behind every
+  // heal aimed at somebody who is not.
+  const carrier = flushTarget(s, actor)
+  if (carrier && ratio >= emergency) {
+    if (tryCast(s, actor, kit.filler, carrier.id, rng, moving)) return
+  }
 
   if (kit.finisher && ratio < emergency && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
     // An emergency is answered on whoever is in it, whatever the spec would

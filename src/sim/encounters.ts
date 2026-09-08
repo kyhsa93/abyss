@@ -49,6 +49,12 @@ export type MechanicId =
   | 'fester'
   | 'champion'
   | 'gorge'
+  | 'spray'
+  | 'infection'
+  | 'ooze'
+  | 'flood'
+  | 'merge'
+  | 'engulf'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -107,6 +113,15 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // roster is allowed to make the bill bigger".
   champion: true,
   gorge: false, // one body swallowed and one circle of fixed radius under it
+  spray: false, // a cone of a fixed angle, which catches a share rather than a count
+  infection: true, // one carrier per so many bodies, and each becomes a body
+  ooze: true, // as many as there were carriers, which is the same thing said twice
+  flood: false, // a circle from the boss, and the room is the room at any size
+  // Not the count -- the count is capped at eight whatever the headcount, for
+  // the reason `OOZE_CAP` gives. What scales is how often the raid is handed
+  // one, which is rule 5's "a harder geometry, not an unanswerable one".
+  merge: true,
+  engulf: false, // one body is holding it, and there is one of that body
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -179,6 +194,12 @@ export function noTimers(): Record<MechanicId, number> {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  spray: 'the spray',
+  infection: 'the infection',
+  ooze: 'the small things',
+  flood: 'the flood',
+  merge: 'the merging',
+  engulf: 'the engulfing',
   siphon: 'the gorging',
   spill: 'the spill',
   fester: 'the festering',
@@ -433,6 +454,53 @@ export interface PhaseTiming {
    */
   gorge: number
   /**
+   * Seconds between one spray and the next.
+   *
+   * A cone off the big arm, and the one demand this fight makes that a player
+   * has met before. It is here on purpose: five of the six rungs are about
+   * what the fight's own bodies are doing to each other, and a boss with
+   * nothing familiar on it is a boss nobody has a way into.
+   */
+  spray: number
+  /**
+   * Seconds between one infection and the next.
+   *
+   * A dot that ends in a body rather than in a number. Where that body is
+   * standing when it ends is what the mechanic asks, which makes it the only
+   * demand here answered by two people at once -- the carrier picks the place
+   * and the healer picks the moment.
+   */
+  infection: number
+  /**
+   * Seconds between one flood and the next.
+   *
+   * Ground that spreads from the boss, hurts nobody, and slows everything
+   * standing on it. On its own it teaches nothing and is not meant to: what it
+   * does is make a geometry expensive to fix late.
+   */
+  flood: number
+  /**
+   * Seconds between one swallowing of a small thing and the next.
+   *
+   * Held rather than reset when there is nothing to swallow, so a raid that
+   * cleared the floor is not handed the next one early for having done so.
+   */
+  engulf: number
+  /**
+   * The two rungs in this game with no clock at all, and they are always zero.
+   *
+   * A small thing is born when an infection ends, and two of them become one
+   * when they touch. Neither is a thing the fight decides to do at a moment;
+   * both are consequences of where bodies were standing, which is the whole
+   * reason the boss that owns them is worth building.
+   *
+   * They are here because every mechanic needs a row -- `gated` reads one per
+   * name -- and they stay at nought because a number in either would be a
+   * cadence for something that does not have one.
+   */
+  ooze: number
+  merge: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -661,6 +729,13 @@ export interface Encounter {
     /** Nor the mark, which is bought rather than scheduled. */
     champion: number
     gorge: number
+    spray: number
+    infection: number
+    flood: number
+    engulf: number
+    /** Nought, and see `PhaseTiming`: neither of these has a clock. */
+    ooze: number
+    merge: number
   }
   /**
    * The colour this one is drawn in.
@@ -729,6 +804,16 @@ export interface Encounter {
     fester: string
     champion: string
     gorge: string
+    spray: string
+    infection: string
+    flood: string
+    engulf: string
+    // The two this fight never announces have no key here at all, which is the
+    // one legitimate absence the check downstairs allows. A small thing is
+    // born where a body was standing and the raid watched it happen; a merging
+    // is two of them touching, which the raid is either watching for or has
+    // already lost. A boss that called either would be a boss doing the
+    // looking for them.
     /** Empty where the boss does not use the mechanic. */
     /** Unplaced too, and for the same reason. See `fault` above. */
   }
@@ -850,6 +935,10 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
       siphon: '',
       spill: '',
       fester: '',
@@ -1005,6 +1094,10 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
       siphon: '',
       spill: '',
       fester: '',
@@ -1170,6 +1263,10 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
       siphon: '',
       spill: '',
       fester: '',
@@ -1311,6 +1408,10 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
       siphon: 'It has had enough for now',
       spill: 'Blood on them — everybody off',
       fester: 'That wound is feeding it — close it',
@@ -1333,6 +1434,129 @@ export const ENCOUNTERS: Encounter[] = [
       insignificance: '',
       empower: '',
       dominate: '',
+    },
+  },
+  {
+    // The fifth fight, and the first one whose demand is not about where the
+    // raid is standing.
+    //
+    // Every requirement in this game so far has been a fact about a body's own
+    // position: off the line, behind it, inside the circle, away from each
+    // other. Nothing has ever asked the raid to care where the things it is
+    // fighting are standing relative to one another.
+    //
+    // This one is that and nothing else. Small things are born out of the raid
+    // -- each one where a body was standing when its infection ended -- and two
+    // that touch become one that is worth both. The fifth merging is not a body
+    // any more; it is a radius. What the raid answers is not its own geometry
+    // but theirs, and the two are connected by exactly one thing: where the
+    // infected chose to be standing.
+    id: 'confluence',
+    name: 'The Confluence',
+    short: 'Confluence',
+    demand: 'mind where you are healed, and keep the small things apart',
+    /**
+     * Issue #30's room: two thirds of the yardstick's floor.
+     *
+     * Narrow on purpose, and the reason is the mechanic rather than the
+     * scenery. What this fight asks is that two small things do not reach each
+     * other, and in a wide room that does not happen by itself -- keeping them
+     * apart in a big room is not a decision, it is a stroll. At 68% of a floor
+     * the geometry closes on its own and the raid has to open it again.
+     */
+    room: { kind: 'round', radius: 760 },
+    /**
+     * One tank, against the wall.
+     *
+     * One rather than several, and that is the mechanic again: what the small
+     * things are is a set of distances between each other, and a room full of
+     * rocks decides those distances with its furniture. A single obstacle
+     * gives the floor a direction without giving it a maze.
+     */
+    terrain: [{ pos: { x: 0, y: -560 }, radius: 110 }],
+    /**
+     * Two, on the raid's own side, and this is the only room in the citadel
+     * where that is true.
+     *
+     * Everywhere else a wave comes in behind the boss so it has ground to
+     * cross. Here the small things have to be born *among* the raid, because
+     * two of them that walk the length of a room have already found each other
+     * by the time anybody could have done anything about it.
+     */
+    doors: [
+      { pos: { x: -540, y: 540 } },
+      { pos: { x: 540, y: 540 } },
+    ],
+    /** A workshop floor: laid, drained, and about to be ruined. */
+    floor: 'floor-clay',
+    hp: 54000,
+    enrage: 245,
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.38,
+    swingDamage: 580,
+    slamDamage: 1180,
+    raidDamage: 130,
+    mechanicDamage: 0.8,
+    // Lightest at five, which is the opposite of what this table usually says
+    // and follows from where the fight's weight sits. Most of what this boss
+    // does lands on one named body at a time -- a carrier, a small thing
+    // walking at whoever made it -- and a five-man answers all of it with one
+    // healer and three dealers. Written the other way round the smallest raid
+    // won a pull in six while the ten-man won every one of them.
+    sizeMechanic: { 5: 0.85, 10: 1.15, 25: 1.1 },
+    // The spray is first because it is the only thing here a player has met
+    // before, and a fight whose every rung is a new idea is a fight with no
+    // way in. Everything above it is the one idea this boss is made of, added
+    // a piece at a time: something to be born, something for it to walk to,
+    // ground that makes fixing it late expensive, the merging itself, and
+    // finally the boss eating what nobody cleared and handing the bill to the
+    // tank.
+    ladder: ['spray', 'infection', 'ooze', 'flood', 'merge', 'engulf'],
+    herald: null,
+    accent: '#4d7c0f',
+    names: { slam: 'THE BIG ARM', shard: '', raid: 'THE SEEPING' },
+    phases: {
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 14, infection: 26, flood: 34, engulf: 9 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 12, infection: 23, flood: 30, engulf: 8 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ spray: 10, infection: 20, flood: 26, engulf: 7 }) },
+    },
+    // The infection is written slower than it plays, on purpose and against
+    // the rule of thumb that a cadence is what a raid meets. A short kit is
+    // paid back as tempo -- `kitCadence` runs a three-rung fight at five
+    // eighths of the interval -- and this boss's three-rung kit is the
+    // infection and two things that answer it, so the amplifier lands on the
+    // one mechanic that carries the fight. Written at eighteen the smallest
+    // raid met it every eleven seconds and lost nine pulls in ten.
+    opening: { slam: 13, raid: 14, ...beats({ spray: 12, infection: 24, flood: 32, engulf: 10 }) },
+    lines: {
+      phaseTwo: 'It is coming apart',
+      phaseThree: 'ALL OF IT AT ONCE',
+      spray: 'The arm is coming round — get behind it',
+      infection: 'One of you is carrying it — pick your ground',
+      flood: 'It is spreading — the floor is going slow',
+      engulf: 'It is eating them — swap before eight',
+      adds: '',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
     },
   },
 ]

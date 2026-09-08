@@ -411,6 +411,17 @@ const BOSS: Record<string, Layer[]> = {
   // still reads as a soldier rather than as a corpse -- the skeleton and the
   // stitched one are already the first and third bosses, and three dead things
   // in four rooms is a building with one idea.
+  // "mind where you are healed, and keep the small things apart" -- the thing
+  // that is leaking. Small for the noise it makes, and made of the same stuff
+  // as what comes out of it: the zombie body is the only one in the set that
+  // reads as *matter* rather than as a person, and the fight is a fight about
+  // matter finding other matter.
+  //
+  // No armour at all. This one is not wearing anything; it is coming apart.
+  confluence: [
+    { z: 10, dir: 'body/bodies/zombie' },
+    { z: 100, dir: 'head/heads/zombie/adult' },
+  ],
   gorged: [
     { z: 10, dir: 'body/bodies/muscular' },
     { z: 20, dir: 'feet/armour/plate/male' },
@@ -478,6 +489,12 @@ const ADD: Record<string, Layer[]> = {
   // The interlude's elite. A thrall's kin in heavier plate — the same kind of
   // thing the escort beside it is, promoted, which is what the fight is
   // saying: this is not a second boss, it is the biggest of them.
+  // What the confluence leaks, and the only summon in the game that is not a
+  // person. It has no head and no weapon because it is neither: what a small
+  // thing is, is a piece of the boss walking at whoever it came out of.
+  ooze: [
+    { z: 10, dir: 'body/bodies/zombie' },
+  ],
   herald: [
     { z: 10, dir: 'body/bodies/male' },
     { z: 15, dir: 'feet/armour/plate/male' },

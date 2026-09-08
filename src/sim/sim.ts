@@ -14,6 +14,7 @@ import {
   resolveBossCast,
   updateBoss,
   updateGround,
+  birthOoze,
   burstSpore,
   detonateSpill,
   freeSpiked,
@@ -57,6 +58,7 @@ import {
   REEK_REACH,
   TICK_RATE,
   FESTER_LINE,
+  INFECTION_FLUSH,
 } from './constants'
 import type { Rng } from './rng'
 import { heading, updateTravel, updateTravelAi } from './travel'
@@ -344,6 +346,18 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       continue
     }
 
+    // And the infection burning out in a chosen place rather than a found one.
+    //
+    // The same shape read the other way round: a wound is answered by getting
+    // a body *out of* trouble, and this one is answered by getting a body that
+    // is not in trouble all the way to the top. What it buys is not the
+    // carrier's health, it is where the thing it leaves behind will stand.
+    if (aura.id === 'infected' && a.hp >= a.maxHp * INFECTION_FLUSH) {
+      a.auras.splice(i, 1)
+      birthOoze(s, a)
+      continue
+    }
+
     aura.remaining -= DT
     aura.tickTimer += DT
 
@@ -419,6 +433,11 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       if (aura.id === 'spilling' && a.alive) detonateSpill(s, a)
       // And the boss putting somebody back, with everything it took.
       if (aura.id === 'swallowed' && a.alive) spitOut(s, a)
+      // And a small thing standing exactly where the body carrying it was.
+      // This is the only place in the game where an expiry is a *location*:
+      // the carrier chose it by walking and the healer chose the moment by
+      // deciding whether to take the dot off early.
+      if (aura.id === 'infected' && a.alive) birthOoze(s, a)
     }
   }
 }

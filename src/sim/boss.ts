@@ -46,6 +46,26 @@ import {
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  SPRAY_HALF_WIDTH,
+  SPRAY_RANGE,
+  SPRAY_DAMAGE,
+  SPRAY_CAST,
+  OOZE_DAMAGE,
+  OOZE_HP_PER_BODY,
+  OOZE_SPEED,
+  MERGE_REACH,
+  MERGE_BURST_AT,
+  MERGE_BURST_REACH,
+  MERGE_BURST_DAMAGE,
+  OOZE_CAP,
+  FLOOD_REACH,
+  FLOOD_SPREAD,
+  FLOOD_LINGER,
+  ENGULF_REACH,
+  ENGULF_POWER,
+  ENGULF_MAX,
+  ENGULF_BURST,
+  ENGULF_BURST_REACH,
   FESTER_BITE,
   GORGE_RADIUS,
   GORGE_BURST,
@@ -70,6 +90,7 @@ import {
   mechanicScale,
   heraldUp,
   holdOrFall,
+  hasteOf,
 } from './combat'
 import { pushInside, roomReach } from './room'
 import type { Rng } from './rng'
@@ -443,8 +464,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleFester(s, b, rng, timing)
   scheduleGorge(s, b, target, timing)
   scheduleChampion(s, b, rng, timing)
+  scheduleSpray(s, b, timing)
+  scheduleInfection(s, b, rng, timing)
+  scheduleFlood(s, b, timing)
+  scheduleEngulf(s, b, timing)
 
   updateAdds(s)
+  updateOozes(s)
 }
 
 /**
@@ -594,7 +620,8 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
       fight(s).swingDamage *
         (1 + breaths * INHALE_POWER) *
         (1 + swollen * BLOAT_POWER) *
-        gaugePower(s),
+        gaugePower(s) *
+        engulfPower(s),
     )
     applyDamage(s, target, damage, 'physical', { sourceId: b.id })
     // And a share of it onto whoever is wearing the mark, wherever they are
@@ -2060,6 +2087,338 @@ export function spitOut(s: SimState, victim: Actor): void {
   })
 }
 
+// --- the confluence -------------------------------------------------------
+//
+// The one boss on this roster whose demand is not about where the raid is
+// standing. Everything else here asks a body about its own position; this asks
+// the raid about the geometry between the fight's own bodies -- which small
+// things are near which other small things, and what that will be in six
+// seconds.
+
+/**
+ * The cone off the big arm, and the only ordinary thing this fight does.
+ *
+ * Its facing is locked for the cast, which is what makes walking round it an
+ * answer rather than a race: a cone that tracked would be a cone answered by
+ * nobody, and one that is aimed and then committed to is answered by everybody
+ * who noticed in time.
+ */
+function scheduleSpray(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.spray <= 0) return
+  s.next.spray -= DT
+  if (s.next.spray > 0 || b.castId) return
+  s.next.spray = timing.spray
+
+  s.sounds.push('telegraph')
+  say(s, b, lineFor(fight(s), 'spray'))
+  b.castId = 'boss_spray'
+  b.castRemaining = SPRAY_CAST
+  b.castTotal = SPRAY_CAST
+  b.castTargetId = null
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_spray' })
+
+  // On the floor for the whole cast, at the bearing it is committed to.
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'spray',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: SPRAY_RANGE,
+    telegraph: SPRAY_CAST,
+    lingering: 0,
+    damage: SPRAY_DAMAGE,
+    angle: s.bossFacing,
+    halfWidth: SPRAY_HALF_WIDTH,
+  })
+}
+
+/**
+ * Something on a body that will be a body when it stops.
+ *
+ * Never the tank: the answer to this is a walk of a few hundred units, and a
+ * tank that takes it drags the fight along behind them -- which turns a
+ * decision into a role. Never twice on the same body, because two of these
+ * ending in the same place is the geometry the fight is asking about, arriving
+ * without anybody having chosen it.
+ */
+function scheduleInfection(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.infection <= 0) return
+  s.next.infection -= DT
+  if (s.next.infection > 0) return
+  s.next.infection = timing.infection
+
+  // And never past the cap. The count of small things is capped rather than
+  // the rate they are made at, so a fight already at eight simply does not
+  // hand out another -- see `OOZE_CAP`.
+  if (oozes(s).length >= OOZE_CAP) return
+
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'infected'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), 'infection'))
+  s.sounds.push('telegraph')
+  // One per six bodies rather than per eight, and the difference is the whole
+  // mechanic at the sizes in between: at eight a ten-man was handed exactly
+  // one at a time, and one small thing on a floor cannot merge with anything.
+  const count = Math.max(1, Math.round(s.party.length / 6))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const carrier = free.splice(rng.int(free.length), 1)[0]!
+    addAura(carrier, 'infected', b.id)
+    pushEffect(s, 'cast', carrier.pos, { abilityId: 'boss_infection' })
+  }
+}
+
+/**
+ * A small thing, born where the body carrying it was standing.
+ *
+ * Exported because what makes it is an aura ending, and aura expiry lives in
+ * `sim.ts` beside the others that resolve that way. The place is the whole
+ * mechanic: the carrier chose it by walking, and the healer chose when by
+ * deciding whether to take the dot off early.
+ */
+export function birthOoze(s: SimState, carrier: Actor): void {
+  if (s.mode !== 'raid') return
+  // The cap is absolute and is checked here as well as at the infection,
+  // because an infection applied under the cap can still end over it.
+  if (oozes(s).length >= OOZE_CAP) return
+  const born = makeAdd(s.nextObjectId++, carrier.pos.x, carrier.pos.y)
+  born.spawn = 'ooze'
+  born.eaten = 0
+  born.name = 'Ooze'
+  born.radius = 16
+  born.moveSpeed = Math.round(carrier.moveSpeed * OOZE_SPEED)
+  born.maxHp = OOZE_HP_PER_BODY * livingParty(s).length
+  born.hp = born.maxHp
+  // It walks at whoever made it rather than at whoever is nearest, and that is
+  // half of this fight. Sent at the nearest body they all converge on the
+  // melee and kill themselves for nothing; sent at their maker, where the
+  // infected chose to stand decides the geometry a minute later.
+  born.quarry = carrier.id
+  s.actors.push(born)
+  pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_ooze', power: 200 })
+}
+
+/** The small things, which are the only bodies in the game that combine. */
+export function oozes(s: SimState): Actor[] {
+  return s.actors.filter((a) => a.faction === 'boss' && a.alive && a.spawn === 'ooze')
+}
+
+/** What one of them is worth in a swing, which is what it has eaten. */
+function oozeDamage(s: SimState, one: Actor): number {
+  return mechanic(s, OOZE_DAMAGE * (1 + (one.eaten ?? 0)))
+}
+
+/**
+ * The small things walking, touching, and becoming one another.
+ *
+ * The whole of the fight's own half of the mechanic. They are slow by design
+ * -- a body can walk away from one -- because the demand is not that anybody
+ * survive them; it is that the raid decide which of them to kill, which to let
+ * live, and which two must not be allowed to meet.
+ */
+function updateOozes(s: SimState): void {
+  const here = oozes(s)
+  if (here.length === 0) return
+
+  for (const one of here) {
+    // Whoever made it, for as long as they are standing. After that it is an
+    // ordinary body walking at whoever is nearest, which is what stops a small
+    // thing outliving its own reason to exist.
+    let target: Actor | null = null
+    if (one.quarry !== undefined) {
+      const maker = s.actors.find((a) => a.id === one.quarry)
+      if (maker && maker.alive) target = maker
+      else delete one.quarry
+    }
+    if (!target) {
+      let best = Infinity
+      for (const p of livingParty(s)) {
+        const d = dist(one.pos, p.pos)
+        if (d < best) {
+          best = d
+          target = p
+        }
+      }
+    }
+    if (!target) continue
+
+    const away = dist(one.pos, target.pos)
+    turnToward(one, Math.atan2(target.pos.y - one.pos.y, target.pos.x - one.pos.x))
+    if (away > MELEE_RANGE) {
+      // Through `hasteOf`, so the flood slows these exactly as it slows the
+      // raid. A flood that only slowed the people answering it would be a tax
+      // rather than a fact about the room.
+      const step = one.moveSpeed * DT * hasteOf(one)
+      const stepX = ((target.pos.x - one.pos.x) / away) * step
+      const stepY = ((target.pos.y - one.pos.y) / away) * step
+      one.pos.x += stepX
+      one.pos.y += stepY
+      holdOrFall(s, one)
+      clearTerrain(s.obstacles, one.pos, one.radius, stepX, stepY)
+    }
+
+    one.swingTimer -= DT
+    if (one.swingTimer <= 0 && away <= MELEE_RANGE + target.radius) {
+      const damage = hit(s, oozeDamage(s, one))
+      applyDamage(s, target, damage, 'physical', { sourceId: one.id, mechanic: 'ooze' })
+      pushEffect(s, 'impact', target.pos, {
+        abilityId: 'boss_ooze',
+        power: damage,
+        angle: Math.atan2(target.pos.y - one.pos.y, target.pos.x - one.pos.x),
+      })
+      one.swingTimer = ADD_SWING
+    }
+  }
+
+  mergeOozes(s)
+}
+
+/**
+ * Two of them touching, and the fifth touching being an event.
+ *
+ * Resolved after everything has moved rather than during the walk, so which
+ * two of three meet is decided by where they all ended up and not by which of
+ * them the loop happened to reach first. Determinism is not a nicety here: the
+ * whole mechanic is a raid predicting this, and a prediction that depends on
+ * iteration order is a prediction nobody can make.
+ */
+function mergeOozes(s: SimState): void {
+  for (;;) {
+    const here = oozes(s)
+    let pair: [Actor, Actor] | null = null
+    let closest = MERGE_REACH
+    for (let i = 0; i < here.length; i++) {
+      for (let j = i + 1; j < here.length; j++) {
+        const gap = dist(here[i]!.pos, here[j]!.pos)
+        if (gap < closest) {
+          closest = gap
+          pair = [here[i]!, here[j]!]
+        }
+      }
+    }
+    if (!pair) return
+
+    const [one, other] = pair
+    // The bigger of the two takes the smaller, so a chain of them reads as one
+    // thing growing rather than as bodies swapping identities.
+    const [keep, gone] = (one.eaten ?? 0) >= (other.eaten ?? 0) ? [one, other] : [other, one]
+    keep.eaten = (keep.eaten ?? 0) + (gone.eaten ?? 0) + 1
+    keep.maxHp += gone.maxHp
+    keep.hp += gone.hp
+    keep.pos.x = (keep.pos.x + gone.pos.x) / 2
+    keep.pos.y = (keep.pos.y + gone.pos.y) / 2
+    gone.alive = false
+    pushEffect(s, 'impact', keep.pos, { abilityId: 'boss_merge', power: 300 })
+
+    if (keep.eaten >= MERGE_BURST_AT) {
+      // Not a body any more. Everything within reach pays, and the thing that
+      // ate them is gone with it -- a fifth merging that left something
+      // standing would be a mechanic the raid could only ever be behind.
+      const bill = mechanic(s, MERGE_BURST_DAMAGE)
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, keep.pos) > MERGE_BURST_REACH) continue
+        applyDamage(s, a, bill, 'magic', { sourceId: BOSS_ID, mechanic: 'merge' })
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_merge', power: bill })
+      }
+      pushEffect(s, 'impact', keep.pos, {
+        abilityId: 'boss_merge',
+        radius: MERGE_BURST_REACH,
+        power: bill,
+        crit: true,
+      })
+      s.sounds.push('raid')
+      keep.alive = false
+    }
+  }
+}
+
+/**
+ * Ground that spreads from the boss and hurts nobody.
+ *
+ * The one hazard in this game with no damage on it at all. What it takes is
+ * speed, from the raid and from the small things alike, and what that buys is
+ * that a geometry seen late cannot be fixed -- which is the difference between
+ * a mechanic about watching and a mechanic about reacting.
+ */
+function scheduleFlood(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.flood <= 0) return
+  s.next.flood -= DT
+  if (s.next.flood > 0) return
+  s.next.flood = timing.flood
+
+  say(s, b, lineFor(fight(s), 'flood'))
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'flood',
+    pos: { x: b.pos.x, y: b.pos.y },
+    // It starts at nothing and grows: `growth` is how fast the edge travels,
+    // and the floor loop widens it. A patch that appeared at full width would
+    // be a patch nobody watched spread, and watching it spread is the warning.
+    radius: 0,
+    growth: FLOOD_REACH / FLOOD_SPREAD,
+    telegraph: 0,
+    detonated: true,
+    lingering: FLOOD_LINGER,
+    damage: 0,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_flood' })
+}
+
+/**
+ * The boss eating what nobody cleared, and the tank paying for it.
+ *
+ * This fight's tank swap, made out of its own material. Every other stack in
+ * the game arrives on a clock the dealers cannot touch; this one is their
+ * mistake, delivered to somebody else -- so the swap is a consequence rather
+ * than a chore, and a raid that clears the floor never sees it at all.
+ */
+function scheduleEngulf(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.engulf <= 0) return
+  s.next.engulf -= DT
+  if (s.next.engulf > 0) return
+
+  // Nothing to eat: the beat is held rather than reset, so a raid that cleared
+  // the floor is not handed the next one early for having done so.
+  const near = oozes(s).filter((a) => dist(a.pos, b.pos) <= ENGULF_REACH)
+  if (near.length === 0) return
+  s.next.engulf = timing.engulf
+
+  const eaten = near[0]!
+  eaten.alive = false
+  pushEffect(s, 'impact', eaten.pos, { abilityId: 'boss_engulf', power: 260 })
+
+  const holder = topThreatTarget(s)
+  if (!holder) return
+  stackAura(holder, 'engulfed', b.id)
+  say(s, b, lineFor(fight(s), 'engulf'))
+  const count = getAura(holder, 'engulfed')?.stacks ?? 0
+  if (count < ENGULF_MAX) return
+
+  // The eighth, which is the instant this mechanic is. Public on the tank all
+  // the way up, so the swap is a decision made against a number the raid can
+  // read rather than a surprise it can only learn by dying to.
+  const bill = mechanic(s, ENGULF_BURST)
+  applyDamage(s, holder, bill, 'magic', { sourceId: b.id, mechanic: 'engulf' })
+  for (const a of livingParty(s)) {
+    if (a.id === holder.id || dist(a.pos, holder.pos) > ENGULF_BURST_REACH) continue
+    applyDamage(s, a, bill / 2, 'magic', { sourceId: b.id, mechanic: 'engulf' })
+  }
+  pushEffect(s, 'impact', holder.pos, {
+    abilityId: 'boss_engulf',
+    radius: ENGULF_BURST_REACH,
+    power: bill,
+    crit: true,
+  })
+  s.sounds.push('raid')
+  holder.auras = holder.auras.filter((au) => au.id !== 'engulfed')
+}
+
+/** What the boss has eaten, as a multiplier on its own hands. */
+function engulfPower(s: SimState): number {
+  const holder = topThreatTarget(s)
+  const count = holder ? (getAura(holder, 'engulfed')?.stacks ?? 0) : 0
+  return 1 + count * ENGULF_POWER
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -2126,6 +2485,10 @@ function updateAdds(s: SimState): void {
     // A spike does not walk and does not swing: it stands on the body it
     // pinned, and what the raid does about it is break it.
     if (add.spawn === 'spike') continue
+    // And a small thing walks by its own rules, in `updateOozes`: it goes for
+    // whoever made it rather than whoever is nearest, and it can become
+    // another one. Walking it here as well moved it twice a tick.
+    if (add.spawn === 'ooze') continue
 
     let nearest: Actor | null = null
     let best = Infinity
@@ -2253,6 +2616,28 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     return
   }
 
+  if (castId === 'boss_spray') {
+    const cone = s.ground.find((g) => g.kind === 'spray' && !g.detonated)
+    if (!cone) return
+    cone.detonated = true
+    cone.lingering = 0.3
+    for (const a of livingParty(s)) {
+      if (!insideCone(a.pos, cone)) continue
+      const damage = mechanic(s, cone.damage)
+      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: 'spray' })
+      // Along the cone rather than along the line to the boss, so the streak
+      // reads as the spray going through them.
+      pushEffect(s, 'impact', a.pos, { abilityId: 'boss_spray', power: damage, angle: cone.angle })
+    }
+    pushEffect(s, 'impact', b.pos, {
+      abilityId: 'boss_spray',
+      power: cone.damage,
+      angle: cone.angle,
+      crit: true,
+    })
+    return
+  }
+
   if (castId === 'boss_frostbolt') {
     loose(s, targetId)
     return
@@ -2272,9 +2657,47 @@ export function insideCone(p: { x: number; y: number }, cone: GroundEffect): boo
   return Math.abs(delta) <= cone.halfWidth
 }
 
+/**
+ * Whether the flood takes anything from this body.
+ *
+ * The raid and the fight's own small bodies, and nothing else. It is a
+ * function rather than two lines inside the floor's own arm because a hazard
+ * arm that names another mechanic is a hazard arm doing two jobs, and there is
+ * a check downstairs that says so.
+ */
+function slowable(a: Actor): boolean {
+  return a.faction === 'party' || a.spawn === 'ooze'
+}
+
 /** Ground damage is applied once per second while standing in a live puddle. */
 export function updateGround(s: SimState): void {
   for (const g of s.ground) {
+    // A cone is a telegraph and nothing else: what it costs lands when the
+    // cast resolves, and the shape on the floor is only what the raid reads to
+    // be somewhere else by then.
+    if (g.kind === 'spray') {
+      if (!g.detonated) g.telegraph -= DT
+      else g.lingering -= lingerStep(s)
+      continue
+    }
+
+    // The flood, which is the one piece of hazardous floor in this game that
+    // is not hazardous. It spreads, it lingers, and everything standing on it
+    // -- the raid and the fight's own small bodies alike -- is slowed while it
+    // stands there. Nothing is billed at all: what it takes is the option of
+    // fixing a geometry late.
+    if (g.kind === 'flood') {
+      g.radius = Math.min(FLOOD_REACH, g.radius + g.growth * DT)
+      g.lingering -= lingerStep(s)
+      for (const a of s.actors) {
+        if (!a.alive || !slowable(a)) continue
+        if (dist(a.pos, g.pos) > g.radius) continue
+        // Refreshed rather than applied, so it ends when the body leaves
+        // rather than on a clock of its own.
+        addAura(a, 'mired', BOSS_ID)
+      }
+      continue
+    }
 
 
 

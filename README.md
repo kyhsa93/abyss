@@ -1720,9 +1720,9 @@ them. Six rungs a boss, in the order the fight gets harder, and the last of
 one boss opens the first of the next:
 
 > Bonegrinder 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal →
-> 25 heroic → Whisper 5 normal → … → Bloodgorged 25 heroic
+> 25 heroic → Whisper 5 normal → … → Confluence 25 heroic
 
-Twenty-four kills to open the game. **Clearing a rung opens the one after it, and
+Thirty kills to open the game. **Clearing a rung opens the one after it, and
 nothing else does** — not reaching it, not clearing something harder somewhere
 else — so what is open is always a prefix of that list and a single number
 describes it. Which is also why nothing in here ever has to ask "but did they
@@ -1793,19 +1793,19 @@ the two axes the setup screen already had — every step up the size or across t
 heroic buys another rung. A ladder is also a price list, read top to bottom in
 the order the fight gets harder.
 
-| Rung | The Bonegrinder | The Last Whisper | The Reeking Host | The Bloodgorged |
-| --- | --- | --- | --- | --- |
-| carried | — | thralls | — | — |
-| 1 | the cold line | the volley | the blight | the spill |
-| 2 | the spikes | the rotting ground | the swelling | the gorging |
-| 3 | the storm | the shard | the reek | the festering |
-| 4 | — | the shade | the spore | blood beasts |
-| 5 | — | the slight | the breath in | the mark |
-| 6 | — | the empowered | the breath out | the swallowing |
-| 7 | — | the turned | — | — |
+| Rung | The Bonegrinder | The Last Whisper | The Reeking Host | The Bloodgorged | The Confluence |
+| --- | --- | --- | --- | --- | --- |
+| carried | — | thralls | — | — | — |
+| 1 | the cold line | the volley | the blight | the spill | the spray |
+| 2 | the spikes | the rotting ground | the swelling | the gorging | the infection |
+| 3 | the storm | the shard | the reek | the festering | the small things |
+| 4 | — | the shade | the spore | blood beasts | the flood |
+| 5 | — | the slight | the breath in | the mark | the merging |
+| 6 | — | the empowered | the breath out | the swallowing | the engulfing |
+| 7 | — | the turned | — | — | — |
 
 The order is the design, not the contents. The first rungs are disjoint across
-all four, so the fight everybody sees — the smallest raid, and the first
+all five, so the fight everybody sees — the smallest raid, and the first
 stretch of any pull that goes wrong — is a different fight per boss: a line
 walking outward, a shard aimed at whoever is holding it, and a room that has
 gone bad. **No boss's kit is ever a subset of another's** at any rung, and the
@@ -1813,7 +1813,7 @@ containment down each column holds: heroic asks for everything normal did and
 one thing more, and so does each size against the one below it. Both are
 asserted rather than eyeballed.
 
-Two of the four ladders are longer than any raid climbs, which is the point of
+Two of the five ladders are longer than any raid climbs, which is the point of
 a ladder rather than a list. The Whisper sells seven and a heroic twenty-five
 reaches all of them; a five-man on normal meets three and never learns what the
 fight is called after that.
@@ -1837,8 +1837,9 @@ that comes back wrong.
 | The Last Whisper | cut the shard, swap the hold, and hold off your own | a cast to interrupt, a stacking hold on the tank, and one of your own turned against you |
 | The Reeking Host | share the air, and know who is holding it | a room that is a bill nobody can dodge, a count on whoever is tanking, and a breath given back all at once |
 | The Bloodgorged | give it nothing, and carry what it takes | a bar the raid fills with its own mistakes, a mark it buys that never comes off, and a tank taken out of the fight for four seconds |
+| The Confluence | mind where you are healed, and keep the small things apart | bodies born out of the raid that walk at whoever made them, two of them becoming one where they touch, and a floor that makes fixing it late too slow |
 
-They are one script and four tables (`src/sim/encounters.ts`). A second boss
+They are one script and five tables (`src/sim/encounters.ts`). A second boss
 written as a second timeline would be a second copy of what each mechanic does,
 and those rules took several attempts each to get right. They are not being
 written twice.
@@ -1871,6 +1872,22 @@ the boss wears it — the silhouette in the middle of the room grows by a third
 as it fills, so a raid playing badly is watching the thing it is fighting get
 bigger.
 
+The Confluence asks the one question none of the others do. Every demand above
+is a fact about where *your* body is: off the line, behind it, inside the
+circle, away from each other. This one is about where the things you are
+fighting are standing relative to one another. Small bodies are born out of the
+raid — each one exactly where a carrier was standing when the thing they were
+carrying ran out — and they walk at whoever made them. Two that touch become
+one worth both, and the fifth merging is not a body any more, it is a radius.
+
+Almost none of it is answered by damage. One of them alone is nearly harmless
+and a raid that turns and kills every one has spent a pull's damage on nothing
+and still lost to the pair it was not watching; the answer is to break up one
+pair and leave the rest alone, which is the only target call in the game that
+is about where an enemy is rather than what it is. The line drawn between two
+that are close enough to merge is the whole picture of the fight — without it a
+raid learns about a merging by meeting what came out of it.
+
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |
 
@@ -1884,35 +1901,41 @@ hit would be a tax on exactly the people whose armour was supposed to be the
 reward — and the rot is the counterweight, so no stat block is the whole answer
 to a fight.
 
-| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged |
-| --- | --- | --- | --- | --- | --- |
-| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always |
-| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always |
-| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | |
-| The cold line | It walks outward from the boss — step off it | rung 1 | | | |
-| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | |
-| The storm | It lets go of the tank and comes for the room | rung 3 | | | |
-| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | |
-| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | |
-| The shard | A cast at whoever is holding it — cut it | | rung 3 | | |
-| The shade | It follows the one it picked; keep walking | | rung 4 | | |
-| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | |
-| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | |
-| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | |
-| The blight | The room itself, billing everybody every few seconds | | | rung 1 | |
-| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | |
-| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | |
-| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | |
-| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | |
-| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | |
-| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 |
-| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 |
-| The festering | A wound that must be healed off, not ridden out | | | | rung 3 |
-| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 |
-| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 |
-| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 |
-| Enrage | A hard damage check | 240s | 240s | 240s | 240s |
+| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged | Confluence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always | |
+| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | |
+| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | | |
+| The cold line | It walks outward from the boss — step off it | rung 1 | | | | |
+| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | |
+| The storm | It lets go of the tank and comes for the room | rung 3 | | | | |
+| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | | |
+| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | | |
+| The shard | A cast at whoever is holding it — cut it | | rung 3 | | | |
+| The shade | It follows the one it picked; keep walking | | rung 4 | | | |
+| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | | |
+| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | | |
+| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | | |
+| The blight | The room itself, billing everybody every few seconds | | | rung 1 | | |
+| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | | |
+| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | | |
+| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | | |
+| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | | |
+| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | | |
+| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 | |
+| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 | |
+| The festering | A wound that must be healed off, not ridden out | | | | rung 3 | |
+| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 | |
+| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 | |
+| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 | |
+| The spray | A cone off the big arm — be behind it | | | | | rung 1 |
+| The infection | It ends in a body where you were standing; pick the place | | | | | rung 2 |
+| The small things | Almost harmless alone; killing them all is the mistake | | | | | rung 3 |
+| The flood | Costs nothing to stand in and makes fixing it late too slow | | | | | rung 4 |
+| The merging | Two that touch become one; the fifth is a radius | | | | | rung 5 |
+| The engulfing | It eats what nobody cleared, and the tank pays for it | | | | | rung 6 |
+| Enrage | A hard damage check | 240s | 240s | 240s | 240s | 245s |
 
 A cadence of zero disables a mechanic, and that is also how a rung the raid
 did not buy is switched off: one rule for a mechanic being absent rather than
@@ -2103,6 +2126,7 @@ be measured rather than assumed to be in range:
 | The Last Whisper | 3% | 5% | 0% | 155s | 0% |
 | The Reeking Host | 0% | 0% | 0% | 130s | 0% |
 | The Bloodgorged | 0% | 8% | 0% | 150s | 0% |
+| The Confluence | 0% | 10% | 3% | 151s | 0% |
 
 What this table is meant to show is a first pull getting harder down the list
 while a ninth stays winnable, so each boss is a wall you learn rather than one
@@ -2112,9 +2136,10 @@ rather than to print a number and a sentence that disagree.
 This is one fixed party at one size. The per-cell table — three sizes by two
 difficulties, which is where a fight is actually judged — reads 100/100 across
 the Bonegrinder, 98 down to 60 across the Whisper's six, 98 down to 60 across
-the Host's, and 100 down to 75 across the Bloodgorged's. What this row is
-catching is the one composition it uses against the three fights that ask for a
-target call and a second tank, none of which a fixed party makes well.
+the Host's, 100 down to 75 across the Bloodgorged's, and 100 down to 88 across
+the Confluence's. What this row is catching is the one composition it uses
+against the four fights that ask for a target call and a second tank, none of
+which a fixed party makes well.
 
 It is also being read against rooms that are still being written. The bands
 that would normally hold this line are switched off by name until the twelve
