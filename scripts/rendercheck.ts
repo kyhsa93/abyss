@@ -9104,6 +9104,73 @@ for (const [label, w, h] of [
   }
 }
 
+// --- two answers that can both be right at once -----------------------------
+//
+// The one thing a room can get wrong that no other check would catch. This
+// fight asks for a circle everybody is inside and for that circle to be a body
+// that has to keep walking, and both of those are answered by standing
+// somewhere -- so if the room's furniture, its walls and its own floor leave
+// no place where both are true, it is not a hard room, it is a room with no
+// answer in it.
+//
+// Measured as an outcome rather than as a geometry proof: how many of the raid
+// were actually inside the circle when it closed. A room where the two demands
+// cannot both be met shows up here as a circle nobody reaches.
+{
+  const flasks = ENCOUNTERS.findIndex((e) => e.id === 'flasks')
+  expect('the fight that asks for two answers is on the roster', flasks >= 0, `${flasks}`)
+  const party = autoParty(25, pickFor('mage', 'dps')!)
+  const shares: number[] = []
+  let chased = 0
+  for (let n = 0; n < 3; n++) {
+    const seed = 4400 + n * 137
+    const s = pulled(seed, 8, party, 'heroic', flasks)
+    const rng = new Rng(seed)
+    const live = new Set<number>()
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      // The circle is on the floor while it counts and gone the tick it
+      // resolves, so the share has to be read on the last tick it exists.
+      const before = s.ground.filter((g) => g.kind === 'gather' && !g.detonated)
+      for (const g of before) live.add(g.id)
+      // Counted before the step, along with who was standing at that moment: a
+      // circle kills people as it resolves, so a share read against the
+      // survivors is a share read against a smaller raid than the one that was
+      // asked -- which is how this first reported a hundred and seventy
+      // percent of the raid inside a circle.
+      const standing = s.actors.filter((a) => a.faction === 'party' && a.alive).length
+      const inside = new Map<number, number>()
+      for (const g of before) {
+        inside.set(
+          g.id,
+          s.actors.filter((a) => a.faction === 'party' && a.alive && dist(a.pos, g.pos) <= g.radius)
+            .length,
+        )
+        if (g.named !== undefined) chased++
+      }
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const g of before) {
+        if (s.ground.some((now) => now.id === g.id && !now.detonated)) continue
+        live.delete(g.id)
+        const came = inside.get(g.id) ?? 0
+        shares.push(came / Math.max(1, standing))
+      }
+    }
+  }
+  expect(`${shares.length} circle(s) closed`, shares.length > 0, 'none resolved')
+  expect('and the circle was following somebody', chased > 0, 'it never chased')
+  const worst = shares.length > 0 ? Math.min(...shares) : 0
+  const typical = shares.length > 0 ? shares.reduce((a, b) => a + b, 0) / shares.length : 0
+  // Not "everybody made it" -- a raid that always makes it is a demand that
+  // asks nothing. What is being checked is that the room leaves the answer
+  // available: most of the raid reaches most of them, and none of them is a
+  // circle nobody could reach at all.
+  expect(
+    `and most of the raid reached them (${(typical * 100).toFixed(0)}% typical, ${(worst * 100).toFixed(0)}% worst)`,
+    typical > 0.6 && worst > 0.15,
+    `${(typical * 100).toFixed(0)} / ${(worst * 100).toFixed(0)}`,
+  )
+}
+
 // --- a wave that has to walk -----------------------------------------------
 //
 // On the one fight where how long that takes is the mechanic. A beast's hits
