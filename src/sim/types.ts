@@ -1148,6 +1148,17 @@ export interface SimState {
   travel: TravelState | null
   room: RoomShape
   /**
+   * Every piece of ground a body may stand on, when there is more than one.
+   *
+   * `room` is the room a *fight* happens in and stays that: a mechanic is
+   * placed in the room that threw it and must not spill down a corridor. This
+   * is the other question — where a body is allowed to be — and it is only
+   * different while the party is walking a building. A fight on its own, and
+   * a battleground, leave it empty and are confined to `room` exactly as they
+   * always were.
+   */
+  floor?: RoomShape[]
+  /**
    * Which door the next thing summoned comes through.
    *
    * A counter rather than a roll. The only randomness in this game is who gets

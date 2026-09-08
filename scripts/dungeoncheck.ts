@@ -6,9 +6,13 @@ import {
   gateOpen,
   killedOnce,
   padsLit,
+  citadelWorld,
   hallFor,
+  placeOf,
   reachable,
+  roomOf,
   standing,
+  support,
   wingCleared,
   wingFights,
   type Chamber,
@@ -16,7 +20,7 @@ import {
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
-import { dist } from '../src/sim/combat'
+import { dist, holdOrFall } from '../src/sim/combat'
 import { createCorridorState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
@@ -343,6 +347,116 @@ const everywhere = () => true
     'and comes out of one of that room\'s own doors',
     wrong.length === 0,
     wrong.join(', '),
+  )
+}
+
+// --- one building, one floor -------------------------------------------------
+//
+// The rooms were separate places: each its own scene with its own origin, and
+// a door was a trigger that threw one away and built the next. However that
+// door was drawn it was a teleporter, and it was said so. So the citadel is
+// assembled into one set of coordinates, and what has to be true of it is that
+// the floor has no holes in it — every join walkable, end to end, without
+// leaving the ground.
+//
+// None of that fails at run time. A hole in the floor is a party that cannot
+// get to a boss, and the first anyone would know is a raid standing at a wall.
+{
+  const cells = citadelWorld()
+  const onFloor = (p: { x: number; y: number }, r = 20): boolean =>
+    cells.some((cell) => insideRoom(cell.room, p, r))
+
+  const holes: string[] = []
+  for (const passage of PASSAGES) {
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    let broke = -1
+    for (let i = 0; i <= 600; i++) {
+      const t = i / 600
+      if (!onFloor({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })) {
+        broke = t
+        break
+      }
+    }
+    if (broke >= 0) holes.push(`${passage.from}->${passage.to} at ${(broke * 100).toFixed(0)}%`)
+  }
+  expect(
+    `all ${PASSAGES.length} joins are one continuous floor`,
+    holes.length === 0,
+    holes.join(', '),
+  )
+
+  // And a body of any size fits through, not just a point. A doorway a
+  // twenty-five man raid cannot get through is a doorway.
+  const narrow: string[] = []
+  for (const passage of PASSAGES) {
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    for (let i = 0; i <= 300; i++) {
+      const t = i / 300
+      const at = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+      if (!onFloor(at, 60)) {
+        narrow.push(`${passage.from}->${passage.to}`)
+        break
+      }
+    }
+  }
+  expect('and wide enough for a body all the way', narrow.length === 0, narrow.join(', '))
+
+  // Two rooms sharing floor would be two fights in one place. Joined or not,
+  // a chamber keeps its own ground; the passages are what overlap, on purpose.
+  const shared: string[] = []
+  for (let i = 0; i < CHAMBERS.length; i++) {
+    for (let j = i + 1; j < CHAMBERS.length; j++) {
+      const a = CHAMBERS[i]!
+      const b = CHAMBERS[j]!
+      const pa = placeOf(a.id)
+      const pb = placeOf(b.id)
+      const d = dist(pa, pb)
+      const ux = (pb.x - pa.x) / d
+      const uy = (pb.y - pa.y) / d
+      if (d < support(roomOf(a.id), ux, uy) + support(roomOf(b.id), -ux, -uy)) {
+        shared.push(`${a.id}/${b.id}`)
+      }
+    }
+  }
+  expect('and no two rooms stand in each other', shared.length === 0, shared.join(', '))
+}
+
+// And a body on that floor is held by the building rather than by one room of
+// it. This is the branch that turns a door from a trigger into a doorway: a
+// party standing in one is inside the passage, not outside the room, so
+// nothing pushes it back and nothing has to swap the world underneath it.
+{
+  const floor = citadelWorld().map((cell) => cell.room)
+  const one = (pos: { x: number; y: number }) => {
+    const party = autoParty(5, pickFor('warrior', 'dps')!)
+    const s = unattended(createCorridorState(1, party, hallFor('crossing', null, () => true), 'normal'))
+    s.floor = floor
+    const body = s.actors.find((a) => a.faction === 'party')!
+    body.pos = { ...pos }
+    holdOrFall(s, body)
+    return body.pos
+  }
+
+  // Standing in a doorway: the passage is floor, so nobody is moved.
+  const held: string[] = []
+  for (const passage of PASSAGES) {
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    const doorway = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    const after = one(doorway)
+    if (dist(after, doorway) > 0.001) held.push(`${passage.from}->${passage.to}`)
+  }
+  expect('a body standing in a doorway is left where it is', held.length === 0, held.join(', '))
+
+  // And well outside the building it is put back on the floor rather than
+  // left in the dark.
+  const far = one({ x: 90000, y: 90000 })
+  expect(
+    'and one off the building entirely is put back on it',
+    citadelWorld().some((cell) => insideRoom(cell.room, far, 0)),
+    `${Math.round(far.x)},${Math.round(far.y)}`,
   )
 }
 

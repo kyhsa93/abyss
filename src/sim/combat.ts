@@ -26,7 +26,7 @@ import {
 } from './constants'
 import type { Rng } from './rng'
 import { CHAMPION_HEAL, untouchable } from './boss'
-import { pushInside, roomHasOutside, wallGap } from './room'
+import { insideRoom, pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
   Actor,
@@ -600,6 +600,32 @@ export interface DamageOptions {
  * a bug in it rather than a mechanic.
  */
 export function holdOrFall(s: SimState, actor: Actor): void {
+  // A building, when there is one: anywhere on its floor is somewhere to be,
+  // and the doorways are floor, which is the whole of what makes walking out
+  // of a room into the next one a walk rather than a scene change. Off it
+  // entirely, the nearest piece takes them back — or drops them, if the
+  // nearest piece is the one with no wall.
+  const floor = s.floor
+  if (floor !== undefined && floor.length > 0) {
+    for (const cell of floor) {
+      if (insideRoom(cell, actor.pos, actor.radius)) return
+    }
+    let best = floor[0]!
+    let near = -Infinity
+    for (const cell of floor) {
+      const gap = wallGap(cell, actor.pos, actor.radius)
+      if (gap > near) {
+        near = gap
+        best = cell
+      }
+    }
+    if (roomHasOutside(best) && actor.id !== BOSS_ID) {
+      fall(s, actor)
+      return
+    }
+    pushInside(best, actor.pos, actor.radius)
+    return
+  }
   if (!roomHasOutside(s.room) || actor.id === BOSS_ID) {
     pushInside(s.room, actor.pos, actor.radius)
     return

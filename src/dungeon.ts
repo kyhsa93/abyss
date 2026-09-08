@@ -579,6 +579,133 @@ export function hallFor(
   }
 }
 
+/**
+ * The whole citadel, in one set of coordinates.
+ *
+ * The rooms used to be separate places: each one its own scene with its own
+ * origin, and walking out of a door threw the scene away and built the next
+ * one with the party stood at its far side. That is a teleporter with a door
+ * drawn on it, and it read as one however the door was drawn.
+ *
+ * So the building is assembled instead. Every room is put where the plan says,
+ * at one scale, and every passage between two of them is a cell of its own
+ * laid along the line and overlapping both ends — the overlap is the point,
+ * because it is what makes the floor continuous. Walking from the threshold to
+ * the throne never leaves the union, which is a thing the build proves rather
+ * than a thing this comment asserts.
+ */
+export interface Cell {
+  /** A chamber's id, or `from>to` for the ground between two of them. */
+  id: string
+  room: RoomShape
+}
+
+/**
+ * How big the building is.
+ *
+ * Not chosen: it is the smallest scale at which no two joined rooms overlap
+ * and every stretch of held ground still fits between the two it joins. The
+ * plan is in fractions, the rooms are in units, and this is the number that
+ * reconciles them — the build recomputes it and says so if a room grows past
+ * what the plan leaves it.
+ */
+export const CITADEL_SCALE = 12800
+
+/** How far a passage runs inside the rooms at either end of it. */
+const KNIT = 150
+
+/** Where a room stands in the citadel. */
+export function placeOf(id: string): Vec2 {
+  const entry = planOf(id)
+  return { x: (entry.x - 0.5) * CITADEL_SCALE, y: (entry.y - 0.5) * CITADEL_SCALE }
+}
+
+/**
+ * How far a room reaches in one direction.
+ *
+ * Less than it reaches to a corner, which is what `roomReach` answers and is
+ * the wrong question here: two rooms joined along the y do not have to clear
+ * each other's corners, and asking for that made the building half as big
+ * again as it needs to be.
+ */
+export function support(room: RoomShape, ux: number, uy: number): number {
+  if (room.kind !== 'hall') return room.radius
+  return Math.abs(ux) * room.halfWidth + (uy > 0 ? uy * room.front : -uy * room.back)
+}
+
+/**
+ * How far along this bearing the floor lasts, which is a different question.
+ *
+ * `support` answers "what is the furthest this room reaches that way", and for
+ * a rectangle that is a corner. Where a passage has to start is where the
+ * *ray* leaves the room, which is nearer — and using the corner instead put
+ * the near end of two of the passages outside the room they were supposed to
+ * be knitted into, so the floor had a hole in it exactly where the build now
+ * looks for one.
+ */
+export function exitAlong(room: RoomShape, ux: number, uy: number): number {
+  if (room.kind !== 'hall') return room.radius
+  const t = room.turn ?? 0
+  const cos = Math.cos(-t)
+  const sin = Math.sin(-t)
+  const vx = ux * cos - uy * sin
+  const vy = ux * sin + uy * cos
+  const acrossWall = vx === 0 ? Infinity : room.halfWidth / Math.abs(vx)
+  const alongWall = vy === 0 ? Infinity : vy > 0 ? room.front / vy : room.back / -vy
+  return Math.min(acrossWall, alongWall)
+}
+
+/** The ground between two rooms, laid along the line and knitted into both. */
+function bridge(from: string, to: string, corridor?: Corridor): Cell {
+  const a = placeOf(from)
+  const b = placeOf(to)
+  const d = Math.hypot(b.x - a.x, b.y - a.y)
+  const ux = (b.x - a.x) / d
+  const uy = (b.y - a.y) / d
+  const leaves = exitAlong(roomOf(from), ux, uy)
+  const enters = exitAlong(roomOf(to), -ux, -uy)
+  const wallB = { x: b.x - ux * enters, y: b.y - uy * enters }
+  const gap = d - leaves - enters
+  // Pointed so that the corridor's own forward — its local -y, which is where
+  // every pack in it was placed against — runs from the near room to the far
+  // one.
+  const turn = Math.atan2(ux, -uy)
+  if (corridor && corridor.room.kind === 'hall') {
+    // Its far door sits just inside the room it opens onto, and its length
+    // grows backwards to reach the room it leaves. The packs keep the spacing
+    // they were written with: what stretches is the empty walk in front of
+    // them, which is the part of a corridor nobody measured.
+    const at = { x: wallB.x + (KNIT - 120) * ux, y: wallB.y + (KNIT - 120) * uy }
+    return {
+      id: `${from}>${to}`,
+      room: { ...corridor.room, front: gap + KNIT * 2 - 60, at, turn },
+    }
+  }
+  // A door with nothing behind it is still floor, and floor is what keeps the
+  // building in one piece.
+  const half = (gap + KNIT * 2) / 2
+  const mid = {
+    x: wallB.x + (KNIT - half) * ux,
+    y: wallB.y + (KNIT - half) * uy,
+  }
+  return {
+    id: `${from}>${to}`,
+    room: { kind: 'hall', halfWidth: 220, front: half, back: half, at: mid, turn },
+  }
+}
+
+/** Every room and every stretch of ground, placed. */
+export function citadelWorld(): Cell[] {
+  const cells: Cell[] = CHAMBERS.map((c) => ({
+    id: c.id,
+    room: { ...roomOf(c.id), at: placeOf(c.id) },
+  }))
+  for (const passage of PASSAGES) {
+    cells.push(bridge(passage.from, passage.to, passage.corridor))
+  }
+  return cells
+}
+
 export function chamberAt(id: string): Chamber | undefined {
   return CHAMBERS.find((c) => c.id === id)
 }

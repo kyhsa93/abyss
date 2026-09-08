@@ -34,9 +34,56 @@ import type { Vec2 } from './types'
  * boss.
  */
 export type RoomShape =
-  | { kind: 'round'; radius: number }
-  | { kind: 'hall'; halfWidth: number; front: number; back: number }
-  | { kind: 'platform'; radius: number }
+  | { kind: 'round'; radius: number; at?: Vec2; turn?: number }
+  | { kind: 'hall'; halfWidth: number; front: number; back: number; at?: Vec2; turn?: number }
+  | { kind: 'platform'; radius: number; at?: Vec2; turn?: number }
+
+/**
+ * Where the room is, which used to be a question with one answer.
+ *
+ * Every room in this game was written around the origin, and while a fight was
+ * the only thing that had a room that was the truth rather than a shortcut.
+ * The citadel is one place walked through end to end now, so the rooms have to
+ * sit somewhere in it — and a room that says nothing still sits at the origin,
+ * so a fight on its own is the same fight it has always been, in the same
+ * coordinates, with the same numbers coming out of it.
+ *
+ * `turn` goes with it, and is only ever about halls: a corridor joins two
+ * rooms that are wherever the plan put them, so it points wherever it has to,
+ * while every room in this game was written with its long axis on the y. A
+ * disc does not care and a room that says nothing is not turned at all.
+ *
+ * Everything below works in the room's own frame and translates and turns on
+ * the way in and out, so no caller has to know whether the room it was handed
+ * has been put anywhere or pointed anywhere.
+ */
+export function roomAt(room: RoomShape): Vec2 {
+  return room.at ?? ORIGIN
+}
+
+const ORIGIN: Vec2 = { x: 0, y: 0 }
+
+/** The point in the room's own frame, where every shape below is written. */
+function local(room: RoomShape, pos: Vec2): Vec2 {
+  const c = roomAt(room)
+  const dx = pos.x - c.x
+  const dy = pos.y - c.y
+  const t = room.turn ?? 0
+  if (t === 0) return { x: dx, y: dy }
+  const cos = Math.cos(-t)
+  const sin = Math.sin(-t)
+  return { x: dx * cos - dy * sin, y: dx * sin + dy * cos }
+}
+
+/** And back out of it, which is the only other thing anything here needs. */
+function world(room: RoomShape, p: Vec2): Vec2 {
+  const c = roomAt(room)
+  const t = room.turn ?? 0
+  if (t === 0) return { x: p.x + c.x, y: p.y + c.y }
+  const cos = Math.cos(t)
+  const sin = Math.sin(t)
+  return { x: p.x * cos - p.y * sin + c.x, y: p.x * sin + p.y * cos + c.y }
+}
 
 /**
  * The room every fight was fought in before rooms existed.
@@ -86,14 +133,15 @@ export function onEdge(room: RoomShape, pos: Vec2, radius = 0): boolean {
  * written off it so that a room can never answer the two differently.
  */
 export function wallGap(room: RoomShape, pos: Vec2, radius = 0): number {
+  const p = local(room, pos)
   if (room.kind === 'hall') {
     return Math.min(
-      room.halfWidth - radius - Math.abs(pos.x),
-      room.front - radius - pos.y,
-      pos.y - (radius - room.back),
+      room.halfWidth - radius - Math.abs(p.x),
+      room.front - radius - p.y,
+      p.y - (radius - room.back),
     )
   }
-  return room.radius - radius - Math.hypot(pos.x, pos.y)
+  return room.radius - radius - Math.hypot(p.x, p.y)
 }
 
 /** Whether a body of that radius fits here without touching a wall. */
@@ -114,21 +162,31 @@ export function insideRoom(room: RoomShape, pos: Vec2, radius = 0): boolean {
  * will — collapses to the middle rather than turning inside out.
  */
 export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
+  const p = local(room, pos)
   if (room.kind === 'hall') {
     const wide = Math.max(0, room.halfWidth - radius)
     const far = room.front - radius
     const near = radius - room.back
-    pos.x = Math.max(-wide, Math.min(wide, pos.x))
-    pos.y = far < near ? (far + near) / 2 : Math.max(near, Math.min(far, pos.y))
+    p.x = Math.max(-wide, Math.min(wide, p.x))
+    p.y = far < near ? (far + near) / 2 : Math.max(near, Math.min(far, p.y))
+    const back = world(room, p)
+    pos.x = back.x
+    pos.y = back.y
     return
   }
   const limit = Math.max(0, room.radius - radius)
-  const dist = Math.hypot(pos.x, pos.y)
+  const dist = Math.hypot(p.x, p.y)
   if (dist > limit) {
     const scale = limit / dist
-    pos.x *= scale
-    pos.y *= scale
+    const back = world(room, { x: p.x * scale, y: p.y * scale })
+    pos.x = back.x
+    pos.y = back.y
   }
+}
+
+/** A point written in the room's own frame, put where the room actually is. */
+export function fromRoom(room: RoomShape, p: Vec2): Vec2 {
+  return world(room, p)
 }
 
 /**
