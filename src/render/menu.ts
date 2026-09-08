@@ -1,7 +1,7 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
-import { CHAMBERS, chamberAt } from '../dungeon'
-import { isCleared, open, type Run } from '../citadel'
+import { CHAMBERS, PASSAGES, chamberAt, gateOpen, passageKey } from '../dungeon'
+import { isCleared, isWalked, open, stepTo, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { bossOpen, isOpen } from '../progress'
@@ -852,19 +852,18 @@ export function hitBgSetup(x: number, y: number): { kind: 'map'; map: BgKind } |
 export interface CitadelRow {
   id: string
   rect: Rect
-  /** Indented under its wing, which is how the three branches read as three. */
-  depth: number
   /**
    * What the room is, which is what it is drawn as.
    *
    *   here      the party is standing in it
    *   cleared   its fight is down
-   *   open      a fight, reachable, still alive
+   *   open      one press away: a step, held ground, or a pad
+   *   away      open, but not from here — walk the doors between
    *   through   a room with no fight in it: the door, the crossing, the walk
    *   waiting   a room whose fight is not built yet
    *   shut      behind a door that has not opened
    */
-  state: 'here' | 'cleared' | 'open' | 'through' | 'waiting' | 'shut'
+  state: 'here' | 'cleared' | 'open' | 'away' | 'through' | 'waiting' | 'shut'
   /**
    * Whether pressing it starts a fight, which is a different question.
    *
@@ -889,76 +888,110 @@ const CITADEL_ORDER_IDS = CHAMBERS.map((c) => c.id)
  */
 const ALL: ReadonlySet<string> = new Set(CITADEL_ORDER_IDS)
 
-/** The order the map reads in, which is the order the citadel is walked in. */
-const CITADEL_ORDER: Array<{ id: string; depth: number }> = [
-  { id: 'threshold', depth: 0 },
-  { id: 'spire', depth: 0 },
-  { id: 'oratory', depth: 0 },
-  { id: 'rampart', depth: 0 },
-  { id: 'rise', depth: 0 },
-  { id: 'crossing', depth: 0 },
-  { id: 'sludge', depth: 1 },
-  { id: 'airless', depth: 1 },
-  { id: 'laboratory', depth: 1 },
-  { id: 'crimson', depth: 1 },
-  { id: 'sanctum', depth: 1 },
-  { id: 'dream', depth: 1 },
-  { id: 'gauntlet', depth: 1 },
-  { id: 'lair', depth: 1 },
-  { id: 'throne', depth: 0 },
+/**
+ * Where each room sits on the plan, nought to one in both directions.
+ *
+ * A drawing rather than a list, and the reason is the shape of the building:
+ * one way up, a split into three, and a top that waits for all of them. A
+ * column of rows can say which rooms exist and cannot say *that* — and which
+ * of the three to do next is the only choice an evening offers.
+ *
+ * Hand-placed. Fifteen rooms laid out by an algorithm is fifteen rooms in the
+ * wrong places.
+ */
+const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
+  { id: 'threshold', x: 0.5, y: 0.0 },
+  { id: 'spire', x: 0.5, y: 0.1 },
+  { id: 'oratory', x: 0.5, y: 0.2 },
+  { id: 'rampart', x: 0.5, y: 0.3 },
+  { id: 'rise', x: 0.5, y: 0.4 },
+  { id: 'crossing', x: 0.5, y: 0.51 },
+  { id: 'sludge', x: 0.1, y: 0.64 },
+  { id: 'airless', x: 0.31, y: 0.64 },
+  { id: 'laboratory', x: 0.205, y: 0.775 },
+  { id: 'crimson', x: 0.5, y: 0.64 },
+  { id: 'sanctum', x: 0.5, y: 0.775 },
+  { id: 'dream', x: 0.9, y: 0.64 },
+  { id: 'gauntlet', x: 0.9, y: 0.775 },
+  { id: 'lair', x: 0.9, y: 0.91 },
+  { id: 'throne', x: 0.5, y: 0.96 },
 ]
 
 export function citadelLayout(run: Run, allowed: ReadonlySet<string> = ALL): CitadelLayout {
   const p = pad()
   const back = backRect()
-  const top = titleY() + 30 * L.ui * MENU_TEXT
-  const bottom = back.y - 12
-  const rowH = Math.max(22, Math.min(34, (bottom - top) / CITADEL_ORDER.length - 2))
-  const gap = 4
-  const perColumn = Math.max(1, Math.floor((bottom - top) / (rowH + gap)))
-  const columns = Math.ceil(CITADEL_ORDER.length / perColumn)
-  const width = Math.min(360, (L.w - p * 2 - gap * (columns - 1)) / columns)
-  const left = L.w / 2 - (width * columns + gap * (columns - 1)) / 2
+  const top = titleY() + 26 * L.ui * MENU_TEXT
+  const bottom = back.y - 10
+  // Sized off the plan rather than off the screen.
+  //
+  // A box is as wide as the closest pair of rooms that share a row allows and
+  // as tall as the closest pair that share a column — worked out from the
+  // table itself, so moving a room on the plan cannot quietly put two boxes on
+  // top of each other. Written as a fraction of the screen first, and the
+  // build caught it on a phone: seven rooms overlapping in portrait.
+  const span = L.w - p * 2
+  const vspan = bottom - top
+  let closestX = 1
+  let closestY = 1
+  for (const a of CITADEL_PLAN) {
+    for (const b of CITADEL_PLAN) {
+      if (a === b) continue
+      const dx = Math.abs(a.x - b.x)
+      const dy = Math.abs(a.y - b.y)
+      if (dy < 0.05) closestX = Math.min(closestX, dx)
+      if (dx < 0.05) closestY = Math.min(closestY, dy)
+    }
+  }
+  // The boxes are laid out across what is left after a box's own width, so the
+  // gap between two of them is `closest * (span - width)` and not
+  // `closest * span`. Solved for the width that leaves them just touching, and
+  // then a tenth off that so they do not.
+  const fit = (room: number, closest: number) => (closest * room) / (1 + closest)
+  const width = Math.max(44, Math.min(150, fit(span, closestX) * 0.9))
+  const height = Math.max(16, Math.min(32, fit(vspan, closestY) * 0.85))
+  const left = p + width / 2
+  const right = L.w - p - width / 2
+  const high = top + height / 2
+  const low = bottom - height / 2
 
   const reached = new Set(open(run).map((c) => c.id))
-  const rows = CITADEL_ORDER.map((entry, i) => {
-    const column = Math.floor(i / perColumn)
-    const at = i % perColumn
+  const rows = CITADEL_PLAN.map((entry) => {
+    const cx = left + (right - left) * entry.x
+    const cy = high + (low - high) * entry.y
     const chamber = chamberAt(entry.id)
-    // A corridor is something to walk into, the same as a fight is. What is
-    // different is only what happens after the press.
-    const fight = chamber?.encounter ?? (chamber?.corridor ? -1 : null)
+    const fight = chamber?.encounter ?? null
     const reachedIt = reached.has(entry.id)
-    const enterable =
-      fight !== null &&
-      reachedIt &&
-      !isCleared(run, entry.id) &&
-      (chamber?.corridor !== undefined || allowed.has(entry.id))
-    const state: CitadelRow['state'] =
-      run.at === entry.id
-        ? 'here'
-        : isCleared(run, entry.id)
-          ? 'cleared'
-          : !reachedIt
-            ? 'shut'
-            : fight === null
-              ? chamber?.awaiting === undefined
+    // Two different presses, and the row has to know which it is offering.
+    // Standing in a room with something alive in it, the press pulls; standing
+    // anywhere else, the press is the way there — which is a step, a walk down
+    // held ground, or a pad.
+    const here = run.at === entry.id
+    const step = here ? null : stepTo(run, entry.id)
+    const canPull =
+      here && fight !== null && !isCleared(run, entry.id) && allowed.has(entry.id)
+    const enterable = canPull || (step !== null && step.kind !== 'shut')
+    // What a room *is* comes before how to get there. A room whose fight
+    // nobody has built is waiting whether or not it is one door away, and the
+    // held ground on the way to it is drawn on the door rather than said in
+    // the box.
+    const state: CitadelRow['state'] = here
+      ? 'here'
+      : isCleared(run, entry.id)
+        ? 'cleared'
+        : !reachedIt
+          ? 'shut'
+          : fight === null && chamber?.awaiting !== undefined
+            ? 'waiting'
+            : step && step.kind !== 'shut'
+              ? 'open'
+              : fight === null
                 ? 'through'
-                : 'waiting'
-              : enterable
-                ? 'open'
-                : 'shut'
+                : 'away'
     return {
       id: entry.id,
-      depth: entry.depth,
       state,
       enterable,
-      rect: {
-        x: left + column * (width + gap) + entry.depth * 14 * L.ui,
-        y: top + at * (rowH + gap),
-        w: width - entry.depth * 14 * L.ui,
-        h: rowH,
-      },
+      rect: { x: cx - width / 2, y: cy - height / 2, w: width, h: height },
     }
   })
 
@@ -985,6 +1018,31 @@ export function drawCitadel(
   )
 
   const layout = citadelLayout(run, allowed)
+
+  // The doors first, under the rooms, because that is what they are: a line
+  // between two boxes says the citadel is a building rather than a list, and a
+  // line that is not there says why you cannot go that way.
+  const cleared = new Set(run.cleared)
+  const at = (id: string) => {
+    const row = layout.rows.find((r) => r.id === id)
+    return row ? { x: row.rect.x + row.rect.w / 2, y: row.rect.y + row.rect.h / 2 } : null
+  }
+  for (const passage of PASSAGES) {
+    const a = at(passage.from)
+    const b = at(passage.to)
+    if (!a || !b) continue
+    const shut = !gateOpen(passage.gate, cleared)
+    const held = passage.corridor !== undefined && !isWalked(run, passageKey(passage.from, passage.to))
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
+    ctx.strokeStyle = shut ? COLORS.panelEdge : held ? COLORS.boss : COLORS.floorEdge
+    ctx.lineWidth = shut ? 1 : held ? 2 : 1.5
+    ctx.setLineDash(shut ? [3, 5] : held ? [6, 4] : [])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
   for (const row of layout.rows) {
     const chamber = chamberAt(row.id)
     if (!chamber) continue
@@ -996,6 +1054,8 @@ export function drawCitadel(
           : row.state === 'open'
             ? COLORS.text
             : COLORS.dead
+    // What the press would do, said in the row rather than learnt by pressing.
+    const step = row.id === run.at ? null : stepTo(run, row.id)
     const detail =
       row.state === 'here'
         ? row.enterable
@@ -1005,15 +1065,17 @@ export function drawCitadel(
           ? 'down'
           : row.state === 'waiting'
             ? (chamber.awaiting ?? 'nothing here yet')
-            : row.state === 'through'
-              ? 'a way through'
-              : row.state === 'shut'
-                ? 'shut'
-                : chamber.corridor
-                ? `${chamber.corridor.packs.length} packs holding it`
-                : chamber.pad
-                  ? 'open — a pad here'
-                  : 'open'
+            : row.state === 'shut'
+              ? 'shut'
+              : step?.kind === 'walk'
+                ? `${step.corridor.packs.length} packs on the way`
+                : step?.kind === 'jump'
+                  ? 'a pad — straight there'
+                  : step?.kind === 'step'
+                    ? 'one door away'
+                    : row.state === 'through'
+                      ? 'a way through'
+                      : 'further on'
     button(ctx, row.rect, chamber.name, detail, colour, row.state === 'here' || row.enterable)
   }
 

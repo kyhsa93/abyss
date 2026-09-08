@@ -9185,7 +9185,7 @@ for (const [label, w, h] of [
   // An evening two rooms in: the first fight down, the party standing in the
   // second with it still alive, and the room after that one waiting for a
   // fight nobody has built.
-  const run = { seed: 1, size: 10 as const, difficulty: 'normal' as const, at: 'oratory', cleared: ['spire'], carried: [0.5], entered: 2 }
+  const run = { seed: 1, size: 10 as const, difficulty: 'normal' as const, at: 'oratory', cleared: ['spire'], carried: [0.5], entered: 2, walked: [], visited: ['threshold', 'spire', 'oratory'] }
   const allowed = new Set(['spire', 'oratory', 'airless'])
   for (const [label, w, h] of [
     ['desktop 1440x900', 1440, 900],
@@ -9204,6 +9204,22 @@ for (const [label, w, h] of [
       (r) => r.rect.y + r.rect.h > layout.back.y && r.rect.x + r.rect.w > layout.back.x,
     )
     expect(`${label}: and none of them under the way out`, clash.length === 0, clash.map((r) => r.id).join(', '))
+    // A plan whose boxes overlap is a plan that says two rooms are one room.
+    const overlaps = layout.rows.filter((r, i) =>
+      layout.rows.some(
+        (o, j) =>
+          i !== j &&
+          r.rect.x < o.rect.x + o.rect.w &&
+          o.rect.x < r.rect.x + r.rect.w &&
+          r.rect.y < o.rect.y + o.rect.h &&
+          o.rect.y < r.rect.y + r.rect.h,
+      ),
+    )
+    expect(
+      `${label}: and no two rooms are drawn on top of each other`,
+      overlaps.length === 0,
+      overlaps.map((r) => r.id).join(', '),
+    )
 
     const here = layout.rows.find((r) => r.state === 'here')
     expect(`${label}: the party is somewhere on it`, here?.id === 'oratory', here?.id ?? 'nowhere')
@@ -9217,9 +9233,11 @@ for (const [label, w, h] of [
       layout.rows.find((r) => r.id === 'throne')?.state === 'shut',
       layout.rows.find((r) => r.id === 'throne')?.state ?? 'missing',
     )
+    // The way back to the door, which is a pad and always lit: a room with no
+    // fight in it still answers, because going there is what the press means.
     expect(
-      `${label}: the door is a room rather than a fight`,
-      layout.rows.find((r) => r.id === 'threshold')?.state === 'through',
+      `${label}: the door can be walked back to`,
+      layout.rows.find((r) => r.id === 'threshold')?.state === 'open',
       layout.rows.find((r) => r.id === 'threshold')?.state ?? 'missing',
     )
 
@@ -9228,11 +9246,15 @@ for (const [label, w, h] of [
     const oratory = layout.rows.find((r) => r.id === 'oratory')!
     const press = hitCitadel(run, oratory.rect.x + 4, oratory.rect.y + oratory.rect.h / 2, allowed)
     expect(`${label}: a room with something alive answers a tap`, press?.kind === 'room' && press.id === 'oratory', JSON.stringify(press))
+    // A room already down answers as somewhere to go rather than something to
+    // pull: the press is the way there, and what stops a cleared fight being
+    // re-pulled is the room itself, not the map.
     const done = layout.rows.find((r) => r.id === 'spire')!
+    const back = hitCitadel(run, done.rect.x + 4, done.rect.y + done.rect.h / 2, allowed)
     expect(
-      `${label}: and a room already down does not`,
-      hitCitadel(run, done.rect.x + 4, done.rect.y + done.rect.h / 2, allowed) === null,
-      'a cleared room answered',
+      `${label}: and a room already down is somewhere to walk to`,
+      back?.kind === 'room' && back.id === 'spire',
+      JSON.stringify(back),
     )
     const shut = layout.rows.find((r) => r.id === 'throne')!
     expect(

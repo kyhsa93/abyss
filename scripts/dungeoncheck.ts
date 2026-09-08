@@ -30,6 +30,9 @@ import {
   roomSeed,
   save,
   startRun,
+  stepTo,
+  walkedTo,
+  ways,
   wiped,
 } from '../src/citadel'
 
@@ -70,9 +73,7 @@ expect('and every gate names a room that exists', gatesNamed.length === 0, gates
 
 // A door held shut by a room with nothing in it can never open.
 const empty = new Set(
-  CHAMBERS.filter((c) => c.encounter === null && c.awaiting === undefined && c.corridor === undefined).map(
-    (c) => c.id,
-  ),
+  CHAMBERS.filter((c) => c.encounter === null && c.awaiting === undefined).map((c) => c.id),
 )
 const unkillable = PASSAGES.flatMap((p) =>
   p.gate?.kind === 'killed' ? p.gate.chambers.filter((id) => empty.has(id)).map((id) => `${p.to} waits on ${id}`) : [],
@@ -117,7 +118,7 @@ function walkThrough(): { order: string[]; cleared: Set<string> } {
     for (const id of reachable(cleared)) {
       const room = chamberAt(id)!
       if (cleared.has(id)) continue
-      if (room.encounter === null && room.awaiting === undefined && room.corridor === undefined) continue
+      if (room.encounter === null && room.awaiting === undefined) continue
       cleared.add(id)
       order.push(id)
       moved = true
@@ -128,11 +129,7 @@ function walkThrough(): { order: string[]; cleared: Set<string> } {
 }
 
 const walk = walkThrough()
-// A corridor counts: it is a room with something alive in it, and the wing it
-// is in is not done while it stands.
-const fights = CHAMBERS.filter(
-  (c) => c.encounter !== null || c.awaiting !== undefined || c.corridor !== undefined,
-)
+const fights = CHAMBERS.filter((c) => c.encounter !== null || c.awaiting !== undefined)
 expect(
   `the whole citadel opens: ${walk.cleared.size} of ${fights.length} fights`,
   walk.cleared.size === fights.length,
@@ -235,7 +232,7 @@ expect(
 // them. The last of those is the corridor's only decision, so it is counted
 // rather than forbidden.
 {
-  const corridors = CHAMBERS.filter((c) => c.corridor).map((c) => c.corridor!)
+  const corridors = PASSAGES.filter((p) => p.corridor).map((p) => p.corridor!)
   expect(`${corridors.length} corridor(s) on the map`, corridors.length > 0)
   const jog = corridors.filter((c) => unguarded(c))
   expect(
@@ -274,8 +271,9 @@ expect(
 // door — and the one it must not: nobody walks out of the room.
 {
   const dps = pickFor('mage', 'dps')!
-  for (const chamber of CHAMBERS.filter((c) => c.corridor)) {
-    const corridor = chamber.corridor!
+  for (const passage of PASSAGES.filter((p) => p.corridor)) {
+    const corridor = passage.corridor!
+    const chamber = { name: `${passage.from} to ${passage.to}` }
     const s = unattended(createCorridorState(31337, autoParty(10, dps), corridor, 'normal'))
     const rng = new Rng(31337)
     let outside = 0
@@ -399,6 +397,67 @@ expect(
   )
   store.set('abyss.citadel', 'not json at all')
   expect('and a save that is not a save is no run at all', load() === null)
+}
+
+// --- and how it is crossed ---------------------------------------------------
+//
+// Three ways to get somewhere and one way not to. The pads are the only thing
+// on the map that reaches further than a door, which is what they are for.
+{
+  const fresh = startRun(11, 10, 'normal')
+  const from = ways(fresh)
+  expect(
+    'at the door, the only way on is the first room',
+    from.length === 1 && from[0]!.to === 'spire',
+    from.map((w) => `${w.to}:${w.step.kind}`).join(', '),
+  )
+  expect('and nothing two doors away answers', stepTo(fresh, 'rampart').kind === 'shut')
+
+  // A door with ground behind it charges once.
+  const held = { ...fresh, at: 'oratory', cleared: ['spire', 'oratory'] }
+  const walk = stepTo(held, 'rampart')
+  expect(
+    'a door with ground behind it asks for the walk',
+    walk.kind === 'walk' && walk.corridor.packs.length > 1,
+    walk.kind,
+  )
+  const after = walk.kind === 'walk' ? walkedTo(held, walk.key, 'rampart', []) : held
+  expect('and the party is through it afterwards', after.at === 'rampart')
+  // Either a step or a pad, and never the walk again: what a corridor costs is
+  // the price of getting there the first time.
+  expect(
+    'and it does not ask twice',
+    ['step', 'jump'].includes(stepTo({ ...after, at: 'oratory' }, 'rampart').kind),
+    stepTo({ ...after, at: 'oratory' }, 'rampart').kind,
+  )
+
+  // A pad reaches across the building, and only once it is lit.
+  const deep = {
+    ...fresh,
+    at: 'rise',
+    cleared: ['spire', 'oratory', 'rampart', 'rise'],
+    visited: ['threshold', 'spire', 'oratory', 'rampart', 'rise'],
+  }
+  expect(
+    'a lit pad reaches a room no door here opens onto',
+    stepTo(deep, 'oratory').kind === 'jump' && stepTo(deep, 'threshold').kind === 'jump',
+    `${stepTo(deep, 'oratory').kind} / ${stepTo(deep, 'threshold').kind}`,
+  )
+  expect(
+    'and an unlit one does not',
+    stepTo(fresh, 'rise').kind === 'shut',
+    stepTo(fresh, 'rise').kind,
+  )
+
+  // And the evening remembers which ground it has taken.
+  save(after)
+  const back = load()
+  expect(
+    'the doors already taken survive being closed',
+    back !== null && back.walked.join() === after.walked.join() && back.walked.length === 1,
+    JSON.stringify(back?.walked),
+  )
+  save(null)
 }
 
 if (failures > 0) {

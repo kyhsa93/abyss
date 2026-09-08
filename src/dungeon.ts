@@ -1,5 +1,6 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor } from './sim/travel'
+import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 
 /**
@@ -48,15 +49,7 @@ export interface Chamber {
   encounter: number | null
   /** For a room whose fight is not built yet: what it is waiting for. */
   awaiting?: string
-  /**
-   * A room that is a walk rather than a fight.
-   *
-   * The source puts held ground between some of its rooms, and what that
-   * ground is for is not difficulty: it costs time, it costs health, and it
-   * asks where to take the next pack. A chamber with one of these is entered
-   * like any other and is over when the party is through the far door.
-   */
-  corridor?: Corridor
+
   /**
    * The pad in this room, and what lights it.
    *
@@ -74,6 +67,30 @@ export interface Passage {
   to: string
   /** Omitted is `always`. */
   gate?: Gate
+  /**
+   * The ground between the two, held by somebody.
+   *
+   * On the passage rather than on a room, which is where it belongs and is not
+   * where it started: a corridor is not a place you go, it is the price of
+   * going somewhere. Modelled as a room, the walk between the dragon and the
+   * lair was a third thing on the map beside them; modelled here it is what
+   * the door costs.
+   *
+   * Walked once and then done for the evening. What it costs is time and
+   * health, and paying it twice for the same door would be a toll rather than
+   * a corridor — which is also what makes the pads worth lighting.
+   */
+  corridor?: Corridor
+}
+
+/** What a passage is called where a run has to remember it. */
+export function passageKey(from: string, to: string): string {
+  return from < to ? `${from}:${to}` : `${to}:${from}`
+}
+
+/** The passage joining two rooms, in whichever direction it was written. */
+export function passageBetween(a: string, b: string): Passage | undefined {
+  return PASSAGES.find((p) => (p.from === a && p.to === b) || (p.from === b && p.to === a))
 }
 
 const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
@@ -170,33 +187,9 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     awaiting: 'the boss that is healed (#11)',
   },
-  // Held ground between the dragon and the lair: the citadel's first corridor.
-  //
-  // Three packs down a narrow hall, and the numbers are the whole design. The
-  // first two notice within four hundred and forty units of each other and
-  // their circles are four hundred and eighty across, so taking the first one
-  // carelessly brings the second — that overlap is the only decision a
-  // corridor has, and it is here on purpose. The third stands clear.
-  //
-  // Nothing can be walked past: the line from door to door runs inside every
-  // circle, which the build checks. A corridor you can jog through is scenery.
-  {
-    id: 'gauntlet',
-    name: 'The Frost Gauntlet',
-    wing: 'frostwing',
-    encounter: null,
-    corridor: {
-      id: 'gauntlet',
-      room: { kind: 'hall', halfWidth: 360, front: 1360, back: 240 },
-      entry: { x: 0, y: 1240 },
-      exit: { x: 0, y: -120 },
-      packs: [
-        { pos: { x: 0, y: 980 }, count: 4, pulls: 230 },
-        { pos: { x: -130, y: 560 }, count: 3, pulls: 250 },
-        { pos: { x: 140, y: 120 }, count: 5, pulls: 240 },
-      ],
-    },
-  },
+  // A landing between the dragon's hall and the lair above it. What is on it
+  // is a fact about the door rather than about the room — see the passage.
+  { id: 'gauntlet', name: 'The Frost Gauntlet', wing: 'frostwing', encounter: null },
   {
     id: 'lair',
     name: 'The Rimeward Lair',
@@ -228,24 +221,113 @@ export const CHAMBERS: Chamber[] = [
  *   4. The gauntlet, and the lair beyond it, open when the dragon is saved.
  *   5. The throne opens when all three wings are finished.
  */
+/**
+ * A stretch of held ground, written once and hung on the door it guards.
+ *
+ * The shape is always the same because the question always is: a hall long
+ * enough that nothing can be walked past, packs standing where somebody put
+ * them, and one pair of circles close enough that taking the first carelessly
+ * brings the second. That overlap is the only decision a corridor has.
+ *
+ * They differ in how much of it there is. The approach to a wing is one pack
+ * and a warning; the ground before a lair is three and a lesson.
+ */
+function corridor(id: string, packs: Array<{ pos: Vec2; count: number; pulls: number }>): Corridor {
+  // The hall is as long as what is standing in it, plus room to arrive.
+  //
+  // Written the other way round first — a length, and packs placed inside it —
+  // and the build caught what that produces: a party that walks in already
+  // inside the first pack's circle, which is a corridor that pulls itself.
+  // The way in has to be outside everything, so it is derived rather than
+  // chosen.
+  const top = Math.max(...packs.map((p) => p.pos.y + p.pulls))
+  const front = top + 200
+  return {
+    id,
+    room: { kind: 'hall', halfWidth: 360, front, back: 240 },
+    entry: { x: 0, y: front - 60 },
+    exit: { x: 0, y: -120 },
+    packs,
+  }
+}
+
 export const PASSAGES: Passage[] = [
   { from: 'threshold', to: 'spire' },
   { from: 'spire', to: 'oratory', gate: killed('spire') },
-  { from: 'oratory', to: 'rampart', gate: killed('oratory') },
-  { from: 'rampart', to: 'rise', gate: killed('rampart') },
+  {
+    from: 'oratory',
+    to: 'rampart',
+    gate: killed('oratory'),
+    corridor: corridor('rampartway', [
+      { pos: { x: 0, y: 560 }, count: 3, pulls: 250 },
+      { pos: { x: -100, y: 200 }, count: 3, pulls: 230 },
+    ]),
+  },
+  {
+    from: 'rampart',
+    to: 'rise',
+    gate: killed('rampart'),
+    corridor: corridor('riseway', [
+      { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
+      { pos: { x: 120, y: 320 }, count: 3, pulls: 240 },
+    ]),
+  },
   { from: 'rise', to: 'crossing', gate: killed('rise') },
 
-  { from: 'crossing', to: 'sludge' },
-  { from: 'crossing', to: 'airless' },
+  // The way into the plagueworks: one pack on the stair, and a second standing
+  // close enough behind it that a careless pull brings both.
+  {
+    from: 'crossing',
+    to: 'sludge',
+    corridor: corridor('sludgeway', [
+      { pos: { x: 0, y: 780 }, count: 3, pulls: 240 },
+      { pos: { x: -120, y: 380 }, count: 3, pulls: 250 },
+    ]),
+  },
+  {
+    from: 'crossing',
+    to: 'airless',
+    corridor: corridor('airway', [
+      { pos: { x: 0, y: 620 }, count: 4, pulls: 260 },
+      { pos: { x: 110, y: 240 }, count: 3, pulls: 230 },
+    ]),
+  },
   { from: 'sludge', to: 'laboratory', gate: killed('sludge', 'airless') },
   { from: 'airless', to: 'laboratory', gate: killed('sludge', 'airless') },
 
-  { from: 'crossing', to: 'crimson' },
+  // The crimson hall's stair, which is long and has three landings on it.
+  {
+    from: 'crossing',
+    to: 'crimson',
+    corridor: corridor('crimsonway', [
+      { pos: { x: 0, y: 940 }, count: 3, pulls: 230 },
+      { pos: { x: 140, y: 540 }, count: 4, pulls: 250 },
+      { pos: { x: -110, y: 160 }, count: 3, pulls: 230 },
+    ]),
+  },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },
 
-  { from: 'crossing', to: 'dream' },
+  {
+    from: 'crossing',
+    to: 'dream',
+    corridor: corridor('dreamway', [
+      { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
+      { pos: { x: -130, y: 300 }, count: 3, pulls: 260 },
+    ]),
+  },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
-  { from: 'gauntlet', to: 'lair' },
+  // The citadel's longest walk, and the one it is named for: three packs, and
+  // the first two notice within four hundred and forty units of each other
+  // against circles four hundred and eighty across.
+  {
+    from: 'gauntlet',
+    to: 'lair',
+    corridor: corridor('gauntlet', [
+      { pos: { x: 0, y: 980 }, count: 4, pulls: 230 },
+      { pos: { x: -130, y: 560 }, count: 3, pulls: 250 },
+      { pos: { x: 140, y: 120 }, count: 5, pulls: 240 },
+    ]),
+  },
 
   { from: 'crossing', to: 'throne', gate: { kind: 'wings', wings: ['plague', 'crimson', 'frostwing'] } },
 ]
@@ -257,7 +339,7 @@ export function chamberAt(id: string): Chamber | undefined {
 /** Every room of a wing that holds a fight, which is what "the wing is done" is about. */
 export function wingFights(wing: WingId): Chamber[] {
   return CHAMBERS.filter(
-    (c) => c.wing === wing && (c.encounter !== null || c.awaiting !== undefined || c.corridor !== undefined),
+    (c) => c.wing === wing && (c.encounter !== null || c.awaiting !== undefined),
   )
 }
 

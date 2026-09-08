@@ -135,6 +135,10 @@ import {
   ROOM_REVIVE,
   cleared as clearedRoom,
   enter as enterChamber,
+  isCleared,
+  stepTo,
+  stepped,
+  walkedTo,
   load as loadRun,
   roomSeed,
   save as saveRun,
@@ -142,7 +146,8 @@ import {
   wiped as wipedRoom,
   type Run,
 } from './citadel'
-import { CHAMBERS, chamberAt } from './dungeon'
+import { CHAMBERS, PASSAGES, chamberAt, passageKey } from './dungeon'
+import type { Corridor } from './sim/travel'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -454,6 +459,8 @@ let playingDaily = false
 let run: Run | null = loadRun()
 /** Which room the fight on screen is in, and what the party walked into it with. */
 let roomId: string | null = null
+/** The door whose ground is being taken, when the fight on screen is a walk. */
+let walkKey: string | null = null
 let roomCarried: number[] = []
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
@@ -557,20 +564,22 @@ function buildState(): SimState {
 }
 
 /**
- * Walks into a room of the citadel, carrying the party in the state it left
- * the last one in.
+ * Pulling the fight in the room the party is standing in.
  *
- * Whatever health it had plus a little back, and one of the fallen on their
- * feet. What is missing is where the little back should come from — a walk
- * down a corridor rather than a flat fraction for having opened a door, which
- * is #24's to build.
+ * The party carries what it walked out of the last room with: whatever health
+ * it had plus a little back, and one of the fallen on their feet. What the
+ * little back should be bought with is the walk between the two — see
+ * `walkTo`, which is where the recovery will move when it is time-based.
  */
 function enterRoom(id: string): void {
   const chamber = chamberAt(id)
-  if (!run || !chamber) return
-  if (chamber.encounter === null && !chamber.corridor) return
+  if (!run || !chamber || chamber.encounter === null) return
+  // A room whose fight is down is a room to walk through. Pressing it again
+  // used to re-pull it, which would let an evening farm its own first boss.
+  if (isCleared(run, id)) return
   run = enterChamber(run, id)
   roomId = id
+  walkKey = null
   roomCarried = [...run.carried]
   difficulty = run.difficulty
   playingDaily = false
@@ -579,40 +588,78 @@ function enterRoom(id: string): void {
   recorded = false
   graded = false
   announced = []
-  if (chamber.corridor) {
-    // A walk rather than a fight: no encounter, no script, and the party in
-    // whatever state the last room left it.
-    state = createCorridorState(roomSeed(run, id), party, chamber.corridor, run.difficulty)
-  } else {
-    encounter = chamber.encounter!
-    state = newState()
-  }
+  encounter = chamber.encounter
+  state = newState()
   state.chamber = id
   rng = rngFor(state)
 
-  const party0 = state.actors.filter((a) => a.faction === 'party')
-  let revived = false
-  party0.forEach((a, i) => {
-    const was = roomCarried[i]
-    if (was === undefined) return
-    if (was >= 0) {
-      a.hp = Math.min(a.maxHp, Math.round(a.maxHp * (was + ROOM_RECOVERY)))
-      return
-    }
-    // One of the fallen gets up a room, and no more: a wipe has to stay a wipe
-    // rather than being paid off one body at a time.
-    if (!revived) {
-      revived = true
-      a.hp = Math.round(a.maxHp * ROOM_REVIVE)
-    } else {
-      a.alive = false
-      a.hp = 0
-    }
-  })
+  carryInto(state)
 
   fightingParty = party.map((p) => ({ ...p }))
   fightingDifficulty = difficulty
   fightingEncounter = encounter
+  fightingMode = mode
+  timing = { ...timing, accumulator: 0 }
+  saveRun(run)
+  screen = 'fight'
+}
+
+/**
+ * The party, in the state the last room left it.
+ *
+ * Whatever health it had plus a little back, and one of the fallen on their
+ * feet. A full heal between rooms would make every room the first room;
+ * nothing at all would mean a party that finished at ten percent has already
+ * lost the next one and is being told so a minute later.
+ */
+function carryInto(fight: SimState): void {
+  let revived = false
+  fight.actors
+    .filter((a) => a.faction === 'party')
+    .forEach((a, i) => {
+      const was = roomCarried[i]
+      if (was === undefined) return
+      if (was >= 0) {
+        a.hp = Math.min(a.maxHp, Math.round(a.maxHp * (was + ROOM_RECOVERY)))
+        return
+      }
+      // One of the fallen gets up a room, and no more: a wipe has to stay a
+      // wipe rather than being paid off one body at a time.
+      if (!revived) {
+        revived = true
+        a.hp = Math.round(a.maxHp * ROOM_REVIVE)
+      } else {
+        a.alive = false
+        a.hp = 0
+      }
+    })
+}
+
+/**
+ * Taking the ground behind a door.
+ *
+ * The same carry-over a room gets, because it is the same party arriving
+ * somewhere in the state it left the last place in — and the same seed rule,
+ * so a corridor walked twice in one evening is the same corridor.
+ */
+function walkTo(to: string, key: string, walk: Corridor): void {
+  if (!run) return
+  roomId = to
+  walkKey = key
+  roomCarried = [...run.carried]
+  difficulty = run.difficulty
+  playingDaily = false
+  mode = { kind: 'raid' }
+  attempt = 0
+  recorded = false
+  graded = false
+  announced = []
+  state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty)
+  state.chamber = to
+  rng = rngFor(state)
+  carryInto(state)
+  fightingParty = party.map((p) => ({ ...p }))
+  fightingDifficulty = difficulty
   fightingMode = mode
   timing = { ...timing, accumulator: 0 }
   saveRun(run)
@@ -657,7 +704,21 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       return
     }
     if (hit?.kind === 'room') {
-      enterRoom(hit.id)
+      // Standing in it already: the press is the pull. Anywhere else: the
+      // press is the walk, and whether that costs anything is the door's.
+      if (hit.id === run.at) {
+        enterRoom(hit.id)
+        return
+      }
+      const step = stepTo(run, hit.id)
+      if (step.kind === 'walk') {
+        walkTo(step.to, step.key, step.corridor)
+        return
+      }
+      if (step.kind === 'step' || step.kind === 'jump') {
+        run = stepped(run, step.to)
+        saveRun(run)
+      }
       return
     }
   }
@@ -691,6 +752,11 @@ function restart(): void {
   if (run && roomId) {
     run = wipedRoom(run, roomCarried)
     saveRun(run)
+    if (walkKey) {
+      const passage = PASSAGES.find((p) => passageKey(p.from, p.to) === walkKey)
+      if (passage?.corridor) walkTo(roomId, walkKey, passage.corridor)
+      return
+    }
     enterRoom(roomId)
     return
   }
@@ -1329,7 +1395,15 @@ function frame(now: number): void {
       return
     }
     if (hit === 'next') {
-      if (run && roomId) {
+      if (run && roomId && walkKey) {
+        // Ground taken: the door is a door from here on, and the party is
+        // standing on the other side of it.
+        run = walkedTo(run, walkKey, roomId, carriedOut(state))
+        saveRun(run)
+        roomId = null
+        walkKey = null
+        screen = 'citadel'
+      } else if (run && roomId) {
         // A room won: it stays won, and what the party walked out with walks
         // into the next one.
         run = clearedRoom(run, roomId, carriedOut(state))
