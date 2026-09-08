@@ -224,6 +224,13 @@ export function drawRoster(
    * caller rather than worked out from the mode.
    */
   door = false,
+  /**
+   * The room the party is standing in, when it is standing in one.
+   *
+   * A cleared room has no fight to headline, and headlining the last one the
+   * setting happened to point at reads as a promise about the next press.
+   */
+  where: string | null = null,
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
@@ -273,7 +280,12 @@ export function drawRoster(
     L.w - 16,
   )
 
-  const headline = fight ?? bg
+  if (where !== null) {
+    ctx.fillStyle = COLORS.player
+    ctx.font = font(10, true)
+    fitText(ctx, `${where} — nothing left alive in it`, L.w / 2, line(3), L.w - 16)
+  }
+  const headline = where === null ? (fight ?? bg) : null
   if (headline) {
     ctx.fillStyle = mode.kind === 'raid' ? COLORS.boss : COLORS.tank
     ctx.font = font(10, true)
@@ -290,7 +302,7 @@ export function drawRoster(
   // is. The size and the difficulty were chosen a screen ago and cannot be
   // changed here, so this is the last place the player can read what they
   // bought before walking into it.
-  if (fight) {
+  if (fight && where === null) {
     ctx.fillStyle = COLORS.textDim
     ctx.font = font(9)
     fitText(

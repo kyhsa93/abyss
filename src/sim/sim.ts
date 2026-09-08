@@ -30,6 +30,7 @@ import {
   applyDamage,
   applyHeal,
   boss,
+  bossOrNone,
   interruptCast,
   dist,
   gainPower,
@@ -58,7 +59,7 @@ import {
   FESTER_LINE,
 } from './constants'
 import type { Rng } from './rng'
-import { updateTravel, updateTravelAi } from './travel'
+import { heading, updateTravel, updateTravelAi } from './travel'
 import { BOSS_ID } from './state'
 import type { Ability } from './abilities'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -468,13 +469,17 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   // was doing looks like a row of cardboard -- and because the day something
   // asks for a bearing again, a player who has to be told which way they are
   // facing has already lost the mechanic.
-  const b = boss(s)
-  turnToward(
-    player,
-    len > 0.01
-      ? Math.atan2(input.moveY, input.moveX)
-      : Math.atan2(b.pos.y - player.pos.y, b.pos.x - player.pos.x),
-  )
+  //
+  // Standing still with nothing to face is a real state now: a room the party
+  // is only crossing has no boss in it. There the thing worth looking at is
+  // the way out, and where there is not one either the bearing is left alone
+  // rather than pointed at the origin.
+  const look = bossOrNone(s)?.pos ?? (s.mode === 'travel' ? (heading(s)?.at ?? null) : null)
+  if (len > 0.01) {
+    turnToward(player, Math.atan2(input.moveY, input.moveX))
+  } else if (look) {
+    turnToward(player, Math.atan2(look.y - player.pos.y, look.x - player.pos.x))
+  }
 
   const bar = abilityBar({ classId: player.classId, spec: player.spec })
   for (const slot of input.pressed) {

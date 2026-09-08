@@ -171,6 +171,7 @@ import {
 } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
+import { PASSAGES, hallFor } from '../src/dungeon'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
@@ -179,7 +180,14 @@ import { AFFIXES, type AffixId } from '../src/sim/affix'
 import { fold as foldDaily } from '../src/daily-record'
 import { Rng } from '../src/sim/rng'
 import { pressTarget, step } from '../src/sim/sim'
-import { BOSS_ID, FIRST_OBJECT_ID, PLAYER_ID, createState, unattended } from '../src/sim/state'
+import {
+  BOSS_ID,
+  FIRST_OBJECT_ID,
+  PLAYER_ID,
+  createCorridorState,
+  createState,
+  unattended,
+} from '../src/sim/state'
 import { AWARDS, check as checkAwards, type Earned } from '../src/achievements'
 import {
   HISTORY_LIMIT,
@@ -340,6 +348,45 @@ for (const [vi, attempt] of [[0, 0], [1, 5]] as const) {
   console.log(`attempt ${attempt}: ${s.outcome} at ${s.time.toFixed(1)}s`)
 }
 console.log(`rendered ${frames} frames with no exceptions`)
+
+// --- and a frame over a room with nothing in it ------------------------------
+//
+// The citadel is walked now, so most of an evening is spent in a state with no
+// boss in it at all — a room being crossed, and a corridor. Two things drew
+// straight through the fight's promise that one exists and threw the frame
+// away: the minimap, which marks the boss on it, and the player's own bearing,
+// which faces the boss while standing still. Neither is anywhere near the
+// citadel in the source, and neither was reachable by any check here, because
+// everything above this line pulls a boss first.
+//
+// So: a whole frame, world and HUD, over both of the states that have none.
+{
+  const dps = pickFor('warrior', 'dps')!
+  for (const [w, h] of VIEWPORTS) {
+    updateLayout(w, h)
+    for (const [what, ground] of [
+      ['a room being crossed', hallFor('crossing', 'rise', () => true)],
+      ['held ground', PASSAGES.find((p) => p.corridor)!.corridor!],
+    ] as const) {
+      const s = createCorridorState(9, autoParty(10, dps), ground, 'normal')
+      s.chamber = 'crossing'
+      const rng = new Rng(9)
+      let drawn = 0
+      for (let i = 0; i < 90 && s.outcome === 'ongoing'; i++) {
+        step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        drawWorld(ctx, s, 0.5, s.time, new Effects())
+        drawHud(ctx, s, touchView(i % 2 === 0))
+        drawn++
+      }
+      // Terminal too, which is the overlay the walk never shows but must not
+      // fall over drawing.
+      drawWorld(ctx, s, 1, s.time, new Effects())
+      drawHud(ctx, s, touchView(true))
+      expect(`${w}x${h}: ${what} draws a whole frame`, drawn > 0, `${drawn} frames`)
+    }
+  }
+  updateLayout(1440, 900)
+}
 
 // --- the clock must not bank time on menus --------------------------------
 //
@@ -9326,26 +9373,27 @@ for (const [label, w, h] of [
       layout.rows.find((r) => r.id === 'threshold')?.state ?? 'missing',
     )
 
-    // The room the party is standing in still has something alive in it, so
-    // the press that walks in and the press that pulls are the same press.
-    const oratory = layout.rows.find((r) => r.id === 'oratory')!
-    const press = hitCitadel(run, oratory.rect.x + 4, oratory.rect.y + oratory.rect.h / 2, allowed)
-    expect(`${label}: a room with something alive answers a tap`, press?.kind === 'room' && press.id === 'oratory', JSON.stringify(press))
-    // A room already down answers as somewhere to go rather than something to
-    // pull: the press is the way there, and what stops a cleared fight being
-    // re-pulled is the room itself, not the map.
-    const done = layout.rows.find((r) => r.id === 'spire')!
-    const back = hitCitadel(run, done.rect.x + 4, done.rect.y + done.rect.h / 2, allowed)
+    // A lit pad is the only press this screen takes. The building is walked,
+    // so a map that carried a party across it would be the list the map was
+    // drawn to replace — what a pad buys is the one walk you have earned the
+    // right not to make twice.
+    const pad = layout.rows.find((r) => r.id === 'threshold')!
+    const jump = hitCitadel(run, pad.rect.x + 4, pad.rect.y + pad.rect.h / 2, allowed)
     expect(
-      `${label}: and a room already down is somewhere to walk to`,
-      back?.kind === 'room' && back.id === 'spire',
-      JSON.stringify(back),
+      `${label}: a lit pad answers a tap`,
+      jump?.kind === 'room' && jump.id === 'threshold',
+      JSON.stringify(jump),
     )
-    const shut = layout.rows.find((r) => r.id === 'throne')!
+    // And nothing else does — not the room you are in, not the one a door
+    // away, not the one behind a shut door. Those are places you walk to.
+    const dead = ['oratory', 'spire', 'throne'].filter((id) => {
+      const r = layout.rows.find((row) => row.id === id)!
+      return hitCitadel(run, r.rect.x + 4, r.rect.y + r.rect.h / 2, allowed) !== null
+    })
     expect(
-      `${label}: and a shut one does not`,
-      hitCitadel(run, shut.rect.x + 4, shut.rect.y + shut.rect.h / 2, allowed) === null,
-      'the throne answered',
+      `${label}: and nothing without one does`,
+      dead.length === 0,
+      `${dead.join(', ')} answered a press on the map`,
     )
     expect(
       `${label}: the way out and the way to give up both answer`,

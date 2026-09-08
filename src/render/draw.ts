@@ -17,8 +17,9 @@ import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/bat
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
+import { chamberAt } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
-import { travelAnchor } from '../sim/travel'
+import { EXIT_REACH, awake, heading, travelAnchor } from '../sim/travel'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
@@ -291,6 +292,7 @@ export function drawWorld(
   )
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
+  drawDoors(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawShades(ctx, s, clock)
   drawCasts(ctx, s, alpha)
@@ -1009,6 +1011,60 @@ function drawShades(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     ctx.strokeStyle = colour
     ctx.lineWidth = 2.5
     ctx.stroke()
+    ctx.restore()
+  }
+}
+
+/**
+ * What is written over a door, which is the room it opens onto.
+ *
+ * The building's own name for it and not the fight's: a party walking has not
+ * met what is in there yet, and a door labelled with a boss would be telling
+ * them something the room has not.
+ */
+function doorName(id: string): string {
+  return (chamberAt(id)?.name ?? id).toUpperCase()
+}
+
+/**
+ * The ways out, on the floor.
+ *
+ * A door you cannot see is a menu with extra steps, so this is the whole of
+ * what makes the citadel walkable: a mouth in the wall where the room opens,
+ * the name of what is through it, and a brighter one for the door the party
+ * is nearest — which is the door it will take, because the raid follows you.
+ *
+ * Drawn with the rest of the floor and under the bodies. A door is ground.
+ */
+function drawDoors(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  const travel = s.travel
+  if (!travel || travel.corridor.ways.length === 0) return
+  // Nothing while something is awake: a way out you cannot take yet is
+  // something to read after the fight, and the floor is busy.
+  if (awake(s).length > 0) return
+  const going = heading(s)
+  const pulse = 0.55 + 0.45 * Math.sin(clock * 2.6)
+  const r = EXIT_REACH * L.scale
+  for (const way of travel.corridor.ways) {
+    const lit = way.to === going?.to
+    const at = worldToScreen(way.at)
+    ctx.save()
+    ctx.globalAlpha = lit ? pulse : 0.4
+    ctx.beginPath()
+    floorArc(ctx, at.x, at.y, r)
+    ctx.fillStyle = lit ? 'rgba(250, 204, 21, 0.20)' : 'rgba(168, 162, 158, 0.10)'
+    ctx.fill()
+    ctx.strokeStyle = lit ? COLORS.castBar : COLORS.panelEdge
+    ctx.lineWidth = lit ? 2 : 1
+    ctx.setLineDash(lit ? [] : [5, 5])
+    ctx.stroke()
+    ctx.setLineDash([])
+    // And what is behind it, because a door with no name is a coin toss.
+    ctx.globalAlpha = lit ? 1 : 0.65
+    ctx.fillStyle = lit ? COLORS.castBar : COLORS.textDim
+    ctx.font = font(11, lit)
+    ctx.textAlign = 'center'
+    ctx.fillText(doorName(way.to), at.x, at.y - r * TILT - 6)
     ctx.restore()
   }
 }

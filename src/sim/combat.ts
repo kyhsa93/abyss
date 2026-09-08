@@ -37,9 +37,25 @@ export function actorById(s: SimState, id: number): Actor | undefined {
   return s.actors.find((a) => a.id === id)
 }
 
-/** The boss proper. Summoned adds share its faction but not its id. */
+/**
+ * The boss proper. Summoned adds share its faction but not its id.
+ *
+ * The `!` is a promise this cannot keep in every state: a battleground has no
+ * boss, and neither does a room the party is only walking across. It is kept
+ * because the fight, which is nearly every caller, always has one and reading
+ * `boss(s).hp` at each of them would be noise — but anything that can be
+ * reached while the party is walking has to ask `bossOrNone` instead. Two did
+ * not, and what they did was throw the frame away: `rendercheck` draws a whole
+ * frame over an empty room now, which is what makes that a caught mistake
+ * rather than a black screen.
+ */
 export function boss(s: SimState): Actor {
   return s.actors.find((a) => a.id === BOSS_ID)!
+}
+
+/** The boss, honestly: nothing on a battleground and nothing in an empty room. */
+export function bossOrNone(s: SimState): Actor | undefined {
+  return s.actors.find((a) => a.id === BOSS_ID)
 }
 
 /** Living summoned adds, nearest first is left to the caller. */

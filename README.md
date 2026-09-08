@@ -80,24 +80,44 @@ that kind of thing actually has:
         pick your class
              │
        ┌─────┴─────┐
-    THE MAP       PULL        (a raid walks in; a battleground pulls)
+   THE THRESHOLD  PULL        (a raid walks in; a battleground pulls)
        │
-   pick a room ── PULL
+   walk to a door ──> the next room ──> a fight, or another door
 ```
 
-**A raid is a building, not a boss list.** There is no field that names a
-fight. Pressing RAID asks how many of you there are and how hard it should be,
-then who you are playing, and then puts the party at the threshold with a map
-of the citadel: fifteen rooms, one way up for the first four, three wings that
-may be taken in any order and a throne that does not open until all three are
-done. On the map a press means *go there* — a step through a door, a walk down
-ground somebody is holding, or a pad once one is lit. Standing in a room with
-something still alive in it, the same press pulls.
+**A raid is a building you walk through.** There is no field that names a
+fight and no list of rooms to pick one off. Pressing RAID asks how many of you
+there are and how hard it should be, then who you are playing, and then you
+are *standing in the first room* — the threshold, with its door on the floor
+in front of you.
+
+You go on by walking to a door. The raid follows you, so which door you walk
+to is which way the evening goes; when everybody is through it, you are in the
+next room. If something is alive in there the fight starts as you arrive. If
+not, that room has its own doors and you keep going. Nothing in between is a
+screen: the citadel is fifteen rooms, one way up for the first four, three
+wings that may be taken in any order and a throne that does not open until all
+three are done, and it is crossed on foot from end to end.
+
+Some doors have ground behind them — a corridor, a stretch of hall with packs
+standing in it. Walking one costs time and health, and the packs are placed so
+that taking the first carelessly brings the second, which is the only decision
+a corridor has. Ground is also what mends you: nothing is awake, so the party
+walks and comes back up. Doors with no ground behind them hand back a flat
+fraction instead, which is the floor under the walk rather than a reward for
+opening a door — and it is paid by the door, not by the room, or a party could
+stand in a doorway and heal for nothing.
+
+**The map is a map.** THE CITADEL, reached from the class screen, says where
+you are, what is down, what is still shut and what each room is waiting for.
+The one thing you can still press on it is a **pad** — a lit one, to a room
+you have already walked to, which is the walk you earned the right not to make
+twice. Everywhere else you go by going there.
 
 The evening is saved between visits — it is the one thing here long enough to
-be interrupted — so RAID resumes where you stood rather than asking its two
-questions again. What you killed stays dead; a wipe costs the pull and not the
-night. GIVE UP on the map ends it and puts the next one back at the door.
+be interrupted — so RAID resumes standing where you stood. What you killed
+stays dead; a wipe costs the pull and not the night. GIVE UP on the map ends
+it and puts the next one back at the door.
 
 **And an evening that has run out says so.** The chain opens the building
 slowly, so an early one is a room or two and then nothing above it. Rather
@@ -1703,7 +1723,8 @@ The results button is named for what it does. It used to say NEXT BOSS after
 every kill, which was true once in six — now it says `5-MAN HEROIC` or
 `10-MAN NORMAL` when the next rung is this same boss one setting harder, and
 NEXT BOSS only at the top of the six, where it really is. Inside the citadel it
-says THE MAP, because what follows a room is the rest of the evening.
+says WALK ON, because what follows a kill is the room you are standing in with
+its doors still on the floor.
 
 **The chain is what the map is made of.** With the boss list gone, the raid
 setup asks only a size and a difficulty, and those two are read against the

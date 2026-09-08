@@ -8,8 +8,10 @@ import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt } from '../sim/encounters'
 import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
 import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
+import { BOSS_ID } from '../sim/state'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
-import { awake } from '../sim/travel'
+import { awake, heading } from '../sim/travel'
+import { chamberAt } from '../dungeon'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -129,7 +131,10 @@ export function canAdvance(s: SimState): boolean {
 
 /** What the button that walks onto the next rung should say. */
 export function advanceLabel(s: SimState): string {
-  if (s.chamber !== null) return 'THE MAP'
+  // The room, still, with the doors on the floor and the fight in it down.
+  // It said THE MAP while the map was how you moved; what follows a kill now
+  // is walking out of the room you are standing in.
+  if (s.chamber !== null) return 'WALK ON'
   const here = tierOf(s.encounter, s.party.length, s.difficulty)
   if (here < 0) return 'NEXT BOSS'
   const next = tierAt(here + 1)
@@ -648,10 +653,15 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.strokeRect(view.x - halfW * k, view.y - halfH * k, halfW * 2 * k, halfH * 2 * k)
   }
 
+  // Asked of the id rather than through `boss()`, which promises an actor and
+  // cannot keep it: a room the party is only walking through has nothing in it
+  // at all, and reading `.id` off the nothing threw the whole frame away. The
+  // countdown and the boss frame get away with the same call because neither
+  // is ever drawn over a walk; this is drawn over everything.
   for (const a of s.actors) {
     if (!a.alive) continue
     const p = at(a.pos)
-    const isBoss = a.id === boss(s).id
+    const isBoss = a.id === BOSS_ID
     const dot = isBoss ? Math.max(3, r * 0.11) : Math.max(2, r * 0.055)
 
     ctx.beginPath()
@@ -803,19 +813,36 @@ function fitLeft(
 function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   const travel = s.travel
   if (!travel) return
-  const standing = s.actors.filter((a) => a.faction === 'boss' && a.alive)
+  const left = s.actors.filter((a) => a.faction === 'boss' && a.alive)
   const up = awake(s).length
+  // Where you are, which is the one thing a party crossing a building needs
+  // and the one thing a boss frame never had to say.
+  const room = s.chamber === null ? null : chamberAt(s.chamber)
   ctx.textAlign = 'center'
+  if (room) {
+    ctx.fillStyle = COLORS.text
+    ctx.font = font(13, true)
+    ctx.fillText(room.name.toUpperCase(), L.w / 2, L.bossY + 16)
+  }
+  const going = heading(s)
   ctx.fillStyle = up > 0 ? COLORS.boss : COLORS.textDim
-  ctx.font = font(13, true)
+  ctx.font = font(room ? 10 : 13, !room)
   ctx.fillText(
-    up > 0 ? `${up} ON YOU` : standing.length > 0 ? 'THE WAY AHEAD IS HELD' : 'THE WAY IS CLEAR',
+    up > 0
+      ? `${up} ON YOU`
+      : left.length > 0
+        ? 'THE WAY AHEAD IS HELD'
+        : going
+          ? `walk to the door — ${chamberAt(going.to)?.name ?? going.to}`
+          : 'THE WAY IS CLEAR',
     L.w / 2,
-    L.bossY + 16,
+    L.bossY + (room ? 32 : 16),
   )
-  ctx.fillStyle = COLORS.textDim
-  ctx.font = font(10)
-  ctx.fillText(`${standing.length} still standing`, L.w / 2, L.bossY + 32)
+  if (left.length > 0) {
+    ctx.fillStyle = COLORS.textDim
+    ctx.font = font(10)
+    ctx.fillText(`${left.length} still standing`, L.w / 2, L.bossY + (room ? 46 : 32))
+  }
 }
 
 function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {

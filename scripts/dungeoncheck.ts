@@ -6,6 +6,7 @@ import {
   gateOpen,
   killedOnce,
   padsLit,
+  hallFor,
   reachable,
   standing,
   wingCleared,
@@ -14,7 +15,7 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
-import { overlapping, packsPlaced, unguarded } from '../src/sim/travel'
+import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist } from '../src/sim/combat'
 import { createCorridorState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
@@ -233,6 +234,118 @@ expect(
   namedInFree.join(', '),
 )
 
+// --- the rooms, as ground ----------------------------------------------------
+//
+// Standing in a room is how the citadel is crossed, so a room has to be a
+// place a party can be in and get out of. Three things can be wrong with one
+// and none of them fail at run time: a door nobody can tell from another, a
+// room with no way out, and a party that arrives already standing in the
+// doorway it came through — which would send it straight back where it came
+// from before anybody had touched a key.
+
+const everywhere = () => true
+{
+  const clashes: string[] = []
+  const shut: string[] = []
+  const doorstep: string[] = []
+  for (const chamber of CHAMBERS) {
+    const hall = hallFor(chamber.id, null, everywhere)
+    if (hall.ways.length === 0) shut.push(chamber.id)
+    for (let i = 0; i < hall.ways.length; i++) {
+      for (let j = i + 1; j < hall.ways.length; j++) {
+        const gap = dist(hall.ways[i]!.at, hall.ways[j]!.at)
+        // Two doors closer than the reach that takes you through one are one
+        // door, and which room you end up in is then a coin toss.
+        if (gap < EXIT_REACH * 2) {
+          clashes.push(`${chamber.id}: ${hall.ways[i]!.to} and ${hall.ways[j]!.to} are ${gap.toFixed(0)} apart`)
+        }
+      }
+    }
+    // And the same room entered from each of its own doors: the party has to
+    // arrive clear of every one of them, the one it came in by included.
+    for (const back of hall.ways) {
+      const entered = hallFor(chamber.id, back.to, everywhere)
+      for (const way of entered.ways) {
+        if (dist(entered.entry, way.at) <= EXIT_REACH) {
+          doorstep.push(`${chamber.id} from ${back.to} arrives on the ${way.to} door`)
+        }
+      }
+    }
+  }
+  expect(`every room has a way out`, shut.length === 0, shut.join(', '))
+  expect('and no two doors of one room are the same door', clashes.length === 0, clashes.join('; '))
+  expect(
+    'and a party arrives clear of every door in the room',
+    doorstep.length === 0,
+    doorstep.join('; '),
+  )
+
+  // The doors are the passages, both ways. A room with a door to somewhere
+  // there is no passage would be a way through the building the map does not
+  // know about, which is the one thing this file exists to make impossible.
+  const invented: string[] = []
+  for (const chamber of CHAMBERS) {
+    for (const way of hallFor(chamber.id, null, everywhere).ways) {
+      const joined = PASSAGES.some(
+        (p) =>
+          (p.from === chamber.id && p.to === way.to) || (p.to === chamber.id && p.from === way.to),
+      )
+      if (!joined) invented.push(`${chamber.id} -> ${way.to}`)
+    }
+  }
+  expect('and every door is a passage the map has', invented.length === 0, invented.join(', '))
+
+  // A room the caller will not let the party into has no door to it. The
+  // predicate is how the chain reaches the floor, and a door drawn past it
+  // would be the ladder walked round.
+  const only = (to: string) => to !== 'oratory'
+  const past = hallFor('spire', null, only).ways.map((w) => w.to)
+  expect(
+    'and a room the caller refuses has no door',
+    !past.includes('oratory'),
+    past.join(', '),
+  )
+}
+
+// A party put in a room walks out of it, and out of the door it was heading
+// for. Simulated rather than reasoned about: the walk is the whole way through
+// the building now, and a room the raid cannot cross is a raid that cannot get
+// past the front door. Unattended, so the AI leads — which is the case with
+// the least help.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const stuck: string[] = []
+  const wrong: string[] = []
+  // Twenty-five, which is the size the door has to be wide enough for: going
+  // through one is everybody being inside `EXIT_REACH` of it at the same
+  // moment, and a raid five times as wide is where that stops being free.
+  for (const chamber of CHAMBERS) {
+    const hall = hallFor(chamber.id, null, everywhere)
+    const s = unattended(createCorridorState(4242, autoParty(25, dps), hall, 'normal'))
+    s.chamber = chamber.id
+    const rng = new Rng(4242)
+    let ticks = 0
+    while (s.outcome === 'ongoing' && ticks < 30 * 60) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      ticks++
+    }
+    if (s.outcome !== 'victory') {
+      stuck.push(`${chamber.id} (${s.outcome} after ${(ticks / 30).toFixed(0)}s)`)
+      continue
+    }
+    const through = s.travel?.through ?? null
+    if (through === null || !hall.ways.some((w) => w.to === through)) {
+      wrong.push(`${chamber.id} left by ${through ?? 'nothing'}`)
+    }
+  }
+  expect(`a party can cross all ${CHAMBERS.length} rooms`, stuck.length === 0, stuck.join(', '))
+  expect(
+    'and comes out of one of that room\'s own doors',
+    wrong.length === 0,
+    wrong.join(', '),
+  )
+}
+
 // --- the pads --------------------------------------------------------------
 
 expect(
@@ -291,7 +404,9 @@ expect(
     misplaced.map((c) => c.id).join(', '),
   )
   const doors = corridors.filter(
-    (c) => dist(c.entry, c.exit) < 400 || c.packs.some((p) => dist(p.pos, c.entry) < p.pulls),
+    (c) =>
+      c.ways.some((w) => dist(c.entry, w.at) < 400) ||
+      c.packs.some((p) => dist(p.pos, c.entry) < p.pulls),
   )
   expect(
     'and the way in is not already inside something',

@@ -132,13 +132,12 @@ import {
 } from './daily-record'
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
 import {
-  ROOM_RECOVERY,
-  ROOM_REVIVE,
   cleared as clearedRoom,
   enter as enterChamber,
   isCleared,
   stepTo,
   stepped,
+  throughDoor,
   walkedTo,
   load as loadRun,
   roomSeed,
@@ -147,7 +146,7 @@ import {
   wiped as wipedRoom,
   type Run,
 } from './citadel'
-import { CHAMBERS, PASSAGES, chamberAt, passageKey } from './dungeon'
+import { CHAMBERS, PASSAGES, chamberAt, hallFor, passageKey } from './dungeon'
 import type { Corridor } from './sim/travel'
 import type { SimState } from './sim/types'
 
@@ -469,6 +468,14 @@ let visiting = false
 let run: Run | null = loadRun()
 /** Which room the fight on screen is in, and what the party walked into it with. */
 let roomId: string | null = null
+/**
+ * The room the party is standing in with nothing alive in it.
+ *
+ * Held apart from `roomId`, which means "there is a fight or a walk on
+ * screen": standing in a cleared room is neither, and the difference decides
+ * whether the button on the class screen pulls or opens a door.
+ */
+let standing: string | null = null
 /** The door whose ground is being taken, when the fight on screen is a walk. */
 let walkKey: string | null = null
 let roomCarried: number[] = []
@@ -597,6 +604,7 @@ function buildState(): SimState {
 function enterRoom(id: string): void {
   const chamber = chamberAt(id)
   if (!run || !chamber || chamber.encounter === null) return
+  standing = null
   // A room whose fight is down is a room to walk through. Pressing it again
   // used to re-pull it, which would let an evening farm its own first boss.
   if (isCleared(run, id)) return
@@ -635,26 +643,25 @@ function enterRoom(id: string): void {
  * nothing at all would mean a party that finished at ten percent has already
  * lost the next one and is being told so a minute later.
  */
+/**
+ * The party, in the state the last room left it.
+ *
+ * Verbatim, with nothing given back. What a door gives back is the door's, in
+ * `throughDoor` — a room is walked into and out of freely now, so a room that
+ * healed on the way in would be a room you could stand in the doorway of.
+ */
 function carryInto(fight: SimState): void {
-  let revived = false
   fight.actors
     .filter((a) => a.faction === 'party')
     .forEach((a, i) => {
       const was = roomCarried[i]
       if (was === undefined) return
       if (was >= 0) {
-        a.hp = Math.min(a.maxHp, Math.round(a.maxHp * (was + ROOM_RECOVERY)))
+        a.hp = Math.max(1, Math.min(a.maxHp, Math.round(a.maxHp * was)))
         return
       }
-      // One of the fallen gets up a room, and no more: a wipe has to stay a
-      // wipe rather than being paid off one body at a time.
-      if (!revived) {
-        revived = true
-        a.hp = Math.round(a.maxHp * ROOM_REVIVE)
-      } else {
-        a.alive = false
-        a.hp = 0
-      }
+      a.alive = false
+      a.hp = 0
     })
 }
 
@@ -665,8 +672,122 @@ function carryInto(fight: SimState): void {
  * somewhere in the state it left the last place in — and the same seed rule,
  * so a corridor walked twice in one evening is the same corridor.
  */
+/** Whether the chain has bought whatever is in this room. */
+function chainOpens(id: string): boolean {
+  const chamber = chamberAt(id)
+  if (!run || !chamber) return false
+  if (chamber.encounter === null || chamber.encounter >= ENCOUNTERS.length) return true
+  return isOpen(unlocked, chamber.encounter, run.size, run.difficulty)
+}
+
+/**
+ * Whether there is a door to this room on the floor of the one we are in.
+ *
+ * Two questions, and both of them have to be the ones asked again when the
+ * party actually reaches the door: the citadel's own — is that passage open —
+ * and the chain's — has this evening earned what is in there. The first is
+ * asked through `stepTo` rather than re-derived, because a door that is drawn
+ * by one rule and opened by another is a door the party walks into and
+ * bounces off, and the build caught exactly that: the plagueworks drew a door
+ * to the laboratory that the step then refused.
+ */
+function canGoTo(to: string): boolean {
+  if (!run) return false
+  return stepTo(run, to).kind !== 'shut' && chainOpens(to)
+}
+
+/** Whether the room the party is standing in still has something in it. */
+function fightAwaits(id: string): boolean {
+  const chamber = chamberAt(id)
+  if (!run || !chamber || chamber.encounter === null) return false
+  if (chamber.encounter >= ENCOUNTERS.length) return false
+  return !isCleared(run, id) && chainOpens(id)
+}
+
+/**
+ * Standing in a room with nothing alive in it.
+ *
+ * Not a screen and not a pause: it is the room, walked in, with its doors on
+ * the floor. Going on is walking to one — which is the whole of what this
+ * change is for, since the alternative is a list of rooms with a picture
+ * behind it.
+ */
+function standIn(id: string, from: string | null): void {
+  if (!run) return
+  roomId = null
+  walkKey = null
+  standing = id
+  roomCarried = [...run.carried]
+  difficulty = run.difficulty
+  playingDaily = false
+  mode = { kind: 'raid' }
+  attempt = 0
+  recorded = false
+  graded = false
+  announced = []
+  state = createCorridorState(roomSeed(run, `hall:${id}`), party, hallFor(id, from, canGoTo), run.difficulty)
+  state.chamber = id
+  rng = rngFor(state)
+  carryInto(state)
+  fightingParty = party.map((p) => ({ ...p }))
+  fightingDifficulty = difficulty
+  fightingMode = mode
+  timing = { ...timing, accumulator: 0 }
+  saveRun(run)
+  screen = 'fight'
+}
+
+/**
+ * Through a door and into the next room.
+ *
+ * What is on the other side decides what happens, and there are only two
+ * answers: something alive, which is a pull, or nothing, which is a room to
+ * stand in and walk out of the far side of. No menu in between either way —
+ * the evening is one continuous walk until something stops it.
+ */
+function arriveAt(to: string, from: string): void {
+  if (!run) return
+  if (fightAwaits(to)) {
+    enterRoom(to)
+    return
+  }
+  standIn(to, from)
+}
+
+/**
+ * A door taken: the walk if it has ground behind it, the step if it has not.
+ *
+ * The two used to be a press on a map and a press on a map. They are the same
+ * act now — leaving by a door — and what is behind it is the door's business
+ * rather than the player's.
+ */
+function goThrough(to: string, carried: number[]): void {
+  if (!run) return
+  const at = run.at
+  const step = stepTo(run, to)
+  if (step.kind === 'walk') {
+    // The ground is the walk, so it is paid in the walking. What the party
+    // crossed the room with is what it starts the corridor with.
+    run = { ...run, carried }
+    saveRun(run)
+    walkTo(step.to, step.key, step.corridor)
+    return
+  }
+  if (step.kind === 'shut') {
+    // The door was open when it was drawn and is not now, which is a kill
+    // somewhere else having closed it. Stay put rather than walk into a wall.
+    standIn(at, null)
+    return
+  }
+  // A pad skips the walk, so it skips what the walk was worth.
+  run = stepped(run, to, step.kind === 'jump' ? carried : throughDoor(carried))
+  saveRun(run)
+  arriveAt(to, at)
+}
+
 function walkTo(to: string, key: string, walk: Corridor): void {
   if (!run) return
+  standing = null
   roomId = to
   walkKey = key
   roomCarried = [...run.carried]
@@ -727,6 +848,7 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
     if (hit?.kind === 'abandon') {
       run = null
       roomId = null
+      standing = null
       saveRun(null)
       screen = 'home'
       return
@@ -742,24 +864,17 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       run = startRun(Date.now(), climb.size, climb.difficulty)
       roomId = null
       saveRun(run)
+      // Straight back to the door of the new evening, in it.
+      standIn(run.at, null)
       return
     }
     if (hit?.kind === 'room') {
-      // Standing in it already: the press is the pull. Anywhere else: the
-      // press is the walk, and whether that costs anything is the door's.
-      if (hit.id === run.at) {
-        enterRoom(hit.id)
-        return
-      }
-      const step = stepTo(run, hit.id)
-      if (step.kind === 'walk') {
-        walkTo(step.to, step.key, step.corridor)
-        return
-      }
-      if (step.kind === 'step' || step.kind === 'jump') {
-        run = stepped(run, step.to)
-        saveRun(run)
-      }
+      // The map is a map now, not the way through the building: what it still
+      // does is the pads, which are the one thing on it that is travel rather
+      // than a picture — a walk you earned the right not to make. Everywhere
+      // else you go by walking, so a press does nothing.
+      if (stepTo(run, hit.id).kind !== 'jump') return
+      goThrough(hit.id, run.carried)
       return
     }
   }
@@ -796,7 +911,15 @@ let rng = rngFor(state)
  * so the caller can fall through to an ordinary pull.
  */
 function reenter(): boolean {
-  if (!run || roomId === null) return false
+  if (!run) return false
+  // Standing in a cleared room: back into the room, not into a fight. It is
+  // still somewhere the party is, so leaving the class screen has to put them
+  // back in it rather than start the evening again.
+  if (roomId === null) {
+    if (standing === null) return false
+    standIn(standing, null)
+    return true
+  }
   if (walkKey !== null) {
     const passage = PASSAGES.find((p) => passageKey(p.from, p.to) === walkKey)
     if (!passage?.corridor) return false
@@ -817,6 +940,14 @@ function restart(): void {
     run = wipedRoom(run, roomCarried)
     saveRun(run)
     if (reenter()) return
+  }
+  // Standing in a cleared room and pressing retry: back into the room. A room
+  // with nothing in it cannot be wiped in, so there is nothing to give back —
+  // but the key is on the keyboard and it must not build a boss fight out of
+  // whatever the setting happens to say.
+  if (run && standing !== null) {
+    standIn(standing, null)
+    return
   }
   attempt++
   recorded = false
@@ -875,11 +1006,19 @@ function walkIn(): void {
     startFight()
     return
   }
+  // Standing in a room already: back into it. Coming out to change class and
+  // going back in is not the start of an evening.
+  if (run && standing !== null) {
+    standIn(standing, null)
+    return
+  }
   if (!run) {
     run = startRun(Date.now(), party.length as RaidSize, difficulty)
     saveRun(run)
   }
-  screen = 'citadel'
+  // At the door, in it. An evening used to open on a plan of the building
+  // with the first room a press away; it opens standing in the first room.
+  standIn(run.at, null)
 }
 
 /**
@@ -989,7 +1128,9 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
       if (run) {
         if (run.size !== party.length) resize(run.size)
         difficulty = run.difficulty
-        screen = 'citadel'
+        // Back into the room the evening was left standing in, rather than
+        // onto a plan of it.
+        standIn(run.at, null)
         return
       }
       screen = 'raid'
@@ -1265,7 +1406,19 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, mode, atTheDoor())
+  // The room, when there is one, rather than a boss the party is not standing
+  // in front of: coming out of a cleared room to change class, this screen was
+  // headlining whatever fight the setting last pointed at.
+  drawRoster(
+    ctx,
+    party,
+    difficulty,
+    clock,
+    encounter,
+    mode,
+    atTheDoor(),
+    standing === null ? null : (chamberAt(standing)?.name ?? null),
+  )
 }
 
 /**
@@ -1507,21 +1660,12 @@ function frame(now: number): void {
       return
     }
     if (hit === 'next') {
-      if (run && roomId && walkKey) {
-        // Ground taken: the door is a door from here on, and the party is
-        // standing on the other side of it.
-        run = walkedTo(run, walkKey, roomId, carriedOut(state))
-        saveRun(run)
-        roomId = null
-        walkKey = null
-        screen = 'citadel'
-      } else if (run && roomId) {
-        // A room won: it stays won, and what the party walked out with walks
-        // into the next one.
+      if (run && roomId) {
+        // A room won: it stays won, and the party is standing in it with the
+        // doors on the floor. Not a plan of the building — the room.
         run = clearedRoom(run, roomId, carriedOut(state))
         saveRun(run)
-        roomId = null
-        screen = 'citadel'
+        standIn(roomId, null)
       } else advanceTier()
     }
     else if (hit === 'retry') restart()
@@ -1559,6 +1703,34 @@ function frame(now: number): void {
     effects.ingest(state)
     timing.accumulator -= DT
     ticks++
+  }
+
+  // A walk that finished walks on.
+  //
+  // No results over it and no map after it: crossing a room and taking a door
+  // are the middle of a journey rather than the end of a fight, and a screen
+  // between every pair of rooms is the list this was meant to replace. Only a
+  // wipe stops the party, which is why the outcome is read rather than
+  // assumed.
+  if (state.mode === 'travel' && state.outcome === 'victory' && run) {
+    const to = state.travel?.through ?? null
+    if (to !== null) {
+      const out = carriedOut(state)
+      if (walkKey !== null && roomId !== null) {
+        // Ground taken: the door is a door from here on, and the walk itself
+        // was what mended the party.
+        const from = run.at
+        run = walkedTo(run, walkKey, roomId, out)
+        saveRun(run)
+        walkKey = null
+        roomId = null
+        arriveAt(to, from)
+      } else {
+        goThrough(to, out)
+      }
+      requestAnimationFrame(frame)
+      return
+    }
   }
 
   // The moment a pull resolves, once.

@@ -1,6 +1,6 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
-import { CHAMBERS, PASSAGES, chamberAt, passageKey, passageOpen } from '../dungeon'
+import { CHAMBERS, CITADEL_PLAN, PASSAGES, chamberAt, passageKey, passageOpen } from '../dungeon'
 import { isCleared, isWalked, open, stepTo, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS } from '../sim/encounters'
@@ -925,34 +925,6 @@ const CITADEL_ORDER_IDS = CHAMBERS.map((c) => c.id)
  */
 const ALL: ReadonlySet<string> = new Set(CITADEL_ORDER_IDS)
 
-/**
- * Where each room sits on the plan, nought to one in both directions.
- *
- * A drawing rather than a list, and the reason is the shape of the building:
- * one way up, a split into three, and a top that waits for all of them. A
- * column of rows can say which rooms exist and cannot say *that* — and which
- * of the three to do next is the only choice an evening offers.
- *
- * Hand-placed. Fifteen rooms laid out by an algorithm is fifteen rooms in the
- * wrong places.
- */
-const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
-  { id: 'threshold', x: 0.5, y: 0.0 },
-  { id: 'spire', x: 0.5, y: 0.1 },
-  { id: 'oratory', x: 0.5, y: 0.2 },
-  { id: 'rampart', x: 0.5, y: 0.3 },
-  { id: 'rise', x: 0.5, y: 0.4 },
-  { id: 'crossing', x: 0.5, y: 0.51 },
-  { id: 'sludge', x: 0.1, y: 0.64 },
-  { id: 'airless', x: 0.31, y: 0.64 },
-  { id: 'laboratory', x: 0.205, y: 0.775 },
-  { id: 'crimson', x: 0.5, y: 0.64 },
-  { id: 'sanctum', x: 0.5, y: 0.775 },
-  { id: 'dream', x: 0.9, y: 0.64 },
-  { id: 'gauntlet', x: 0.9, y: 0.775 },
-  { id: 'lair', x: 0.9, y: 0.91 },
-  { id: 'throne', x: 0.5, y: 0.96 },
-]
 
 export function citadelLayout(
   run: Run,
@@ -1009,9 +981,15 @@ export function citadelLayout(
     // held ground, or a pad.
     const here = run.at === entry.id
     const step = here ? null : stepTo(run, entry.id)
-    const canPull =
-      here && fight !== null && !isCleared(run, entry.id) && allowed.has(entry.id)
-    const enterable = canPull || (step !== null && step.kind !== 'shut')
+    // A pad, and nothing else.
+    //
+    // The map used to be how you went places, and it is not any more: the
+    // building is walked, so a press that carried a party across it would be
+    // the list this screen was drawn to replace. What survives is the one
+    // thing on the map that is genuinely travel rather than a picture of it —
+    // a lit pad to somewhere the party has already walked, which is a walk
+    // they earned the right not to make twice.
+    const enterable = step?.kind === 'jump'
     // What a room *is* comes before how to get there. A room whose fight
     // nobody has built is waiting whether or not it is one door away, and the
     // held ground on the way to it is drawn on the door rather than said in
@@ -1079,7 +1057,7 @@ export function drawCitadel(
     layout.again
       ? `${rung} — nothing above this is open yet`
       : down === 0
-        ? `${rung} — nothing down yet`
+        ? `${rung} — where you are, and what is still shut`
         : `${rung} — ${down} down, ${run.entered} rooms entered`,
   )
 
@@ -1118,23 +1096,23 @@ export function drawCitadel(
           : row.state === 'open'
             ? COLORS.text
             : COLORS.dead
-    // What the press would do, said in the row rather than learnt by pressing.
+    // What is there and how far off it is, said in the row. Not what a press
+    // would do: on this screen a press does nothing unless there is a pad
+    // under it, and the row says which those are.
     const step = row.id === run.at ? null : stepTo(run, row.id)
     const detail =
       row.state === 'here'
-        ? row.enterable
-          ? 'you are here — something is still alive'
-          : 'you are here'
+        ? 'you are here'
         : row.state === 'cleared'
           ? 'down'
           : row.state === 'waiting'
             ? (chamber.awaiting ?? 'nothing here yet')
             : row.state === 'shut'
               ? 'shut'
-              : step?.kind === 'walk'
-                ? `${step.corridor.packs.length} packs on the way`
-                : step?.kind === 'jump'
-                  ? 'a pad — straight there'
+              : step?.kind === 'jump'
+                ? 'a pad — press to go'
+                : step?.kind === 'walk'
+                  ? `one door away — ${step.corridor.packs.length} packs on the ground`
                   : step?.kind === 'step'
                     ? 'one door away'
                     : row.state === 'through'
@@ -1170,9 +1148,8 @@ export function hitCitadel(
   if (layout.again && inside(layout.again, x, y)) return { kind: 'again' }
   for (const row of layout.rows) {
     if (!inside(row.rect, x, y)) continue
-    // Only a room with a fight still in it answers. A cleared room is a place
-    // to walk through and there is nothing to do there yet; walking for its
-    // own sake is #24.
+    // Only a lit pad answers. Everywhere else is somewhere to walk to, and
+    // walking is done in the building rather than on a picture of it.
     return row.enterable ? { kind: 'room', id: row.id } : null
   }
   return null

@@ -54,13 +54,29 @@ export interface Pack {
   pulls: number
 }
 
-/** A stretch of held ground, from one room's door to the next. */
+/**
+ * A way out, and what is on the other side of it.
+ *
+ * A corridor had one, because a corridor is a passage and a passage joins two
+ * rooms. A room is the other thing this walks you across and has as many as
+ * it has doors — which is what makes the citadel something you go through
+ * rather than something you pick out of a list: at the crossing the three
+ * wings are three doors on the floor, and choosing one is walking to it.
+ */
+export interface Way {
+  /** The chamber through this door. */
+  to: string
+  at: Vec2
+}
+
+/** A stretch of ground: a room to stand in, or a passage to cross. */
 export interface Corridor {
   id: string
   room: RoomShape
-  /** Where the party comes in, and where it is going. */
+  /** Where the party comes in. */
   entry: Vec2
-  exit: Vec2
+  /** Where it can go. One for a passage; one per door for a room. */
+  ways: Way[]
   packs: Pack[]
 }
 
@@ -70,6 +86,14 @@ export interface TravelState {
   woken: boolean[]
   /** Which pack each body belongs to, by actor id. */
   belongs: Record<number, number>
+  /**
+   * The door the party actually went through, once it is through one.
+   *
+   * Read after the walk rather than decided before it. With one way out this
+   * is the only answer there was; with three it is the evening's choice, and
+   * it was made by walking rather than by pressing.
+   */
+  through: string | null
 }
 
 /** How close counts as through the far door. */
@@ -136,7 +160,13 @@ export function createTravelState(
   make: (pick: Pick, index: number, at: Vec2) => Actor,
 ): SimState {
   const size = party.length as RaidSize
-  const facing = Math.atan2(corridor.exit.y - corridor.entry.y, corridor.exit.x - corridor.entry.x)
+  // Facing the middle of the ways out, which for a passage is the far door
+  // and for a room is roughly onward. The party arrives walking, not milling.
+  const aim = corridor.ways.reduce(
+    (acc, way) => ({ x: acc.x + way.at.x / corridor.ways.length, y: acc.y + way.at.y / corridor.ways.length }),
+    { x: 0, y: 0 },
+  )
+  const facing = Math.atan2(aim.y - corridor.entry.y, aim.x - corridor.entry.x)
   const places = entryPlaces(size, corridor.entry, facing)
   const actors = party.map((pick, i) => {
     const at = places[i] ?? corridor.entry
@@ -183,7 +213,7 @@ export function createTravelState(
     room: corridor.room,
     chamber: null,
     gauge: 0,
-    travel: { corridor, woken: corridor.packs.map(() => false), belongs },
+    travel: { corridor, woken: corridor.packs.map(() => false), belongs, through: null },
     nextDoor: 0,
     only: null,
     healing: 1,
@@ -232,11 +262,35 @@ export function awake(s: SimState): Actor[] {
   )
 }
 
-/** Where the party is walking, which is the exit unless something is in the way. */
+/**
+ * The door the party is heading for.
+ *
+ * The one the player is nearest, which is how a room with three doors is
+ * answered without a menu: the raid goes where you go. With one way out the
+ * question does not arise and this is that door.
+ */
+export function heading(s: SimState): Way | null {
+  const corridor = s.travel?.corridor
+  if (!corridor || corridor.ways.length === 0) return null
+  const lead = s.actors.find((a) => a.isPlayer && a.alive)
+  if (!lead || corridor.ways.length === 1) return corridor.ways[0]!
+  let best = corridor.ways[0]!
+  let near = Infinity
+  for (const way of corridor.ways) {
+    const d = dist(lead.pos, way.at)
+    if (d < near) {
+      near = d
+      best = way
+    }
+  }
+  return best
+}
+
+/** Where the party is walking, which is that door unless something is in the way. */
 export function travelAnchor(s: SimState): Vec2 | null {
   const foes = awake(s)
   if (foes.length > 0) return foes[0]!.pos
-  return s.travel?.corridor.exit ?? null
+  return heading(s)?.at ?? null
 }
 
 /**
@@ -345,12 +399,16 @@ export function updateTravel(s: SimState, rng: Rng): void {
     return
   }
   if (awake(s).length > 0) return
-  // Everybody through, rather than whoever got there first: a corridor left
-  // behind by half a party is a party in two rooms, which is the one state the
-  // citadel does not model.
-  if (alive.every((a) => dist(a.pos, travel.corridor.exit) <= EXIT_REACH)) {
+  // Everybody through the same door, rather than whoever got there first: a
+  // passage left behind by half a party is a party in two rooms, which is the
+  // one state the citadel does not model — and with several doors, half a
+  // party through each is two evenings.
+  for (const way of travel.corridor.ways) {
+    if (!alive.every((a) => dist(a.pos, way.at) <= EXIT_REACH)) continue
+    travel.through = way.to
     s.outcome = 'victory'
     s.sounds.push('victory')
+    return
   }
 }
 
@@ -412,7 +470,7 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   const lead = s.actors.find((a) => a.isPlayer && a.alive) ?? null
   const want = target
     ? standAt(s, actor, target)
-    : follow(s, actor, lead ? lead.pos : s.travel.corridor.exit)
+    : follow(s, actor, lead ? lead.pos : (heading(s)?.at ?? actor.pos))
   moveToward(s, actor, want)
 
   const moving = ai.moveTarget !== null
@@ -482,12 +540,16 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
 
 /** Whether a corridor can be crossed without waking anything, which it must not. */
 export function unguarded(corridor: Corridor): boolean {
-  const along = { x: corridor.exit.x - corridor.entry.x, y: corridor.exit.y - corridor.entry.y }
-  for (let i = 0; i <= 40; i++) {
-    const at = { x: corridor.entry.x + (along.x * i) / 40, y: corridor.entry.y + (along.y * i) / 40 }
-    if (corridor.packs.some((pack) => dist(at, pack.pos) <= pack.pulls)) return false
-  }
-  return true
+  // Every way out, because a corridor is only guarded if it is guarded
+  // whichever door you are making for.
+  return corridor.ways.some((way) => {
+    const along = { x: way.at.x - corridor.entry.x, y: way.at.y - corridor.entry.y }
+    for (let i = 0; i <= 40; i++) {
+      const at = { x: corridor.entry.x + (along.x * i) / 40, y: corridor.entry.y + (along.y * i) / 40 }
+      if (corridor.packs.some((pack) => dist(at, pack.pos) <= pack.pulls)) return false
+    }
+    return true
+  })
 }
 
 /** Packs whose reach overlaps, which is the corridor's one mistake to make. */
@@ -520,6 +582,6 @@ export const PLAIN_CORRIDOR: Corridor = {
   id: 'plain',
   room: ROUND_ARENA,
   entry: { x: 0, y: 700 },
-  exit: { x: 0, y: -700 },
+  ways: [{ to: 'plain', at: { x: 0, y: -700 } }],
   packs: [{ pos: { x: 0, y: 200 }, count: 4, pulls: 260 }],
 }

@@ -134,8 +134,37 @@ export function walkedTo(run: Run, key: string, at: string, carried: number[]): 
 }
 
 /** Standing somewhere the party could already walk to. */
-export function stepped(run: Run, at: string): Run {
-  return { ...run, at, visited: run.visited.includes(at) ? run.visited : [...run.visited, at] }
+export function stepped(run: Run, at: string, carried = run.carried): Run {
+  return {
+    ...run,
+    at,
+    carried,
+    visited: run.visited.includes(at) ? run.visited : [...run.visited, at],
+  }
+}
+
+/**
+ * What a door with no ground behind it gives back.
+ *
+ * The flat fraction, which is where it belongs now that rooms are walked
+ * through rather than entered from a menu. It used to be paid on the way into
+ * a room, and once every room is somewhere the party stands between fights
+ * that is a door you can walk out of and back in through to heal for nothing.
+ *
+ * A door with ground behind it pays nothing here: a corridor mends while it
+ * is being walked and quietly, which is the better shape and the reason the
+ * flat one is only a floor under the doors that have no walk in them.
+ */
+export function throughDoor(carried: readonly number[]): number[] {
+  let revived = false
+  return carried.map((was) => {
+    if (was >= 0) return Math.min(1, was + ROOM_RECOVERY)
+    // One of the fallen gets up a door, and no more: a wipe has to stay a wipe
+    // rather than being paid off one body at a time.
+    if (revived) return -1
+    revived = true
+    return ROOM_REVIVE
+  })
 }
 
 /**
