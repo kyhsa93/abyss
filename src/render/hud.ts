@@ -114,6 +114,9 @@ export function hitOutcome(
 /** Whether this pull earned the way out of where it was fought. */
 export function canAdvance(s: SimState): boolean {
   if (s.mode !== 'raid' || s.outcome !== 'victory') return false
+  // A room in the citadel always has somewhere to go: back to the map, which
+  // is where the rest of the evening is.
+  if (s.chamber !== null) return true
   // A rung, which is usually this same boss one setting harder, and only at
   // the top of the six is it the next boss at all.
   return hasNextTier(s.encounter, s.party.length, s.difficulty)
@@ -121,6 +124,7 @@ export function canAdvance(s: SimState): boolean {
 
 /** What the button that walks onto the next rung should say. */
 export function advanceLabel(s: SimState): string {
+  if (s.chamber !== null) return 'THE MAP'
   const here = tierOf(s.encounter, s.party.length, s.difficulty)
   if (here < 0) return 'NEXT BOSS'
   const next = tierAt(here + 1)

@@ -41,6 +41,7 @@ filled in later. Each of them breaks one of the four above.
 | Mode | The promise | Where it lives |
 |---|---|---|
 | `raid` | learn one fight by repeating it | the whole engine |
+| `citadel` | the whole building, in one evening | `dungeon.ts`, `citadel.ts` |
 | `battleground` | a team fight, five against five | `sim/battleground.ts`, `sim/bgai.ts` |
 | `daily` | the run everybody else got today | `sim/daily.ts`, `sim/affix.ts` |
 

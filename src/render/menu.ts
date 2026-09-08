@@ -1,5 +1,7 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
+import { CHAMBERS, chamberAt } from '../dungeon'
+import { isCleared, open, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
 import { bossOpen, isOpen } from '../progress'
@@ -30,13 +32,14 @@ export interface Rect {
   h: number
 }
 
-export type MenuScreen = 'home' | 'raid' | 'battleground' | 'daily' | 'settings'
+export type MenuScreen = 'home' | 'raid' | 'citadel' | 'battleground' | 'daily' | 'settings'
 
 /** How many specs the class grid has to hold. */
 const SPEC_COUNT = SPEC_OPTIONS.length
 
 export type HomeChoice =
   | 'raid'
+  | 'citadel'
   | 'battleground'
   | 'daily'
   | 'settings'
@@ -225,7 +228,7 @@ export function homeLayout(): HomeLayout {
   }
 }
 
-const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
+const HOME_ORDER: HomeChoice[] = ['raid', 'citadel', 'battleground', 'daily', 'settings']
 
 export function drawHome(
   ctx: CanvasRenderingContext2D,
@@ -239,6 +242,7 @@ export function drawHome(
   const layout = homeLayout()
   const labels: Array<[string, string, string]> = [
     ['RAID', `${ENCOUNTERS.length} bosses · 5, 10 or 25 players`, COLORS.castBar],
+    ['THE CITADEL', 'the whole building, in one evening', COLORS.spread],
     ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
     ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
     ['SETTINGS', 'sound', COLORS.textDim],
@@ -825,6 +829,208 @@ export function hitBgSetup(x: number, y: number): { kind: 'map'; map: BgKind } |
   if (inside(layout.back, x, y)) return { kind: 'back' }
   for (let i = 0; i < layout.maps.length; i++) {
     if (inside(layout.maps[i]!, x, y)) return { kind: 'map', map: BATTLEGROUNDS[i]!.kind }
+  }
+  return null
+}
+
+// --- the citadel --------------------------------------------------------------
+
+/**
+ * The map, and where the party is standing on it.
+ *
+ * A dungeon without a map is a dungeon for people who have memorised it. What
+ * has to be on the screen is the four things the run actually holds — the
+ * rooms, which of them are down, which one you are in, and which doors are
+ * open — and nothing else: this screen asks one question, which is where to go
+ * next.
+ *
+ * Laid out as rows flowing into as many columns as the screen has room for.
+ * Fifteen rooms is a column on a phone held upright and two on one held
+ * sideways, and a map that scrolled would be a map you cannot see at once,
+ * which is the one thing a map is for.
+ */
+export interface CitadelRow {
+  id: string
+  rect: Rect
+  /** Indented under its wing, which is how the three branches read as three. */
+  depth: number
+  /**
+   * What the room is, which is what it is drawn as.
+   *
+   *   here      the party is standing in it
+   *   cleared   its fight is down
+   *   open      a fight, reachable, still alive
+   *   through   a room with no fight in it: the door, the crossing, the walk
+   *   waiting   a room whose fight is not built yet
+   *   shut      behind a door that has not opened
+   */
+  state: 'here' | 'cleared' | 'open' | 'through' | 'waiting' | 'shut'
+  /**
+   * Whether pressing it starts a fight, which is a different question.
+   *
+   * The room the party is standing in is `here` and may still have something
+   * alive in it — walking in and pulling are the same press until corridors
+   * exist (#24).
+   */
+  enterable: boolean
+}
+
+export interface CitadelLayout {
+  rows: CitadelRow[]
+  back: Rect
+  abandon: Rect
+}
+
+const CITADEL_ORDER_IDS = CHAMBERS.map((c) => c.id)
+
+/**
+ * Every room, for a caller that has no opinion about which of them the chain
+ * has opened. The screen always has one; the layout is also read by checks.
+ */
+const ALL: ReadonlySet<string> = new Set(CITADEL_ORDER_IDS)
+
+/** The order the map reads in, which is the order the citadel is walked in. */
+const CITADEL_ORDER: Array<{ id: string; depth: number }> = [
+  { id: 'threshold', depth: 0 },
+  { id: 'spire', depth: 0 },
+  { id: 'oratory', depth: 0 },
+  { id: 'rampart', depth: 0 },
+  { id: 'rise', depth: 0 },
+  { id: 'crossing', depth: 0 },
+  { id: 'sludge', depth: 1 },
+  { id: 'airless', depth: 1 },
+  { id: 'laboratory', depth: 1 },
+  { id: 'crimson', depth: 1 },
+  { id: 'sanctum', depth: 1 },
+  { id: 'dream', depth: 1 },
+  { id: 'gauntlet', depth: 1 },
+  { id: 'lair', depth: 1 },
+  { id: 'throne', depth: 0 },
+]
+
+export function citadelLayout(run: Run, allowed: ReadonlySet<string> = ALL): CitadelLayout {
+  const p = pad()
+  const back = backRect()
+  const top = titleY() + 30 * L.ui * MENU_TEXT
+  const bottom = back.y - 12
+  const rowH = Math.max(22, Math.min(34, (bottom - top) / CITADEL_ORDER.length - 2))
+  const gap = 4
+  const perColumn = Math.max(1, Math.floor((bottom - top) / (rowH + gap)))
+  const columns = Math.ceil(CITADEL_ORDER.length / perColumn)
+  const width = Math.min(360, (L.w - p * 2 - gap * (columns - 1)) / columns)
+  const left = L.w / 2 - (width * columns + gap * (columns - 1)) / 2
+
+  const reached = new Set(open(run).map((c) => c.id))
+  const rows = CITADEL_ORDER.map((entry, i) => {
+    const column = Math.floor(i / perColumn)
+    const at = i % perColumn
+    const chamber = chamberAt(entry.id)
+    const fight = chamber?.encounter ?? null
+    const reachedIt = reached.has(entry.id)
+    const enterable =
+      fight !== null && reachedIt && !isCleared(run, entry.id) && allowed.has(entry.id)
+    const state: CitadelRow['state'] =
+      run.at === entry.id
+        ? 'here'
+        : isCleared(run, entry.id)
+          ? 'cleared'
+          : !reachedIt
+            ? 'shut'
+            : fight === null
+              ? chamber?.awaiting === undefined
+                ? 'through'
+                : 'waiting'
+              : enterable
+                ? 'open'
+                : 'shut'
+    return {
+      id: entry.id,
+      depth: entry.depth,
+      state,
+      enterable,
+      rect: {
+        x: left + column * (width + gap) + entry.depth * 14 * L.ui,
+        y: top + at * (rowH + gap),
+        w: width - entry.depth * 14 * L.ui,
+        h: rowH,
+      },
+    }
+  })
+
+  return {
+    rows,
+    back,
+    abandon: { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
+  }
+}
+
+export function drawCitadel(
+  ctx: CanvasRenderingContext2D,
+  run: Run,
+  allowed: ReadonlySet<string> = ALL,
+): void {
+  backdrop(ctx)
+  const down = run.cleared.length
+  screenTitle(
+    ctx,
+    'THE CITADEL',
+    down === 0
+      ? `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'} — nothing down yet`
+      : `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'} — ${down} down, ${run.entered} rooms entered`,
+  )
+
+  const layout = citadelLayout(run, allowed)
+  for (const row of layout.rows) {
+    const chamber = chamberAt(row.id)
+    if (!chamber) continue
+    const colour =
+      row.state === 'here'
+        ? COLORS.player
+        : row.state === 'cleared'
+          ? COLORS.textDim
+          : row.state === 'open'
+            ? COLORS.text
+            : COLORS.dead
+    const detail =
+      row.state === 'here'
+        ? row.enterable
+          ? 'you are here — something is still alive'
+          : 'you are here'
+        : row.state === 'cleared'
+          ? 'down'
+          : row.state === 'waiting'
+            ? (chamber.awaiting ?? 'nothing here yet')
+            : row.state === 'through'
+              ? 'a way through'
+              : row.state === 'shut'
+                ? 'shut'
+                : chamber.pad
+                  ? 'open — a pad here'
+                  : 'open'
+    button(ctx, row.rect, chamber.name, detail, colour, row.state === 'here' || row.enterable)
+  }
+
+  button(ctx, layout.back, 'BACK', '', COLORS.textDim)
+  button(ctx, layout.abandon, 'GIVE UP', '', COLORS.boss)
+}
+
+export type CitadelHit = { kind: 'room'; id: string } | { kind: 'back' } | { kind: 'abandon' }
+
+export function hitCitadel(
+  run: Run,
+  x: number,
+  y: number,
+  allowed: ReadonlySet<string> = ALL,
+): CitadelHit | null {
+  const layout = citadelLayout(run, allowed)
+  if (inside(layout.back, x, y)) return { kind: 'back' }
+  if (inside(layout.abandon, x, y)) return { kind: 'abandon' }
+  for (const row of layout.rows) {
+    if (!inside(row.rect, x, y)) continue
+    // Only a room with a fight still in it answers. A cleared room is a place
+    // to walk through and there is nothing to do there yet; walking for its
+    // own sake is #24.
+    return row.enterable ? { kind: 'room', id: row.id } : null
   }
   return null
 }

@@ -259,6 +259,7 @@ export function createState(
     mode: 'raid',
     bg: null,
     room,
+    chamber: null,
     nextDoor: 0,
     only: null,
     imposed: null,
@@ -367,6 +368,7 @@ export function createBattlegroundState(
     bg,
     // A battleground is played in the yardstick circle and always has been.
     room: ROUND_ARENA,
+    chamber: null,
     nextDoor: 0,
     time: 0,
     tick: 0,

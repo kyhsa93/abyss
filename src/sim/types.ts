@@ -961,6 +961,16 @@ export interface SimState {
    * same circle by construction. They read this now. A fight that does not
    * name a room gets `ROUND_ARENA`, which is that same circle.
    */
+  /**
+   * Which room of the citadel this is, or null for a fight that is not part of
+   * an evening.
+   *
+   * The simulation does nothing with it. It is here for the same reason
+   * `depth` is: what happens when the fight ends is decided outside, and the
+   * screen that decides has nothing else to read — a descent goes deeper, a
+   * rung goes to the next rung, and a room goes back to the map.
+   */
+  chamber: string | null
   room: RoomShape
   /**
    * Which door the next thing summoned comes through.

@@ -41,13 +41,16 @@ import { DEFAULT_ZOOM, ZOOM_NAMES, ZOOM_STEPS, setWorldRoom, setZoomLevel, zoomL
 import {
   RAID_FIELDS,
   bgSetupLayout,
+  citadelLayout,
   creditsLayout,
   drawBgSetup,
+  drawCitadel,
   drawCredits,
   drawHome,
   drawRaidSetup,
   drawSettings,
   hitBgSetup,
+  hitCitadel,
   hitCredits,
   hitHome,
   hitRaidSetup,
@@ -6860,7 +6863,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
+  const answers = ['raid', 'citadel', 'battleground', 'daily', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -11008,6 +11011,105 @@ for (const [label, w, h] of [
     'and a longer one is drawn longer',
     sizes.hall! > sizes.disc!,
     `${sizes.hall!.toFixed(0)} against ${sizes.disc!.toFixed(0)}`,
+  )
+}
+
+// --- the map an evening is read off ------------------------------------------
+//
+// A dungeon with no map is a dungeon for people who have memorised it, so the
+// screen has to hold all fifteen rooms at once on the smallest phone the rest
+// of this file tests — and a map that scrolls is a map you cannot see at once.
+// What it says about each room has to be true as well: where the party is
+// standing, what is down, and which doors the chain has actually opened.
+{
+  // An evening two rooms in: the first fight down, the party standing in the
+  // second with it still alive, and the room after that one waiting for a
+  // fight nobody has built.
+  const run = { seed: 1, size: 10 as const, difficulty: 'normal' as const, at: 'oratory', cleared: ['spire'], carried: [0.5], entered: 2 }
+  const allowed = new Set(['spire', 'oratory', 'airless'])
+  for (const [label, w, h] of [
+    ['desktop 1440x900', 1440, 900],
+    ['portrait 390x844', 390, 844],
+    ['landscape 844x390', 844, 390],
+    ['small portrait 360x640', 360, 640],
+  ] as const) {
+    updateLayout(w, h)
+    const layout = citadelLayout(run, allowed)
+    expect(`${label}: all ${layout.rows.length} rooms are on the map`, layout.rows.length === 15, `${layout.rows.length}`)
+    const off = layout.rows.filter(
+      (r) => r.rect.x < 0 || r.rect.y < 0 || r.rect.x + r.rect.w > w || r.rect.y + r.rect.h > h,
+    )
+    expect(`${label}: and all of them on the screen`, off.length === 0, off.map((r) => r.id).join(', '))
+    const clash = layout.rows.filter(
+      (r) => r.rect.y + r.rect.h > layout.back.y && r.rect.x + r.rect.w > layout.back.x,
+    )
+    expect(`${label}: and none of them under the way out`, clash.length === 0, clash.map((r) => r.id).join(', '))
+
+    const here = layout.rows.find((r) => r.state === 'here')
+    expect(`${label}: the party is somewhere on it`, here?.id === 'oratory', here?.id ?? 'nowhere')
+    expect(
+      `${label}: what is down reads as down`,
+      layout.rows.find((r) => r.id === 'spire')?.state === 'cleared',
+      layout.rows.find((r) => r.id === 'spire')?.state ?? 'missing',
+    )
+    expect(
+      `${label}: a room behind a shut door is shut`,
+      layout.rows.find((r) => r.id === 'throne')?.state === 'shut',
+      layout.rows.find((r) => r.id === 'throne')?.state ?? 'missing',
+    )
+    expect(
+      `${label}: the door is a room rather than a fight`,
+      layout.rows.find((r) => r.id === 'threshold')?.state === 'through',
+      layout.rows.find((r) => r.id === 'threshold')?.state ?? 'missing',
+    )
+
+    // The room the party is standing in still has something alive in it, so
+    // the press that walks in and the press that pulls are the same press.
+    const oratory = layout.rows.find((r) => r.id === 'oratory')!
+    const press = hitCitadel(run, oratory.rect.x + 4, oratory.rect.y + oratory.rect.h / 2, allowed)
+    expect(`${label}: a room with something alive answers a tap`, press?.kind === 'room' && press.id === 'oratory', JSON.stringify(press))
+    const done = layout.rows.find((r) => r.id === 'spire')!
+    expect(
+      `${label}: and a room already down does not`,
+      hitCitadel(run, done.rect.x + 4, done.rect.y + done.rect.h / 2, allowed) === null,
+      'a cleared room answered',
+    )
+    const shut = layout.rows.find((r) => r.id === 'throne')!
+    expect(
+      `${label}: and a shut one does not`,
+      hitCitadel(run, shut.rect.x + 4, shut.rect.y + shut.rect.h / 2, allowed) === null,
+      'the throne answered',
+    )
+    expect(
+      `${label}: the way out and the way to give up both answer`,
+      hitCitadel(run, layout.back.x + 4, layout.back.y + 4, allowed)?.kind === 'back' &&
+        hitCitadel(run, layout.abandon.x + 4, layout.abandon.y + 4, allowed)?.kind === 'abandon',
+      'a button does not answer',
+    )
+
+    // And it draws. The stub answers everything; what is being checked is that
+    // nothing in the screen reaches for something a canvas does not have.
+    drawCitadel(ctx, run, allowed)
+  }
+  updateLayout(1440, 900)
+
+  // A room whose fight nobody has built says so, once the doors reach it.
+  const deeper = { ...run, at: 'rampart', cleared: ['spire', 'oratory'] }
+  expect(
+    'a room with no fight in it yet says what it is waiting for',
+    citadelLayout(deeper, allowed).rows.find((r) => r.id === 'rampart')?.state === 'here' &&
+      citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'rampart')?.state === 'waiting',
+    citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'rampart')?.state ?? 'missing',
+  )
+
+  // A room the chain has not opened is shut on the map even though the door is
+  // open: the citadel is somewhere to walk the ladder through, not a way round
+  // it.
+  const closed = citadelLayout(run, new Set(['spire']))
+  expect(
+    'a room the ladder has not opened is shut',
+    closed.rows.find((r) => r.id === 'airless')?.state === 'shut',
+    closed.rows.find((r) => r.id === 'airless')?.state ?? 'missing',
   )
 }
 

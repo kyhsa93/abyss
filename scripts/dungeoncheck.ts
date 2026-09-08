@@ -12,6 +12,18 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
+import {
+  DOOR,
+  cleared,
+  enter,
+  enterable,
+  isCleared,
+  load,
+  roomSeed,
+  save,
+  startRun,
+  wiped,
+} from '../src/citadel'
 
 /**
  * The map has to be a map.
@@ -197,6 +209,94 @@ expect(
   LADDER.length === ENCOUNTERS.length * RUNGS_PER_BOSS,
   `${LADDER.length} rungs against ${ENCOUNTERS.length} fights`,
 )
+
+// --- an evening in it --------------------------------------------------------
+//
+// The run holds four things and every one of them is a way to lose an evening
+// if it is wrong: where the party is, what is dead, what it walked out of the
+// last room with, and whether any of that survives being closed and reopened.
+{
+  // A stand-in for the browser's, so the save can be exercised at all. The
+  // real one is refused in a private window and full on a phone, and the code
+  // under test treats both as "no run", which is also what this proves.
+  const store = new Map<string, string>()
+  ;(globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  }
+
+  const fresh = startRun(4242, 10, 'normal')
+  expect('an evening starts at the door', fresh.at === DOOR && fresh.cleared.length === 0, fresh.at)
+  expect(
+    'and the only room it can walk into is the first fight',
+    enterable(fresh).length === 1 && enterable(fresh)[0]!.id === 'spire',
+    enterable(fresh).map((c) => c.id).join(', '),
+  )
+
+  const inSpire = enter(fresh, 'spire')
+  expect('walking in moves the party and counts the room', inSpire.at === 'spire' && inSpire.entered === 1)
+  expect('and walking somewhere shut does nothing', enter(fresh, 'throne').at === DOOR)
+
+  // A wipe: the room stays alive, the evening does not restart, and the party
+  // goes back to what it walked in with rather than to full.
+  const hurt = wiped({ ...inSpire, carried: [0.1, 0.2, -1] }, [0.9, 0.8, 0.7])
+  expect(
+    'a wipe keeps the evening and gives back the way in',
+    hurt.cleared.length === 0 && hurt.carried.join() === '0.9,0.8,0.7',
+    hurt.carried.join(),
+  )
+
+  const won = cleared(inSpire, 'spire', [0.4, -1, 0.9])
+  expect('a room won stays won', isCleared(won, 'spire') && won.cleared.length === 1)
+  expect(
+    'and what walked out of it is what walks into the next',
+    won.carried.join() === '0.4,-1,0.9',
+    won.carried.join(),
+  )
+  expect(
+    'and the next room is open',
+    enterable(won).some((c) => c.id === 'oratory'),
+    enterable(won).map((c) => c.id).join(', '),
+  )
+  expect('and winning it twice does not count twice', cleared(won, 'spire', []).cleared.length === 1)
+
+  // The same room in the same evening is the same fight; a different evening
+  // is a different one.
+  expect(
+    'a room is the same fight all evening',
+    roomSeed(won, 'spire') === roomSeed(fresh, 'spire') &&
+      roomSeed(won, 'spire') !== roomSeed(won, 'oratory') &&
+      roomSeed(startRun(99, 10, 'normal'), 'spire') !== roomSeed(fresh, 'spire'),
+    'the seed does not hold still',
+  )
+
+  // Saved and reopened.
+  save(won)
+  const back = load()
+  expect(
+    'an evening survives being closed',
+    back !== null && back.at === won.at && back.cleared.join() === won.cleared.join() &&
+      back.carried.join() === won.carried.join() && back.size === 10,
+    JSON.stringify(back),
+  )
+  save(null)
+  expect('and giving up on it leaves nothing behind', load() === null)
+
+  // A save from another version: a room that no longer exists, and a party
+  // standing somewhere the doors no longer reach.
+  store.set('abyss.citadel', JSON.stringify({ ...won, at: 'the-old-name' }))
+  expect('a save naming a room that is gone is no run at all', load() === null)
+  store.set('abyss.citadel', JSON.stringify({ ...won, at: 'throne' }))
+  const stranded = load()
+  expect(
+    'and a party standing behind a door that closed is put back at the door',
+    stranded !== null && stranded.at === DOOR,
+    JSON.stringify(stranded),
+  )
+  store.set('abyss.citadel', 'not json at all')
+  expect('and a save that is not a save is no run at all', load() === null)
+}
 
 if (failures > 0) {
   console.error(`dungeoncheck: ${failures} check(s) failed`)

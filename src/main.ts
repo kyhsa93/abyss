@@ -61,9 +61,11 @@ import {
   drawDaily,
   drawHome,
   drawRaidSetup,
+  drawCitadel,
   drawCredits,
   drawSettings,
   hitBgSetup,
+  hitCitadel,
   hitDaily,
   hitHome,
   hitRaidSetup,
@@ -105,6 +107,7 @@ import {
   LADDER,
   RUNGS_PER_BOSS,
   cleared,
+  isOpen,
   moved,
   nextSetting,
   pressBoss,
@@ -127,6 +130,19 @@ import {
   type DailyResult,
 } from './daily-record'
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
+import {
+  ROOM_RECOVERY,
+  ROOM_REVIVE,
+  cleared as clearedRoom,
+  enter as enterChamber,
+  load as loadRun,
+  roomSeed,
+  save as saveRun,
+  startRun,
+  wiped as wipedRoom,
+  type Run,
+} from './citadel'
+import { CHAMBERS, chamberAt } from './dungeon'
 import type { SimState } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -428,6 +444,17 @@ function fresh(said: string | null, at: number): string | undefined {
 }
 let playingDaily = false
 
+/**
+ * The evening in the citadel, or null when there is not one.
+ *
+ * Held here rather than in the simulation for the same reason the setting is:
+ * what the results screen does next is decided in this file, and this is the
+ * answer to "what was this fight part of".
+ */
+let run: Run | null = loadRun()
+/** Which room the fight on screen is in, and what the party walked into it with. */
+let roomId: string | null = null
+let roomCarried: number[] = []
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
@@ -446,6 +473,7 @@ let screen:
   | 'roster'
   | 'composition'
   | 'settings'
+  | 'citadel'
   | 'credits'
   | 'fight'
   | 'history' = 'home'
@@ -519,7 +547,114 @@ function buildState(): SimState {
   if (playingDaily) {
     return createState(daily.seed, 0, party, difficulty, encounter, daily.affix)
   }
+  if (run && roomId) {
+    // The room's own seed rather than the pull count's: the same room in the
+    // same evening is the same fight, so a wipe and the try after it are two
+    // attempts at one thing.
+    return createState(roomSeed(run, roomId), attempt, party, run.difficulty, encounter)
+  }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
+}
+
+/**
+ * Walks into a room of the citadel, carrying the party in the state it left
+ * the last one in.
+ *
+ * Whatever health it had plus a little back, and one of the fallen on their
+ * feet. What is missing is where the little back should come from — a walk
+ * down a corridor rather than a flat fraction for having opened a door, which
+ * is #24's to build.
+ */
+function enterRoom(id: string): void {
+  const chamber = chamberAt(id)
+  if (!run || !chamber || chamber.encounter === null) return
+  run = enterChamber(run, id)
+  roomId = id
+  roomCarried = [...run.carried]
+  encounter = chamber.encounter
+  difficulty = run.difficulty
+  playingDaily = false
+  mode = { kind: 'raid' }
+  attempt = 0
+  recorded = false
+  graded = false
+  announced = []
+  state = newState()
+  state.chamber = id
+  rng = rngFor(state)
+
+  const party0 = state.actors.filter((a) => a.faction === 'party')
+  let revived = false
+  party0.forEach((a, i) => {
+    const was = roomCarried[i]
+    if (was === undefined) return
+    if (was >= 0) {
+      a.hp = Math.min(a.maxHp, Math.round(a.maxHp * (was + ROOM_RECOVERY)))
+      return
+    }
+    // One of the fallen gets up a room, and no more: a wipe has to stay a wipe
+    // rather than being paid off one body at a time.
+    if (!revived) {
+      revived = true
+      a.hp = Math.round(a.maxHp * ROOM_REVIVE)
+    } else {
+      a.alive = false
+      a.hp = 0
+    }
+  })
+
+  fightingParty = party.map((p) => ({ ...p }))
+  fightingDifficulty = difficulty
+  fightingEncounter = encounter
+  fightingMode = mode
+  timing = { ...timing, accumulator: 0 }
+  saveRun(run)
+  screen = 'fight'
+}
+
+/** What the party walked out with, as a fraction each, and -1 for the fallen. */
+function carriedOut(fight: SimState): number[] {
+  return fight.actors
+    .filter((a) => a.faction === 'party')
+    .map((a) => (a.alive ? Math.max(0, a.hp / a.maxHp) : -1))
+}
+
+/**
+ * The map screen: the one question an evening asks, which is where next.
+ *
+ * A room only answers if the chain has opened it at the size and difficulty
+ * the evening is being played at. The citadel is a place to walk the ladder
+ * through, not a way around it.
+ */
+function updateCitadel(tap: { x: number; y: number } | null): void {
+  if (!run) {
+    screen = 'home'
+    return
+  }
+  const allowed = new Set(
+    CHAMBERS.filter(
+      (c) => c.encounter !== null && isOpen(unlocked, c.encounter, run!.size, run!.difficulty),
+    ).map((c) => c.id),
+  )
+  if (tap) {
+    const hit = hitCitadel(run, tap.x, tap.y, allowed)
+    if (hit?.kind === 'back') {
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'abandon') {
+      run = null
+      roomId = null
+      saveRun(null)
+      screen = 'home'
+      return
+    }
+    if (hit?.kind === 'room') {
+      enterRoom(hit.id)
+      return
+    }
+  }
+  drawCitadel(ctx, run, allowed)
 }
 
 let state: SimState = newState()
@@ -539,6 +674,15 @@ function rngFor(fight: SimState): Rng {
 let rng = rngFor(state)
 
 function restart(): void {
+  // A room of the citadel is retried as a room: the evening keeps what it has
+  // already killed, and the party goes back to what it walked in with rather
+  // than to full.
+  if (run && roomId) {
+    run = wipedRoom(run, roomCarried)
+    saveRun(run)
+    enterRoom(roomId)
+    return
+  }
   attempt++
   recorded = false
   graded = false
@@ -675,6 +819,19 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
     }
     if (hit === 'settings') {
       screen = 'settings'
+      return
+    }
+    if (hit === 'citadel') {
+      // Resumed if there is one, and started at the door if there is not. An
+      // evening is the one thing in this game long enough to be interrupted,
+      // which is why it is the one thing that is saved mid-way.
+      if (!run) {
+        const start = settle(unlocked, setting())
+        run = startRun(Date.now(), start.size, start.difficulty)
+        saveRun(run)
+      }
+      if (run.size !== party.length) resize(run.size)
+      screen = 'citadel'
       return
     }
     if (hit === 'record') {
@@ -1060,6 +1217,7 @@ function frame(now: number): void {
     else if (screen === 'battleground') updateBgSetup(tap)
     else if (screen === 'daily') updateDaily(tap)
     else if (screen === 'settings') updateSettings(tap)
+    else if (screen === 'citadel') updateCitadel(tap)
     else if (screen === 'credits') updateCredits(tap)
     else if (screen === 'composition') updateComposition(tap)
     else updateRoster(tap, clock)
@@ -1159,7 +1317,16 @@ function frame(now: number): void {
       requestAnimationFrame(frame)
       return
     }
-    if (hit === 'next') advanceTier()
+    if (hit === 'next') {
+      if (run && roomId) {
+        // A room won: it stays won, and what the party walked out with walks
+        // into the next one.
+        run = clearedRoom(run, roomId, carriedOut(state))
+        saveRun(run)
+        roomId = null
+        screen = 'citadel'
+      } else advanceTier()
+    }
     else if (hit === 'retry') restart()
   }
   // A tap on the call row, before anything else can claim the point.
