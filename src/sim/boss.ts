@@ -43,6 +43,10 @@ import {
   MELEE_RANGE,
   PUDDLE_TELEGRAPH,
   TURN_RATE,
+  SPILL_RADIUS,
+  SPILL_DAMAGE,
+  GORGE_RADIUS,
+  GORGE_BURST,
 } from './constants'
 import { clearTerrain } from './battleground'
 import {
@@ -433,6 +437,10 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleSpikes(s, b, rng, timing)
   scheduleRaidHit(s, timing)
   scheduleAdds(s, b, rng, timing)
+  scheduleSpill(s, b, rng, timing)
+  scheduleFester(s, b, rng, timing)
+  scheduleGorge(s, b, target, timing)
+  scheduleChampion(s, b, rng, timing)
 
   updateAdds(s)
 }
@@ -581,9 +589,17 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
     const swollen = getAura(target, 'swelling')?.stacks ?? 0
     const damage = hit(
       s,
-      fight(s).swingDamage * (1 + breaths * INHALE_POWER) * (1 + swollen * BLOAT_POWER),
+      fight(s).swingDamage *
+        (1 + breaths * INHALE_POWER) *
+        (1 + swollen * BLOAT_POWER) *
+        gaugePower(s),
     )
     applyDamage(s, target, damage, 'physical', { sourceId: b.id })
+    // And a share of it onto whoever is wearing the mark, wherever they are
+    // standing. This is what makes the mark something the healers hold rather
+    // than a label: it is a second tank's worth of attrition on a body that is
+    // not tanking, and it does not stop.
+    markShare(s, b, target, damage, CHAMPION_SPLASH, false)
     // The party's weapons have always drawn their swing and their landing.
     // The boss's did neither, which is most of why a fight it was winning
     // looked like nothing was happening.
@@ -1436,6 +1452,21 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
     const thrall = makeAdd(s.nextObjectId++, pos.x, pos.y)
     thrall.maxHp = addHealth(s)
     thrall.hp = thrall.maxHp
+    // On the fight whose gauge these fill, a wave picks somebody and walks at
+    // them. Which body it picks is half of how fast the bar moves, and that is
+    // the difference between a wave that is a thing to survive and one that is
+    // a decision: sent at whoever is nearest it dies in the melee where the
+    // damage already is, and the raid never had to do anything.
+    //
+    // Never the tank, for the reason the mark is never the tank: a beast sent
+    // at the body already standing in front of the boss changes nothing.
+    if (timing.siphon > 0) {
+      const quarry = livingParty(s).filter((a) => a.role !== 'tank')
+      if (quarry.length > 0) {
+        thrall.spawn = 'beast'
+        thrall.quarry = rng.pick(quarry).id
+      }
+    }
     s.actors.push(thrall)
   }
 }
@@ -1647,6 +1678,373 @@ export const VERDICT_LINE = 0.85
 
 /** Where a brand burned out, the floor keeps it. */
 
+// --- the gorged one -------------------------------------------------------
+//
+// One boss on this roster does not bill at the instant it judges. Everything
+// it throws is survivable and most of it is trivial; what is not trivial is
+// that each thing the raid lets happen is a deposit, and the deposits buy
+// something that never goes away. A fight lost at three minutes was lost at
+// forty seconds.
+//
+// The gauge itself is deliberately not a rung. Rule 1 in
+// `docs/mechanic-rules.md` says failure has to be binary at an instant, and a
+// bar filling is a slope -- the wind that pushed bodies a tick at a time
+// measured at exactly nothing for this reason. What the ladder sells is the
+// mark the gauge buys, which is an instant on a named body.
+
+/**
+ * What each thing the raid could have prevented puts into the gauge.
+ *
+ * Three sources and no others, and the omission is the design: the boss's own
+ * swing does not fill it. A gauge that filled from being in the fight would be
+ * a second enrage clock wearing a bar, and the raid could do nothing about it.
+ * Filled only by what somebody let happen, it is a bill.
+ *
+ * The three are not equal, and the ordering is an argument about how much
+ * warning each mistake came with. A beast has to cross the room to land its
+ * hit and the raid has the whole of that walk to stop it, so connecting is the
+ * largest of the three. A body caught in a spill had six seconds to walk a
+ * hundred and twenty units. A wound left festering is the smallest per tick
+ * and the largest if it is ignored, which is the shape of a thing answered by
+ * being early.
+ */
+export const SIPHON_PER_CAUGHT = 0.04
+const SIPHON_PER_ADD_HIT = 0.015
+export const SIPHON_PER_FESTER_TICK = 0.005
+
+/**
+ * What a full gauge is worth to the boss's own hands, as a multiplier.
+ *
+ * The gauge's continuous half, and it is deliberately the half that teaches
+ * nothing: rule 1 says failure has to be binary at an instant, and this is a
+ * slope. What it is for is that the raid *feels* the fight getting heavier
+ * before the mark arrives -- the tank's health bar moving faster than the
+ * healers expected is the only warning the design gives.
+ */
+const SIPHON_POWER = 0.5
+
+/** The cadence at which the gauge fills exactly as fast as it is written. */
+const SIPHON_REFERENCE = 20
+
+/**
+ * Puts something into the gauge, if this fight has one.
+ *
+ * Every caller is somewhere the raid made a mistake, and none of them knows or
+ * needs to know whether the boss on the floor sells a gauge -- a fight without
+ * one has `siphon` at zero on every phase and this does nothing.
+ */
+export function siphonFeed(s: SimState, amount: number, at?: Vec2): void {
+  if (s.mode !== 'raid' || s.gauge >= 1) return
+  const base = fight(s).phases[s.phase]
+  if (!base) return
+  // Through the same door the schedulers read their cadences through, rather
+  // than off the boss's own table. What is on the table is what the fight owns;
+  // what comes out of here is what tonight's raid bought and what a check has
+  // imposed -- and a gauge that read the table would fill on a rung that had
+  // not sold it, and refuse to fill for the probe that isolates it.
+  const seconds = scaled(base, s).siphon
+  if (seconds <= 0) return
+  // The row on the phase table is written as a cadence like every other row --
+  // how long a bar takes to fill at a reference rate of mistakes -- so that a
+  // later phase asking for it *sooner* is the same sentence here as it is
+  // everywhere else. What the fight actually needs is a multiplier, and that
+  // is this ratio rather than a second column that reads backwards.
+  const before = s.gauge
+  s.gauge = Math.min(1, s.gauge + (amount * SIPHON_REFERENCE) / seconds)
+  // Where it came from, drawn for four tenths of a second. Without this the
+  // bar goes up and the raid has no idea which of the three things it is doing
+  // wrong -- a mechanic whose only feedback is a number moving somewhere else
+  // is a mechanic nobody can be taught by.
+  if (at && s.gauge > before) {
+    pushEffect(s, 'impact', at, { abilityId: 'boss_siphon', power: (s.gauge - before) * 1000 })
+  }
+}
+
+/** What the gauge is worth to a hit, which is nothing at all until it fills. */
+export function gaugePower(s: SimState): number {
+  return 1 + s.gauge * SIPHON_POWER
+}
+
+/** Bodies wearing the mark, which is the only aura in the game that stays. */
+export function marked(s: SimState): Actor[] {
+  return livingParty(s).filter((a) => getAura(a, 'championed') !== undefined)
+}
+
+/**
+ * How many marks may be out at once, whatever the headcount.
+ *
+ * Rule 5, applied to a bill that never expires: one instant may write one
+ * near-lethal bill, and a mark is worse than that -- it is a bill the healers
+ * carry for the rest of the pull. Three at twenty-five would be three bodies
+ * nobody may lose and no hands left for the fight. The roster is allowed to
+ * make each one heavier instead; it is not allowed to make them more numerous.
+ */
+const CHAMPION_CAP = 2
+
+/**
+ * What share of the boss's hands lands on each marked body, swing and slam.
+ *
+ * Two numbers because the mechanic needs both halves and they do different
+ * jobs. The swing is attrition: it puts a marked body permanently on the
+ * healers' list, which is what makes the mark a thing carried rather than a
+ * thing survived. The slam is the moment: most of a tank's own hit landing on
+ * somebody who is not a tank, every sixteen seconds, which can take a body
+ * that was not already being watched from comfortable to dead.
+ */
+const CHAMPION_SPLASH = 0.12
+const CHAMPION_SLAM = 0.35
+
+/**
+ * How far the mark's own hit carries, and what it costs to be inside that.
+ *
+ * The half of this mechanic that can be measured. As pure healing pressure a
+ * mark cannot teach anything: at a splash small enough to survive nobody dies,
+ * at one large enough to kill nobody survives, and there is no coefficient in
+ * between -- which is rule 5's own note read from the other end, that a bill
+ * spread over time is a rate and a rate is what healing is.
+ *
+ * So the mark is also a place. What lands on the marked body lands again on
+ * whoever is standing with them, which asks a question a reaction delay can be
+ * late for: the marked body has to take itself away from the raid, and the
+ * raid has to stop standing where it was.
+ */
+const CHAMPION_REACH = 130
+const CHAMPION_NEAR = 0.5
+
+/** How far the mark's hit carries to whoever is standing with it. */
+export const MARK_REACH = CHAMPION_REACH
+
+/** What the boss gets back if a marked body goes down. */
+export const CHAMPION_HEAL = 0.05
+
+/**
+ * The mark, which is bought rather than scheduled.
+ *
+ * Every other thing on this list is a timer coming round. This one waits for
+ * the raid to fill something, which is why it is the only mechanic in the game
+ * whose cadence is a *value* -- and why the boss it belongs to is the only one
+ * whose fight can be made to go quiet by playing well.
+ *
+ * `timing.champion` is a floor under that, not a cadence: a raid answering
+ * everything perfectly still meets the mechanic its ladder sold it, eventually.
+ */
+function scheduleChampion(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  // Either half of it is enough to be here: a fight can sell the gauge without
+  // the mark, and `teachprobe` narrows a fight to the mark without the gauge --
+  // which is the only way to measure a mechanic whose clock is a value rather
+  // than a timer.
+  if (timing.siphon <= 0 && timing.champion <= 0) return
+  const floor = timing.champion
+  if (floor > 0) {
+    s.next.champion -= DT
+    if (s.next.champion <= 0) {
+      s.gauge = 1
+      s.next.champion = floor
+    }
+  }
+  if (s.gauge < 1) return
+
+  // A fight that has not bought the mark still spends the gauge.
+  //
+  // Left to sit full it would be a permanent half-again on every swing, which
+  // makes the rung that buys the mark *easier* than the rung below it -- the
+  // ladder's one rule broken by the mechanic that is supposed to be its spine.
+  // What the gorged one does with a full gauge and nobody to mark is take a
+  // breath and start again.
+  if (timing.champion <= 0) {
+    s.gauge = 0
+    say(s, b, lineFor(fight(s), 'siphon'))
+    return
+  }
+
+  // Full and already at the cap: the gauge stays full and everything the raid
+  // does wrong from here is free. That is not a mercy -- it is what stops a
+  // twenty-five man collecting a mark a body until the healers have nothing
+  // left that is not already spoken for.
+  if (marked(s).length >= CHAMPION_CAP) return
+
+  // Never the tank and never twice on one body. The first because a tank is
+  // already taking every swing, so a mark on one changes nothing; the second
+  // because a mark never falls off, so a body picked twice would carry double
+  // for the rest of the pull with no answer available to anybody.
+  const pool = livingParty(s).filter(
+    (a) => a.role !== 'tank' && getAura(a, 'championed') === undefined,
+  )
+  if (pool.length === 0) return
+  const victim = rng.pick(pool)
+  addAura(victim, 'championed', b.id)
+  s.gauge = 0
+  if (floor > 0) s.next.champion = floor
+  say(s, b, lineFor(fight(s), 'champion'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', victim.pos, { abilityId: 'boss_champion', power: 400, crit: true })
+}
+
+/**
+ * What each marked body takes off one of the boss's hits.
+ *
+ * Called from the swing and from the slam with the share each is worth, so the
+ * two halves of the mark are one piece of code and cannot drift apart.
+ */
+function markShare(s: SimState, b: Actor, struck: Actor | null, damage: number, share: number, near: boolean): void {
+  for (const carrier of marked(s)) {
+    if (struck && carrier.id === struck.id) continue
+    const bill = damage * share
+    applyDamage(s, carrier, bill, 'physical', { sourceId: b.id, mechanic: 'champion' })
+    pushEffect(s, 'impact', carrier.pos, { abilityId: 'boss_champion', power: bill, crit: near })
+    if (!near) continue
+    // And on whoever is standing with them. This is the part of the mark that
+    // is answered by walking rather than by healing, and the only part of it a
+    // raid can be practised at.
+    for (const other of livingParty(s)) {
+      if (other.id === carrier.id || (struck && other.id === struck.id)) continue
+      if (dist(other.pos, carrier.pos) > CHAMPION_REACH) continue
+      applyDamage(s, other, bill * CHAMPION_NEAR, 'physical', {
+        sourceId: b.id,
+        mechanic: 'champion',
+      })
+    }
+  }
+}
+
+/**
+ * Blood put on somebody, six seconds from going off.
+ *
+ * The carrier cannot dodge their own -- it is judged where they are standing
+ * when the count ends -- so what the mechanic asks is that they be standing
+ * somewhere nobody else is, and that everybody else notice which body to be
+ * away from. Never on the melee: they stand shoulder to shoulder in front of
+ * the boss, so a spill dropped there catches all of them however well they
+ * play, which is a bill on a role rather than a decision.
+ */
+function scheduleSpill(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.spill <= 0) return
+  s.next.spill -= DT
+  if (s.next.spill > 0) return
+  s.next.spill = timing.spill
+
+  const free = livingParty(s).filter((a) => !a.melee && !getAura(a, 'spilling'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), 'spill'))
+  s.sounds.push('telegraph')
+  const count = Math.max(1, Math.round(s.party.length / 9))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const carrier = free.splice(rng.int(free.length), 1)[0]!
+    addAura(carrier, 'spilling', b.id)
+    pushEffect(s, 'cast', carrier.pos, { abilityId: 'boss_spill' })
+  }
+}
+
+/**
+ * A spill going off, and everybody it caught.
+ *
+ * Exported because the aura running out is what detonates it, and aura expiry
+ * lives in `sim.ts` beside the others that resolve that way.
+ *
+ * Everyone past the first is a deposit. The carrier is not counted -- they
+ * could not have moved out of themselves -- which is what makes the mechanic
+ * a question for the raid rather than a punishment for whoever was named.
+ */
+export function detonateSpill(s: SimState, carrier: Actor): void {
+  const bill = mechanic(s, SPILL_DAMAGE)
+  let caught = 0
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, carrier.pos) > SPILL_RADIUS) continue
+    caught++
+    applyDamage(s, a, bill, 'magic', { sourceId: BOSS_ID, mechanic: 'spill' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_spill', power: bill })
+  }
+  pushEffect(s, 'impact', carrier.pos, {
+    abilityId: 'boss_spill',
+    radius: SPILL_RADIUS,
+    power: bill,
+    crit: true,
+  })
+  if (caught > 1) siphonFeed(s, (caught - 1) * SIPHON_PER_CAUGHT, carrier.pos)
+}
+
+/**
+ * A wound that fills the gauge while nobody closes it.
+ *
+ * The one dot in this game that must not be ridden out, and the only mechanic
+ * on this boss aimed squarely at the healers. Never on the tank: a tank is
+ * being healed continuously anyway, so a wound there would come off before
+ * anybody decided anything.
+ */
+function scheduleFester(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.fester <= 0) return
+  s.next.fester -= DT
+  if (s.next.fester > 0) return
+  s.next.fester = timing.fester
+
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'festering'))
+  if (free.length === 0) return
+
+  say(s, b, lineFor(fight(s), 'fester'))
+  const count = Math.max(1, Math.round(s.party.length / 12))
+  for (let i = 0; i < count && free.length > 0; i++) {
+    const carrier = free.splice(rng.int(free.length), 1)[0]!
+    addAura(carrier, 'festering', b.id)
+    pushEffect(s, 'cast', carrier.pos, { abilityId: 'boss_fester' })
+  }
+}
+
+/**
+ * The boss taking whoever is holding it inside itself.
+ *
+ * What it costs is not the damage. For four seconds the raid's front rank is
+ * gone -- nothing is holding the boss, nothing can be healed into that body,
+ * and whoever is second in line has to be standing in the right place when it
+ * looks up. It is this fight's tank swap, and it is the reason the rung it
+ * sits on is one a five-man never reaches: a raid with one tank cannot answer
+ * it at all.
+ */
+function scheduleGorge(s: SimState, b: Actor, target: Actor | null, timing: PhaseTiming): void {
+  if (timing.gorge <= 0) return
+  s.next.gorge -= DT
+  if (s.next.gorge > 0) return
+  // Nobody in front of it, or the last one is still inside: the clock waits
+  // rather than resets, so a fight that has just handed the boss back does not
+  // get the next swallowing a full cadence later than the raid was told.
+  if (!target || s.actors.some((a) => getAura(a, 'swallowed'))) return
+  s.next.gorge = timing.gorge
+
+  addAura(target, 'swallowed', b.id)
+  say(s, b, lineFor(fight(s), 'gorge'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_gorge', power: 500, crit: true })
+}
+
+/**
+ * The boss putting somebody back, and what that costs whoever came close.
+ *
+ * Exported for the same reason `burstSpore` is: the aura running out is the
+ * mechanic, and expiry lives in `sim.ts`.
+ *
+ * The body lands where the boss is standing, which is the whole answer to it:
+ * the raid has four seconds to know that the ground under the boss is about to
+ * be the mechanic, and the melee are already standing on it.
+ */
+export function spitOut(s: SimState, victim: Actor): void {
+  const b = boss(s)
+  victim.pos.x = b.pos.x
+  victim.pos.y = b.pos.y
+  pushInside(s.room, victim.pos, victim.radius)
+  const bill = mechanic(s, GORGE_BURST)
+  for (const a of livingParty(s)) {
+    if (dist(a.pos, b.pos) > GORGE_RADIUS) continue
+    applyDamage(s, a, bill, 'magic', { sourceId: b.id, mechanic: 'gorge' })
+    pushEffect(s, 'impact', a.pos, { abilityId: 'boss_gorge', power: bill })
+  }
+  pushEffect(s, 'impact', b.pos, {
+    abilityId: 'boss_gorge',
+    radius: GORGE_RADIUS,
+    power: bill,
+    crit: true,
+  })
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -1717,7 +2115,29 @@ function updateAdds(s: SimState): void {
     let nearest: Actor | null = null
     let best = Infinity
 
-    {
+    // A blood beast has chosen, and the choice is the mechanic.
+    //
+    // Its hits are what fills the gorged one's gauge, so *who* it walks at
+    // decides how fast the bar moves. Sent at whoever is nearest it dies in
+    // the melee where the damage already is, which is no decision at all --
+    // the raid would have killed it standing still. Sent at a named body, that
+    // body has to bring it to the damage, and the raid has to stop what it is
+    // doing and meet it.
+    //
+    // It is not a stalker: when the body it chose goes down it carries on with
+    // whoever is nearest, because it is an ordinary thrall that happens to
+    // have chosen.
+    if (add.spawn === 'beast' && add.quarry !== undefined) {
+      const quarry = s.actors.find((a) => a.id === add.quarry)
+      if (quarry && quarry.alive) {
+        nearest = quarry
+        best = dist(add.pos, quarry.pos)
+      } else {
+        delete add.quarry
+      }
+    }
+
+    if (!nearest) {
       for (const p of livingParty(s)) {
         const d = dist(add.pos, p.pos)
         if (d < best) {
@@ -1752,7 +2172,14 @@ function updateAdds(s: SimState): void {
         (add.spawn === 'herald' ? HERALD_DAMAGE : ADD_DAMAGE) *
           (getAura(add, 'empowered') ? EMPOWER_POWER : 1),
       )
-      applyDamage(s, nearest, damage, 'physical', { sourceId: add.id })
+      applyDamage(s, nearest, damage, 'physical', {
+        sourceId: add.id,
+        // A beast landing a hit is a named mistake rather than the wave
+        // arriving: the raid had the whole of its walk across the room to stop
+        // it, and every one of these is a deposit.
+        ...(add.spawn === 'beast' ? { mechanic: 'adds' as const } : {}),
+      })
+      if (add.spawn === 'beast') siphonFeed(s, SIPHON_PER_ADD_HIT, nearest.pos)
       pushEffect(s, 'impact', nearest.pos, {
         abilityId:
           add.spawn === 'herald' ? 'boss_herald' : 'boss_thrall',
@@ -1794,8 +2221,14 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
   if (castId === 'boss_slam') {
     const target = s.actors.find((a) => a.id === targetId)
     if (target && target.alive && dist(b.pos, target.pos) <= MELEE_RANGE + target.radius + 20) {
-      const damage = hit(s, fight(s).slamDamage)
+      const damage = hit(s, fight(s).slamDamage * gaugePower(s))
       applyDamage(s, target, damage, 'physical', { sourceId: b.id })
+      // And a third of it again on whoever is wearing the mark, and on whoever
+      // is standing with them. This is the instant the mark is: a body that is
+      // not tanking taking a share of a tank's hit, far enough from the raid
+      // that a healer who was not already watching has to notice and answer
+      // inside one cast.
+      markShare(s, b, target, damage, CHAMPION_SLAM, true)
       pushEffect(s, 'impact', target.pos, {
         abilityId: 'boss_slam',
         power: damage,

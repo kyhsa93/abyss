@@ -235,6 +235,9 @@ const ARMS: Record<string, string[]> = {
   // of the two blocks its body is drawn in. See `actions`.
   'boss-marrow': ['weapon/blunt/waraxe'],
   'boss-whisper': STAFF,
+  // A halberd, which is the longest thing in the set: the one boss here that
+  // swallows whoever is holding it should look like it can reach them.
+  'boss-gorged': ['weapon/polearm/halberd'],
 }
 
 /** Which of the three a thing in a hand is drawn doing. */
@@ -397,6 +400,23 @@ const BOSS: Record<string, Layer[]> = {
     { z: 20, dir: 'legs/pants/male' },
     { z: 60, dir: 'torso/bandage/male' },
     { z: 100, dir: 'head/heads/frankenstein/adult' },
+  ],
+  // "give it nothing, and carry what it takes" -- somebody's champion, raised.
+  // Full plate on the largest body in the set, because what this fight asks
+  // about is *weight*: it takes what the raid drops and wears it, and the one
+  // thing the picture has to carry is that the thing in the middle is getting
+  // heavier. A creature would carry that badly. Armour carries it exactly.
+  //
+  // The head is the orc's, which is the only monstrous one in the set that
+  // still reads as a soldier rather than as a corpse -- the skeleton and the
+  // stitched one are already the first and third bosses, and three dead things
+  // in four rooms is a building with one idea.
+  gorged: [
+    { z: 10, dir: 'body/bodies/muscular' },
+    { z: 20, dir: 'feet/armour/plate/male' },
+    { z: 30, dir: 'legs/armour/plate/male' },
+    { z: 60, dir: 'torso/armour/plate/male' },
+    { z: 100, dir: 'head/heads/orc/male' },
   ],
 }
 

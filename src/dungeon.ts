@@ -131,8 +131,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'rise',
     name: 'The Rise',
     wing: 'lower',
-    encounter: null,
-    awaiting: 'the boss paid by your mistakes (#6)',
+    encounter: 3,
     pad: killed('rampart'),
   },
   // The room where the citadel stops being a corridor. No fight in it, and

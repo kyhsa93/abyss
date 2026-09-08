@@ -19,6 +19,7 @@ import {
   SLIGHT_SHARE,
 } from './constants'
 import type { Rng } from './rng'
+import { CHAMPION_HEAL } from './boss'
 import { pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
@@ -172,6 +173,22 @@ export const AURA_DURATION: Record<AuraId, number> = {
   mending: 6,
   // Short on purpose: it is for one exit and one return, not for a fight.
   sprint: 5,
+  // It does not come off. `stackAura` refreshes a duration and this one is
+  // never refreshed by anything, so the number only has to outlast a pull --
+  // and the enrage is four minutes.
+  championed: 3600,
+  // The fuse on a spill, and it is a walk rather than a step: six seconds is
+  // long enough to get out of a hundred and twenty units and short enough
+  // that the raid cannot finish what it was doing first.
+  spilling: 6,
+  // Long enough to be a decision rather than a tick. A wound that ran its
+  // whole term is twelve deposits, which is a fifth of a gauge from one body
+  // nobody got to in time.
+  festering: 12,
+  // Four seconds inside the thing, which is two globals and a swap. Any
+  // shorter and the second tank never has to move; any longer and the fight
+  // is a fight with a tank missing rather than a fight with a handover in it.
+  swallowed: 4,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -249,6 +266,8 @@ export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
   spiked: 'spike',
   reek: 'vilegas',
   haunted: 'shade',
+  festering: 'fester',
+  swallowed: 'gorge',
 }
 
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
@@ -265,6 +284,20 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // and the shape is borrowed from there.
   spiked: { damage: 34 },
   reek: { damage: 62 },
+  // Flat rather than climbing, and it is the one dot here that should be.
+  // What makes it urgent is not that it gets worse -- it is that every tick
+  // of it is money in the boss's bar, so the cost of being slow is paid by
+  // the raid twenty seconds later rather than by the body wearing it now.
+  //
+  // Ninety a second for twelve seconds is the same eleven hundred the spec
+  // asks for in six ticks of a hundred and eighty; the engine ticks auras
+  // once a second, and a bill split finer is the same bill.
+  festering: { damage: 90 },
+  // What being inside it costs, which is steep and is not the point. The
+  // point is the four seconds the raid spends without whoever was holding
+  // the boss, and this is only what makes those seconds a real loss rather
+  // than a free breather for the body that was tanking.
+  swallowed: { damage: 550 },
   haunted: { damage: 74 },
   living_bomb: { damage: 70 },
   serpent_sting: { damage: 60 },
@@ -430,6 +463,11 @@ export function topThreatTarget(s: SimState): Actor | null {
   let best: Actor | null = null
   let bestValue = -1
   for (const a of livingParty(s)) {
+    // A body inside the boss is not holding it. This is the whole cost of the
+    // swallowing: whoever was first on the list is gone for four seconds, so
+    // the boss turns to whoever is second, and if nobody has been building
+    // anything that is a healer.
+    if (getAura(a, 'swallowed')) continue
     const value = s.threat[a.id] ?? 0
     if (value > bestValue) {
       bestValue = value
@@ -553,6 +591,15 @@ export function applyDamage(
   // would exist for the party and not for the player, who can keep pressing
   // whatever they like.
   if (target.id === BOSS_ID && s.mode === 'raid' && heraldUp(s)) return
+
+  // And nothing reaches a body the boss has swallowed, except the thing that
+  // swallowed it.
+  //
+  // It is inside the boss: no floor is under it, no wave can walk to it and no
+  // healer can see it. `silent` is what tells the two apart -- the wound the
+  // gorging itself ticks is applied that way, like every other aura tick, and
+  // everything else in the fight is not.
+  if (getAura(target, 'swallowed') && !opts.silent) return
 
   // Whose hit this is decides what units it is written in. Bodies someone is
   // steering — the player, and everything with an AI profile — swing numbers
@@ -696,6 +743,18 @@ export function applyDamage(
       const spike = s.actors.find((a) => a.id === held.sourceId && a.spawn === 'spike')
       if (spike) spike.alive = false
     }
+    // The gorged one is paid for a body it marked, wherever and however that
+    // body died. This is the fight's failure state and it is deliberately not
+    // a damage number: what the raid loses is the attempt, because the enrage
+    // clock stops meaning what it meant.
+    if (getAura(target, 'championed') && s.mode === 'raid') {
+      const b = boss(s)
+      if (b && b.alive) {
+        b.hp = Math.min(b.maxHp, b.hp + b.maxHp * CHAMPION_HEAL)
+        pushText(s, b.pos, 'GORGED', 'crit')
+        s.sounds.push('raid')
+      }
+    }
     pushText(s, target.pos, 'DOWN', 'crit')
     if (target.faction === 'party') s.sounds.push('death')
     const tally = s.tally[target.id]
@@ -752,6 +811,11 @@ export function mostHurt(s: SimState, faction: Actor['faction'] = 'party'): Acto
 
 export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: number): void {
   if (!target.alive) return
+  // Nor can a heal reach one. The four seconds are the mechanic: a healer who
+  // spends them on the body inside the boss is a healer who has spent them on
+  // nothing, and the raid is meant to spend them on whoever is holding the
+  // boss instead.
+  if (getAura(target, 'swallowed')) return
   const before = target.hp
   // The day's twist, applied where every heal passes rather than at each of
   // the dozen places one is cast. `HEALTH` rides along for the same reason:

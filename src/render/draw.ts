@@ -8,9 +8,11 @@ import {
   REEK_REACH,
   SHADE_REACH,
   SPORE_REACH,
+  SPILL_RADIUS,
+  GORGE_RADIUS,
   STORM_REACH,
 } from '../sim/constants'
-import { dist, getAura } from '../sim/combat'
+import { AURA_DURATION, dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
@@ -315,9 +317,29 @@ export function drawWorld(
   // decided by the axis running across the screen instead of the one running
   // into it. Bodies swapped in front of each other as the player walked round
   // the boss.
+  drawSwallowed(ctx, s, alpha, clock)
+
   for (const a of drawOrder(s, alpha)) {
+    // A body inside the boss is not on the floor. It is drawn as a ring under
+    // the boss instead -- see `drawSwallowed` -- because "where did they go"
+    // has to be answerable, and a figure standing in the middle of the arena
+    // taking no damage and casting nothing would answer it wrongly.
+    if (getAura(a, 'swallowed')) continue
     if (a.faction === 'boss') {
-      drawActor(ctx, a, alpha, clock, false, bg, bossAccent(s), bossBody(s), s.seed, s.phase, s.time - s.phaseAt)
+      drawActor(
+        ctx,
+        a,
+        alpha,
+        clock,
+        false,
+        bg,
+        bossAccent(s),
+        bossBody(s),
+        s.seed,
+        s.phase,
+        s.time - s.phaseAt,
+        a.id === BOSS_ID ? s.gauge : 0,
+      )
     } else {
       drawActor(ctx, a, alpha, clock, standingInFire(s, a), bg, COLORS.boss, undefined, s.seed, s.phase)
     }
@@ -1206,6 +1228,56 @@ function footprint(ctx: CanvasRenderingContext2D, x: number, y: number, rx: numb
   floorArc(ctx, x, y, rx)
 }
 
+/**
+ * Whoever the boss is holding, and the floor it is about to throw them onto.
+ *
+ * Two things a picture has to say and neither of them fits on a body: the
+ * swallowed one is not drawn at all, so the ring under the boss in their own
+ * colour is the only answer to "where did they go", and the circle around it
+ * is the floor everybody else has four seconds to leave.
+ *
+ * Drawn under the bodies rather than over them, because it is floor. The count
+ * is the circle's own edge going solid rather than a number: the last second
+ * is the one that matters and a digit is read too late.
+ */
+function drawSwallowed(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  alpha: number,
+  clock: number,
+): void {
+  const inside = s.actors.filter((a) => getAura(a, 'swallowed'))
+  if (inside.length === 0) return
+  const b = s.actors.find((a) => a.id === BOSS_ID)
+  if (!b) return
+  const p = screenPos(b, alpha)
+
+  const soonest = Math.min(...inside.map((a) => getAura(a, 'swallowed')!.remaining))
+  const close = soonest <= 0.8
+  footprint(ctx, p.x, p.y, GORGE_RADIUS * L.scale)
+  ctx.fillStyle = 'rgba(69, 10, 10, 0.14)'
+  ctx.fill()
+  ctx.strokeStyle = iconFor('boss_gorge').colour
+  ctx.lineWidth = close ? 3.5 : 2
+  if (!close) {
+    ctx.setLineDash([7, 6])
+    ctx.lineDashOffset = clock * 12
+  }
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // And one ring per body inside, tight to the boss and in the colour of
+  // whoever it is, so the raid can see which of them it is holding.
+  let lap = 0
+  for (const a of inside) {
+    footprint(ctx, p.x, p.y, Math.max(4, b.radius * L.scale) + 6 + lap * 4)
+    ctx.strokeStyle = classColor(a.classId)
+    ctx.lineWidth = 2
+    ctx.stroke()
+    lap++
+  }
+}
+
 function bossBody(s: SimState): string | null {
   return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
 }
@@ -1222,6 +1294,16 @@ const BREAK_RING = 0.9
  * It grows past where it is going to settle and comes back, because a thing
  * that simply is bigger a frame later is a thing nobody saw get bigger.
  */
+/**
+ * How much bigger a full gauge makes the thing in the middle.
+ *
+ * Thirty percent, which is about what a phase does -- so a boss that has been
+ * fed reads as a fight a phase further along than it is, which is exactly what
+ * it is. Any less and nobody sees it; any more and the fight the raid played
+ * well and the fight it played badly are two different creatures.
+ */
+const GORGE_SWELL = 0.3
+
 function breakSwell(since: number): number {
   if (!(since >= 0) || since > BREAK_RING) return 1
   return 1 + 0.35 * Math.sin((since / BREAK_RING) * Math.PI) ** 2
@@ -1262,6 +1344,15 @@ function drawActor(
   phase = 1,
   /** Seconds since the phase turned, for the moment it turns. */
   sinceBreak = Infinity,
+  /**
+   * How full the boss's gauge is, which it wears.
+   *
+   * The one fight in this game whose difficulty is something the raid built
+   * puts that on the boss's own silhouette rather than in a bar in a corner: a
+   * number nobody looks at is a mechanic nobody feels, and this design lives
+   * or dies on the raid noticing it fill.
+   */
+  gauge = 0,
 ): void {
   const p = screenPos(a, alpha)
   const r = Math.max(4, a.radius * L.scale)
@@ -1521,7 +1612,7 @@ function drawActor(
       // looks is the picture's to say. Fifteen percent a phase, which is a
       // silhouette that has visibly changed between one glance and the next
       // without becoming a different creature.
-      isBoss ? r * (1 + phaseHeat(phase) * 0.3) * breakSwell(sinceBreak) : r,
+      isBoss ? r * (1 + phaseHeat(phase) * 0.3 + gauge * GORGE_SWELL) * breakSwell(sinceBreak) : r,
       screenAngle(a.facing),
       (a.pos.x + a.pos.y) * STRIDE,
       step > 0.2,
@@ -1626,6 +1717,55 @@ function drawActor(
       ctx.strokeStyle =
         i >= BLOAT_SWAP_AT - 1 ? iconFor('boss_bloat').colour : 'rgba(161, 98, 7, 0.55)'
       ctx.lineWidth = i >= BLOAT_SWAP_AT - 1 ? 3.5 : 2.5
+      ctx.stroke()
+    }
+  }
+
+  // Blood filling up under somebody, and the count is the circle rather than a
+  // number beside it. It grows from nothing to its full width over the six
+  // seconds, so what the raid reads is not "there is a mark on them" but "how
+  // long have I got" -- and the edge it is going to have is the edge everybody
+  // has to be outside of, which is the one fact the picture owes them.
+  const spilling = a.alive ? getAura(a, 'spilling') : undefined
+  if (spilling) {
+    const ripe = 1 - Math.max(0, Math.min(1, spilling.remaining / AURA_DURATION.spilling))
+    footprint(ctx, p.x, p.y, SPILL_RADIUS * ripe * L.scale)
+    ctx.fillStyle = 'rgba(153, 27, 27, 0.12)'
+    ctx.fill()
+    ctx.strokeStyle = iconFor('boss_spill').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+    // And where it is going to reach, faintly, from the moment it lands: the
+    // circle that is still growing is not yet the circle anybody has to be
+    // outside of, and a raid that walks to the edge of what it can see walks
+    // to the wrong edge.
+    footprint(ctx, p.x, p.y, SPILL_RADIUS * L.scale)
+    ctx.strokeStyle = 'rgba(153, 27, 27, 0.35)'
+    ctx.lineWidth = 1
+    ctx.setLineDash([5, 6])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // A wound that is feeding the boss. A ring tight to the body that boils
+  // rather than pulses -- it is not counting down to anything, and a pulse in
+  // this game means "soon".
+  if (a.alive && getAura(a, 'festering')) {
+    footprint(ctx, p.x, p.y, r + 6)
+    ctx.strokeStyle = iconFor('boss_fester').colour
+    ctx.lineWidth = 2 + Math.sin(clock * 8) * 0.8
+    ctx.stroke()
+  }
+
+  // The mark, which never comes off. Two closed rings, and deliberately not
+  // dashed, not moving and not pulsing: everything else this game draws around
+  // a body is a thing that ends, and the one difference a player has to read
+  // here is that this one does not.
+  if (a.alive && getAura(a, 'championed')) {
+    for (const lap of [5, 9]) {
+      footprint(ctx, p.x, p.y, r + lap)
+      ctx.strokeStyle = iconFor('boss_champion').colour
+      ctx.lineWidth = 2.5
       ctx.stroke()
     }
   }

@@ -10,9 +10,13 @@ import {
   SHADE_REACH,
   SLIGHT_MAX,
   STORM_REACH,
+  GORGE_RADIUS,
+  SPILL_RADIUS,
+  FESTER_LINE,
 } from './constants'
 import {
   turnToward,
+  MARK_REACH,
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -125,10 +129,16 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
   if (!ai || !actor.alive) return
 
+  // A body inside the boss does nothing at all. It is not standing anywhere,
+  // it cannot be reached and it cannot reach anything -- the four seconds are
+  // the raid's problem rather than its own, which is the mechanic.
+  if (getAura(actor, 'swallowed')) return
+
   ai.chatCooldown = Math.max(0, ai.chatCooldown - DT)
 
   // The one call that is not about where to stand, so it is made before the
   // one that is and kept in its own pair of fields.
+  watchTheLine(s, actor, rng)
 
   // And the one that is not about where to stand either, for the same reason
   // and kept in its own third pair of fields.
@@ -224,6 +234,14 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
       say(s, actor, 'Going to help carry')
+    } else if (danger === 'spill:self') {
+      say(s, actor, 'It is on me — clear off')
+    } else if (danger.startsWith('spill:')) {
+      say(s, actor, 'Away from them')
+    } else if (danger.startsWith('mark:')) {
+      say(s, actor, 'Not standing on the marked one')
+    } else if (danger.startsWith('gorge:')) {
+      say(s, actor, 'Off the boss, it is about to spit')
     } else if (ai.personality === 'timid') {
       say(s, actor, 'Moving!')
     }
@@ -306,6 +324,8 @@ function quarry(s: SimState, actor: Actor): Actor[] {
 
 function lookTarget(s: SimState, actor: Actor): Actor | null {
   if (actor.role === 'healer') {
+    const saving = rescueTarget(s, actor)
+    if (saving) return saving
     const hurt = mostHurt(s)
     return hurt && hurt.id !== actor.id ? hurt : null
   }
@@ -412,6 +432,27 @@ function targetCall(s: SimState, actor: Actor): string | null {
     return `spike:${near.id}`
   }
 
+  // A beast that has picked somebody, and is walking at them.
+  //
+  // Below the spike because a pinned body is losing health now and this one is
+  // only about to, and above everything under it for the reason the mechanic
+  // exists: every hit a beast lands is a deposit, so the raid that turns and
+  // meets it pays nothing and the raid that finishes its rotation first pays
+  // for a minute. Nearest first, which splits a wave across the raid the same
+  // way the spikes split it.
+  //
+  // It needs saying at all because the default rule works against it exactly
+  // as it does for the empowered one: a rotation aims at the summon with the
+  // least health left, and a beast that has just walked in has all of its.
+  const beasts = adds(s).filter((a) => a.spawn === 'beast' && a.quarry !== undefined)
+  if (beasts.length > 0) {
+    let near = beasts[0]!
+    for (const beast of beasts) {
+      if (dist(actor.pos, beast.pos) < dist(actor.pos, near.pos)) near = beast
+    }
+    return `beast:${near.id}`
+  }
+
   // One of the raid's own, turned. The only one of these calls about a body
   // that was an ally a second ago, which is the whole of what it costs. Last,
   // because the spike is a thing standing still that stops mattering the
@@ -509,6 +550,14 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
     if (one && one.alive) return one
   }
 
+  // The beast that was called, which is a body with all of its health that the
+  // ordinary sweep below would put last.
+  const chosen = calledId(call, 'beast:')
+  if (chosen !== null) {
+    const one = s.actors.find((a) => a.faction === 'boss' && a.id === chosen)
+    if (one && one.alive) return one
+  }
+
   const held = calledId(call, 'hold:')
   const summoned = pool.filter((a) => a.spawn !== 'spike' && a.id !== held)
   if (summoned.length === 0) return b
@@ -556,6 +605,9 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
  */
 function patientOf(s: SimState, actor: Actor): Actor | null {
   if (actor.role !== 'healer' || !actor.ai) return null
+
+  const rescue = rescueTarget(s, actor)
+  if (rescue) return rescue.id === actor.id ? null : rescue
 
   const wounded = mostHurt(s)
   if (!wounded) return null
@@ -641,6 +693,117 @@ function emergencyFor(actor: Actor): number {
 }
 
 /**
+ * How low a marked body has to be before a healer claims it.
+ *
+ * High, and for the reason the wound's line is high: a mark is answered by
+ * never arriving at an instant rather than at one, so a healer that waited for
+ * a marked body to be in trouble would be a healer answering it late by
+ * construction -- which is the shape rule 3 says measures nothing. A claim on
+ * somebody who is *fine* is the only version of this a reaction delay can be
+ * late for.
+ */
+const CHAMPION_LINE = 0.92
+
+/**
+ * How much longer noticing a named body takes than noticing a floor.
+ *
+ * Longer than a puddle by a lot. A shape on the floor announces itself; a
+ * health bar that is going to matter in ten seconds does not, and the whole
+ * difference between a practised healer and a new one is how long it takes to
+ * see that.
+ */
+const LINE_NOTICE = 6
+
+/**
+ * The healer's half of the two demands that name a body.
+ *
+ * Everything else a party member does about a mechanic runs through
+ * `currentDanger`, where noticing late and fumbling outright already live.
+ * Healing does not go anywhere near that path -- `healerRotation` reads a
+ * health bar and casts, with no notion of having spotted anything -- so a
+ * mechanic answered by healing would be answered identically by a raid on its
+ * first pull and its ninth. That is not a property of healing, it is a
+ * property of the rotation having no reaction in it. This puts one there, out
+ * of the same two numbers and rolled the same way: notice once per body, wait
+ * out the delay, and sometimes miss it entirely.
+ *
+ * Two kinds of body belong here and they are the same problem: somebody the
+ * fight has named, who has to be above a line by a moment that is not the
+ * healer's to choose. A wound has to be closed by taking them over it; a mark
+ * has no count at all -- it is a body that must simply never reach zero, for
+ * the rest of the pull.
+ *
+ * It cannot share `reactingTo` with the movement path. Answering either of
+ * these means standing still and casting, and a healer that had spent its
+ * danger slot on one would then be told to go and find a safe tile.
+ */
+function watchTheLine(s: SimState, actor: Actor, rng: Rng): void {
+  const ai = actor.ai!
+  if (actor.role !== 'healer') return
+
+  const named = livingParty(s).filter(
+    (a) => getAura(a, 'championed') !== undefined || getAura(a, 'festering') !== undefined,
+  )
+
+  const claim = (a: Actor): string =>
+    getAura(a, 'festering') !== undefined ? `fester:${a.id}` : `champion:${a.id}`
+  const shaky = (a: Actor): boolean =>
+    getAura(a, 'festering') !== undefined
+      ? a.hp <= a.maxHp * FESTER_LINE
+      : a.hp <= a.maxHp * CHAMPION_LINE
+
+  // A claim is kept until the body it was made about is out of danger, one way
+  // or the other. Re-deciding every tick is what a raid calling targets out
+  // loud exists to prevent, and an AI that does it drops the cast it was
+  // halfway through every time somebody else's health bar moves.
+  let mine = named.find((a) => ai.callTo === claim(a) && shaky(a))
+
+  if (!mine) {
+    // Anything another healer has already called is somebody else's.
+    const spoken = new Set(
+      livingParty(s)
+        .filter((a) => a.role === 'healer' && a.id !== actor.id)
+        .map((a) => a.ai?.callTo),
+    )
+    mine = named
+      .filter((a) => shaky(a) && !spoken.has(claim(a)))
+      // Lowest first. Neither of these has a clock on it: both are answered by
+      // a health bar, and the one nearest the bottom of its own is the one
+      // nearest being answered too late.
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
+  }
+
+  if (!mine) {
+    ai.callTo = null
+    ai.callTimer = 0
+    ai.answering = null
+    return
+  }
+
+  const key = claim(mine)
+  if (ai.callTo !== key) {
+    ai.callTo = key
+    ai.callTimer = ai.reactionDelay * LINE_NOTICE * rng.range(0.7, 1.4)
+    if (rng.chance(ai.mistakeChance)) ai.callTimer += rng.range(0.8, 1.6)
+  }
+  if (ai.callTimer > 0) ai.callTimer -= DT
+  ai.answering = ai.callTimer > 0 ? null : mine.id
+}
+
+/** The body this healer has called, once it has finished noticing. */
+function rescueTarget(s: SimState, actor: Actor): Actor | null {
+  const id = actor.ai?.answering
+  if (id === null || id === undefined) return null
+  const target = s.actors.find((a) => a.id === id)
+  if (!target || !target.alive) return null
+  // Either of the two things this channel claims. Reading only one of them
+  // would mean the other could be claimed upstairs and thrown away here -- a
+  // mechanic wired into the channel that answers it and measured at nothing
+  // because the answer never reached the rotation.
+  return getAura(target, 'championed') || getAura(target, 'festering') ? target : null
+}
+
+/**
  * The single most urgent thing to run from, as a stable key.
  *
  * Returning merely the first hazard found meant an AI reacting to the breath
@@ -666,6 +829,20 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     if (getAura(b, 'storming') && dist(actor.pos, b.pos) <= STORM_REACH + DANGER_MARGIN) {
       consider('storm:self', 84)
     }
+  }
+
+  // Blood on this body, which is the one hazard here nobody can dodge: it goes
+  // off where they are standing. What the carrier can do is be standing
+  // somewhere nobody else is, so it is ranked above every mark that is
+  // answered by somebody else moving.
+  if (getAura(actor, 'spilling')) consider('spill:self', 62)
+
+  // The ground under the boss, while it has somebody inside it. Ranked with
+  // the floor rather than with the marks: it is a circle at a known place with
+  // a known count, and the melee are standing in it already.
+  if (s.actors.some((a) => getAura(a, 'swallowed'))) {
+    const b = boss(s)
+    if (dist(actor.pos, b.pos) <= GORGE_RADIUS + DANGER_MARGIN) consider('gorge:boss', 78)
   }
 
   // Something closing on this body, which is answered by not being where it is
@@ -720,6 +897,26 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   // Standing next to someone about to detonate is just as lethal.
   for (const other of livingParty(s)) {
     if (other.id === actor.id) continue
+    // Somebody about to be stood on by their own blood. Just under the
+    // carrier's own reading of it: they cannot leave it and everybody else
+    // can, so the walk is worth slightly less to the person taking it.
+    if (
+      getAura(actor, 'spilling') === undefined &&
+      getAura(other, 'spilling') &&
+      dist(actor.pos, other.pos) <= SPILL_RADIUS + DANGER_MARGIN
+    ) {
+      consider(`spill:${other.id}`, 55)
+    }
+    // Standing with somebody the gorged one has marked, which is the same
+    // shape and permanent. Below the spill because the hit is a share of a
+    // slam rather than the whole of a detonation, and above the reek because
+    // it arrives all at once.
+    if (
+      getAura(other, 'championed') &&
+      dist(actor.pos, other.pos) <= MARK_REACH + DANGER_MARGIN
+    ) {
+      consider(`mark:${other.id}`, 48)
+    }
     // Standing next to a body that reeks, which costs the same and is quieter
     // about it. Below the spread's urgency: that one is one hit at a known
     // instant, and this is a tick you will pay a few of while you walk.
@@ -771,6 +968,27 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // about the person rather than about the room, so it is kept on the mark.
   const shade = getAura(actor, 'haunted')
   if (shade?.at && dist(spot, shade.at) < SHADE_REACH + DANGER_MARGIN) return false
+
+  // A spill, which is the reek's louder cousin and wants the same answer with
+  // one difference: the carrier has to move as well. It goes off where they
+  // are standing, so the spot that is safe for them is one nobody else is
+  // near, and the spot that is safe for everybody else is one they are not.
+  {
+    const carrying = getAura(actor, 'spilling') !== undefined
+    for (const other of livingParty(s)) {
+      if (other.id === actor.id) continue
+      if (!carrying && getAura(other, 'spilling') === undefined) continue
+      if (dist(spot, other.pos) < SPILL_RADIUS + DANGER_MARGIN) return false
+    }
+  }
+
+  // The floor under the boss while it is holding somebody. The one hazard in
+  // this game centred on the thing the raid is standing around by design, so a
+  // party that reads only `s.ground` stays in it and takes the whole bill.
+  if (s.actors.some((a) => getAura(a, 'swallowed'))) {
+    const b = boss(s)
+    if (dist(spot, b.pos) < GORGE_RADIUS + DANGER_MARGIN) return false
+  }
 
   // The reek, which is the spread's slower cousin and wants the same answer.
   //
@@ -1227,6 +1445,11 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   // the hazard. See the block that scores it, below.
   const storming = getAura(b, 'storming') !== undefined
 
+  // The two the gorged one asks for, read once rather than per candidate: a
+  // sweep is a few dozen spots and both of these are facts about the field.
+  const spillActive = livingParty(s).some((a) => getAura(a, 'spilling') !== undefined)
+  const swallowActive = s.actors.some((a) => getAura(a, 'swallowed') !== undefined)
+
   let best: Vec2 = { x: actor.pos.x, y: actor.pos.y }
   let bestScore = -Infinity
 
@@ -1288,6 +1511,34 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       const d = dist(candidate, b.pos)
       if (d <= STORM_REACH + DANGER_MARGIN) score -= 1500
       else score += Math.min(220, (d - STORM_REACH) * 1.4)
+    }
+
+    // Separation, for the one mechanic here that is answered by it.
+    //
+    // Refusing a spot inside somebody's blood is not enough on its own: it
+    // makes a body stop where it stops rather than take itself somewhere, and
+    // a raid that only just cleared a hundred and twenty units is a raid that
+    // is back inside it as soon as anybody drifts. Scored as well as refused,
+    // so what a spill produces is real distance for the six seconds it exists.
+    if (spillActive) {
+      const carrying = getAura(actor, 'spilling') !== undefined
+      for (const other of livingParty(s)) {
+        if (other.id === actor.id) continue
+        if (!carrying && getAura(other, 'spilling') === undefined) continue
+        const d = dist(candidate, other.pos)
+        if (d < SPILL_RADIUS + DANGER_MARGIN) score -= 900
+        else score += Math.min(260, d) * 0.4
+      }
+    }
+
+    // The circle the boss is about to throw somebody out of. Scored above the
+    // floor for the reason it is refused above: it is centred on the one place
+    // the raid is standing around anyway, so a body that merely stops being in
+    // it drifts back the moment anything else pulls at it.
+    if (swallowActive) {
+      const d = dist(candidate, b.pos)
+      if (d <= GORGE_RADIUS + DANGER_MARGIN) score -= 1200
+      else score += Math.min(180, (d - GORGE_RADIUS) * 1.4)
     }
 
     // 4. Role positioning.
@@ -1489,6 +1740,15 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
 // --- ability priorities -----------------------------------------------------
 
 function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
+  // A body the fight has named is worth dropping a cast for, and only that is:
+  // every other heal in the fight can be finished and then re-aimed, because
+  // what it was answering is damage that has already landed.
+  const rescue = rescueTarget(s, actor)
+  // Only a cast with real time left on it: one that is about to land is faster
+  // to finish than to start again.
+  if (rescue && actor.castId && actor.castTargetId !== rescue.id && actor.castRemaining > 0.4) {
+    interruptCast(s, actor, 'switching')
+  }
   if (actor.castId) return
   // Off-GCD defensives are still worth checking while the global is running.
   if (actor.gcd > 0 && !canUseOffGcd(s, actor)) return
@@ -1773,6 +2033,23 @@ function healerRotation(s: SimState, actor: Actor, rng: Rng, moving: boolean): v
   // that dies is every other health bar going down as well.
   if (wantsBrace(actor) && kit.defensive && !rng.chance(ai.mistakeChance)) {
     if (tryCast(s, actor, kit.defensive, actor.id, rng, moving)) return
+  }
+
+  // Above everything, including the emergency below it. The emergency is about
+  // who is lowest and this is about who has been named, and the named are
+  // hardly ever the lowest -- that is the whole difficulty of both mechanics
+  // that use this channel. Fastest first rather than biggest: what a line
+  // needs is a heal that has landed, and a bigger one that lands afterwards
+  // has not.
+  const called = rescueTarget(s, actor)
+  if (called) {
+    if (kit.finisher && (actor.cooldowns[kit.finisher] ?? 0) <= 0) {
+      if (tryCast(s, actor, kit.finisher, called.id, rng, moving)) {
+        say(s, actor, `${called.name} — getting you up`)
+        return
+      }
+    }
+    if (tryCast(s, actor, kit.filler, called.id, rng, moving)) return
   }
 
   const wounded = mostHurt(s)

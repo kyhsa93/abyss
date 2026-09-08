@@ -876,6 +876,42 @@ function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.textAlign = 'left'
     ctx.fillText(`thralls ${summoned.length}`, x, y + 34 * L.ui)
   }
+
+  drawGauge(ctx, s, x, y + 40 * L.ui, w)
+}
+
+/**
+ * The gauge, under the boss's own bar.
+ *
+ * Deliberately not in the boss's colour and deliberately thin: it is not the
+ * boss's health and must never be read as a second health bar, because a
+ * health bar that is two health bars reads as one health bar. What it is is a
+ * receipt for what the raid has let happen, so it fills toward the mark rather
+ * than emptying toward a kill.
+ *
+ * The bar is the second copy of this number rather than the first. The boss
+ * wears it -- it swells as the gauge fills -- and that is the one the raid
+ * actually reads; this is here so a player who wants the exact figure has
+ * somewhere to look, which is the right order for the two.
+ */
+function drawGauge(ctx: CanvasRenderingContext2D, s: SimState, x: number, y: number, w: number): void {
+  if (s.gauge <= 0 && !s.actors.some((a) => getAura(a, 'championed'))) return
+  const h = 5
+  ctx.fillStyle = 'rgba(15, 17, 26, 0.9)'
+  ctx.fillRect(x, y, w, h)
+  ctx.fillStyle = s.gauge >= 1 ? COLORS.boss : 'rgba(220, 38, 38, 0.75)'
+  ctx.fillRect(x, y, w * Math.max(0, Math.min(1, s.gauge)), h)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
+
+  const carried = s.actors.filter((a) => a.alive && getAura(a, 'championed')).length
+  if (carried > 0) {
+    ctx.textAlign = 'left'
+    ctx.fillStyle = COLORS.boss
+    ctx.font = font(9, true)
+    ctx.fillText(carried === 1 ? 'ONE MARKED' : `${carried} MARKED`, x, y + h + 10)
+  }
 }
 
 /**
@@ -1008,6 +1044,9 @@ export const MARK_LETTER: Partial<Record<AuraId, string>> = {
   inoculated: 'V',
   reek: 'R',
   swelling: 'W',
+  championed: 'C',
+  festering: 'F',
+  swallowed: 'G',
 }
 
 /**
@@ -1020,7 +1059,16 @@ export const MARK_LETTER: Partial<Record<AuraId, string>> = {
  * colour that means "get away from this" would teach the opposite of the
  * mechanic.
  */
-const BAD_NEWS = new Set<AuraId>(['reek', 'swelling', 'slighted', 'haunted', 'spiked'])
+const BAD_NEWS = new Set<AuraId>([
+  'reek',
+  'swelling',
+  'slighted',
+  'haunted',
+  'spiked',
+  'championed',
+  'festering',
+  'swallowed',
+])
 
 function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState): void {
   const { x, y, w, h } = rect

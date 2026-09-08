@@ -15,8 +15,12 @@ import {
   updateBoss,
   updateGround,
   burstSpore,
+  detonateSpill,
   freeSpiked,
+  siphonFeed,
+  spitOut,
   turnToward,
+  SIPHON_PER_FESTER_TICK,
 } from './boss'
 import {
   holdOrFall,
@@ -51,6 +55,7 @@ import {
   MELEE_RANGE,
   REEK_REACH,
   TICK_RATE,
+  FESTER_LINE,
 } from './constants'
 import type { Rng } from './rng'
 import { updateTravel, updateTravelAi } from './travel'
@@ -325,6 +330,19 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
     if (!aura) continue
     if (aura.id === 'enrage') continue
 
+    // The one aura in the game taken off by something other than time.
+    //
+    // A festering wound closes the moment the body wearing it is back over the
+    // line, which is what makes it a mechanic rather than a bill: a healer who
+    // is early stops the rest of it, and a healer who waits until the body is
+    // in trouble has already paid every tick. Checked before the tick rather
+    // than after it, so being over the line when the second comes round is
+    // worth the tick it saves.
+    if (aura.id === 'festering' && a.hp > a.maxHp * FESTER_LINE) {
+      a.auras.splice(i, 1)
+      continue
+    }
+
     aura.remaining -= DT
     aura.tickTimer += DT
 
@@ -375,6 +393,12 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
             })
           }
         }
+        // Every tick of the boss's own wound is a deposit, on the boss that
+        // keeps a gauge. It is what turns the healers' throughput problem into
+        // a timing one: the wound is unavoidable and running it to term is not.
+        if (aura.id === 'festering' && a.faction === 'party') {
+          siphonFeed(s, SIPHON_PER_FESTER_TICK, a.pos)
+        }
         if (a.faction === 'boss') addThreat(s, aura.sourceId, bite)
       }
       if (tick.heal !== undefined) applyHeal(s, a, tick.heal, aura.sourceId)
@@ -389,6 +413,11 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       // The spore going, which is the moment everybody who came to stand in
       // it is covered against a mechanic that has not happened yet.
       if (aura.id === 'spore' && a.alive) burstSpore(s, a)
+      // Blood going off where the body it was put on is standing, which is why
+      // the carrier cannot dodge it and everybody else can.
+      if (aura.id === 'spilling' && a.alive) detonateSpill(s, a)
+      // And the boss putting somebody back, with everything it took.
+      if (aura.id === 'swallowed' && a.alive) spitOut(s, a)
     }
   }
 }
@@ -396,6 +425,12 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
 function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player || !player.alive) return
+
+  // Swallowed, and the whole controller does nothing. The same rule the roster
+  // plays under, and it has to be here as well or the mechanic would be one
+  // only other people are subject to -- a player who kept playing from inside
+  // the boss would be a player the fight had handed four free seconds to.
+  if (getAura(player, 'swallowed')) return
 
   const len = Math.hypot(input.moveX, input.moveY)
   // Pinned, and the stick does nothing. The same rule the roster plays under,

@@ -58,6 +58,41 @@ export type AuraId =
   /** boss: how much of the room's air it has taken, and how hard it now hits. */
   | 'gorged'
   /**
+   * The mark the gorged one's gauge buys, and the only aura here that stays.
+   *
+   * Every other one is a thing to survive; this is a thing to carry. It splits
+   * the boss's hands onto whoever wears it wherever they are standing, and
+   * pays the boss five percent of its health if they go down.
+   */
+  | 'championed'
+  /**
+   * Blood on a body, six seconds from going off.
+   *
+   * The carrier cannot dodge it -- it is judged where they are standing when
+   * the count ends, so what they can do is be standing somewhere nobody else
+   * is. Everyone it catches past the first is a deposit in the gauge, which is
+   * the only reason a raid that could simply heal through it does not.
+   */
+  | 'spilling'
+  /**
+   * A wound that is filling the gauge while nobody closes it.
+   *
+   * The one dot in this game that must not be ridden out. It comes off when
+   * the body wearing it is taken back above a line, so it is answered early or
+   * it is not answered -- a healer who waits for it to be dangerous has
+   * already paid every tick of it.
+   */
+  | 'festering'
+  /**
+   * Inside the boss, which is the one place in this game that is not the room.
+   *
+   * A body that is swallowed does nothing, takes nothing from anybody but the
+   * thing it is inside, and cannot be reached by a healer. What it costs is
+   * not the damage: it is that the raid's front rank is gone for four seconds,
+   * and somebody else has to be standing there when the boss looks up.
+   */
+  | 'swallowed'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -308,8 +343,30 @@ export interface Actor {
    * they need a name at all. One hurts nobody and has to be killed anyway;
    * the other hurts somebody and must not be killed. Neither can be read off
    * a health bar, and both are the whole demand.
+   *
+   * The third is a beast, and what makes it its own kind is not what it does
+   * to whoever it reaches but who that is: it has picked somebody rather than
+   * walked at whoever was closest, and every hit it lands is a deposit in a
+   * gauge. A wave that goes for the nearest body dies where the damage already
+   * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike'
+  spawn?: 'herald' | 'spike' | 'beast'
+
+  /**
+   * The body a beast has picked, which is the whole of what makes it one.
+   *
+   * Absent on everything else in the game: a thrall walks at whoever is
+   * nearest, which is a rule the raid answers by standing somewhere else. A
+   * beast answers by walking after somebody, and the somebody is chosen when
+   * it arrives rather than recomputed -- a wave that re-picked every tick
+   * would be a wave that always ends up on the melee, which is a wave nobody
+   * had to do anything about.
+   *
+   * It is not a stalker: when the body it chose goes down it does not go with
+   * them, it carries on with whoever is nearest, because it is an ordinary
+   * thrall that happens to have chosen.
+   */
+  quarry?: number
 }
 
 export type GroundKind =
@@ -941,6 +998,18 @@ export interface SimState {
    * rung goes to the next rung, and a room goes back to the map.
    */
   chamber: string | null
+  /**
+   * The gorged one's gauge, from nothing to full.
+   *
+   * The only number in this game that is filled by the raid rather than by the
+   * fight's clock. Everything else a boss does is scheduled; this is a running
+   * total of what the raid let happen -- bodies caught in a spill, hits landed
+   * by what walked in, a wound left to fester -- and what it buys when it
+   * fills is the mark.
+   *
+   * Zero in every fight that does not sell it, which is every fight but one.
+   */
+  gauge: number
   /**
    * The corridor being walked, or null everywhere else.
    *

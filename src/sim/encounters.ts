@@ -44,6 +44,11 @@ export type MechanicId =
   | 'empower'
   | 'dominate'
   | 'adds'
+  | 'siphon'
+  | 'spill'
+  | 'fester'
+  | 'champion'
+  | 'gorge'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -88,6 +93,20 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   insignificance: false, // whoever is holding it, and one body holds it
   empower: false, // one body of the wave, and a wave is a wave
   dominate: true, // one mind per so many bodies, so a bigger raid loses more
+  // A gauge is not dealt to anybody: it is a number on the boss, filled by
+  // events that are each one event whatever the headcount. A bigger raid puts
+  // more bodies inside a spill and brings more hands to stop what is filling
+  // it, and which of those wins is a thing to measure rather than assume.
+  siphon: false,
+  spill: true, // one spill per so many bodies, and it catches whoever stayed
+  fester: true, // one wound per so many bodies, so a bigger raid carries more
+  // One mark per so many bodies would be the usual reading and it is the
+  // wrong one here: a mark never falls off, so scaling the count would leave a
+  // twenty-five man holding three of them for the rest of the pull. What
+  // scales is the weight of one -- rule 5's "one bill an instant, and the
+  // roster is allowed to make the bill bigger".
+  champion: true,
+  gorge: false, // one body swallowed and one circle of fixed radius under it
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -160,6 +179,11 @@ export function noTimers(): Record<MechanicId, number> {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  siphon: 'the gorging',
+  spill: 'the spill',
+  fester: 'the festering',
+  champion: 'the mark',
+  gorge: 'the swallowing',
   adds: 'thralls',
   coldflame: 'the cold line',
   spike: 'the spikes',
@@ -358,6 +382,56 @@ export interface PhaseTiming {
    */
   dominate: number
   adds: number
+  /**
+   * How long the gorged one's gauge takes to fill, at a reference rate of
+   * mistakes.
+   *
+   * A cadence like every other row here, and it is written that way on
+   * purpose: the thing it belongs to has no cast and no timer, so the honest
+   * shape would be a multiplier -- and a multiplier is the one row on this
+   * table that would read backwards, growing where every other number shrinks.
+   * `siphonFeed` divides by it.
+   *
+   * Zero is a fight with no gauge, which is every other fight.
+   */
+  siphon: number
+  /**
+   * Seconds between one spill and the next.
+   *
+   * Blood put on a body with six seconds on it, judged where that body is
+   * standing when the count ends. The carrier cannot dodge their own -- what
+   * they can do is be somewhere alone -- so what this asks for is the one
+   * thing a raid stops doing when it is concentrating, which is looking at
+   * where everybody else is.
+   */
+  spill: number
+  /**
+   * Seconds between one festering wound and the next.
+   *
+   * The dot that must not be ridden out. Every tick of it is a deposit, and it
+   * comes off the moment the body wearing it is taken back over a line, so it
+   * is the one mechanic here answered by a healer being early rather than by a
+   * healer being enough.
+   */
+  fester: number
+  /**
+   * The most seconds between two marks, whatever the gauge is doing.
+   *
+   * A floor rather than a cadence, and it exists so that a raid answering
+   * everything perfectly still meets the mechanic its ladder sold it. Left at
+   * zero the mark is entirely the gauge's, which is the design; a number here
+   * is the safety line under it.
+   */
+  champion: number
+  /**
+   * Seconds between one swallowing and the next.
+   *
+   * The boss takes whoever is holding it inside itself for four seconds and
+   * then puts them back with everything it took. A fight with one tank cannot
+   * answer it at all, which is why it sits on the rung a five-man never
+   * reaches.
+   */
+  gorge: number
   /**
    * Physical damage to everyone standing in reach.
    *
@@ -574,6 +648,19 @@ export interface Encounter {
     slam: number
     raid: number
     adds: number
+    /**
+     * How long the gauge takes to fill at the reference rate, on the way in.
+     *
+     * A gauge has no first cast -- it is filling from the first mistake -- so
+     * what this says is the same thing the phase rows say, and it is here
+     * because the shape of the table is the shape of the table.
+     */
+    siphon: number
+    spill: number
+    fester: number
+    /** Nor the mark, which is bought rather than scheduled. */
+    champion: number
+    gorge: number
   }
   /**
    * The colour this one is drawn in.
@@ -629,6 +716,19 @@ export interface Encounter {
     insignificance: string
     empower: string
     dominate: string
+    /**
+     * What the gorged one says as its gauge tips over, and what it says when
+     * it takes somebody.
+     *
+     * The gauge itself is silent by design: a bar that announced every deposit
+     * would be a bar nobody could hear over. What is announced is the moment
+     * it buys something, which is the only instant in it that is a mechanic.
+     */
+    siphon: string
+    spill: string
+    fester: string
+    champion: string
+    gorge: string
     /** Empty where the boss does not use the mechanic. */
     /** Unplaced too, and for the same reason. See `fault` above. */
   }
@@ -750,6 +850,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
       adds: '',
       coldflame: 'Cold on the floor — off the line',
       spike: 'Bone through the floor — break it, get them out',
@@ -900,6 +1005,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
       adds: 'The faithful answer',
       coldflame: '',
       spike: '',
@@ -1060,6 +1170,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
       adds: '',
       coldflame: '',
       spike: '',
@@ -1069,6 +1184,140 @@ export const ENCOUNTERS: Encounter[] = [
       spore: 'Spore — get to them, all of you',
       vilegas: 'That reek spreads — off them',
       bloat: 'Nine on the tank — swap now',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+    },
+  },
+  {
+    // The fourth fight, and the first one the raid can make worse.
+    //
+    // Everything else in this game bills at the instant it judges: a pool
+    // takes what is standing in it and hands the floor back, a line of cold
+    // takes what is on it and is over. Practice pays because a body that
+    // reacted a tenth of a second sooner is outside the shape.
+    //
+    // This one bills later. Standing too close when a spill goes, letting what
+    // walked in land a hit, leaving a wound to fester -- none of those kills
+    // anybody. Each is a deposit into a bar on the boss, and when the bar
+    // fills it buys something permanent: a mark on one of the raid that never
+    // falls off, and five percent of the boss's health back if that body ever
+    // goes down. A fight lost at three minutes was lost at forty seconds by
+    // four people standing a little too close together.
+    //
+    // The warning that shaped it, from `docs/mechanic-rules.md` rule 1:
+    // failure has to be binary at a single moment, and a gauge is a slope. So
+    // the gauge is *not* a rung and must never be sold as one -- what the
+    // ladder sells is the mark, which is an instant on a named body, and the
+    // gauge is a modifier under the whole fight. The swelling is the
+    // precedent: the stack is not the mechanic, what the top of the stack does
+    // is.
+    id: 'gorged',
+    name: 'The Bloodgorged',
+    short: 'Gorged',
+    demand: 'give it nothing, and carry what it takes',
+    /**
+     * A little tighter than the yardstick, and open at the top of the spire.
+     *
+     * Two hundred and twenty-two thousand square units against the yardstick's
+     * two hundred and sixty-six, which is 83% of a floor. The reason is the
+     * gauge: one of the things that fills it is bodies standing together when
+     * a spill goes, and a slightly tighter room makes that mistake slightly
+     * more available. It is the last room of the lower spire and the one every
+     * evening walks through, so it is also the room a player will know best.
+     */
+    room: { kind: 'round', radius: 840 },
+    /**
+     * Nothing standing in it, and that is the mechanic's doing.
+     *
+     * What walks in is the fight's clock -- every hit a beast lands fills the
+     * gauge -- so how long it takes to reach somebody has to be a distance
+     * rather than an accident of where a rock was rolled.
+     */
+    terrain: [],
+    /**
+     * Behind the boss, so what it summons has ground to cross.
+     *
+     * Coming in behind means a wave has to walk the length of the room to
+     * reach the raid, and that walk is the only thing standing between the
+     * gauge and the people filling it.
+     */
+    doors: [
+      { pos: { x: -355, y: -761 } },
+      { pos: { x: 355, y: -761 } },
+    ],
+    /** Open stone, worn smooth: the top of a spire rather than a hall. */
+    floor: 'floor-cobble',
+    hp: 56000,
+    enrage: 240,
+    phaseTwoHp: 0.7,
+    // Lower than the usual third, because the last phase of this fight is
+    // whatever the gauge has already bought. A boss that starts hitting harder
+    // at forty percent on top of two marks it has been paid for is a fight
+    // that ends in a wall rather than in a mistake.
+    phaseThreeHp: 0.3,
+    swingDamage: 600,
+    slamDamage: 1250,
+    raidDamage: 110,
+    mechanicDamage: 0.7,
+    // Heavier at five and lighter at twenty-five, which follows from what
+    // fills the gauge: its sources are events a raid meets a fixed number of
+    // times, and a twenty-five man brings five times the hands to stop them.
+    sizeMechanic: { 5: 1.15, 10: 1.0, 25: 0.9 },
+    // The gauge is the second rung rather than the first, and the reason is
+    // worth writing down because the first draft had it the other way round.
+    //
+    // A gauge sold on rung one is a rung that asks nothing: it fills from
+    // spills, from beasts and from wounds, and a five-man on normal has bought
+    // none of those -- so the smallest raid met a boss that swings and does
+    // nothing else, which is not a fight, and two bosses with nothing on the
+    // floor at rung one are the same fight with different names.
+    //
+    // Sold on rung two it is the better version of its own idea. The raid
+    // meets the spill first and learns to walk out of it; then it learns that
+    // the ones it did not walk out of have been counted all along. Every rung
+    // above adds another thing that pays into the same bar, which is the
+    // escalation the fight is about.
+    //
+    // The swallowing is last for a reason that is not difficulty: it is
+    // answered by a second tank, and a five-man does not have one. A rung
+    // `kitCount(5, 'heroic')` cannot reach is the only honest place for a
+    // mechanic the smallest roster cannot answer at all.
+    ladder: ['spill', 'siphon', 'fester', 'adds', 'champion', 'gorge'],
+    herald: null,
+    accent: '#7f1d1d',
+    names: { slam: 'RENDING BLOW', shard: '', raid: 'THE TAKING' },
+    phases: {
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 12, ...beats({ siphon: 20, spill: 14, fester: 30, adds: 42, champion: 75, gorge: 26 }) },
+      2: { swing: 1.8, slam: 14, puddleCount: 1, raid: 11, ...beats({ siphon: 17, spill: 12, fester: 26, adds: 37, champion: 68, gorge: 23 }) },
+      3: { swing: 1.6, slam: 12, puddleCount: 1, raid: 10, ...beats({ siphon: 15, spill: 10, fester: 22, adds: 32, champion: 60, gorge: 20 }) },
+    },
+    // The mark's opening is the floor under the gauge rather than a first
+    // cast: nothing marks anybody in the first minute unless the raid fills
+    // the bar, which is the whole point of it.
+    opening: { slam: 13, raid: 13, ...beats({ siphon: 20, spill: 12, fester: 24, adds: 38, champion: 75, gorge: 30 }) },
+    lines: {
+      phaseTwo: 'It is heavier now',
+      phaseThree: 'IT HAS TAKEN ENOUGH',
+      siphon: 'It has had enough for now',
+      spill: 'Blood on them — everybody off',
+      fester: 'That wound is feeding it — close it',
+      champion: 'That one is mine now',
+      gorge: 'It has swallowed them — somebody else, hold it',
+      adds: 'Blood beasts — put them down before they land a hit',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
       bonestorm: '',
       decay: '',
       frostbolt: '',

@@ -1685,9 +1685,9 @@ them. Six rungs a boss, in the order the fight gets harder, and the last of
 one boss opens the first of the next:
 
 > Bonegrinder 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal →
-> 25 heroic → Whisper 5 normal → … → Reeking Host 25 heroic
+> 25 heroic → Whisper 5 normal → … → Bloodgorged 25 heroic
 
-Eighteen kills to open the game. **Clearing a rung opens the one after it, and
+Twenty-four kills to open the game. **Clearing a rung opens the one after it, and
 nothing else does** — not reaching it, not clearing something harder somewhere
 else — so what is open is always a prefix of that list and a single number
 describes it. Which is also why nothing in here ever has to ask "but did they
@@ -1757,19 +1757,19 @@ the two axes the setup screen already had — every step up the size or across t
 heroic buys another rung. A ladder is also a price list, read top to bottom in
 the order the fight gets harder.
 
-| Rung | The Bonegrinder | The Last Whisper | The Reeking Host |
-| --- | --- | --- | --- |
-| carried | — | thralls | — |
-| 1 | the cold line | the volley | the blight |
-| 2 | the spikes | the rotting ground | the swelling |
-| 3 | the storm | the shard | the reek |
-| 4 | — | the shade | the spore |
-| 5 | — | the slight | the breath in |
-| 6 | — | the empowered | the breath out |
-| 7 | — | the turned | — |
+| Rung | The Bonegrinder | The Last Whisper | The Reeking Host | The Bloodgorged |
+| --- | --- | --- | --- | --- |
+| carried | — | thralls | — | — |
+| 1 | the cold line | the volley | the blight | the spill |
+| 2 | the spikes | the rotting ground | the swelling | the gorging |
+| 3 | the storm | the shard | the reek | the festering |
+| 4 | — | the shade | the spore | blood beasts |
+| 5 | — | the slight | the breath in | the mark |
+| 6 | — | the empowered | the breath out | the swallowing |
+| 7 | — | the turned | — | — |
 
 The order is the design, not the contents. The first rungs are disjoint across
-all three, so the fight everybody sees — the smallest raid, and the first
+all four, so the fight everybody sees — the smallest raid, and the first
 stretch of any pull that goes wrong — is a different fight per boss: a line
 walking outward, a shard aimed at whoever is holding it, and a room that has
 gone bad. **No boss's kit is ever a subset of another's** at any rung, and the
@@ -1777,7 +1777,7 @@ containment down each column holds: heroic asks for everything normal did and
 one thing more, and so does each size against the one below it. Both are
 asserted rather than eyeballed.
 
-Two of the three ladders are longer than any raid climbs, which is the point of
+Two of the four ladders are longer than any raid climbs, which is the point of
 a ladder rather than a list. The Whisper sells seven and a heroic twenty-five
 reaches all of them; a five-man on normal meets three and never learns what the
 fight is called after that.
@@ -1800,8 +1800,9 @@ that comes back wrong.
 | The Bonegrinder | get off the line, break the bone, and run when it lets go | a line that walks outward, bodies pinned where they stand, and a boss that lets go of everything |
 | The Last Whisper | cut the shard, swap the hold, and hold off your own | a cast to interrupt, a stacking hold on the tank, and one of your own turned against you |
 | The Reeking Host | share the air, and know who is holding it | a room that is a bill nobody can dodge, a count on whoever is tanking, and a breath given back all at once |
+| The Bloodgorged | give it nothing, and carry what it takes | a bar the raid fills with its own mistakes, a mark it buys that never comes off, and a tank taken out of the fight for four seconds |
 
-They are one script and three tables (`src/sim/encounters.ts`). A second boss
+They are one script and four tables (`src/sim/encounters.ts`). A second boss
 written as a second timeline would be a second copy of what each mechanic does,
 and those rules took several attempts each to get right. They are not being
 written twice.
@@ -1816,6 +1817,24 @@ is neither: almost nothing to dodge and almost nothing to re-aim at, just a
 room that costs everybody something every second and a count on the one body
 holding it.
 
+The Bloodgorged is the one that is none of those, and it is the only fight here
+whose difficulty the raid decides. Everything else in this game bills at the
+instant it judges: a circle takes what is standing in it and hands the floor
+back. This one bills later. Blood left to catch a second body, a beast allowed
+to land a hit, a wound nobody closed — none of them kills anybody, and each is
+a deposit in a bar on the boss. When the bar fills it buys a mark on one of the
+raid that **never comes off**, and five percent of the boss's health back if
+that body ever goes down. A pull lost at three minutes was lost at forty
+seconds, by four people standing slightly too close together.
+
+The gauge is deliberately not a rung, and the reason is the rule below about
+failure being binary at an instant: a bar filling is a slope, and a slope
+teaches nothing. What the ladder sells is the mark, which is one instant on one
+named body. The gauge is what makes the rest of the fight mean something, and
+the boss wears it — the silhouette in the middle of the room grows by a third
+as it fills, so a raid playing badly is watching the thing it is fighting get
+bigger.
+
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |
 
@@ -1829,29 +1848,35 @@ hit would be a tax on exactly the people whose armour was supposed to be the
 reward — and the rot is the counterweight, so no stat block is the whole answer
 to a fight.
 
-| Mechanic | What it asks of you | Bonegrinder | Whisper | Host |
-| --- | --- | --- | --- | --- |
-| Slam | Tank cooldown, or the tank takes a large hit | always | always | always |
-| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always |
-| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | |
-| The cold line | It walks outward from the boss — step off it | rung 1 | | |
-| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | |
-| The storm | It lets go of the tank and comes for the room | rung 3 | | |
-| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | |
-| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | |
-| The shard | A cast at whoever is holding it — cut it | | rung 3 | |
-| The shade | It follows the one it picked; keep walking | | rung 4 | |
-| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | |
-| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | |
-| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | |
-| The blight | The room itself, billing everybody every few seconds | | | rung 1 |
-| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 |
-| The reek | A mark that spreads to whoever is standing near it | | | rung 3 |
-| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 |
-| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 |
-| The breath out | Everything it drank, returned to everybody at once | | | rung 6 |
-| Enrage | A hard damage check | 240s | 240s | 240s |
+| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged |
+| --- | --- | --- | --- | --- | --- |
+| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always |
+| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always |
+| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | |
+| The cold line | It walks outward from the boss — step off it | rung 1 | | | |
+| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | |
+| The storm | It lets go of the tank and comes for the room | rung 3 | | | |
+| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | |
+| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | |
+| The shard | A cast at whoever is holding it — cut it | | rung 3 | | |
+| The shade | It follows the one it picked; keep walking | | rung 4 | | |
+| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | |
+| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | |
+| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | |
+| The blight | The room itself, billing everybody every few seconds | | | rung 1 | |
+| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | |
+| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | |
+| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | |
+| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | |
+| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | |
+| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 |
+| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 |
+| The festering | A wound that must be healed off, not ridden out | | | | rung 3 |
+| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 |
+| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 |
+| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 |
+| Enrage | A hard damage check | 240s | 240s | 240s | 240s |
 
 A cadence of zero disables a mechanic, and that is also how a rung the raid
 did not buy is switched off: one rule for a mechanic being absent rather than

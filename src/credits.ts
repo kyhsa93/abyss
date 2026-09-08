@@ -78,6 +78,7 @@ export const ART: ArtSet[] = [
       'Tuomo Untinen (reemax)',
       'William.Thompsonj',
       'William.Thomsponj',
+      'Zi Ye',
       'bluecarrot16',
       'dalonedrau',
       'gr3yh47',

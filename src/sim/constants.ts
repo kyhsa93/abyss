@@ -913,3 +913,40 @@ export const SLIGHT_MAX = 5
 /** What coming back wrong is worth, in damage and in health. */
 export const EMPOWER_POWER = 2.1
 export const EMPOWER_HEALTH = 1.6
+
+// --- the gorged one, which is paid in what the raid lets happen -------------
+
+/**
+ * How wide a spill is, and what it costs whoever is in it.
+ *
+ * A hundred and twenty is a real walk from where a raid stands at rest. The
+ * party keeps about thirty units off one another when nothing is happening, so
+ * a radius that only just cleared that would be a mechanic answered by
+ * standing still, which is a mechanic answered by nothing.
+ *
+ * The bill is per body and does not divide: a spill that split its damage
+ * between whoever was caught would pay a raid for bunching up, which is the
+ * opposite of what it is for.
+ */
+export const SPILL_RADIUS = 120
+export const SPILL_DAMAGE = 760
+
+/**
+ * The line a festering wound comes off at.
+ *
+ * High, and that is the mechanic. A dot that fell off at half health would be
+ * answered by the healing a body in trouble gets anyway; at eighty-five
+ * percent the answer is a heal on somebody who is *fine*, which is the only
+ * shape a reaction delay can be late for. Rule 3, stated from the other end.
+ */
+export const FESTER_LINE = 0.85
+
+/**
+ * How far the boss throws whoever it has swallowed, and what it costs.
+ *
+ * The radius is fixed and the room is not: this is the one demand on the
+ * gorged one that a bigger raid meets exactly as a smaller one does, because
+ * what it covers is a place rather than a share of the roster.
+ */
+export const GORGE_RADIUS = 150
+export const GORGE_BURST = 900

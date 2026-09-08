@@ -255,6 +255,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_insignificance: { colour: '#64748b', style: 'crush' },
   boss_empower: { colour: '#c026d3', style: 'burst' },
   boss_dominate: { colour: '#7e22ce', style: 'crush' },
+  // The gorged one's five, all in its own red and none of them the same red:
+  // the gauge is the darkest because it is the fight underneath, the mark is
+  // the brightest because it is the only one of them that never ends.
+  boss_siphon: { colour: '#7f1d1d', style: 'crush' },
+  boss_spill: { colour: '#991b1b', style: 'burst' },
+  boss_fester: { colour: '#c2410c', style: 'pierce' },
+  boss_champion: { colour: '#b91c1c', style: 'cleave' },
+  boss_gorge: { colour: '#450a0a', style: 'crush' },
   boss_bonestorm: { colour: '#d6d3d1', style: 'crush' },
   boss_blight: { colour: '#365314', style: 'crush' },
   boss_inhale: { colour: '#a3e635', style: 'burst' },

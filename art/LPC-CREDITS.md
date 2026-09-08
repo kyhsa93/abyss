@@ -42,6 +42,7 @@ cannot fall behind a change to them.
 - `head/heads/frankenstein` — Stephen Challener (Redshrike),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/goblin` — bluecarrot16,Stephen Challener (Redshrike),William.Thomsponj (OGA-BY 3.0,CC-BY 4.0,GPL 2.0,GPL 3.0)
 - `head/heads/human/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `head/heads/orc/male` — bluecarrot16,Matthew Krohn (makrohn),Stephen Challener (Redshrike),Zi Ye (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/skeleton` — bluecarrot16,Napsio,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `head/heads/wartotaur` — bluecarrot16,Evert,Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY 3.0)
 - `head/heads/wolf/male` — bluecarrot16,Sander Frenken (castelonia),Benjamin K. Smith (BenCreating),William.Thompsonj,Stephen Challener (Redshrike) (CC-BY-SA 3.0,GPL 3.0)

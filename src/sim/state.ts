@@ -259,6 +259,7 @@ export function createState(
     bg: null,
     room,
     chamber: null,
+    gauge: 0,
     travel: null,
     nextDoor: 0,
     only: null,
@@ -369,6 +370,7 @@ export function createBattlegroundState(
     // A battleground is played in the yardstick circle and always has been.
     room: ROUND_ARENA,
     chamber: null,
+    gauge: 0,
     travel: null,
     nextDoor: 0,
     time: 0,

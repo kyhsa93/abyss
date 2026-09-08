@@ -930,6 +930,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ['spread', 'spread'],
         ['rot', 'rot'],
         ['sunder', 'sunder'],
+        ['championed', 'champion'],
         ['hunted', 'hunt'],
         ['spiked', 'spike'],
         ['storming', 'bonestorm'],
@@ -944,6 +945,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
       ] as const) {
         if (s.actors.some((a) => a.auras.some((au) => au.id === aura))) seen.add(id)
       }
+      // The one mechanic in the game that never lands on anybody. A gauge does
+      // not cast, land, linger or stick to a body: the only evidence it
+      // happened is that the number moved. It is also the only rung like that,
+      // and the day there is a second one this line is where it will be
+      // noticed.
+      if (s.gauge > 0) seen.add('siphon')
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -4096,6 +4103,12 @@ for (const [label, w, h] of [
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
       for (const g of s.ground) kinds.add(g.kind)
+      // And whatever the fight put on a body, which the floor alone does not
+      // say. Two bosses whose first rung is not a shape on the ground -- an
+      // air to breathe, blood on somebody -- both showed an empty floor here
+      // and were reported as the same fight. What a boss asks for is not only
+      // what it draws on the tiles.
+      for (const a of s.actors) for (const aura of a.auras) kinds.add(aura.id)
       // Thralls only, told apart by `spawn`: a herald and a spike are also
       // bodies on the boss's side, and counting them as a wave said a boss had
       // adds on a rung where it has one of those instead.
@@ -4505,6 +4518,32 @@ for (const [label, w, h] of [
     expect('and send one back wrong', ids.has('boss_empower'), 'it drew nothing')
     expect('and turn one of yours around', ids.has('boss_dominate'), 'it drew nothing')
     thrown.set('taken', ids)
+  }
+
+  // The gorged one's five, driven together because four of them exist to feed
+  // the fifth. The gauge is the reason this block cannot be folded into the
+  // sweep above: it is bought on the second rung and the mark on the fifth, so
+  // a pull at the size that sweep runs meets neither -- and the mark is not on
+  // a clock at all, it is bought with what the other four let happen.
+  {
+    const blood = floorWith(
+      { siphon: 14, spill: 9, fester: 11, gorge: 13, champion: 40, adds: 16 },
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (blood.outcome === 'ongoing' && blood.time < 150) {
+      step(blood, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of blood.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can spill blood on somebody', ids.has('boss_spill'), 'it drew nothing')
+    expect('and leave a wound open', ids.has('boss_fester'), 'it drew nothing')
+    expect('and swallow whoever is holding it', ids.has('boss_gorge'), 'it drew nothing')
+    expect('and be paid for all of it', ids.has('boss_siphon'), 'it drew nothing')
+    expect('and spend what it was paid', ids.has('boss_champion'), 'it drew nothing')
+    thrown.set('blood', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -8393,7 +8432,10 @@ for (const [label, w, h] of [
         for (const a of s.actors) for (const aura of a.auras) seen.add(aura.id)
         for (const a of s.actors) {
           if (a.faction !== 'boss' || a.id === monster.id) continue
-          if (a.spawn !== undefined) seen.add(a.spawn)
+          // A beast is a thrall that has picked somebody: what sold it is the
+          // wave, not a mechanic of its own.
+          if (a.spawn === 'beast') seen.add('adds')
+          else if (a.spawn !== undefined) seen.add(a.spawn)
           else seen.add('adds')
         }
         for (const a of s.actors) {
