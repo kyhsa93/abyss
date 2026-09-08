@@ -171,7 +171,7 @@ import {
 } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import { PASSAGES, hallFor } from '../src/dungeon'
+import { CHAMBERS, PASSAGES, hallFor } from '../src/dungeon'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
@@ -9327,7 +9327,14 @@ for (const [label, w, h] of [
   ] as const) {
     updateLayout(w, h)
     const layout = citadelLayout(run, allowed)
-    expect(`${label}: all ${layout.rows.length} rooms are on the map`, layout.rows.length === 15, `${layout.rows.length}`)
+    // Every room the map has, counted off the map rather than written here:
+    // the building grows a room when the source has one, and a number typed in
+    // a check is a number that goes stale without failing.
+    expect(
+      `${label}: all ${CHAMBERS.length} rooms are on the map`,
+      layout.rows.length === CHAMBERS.length,
+      `${layout.rows.length} of ${CHAMBERS.length}`,
+    )
     const off = layout.rows.filter(
       (r) => r.rect.x < 0 || r.rect.y < 0 || r.rect.x + r.rect.w > w || r.rect.y + r.rect.h > h,
     )
@@ -9417,12 +9424,12 @@ for (const [label, w, h] of [
   updateLayout(1440, 900)
 
   // A room whose fight nobody has built says so, once the doors reach it.
-  const deeper = { ...run, at: 'rampart', cleared: ['spire', 'oratory'] }
+  const deeper = { ...run, at: 'mooring', cleared: ['spire', 'oratory'] }
   expect(
     'a room with no fight in it yet says what it is waiting for',
-    citadelLayout(deeper, allowed).rows.find((r) => r.id === 'rampart')?.state === 'here' &&
-      citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'rampart')?.state === 'waiting',
-    citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'rampart')?.state ?? 'missing',
+    citadelLayout(deeper, allowed).rows.find((r) => r.id === 'mooring')?.state === 'here' &&
+      citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'mooring')?.state === 'waiting',
+    citadelLayout({ ...deeper, at: 'oratory' }, allowed).rows.find((r) => r.id === 'mooring')?.state ?? 'missing',
   )
 
   // A room the chain has not opened is shut on the map even though the door is

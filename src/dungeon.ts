@@ -1,6 +1,6 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor } from './sim/travel'
-import type { RoomShape } from './sim/room'
+import { ROUND_ARENA, pushInside, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 
@@ -50,6 +50,15 @@ export interface Chamber {
   encounter: number | null
   /** For a room whose fight is not built yet: what it is waiting for. */
   awaiting?: string
+  /**
+   * The shape of the room, for a room with no fight to take its shape from.
+   *
+   * A room that holds a fight is the room that fight is fought in — see
+   * `roomOf` — because walking into a place and fighting in it had better be
+   * the same place. This is for the ones that hold nothing: the way in, the
+   * hub, the bridge, and the ones still waiting on an issue.
+   */
+  room?: RoomShape
 
   /**
    * The pad in this room, and what lights it.
@@ -110,6 +119,9 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Threshold',
     wing: 'lower',
     encounter: null,
+    // A long way in with one door at the far end, which is what the bottom of
+    // a spire is: you are a long way from the first thing in it.
+    room: { kind: 'hall', halfWidth: 340, front: 760, back: 300 },
     pad: { kind: 'always' },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
@@ -121,11 +133,14 @@ export const CHAMBERS: Chamber[] = [
     pad: killed('spire'),
   },
   {
-    id: 'rampart',
-    name: 'The Rampart',
+    id: 'mooring',
+    name: 'The Mooring',
     wing: 'lower',
     encounter: null,
     awaiting: 'the boss out of reach (#14)',
+    // Open air with an edge, which is the one room in the building that is
+    // not indoors.
+    room: { kind: 'platform', radius: 420 },
     pad: killed('oratory'),
   },
   {
@@ -133,7 +148,7 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Rise',
     wing: 'lower',
     encounter: 3,
-    pad: killed('rampart'),
+    pad: killed('mooring'),
   },
   // The room where the citadel stops being a corridor. No fight in it, and
   // that is the point: it is the only place in the building where the player
@@ -143,16 +158,38 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Upper Crossing',
     wing: 'lower',
     encounter: null,
+    // Round and no bigger than it has to be. Six doors lead out of here and
+    // the whole point of the room is choosing between them, so all six have to
+    // be on the screen at once — a hub you turn around in has hidden its own
+    // question.
+    room: { kind: 'round', radius: 430 },
     pad: killed('rise'),
   },
 
   // --- the plagueworks: two rooms side by side, then the one they open ------
+  // The wing is entered once and branches inside it, which is the shape the
+  // source has and this map did not: the two rooms hung straight off the hub,
+  // so the plagueworks was two doors on the crossing rather than a place you
+  // go into. It is a hall with a room off either side and the laboratory at
+  // the end of it.
+  {
+    id: 'vats',
+    name: 'The Vats',
+    wing: 'plague',
+    encounter: null,
+    // Wide and shallow rather than long: the two rooms are off either side of
+    // it, and the one thing this chamber is for is seeing both at once. A
+    // deep hall put one of them behind the camera, which is the same mistake
+    // the crossing made.
+    room: { kind: 'hall', halfWidth: 430, front: 370, back: 330 },
+  },
   {
     id: 'sludge',
     name: 'The Sludgeworks',
     wing: 'plague',
     encounter: null,
     awaiting: 'the adds that merge (#7)',
+    room: { kind: 'round', radius: 480 },
   },
   { id: 'airless', name: 'The Airless Room', wing: 'plague', encounter: 2 },
   {
@@ -161,6 +198,8 @@ export const CHAMBERS: Chamber[] = [
     wing: 'plague',
     encounter: null,
     awaiting: 'the two answers at once (#8)',
+    // Wide and shallow, with the two rooms it waits for on the same wall.
+    room: { kind: 'hall', halfWidth: 620, front: 420, back: 300 },
   },
 
   // --- the crimson hall -----------------------------------------------------
@@ -170,6 +209,7 @@ export const CHAMBERS: Chamber[] = [
     wing: 'crimson',
     encounter: null,
     awaiting: 'the three bodies, one of them real (#9)',
+    room: { kind: 'round', radius: 540 },
   },
   {
     id: 'sanctum',
@@ -177,6 +217,7 @@ export const CHAMBERS: Chamber[] = [
     wing: 'crimson',
     encounter: null,
     awaiting: 'the gift that has to be passed (#10)',
+    room: { kind: 'round', radius: 460 },
   },
 
   // --- the frostwing halls --------------------------------------------------
@@ -186,16 +227,27 @@ export const CHAMBERS: Chamber[] = [
     wing: 'frostwing',
     encounter: null,
     awaiting: 'the boss that is healed (#11)',
+    // Long, with the thing that has to be kept alive lying down the middle.
+    room: { kind: 'hall', halfWidth: 420, front: 700, back: 420 },
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.
-  { id: 'gauntlet', name: 'The Frost Gauntlet', wing: 'frostwing', encounter: null },
+  {
+    id: 'gauntlet',
+    name: 'The Frost Gauntlet',
+    wing: 'frostwing',
+    encounter: null,
+    // A bridge: narrow, and long enough that the way on is somewhere you can
+    // see and not somewhere you are.
+    room: { kind: 'hall', halfWidth: 240, front: 900, back: 420 },
+  },
   {
     id: 'lair',
     name: 'The Rimeward Lair',
     wing: 'frostwing',
     encounter: null,
     awaiting: 'the stacking that is answered by leaving (#12)',
+    room: { kind: 'platform', radius: 520 },
     pad: killed('dream'),
   },
 
@@ -206,6 +258,9 @@ export const CHAMBERS: Chamber[] = [
     wing: 'throne',
     encounter: null,
     awaiting: 'the floor that does not come back (#13)',
+    // The top of the spire, and the only way off it is back down the way you
+    // came.
+    room: { kind: 'platform', radius: 560 },
   },
 ]
 
@@ -261,17 +316,17 @@ export const PASSAGES: Passage[] = [
   { from: 'spire', to: 'oratory', gate: killed('spire') },
   {
     from: 'oratory',
-    to: 'rampart',
+    to: 'mooring',
     gate: killed('oratory'),
-    corridor: corridor('rampartway', 'rampart', [
+    corridor: corridor('rampartway', 'mooring', [
       { pos: { x: 0, y: 560 }, count: 3, pulls: 250 },
       { pos: { x: -100, y: 200 }, count: 3, pulls: 230 },
     ]),
   },
   {
-    from: 'rampart',
+    from: 'mooring',
     to: 'rise',
-    gate: killed('rampart'),
+    gate: killed('mooring'),
     corridor: corridor('riseway', 'rise', [
       { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
       { pos: { x: 120, y: 320 }, count: 3, pulls: 240 },
@@ -281,22 +336,22 @@ export const PASSAGES: Passage[] = [
 
   // The way into the plagueworks: one pack on the stair, and a second standing
   // close enough behind it that a careless pull brings both.
+  // One way into the wing, and the trapped hall is what it costs.
   {
     from: 'crossing',
-    to: 'sludge',
-    corridor: corridor('sludgeway', 'sludge', [
+    to: 'vats',
+    corridor: corridor('plagueway', 'vats', [
       { pos: { x: 0, y: 780 }, count: 3, pulls: 240 },
       { pos: { x: -120, y: 380 }, count: 3, pulls: 250 },
+      { pos: { x: 110, y: 60 }, count: 4, pulls: 260 },
     ]),
   },
-  {
-    from: 'crossing',
-    to: 'airless',
-    corridor: corridor('airway', 'airless', [
-      { pos: { x: 0, y: 620 }, count: 4, pulls: 260 },
-      { pos: { x: 110, y: 240 }, count: 3, pulls: 230 },
-    ]),
-  },
+  // And inside it the two rooms are a step to either side. No ground between:
+  // the wing was paid for on the way in, and charging again for each door
+  // would make the choice of which to take first cost something, which it does
+  // not — that choice is free in the source and is the wing's one decision.
+  { from: 'vats', to: 'sludge' },
+  { from: 'vats', to: 'airless' },
   { from: 'sludge', to: 'laboratory', gate: killed('sludge', 'airless') },
   { from: 'airless', to: 'laboratory', gate: killed('sludge', 'airless') },
 
@@ -345,8 +400,8 @@ export const PASSAGES: Passage[] = [
  * column of rows can say which rooms exist and cannot say *that* — and which
  * of the three to do next is the only choice an evening offers.
  *
- * Hand-placed. Fifteen rooms laid out by an algorithm is fifteen rooms in the
- * wrong places.
+ * Hand-placed. A building laid out by an algorithm is a building in the wrong
+ * places.
  *
  * The middle column is the spire and the throne on top of it, and nothing
  * else: the crimson wing sits off it rather than on it because the door from
@@ -360,49 +415,67 @@ export const PASSAGES: Passage[] = [
  * map says it is. One table, or the picture and the building disagree.
  */
 export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
-  { id: 'threshold', x: 0.5, y: 0.0 },
-  { id: 'spire', x: 0.5, y: 0.1 },
-  { id: 'oratory', x: 0.5, y: 0.2 },
-  { id: 'rampart', x: 0.5, y: 0.3 },
-  { id: 'rise', x: 0.5, y: 0.4 },
-  { id: 'crossing', x: 0.5, y: 0.51 },
-  { id: 'sludge', x: 0.1, y: 0.64 },
-  { id: 'airless', x: 0.31, y: 0.64 },
-  { id: 'laboratory', x: 0.205, y: 0.775 },
-  { id: 'crimson', x: 0.63, y: 0.64 },
-  { id: 'sanctum', x: 0.63, y: 0.775 },
-  { id: 'dream', x: 0.9, y: 0.64 },
-  { id: 'gauntlet', x: 0.9, y: 0.775 },
-  { id: 'lair', x: 0.9, y: 0.91 },
-  { id: 'throne', x: 0.5, y: 0.96 },
+  // Up, because the citadel goes up. The way in is at the bottom of the spire
+  // and the throne is on top of it, and a plan drawn the other way round is a
+  // plan of a different building — which is what this was: the rooms in the
+  // right order, descending a page.
+  { id: 'threshold', x: 0.5, y: 0.985 },
+  { id: 'spire', x: 0.5, y: 0.9 },
+  { id: 'oratory', x: 0.5, y: 0.815 },
+  { id: 'mooring', x: 0.5, y: 0.73 },
+  { id: 'rise', x: 0.5, y: 0.645 },
+  { id: 'crossing', x: 0.5, y: 0.55 },
+
+  // The three wings go sideways off the hub and climb their own way, which is
+  // how the upper spire is laid out: you leave the middle to take one.
+  { id: 'vats', x: 0.19, y: 0.5 },
+  { id: 'sludge', x: 0.06, y: 0.37 },
+  { id: 'airless', x: 0.32, y: 0.37 },
+  { id: 'laboratory', x: 0.19, y: 0.23 },
+
+  { id: 'crimson', x: 0.72, y: 0.42 },
+  { id: 'sanctum', x: 0.72, y: 0.27 },
+
+  { id: 'dream', x: 0.92, y: 0.42 },
+  { id: 'gauntlet', x: 0.92, y: 0.27 },
+  { id: 'lair', x: 0.92, y: 0.13 },
+
+  // Above everything, on the middle line, with nothing drawn between it and
+  // the hub: it is reached from the hub and not by way of a wing.
+  { id: 'throne', x: 0.5, y: 0.08 },
 ]
 
 /**
- * The room a chamber is when there is nothing alive in it.
+ * The shape of a room, walked into.
  *
- * A citadel you cross by pressing room names is a list with a drawing over it,
- * so the ground between the fights is walked — and the ground *inside* a room
- * is walked too. Standing in one, the way on is a door on the floor: you go to
- * it. At the crossing there are three, and choosing a wing is walking to one
- * rather than picking it off a plan.
- *
- * A disc, because a room with nothing in it has no axis worth having, and one
- * size for all of them: what makes the crossing different from the threshold
- * is how many doors are in the wall, not how big it is.
+ * A room that holds a fight is the room that fight is fought in. That is not a
+ * shortcut — walking into a place and then fighting in a different-shaped one
+ * would be two rooms wearing one name, and it is also where the variety comes
+ * from for free: the fights already carry a long hall, a wide disc and a small
+ * one. A room with nothing in it says its own shape, and a room waiting on an
+ * issue says the shape it is being built to be.
  */
-const HALL: RoomShape = { kind: 'round', radius: 420 }
+export function roomOf(id: string): RoomShape {
+  const chamber = chamberAt(id)
+  if (!chamber) return DEFAULT_ROOM
+  if (chamber.encounter !== null && chamber.encounter < ENCOUNTERS.length) {
+    return ENCOUNTERS[chamber.encounter]!.room ?? ROUND_ARENA
+  }
+  return chamber.room ?? DEFAULT_ROOM
+}
+
+/** For a room that has said nothing about its own shape. */
+const DEFAULT_ROOM: RoomShape = { kind: 'round', radius: 430 }
 
 /**
- * How far out the doors sit, which is inside the wall by a body's width.
+ * How far in from the wall a doorway sits.
  *
- * Sized by the camera rather than by what a room ought to be. At the first
- * size the crossing's six doors sat at the edges of the screen and the one
- * behind you was off it — and the crossing is the one room in the building
- * whose whole point is that you can see the three wings and choose. A room
- * you have to turn around in to read your options is a room that has hidden
- * them.
+ * In from the wall rather than out from the middle, which is the difference
+ * between a door and a marker: the rooms are all different sizes now, and a
+ * fixed radius put the crossing's doors halfway across it and the long hall's
+ * two hundred units short of either end.
  */
-const DOOR_RIM = 330
+const DOOR_INSET = 90
 
 /**
  * How far in from its door the party arrives.
@@ -411,33 +484,34 @@ const DOOR_RIM = 330
  * the door it came in by and walk straight back out of the room it just
  * entered.
  */
-const ARRIVE_IN = 165
+const ARRIVE_IN = 190
 
-/**
- * The least two doors of one room may be apart.
- *
- * An angle, but what it is really about is the gap along the wall: two doors
- * closer together than the reach that takes you through one are one door, and
- * which room you end up in is a coin toss. At this rim that is a little over
- * two reaches, and the build measures the chord rather than trusting the
- * angle — change the rim and the check is what tells you this needs changing
- * with it.
- */
+/** The least two doors of one room may be apart, so a thumb can tell them apart. */
 const DOOR_GAP = 0.62
 
 function planOf(id: string): { x: number; y: number } {
   return CITADEL_PLAN.find((entry) => entry.id === id) ?? { x: 0.5, y: 0.5 }
 }
 
+/** Where the wall is on this bearing, a doorway's width in from it. */
+function onWall(room: RoomShape, angle: number, inset = DOOR_INSET): Vec2 {
+  // Far out and then clamped, so one line answers for every shape there is
+  // and a fourth shape answers without being asked. In a hall this lands a
+  // diagonal in the corner, which is still the wall; two bearings that land
+  // in the same corner are two doors in one place, and the build measures
+  // that rather than trusting the angle.
+  const at = { x: Math.cos(angle) * 100000, y: Math.sin(angle) * 100000 }
+  pushInside(room, at, inset)
+  return at
+}
+
 /**
  * Every room this one has a door to, in the order they sit around the wall.
  *
  * The bearing comes off the plan — the map says the plagueworks is away to the
- * left of the crossing, so the door to it is away to the left — with the
- * plan's downward read as the world's forward, since deeper into the building
- * is the way a party walks. Two rooms that sit in the same direction on the
- * plan would otherwise share a door, so they are pushed apart afterwards; the
- * build checks that they came out apart.
+ * left of the crossing, so the door to it is away to the left. Two rooms that
+ * sit in the same direction on the plan would otherwise share a door, so they
+ * are pushed apart afterwards; the build checks that they came out apart.
  *
  * Which rooms get one is `canGo`'s to answer, and the caller has to answer it
  * with the same thing that will be asked when the party arrives at the door.
@@ -451,7 +525,10 @@ function doorsOf(id: string, canGo: (to: string) => boolean): Array<{ to: string
     const to = passage.from === id ? passage.to : passage.to === id ? passage.from : null
     if (to === null || !canGo(to)) return []
     const there = planOf(to)
-    return [{ to, angle: Math.atan2(-(there.y - here.y), there.x - here.x) }]
+    // The plan climbs and the world's forward is -y, so the two agree without
+    // a sign flip: a room higher up the plan is a smaller y, and a smaller y
+    // is the way a party walks.
+    return [{ to, angle: Math.atan2(there.y - here.y, there.x - here.x) }]
   })
   found.sort((a, b) => a.angle - b.angle)
   // Pushed apart in order, and then evenly if that ran the last one into the
@@ -484,20 +561,17 @@ export function hallFor(
   from: string | null,
   canGo: (to: string) => boolean,
 ): Corridor {
+  const room = roomOf(id)
   const doors = doorsOf(id, canGo)
-  const at = (angle: number): Vec2 => ({
-    x: Math.cos(angle) * DOOR_RIM,
-    y: Math.sin(angle) * DOOR_RIM,
-  })
   const back = doors.find((door) => door.to === from)
-  const entry = back
-    ? { x: Math.cos(back.angle) * (DOOR_RIM - ARRIVE_IN), y: Math.sin(back.angle) * (DOOR_RIM - ARRIVE_IN) }
-    : { x: 0, y: 0 }
+  // A step in from the door they came by, along the same bearing, so the party
+  // is standing in the room rather than in its doorway.
+  const arrival = back ? onWall(room, back.angle, DOOR_INSET + ARRIVE_IN) : { x: 0, y: 0 }
   return {
     id: `hall:${id}`,
-    room: HALL,
-    entry,
-    ways: doors.map((door) => ({ to: door.to, at: at(door.angle) })),
+    room,
+    entry: arrival,
+    ways: doors.map((door) => ({ to: door.to, at: onWall(room, door.angle) })),
     packs: [],
   }
 }

@@ -95,9 +95,24 @@ You go on by walking to a door. The raid follows you, so which door you walk
 to is which way the evening goes; when everybody is through it, you are in the
 next room. If something is alive in there the fight starts as you arrive. If
 not, that room has its own doors and you keep going. Nothing in between is a
-screen: the citadel is fifteen rooms, one way up for the first four, three
-wings that may be taken in any order and a throne that does not open until all
-three are done, and it is crossed on foot from end to end.
+screen: the citadel is a spire you climb — one way up for the first four
+fights, a crossing at the top of it, three wings off the crossing that may be
+taken in any order, and a throne above it all that does not open until the
+last fight of each wing is down. It is crossed on foot from end to end.
+
+A wing is entered once and branches inside itself. The plagueworks is a hall
+with a room off either side and a laboratory past both, so which of the two
+you take first is a choice made inside the wing rather than a second door on
+the crossing. And the ground between the fights of the lower spire is ground:
+the rampart and the rise are walks with something standing on them, not rooms
+with a boss in them.
+
+**Rooms are shaped like what happens in them.** A room that holds a fight is
+the room that fight is fought in — walking into a place and then fighting in a
+differently shaped one would be two rooms wearing one name — so the variety is
+the fights' own: a long hall, a wide disc, a small one. The rooms that hold
+nothing say their own shape, and the two that exist to be chosen from are
+sized so every door is on the screen at once.
 
 Some doors have ground behind them — a corridor, a stretch of hall with packs
 standing in it. Walking one costs time and health, and the packs are placed so

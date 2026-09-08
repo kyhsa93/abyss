@@ -149,7 +149,7 @@ expect(
 const order = (id: string): number => walk.order.indexOf(id)
 expect(
   'the first four are a single file',
-  order('spire') < order('oratory') && order('oratory') < order('rampart') && order('rampart') < order('rise'),
+  order('spire') < order('oratory') && order('oratory') < order('mooring') && order('mooring') < order('rise'),
   walk.order.join(' -> '),
 )
 expect(
@@ -196,7 +196,7 @@ expect('and no wing can be skipped on the way to the top', skips.length === 0, s
 const wings: Array<'plague' | 'crimson' | 'frostwing'> = ['plague', 'crimson', 'frostwing']
 const free = wings.filter((wing) => {
   const first = CHAMBERS.find((c) => c.wing === wing)!
-  return reachable(new Set(['spire', 'oratory', 'rampart', 'rise'])).has(first.id)
+  return reachable(new Set(['spire', 'oratory', 'mooring', 'rise'])).has(first.id)
 })
 expect('the three wings open together and may be taken in any order', free.length === 3, free.join(', '))
 for (const wing of wings) {
@@ -580,32 +580,32 @@ expect(
     from.length === 1 && from[0]!.to === 'spire',
     from.map((w) => `${w.to}:${w.step.kind}`).join(', '),
   )
-  expect('and nothing two doors away answers', stepTo(fresh, 'rampart').kind === 'shut')
+  expect('and nothing two doors away answers', stepTo(fresh, 'mooring').kind === 'shut')
 
   // A door with ground behind it charges once.
   const held = { ...fresh, at: 'oratory', cleared: ['spire', 'oratory'] }
-  const walk = stepTo(held, 'rampart')
+  const walk = stepTo(held, 'mooring')
   expect(
     'a door with ground behind it asks for the walk',
     walk.kind === 'walk' && walk.corridor.packs.length > 1,
     walk.kind,
   )
-  const after = walk.kind === 'walk' ? walkedTo(held, walk.key, 'rampart', []) : held
-  expect('and the party is through it afterwards', after.at === 'rampart')
+  const after = walk.kind === 'walk' ? walkedTo(held, walk.key, 'mooring', []) : held
+  expect('and the party is through it afterwards', after.at === 'mooring')
   // Either a step or a pad, and never the walk again: what a corridor costs is
   // the price of getting there the first time.
   expect(
     'and it does not ask twice',
-    ['step', 'jump'].includes(stepTo({ ...after, at: 'oratory' }, 'rampart').kind),
-    stepTo({ ...after, at: 'oratory' }, 'rampart').kind,
+    ['step', 'jump'].includes(stepTo({ ...after, at: 'oratory' }, 'mooring').kind),
+    stepTo({ ...after, at: 'oratory' }, 'mooring').kind,
   )
 
   // A pad reaches across the building, and only once it is lit.
   const deep = {
     ...fresh,
     at: 'rise',
-    cleared: ['spire', 'oratory', 'rampart', 'rise'],
-    visited: ['threshold', 'spire', 'oratory', 'rampart', 'rise'],
+    cleared: ['spire', 'oratory', 'mooring', 'rise'],
+    visited: ['threshold', 'spire', 'oratory', 'mooring', 'rise'],
   }
   expect(
     'a lit pad reaches a room no door here opens onto',
