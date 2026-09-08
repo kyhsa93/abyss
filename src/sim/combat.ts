@@ -177,10 +177,12 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // never refreshed by anything, so the number only has to outlast a pull --
   // and the enrage is four minutes.
   championed: 3600,
-  // The fuse on a spill, and it is a walk rather than a step: six seconds is
-  // long enough to get out of a hundred and twenty units and short enough
-  // that the raid cannot finish what it was doing first.
-  spilling: 6,
+  // The fuse on a spill, and it is a walk rather than a step. Four and a half
+  // seconds is a real walk out of a hundred and twenty units for a body that
+  // noticed, and not one for a body that noticed late -- which is the only
+  // window a reaction delay can be measured inside. At six it was long enough
+  // that everybody made it every time.
+  spilling: 4.5,
   // Long enough to be a decision rather than a tick. A wound that ran its
   // whole term is twelve deposits, which is a fifth of a gauge from one body
   // nobody got to in time.

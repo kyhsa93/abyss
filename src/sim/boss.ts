@@ -45,6 +45,8 @@ import {
   TURN_RATE,
   SPILL_RADIUS,
   SPILL_DAMAGE,
+  HEALTH,
+  FESTER_BITE,
   GORGE_RADIUS,
   GORGE_BURST,
 } from './constants'
@@ -1986,6 +1988,19 @@ function scheduleFester(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   for (let i = 0; i < count && free.length > 0; i++) {
     const carrier = free.splice(rng.int(free.length), 1)[0]!
     addAura(carrier, 'festering', b.id)
+    // The wound opens, which is what puts them under the line.
+    //
+    // It comes off above the line, so landed on a body at full health it came
+    // off on the tick it landed -- a mechanic that measured a tenth of a tick
+    // a pull and asked nobody for anything. What it costs is not this bite; it
+    // is the heal that has to follow it, and which was going somewhere else.
+    // Divided by `HEALTH` on the way in because everything the fight deals is
+    // written in the units that funnel scales, and this one is written as a
+    // share of a bar that has already been scaled.
+    applyDamage(s, carrier, (carrier.maxHp * FESTER_BITE) / HEALTH, 'magic', {
+      sourceId: b.id,
+      mechanic: 'fester',
+    })
     pushEffect(s, 'cast', carrier.pos, { abilityId: 'boss_fester' })
   }
 }

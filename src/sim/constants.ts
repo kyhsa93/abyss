@@ -939,7 +939,30 @@ export const SPILL_DAMAGE = 760
  * percent the answer is a heal on somebody who is *fine*, which is the only
  * shape a reaction delay can be late for. Rule 3, stated from the other end.
  */
-export const FESTER_LINE = 0.85
+export const FESTER_LINE = 0.8
+
+/**
+ * What the wound takes when it lands, as a share of the body's own bar.
+ *
+ * Without it the mechanic could not happen. A wound that comes off above the
+ * line and lands on somebody at full health comes off on the tick it landed:
+ * measured over a full pull it ticked a tenth of a time, cost nothing, fed the
+ * gauge nothing, and asked no healer for anything. The line is only a demand
+ * if the body is under it, so the wound puts them there and the answer is to
+ * lift them back out.
+ *
+ * A quarter, which is a body at full health landing well under the line and
+ * nowhere near danger. What it costs is a heal that was going to somebody
+ * else, which is the whole of what this mechanic is for.
+ *
+ * The pair of numbers matters more than either of them. The line has to sit
+ * inside what a healer tops people up to anyway -- `topOffFor` is 0.82 for a
+ * steady one -- or the answer is outside the rotation's own habits and the
+ * wound runs its whole term every time, which is a bill rather than a
+ * mechanic. It did: at a line of 0.85 every wound in the fight ticked all
+ * twelve times.
+ */
+export const FESTER_BITE = 0.25
 
 /**
  * How far the boss throws whoever it has swallowed, and what it costs.

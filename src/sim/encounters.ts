@@ -1263,12 +1263,19 @@ export const ENCOUNTERS: Encounter[] = [
     phaseThreeHp: 0.3,
     swingDamage: 600,
     slamDamage: 1250,
-    raidDamage: 110,
-    mechanicDamage: 0.7,
-    // Heavier at five and lighter at twenty-five, which follows from what
-    // fills the gauge: its sources are events a raid meets a fixed number of
-    // times, and a twenty-five man brings five times the hands to stop them.
-    sizeMechanic: { 5: 1.15, 10: 1.0, 25: 0.9 },
+    raidDamage: 125,
+    mechanicDamage: 0.9,
+    // Lightest at five, and that is measured rather than reasoned.
+    //
+    // The argument for the other order was that the gauge's sources are events
+    // a raid meets a fixed number of times, so a bigger roster brings more
+    // hands to each of them. True, and outweighed by the thing this fight does
+    // that no other does: nearly all of its bill lands on one named body at a
+    // time -- a wound, a spill, a mark -- and a five-man has one healer to
+    // answer all of them while a twenty-five has five. At 1.15 the five-man
+    // heroic wiped with the boss at five percent in twelve pulls out of twelve
+    // and the ten-man won every pull it played.
+    sizeMechanic: { 5: 0.9, 10: 1.0, 25: 0.8 },
     // The gauge is the second rung rather than the first, and the reason is
     // worth writing down because the first draft had it the other way round.
     //

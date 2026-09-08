@@ -2066,6 +2066,7 @@ be measured rather than assumed to be in range:
 | The Bonegrinder | 100% | 98% | 100% | 134s | 0% |
 | The Last Whisper | 3% | 5% | 0% | 155s | 0% |
 | The Reeking Host | 0% | 0% | 0% | 130s | 0% |
+| The Bloodgorged | 0% | 8% | 0% | 150s | 0% |
 
 What this table is meant to show is a first pull getting harder down the list
 while a ninth stays winnable, so each boss is a wall you learn rather than one
@@ -2074,10 +2075,10 @@ rather than to print a number and a sentence that disagree.
 
 This is one fixed party at one size. The per-cell table — three sizes by two
 difficulties, which is where a fight is actually judged — reads 100/100 across
-the Bonegrinder, 98 down to 60 across the Whisper's six, and 98 down to 60
-across the Host's. What this row is catching is the one composition it uses
-against the two fights that ask for a target call and a second tank, neither of
-which a fixed party makes well.
+the Bonegrinder, 98 down to 60 across the Whisper's six, 98 down to 60 across
+the Host's, and 100 down to 75 across the Bloodgorged's. What this row is
+catching is the one composition it uses against the three fights that ask for a
+target call and a second tank, none of which a fixed party makes well.
 
 It is also being read against rooms that are still being written. The bands
 that would normally hold this line are switched off by name until the twelve
