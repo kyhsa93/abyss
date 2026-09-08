@@ -984,6 +984,44 @@ function drawPartyFrames(ctx: CanvasRenderingContext2D, s: SimState): void {
   })
 }
 
+/**
+ * The fight's own marks, and the letter each one shows.
+ *
+ * A chip is one character and there are thirty-eight auras, so the first letter
+ * was never an identifier: seven of them begin with S and nine with R. Naming
+ * one exception at a time only moves the collision -- giving the swelling a W
+ * put it on top of the priest's ward.
+ *
+ * So the row is split instead. What the fight put on you is drawn in capitals
+ * out of this table, where the letters are unique and a check says so; what
+ * your own raid put on you is drawn in lower case from its first letter, where
+ * a collision costs nothing because every one of them means the same thing --
+ * something good is on me. A player reading a frame at a glance needs to know
+ * which family they are looking at before they need to know which member.
+ */
+export const MARK_LETTER: Partial<Record<AuraId, string>> = {
+  spiked: 'P',
+  slighted: 'L',
+  turned: 'T',
+  haunted: 'H',
+  spore: 'S',
+  inoculated: 'V',
+  reek: 'R',
+  swelling: 'W',
+}
+
+/**
+ * Marks that are somebody's problem rather than somebody's help.
+ *
+ * The spore is deliberately not on it. It looks like a debuff and reads like
+ * one -- the boss puts it on you and it has a clock -- but what it does when
+ * the clock runs out is cover everybody standing in it against the breath out.
+ * It is the one mark in this fight worth walking towards, and drawing it in the
+ * colour that means "get away from this" would teach the opposite of the
+ * mechanic.
+ */
+const BAD_NEWS = new Set<AuraId>(['reek', 'swelling', 'slighted', 'haunted', 'spiked'])
+
 function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState): void {
   const { x, y, w, h } = rect
   // Text shrinks with the frame. At twenty-five players a name written for a
@@ -1025,18 +1063,26 @@ function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState)
     // which is a colour that means "this is fine" — and the frame that most
     // needs to be read at a glance is the one belonging to somebody the fight
     // has taken off you.
+    //
+    // The list is named rather than defaulted. Left to fall through, a mark
+    // that spreads to whoever is standing near you was drawn in the colour
+    // that means "this is fine", on the frame of the one person the raid most
+    // needs to walk away from.
+    const mark = MARK_LETTER[aura.id]
     const color =
       aura.id === 'shield'
-          ? '#93c5fd'
-          : aura.id === 'turned'
-            ? COLORS.boss
+        ? '#93c5fd'
+        : aura.id === 'turned'
+          ? COLORS.boss
+          : BAD_NEWS.has(aura.id)
+            ? '#f87171'
             : '#4ade80'
     ctx.fillStyle = color
     ctx.fillRect(ax, y + h - chip - 4, chip, chip)
     ctx.fillStyle = '#0a0a0f'
     ctx.font = font(9 * k, true)
     ctx.textAlign = 'center'
-    ctx.fillText(aura.id[0]!.toUpperCase(), ax + chip / 2, y + h - 5)
+    ctx.fillText(mark ?? aura.id[0]!.toLowerCase(), ax + chip / 2, y + h - 5)
     ax += chip + 3
   }
 

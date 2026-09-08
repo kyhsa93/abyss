@@ -12,6 +12,7 @@ import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
+  MARK_LETTER,
   advanceLabel,
   canAdvance,
   drawHud,
@@ -8287,6 +8288,67 @@ for (const [label, w, h] of [
     .filter((line) => /if \(g\.kind === '/.test(line)).length
   expect('every hazard arm was read', arms === plainly && arms > 0, `${arms} of ${plainly}`)
   expect('and none of them answers for another mechanic', mixed.length === 0, mixed.join('; '))
+}
+
+// --- what the fight puts on a body has to be visible ------------------------
+//
+// The Reeking Host is the one boss that puts nothing on the floor and summons
+// nothing: every demand it makes is an aura. Five of them -- the spore, the
+// reek, the inoculation, the swelling and the boss's own held breaths -- were
+// drawn in no place at all, so a pull against it was floating numbers over a
+// party standing in an empty room, and the two that have a *radius* had nothing
+// saying where it was. A player found that, not a check.
+//
+// The rule that should have caught it was pointed the wrong way. There is one
+// saying every picture must belong to a mechanic something throws, and one
+// saying a boss throws what its ladder sells -- and between them nothing asks
+// whether a mechanic reaches the screen at all when its whole expression is a
+// mark on somebody.
+{
+  // Both surfaces a player looks at, not one. The first version of this asked
+  // only about the world and named five marks that are on the party frames --
+  // a check that is right about the shape of the problem and wrong about where
+  // the answer is allowed to live fails honest code, and gets widened.
+  const source = [
+    readFileSync(resolve(process.cwd(), 'src/render/draw.ts'), 'utf8'),
+    readFileSync(resolve(process.cwd(), 'src/render/hud.ts'), 'utf8'),
+  ].join('\n')
+  // Every aura this fight can put on a body, read off the schedulers rather
+  // than listed here: a list would go stale the first time one is added, which
+  // is the failure this whole check exists because of.
+  const applied = new Set<string>(
+    [...readFileSync(resolve(process.cwd(), 'src/sim/boss.ts'), 'utf8').matchAll(
+      /(?:add|stack)Aura\([^,]+, '(\w+)'/g,
+    )].map((m) => m[1]!),
+  )
+  const unseen = [...applied].filter((id) => !source.includes(`'${id}'`))
+  expect(
+    'every mark the fight applies reaches a picture somewhere',
+    unseen.length === 0,
+    `${unseen.join(', ')} reach no picture`,
+  )
+}
+
+// --- and the frame can tell two of them apart -------------------------------
+//
+// A chip is one character and there are thirty-eight auras. Seven begin with S
+// and nine with R, so the first letter was never an identifier -- the spore and
+// the swelling were the same chip, and naming one exception moved the collision
+// onto the priest's ward rather than removing it.
+{
+  const letters = Object.values(MARK_LETTER) as string[]
+  expect(
+    "no two of the fight's marks share a letter",
+    new Set(letters).size === letters.length,
+    letters.join(''),
+  )
+  // Capitals are the fight's and lower case is the raid's own, so the two
+  // families cannot be confused even where a letter is reused across them.
+  expect(
+    "and the fight's marks are the capitals",
+    letters.every((l) => l === l.toUpperCase() && l.length === 1),
+    letters.filter((l) => l !== l.toUpperCase()).join(','),
+  )
 }
 
 // --- every rung a boss sells actually happens ------------------------------

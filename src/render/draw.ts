@@ -1,7 +1,14 @@
 import {
-  PUDDLE_TELEGRAPH,
+  BLOAT_BURST_AT,
+  BLOAT_SWAP_AT,
   GLOBAL_COOLDOWN,
+  INHALE_MAX,
   PARTY_RADIUS,
+  PUDDLE_TELEGRAPH,
+  REEK_REACH,
+  SHADE_REACH,
+  SPORE_REACH,
+  STORM_REACH,
 } from '../sim/constants'
 import { dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
@@ -282,6 +289,7 @@ export function drawWorld(
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
+  drawShades(ctx, s, clock)
   drawCasts(ctx, s, alpha)
 
   const bg = s.mode === 'battleground'
@@ -894,6 +902,51 @@ function drawFarWall(ctx: CanvasRenderingContext2D, c: Vec2): void {
   ctx.stroke()
 }
 
+/**
+ * The thing walking after somebody, drawn where it actually is.
+ *
+ * It is not ground and it is not a body: it is a place kept on the mark, and
+ * it closes at most of a walking pace. Nothing drew it, so the one demand the
+ * mechanic makes -- keep moving, it cannot corner you -- was being made about
+ * something the player could not see. The card said "it follows the one it
+ * picked" and the screen said nothing at all.
+ *
+ * Drawn as the gap rather than as a shape: a line from the thing to the body
+ * it wants, so what is readable is how much room is left, which is the only
+ * number the person being followed has to act on.
+ */
+function drawShades(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const mark = getAura(a, 'haunted')
+    if (!mark?.at) continue
+    const at = worldToScreen(mark.at)
+    const on = worldToScreen(a.pos)
+    const colour = iconFor('boss_shade').colour
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(at.x, at.y)
+    ctx.lineTo(on.x, on.y)
+    ctx.strokeStyle = colour
+    ctx.globalAlpha = 0.35
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 6])
+    ctx.lineDashOffset = -clock * 30
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+
+    footprint(ctx, at.x, at.y, SHADE_REACH * L.scale)
+    ctx.fillStyle = 'rgba(103, 232, 249, 0.12)'
+    ctx.fill()
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+    ctx.restore()
+  }
+}
+
 function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
   for (const g of s.ground) {
     const p = worldToScreen(g.pos)
@@ -1324,6 +1377,45 @@ function drawActor(
     ctx.fill()
   }
 
+  // How many breaths it is holding, which is the whole trade one fight is made
+  // of and was the only part of it drawn nowhere at all. It sits on the boss,
+  // and the party frames only carry the party -- so a raid watching the room
+  // get easier while the tank's bar fell faster had no way to connect the two.
+  //
+  // Rings outside the body rather than a colour on it: what has to be read is
+  // a number between nought and three, and the fight's argument is that the
+  // number going up is the room going quiet. A count answers that and a shade
+  // does not.
+  // How far the thing that has let go actually reaches, which the card tells
+  // you to keep away from and nothing was drawing. A boss that stops tanking
+  // and comes for the room is the one danger in this game whose shape is the
+  // boss itself, so there is no hazard on the floor to read it off -- and
+  // "keep away" without a distance is not an instruction.
+  //
+  // Filled faintly and edged hard, because the bill inside it is a gradient
+  // and the edge is not: outside is nothing at all, and how far in you are
+  // only decides how badly you failed.
+  if (isBoss && a.alive && getAura(a, 'storming')) {
+    footprint(ctx, p.x, p.y, STORM_REACH * L.scale)
+    ctx.fillStyle = 'rgba(220, 38, 38, 0.10)'
+    ctx.fill()
+    ctx.strokeStyle = iconFor('boss_bonestorm').colour
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  const gorged = getAura(a, 'gorged')
+  if (isBoss && a.alive && gorged && gorged.stacks > 0) {
+    for (let i = 0; i < Math.min(gorged.stacks, INHALE_MAX); i++) {
+      footprint(ctx, p.x, p.y, r + 7 + i * 5)
+      ctx.strokeStyle = iconFor('boss_inhale').colour
+      ctx.lineWidth = 2
+      ctx.globalAlpha = 0.75
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+  }
+
   ctx.globalAlpha = 1
   ctx.strokeStyle = enemy ? (isBoss ? accent : ENEMY_EDGE) : bodied ? color : '#0a0a0f'
   ctx.lineWidth = enemy && isBoss ? 3 : 2
@@ -1467,6 +1559,75 @@ function drawActor(
     ctx.strokeStyle = iconFor('boss_empower').colour
     ctx.lineWidth = 3
     ctx.stroke()
+  }
+
+  // --- the air fight, which had nothing on the screen at all -----------------
+  //
+  // One boss puts nothing on the floor and summons nothing: every demand it
+  // makes is an aura on a body. Five of them were drawn nowhere, so a pull
+  // against it was floating numbers over a party standing in an empty room,
+  // and two of the five have a *radius* -- a place to be inside, and a place
+  // to be outside of -- which nothing said where.
+  //
+  // Each is drawn as the shape of its own answer rather than as another status
+  // ring. A place to go is filled and a place to leave is not; a count is a
+  // count of marks rather than a colour that deepens, because the two that
+  // matter are read as "how many more" and a shade is not a number.
+
+  // Somewhere to be. Filled, faintly, because it is the one friendly circle
+  // the game draws -- everything else this shape has ever meant is "leave".
+  if (a.alive && getAura(a, 'spore')) {
+    const reach = SPORE_REACH * L.scale
+    footprint(ctx, p.x, p.y, reach)
+    ctx.fillStyle = 'rgba(190, 242, 100, 0.10)'
+    ctx.fill()
+    ctx.strokeStyle = iconFor('boss_spore').colour
+    ctx.lineWidth = 2
+    ctx.setLineDash([6, 5])
+    ctx.lineDashOffset = clock * 14
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // Somewhere to leave, and the only one of these a body can give somebody
+  // else. Unfilled and solid: a hard edge to be outside of rather than an area
+  // to stand in, which is the spore's circle read the other way round.
+  if (a.alive && getAura(a, 'reek')) {
+    footprint(ctx, p.x, p.y, REEK_REACH * L.scale)
+    ctx.strokeStyle = iconFor('boss_vilegas').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+    footprint(ctx, p.x, p.y, r + 3)
+    ctx.strokeStyle = iconFor('boss_vilegas').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
+  // Already safe, and it has to be legible at a glance because it is the one
+  // fact that decides whether the breath out kills you. A closed ring tight to
+  // the body: nothing to walk to, nothing to walk out of.
+  if (a.alive && getAura(a, 'inoculated')) {
+    footprint(ctx, p.x, p.y, r + 5)
+    ctx.strokeStyle = iconFor('boss_pungent').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+
+  // The count on whoever is holding the boss, which the constants call public
+  // and which nothing was making public. Ticks around the body, one per stack,
+  // so the answer -- swap before the last one -- is a thing you count rather
+  // than a colour you interpret. The one that would burst is drawn apart.
+  const swelling = getAura(a, 'swelling')
+  if (a.alive && swelling && swelling.stacks > 0) {
+    for (let i = 0; i < Math.min(swelling.stacks, BLOAT_BURST_AT); i++) {
+      const from = -Math.PI / 2 + (i * Math.PI * 2) / BLOAT_BURST_AT
+      ctx.beginPath()
+      floorArc(ctx, p.x, p.y, r + 7, from + 0.1, from + (Math.PI * 2) / BLOAT_BURST_AT - 0.1)
+      ctx.strokeStyle =
+        i >= BLOAT_SWAP_AT - 1 ? iconFor('boss_bloat').colour : 'rgba(161, 98, 7, 0.55)'
+      ctx.lineWidth = i >= BLOAT_SWAP_AT - 1 ? 3.5 : 2.5
+      ctx.stroke()
+    }
   }
 
   const glyph = isBoss ? 'B' : isAdd ? 'x' : a.role === 'tank' ? 'T' : a.role === 'healer' ? 'H' : 'D'
