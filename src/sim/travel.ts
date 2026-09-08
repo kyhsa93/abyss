@@ -306,12 +306,36 @@ function trashStep(s: SimState): void {
  * and a boss fight with somebody else's trash in it is two fights nobody
  * tuned.
  */
+/**
+ * What a quiet stretch of corridor gives back, a second.
+ *
+ * The recovery between rooms was a flat fraction handed over for having opened
+ * a door, which is the shape a thing has when nobody has decided what buys it.
+ * This is what buys it: the walk itself, and only the part of it where nothing
+ * is awake. A raid that clears a corridor and then walks it arrives healthier
+ * than one that runs the last stretch with a pack still up — and how much
+ * healthier is a decision rather than a constant.
+ *
+ * Small on purpose. Over a corridor's quiet half it is worth a few percent a
+ * body, which is a breather rather than a heal.
+ */
+const CORRIDOR_MEND = 0.014
+
 export function updateTravel(s: SimState, rng: Rng): void {
   const travel = s.travel
   if (!travel) return
   listen(s)
   trashStep(s)
   void rng
+
+  // Nothing awake: the party is walking, and walking is when a raid catches
+  // its breath. Never the dead, who are carried.
+  if (awake(s).length === 0) {
+    for (const a of livingParty(s)) {
+      if (a.hp >= a.maxHp) continue
+      a.hp = Math.min(a.maxHp, a.hp + a.maxHp * CORRIDOR_MEND * DT)
+    }
+  }
 
   const alive = livingParty(s)
   if (alive.length === 0) {

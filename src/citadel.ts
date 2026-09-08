@@ -90,11 +90,12 @@ export type Step =
  * decision — and there is no reason to believe a room differs from a floor
  * before anything has been measured.
  *
- * They are the wrong shape for what this wants to be, and that is written down
- * here rather than discovered later. The recovery should come from *walking*:
- * a corridor taken slowly is a room entered healthy, and one taken at a run is
- * a decision to arrive early and hurt. That is #24, and it needs corridors to
- * exist first.
+ * Half of what a room gives back is bought rather than granted now: a corridor
+ * mends the party while nothing in it is awake (see `CORRIDOR_MEND`), so a
+ * raid that clears the ground and then walks it arrives healthier than one
+ * that pushes through with a pack still up. What is left here is the floor
+ * under that — the doors with no ground behind them, and the first room of the
+ * evening.
  */
 export const ROOM_RECOVERY = 0.55
 export const ROOM_REVIVE = 0.45

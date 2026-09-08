@@ -278,10 +278,12 @@ expect(
     const rng = new Rng(31337)
     let outside = 0
     let stuck = 0
+    const lowest: Record<number, number> = {}
     while (s.outcome === 'ongoing' && s.time < 300) {
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
       for (const a of s.actors) {
         if (!a.alive) continue
+        if (a.faction === 'party') lowest[a.id] = Math.min(lowest[a.id] ?? a.hp, a.hp)
         if (!insideRoom(s.room, a.pos, a.radius * 0.9)) outside++
         if (inTerrain(s.obstacles, a.pos, a.radius * 0.9)) stuck++
       }
@@ -303,10 +305,18 @@ expect(
     )
     expect(`${chamber.name}: and nobody leaves the room`, outside === 0, `${outside} body-ticks outside`)
     expect(`${chamber.name}: and nobody is held in a wall`, stuck === 0, `${stuck} body-ticks in a rock`)
+    // Measured at the worst moment rather than at the end, because the end is
+    // after the breather: a corridor that hurt nobody at any point is scenery,
+    // and one that hurt somebody and gave none of it back is a tax.
     expect(
       `${chamber.name}: and it costs something`,
-      s.actors.some((a) => a.faction === 'party' && a.hp < a.maxHp),
-      'the corridor was free',
+      s.actors.some((a) => a.faction === 'party' && (lowest[a.id] ?? a.maxHp) < a.maxHp),
+      'nobody was ever hurt in it',
+    )
+    expect(
+      `${chamber.name}: and the walk out of it is a breather`,
+      s.actors.some((a) => a.faction === 'party' && a.alive && a.hp > (lowest[a.id] ?? 0)),
+      'nobody recovered anything on the way out',
     )
   }
 }
