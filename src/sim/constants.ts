@@ -1224,3 +1224,103 @@ export const SLIME_DRY = 300
 export const SLIME_TELEGRAPH = readable(1.8)
 export const SLIME_LINGER = 10
 export const SLIME_TICK = 190
+
+// --- the three crowns, of which one is real --------------------------------
+
+/**
+ * How long the crown takes to move, and how long between moves.
+ *
+ * Four seconds of warning, and the warning names the body it is going to
+ * rather than merely saying that something is about to change: a raid that
+ * cannot see where it is going cannot be late for it, and a raid that cannot
+ * be late for it is a raid this measures nothing on.
+ */
+export const CROWN_TELEGRAPH = 4
+
+/**
+ * What the two bodies without the crown take out of whoever stands near them.
+ *
+ * The half of this fight that makes all three bodies matter. Standing where
+ * the raid wants to stand -- around the one it can actually hurt -- is only
+ * free if the other two are somewhere else, and the crown moves every
+ * forty-five seconds, so where the raid may stand moves with it.
+ *
+ * It heals the shared bar rather than only billing the raid, because a bill is
+ * the healers' problem and a heal is everybody's: a rotation nobody answered
+ * costs the pull its progress rather than a body its health.
+ */
+export const THIRST_REACH = 170
+
+/**
+ * What a second of being drunk from costs the body it is drinking from.
+ *
+ * Small, and it has to be: two of the three bodies are always drinking, so
+ * this is the one bill in the fight that is running whenever anybody has
+ * mispositioned -- which, in a room whose three stations are nine hundred
+ * units apart, is most of the time for a five-man. At three hundred and forty
+ * it killed every raid at every size before the boss reached half.
+ *
+ * What the mechanic is for is the *heal* it gives the boss, not this: this is
+ * only what stops the raid ignoring it.
+ */
+export const THIRST_TICK = 150
+/**
+ * What a second of drinking gives back, as a share of the whole bar.
+ *
+ * A share rather than a fraction of the bill, and the difference is the sort
+ * of thing this codebase learns the hard way: what a mechanic bills is written
+ * in one currency and what a raid deals is written in another, so "it heals
+ * half of what it drinks" turned out to mean "it heals faster than a ten-man
+ * can damage it" -- the bar went *up* for the eighty seconds after the first
+ * rotation and no size could finish the fight.
+ *
+ * A tenth of a percent a second, and two mouths, so a minute of nobody
+ * noticing is about an eighth of the fight given back.
+ */
+export const THIRST_HEAL = 0.0011
+
+/**
+ * The thing that must not reach the floor.
+ *
+ * Two of them, always, whatever the headcount -- rule 5 -- and the answer is
+ * damage rather than movement, which is what makes it fight the rotation for
+ * the same hands. Hitting it sends it back up; ignoring it costs everybody
+ * inside two hundred and forty units.
+ */
+export const BALLAST_FALL = 22
+export const BALLAST_REACH = 240
+export const BALLAST_DAMAGE = 3600
+export const BALLAST_LIFT = 6
+
+/**
+ * The grain, and what carrying one is worth.
+ *
+ * The one errand in this game handed to the body whose job is to stand still.
+ * It appears next to a body without the crown, which is inside the thirst, so
+ * fetching it costs the tank exactly the thing the raid is trying to avoid.
+ */
+export const NUCLEUS_REACH = 40
+export const NUCLEUS_LIFE = 18
+export const NUCLEUS_HOLD = 14
+export const NUCLEUS_GUARD = 0.6
+
+/**
+ * The stillness, and what a step costs while it is on.
+ *
+ * The only demand in this game answered by *not* walking, and it climbs with
+ * the seconds spent walking so that one step is cheap and a crossing is not.
+ * What it asks is not that the raid stand still -- the fight is still throwing
+ * things that have to be left -- but that it choose which steps are worth
+ * paying for.
+ */
+export const PRISON_TICK = 120
+
+/**
+ * How far the climb goes before it stops climbing.
+ *
+ * Six seconds, which is a body that has crossed the room. Uncapped it is not a
+ * mechanic, it is a rule that says the last body walking dies -- and the fight
+ * asks the raid to spend some of this deliberately, so what it costs has to be
+ * something a raid can decide to pay.
+ */
+export const PRISON_CAP = 6

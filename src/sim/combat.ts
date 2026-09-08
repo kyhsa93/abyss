@@ -20,11 +20,12 @@ import {
   INFECTION_TICK,
   ENGULF_MAX,
   REAGENT_MAX,
+  NUCLEUS_HOLD,
   INFECTION_HEALING,
   FLOOD_SLOW,
 } from './constants'
 import type { Rng } from './rng'
-import { CHAMPION_HEAL } from './boss'
+import { CHAMPION_HEAL, untouchable } from './boss'
 import { pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
@@ -230,6 +231,14 @@ export const AURA_DURATION: Record<AuraId, number> = {
   hounded: 22,
   // Cleared by the swap and by the seventh, never by time.
   dosed: 3600,
+  // It does not expire: it moves. What ends one body's crown is the next
+  // body's, which is the whole shape of the fight.
+  crowned: 3600,
+  // Refreshed every tick by whoever is drinking, so it ends when the body
+  // walks out rather than on a clock of its own.
+  drained: 0.2,
+  carrying: NUCLEUS_HOLD,
+  bound: 10,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -639,6 +648,40 @@ export function applyDamage(
   // would exist for the party and not for the player, who can keep pressing
   // whatever they like.
   if (target.id === BOSS_ID && s.mode === 'raid' && heraldUp(s)) return
+
+  // And nothing reaches two of the three bodies on the fight that has three.
+  //
+  // Nothing rather than less: a cut of any size is answered by carrying on and
+  // paying it, and nothing at all is answered by looking up, which is the only
+  // version of this that is a question. The number is not printed as a zero
+  // either -- see `pushText` below -- because a zero reads as a weak hit.
+  // Two of the three bodies on the fight that has three take nothing.
+  //
+  // Nothing rather than less: a cut of any size is answered by carrying on and
+  // paying it, and nothing at all is answered by looking up, which is the only
+  // version of this that is a question. The number is not printed as a zero
+  // either -- a zero reads as a weak hit.
+  if (untouchable(s, target)) {
+    if (steered(s, opts.sourceId) && mine(target, opts.sourceId)) {
+      pushText(s, target.pos, '—', 'crit')
+    }
+    return
+  }
+
+  // And what lands on the one that *can* be hurt goes to the bar rather than
+  // to the body. One bar, three bodies: a health bar that is really three
+  // health bars reads as no health bar at all.
+  //
+  // After the refusal above and not before it. The other way round, the
+  // redirect handed the damage to the body carrying the bar and the refusal
+  // then read *that* body -- which is uncrowned whenever one of the other two
+  // is wearing it -- so every hit the raid landed on the real body was thrown
+  // away, and the fight was unwinnable at every size with the bar at ninety
+  // percent after four minutes.
+  if (target.spawn === 'crown') {
+    const bar = boss(s)
+    if (bar && bar.alive) target = bar
+  }
 
   // And nothing reaches a body the boss has swallowed, except the thing that
   // swallowed it.

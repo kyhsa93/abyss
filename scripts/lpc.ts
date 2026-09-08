@@ -238,6 +238,11 @@ const ARMS: Record<string, string[]> = {
   // A halberd, which is the longest thing in the set: the one boss here that
   // swallows whoever is holding it should look like it can reach them.
   'boss-gorged': ['weapon/polearm/halberd'],
+  // Two of the three carry something and one does not, which is the third
+  // channel telling them apart -- after the torso and before the head nobody
+  // can see.
+  'boss-crowns': STAFF,
+  'boss-crowns-3': ['weapon/sword/rapier'],
 }
 
 /** Which of the three a thing in a hand is drawn doing. */
@@ -411,6 +416,34 @@ const BOSS: Record<string, Layer[]> = {
   // still reads as a soldier rather than as a corpse -- the skeleton and the
   // stitched one are already the first and third bosses, and three dead things
   // in four rooms is a building with one idea.
+  // "only one is real, and it is not the one you are hitting" -- three of
+  // them, and the picture's whole job is that a player can tell which is
+  // which from directly above. So they are separated by the two things that
+  // survive this camera -- what is on the torso and what is in the hand --
+  // rather than by faces nobody can see.
+  //
+  // The vampire head is in the set and nothing was using it. Three sheets
+  // rather than one because a fight whose mechanic is "which of these three"
+  // cannot draw the three the same.
+  crowns: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/clothes/robe/male' },
+    { z: 100, dir: 'head/heads/vampire/adult' },
+  ],
+  'crowns-2': [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/armour/leather/male' },
+    { z: 90, dir: 'shoulders/bauldron/male' },
+    { z: 100, dir: 'head/heads/vampire/adult' },
+  ],
+  'crowns-3': [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/clothes/shortsleeve/male' },
+    { z: 100, dir: 'head/heads/vampire/adult' },
+  ],
   // "two answers at once, and neither of them waits" -- the person who worked
   // here. Not a monster: an apron, plain trousers, and a stitched-together
   // head, because what this fight does is *work* -- it puts two things on the

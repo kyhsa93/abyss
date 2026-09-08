@@ -136,6 +136,27 @@ export type AuraId =
    */
   | 'dosed'
   /**
+   * The one of the three that is real, this minute.
+   *
+   * Everything without it takes no damage at all -- not reduced, none -- which
+   * is the only version of this that asks a question. A ninety percent cut is
+   * answered by carrying on and losing a tenth; nothing at all is answered by
+   * looking up.
+   */
+  | 'crowned'
+  /** Being drunk from by one of the two that cannot be hurt. */
+  | 'drained'
+  /** Holding a grain, which is worth most of the drinking. */
+  | 'carrying'
+  /**
+   * Bound: every second spent walking costs more than the one before it.
+   *
+   * The only demand in this game answered by standing still, and it does not
+   * ask for stillness -- the fight is still throwing things that have to be
+   * left. It asks which steps are worth paying for.
+   */
+  | 'bound'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -393,7 +414,7 @@ export interface Actor {
    * gauge. A wave that goes for the nearest body dies where the damage already
    * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike' | 'beast' | 'ooze'
+  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast'
 
   /**
    * The body a beast has picked, which is the whole of what makes it one.
@@ -422,6 +443,26 @@ export interface Actor {
    * raid guessing.
    */
   eaten?: number
+
+  /**
+   * How far above the floor this is, for the one thing in the game that has a
+   * height.
+   *
+   * Only a ballast has it. Nothing else in this fight or any other is anywhere
+   * but on the ground, and the reason this one is not is the mechanic: it
+   * comes down on a clock, damage sends it back up, and what it costs is
+   * reaching the floor. Drawn as the size and darkness of its shadow, which is
+   * the only way this camera can say height at all.
+   */
+  height?: number
+
+  /**
+   * How long this body has spent moving while bound, in seconds.
+   *
+   * Kept on the body rather than on the aura because it is a fact about what
+   * the person did, and the aura is a fact about what the fight asked.
+   */
+  walked?: number
 }
 
 export type GroundKind =
@@ -446,6 +487,9 @@ export type GroundKind =
   // The sludgeworks rising. Patches along an arc of the wall, never in the
   // middle, and it belongs to the room rather than to the thing in it.
   | 'slime'
+  // A grain to be picked up, which is the only piece of ground in this game
+  // that is worth standing on.
+  | 'nucleus'
   // A flask on the floor with a long count on it. The only piece of ground in
   // this game that is a *thing* rather than a hazard, and the only one whose
   // count stops while somebody is standing on it.

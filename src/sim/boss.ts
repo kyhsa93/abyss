@@ -41,11 +41,25 @@ import {
   PUNGENT_PER_BREATH,
   DT,
   MELEE_RANGE,
+  TICK_RATE,
   PUDDLE_TELEGRAPH,
   TURN_RATE,
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  CROWN_TELEGRAPH,
+  THIRST_REACH,
+  THIRST_TICK,
+  THIRST_HEAL,
+  BALLAST_FALL,
+  BALLAST_REACH,
+  BALLAST_DAMAGE,
+  BALLAST_LIFT,
+  NUCLEUS_REACH,
+  NUCLEUS_GUARD,
+  NUCLEUS_LIFE,
+  PRISON_TICK,
+  PRISON_CAP,
   SLIME_PATCH,
   SLIME_ARC,
   SLIME_DRY,
@@ -499,6 +513,13 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleDecant(s, b, rng, timing)
   scheduleReagent(s, b, timing)
   scheduleSlime(s, b, rng, timing)
+  updateCourt(s)
+  scheduleRotation(s, b, rng, timing)
+  updateThirst(s, timing)
+  scheduleBallast(s, b, timing)
+  updateBallast(s)
+  scheduleNuclei(s, b, rng, timing)
+  schedulePrison(s, b, timing)
   updateHounds(s)
 
   updateAdds(s)
@@ -2763,6 +2784,330 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   }
 }
 
+// --- the three crowns -----------------------------------------------------
+//
+// Three bodies and one of them is real. Every other target demand in this game
+// is "hit that as well" or "do not hit that"; this one is "is the thing I am
+// hitting the thing I should be hitting", and it comes round again every
+// forty-five seconds.
+
+/** The bodies of a fight that has more than one, in the order they stand. */
+export function court(s: SimState): Actor[] {
+  return s.actors.filter(
+    (a) => a.alive && (a.id === BOSS_ID || (a.faction === 'boss' && a.spawn === 'crown')),
+  )
+}
+
+/** The one that can be hurt, or null on the fights that only have one body. */
+export function crowned(s: SimState): Actor | null {
+  return s.actors.find((a) => getAura(a, 'crowned') !== undefined) ?? null
+}
+
+/**
+ * Whether damage aimed at this body does anything at all.
+ *
+ * Nothing at all rather than less, and the difference is the whole mechanic: a
+ * ninety percent cut is answered by carrying on and losing a tenth, and
+ * nothing is answered by looking up. Exported because `applyDamage` has to ask
+ * and a module that answers damage cannot import the one that deals it -- the
+ * same route `heraldUp` takes.
+ */
+export function untouchable(s: SimState, target: Actor): boolean {
+  if (target.faction !== 'boss') return false
+  if (target.id !== BOSS_ID && target.spawn !== 'crown') return false
+  const wearer = crowned(s)
+  if (!wearer) return false
+  return wearer.id !== target.id
+}
+
+/**
+ * The other two bodies, kept in step with the one that carries the bar.
+ *
+ * Their health is the fight's health, mirrored: it is what a health bar over
+ * them says, and it is what "whichever of them has least left" reads when the
+ * raid is choosing between a body and a ballast. Without it a crown sits at
+ * one point of health forever and every rotation looks like an execution.
+ *
+ * They do not walk. Three bodies that chased the raid would be three bosses,
+ * and what this fight is about is that they are three *places*.
+ */
+function updateCourt(s: SimState): void {
+  const bar = boss(s)
+  for (const body of s.actors) {
+    if (body.spawn !== 'crown') continue
+    body.hp = bar.hp
+    body.maxHp = bar.maxHp
+    body.alive = bar.alive
+  }
+}
+
+/**
+ * The crown moving, which is the fight.
+ *
+ * Rolled among the two that do not have it rather than passed round in order.
+ * In order, a raid knows the third move before it happens and turns early --
+ * and something a raid cannot be late for measures nothing, which is rule 3.
+ * With two candidates and four seconds of warning, the warning is the only
+ * thing that says which, and reading it is the mechanic.
+ */
+function scheduleRotation(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.rotation <= 0) return
+  const bodies = court(s)
+  if (bodies.length < 2) return
+
+  // The first crown is put on without a warning, because there is nothing yet
+  // for a warning to be a change from.
+  const wearer = crowned(s)
+  if (!wearer) {
+    addAura(bodies[0]!, 'crowned', b.id)
+    s.next.rotation = timing.rotation
+    return
+  }
+
+  s.next.rotation -= DT
+  if (s.next.rotation > CROWN_TELEGRAPH) return
+
+  // The warning names the body it is going to. `named` on the aura is what the
+  // picture reads to fill in that body's edge, and what the party's target
+  // call reads to start turning.
+  const mark = getAura(wearer, 'crowned')!
+  if (mark.bearer === undefined) {
+    const others = bodies.filter((a) => a.id !== wearer.id)
+    if (others.length === 0) return
+    mark.bearer = rng.pick(others).id
+    say(s, b, lineFor(fight(s), 'rotation'))
+    s.sounds.push('telegraph')
+    const next = s.actors.find((a) => a.id === mark.bearer)
+    if (next) pushEffect(s, 'cast', next.pos, { abilityId: 'boss_rotation' })
+    return
+  }
+
+  if (s.next.rotation > 0) return
+  s.next.rotation = timing.rotation
+  const next = s.actors.find((a) => a.id === mark.bearer && a.alive)
+  wearer.auras = wearer.auras.filter((au) => au.id !== 'crowned')
+  if (!next) return
+  addAura(next, 'crowned', b.id)
+  pushEffect(s, 'impact', next.pos, { abilityId: 'boss_rotation', power: 400, crit: true })
+}
+
+/**
+ * The two that cannot be hurt drinking from whoever stands near them.
+ *
+ * A state rather than a beat, and the half of this fight that makes all three
+ * bodies places. The raid wants to stand around the one it can hurt; that is
+ * only free while the other two have nobody near them, and the crown moves.
+ *
+ * It heals the shared bar as well as billing the body. A bill is the healers'
+ * problem; a heal is everybody's -- a rotation nobody answered costs the pull
+ * its progress rather than one body its health.
+ */
+function updateThirst(s: SimState, timing: PhaseTiming): void {
+  if (timing.thirst <= 0) return
+  const bar = boss(s)
+  for (const body of court(s)) {
+    if (getAura(body, 'crowned')) continue
+    let nearest: Actor | null = null
+    let best = THIRST_REACH
+    for (const a of livingParty(s)) {
+      const d = dist(a.pos, body.pos)
+      if (d < best) {
+        best = d
+        nearest = a
+      }
+    }
+    if (!nearest) continue
+    // A grain is worth most of it, which is why fetching one is worth the
+    // walk into the very place the raid is trying not to stand.
+    const guard = getAura(nearest, 'carrying') ? 1 - NUCLEUS_GUARD : 1
+    const bill = mechanic(s, THIRST_TICK * guard) * DT
+    applyDamage(s, nearest, bill, 'magic', {
+      sourceId: body.id,
+      mechanic: 'thirst',
+      silent: true,
+    })
+    addAura(nearest, 'drained', body.id)
+    // Drawn once a second rather than every tick: what it is worth on screen
+    // is "this body is paying for standing there", and sixty of those a second
+    // is a solid bar of numbers rather than a fact.
+    if (Math.floor(s.time) !== Math.floor(s.time - DT)) {
+      pushEffect(s, 'impact', nearest.pos, { abilityId: 'boss_thirst', power: bill * TICK_RATE })
+    }
+    if (bar.alive) bar.hp = Math.min(bar.maxHp, bar.hp + bar.maxHp * THIRST_HEAL * DT)
+  }
+}
+
+/**
+ * The thing that must not reach the floor.
+ *
+ * The answer is damage rather than movement, which is what makes it fight the
+ * crown for the same hands: the raid has one pool of damage and two things
+ * that want it, and how it splits them is the decision. Always two of them
+ * whatever the headcount -- rule 5 -- because a bill that lands on everybody
+ * at once may not also be dealt more often to a bigger raid.
+ */
+function scheduleBallast(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.ballast <= 0) return
+  s.next.ballast -= DT
+  if (s.next.ballast > 0) return
+  s.next.ballast = timing.ballast
+  if (s.actors.some((a) => a.alive && a.spawn === 'ballast')) return
+
+  say(s, b, lineFor(fight(s), 'ballast'))
+  s.sounds.push('telegraph')
+  const reach = roomReach(s.room)
+  for (const side of [-1, 1]) {
+    const at = { x: (reach * 0.42) * side, y: -reach * 0.15 }
+    pushInside(s.room, at, BALLAST_REACH)
+    const weight = makeAdd(s.nextObjectId++, at.x, at.y)
+    weight.spawn = 'ballast'
+    weight.name = 'Ballast'
+    weight.radius = 26
+    weight.moveSpeed = 0
+    weight.height = 1
+    // Its health is what the raid spends to push it back up rather than what
+    // it spends to kill it: `updateBallast` reads how much came off and turns
+    // that into height, and puts the health straight back.
+    weight.maxHp = addHealth(s) * 4
+    weight.hp = weight.maxHp
+    s.actors.push(weight)
+    pushEffect(s, 'cast', at, { abilityId: 'boss_ballast' })
+  }
+}
+
+/**
+ * The ballast coming down, going back up, and landing.
+ *
+ * Height is the one thing in this game that is not a position on the floor,
+ * and it exists for exactly this: a hazard whose clock the raid can wind back
+ * by hitting it. Damage is read off the health bar and immediately given back,
+ * so what the raid is spending is time rather than a kill -- there is no kill
+ * available, which is what stops the answer being "burn it down once".
+ */
+function updateBallast(s: SimState): void {
+  for (const weight of s.actors) {
+    if (!weight.alive || weight.spawn !== 'ballast') continue
+    const took = weight.maxHp - weight.hp
+    weight.hp = weight.maxHp
+    const lifted = (took / weight.maxHp) * BALLAST_LIFT
+    weight.height = Math.min(1, (weight.height ?? 1) - DT / BALLAST_FALL + lifted)
+    // Pushed all the way back up is the answer working: it goes, and the next
+    // one comes on the fight's own clock. Without this it hung there forever
+    // at whatever height the raid last knocked it to, and a target call that
+    // never resolves is a target call that eats every other one -- measured,
+    // the raid spent a whole pull calling ballasts and never once called the
+    // body it could actually hurt.
+    if (weight.height >= 1) {
+      weight.alive = false
+      pushEffect(s, 'impact', weight.pos, { abilityId: 'boss_ballast', power: 300 })
+      continue
+    }
+    if (weight.height > 0) continue
+
+    weight.alive = false
+    const bill = mechanic(s, BALLAST_DAMAGE)
+    for (const a of livingParty(s)) {
+      if (dist(a.pos, weight.pos) > BALLAST_REACH) continue
+      applyDamage(s, a, bill, 'magic', { sourceId: BOSS_ID, mechanic: 'ballast' })
+    }
+    pushEffect(s, 'impact', weight.pos, {
+      abilityId: 'boss_ballast',
+      radius: BALLAST_REACH,
+      power: bill,
+      crit: true,
+    })
+    s.sounds.push('raid')
+  }
+}
+
+/**
+ * A grain, next to a body that cannot be hurt.
+ *
+ * The errand, and it is the tank's: the one body in a raid whose job is to
+ * stand still is the only one here that has to keep going somewhere. It
+ * appears inside the thirst on purpose -- what it is worth is most of the
+ * drinking, and fetching it costs exactly the thing the raid is avoiding.
+ */
+function scheduleNuclei(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.nuclei <= 0) return
+  s.next.nuclei -= DT
+  if (s.next.nuclei > 0) return
+  s.next.nuclei = timing.nuclei
+  if (s.ground.some((g) => g.kind === 'nucleus')) return
+
+  const quiet = court(s).filter((a) => !getAura(a, 'crowned'))
+  const beside = quiet.length > 0 ? rng.pick(quiet) : b
+  const bearing = rng.range(0, Math.PI * 2)
+  const at = {
+    x: beside.pos.x + Math.cos(bearing) * THIRST_REACH * 0.7,
+    y: beside.pos.y + Math.sin(bearing) * THIRST_REACH * 0.7,
+  }
+  pushInside(s.room, at, NUCLEUS_REACH)
+  say(s, b, lineFor(fight(s), 'nuclei'))
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'nucleus',
+    pos: at,
+    radius: NUCLEUS_REACH,
+    telegraph: 0,
+    detonated: true,
+    lingering: NUCLEUS_LIFE,
+    damage: 0,
+  })
+  pushEffect(s, 'cast', at, { abilityId: 'boss_nuclei' })
+}
+
+/**
+ * Ten seconds in which walking costs, and costs more the longer it goes on.
+ *
+ * The one demand in this game answered by not doing the thing every other
+ * demand is answered by. It does not ask for stillness: the fight keeps
+ * throwing shapes that have to be left while it runs, and a raid that stood
+ * perfectly still would die to those instead. What it asks is which steps are
+ * worth paying for -- a crown moving is answered by turning, which is free,
+ * and a ballast landing is answered by walking, which is not.
+ */
+function schedulePrison(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.prison <= 0) return
+  s.next.prison -= DT
+  if (s.next.prison > 0) return
+  s.next.prison = timing.prison
+
+  say(s, b, lineFor(fight(s), 'prison'))
+  s.sounds.push('telegraph')
+  s.raidFlash = 0.4
+  for (const a of livingParty(s)) {
+    addAura(a, 'bound', b.id)
+    a.walked = 0
+  }
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_prison', power: 500, crit: true })
+}
+
+/**
+ * What a step costs while the stillness is on, billed where movement is known.
+ *
+ * Exported and called from `sim.ts` for the reason the spore's burst is: what
+ * it reads is the difference between where a body was at the top of the tick
+ * and where it is at the bottom, and only the tick loop knows both.
+ */
+export function billWalking(s: SimState, a: Actor): void {
+  const bound = getAura(a, 'bound')
+  if (!bound) {
+    if (a.walked !== undefined) a.walked = 0
+    return
+  }
+  const moved = dist(a.pos, a.prevPos)
+  // A hair over nothing, so that the drift a body does while standing still --
+  // the ring, the shuffle round a rock -- is not a step it pays for.
+  if (moved < 0.6) return
+  a.walked = (a.walked ?? 0) + DT
+  applyDamage(s, a, mechanic(s, PRISON_TICK * Math.min(a.walked, PRISON_CAP)) * DT, 'magic', {
+    sourceId: BOSS_ID,
+    mechanic: 'prison',
+    silent: true,
+  })
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -2833,6 +3178,10 @@ function updateAdds(s: SimState): void {
     // whoever made it rather than whoever is nearest, and it can become
     // another one. Walking it here as well moved it twice a tick.
     if (add.spawn === 'ooze') continue
+    // Nor do the other two bodies of a fight that has three, or a thing whose
+    // only movement is downwards. Both are bodies rather than waves: what they
+    // are for is being in a place.
+    if (add.spawn === 'crown' || add.spawn === 'ballast') continue
 
     let nearest: Actor | null = null
     let best = Infinity
@@ -3002,6 +3351,16 @@ export function insideCone(p: { x: number; y: number }, cone: GroundEffect): boo
 }
 
 /**
+ * The picture a grain draws when somebody takes it.
+ *
+ * Held in a constant rather than written into the floor's own arm, because a
+ * hazard arm that names another mechanic is a hazard arm doing two jobs -- and
+ * the grain's floor and the grain's mechanic are spelled differently, which is
+ * exactly the kind of thing the check downstairs exists to notice.
+ */
+const GRAIN_TAKEN = 'boss_nuclei'
+
+/**
  * Whether the flood takes anything from this body.
  *
  * The raid and the fight's own small bodies, and nothing else. It is a
@@ -3136,6 +3495,22 @@ export function updateGround(s: SimState): void {
         crit: true,
       })
       s.sounds.push('raid')
+      continue
+    }
+
+    // A grain on the floor, which is the one piece of ground in this game
+    // worth standing on. Picked up by whoever steps on it -- the tank, in
+    // practice, because it is worth most to the body the thirst is drinking
+    // from -- and gone when it is taken or when its own time runs out.
+    if (g.kind === 'nucleus') {
+      g.lingering -= lingerStep(s)
+      const taker = livingParty(s).find((a) => dist(a.pos, g.pos) <= NUCLEUS_REACH)
+      if (taker) {
+        addAura(taker, 'carrying', BOSS_ID)
+        pushEffect(s, 'impact', g.pos, { abilityId: GRAIN_TAKEN, power: 200 })
+        g.detonated = true
+        g.lingering = 0
+      }
       continue
     }
 

@@ -14,6 +14,7 @@ import {
   resolveBossCast,
   updateBoss,
   updateGround,
+  billWalking,
   birthOoze,
   burstSpore,
   detonateSpill,
@@ -171,6 +172,12 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   else updateBoss(s, rng)
   updateGround(s)
   updateProjectiles(s, rng)
+
+  // What a step cost, for the one mechanic billed on movement. After the
+  // walking and before the resolution, because what it reads is the difference
+  // between where a body was at the top of this tick and where it is now, and
+  // this is the only place both are known.
+  if (s.mode === 'raid') for (const a of s.actors) if (a.faction === 'party' && a.alive) billWalking(s, a)
 
   for (const a of s.actors) advanceCast(s, a, rng)
 

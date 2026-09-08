@@ -62,6 +62,11 @@ export type MechanicId =
   | 'reagent'
   | 'chase'
   | 'slime'
+  | 'rotation'
+  | 'thirst'
+  | 'ballast'
+  | 'nuclei'
+  | 'prison'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -146,6 +151,11 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // The room, and a room is the same room at any headcount. It is also the one
   // entry here that is not the boss's doing at all.
   slime: false,
+  rotation: false, // three bodies are three bodies at any headcount
+  thirst: false, // two mouths, and each drinks from one body at a time
+  ballast: false, // always two, whatever the roster -- rule 5
+  nuclei: false, // one errand at a time, and one body goes on it
+  prison: false, // everybody at once, which is everybody at any size
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -220,6 +230,11 @@ export function noTimers(): Record<MechanicId, number> {
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   caustic: 'the caustic',
   slime: 'the rising',
+  rotation: 'the crown',
+  thirst: 'the thirst',
+  ballast: 'the ballast',
+  nuclei: 'the grain',
+  prison: 'the stillness',
   chase: 'the chase',
   hound: 'the hound',
   gather: 'the gathering',
@@ -596,6 +611,45 @@ export interface PhaseTiming {
    */
   slime: number
   /**
+   * Seconds between one moving of the crown and the next.
+   *
+   * Which of the three bodies can be hurt at all. Everything without it takes
+   * nothing -- not less, nothing -- so what this asks is the one question no
+   * other fight here asks: is the thing I am hitting the thing I should be
+   * hitting?
+   */
+  rotation: number
+  /**
+   * Seconds between one ballast and the next.
+   *
+   * Two things that must not reach the floor, answered by damage rather than
+   * by movement -- which is what makes them fight the crown for the same
+   * hands. Splitting the damage is the answer and how to split it is the
+   * decision.
+   */
+  ballast: number
+  /**
+   * Seconds between one grain and the next.
+   *
+   * An errand, and it belongs to the tank: the body whose job is to stand
+   * still is the only one in the raid that has to keep going somewhere.
+   */
+  nuclei: number
+  /**
+   * Seconds between one stillness and the next.
+   *
+   * Ten seconds in which every step costs more than the one before it. The
+   * fight does not stop asking for steps while it runs; what it asks is which
+   * of them are worth paying for.
+   */
+  prison: number
+  /**
+   * The thirst has no row of its own -- it is a state rather than a beat --
+   * but every mechanic needs one, so this is the switch: above nought and the
+   * two bodies without the crown are drinking.
+   */
+  thirst: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -839,7 +893,24 @@ export interface Encounter {
     /** A flag rather than a beat: see `PhaseTiming`. */
     chase: number
     slime: number
+    rotation: number
+    thirst: number
+    ballast: number
+    nuclei: number
+    prison: number
   }
+  /**
+   * Where a fight with more than one body puts them.
+   *
+   * A room's fact rather than a boss's. One fight here is three bodies of
+   * which only one can be hurt, and what makes that a mechanic instead of a
+   * label is how far apart they stand: three stations a step from each other
+   * would make moving between them free, and free is not a mechanic. The room
+   * owns the distance and the fight stands where it is told.
+   *
+   * Absent everywhere else, which is every other fight.
+   */
+  stands?: Vec2[]
   /**
    * The colour this one is drawn in.
    *
@@ -913,6 +984,11 @@ export interface Encounter {
     engulf: string
     caustic: string
     slime: string
+    rotation: string
+    thirst: string
+    ballast: string
+    nuclei: string
+    prison: string
     hound: string
     gather: string
     decant: string
@@ -1046,6 +1122,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'GRIND THEM ALL',
       caustic: '',
       slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1211,6 +1292,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
       caustic: '',
       slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1386,6 +1472,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'BREATHE IT ALL',
       caustic: '',
       slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1537,6 +1628,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'IT HAS TAKEN ENOUGH',
       caustic: '',
       slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1681,6 +1777,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseThree: 'ALL OF IT AT ONCE',
       caustic: '',
       slime: 'The floor is coming up — off the edge',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       hound: '',
       gather: '',
       decant: '',
@@ -1800,6 +1901,11 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
       slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
       caustic: 'Glass on the floor — off it',
       hound: 'It has picked one of you — keep walking',
       gather: 'On them, all of you, now',
@@ -1831,6 +1937,146 @@ export const ENCOUNTERS: Encounter[] = [
       infection: '',
       flood: '',
       engulf: '',
+    },
+  },
+  {
+    // The seventh fight, and the first that asks what the raid is hitting.
+    //
+    // Every target demand in this game has been "hit that as well" -- a wave,
+    // a spike -- or "do not hit that" -- one of your own, turned. This one is
+    // *is the thing I am hitting the thing I should be hitting*, and the
+    // answer changes every forty-five seconds.
+    //
+    // Three bodies and one of them is real. The other two take nothing at all
+    // -- not less, nothing -- because a ninety percent cut is answered by
+    // carrying on and losing a tenth, and nothing at all is answered by
+    // looking up. And the two that cannot be hurt are not idle: they drink
+    // from whoever stands near them and give it to the shared bar, so where
+    // the raid may stand moves with the crown.
+    id: 'crowns',
+    name: 'The Three Crowns',
+    short: 'Crowns',
+    demand: 'only one is real, and it is not the one you are hitting',
+    /**
+     * Issue #33's room: a long hall with three stations in it.
+     *
+     * The distance between the stations is the mechanic and it belongs to the
+     * room. Nine hundred units apart is four times a caster's reach and about
+     * five seconds of walking, which is what makes moving between them a cost
+     * rather than a turn of the head.
+     */
+    room: { kind: 'hall', halfWidth: 620, front: 1400, back: 560 },
+    // An equal triangle with a side of seven hundred, which is what the
+    // measurement left of the room's first answer.
+    //
+    // Nine hundred apart is four times a caster's reach and about five seconds
+    // of walking, and at three rungs the crown comes round every twenty-eight
+    // seconds -- so a five-man spent a fifth of the fight on its feet, casting
+    // nothing, and won none of forty pulls. Seven hundred is still a crossing
+    // and still costs a cast; it is not a fight spent walking.
+    //
+    // Equal sides rather than the room's own shape, because which of the three
+    // it moves to is rolled: two that are close and one that is far would make
+    // a third of the rotations free and a third of them brutal.
+    stands: [
+      { x: -350, y: 202 },
+      { x: 350, y: 202 },
+      { x: 0, y: -404 },
+    ],
+    /** Coffins stood on end, two rows down the sides. */
+    terrain: [
+      { pos: { x: -470, y: -180 }, radius: 75 },
+      { pos: { x: 470, y: -180 }, radius: 75 },
+      { pos: { x: -470, y: 700 }, radius: 75 },
+      { pos: { x: 470, y: 700 }, radius: 75 },
+    ],
+    /** Dark stone under red cloth. */
+    floor: 'floor-slate',
+    // Five thousand under the roster's usual, and it buys the same fight in less
+    // time on purpose. Much of this fight's damage is spent walking between
+    // three stations or thrown at a body that cannot be hurt, so a bar sized
+    // like everybody else's is a bar the raid is still chewing when the enrage
+    // arrives -- the sweep found it as a pull that neither won nor wiped at
+    // three hundred and ten seconds.
+    //
+    // It is a steep number: at forty-six thousand every cell came out at 93%
+    // or better, because a shorter fight is also fewer seconds of standing in
+    // the thirst. Fifty-one is where the top rung still costs something.
+    hp: 51000,
+    enrage: 250,
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.35,
+    swingDamage: 560,
+    slamDamage: 1150,
+    raidDamage: 110,
+    mechanicDamage: 0.75,
+    // Far lighter at the small sizes than any other row on the roster, and it
+    // is the fight's shape rather than its numbers that asks for it. A crossing
+    // costs a caster its cast whatever the headcount, so a five-man loses a
+    // fifth of its damage to the same walk a twenty-five man loses a
+    // twenty-fifth of -- and then has one healer to answer everything the walk
+    // did not stop. At the usual weights the smallest raid won one pull in ten.
+    sizeMechanic: { 5: 0.55, 10: 0.75, 25: 0.95 },
+    // The crown is first because without it there is no fight here, only three
+    // statues; the thirst second because it is what makes the other two
+    // bodies places rather than scenery. Then the ballast, which is the first
+    // thing in this fight to want the same hands the crown does; the grain,
+    // which is the tank's errand; the stillness, which is the one demand in
+    // the game answered by not walking; and the wave, which is this fight's
+    // fourth target call.
+    ladder: ['rotation', 'thirst', 'ballast', 'nuclei', 'prison', 'adds'],
+    herald: null,
+    accent: '#be123c',
+    names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
+    phases: {
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 50, thirst: 45, ballast: 40, nuclei: 20, prison: 55, adds: 48 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 45, thirst: 40, ballast: 36, nuclei: 18, prison: 49, adds: 43 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ rotation: 40, thirst: 35, ballast: 32, nuclei: 16, prison: 43, adds: 38 }) },
+    },
+    // The first crown comes at thirty rather than at forty-five, because a
+    // raid that has not seen one does not know what fight it is in -- and a
+    // short pull would end without it ever having moved.
+    opening: { slam: 14, raid: 13, ...beats({ rotation: 35, thirst: 45, ballast: 38, nuclei: 19, prison: 52, adds: 46 }) },
+    lines: {
+      phaseTwo: 'Another of us, then',
+      phaseThree: 'ALL THREE, AND NONE OF YOU',
+      rotation: 'The crown is moving — look up',
+      thirst: 'It drinks from whoever is close',
+      ballast: 'It is coming down — put it back up',
+      nuclei: 'A grain — somebody take it',
+      prison: 'Be still',
+      adds: 'The court answers',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
+      caustic: '',
+      slime: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
     },
   },
 ]

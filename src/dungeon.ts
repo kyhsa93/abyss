@@ -202,9 +202,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'crimson',
     name: 'The Crimson Hall',
     wing: 'crimson',
-    encounter: null,
-    awaiting: 'the three bodies, one of them real (#9)',
-    room: { kind: 'round', radius: 540 },
+    encounter: 6,
   },
   {
     id: 'sanctum',

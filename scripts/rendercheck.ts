@@ -965,8 +965,20 @@ console.log(`rendered ${frames} frames with no exceptions`)
     const rng = new Rng(1000 + i * 137)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
-      for (const g of s.ground) seen.add(g.kind)
-      if (s.actors.some((a) => a.faction === 'boss' && a.id !== 100)) seen.add('adds')
+      for (const g of s.ground) {
+        // The floor and the mechanic that laid it are not always the same
+        // word: a grain is `nucleus` on the ground and `nuclei` on the table.
+        seen.add(g.kind === 'nucleus' ? 'nuclei' : g.kind)
+      }
+      for (const a of s.actors) {
+        if (a.faction !== 'boss' || a.id === 100) continue
+        // A wave is a body with no name. The named ones are their own
+        // mechanics -- a body of a fight that has three, a thing that falls --
+        // and counting them as a wave says a boss summons on a rung where it
+        // does something else entirely.
+        if (a.spawn === undefined || a.spawn === 'beast') seen.add('adds')
+        else if (a.spawn === 'ballast') seen.add('ballast')
+      }
       // Whatever billed anybody, which is the one detector that needs no list:
       // a mechanic that took health off a raider says its own name on the way
       // past. The floor kinds above and the auras below are for the ones that
@@ -979,6 +991,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ['rot', 'rot'],
         ['sunder', 'sunder'],
         ['championed', 'champion'],
+        ['crowned', 'rotation'],
+        ['carrying', 'nuclei'],
+        ['bound', 'prison'],
+        ['drained', 'thirst'],
         ['infected', 'infection'],
         ['engulfed', 'engulf'],
         ['hunted', 'hunt'],
@@ -4654,6 +4670,49 @@ for (const [label, w, h] of [
     expect('and leave two on the floor', ids.has('boss_decant'), 'it drew nothing')
     expect('and drink its own work', ids.has('boss_reagent'), 'it drew nothing')
     thrown.set('bench', ids)
+  }
+
+  // The three crowns' five. The crown itself needs three bodies to move
+  // between, which only its own fight has -- so this one is run against that
+  // fight rather than through the imposed floor, and the imposed floor covers
+  // the four that are ordinary mechanics wearing a court's clothes.
+  {
+    const court = floorWith(
+      { thirst: 6, ballast: 9, nuclei: 7, prison: 11 },
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (court.outcome === 'ongoing' && court.time < 150) {
+      step(court, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of court.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can drop something that must not land', ids.has('boss_ballast'), 'it drew nothing')
+    expect('and leave a grain to be picked up', ids.has('boss_nuclei'), 'it drew nothing')
+    expect('and tell everybody to be still', ids.has('boss_prison'), 'it drew nothing')
+    thrown.set('court', ids)
+  }
+
+  // And the two that only exist where there is more than one body to be. The
+  // thirst is what the bodies without the crown do, so it needs the fight that
+  // has them -- an imposed floor is one boss, and one boss is never thirsty.
+  {
+    const crowns = ENCOUNTERS.findIndex((e) => e.id === 'crowns')
+    expect('the fight with three bodies is on the roster', crowns >= 0, `${crowns}`)
+    const s = pulled(0x51ed, 8, autoParty(10, pickFor('mage', 'dps')!), 'heroic', crowns)
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      for (const event of s.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a court can move its crown', ids.has('boss_rotation'), 'it drew nothing')
+    expect('and drink from whoever is near', ids.has('boss_thirst'), 'it drew nothing')
+    thrown.set('crowns', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -8543,6 +8602,7 @@ for (const [label, w, h] of [
           // A circle that has named somebody is the chase, which is a rung
           // with no cast, no aura and no floor of its own.
           if (g.kind === 'gather' && g.named !== undefined) seen.add('chase')
+          if (g.kind === 'nucleus') seen.add('nuclei')
         }
         for (const a of s.actors) for (const aura of a.auras) seen.add(aura.id)
         for (const a of s.actors) {
@@ -8550,6 +8610,7 @@ for (const [label, w, h] of [
           // A beast is a thrall that has picked somebody: what sold it is the
           // wave, not a mechanic of its own.
           if (a.spawn === 'beast') seen.add('adds')
+          else if (a.spawn === 'crown') seen.add('rotation')
           else if (a.spawn !== undefined) seen.add(a.spawn)
           else seen.add('adds')
         }

@@ -279,6 +279,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // The sludgeworks itself, which is the one entry here that is a room rather
   // than a thing a boss does.
   boss_slime: { colour: '#4b830d', style: 'crush' },
+  // The three crowns' five. The crown itself is the fight's own red because it
+  // is the one thing on the screen the raid is reading; everything else here
+  // stands away from it.
+  boss_rotation: { colour: '#be123c', style: 'burst' },
+  boss_thirst: { colour: '#9f1239', style: 'pierce' },
+  boss_ballast: { colour: '#e11d48', style: 'crush' },
+  boss_nuclei: { colour: '#fbbf24', style: 'burst' },
+  boss_prison: { colour: '#881337', style: 'crush' },
   boss_caustic: { colour: '#c0ca33', style: 'burst' },
   boss_hound: { colour: '#7cb342', style: 'cleave' },
   boss_gather: { colour: '#dce775', style: 'crush' },

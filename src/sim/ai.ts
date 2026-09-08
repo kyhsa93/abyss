@@ -17,6 +17,7 @@ import {
   SPRAY_CAST,
   MERGE_REACH,
   HOUND_REACH,
+  THIRST_REACH,
   CAUSTIC_TELEGRAPH,
   DECANT_COUNT,
 } from './constants'
@@ -24,6 +25,7 @@ import {
   turnToward,
   MARK_REACH,
   insideCone,
+  untouchable,
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -43,6 +45,7 @@ import {
   topThreatTarget,
 } from './combat'
 import { EDGE_LAP, onEdge, pushInside, roomHasOutside, wallGap } from './room'
+import { BOSS_ID } from './state'
 import type { Rng } from './rng'
 import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
@@ -197,7 +200,20 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
 
   if (ai.reactionTimer > 0) ai.reactionTimer -= DT
 
-  const reacting = danger !== null && ai.reactionTimer <= 0
+  // Bound, and a step costs more than the last one did.
+  //
+  // The mechanic is not "stand still" -- the fight keeps throwing shapes that
+  // have to be left while this is on, and a raid that froze would die to
+  // those. It is "which steps are worth paying for", and this is where that
+  // choice is made: while bound, only the dangers that would actually kill
+  // somebody are worth walking out of, and the cheap ones are stood through.
+  //
+  // Written as a floor on urgency rather than as a refusal to move, because a
+  // refusal is a raid that cannot answer the fight at all -- and because the
+  // floor is the thing a person is doing when they decide to eat one.
+  const bound = getAura(actor, 'bound') !== undefined
+  const worthIt = !bound || dangerCost(danger) >= BOUND_FLOOR
+  const reacting = danger !== null && ai.reactionTimer <= 0 && worthIt
 
   if (reacting) {
     // Recompute only when there is no destination or the chosen one went bad.
@@ -241,6 +257,12 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
       say(s, actor, 'Going to help carry')
+    } else if (danger.startsWith('crown')) {
+      say(s, actor, 'It has moved — switch')
+    } else if (danger.startsWith('grain')) {
+      say(s, actor, 'Going for the grain')
+    } else if (danger.startsWith('thirst')) {
+      say(s, actor, 'Out of its reach')
     } else if (danger.startsWith('gather')) {
       say(s, actor, 'On them, going')
     } else if (danger === 'hound:self') {
@@ -268,6 +290,16 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
     // The danger passed and here is fine. Stop; do not walk back to some
     // nominal home. Chasing a home position that is itself defined relative
     // to a moving boss is what made the party pace back and forth.
+    ai.moveTarget = null
+  } else if (bound) {
+    // Bound, and nothing is worth walking for right now.
+    //
+    // The floor above decides which *dangers* are worth a step; this decides
+    // the rest of the walking, which is most of it: tidying a ring, closing on
+    // a target, a healer drifting toward whoever is lowest. None of that is
+    // worth what a step costs while this is on, and left running it was the
+    // whole bill -- twenty-four seconds of walking a pull at a rate that
+    // climbs the longer it goes, which killed every raid at every size.
     ai.moveTarget = null
   } else if (!ai.moveTarget && actor.castId === null && outOfPosition(s, actor)) {
     // Tidying waits for the cast; running does not.
@@ -349,7 +381,11 @@ function quarry(s: SimState, actor: Actor): Actor[] {
   // than a rotation defaulting into it.
   const called = actor.ai?.striking ?? null
   const summoned = adds(s).filter(
-    (a) => a.spawn !== 'ooze' || called === `ooze:${a.id}`,
+    (a) =>
+      // Nothing that damage does not reach. Two of the three bodies on the
+      // crowns take nothing at all, and a rotation aimed at whichever has
+      // least health left would aim at one of those forever.
+      !untouchable(s, a) && (a.spawn !== 'ooze' || called === `ooze:${a.id}`),
   )
   if (summoned.length > 0) return summoned
   return livingParty(s).filter((a) => a.id !== actor.id && getAura(a, 'turned'))
@@ -486,6 +522,33 @@ function targetCall(s: SimState, actor: Actor): string | null {
     return `beast:${near.id}`
   }
 
+  // The thing that must not reach the floor, and half the raid goes to it.
+  //
+  // This is the fight's own decision made explicit: the answer to a ballast is
+  // damage, and so is the answer to the crown, and there is one pool of
+  // damage. A raid that sends everybody at the ballast stops hurting the boss;
+  // one that sends nobody eats a bill on everybody. So half of them go, by a
+  // rule that splits the raid the same way every time rather than by whoever
+  // happened to notice -- and only once it is low enough to be worth leaving
+  // the body for.
+  {
+    const falling = adds(s).filter((a) => a.spawn === 'ballast' && (a.height ?? 1) < BALLAST_WORRY)
+    if (falling.length > 0 && actor.id % 2 === 0) {
+      let soonest = falling[0]!
+      for (const one of falling) if ((one.height ?? 1) < (soonest.height ?? 1)) soonest = one
+      return `ballast:${soonest.id}`
+    }
+  }
+
+  // Which of the three bodies is worth hitting at all, on the fight that has
+  // three. It is the plainest target call in the game and it is also the one
+  // that matters most: everything else here is "as well as the boss", and this
+  // is "instead of what you were hitting".
+  {
+    const real = adds(s).find((a) => a.spawn === 'crown' && !untouchable(s, a))
+    if (real) return `crown:${real.id}`
+  }
+
   // Two small things about to become one, which is the only target call in
   // this game that is about where the enemy is rather than what it is.
   //
@@ -611,6 +674,16 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const wrong = calledId(call, 'first:')
   if (wrong !== null) {
     const one = s.actors.find((a) => a.faction === 'boss' && a.id === wrong)
+    if (one && one.alive) return one
+  }
+
+  // The thing coming down, and the body wearing the crown. Both are read
+  // before the sweep below, because the sweep picks whatever has least health
+  // left and neither of these ever will.
+  for (const prefix of ['ballast:', 'crown:'] as const) {
+    const id = calledId(call, prefix)
+    if (id === null) continue
+    const one = s.actors.find((a) => a.faction === 'boss' && a.id === id)
     if (one && one.alive) return one
   }
 
@@ -917,6 +990,69 @@ function flushTarget(s: SimState, actor: Actor): Actor | null {
 }
 
 /**
+ * How urgent the thing behind a danger key is, for the one decision that has
+ * to weigh a step against what standing still costs.
+ *
+ * `currentDanger` already ranks everything and then throws the number away.
+ * The stillness needs it back, so this re-reads the key: a floor that is about
+ * to go off is worth walking out of while bound, and a body somebody else is
+ * standing too close to is not.
+ */
+function dangerCost(key: string | null): number {
+  if (key === null) return 0
+  for (const [prefix, cost] of BOUND_WORTH) {
+    if (key.startsWith(prefix)) return cost
+  }
+  return 50
+}
+
+/**
+ * What each kind of danger is worth against the cost of a step.
+ *
+ * The instants are worth walking for and the rates are not, which is the whole
+ * of the judgement: a ballast landing or a puddle detonating is one large hit
+ * at a known moment, and a drink or a slow is a tick paid while standing.
+ */
+const BOUND_WORTH: ReadonlyArray<readonly [string, number]> = [
+  ['ballast', 100],
+  ['gather', 95],
+  ['caustic', 90],
+  ['puddle', 90],
+  ['coldflame', 88],
+  ['spill', 85],
+  ['gorge', 80],
+  ['decant', 70],
+  ['spray', 70],
+  ['storm', 60],
+  ['hound', 40],
+  ['thirst', 30],
+  ['mark', 30],
+  ['reek', 20],
+  ['grain', 10],
+]
+
+/** How much a step has to be worth before it is taken while bound. */
+const BOUND_FLOOR = 70
+
+/**
+ * The body a party member arranges itself around.
+ *
+ * The boss, except on the one fight where the boss is three bodies and only
+ * one of them is real: there it is whichever of them this member is actually
+ * working on -- the crowned one for anybody hitting it, and the crowned one
+ * for the healers too, because a healer standing by the wrong body is a healer
+ * out of range of the people standing by the right one.
+ */
+function anchorOf(s: SimState): Actor {
+  const b = boss(s)
+  if (!untouchable(s, b)) return b
+  const real = s.actors.find(
+    (a) => a.alive && a.faction === 'boss' && a.spawn === 'crown' && !untouchable(s, a),
+  )
+  return real ?? b
+}
+
+/**
  * The single most urgent thing to run from, as a stable key.
  *
  * Returning merely the first hazard found meant an AI reacting to the breath
@@ -941,6 +1077,31 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     const b = boss(s)
     if (getAura(b, 'storming') && dist(actor.pos, b.pos) <= STORM_REACH + DANGER_MARGIN) {
       consider('storm:self', 84)
+    }
+  }
+
+  // Standing inside the reach of a body that drinks. Ranked with the reek,
+  // which is the mark it most resembles -- a tick paid while you walk out
+  // rather than a hit at an instant -- and above it because what this one
+  // drinks it gives back to the thing the raid is trying to kill.
+  for (const body of s.actors) {
+    if (body.faction !== 'boss' || !body.alive) continue
+    if (body.id !== BOSS_ID && body.spawn !== 'crown') continue
+    if (!untouchable(s, body)) continue
+    if (dist(actor.pos, body.pos) <= THIRST_REACH + DANGER_MARGIN) {
+      consider(`thirst:${body.id}`, 52)
+    }
+  }
+
+  // A grain on the floor, and it is the tank's errand: the one body in the
+  // raid whose job is to stand still is the only one that has to keep going
+  // somewhere. Ranked low on purpose -- it is worth a walk when nothing else
+  // is happening and worth nothing at all when something is.
+  if (actor.role === 'tank' && getAura(actor, 'carrying') === undefined) {
+    for (const g of s.ground) {
+      if (g.kind !== 'nucleus') continue
+      consider(`grain:${g.id}`, 40)
+      break
     }
   }
 
@@ -1123,6 +1284,16 @@ function currentDanger(s: SimState, actor: Actor): string | null {
  */
 const OOZE_WATCH = MERGE_REACH * 3
 
+/**
+ * How far down a ballast has to be before it is worth leaving the body for.
+ *
+ * Not at the top, because a thing that has just appeared has twenty seconds
+ * left and the boss does not. Two thirds of the way through its fall is a raid
+ * turning at the point where the sum of what it has left to lift is still
+ * liftable -- which is the judgement, and it is the one number in it.
+ */
+const BALLAST_WORRY = 0.66
+
 /** How close the thing chasing you has to be before it is worth running. */
 
 /** Is this spot under the wedge, on the pulse coming or the one after it? */
@@ -1175,6 +1346,16 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // about the person rather than about the room, so it is kept on the mark.
   const shade = getAura(actor, 'haunted')
   if (shade?.at && dist(spot, shade.at) < SHADE_REACH + DANGER_MARGIN) return false
+
+  // Inside the reach of a body that drinks. Refused rather than merely
+  // scored, because what it costs is continuous and what it gives back is the
+  // thing the raid is trying to kill.
+  for (const body of s.actors) {
+    if (body.faction !== 'boss' || !body.alive) continue
+    if (body.id !== BOSS_ID && body.spawn !== 'crown') continue
+    if (!untouchable(s, body)) continue
+    if (dist(spot, body.pos) < THIRST_REACH + DANGER_MARGIN) return false
+  }
 
   // And the hound, which is the same rule with a longer memory: it does not
   // expire when the raid does something about it, because there is nothing to
@@ -1231,7 +1412,12 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
  * nominal formation every time the floor clears looks busy, not competent.
  */
 function outOfPosition(s: SimState, actor: Actor): boolean {
-  const b = boss(s)
+  // Against what this body is working on rather than against the bar. See
+  // `anchorOf`: on the one fight with three bodies, a raid that measured its
+  // position against the bar was a raid standing in perfect formation around
+  // something it could not touch, and it never noticed it was out of range of
+  // the thing it was hitting.
+  const b = anchorOf(s)
   const d = dist(actor.pos, b.pos)
 
   // The edge of a platform, before anything else and for everybody including
@@ -1460,7 +1646,16 @@ function ringOffset(actor: Actor, spread: number): number {
 }
 
 function idlePosition(s: SimState, actor: Actor): Vec2 {
-  const b = boss(s)
+  // The body this one is standing around, which is not always the body that
+  // carries the bar.
+  //
+  // Every fight in this game but one has a single boss, and "where do I stand"
+  // has meant "where is it" since the first line of this file. The crowns has
+  // three bodies nine hundred units apart and only one of them can be hurt --
+  // so a raid anchored to the bar spent two thirds of that fight standing
+  // around a statue it could not touch, and the fight was unwinnable at every
+  // size. What a body stands around is what it is working on.
+  const b = anchorOf(s)
   const d = dist(actor.pos, b.pos) || 1
   const want =
     actor.role === 'tank' || actor.melee
@@ -1562,7 +1757,7 @@ function withinReach(s: SimState, actor: Actor, home: Vec2, want: number): Vec2 
   const gap = dist(home, hurt.pos)
   if (gap <= HEAL_STAND) return home
 
-  const closer = onRing(boss(s).pos, want, hurt.pos, home) ?? {
+  const closer = onRing(anchorOf(s).pos, want, hurt.pos, home) ?? {
     x: hurt.pos.x + (home.x - hurt.pos.x) * (HEAL_STAND / gap),
     y: hurt.pos.y + (home.y - hurt.pos.y) * (HEAL_STAND / gap),
   }
@@ -1623,7 +1818,10 @@ function onRing(centre: Vec2, want: number, hurt: Vec2, near: Vec2): Vec2 | null
  */
 function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   const centroid = partyCentroid(s, actor)
-  const b = boss(s)
+  // The same anchor `idlePosition` uses, for the same reason: a spot chosen
+  // for its distance from the bar is a spot chosen against the wrong body on
+  // the fight where those are two different things.
+  const b = anchorOf(s)
   const ai = actor.ai!
 
   const candidates: Vec2[] = [{ x: actor.pos.x, y: actor.pos.y }]
@@ -1705,6 +1903,17 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       const d = dist(candidate, g.pos)
       if (d <= g.radius + DANGER_MARGIN) score -= 1000
       else score -= Math.max(0, 200 - d) * 0.5
+    }
+
+    // The grain, for whoever has been sent for it. Scored below the floor for
+    // the reason every errand in this game is: a body that valued a pickup
+    // above a puddle would walk a chain through fire to get it.
+    if (actor.role === 'tank' && getAura(actor, 'carrying') === undefined) {
+      for (const g of s.ground) {
+        if (g.kind !== 'nucleus') continue
+        score -= Math.min(700, dist(candidate, g.pos) * 0.8)
+        break
+      }
     }
 
     // Being inside the circle beats everything except being on fire. The bill

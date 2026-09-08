@@ -14,6 +14,10 @@ import {
   ENGULF_MAX,
   GATHER_TELEGRAPH,
   SLIME_TELEGRAPH,
+  CROWN_TELEGRAPH,
+  THIRST_REACH,
+  BALLAST_REACH,
+  NUCLEUS_LIFE,
   HOUND_REACH,
   REAGENT_MAX,
   MERGE_BURST_AT,
@@ -332,6 +336,8 @@ export function drawWorld(
   drawOozeLines(ctx, s, alpha)
   drawQuarryLines(ctx, s, alpha, clock)
   drawHounds(ctx, s, alpha, clock)
+  drawCourt(ctx, s, alpha)
+  drawBallast(ctx, s, alpha)
 
   for (const a of drawOrder(s, alpha)) {
     // A body inside the boss is not on the floor. It is drawn as a ring under
@@ -348,7 +354,7 @@ export function drawWorld(
         false,
         bg,
         bossAccent(s),
-        bossBody(s),
+        bossBody(s, a),
         s.seed,
         s.phase,
         s.time - s.phaseAt,
@@ -1098,6 +1104,21 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
     // The room going under. Drawn as a pool with a different edge -- solid and
     // still rather than dashed and travelling -- because it is not something
     // that was cast at anybody: it is the floor doing what this room does.
+    // A grain: the one piece of ground in this game worth standing on, so it
+    // is drawn as a light rather than as a shape to leave.
+    if (g.kind === 'nucleus') {
+      const left = Math.max(0, Math.min(1, g.lingering / NUCLEUS_LIFE))
+      footprint(ctx, p.x, p.y, r)
+      ctx.fillStyle = iconFor('boss_nuclei').colour
+      ctx.globalAlpha = 0.25 + left * 0.55
+      ctx.fill()
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = iconFor('boss_nuclei').colour
+      ctx.lineWidth = 2
+      ctx.stroke()
+      continue
+    }
+
     if (g.kind === 'slime') {
       const rising = !g.detonated
       footprint(ctx, p.x, p.y, r * (rising ? 1 - g.telegraph / SLIME_TELEGRAPH : 1))
@@ -1456,6 +1477,94 @@ function drawHounds(
   }
 }
 
+/**
+ * Which of the three bodies is real, which is the one thing on this screen a
+ * raid has to be able to read in a single frame.
+ *
+ * A filled disc under the one that can be hurt, in the fight's own colour, and
+ * a thin grey edge under the two that cannot. The one the crown is *going* to
+ * fills its own edge over the four seconds of warning, because a change nobody
+ * can see coming is a change nobody can be early for -- and something a raid
+ * cannot be early for is a mechanic that measures nothing.
+ *
+ * Drawn under the bodies, because it is a fact about a place as much as about
+ * a body: these three do not move.
+ */
+function drawCourt(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  const wearer = s.actors.find((a) => getAura(a, 'crowned'))
+  if (!wearer) return
+  const going = getAura(wearer, 'crowned')?.bearer
+  const left = Math.max(0, Math.min(1, 1 - s.next.rotation / CROWN_TELEGRAPH))
+  const colour = iconFor('boss_rotation').colour
+  for (const a of s.actors) {
+    if (!a.alive || a.faction !== 'boss') continue
+    if (a.id !== BOSS_ID && a.spawn !== 'crown') continue
+    const p = screenPos(a, alpha)
+    const r = Math.max(4, a.radius * L.scale)
+    footprint(ctx, p.x, p.y, r + 10)
+    if (a.id === wearer.id) {
+      ctx.fillStyle = 'rgba(190, 18, 60, 0.20)'
+      ctx.fill()
+      ctx.strokeStyle = colour
+      ctx.lineWidth = 4
+      ctx.stroke()
+      continue
+    }
+    ctx.strokeStyle = '#57534e'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+    if (a.id !== going) continue
+    ctx.beginPath()
+    floorArc(ctx, p.x, p.y, r + 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left)
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  // And what the two that cannot be hurt are drinking from, which is the other
+  // half of why they are places rather than scenery.
+  for (const a of s.actors) {
+    if (!a.alive || a.faction !== 'boss') continue
+    if (a.id !== BOSS_ID && a.spawn !== 'crown') continue
+    if (a.id === wearer.id) continue
+    const p = screenPos(a, alpha)
+    footprint(ctx, p.x, p.y, THIRST_REACH * L.scale)
+    ctx.strokeStyle = iconFor('boss_thirst').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
+  }
+}
+
+/**
+ * The thing that must not reach the floor, drawn as a shadow.
+ *
+ * The one object in this game with a height, and a shadow is the only way this
+ * camera can say so: high and it is small and faint, low and it is wide and
+ * dark. The circle it will cover when it lands is drawn from the first frame,
+ * because what the raid is deciding is whether to spend damage on it, and that
+ * decision needs to know what it costs to say no.
+ */
+function drawBallast(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
+  for (const a of s.actors) {
+    if (!a.alive || a.spawn !== 'ballast') continue
+    const p = screenPos(a, alpha)
+    const height = Math.max(0, Math.min(1, a.height ?? 1))
+    footprint(ctx, p.x, p.y, BALLAST_REACH * L.scale)
+    ctx.strokeStyle = iconFor('boss_ballast').colour
+    ctx.globalAlpha = 0.35
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([9, 8])
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+
+    const shadow = Math.max(6, a.radius * L.scale) * (1.9 - height)
+    footprint(ctx, p.x, p.y, shadow)
+    ctx.fillStyle = `rgba(10, 10, 16, ${(0.15 + (1 - height) * 0.45).toFixed(2)})`
+    ctx.fill()
+  }
+}
+
 function drawOozeLines(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
   const here = s.actors.filter((a) => a.faction === 'boss' && a.alive && a.spawn === 'ooze')
   if (here.length < 2) return
@@ -1735,9 +1844,21 @@ function drawSwallowed(
  * Falls back rather than requires. Every other boss has one body and asking
  * for a second would be asking eight fights to justify a sheet apiece.
  */
-function bossBody(s: SimState): string | null {
+function bossBody(s: SimState, body?: Actor): string | null {
   if (s.mode !== 'raid') return null
   const id = `boss-${encounterAt(s.encounter).id}`
+  // A fight with more than one body draws each of them as its own sheet, and
+  // that is not decoration: what the mechanic asks is which of the three is
+  // real, and three identical figures make the question unanswerable from
+  // above. Numbered by where they stand -- the first stand is the body that
+  // carries the bar -- so the picture and the fight agree about which is which.
+  if (body && body.spawn === 'crown') {
+    const stands = encounterAt(s.encounter).stands ?? []
+    const at = s.actors.filter((a) => a.spawn === 'crown').findIndex((a) => a.id === body.id)
+    const each = `${id}-${Math.min(stands.length, at + 2)}`
+    if (hasBody(each)) return each
+    return id
+  }
   const later = `${id}-2`
   return s.phase >= 2 && hasBody(later) ? later : id
 }
@@ -2236,6 +2357,40 @@ function drawActor(
       ctx.lineWidth = 2.5
       ctx.stroke()
     }
+  }
+
+  // Bound, and every step costs more than the last. The seconds walked are
+  // drawn on the body rather than the aura's clock, because what the person is
+  // deciding is whether the next step is worth what it now costs -- and that
+  // number is the one they need.
+  const bound = a.alive ? getAura(a, 'bound') : undefined
+  if (bound) {
+    footprint(ctx, p.x, p.y, r + 4)
+    ctx.strokeStyle = iconFor('boss_prison').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
+    if ((a.walked ?? 0) > 0.2) {
+      ctx.fillStyle = iconFor('boss_prison').colour
+      ctx.font = font(10, true)
+      ctx.textAlign = 'center'
+      ctx.fillText(`${(a.walked ?? 0).toFixed(1)}`, p.x, p.y - r - 8)
+    }
+  }
+
+  // Being drunk from, which is a line to whichever of the three is drinking.
+  if (a.alive && getAura(a, 'drained')) {
+    footprint(ctx, p.x, p.y, r + 6)
+    ctx.strokeStyle = iconFor('boss_thirst').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+  }
+
+  // Carrying a grain, which is worth most of the drinking.
+  if (a.alive && getAura(a, 'carrying')) {
+    footprint(ctx, p.x, p.y, r + 8)
+    ctx.strokeStyle = iconFor('boss_nuclei').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
   }
 
   // Standing in something slow. Under the feet rather than around the body,

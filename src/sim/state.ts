@@ -236,6 +236,41 @@ export function createState(
     facing: 0,
   }
 
+  // The bodies a fight has beyond the one that carries its bar.
+  //
+  // One fight is three of them and only one is real at a time. They are made
+  // here rather than summoned, because they are not a wave: they are the boss,
+  // standing in three places, and a raid that walked in on two of them missing
+  // would be a raid told the fight starts later than it does.
+  //
+  // The first stand is the boss's own, so there are two extra bodies rather
+  // than three. Nothing else on the roster declares stands and nothing else
+  // gets any.
+  const court: Actor[] = []
+  if (fight.stands && fight.stands.length > 1) {
+    boss.pos.x = fight.stands[0]!.x
+    boss.pos.y = fight.stands[0]!.y
+    boss.prevPos.x = boss.pos.x
+    boss.prevPos.y = boss.pos.y
+    for (let i = 1; i < fight.stands.length; i++) {
+      const at = fight.stands[i]!
+      court.push({
+        ...boss,
+        id: FIRST_OBJECT_ID + i - 1,
+        pos: { x: at.x, y: at.y },
+        prevPos: { x: at.x, y: at.y },
+        // Its own health so that nothing divides by it, and it is never read:
+        // what a body without the crown takes is nothing, and what one with it
+        // takes goes to the bar. See `applyDamage`.
+        hp: 1,
+        maxHp: 1,
+        auras: [],
+        cooldowns: {},
+        spawn: 'crown',
+      })
+    }
+  }
+
   const threat: Record<number, number> = {}
   const tally: Record<number, Tally> = {}
   for (const m of members) {
@@ -267,7 +302,7 @@ export function createState(
     healing: 1,
     time: 0,
     tick: 0,
-    actors: [...members, boss],
+    actors: [...members, boss, ...court],
     threat,
     ground: [],
     projectiles: [],
@@ -287,7 +322,7 @@ export function createState(
     nextRaidHit: opening.raid,
     bossFacing: Math.PI / 2,
     raidFlash: 0,
-    nextObjectId: FIRST_OBJECT_ID,
+    nextObjectId: FIRST_OBJECT_ID + court.length,
     attempt,
     seed,
     obstacles: rocks,

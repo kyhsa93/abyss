@@ -1078,6 +1078,9 @@ export const MARK_LETTER: Partial<Record<AuraId, string>> = {
   engulfed: 'E',
   hounded: 'K',
   dosed: 'X',
+  drained: 'U',
+  carrying: 'N',
+  bound: 'B',
 }
 
 /**
@@ -1103,6 +1106,8 @@ const BAD_NEWS = new Set<AuraId>([
   'engulfed',
   'hounded',
   'dosed',
+  'drained',
+  'bound',
 ])
 
 function frame(ctx: CanvasRenderingContext2D, a: Actor, rect: Rect, s: SimState): void {
