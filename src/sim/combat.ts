@@ -19,6 +19,7 @@ import {
   SLIGHT_SHARE,
   INFECTION_TICK,
   ENGULF_MAX,
+  REAGENT_MAX,
   INFECTION_HEALING,
   FLOOD_SLOW,
 } from './constants'
@@ -223,6 +224,12 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // second, which is the difference between a slow that ends when you leave
   // and one that flickers off between two ticks of the same puddle.
   mired: 0.2,
+  // Twenty-two seconds of walking, which is long enough to collide with the
+  // gathering twice. It cannot be killed and it cannot be dispelled: the count
+  // is the only thing that ends it.
+  hounded: 22,
+  // Cleared by the swap and by the seventh, never by time.
+  dosed: 3600,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -267,6 +274,7 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   swelling: BLOAT_BURST_AT,
   slighted: SLIGHT_MAX,
   engulfed: ENGULF_MAX,
+  dosed: REAGENT_MAX,
 }
 
 

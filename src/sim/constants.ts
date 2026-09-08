@@ -1110,3 +1110,94 @@ export const ENGULF_POWER = 0.12
 export const ENGULF_MAX = 8
 export const ENGULF_BURST = 3800
 export const ENGULF_BURST_REACH = 170
+
+// --- the two flasks, which ask for two answers on one clock -----------------
+
+/**
+ * The caustic pool: the ordinary demand, and the one that narrows the room.
+ *
+ * Its residue is long on purpose. The other two demands on this fight are
+ * about *where the raid can be standing* -- a circle everybody has to reach
+ * and a body that has to keep walking -- and floor that stays for twelve
+ * seconds is what turns three separate questions into one.
+ *
+ * The bill is split the way rule 1 asks: a large binary hit at the instant it
+ * lands, and a rate afterwards for anybody who stayed. The instant is the
+ * mechanic; the rate is the consequence.
+ */
+export const CAUSTIC_RADIUS = 95
+export const CAUSTIC_TELEGRAPH = readable(1.4)
+export const CAUSTIC_LANDING = 900
+export const CAUSTIC_TICK = 170
+export const CAUSTIC_LINGER = 8
+
+/**
+ * The hound: a thing that cannot be killed, walking at one body.
+ *
+ * Slower than a person, so walking opens the gap and standing closes it, and
+ * the whole of what it asks is that one named body keep moving for
+ * twenty-two seconds. It has no health because a killable one would be
+ * answered by turning the damage round, which is a different mechanic and one
+ * this fight already has nowhere to put.
+ */
+export const HOUND_REACH = 75
+export const HOUND_TICK = 280
+export const HOUND_SPEED = 0.78
+
+/**
+ * The gathering: everybody inside one circle, and the bill divided by whoever
+ * came.
+ *
+ * Five seconds is the longest count in the game, and it is long for one
+ * reason: the circle lands on the hound's quarry and follows them while it
+ * counts. Twenty-five people can walk to a moving point in five seconds. They
+ * cannot in three, and in eight the quarry has crossed the room and the circle
+ * means nothing.
+ */
+export const GATHER_RADIUS = 160
+export const GATHER_TELEGRAPH = 5
+/**
+ * What the gathering costs, per body in the raid rather than in total.
+ *
+ * The pot is the roster's size times this, and it is divided by whoever
+ * actually stood in the circle -- so a raid that all came pays this each,
+ * whatever size it is, and a raid that half came pays double each. A flat pot
+ * would be the same mechanic at twenty-five and an execution at five: nine
+ * thousand split five ways is eighteen hundred a head and split twenty-five
+ * ways is three hundred and sixty, which is rule 4 arriving through the
+ * arithmetic instead of through the demand.
+ *
+ * Nobody at all pays the whole pot each, at every size, which is the failure
+ * state and is meant to be one.
+ */
+export const GATHER_PER_BODY = 460
+
+/**
+ * The flasks: a long count on a small circle, which is the fight's one demand
+ * answered by being early.
+ *
+ * Everything else here is answered by reacting. This is answered by walking
+ * away from something that will not matter for another fifteen seconds, which
+ * is the one thing a reaction channel cannot express -- see `walkEarly` in
+ * `ai.ts`, which is the channel written for exactly this.
+ *
+ * Standing on one holds its count. That is not a mercy: it is what makes a
+ * flask a place somebody has to spend time in rather than a timer everybody
+ * walks away from and forgets.
+ */
+export const DECANT_RADIUS = 110
+export const DECANT_COUNT = 20
+export const DECANT_DAMAGE = 5200
+export const DECANT_TICK = 220
+
+/**
+ * The reagent: the boss drinking its own work, and the tank paying for it.
+ *
+ * Seven, and the swap is at six. The count is public on the tank from the
+ * first one, so what the raid is answering is a number it can read rather
+ * than a surprise.
+ */
+export const REAGENT_POWER = 0.11
+export const REAGENT_MAX = 7
+export const REAGENT_BURST = 4000
+export const REAGENT_BURST_REACH = 160

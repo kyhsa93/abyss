@@ -46,6 +46,25 @@ import {
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  CAUSTIC_RADIUS,
+  CAUSTIC_TELEGRAPH,
+  CAUSTIC_LANDING,
+  CAUSTIC_TICK,
+  CAUSTIC_LINGER,
+  HOUND_REACH,
+  HOUND_TICK,
+  HOUND_SPEED,
+  GATHER_RADIUS,
+  GATHER_TELEGRAPH,
+  GATHER_PER_BODY,
+  DECANT_RADIUS,
+  DECANT_COUNT,
+  DECANT_DAMAGE,
+  DECANT_TICK,
+  REAGENT_POWER,
+  REAGENT_MAX,
+  REAGENT_BURST,
+  REAGENT_BURST_REACH,
   SPRAY_HALF_WIDTH,
   SPRAY_RANGE,
   SPRAY_DAMAGE,
@@ -468,6 +487,12 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleInfection(s, b, rng, timing)
   scheduleFlood(s, b, timing)
   scheduleEngulf(s, b, timing)
+  scheduleCaustic(s, b, rng, timing)
+  scheduleHound(s, b, rng, timing)
+  scheduleGather(s, b, timing)
+  scheduleDecant(s, b, rng, timing)
+  scheduleReagent(s, b, timing)
+  updateHounds(s)
 
   updateAdds(s)
   updateOozes(s)
@@ -621,7 +646,8 @@ function autoAttack(s: SimState, b: Actor, target: Actor | null, timing: PhaseTi
         (1 + breaths * INHALE_POWER) *
         (1 + swollen * BLOAT_POWER) *
         gaugePower(s) *
-        engulfPower(s),
+        engulfPower(s) *
+        reagentPower(s),
     )
     applyDamage(s, target, damage, 'physical', { sourceId: b.id })
     // And a share of it onto whoever is wearing the mark, wherever they are
@@ -2419,6 +2445,262 @@ function engulfPower(s: SimState): number {
   return 1 + count * ENGULF_POWER
 }
 
+// --- the two flasks -------------------------------------------------------
+//
+// Two demands on one clock. Everybody inside one circle, and the circle is a
+// body that has to keep walking away from something it cannot kill. Each half
+// is ordinary; together neither of them is, because the quarry has to be
+// moving and reachable at the same instant and the raid has to walk to a point
+// rather than to a place.
+
+/**
+ * Glass on the floor, which is the one familiar thing this fight does.
+ *
+ * Billed in two parts on purpose. What lands at the instant the count ends is
+ * large and binary -- rule 1 -- and what it leaves is a rate for anybody who
+ * stayed. The residue is twelve seconds because the other two demands are
+ * about *where the raid can be*, and floor that stays is what makes three
+ * questions into one.
+ */
+function scheduleCaustic(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.caustic <= 0) return
+  s.next.caustic -= DT
+  if (s.next.caustic > 0) return
+  s.next.caustic = timing.caustic
+
+  say(s, b, lineFor(fight(s), 'caustic'))
+  s.sounds.push('telegraph')
+  const count = Math.max(1, Math.round(s.party.length / 8))
+  const victims = livingParty(s)
+  for (let i = 0; i < count && victims.length > 0; i++) {
+    // Under somebody rather than at a rolled bearing: a pool that lands where
+    // nobody is standing is a pool nobody has to walk out of.
+    const under = victims.splice(rng.int(victims.length), 1)[0]!
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'caustic',
+      pos: { x: under.pos.x, y: under.pos.y },
+      radius: CAUSTIC_RADIUS,
+      telegraph: CAUSTIC_TELEGRAPH,
+      lingering: CAUSTIC_LINGER,
+      damage: CAUSTIC_LANDING,
+    })
+  }
+}
+
+/**
+ * Something that has picked one body and cannot be killed.
+ *
+ * It has no health for a reason: a killable one would be answered by turning
+ * the raid's damage round, and this fight already asks for that nowhere. What
+ * it is worth is that one named body has to keep walking for twenty-two
+ * seconds -- and that those twenty-two seconds are where the gathering lands.
+ *
+ * Never the tank: a tank walking for that long takes the fight with them, and
+ * a circle centred on the tank is a circle centred on the boss, which is a
+ * different mechanic and a much easier one.
+ */
+function scheduleHound(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.hound <= 0) return
+  s.next.hound -= DT
+  if (s.next.hound > 0) return
+
+  // One at a time, whatever the headcount -- rule 5, and the beat is held
+  // rather than reset so a fight whose tempo has been shortened does not hand
+  // out a second before the first has run out. At three rungs the tempo
+  // multiplier put the next one twenty seconds after the last on a
+  // twenty-two second hound, so the smallest raid was never not being chased.
+  if (livingParty(s).some((a) => getAura(a, 'hounded'))) return
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'hounded'))
+  if (free.length === 0) return
+  const quarry = rng.pick(free)
+  s.next.hound = timing.hound
+  addAura(quarry, 'hounded', b.id)
+  const mark = getAura(quarry, 'hounded')
+  // It comes out of the wall behind the boss and walks in, so the first thing
+  // the quarry does is put distance between them rather than discover it
+  // already standing on them.
+  const from = spawnSpot(s, rng, HOUND_REACH)
+  if (mark) mark.at = { x: from.x, y: from.y }
+  say(s, b, lineFor(fight(s), 'hound'))
+  s.sounds.push('telegraph')
+  pushEffect(s, 'cast', from, { abilityId: 'boss_hound' })
+}
+
+/**
+ * The hound walking, and billing whoever it has caught up with.
+ *
+ * Its position lives on the mark rather than as a body on the field, which is
+ * what makes it unkillable without needing a rule that says so: there is
+ * nothing there to aim at. Slower than a person, so walking opens the gap and
+ * standing closes it.
+ */
+function updateHounds(s: SimState): void {
+  for (const a of livingParty(s)) {
+    const mark = getAura(a, 'hounded')
+    if (!mark?.at) continue
+    const away = dist(mark.at, a.pos)
+    if (away > 1) {
+      const step = a.moveSpeed * HOUND_SPEED * DT
+      mark.at.x += ((a.pos.x - mark.at.x) / away) * step
+      mark.at.y += ((a.pos.y - mark.at.y) / away) * step
+    }
+    if (away <= HOUND_REACH) {
+      applyDamage(s, a, mechanic(s, HOUND_TICK) * DT, 'magic', {
+        sourceId: BOSS_ID,
+        mechanic: 'hound',
+        silent: true,
+      })
+    }
+  }
+}
+
+/** Whoever the hound is walking at, if anybody. */
+export function houndedBody(s: SimState): Actor | null {
+  return livingParty(s).find((a) => getAura(a, 'hounded') !== undefined) ?? null
+}
+
+/**
+ * Everybody inside one circle, and the bill divided by whoever came.
+ *
+ * The centre is the mechanic. Without the chase it lands on the middle of the
+ * raid, which is a circle a crowd is standing in already; with it, it lands on
+ * the body the hound is walking at and follows them for the whole count -- so
+ * the quarry has to keep moving and stay reachable, and everybody else has to
+ * walk to a point rather than to a place.
+ *
+ * Five seconds, which is the longest count in the game and is measured against
+ * exactly that: twenty-five people can reach a moving point in five, cannot in
+ * three, and in eight the quarry has crossed the room and the circle means
+ * nothing.
+ */
+function scheduleGather(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.gather <= 0) return
+  s.next.gather -= DT
+  if (s.next.gather > 0) return
+  s.next.gather = timing.gather
+
+  const chased = timing.chase > 0 ? houndedBody(s) : null
+  const at = chased ? { x: chased.pos.x, y: chased.pos.y } : partyMiddle(s)
+  say(s, b, lineFor(fight(s), 'gather'))
+  s.sounds.push('telegraph')
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'gather',
+    pos: at,
+    radius: GATHER_RADIUS,
+    telegraph: GATHER_TELEGRAPH,
+    lingering: 0,
+    // The pot, which is the roster's size rather than a number: what the
+    // circle asks is that everybody came, and what it costs when they did has
+    // to be the same bill at five as at twenty-five.
+    damage: GATHER_PER_BODY * s.party.length,
+    // Whose feet it is following, or nobody. Read every tick by the floor
+    // loop, which is what makes the circle slide.
+    ...(chased ? { named: chased.id } : {}),
+  })
+}
+
+/** The middle of the raid, for a circle with nobody to follow. */
+function partyMiddle(s: SimState): Vec2 {
+  const here = livingParty(s)
+  if (here.length === 0) return { x: 0, y: 0 }
+  let x = 0
+  let y = 0
+  for (const a of here) {
+    x += a.pos.x
+    y += a.pos.y
+  }
+  return { x: x / here.length, y: y / here.length }
+}
+
+/**
+ * Two flasks on the floor, with a long count and a small radius.
+ *
+ * The one demand on this boss answered by being early. Twenty seconds is long
+ * enough that nothing about it is urgent until it is too late to walk, which
+ * is the whole point and is also the thing a reaction channel cannot express
+ * -- see `walkEarly` in `ai.ts`.
+ *
+ * Standing on one holds its count, which makes it a place somebody has to
+ * spend time in rather than a timer everybody walks away from and forgets.
+ */
+function scheduleDecant(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.decant <= 0) return
+  s.next.decant -= DT
+  if (s.next.decant > 0) return
+  s.next.decant = timing.decant
+  // Two still standing is two the raid has not dealt with; a third would be a
+  // fight adding to a problem rather than repeating one.
+  if (s.ground.some((g) => g.kind === 'decant')) return
+
+  say(s, b, lineFor(fight(s), 'decant'))
+  const reach = roomReach(s.room)
+  for (let i = 0; i < 2; i++) {
+    const bearing = rng.range(0, Math.PI * 2)
+    const away = reach * rng.range(0.35, 0.7)
+    const at = { x: b.pos.x + Math.cos(bearing) * away, y: b.pos.y + Math.sin(bearing) * away }
+    pushInside(s.room, at, DECANT_RADIUS)
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'decant',
+      pos: at,
+      radius: DECANT_RADIUS,
+      telegraph: DECANT_COUNT,
+      lingering: 0,
+      damage: DECANT_DAMAGE,
+    })
+    pushEffect(s, 'cast', at, { abilityId: 'boss_decant' })
+  }
+}
+
+/**
+ * The boss drinking its own work, and the tank paying for it.
+ *
+ * A public count from the first draught, so the swap is a decision made
+ * against a number rather than a surprise learned by dying to it.
+ */
+function scheduleReagent(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.reagent <= 0) return
+  s.next.reagent -= DT
+  if (s.next.reagent > 0) return
+  s.next.reagent = timing.reagent
+
+  const holder = topThreatTarget(s)
+  if (!holder) return
+  stackAura(holder, 'dosed', b.id)
+  // The boss brightens for a frame, so the count on the tank has a visible
+  // cause rather than appearing to come from the tank.
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_reagent' })
+  const count = getAura(holder, 'dosed')?.stacks ?? 0
+  if (count < REAGENT_MAX) {
+    say(s, b, lineFor(fight(s), 'reagent'))
+    return
+  }
+
+  const bill = mechanic(s, REAGENT_BURST)
+  applyDamage(s, holder, bill, 'magic', { sourceId: b.id, mechanic: 'reagent' })
+  for (const a of livingParty(s)) {
+    if (a.id === holder.id || dist(a.pos, holder.pos) > REAGENT_BURST_REACH) continue
+    applyDamage(s, a, bill / 2, 'magic', { sourceId: b.id, mechanic: 'reagent' })
+  }
+  pushEffect(s, 'impact', holder.pos, {
+    abilityId: 'boss_reagent',
+    radius: REAGENT_BURST_REACH,
+    power: bill,
+    crit: true,
+  })
+  s.sounds.push('raid')
+  holder.auras = holder.auras.filter((au) => au.id !== 'dosed')
+}
+
+/** What the boss has drunk, as a multiplier on its own hands. */
+function reagentPower(s: SimState): number {
+  const holder = topThreatTarget(s)
+  const count = holder ? (getAura(holder, 'dosed')?.stacks ?? 0) : 0
+  return 1 + count * REAGENT_POWER
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -2678,6 +2960,120 @@ export function updateGround(s: SimState): void {
     if (g.kind === 'spray') {
       if (!g.detonated) g.telegraph -= DT
       else g.lingering -= lingerStep(s)
+      continue
+    }
+
+    // Glass on the floor: one large hit at the instant it lands, and a rate
+    // for whoever is still standing in it after. The two halves are different
+    // mechanics wearing one shape -- the instant is what practice answers, and
+    // the rate is what standing there costs.
+    if (g.kind === 'caustic') {
+      if (!g.detonated) {
+        g.telegraph -= DT
+        if (g.telegraph <= 0) {
+          g.detonated = true
+          pushEffect(s, 'impact', g.pos, {
+            radius: g.radius,
+            abilityId: 'boss_caustic',
+            power: g.damage,
+            crit: true,
+          })
+          for (const a of livingParty(s)) {
+            if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+            const bill = mechanic(s, g.damage)
+            applyDamage(s, a, bill, 'magic', { sourceId: BOSS_ID, mechanic: 'caustic' })
+            pushEffect(s, 'impact', a.pos, { abilityId: 'boss_caustic', power: bill })
+          }
+        }
+        continue
+      }
+      g.lingering -= lingerStep(s)
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius - a.radius * 0.6) continue
+        applyDamage(s, a, mechanic(s, CAUSTIC_TICK * DT), 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: 'caustic',
+          silent: true,
+        })
+      }
+      continue
+    }
+
+    // The circle everybody has to be inside, sliding after whoever it named.
+    //
+    // The slide is the fight. A circle on a fixed point is a place, and a
+    // crowd is standing in a place already; a circle on a body that is
+    // walking away from something it cannot kill is a point, and reaching a
+    // point takes everybody deciding to.
+    if (g.kind === 'gather') {
+      if (g.named !== undefined) {
+        const chased = s.actors.find((a) => a.id === g.named)
+        if (chased && chased.alive) {
+          g.pos.x = chased.pos.x
+          g.pos.y = chased.pos.y
+        }
+      }
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      // Divided by whoever came, and paid in full by everybody if nobody did.
+      // The division is the mechanic: what it asks is not that anyone survive
+      // it, it is that everyone arrive.
+      const came = livingParty(s).filter((a) => dist(a.pos, g.pos) <= g.radius)
+      const bill = mechanic(s, g.damage) / Math.max(1, came.length)
+      for (const a of came.length > 0 ? came : livingParty(s)) {
+        applyDamage(s, a, came.length > 0 ? bill : mechanic(s, g.damage), 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: 'gather',
+        })
+      }
+      pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
+        abilityId: 'boss_gather',
+        power: bill,
+        crit: true,
+      })
+      s.sounds.push('raid')
+      continue
+    }
+
+    // A flask, which is the only piece of ground here that is a thing rather
+    // than a hazard. Its count runs for twenty seconds and stops while
+    // somebody is standing on it -- so it is a place to be spent time in, and
+    // the demand is to leave it long before leaving matters.
+    if (g.kind === 'decant') {
+      if (g.detonated) {
+        g.lingering -= lingerStep(s)
+        continue
+      }
+      const holding = livingParty(s).filter((a) => dist(a.pos, g.pos) <= g.radius)
+      for (const a of holding) {
+        applyDamage(s, a, mechanic(s, DECANT_TICK * DT), 'magic', {
+          sourceId: BOSS_ID,
+          mechanic: 'decant',
+          silent: true,
+        })
+      }
+      // Held rather than slowed: one body is enough, and a second adds
+      // nothing, because what stops the count is that the place is occupied.
+      g.held = holding.length > 0
+      if (g.held) continue
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      g.lingering = 0.4
+      const bill = mechanic(s, g.damage)
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius) continue
+        applyDamage(s, a, bill, 'magic', { sourceId: BOSS_ID, mechanic: 'decant' })
+      }
+      pushEffect(s, 'impact', g.pos, {
+        radius: g.radius,
+        abilityId: 'boss_decant',
+        power: bill,
+        crit: true,
+      })
+      s.sounds.push('raid')
       continue
     }
 

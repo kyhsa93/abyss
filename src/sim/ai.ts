@@ -16,6 +16,9 @@ import {
   INFECTION_FLUSH,
   SPRAY_CAST,
   MERGE_REACH,
+  HOUND_REACH,
+  CAUSTIC_TELEGRAPH,
+  DECANT_COUNT,
 } from './constants'
 import {
   turnToward,
@@ -41,7 +44,7 @@ import {
 } from './combat'
 import { EDGE_LAP, onEdge, pushInside, roomHasOutside, wallGap } from './room'
 import type { Rng } from './rng'
-import type { Actor, AuraId, SimState, Vec2 } from './types'
+import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
 /**
  * Party AI.
@@ -238,6 +241,14 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'On me — I cannot hold this alone')
     } else if (danger.startsWith('yoke:')) {
       say(s, actor, 'Going to help carry')
+    } else if (danger.startsWith('gather')) {
+      say(s, actor, 'On them, going')
+    } else if (danger === 'hound:self') {
+      say(s, actor, 'It is on me — moving')
+    } else if (danger.startsWith('caustic')) {
+      say(s, actor, 'Off the glass')
+    } else if (danger.startsWith('decant')) {
+      say(s, actor, 'Clearing the flask early')
     } else if (danger.startsWith('spray')) {
       say(s, actor, 'Behind the arm')
     } else if (danger === 'infection:self') {
@@ -933,6 +944,17 @@ function currentDanger(s: SimState, actor: Actor): string | null {
     }
   }
 
+  // Something walking at this body that cannot be killed. Ranked below the
+  // shapes on the floor and above the marks that are answered by somebody
+  // else: it is a walk that has to be kept up rather than a step, and being
+  // late by a second costs a tick rather than a life.
+  {
+    const mark = getAura(actor, 'hounded')
+    if (mark?.at && dist(actor.pos, mark.at) <= HOUND_REACH + DANGER_MARGIN) {
+      consider('hound:self', 66)
+    }
+  }
+
   // Carrying something that will be a body when it stops. Answered by walking
   // rather than by anything the carrier can do about the dot itself: what the
   // walk buys is that the thing is born somewhere the raid can afford, which
@@ -996,6 +1018,38 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
 
 
+
+
+    // Glass on the floor, which is a step off a patch and climbs as the count
+    // runs out -- the cold line's shape, and priced the same way.
+    if (g.kind === 'caustic') {
+      if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`caustic:${g.id}`, g.detonated ? 88 : 80 + (CAUSTIC_TELEGRAPH - g.telegraph) * 9)
+      }
+      continue
+    }
+
+    // The circle everybody has to be *inside*, which is the one entry on this
+    // list that is not answered by leaving. It is the most urgent thing in the
+    // fight while it counts: everything else costs a body and this one costs
+    // the raid, divided.
+    if (g.kind === 'gather') {
+      if (!g.detonated && dist(actor.pos, g.pos) > g.radius - DANGER_MARGIN) {
+        consider(`gather:${g.id}`, 90)
+      }
+      continue
+    }
+
+    // A flask, and the reason it is here is that it will not be urgent until
+    // it is too late. Its urgency is written off the count rather than off
+    // distance, so a body standing on one starts walking while there is still
+    // time to walk.
+    if (g.kind === 'decant') {
+      if (!g.detonated && dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) {
+        consider(`decant:${g.id}`, 58 + (DECANT_COUNT - g.telegraph) * 1.6)
+      }
+      continue
+    }
 
     const d = dist(actor.pos, g.pos)
     if (d <= g.radius + DANGER_MARGIN) {
@@ -1097,6 +1151,12 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     if (g.kind === 'flood') {
       continue
     }
+    // The one shape in the game that makes a spot safe rather than unsafe: a
+    // tile outside the circle is a tile that pays the whole bill.
+    if (g.kind === 'gather') {
+      if (!g.detonated && dist(spot, g.pos) > g.radius - DANGER_MARGIN) return false
+      continue
+    }
     if (dist(spot, g.pos) <= g.radius + DANGER_MARGIN) return false
   }
 
@@ -1115,6 +1175,15 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // about the person rather than about the room, so it is kept on the mark.
   const shade = getAura(actor, 'haunted')
   if (shade?.at && dist(spot, shade.at) < SHADE_REACH + DANGER_MARGIN) return false
+
+  // And the hound, which is the same rule with a longer memory: it does not
+  // expire when the raid does something about it, because there is nothing to
+  // do about it. A spot inside its reach is a spot that bills every tick it is
+  // stood in, so the body it picked keeps choosing new ones -- which is what
+  // "keep walking" means when the walking is done by a rule rather than by a
+  // person.
+  const hound = getAura(actor, 'hounded')
+  if (hound?.at && dist(spot, hound.at) < HOUND_REACH + DANGER_MARGIN * 2) return false
 
   // A spill, which is the reek's louder cousin and wants the same answer with
   // one difference: the carrier has to move as well. It goes off where they
@@ -1612,10 +1681,39 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let schismActive = false
     let strandedActive = false
     let sentActive = false
+    let gathering: GroundEffect | null = null
     for (const g of s.ground) {
+      // Ground that costs nothing to stand in is not a reason to stand
+      // anywhere else. Scored as a hazard it pushed the whole raid off a third
+      // of the room to avoid something that does not hurt.
+      if (g.kind === 'flood') {
+        continue
+      }
+      // And the cone is a wedge rather than a disc: priced as a circle of its
+      // own length it condemned the floor behind the boss as well as in front
+      // of it, which is most of the room.
+      if (g.kind === 'spray') {
+        if (!g.detonated && insideCone(candidate, g)) score -= 1000
+        continue
+      }
+      // The circle to be inside, kept for the term below rather than priced
+      // here: it is the one shape a body should be walking towards.
+      if (g.kind === 'gather') {
+        if (!g.detonated) gathering = g
+        continue
+      }
       const d = dist(candidate, g.pos)
       if (d <= g.radius + DANGER_MARGIN) score -= 1000
       else score -= Math.max(0, 200 - d) * 0.5
+    }
+
+    // Being inside the circle beats everything except being on fire. The bill
+    // is divided by whoever came, so a body that stays out does not merely
+    // fail to help -- it makes everybody else's share larger.
+    if (gathering) {
+      const d = dist(candidate, gathering.pos)
+      if (d <= gathering.radius - DANGER_MARGIN) score += 900
+      else score -= Math.min(1400, (d - gathering.radius) * 2.2)
     }
 
     // 3e. And the body this healer is about to heal, which is the burden's

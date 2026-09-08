@@ -55,6 +55,12 @@ export type MechanicId =
   | 'flood'
   | 'merge'
   | 'engulf'
+  | 'caustic'
+  | 'hound'
+  | 'gather'
+  | 'decant'
+  | 'reagent'
+  | 'chase'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -122,6 +128,20 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   // one, which is rule 5's "a harder geometry, not an unanswerable one".
   merge: true,
   engulf: false, // one body is holding it, and there is one of that body
+  caustic: true, // one pool per so many bodies, so a bigger raid is given more floor to lose
+  hound: false, // one body is followed, and the fight follows one at a time
+  // The bill is divided by whoever came, so the arithmetic already carries the
+  // roster -- and rule 4 says the demand itself gets *easier* with bodies,
+  // because standing together is what a crowd does anyway. What is supposed to
+  // hold that up is the five-second count on a circle that is moving; whether
+  // it does is a thing to measure rather than assume.
+  gather: false,
+  decant: false, // always two, whatever the headcount
+  reagent: false, // one body is holding it
+  // Not dealt to anybody: it is a rule about where the circle above lands. It
+  // changes the same instant from "walk to a place" into "walk to a person who
+  // is still walking", and one moving point is one moving point at any size.
+  chase: false,
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -194,6 +214,12 @@ export function noTimers(): Record<MechanicId, number> {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  caustic: 'the caustic',
+  chase: 'the chase',
+  hound: 'the hound',
+  gather: 'the gathering',
+  decant: 'the flasks',
+  reagent: 'the reagent',
   spray: 'the spray',
   infection: 'the infection',
   ooze: 'the small things',
@@ -501,6 +527,61 @@ export interface PhaseTiming {
   ooze: number
   merge: number
   /**
+   * Seconds between one round of broken flasks and the next.
+   *
+   * The ordinary demand on a fight that has none: a pool to walk out of. Its
+   * residue is what makes the other two answerable in the same room, by
+   * deciding where they can happen.
+   */
+  caustic: number
+  /**
+   * Seconds between one hound and the next.
+   *
+   * Something that cannot be killed, walking at one named body for
+   * twenty-two seconds. Read against `gather` rather than on its own: the
+   * ratio of the two is the fight, because the gathering lands on whoever is
+   * being followed.
+   */
+  hound: number
+  /**
+   * Seconds between one gathering and the next.
+   *
+   * Everybody inside one circle, and the bill divided by whoever came. It is
+   * written slower than the hound on purpose, so that more than half of them
+   * land while somebody is still being followed -- which is the only reason
+   * this boss exists.
+   */
+  gather: number
+  /**
+   * Seconds between one pair of flasks and the next.
+   *
+   * The one demand here answered by being early rather than by reacting. Its
+   * count is twenty seconds and its radius is small: what it asks is that
+   * somebody leave a place long before leaving it is urgent.
+   */
+  decant: number
+  /**
+   * Seconds between one draught and the next.
+   *
+   * The boss drinking its own work. A public count on the tank, and the swap
+   * is at six of seven.
+   */
+  reagent: number
+  /**
+   * Not seconds. Any number above nought means the gathering is a chase.
+   *
+   * The chase has no clock of its own -- it is a rule about where the circle
+   * above lands -- but every mechanic needs a row on this table, and the
+   * switch a row already has is "is this number above nought". So the row is
+   * read as a flag, and it is written as the gathering's own cadence so that
+   * anybody reading the table sees which beat it belongs to.
+   *
+   * `siphon` is the precedent: a row whose units are not really seconds, kept
+   * on this table anyway because one table of cadences that everything is
+   * gated through beats two tables with two rules.
+   */
+  chase: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -736,6 +817,13 @@ export interface Encounter {
     /** Nought, and see `PhaseTiming`: neither of these has a clock. */
     ooze: number
     merge: number
+    caustic: number
+    hound: number
+    gather: number
+    decant: number
+    reagent: number
+    /** A flag rather than a beat: see `PhaseTiming`. */
+    chase: number
   }
   /**
    * The colour this one is drawn in.
@@ -808,6 +896,11 @@ export interface Encounter {
     infection: string
     flood: string
     engulf: string
+    caustic: string
+    hound: string
+    gather: string
+    decant: string
+    reagent: string
     // The two this fight never announces have no key here at all, which is the
     // one legitimate absence the check downstairs allows. A small thing is
     // born where a body was standing and the raid watched it happen; a merging
@@ -935,6 +1028,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
+      caustic: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
       spray: '',
       infection: '',
       flood: '',
@@ -1094,6 +1192,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
+      caustic: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
       spray: '',
       infection: '',
       flood: '',
@@ -1263,6 +1366,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
+      caustic: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
       spray: '',
       infection: '',
       flood: '',
@@ -1408,6 +1516,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
+      caustic: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
       spray: '',
       infection: '',
       flood: '',
@@ -1531,6 +1644,11 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
+      caustic: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
       spray: 'The arm is coming round — get behind it',
       infection: 'One of you is carrying it — pick your ground',
       flood: 'It is spreading — the floor is going slow',
@@ -1557,6 +1675,125 @@ export const ENCOUNTERS: Encounter[] = [
       fester: '',
       champion: '',
       gorge: '',
+    },
+  },
+  {
+    // The sixth fight, and the first that asks for two answers on one clock.
+    //
+    // Both demands are ordinary on their own. Everybody stand in one circle is
+    // a mechanic this game has had in one form or another since the start; one
+    // of you keep walking, because the thing following you cannot be killed,
+    // is not much stranger. Put them on the same clock and neither is ordinary
+    // any more: the circle lands on the body being followed and slides after
+    // them while it counts, so the quarry has to keep moving *and* stay
+    // somewhere twenty-five people can reach, and the raid has to walk to a
+    // point rather than to a place.
+    //
+    // Nothing else in this game asks for two answers at once. Everything
+    // arrives one at a time, is answered, and is over.
+    id: 'flasks',
+    name: 'The Two Flasks',
+    short: 'Flasks',
+    demand: 'two answers at once, and neither of them waits',
+    /**
+     * Issue #32's room: wide, shallow, and with straight walls.
+     *
+     * The shape is the mechanic. In a circle the two answers push each other
+     * to opposite sides and end up using the diameter, which is one number and
+     * therefore one answer; in a hall that is wider than it is deep, splitting
+     * left and right is the natural thing to do, and *which* side is a
+     * different answer every time.
+     */
+    room: { kind: 'hall', halfWidth: 700, front: 1150, back: 700 },
+    /**
+     * Four benches, in two rows.
+     *
+     * The most terrain in the game, and it is here because this is the fight
+     * with the most places a body may not be standing: a circle to reach, a
+     * pool that stays for twelve seconds, and a flask nobody may be next to
+     * when it goes. Furniture is what stops "walk to the middle" being the
+     * answer to all three.
+     */
+    terrain: [
+      { pos: { x: -400, y: -260 }, radius: 85 },
+      { pos: { x: 400, y: -260 }, radius: 85 },
+      { pos: { x: -400, y: 320 }, radius: 85 },
+      { pos: { x: 400, y: 320 }, radius: 85 },
+    ],
+    /** A workshop, and the brightest room in the building. */
+    floor: 'floor-slate',
+    hp: 58000,
+    enrage: 250,
+    phaseTwoHp: 0.68,
+    phaseThreeHp: 0.34,
+    swingDamage: 560,
+    slamDamage: 1150,
+    raidDamage: 105,
+    mechanicDamage: 0.72,
+    // Lightest at five, the way the last two bosses' rows are and for the same
+    // reason: nearly everything here lands on one named body -- a pool under
+    // somebody, a thing following somebody -- and a five-man answers all of it
+    // with one healer. Written at 1.2 the smallest raid wiped in every pull
+    // with the boss at a quarter, while the ten-man won every one of them.
+    sizeMechanic: { 5: 0.85, 10: 1.25, 25: 1.0 },
+    // The order is the argument. The pool is first because it is the only
+    // familiar thing here; the hound second, because the fight's idea needs
+    // something to be followed before it can put a circle on it; the gathering
+    // third, which is an ordinary circle until the fourth rung arrives.
+    //
+    // The fourth is the fight. Bought, the circle stops landing on the middle
+    // of the raid and lands on the body being followed, and slides after them
+    // for the whole five-second count -- so the quarry has to keep walking and
+    // stay reachable at the same time, and everybody else has to walk to a
+    // point rather than to a place. It has no cadence: it is the same instant
+    // as the rung below it, asking for something else.
+    //
+    // Above that: the flasks, which are the one demand here answered by being
+    // early rather than by reacting, and the reagent, which is the swap.
+    ladder: ['caustic', 'hound', 'gather', 'chase', 'decant', 'reagent'],
+    herald: null,
+    accent: '#a3e635',
+    names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
+    phases: {
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 15, hound: 38, gather: 38, chase: 38, decant: 46, reagent: 10 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 13, hound: 34, gather: 34, chase: 34, decant: 41, reagent: 9 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ caustic: 11, hound: 30, gather: 30, chase: 30, decant: 36, reagent: 8 }) },
+    },
+    opening: { slam: 14, raid: 13, ...beats({ caustic: 14, hound: 36, gather: 36, chase: 36, decant: 44, reagent: 11 }) },
+    lines: {
+      phaseTwo: 'The second flask',
+      phaseThree: 'BOTH OF THEM, THEN',
+      caustic: 'Glass on the floor — off it',
+      hound: 'It has picked one of you — keep walking',
+      gather: 'On them, all of you, now',
+      decant: 'Two on the floor — do not be standing there',
+      reagent: 'It is drinking — swap at six',
+      adds: '',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
     },
   },
 ]
@@ -1646,6 +1883,14 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
  */
 const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   inhale: ['blight'],
+  // The gathering without something to gather *on* is an ordinary circle
+  // dropped on the middle of the raid, which is a mechanic a crowd answers by
+  // standing still. What makes it this fight's is that its centre is the body
+  // being followed -- so a kit that bought the circle and not the hound would
+  // be a kit that bought half of the only idea here.
+  gather: ['hound'],
+  // And the chase is a rule about that circle, so it needs both halves of it.
+  chase: ['hound', 'gather'],
   pungent: ['blight', 'inhale', 'spore'],
   // One of the wave, come back wrong. Without a wave there is nothing for it
   // to be one of: it is not a summon of its own, it is a fact about one that

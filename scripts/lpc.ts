@@ -411,6 +411,35 @@ const BOSS: Record<string, Layer[]> = {
   // still reads as a soldier rather than as a corpse -- the skeleton and the
   // stitched one are already the first and third bosses, and three dead things
   // in four rooms is a building with one idea.
+  // "two answers at once, and neither of them waits" -- the person who worked
+  // here. Not a monster: an apron, plain trousers, and a stitched-together
+  // head, because what this fight does is *work* -- it puts two things on the
+  // floor and asks the raid to solve both of them at once, which is what
+  // somebody running an experiment does to whoever is in the room.
+  //
+  // The apron is the best single piece of characterisation in the set and
+  // nothing was using it.
+  flasks: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/aprons/apron/male' },
+    { z: 100, dir: 'head/heads/frankenstein/adult' },
+  ],
+  // And the same body with the mask down, which is what the second phase looks
+  // like.
+  //
+  // Every phase break in this game is a colour, a size and a line of text.
+  // This one is a thing that was not there before: the boss stops working with
+  // its face open, which is the moment its second demand arrives. The renderer
+  // asks for `boss-<id>-2` and falls back to `boss-<id>` when there is no such
+  // sheet, so this is a per-fight choice rather than a rule about bosses.
+  'flasks-2': [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 20, dir: 'legs/pants/male' },
+    { z: 60, dir: 'torso/aprons/apron/male' },
+    { z: 100, dir: 'head/heads/frankenstein/adult' },
+    { z: 130, dir: 'hat/visor/pigface' },
+  ],
   // "mind where you are healed, and keep the small things apart" -- the thing
   // that is leaking. Small for the noise it makes, and made of the same stuff
   // as what comes out of it: the zombie body is the only one in the set that

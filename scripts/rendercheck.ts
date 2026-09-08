@@ -1005,6 +1005,10 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // fifth merging bills anybody, so waiting for damage here would be
       // waiting for the one merging in five that the fight is trying to stop.
       if (s.actors.some((a) => (a.eaten ?? 0) > 0)) seen.add('merge')
+      // And the third of them: a rule about where a circle lands leaves no
+      // bill, no aura and no floor of its own -- what says it happened is that
+      // the circle is following somebody.
+      if (s.ground.some((g) => g.kind === 'gather' && g.named !== undefined)) seen.add('chase')
       maxPhase = Math.max(maxPhase, s.phase)
     }
   }
@@ -4624,6 +4628,31 @@ for (const [label, w, h] of [
     expect('and two of them can become one', ids.has('boss_merge'), 'it drew nothing')
     expect('and the boss can eat one', ids.has('boss_engulf'), 'it drew nothing')
     thrown.set('seep', ids)
+  }
+
+  // The two flasks' five. The reagent is the only one of them a pull at the
+  // sweep's own size never reaches -- it is the last rung -- and the
+  // gathering needs something to be gathering *on*, which `REQUIRES` pulls in
+  // whether this block asks for it or not.
+  {
+    const bench = floorWith(
+      { caustic: 9, hound: 14, gather: 12, chase: 12, decant: 13, reagent: 4 },
+      autoParty(10, pickFor('mage', 'dps')!),
+    )
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    while (bench.outcome === 'ongoing' && bench.time < 150) {
+      step(bench, { moveX: 0, moveY: 0, pressed: [0] }, rng)
+      for (const event of bench.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a floor can break its own glass', ids.has('boss_caustic'), 'it drew nothing')
+    expect('and set something after one of you', ids.has('boss_hound'), 'it drew nothing')
+    expect('and call everybody onto them', ids.has('boss_gather'), 'it drew nothing')
+    expect('and leave two on the floor', ids.has('boss_decant'), 'it drew nothing')
+    expect('and drink its own work', ids.has('boss_reagent'), 'it drew nothing')
+    thrown.set('bench', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -8508,7 +8537,12 @@ for (const [label, w, h] of [
         for (const fx of s.effects) {
           if (fx.abilityId && fx.abilityId.startsWith('boss_')) seen.add(fx.abilityId.slice(5))
         }
-        for (const g of s.ground) seen.add(g.kind)
+        for (const g of s.ground) {
+          seen.add(g.kind)
+          // A circle that has named somebody is the chase, which is a rung
+          // with no cast, no aura and no floor of its own.
+          if (g.kind === 'gather' && g.named !== undefined) seen.add('chase')
+        }
         for (const a of s.actors) for (const aura of a.auras) seen.add(aura.id)
         for (const a of s.actors) {
           if (a.faction !== 'boss' || a.id === monster.id) continue

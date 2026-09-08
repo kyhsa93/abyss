@@ -12,6 +12,9 @@ import {
   SPRAY_CAST,
   MERGE_REACH,
   ENGULF_MAX,
+  GATHER_TELEGRAPH,
+  HOUND_REACH,
+  REAGENT_MAX,
   MERGE_BURST_AT,
   GORGE_RADIUS,
   STORM_REACH,
@@ -327,6 +330,7 @@ export function drawWorld(
   drawSwallowed(ctx, s, alpha, clock)
   drawOozeLines(ctx, s, alpha)
   drawQuarryLines(ctx, s, alpha, clock)
+  drawHounds(ctx, s, alpha, clock)
 
   for (const a of drawOrder(s, alpha)) {
     // A body inside the boss is not on the floor. It is drawn as a ring under
@@ -1090,6 +1094,16 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    if (g.kind === 'gather') {
+      drawGather(ctx, s, g, p, r)
+      continue
+    }
+
+    if (g.kind === 'decant') {
+      drawDecant(ctx, g, p, r, clock)
+      continue
+    }
+
     if (!g.detonated) {
       // Telegraph fills from the centre outward as the timer runs down.
       //
@@ -1154,6 +1168,107 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.restore()
     }
   }
+}
+
+/**
+ * The circle everybody has to be inside, drawn shrinking rather than growing.
+ *
+ * Every other telegraph in this game fills outward, because every other one
+ * says *leave*. This one says come here, so it closes: a ring at twice the
+ * radius walking inward to the edge people have to be within. The two read
+ * differently at a glance, which is the whole job -- a raid that answers this
+ * one the way it answers a pool has answered it backwards.
+ *
+ * The count of who is inside is drawn in the middle of it, because the bill is
+ * divided by exactly that number and a raid that cannot see it is a raid
+ * guessing whether anybody else came.
+ */
+function drawGather(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+): void {
+  const colour = iconFor('boss_gather').colour
+  const left = Math.max(0, Math.min(1, g.telegraph / GATHER_TELEGRAPH))
+
+  // Where it is going to be, which is the edge that matters.
+  footprint(ctx, p.x, p.y, r)
+  ctx.fillStyle = 'rgba(190, 242, 100, 0.10)'
+  ctx.fill()
+  ctx.strokeStyle = colour
+  ctx.lineWidth = 2.5
+  ctx.stroke()
+
+  // And where it is now, closing on it.
+  if (!g.detonated) {
+    footprint(ctx, p.x, p.y, r * (1 + left))
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([8, 7])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  const inside = s.actors.filter(
+    (a) => a.faction === 'party' && a.alive && dist(a.pos, g.pos) <= g.radius,
+  ).length
+  ctx.fillStyle = colour
+  ctx.font = font(16, true)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(`${inside}`, p.x, p.y)
+  ctx.textBaseline = 'alphabetic'
+}
+
+/**
+ * A flask on the floor, with the only number in the game that counts down in
+ * seconds.
+ *
+ * Drawn as a thing rather than as a hazard for as long as it is one: a small
+ * square with a count on it, and no circle at all until the last three
+ * seconds. That is the mechanic drawn honestly -- for seventeen of its twenty
+ * seconds it is furniture, and the demand is to have dealt with it before it
+ * stops being furniture.
+ *
+ * The count goes grey while somebody is standing on it, because a count that
+ * has stopped and a count that is running look identical otherwise, and which
+ * of the two it is decides whether anybody has to do anything.
+ */
+function drawDecant(
+  ctx: CanvasRenderingContext2D,
+  g: SimState['ground'][number],
+  p: Vec2,
+  r: number,
+  clock: number,
+): void {
+  const colour = iconFor('boss_decant').colour
+  const close = g.telegraph <= 3
+
+  if (close && !g.detonated) {
+    footprint(ctx, p.x, p.y, r)
+    ctx.fillStyle = 'rgba(77, 124, 15, 0.16)'
+    ctx.fill()
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 2.5 + Math.sin(clock * 10) * 0.8
+    ctx.stroke()
+  }
+
+  // The flask itself: a shape rather than a ring, because it is the one thing
+  // on this floor that is an object.
+  const side = Math.max(4, 13 * L.scale)
+  ctx.fillStyle = colour
+  ctx.fillRect(p.x - side / 2, p.y - side / 2, side, side)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1
+  ctx.strokeRect(p.x - side / 2, p.y - side / 2, side, side)
+
+  if (g.detonated) return
+  ctx.fillStyle = g.held ? COLORS.dead : colour
+  ctx.font = font(11, true)
+  ctx.textAlign = 'center'
+  ctx.fillText(`${Math.ceil(g.telegraph)}`, p.x, p.y - side)
 }
 
 /**
@@ -1280,6 +1395,49 @@ function drawQuarryLines(
     ctx.stroke()
   }
   ctx.restore()
+}
+
+/**
+ * The thing walking at somebody, and the gap they have left.
+ *
+ * It is not a body on the field -- there is nothing to aim at, which is what
+ * makes it unkillable without a rule saying so -- so the picture is all there
+ * is. The circle is its reach and the line is the gap, and the gap is the only
+ * number the person being followed can act on.
+ */
+function drawHounds(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  alpha: number,
+  clock: number,
+): void {
+  const colour = iconFor('boss_hound').colour
+  for (const a of s.actors) {
+    if (a.faction !== 'party' || !a.alive) continue
+    const mark = a.auras.find((au) => au.id === 'hounded')
+    if (!mark?.at) continue
+    const at = worldToScreen(mark.at)
+    const to = screenPos(a, alpha)
+
+    footprint(ctx, at.x, at.y, HOUND_REACH * L.scale)
+    ctx.fillStyle = 'rgba(132, 204, 22, 0.12)'
+    ctx.fill()
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+
+    ctx.save()
+    ctx.strokeStyle = colour
+    ctx.lineWidth = 1.5
+    ctx.globalAlpha = 0.6
+    ctx.setLineDash([5, 6])
+    ctx.lineDashOffset = -clock * 22
+    ctx.beginPath()
+    ctx.moveTo(at.x, at.y)
+    ctx.lineTo(to.x, to.y)
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 function drawOozeLines(ctx: CanvasRenderingContext2D, s: SimState, alpha: number): void {
@@ -1549,8 +1707,23 @@ function drawSwallowed(
   }
 }
 
+/**
+ * Which body the boss is drawn as, which is not always one body.
+ *
+ * A phase break in this game is a colour, a size and a line of text, and on
+ * one fight that is not enough: its second phase is the moment its second
+ * demand arrives, so the thing in the middle of the room should visibly have
+ * changed rather than merely reddened. A fight may ship a `boss-<id>-2` sheet
+ * and it is used from the second phase on.
+ *
+ * Falls back rather than requires. Every other boss has one body and asking
+ * for a second would be asking eight fights to justify a sheet apiece.
+ */
 function bossBody(s: SimState): string | null {
-  return s.mode === 'raid' ? `boss-${encounterAt(s.encounter).id}` : null
+  if (s.mode !== 'raid') return null
+  const id = `boss-${encounterAt(s.encounter).id}`
+  const later = `${id}-2`
+  return s.phase >= 2 && hasBody(later) ? later : id
 }
 
 /** The floor under anything hostile. */
@@ -2078,6 +2251,35 @@ function drawActor(
     ctx.strokeStyle = iconFor('boss_infection').colour
     ctx.lineWidth = 2.5
     ctx.stroke()
+  }
+
+  // How much longer this body has to keep walking. An arc rather than a ring,
+  // because what it is counting down to is the only relief available: the
+  // thing following cannot be killed, so the number is the answer.
+  const hounded = a.alive ? getAura(a, 'hounded') : undefined
+  if (hounded) {
+    const left = Math.max(0, Math.min(1, hounded.remaining / AURA_DURATION.hounded))
+    ctx.beginPath()
+    floorArc(ctx, p.x, p.y, r + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left)
+    ctx.strokeStyle = iconFor('boss_hound').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+  }
+
+  // What the boss has drunk, on whoever is holding it. The swelling's idiom
+  // again, and for the third time in this game the answer is the same one:
+  // swap before the last tick.
+  const dosed = a.alive ? getAura(a, 'dosed') : undefined
+  if (dosed && dosed.stacks > 0) {
+    for (let i = 0; i < Math.min(dosed.stacks, REAGENT_MAX); i++) {
+      const from = -Math.PI / 2 + (i * Math.PI * 2) / REAGENT_MAX
+      ctx.beginPath()
+      floorArc(ctx, p.x, p.y, r + 7, from + 0.08, from + (Math.PI * 2) / REAGENT_MAX - 0.08)
+      ctx.strokeStyle =
+        i >= REAGENT_MAX - 2 ? iconFor('boss_reagent').colour : 'rgba(163, 230, 53, 0.55)'
+      ctx.lineWidth = i >= REAGENT_MAX - 2 ? 3.5 : 2.5
+      ctx.stroke()
+    }
   }
 
   // What the boss has eaten, on whoever is holding it: eight ticks around the

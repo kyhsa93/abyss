@@ -120,6 +120,22 @@ export type AuraId =
    */
   | 'mired'
   /**
+   * Being followed by something that cannot be killed.
+   *
+   * The one demand in this game answered by walking and only by walking, for
+   * twenty-two seconds, by one named body. What makes it more than a chore is
+   * that the gathering lands on whoever is wearing it -- so the person who has
+   * to keep moving is also the point everybody else has to reach.
+   */
+  | 'hounded'
+  /**
+   * What the boss has drunk, on whoever is holding it.
+   *
+   * A public count with a swap in it: the seventh is a hit nobody survives
+   * standing next to, and the sixth is where the other tank takes over.
+   */
+  | 'dosed'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -421,6 +437,16 @@ export type GroundKind =
   // Ground that spreads from the boss and hurts nobody. What it takes is
   // speed, from the raid and from the fight's own bodies alike.
   | 'flood'
+  // A broken flask: a large hit where it lands, and floor that stays long
+  // enough to decide where the rest of the fight can happen.
+  | 'caustic'
+  // The circle everybody has to be inside, which is drawn shrinking rather
+  // than growing because what it says is "come here" rather than "leave".
+  | 'gather'
+  // A flask on the floor with a long count on it. The only piece of ground in
+  // this game that is a *thing* rather than a hazard, and the only one whose
+  // count stops while somebody is standing on it.
+  | 'decant'
 
 export interface GroundEffect {
   id: number
@@ -479,6 +505,17 @@ export interface GroundEffect {
    * then it is that person's to walk.
    */
   named?: number
+
+  /**
+   * Whether somebody is standing on this and holding its count.
+   *
+   * Only a flask has it, and only the picture reads it: a count that has
+   * stopped and a count that is running look identical otherwise, and which of
+   * the two it is decides whether anybody has to do anything about it. Written
+   * by the floor rather than derived in the renderer, so the two cannot
+   * disagree about what the fight is doing.
+   */
+  held?: boolean
 }
 
 /**

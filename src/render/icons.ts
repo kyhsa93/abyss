@@ -273,6 +273,14 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   boss_flood: { colour: '#9acd32', style: 'burst' },
   boss_merge: { colour: '#d9f99d', style: 'burst' },
   boss_engulf: { colour: '#1a2e05', style: 'crush' },
+  // The two flasks' five. The workshop's own colours, and the gathering is the
+  // brightest of them because it is the one shape here that means come rather
+  // than leave.
+  boss_caustic: { colour: '#c0ca33', style: 'burst' },
+  boss_hound: { colour: '#7cb342', style: 'cleave' },
+  boss_gather: { colour: '#dce775', style: 'crush' },
+  boss_decant: { colour: '#33691e', style: 'burst' },
+  boss_reagent: { colour: '#558b2f', style: 'pierce' },
   boss_bonestorm: { colour: '#d6d3d1', style: 'crush' },
   boss_blight: { colour: '#365314', style: 'crush' },
   boss_inhale: { colour: '#a3e635', style: 'burst' },

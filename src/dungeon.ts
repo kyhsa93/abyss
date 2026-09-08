@@ -194,10 +194,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'laboratory',
     name: 'The Laboratory',
     wing: 'plague',
-    encounter: null,
-    awaiting: 'the two answers at once (#8)',
-    // Wide and shallow, with the two rooms it waits for on the same wall.
-    room: { kind: 'hall', halfWidth: 620, front: 420, back: 300 },
+    encounter: 5,
   },
 
   // --- the crimson hall -----------------------------------------------------
