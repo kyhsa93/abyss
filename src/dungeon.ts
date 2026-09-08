@@ -336,23 +336,61 @@ export function chamberAt(id: string): Chamber | undefined {
   return CHAMBERS.find((c) => c.id === id)
 }
 
+/**
+ * Whether there is anything in a room to be stopped by.
+ *
+ * A room whose fight is not built yet has nothing alive in it, so a door that
+ * waited on it would be a door that never opens — and with the map now the
+ * only way into a raid, that is not a gap in the citadel but a fight the game
+ * has and cannot reach. The way up runs through two unbuilt rooms before the
+ * crossing, which is to say every wing above them was sealed off by rooms
+ * containing nothing.
+ *
+ * So an unbuilt room is a room, the same as the threshold and the crossing
+ * are: you walk through it. It starts holding its door the day its fight is
+ * written, and nothing else has to change for that to happen.
+ */
+export function standing(id: string): boolean {
+  const chamber = chamberAt(id)
+  if (!chamber) return false
+  return chamber.encounter !== null && chamber.encounter < ENCOUNTERS.length
+}
+
 /** Every room of a wing that holds a fight, which is what "the wing is done" is about. */
 export function wingFights(wing: WingId): Chamber[] {
-  return CHAMBERS.filter(
-    (c) => c.wing === wing && (c.encounter !== null || c.awaiting !== undefined),
-  )
+  return CHAMBERS.filter((c) => c.wing === wing && standing(c.id))
 }
 
-/** Whether a wing has nothing left alive in it. */
+/**
+ * Whether a wing has nothing left alive in it.
+ *
+ * A wing whose fights are all still to be written has nothing alive in it and
+ * is therefore done, by the same rule as `standing`: the top of the building
+ * must not be sealed off by rooms that are empty because nobody has filled
+ * them yet. It stops being done the day one of them is written.
+ */
 export function wingCleared(wing: WingId, cleared: ReadonlySet<string>): boolean {
-  const fights = wingFights(wing)
-  return fights.length > 0 && fights.every((c) => cleared.has(c.id))
+  return wingFights(wing).every((c) => cleared.has(c.id))
 }
 
+/**
+ * Whether a gate is open, asked strictly: every room it names has to be down.
+ *
+ * This is the question a *pad* asks, and a pad is earned rather than needed —
+ * it is a walk you no longer have to make, so a pad lit by an empty room would
+ * be a shortcut handed over for nothing. A door asks the looser question in
+ * `passageOpen`, because a door that never opens is content nobody can reach.
+ */
 export function gateOpen(gate: Gate | undefined, cleared: ReadonlySet<string>): boolean {
   if (!gate || gate.kind === 'always') return true
   if (gate.kind === 'killed') return gate.chambers.every((id) => cleared.has(id))
   return gate.wings.every((wing) => wingCleared(wing, cleared))
+}
+
+/** The same question a door asks: a room with nothing in it cannot hold one shut. */
+export function passageOpen(gate: Gate | undefined, cleared: ReadonlySet<string>): boolean {
+  if (gate?.kind !== 'killed') return gateOpen(gate, cleared)
+  return gate.chambers.every((id) => !standing(id) || cleared.has(id))
 }
 
 /**
@@ -375,7 +413,7 @@ export function reachable(cleared: ReadonlySet<string>): Set<string> {
       // different thing from a locked door behind you.
       const next = passage.from === here ? passage.to : passage.to === here ? passage.from : null
       if (next === null || seen.has(next)) continue
-      if (!gateOpen(passage.gate, cleared)) continue
+      if (!passageOpen(passage.gate, cleared)) continue
       seen.add(next)
       queue.push(next)
     }

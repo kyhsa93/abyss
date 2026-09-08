@@ -214,6 +214,16 @@ export function drawRoster(
   clock: number,
   encounter: number,
   mode: RosterMode = { kind: 'raid' },
+  /**
+   * Whether the button opens a door rather than starting a fight.
+   *
+   * A raid is walked into at the threshold now, so the last press on this
+   * screen is usually the way into the building and not a pull. It is still a
+   * pull when the party came back out of a room to change class, and when the
+   * fight belongs to somebody else's link — which is why this is asked of the
+   * caller rather than worked out from the mode.
+   */
+  door = false,
 ): void {
   // Slot zero is the player's, and the only one they choose.
   const activeSlot = 0
@@ -267,7 +277,13 @@ export function drawRoster(
   if (headline) {
     ctx.fillStyle = mode.kind === 'raid' ? COLORS.boss : COLORS.tank
     ctx.font = font(10, true)
-    fitText(ctx, `${headline.name} — ${headline.demand}`, L.w / 2, line(3), L.w - 16)
+    fitText(
+      ctx,
+      `${door ? 'first room — ' : ''}${headline.name} — ${headline.demand}`,
+      L.w / 2,
+      line(3),
+      L.w - 16,
+    )
   }
 
   // And the same list the setup screen showed, repeated where the pull button
@@ -333,13 +349,19 @@ export function drawRoster(
   ctx.font = font(14, true)
   ctx.textAlign = 'center'
   // The label degrades before the button does on a narrow screen.
+  const roomy = layout.pull.w > 210
+  const how = `${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
   const label =
     mode.kind !== 'raid'
-      ? layout.pull.w > 210
+      ? roomy
         ? `ENTER — ${modeLabel(mode).toUpperCase()}`
         : 'ENTER'
-      : layout.pull.w > 210
-        ? `PULL — ${party.length} player ${DIFFICULTIES[difficulty].name.toLowerCase()}`
-        : `PULL ${party.length}`
+      : door
+        ? roomy
+          ? `WALK IN — ${how}`
+          : `WALK IN ${party.length}`
+        : roomy
+          ? `PULL — ${how}`
+          : `PULL ${party.length}`
   fitText(ctx, label, layout.pull.x + layout.pull.w / 2, layout.pull.y + layout.pull.h * 0.62, layout.pull.w - 12)
 }

@@ -37,6 +37,11 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run conceptcheck
+      # The map is the only way into a raid now, so the check that proves it is
+      # a map -- nothing unreachable, no door held shut by a room with nothing
+      # in it, no route to the top that skips a wing -- is a gate rather than
+      # something run by hand. It answers in seconds.
+      - run: npm run dungeoncheck
       - run: npm run rendercheck
       - run: npm run touchcheck
 

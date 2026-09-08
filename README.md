@@ -40,8 +40,7 @@ filled in later. Each of them breaks one of the four above.
 
 | Mode | The promise | Where it lives |
 |---|---|---|
-| `raid` | learn one fight by repeating it | the whole engine |
-| `citadel` | the whole building, in one evening | `dungeon.ts`, `citadel.ts` |
+| `raid` | walk the citadel from the door, one evening at a time | `dungeon.ts`, `citadel.ts`, the whole engine |
 | `battleground` | a team fight, five against five | `sim/battleground.ts`, `sim/bgai.ts` |
 | `daily` | the run everybody else got today | `sim/daily.ts`, `sim/affix.ts` |
 
@@ -75,13 +74,35 @@ that kind of thing actually has:
        ┌───────────┼────────────┐
      RAID    BATTLEGROUND    SETTINGS
        │           │             │
-  boss, size,  which map      sound, volume
-  difficulty       │
+ size, difficulty  which map   sound, volume
+       │           │
        └─────┬─────┘
         pick your class
              │
-           PULL
+       ┌─────┴─────┐
+    THE MAP       PULL        (a raid walks in; a battleground pulls)
+       │
+   pick a room ── PULL
 ```
+
+**A raid is a building, not a boss list.** There is no field that names a
+fight. Pressing RAID asks how many of you there are and how hard it should be,
+then who you are playing, and then puts the party at the threshold with a map
+of the citadel: fifteen rooms, one way up for the first four, three wings that
+may be taken in any order and a throne that does not open until all three are
+done. On the map a press means *go there* — a step through a door, a walk down
+ground somebody is holding, or a pad once one is lit. Standing in a room with
+something still alive in it, the same press pulls.
+
+The evening is saved between visits — it is the one thing here long enough to
+be interrupted — so RAID resumes where you stood rather than asking its two
+questions again. What you killed stays dead; a wipe costs the pull and not the
+night. GIVE UP on the map ends it and puts the next one back at the door.
+
+**And an evening that has run out says so.** The chain opens the building
+slowly, so an early one is a room or two and then nothing above it. Rather
+than leave a saved map with only GIVE UP on it, the map offers the next rung
+of the door in one press — the same building, one setting harder.
 
 All of it used to be one screen. That meant a battleground was chosen on a
 page that also offered a raid's difficulty and a list of bosses, with half the
@@ -95,14 +116,19 @@ row of specs on every screen, twenty-five pixels into them on a desktop. Every
 check passed at the time: the layout checks compare rectangles, and text is not
 a rectangle. They read the drawn labels now.
 
-On the raid screen: pick a boss, a size (5, 10 or 25) and a difficulty — from
-what you have opened, which starts as the first boss at five on normal and
-grows one setting per kill along [the chain](#the-chain). Then
-the class screen asks what
-you are playing. That last one is the only pick you make, and the screen shows
-nothing else — you show up to a raid, you do not build one, and a board of
-twenty-four strangers you did not choose and cannot change is a readout nobody
-needs before a pull. Pick a class and hit PULL.
+On the raid screen: a size (5, 10 or 25) and a difficulty — from what you have
+opened, which starts at five on normal and grows one setting per kill along
+[the chain](#the-chain). Both apply to the whole evening. The chain still gates
+the rooms one at a time, so an evening walked at a rung you have only just
+opened reaches the first room and finds the next one shut: the citadel is
+somewhere to walk the ladder through, not a way round it. Then the class
+screen asks what you are playing. That last one is the only pick you make, and
+the screen shows nothing else — you show up to a raid, you do not build one,
+and a board of twenty-four strangers you did not choose and cannot change is a
+readout nobody needs before a pull. Pick a class and hit WALK IN; the button
+says PULL when what is in front of you is a single fight rather than a
+building — a battleground, a link somebody sent you, or the room you stepped
+out of to change class.
 
 The rest is rolled around you. The roll keeps the role counts and leaves
 everything else to chance: which classes fill them and where they stand.
@@ -1676,15 +1702,30 @@ fielded twenty-five people to go back down to five to carry on.
 The results button is named for what it does. It used to say NEXT BOSS after
 every kill, which was true once in six — now it says `5-MAN HEROIC` or
 `10-MAN NORMAL` when the next rung is this same boss one setting harder, and
-NEXT BOSS only at the top of the six, where it really is.
+NEXT BOSS only at the top of the six, where it really is. Inside the citadel it
+says THE MAP, because what follows a room is the rest of the evening.
 
-Three places can hand the setup screen a setting it has not earned: a save
-written before the chain existed, a shared link to somebody else's fight, and
-pressing a boss whose top rungs are still locked. All three settle the same
-way — down to the best rung *of the boss that was asked for*, never sideways
-onto a different one. A player who pressed the second boss and got moved to
-the first because their difficulty was locked would be reading a stranger
-answer than a player who got moved to normal.
+**The chain is what the map is made of.** With the boss list gone, the raid
+setup asks only a size and a difficulty, and those two are read against the
+*first* fight — the chain opens every rung on it before it opens the second
+fight at all, so a rung this save has reached anywhere it has reached there.
+Which rooms are open inside the building is still asked one room at a time,
+against that room's own fight, so walking in cannot get you past anything:
+the citadel is somewhere to walk the ladder through, not a way round it.
+
+That makes an early evening a short one — the first room, and then nothing
+above it until the whole six of it are done. So a map with nothing left
+pressable on it says so and offers the next rung of the door in one press,
+rather than leaving GIVE UP as the only button that does anything. An evening
+is saved, and a saved evening with no way forward is a trap rather than a
+place.
+
+Two places can hand the setup screen a setting it has not earned: a save
+written before the chain existed and a shared link to somebody else's fight.
+Both settle the same way — down to the best rung *of the boss that was asked
+for*, never sideways onto a different one. A player who followed a link to the
+second boss and got moved to the first because their difficulty was locked
+would be reading a stranger answer than one who got moved to normal.
 
 A save from before the chain held a boss index, since a boss was the only
 thing that was ever locked. It is read as the *first* rung of that boss: the
@@ -1692,10 +1733,12 @@ progress that was actually earned is kept, and the axes that were never a door
 become one. That does take away settings somebody had, which is the cost of
 the change rather than an oversight.
 
-An invitation still opens what it points at, and keeps it. The chain is there
-so a new player meets the game in order, not to stop somebody being invited
-past it — and locking the retry button after they have already fought it once
-would only be a puzzle. Today's run is not on the chain either: it is one
+An invitation still opens what it points at, and keeps it — and it is the one
+raid that is still a single fight rather than an evening, so the class screen
+it lands on pulls that boss instead of walking into the building. The chain is
+there so a new player meets the game in order, not to stop somebody being
+invited past it — and locking the retry button after they have already fought
+it once would only be a puzzle. Today's run is not on the chain either: it is one
 fight a day, the same one for everybody, and gating it would make it a
 different fight for everybody.
 

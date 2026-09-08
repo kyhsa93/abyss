@@ -105,6 +105,54 @@ export function bossOpen(unlocked: number, encounter: number): boolean {
 }
 
 /**
+ * The fight the door opens onto, which is the one the chain opens every rung
+ * on first.
+ *
+ * The setup screen no longer names a boss — an evening is walked into from the
+ * threshold and the building decides the order — so the size and the
+ * difficulty need something to be open *against*. The first fight is the
+ * honest answer and not merely a convenient one: the chain runs
+ * 5N-5H-10N-10H-25N-25H through the first boss before it opens the second at
+ * all, so a rung this save has reached on any fight it has reached on that
+ * one, and the rooms deeper in are gated one at a time as the party walks up
+ * to them.
+ */
+const DOOR_ENCOUNTER = 0
+
+/** Whether an evening may be walked at this size and difficulty at all. */
+export function doorOpen(unlocked: number, size: number, difficulty: DifficultyId): boolean {
+  return isOpen(unlocked, DOOR_ENCOUNTER, size, difficulty)
+}
+
+/** The setting the door is pointed at, which is the pair plus that first fight. */
+export function doorSetting(size: RaidSize, difficulty: DifficultyId): Setting {
+  return { encounter: DOOR_ENCOUNTER, size, difficulty }
+}
+
+/**
+ * Where to walk in next, when this evening has nothing left open in it.
+ *
+ * An evening at a rung the chain has only just reached is a short evening —
+ * one room, sometimes — because the rooms above it are still shut, and the
+ * way to open them is to finish this one at every setting. That is the chain
+ * working, but a map with nothing left to kill and no way forward but GIVE UP
+ * is the chain working invisibly, and the evening is saved, so pressing RAID
+ * again would land back on the same dead map.
+ *
+ * So the map offers the next rung of the door: one step up the six, or back
+ * to the bottom once all six have been walked — the building at five on
+ * normal is a different building after the chain has moved, and starting over
+ * there is the honest thing to offer rather than nothing.
+ */
+export function nextDoor(unlocked: number, size: RaidSize, difficulty: DifficultyId): Tier | null {
+  const here = tierOf(DOOR_ENCOUNTER, size, difficulty)
+  if (here < 0) return tierAt(0)
+  const up = here + 1
+  if (up < RUNGS_PER_BOSS && up <= unlocked) return tierAt(up)
+  return here === 0 ? null : tierAt(0)
+}
+
+/**
  * The setting to fall back to when the one you are on is not open.
  *
  * Reached from a saved setup that predates the chain, from an invitation to a

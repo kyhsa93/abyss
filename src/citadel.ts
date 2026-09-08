@@ -2,10 +2,10 @@ import {
   CHAMBERS,
   PASSAGES,
   chamberAt,
-  gateOpen,
   padsLit,
   passageBetween,
   passageKey,
+  passageOpen,
   reachable,
   type Chamber,
 } from './dungeon'
@@ -158,7 +158,7 @@ export function stepTo(run: Run, to: string): Step {
     return { kind: 'jump', to }
   }
   const passage = passageBetween(run.at, to)
-  if (!passage || !gateOpen(passage.gate, cleared)) return { kind: 'shut' }
+  if (!passage || !passageOpen(passage.gate, cleared)) return { kind: 'shut' }
   const key = passageKey(passage.from, passage.to)
   if (passage.corridor && !isWalked(run, key)) {
     return { kind: 'walk', to, corridor: passage.corridor, key }

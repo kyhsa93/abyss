@@ -1,10 +1,10 @@
 import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
-import { CHAMBERS, PASSAGES, chamberAt, gateOpen, passageKey } from '../dungeon'
+import { CHAMBERS, PASSAGES, chamberAt, passageKey, passageOpen } from '../dungeon'
 import { isCleared, isWalked, open, stepTo, type Run } from '../citadel'
 import { DIFFICULTIES, RAID_SIZES, type DifficultyId } from '../sim/classes'
-import { ENCOUNTERS, MECHANIC_NAMES, encounterKit } from '../sim/encounters'
-import { bossOpen, isOpen } from '../progress'
+import { ENCOUNTERS } from '../sim/encounters'
+import { doorOpen, isOpen } from '../progress'
 import { SPEC_OPTIONS } from '../sim/classes'
 import { VOLUME_NAMES } from '../sfx'
 import type { BgKind } from '../sim/types'
@@ -39,7 +39,6 @@ const SPEC_COUNT = SPEC_OPTIONS.length
 
 export type HomeChoice =
   | 'raid'
-  | 'citadel'
   | 'battleground'
   | 'daily'
   | 'settings'
@@ -228,7 +227,22 @@ export function homeLayout(): HomeLayout {
   }
 }
 
-const HOME_ORDER: HomeChoice[] = ['raid', 'citadel', 'battleground', 'daily', 'settings']
+/** Rooms with a fight in them, built or not: how big the building actually is. */
+const WITH_FIGHTS = CHAMBERS.filter(
+  (c) => c.encounter !== null || c.awaiting !== undefined,
+).length
+
+/**
+ * The ways in, and there is one raid rather than two.
+ *
+ * The citadel used to sit beside the raid as a second entry, and the raid
+ * beside it was a boss list — so the building was optional and the usual way
+ * to meet a fight was to pick its name off a menu. That is the wrong way
+ * round: the map is what the raid *is*, and a list of bosses is what you get
+ * when the walk between them has been thrown away. RAID is the door now, and
+ * every fight in the game is behind it.
+ */
+const HOME_ORDER: HomeChoice[] = ['raid', 'battleground', 'daily', 'settings']
 
 export function drawHome(
   ctx: CanvasRenderingContext2D,
@@ -241,8 +255,11 @@ export function drawHome(
 
   const layout = homeLayout()
   const labels: Array<[string, string, string]> = [
-    ['RAID', `${ENCOUNTERS.length} bosses · 5, 10 or 25 players`, COLORS.castBar],
-    ['THE CITADEL', 'the whole building, in one evening', COLORS.spread],
+    [
+      'RAID',
+      `the citadel from the door · ${ENCOUNTERS.length} of ${WITH_FIGHTS} rooms built`,
+      COLORS.castBar,
+    ],
     ['BATTLEGROUND', `${BATTLEGROUNDS.length} maps · five against five`, COLORS.tank],
     ["TODAY'S RUN", 'one fight a day, the same one for everybody', COLORS.hpBar],
     ['SETTINGS', 'sound', COLORS.textDim],
@@ -284,27 +301,38 @@ export function hitHome(x: number, y: number): HomeChoice | null {
 // --- raid setup -------------------------------------------------------------
 
 /**
- * The three settings a raid has, as three of the same control.
+ * The settings a raid has, as fields of the same shape.
  *
- * They were three rows of buttons, and the rows held five, three and two
- * things. Three counts meant three button widths, and once the labels were
- * fitted to those widths it meant three type sizes on one screen — a boss
- * name printed a fifth smaller than the difficulty beside it, and on a phone
- * the boss row came out at seven points. A row of choices has to be re-shaped
- * every time the number of choices changes; one control that opens does not.
+ * They were rows of buttons — five bosses, three sizes, two difficulties —
+ * and three counts meant three button widths, which once the labels were
+ * fitted to them meant three type sizes on one screen: a boss name printed a
+ * fifth smaller than the difficulty beside it, and on a phone the boss row
+ * came out at seven points. A row of choices has to be re-shaped every time
+ * the number of choices changes; one control that opens does not.
  *
  * So each setting is a field showing its answer, and the list it opens is the
  * same width as the field. Nothing on this screen has to shrink to fit, and
- * nothing has to be re-fitted when a sixth boss arrives.
+ * nothing has to be re-fitted when a fourth raid size arrives.
+ *
+ * There are two of them now. The boss was the third and is gone from here
+ * entirely: which fight you meet is the map's answer, not a field's.
  */
-export type RaidField = 'boss' | 'size' | 'difficulty'
+export type RaidField = 'size' | 'difficulty'
 
-export const RAID_FIELDS: RaidField[] = ['boss', 'size', 'difficulty']
+/**
+ * Two settings now, where there were three.
+ *
+ * The boss was the third, and taking it off is the point rather than a saving:
+ * an evening is walked into at the threshold and what is in the next room is
+ * the building's answer, not a field. What is left is the pair the chain
+ * actually sells — how many of you there are and how hard it is — and both of
+ * them apply to the whole evening rather than to one fight.
+ */
+export const RAID_FIELDS: RaidField[] = ['size', 'difficulty']
 
 export const DIFFICULTY_ORDER: DifficultyId[] = ['normal', 'heroic']
 
 const FIELD_NAMES: Record<RaidField, string> = {
-  boss: 'BOSS',
   size: 'RAID SIZE',
   difficulty: 'DIFFICULTY',
 }
@@ -337,34 +365,25 @@ interface Choice {
 
 function choicesFor(
   field: RaidField,
-  encounter: number,
   unlocked: number,
   size: number,
   difficulty: DifficultyId,
 ): Choice[] {
-  if (field === 'boss') {
-    return ENCOUNTERS.map((fight, i) => ({
-      label: fight.short,
-      open: bossOpen(unlocked, i),
-      chosen: i === encounter,
-    }))
-  }
   if (field === 'size') {
     return RAID_SIZES.map((option) => ({
       label: `${option}`,
-      open: isOpen(unlocked, encounter, option, 'normal'),
+      open: doorOpen(unlocked, option, 'normal'),
       chosen: option === size,
     }))
   }
   return DIFFICULTY_ORDER.map((id) => ({
     label: DIFFICULTIES[id].name,
-    open: isOpen(unlocked, encounter, size, id),
+    open: doorOpen(unlocked, size, id),
     chosen: id === difficulty,
   }))
 }
 
 function accentFor(field: RaidField, difficulty: DifficultyId): string {
-  if (field === 'boss') return COLORS.boss
   if (field === 'difficulty' && difficulty === 'heroic') return COLORS.hpBarLow
   return COLORS.castBar
 }
@@ -410,7 +429,6 @@ function listRects(field: Rect, count: number): Rect[] {
 }
 
 function optionCount(field: RaidField): number {
-  if (field === 'boss') return ENCOUNTERS.length
   if (field === 'size') return RAID_SIZES.length
   return DIFFICULTY_ORDER.length
 }
@@ -517,7 +535,6 @@ function optionRow(
 
 export function drawRaidSetup(
   ctx: CanvasRenderingContext2D,
-  encounter: number,
   /** How far up the one chain of settings the player has climbed. */
   unlocked: number,
   size: number,
@@ -526,12 +543,10 @@ export function drawRaidSetup(
   open: RaidField | null = null,
 ): void {
   backdrop(ctx)
-  screenTitle(ctx, 'RAID', 'pick the fight, then who you are playing')
+  screenTitle(ctx, 'RAID', 'how many, and how hard — the building decides the rest')
 
   const layout = raidSetupLayout(open)
-  const lists = RAID_FIELDS.map((field) =>
-    choicesFor(field, encounter, unlocked, size, difficulty),
-  )
+  const lists = RAID_FIELDS.map((field) => choicesFor(field, unlocked, size, difficulty))
   const tallies = lists.map((list) => `${list.filter((c) => c.open).length}/${list.length}`)
 
   // One size for the whole screen, measured over everything that has to fit
@@ -565,15 +580,15 @@ export function drawRaidSetup(
     )
   })
 
-  // What the three fields add up to.
+  // What the two fields add up to, which is now a building rather than a
+  // pull.
   //
-  // The boss, the size and the difficulty each decide part of one thing —
-  // which mechanics this pull has in it — and until this was here that sum
-  // was invisible: a player who ticked heroic could see the health bar go up
-  // and had no way to learn that a rung had been bought as well. It reads off
-  // the same function the scheduler does, so it cannot describe a fight that
-  // is not the one about to start.
-  drawSummary(ctx, encounter, size, difficulty, layout)
+  // The size and the difficulty each buy a mechanic, and until this was here
+  // that was invisible: a player who ticked heroic could see the health bar
+  // go up and had no way to learn that a rung had been bought as well. What
+  // it counts is rooms, because that is what the pair decides once the boss
+  // is not a field — how far up the building this evening may be walked.
+  drawSummary(ctx, unlocked, size, difficulty, layout)
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
   button(ctx, layout.next, 'PICK YOUR CLASS', '', COLORS.castBar, true)
@@ -596,44 +611,56 @@ export function drawRaidSetup(
   }
 }
 
-/** What the fight asks, what it throws, and how much of the boss that is. */
+/** What the evening opens onto: the first room, and how far past it the chain reaches. */
 function drawSummary(
   ctx: CanvasRenderingContext2D,
-  encounter: number,
+  unlocked: number,
   size: number,
   difficulty: DifficultyId,
   layout: RaidSetupLayout,
 ): void {
-  const fight = ENCOUNTERS[encounter]
-  if (!fight) return
-
-  const kit = encounterKit(fight, size, difficulty)
   const wide = L.w - pad() * 2
   const y = layout.summaryY
   const line = 14 * L.ui * MENU_TEXT
 
-  // The demand used to sit inside the boss button, which is what made the
-  // buttons two lines tall and their type small. It says the same thing here
-  // and only for the fight actually picked.
+  // Every room this pair actually opens. A room whose fight is not built yet
+  // is not one of them, and neither is one the chain has not reached — the
+  // citadel is somewhere to walk the ladder through, not a way round it.
+  const built = CHAMBERS.filter((c) => c.encounter !== null && c.encounter < ENCOUNTERS.length)
+  const reach = built.filter((c) => isOpen(unlocked, c.encounter!, size, difficulty))
+  const first = ENCOUNTERS[built[0]?.encounter ?? 0]
+
   ctx.textAlign = 'center'
   ctx.fillStyle = COLORS.text
   ctx.font = font(10)
-  fitText(ctx, fight.demand, L.w / 2, y, wide)
+  fitText(
+    ctx,
+    "you walk in at the threshold — what is in the next room is the building's answer",
+    L.w / 2,
+    y,
+    wide,
+  )
 
+  // The first fight by name, because it is the one thing about the evening
+  // that is settled before it starts: the way up is single file for the
+  // first four rooms and the first of those is always this.
   ctx.fillStyle = COLORS.boss
   ctx.font = font(10, true)
-  fitText(ctx, kit.map((id) => MECHANIC_NAMES[id]).join(' · '), L.w / 2, y + line, wide)
+  fitText(
+    ctx,
+    first ? `first room — ${first.name}: ${first.demand}` : 'nothing is built yet',
+    L.w / 2,
+    y + line,
+    wide,
+  )
 
-  // And what is still in the boss and not in tonight's pull, so the ladder
-  // reads as a ladder rather than as a fixed list that happens to differ.
-  const held = fight.ladder.length - kit.length
   ctx.fillStyle = COLORS.textDim
   ctx.font = font(8)
   fitText(
     ctx,
-    held > 0
-      ? `${kit.length} of ${fight.ladder.length} — a bigger raid or heroic buys the rest`
-      : `all ${fight.ladder.length}, which is everything it has`,
+    reach.length >= built.length
+      ? `every room the game has built is open at this size and difficulty`
+      : `${reach.length} of ${built.length} built rooms open here — a kill opens the next rung`,
     L.w / 2,
     y + line * 2,
     wide,
@@ -877,7 +904,17 @@ export interface CitadelRow {
 export interface CitadelLayout {
   rows: CitadelRow[]
   back: Rect
-  abandon: Rect
+  /**
+   * Ending the evening, which is only offered while there is one to end.
+   *
+   * Null when the map has nothing left to walk into and there is a rung to
+   * walk it again at: giving up and starting the next evening are then the
+   * same act, and two buttons for one act on a phone's bottom row is one
+   * button too many.
+   */
+  abandon: Rect | null
+  /** Walking the building again one rung up. Null unless the evening is over. */
+  again: Rect | null
 }
 
 const CITADEL_ORDER_IDS = CHAMBERS.map((c) => c.id)
@@ -917,7 +954,12 @@ const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   { id: 'throne', x: 0.5, y: 0.96 },
 ]
 
-export function citadelLayout(run: Run, allowed: ReadonlySet<string> = ALL): CitadelLayout {
+export function citadelLayout(
+  run: Run,
+  allowed: ReadonlySet<string> = ALL,
+  /** The rung to walk it again at, when the evening has nothing left in it. */
+  again: string | null = null,
+): CitadelLayout {
   const p = pad()
   const back = backRect()
   const top = titleY() + 26 * L.ui * MENU_TEXT
@@ -995,10 +1037,28 @@ export function citadelLayout(run: Run, allowed: ReadonlySet<string> = ALL): Cit
     }
   })
 
+  // Offered only when there is genuinely nothing left to kill.
+  //
+  // Not "nothing pressable": every room the party can walk to is pressable,
+  // because the press on this map means *go there*, so a map with somewhere
+  // to stand is not the same as a map with something to do. What ends an
+  // evening is a fight — reached, alive, and open at the rung being walked.
+  const alive = CITADEL_PLAN.some((entry) => {
+    const chamber = chamberAt(entry.id)
+    return (
+      chamber !== undefined &&
+      chamber.encounter !== null &&
+      reached.has(entry.id) &&
+      !isCleared(run, entry.id) &&
+      allowed.has(entry.id)
+    )
+  })
+  const stuck = again !== null && !alive
   return {
     rows,
     back,
-    abandon: { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
+    abandon: stuck ? null : { x: L.w - p - 120 * L.ui, y: back.y, w: 120 * L.ui, h: back.h },
+    again: stuck ? primaryRect() : null,
   }
 }
 
@@ -1006,18 +1066,22 @@ export function drawCitadel(
   ctx: CanvasRenderingContext2D,
   run: Run,
   allowed: ReadonlySet<string> = ALL,
+  /** The rung to walk it again at, when the evening has nothing left in it. */
+  again: string | null = null,
 ): void {
   backdrop(ctx)
+  const layout = citadelLayout(run, allowed, again)
   const down = run.cleared.length
+  const rung = `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'}`
   screenTitle(
     ctx,
     'THE CITADEL',
-    down === 0
-      ? `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'} — nothing down yet`
-      : `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'} — ${down} down, ${run.entered} rooms entered`,
+    layout.again
+      ? `${rung} — nothing above this is open yet`
+      : down === 0
+        ? `${rung} — nothing down yet`
+        : `${rung} — ${down} down, ${run.entered} rooms entered`,
   )
-
-  const layout = citadelLayout(run, allowed)
 
   // The doors first, under the rooms, because that is what they are: a line
   // between two boxes says the citadel is a building rather than a list, and a
@@ -1031,7 +1095,7 @@ export function drawCitadel(
     const a = at(passage.from)
     const b = at(passage.to)
     if (!a || !b) continue
-    const shut = !gateOpen(passage.gate, cleared)
+    const shut = !passageOpen(passage.gate, cleared)
     const held = passage.corridor !== undefined && !isWalked(run, passageKey(passage.from, passage.to))
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
@@ -1080,20 +1144,30 @@ export function drawCitadel(
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
-  button(ctx, layout.abandon, 'GIVE UP', '', COLORS.boss)
+  if (layout.abandon) button(ctx, layout.abandon, 'GIVE UP', '', COLORS.boss)
+  if (layout.again && again) {
+    button(ctx, layout.again, `WALK IT AGAIN — ${again}`, '', COLORS.castBar, true)
+  }
 }
 
-export type CitadelHit = { kind: 'room'; id: string } | { kind: 'back' } | { kind: 'abandon' }
+export type CitadelHit =
+  | { kind: 'room'; id: string }
+  | { kind: 'back' }
+  | { kind: 'abandon' }
+  | { kind: 'again' }
 
 export function hitCitadel(
   run: Run,
   x: number,
   y: number,
   allowed: ReadonlySet<string> = ALL,
+  /** The same argument the drawing was given, so the two cannot disagree. */
+  again: string | null = null,
 ): CitadelHit | null {
-  const layout = citadelLayout(run, allowed)
+  const layout = citadelLayout(run, allowed, again)
   if (inside(layout.back, x, y)) return { kind: 'back' }
-  if (inside(layout.abandon, x, y)) return { kind: 'abandon' }
+  if (layout.abandon && inside(layout.abandon, x, y)) return { kind: 'abandon' }
+  if (layout.again && inside(layout.again, x, y)) return { kind: 'again' }
   for (const row of layout.rows) {
     if (!inside(row.rect, x, y)) continue
     // Only a room with a fight still in it answers. A cleared room is a place

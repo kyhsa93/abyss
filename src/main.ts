@@ -107,10 +107,11 @@ import {
   LADDER,
   RUNGS_PER_BOSS,
   cleared,
+  doorSetting,
   isOpen,
   moved,
+  nextDoor,
   nextSetting,
-  pressBoss,
   pressDifficulty,
   pressSize,
   rungBuys,
@@ -448,6 +449,15 @@ function fresh(said: string | null, at: number): string | undefined {
   return said !== null && performance.now() - at < 2000 ? said : undefined
 }
 let playingDaily = false
+/**
+ * Whether the fight on screen is somebody else's, arriving by link.
+ *
+ * An invitation names one boss at one setting, so it is the one raid that is
+ * still a single fight rather than an evening: the class screen it lands on
+ * has to pull that fight, not walk into the building. Cleared the moment the
+ * player chooses anything for themselves.
+ */
+let visiting = false
 
 /**
  * The evening in the citadel, or null when there is not one.
@@ -462,6 +472,19 @@ let roomId: string | null = null
 /** The door whose ground is being taken, when the fight on screen is a walk. */
 let walkKey: string | null = null
 let roomCarried: number[] = []
+
+/**
+ * The fight the door opens onto.
+ *
+ * Read off the map rather than assumed to be encounter zero: the way up is
+ * single file until the crossing, so the first room with a built fight in it
+ * is the first fight of every evening, and which index that is belongs to
+ * `dungeon.ts`.
+ */
+function firstFight(): number {
+  const first = CHAMBERS.find((c) => c.encounter !== null && c.encounter < ENCOUNTERS.length)
+  return first?.encounter ?? 0
+}
 let daily: Daily = dailyFor(dailyKey(new Date()), party[0] ?? DEFAULT_PARTY[0]!)
 /**
  * One question per screen.
@@ -690,8 +713,13 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       (c) => c.encounter !== null && isOpen(unlocked, c.encounter, run!.size, run!.difficulty),
     ).map((c) => c.id),
   )
+  // Where to walk in next when this one has nothing left. The screen decides
+  // whether to offer it — it only does when the map is genuinely stuck — and
+  // this is only the answer to "at what".
+  const climb = nextDoor(unlocked, run.size, run.difficulty)
+  const again = climb ? tierLabel(climb) : null
   if (tap) {
-    const hit = hitCitadel(run, tap.x, tap.y, allowed)
+    const hit = hitCitadel(run, tap.x, tap.y, allowed, again)
     if (hit?.kind === 'back') {
       screen = 'home'
       return
@@ -701,6 +729,19 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       roomId = null
       saveRun(null)
       screen = 'home'
+      return
+    }
+    if (hit?.kind === 'again' && climb) {
+      // The evening is over, and the next one is the same building one rung
+      // up. Started here rather than sending the player back out to the two
+      // fields, which would ask them to work out for themselves which rung
+      // the one they just finished was.
+      difficulty = climb.difficulty
+      if (climb.size !== party.length) resize(climb.size)
+      saveSetup()
+      run = startRun(Date.now(), climb.size, climb.difficulty)
+      roomId = null
+      saveRun(run)
       return
     }
     if (hit?.kind === 'room') {
@@ -722,7 +763,7 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       return
     }
   }
-  drawCitadel(ctx, run, allowed)
+  drawCitadel(ctx, run, allowed, again)
 }
 
 let state: SimState = newState()
@@ -745,20 +786,37 @@ function rngFor(fight: SimState): Rng {
 
 let rng = rngFor(state)
 
+/**
+ * Back into whatever the evening is standing in, room or held ground.
+ *
+ * One place rather than two. A retry after a wipe and a re-entry after a
+ * class change ask the same question — what is this evening in the middle of
+ * — and answering it in two places is how a corridor comes to be rebuilt as
+ * the room at the far end of it. False when there is nothing to go back into,
+ * so the caller can fall through to an ordinary pull.
+ */
+function reenter(): boolean {
+  if (!run || roomId === null) return false
+  if (walkKey !== null) {
+    const passage = PASSAGES.find((p) => passageKey(p.from, p.to) === walkKey)
+    if (!passage?.corridor) return false
+    walkTo(roomId, walkKey, passage.corridor)
+    return true
+  }
+  const chamber = chamberAt(roomId)
+  if (!chamber || chamber.encounter === null || isCleared(run, roomId)) return false
+  enterRoom(roomId)
+  return true
+}
+
 function restart(): void {
   // A room of the citadel is retried as a room: the evening keeps what it has
   // already killed, and the party goes back to what it walked in with rather
   // than to full.
-  if (run && roomId) {
+  if (run && roomId !== null) {
     run = wipedRoom(run, roomCarried)
     saveRun(run)
-    if (walkKey) {
-      const passage = PASSAGES.find((p) => passageKey(p.from, p.to) === walkKey)
-      if (passage?.corridor) walkTo(roomId, walkKey, passage.corridor)
-      return
-    }
-    enterRoom(roomId)
-    return
+    if (reenter()) return
   }
   attempt++
   recorded = false
@@ -804,6 +862,39 @@ let fightingEncounter: number = encounter
 let fightingMode: RosterMode = mode
 
 /**
+ * Out of the class screen, which is no longer always into a fight.
+ *
+ * A battleground is one match and an invitation is one boss, so both of those
+ * pull. A raid is a building: the party walks in at the threshold and the
+ * next press is on the map. This is the whole of the change the front page
+ * advertises — the class screen used to be the last thing before a boss you
+ * had picked off a list, and it is now the last thing before a door.
+ */
+function walkIn(): void {
+  if (!atTheDoor()) {
+    startFight()
+    return
+  }
+  if (!run) {
+    run = startRun(Date.now(), party.length as RaidSize, difficulty)
+    saveRun(run)
+  }
+  screen = 'citadel'
+}
+
+/**
+ * Whether the class screen's button opens a door or starts a fight.
+ *
+ * One answer, read by the button's label and by what the press does, so the
+ * two cannot say different things. A battleground and somebody else's link
+ * are single fights; so is a room the party stepped out of to change class,
+ * which is what the room test is for.
+ */
+function atTheDoor(): boolean {
+  return mode.kind === 'raid' && !visiting && roomId === null
+}
+
+/**
  * A changed party starts its own progression, since the AI's learning is
  * tied to how many times *these* five have pulled. Leaving the screen without
  * changing anything keeps the progress.
@@ -832,6 +923,11 @@ function startFight(): void {
       (p, i) => p.classId !== fightingParty[i]?.classId || p.spec !== fightingParty[i]?.spec,
     )
   if (changed || state.outcome !== 'ongoing') {
+    // A room or a stretch of held ground is rebuilt as what it is. Rebuilt as
+    // an ordinary pull instead, the fight would forget which room it was in
+    // and the party would walk in on full health rather than on what the last
+    // room left them.
+    if (reenter()) return
     attempt = 0
     fightingParty = party.map((p) => ({ ...p }))
     fightingDifficulty = difficulty
@@ -873,12 +969,29 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
     const hit = hitHome(tap.x, tap.y)
     if (hit === 'raid') {
       mode = { kind: 'raid' }
+      // Nobody is following a link any more: pressing RAID is walking into
+      // the building yourself, and the one-off fight an invitation opens is
+      // over the moment you leave it.
+      visiting = false
       // A battleground forces the roster to five and leaves the difficulty
-      // where it was, so coming back out of one can land on a rung this save
-      // has not earned. Settled on the way in rather than on the way out, so
-      // there is one place that has to remember.
-      settleSetting()
+      // where it was, so coming back out of one can land on a pair this save
+      // has not earned. Settled against the door rather than against whatever
+      // boss the setting was last pointed at — the pair is what the setup
+      // screen asks for now, and the door is what it is asked against.
+      const door = settle(unlocked, doorSetting(party.length as RaidSize, difficulty))
+      difficulty = door.difficulty
+      if (door.size !== party.length) resize(door.size)
       saveSetup()
+      // An evening already going is resumed where it stands rather than
+      // re-asked for its settings: it is the one thing in this game long
+      // enough to be interrupted, which is why it is the one thing saved
+      // mid-way. A fresh one asks the two questions it has.
+      if (run) {
+        if (run.size !== party.length) resize(run.size)
+        difficulty = run.difficulty
+        screen = 'citadel'
+        return
+      }
       screen = 'raid'
       return
     }
@@ -896,19 +1009,6 @@ function updateHome(tap: { x: number; y: number } | null, clock: number): void {
     }
     if (hit === 'settings') {
       screen = 'settings'
-      return
-    }
-    if (hit === 'citadel') {
-      // Resumed if there is one, and started at the door if there is not. An
-      // evening is the one thing in this game long enough to be interrupted,
-      // which is why it is the one thing that is saved mid-way.
-      if (!run) {
-        const start = settle(unlocked, setting())
-        run = startRun(Date.now(), start.size, start.difficulty)
-        saveRun(run)
-      }
-      if (run.size !== party.length) resize(run.size)
-      screen = 'citadel'
       return
     }
     if (hit === 'record') {
@@ -1015,6 +1115,10 @@ function updateRaidSetup(tap: { x: number; y: number } | null): void {
     }
     if (hit?.kind === 'next') {
       raidOpen = null
+      // The first room of the building is the fight the class screen shows,
+      // because the way up is single file until the crossing: whatever else
+      // this evening turns out to be, the first thing in it is this.
+      encounter = firstFight()
       screen = 'roster'
       return
     }
@@ -1028,20 +1132,22 @@ function updateRaidSetup(tap: { x: number; y: number } | null): void {
       // locked comes back unchanged — it is listed locked rather than being
       // absent, since what is left up there is worth knowing — and a press
       // that opens a field may bring another one down with it.
-      const before = setting()
+      const before = doorSetting(party.length as RaidSize, difficulty)
       const next =
-        hit.field === 'boss'
-          ? pressBoss(unlocked, before, hit.index)
-          : hit.field === 'size'
-            ? pressSize(unlocked, before, RAID_SIZES[hit.index]!)
-            : pressDifficulty(unlocked, before, DIFFICULTY_ORDER[hit.index]!)
-      apply(next)
+        hit.field === 'size'
+          ? pressSize(unlocked, before, RAID_SIZES[hit.index]!)
+          : pressDifficulty(unlocked, before, DIFFICULTY_ORDER[hit.index]!)
+      // Only the pair moves. The encounter on a door setting is the first
+      // fight and is there to say what "open" means, not to be chosen.
+      difficulty = next.difficulty
+      if (next.size !== party.length) resize(next.size)
+      saveSetup()
       // A press that changed nothing was a press onto a locked rung, and
       // shutting the list on it would read as the press having been taken.
       if (moved(before, next)) raidOpen = null
     }
   }
-  drawRaidSetup(ctx, encounter, unlocked, party.length, difficulty, raidOpen)
+  drawRaidSetup(ctx, unlocked, party.length, difficulty, raidOpen)
 }
 
 function updateBgSetup(tap: { x: number; y: number } | null): void {
@@ -1141,7 +1247,11 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
     if (hit?.kind === 'class') {
       chooseOwn(hit.pick)
     } else if (hit?.kind === 'back') {
-      screen = mode.kind === 'raid' ? 'raid' : 'battleground'
+      // Back to wherever the class screen was reached from: the map while an
+      // evening is going, the two settings before one is, and the front page
+      // when the fight belongs to somebody else.
+      screen =
+        mode.kind !== 'raid' ? 'battleground' : visiting ? 'home' : run ? 'citadel' : 'raid'
       return
     } else if (hit?.kind === 'compose') {
       // Seeded here rather than kept in step with `party`: the board has to
@@ -1151,11 +1261,11 @@ function updateRoster(tap: { x: number; y: number } | null, clock: number): void
       screen = 'composition'
       return
     } else if (hit?.kind === 'pull') {
-      startFight()
+      walkIn()
       return
     }
   }
-  drawRoster(ctx, party, difficulty, clock, encounter, mode)
+  drawRoster(ctx, party, difficulty, clock, encounter, mode, atTheDoor())
 }
 
 /**
@@ -1248,6 +1358,8 @@ function applyComposition(): void {
       // falls back rather than opening on something the screen draws locked.
       settleSetting()
       saveSetup()
+      // One boss, one setting, and no evening around it.
+      visiting = true
       screen = 'roster'
     }
   }

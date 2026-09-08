@@ -7,7 +7,9 @@ import {
   killedOnce,
   padsLit,
   reachable,
+  standing,
   wingCleared,
+  wingFights,
   type Chamber,
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
@@ -159,7 +161,18 @@ expect(
   order('lair') > order('dream'),
   walk.order.join(' -> '),
 )
-expect('and the throne is last of all', order('throne') === walk.order.length - 1, walk.order.join(' -> '))
+// Last of everything the building actually has in it. A room whose fight is
+// not written yet holds no door — see `standing` — so it can be walked into
+// after the throne in this sweep without the top having been reached early.
+// What must never happen is a *written* fight opening after it, and that is
+// the question this asks; the day the laboratory is written it goes back to
+// being the flat "last of all" it used to be, with no edit here.
+const written = fights.filter((c) => standing(c.id))
+expect(
+  `and the throne is last of the ${written.length} fights the game has written`,
+  written.every((c) => order(c.id) < order('throne')),
+  walk.order.join(' -> '),
+)
 
 // The one that matters: there is no way to the top that skips a wing. Asked by
 // clearing every fight except one and checking the throne stays shut, for each
@@ -168,6 +181,10 @@ const skips: string[] = []
 for (const missed of fights) {
   const cleared = new Set(fights.filter((c) => c.id !== missed.id).map((c) => c.id))
   if (missed.id === 'throne') continue
+  // Only a room with something in it can hold the top shut, so only one of
+  // those can be proved to. An unwritten room left out of this sweep would
+  // "skip" a wing that has nothing in it to skip.
+  if (!standing(missed.id)) continue
   if (reachable(cleared).has('throne') && ['plague', 'crimson', 'frostwing'].includes(missed.wing)) {
     skips.push(`without ${missed.id}`)
   }
@@ -182,12 +199,39 @@ const free = wings.filter((wing) => {
 })
 expect('the three wings open together and may be taken in any order', free.length === 3, free.join(', '))
 for (const wing of wings) {
+  const inWing = wingFights(wing)
+  if (inWing.length === 0) {
+    // Loud rather than quiet. A wing with nothing written in it counts as
+    // done, which is the only thing that keeps the throne reachable while
+    // half the building is an issue number — and it is exactly the kind of
+    // rule that would go on being true after it stopped being right.
+    console.log(`--    ${wing}: NOT CHECKED — no fight in it is written yet, so the wing counts as done`)
+    continue
+  }
   expect(
     `and ${wing} counts as done only when every fight in it is`,
-    !wingCleared(wing, new Set(CHAMBERS.filter((c) => c.wing === wing).map((c) => c.id).slice(0, 1))),
-    'a wing said it was done with one room cleared',
+    inWing.every((_, i) => !wingCleared(wing, new Set(inWing.slice(0, i).map((c) => c.id)))),
+    'a wing said it was done with a fight still standing in it',
   )
 }
+// And the ones that were let off are let off for the one reason allowed.
+//
+// Not a tautology: `wingFights` calls a room empty both when it is waiting on
+// an issue and when it names a fight the game does not have, and only the
+// first of those is a reason to hand a wing over. A room pointing at an
+// encounter index that is out of range would otherwise open the top of the
+// building and say nothing.
+const freeWings = wings.filter((wing) => wingFights(wing).length === 0)
+const namedInFree = freeWings.flatMap((wing) =>
+  CHAMBERS.filter((c) => c.wing === wing && c.encounter !== null).map(
+    (c) => `${c.id} names ${c.encounter}`,
+  ),
+)
+expect(
+  'and a wing that is done for nothing names no fight at all',
+  namedInFree.length === 0,
+  namedInFree.join(', '),
+)
 
 // --- the pads --------------------------------------------------------------
 

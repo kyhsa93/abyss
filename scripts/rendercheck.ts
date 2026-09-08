@@ -222,6 +222,7 @@ import {
   bestOpen,
   bossOpen,
   cleared,
+  doorOpen,
   hasNextTier,
   isOpen,
   moved,
@@ -5406,7 +5407,7 @@ for (const [label, w, h] of [
     homeRects.every((r, i) => homeRects.every((o, j) => i === j || !collides(r, o))),
     'two choices share space',
   )
-  const answers = ['raid', 'citadel', 'battleground', 'daily', 'settings'] as const
+  const answers = ['raid', 'battleground', 'daily', 'settings'] as const
   expect(
     `${label}: each choice answers as itself`,
     answers.every((want, i) => hitHome(...middle(home.choices[i]!)) === want) &&
@@ -5415,10 +5416,10 @@ for (const [label, w, h] of [
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
   )
 
-  // Raid setup: three fields that open, and the way on. Drawn at both ends of
+  // Raid setup: two fields that open, and the way on. Drawn at both ends of
   // the chain, since the locked labels are a different set.
-  drawRaidSetup(stubCtx(), 0, LADDER.length - 1, 5, 'heroic')
-  drawRaidSetup(stubCtx(), 0, FIRST_TIER, 25, 'normal')
+  drawRaidSetup(stubCtx(), LADDER.length - 1, 5, 'heroic')
+  drawRaidSetup(stubCtx(), FIRST_TIER, 25, 'normal')
   const raid = raidSetupLayout()
   const raidRects = [...raid.fields, raid.back, raid.next]
   expect(`${label}: the raid setup fits`, raidRects.every(onScreen), JSON.stringify(raidRects.filter((r) => !onScreen(r))))
@@ -5443,13 +5444,12 @@ for (const [label, w, h] of [
   // list closes it and does nothing else, or you leave the screen by trying
   // to put a list away.
   const counts: Record<string, number> = {
-    boss: ENCOUNTERS.length,
     size: RAID_SIZES.length,
     difficulty: 2,
   }
   for (const field of RAID_FIELDS) {
-    drawRaidSetup(stubCtx(), 0, LADDER.length - 1, 5, 'heroic', field)
-    drawRaidSetup(stubCtx(), 0, FIRST_TIER, 25, 'normal', field)
+    drawRaidSetup(stubCtx(), LADDER.length - 1, 5, 'heroic', field)
+    drawRaidSetup(stubCtx(), FIRST_TIER, 25, 'normal', field)
     const down = raidSetupLayout(field)
     expect(
       `${label}: the ${field} list has one row per choice`,
@@ -5624,7 +5624,7 @@ for (const [label, w, h] of [
     ] as const) {
       for (const open of [null, ...RAID_FIELDS] as const) {
         const out: Typed[] = []
-        drawRaidSetup(typedCtx(out), 0, unlocked, 5, 'heroic', open)
+        drawRaidSetup(typedCtx(out), unlocked, 5, 'heroic', open)
         const layout = raidSetupLayout(open)
         const boxes: Box[] = [...layout.fields, ...layout.options]
         // An open list is drawn over the headings under it, so being inside a
@@ -5658,16 +5658,16 @@ for (const [label, w, h] of [
       // included: the count beside the answer is the only other place the
       // screen says how much is still above you, and it has to agree.
       const out: Typed[] = []
-      drawRaidSetup(typedCtx(out), 0, unlocked, 5, 'heroic', 'boss')
+      drawRaidSetup(typedCtx(out), unlocked, 5, 'heroic', 'size')
       expect(
-        `${label} ${state}: every boss is in the list`,
-        ENCOUNTERS.every((fight) => out.some((t) => t.text === fight.short)),
-        JSON.stringify(ENCOUNTERS.filter((f) => !out.some((t) => t.text === f.short)).map((f) => f.short)),
+        `${label} ${state}: every raid size is in the list`,
+        RAID_SIZES.every((size) => out.some((t) => t.text === `${size}`)),
+        JSON.stringify(RAID_SIZES.filter((size) => !out.some((t) => t.text === `${size}`))),
       )
-      const listed = ENCOUNTERS.filter((_, i) => bossOpen(unlocked, i)).length
+      const listed = RAID_SIZES.filter((size) => doorOpen(unlocked, size, 'normal')).length
       expect(
         `${label} ${state}: and the count says how many are open`,
-        out.some((t) => t.text.startsWith(`${listed}/${ENCOUNTERS.length}`)),
+        out.some((t) => t.text.startsWith(`${listed}/${RAID_SIZES.length}`)),
         JSON.stringify(out.map((t) => t.text).filter((t) => t.includes('/'))),
       )
     }
@@ -9265,8 +9265,16 @@ for (const [label, w, h] of [
     expect(
       `${label}: the way out and the way to give up both answer`,
       hitCitadel(run, layout.back.x + 4, layout.back.y + 4, allowed)?.kind === 'back' &&
+        layout.abandon !== null &&
         hitCitadel(run, layout.abandon.x + 4, layout.abandon.y + 4, allowed)?.kind === 'abandon',
       'a button does not answer',
+    )
+    // An evening with a room still open is an evening: it is not offered a
+    // different one, whatever rung the chain has reached.
+    expect(
+      `${label}: and a map with somewhere to go is not offered another evening`,
+      citadelLayout(run, allowed, '10-MAN NORMAL').again === null,
+      'the way on was offered over a room that is still alive',
     )
 
     // And it draws. The stub answers everything; what is being checked is that
@@ -9293,6 +9301,33 @@ for (const [label, w, h] of [
     closed.rows.find((r) => r.id === 'airless')?.state === 'shut',
     closed.rows.find((r) => r.id === 'airless')?.state ?? 'missing',
   )
+
+  // And an evening with nothing left open in it is offered the next rung
+  // rather than a dead map. Without this the run is saved, the front page
+  // resumes it, and the only way on is a button that says GIVE UP.
+  //
+  // "Nothing left" is about fights, not about presses: every room the party
+  // can walk to answers a tap, because the press on this map means go there.
+  // So the evening below has somewhere to stand and nothing to kill.
+  const stuck = { ...run, cleared: ['spire', 'oratory'], at: 'oratory' }
+  const dead = citadelLayout(stuck, new Set(['spire', 'oratory']), '10-MAN NORMAL')
+  expect(
+    'an evening with nowhere left to walk offers the next rung',
+    dead.again !== null && dead.abandon === null,
+    `again ${dead.again === null ? 'missing' : 'there'}, abandon ${dead.abandon === null ? 'gone' : 'there'}`,
+  )
+  expect(
+    'and the way on answers as itself',
+    hitCitadel(stuck, dead.again!.x + 4, dead.again!.y + 4, new Set(['spire', 'oratory']), '10-MAN NORMAL')
+      ?.kind === 'again',
+    'the way on answered as something else',
+  )
+  expect(
+    'and it is not offered when the chain has nothing above this run',
+    citadelLayout(stuck, new Set(['spire', 'oratory'])).again === null,
+    'a way on with nowhere to go',
+  )
+  drawCitadel(ctx, stuck, new Set(['spire', 'oratory']), '10-MAN NORMAL')
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)
