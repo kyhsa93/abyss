@@ -297,7 +297,13 @@ function corridor(
   const front = top + 200
   return {
     id,
-    room: { kind: 'hall', halfWidth: 360, front, back: 240 },
+    // Narrow, because a corridor is narrow. At three hundred and sixty either
+    // side it was a long room, and a long room is somewhere a raid spreads out
+    // and walks round what is standing in it — which is the one thing held
+    // ground is not for. The build walks every one of these and says whether a
+    // party still fits: nobody in a wall, nobody out of the room, and it still
+    // costs something to cross.
+    room: { kind: 'hall', halfWidth: 250, front, back: 240 },
     entry: { x: 0, y: front - 60 },
     ways: [{ to, at: { x: 0, y: -120 } }],
     packs,
