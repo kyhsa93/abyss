@@ -62,6 +62,7 @@ import {
   TICK_RATE,
 } from './constants'
 import type { Rng } from './rng'
+import { updateTravel, updateTravelAi } from './travel'
 import { BOSS_ID } from './state'
 import type { Ability } from './abilities'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -160,12 +161,14 @@ export function step(s: SimState, input: PlayerInput, rng: Rng): void {
   for (const a of thinkers) {
     if (!a.ai) continue
     if (s.mode === 'battleground') updateBattlegroundAi(s, a, rng)
+    else if (s.mode === 'travel') updateTravelAi(s, a, rng)
     else if (a.faction === 'party') updatePartyAi(s, a, rng)
   }
 
   updateAutoAttacks(s, rng)
 
   if (s.mode === 'battleground') updateBattleground(s)
+  else if (s.mode === 'travel') updateTravel(s, rng)
   else updateBoss(s, rng)
   updateGround(s)
   updateProjectiles(s, rng)

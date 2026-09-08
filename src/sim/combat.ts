@@ -704,7 +704,10 @@ export function applyDamage(
     // second instead would have quietly made the last ten seconds of every
     // close pull twenty percent worse, which is a balance change wearing a
     // bug fix's clothes.
-    const enraged = target.faction === 'party' && getAura(boss(s), 'enrage')
+    // A corridor has no boss to be enraged, and asking for one there is how
+    // the walk between two rooms found this line.
+    const enraged =
+      target.faction === 'party' && s.mode === 'raid' && getAura(boss(s), 'enrage')
     if (enraged) {
       const since = s.time - encounterAt(s.encounter).enrage - ENRAGE_GRACE
       final *= since > 0 ? 2 * Math.pow(2, since / 30) : 2

@@ -2,6 +2,7 @@ import type { ClassId, DifficultyId, Pick, SpecId } from './classes'
 import type { AffixId } from './affix'
 import type { MechanicId } from './encounters'
 import type { RoomShape } from './room'
+import type { TravelState } from './travel'
 
 export type Role = 'tank' | 'healer' | 'dps'
 export type Faction = 'party' | 'boss'
@@ -595,7 +596,14 @@ export type Outcome = 'ongoing' | 'victory' | 'wipe' | 'enrage' | 'defeat'
  * path, the same renderer. What differs is who is on the other side and what
  * ends it — a boss on a script, or five of the same classes you brought.
  */
-export type Mode = 'raid' | 'battleground'
+/**
+ * What kind of thing is being simulated.
+ *
+ * `travel` is the walk between two rooms of the citadel: the same bodies and
+ * the same combat, with no boss, no script and no floor — see `sim/travel.ts`
+ * for why that is a mode rather than a fight with an empty ladder.
+ */
+export type Mode = 'raid' | 'battleground' | 'travel'
 
 export type Team = 'blue' | 'red'
 
@@ -971,6 +979,13 @@ export interface SimState {
    * rung goes to the next rung, and a room goes back to the map.
    */
   chamber: string | null
+  /**
+   * The corridor being walked, or null everywhere else.
+   *
+   * Beside `bg` and read the same way: `mode` is what says which of them to
+   * look at.
+   */
+  travel: TravelState | null
   room: RoomShape
   /**
    * Which door the next thing summoned comes through.

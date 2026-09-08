@@ -1,4 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
+import type { Corridor } from './sim/travel'
 import { RUNGS_PER_BOSS } from './progress'
 
 /**
@@ -47,6 +48,15 @@ export interface Chamber {
   encounter: number | null
   /** For a room whose fight is not built yet: what it is waiting for. */
   awaiting?: string
+  /**
+   * A room that is a walk rather than a fight.
+   *
+   * The source puts held ground between some of its rooms, and what that
+   * ground is for is not difficulty: it costs time, it costs health, and it
+   * asks where to take the next pack. A chamber with one of these is entered
+   * like any other and is over when the party is through the far door.
+   */
+  corridor?: Corridor
   /**
    * The pad in this room, and what lights it.
    *
@@ -160,10 +170,33 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     awaiting: 'the boss that is healed (#11)',
   },
-  // A room with no fight and no choice, and the only one of those in the
-  // building: a stretch of held ground between the dragon and the lair. What
-  // is in it is #24's business.
-  { id: 'gauntlet', name: 'The Frost Gauntlet', wing: 'frostwing', encounter: null },
+  // Held ground between the dragon and the lair: the citadel's first corridor.
+  //
+  // Three packs down a narrow hall, and the numbers are the whole design. The
+  // first two notice within four hundred and forty units of each other and
+  // their circles are four hundred and eighty across, so taking the first one
+  // carelessly brings the second — that overlap is the only decision a
+  // corridor has, and it is here on purpose. The third stands clear.
+  //
+  // Nothing can be walked past: the line from door to door runs inside every
+  // circle, which the build checks. A corridor you can jog through is scenery.
+  {
+    id: 'gauntlet',
+    name: 'The Frost Gauntlet',
+    wing: 'frostwing',
+    encounter: null,
+    corridor: {
+      id: 'gauntlet',
+      room: { kind: 'hall', halfWidth: 360, front: 1360, back: 240 },
+      entry: { x: 0, y: 1240 },
+      exit: { x: 0, y: -120 },
+      packs: [
+        { pos: { x: 0, y: 980 }, count: 4, pulls: 230 },
+        { pos: { x: -130, y: 560 }, count: 3, pulls: 250 },
+        { pos: { x: 140, y: 120 }, count: 5, pulls: 240 },
+      ],
+    },
+  },
   {
     id: 'lair',
     name: 'The Rimeward Lair',
@@ -223,7 +256,9 @@ export function chamberAt(id: string): Chamber | undefined {
 
 /** Every room of a wing that holds a fight, which is what "the wing is done" is about. */
 export function wingFights(wing: WingId): Chamber[] {
-  return CHAMBERS.filter((c) => c.wing === wing && (c.encounter !== null || c.awaiting !== undefined))
+  return CHAMBERS.filter(
+    (c) => c.wing === wing && (c.encounter !== null || c.awaiting !== undefined || c.corridor !== undefined),
+  )
 }
 
 /** Whether a wing has nothing left alive in it. */

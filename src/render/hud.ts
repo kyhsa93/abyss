@@ -9,6 +9,7 @@ import { encounterAt } from '../sim/encounters'
 import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
 import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
+import { awake } from '../sim/travel'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -113,7 +114,11 @@ export function hitOutcome(
 
 /** Whether this pull earned the way out of where it was fought. */
 export function canAdvance(s: SimState): boolean {
-  if (s.mode !== 'raid' || s.outcome !== 'victory') return false
+  if (s.outcome !== 'victory') return false
+  // A corridor walked is a room done: what follows is the map, the same as a
+  // room of the citadel.
+  if (s.mode === 'travel') return s.chamber !== null
+  if (s.mode !== 'raid') return false
   // A room in the citadel always has somewhere to go: back to the map, which
   // is where the rest of the evening is.
   if (s.chamber !== null) return true
@@ -371,6 +376,7 @@ export function setShareLabel(label: string | null): void {
 
 export function drawHud(ctx: CanvasRenderingContext2D, s: SimState, touch: TouchView): void {
   if (s.mode === 'battleground') drawScoreboard(ctx, s)
+  else if (s.mode === 'travel') drawWalkFrame(ctx, s)
   else drawBossFrame(ctx, s)
   drawPartyFrames(ctx, s)
   drawFightInfo(ctx, s)
@@ -806,6 +812,31 @@ function fitLeft(
   ctx.fillText(clipped, x, y)
 }
 
+/**
+ * What a corridor puts where the boss frame goes.
+ *
+ * Not a health bar: there is no one thing to kill, and five bars would be a
+ * raid frame for the other side. What a corridor has instead is a count — what
+ * is awake and what is left — which is the only question it asks.
+ */
+function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const travel = s.travel
+  if (!travel) return
+  const standing = s.actors.filter((a) => a.faction === 'boss' && a.alive)
+  const up = awake(s).length
+  ctx.textAlign = 'center'
+  ctx.fillStyle = up > 0 ? COLORS.boss : COLORS.textDim
+  ctx.font = font(13, true)
+  ctx.fillText(
+    up > 0 ? `${up} ON YOU` : standing.length > 0 ? 'THE WAY AHEAD IS HELD' : 'THE WAY IS CLEAR',
+    L.w / 2,
+    L.bossY + 16,
+  )
+  ctx.fillStyle = COLORS.textDim
+  ctx.font = font(10)
+  ctx.fillText(`${standing.length} still standing`, L.w / 2, L.bossY + 32)
+}
+
 function drawBossFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   const b = boss(s)
   const x = L.bossX
@@ -1086,6 +1117,13 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
       ctx.font = font(12, true)
       ctx.fillText(`up in ${Math.max(0, left ?? 0).toFixed(0)}s`, L.infoX, y)
     }
+    return
+  }
+
+  if (s.mode === 'travel') {
+    ctx.fillText(`${s.time.toFixed(0)}s`, L.infoX, y)
+    y += line
+    ctx.fillText(`${s.actors.filter((a) => a.faction === 'boss' && a.alive).length} ahead`, L.infoX, y)
     return
   }
 
@@ -1655,9 +1693,11 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillRect(0, 0, L.w, L.h)
 
   const label =
-    s.mode === 'battleground'
+    s.mode === 'battleground' || s.mode === 'travel'
       ? s.outcome === 'victory'
-        ? 'VICTORY'
+        ? s.mode === 'travel'
+          ? 'THROUGH'
+          : 'VICTORY'
         : 'DEFEAT'
       : s.outcome === 'victory'
         ? 'KILL'
@@ -1679,7 +1719,9 @@ function drawOutcome(ctx: CanvasRenderingContext2D, s: SimState, touch: boolean)
   ctx.fillText(
     bg
       ? `${bgName(bg.kind)}   ·   ${s.time.toFixed(0)}s   ·   ${Math.floor(bg.score.blue)} — ${Math.floor(bg.score.red)}`
-      : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
+      : s.mode === 'travel'
+        ? `${s.time.toFixed(1)}s   ·   ${s.actors.filter((a) => a.faction === 'boss' && !a.alive).length} down`
+        : `${encounterAt(s.encounter).name}   ·   ${s.time.toFixed(1)}s   ·   boss at ${Math.round((boss(s).hp / boss(s).maxHp) * 100)}%   ·   pull ${s.attempt + 1}`,
     L.w / 2,
     Math.max(62, L.h * 0.16),
   )

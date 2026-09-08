@@ -77,10 +77,14 @@ export function open(run: Run): Chamber[] {
  *
  * A room whose fight is not built yet is not one of them. The map knows all
  * twelve and the game has three, and a run that offered a door onto an empty
- * room would be offering a bug.
+ * room would be offering a bug. A corridor counts as something to walk into:
+ * it is a room with something alive in it, and it is over when the party is
+ * through the far door.
  */
 export function enterable(run: Run): Chamber[] {
-  return open(run).filter((c) => c.encounter !== null && !isCleared(run, c.id))
+  return open(run).filter(
+    (c) => (c.encounter !== null || c.corridor !== undefined) && !isCleared(run, c.id),
+  )
 }
 
 /** Whether the evening is over, which is the throne going down. */

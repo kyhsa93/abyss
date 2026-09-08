@@ -4,6 +4,7 @@ import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
 import { Rng } from './rng'
 import { ROUND_ARENA } from './room'
+import { createTravelState, type Corridor } from './travel'
 import {
   CLASSES,
   DEFAULT_PARTY,
@@ -260,6 +261,7 @@ export function createState(
     bg: null,
     room,
     chamber: null,
+    travel: null,
     nextDoor: 0,
     only: null,
     imposed: null,
@@ -369,6 +371,7 @@ export function createBattlegroundState(
     // A battleground is played in the yardstick circle and always has been.
     room: ROUND_ARENA,
     chamber: null,
+    travel: null,
     nextDoor: 0,
     time: 0,
     tick: 0,
@@ -402,6 +405,27 @@ export function createBattlegroundState(
     sounds: [],
     effects: [],
   }
+}
+
+/**
+ * The party, in a corridor.
+ *
+ * `travel.ts` owns what a corridor is and how it ticks; what it cannot own is
+ * how a raider is built, because that is this file's business and importing it
+ * the other way would be a circle. So the walk is handed the one thing it
+ * needs — a body per pick, standing where it says — and keeps the rest.
+ */
+export function createCorridorState(
+  seed: number,
+  party: Pick[],
+  corridor: Corridor,
+  difficulty: DifficultyId = 'normal',
+  attempt = 4,
+): SimState {
+  const slots = makeSlots(party.length as RaidSize)
+  return createTravelState(seed, party, corridor, difficulty, (pick, i, at) =>
+    makeMember(i + 1, pick, { ...slots[i]!, x: at.x, y: at.y }, i === 0, attempt),
+  )
 }
 
 /**

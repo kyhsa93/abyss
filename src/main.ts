@@ -100,7 +100,7 @@ import {
   type Pick,
   type RaidSize,
 } from './sim/classes'
-import { createBattlegroundState, createState } from './sim/state'
+import { createBattlegroundState, createCorridorState, createState } from './sim/state'
 import { ENCOUNTERS, MECHANIC_NAMES, encounterIndex } from './sim/encounters'
 import {
   FIRST_TIER,
@@ -567,11 +567,11 @@ function buildState(): SimState {
  */
 function enterRoom(id: string): void {
   const chamber = chamberAt(id)
-  if (!run || !chamber || chamber.encounter === null) return
+  if (!run || !chamber) return
+  if (chamber.encounter === null && !chamber.corridor) return
   run = enterChamber(run, id)
   roomId = id
   roomCarried = [...run.carried]
-  encounter = chamber.encounter
   difficulty = run.difficulty
   playingDaily = false
   mode = { kind: 'raid' }
@@ -579,7 +579,14 @@ function enterRoom(id: string): void {
   recorded = false
   graded = false
   announced = []
-  state = newState()
+  if (chamber.corridor) {
+    // A walk rather than a fight: no encounter, no script, and the party in
+    // whatever state the last room left it.
+    state = createCorridorState(roomSeed(run, id), party, chamber.corridor, run.difficulty)
+  } else {
+    encounter = chamber.encounter!
+    state = newState()
+  }
   state.chamber = id
   rng = rngFor(state)
 
@@ -668,7 +675,11 @@ let state: SimState = newState()
  * other.
  */
 function rngFor(fight: SimState): Rng {
-  return new Rng(fight.mode === 'battleground' ? fight.seed : BASE_SEED + attempt * 7919)
+  // A raid is keyed off the pull count, so the ninth attempt at a boss is not
+  // the first one again. Everything else carries its own seed: a battleground
+  // is the seed its map was rolled from, and a corridor is the room's, which
+  // is what makes a second try at it the same corridor.
+  return new Rng(fight.mode === 'raid' ? BASE_SEED + attempt * 7919 : fight.seed)
 }
 
 let rng = rngFor(state)

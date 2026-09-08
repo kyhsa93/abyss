@@ -12,6 +12,14 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
+import { overlapping, packsPlaced, unguarded } from '../src/sim/travel'
+import { dist } from '../src/sim/combat'
+import { createCorridorState, unattended } from '../src/sim/state'
+import { step } from '../src/sim/sim'
+import { Rng } from '../src/sim/rng'
+import { autoParty, pickFor } from '../src/sim/classes'
+import { insideRoom } from '../src/sim/room'
+import { inTerrain } from '../src/sim/battleground'
 import {
   DOOR,
   cleared,
@@ -61,7 +69,11 @@ const gatesNamed = PASSAGES.flatMap((p) =>
 expect('and every gate names a room that exists', gatesNamed.length === 0, gatesNamed.join('; '))
 
 // A door held shut by a room with nothing in it can never open.
-const empty = new Set(CHAMBERS.filter((c) => c.encounter === null && c.awaiting === undefined).map((c) => c.id))
+const empty = new Set(
+  CHAMBERS.filter((c) => c.encounter === null && c.awaiting === undefined && c.corridor === undefined).map(
+    (c) => c.id,
+  ),
+)
 const unkillable = PASSAGES.flatMap((p) =>
   p.gate?.kind === 'killed' ? p.gate.chambers.filter((id) => empty.has(id)).map((id) => `${p.to} waits on ${id}`) : [],
 )
@@ -105,7 +117,7 @@ function walkThrough(): { order: string[]; cleared: Set<string> } {
     for (const id of reachable(cleared)) {
       const room = chamberAt(id)!
       if (cleared.has(id)) continue
-      if (room.encounter === null && room.awaiting === undefined) continue
+      if (room.encounter === null && room.awaiting === undefined && room.corridor === undefined) continue
       cleared.add(id)
       order.push(id)
       moved = true
@@ -116,7 +128,11 @@ function walkThrough(): { order: string[]; cleared: Set<string> } {
 }
 
 const walk = walkThrough()
-const fights = CHAMBERS.filter((c) => c.encounter !== null || c.awaiting !== undefined)
+// A corridor counts: it is a room with something alive in it, and the wing it
+// is in is not done while it stands.
+const fights = CHAMBERS.filter(
+  (c) => c.encounter !== null || c.awaiting !== undefined || c.corridor !== undefined,
+)
 expect(
   `the whole citadel opens: ${walk.cleared.size} of ${fights.length} fights`,
   walk.cleared.size === fights.length,
@@ -209,6 +225,93 @@ expect(
   LADDER.length === ENCOUNTERS.length * RUNGS_PER_BOSS,
   `${LADDER.length} rungs against ${ENCOUNTERS.length} fights`,
 )
+
+// --- the corridors -----------------------------------------------------------
+//
+// A corridor is three numbers a room: where the packs stand, how far they
+// notice, and where the two doors are. All three are ways to write a corridor
+// that is not one — a stretch that can be jogged through, a pack standing
+// inside a wall, or two packs that are one pack for anybody who walks between
+// them. The last of those is the corridor's only decision, so it is counted
+// rather than forbidden.
+{
+  const corridors = CHAMBERS.filter((c) => c.corridor).map((c) => c.corridor!)
+  expect(`${corridors.length} corridor(s) on the map`, corridors.length > 0)
+  const jog = corridors.filter((c) => unguarded(c))
+  expect(
+    'none of them can be walked through without waking anything',
+    jog.length === 0,
+    jog.map((c) => c.id).join(', '),
+  )
+  const misplaced = corridors.filter((c) => !packsPlaced(c, []))
+  expect(
+    'and nothing is standing in a wall',
+    misplaced.length === 0,
+    misplaced.map((c) => c.id).join(', '),
+  )
+  const doors = corridors.filter(
+    (c) => dist(c.entry, c.exit) < 400 || c.packs.some((p) => dist(p.pos, c.entry) < p.pulls),
+  )
+  expect(
+    'and the way in is not already inside something',
+    doors.length === 0,
+    doors.map((c) => c.id).join(', '),
+  )
+  const pairs = corridors.flatMap((c) => overlapping(c).map(() => c.id))
+  expect(
+    `and ${pairs.length} pack(s) can be pulled into each other, which is the decision`,
+    pairs.length > 0,
+    'no corridor asks anything of where you stand',
+  )
+}
+
+// --- and walked -------------------------------------------------------------
+//
+// The rest of this file is arithmetic on data. This is the corridor actually
+// run: a party with nobody steering it, from door to door, against what is
+// standing in the way. What it proves is the three things a corridor has to do
+// — the packs notice, they get killed, and the party ends up through the far
+// door — and the one it must not: nobody walks out of the room.
+{
+  const dps = pickFor('mage', 'dps')!
+  for (const chamber of CHAMBERS.filter((c) => c.corridor)) {
+    const corridor = chamber.corridor!
+    const s = unattended(createCorridorState(31337, autoParty(10, dps), corridor, 'normal'))
+    const rng = new Rng(31337)
+    let outside = 0
+    let stuck = 0
+    while (s.outcome === 'ongoing' && s.time < 300) {
+      step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+      for (const a of s.actors) {
+        if (!a.alive) continue
+        if (!insideRoom(s.room, a.pos, a.radius * 0.9)) outside++
+        if (inTerrain(s.obstacles, a.pos, a.radius * 0.9)) stuck++
+      }
+    }
+    expect(
+      `${chamber.name}: a party with nobody steering it gets through`,
+      s.outcome === 'victory',
+      `${s.outcome} after ${s.time.toFixed(0)}s`,
+    )
+    expect(
+      `${chamber.name}: and wakes every pack on the way`,
+      s.travel?.woken.every(Boolean) === true,
+      (s.travel?.woken ?? []).map((w) => (w ? 'woke' : 'slept')).join(', '),
+    )
+    expect(
+      `${chamber.name}: and kills what it wakes`,
+      s.actors.filter((a) => a.faction === 'boss' && a.alive).length === 0,
+      `${s.actors.filter((a) => a.faction === 'boss' && a.alive).length} left standing`,
+    )
+    expect(`${chamber.name}: and nobody leaves the room`, outside === 0, `${outside} body-ticks outside`)
+    expect(`${chamber.name}: and nobody is held in a wall`, stuck === 0, `${stuck} body-ticks in a rock`)
+    expect(
+      `${chamber.name}: and it costs something`,
+      s.actors.some((a) => a.faction === 'party' && a.hp < a.maxHp),
+      'the corridor was free',
+    )
+  }
+}
 
 // --- an evening in it --------------------------------------------------------
 //

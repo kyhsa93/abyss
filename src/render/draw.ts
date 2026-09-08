@@ -21,6 +21,7 @@ import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
 import { bgAnchor } from '../sim/bgai'
+import { travelAnchor } from '../sim/travel'
 import { turnView, viewAngle } from './camera'
 import {
   ECHO_TELEGRAPH,
@@ -139,6 +140,9 @@ function anchorOf(s: SimState): Vec2 | null {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return null
   if (s.mode === 'battleground') return bgAnchor(s, player)
+  // In a corridor the thing the view is arranged around is whatever woke up,
+  // and the way out when nothing has.
+  if (s.mode === 'travel') return travelAnchor(s)
   const target = s.actors.find((a) => a.id === playerTarget(s) && a.alive)
   if (target) return target.pos
   const b = s.actors.find((a) => a.id === BOSS_ID && a.alive)

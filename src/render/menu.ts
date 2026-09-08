@@ -925,10 +925,15 @@ export function citadelLayout(run: Run, allowed: ReadonlySet<string> = ALL): Cit
     const column = Math.floor(i / perColumn)
     const at = i % perColumn
     const chamber = chamberAt(entry.id)
-    const fight = chamber?.encounter ?? null
+    // A corridor is something to walk into, the same as a fight is. What is
+    // different is only what happens after the press.
+    const fight = chamber?.encounter ?? (chamber?.corridor ? -1 : null)
     const reachedIt = reached.has(entry.id)
     const enterable =
-      fight !== null && reachedIt && !isCleared(run, entry.id) && allowed.has(entry.id)
+      fight !== null &&
+      reachedIt &&
+      !isCleared(run, entry.id) &&
+      (chamber?.corridor !== undefined || allowed.has(entry.id))
     const state: CitadelRow['state'] =
       run.at === entry.id
         ? 'here'
@@ -1004,6 +1009,8 @@ export function drawCitadel(
               ? 'a way through'
               : row.state === 'shut'
                 ? 'shut'
+                : chamber.corridor
+                ? `${chamber.corridor.packs.length} packs holding it`
                 : chamber.pad
                   ? 'open — a pad here'
                   : 'open'
