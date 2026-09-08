@@ -515,12 +515,19 @@ function advancePhase(s: SimState, b: Actor): void {
     // Over every mechanic rather than the two that used to be named here. Both
     // of those were retired with the fights that sold them, which left this
     // pulling in nothing at all -- and a hand-written list of ids in this file
-    // has been wrong every time it has been written. A fraction of the new
-    // cadence rather than a fixed number, because the numbers here were the
-    // pool's and the ring's and belong to mechanics that are gone.
+    // has been wrong every time it has been written.
+    //
+    // Clamped to the new cadence and no further. The first version of this
+    // halved it, which is not what the note above asks for: it says a timer
+    // left running past the new cadence is a phase break nobody notices, not
+    // that the fight should speed up twice at every break. Halved, the wave
+    // arrived often enough that a second one landed on the first, and the
+    // raid's call to kill the empowered body kept being replaced by the next
+    // one -- thirteen of fifteen of them died after their whole wave, which
+    // is the exact failure the call exists to prevent.
     const next = scaled(encounter.phases[2]!, s)
     for (const id of MECHANIC_IDS) {
-      if (next[id] > 0) s.next[id] = Math.min(s.next[id], next[id] * 0.5)
+      if (next[id] > 0) s.next[id] = Math.min(s.next[id], next[id])
     }
     summonHerald(s, b)
     return
@@ -533,7 +540,7 @@ function advancePhase(s: SimState, b: Actor): void {
     s.chat.push({ id: s.nextObjectId++, speaker: b.name, text: encounter.lines.phaseThree, age: 0 })
     const next = scaled(encounter.phases[3]!, s)
     for (const id of MECHANIC_IDS) {
-      if (next[id] > 0) s.next[id] = Math.min(s.next[id], next[id] * 0.5)
+      if (next[id] > 0) s.next[id] = Math.min(s.next[id], next[id])
     }
   }
 }

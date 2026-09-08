@@ -8247,7 +8247,20 @@ for (const [label, w, h] of [
       }
     }
   }
-  expect('every hazard arm was read', arms > 30, `${arms} arms`)
+  // Counted twice, by two different readers, because the scan above is a
+  // regular expression walking source text and a regular expression that has
+  // stopped matching reports no mixed-up arms at all -- which is the shape of
+  // pass this file has been bitten by twice.
+  //
+  // The floor used to be a typed-in thirty, from a round when there were
+  // seventeen kinds of ground. There are two now and one arm between them, so
+  // a fixed number is a number that has to be edited every time the roster
+  // moves. This asks the plainer counter to agree with the parser instead.
+  const plainly = [armed, advising]
+    .join('\n')
+    .split('\n')
+    .filter((line) => /if \(g\.kind === '/.test(line)).length
+  expect('every hazard arm was read', arms === plainly && arms > 0, `${arms} of ${plainly}`)
   expect('and none of them answers for another mechanic', mixed.length === 0, mixed.join('; '))
 }
 

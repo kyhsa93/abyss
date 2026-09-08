@@ -125,7 +125,6 @@ function makeTrash(id: number, x: number, y: number, hp: number): Actor {
     ai: null,
     swingTimer: TRASH_SWING,
     facing: 0,
-    hunting: null,
   }
 }
 
