@@ -630,6 +630,41 @@ const everywhere = () => true
   )
 }
 
+// A raid walking is a raid taking up room.
+//
+// Every one of them used to walk at whoever was leading and stop within sixty
+// units of them, which for twenty-five people is a knot with three tokens
+// visible and everybody else underneath. Walking is the one time nothing is
+// aimed at them, so it is the one time they can afford the space — they walk
+// to their own place in the formation instead, opened out and turned the way
+// they are going.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const tight: string[] = []
+  for (const size of [5, 10, 25] as const) {
+    const ground = { ...hallFor('threshold', null, anywhere), id: 'citadel', packs: citadelPacks() }
+    const s = unattended(
+      createCorridorState(5, autoParty(size, dps), ground, 'normal', 4, undefined, true),
+    )
+    s.floor = citadelWorld().map((cell) => cell.room)
+    s.chamber = 'threshold'
+    const rng = new Rng(5)
+    for (let t = 0; t < 30 * 30; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    let closest = Infinity
+    for (let i = 0; i < bodies.length; i++) {
+      for (let j = i + 1; j < bodies.length; j++) {
+        closest = Math.min(closest, dist(bodies[i]!.pos, bodies[j]!.pos))
+      }
+    }
+    // A body is forty across. Standing closer than that is standing inside
+    // somebody, which is what it looked like.
+    if (closest < 20) tight.push(`${size}-man: ${Math.round(closest)} apart`)
+  }
+  expect('a raid walking is not standing inside itself', tight.length === 0, tight.join(', '))
+}
+
 // --- the pads --------------------------------------------------------------
 
 expect(

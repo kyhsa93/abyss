@@ -460,6 +460,42 @@ export function updateTravel(s: SimState, rng: Rng): void {
 /** How far from the exit a body stands while it waits for the rest. */
 const GATHER = 60
 
+/**
+ * How much wider the raid stands when it is only walking.
+ *
+ * The fight formation, opened out. Twenty-five people crossing a citadel in a
+ * sixty-unit huddle is not a raid moving, it is a raid stuck in a doorway —
+ * and it was one thing on the screen: a knot of tokens with two or three
+ * visible and everybody else underneath. Walking is the one time nothing is
+ * being aimed at them, so it is the one time they can afford to take up room.
+ */
+const MARCH_SPREAD = 1.8
+
+/**
+ * Where one body walks, which is its own place in the marching order.
+ *
+ * The raid's own formation, opened out and turned to face the way it is going,
+ * hung off whoever is leading rather than off the room — so it holds its shape
+ * through a doorway and across a room that is not the one it started in.
+ *
+ * Measured from the leader's own slot rather than from the middle of the
+ * formation, so that the body everybody is following does not walk away from
+ * itself.
+ */
+function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
+  const slots = makeSlots(s.party.length as RaidSize)
+  const mine = slots[actor.id - 1]
+  const theirs = slots[lead.id - 1]
+  if (!mine || !theirs || actor.id === lead.id) return lead.pos
+  const going = heading(s)
+  const aim = going ? Math.atan2(going.at.y - lead.pos.y, going.at.x - lead.pos.x) : lead.facing
+  const c = Math.cos(aim - Math.PI / 2)
+  const sn = Math.sin(aim - Math.PI / 2)
+  const dx = (mine.x - theirs.x) * MARCH_SPREAD
+  const dy = (mine.y - theirs.y) * MARCH_SPREAD
+  return { x: lead.pos.x + dx * c - dy * sn, y: lead.pos.y + dx * sn + dy * c }
+}
+
 function cast(s: SimState, actor: Actor, id: string, targetId: number, rng: Rng, moving: boolean): boolean {
   const ability = ABILITIES[id]
   if (!ability) return false
@@ -510,10 +546,23 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
     }
   }
 
-  const lead = s.actors.find((a) => a.isPlayer && a.alive) ?? null
+  const player = s.actors.find((a) => a.isPlayer && a.alive) ?? null
+  // Whoever the raid is walking behind, for a building: the player, or the
+  // first of them still standing when there is none. A raid with nobody
+  // leading walked at the door itself, which put every one of them on the
+  // same point.
+  const lead = player ?? s.actors.find((a) => a.faction === 'party' && a.alive) ?? null
+  // The formation is for crossing a building, where nothing has to arrive
+  // anywhere together. A single stretch of held ground is over when everybody
+  // is through the far door at once, and a raid strung out in marching order
+  // never is — so a corridor keeps the huddle it was measured with, following
+  // the player if there is one and the way out if there is not.
+  const marching = s.travel.building && lead !== null && actor.id !== lead.id
   const want = target
     ? standAt(s, actor, target)
-    : follow(s, actor, lead ? lead.pos : (heading(s)?.at ?? actor.pos))
+    : marching
+      ? follow(s, actor, station(s, actor, lead!), 24)
+      : follow(s, actor, player ? player.pos : (heading(s)?.at ?? actor.pos))
   moveToward(s, actor, want)
 
   const moving = ai.moveTarget !== null
@@ -554,12 +603,15 @@ function standAt(s: SimState, actor: Actor, target: Actor): Vec2 {
 }
 
 /** Behind whoever is leading, at the distance a party walks at. */
-function follow(s: SimState, actor: Actor, lead: Vec2): Vec2 {
+function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
   const d = dist(actor.pos, lead)
-  if (d <= GATHER) return actor.pos
-  const t = (d - GATHER * 0.6) / d
+  if (d <= close) return actor.pos
+  const t = (d - close * 0.6) / d
   const want = { x: actor.pos.x + (lead.x - actor.pos.x) * t, y: actor.pos.y + (lead.y - actor.pos.y) * t }
-  pushInside(s.room, want, actor.radius)
+  // Into the room, for a walk that is one room. Not for a building: clamping
+  // where somebody is *going* to the room they are currently in is a party
+  // that cannot follow its leader through a door.
+  if (s.travel?.building !== true) pushInside(s.room, want, actor.radius)
   return want
 }
 
