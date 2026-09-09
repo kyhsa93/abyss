@@ -163,9 +163,13 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: null,
     awaiting: 'the boss out of reach (#14)',
-    // Open air with an edge, which is the one room in the building that is
-    // not indoors.
-    room: { kind: 'platform', radius: 420 },
+    // Open air with an edge, which is the one room in the building that is not
+    // indoors — and by the plan of this floor the largest open ground in the
+    // lower spire rather than the smallest arena in the game. It is a rampart:
+    // a wide horseshoe of terrace with battlements round the outside and a
+    // raised platform at the far end. Round here, because a horseshoe is a
+    // concave shape and this game does not buy path-finding.
+    room: { kind: 'platform', radius: 900 },
     pad: killed('oratory'),
   },
   {
@@ -183,11 +187,17 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Upper Crossing',
     wing: 'lower',
     encounter: null,
-    // Round and no bigger than it has to be. Six doors lead out of here and
-    // the whole point of the room is choosing between them, so all six have to
-    // be on the screen at once — a hub you turn around in has hidden its own
-    // question.
-    room: { kind: 'round', radius: 430 },
+    // A circle with a cross laid in it, and about the size of the first
+    // fight's chamber — which is what the plan of this floor draws, measured
+    // against that floor's own corridor width.
+    //
+    // It was less than half that, on the argument that every door has to be on
+    // the screen at once or the room has hidden its own question. That
+    // argument was answered somewhere else: the map in the corner draws the
+    // whole citadel while the party is walking, so the doors do not all have
+    // to be in one glance any more. What the room has to be instead is the
+    // thing the building says it is — the place where the spire opens out.
+    room: { kind: 'round', radius: 820 },
     pad: killed('rise'),
   },
 
@@ -202,11 +212,14 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Vats',
     wing: 'plague',
     encounter: null,
-    // Wide and shallow rather than long: the two rooms are off either side of
-    // it, and the one thing this chamber is for is seeing both at once. A
-    // deep hall put one of them behind the camera, which is the same mistake
-    // the crossing made.
-    room: { kind: 'hall', halfWidth: 430, front: 370, back: 330 },
+    // A cross, taller than it is wide, which is what the plan draws: a long
+    // bar with the two rooms off the ends of it and the laboratory straight on
+    // past the middle. It was the other way round here — wide and shallow, so
+    // that both side rooms were in one glance — and that was the right answer
+    // to a question the map in the corner now answers instead. What it cost
+    // was the shape: the wing's two rooms are up and down from this junction
+    // in the source, and a wide room puts them on its short walls.
+    room: { kind: 'hall', halfWidth: 360, front: 460, back: 460 },
   },
   {
     id: 'sludge',
@@ -244,8 +257,11 @@ export const CHAMBERS: Chamber[] = [
     wing: 'frostwing',
     encounter: null,
     awaiting: 'the boss that is healed (#11)',
-    // Long, with the thing that has to be kept alive lying down the middle.
-    room: { kind: 'hall', halfWidth: 420, front: 700, back: 420 },
+    // Square-ish with a lobe off each side, which is what the plan draws and
+    // is not what "long, with the thing that has to be kept alive lying down
+    // the middle" made of it. Round here: four lobes on a square is a shape
+    // whose corners this game cannot walk out of.
+    room: { kind: 'round', radius: 600 },
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.
@@ -264,7 +280,10 @@ export const CHAMBERS: Chamber[] = [
     wing: 'frostwing',
     encounter: null,
     awaiting: 'the stacking that is answered by leaving (#12)',
-    room: { kind: 'platform', radius: 520 },
+    // Open ice at the end of the long way round, and a big room: the plan puts
+    // it at the far end of the frostwing halls with nothing else on that
+    // reach.
+    room: { kind: 'platform', radius: 760 },
     pad: killed('dream'),
   },
 
@@ -276,8 +295,11 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     awaiting: 'the floor that does not come back (#13)',
     // The top of the spire, and the only way off it is back down the way you
-    // came.
-    room: { kind: 'platform', radius: 560 },
+    // came. Its own floor on the plan: a wide, cracked, ragged-edged shelf of
+    // ice with a sigil cut in the middle of it and a stair up at one side —
+    // the largest arena in the building, as the last one ought to be, and the
+    // one it is most obviously possible to fall off.
+    room: { kind: 'platform', radius: 880 },
   },
 ]
 
