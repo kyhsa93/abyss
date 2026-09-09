@@ -753,7 +753,9 @@ if (want('spec')) {
 // Reading the hit count instead is how four separate rounds of tuning in this
 // file's history went after the wrong mechanic.
 const TEACH_RUNS = 30
-if (want('mechanic')) {
+// The header belongs to the first boss's shard, which is the one that prints
+// the first row under it.
+if (want('mechanic:0')) {
   console.log(
     `\nmechanic / boss        hits    unpractised  practised   teaches` +
       `\n(${TEACH_RUNS} pulls a row at 10 heroic, one mechanic at a time. ` +
@@ -762,7 +764,13 @@ if (want('mechanic')) {
       `the pair and the gap is far tighter than either column. ` +
       `scripts/teachprobe.ts prints the bar that belongs to it.)`,
   )
-  for (let e = 0; e < ENCOUNTERS.length; e++) {
+}
+for (let e = 0; e < ENCOUNTERS.length; e++) {
+  // A shard a boss. This table was one shard and it was ten minutes on a core
+  // — the longest thing left in the file once the spec sweep stopped being
+  // run — and it splits with nothing to reconcile: each boss prints its own
+  // rows and reads nothing from the boss before it.
+  if (want(`mechanic:${e}`)) {
     // A ten-man heroic buys four rungs, so a boss's fifth is not in the kit at
     // all and filtering to it leaves an empty fight. Saying so beats printing
     // a zero that reads like a finding.

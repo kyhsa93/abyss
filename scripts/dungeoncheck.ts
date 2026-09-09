@@ -745,17 +745,26 @@ const everywhere = () => true
   )
   s.floor = citadelWorld().map((cell) => cell.room)
   s.chamber = 'threshold'
+  // Walked, not stood. This measured a raid with nobody steering it, and a
+  // leaderless raid in a building stays where it is — so for a while it was
+  // counting how often a body that never moved changed the side it was drawn
+  // from, which is never, and it passed while half the raid walked up the
+  // building looking backwards at the camera.
   const rng = new Rng(5)
   const was = new Map<number, string>()
   const flips = new Map<number, number>()
+  let backwards = 0
+  let samples = 0
   for (let t = 0; t < 30 * 45; t++) {
-    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    step(s, { moveX: 0, moveY: -1, pressed: [] }, rng)
     for (const a of s.actors) {
       if (a.faction !== 'party' || !a.alive) continue
       const now = sideOf(a.facing)
       const before = was.get(a.id)
       if (before !== undefined && before !== now) flips.set(a.id, (flips.get(a.id) ?? 0) + 1)
       was.set(a.id, now)
+      samples++
+      if (now === 'D') backwards++
     }
   }
   const worst = Math.max(0, ...flips.values())
@@ -763,6 +772,16 @@ const everywhere = () => true
     'a body walking keeps the side it is drawn from',
     worst <= 10,
     `one of them turned ${worst} times in forty-five seconds`,
+  )
+  // And keeps the *right* side. A follower's station moves with the leader, so
+  // it is forever a step past its place and the correcting step points
+  // backwards; turned to that step, a column walks up the building facing the
+  // camera. Counted rather than eyeballed, because the flip count above is
+  // perfectly happy with a raid that faces the wrong way consistently.
+  expect(
+    'and it is the side it is walking towards',
+    samples > 0 && backwards / samples < 0.1,
+    `${((backwards / Math.max(1, samples)) * 100).toFixed(0)}% of the time facing the camera`,
   )
 }
 
@@ -1095,7 +1114,7 @@ expect(
     return r.kind === 'hall' ? [r.halfWidth * 2, r.front + r.back] : [r.radius * 2, r.radius * 2]
   }
   for (const [id, w, d] of [
-    ['threshold', 33.6, 33.6],
+    ['threshold', 26.0, 68.0],
     ['vigil', 126.1, 187.0],
     ['spire', 94.5, 94.5],
     ['oratory', 114.5, 110.3],
@@ -1596,6 +1615,47 @@ expect(
     Math.max(...speeds) / Math.min(...speeds) < 1.2,
     `${(Math.max(...speeds) / Math.min(...speeds)).toFixed(3)}`,
   )
+}
+
+// A door has ground behind it.
+//
+// Doors and passages were placed by two different rules and nobody had put
+// them side by side. A passage is laid along the line between two rooms'
+// middles and starts where that line leaves the room; a door was placed by
+// walking a long way out along a bearing and clamping each axis, which for a
+// shallow bearing in a hall lands in the *corner*. From the second fight's
+// room, the door to the airship sat thirteen hundred units off the mouth of
+// the passage it opens onto — a party that walked to it found four fifths of
+// the way to the next room with nothing to stand on.
+//
+// So: every door on the map, and the ground between it and the room it opens
+// onto, walked with a body's width.
+{
+  const cells = citadelWorld().map((cell) => cell.room)
+  const stands = (p: { x: number; y: number }) => cells.some((c) => insideRoom(c, p, 40))
+  const dry: string[] = []
+  for (const passage of PASSAGES) {
+    for (const [from, to] of [
+      [passage.from, passage.to],
+      [passage.to, passage.from],
+    ] as const) {
+      const door = hallFor(from, null, () => true).ways.find((w) => w.to === to)
+      if (!door) {
+        dry.push(`${from} has no door to ${to}`)
+        continue
+      }
+      const goal = placeOf(to)
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40
+        const at = { x: door.at.x + (goal.x - door.at.x) * t, y: door.at.y + (goal.y - door.at.y) * t }
+        if (!stands(at)) {
+          dry.push(`${from} -> ${to} at ${(t * 100).toFixed(0)}%`)
+          break
+        }
+      }
+    }
+  }
+  expect('every door has ground between it and the room it opens onto', dry.length === 0, dry.join(', '))
 }
 
 if (failures > 0) {

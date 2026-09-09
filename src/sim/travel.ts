@@ -757,6 +757,21 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
           : follow(s, actor, heading(s)?.at ?? actor.pos)
   moveToward(s, actor, want)
 
+  // A column faces the way the column is going.
+  //
+  // `moveToward` turns a body to the step it just took, which is right for
+  // walking somewhere and wrong for holding a place in a formation: a station
+  // moves with the leader, so a follower is forever a step past it and the
+  // correcting step points *backwards*. Half the raid then walks up the
+  // building looking at the camera, turning round every time the leader's
+  // pace changes — which is the head-shaking, and it is not a wobble in the
+  // bearing. It is the bearing being asked the wrong question.
+  //
+  // While marching and with nothing to fight, the answer is the leader's own:
+  // everybody in a column faces where the column is headed, whatever their
+  // feet are doing to keep their place in it.
+  if (marching && !target && lead) turnToward(actor, lead.facing)
+
   const moving = ai.moveTarget !== null
   if (actor.castId || actor.gcd > 0) return
   const kit = specOf({ classId: actor.classId, spec: actor.spec }).abilities

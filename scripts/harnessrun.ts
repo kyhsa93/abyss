@@ -63,7 +63,10 @@ const SHARDS = [
   ),
   'member',
   'spec',
-  'mechanic',
+  // A shard a boss here too, and for the same reason the size table has one a
+  // cell: it was one shard of ten minutes, which is a shard no number of
+  // runners can make finish sooner.
+  ...ENCOUNTERS.map((_, i) => `mechanic:${i}`),
   'bg',
 ]
 

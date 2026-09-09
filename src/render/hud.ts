@@ -12,7 +12,7 @@ import { BOSS_ID } from '../sim/state'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { awake, heading } from '../sim/travel'
 import { insideRoom, roomAt, roomReach } from '../sim/room'
-import { CHAMBERS, CITADEL_SCALE, PASSAGES, chamberAt, placeOf, roomOf } from '../dungeon'
+import { CHAMBERS, PASSAGES, chamberAt, placeOf, roomOf } from '../dungeon'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
@@ -577,11 +577,33 @@ function bgName(kind: BgKind): string {
  * — a way held shut is ground that has not been laid, so it is not on the map
  * either, and the player can see what is still closed without being told.
  */
+/**
+ * How much of the building the disc holds, in world units of radius.
+ *
+ * The whole citadel was drawn in it, and a map of the whole building is a map
+ * of somewhere you are not: sixteen thousand units squeezed into ninety pixels
+ * puts every room within a thumbnail of every other, and the one thing a
+ * player crossing it wants — which way is the room I am in, and what leads out
+ * of it — is the thing that gets squeezed out. Four thousand units is the room
+ * the party is standing in and the ways off it, which is the question.
+ */
+const PLAN_REACH = 4000
+
 function drawPlan(ctx: CanvasRenderingContext2D, s: SimState): void {
   const { mapX: cx, mapY: cy, mapR: r } = L
-  // The whole plan inside the disc, with a little air around it.
-  const k = (r * 2) / (CITADEL_SCALE * 1.08)
-  const at = (p: { x: number; y: number }) => ({ x: cx + p.x * k, y: cy + p.y * k })
+  // Around the player, not around the building.
+  //
+  // A map nailed to the world puts you in a corner of it and leaves you there;
+  // this one keeps you in the middle and moves the building past you, which is
+  // what a minimap is for. It still does not turn — see the note below on why
+  // this is the one thing on the screen that stays north-up.
+  const me = s.actors.find((a) => a.isPlayer && a.alive) ?? middleOfParty(s)
+  const eye = me && 'pos' in me ? (me as { pos: { x: number; y: number } }).pos : (me ?? { x: 0, y: 0 })
+  const k = r / PLAN_REACH
+  const at = (p: { x: number; y: number }) => ({
+    x: cx + (p.x - eye.x) * k,
+    y: cy + (p.y - eye.y) * k,
+  })
 
   ctx.save()
   ctx.beginPath()

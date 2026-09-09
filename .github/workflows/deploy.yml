@@ -76,7 +76,7 @@ jobs:
 
   # The sweep, cut into pieces and run on a machine each.
   #
-  # Fourteen because there are fifty-four shards and four cores a runner: the
+  # Fourteen because there are sixty-one shards and four cores a runner: the
   # pieces are dealt round-robin, so each machine gets a share of the heavy
   # ones instead of one machine getting a boss's worth of twenty-five-man
   # pulls. Each writes its shards as numbered files and hands them over; the
@@ -140,7 +140,7 @@ jobs:
       # has been bitten by exactly that — so the shape of the output is
       # asserted here rather than trusted.
       - run: |
-          test "$(ls parts | wc -l)" -ge 50 || { echo "only $(ls parts | wc -l) parts came back"; exit 1; }
+          test "$(ls parts | wc -l)" -ge 55 || { echo "only $(ls parts | wc -l) parts came back"; exit 1; }
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
           grep -q '^boss / size / difficulty' harness.txt || { echo "the size table is missing"; exit 1; }

@@ -1,6 +1,6 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor, Pack, Spring } from './sim/travel'
-import { ROUND_ARENA, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
+import { ROUND_ARENA, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 
@@ -128,12 +128,20 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Threshold',
     wing: 'lower',
     encounter: null,
-    // Small and round, at the top of the shaft. It is the room the pad is in,
-    // which is what the plan draws there: a spiral in a circle barely wider
-    // than the passage it opens onto.
-    // Thirty-three and a half yards across, off the plan of this floor at the
-    // 1.05 yards a pixel that floor is calibrated at.
-    room: { kind: 'round', radius: 327 },
+    // The landing at the top of the shaft: twenty-six yards across where the
+    // shaft widens for the stair, and about seventy long before it opens into
+    // the hall. The narrow run of it is a corridor's fourteen and a half; this
+    // is the bulge, which is the part a raid arrives on and the part with
+    // walls far enough apart to hold one.
+    //
+    // It was a thirty-four yard round room, and that was a measurement of the
+    // wrong thing. The plan draws a spiral inside the shaft here and I read
+    // the spiral — it is a stair symbol, and symbols on that sheet are not
+    // drawn to scale while the walls beside them are. Every other room on this
+    // floor was measured off a wall and stands; this one was measured off a
+    // picture of a staircase, and it put the party in a chamber twice the
+    // width of the corridor it opens onto.
+    room: { kind: 'hall', halfWidth: 253, front: 662, back: 662 },
     pad: { kind: 'always' },
   },
   {
@@ -632,20 +640,31 @@ function planOf(id: string): { x: number; y: number } {
 
 /** Where the wall is on this bearing, a doorway's width in from it. */
 function onWall(room: RoomShape, angle: number, inset = DOOR_INSET): Vec2 {
-  // Far out *from the room* and then clamped, so one line answers for every
-  // shape there is and a fourth shape answers without being asked. In a hall
-  // this lands a diagonal in the corner, which is still the wall; two bearings
-  // that land in the same corner are two doors in one place, and the build
-  // measures that rather than trusting the angle.
+  // Where the ray leaves, not where each axis runs out.
+  //
+  // This used to walk a long way out along the bearing and then clamp, and a
+  // clamp is per axis: a bearing a few degrees off the long side of a hall had
+  // its across-coordinate pinned to the side wall and its along-coordinate
+  // pinned to the *end* wall, so the door landed in the corner. The old note
+  // here said so and called it still-the-wall.
+  //
+  // It is not, because the ground behind the door is not laid to the corner.
+  // A passage is laid along the line between two rooms' middles and starts
+  // where that line leaves the room — `exitAlong`, the same function used
+  // here now. With a corner for a door and a wall-crossing for a passage, the
+  // two were in different places: from the second fight's room the door to the
+  // airship sat thirteen hundred units off the corridor's mouth, and a party
+  // that walked to it found no floor on the other side. Four fifths of the way
+  // to the next room there was nothing to stand on.
   //
   // From the room and not from the origin: once the rooms are placed in a
   // building, a bearing taken from the middle of the world points somewhere
-  // else entirely, and the build caught it the moment they were — two of the
-  // oratory's doors came out on top of each other.
+  // else entirely, and the build caught that the moment they were.
   const c = roomAt(room)
-  const at = { x: c.x + Math.cos(angle) * 100000, y: c.y + Math.sin(angle) * 100000 }
-  pushInside(room, at, inset)
-  return at
+  const ux = Math.cos(angle)
+  const uy = Math.sin(angle)
+  const out = Math.max(0, exitAlong(room, ux, uy) - inset)
+  return { x: c.x + ux * out, y: c.y + uy * out }
 }
 
 /**
