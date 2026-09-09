@@ -5982,165 +5982,28 @@ for (const [label, w, h] of [
   }
 }
 
-// --- no spec is the obvious one ----------------------------------------------
+// --- melee are paid for standing where the boss aims -------------------------
 //
-// In a pull, because a pull is the game. The dummy this used to be measured on
-// holds everyone still, and standing still is exactly the cost the field does
-// not share: eight of the nine damage specs have an instant filler and lose
-// nothing to the floor, and the ninth has a cast time and loses a global every
-// time the fight moves it. Realisation ran from 72% to 116% of what the dummy
-// promised, so the dummy ranked the shaman last and the game ranked it first,
-// and the dummy said 1.25x while the game said 1.61x.
+// What used to be here was the damage spread across the nine damage specs,
+// measured in a pull: twenty-four pulls a spec across every boss in the game,
+// three and a half thousand of them, about twenty minutes on one core — and
+// then not checked. Its three bands are switched off while the rooms are being
+// written, for the same reason `balancecheck`'s are, so what the twenty
+// minutes bought was one line of numbers nobody gates on, recomputed on every
+// push, and moving every push because moving the rooms is the round this
+// repository is in.
 //
-// One spec under test in an otherwise identical raid rather than a raid built
-// out of it: six of the same melee is a party with no ranged in it, and that
-// loses for reasons that are not the spec's. Twelve pulls a spec — the spread
-// reads within four hundredths across independent seed bases at that count,
-// which is what makes it a check rather than a coin toss.
+// It is `scripts/specprobe.ts` now — the same measurement, split across the
+// cores of whatever runs it, for a person who wants the numbers. It comes back
+// here when the bands do; see SUSPENDED in `scripts/balancecheck.ts` for what
+// has to settle first.
+//
+// This is the part of it that was never a simulation. The ranged lead the
+// bands bound is allowed because melee bring the raid's cooldowns back sooner,
+// and that discount is a constant: it can be read without playing a fight.
 {
-  // Twelve, not four. The note above says four is enough because the spread
-  // reads within four hundredths across seed bases at that count -- measured
-  // when there were three bosses and a ten-man normal met three mechanics.
-  // With five bosses and four, four pulls a spec put the same tree at 1.33 on
-  // sixty samples and 1.37 on twenty, which straddles the limit. A check whose
-  // own error is the size of the thing it is judging will be answered by
-  // tuning until it goes green, and this file has a long record of that going
-  // badly.
-  // Twenty-four, not twelve, and for the third time the same argument. Twelve
-  // was picked when the spread was one ratio over ten specs; it is three
-  // ratios now, and the cross-family one is a comparison between the two
-  // extremes of the field, which is the least stable number a sample can
-  // produce. Adding the cold line and the spikes moved it from 1.456 to 1.511
-  // at twelve runs and to 1.461 at twenty-four — so the check went red inside
-  // its own error, and the comment above says exactly what happens next if
-  // that is answered by moving the band.
-  const RUNS = 24
-  const SIZE = 10
-  const TANKS = 2
-  const HEALERS = 2
-  const SLOT = TANKS + HEALERS
-  const ref = {
-    tank: SPEC_OPTIONS.find((p) => roleOf(p) === 'tank')!,
-    healer: SPEC_OPTIONS.find((p) => roleOf(p) === 'healer')!,
-    dps: SPEC_OPTIONS.find((p) => roleOf(p) === 'dps')!,
-  }
-
-  const measure = (test: Pick): number => {
-    let total = 0
-    let runs = 0
-    for (let boss = 0; boss < ENCOUNTERS.length; boss++) {
-      for (let n = 0; n < RUNS; n++) {
-        const seed = 3000 + n * 7919 + boss * 131
-        const line: Pick[] = []
-        for (let i = 0; i < TANKS; i++) line.push(ref.tank)
-        for (let i = 0; i < HEALERS; i++) line.push(ref.healer)
-        while (line.length < SIZE) line.push(ref.dps)
-        line[SLOT] = test
-        const s = unattended(createState(seed, 6, line, 'normal', boss))
-        s.countdown = 0
-        const rng = new Rng(seed + 7919)
-        const me = s.actors.filter((a: Actor) => a.faction === 'party')[SLOT]!
-        while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
-          step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
-        }
-        total += s.tally[me.id]!.damage / Math.max(1, s.time)
-        runs++
-      }
-    }
-    return total / runs
-  }
-
-  const rows = SPEC_OPTIONS.filter((p) => roleOf(p) === 'dps').map((p) => ({
-    name: specLabel(p),
-    melee: specOf(p).melee,
-    dps: measure(p),
-  }))
-  const best = Math.max(...rows.map((r) => r.dps))
-  const worst = Math.min(...rows.map((r) => r.dps))
-  // Split by how they have to stand, because the room decides that and the
-  // room changed.
-  //
-  // The arena doubled, and a bigger room is a ranged advantage for a reason
-  // that is not a tuning mistake: the hunter is the one spec in the game with
-  // a near edge, and it gained eighteen points of damage the day the floor
-  // grew because the constraint it fights under finally had somewhere to go.
-  // Melee lost, at the far end sixteen. The single ratio over all ten read
-  // 1.46 and said one thing had gone wrong; what had actually happened was
-  // that the two families had separated, and inside each of them nothing had
-  // moved at all.
-  const melee = rows.filter((r) => r.melee)
-  const ranged = rows.filter((r) => !r.melee)
-  const within = (group: typeof rows) =>
-    Math.max(...group.map((r) => r.dps)) / Math.min(...group.map((r) => r.dps))
-  // Back to 1.35, and the story is worth keeping because the number left it
-  // for a while. Dealing the ladders across five bosses put one more mechanic
-  // on every rung, and a mechanic is a demand to move -- which sent the spread
-  // to 1.44 and the mage to last on four of the five bosses, where it had been
-  // mid-pack on all three before. Two things closed it. The mage had nothing
-  // at all it could press while walking, because the `attack` slot the healers
-  // use for exactly that was empty; and its coefficients were fitted against a
-  // fight with a third less movement in it.
-  //
-  // What did *not* close it is the interesting half. A flat coefficient buys
-  // nothing on the two bosses that keep it walking -- it is last on the
-  // Watcher and the Ledger at every value swept -- while at 1.30 it is second
-  // on the Tidebreaker and at 1.45 it is first. The aggregate passes because
-  // the fights it can stand still in carry it. If this check goes red again,
-  // the answer is a rotation that works while moving, not a bigger number.
-  //
-  // So the check the old one was trying to be is this one, asked twice. A
-  // player choosing a damage spec chooses a way to stand first and a class
-  // second, and what must not be obvious is the second choice. Inside a family
-  // the old limit holds unchanged, and it is not close to failing: a point and
-  // a half apart at the top of each.
-  // Switched off, in the open, with the two bands in `balancecheck` and for
-  // the same reason: the rooms are being written one fight at a time, and a
-  // room is most of what decides how far a damage spec walks between casts.
-  // The two families read 1.33 and 1.18 against a limit of 1.35 -- inside it,
-  // and moving every time a fight is given a floor of its own.
-  //
-  // What is actually out of line is the third one below, and it is worth
-  // writing down what it was before somebody reads the numbers again. Measured
-  // either side of the commit that removed twenty-two mechanics: the hunter
-  // did not move, 160 to 159, and the melee floor did, 106 to 102. The
-  // mechanics that came out were the ones that moved *everybody* -- pools,
-  // marks, the wedge, the split -- and what is left leans on melee harder,
-  // because the storm makes the boss itself the thing to run from and the
-  // shade keeps one body walking. That is a fight to retune, in a room that
-  // has stopped changing.
-  //
-  // These come back with the rooms. See SUSPENDED in scripts/balancecheck.ts.
-  const SUSPENDED_SPREAD = true
-  if (!SUSPENDED_SPREAD) {
-    expect(
-      'no ranged spec is the obvious ranged one',
-      within(ranged) < 1.35,
-      ranged.map((r) => `${r.name} ${r.dps.toFixed(0)}`).join(', '),
-    )
-    expect(
-      'and no melee spec is the obvious melee one',
-      within(melee) < 1.35,
-      melee.map((r) => `${r.name} ${r.dps.toFixed(0)}`).join(', '),
-    )
-    expect(
-      'and the room favours ranged by no more than melee are paid for it',
-      best < worst * 1.5,
-      `${(best / worst).toFixed(3)} across the two`,
-    )
-  }
-  console.log(
-    `NOT CHECKED (suspended)  the damage spread — ranged ${within(ranged).toFixed(3)}, ` +
-      `melee ${within(melee).toFixed(3)}, across ${(best / worst).toFixed(3)}`,
-  )
-  // Across the two, the ranged lead is allowed and bounded. What makes it a
-  // trade rather than a tax is `MELEE_CALL`: a melee brings the raid's
-  // cooldowns back a third sooner, and those are worth thirty to fifty points
-  // of raid dead on a heroic pull. The bound is here so that the day the lead
-  // grows past what a discount can pay for, something says so.
-  // And the payment is real, checked rather than asserted in a comment.
-  // Left on: it reads a constant rather than a fight, so no room moves it.
   expect(
-    'and melee are paid for it',
+    'melee are paid for standing where the boss aims',
     MELEE_CALL < 1,
     `${MELEE_CALL} of everybody else's count`,
   )

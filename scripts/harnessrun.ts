@@ -19,6 +19,7 @@
  * whole thing in one process, and that is what this was diffed against.
  */
 import { execFile } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
 import { ENCOUNTERS } from '../src/sim/encounters'
@@ -45,12 +46,53 @@ import { ENCOUNTERS } from '../src/sim/encounters'
 const SHARDS = [
   'composition',
   'boss',
-  ...ENCOUNTERS.map((_, i) => `size:${i}`),
+  // A shard a *cell* of the size table, not a shard a boss.
+  //
+  // A boss was the right grain while every shard ran on one of the four cores
+  // of one machine. It is the wrong grain once a shard can be a whole runner:
+  // six cells of up to twenty-five-man pulls is twenty minutes on one core,
+  // and no amount of runners makes a single shard finish sooner. A cell is
+  // three minutes, and three minutes is a thing forty of can be finished in
+  // under ten.
+  //
+  // The order is the file's own — boss, then size, then difficulty — because
+  // the output of the shards is concatenated in this order and has to come out
+  // byte-identical to a single run.
+  ...ENCOUNTERS.flatMap((_, i) =>
+    [5, 10, 25].flatMap((size) => ['normal', 'heroic'].map((d) => `size:${i}:${size}:${d}`)),
+  ),
   'member',
   'spec',
   'mechanic',
   'bg',
 ]
+
+/**
+ * The slice of the list this run is responsible for.
+ *
+ * Contiguous, and that is the whole requirement: the pieces are pasted back
+ * together in this file's order, so a run that takes a contiguous slice can be
+ * pasted next to its neighbours without anybody holding an index. Unset is the
+ * whole list, which is what a person at a terminal wants and what the
+ * single-process run is diffed against.
+ */
+function mine(): Array<{ at: number; tag: string }> {
+  const all = SHARDS.map((tag, at) => ({ at, tag }))
+  const of = Number(process.env.ABYSS_CHUNKS ?? '1')
+  const which = Number(process.env.ABYSS_CHUNK ?? '0')
+  if (!Number.isInteger(of) || of < 1 || !Number.isInteger(which) || which < 0 || which >= of) {
+    return all
+  }
+  // Dealt round-robin rather than cut into blocks. The list is not evenly
+  // expensive — a twenty-five-man cell is worth several five-man ones and the
+  // six cells of one boss sit next to each other — so blocks would hand one
+  // runner every heavy shard and the wall clock would be that runner.
+  //
+  // Which is why each piece carries the index it came from. Round-robin does
+  // not concatenate; numbered pieces do, and the numbering is what lets the
+  // work be dealt out by cost instead of by position.
+  return all.filter((_, i) => i % of === which)
+}
 
 const harness = resolve(process.cwd(), 'node_modules/.cache/harness.mjs')
 
@@ -80,19 +122,40 @@ async function main(): Promise<void> {
   // the machine has cores. Starting all thirteen at once on a four-core runner
   // does not finish sooner; it finishes at the same time having spent the
   // difference on context switches and thirteen copies of the heap.
+  const todo = mine()
   const width = Math.max(1, availableParallelism())
-  const out: string[] = new Array(SHARDS.length).fill('')
+  const out: string[] = new Array(todo.length).fill('')
   let next = 0
 
   async function worker(): Promise<void> {
     for (;;) {
-      const mine = next++
-      if (mine >= SHARDS.length) return
-      out[mine] = await shard(SHARDS[mine]!)
+      const i = next++
+      if (i >= todo.length) return
+      const began = Date.now()
+      out[i] = await shard(todo[i]!.tag)
+      // On stderr, so it is in the log and not in the tables. Which shard is
+      // the long pole decides how the work is split, and guessing at that from
+      // the outside is how it came to be split one-shard-a-boss long after a
+      // boss stopped being an affordable unit.
+      console.error(`shard ${todo[i]!.tag} — ${((Date.now() - began) / 1000).toFixed(1)}s`)
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(width, SHARDS.length) }, worker))
+  await Promise.all(Array.from({ length: Math.min(width, todo.length) }, worker))
+
+  // Numbered pieces on disk, for a run that is one of several machines; the
+  // whole thing on stdout, for a run that is the only one. The pieces are
+  // named by their place in `SHARDS`, so whoever pastes them back together
+  // needs nothing but the numbers — not which machine ran what, not how many
+  // there were.
+  const parts = process.env.ABYSS_PARTS
+  if (parts) {
+    mkdirSync(parts, { recursive: true })
+    todo.forEach(({ at }, i) => {
+      writeFileSync(resolve(parts, `part-${String(at).padStart(3, '0')}.txt`), out[i]!)
+    })
+    return
+  }
   process.stdout.write(out.join(''))
 }
 

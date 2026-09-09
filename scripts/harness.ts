@@ -163,7 +163,23 @@ function run(
  * the thing the sharded run is diffed against.
  */
 const SHARD = process.env.ABYSS_SHARD ?? ''
-const want = (tag: string): boolean => SHARD === '' || SHARD === tag
+/**
+ * Whether this run is the one that prints that block.
+ *
+ * A prefix rather than an equality, and the reason is the size table. It is
+ * three quarters of the file's cost and it was sharded one shard a boss, which
+ * was the right grain while the shards all ran on the four cores of one
+ * machine: eight shards, four at a time, two waves. It is the wrong grain now
+ * that a shard is a whole runner — a runner sitting on three idle cores while
+ * the fourth grinds through six cells of twenty-five-man pulls is most of an
+ * hour bought and not used.
+ *
+ * So the tags go down to the cell — `size:3:25:heroic` — and a prefix match
+ * means `size:3` still selects that whole boss and an empty shard still selects
+ * everything. Nothing that asked for a shard before has to know.
+ */
+const want = (tag: string): boolean =>
+  SHARD === '' || SHARD === tag || tag.startsWith(`${SHARD}:`)
 
 const ATTEMPTS = [0, 4, 8]
 
@@ -247,7 +263,9 @@ if (want('boss')) for (let i = 0; i < ENCOUNTERS.length; i++) {
 // chasing the difference. Forty brings it to sixteen.
 const SIZE_RUNS = 40
 const SIZE_ATTEMPTS = [0, 8]
-if (want('size:0')) console.log(
+// The header belongs to the first cell of the first boss, which is the shard
+// that prints the first row under it.
+if (want('size:0:5:normal')) console.log(
   '\nboss / size / difficulty  ' +
     SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
     'avgTime  bossHP%  kit' +
@@ -255,9 +273,9 @@ if (want('size:0')) console.log(
     `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
-  if (!want(`size:${i}`)) continue
   for (const size of [5, 10, 25] as RaidSize[]) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
+      if (!want(`size:${i}:${size}:${difficulty}`)) continue
       const party = autoParty(size, dps('mage'))
       const cells: string[] = []
       let time = 0

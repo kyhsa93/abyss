@@ -14,17 +14,31 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-# Three jobs where there was one, because the checks are independent of each
-# other and were being paid for in sequence.
+# The whole run has to answer inside ten minutes, and what decides that is the
+# widest thing on it rather than the sum.
 #
-# `npm run check` runs five things end to end, and the last of them says in its
-# own source that it costs about an hour. The other four together are minutes.
-# Run in one job that is an hour plus minutes; run in two it is an hour, and the
-# minutes are free. The build is split out for the same reason -- it does not
-# need either check to have passed in order to compile, only to have passed
-# before anything is published, and `deploy` is where that is enforced.
+# It was three jobs and it took fifty. The measurement, off a real run: build 15
+# seconds, the fast checks together under two minutes, `rendercheck` twenty-two,
+# and the balance sweep forty-nine.
+#
+# Twenty of `rendercheck`'s twenty-two were one block, and it was not being
+# checked. It measured the damage spread across the nine damage specs — three
+# and a half thousand pulls — and then printed the number under a line saying
+# its bands are switched off while the fights are being given rooms of their
+# own. That is `scripts/specprobe.ts` now, run by a person who wants the
+# numbers, and it comes back to the gate when the bands do. Nothing was made
+# faster there; something was stopped from being paid for.
+#
+# The balance sweep is real work and it is embarrassingly parallel: every pull
+# is deterministic from a seed and reaches outside itself for nothing. A hosted
+# runner is four cores and the sweep already used all four, so the way past it
+# is more runners — which means cutting the sweep into pieces that can be put
+# back together. The two rules: a piece is numbered, and the pieces are pasted
+# back in number order, so what the bands read is what a single process would
+# have printed. That equality is what makes the split free rather than a second
+# set of results nobody has checked against the first.
 jobs:
-  # Everything that answers in minutes. First to go red, which is the half of a
+  # Everything that answers in seconds. First to go red, which is the half of a
   # gate's job that is about how fast it tells you.
   checks:
     runs-on: ubuntu-latest
@@ -37,16 +51,19 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run conceptcheck
+      # Was not run here at all, for no reason anybody wrote down: it is in
+      # `npm run check` and it answers in a second.
+      - run: npm run artcheck
       # The map is the only way into a raid now, so the check that proves it is
       # a map -- nothing unreachable, no door held shut by a room with nothing
       # in it, no route to the top that skips a wing -- is a gate rather than
       # something run by hand. It answers in seconds.
       - run: npm run dungeoncheck
-      - run: npm run rendercheck
       - run: npm run touchcheck
 
-  # The long one, on its own. Nothing waits for it except the publish.
-  balance:
+  # Two minutes since the spec sweep came out of it. Its own job rather than
+  # folded back into `checks`, so the second-long ones can still go red first.
+  render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +72,68 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run rendercheck
+
+  # The sweep, cut into pieces and run on a machine each.
+  #
+  # Fourteen because there are fifty-four shards and four cores a runner: the
+  # pieces are dealt round-robin, so each machine gets a share of the heavy
+  # ones instead of one machine getting a boss's worth of twenty-five-man
+  # pulls. Each writes its shards as numbered files and hands them over; the
+  # job below pastes them back in number order.
+  harness:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx esbuild scripts/harness.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harness.mjs --log-level=error
+      - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
+      - run: node node_modules/.cache/harnessrun.mjs
+        env:
+          ABYSS_CHUNKS: 14
+          ABYSS_CHUNK: ${{ matrix.chunk }}
+          ABYSS_PARTS: parts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harness-${{ matrix.chunk }}
+          path: parts
+          retention-days: 1
+
+  # The bands, read off the whole sweep pasted back together.
+  balance:
+    needs: harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: harness-*
+          merge-multiple: true
+          path: parts
+      # Number order, which is the order a single process would have printed
+      # them in. `cat` on a sorted glob is the whole of the reassembly, and it
+      # is deliberately that simple: anything cleverer here is a second place
+      # the output could differ from the one the bands were written against.
+      - run: |
+          ls parts | sort > /dev/null
+          test "$(ls parts | wc -l)" -eq 54 || { echo "expected 54 parts, found $(ls parts | wc -l)"; exit 1; }
+          cat $(ls parts/part-*.txt | sort) > harness.txt
       - run: npm run balancecheck
+        env:
+          ABYSS_HARNESS_OUT: harness.txt
 
   build:
     runs-on: ubuntu-latest
@@ -77,7 +155,7 @@ jobs:
   # The gate. Publishing is what must not happen until everything has passed,
   # and this is the one place that has to know it.
   deploy:
-    needs: [checks, balance, build]
+    needs: [checks, render, balance, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
