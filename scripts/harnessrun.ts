@@ -139,8 +139,19 @@ async function main(): Promise<void> {
   // the machine has cores. Starting all thirteen at once on a four-core runner
   // does not finish sooner; it finishes at the same time having spent the
   // difference on context switches and thirteen copies of the heap.
+  //
+  // Overridable, because "the machine has eight cores" is not the same claim
+  // as "the machine can hold eight of these". Each shard is its own heap with
+  // its own copy of the sprite atlas in it, and this box has seven gigabytes:
+  // two of these runs going at once is sixteen processes, and what happens
+  // then is not a slow run, it is a SIGTERM in the middle of one -- twice, at
+  // forty minutes in, with no failure to read afterwards. `ABYSS_SHARD_WIDTH`
+  // is how a second run gets out of the first one's way.
   const todo = mine()
-  const width = Math.max(1, availableParallelism())
+  const asked = Number(process.env.ABYSS_SHARD_WIDTH ?? '')
+  const width = Number.isFinite(asked) && asked >= 1
+    ? Math.floor(asked)
+    : Math.max(1, availableParallelism())
   const out: string[] = new Array(todo.length).fill('')
   let next = 0
 
