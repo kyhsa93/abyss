@@ -1223,6 +1223,9 @@ export const MARK_LETTER: Partial<Record<AuraId, string>> = {
   gifted: 'A',
   souring: 'O',
   bonded: 'Y',
+  kindred: 'Z',
+  away: 'Q',
+  carried: 'M',
 }
 
 /**

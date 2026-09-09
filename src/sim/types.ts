@@ -189,6 +189,24 @@ export type AuraId =
    */
   | 'aloft'
   /**
+   * One of the wave that came to help rather than to bite.
+   *
+   * The only body on a boss's side in this game that must not be killed, and
+   * it is not weak: what it asks is that a raid look before it swings, which
+   * is a decision rather than an accident waiting to happen.
+   */
+  | 'kindred'
+  /**
+   * Stepped out of the fight, and back in five seconds.
+   *
+   * Not dead and not hidden: gone. It answers nothing, takes nothing and is
+   * healed by nobody, which is the only price in this game paid in existence
+   * rather than in health.
+   */
+  | 'away'
+  /** Came back from the way out, and heals for more because of it. */
+  | 'carried'
+  /**
    * boss: it has let go and is wandering, billing whoever it passes.
    *
    * The only aura in the game that takes the boss out of the fight's usual
@@ -446,7 +464,7 @@ export interface Actor {
    * gauge. A wave that goes for the nearest body dies where the damage already
    * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast'
+  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'kin' | 'ward'
 
   /**
    * The body a beast has picked, which is the whole of what makes it one.
@@ -522,6 +540,10 @@ export type GroundKind =
   // Blood left where a gift was doubled: the one piece of ground in this game
   // that the raid puts there itself.
   | 'stain'
+  // The wound on the thing in the middle, which is closed by standing in it.
+  | 'bleed'
+  // A way out of the fight, for five seconds, for anybody who chooses it.
+  | 'portal'
   // A grain to be picked up, which is the only piece of ground in this game
   // that is worth standing on.
   | 'nucleus'

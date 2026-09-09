@@ -27,11 +27,16 @@ import {
   GIFT_LEECH,
   BOND_LIFE,
   FLIGHT_LIFE,
+  KIN_LIFE,
+  PORTAL_AWAY,
+  PORTAL_CARRY,
+  PORTAL_POWER,
+  SUPPRESS_CUT,
   INFECTION_HEALING,
   FLOOD_SLOW,
 } from './constants'
 import type { Rng } from './rng'
-import { CHAMPION_HEAL, untouchable } from './boss'
+import { CHAMPION_HEAL, killedKin, untouchable } from './boss'
 import { insideRoom, pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
@@ -249,6 +254,9 @@ export const AURA_DURATION: Record<AuraId, number> = {
   souring: GIFT_SOURING,
   bonded: BOND_LIFE,
   aloft: FLIGHT_LIFE,
+  kindred: KIN_LIFE,
+  away: PORTAL_AWAY,
+  carried: PORTAL_CARRY,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -719,6 +727,11 @@ export function applyDamage(
     if (bar && bar.alive) target = bar
   }
 
+  // Nor a body that stepped out of the fight. It is not hidden and not dead:
+  // it is gone, and what it costs the raid is that it answers nothing for five
+  // seconds.
+  if (getAura(target, 'away')) return
+
   // And nothing reaches a body the boss has swallowed, except the thing that
   // swallowed it.
   //
@@ -882,6 +895,9 @@ export function applyDamage(
         s.sounds.push('raid')
       }
     }
+    // And the one that came to help going down, which is the raid's mistake
+    // and costs the thing it came to help far more than it was giving.
+    killedKin(s, target)
     pushText(s, target.pos, 'DOWN', 'crit')
     if (target.faction === 'party') s.sounds.push('death')
     const tally = s.tally[target.id]
@@ -951,12 +967,28 @@ export function applyHeal(s: SimState, target: Actor, amount: number, sourceId: 
   // spends them on the body inside the boss is a healer who has spent them on
   // nothing, and the raid is meant to spend them on whoever is holding the
   // boss instead.
-  if (getAura(target, 'swallowed')) return
+  if (getAura(target, 'swallowed') || getAura(target, 'away')) return
   const before = target.hp
   // The day's twist, applied where every heal passes rather than at each of
   // the dozen places one is cast. `HEALTH` rides along for the same reason:
   // a heal is a fraction of a bar, so it is worth whatever a bar is worth.
   amount *= HEALTH
+  // What the thing in the middle is allowed to get back.
+  //
+  // The one fight here whose bar goes the other way, so the one fight where a
+  // heal is the thing being fought over: everything standing between it and
+  // full is either taking a share of this or stopping it outright.
+  if (target.faction === 'boss') {
+    for (const one of s.actors) {
+      if (!one.alive || one.spawn !== 'ward') continue
+      amount *= 1 - SUPPRESS_CUT
+    }
+  }
+
+  // And a body that went out and came back heals for more than it did.
+  const carrier = s.actors.find((a) => a.id === sourceId)
+  if (carrier && getAura(carrier, 'carried')) amount *= 1 + PORTAL_POWER
+
   // And a third of it refused while a body is carrying something.
   //
   // The one mechanic here that makes healing *wrong* rather than insufficient:

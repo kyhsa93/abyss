@@ -1021,6 +1021,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
         // does something else entirely.
         if (a.spawn === undefined || a.spawn === 'beast') seen.add('adds')
         else if (a.spawn === 'ballast') seen.add('ballast')
+        // The two bodies in a wave that are not there to bite. Counted as
+        // waves they would say a boss summons on a rung where it does
+        // something else entirely -- one of them must not be killed and the
+        // other is the only thing on the floor worth switching to.
+        else if (a.spawn === 'kin') seen.add('kin')
+        else if (a.spawn === 'ward') seen.add('suppress')
       }
       // Whatever billed anybody, which is the one detector that needs no list:
       // a mechanic that took health off a raider says its own name on the way
@@ -4318,7 +4324,15 @@ for (const [label, w, h] of [
     const uses = (key: MechanicId) =>
       encounter.ladder.includes(key) || (encounter.always ?? []).includes(key)
 
-    expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
+    // Except the one fight in this game that does not hit anybody.
+    //
+    // "Every boss slams" was true of every boss until there was a boss that is
+    // not an enemy: the thing in the middle of the well swings at nobody, and
+    // a name for a blow it does not throw would be a name for nothing. It is
+    // the same exemption its phases need, and for the same reason.
+    if (!encounter.saving) {
+      expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
+    }
     // Every mechanic, not a list written out here. The list version named ten
     // of them and was never extended, so twenty could have been announced by a
     // boss that does not throw them, or thrown in silence, and nothing would
@@ -4601,13 +4615,15 @@ for (const [label, w, h] of [
         expect(`${encounter.name}: nothing draws a ${key}`, !ids.has(id), `${id} was drawn anyway`)
       }
     }
-    // These two every boss does, so every boss has to show them landing.
-    for (const id of ['boss_slam', 'boss_raid'] as const) {
+    // These two every boss does, so every boss has to show them landing --
+    // except the one that hits nobody at all, which still bills the room and
+    // so still shows the tide.
+    for (const id of encounter.saving ? (['boss_raid'] as const) : (['boss_slam', 'boss_raid'] as const)) {
       expect(`${encounter.name}: its ${id.slice(5)} lands visibly`, landed.has(id), 'it drew nothing')
     }
     expect(
       `${encounter.name}: and its casts wind up`,
-      ids.has('boss_slam'),
+      encounter.saving || ids.has('boss_slam'),
       'no cast was ever drawn',
     )
   }
@@ -4804,6 +4820,32 @@ for (const [label, w, h] of [
     expect('a court can move its crown', ids.has('boss_rotation'), 'it drew nothing')
     expect('and drink from whoever is near', ids.has('boss_thirst'), 'it drew nothing')
     thrown.set('crowns', ids)
+  }
+
+  // The one you save. Its five cannot be driven off an imposed floor either:
+  // four of them are bodies that walk in, and the fifth is a wound that opens
+  // on a boss which is only a patient on its own fight.
+  {
+    const well = ENCOUNTERS.findIndex((e) => e.id === 'saved')
+    expect('the fight that is not a fight is on the roster', well >= 0, `${well}`)
+    const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', well)
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    const bar = bossOf(s)
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      // Held at half, so the pull lasts long enough to show its late rungs
+      // rather than ending the moment the raid succeeds.
+      bar.hp = bar.maxHp / 2
+      for (const event of s.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a patient can open a wound', ids.has('boss_bleed'), 'it drew nothing')
+    expect('and be helped by something that walks in', ids.has('boss_kin'), 'it drew nothing')
+    expect('and offer a way out', ids.has('boss_portal'), 'it drew nothing')
+    expect('and have something arrive to stop it', ids.has('boss_suppress'), 'it drew nothing')
+    thrown.set('well', ids)
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -8686,11 +8728,20 @@ for (const [label, w, h] of [
       const monster = bossOf(s)
       monster.maxHp *= 40
       monster.hp = monster.maxHp
+      // Except on the fight whose bar goes the other way, where a full bar is
+      // the win condition: inflating it there ended the pull on the first tick
+      // and the sweep reported that the boss threw none of its six rungs.
+      // Pinned at half instead, below, so the pull runs its whole length.
+      if (encounter.saving) monster.hp = monster.maxHp / 2
       const rng = new Rng(seed + 8 * 7919)
       let ticks = 0
       while (s.outcome === 'ongoing' && s.time < 300) {
         step(s, { moveX: 0, moveY: 0, pressed: ticks % 45 === 0 ? [0] : [] }, rng)
         ticks++
+        // Held where it started, for the same reason the health is inflated on
+        // every other fight: what is being asked is what the boss does, not
+        // who wins.
+        if (encounter.saving) monster.hp = monster.maxHp / 2
         for (const fx of s.effects) {
           if (fx.abilityId && fx.abilityId.startsWith('boss_')) seen.add(fx.abilityId.slice(5))
         }
@@ -8708,6 +8759,8 @@ for (const [label, w, h] of [
           // wave, not a mechanic of its own.
           if (a.spawn === 'beast') seen.add('adds')
           else if (a.spawn === 'crown') seen.add('rotation')
+          else if (a.spawn === 'kin') seen.add('kin')
+          else if (a.spawn === 'ward') seen.add('suppress')
           else if (a.spawn !== undefined) seen.add(a.spawn)
           else seen.add('adds')
         }

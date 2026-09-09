@@ -73,6 +73,10 @@ export type MechanicId =
   | 'flight'
   | 'crimson'
   | 'turning'
+  | 'bleed'
+  | 'kin'
+  | 'portal'
+  | 'suppress'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -168,6 +172,14 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   flight: false, // one boss, one landing, one circle
   crimson: false, // everybody at once
   turning: false, // one body, and the raid chose which by dropping it
+  // A wound on the thing in the middle. It is one wound whatever the
+  // headcount -- what the roster changes is how fast it can be closed, which
+  // is the one place in this game the size answers with *speed* rather than
+  // meeting a larger demand.
+  bleed: false,
+  kin: true, // more of the wave means more of the ones that came to help
+  portal: false, // one way out, and anybody may take it
+  suppress: true, // one per so many bodies, so a bigger raid has more to clear
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -242,6 +254,10 @@ export function noTimers(): Record<MechanicId, number> {
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
   caustic: 'the caustic',
   slime: 'the rising',
+  bleed: 'the wound',
+  kin: 'the kindred',
+  portal: 'the way out',
+  suppress: 'the blocking',
   gift: 'the gift',
   turning: 'the turning',
   bond: 'the bond',
@@ -721,6 +737,41 @@ export interface PhaseTiming {
    */
   turning: number
   /**
+   * Seconds between one wound and the next.
+   *
+   * The first bill in this game charged to the boss rather than to the raid:
+   * nobody is hurt by it at all, and what it takes is the thing the raid is
+   * trying to raise. It is answered by walking into the middle and standing
+   * there, which is where everything else in that fight is happening.
+   */
+  bleed: number
+  /**
+   * Seconds between one of the wave being one of *theirs*.
+   *
+   * A body that came to help, mixed in with the ones that came to bite. The
+   * answer is not hitting it, which means the answer is looking -- and it is
+   * deliberately not weak, because a body that dies to a stray cleave is an
+   * accident rather than a decision.
+   */
+  kin: number
+  /**
+   * Seconds between one way out and the next, and it does not move.
+   *
+   * Fixed at forty-five whatever the phase, so it drifts against everything
+   * else on this table. That is the design: the way out is always open at the
+   * worst possible moment.
+   */
+  portal: number
+  /**
+   * Seconds between one blocking thing and the next.
+   *
+   * It hurts nobody and it is the most dangerous thing on the floor: while it
+   * stands, most of what the raid is doing does not arrive. The first mechanic
+   * here where what to hit is decided by the boss's bar rather than by what is
+   * hurting the raid.
+   */
+  suppress: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -975,7 +1026,25 @@ export interface Encounter {
     flight: number
     crimson: number
     turning: number
+    bleed: number
+    kin: number
+    portal: number
+    suppress: number
   }
+  /**
+   * Whether this fight is won by the bar going up rather than down.
+   *
+   * The one inversion in this game, and it is a parameter rather than a
+   * special case: the thing in the middle is not an enemy, it starts halfway,
+   * and everything on its ladder is something taking away the mending it is
+   * already doing. It swings at nobody, it holds nobody, and its phases turn
+   * on the clock rather than on its health -- which is the other half of the
+   * same idea, since a bar that rises would otherwise run the phases
+   * backwards.
+   *
+   * Absent everywhere else, which is every other fight.
+   */
+  saving?: boolean
   /**
    * Where a fight with more than one body puts them.
    *
@@ -1065,6 +1134,15 @@ export interface Encounter {
     thirst: string
     gift: string
     bond: string
+    bleed: string
+    kin: string
+    suppress: string
+    // The way out has no key here, which is the same absence the stain and the
+    // merging have: it is not an event the fight announces, it is a hole that
+    // is either open or not, and the picture says so. It is also the one
+    // cadence on this table that deliberately does not move with the phases,
+    // and a key here would put it under a rule that says every announced
+    // mechanic comes round sooner as a fight goes on.
     flight: string
     crimson: string
     // The stain has no key: what leaves it is the raid's own pass, and a boss
@@ -1207,6 +1285,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: '',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -1381,6 +1462,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: '',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -1565,6 +1649,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: '',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -1725,6 +1812,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: '',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -1878,6 +1968,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: 'The floor is coming up — off the edge',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -2006,6 +2099,9 @@ export const ENCOUNTERS: Encounter[] = [
       slime: '',
       rotation: '',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -2148,6 +2244,9 @@ export const ENCOUNTERS: Encounter[] = [
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
       gift: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
       bond: '',
       flight: '',
       crimson: '',
@@ -2266,6 +2365,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',
+      bleed: '',
+      kin: '',
+      suppress: '',
       gift: 'A gift — carry it, then give it away',
       bond: 'Two of you are bound — stay together',
       flight: 'She is up — nothing to hit',
@@ -2307,6 +2409,163 @@ export const ENCOUNTERS: Encounter[] = [
       ballast: '',
       nuclei: '',
       prison: '',
+    },
+  },
+  {
+    // The ninth fight, and the only one in this game that is not a fight.
+    //
+    // The thing in the middle is not an enemy. It is dying, and the pull is
+    // won when its bar reaches the top rather than the bottom -- so everything
+    // that walks in is a wave, and the boss is a clock running the other way.
+    //
+    // It is the one encounter here that could not have been made by adding
+    // mechanics to the table: the victory condition itself had to become a
+    // parameter, and the phases had to stop reading health and start reading
+    // the clock. Both are small changes and both were worth making -- nothing
+    // else on this roster gets harder because time passed.
+    id: 'saved',
+    name: 'The One You Save',
+    short: 'Saved',
+    demand: 'the thing in the middle is not the enemy, and it is running out of time',
+    saving: true,
+    /**
+     * Issue #35's room: a circle with something in the middle of it.
+     *
+     * Every other room in this game is empty in the centre because the centre
+     * is where the boss stands and the raid stands around it. Here the centre
+     * is the fight -- the wound opens on it and the raid has to walk *in* --
+     * so the room is written around a middle that is occupied.
+     */
+    room: { kind: 'round', radius: 700 },
+    terrain: [],
+    /** Wet stone and moss, which is the first green floor in the citadel. */
+    floor: 'floor-earth',
+    // What it has left, and it starts at half of it. See `MENDING_START`.
+    hp: 40000,
+    // Shorter than the issue asked for, and the shortest on the roster.
+    //
+    // This fight has no wipe in it -- nothing here kills anybody, and every
+    // cell of it ends with the raid standing -- so the clock is the entire
+    // difficulty. At two hundred and sixty seconds against a climb that takes
+    // about a hundred and thirty, every size finished with a minute to spare
+    // and the six cells read a hundred percent. What the raid is actually
+    // racing is how much of the climb the wound takes back, and the clock is
+    // what makes that a race rather than an arithmetic exercise.
+    enrage: 190,
+    // Unused: the phases here turn on the clock. Kept at the roster's usual
+    // values rather than at nought so that nothing reading them divides by
+    // zero, and `advancePhase` never asks.
+    phaseTwoHp: 0.7,
+    phaseThreeHp: 0.35,
+    // It does not swing and it does not slam. Nothing about this fight is the
+    // thing in the middle doing something to the raid.
+    swingDamage: 0,
+    slamDamage: 0,
+    // The room bills instead, and it is the only thing here that does: what
+    // the healers are answering is the place rather than the patient.
+    raidDamage: 90,
+    mechanicDamage: 0.85,
+    // Steep from five to ten and then almost flat, which is not what it was
+    // written as and is what it had to become. The intention was a race in
+    // which a bigger raid answers with speed -- more hands in the wound -- so
+    // the same drain could be sold four times over at twenty-five. It cannot:
+    // `BLEED_HANDS` caps the wound at four pairs of hands on purpose, so a
+    // twenty-five man closes it at exactly a ten-man's rate. What the extra
+    // fifteen bodies actually buy is more of the ones that came to help and
+    // more damage on the thing blocking the mending, and both are small.
+    //
+    // At 1.2 the twenty-five man climbed to eighty-two percent and stopped:
+    // the drain ate the whole climb, and both of its cells read nought over
+    // forty pulls. Read against the ten-man's climb rate the ceiling is about
+    // 0.85, and this sits on it rather than under it -- at 0.78 both cells
+    // came back at a hundred percent, and the top of the ladder should cost
+    // something. It does: the heroic twenty-five is the one cell of the six
+    // that a first pull does not always take.
+    sizeMechanic: { 5: 0.3, 10: 0.7, 25: 0.85 },
+    // The wave is the first rung and it is deliberately cheap: it is the only
+    // thing in this fight that touches the raid at all, and it is documented
+    // as teaching nothing on its own -- which is right here, because it is the
+    // floor the rest of the ladder stands on rather than an idea of its own.
+    //
+    // Then the one that came back wrong, the wound, the one that came to help
+    // and must not be killed, the way out, and the thing that stops the
+    // mending. The last two rungs are the fight's argument: one asks the raid
+    // to spend a body's existence for later, and the other moves "what should
+    // I be hitting" from what is hurting the raid to what is stopping the bar.
+    // The wound first, not the wave -- and that is a change from what the
+    // issue asked for, made by a rule the issue could not see.
+    //
+    // No two fights here may open on the same thing: the first rungs are what
+    // the smallest raid meets, and a five-man that met the same wave on two
+    // bosses would be playing one boss twice. The Whisper carries a wave at
+    // every setting, so this one cannot start with one. What it starts with
+    // instead is better anyway: the wound is this fight's own idea, and the
+    // smallest raid now meets the inversion on its first pull rather than
+    // meeting a wave and waiting.
+    ladder: ['bleed', 'kin', 'portal', 'adds', 'empower', 'suppress'],
+    herald: null,
+    accent: '#22c55e',
+    names: { slam: '', shard: '', raid: 'THE WELL' },
+    phases: {
+      1: { swing: 2, slam: 0, puddleCount: 1, raid: 13, ...beats({ adds: 30, empower: 62, bleed: 48, kin: 70, portal: 45, suppress: 58 }) },
+      2: { swing: 2, slam: 0, puddleCount: 1, raid: 12, ...beats({ adds: 26, empower: 55, bleed: 41, kin: 60, portal: 45, suppress: 50 }) },
+      3: { swing: 2, slam: 0, puddleCount: 1, raid: 11, ...beats({ adds: 22, empower: 45, bleed: 34, kin: 48, portal: 45, suppress: 42 }) },
+    },
+    // The wound is written half again as slow as it plays, and the reason is
+    // the tempo rather than the wound. A short kit is paid back as speed --
+    // `kitCadence` runs a three-rung fight at five eighths of the interval --
+    // and the three rungs the smallest raid buys here are the wave, the one
+    // that came back wrong, and the wound. So the amplifier lands on the one
+    // mechanic that drains the bar, and at thirty-four the five-man met it
+    // every twenty-one seconds and finished no pull at all.
+    opening: { slam: 0, raid: 14, ...beats({ adds: 20, empower: 50, bleed: 42, kin: 55, portal: 30, suppress: 55 }) },
+    lines: {
+      phaseTwo: 'It is fading',
+      phaseThree: 'HOLD ON',
+      adds: 'They are coming for it',
+      empower: 'One of them is wrong — that one first',
+      bleed: 'It is bleeding — get in there',
+      kin: 'That one is with us — leave it',
+      suppress: 'That thing is stopping us — kill it',
+      coldflame: '',
+      spike: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      dominate: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
+      caustic: '',
+      slime: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
     },
   },
 ]

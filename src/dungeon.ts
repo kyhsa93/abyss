@@ -245,10 +245,7 @@ export const CHAMBERS: Chamber[] = [
     id: 'dream',
     name: 'The Dreaming Hall',
     wing: 'frostwing',
-    encounter: null,
-    awaiting: 'the boss that is healed (#11)',
-    // Long, with the thing that has to be kept alive lying down the middle.
-    room: { kind: 'hall', halfWidth: 420, front: 700, back: 420 },
+    encounter: 8,
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.

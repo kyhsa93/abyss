@@ -1417,3 +1417,86 @@ export const FLIGHT_WARNING = 5
 export const CRIMSON_BASE = 420
 export const CRIMSON_PER_GIFT = 230
 export const CRIMSON_CAST = readable(2.2)
+
+// --- the one you save, whose bar goes the other way ------------------------
+
+/**
+ * What the thing in the middle gets back on its own, every second.
+ *
+ * The fight is a race rather than a rescue: it is already mending, and every
+ * mechanic here is something taking that away. Without a climb of its own the
+ * bottom of the ladder would be a fight nobody can win -- the rungs that
+ * *raise* the bar are the fourth and the fifth, and a five-man never buys
+ * them.
+ *
+ * Six tenths of a percent a second, so a pull with nothing going wrong is
+ * over in about eighty seconds -- and nothing here goes
+ * nothing-wrong, so what the raid is racing is how much of that climb the
+ * wound and the blocking take back. At a fifth of a percent no size finished
+ * at all: every cell ran out the clock at about seventy percent -- and nothing here ever
+ * goes nothing-wrong, so what the raid is actually racing is how much of that
+ * climb the wound and the blocking take back.
+ *
+ * Every number in this fight is written as a share of the bar per second
+ * rather than as a damage figure, and that is not a style choice: what a
+ * mechanic bills and what a heal restores pass through different funnels in
+ * this engine, and the first version of this had the mending in one currency
+ * and the wound in the other. The bar sat at fifty-five percent for five
+ * minutes.
+ */
+export const MENDING_RATE = 0.006
+
+/** Where it starts, which is halfway to either end. */
+export const MENDING_START = 0.5
+
+/**
+ * The wound, which is the first bill in this game charged to the boss.
+ *
+ * Nobody in the raid is hurt by it at all. What it takes is the thing the raid
+ * is trying to raise, which is why the answer is to walk into the middle and
+ * stand there -- and the middle is where everything else in this fight is
+ * happening.
+ *
+ * It closes faster with more bodies in it, which is the only place in this
+ * game where the roster is answered by the *speed* of an answer rather than by
+ * the size of a demand.
+ */
+export const BLEED_RADIUS = 90
+export const BLEED_TELEGRAPH = readable(2)
+/** A share of the bar per second, like everything else on this fight. */
+export const BLEED_DRAIN = 0.035
+export const BLEED_CLOSE = 0.09
+/** How many bodies inside it still count. See the note in `updateGround`. */
+export const BLEED_HANDS = 3
+
+/**
+ * The one that came to help, and must not be killed.
+ *
+ * Deliberately not weak: a body that dies to a stray cleave is not a decision,
+ * it is an accident, and what this asks is that a raid look before it swings.
+ * Killing one costs far more than letting it live was worth -- a mistake here
+ * is a step backwards rather than a smaller step forwards.
+ */
+export const KIN_HEAL = 0.0025
+export const KIN_LIFE = 40
+export const KIN_COST = 0.06
+
+/**
+ * The way out, and what it is worth to have taken it.
+ *
+ * The only demand in this game paid in *existence*: a body that steps through
+ * answers nothing for five seconds -- takes nothing, heals nobody, is not
+ * healed -- and comes back better at the one thing this fight is about.
+ *
+ * Its clock is fixed at forty-five seconds and does not move with the phases,
+ * so it drifts against everything else here. That is the design: the way out
+ * is always open at the worst possible moment.
+ */
+export const PORTAL_RADIUS = 70
+export const PORTAL_OPEN = 8
+export const PORTAL_AWAY = 5
+export const PORTAL_CARRY = 45
+export const PORTAL_POWER = 0.18
+
+/** What one of the things that block the mending takes off it. */
+export const SUPPRESS_CUT = 0.45
