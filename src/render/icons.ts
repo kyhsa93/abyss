@@ -232,6 +232,20 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // Bone rather than blood: it is a thing standing out of the floor, and what
   // it asks for is a target call, not a step.
   boss_spike: { colour: '#e7e5e4', style: 'pierce' },
+  // The tenth. Cracked glass for the mark answered by pressing nothing, a hard
+  // red for the band that falls in, the white of a room with the lights turned
+  // up for the wash, and a deeper blue for the cold that stacks while a raid
+  // stays.
+  //
+  // The chill has no entry, which is the one deliberate absence in this table.
+  // Nothing is ever cast at anybody: it is a rate a body buys by swinging, and
+  // what draws it is the frost under the feet rather than a picture of a hit.
+  // An entry here would be a colour for a cast that does not exist, and the
+  // check downstairs would rightly say so.
+  boss_instability: { colour: '#a5f3fc', style: 'burst' },
+  boss_haul: { colour: '#ef4444', style: 'crush' },
+  boss_cover: { colour: '#e0f2fe', style: 'burst' },
+  boss_buffet: { colour: '#0ea5e9', style: 'crush' },
   // The second boss's cold, at three sizes, and the one thing of its that is
   // not cold at all.
   //

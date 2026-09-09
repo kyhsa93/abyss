@@ -244,6 +244,35 @@ export type AuraId =
   | 'reek'
   /** Stacking on whoever holds the boss, and lethal at ten. */
   | 'swelling'
+  /**
+   * What a swing into the cold costs, stacking on whoever threw it.
+   *
+   * The only mark in this game applied by what a body *did* rather than by
+   * what was done to it, and it is deliberately unanswerable: it is the rent
+   * on a melee place, paid to the healers, and a rent with an answer is not a
+   * rent. It is at the bottom of its ladder for the same reason.
+   */
+  | 'chilled'
+  /**
+   * Fifteen seconds in which every cast started is a debt, paid all at once.
+   *
+   * `stacks` is the debt. The answer is to press nothing at all, which is the
+   * one answer this game has never asked for -- everything else is answered
+   * by standing somewhere else, and standing somewhere else is free while a
+   * rotation runs.
+   */
+  | 'unstable'
+  /** Three seconds where the feet do not work, after the band falls in. */
+  | 'rooted'
+  /**
+   * Stacking magic vulnerability for standing anywhere near the boss.
+   *
+   * Nine percent a stack and no ceiling. It comes off outside the reach and
+   * more slowly than it goes on, so what it prices is not a mistake, it is
+   * the decision to stay -- and the raid that is winning is the raid that
+   * most wants to.
+   */
+  | 'buffeted'
   | 'enrage' // boss damage amplifier
 
 export interface Aura {
@@ -513,6 +542,18 @@ export interface Actor {
    * the person did, and the aura is a fact about what the fight asked.
    */
   walked?: number
+
+  /**
+   * Seconds toward the cold's next turn, in or out of the boss's reach.
+   *
+   * One accumulator for both directions, since a body is only ever doing one
+   * of them: it counts up to the phase's interval while inside the reach and
+   * to the shedding interval while outside it, and is reset each time it
+   * turns. Kept here rather than on the aura because a body outside the reach
+   * with no stacks left still has to be counting -- an aura that has been
+   * cleared cannot count anything.
+   */
+  chill?: number
 }
 
 export type GroundKind =
@@ -551,6 +592,15 @@ export type GroundKind =
   // this game that is a *thing* rather than a hazard, and the only one whose
   // count stops while somebody is standing on it.
   | 'decant'
+  // The band round the boss that everything has just been dragged into. One
+  // object for all three stages of it: it drags while its count is long and
+  // it is a plain telegraph once the count is short.
+  | 'haul'
+  // The room going white, with the shadow behind each coffin left dark. The
+  // only ground here whose *safe* set is what is drawn: `spots` carries the
+  // coffins, and which side of each one is shelter is worked out from where
+  // the boss is standing rather than stored.
+  | 'cover'
 
 export interface GroundEffect {
   id: number

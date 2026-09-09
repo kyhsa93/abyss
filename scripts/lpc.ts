@@ -500,6 +500,26 @@ const BOSS: Record<string, Layer[]> = {
     { z: 10, dir: 'body/bodies/zombie' },
     { z: 100, dir: 'head/heads/zombie/adult' },
   ],
+  // "do nothing while it is on you, and know when to walk out of a fight that
+  // is going well" -- a dead thing that is still standing, in a cape that has
+  // been hanging in a cold room for a very long time.
+  //
+  // The skeleton again, which the first boss also wears, and that is on
+  // purpose: the two are the ends of this roster and what separates them is
+  // the cape. Bone alone is a structure. Bone in a cloak is somebody who used
+  // to give orders, which is what a fight whose whole demand is "stop, and
+  // then leave" needs the thing in the middle to look like.
+  //
+  // The tenth boss shares the cape with the eighth, and they must not read as
+  // the same body: that one is a torn red on a pale woman and this one is
+  // pushed to a frosted white, which is also the colour every mechanic on its
+  // ladder is drawn in.
+  cold: [
+    { z: 5, dir: 'cape/tattered/bg', half: 'behind', tint: '#dbeafe' },
+    { z: 10, dir: 'body/bodies/skeleton' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
+    { z: 130, dir: 'cape/tattered/fg', tint: '#dbeafe' },
+  ],
   gorged: [
     { z: 10, dir: 'body/bodies/muscular' },
     { z: 20, dir: 'feet/armour/plate/male' },

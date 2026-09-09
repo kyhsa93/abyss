@@ -21,6 +21,7 @@ import {
   burstSpore,
   detonateSpill,
   freeSpiked,
+  chillSwing,
   siphonFeed,
   spitOut,
   turnToward,
@@ -283,7 +284,13 @@ function updateAutoAttacks(s: SimState, rng: Rng): void {
     // seconds from a token standing still. Melee get an arc where the swing
     // went, everyone gets the hit landing, and the hunter already has a bolt.
     const facing = Math.atan2(target.pos.y - a.pos.y, target.pos.x - a.pos.x)
-    if (auto.range <= MELEE_RANGE) pushEffect(s, 'swing', a.pos, { angle: facing })
+    if (auto.range <= MELEE_RANGE) {
+      pushEffect(s, 'swing', a.pos, { angle: facing })
+      // What a swing into the cold costs the body that threw it. The one mark
+      // in this game a body puts on itself by acting, which is why it is here
+      // and not on a schedule.
+      if (a.faction === 'party' && target.faction === 'boss') chillSwing(s, a, rng)
+    }
     pushEffect(s, 'impact', target.pos, {
       angle: facing,
       power: hit,
@@ -423,7 +430,15 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       if (aura.id === 'haunted' && aura.stacks === 0) continue
       if (tick.damage !== undefined) {
         const bite =
-          aura.id === 'spiked' ? spikeBite(aura, tick.damage) * fightScale(s) : tick.damage
+          aura.id === 'spiked'
+            ? spikeBite(aura, tick.damage) * fightScale(s)
+            : // The chill is the one dot here written per stack rather than
+              // per body, because what it prices is how much swinging a body
+              // has done -- a melee eight deep in it is paying eight times
+              // what a body that has landed one blow is.
+              aura.id === 'chilled'
+              ? tick.damage * aura.stacks * fightScale(s)
+              : tick.damage
         // Named where the fight is what put it there, so the page and every
         // probe that reads the per-mechanic split can see it. A dot the boss
         // applied is
@@ -518,7 +533,7 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   // Pinned, and the stick does nothing. The same rule the roster plays under,
   // and it has to be here rather than only in the AI or the mechanic would be
   // a mechanic only other people are subject to.
-  if (len > 0.01 && !getAura(player, 'spiked')) {
+  if (len > 0.01 && !getAura(player, 'spiked') && !getAura(player, 'rooted')) {
     const stepLen =
       player.moveSpeed *
       DT *

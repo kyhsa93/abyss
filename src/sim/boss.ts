@@ -51,6 +51,25 @@ import {
   BLEED_RADIUS,
   BLEED_TELEGRAPH,
   BLEED_DRAIN,
+  CHILL_CHANCE,
+  CHILL_LIFE,
+  UNSTABLE_PER,
+  UNSTABLE_DEBT,
+  HAUL_RADIUS,
+  HAUL_DRAG,
+  HAUL_READ,
+  HAUL_PULL,
+  HAUL_INNER,
+  HAUL_BITE,
+  COVER_READ,
+  COVER_LONG,
+  COVER_WIDE,
+  COVER_BITE,
+  COVER_HOLD,
+  COVER_APART,
+  BUFFET_REACH,
+  BUFFET_SHED,
+  BUFFET_LEAVE,
   BLEED_CLOSE,
   BLEED_HANDS,
   KIN_HEAL,
@@ -148,6 +167,7 @@ import {
   livingParty,
   say,
   stackAura,
+  clearAura,
   topThreatTarget,
   fightScale,
   mechanicScale,
@@ -564,6 +584,11 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleWard(s, b, rng, timing)
   schedulePortal(s, b, rng, timing)
   updateHounds(s)
+  scheduleInstability(s, b, rng, timing)
+  updateUnstable(s)
+  scheduleHaul(s, b, timing)
+  scheduleCover(s, b, timing)
+  updateBuffet(s, b, timing)
 
   updateAdds(s)
   updateOozes(s)
@@ -4121,6 +4146,79 @@ export function updateGround(s: SimState): void {
       continue
     }
 
+    // The drag, and then the band it dragged everybody into.
+    //
+    // Three stages on one count, and the first of them is the mechanic: while
+    // there is more than a warning's worth left, everything alive is pulled
+    // toward the middle and nothing is dangerous yet. The warning starts when
+    // the pulling stops, so the walk out is exactly as long as the walk in
+    // was -- which is what makes a band round the boss a question rather than
+    // a fact about who happens to be a melee.
+    if (g.kind === 'haul') {
+      if (g.detonated) {
+        g.lingering -= lingerStep(s)
+        continue
+      }
+      g.telegraph -= DT
+      if (g.telegraph > HAUL_READ) {
+        for (const a of livingParty(s)) {
+          const away = dist(a.pos, g.pos)
+          if (away <= HAUL_INNER) continue
+          const step = Math.min(away - HAUL_INNER, HAUL_PULL * DT)
+          a.pos.x += ((g.pos.x - a.pos.x) / away) * step
+          a.pos.y += ((g.pos.y - a.pos.y) / away) * step
+        }
+        continue
+      }
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      g.lingering = 0.5
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_haul', radius: g.radius, power: 400 })
+      for (const a of livingParty(s)) {
+        if (dist(a.pos, g.pos) > g.radius) continue
+        applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: 'haul' })
+        if (a.alive) addAura(a, 'rooted', BOSS_ID)
+      }
+      continue
+    }
+
+    // The room going white, with the shadow behind each coffin left dark.
+    //
+    // The only ground here whose picture is of the safe set rather than of the
+    // dangerous one. What it bills is everybody who is not in a shadow when it
+    // lands -- and, past `COVER_HOLD`, everybody who is in one that already
+    // has that many people in it. That ceiling is rule five: without it a
+    // twenty-five man answers a room-wide bill by putting all of itself in the
+    // one strip a five-man was given, and a mechanic a crowd answers by
+    // crowding is not a mechanic.
+    if (g.kind === 'cover') {
+      if (g.detonated) {
+        g.lingering -= lingerStep(s)
+        continue
+      }
+      g.telegraph -= DT
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      g.lingering = 0.4
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_cover', radius: g.radius, power: 600 })
+      const held = new Map<number, number>()
+      // By id rather than by who is nearest, so that which of two bodies in a
+      // full shadow pays is a fact about the raid and not about a rounding
+      // error in a distance.
+      for (const a of [...livingParty(s)].sort((one, two) => one.id - two.id)) {
+        const shade = coverShelter(g, a.pos)
+        if (shade !== null) {
+          const room = held.get(shade) ?? 0
+          if (room < COVER_HOLD) {
+            held.set(shade, room + 1)
+            continue
+          }
+        }
+        applyDamage(s, a, mechanic(s, g.damage), 'magic', { sourceId: BOSS_ID, mechanic: 'cover' })
+      }
+      continue
+    }
+
     // The way out, which is the only ground here worth stepping into.
     if (g.kind === 'portal') {
       g.telegraph -= DT
@@ -4341,8 +4439,25 @@ function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
   s.sounds.push('telegraph')
 
   const count = Math.max(1, Math.round(s.party.length / SPIKE_PER_BODIES))
+  // Kept apart on the one fight where a coffin is also a wall.
+  //
+  // Two coffins standing together cast one shadow, and a wash that leaves one
+  // shadow for a raid is not a hard cast, it is a cast with no answer. A
+  // uniform draw produces that pairing regularly, so the draw is filtered:
+  // each new coffin has to stand `COVER_APART` from the ones already placed,
+  // and the filter is dropped rather than enforced if it would leave nobody,
+  // because a spike that never lands is worse than two that are close.
+  const apart = fight(s).ladder.includes('cover')
+  const placed: Vec2[] = []
   for (let i = 0; i < count && free.length > 0; i++) {
-    const victim = free.splice(rng.int(free.length), 1)[0]!
+    let pool = free
+    if (apart && placed.length > 0) {
+      const clear = free.filter((one) => placed.every((at) => dist(one.pos, at) >= COVER_APART))
+      if (clear.length > 0) pool = clear
+    }
+    const victim = pool[rng.int(pool.length)]!
+    free.splice(free.indexOf(victim), 1)
+    placed.push({ x: victim.pos.x, y: victim.pos.y })
     const spike = makeAdd(s.nextObjectId++, victim.pos.x, victim.pos.y)
     spike.name = 'Spike'
     spike.spawn = 'spike'
@@ -4371,4 +4486,264 @@ function scheduleSpikes(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): v
 export function freeSpiked(s: SimState, spikeId: number): void {
   const spike = s.actors.find((a) => a.id === spikeId && a.spawn === 'spike')
   if (spike) spike.alive = false
+}
+
+// --- the tenth: a fight answered by not acting, and by leaving ---------------
+//
+// Everything above this line is answered by where a body is standing. These
+// five are not: two of them are answered by a body deciding to stop doing what
+// it is good at, one is answered by walking back out of a place the fight put
+// you in, and one has no answer at all and is not sold as though it had.
+
+/**
+ * What a swing into the cold costs the body that threw it.
+ *
+ * Called from the auto-attack loop rather than scheduled, which is what makes
+ * it the one mark in this game applied by an action instead of by an event:
+ * nothing picks a victim, a victim picks itself by being close enough to hit
+ * something.
+ *
+ * The interval between one stack and the next is read off the phase table --
+ * `timing.chill` is an internal cooldown wearing a cadence's clothes -- and it
+ * is derived from the aura's own clock rather than from a timer per body: a
+ * stack refreshes `remaining`, so the time since the last one is the
+ * difference between the duration and what is left. One less field on `Actor`
+ * for a number that is already written down.
+ */
+export function chillSwing(s: SimState, a: Actor, rng: Rng): void {
+  if (s.mode !== 'raid') return
+  const timing = affixTiming(scaled(fight(s).phases[s.phase]!, s), s.affix)
+  if (timing.chill <= 0) return
+  const held = getAura(a, 'chilled')
+  if (held && CHILL_LIFE - held.remaining < timing.chill) return
+  if (!rng.chance(CHILL_CHANCE)) return
+  stackAura(a, 'chilled', BOSS_ID)
+}
+
+/**
+ * The mark that is answered by pressing nothing.
+ *
+ * Half of them on healers, and that half is the mechanic. A dealer that stops
+ * for fifteen seconds has spent damage, and damage is charged to the enrage
+ * timer -- a currency this fight has plenty of. A healer that stops has spent
+ * somebody else's health, which is charged immediately and to a different
+ * person. One rule, two prices, decided by where the person standing under it
+ * happens to sit in the raid.
+ *
+ * Never the tank, for the reason every mark in this game spares the tank: a
+ * tank that stops pressing buttons is a tank that stops holding the boss, and
+ * what arrives then is not a decision, it is an accident.
+ */
+function scheduleInstability(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.instability <= 0) return
+  s.next.instability -= DT
+  if (s.next.instability > 0) return
+  s.next.instability = timing.instability
+
+  const free = livingParty(s).filter((a) => a.role !== 'tank' && !getAura(a, 'unstable'))
+  if (free.length === 0) return
+  const count = Math.max(1, Math.round(s.party.length / UNSTABLE_PER))
+  // Half to healers by construction rather than by hoping the roll lands
+  // there. A uniform draw over a raid that is one fifth healers puts a healer
+  // under it about one time in five, and one time in five is not a rule
+  // anybody can learn.
+  const healers = free.filter((a) => a.role === 'healer')
+  const rest = free.filter((a) => a.role !== 'healer')
+  const wanted = Math.min(healers.length, Math.ceil(count / 2))
+  const picked: Actor[] = []
+  for (let i = 0; i < wanted && healers.length > 0; i++) {
+    picked.push(healers.splice(rng.int(healers.length), 1)[0]!)
+  }
+  const pool = [...rest, ...healers]
+  while (picked.length < count && pool.length > 0) {
+    picked.push(pool.splice(rng.int(pool.length), 1)[0]!)
+  }
+  if (picked.length === 0) return
+
+  say(s, b, lineFor(fight(s), 'instability'))
+  s.sounds.push('telegraph')
+  for (const one of picked) {
+    addAura(one, 'unstable', b.id)
+    pushEffect(s, 'cast', one.pos, { abilityId: 'boss_instability' })
+  }
+}
+
+/**
+ * The bill, at the instant the mark comes off.
+ *
+ * Squared, which is what makes it a stop rather than a tax. Two casts inside
+ * the window is seven hundred and change and a raid carries it without
+ * noticing; five is most of a bar; eight is a body on the floor. A linear
+ * bill would be answered by carrying on and paying it.
+ *
+ * Settled here rather than by the aura's own expiry because the expiry pass
+ * splices the aura off before anything can read the count on it -- the same
+ * hole the spike's release fell into, and the same fix.
+ */
+function updateUnstable(s: SimState): void {
+  if (!fight(s).ladder.includes('instability')) return
+  for (const a of livingParty(s)) {
+    const mark = getAura(a, 'unstable')
+    if (!mark || mark.remaining > DT) continue
+    const debt = mark.stacks
+    clearAura(a, 'unstable')
+    if (debt <= 0) continue
+    pushEffect(s, 'impact', a.pos, {
+      abilityId: 'boss_instability',
+      radius: 40 + debt * 8,
+      power: debt,
+    })
+    applyDamage(s, a, mechanic(s, debt * debt * UNSTABLE_DEBT), 'magic', {
+      sourceId: BOSS_ID,
+      mechanic: 'instability',
+    })
+  }
+}
+
+/**
+ * The drag, which is what makes the band a question.
+ *
+ * One piece of ground for all three stages of it. While its count is longer
+ * than the warning it drags everything alive toward the middle and is not
+ * dangerous; once the count is inside the warning it is an ordinary telegraph
+ * that anybody can read; when it runs out it falls in on whoever is still
+ * standing in it and takes their feet for three seconds.
+ *
+ * The drag is the whole reason this exists rather than a plain band. Without
+ * it the melee are already inside and the ranged already outside, so most
+ * casts of it would ask nobody anything -- which is exactly what the mechanic
+ * it replaces did, and exactly why it measured at nothing.
+ */
+function scheduleHaul(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.haul <= 0) return
+  s.next.haul -= DT
+  if (s.next.haul > 0) return
+  s.next.haul = timing.haul
+  // One at a time: two overlapping drags is one drag with twice the pull, and
+  // a body dragged twice as fast has been given a smaller room rather than a
+  // second decision.
+  if (s.ground.some((g) => g.kind === 'haul' && !g.detonated)) return
+
+  say(s, b, lineFor(fight(s), 'haul'))
+  s.sounds.push('telegraph')
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'haul',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: HAUL_RADIUS,
+    telegraph: HAUL_DRAG + HAUL_READ,
+    damage: HAUL_BITE,
+  })
+}
+
+/**
+ * The room going white, and the shadows that are the only place left.
+ *
+ * The one mechanic in this game whose answer is the wreckage of another one.
+ * Every other floor here is somewhere to leave or somewhere to go that the
+ * boss put down; the shadows are cast by coffins the raid has been breaking
+ * all fight, so how many places there are to stand is a consequence of how
+ * fast it has been answering the rung below.
+ *
+ * `REQUIRES` says it needs the coffins, because a kit that bought this and
+ * not those would be a room-wide bill with nowhere to stand -- which is not a
+ * hard mechanic, it is an unanswerable one.
+ */
+function scheduleCover(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.cover <= 0) return
+  s.next.cover -= DT
+  if (s.next.cover > 0) return
+  s.next.cover = timing.cover
+
+  const stones = s.actors.filter((a) => a.alive && a.spawn === 'spike')
+  // Nothing standing is nothing to hide behind. Held rather than skipped so
+  // the next one is not immediately due the moment a coffin goes up.
+  if (stones.length === 0) return
+
+  say(s, b, lineFor(fight(s), 'cover'))
+  s.sounds.push('telegraph')
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'cover',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: roomReach(s.room),
+    telegraph: COVER_READ,
+    damage: COVER_BITE,
+    spots: stones.map((one) => ({ x: one.pos.x, y: one.pos.y })),
+  })
+}
+
+/**
+ * Whether a spot is in the shelter of one of a wash's coffins.
+ *
+ * The shadow is worked out from where the boss is standing rather than stored
+ * on the ground, so a boss that moves moves every shadow with it: what is
+ * behind a coffin is a fact about a direction, not a rectangle somebody wrote
+ * down three seconds ago.
+ *
+ * Exported because the party AI has to be able to ask the same question the
+ * floor will ask, in the same words. Two implementations of "is this safe"
+ * is how a raid ends up standing in a place the fight does not agree is a
+ * place.
+ */
+export function coverShelter(g: GroundEffect, at: Vec2): number | null {
+  const from = g.pos
+  for (let i = 0; i < (g.spots ?? []).length; i++) {
+    const stone = g.spots![i]!
+    const dx = stone.x - from.x
+    const dy = stone.y - from.y
+    const len = Math.hypot(dx, dy)
+    if (len < 1) continue
+    const ux = dx / len
+    const uy = dy / len
+    const ax = at.x - stone.x
+    const ay = at.y - stone.y
+    // Along the shadow, which runs away from the boss, and across it.
+    const along = ax * ux + ay * uy
+    const across = Math.abs(-ax * uy + ay * ux)
+    if (along < 0 || along > COVER_LONG) continue
+    if (across > COVER_WIDE / 2) continue
+    return i
+  }
+  return null
+}
+
+/**
+ * The cold, which is the last third of the fight.
+ *
+ * A stack in, more slowly a stack out, and no ceiling either way. There is no
+ * instant here at all: what it prices is a decision about time, and the
+ * decision is to walk away from a fight that is going well and come back to
+ * it worse positioned and further behind.
+ *
+ * The shedding is deliberately slower than the stacking. Equal rates would
+ * make stepping out for four seconds and back in a rotation rather than a
+ * decision, and a rotation is something an AI does perfectly and a person
+ * does not have to think about.
+ */
+function updateBuffet(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.buffet <= 0) return
+  for (const a of livingParty(s)) {
+    const inside = dist(a.pos, b.pos) <= BUFFET_REACH
+    const held = getAura(a, 'buffeted')
+    a.chill = (a.chill ?? 0) + DT
+    if (inside) {
+      if (a.chill < timing.buffet) continue
+      a.chill = 0
+      stackAura(a, 'buffeted', b.id)
+      // One picture, at the stack where staying stops being free. Every turn
+      // of it drawn would be four a second at twenty-five, and a mechanic that
+      // draws constantly draws nothing: what a player has to be told is the
+      // moment, and the moment is this one.
+      if (getAura(a, 'buffeted')?.stacks === BUFFET_LEAVE) {
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_buffet', power: 200 })
+      }
+      continue
+    }
+    if (!held) continue
+    if (a.chill < BUFFET_SHED) continue
+    a.chill = 0
+    held.stacks -= 1
+    if (held.stacks <= 0) clearAura(a, 'buffeted')
+  }
 }

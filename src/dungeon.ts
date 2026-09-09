@@ -262,9 +262,14 @@ export const CHAMBERS: Chamber[] = [
     id: 'lair',
     name: 'The Rimeward Lair',
     wing: 'frostwing',
-    encounter: null,
-    awaiting: 'the stacking that is answered by leaving (#12)',
-    room: { kind: 'platform', radius: 520 },
+    encounter: 9,
+    // The placeholder was a platform five hundred and twenty across, and the
+    // fight that arrived brought a circle eight hundred and forty across
+    // instead -- which is the encounter's own room and therefore the one that
+    // is used. The width is the premise rather than a preference: the last
+    // rung's reach is four hundred and twenty, and a fight that tells a raid
+    // to withdraw needs somewhere outside to withdraw to. The floor with a
+    // real edge is #36's, and it is still #36's.
     pad: killed('dream'),
   },
 

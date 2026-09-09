@@ -19,6 +19,12 @@ import {
   BALLAST_REACH,
   NUCLEUS_LIFE,
   STAIN_LIFE,
+  HAUL_DRAG,
+  HAUL_READ,
+  COVER_READ,
+  COVER_LONG,
+  COVER_WIDE,
+  BUFFET_LEAVE,
   BLEED_TELEGRAPH,
   PORTAL_OPEN,
   BOND_REACH,
@@ -1323,6 +1329,82 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
         ctx.beginPath()
         ctx.moveTo(p.x + Math.cos(at) * r * 0.15, p.y + Math.sin(at) * r * 0.15 * TILT)
         ctx.lineTo(p.x + Math.cos(at) * len, p.y + Math.sin(at) * len * TILT)
+        ctx.stroke()
+      }
+      ctx.restore()
+      continue
+    }
+
+    // The drag, and then the band. Two pictures on one object because it is
+    // two things on one count: while it is pulling, the floor shows lines
+    // running *inward* -- the one place in this game the floor says "you are
+    // being moved" rather than "do not stand here" -- and once the pulling
+    // stops it is an ordinary band filling up.
+    if (g.kind === 'haul') {
+      if (g.detonated) continue
+      const dragging = g.telegraph > HAUL_READ
+      const filled = dragging ? 0 : 1 - g.telegraph / HAUL_READ
+      footprint(ctx, p.x, p.y, r)
+      ctx.fillStyle = `rgba(239, 68, 68, ${(0.1 + filled * 0.12).toFixed(2)})`
+      ctx.fill()
+      ctx.strokeStyle = iconFor('boss_haul').colour
+      ctx.lineWidth = dragging ? 1.5 : 3
+      ctx.stroke()
+      if (dragging) {
+        // Spokes running in, and travelling in as the count runs down, so the
+        // picture is of something being pulled rather than of a circle.
+        const run = ((HAUL_DRAG + HAUL_READ - g.telegraph) / HAUL_DRAG) % 1
+        ctx.save()
+        ctx.strokeStyle = iconFor('boss_haul').colour
+        ctx.globalAlpha = 0.55
+        ctx.lineWidth = 2
+        for (let i = 0; i < 12; i++) {
+          const at = (i / 12) * Math.PI * 2
+          const far = r * (1.9 - run * 0.6)
+          const near = r * (1.35 - run * 0.6)
+          ctx.beginPath()
+          ctx.moveTo(p.x + Math.cos(at) * far, p.y + Math.sin(at) * far * TILT)
+          ctx.lineTo(p.x + Math.cos(at) * near, p.y + Math.sin(at) * near * TILT)
+          ctx.stroke()
+        }
+        ctx.restore()
+      }
+      continue
+    }
+
+    // The room going white, with a dark strip behind every coffin.
+    //
+    // Drawn as brightness rather than as an outlined shape, which is the whole
+    // instruction: what has to be readable in half a second is *where it is
+    // dark*, and an edge drawn round each strip would make the picture a set
+    // of five shapes to compare rather than one field with holes in it.
+    if (g.kind === 'cover') {
+      if (g.detonated) continue
+      const on = 1 - g.telegraph / COVER_READ
+      ctx.save()
+      footprint(ctx, p.x, p.y, r)
+      ctx.clip()
+      ctx.fillStyle = `rgba(224, 242, 254, ${(0.05 + on * 0.4).toFixed(2)})`
+      ctx.fillRect(0, 0, L.w, L.h)
+      // Cut the shadows back out of it, so the strips are the floor showing
+      // through rather than a second colour laid on top.
+      ctx.globalCompositeOperation = 'destination-out'
+      for (const stone of g.spots ?? []) {
+        const dx = stone.x - g.pos.x
+        const dy = stone.y - g.pos.y
+        const len = Math.hypot(dx, dy)
+        if (len < 1) continue
+        const ux = dx / len
+        const uy = dy / len
+        const back = { x: stone.x + ux * COVER_LONG, y: stone.y + uy * COVER_LONG }
+        const near = worldToScreen(stone)
+        const far = worldToScreen(back)
+        ctx.beginPath()
+        ctx.lineWidth = COVER_WIDE * L.scale
+        ctx.lineCap = 'butt'
+        ctx.strokeStyle = '#000'
+        ctx.moveTo(near.x, near.y)
+        ctx.lineTo(far.x, far.y)
         ctx.stroke()
       }
       ctx.restore()
@@ -2759,6 +2841,76 @@ function drawActor(
     ctx.setLineDash([5, 6])
     ctx.stroke()
     ctx.setLineDash([])
+  }
+
+  // The chill, and the cold, which are the same picture in two colours and
+  // deliberately so: one is what swinging costs and the other is what standing
+  // costs, and a player who has learned to read frost under a body has learned
+  // both. Layers rather than a number -- a stack count in the corner of the
+  // HUD is a stack count nobody looks at.
+  const chilled = a.alive ? getAura(a, 'chilled') : undefined
+  if (chilled) {
+    for (let i = 0; i < chilled.stacks; i++) {
+      footprint(ctx, p.x, p.y, r + 2 + i * 1.5)
+      ctx.fillStyle = 'rgba(224, 242, 254, 0.08)'
+      ctx.fill()
+    }
+  }
+
+  // And the one that decides the last third of the fight. Same layers, a
+  // colder blue, plus two things the chill deliberately does not have: an
+  // outline on the body from five stacks, thickening with each, and a pulse
+  // from the point at which the raid ought to have left. The number is not
+  // written anywhere. Movement is the message.
+  const cold = a.alive ? getAura(a, 'buffeted') : undefined
+  if (cold) {
+    for (let i = 0; i < Math.min(12, cold.stacks); i++) {
+      footprint(ctx, p.x, p.y, r + 2 + i * 2)
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.07)'
+      ctx.fill()
+    }
+    if (cold.stacks >= 5) {
+      const past = cold.stacks >= BUFFET_LEAVE + 3
+      footprint(ctx, p.x, p.y, r + 3)
+      ctx.strokeStyle = iconFor('boss_buffet').colour
+      ctx.lineWidth = 1 + Math.min(4, cold.stacks - 4) * 0.6 + (past ? Math.sin(clock * 9) * 1.2 : 0)
+      ctx.stroke()
+    }
+  }
+
+  // Coming apart, and the debt is drawn as cracks rather than as a count. The
+  // ring is eaten clockwise by the seconds left, so what a player reads is how
+  // long they still have to keep their hands off -- and each crack that
+  // appears is a button they should not have pressed.
+  const shaking = a.alive ? getAura(a, 'unstable') : undefined
+  if (shaking) {
+    const left = Math.max(0, Math.min(1, shaking.remaining / AURA_DURATION.unstable))
+    ctx.beginPath()
+    floorArc(ctx, p.x, p.y, r + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left)
+    ctx.strokeStyle = iconFor('boss_instability').colour
+    ctx.globalAlpha = Math.min(1, 0.45 + shaking.stacks * 0.12)
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    for (let i = 0; i < Math.min(12, shaking.stacks); i++) {
+      const at = (i / 12) * Math.PI * 2 + 0.6
+      ctx.beginPath()
+      ctx.moveTo(p.x + Math.cos(at) * (r + 3), p.y + Math.sin(at) * (r + 3) * TILT)
+      ctx.lineTo(p.x + Math.cos(at) * (r + 13), p.y + Math.sin(at) * (r + 13) * TILT)
+      ctx.strokeStyle = iconFor('boss_instability').colour
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+    }
+  }
+
+  // Feet still out from under it, after the band fell in. A closed ring on the
+  // floor rather than anything on the body: what it says is "this one is not
+  // walking anywhere", which is a fact about the tile.
+  if (a.alive && getAura(a, 'rooted')) {
+    footprint(ctx, p.x, p.y, r + 5)
+    ctx.strokeStyle = iconFor('boss_haul').colour
+    ctx.lineWidth = 2.5
+    ctx.stroke()
   }
 
   // A wound that is feeding the boss. A ring tight to the body that boils

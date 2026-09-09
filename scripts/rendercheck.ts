@@ -125,6 +125,7 @@ import {
   resolveAbility,
   topThreatTarget,
   mechanicScale,
+  AURA_MECHANIC,
 } from '../src/sim/combat'
 import {
   ARENA_RADIUS,
@@ -143,6 +144,7 @@ import {
   SHOT_MIN_RANGE,
   SPELL_RANGE,
   MELEE_CALL,
+  COVER_LONG,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -228,6 +230,7 @@ import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
 let failures = 0
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
+  coverShelter,
 } from '../src/sim/boss'
 import {
   FIRST_TIER,
@@ -251,7 +254,7 @@ import {
   type Setting,
 } from '../src/progress'
 import { Ambience, ZOOM, backdropZoom, drawBackdrop, setAmbience } from '../src/render/ambience'
-import type { Actor, AuraId, Role, SimState, Vec2 } from '../src/sim/types'
+import type { Actor, AuraId, GroundEffect, Role, SimState, Vec2 } from '../src/sim/types'
 
 /**
  * A fight with its opening countdown already spent.
@@ -1061,6 +1064,14 @@ console.log(`rendered ${frames} frames with no exceptions`)
         ['swelling', 'bloat'],
         ['spore', 'spore'],
         ['reek', 'vilegas'],
+        // The tenth boss's four marks. Three of them bill somebody and would
+        // be caught by the tally above; the fourth never bills anything at
+        // all -- it is a multiplier on other people's damage -- so the aura is
+        // the only evidence it happened.
+        ['chilled', 'chill'],
+        ['unstable', 'instability'],
+        ['rooted', 'haul'],
+        ['buffeted', 'buffet'],
       ] as const) {
         if (s.actors.some((a) => a.auras.some((au) => au.id === aura))) seen.add(id)
       }
@@ -4846,6 +4857,92 @@ for (const [label, w, h] of [
     expect('and offer a way out', ids.has('boss_portal'), 'it drew nothing')
     expect('and have something arrive to stop it', ids.has('boss_suppress'), 'it drew nothing')
     thrown.set('well', ids)
+  }
+
+  // The long cold, whose five cannot be driven off an imposed floor either.
+  // Two of them are marks that need a raid with healers in it to be worth
+  // anything, one is three stages of one cast, one is cast off the wreckage of
+  // another mechanic, and the last only exists in the final phase.
+  {
+    const cold = ENCOUNTERS.findIndex((e) => e.id === 'cold')
+    expect('the fight answered by stopping is on the roster', cold >= 0, `${cold}`)
+    const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', cold)
+    const rng = new Rng(0x51ed)
+    const ids = new Set<string>()
+    const bar = bossOf(s)
+    // Held near the floor of the last phase, because the cold is the only
+    // mechanic on this roster that a fight has to *reach* rather than roll --
+    // and a pull that is holding still for the sweep would never get there.
+    let dragged = 0
+    let debts = 0
+    let stopped = 0
+    while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage) {
+      const band = s.ground.find((g) => g.kind === 'haul' && !g.detonated)
+      const before = band ? s.actors.filter((a) => a.faction === 'party' && a.alive)
+        .map((a) => Math.hypot(a.pos.x - band.pos.x, a.pos.y - band.pos.y)) : []
+      step(s, { moveX: 0, moveY: 0, pressed: s.tick % 45 === 0 ? [0, 1, 2] : [] }, rng)
+      if (band && band.telegraph > 1) {
+        const after = s.actors.filter((a) => a.faction === 'party' && a.alive)
+          .map((a) => Math.hypot(a.pos.x - band.pos.x, a.pos.y - band.pos.y))
+        for (let i = 0; i < Math.min(before.length, after.length); i++) {
+          if (after[i]! < before[i]! - 0.5) dragged++
+        }
+      }
+      for (const a of s.actors) {
+        const mark = a.auras.find((au) => au.id === 'unstable')
+        if (mark) debts = Math.max(debts, mark.stacks)
+        if (a.ai?.striking?.startsWith('still:')) stopped++
+      }
+      bar.hp = Math.min(bar.hp, bar.maxHp * 0.3)
+      for (const event of s.effects) {
+        if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
+      }
+    }
+    expect('a mark can be answered by pressing nothing', ids.has('boss_instability'), 'it drew nothing')
+    expect('and the raid actually stops for it', stopped > 0, `${stopped} ticks held`)
+    // A debt that never climbs is a mark nobody could ever fail, which would
+    // make the squared bill decoration. One is the reaction delay; more than
+    // one is somebody who did not read it at all.
+    expect('and pays for what it pressed first', debts >= 1, `deepest debt ${debts}`)
+    expect('a band can drag the room into it', ids.has('boss_haul'), 'it drew nothing')
+    expect('and the drag actually moves people', dragged > 0, 'nobody was pulled')
+    expect('a room can go white behind the ice', ids.has('boss_cover'), 'it drew nothing')
+    expect('and the cold can take hold of a raid that stays', ids.has('boss_buffet'), 'it drew nothing')
+    thrown.set('cold', ids)
+
+    // And the shape of the shelter, asked of the same function the floor asks.
+    //
+    // Two implementations of "is this safe" is how a raid ends up standing
+    // somewhere the fight does not agree is a place, so the party AI and the
+    // bill both call this one -- which makes it worth checking that it means
+    // what the picture says. The shadow runs *away* from the boss: behind the
+    // coffin is shelter, in front of it is not, and beside it is not.
+    const wash: GroundEffect = {
+      id: 1,
+      kind: 'cover',
+      pos: { x: 0, y: 0 },
+      radius: 900,
+      telegraph: 1,
+      lingering: 0,
+      damage: 0,
+      detonated: false,
+      angle: 0,
+      halfWidth: 0,
+      growth: 0,
+      band: 0,
+      caught: [],
+      turn: 0,
+      pulses: 0,
+      spots: [{ x: 300, y: 0 }],
+    }
+    expect('the shadow falls behind the ice', coverShelter(wash, { x: 480, y: 0 }) === 0, 'it did not')
+    expect('and not in front of it', coverShelter(wash, { x: 200, y: 0 }) === null, 'it sheltered')
+    expect('and not beside it', coverShelter(wash, { x: 480, y: 120 }) === null, 'it sheltered')
+    expect(
+      'and it ends where the strip ends',
+      coverShelter(wash, { x: 300 + COVER_LONG + 40, y: 0 }) === null,
+      'it ran on',
+    )
   }
 
   // A mechanic with no entry falls back to one orange ring shared with every
@@ -8752,7 +8849,17 @@ for (const [label, w, h] of [
           if (g.kind === 'gather' && g.named !== undefined) seen.add('chase')
           if (g.kind === 'nucleus') seen.add('nuclei')
         }
-        for (const a of s.actors) for (const aura of a.auras) seen.add(aura.id)
+        for (const a of s.actors) {
+          for (const aura of a.auras) {
+            seen.add(aura.id)
+            // And what the mark is a mark *of*, which is not always the same
+            // word: a body is `chilled` by the `chill` and `buffeted` by the
+            // `buffet`, and a sweep that only collected aura names reported
+            // both of those as rungs a fight sells and never throws.
+            const owns = AURA_MECHANIC[aura.id]
+            if (owns) seen.add(owns)
+          }
+        }
         for (const a of s.actors) {
           if (a.faction !== 'boss' || a.id === monster.id) continue
           // A beast is a thrall that has picked somebody: what sold it is the
