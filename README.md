@@ -88,8 +88,10 @@ that kind of thing actually has:
 **A raid is a building you walk through.** There is no field that names a
 fight and no list of rooms to pick one off. Pressing RAID asks how many of you
 there are and how hard it should be, then who you are playing, and then you
-are *standing in the first room* — the entrance hall, with the way up the
-building in front of you. Onward is up the screen, which is the one direction
+are *standing in the first room* — a small round chamber at the head of the
+shaft, with the way up the building in front of you. A few steps on it opens
+into the great hall, which is the largest room on the floor and the one the
+living camp in. Onward is up the screen, which is the one direction
 the player is holding when they arrive. The map the citadel is traced off is
 printed with the way in halfway down its left edge and the lower spire below
 that; which way up a poster was drawn is a fact about the poster, so the
@@ -123,6 +125,14 @@ you take first is a choice made inside the wing rather than a second door on
 the crossing. And the ground between the fights of the lower spire is ground:
 the rampart and the rise are walks with something standing on them, not rooms
 with a boss in them.
+
+**The rooms are the source's rooms.** Not off a poster of the raid — off the
+floor plan the game itself draws of each floor, which is the only picture of it
+that is a measurement rather than a diagram. The lower spire is one straight
+line: a round chamber at the top of the shaft, the great hall twice as long as
+it is wide, the first fight in a circle no wider than that hall, and the second
+in a room nearly square. Where this map is still wrong is written down in the
+same place the shapes are.
 
 **Rooms are shaped like what happens in them.** A room that holds a fight is
 the room that fight is fought in — walking into a place and then fighting in a

@@ -994,8 +994,8 @@ expect(
   const fresh = startRun(11, 10, 'normal')
   const from = ways(fresh)
   expect(
-    'at the door, the only way on is the first room',
-    from.length === 1 && from[0]!.to === 'spire',
+    'at the door, the only way on is the great hall',
+    from.length === 1 && from[0]!.to === 'vigil',
     from.map((w) => `${w.to}:${w.step.kind}`).join(', '),
   )
   expect('and nothing two doors away answers', stepTo(fresh, 'mooring').kind === 'shut')
@@ -1058,26 +1058,43 @@ expect(
 // has to be the way on.
 {
   const anywhere = () => true
-  const hall = hallFor('threshold', null, anywhere)
-  const way = hall.ways.find((w) => w.to === 'spire')
-  expect(
-    'the way to the first fight is up the screen from the door',
-    way !== undefined && way.at.y < placeOf('threshold').y - 100,
-    way ? `${Math.round(way.at.y - placeOf('threshold').y)} units` : 'no way to the spire',
-  )
+  // Every step of the lower spire, which is one straight line in the source
+  // and had better be one here: the way in, the great hall, the first fight,
+  // the second. Pressing up walks the whole of it.
+  const backwards: string[] = []
+  const climb = ['threshold', 'vigil', 'spire', 'oratory']
+  for (let i = 0; i < climb.length - 1; i++) {
+    const here = climb[i]!
+    const next = climb[i + 1]!
+    const hall = hallFor(here, i === 0 ? null : climb[i - 1]!, anywhere)
+    const way = hall.ways.find((w) => w.to === next)
+    if (!way || way.at.y >= placeOf(here).y - 100) backwards.push(`${here} -> ${next}`)
+  }
+  expect('the lower spire is walked up the screen, end to end', backwards.length === 0, backwards.join(', '))
+
+  const first = hallFor('threshold', null, anywhere)
+  const out = first.ways.find((w) => w.to === 'vigil')
   // And they start below it rather than in the middle of the map, which is
   // where a fresh evening used to put them: the origin of a world whose rooms
   // are all somewhere else, clamped into whichever corner was nearest.
   expect(
-    'and a fresh evening starts below it, in the hall',
-    way !== undefined && hall.entry.y > way.at.y && insideRoom(hall.room, hall.entry, 40),
-    `entry ${Math.round(hall.entry.y)}, door ${Math.round(way?.at.y ?? 0)}`,
+    'and a fresh evening starts below the way on, in the room',
+    out !== undefined && first.entry.y > out.at.y && insideRoom(first.room, first.entry, 40),
+    `entry ${Math.round(first.entry.y)}, door ${Math.round(out?.at.y ?? 0)}`,
   )
-  const climb = hall.entry.y - (way?.at.y ?? 0)
+
+  // The great hall is the biggest room on the floor and twice as long as it is
+  // wide, which is what the source's own plan of it says. It was a middling
+  // hall doing the work of the pad chamber and the hall at once.
+  const great = roomOf('vigil')
+  const spire = roomOf('spire')
   expect(
-    'and the hall is walked up rather than stood in the middle of',
-    climb > 400,
-    `${Math.round(climb)} units of hall`,
+    'the great hall is long, and no narrower than the first fight',
+    great.kind === 'hall' &&
+      great.front + great.back > great.halfWidth * 3 &&
+      spire.kind === 'round' &&
+      great.halfWidth >= spire.radius,
+    JSON.stringify(great),
   )
 }
 
@@ -1096,16 +1113,20 @@ expect(
   expect('the way in has a passage that keeps sending bodies out', springs.length === 1, `${springs.length} springs`)
 
   const spring = springs[0]!
-  const inHall = insideRoom({ ...roomOf('threshold'), at: placeOf('threshold') }, spring.toward, 60)
+  const inHall = insideRoom({ ...roomOf('vigil'), at: placeOf('vigil') }, spring.toward, 60)
   expect(
-    'and where it sends them is out of the passage and into the entrance hall',
+    'and where it sends them is out of the passage and into the great hall',
     inHall,
     `${Math.round(spring.toward.x)}, ${Math.round(spring.toward.y)}`,
   )
 
+  // Started in the great hall rather than on the doorstep. The hall is where a
+  // raid gathers and it is the room the passage empties into; a party still in
+  // the little round chamber at the top of the shaft is a room away from all
+  // of this and the passage has not noticed them.
   const build = () => {
     const ground = {
-      ...hallFor('threshold', null, anywhere),
+      ...hallFor('vigil', 'threshold', anywhere),
       id: 'citadel',
       packs: citadelPacks(),
       springs: citadelSprings(),
@@ -1114,17 +1135,17 @@ expect(
       createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
     )
     s.floor = citadelWorld().map((cell) => cell.room)
-    s.chamber = 'threshold'
+    s.chamber = 'vigil'
     return s
   }
 
-  // Standing at the door doing nothing. They come.
+  // Standing in the hall doing nothing. They come.
   const held = build()
   const before = held.actors.filter((a) => a.faction === 'boss').length
   const rng = new Rng(5)
   for (let t = 0; t < 30 * 40; t++) step(held, { moveX: 0, moveY: 0, pressed: [] }, rng)
   const made = held.actors.filter((a) => a.faction === 'boss').length - before
-  expect('and standing at the door does not stop it', made > 0, `${made} came out in forty seconds`)
+  expect('and standing in the hall does not stop it', made > 0, `${made} came out in forty seconds`)
 
   // But never more than the cap: a rate, not a bill.
   const mine = citadelPacks().length
@@ -1137,7 +1158,7 @@ expect(
   const reached = Math.max(0, ...out.map((a) => dist(spring.at, a.pos)))
   const trip = dist(spring.at, spring.toward)
   expect(
-    'and they walk out toward the door the party came in by',
+    'and they walk out toward the way the party came in by',
     reached > trip * 0.5,
     `${Math.round(reached)} of ${Math.round(trip)} units`,
   )

@@ -114,15 +114,37 @@ const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
  */
 export const CHAMBERS: Chamber[] = [
   // --- the lower spire: one way up, no choices ------------------------------
+  // Two rooms, and it was one.
+  //
+  // The source's own floor plan — the map the game draws of this floor, not a
+  // diagram somebody made of it — puts a small round chamber at the head of a
+  // narrow shaft, and then the biggest room on the floor. This had a single
+  // middling hall doing the work of both, which loses the two things the way
+  // in actually says: that you arrive somewhere tight and step out into
+  // something enormous, and that the enormous thing is where an army would
+  // camp rather than a corridor you pass through.
   {
     id: 'threshold',
     name: 'The Threshold',
     wing: 'lower',
     encounter: null,
-    // A long way in with one door at the far end, which is what the bottom of
-    // a spire is: you are a long way from the first thing in it.
-    room: { kind: 'hall', halfWidth: 340, front: 760, back: 300 },
+    // Small and round, at the top of the shaft. It is the room the pad is in,
+    // which is what the plan draws there: a spiral in a circle barely wider
+    // than the passage it opens onto.
+    room: { kind: 'round', radius: 520 },
     pad: { kind: 'always' },
+  },
+  {
+    id: 'vigil',
+    name: 'The Vigil',
+    wing: 'lower',
+    encounter: null,
+    // The great hall, and the largest room in the lower spire — twice as long
+    // as it is wide, which is the proportion the plan gives it, with the first
+    // fight's chamber no wider than it is. Two bays with a stair between them
+    // in the source; one room here, because a stair is a thing this game has
+    // no way to be on.
+    room: { kind: 'hall', halfWidth: 1000, front: 1820, back: 1820 },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   {
@@ -131,6 +153,12 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: 1,
     pad: killed('spire'),
+    // NOT MATCHED YET. The plan gives this room as very nearly square — as
+    // wide as it is long, entered down a stair, with a gallery up either side
+    // and a dais at the far end. The shape it has instead is the fight's own,
+    // twice as long as it is wide, and changing it is changing the fight
+    // rather than the building: every mechanic in there is placed against
+    // those walls. It is left alone deliberately and on its own.
   },
   {
     id: 'mooring',
@@ -348,8 +376,12 @@ export const PASSAGES: Passage[] = [
   // rather than a step; `pulls` covers the whole entrance hall, so it is
   // running before the party is anywhere near it and they walk in on something
   // already happening.
+  // The shaft: narrow, short, and held by nobody. What is at the top of it is
+  // the way in, and a raid that had to fight before it reached the hall would
+  // never see the hall.
+  { from: 'threshold', to: 'vigil' },
   {
-    from: 'threshold',
+    from: 'vigil',
     to: 'spire',
     corridor: corridor(
       'spireway',
@@ -363,7 +395,7 @@ export const PASSAGES: Passage[] = [
           at: { x: 0, y: 40 },
           every: 4,
           most: 6,
-          pulls: 2400,
+          pulls: 4800,
           stops: 900,
         },
       ],
@@ -476,9 +508,15 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   // under it is a diagram of the boss order, not a drawing of a building. The
   // real one is a U. You come in halfway up the left side, go *down* past the
   // first two, along the bottom to the ships, and then climb the middle.
-  { id: 'threshold', x: 0.1, y: 0.62 },
-  { id: 'spire', x: 0.1, y: 0.79 },
-  { id: 'oratory', x: 0.1, y: 0.94 },
+  // Spaced off the floor plan the game draws of this floor rather than off the
+  // overview poster, which compresses the lower spire to fit the whole raid on
+  // one page: the shaft is short, the walk from the great hall to the first
+  // fight is the longest stretch on the floor, and the first fight to the
+  // second is shorter than either.
+  { id: 'threshold', x: 0.05, y: 0.42 },
+  { id: 'vigil', x: 0.05, y: 0.57 },
+  { id: 'spire', x: 0.05, y: 0.8 },
+  { id: 'oratory', x: 0.05, y: 0.955 },
   { id: 'mooring', x: 0.44, y: 0.94 },
   { id: 'rise', x: 0.44, y: 0.72 },
   { id: 'crossing', x: 0.44, y: 0.46 },
