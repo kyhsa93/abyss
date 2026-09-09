@@ -851,14 +851,23 @@ function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   const going = heading(s)
   ctx.fillStyle = up > 0 ? COLORS.boss : COLORS.textDim
   ctx.font = font(room ? 10 : 13, !room)
+  // Where to go comes before what is asleep nearby.
+  //
+  // A corridor is one way through one stretch, and "the way ahead is held" is
+  // the thing worth saying about it. A building is not: standing in a hub with
+  // six doors off it and a sleeping pack down one of them, that line is always
+  // true, never useful, and takes the place of the only line that is — which
+  // of the six the party is walking to.
+  const held = 'THE WAY AHEAD IS HELD'
+  const door = going ? `walk to the door — ${chamberAt(going.to)?.name ?? going.to}` : null
   ctx.fillText(
     up > 0
       ? `${up} ON YOU`
-      : left.length > 0
-        ? 'THE WAY AHEAD IS HELD'
-        : going
-          ? `walk to the door — ${chamberAt(going.to)?.name ?? going.to}`
-          : 'THE WAY IS CLEAR',
+      : travel.building
+        ? (door ?? (left.length > 0 ? held : 'THE WAY IS CLEAR'))
+        : left.length > 0
+          ? held
+          : (door ?? 'THE WAY IS CLEAR'),
     L.w / 2,
     L.bossY + (room ? 32 : 16),
   )

@@ -326,11 +326,23 @@ export function heading(s: SimState): Way | null {
   return best
 }
 
-/** Where the party is walking, which is that door unless something is in the way. */
+/**
+ * What the view should be arranged around while walking, if anything.
+ *
+ * Whatever woke up, and *nothing* when nothing has. It used to be the door,
+ * and a camera that puts the door straight up the screen is a camera that
+ * swings every time the party is nearer a different one — walking a building
+ * with six doors off the middle of it, the whole floor turns under you while
+ * you cross a room. The way out is somewhere you are going, not something you
+ * are facing.
+ *
+ * With nothing to arrange around, the view keeps the bearing it had, which is
+ * what a player walking somewhere wants: the floor stays still and they move
+ * across it.
+ */
 export function travelAnchor(s: SimState): Vec2 | null {
   const foes = awake(s)
-  if (foes.length > 0) return foes[0]!.pos
-  return heading(s)?.at ?? null
+  return foes.length > 0 ? foes[0]!.pos : null
 }
 
 /**

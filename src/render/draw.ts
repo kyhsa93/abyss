@@ -148,8 +148,9 @@ function anchorOf(s: SimState): Vec2 | null {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return null
   if (s.mode === 'battleground') return bgAnchor(s, player)
-  // In a corridor the thing the view is arranged around is whatever woke up,
-  // and the way out when nothing has.
+  // Walking, the thing the view is arranged around is whatever woke up — and
+  // nothing when nothing has, so the floor holds still while the party crosses
+  // it rather than turning to keep the nearest door at the top.
   if (s.mode === 'travel') return travelAnchor(s)
   const target = s.actors.find((a) => a.id === playerTarget(s) && a.alive)
   if (target) return target.pos
