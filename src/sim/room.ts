@@ -1,4 +1,5 @@
-import { ARENA_RADIUS } from './constants'
+import { makeSlots } from './classes'
+import { ARENA_RADIUS, PARTY_RADIUS } from './constants'
 import type { Vec2 } from './types'
 
 /**
@@ -188,6 +189,50 @@ export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
 export function fromRoom(room: RoomShape, p: Vec2): Vec2 {
   return world(room, p)
 }
+
+/**
+ * The same room, built at a share of what it measures.
+ *
+ * The scale belongs to the building rather than to any one room — see
+ * `BUILD_SCALE` — and this is the only thing that applies it to a shape, so a
+ * room is never half-scaled on one axis or scaled twice on two code paths.
+ *
+ * Where the room stands and which way it is pointed are left alone. Those are
+ * not measurements of the room: `at` is a place in a plan that is scaled
+ * where the plan is laid out, and a turn is an angle, which has no size.
+ */
+export function atScale(room: RoomShape, k: number): RoomShape {
+  if (k === 1) return room
+  if (room.kind === 'hall') {
+    return {
+      ...room,
+      halfWidth: Math.max(MUSTER_HALF, room.halfWidth * k),
+      front: room.front * k,
+      back: room.back * k,
+    }
+  }
+  return { ...room, radius: Math.max(MUSTER_HALF, room.radius * k) }
+}
+
+/**
+ * The narrowest a room may be built, whatever the plan says about it.
+ *
+ * A scale is a claim about the building. It is not a claim about the twenty-
+ * five people standing in it, who are the size they are: the way in measures
+ * twenty-six yards across the shaft and half of that is thirteen, which is
+ * narrower than the raid's own formation. What a wall does to a body is push
+ * it back in, so half the raid was pushed onto the same strip of it and stood
+ * inside itself.
+ *
+ * Widths only. Depth is the walk, and shortening the walk is the whole point
+ * of building at a scale at all.
+ *
+ * Read off the formation rather than typed, so that a roster change moves it:
+ * the widest slot the largest raid has, and a body's width outside that so the
+ * ones on the end are standing in the room rather than against it.
+ */
+const MUSTER_HALF =
+  Math.max(...makeSlots(25).map((slot) => Math.abs(slot.x))) + PARTY_RADIUS * 2
 
 /**
  * The furthest the room reaches from the origin.

@@ -26,7 +26,7 @@ import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
-import { ARENA_RADIUS, BOSS_WIDTH, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
+import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
@@ -1131,6 +1131,17 @@ expect(
   // sources are the client's own map tiles — each carries the world rectangle
   // it covers, so a pixel converts to yards exactly — and the instance's
   // scripts and area triggers where those name a room's walls.
+  //
+  // The measurements are of the source, and what is built is not all of it. A
+  // room with a fight in it is built at its measurement, because every
+  // mechanic in the game is a number of units measured inside one of those
+  // rooms. A room that is only crossed is built at `BUILD_SCALE`: walking the
+  // citadel at full size was forty seconds of holding a stick to reach the
+  // first fight, and nothing in a hall nobody fights in is measured against
+  // anything. Two of the halved rooms come out wider than the scale asks,
+  // because a room is never built narrower than the raid standing in it (see
+  // `MUSTER_HALF`) — the way in and the frost gauntlet both hit that, and both
+  // are still narrower than the source's own.
   for (const [id, w, d] of [
     ['threshold', 26.0, 68.0],
     ['vigil', 160.0, 187.0],
@@ -1151,8 +1162,18 @@ expect(
     ['throne', 140.0, 140.0],
   ] as const) {
     const [gw, gd] = across(id)
-    if (Math.abs(yd(gw) - w) > w * 0.06) said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${w}`)
-    if (Math.abs(yd(gd) - d) > d * 0.06) said.push(`${id} is ${yd(gd).toFixed(0)} yd deep, not ${d}`)
+    const fight = chamberAt(id)?.encounter ?? null
+    const fought = fight !== null && fight < ENCOUNTERS.length
+    const scale = fought ? 1 : BUILD_SCALE
+    const want = w * scale
+    const deep = d * scale
+    // Wider than the scale asks is only allowed up to the source's own width,
+    // and only because the raid has to stand somewhere.
+    const wide = yd(gw) > want ? yd(gw) > w * 1.06 : Math.abs(yd(gw) - want) > want * 0.06
+    if (wide) said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${want.toFixed(0)}`)
+    if (Math.abs(yd(gd) - deep) > deep * 0.06) {
+      said.push(`${id} is ${yd(gd).toFixed(0)} yd deep, not ${deep.toFixed(0)}`)
+    }
   }
   expect('every room is the size the source says it is', said.length === 0, said.join('; '))
 }
@@ -1637,7 +1658,8 @@ expect(
   // A hundred and twenty-four bodies across, not a hundred: the floor used to
   // be ninety-four and a half yards because that number *defined* the yard,
   // and it is a hundred and eighteen now that the yard is defined by a body
-  // and the floor is measured off the client's own map tile.
+  // and the floor is measured off the client's own map tile. A fight's room is
+  // the one thing `BUILD_SCALE` does not touch, for the reason written there.
   const room = ARENA_RADIUS * 2
   expect(
     'so the first fight\'s floor is a hundred and twenty bodies across, as it is there',

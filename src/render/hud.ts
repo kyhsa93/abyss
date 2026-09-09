@@ -4,7 +4,7 @@ import { meterBoard, standings } from '../history'
 import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/classes'
 import { playerTarget, pressTarget } from '../sim/sim'
 import { callBar, type CallSlot } from '../sim/calls'
-import { GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
+import { BUILD_SCALE, GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
 import { encounterAt } from '../sim/encounters'
 import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
 import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
@@ -584,10 +584,12 @@ function bgName(kind: BgKind): string {
  * of somewhere you are not: sixteen thousand units squeezed into ninety pixels
  * puts every room within a thumbnail of every other, and the one thing a
  * player crossing it wants — which way is the room I am in, and what leads out
- * of it — is the thing that gets squeezed out. Four thousand units is the room
- * the party is standing in and the ways off it, which is the question.
+ * of it — is the thing that gets squeezed out. This is the room the party is
+ * standing in and the ways off it, which is the question — a hundred and six
+ * yards of building, scaled with it so the disc holds the same picture however
+ * big the citadel is built.
  */
-const PLAN_REACH = 4000
+const PLAN_REACH = 4000 * BUILD_SCALE
 
 function drawPlan(ctx: CanvasRenderingContext2D, s: SimState): void {
   const { mapX: cx, mapY: cy, mapR: r } = L

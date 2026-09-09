@@ -1,5 +1,6 @@
 import {
   CHAMBERS,
+  WAY_IN,
   PASSAGES,
   chamberAt,
   padsLit,
@@ -100,8 +101,8 @@ export type Step =
 export const ROOM_RECOVERY = 0.55
 export const ROOM_REVIVE = 0.45
 
-/** The room every evening starts in. */
-export const DOOR = 'threshold'
+/** The room every evening starts in, which is the one the map is laid off. */
+export const DOOR = WAY_IN
 
 export function startRun(seed: number, size: RaidSize, difficulty: DifficultyId): Run {
   return {

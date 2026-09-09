@@ -14,7 +14,7 @@ import {
   pushEffect,
 } from './combat'
 import { turnToward } from './boss'
-import { ROUND_ARENA, pushInside, type RoomShape } from './room'
+import { ROUND_ARENA, pushInside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, SimState, Vec2 } from './types'
 
@@ -673,9 +673,82 @@ function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   const aim = lead.facing
   const c = Math.cos(aim - Math.PI / 2)
   const sn = Math.sin(aim - Math.PI / 2)
-  const dx = (mine.x - theirs.x) * MARCH_SPREAD
-  const dy = (mine.y - theirs.y) * MARCH_SPREAD
-  return { x: lead.pos.x + dx * c - dy * sn, y: lead.pos.y + dx * sn + dy * c }
+  // In ranks when the raid does not fit across the floor it is standing on,
+  // and in its own formation when it does.
+  const across = marchRoom(s, lead)
+  const place =
+    across < marchHalf(slots, theirs)
+      ? rankAt(actor, lead, across)
+      : { x: (mine.x - theirs.x) * MARCH_SPREAD, y: (mine.y - theirs.y) * MARCH_SPREAD }
+  return {
+    x: lead.pos.x + place.x * c - place.y * sn,
+    y: lead.pos.y + place.x * sn + place.y * c,
+  }
+}
+
+/**
+ * How far the raid stands from the body in front of it, in ranks.
+ *
+ * Twice a body across and a body's clearance either side of that, which is
+ * close enough to read as one group and far enough that nobody is standing in
+ * anybody. It is wider than the tightest pair of the fight formation, so a
+ * raid that has closed up into ranks is not standing tighter than a raid that
+ * has been told to spread out.
+ */
+const RANK_STEP = PARTY_RADIUS * 4
+
+/**
+ * A body's place in the ranks, for a raid crossing something narrow.
+ *
+ * As many abreast as the floor holds, and the rest behind them. Ordered by
+ * slot so the ranks are the same ranks every time and a body does not swap
+ * places with its neighbour halfway down a corridor.
+ *
+ * Written as a place behind the leader rather than as the formation squeezed,
+ * because a squeezed formation is the bug this replaced: scaled down far
+ * enough to fit a shaft, the two middle parties stood ten units apart, which
+ * is one body inside another. A rank is the arrangement a group of people
+ * actually adopts when the walls come in, and it has a spacing of its own
+ * rather than a fraction of somebody else's.
+ */
+function rankAt(actor: Actor, lead: Actor, across: number): Vec2 {
+  const perRank = Math.max(1, Math.floor((across * 2) / RANK_STEP))
+  const ordinal = actor.id > lead.id ? actor.id - 2 : actor.id - 1
+  const column = (ordinal % perRank) - (perRank - 1) / 2
+  const rank = 1 + Math.floor(ordinal / perRank)
+  return { x: column * RANK_STEP, y: rank * RANK_STEP }
+}
+
+/** How wide the marching formation stands, out from the body leading it. */
+function marchHalf(slots: Vec2[], theirs: Vec2): number {
+  let half = 0
+  for (const slot of slots) half = Math.max(half, Math.abs(slot.x - theirs.x) * MARCH_SPREAD)
+  return half
+}
+
+/**
+ * How much floor there is either side of the body in front.
+ *
+ * The marching formation is thirty-six yards across for ten people, and the
+ * building has rooms narrower than that — the way in is a shaft, the frost
+ * gauntlet is a corridor with a name. Hung off the leader and no wider
+ * question asked, half the raid was standing in a wall, and what a wall does
+ * to a body is push it back in: two bodies whose places were mirror images
+ * were pushed onto the same strip of it and stood inside each other. The build
+ * catches it as a raid standing nought units apart.
+ *
+ * `wallGap` is asked of every piece of floor the leader is on and the roomiest
+ * answer wins: doorways overlap the rooms they join, and the width of a
+ * doorway is not the width of the room a raid is crossing.
+ */
+function marchRoom(s: SimState, lead: Actor): number {
+  const floor = s.floor
+  let room = wallGap(s.room, lead.pos, lead.radius)
+  if (floor !== undefined && floor.length > 0) {
+    room = -Infinity
+    for (const cell of floor) room = Math.max(room, wallGap(cell, lead.pos, lead.radius))
+  }
+  return Math.max(RANK_STEP, room)
 }
 
 function cast(s: SimState, actor: Actor, id: string, targetId: number, rng: Rng, moving: boolean): boolean {

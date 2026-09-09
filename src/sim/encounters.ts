@@ -2388,6 +2388,8 @@ export const ENCOUNTERS: Encounter[] = [
   },
 ]
 
+
+
 export const FIRST_ENCOUNTER = 0
 
 /**

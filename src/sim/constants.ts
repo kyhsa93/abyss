@@ -41,6 +41,34 @@ export const PARTY_RADIUS = 9
 export const YARD = (PARTY_RADIUS * 2) / 0.95
 
 /**
+ * How much of the building gets built, for the parts of it nobody fights in.
+ *
+ * Every room and every distance in this game is measured off the source — the
+ * client's map tiles, the instance's own triggers, the world coordinates in
+ * its scripts — and measured, it is enormous. The walk from the door to the
+ * first fight came out at three hundred and ninety yards and took forty
+ * seconds of holding a stick, nearly all of it across floor with nothing
+ * standing on it. Forty seconds of that is not a room, a fight or a decision.
+ * It is the toll on the next one.
+ *
+ * So the parts of the citadel that are only crossed are built at half of what
+ * they measure: the halls, the landings, the hub, and the ground between
+ * rooms. What is *not* halved is a room a fight happens in. Every mechanic in
+ * this game is a number of units measured inside one of those rooms — a patch
+ * of slime is two hundred and ten, the dry middle it may not cover is three
+ * hundred — so a floor at half size is a floor where every one of those covers
+ * four times the share of it. It is not a smaller room, it is a different
+ * fight, and one of them stopped working outright when this was tried: the
+ * rising's patches all landed inside the dry middle and the mechanic never
+ * appeared.
+ *
+ * The line is therefore where it is for a reason and not for tidiness. A room
+ * measured against the mechanics thrown in it keeps its measurement; a room
+ * measured against nothing is worth exactly the time it costs to cross.
+ */
+export const BUILD_SCALE = 0.5
+
+/**
  * Circular arena centred on the origin.
  *
  * Everything else here is expressed relative to it: widening the floor without
@@ -68,6 +96,7 @@ export const YARD = (PARTY_RADIUS * 2) / 0.95
  * `VIEW_REACH` in `theme.ts`, which is now its own number in yards.
  */
 export const ARENA_RADIUS = Math.round((118 * YARD) / 2)
+
 
 
 /**

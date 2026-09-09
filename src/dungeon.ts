@@ -1,9 +1,9 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor, Pack, Spring } from './sim/travel'
-import { ROUND_ARENA, fromRoom, roomAt, type RoomShape } from './sim/room'
+import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
-import { YARD } from './sim/constants'
+import { BUILD_SCALE, YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -574,6 +574,13 @@ export const PASSAGES: Passage[] = [
 export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   // Yards, measured, with the way on running up the page.
   //
+  // Bearings now rather than positions. Where a room stands is worked out from
+  // the rooms and the ground between them — see `PLACES` — and what this table
+  // still decides is which way one room lies from the next: the plagueworks to
+  // the left of the hub, the frostwing halls away to the right, the throne up
+  // and off the middle. That is the half of it the source can answer and the
+  // half a drawing of a building is actually for.
+  //
   // This was a list of fractions of a square, traced off the raid's own map by
   // eye and then stretched by a single number picked so that no two rooms
   // overlapped. That number is a packing constraint, not a measurement, and it
@@ -648,11 +655,16 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
  */
 export function roomOf(id: string): RoomShape {
   const chamber = chamberAt(id)
-  if (!chamber) return DEFAULT_ROOM
-  if (chamber.encounter !== null && chamber.encounter < ENCOUNTERS.length) {
-    return ENCOUNTERS[chamber.encounter]!.room ?? ROUND_ARENA
-  }
-  return chamber.room ?? DEFAULT_ROOM
+  const written = writtenRoom(id)
+  // A room with a fight in it is built at its measurement, because every
+  // mechanic in the game is a number of units measured inside one of those
+  // rooms — see `BUILD_SCALE`. A room you only cross is built at that scale,
+  // and that includes a room whose fight has not been written yet: it is a
+  // room you only cross *today*, and the day its fight arrives it is measured
+  // again and the plan, which is derived, grows around the difference.
+  const fought =
+    chamber !== undefined && chamber.encounter !== null && chamber.encounter < ENCOUNTERS.length
+  return fought ? written : atScale(written, BUILD_SCALE)
 }
 
 /** For a room that has said nothing about its own shape. */
@@ -824,41 +836,6 @@ export interface Cell {
 }
 
 /**
- * The same plan, squashed into a unit square.
- *
- * The plan is in measured yards, which is what a building wants and not what a
- * *drawing* of one wants: the map screen lays rooms out as fractions of the
- * space it has been given, and handed yards it put twelve of the seventeen off
- * the edge of a phone. So the normalising happens once, here, rather than in
- * the drawing — the map is a picture of the plan and should not be allowed a
- * second opinion about where a room is.
- */
-export const CITADEL_CHART: Array<{ id: string; x: number; y: number }> = (() => {
-  const xs = CITADEL_PLAN.map((e) => e.x)
-  const ys = CITADEL_PLAN.map((e) => e.y)
-  const x0 = Math.min(...xs)
-  const y0 = Math.min(...ys)
-  const w = Math.max(...xs) - x0
-  const h = Math.max(...ys) - y0
-  // Drawn with the way on running *down* the screen, which is how the raid's
-  // own poster prints it and how this list read before it was in yards.
-  return CITADEL_PLAN.map((e) => ({ id: e.id, x: (e.x - x0) / w, y: 1 - (e.y - y0) / h }))
-})()
-
-/**
- * How far the furthest room stands from the door, in units.
- *
- * Reported rather than chosen. The plan used to be fractions of a square times
- * a single scale, and that scale was the smallest number at which no two rooms
- * overlapped — a packing constraint wearing a measurement's clothes. The plan
- * is in yards now, so there is nothing left to reconcile and nothing left to
- * pick; what is still worth having is a size for the building, and this is it.
- */
-export const CITADEL_REACH = Math.max(
-  ...CITADEL_PLAN.map((e) => Math.hypot(e.x, e.y) * YARD),
-)
-
-/**
  * How far a passage runs inside the rooms at either end of it.
  *
  * The overlap is what makes the floor continuous, and how much of it there has
@@ -871,7 +848,119 @@ export const CITADEL_REACH = Math.max(
 const KNIT = 220
 
 /**
- * Where a room stands in the citadel.
+ * The room the citadel is entered by, which is where the building starts.
+ *
+ * The plan is laid outward from it — see `PLACES` — so it is a fact about the
+ * map rather than about an evening, and `DOOR` in `citadel.ts` is this.
+ */
+export const WAY_IN = 'threshold'
+
+/**
+ * How far the way in runs, and the shortest any bare stretch of the citadel is
+ * allowed to be.
+ *
+ * Twenty yards: long enough to be a passage you walk down rather than a
+ * doorway between two rooms, short enough that nobody is holding a stick
+ * through it wondering whether the game has started.
+ */
+const ENTRY_WALK = 20 * YARD
+
+/**
+ * The longest a stretch of nothing is allowed to be.
+ *
+ * Forty yards, which is about five seconds. Long enough that a door reads as
+ * leading somewhere rather than into the next room's wall; short enough that
+ * nobody is walking it wondering whether they missed a turn. Anything longer
+ * than this in the source is a distance that was measured for a building with
+ * a flight path and a mount in it.
+ */
+const BARE_MOST = 40 * YARD
+
+/** The room as the source measured it, before the building was scaled down. */
+function writtenRoom(id: string): RoomShape {
+  const chamber = chamberAt(id)
+  if (!chamber) return DEFAULT_ROOM
+  if (chamber.encounter !== null && chamber.encounter < ENCOUNTERS.length) {
+    return ENCOUNTERS[chamber.encounter]!.room ?? ROUND_ARENA
+  }
+  return chamber.room ?? DEFAULT_ROOM
+}
+
+/** Where the source puts a room, which is a bearing here and not a distance. */
+function measuredAt(id: string): Vec2 {
+  const entry = planOf(id)
+  return { x: entry.x * YARD, y: -entry.y * YARD }
+}
+
+/**
+ * How much ground there is between two rooms, which is a decision now.
+ *
+ * A held passage answers for itself. `corridor` sizes its hall off the packs
+ * standing in it and `bridge` lays that hall at `gap + KNIT * 2 - 60`, so the
+ * gap that gives a corridor exactly its own length is that arithmetic run
+ * backwards. Anything else is a corridor with half of itself inside a room, or
+ * a stretch of nothing in front of one.
+ *
+ * A bare passage is the walk the source has there, halved like everything else
+ * nobody fights in — and then capped, which the halving alone does not do. The
+ * source's own way in is a hundred and sixty-four yards of empty floor and
+ * half of that is still eighty-two: twelve seconds of holding a stick before
+ * the first room. Dead floor is the one thing this building may not have more
+ * of, however faithfully it was measured, so no stretch of it is longer than
+ * `BARE_MOST` and none is shorter than a passage.
+ */
+function linkGap(from: string, to: string): number {
+  const room = passageBetween(from, to)?.corridor?.room
+  if (room && room.kind === 'hall') return room.front - (KNIT * 2 - 60)
+  const a = measuredAt(from)
+  const b = measuredAt(to)
+  const d = Math.hypot(b.x - a.x, b.y - a.y)
+  const ux = (b.x - a.x) / d
+  const uy = (b.y - a.y) / d
+  const bare =
+    d - exitAlong(writtenRoom(from), ux, uy) - exitAlong(writtenRoom(to), -ux, -uy)
+  return Math.min(BARE_MOST, Math.max(ENTRY_WALK, bare * BUILD_SCALE))
+}
+
+/**
+ * How much daylight two rooms nothing joins are given.
+ *
+ * Four yards, which is a wall's worth. Rooms that touch with nothing between
+ * them are two rooms a player reads as one, and the build says so — but a plan
+ * that only just clears is a plan that stops clearing the next time a room is
+ * measured again.
+ */
+const CLEARANCE = 80
+
+/** The widest a passage is laid, which is what a room has to stand clear of. */
+const PASSAGE_HALF = 220
+
+/**
+ * Where every room stands, in units, with the way on running up the screen.
+ *
+ * Two things decide it, and neither of them is a coordinate. The *bearing*
+ * from one room to the next is the source's, off the world positions in its
+ * own scripts, which is what keeps the plagueworks to the left of the hub and
+ * the frostwing halls away to the right. The *distance* is this building's:
+ * the wall of the room behind, the ground between, and the wall of the room
+ * ahead.
+ *
+ * It used to be coordinates, and that is the bug this replaces. A position
+ * says where a room's middle is and says nothing about its walls, so the
+ * ground between two of them was whatever was left over once the walls had
+ * been subtracted — and the two numbers came from different measurements. At
+ * the way in the leftover was a hundred and sixty-four yards of empty floor,
+ * twenty seconds of walking to reach the first room. One room further on it
+ * was *minus four*: the passage from the great hall to the first boss is held
+ * ground with packs standing in it and a doorway at the top that keeps sending
+ * bodies down it, and it came out inverted, so everything written to stand in
+ * it stood inside the rooms at either end and a raid walked out of the hall
+ * straight into the boss.
+ *
+ * Both are the same mistake. A corridor that holds a fight cannot be a
+ * residue, and neither can a walk that costs twenty seconds. So the residue is
+ * gone: every distance in the citadel is now two walls and a stated piece of
+ * ground, and `linkGap` is the only place that decides how much ground.
  *
  * The plan is written the way the raid's own map is printed — the way in
  * halfway down the left edge, the lower spire *below* it — and the building is
@@ -880,15 +969,233 @@ const KNIT = 220
  * poster. Which way you walk when you come in is a fact about the building,
  * and the one a player is holding: they press up, and up has to be onward.
  *
- * A flip and not a turn, so left stays left: the plagueworks is away to one
- * side of the crossing on the map and is away to the same side here.
+ * A flip and not a turn, so left stays left.
  */
-export function placeOf(id: string): Vec2 {
-  const entry = planOf(id)
-  // Negated, because the plan is written with the way on running up the page
-  // and screen y grows downward. A flip and not a turn, so left stays left.
-  return { x: entry.x * YARD, y: -entry.y * YARD }
+const PLACES: Map<string, Vec2> = (() => {
+  const out = new Map<string, Vec2>([[WAY_IN, { x: 0, y: 0 }]])
+  // Which room each one was placed off, and which way. Kept because a room
+  // that has to be pushed out later takes everything hung off it along: the
+  // distances between them are the point, and a building that shoved one room
+  // aside on its own would have a corridor stretched to nothing behind it.
+  const parent = new Map<string, { of: string; ux: number; uy: number }>()
+  const children = new Map<string, string[]>()
+
+  // Outward from the door, one room at a time, so that every room is placed
+  // off one that has already been placed. The citadel has one loop in it — the
+  // plagueworks closes back on the laboratory — and the first way round is the
+  // one that puts the room down; the other passage is then a door like any
+  // other, which is what it is on the floor as well.
+  const queue = [WAY_IN]
+  while (queue.length > 0) {
+    const from = queue.shift()!
+    const at = out.get(from)!
+    for (const passage of PASSAGES) {
+      const to = passage.from === from ? passage.to : passage.to === from ? passage.from : null
+      if (to === null || out.has(to)) continue
+      const a = measuredAt(from)
+      const b = measuredAt(to)
+      const d = Math.hypot(b.x - a.x, b.y - a.y)
+      const ux = (b.x - a.x) / d
+      const uy = (b.y - a.y) / d
+      const apart =
+        exitAlong(roomOf(from), ux, uy) + linkGap(from, to) + exitAlong(roomOf(to), -ux, -uy)
+      out.set(to, { x: at.x + ux * apart, y: at.y + uy * apart })
+      parent.set(to, { of: from, ux, uy })
+      children.set(from, [...(children.get(from) ?? []), to])
+      queue.push(to)
+    }
+  }
+
+  // And then far enough out that the building does not stand inside itself.
+  //
+  // Distance along a passage is decided by the rooms at its ends; distance
+  // *across* the plan is not decided by anything, and the wings do not care.
+  // The crimson hall is two hundred and thirty yards wide and sits off the hub
+  // on one bearing while the frostwing halls run off it on another, so pulling
+  // both in by the ground between them and the hub walked one through the
+  // other. It is the only thing a plan of positions was silently buying, and
+  // the price of stating the distances is having to state this too.
+  //
+  // Pushed along its own passage rather than aside, so a room that moves stays
+  // on the bearing the source put it on and the ground behind it grows rather
+  // than bends — and its own wing goes with it, since everything hung off it
+  // was placed by the same rule.
+  const slide = (id: string, dx: number, dy: number): void => {
+    const at = out.get(id)!
+    out.set(id, { x: at.x + dx, y: at.y + dy })
+    for (const child of children.get(id) ?? []) slide(child, dx, dy)
+  }
+  const shove = (id: string, by: number): void => {
+    const link = parent.get(id)
+    if (!link) return
+    slide(id, link.ux * by, link.uy * by)
+  }
+  const joined = new Set(PASSAGES.flatMap((p) => [`${p.from}/${p.to}`, `${p.to}/${p.from}`]))
+  /**
+   * Which of two rooms gives way, and by how much.
+   *
+   * A room is pushed back out along the passage it was placed by, so the
+   * ground behind it grows and its bearing off the source's plan is kept. That
+   * makes the useful question "how much of a push actually separates them",
+   * which depends on how well its own passage points away from the other room:
+   * pushing a room out along a bearing at right angles to the crowding buys
+   * nothing and pushing it along a bearing pointed straight away buys all of
+   * it.
+   *
+   * So both are costed and the cheaper one moves. Picking the one further from
+   * the door instead — plausible, and what this did first — chose the throne's
+   * neighbour every time, because the throne is one door off the hub and the
+   * frostwing lair is three: a platform the source reaches by teleporter stayed
+   * where the compression had put it and the last room of a wing was pushed
+   * three hundred yards up its own corridor to get away from it.
+   *
+   * The way in never gives way. It is the one room in the plan that is not
+   * allowed to move, because it is where the plan is measured from.
+   */
+  const costOf = (id: string, ux: number, uy: number): number => {
+    const link = parent.get(id)
+    if (!link) return Infinity
+    // Along its own passage, how much of a push separates the two rooms.
+    const along = link.ux * ux + link.uy * uy
+    return along <= 0.05 ? Infinity : 1 / along
+  }
+  const givesWay = (a: string, b: string, ux: number, uy: number): string | null => {
+    // `ux, uy` points from a to b, so b is pushed that way and a the other.
+    const costA = costOf(a, -ux, -uy)
+    const costB = costOf(b, ux, uy)
+    if (costA === Infinity && costB === Infinity) return null
+    return costA <= costB ? a : b
+  }
+  for (let pass = 0; pass < 24; pass++) {
+    let moved = false
+    for (const a of CHAMBERS) {
+      for (const b of CHAMBERS) {
+        if (a.id === b.id) continue
+        const pa = out.get(a.id)!
+        const pb = out.get(b.id)!
+        const d = Math.hypot(pb.x - pa.x, pb.y - pa.y)
+        if (d === 0) continue
+        const ux = (pb.x - pa.x) / d
+        const uy = (pb.y - pa.y) / d
+        // Rooms a door joins may stand a doorway apart; rooms nothing joins
+        // stand clear of each other, or the floor has a way through that the
+        // map has never heard of. The plagueworks is the case that needs
+        // saying: its four rooms close a loop, so one of its passages is the
+        // way round that did *not* place the room at the far end of it, and
+        // that one is as long as the two rooms leave it.
+        const want =
+          support(roomOf(a.id), ux, uy) +
+          support(roomOf(b.id), -ux, -uy) +
+          (joined.has(`${a.id}/${b.id}`) ? 0 : CLEARANCE)
+        if (d >= want) continue
+        const yields = givesWay(a.id, b.id, ux, uy)
+        if (yields === null) continue
+        const link = parent.get(yields)!
+        const away = yields === a.id ? -1 : 1
+        shove(yields, (want - d) / Math.max(0.05, (link.ux * ux + link.uy * uy) * away))
+        moved = true
+      }
+    }
+    // And clear of the ground between rooms, not only of the rooms.
+    //
+    // A room nothing touches is still a room a corridor can be laid through,
+    // and the floor is the union of both — so the ground from the frost
+    // gauntlet to the lair was laid across the throne, and a party that had
+    // opened neither could walk into the last room in the building. The build
+    // catches it as the floor and the map disagreeing about which rooms exist,
+    // which is the same sentence from the player's side.
+    //
+    // Pushed off the passage rather than out along its own, which is the one
+    // place in this layout that leaves a source bearing. The alternative is
+    // worse in both directions: a room nearly in line with the passage has to
+    // travel an enormous way along its own bearing to clear it, and what came
+    // out was a building twice the size to keep one platform out of one
+    // corridor. A bearing is a fact about the source; a corridor running
+    // through a room is not a fact about anything.
+    for (const passage of PASSAGES) {
+      const a = out.get(passage.from)!
+      const b = out.get(passage.to)!
+      for (const c of CHAMBERS) {
+        if (c.id === passage.from || c.id === passage.to) continue
+        const off = awayFromLine(out.get(c.id)!, a, b)
+        if (off.d === 0) continue
+        const want = support(roomOf(c.id), -off.ux, -off.uy) + PASSAGE_HALF
+        if (off.d >= want) continue
+        const by = want - off.d
+        slide(c.id, off.ux * by, off.uy * by)
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+  return out
+})()
+
+/**
+ * How far a point is off a stretch of ground, and which way.
+ *
+ * The stretch is a segment rather than a line: past either end the nearest
+ * point on it is that end, which is what keeps a room *beside* the hub from
+ * being pushed by a passage that stops short of it.
+ */
+function awayFromLine(p: Vec2, a: Vec2, b: Vec2): { d: number; ux: number; uy: number } {
+  const vx = b.x - a.x
+  const vy = b.y - a.y
+  const len = vx * vx + vy * vy
+  const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / len))
+  const dx = p.x - (a.x + vx * t)
+  const dy = p.y - (a.y + vy * t)
+  const d = Math.hypot(dx, dy)
+  return d === 0 ? { d: 0, ux: 0, uy: 0 } : { d, ux: dx / d, uy: dy / d }
 }
+
+
+/** Where a room stands in the citadel. */
+export function placeOf(id: string): Vec2 {
+  return PLACES.get(id) ?? { x: 0, y: 0 }
+}
+
+/**
+ * The building, squashed into a unit square.
+ *
+ * The map screen lays rooms out as fractions of the space it has been given,
+ * and handed units it put twelve of the seventeen off the edge of a phone. So
+ * the normalising happens once, here, rather than in the drawing — the map is
+ * a picture of the building and should not be allowed a second opinion about
+ * where a room is.
+ *
+ * Off the built positions rather than off the written plan, which is the same
+ * rule: the lower spire's rooms are where the chain puts them, and a map that
+ * drew them where the table says would be a map of a building nobody walks.
+ */
+export const CITADEL_CHART: Array<{ id: string; x: number; y: number }> = (() => {
+  const places = CITADEL_PLAN.map((entry) => ({ id: entry.id, ...placeOf(entry.id) }))
+  const xs = places.map((e) => e.x)
+  const ys = places.map((e) => e.y)
+  const x0 = Math.min(...xs)
+  const y0 = Math.min(...ys)
+  const w = Math.max(...xs) - x0
+  const h = Math.max(...ys) - y0
+  // No flip: the built positions already have the way on running up the
+  // screen, and a fraction of the drawing is measured down from its top.
+  return places.map((e) => ({ id: e.id, x: (e.x - x0) / w, y: (e.y - y0) / h }))
+})()
+
+/**
+ * How far the furthest room stands from the door, in units.
+ *
+ * Reported rather than chosen. The plan used to be fractions of a square times
+ * a single scale, and that scale was the smallest number at which no two rooms
+ * overlapped — a packing constraint wearing a measurement's clothes. There is
+ * nothing left to reconcile and nothing left to pick; what is still worth
+ * having is a size for the building, and this is it.
+ */
+export const CITADEL_REACH = Math.max(
+  ...CITADEL_PLAN.map((entry) => {
+    const at = placeOf(entry.id)
+    return Math.hypot(at.x, at.y)
+  }),
+)
 
 /**
  * How far a room reaches in one direction.
