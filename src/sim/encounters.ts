@@ -2508,18 +2508,26 @@ export const ENCOUNTERS: Encounter[] = [
     /**
      * Issue #35's room: a circle with something in the middle of it.
      *
-     * Twelve hundred and seven, which is the frostwing plan's own measurement
-     * of that hall -- a hundred and twenty-four yards across the walkable
-     * middle -- rather than the seven hundred this was written with. The map
-     * and the floor have to be the same room, and the map is the one that was
-     * measured.
+     * Eleven hundred and seventy-five, which is the frostwing plan's own
+     * measurement of that hall -- a hundred and twenty-four yards across the
+     * walkable middle -- rather than the seven hundred this was written with.
+     * The map and the floor have to be the same room, and the map is the one
+     * that was measured.
+     *
+     * Giving it its real size found a wall that was not there. See the frost
+     * gauntlet in `dungeon.ts`: the stem above this hall reached fifty units
+     * into it, so the two floors were one floor, and nothing had ever said so
+     * because a room with no fight in it holds no door -- the way up was open
+     * at every stage, so the floor and the map agreed about a wall neither of
+     * them had. The day the room was given something to hold, they stopped
+     * agreeing.
      *
      * Every other room in this game is empty in the centre because the centre
      * is where the boss stands and the raid stands around it. Here the centre
      * is the fight -- the wound opens on it and the raid has to walk *in* --
      * so the room is written around a middle that is occupied.
      */
-    room: { kind: 'round', radius: 1207 },
+    room: { kind: 'round', radius: 1175 },
     terrain: [],
     /** Wet stone and moss, which is the first green floor in the citadel. */
     floor: 'floor-earth',

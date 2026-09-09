@@ -1537,7 +1537,23 @@ export const MENDING_START = 0.5
  * game where the roster is answered by the *speed* of an answer rather than by
  * the size of a demand.
  */
-export const BLEED_RADIUS = 90
+/**
+ * Off the body it opens on, rather than a number of its own.
+ *
+ * It was ninety, which was wider than the thing in the middle when the thing
+ * in the middle was drawn too small. The day the boss was given its real width
+ * -- a hundred and eighty-nine across, so ninety-four and a half of radius --
+ * the wound became *narrower than the patient*, and since nothing may stand
+ * inside a body, the answer to this mechanic became unreachable: the melee
+ * ring sits at a hundred and thirty-six, the collapse into the middle is
+ * pushed back out to a hundred and three, and the wound ends at ninety. Every
+ * cell of the fight fell to between ten and thirty-three percent and the check
+ * stayed green, because the band that would have caught it is switched off.
+ *
+ * So it is measured from the edge of the patient. A wound on a body has to be
+ * bigger than the body, and now it cannot quietly stop being.
+ */
+export const BLEED_RADIUS = Math.round(BOSS_WIDTH / 2 + 110)
 export const BLEED_TELEGRAPH = readable(2)
 /** A share of the bar per second, like everything else on this fight. */
 export const BLEED_DRAIN = 0.035

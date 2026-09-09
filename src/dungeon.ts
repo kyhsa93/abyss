@@ -315,9 +315,18 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     // A bridge: narrow, and long enough that the way on is somewhere you can
     // see and not somewhere you are.
-    // Twenty-three yards wide and eighty-five long, which is the stem between
-    // the two halls on the frostwing plan.
-    room: { kind: 'hall', halfWidth: 218, front: 900, back: 710 },
+    // Twenty-three yards wide and eighty-one long, which is the stem between
+    // the two halls on the frostwing plan and inside its six percent.
+    //
+    // It was eighty-five, and eighty-five is longer than the gap: the hall
+    // below it is a hundred and twenty-four yards across the middle, and the
+    // plan puts the two centres a hundred and five apart. Nine hundred forward
+    // off this stem reaches fifty units into that room, so the two floors were
+    // one floor -- which nothing noticed while the room below held no fight,
+    // because a room with nothing in it holds no door and the way up was open
+    // at every stage anyway. The day it was given a boss, the map said the
+    // door was shut and the floor said you could walk round it.
+    room: { kind: 'hall', halfWidth: 218, front: 820, back: 710 },
   },
   {
     id: 'lair',
