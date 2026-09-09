@@ -1125,17 +1125,36 @@ expect(
     const r = roomOf(id)
     return r.kind === 'hall' ? [r.halfWidth * 2, r.front + r.back] : [r.radius * 2, r.radius * 2]
   }
+  //
+  // All seventeen, because every one of them has been measured now and a table
+  // that stops at the lower spire is a table that lets the rest drift. The
+  // sources are the client's own map tiles — each carries the world rectangle
+  // it covers, so a pixel converts to yards exactly — and the instance's
+  // scripts and area triggers where those name a room's walls.
   for (const [id, w, d] of [
     ['threshold', 26.0, 68.0],
-    ['vigil', 126.1, 187.0],
-    ['spire', 94.5, 94.5],
-    ['oratory', 114.5, 110.3],
+    ['vigil', 160.0, 187.0],
+    ['spire', 118.0, 118.0],
+    ['oratory', 116.0, 116.0],
+    ['mooring', 178.0, 178.0],
+    ['rise', 78.0, 78.0],
+    ['crossing', 244.0, 244.0],
+    ['vats', 75.0, 166.0],
+    ['airless', 103.0, 103.0],
+    ['sludge', 100.0, 100.0],
+    ['laboratory', 89.0, 124.0],
+    ['crimson', 230.0, 160.0],
+    ['sanctum', 77.0, 77.0],
+    ['dream', 124.0, 124.0],
+    ['gauntlet', 23.0, 85.0],
+    ['lair', 126.0, 126.0],
+    ['throne', 140.0, 140.0],
   ] as const) {
     const [gw, gd] = across(id)
     if (Math.abs(yd(gw) - w) > w * 0.06) said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${w}`)
     if (Math.abs(yd(gd) - d) > d * 0.06) said.push(`${id} is ${yd(gd).toFixed(0)} yd deep, not ${d}`)
   }
-  expect('the lower spire is the size the plan says it is', said.length === 0, said.join('; '))
+  expect('every room is the size the source says it is', said.length === 0, said.join('; '))
 }
 
 // The way in is held by somebody still arriving.
@@ -1584,11 +1603,16 @@ expect(
 
 // The scale, in the unit the source is written in.
 //
-// This game was built to the source's yardstick without writing it down: the
-// first fight's floor is ninety-four and a half yards across there and
-// eighteen hundred and forty units here, which puts a yard at 19.47 — and read
-// at that scale the fights land where they should, a spread mark at five and a
-// half yards and a soak at seven.
+// A yard is however many units a body's own width says it is: a character
+// measures 0.95 across by the game's own model geometry and eighteen units
+// here. That is the only length in this game taken off the source's data
+// rather than off a picture, which is why it is the one the scale hangs on —
+// and read at it the fights land where they should, a spread mark at five and
+// a half yards and a soak at seven.
+//
+// It used to hang on the first fight's floor instead, called ninety-four and a
+// half yards. That number came off a plan calibrated against the wrong sheet;
+// the floor measures a hundred and eighteen.
 //
 // Three things were not built to it, and they are the three a player sees
 // against each other. Every number on the right is measured: a character's
@@ -1609,10 +1633,15 @@ expect(
   expect('the body, the boss, the reach and the pace are the source\'s', said.length === 0, said.join('; '))
 
   // And the ratios those produce, which are what is actually looked at.
+  //
+  // A hundred and twenty-four bodies across, not a hundred: the floor used to
+  // be ninety-four and a half yards because that number *defined* the yard,
+  // and it is a hundred and eighteen now that the yard is defined by a body
+  // and the floor is measured off the client's own map tile.
   const room = ARENA_RADIUS * 2
   expect(
-    'so the first fight\'s floor is a hundred bodies across, as it is there',
-    room / (PARTY_RADIUS * 2) > 95 && room / (PARTY_RADIUS * 2) < 115,
+    'so the first fight\'s floor is a hundred and twenty bodies across, as it is there',
+    room / (PARTY_RADIUS * 2) > 115 && room / (PARTY_RADIUS * 2) < 132,
     `${(room / (PARTY_RADIUS * 2)).toFixed(0)} bodies`,
   )
   expect(

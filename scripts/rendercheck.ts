@@ -1402,7 +1402,16 @@ console.log(`rendered ${frames} frames with no exceptions`)
     let turned = 0
     let killed = 0
     let called = false
-    for (const seed of [11, 22, 33, 44, 55]) {
+    // Ten seeds, because five is not enough to see the thing being claimed.
+    //
+    // Measured over ten: thirty bodies get turned and two of them are killed.
+    // At one in fifteen, a five-seed sample lands on zero more often than not,
+    // and this check was passing on the luck of which seeds it happened to
+    // name — the day the fight's rocks moved by two per cent the streams
+    // shifted, the kills fell out of the sample, and the claim read as broken
+    // when the rate had not moved at all. Restoring the old room reproduced
+    // the same two-in-thirty.
+    for (const seed of [11, 22, 33, 44, 55, 66, 77, 88, 99, 111]) {
       const s = unattended(
         createState(seed, attempt, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e),
       )
@@ -1774,7 +1783,13 @@ for (const [label, w, h] of [
   // So the band is the ellipse's two axes, and what is still being tested is
   // what was being tested at the start — that the floor is drawn under the
   // player rather than pinned to the middle of the screen.
-  const floor = circles.find((c) => Math.abs(c.r - L.arenaR) < 0.01)
+  // The floor's drawn radius, which is no longer the fitted one. The camera
+  // used to be framed on this very room — `L.scale` was `arenaR /
+  // ARENA_RADIUS` — so the arena came out exactly `arenaR` pixels wide and
+  // this line could look for that. The view carries its own reach now, so the
+  // two are only equal by coincidence.
+  const drawn = ARENA_RADIUS * L.scale
+  const floor = circles.find((c) => Math.abs(c.r - drawn) < 0.01)
   const want = Math.hypot(player.pos.x, player.pos.y) * L.scale
   const off = floor === undefined ? -1 : Math.hypot(floor.x - L.cx, floor.y - L.cy)
   const follows = floor !== undefined && off >= want * TILT - 0.01 && off <= want + 0.01
@@ -9025,7 +9040,7 @@ for (const [label, w, h] of [
   )
   const bad: Array<[string, { pos: Vec2; radius: number }]> = [
     ['in the middle', { pos: { x: 80, y: 0 }, radius: 44 }],
-    ['against the wall', { pos: { x: 900, y: 0 }, radius: 44 }],
+    ['against the wall', { pos: { x: ARENA_RADIUS - 20, y: 0 }, radius: 44 }],
     ['on a starting mark', { pos: { x: marks[6]!.x, y: marks[6]!.y }, radius: 44 }],
   ]
   for (const [what, rock] of bad) {

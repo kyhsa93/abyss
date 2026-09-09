@@ -1292,7 +1292,11 @@ export const ENCOUNTERS: Encounter[] = [
      * from `+y`. So `front` is the floor the raid fights across and `back` is
      * the apse behind the lich.
      */
-    room: { kind: 'hall', halfWidth: 1115, front: 1432, back: 716 },
+    // A hundred and sixteen yards square, and the one room that was already
+    // right: the doors its adds come out of are written down in the source
+    // 115.7 yards apart, and the floor between the galleries measures the same
+    // on the plan. Only the yardstick moved under it.
+    room: { kind: 'hall', halfWidth: 1099, front: 1465, back: 733 },
     /**
      * Two rows of seats down the sides, and a clear middle.
      *
@@ -1318,16 +1322,16 @@ export const ENCOUNTERS: Encounter[] = [
      * sizes. `rendercheck` measures all four.
      */
     terrain: [
-      { pos: { x: -970, y: -560 }, radius: 70 },
-      { pos: { x: -970, y: -90 }, radius: 70 },
-      { pos: { x: -970, y: 380 }, radius: 70 },
-      { pos: { x: -970, y: 850 }, radius: 70 },
-      { pos: { x: -970, y: 1280 }, radius: 70 },
-      { pos: { x: 970, y: -560 }, radius: 70 },
-      { pos: { x: 970, y: -90 }, radius: 70 },
-      { pos: { x: 970, y: 380 }, radius: 70 },
-      { pos: { x: 970, y: 850 }, radius: 70 },
-      { pos: { x: 970, y: 1280 }, radius: 70 },
+      { pos: { x: -956, y: -573 }, radius: 70 },
+      { pos: { x: -956, y: -92 }, radius: 70 },
+      { pos: { x: -956, y: 389 }, radius: 70 },
+      { pos: { x: -956, y: 870 }, radius: 70 },
+      { pos: { x: -956, y: 1310 }, radius: 70 },
+      { pos: { x: 956, y: -573 }, radius: 70 },
+      { pos: { x: 956, y: -92 }, radius: 70 },
+      { pos: { x: 956, y: 389 }, radius: 70 },
+      { pos: { x: 956, y: 870 }, radius: 70 },
+      { pos: { x: 956, y: 1310 }, radius: 70 },
     ],
     /**
      * Four side doors, and two of them only open for a big raid.
@@ -1344,10 +1348,10 @@ export const ENCOUNTERS: Encounter[] = [
      * the hall and never look behind them.
      */
     doors: [
-      { pos: { x: -1115, y: 615 } },
-      { pos: { x: 1115, y: 615 } },
-      { pos: { x: -1115, y: -325 }, from: 25 },
-      { pos: { x: 1115, y: -325 }, from: 25 },
+      { pos: { x: -1099, y: 629 } },
+      { pos: { x: 1099, y: 629 } },
+      { pos: { x: -1099, y: -333 }, from: 25 },
+      { pos: { x: 1099, y: -333 }, from: 25 },
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
@@ -1551,7 +1555,12 @@ export const ENCOUNTERS: Encounter[] = [
      * nothing on it that takes floor, which is why it is the one that can
      * afford to be small.
      */
-    room: { kind: 'round', radius: 620 },
+    // A hundred and three yards across. The plagueworks plan covers a known
+    // rectangle of the world, which makes it 1.1465 yards to the pixel, and
+    // this room draws ninety. It was sixty-four — two thirds of the yardstick
+    // room on the argument that a fight about running out of air can afford to
+    // be small, which is a fine argument and not a measurement.
+    room: { kind: 'round', radius: 976 },
     /**
      * Two tables, behind the boss.
      *
@@ -1568,8 +1577,8 @@ export const ENCOUNTERS: Encounter[] = [
      * both at all three raid sizes.
      */
     terrain: [
-      { pos: { x: -320, y: -60 }, radius: 95 },
-      { pos: { x: 320, y: -60 }, radius: 95 },
+      { pos: { x: -504, y: -94 }, radius: 95 },
+      { pos: { x: 504, y: -94 }, radius: 95 },
     ],
     /** Fine and flat: a room that is worked in rather than fought over. */
     floor: 'floor-slate',
@@ -1666,7 +1675,14 @@ export const ENCOUNTERS: Encounter[] = [
     // 0.592 yards a pixel it is calibrated at — the raid's arrival point and
     // the boss's own position are written down in the source's script 44.97
     // yards apart. It was eighty-six.
-    room: { kind: 'round', radius: 1003 },
+    // Seventy-eight yards across, which is the mean of a balcony that is 92
+    // wide and 65 deep — a circle cannot be both, and a circle sized to the
+    // wide way would put half the fight off the front of it.
+    //
+    // It was 103, from that same 44.97-yard pair of positions read against a
+    // plan calibrated at 0.592 yards to the pixel. The tile's own world
+    // rectangle says 0.195, so that sheet was read three times too coarse.
+    room: { kind: 'round', radius: 739 },
     /**
      * Nothing standing in it, and that is the mechanic's doing.
      *
@@ -1683,8 +1699,8 @@ export const ENCOUNTERS: Encounter[] = [
      * gauge and the people filling it.
      */
     doors: [
-      { pos: { x: -424, y: -909 } },
-      { pos: { x: 424, y: -909 } },
+      { pos: { x: -312, y: -670 } },
+      { pos: { x: 312, y: -670 } },
     ],
     /** Open stone, worn smooth: the top of a spire rather than a hall. */
     floor: 'floor-cobble',
@@ -1817,7 +1833,9 @@ export const ENCOUNTERS: Encounter[] = [
      * apart in a big room is not a decision, it is a stroll. At 68% of a floor
      * the geometry closes on its own and the raid has to open it again.
      */
-    room: { kind: 'round', radius: 760 },
+    // A hundred yards across, off the plagueworks plan at its measured 1.1465
+    // yards to the pixel. It was seventy-eight.
+    room: { kind: 'round', radius: 947 },
     /**
      * One tank, against the wall.
      *
@@ -1826,7 +1844,7 @@ export const ENCOUNTERS: Encounter[] = [
      * rocks decides those distances with its furniture. A single obstacle
      * gives the floor a direction without giving it a maze.
      */
-    terrain: [{ pos: { x: 0, y: -560 }, radius: 110 }],
+    terrain: [{ pos: { x: 0, y: -698 }, radius: 110 }],
     /**
      * Two, on the raid's own side, and this is the only room in the citadel
      * where that is true.
@@ -1837,8 +1855,8 @@ export const ENCOUNTERS: Encounter[] = [
      * by the time anybody could have done anything about it.
      */
     doors: [
-      { pos: { x: -540, y: 540 } },
-      { pos: { x: 540, y: 540 } },
+      { pos: { x: -670, y: 670 } },
+      { pos: { x: 670, y: 670 } },
     ],
     /** A workshop floor: laid, drained, and about to be ruined. */
     floor: 'floor-clay',
@@ -1981,7 +1999,10 @@ export const ENCOUNTERS: Encounter[] = [
      * was — the same rule the second fight's room is held to. Turning a room
      * and shrinking it at once is two changes measured as one.
      */
-    room: { kind: 'hall', halfWidth: 863, front: 990, back: 511 },
+    // Eighty-nine yards wide by a hundred and twenty-four long. The width was
+    // already right; the length was seventy-seven, which made a room the plan
+    // draws as a long diamond into very nearly a square.
+    room: { kind: 'hall', halfWidth: 843, front: 1566, back: 783 },
     /**
      * Four benches, in two rows.
      *
@@ -1992,10 +2013,10 @@ export const ENCOUNTERS: Encounter[] = [
      * answer to all three.
      */
     terrain: [
-      { pos: { x: -560, y: -190 }, radius: 85 },
-      { pos: { x: 560, y: -190 }, radius: 85 },
-      { pos: { x: -560, y: 300 }, radius: 85 },
-      { pos: { x: 560, y: 300 }, radius: 85 },
+      { pos: { x: -547, y: -297 }, radius: 85 },
+      { pos: { x: 547, y: -297 }, radius: 85 },
+      { pos: { x: -547, y: 469 }, radius: 85 },
+      { pos: { x: 547, y: 469 }, radius: 85 },
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',
@@ -2117,7 +2138,16 @@ export const ENCOUNTERS: Encounter[] = [
      * balcony curving out either side above it — so 1500 by 1626, at the two
      * and a half million square units of floor it already had.
      */
-    room: { kind: 'hall', halfWidth: 750, front: 1080, back: 546 },
+    // Two hundred and thirty yards wide by a hundred and sixty long, and the
+    // biggest floor in the building — which the source's own hall is. Its map
+    // tile puts it at 0.373 yards to the pixel and the inner wall draws 618 by
+    // 430; the two triggers at either end of it stand 205 yards apart, which
+    // is the same hall measured a second way.
+    //
+    // It was 77 by 84, a fifth of the area. The round chamber in the middle of
+    // the real hall is not in this shape: this game draws it as the room next
+    // door, which is where the fight in it happens.
+    room: { kind: 'hall', halfWidth: 2179, front: 2021, back: 1010 },
     // An equal triangle with a side of seven hundred, which is what the
     // measurement left of the room's first answer.
     //
@@ -2137,10 +2167,10 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Coffins stood on end, two rows down the sides. */
     terrain: [
-      { pos: { x: -600, y: -180 }, radius: 75 },
-      { pos: { x: 600, y: -180 }, radius: 75 },
-      { pos: { x: -600, y: 640 }, radius: 75 },
-      { pos: { x: 600, y: 640 }, radius: 75 },
+      { pos: { x: -1743, y: -336 }, radius: 75 },
+      { pos: { x: 1743, y: -336 }, radius: 75 },
+      { pos: { x: -1743, y: 1193 }, radius: 75 },
+      { pos: { x: 1743, y: 1193 }, radius: 75 },
     ],
     /** Dark stone under red cloth. */
     floor: 'floor-slate',
@@ -2260,7 +2290,9 @@ export const ENCOUNTERS: Encounter[] = [
      * -- and furniture in the middle of that is a third party deciding the
      * distances.
      */
-    room: { kind: 'round', radius: 800 },
+    // Seventy-seven yards across — the round chamber in the middle of the
+    // crimson hall, which draws 210 by 205 pixels on that sheet. It was 82.
+    room: { kind: 'round', radius: 729 },
     terrain: [],
     /** Red stone, and a balcony that is a painting rather than a place. */
     floor: 'floor-slate',

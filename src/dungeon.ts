@@ -142,7 +142,7 @@ export const CHAMBERS: Chamber[] = [
     // floor was measured off a wall and stands; this one was measured off a
     // picture of a staircase, and it put the party in a chamber twice the
     // width of the corridor it opens onto.
-    room: { kind: 'hall', halfWidth: 253, front: 662, back: 662 },
+    room: { kind: 'hall', halfWidth: 246, front: 644, back: 644 },
     pad: { kind: 'always' },
   },
   {
@@ -155,11 +155,13 @@ export const CHAMBERS: Chamber[] = [
     // fight's chamber no wider than it is. Two bays with a stair between them
     // in the source; one room here, because a stair is a thing this game has
     // no way to be on.
-    // A hundred and twenty-six yards wide by a hundred and eighty-seven long,
-    // which is the plan's, measured rather than proportioned: it was sized by
-    // eye off the picture before the sheet had a scale, and came out a fifth
-    // too narrow at exactly the right length.
-    room: { kind: 'hall', halfWidth: 1228, front: 1820, back: 1821 },
+    // A hundred and sixty yards wide by a hundred and eighty-seven long. The
+    // width is the source's own: the trigger that fires when a raid walks into
+    // this hall is a box a hundred and sixty yards across the way in, and a
+    // trigger laid over a doorless hall is laid to its walls — the plan agrees
+    // to within two yards. It was a hundred and twenty-six, sized by eye off
+    // that plan before the sheet had a scale on it.
+    room: { kind: 'hall', halfWidth: 1516, front: 1772, back: 1771 },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   {
@@ -191,7 +193,7 @@ export const CHAMBERS: Chamber[] = [
     // splits the difference is the nearest a platform gets to that. It was 92,
     // which made the one open-air room in the building the smallest arena in
     // the game.
-    room: { kind: 'platform', radius: 1733 },
+    room: { kind: 'platform', radius: 1686 },
     pad: killed('oratory'),
   },
   {
@@ -231,7 +233,7 @@ export const CHAMBERS: Chamber[] = [
     // of the room. Before that it was less than half of *that*, on the
     // argument that every door had to be on the screen at once — an argument
     // the map in the corner answers instead.
-    room: { kind: 'round', radius: 2375 },
+    room: { kind: 'round', radius: 2312 },
     pad: killed('rise'),
   },
 
@@ -256,7 +258,7 @@ export const CHAMBERS: Chamber[] = [
     // Seventy-five yards wide by a hundred and sixty-six long, off the floor
     // plan at its measured 1.1465 yards to the pixel. It was 37 by 47, which
     // is a junction rather than a hall.
-    room: { kind: 'hall', halfWidth: 730, front: 1616, back: 1616 },
+    room: { kind: 'hall', halfWidth: 710, front: 1573, back: 1573 },
   },
   {
     id: 'sludge',
@@ -301,7 +303,7 @@ export const CHAMBERS: Chamber[] = [
     // A hundred and twenty-four yards across the walkable middle, off the
     // frostwing plan at its measured 0.7722 yards to the pixel; the lobes
     // reach 178 corner to corner. It was 62, which is half the room.
-    room: { kind: 'round', radius: 1207 },
+    room: { kind: 'round', radius: 1175 },
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.
@@ -312,9 +314,9 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     // A bridge: narrow, and long enough that the way on is somewhere you can
     // see and not somewhere you are.
-    // Eighty-five yards of it, which is the stem between the two halls on the
-    // frostwing plan.
-    room: { kind: 'hall', halfWidth: 240, front: 900, back: 755 },
+    // Twenty-three yards wide and eighty-five long, which is the stem between
+    // the two halls on the frostwing plan.
+    room: { kind: 'hall', halfWidth: 218, front: 900, back: 710 },
   },
   {
     id: 'lair',
@@ -328,7 +330,7 @@ export const CHAMBERS: Chamber[] = [
     // A hundred and twenty-six yards across, off the frostwing plan: the
     // cloverleaf's own floor is 104 and the points reach 147. The source's
     // trigger over it is a box 113 by 60, which sits inside that.
-    room: { kind: 'platform', radius: 1227 },
+    room: { kind: 'platform', radius: 1194 },
     pad: killed('dream'),
   },
 
@@ -347,7 +349,7 @@ export const CHAMBERS: Chamber[] = [
     // A hundred and forty yards across. Its map tile covers a known rectangle
     // of the world, which makes that sheet 0.2927 yards to the pixel, and the
     // cracked shelf draws 145 by 135 on it.
-    room: { kind: 'platform', radius: 1363 },
+    room: { kind: 'platform', radius: 1326 },
   },
 ]
 
@@ -623,10 +625,15 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   { id: 'lair', x: 469, y: 1105 },
 
   // Reached by teleporter in the source, so this is a placed room rather than
-  // a measured one — and placed short, because the source does not make anyone
-  // walk it. Clear of the crimson wing and of the lair, and further on than
-  // either.
-  { id: 'throne', x: 317, y: 1203 },
+  // a measured one, and placed as close in as it will go: the source does not
+  // make anybody walk this, so every yard of it is a yard of nothing.
+  //
+  // Close in is not very close. The crimson hall measures two hundred and
+  // thirty yards wide and the frostwing column stands off to the right of it,
+  // which leaves one gap in the upper spire big enough for a hundred and forty
+  // yard platform — this corner, eighteen yards clear of the hall on one side
+  // and nineteen off the lair on the other.
+  { id: 'throne', x: 390, y: 1235 },
 ]
 
 /**

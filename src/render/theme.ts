@@ -1,4 +1,5 @@
 import { ROUND_ARENA, roomReach, type RoomShape } from '../sim/room'
+import { YARD } from '../sim/constants'
 
 /**
  * The room the frame is drawing.
@@ -305,13 +306,19 @@ export function computeLayout(w: number, h: number): Layout {
     // The zoom, and it is a zoom rather than a fit.
     //
     // The camera follows the player, so what this decides is how big a body is
-    // on the glass — not how much room is on it. Taken from the yardstick room
-    // and left there: scaled to fit whatever room the fight is in, a hall
-    // twice as long would draw every body at half the size and a small room
-    // would draw them at twice it, so the game would zoom in and out by boss
-    // while claiming to be the same game. A room bigger than the view simply
-    // runs off it, which is what a long room is.
-    scale: arenaR / roomReach(ROUND_ARENA),
+    // on the glass — not how much room is on it. Scaled to fit whatever room
+    // the fight is in, a hall twice as long would draw every body at half the
+    // size and a small room would draw them at twice it, so the game would
+    // zoom in and out by boss while claiming to be the same game. A room
+    // bigger than the view simply runs off it, which is what a long room is.
+    //
+    // It used to be the yardstick room — `roomReach(ROUND_ARENA)` — which was
+    // the same thing while that room's size was a definition. It is a
+    // measurement now, and a measurement that grows must not quietly shrink
+    // every body on the screen: the day the first fight's floor was corrected
+    // from 97 yards to 118, framing on it would have drawn the raid a fifth
+    // smaller and called that a fix. So the view carries its own number.
+    scale: arenaR / VIEW_REACH,
     cx: w / 2,
     cy: h / 2,
     arenaR,
@@ -379,19 +386,47 @@ export function computeLayout(w: number, h: number): Layout {
  * is the one that still fits the whole room on the glass, which is now a
  * genuine overview rather than the default.
  */
-export const ZOOM_STEPS = [1, 2.5, 3, 3.6] as const
-export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER'] as const
+/**
+ * How much ground the camera fits at rest, in units.
+ *
+ * Fifty yards from the middle of the view to the edge of the fitted circle,
+ * before the zoom step multiplies it. Its own number rather than a room's,
+ * because it is a fact about how big a person should look on a phone and not a
+ * fact about the building — see `scale` in the layout.
+ */
+export const VIEW_REACH = 50 * YARD
+
+/**
+ * How close the camera will come, in steps.
+ *
+ * The top of this used to be 3.6, and at 3.6 a body stands about thirty pixels
+ * tall on a seven hundred pixel screen — four per cent of it. That is what
+ * "the map is far too big for the character" was: not the building, which is
+ * measured, but the glass. A player at the back of a raid in the source sees
+ * their own character at eight or nine per cent of the screen with the camera
+ * pushed all the way out, and much more than that with it anywhere else.
+ *
+ * So the ladder reaches further in. The far end is unchanged, because a raid
+ * that wants to see the whole floor still has to be able to.
+ */
+export const ZOOM_STEPS = [1, 2.5, 3.6, 5.5, 7.5] as const
+export const ZOOM_NAMES = ['FAR', 'NEAR', 'CLOSE', 'CLOSER', 'OVER'] as const
 
 /**
  * Where the camera starts.
  *
- * The closest step rather than the fitted one. Fitting the whole arena on
- * screen is the framing every layout number here was worked out against, and
- * it is the wrong default for the thing the game actually asks you to do:
- * read your own token, your own numbers and the shape under your feet. The
- * arena's edges are what the minimap is for.
+ * Not the closest step and not the fitted one: the step at which a body is
+ * about a twelfth of the screen, which is what standing in the source's own
+ * raid looks like with the camera pushed out as far as it goes. Fitting the
+ * whole arena on screen is the framing every layout number here was worked out
+ * against, and it is the wrong default for the thing the game actually asks
+ * you to do — read your own token, your own numbers and the shape under your
+ * feet. The arena's edges are what the minimap is for.
+ *
+ * Written as an index rather than "the last one", because the last one is now
+ * closer than a raid wants to fight at and it should still be reachable.
  */
-export const DEFAULT_ZOOM = ZOOM_STEPS.length - 1
+export const DEFAULT_ZOOM = 3
 
 const ZOOM_KEY = 'abyss.zoom'
 
