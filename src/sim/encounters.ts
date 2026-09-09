@@ -1961,8 +1961,20 @@ export const ENCOUNTERS: Encounter[] = [
      * therefore one answer; in a hall that is wider than it is deep, splitting
      * left and right is the natural thing to do, and *which* side is a
      * different answer every time.
+     *
+     * And for a year it was the other way round. Fourteen hundred across
+     * against eighteen hundred and fifty deep is a hall that is deeper than it
+     * is wide — the exact shape this note says it must not be, sitting under
+     * the note saying so. The plan of the floor settles it in the same
+     * direction: the wing runs left off the crossing, so the wall this room is
+     * entered through is one of the short ones, and measured across the walk
+     * it is wider than it is deep by about a seventh.
+     *
+     * 1726 by 1501, and the floor is the two and a half million it already
+     * was — the same rule the second fight's room is held to. Turning a room
+     * and shrinking it at once is two changes measured as one.
      */
-    room: { kind: 'hall', halfWidth: 700, front: 1150, back: 700 },
+    room: { kind: 'hall', halfWidth: 863, front: 990, back: 511 },
     /**
      * Four benches, in two rows.
      *
@@ -1973,10 +1985,10 @@ export const ENCOUNTERS: Encounter[] = [
      * answer to all three.
      */
     terrain: [
-      { pos: { x: -400, y: -260 }, radius: 85 },
-      { pos: { x: 400, y: -260 }, radius: 85 },
-      { pos: { x: -400, y: 320 }, radius: 85 },
-      { pos: { x: 400, y: 320 }, radius: 85 },
+      { pos: { x: -560, y: -190 }, radius: 85 },
+      { pos: { x: 560, y: -190 }, radius: 85 },
+      { pos: { x: -560, y: 300 }, radius: 85 },
+      { pos: { x: 560, y: 300 }, radius: 85 },
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',
@@ -2083,14 +2095,22 @@ export const ENCOUNTERS: Encounter[] = [
     short: 'Crowns',
     demand: 'only one is real, and it is not the one you are hitting',
     /**
-     * Issue #33's room: a long hall with three stations in it.
+     * Issue #33's room: a hall with three stations in it.
      *
      * The distance between the stations is the mechanic and it belongs to the
-     * room. Nine hundred units apart is four times a caster's reach and about
-     * five seconds of walking, which is what makes moving between them a cost
-     * rather than a turn of the head.
+     * room. Seven hundred units apart is three times a caster's reach and
+     * about four seconds of walking, which is what makes moving between them a
+     * cost rather than a turn of the head — and that triangle is written down
+     * below in its own coordinates, so it survives the room being reshaped
+     * around it. Which is what happened.
+     *
+     * It was long: twelve hundred across against nineteen hundred and sixty
+     * deep. The plan of this floor draws it very nearly square and a little
+     * deeper than wide — a lobed room with a dais across the far end and a
+     * balcony curving out either side above it — so 1500 by 1626, at the two
+     * and a half million square units of floor it already had.
      */
-    room: { kind: 'hall', halfWidth: 620, front: 1400, back: 560 },
+    room: { kind: 'hall', halfWidth: 750, front: 1080, back: 546 },
     // An equal triangle with a side of seven hundred, which is what the
     // measurement left of the room's first answer.
     //
@@ -2110,10 +2130,10 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Coffins stood on end, two rows down the sides. */
     terrain: [
-      { pos: { x: -470, y: -180 }, radius: 75 },
-      { pos: { x: 470, y: -180 }, radius: 75 },
-      { pos: { x: -470, y: 700 }, radius: 75 },
-      { pos: { x: 470, y: 700 }, radius: 75 },
+      { pos: { x: -600, y: -180 }, radius: 75 },
+      { pos: { x: 600, y: -180 }, radius: 75 },
+      { pos: { x: -600, y: 640 }, radius: 75 },
+      { pos: { x: 600, y: 640 }, radius: 75 },
     ],
     /** Dark stone under red cloth. */
     floor: 'floor-slate',
