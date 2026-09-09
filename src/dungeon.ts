@@ -3,6 +3,7 @@ import type { Corridor, Pack, Spring } from './sim/travel'
 import { ROUND_ARENA, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
+import { YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -183,7 +184,14 @@ export const CHAMBERS: Chamber[] = [
     // a wide horseshoe of terrace with battlements round the outside and a
     // raised platform at the far end. Round here, because a horseshoe is a
     // concave shape and this game does not buy path-finding.
-    room: { kind: 'platform', radius: 900 },
+    //
+    // A hundred and seventy-eight yards across. The four triggers that put a
+    // raider onto the other ship stand at the corners of the deck in the
+    // source — 229 yards apart one way and 127 the other — and a circle that
+    // splits the difference is the nearest a platform gets to that. It was 92,
+    // which made the one open-air room in the building the smallest arena in
+    // the game.
+    room: { kind: 'platform', radius: 1733 },
     pad: killed('oratory'),
   },
   {
@@ -208,24 +216,22 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Upper Crossing',
     wing: 'lower',
     encounter: null,
-    // A circle with a cross laid in it, and a hundred and forty yards across.
+    // A circle with a cross laid in it, and two hundred and forty-four yards
+    // across.
     //
-    // The plan of this floor has no distance written down in the source's
-    // scripts that could be pinned to a pixel on it, so it is scaled by the
-    // one thing a floor plan repeats: a corridor is a corridor. The passages
-    // on the lower spire are 14.7 yards wide over fourteen pixels; the ones on
-    // this sheet are twenty pixels, which puts it at 0.735 yards a pixel and
-    // this room at a hundred and forty-one. Weaker than a measurement and
-    // stronger than a guess, and used here rather than on the rooms with
-    // fights in them: a proxy is not good enough to move an arena on.
+    // Measured twice and the two agree. The client's map tile for this floor
+    // says which world rectangle it covers, which makes it 1.1465 yards to the
+    // pixel, and the hub draws about 210 across on it. The source's own
+    // triggers settle it: the doorway west into the plagueworks stands at x
+    // 4245.9 and the one east into the crimson hall at x 4489.0, and the two
+    // on the other axis at y 2622.1 and y 2872.2 — 243 one way, 250 the other.
     //
-    // It was less than half that, on the argument that every door has to be on
-    // the screen at once or the room has hidden its own question. That
-    // argument was answered somewhere else: the map in the corner draws the
-    // whole citadel while the party is walking, so the doors do not all have
-    // to be in one glance any more. What the room has to be instead is the
-    // thing the building says it is — the place where the spire opens out.
-    room: { kind: 'round', radius: 1378 },
+    // It was 141, taken off a corridor-width proxy on an unscaled sheet and
+    // marked at the time as weaker than a measurement. It was: it was a third
+    // of the room. Before that it was less than half of *that*, on the
+    // argument that every door had to be on the screen at once — an argument
+    // the map in the corner answers instead.
+    room: { kind: 'round', radius: 2375 },
     pad: killed('rise'),
   },
 
@@ -247,7 +253,10 @@ export const CHAMBERS: Chamber[] = [
     // to a question the map in the corner now answers instead. What it cost
     // was the shape: the wing's two rooms are up and down from this junction
     // in the source, and a wide room puts them on its short walls.
-    room: { kind: 'hall', halfWidth: 360, front: 460, back: 460 },
+    // Seventy-five yards wide by a hundred and sixty-six long, off the floor
+    // plan at its measured 1.1465 yards to the pixel. It was 37 by 47, which
+    // is a junction rather than a hall.
+    room: { kind: 'hall', halfWidth: 730, front: 1616, back: 1616 },
   },
   {
     id: 'sludge',
@@ -289,7 +298,10 @@ export const CHAMBERS: Chamber[] = [
     // is not what "long, with the thing that has to be kept alive lying down
     // the middle" made of it. Round here: four lobes on a square is a shape
     // whose corners this game cannot walk out of.
-    room: { kind: 'round', radius: 600 },
+    // A hundred and twenty-four yards across the walkable middle, off the
+    // frostwing plan at its measured 0.7722 yards to the pixel; the lobes
+    // reach 178 corner to corner. It was 62, which is half the room.
+    room: { kind: 'round', radius: 1207 },
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.
@@ -300,7 +312,9 @@ export const CHAMBERS: Chamber[] = [
     encounter: null,
     // A bridge: narrow, and long enough that the way on is somewhere you can
     // see and not somewhere you are.
-    room: { kind: 'hall', halfWidth: 240, front: 900, back: 420 },
+    // Eighty-five yards of it, which is the stem between the two halls on the
+    // frostwing plan.
+    room: { kind: 'hall', halfWidth: 240, front: 900, back: 755 },
   },
   {
     id: 'lair',
@@ -311,7 +325,10 @@ export const CHAMBERS: Chamber[] = [
     // Open ice at the end of the long way round, and a big room: the plan puts
     // it at the far end of the frostwing halls with nothing else on that
     // reach.
-    room: { kind: 'platform', radius: 760 },
+    // A hundred and twenty-six yards across, off the frostwing plan: the
+    // cloverleaf's own floor is 104 and the points reach 147. The source's
+    // trigger over it is a box 113 by 60, which sits inside that.
+    room: { kind: 'platform', radius: 1227 },
     pad: killed('dream'),
   },
 
@@ -327,7 +344,10 @@ export const CHAMBERS: Chamber[] = [
     // ice with a sigil cut in the middle of it and a stair up at one side —
     // the largest arena in the building, as the last one ought to be, and the
     // one it is most obviously possible to fall off.
-    room: { kind: 'platform', radius: 880 },
+    // A hundred and forty yards across. Its map tile covers a known rectangle
+    // of the world, which makes that sheet 0.2927 yards to the pixel, and the
+    // cracked shelf draws 145 by 135 on it.
+    room: { kind: 'platform', radius: 1363 },
   },
 ]
 
@@ -550,44 +570,63 @@ export const PASSAGES: Passage[] = [
  * map says it is. One table, or the picture and the building disagree.
  */
 export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
-  // Traced off the raid's own map rather than arranged by hand, which is what
-  // this was before and why it was wrong: a tidy column with the wings hung
-  // under it is a diagram of the boss order, not a drawing of a building. The
-  // real one is a U. You come in halfway up the left side, go *down* past the
-  // first two, along the bottom to the ships, and then climb the middle.
-  // Spaced off the floor plan the game draws of this floor rather than off the
-  // overview poster, which compresses the lower spire to fit the whole raid on
-  // one page: the shaft is short, the walk from the great hall to the first
-  // fight is the longest stretch on the floor, and the first fight to the
-  // second is shorter than either.
-  { id: 'threshold', x: 0.05, y: 0.42 },
-  { id: 'vigil', x: 0.05, y: 0.57 },
-  { id: 'spire', x: 0.05, y: 0.8 },
-  { id: 'oratory', x: 0.05, y: 0.955 },
-  { id: 'mooring', x: 0.44, y: 0.94 },
-  { id: 'rise', x: 0.44, y: 0.72 },
-  { id: 'crossing', x: 0.44, y: 0.46 },
+  // Yards, measured, with the way on running up the page.
+  //
+  // This was a list of fractions of a square, traced off the raid's own map by
+  // eye and then stretched by a single number picked so that no two rooms
+  // overlapped. That number is a packing constraint, not a measurement, and it
+  // is why walking the citadel felt enormous: it left 1611 yards of bare floor
+  // between rooms, most of it in stretches with nothing in them.
+  //
+  // The distances here come from the source instead. The client's map tiles
+  // carry the world rectangle each one covers (`UiMapAssignment`), so a pixel
+  // on any floor plan converts to yards exactly; and the instance's scripts
+  // and area triggers give world positions for the rooms themselves. Between
+  // the two, every stretch below is a real distance between two real places.
+  //
+  // Where the real relationship is horizontal the real distance is used. Where
+  // one room is *above* another — the gunship over the Oratory, the Rise over
+  // the gunship, the Sanctum over the Crimson Hall — a flat plan cannot nest
+  // them, so those are set just clear of each other instead and are the only
+  // numbers here that are chosen. The two teleporters are the same case.
+  //
+  // The lower spire, straight up the left: the entrance, the great hall, the
+  // first fight, the second. All four sit on one line at y 2212 in the source,
+  // so these are differences in world x and nothing else.
+  { id: 'threshold', x: 0, y: 0 },
+  { id: 'vigil', x: 0, y: 292 },
+  { id: 'spire', x: 0, y: 420 },
+  { id: 'oratory', x: 0, y: 685 },
 
-  // The plagueworks goes off to the left and above the way in: a short hall,
-  // a room above and a room below it, and the laboratory behind both.
-  { id: 'vats', x: 0.3, y: 0.34 },
-  { id: 'sludge', x: 0.18, y: 0.2 },
-  { id: 'airless', x: 0.18, y: 0.46 },
-  { id: 'laboratory', x: 0.05, y: 0.33 },
+  // Then the turn along the bottom and up. The gunship is 162 yards from the
+  // Oratory in the source and directly over it in height; the Rise is over the
+  // gunship again. Both are opened out to clear the rooms either side.
+  { id: 'mooring', x: 180, y: 685 },
+  { id: 'rise', x: 180, y: 861 },
+  { id: 'crossing', x: 180, y: 1041 },
 
-  // The crimson wing is straight up from the middle, and the throne is up and
-  // to the right of it — not above it. Drawn on the middle line, the way to
-  // the top ran through two rooms it does not go through.
-  { id: 'crimson', x: 0.44, y: 0.22 },
-  { id: 'sanctum', x: 0.44, y: 0.05 },
+  // The upper spire, laid off the crossing's own world position — the hub is
+  // at (4355.5, 2774.4) and every room below is its real offset from that,
+  // turned so the plagueworks stays on the left and the crimson wing above.
+  { id: 'vats', x: -93, y: 1026 },
+  { id: 'airless', x: -184, y: 957 },
+  { id: 'sludge', x: -187, y: 1139 },
+  { id: 'laboratory', x: -309, y: 1041 },
 
-  // The frostwing halls run away to the right, and the lair is reached the
-  // long way round from the dragon rather than straight on.
-  { id: 'dream', x: 0.68, y: 0.56 },
-  { id: 'gauntlet', x: 0.87, y: 0.64 },
-  { id: 'lair', x: 0.95, y: 0.42 },
+  { id: 'crimson', x: 183, y: 1242 },
+  { id: 'sanctum', x: 183, y: 1385 },
 
-  { id: 'throne', x: 0.73, y: 0.24 },
+  // Valithria's hall is 320 yards from the hub and Sindragosa's is 208 beyond
+  // it, with the gauntlet on the line between them.
+  { id: 'dream', x: 470, y: 896 },
+  { id: 'gauntlet', x: 470, y: 1000 },
+  { id: 'lair', x: 469, y: 1105 },
+
+  // Reached by teleporter in the source, so this is a placed room rather than
+  // a measured one — and placed short, because the source does not make anyone
+  // walk it. Clear of the crimson wing and of the lair, and further on than
+  // either.
+  { id: 'throne', x: 317, y: 1203 },
 ]
 
 /**
@@ -778,15 +817,17 @@ export interface Cell {
 }
 
 /**
- * How big the building is.
+ * How far the furthest room stands from the door, in units.
  *
- * Not chosen: it is the smallest scale at which no two joined rooms overlap
- * and every stretch of held ground still fits between the two it joins. The
- * plan is in fractions, the rooms are in units, and this is the number that
- * reconciles them — the build recomputes it and says so if a room grows past
- * what the plan leaves it.
+ * Reported rather than chosen. The plan used to be fractions of a square times
+ * a single scale, and that scale was the smallest number at which no two rooms
+ * overlapped — a packing constraint wearing a measurement's clothes. The plan
+ * is in yards now, so there is nothing left to reconcile and nothing left to
+ * pick; what is still worth having is a size for the building, and this is it.
  */
-export const CITADEL_SCALE = 16700
+export const CITADEL_REACH = Math.max(
+  ...CITADEL_PLAN.map((e) => Math.hypot(e.x, e.y) * YARD),
+)
 
 /**
  * How far a passage runs inside the rooms at either end of it.
@@ -815,7 +856,9 @@ const KNIT = 220
  */
 export function placeOf(id: string): Vec2 {
   const entry = planOf(id)
-  return { x: (entry.x - 0.5) * CITADEL_SCALE, y: (0.5 - entry.y) * CITADEL_SCALE }
+  // Negated, because the plan is written with the way on running up the page
+  // and screen y grows downward. A flip and not a turn, so left stays left.
+  return { x: entry.x * YARD, y: -entry.y * YARD }
 }
 
 /**

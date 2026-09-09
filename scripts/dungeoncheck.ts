@@ -1,6 +1,6 @@
 import {
   CHAMBERS,
-  CITADEL_SCALE,
+  CITADEL_REACH,
   PASSAGES,
   chamberAt,
   clearedFrom,
@@ -11,6 +11,7 @@ import {
   citadelSprings,
   citadelWorld,
   groundFor,
+  exitAlong,
   hallFor,
   placeOf,
   reachable,
@@ -415,9 +416,20 @@ const everywhere = () => true
   }
   expect('and wide enough for a body all the way', narrow.length === 0, narrow.join(', '))
 
-  // Two rooms sharing floor would be two fights in one place. Joined or not,
-  // a chamber keeps its own ground; the passages are what overlap, on purpose.
-  const shared: string[] = []
+  // Two rooms sharing floor would be two fights in one place — but two rooms
+  // *touching* is what a building is, and the plan is measured now, so rooms
+  // the source stands next to each other stand next to each other here. The
+  // great hall's far end and the first fight's chamber overlap by thirteen
+  // yards because they do; so do the dragon's hall and the bridge out of it.
+  //
+  // So the rule is the one that was actually meant. A chamber's middle is
+  // where its fight happens and where its name is written, and no chamber's
+  // middle may lie inside another. Rooms that no passage joins may not touch
+  // at all: a wing bleeding into the wing beside it is a hole in the plan even
+  // when neither middle has moved.
+  const joined = new Set(PASSAGES.flatMap((p) => [`${p.from}/${p.to}`, `${p.to}/${p.from}`]))
+  const swallowed: string[] = []
+  const bled: string[] = []
   for (let i = 0; i < CHAMBERS.length; i++) {
     for (let j = i + 1; j < CHAMBERS.length; j++) {
       const a = CHAMBERS[i]!
@@ -427,39 +439,39 @@ const everywhere = () => true
       const d = dist(pa, pb)
       const ux = (pb.x - pa.x) / d
       const uy = (pb.y - pa.y) / d
-      if (d < support(roomOf(a.id), ux, uy) + support(roomOf(b.id), -ux, -uy)) {
-        shared.push(`${a.id}/${b.id}`)
+      const ra = exitAlong(roomOf(a.id), ux, uy)
+      const rb = exitAlong(roomOf(b.id), -ux, -uy)
+      if (d < ra || d < rb) swallowed.push(`${a.id}/${b.id}`)
+      else if (!joined.has(`${a.id}/${b.id}`) && d < support(roomOf(a.id), ux, uy) + support(roomOf(b.id), -ux, -uy)) {
+        bled.push(`${a.id}/${b.id}`)
       }
     }
   }
-  expect('and no two rooms stand in each other', shared.length === 0, shared.join(', '))
+  expect('and no room holds another room\u2019s middle', swallowed.length === 0, swallowed.join(', '))
+  expect('and rooms nothing joins do not touch', bled.length === 0, bled.join(', '))
 
-  // And no bigger than that. The scale is written down rather than computed,
-  // because a building whose size moves when a room is resized is a building
-  // whose every walk is a different length — but what it is written down *as*
-  // is a claim, and the claim is that it is the smallest that fits. It was a
-  // claim this file made in a comment and did not check, and the day the plan
-  // was flipped so that walking in goes up the screen, two pairs of rooms
-  // stood in each other and the number needed to be a third larger.
-  let tightest = 0
-  for (let i = 0; i < CHAMBERS.length; i++) {
-    for (let j = i + 1; j < CHAMBERS.length; j++) {
-      const a = CHAMBERS[i]!.id
-      const b = CHAMBERS[j]!.id
-      const pa = placeOf(a)
-      const pb = placeOf(b)
-      const d = dist(pa, pb)
-      if (d === 0) continue
-      const ux = (pb.x - pa.x) / d
-      const uy = (pb.y - pa.y) / d
-      const need = support(roomOf(a), ux, uy) + support(roomOf(b), -ux, -uy)
-      tightest = Math.max(tightest, (need / d) * CITADEL_SCALE)
-    }
+  // And the walk between them is the source's walk.
+  //
+  // This used to check that the building was no larger than the plan needed,
+  // which was the right check for a plan of fractions stretched by one number
+  // picked to stop rooms overlapping. The plan is in yards off the source now,
+  // so there is no scale left to be too generous with — what is worth holding
+  // instead is the bare floor, because bare floor between rooms is the whole
+  // of what "the map feels enormous" was. It was 1611 yards of it.
+  let bare = 0
+  for (const passage of PASSAGES) {
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    const d = dist(a, b)
+    const ux = (b.x - a.x) / d
+    const uy = (b.y - a.y) / d
+    const gap = d - exitAlong(roomOf(passage.from), ux, uy) - exitAlong(roomOf(passage.to), -ux, -uy)
+    bare += Math.max(0, gap)
   }
   expect(
-    'and the building is no larger than the plan needs',
-    CITADEL_SCALE < tightest * 1.25,
-    `${CITADEL_SCALE} against a smallest of ${Math.ceil(tightest)}`,
+    'and under a thousand yards of the citadel is bare corridor',
+    bare / YARD < 1000,
+    `${Math.round(bare / YARD)} yards`,
   )
 }
 
@@ -671,7 +683,7 @@ const everywhere = () => true
   // And spread across the building rather than all in one stretch of it.
   const far = s.actors.filter((a) => a.faction === 'boss')
   const spread = Math.max(...far.map((a) => dist(a.pos, placeOf('threshold'))))
-  expect('and spread over the whole of it', spread > CITADEL_SCALE / 2, `${Math.round(spread)} units at the furthest`)
+  expect('and spread over the whole of it', spread > CITADEL_REACH / 2, `${Math.round(spread)} units at the furthest`)
 
   const rng = new Rng(5)
   for (let t = 0; t < 30 * 120; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
