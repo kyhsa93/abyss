@@ -665,6 +665,54 @@ const everywhere = () => true
   expect('a raid walking is not standing inside itself', tight.length === 0, tight.join(', '))
 }
 
+// A raid walking is not shaking its head.
+//
+// The sprite has four sides and the one a body is drawn from is the nearest to
+// where it is facing, so a body sitting on a diagonal flips between two of
+// them at the slightest wobble. Two things made that happen at once: nothing
+// turned a body while it walked, so it faced wherever it happened to be facing
+// when the walk began, and the view turned to keep the nearest door at the top
+// of the screen, which swept every body across the joins between sides several
+// times a room.
+//
+// A body faces the way it is walking now. What this counts is how often that
+// crosses from one side to another over a walk — turning a corner is a couple;
+// shaking is dozens.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const sideOf = (facing: number): string => {
+    const dx = Math.cos(facing)
+    const dy = Math.sin(facing)
+    return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'L' : 'R') : dy < 0 ? 'U' : 'D'
+  }
+  const ground = { ...hallFor('threshold', null, anywhere), id: 'citadel', packs: citadelPacks() }
+  const s = unattended(
+    createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
+  )
+  s.floor = citadelWorld().map((cell) => cell.room)
+  s.chamber = 'threshold'
+  const rng = new Rng(5)
+  const was = new Map<number, string>()
+  const flips = new Map<number, number>()
+  for (let t = 0; t < 30 * 45; t++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const a of s.actors) {
+      if (a.faction !== 'party' || !a.alive) continue
+      const now = sideOf(a.facing)
+      const before = was.get(a.id)
+      if (before !== undefined && before !== now) flips.set(a.id, (flips.get(a.id) ?? 0) + 1)
+      was.set(a.id, now)
+    }
+  }
+  const worst = Math.max(0, ...flips.values())
+  expect(
+    'a body walking keeps the side it is drawn from',
+    worst <= 10,
+    `one of them turned ${worst} times in forty-five seconds`,
+  )
+}
+
 // --- the pads --------------------------------------------------------------
 
 expect(

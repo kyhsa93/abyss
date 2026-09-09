@@ -639,6 +639,12 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   const step = actor.moveSpeed * DT * hasteOf(actor)
   const stepX = ((target.x - actor.pos.x) / d) * step
   const stepY = ((target.y - actor.pos.y) / d) * step
+  // Facing the way it is walking. Nothing turned a body while it walked, so a
+  // raid crossing a citadel faced whatever it happened to be facing when the
+  // walk began — sideways, mostly. The six-unit deadzone above is what keeps
+  // this steady: a body that has arrived stops rather than shuffling, so the
+  // bearing it turns to is a walk rather than a correction.
+  turnToward(actor, Math.atan2(stepY, stepX))
   actor.pos.x += stepX
   actor.pos.y += stepY
   holdOrFall(s, actor)

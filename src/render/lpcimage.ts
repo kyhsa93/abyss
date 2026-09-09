@@ -97,13 +97,41 @@ export function chestHeight(r: number): number {
  * larger rather than on angle ranges, which keeps it correct without caring
  * where the angle was measured from.
  */
-function directionOf(facing: number): number {
+/**
+ * The side each body was last drawn from, so it keeps it.
+ *
+ * Keyed by the body, and small: the ids in a fight are a raid, a boss and what
+ * it summons.
+ */
+const lastSide = new Map<number, number>()
+
+/**
+ * How much better the other side has to be before a body turns to it.
+ *
+ * The four sides meet on the diagonals, and a body walking along one sits
+ * exactly on the join: a hair of wobble in its bearing — or the view turning
+ * under it — flips it between two sides every frame, which is a raid crossing
+ * a room shaking its head. It keeps the side it has until the other one is
+ * clearly the answer.
+ */
+const HOLD_SIDE = 0.2
+
+function directionOf(facing: number, who?: number): number {
   const dx = Math.cos(facing)
   const dy = Math.sin(facing)
-  if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? LPC_LEFT : LPC_RIGHT
   // Screen y grows downward, so a positive y component is walking towards the
   // camera, which is LPC's "down".
-  return dy < 0 ? LPC_UP : LPC_DOWN
+  const want =
+    Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? LPC_LEFT : LPC_RIGHT) : dy < 0 ? LPC_UP : LPC_DOWN
+  if (who === undefined) return want
+  const had = lastSide.get(who)
+  if (had === undefined || had === want) {
+    lastSide.set(who, want)
+    return want
+  }
+  if (Math.abs(Math.abs(dx) - Math.abs(dy)) < HOLD_SIDE) return had
+  lastSide.set(who, want)
+  return want
 }
 
 /**
@@ -169,7 +197,7 @@ export function drawBody(
         moving
         ? 1 + (Math.floor(phase) % (LPC_FRAMES - 1))
         : 0
-  const direction = directionOf(facing)
+  const direction = directionOf(facing, who)
 
   // One source pixel, on screen.
   //
