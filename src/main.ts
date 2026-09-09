@@ -146,9 +146,18 @@ import {
   wiped as wipedRoom,
   type Run,
 } from './citadel'
-import { CHAMBERS, PASSAGES, chamberAt, hallFor, passageKey } from './dungeon'
+import {
+  CHAMBERS,
+  PASSAGES,
+  chamberAt,
+  citadelWorld,
+  groundFor,
+  hallFor,
+  passageKey,
+  placeOf,
+} from './dungeon'
 import type { Corridor } from './sim/travel'
-import type { SimState } from './sim/types'
+import type { SimState, Vec2 } from './sim/types'
 
 const BASE_SEED = 0x51ed
 
@@ -466,6 +475,15 @@ let visiting = false
  * answer to "what was this fight part of".
  */
 let run: Run | null = loadRun()
+/**
+ * The building's own floor, which every state of an evening stands on.
+ *
+ * Built once: it is the same rooms and the same stretches of ground whatever
+ * the party is doing on them, and a state carrying its own copy would be a
+ * state that could disagree with the map about where the walls are.
+ */
+const FLOOR = citadelWorld().map((cell) => cell.room)
+
 /** Which room the fight on screen is in, and what the party walked into it with. */
 let roomId: string | null = null
 /**
@@ -558,7 +576,7 @@ let attempt = 0
  */
 let bgRolls = 0
 
-function newState(): SimState {
+function newState(at?: Vec2, standing?: Vec2[]): SimState {
   // Whatever the last pull opened, it opened it last pull. Cleared here
   // rather than at each of the five places a fight starts, since every one of
   // them comes through this.
@@ -571,10 +589,10 @@ function newState(): SimState {
     nameThePlayer(s, playerName)
     return s
   }
-  return named(buildState())
+  return named(buildState(at, standing))
 }
 
-function buildState(): SimState {
+function buildState(at?: Vec2, standing?: Vec2[]): SimState {
   if (mode.kind === 'bg') {
     return createBattlegroundState(BASE_SEED + bgRolls++ * 7919, mode.bg, party)
   }
@@ -588,7 +606,7 @@ function buildState(): SimState {
     // The room's own seed rather than the pull count's: the same room in the
     // same evening is the same fight, so a wipe and the try after it are two
     // attempts at one thing.
-    return createState(roomSeed(run, roomId), attempt, party, run.difficulty, encounter)
+    return createState(roomSeed(run, roomId), attempt, party, run.difficulty, encounter, null, at, standing)
   }
   return createState(BASE_SEED, attempt, party, difficulty, encounter)
 }
@@ -620,8 +638,13 @@ function enterRoom(id: string): void {
   graded = false
   announced = []
   encounter = chamber.encounter
-  state = newState()
+  // The fight happens in the room the party walked into, not in a copy of it
+  // centred on the middle of the world.
+  // Walked in rather than placed: the fight starts with everybody where the
+  // walk left them, and the count is spent taking position.
+  state = newState(placeOf(id), whereTheyStand())
   state.chamber = id
+  state.floor = FLOOR
   rng = rngFor(state)
 
   carryInto(state)
@@ -712,6 +735,20 @@ function fightAwaits(id: string): boolean {
  * change is for, since the alternative is a list of rooms with a picture
  * behind it.
  */
+/**
+ * Where every body is standing, right now.
+ *
+ * Handed to whatever the party walks into next, so that walking into it is a
+ * walk: the ground under them changes and they do not move. Null before an
+ * evening has begun, which is the one time nobody is anywhere yet.
+ */
+function whereTheyStand(): Vec2[] | undefined {
+  if (state.mode !== 'travel' || state.chamber === null) return undefined
+  const bodies = state.actors.filter((a) => a.faction === 'party')
+  if (bodies.length !== party.length) return undefined
+  return bodies.map((a) => ({ x: a.pos.x, y: a.pos.y }))
+}
+
 function standIn(id: string, from: string | null): void {
   if (!run) return
   roomId = null
@@ -725,8 +762,19 @@ function standIn(id: string, from: string | null): void {
   recorded = false
   graded = false
   announced = []
-  state = createCorridorState(roomSeed(run, `hall:${id}`), party, hallFor(id, from, canGoTo), run.difficulty)
+  const carried = from === null ? undefined : whereTheyStand()
+  state = createCorridorState(
+    roomSeed(run, `hall:${id}`),
+    party,
+    hallFor(id, from, canGoTo),
+    run.difficulty,
+    4,
+    carried,
+  )
   state.chamber = id
+  // The whole building is underfoot, not just this room: a doorway is floor,
+  // which is what lets the party stand in one.
+  state.floor = FLOOR
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))
@@ -770,7 +818,7 @@ function goThrough(to: string, carried: number[]): void {
     // crossed the room with is what it starts the corridor with.
     run = { ...run, carried }
     saveRun(run)
-    walkTo(step.to, step.key, step.corridor)
+    walkTo(step.to, step.key, groundFor(at, step.to) ?? step.corridor)
     return
   }
   if (step.kind === 'shut') {
@@ -798,8 +846,9 @@ function walkTo(to: string, key: string, walk: Corridor): void {
   recorded = false
   graded = false
   announced = []
-  state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty)
+  state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty, 4, whereTheyStand())
   state.chamber = to
+  state.floor = FLOOR
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))
@@ -923,7 +972,7 @@ function reenter(): boolean {
   if (walkKey !== null) {
     const passage = PASSAGES.find((p) => passageKey(p.from, p.to) === walkKey)
     if (!passage?.corridor) return false
-    walkTo(roomId, walkKey, passage.corridor)
+    walkTo(roomId, walkKey, groundFor(passage.from, passage.to) ?? passage.corridor)
     return true
   }
   const chamber = chamberAt(roomId)

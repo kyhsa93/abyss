@@ -1,9 +1,9 @@
-import { COUNTDOWN_TICKS, HEALTH, PARTY_RADIUS, bar } from './constants'
+import { COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
 import { Rng } from './rng'
-import { ROUND_ARENA } from './room'
+import { ROUND_ARENA, type RoomShape } from './room'
 import { createTravelState, type Corridor } from './travel'
 import {
   CLASSES,
@@ -19,7 +19,7 @@ import {
   type RaidSize,
   type Slot,
 } from './classes'
-import type { Actor, AiProfile, BgKind, Personality, SimState, Tally } from './types'
+import type { Actor, AiProfile, BgKind, Personality, SimState, Tally, Vec2 } from './types'
 import type { AffixId } from './affix'
 
 
@@ -169,16 +169,53 @@ export function createState(
   difficulty: DifficultyId = 'normal',
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,
+  /**
+   * Where the room stands, for a fight that is one room of a building.
+   *
+   * A fight was always written around the origin, and on its own it still is:
+   * this defaults to nothing and the pull that comes out is the pull that
+   * always came out, in the same coordinates, off the same rolls. Given a
+   * place, everything the fight puts on the floor moves with it and nothing
+   * else about it changes — which is what lets the citadel hold a fight in
+   * the room the party walked into rather than swapping the world for one
+   * centred on it.
+   */
+  at: Vec2 = { x: 0, y: 0 },
+  /**
+   * Where the party already is, for a fight it walked into.
+   *
+   * The slots are still where everybody is *going*: the count is spent walking
+   * to them — see `muster` — so a fight that begins from a doorway begins from
+   * the same formation every measurement was taken in, three seconds later. A
+   * pull that starts in position, which is every pull the harness runs, hands
+   * nothing here and is placed exactly as it always was.
+   */
+  standing?: Vec2[],
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
-  const members = party.map((pick, i) => makeMember(i + 1, pick, slots[i]!, i === 0, attempt))
+  // How far the furthest of them has to walk, which is how long the count is.
+  // Three seconds for a pull that starts in formation, exactly as it always
+  // was; long enough to reach the line for one that came in through a door.
+  let furthest = 0
+  const members = party.map((pick, i) => {
+    const home = { x: slots[i]!.x + at.x, y: slots[i]!.y + at.y }
+    const where = standing?.[i] ?? home
+    furthest = Math.max(furthest, Math.hypot(where.x - home.x, where.y - home.y))
+    return makeMember(i + 1, pick, { ...slots[i]!, x: where.x, y: where.y }, i === 0, attempt)
+  })
+  const slowest = Math.min(...party.map((pick) => CLASSES[pick.classId].moveSpeed))
+  const count = Math.max(
+    COUNTDOWN_TICKS,
+    Math.ceil((furthest / (slowest * MUSTER_PACE)) * TICK_RATE),
+  )
   const scale = sizeHealth(party.length) * DIFFICULTIES[difficulty].health
   const fight = encounterAt(encounter)
   // The room, before anything is placed in it. Everything below that used to
   // read `ARENA_RADIUS` — the terrain's walls, the clamp, the camera — reads
   // this instead, and a fight that names no room gets the circle they all
   // assumed.
-  const room = fight.room ?? ROUND_ARENA
+  const shape = fight.room ?? ROUND_ARENA
+  const room: RoomShape = at.x === 0 && at.y === 0 ? shape : { ...shape, at }
   // What is standing in that room: the fight's own, or rolled.
   //
   // A fight that names its terrain gets exactly that, every pull, because a
@@ -189,13 +226,18 @@ export function createState(
   // Copied rather than handed over. The list on the encounter is the fight as
   // written and outlives the pull; `s.obstacles` is a room being fought in,
   // and a mechanic that leaves a wall behind it writes there.
-  const rocks = fight.terrain
-    ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
-    : raidTerrain(
-        room,
-        new Rng(seed * 13 + encounter * 7919 + 1049),
-        slots.map((slot) => ({ x: slot.x, y: slot.y })),
-      )
+  // Rolled in the room's own frame and then moved, rather than rolled in the
+  // room where it stands: the stream of numbers has to be the same one whether
+  // or not the room has been put anywhere.
+  const rocks = (
+    fight.terrain
+      ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
+      : raidTerrain(
+          shape,
+          new Rng(seed * 13 + encounter * 7919 + 1049),
+          slots.map((slot) => ({ x: slot.x, y: slot.y })),
+        )
+  ).map((rock) => ({ pos: { x: rock.pos.x + at.x, y: rock.pos.y + at.y }, radius: rock.radius }))
   const opening = fight.opening
 
   const boss: Actor = {
@@ -208,8 +250,8 @@ export function createState(
     armor: 0,
     block: 0,
     faction: 'boss',
-    pos: { x: 0, y: 0 },
-    prevPos: { x: 0, y: 0 },
+    pos: { x: at.x, y: at.y },
+    prevPos: { x: at.x, y: at.y },
     radius: 50,
     moveSpeed: 175,
     // Less whatever its herald is carrying. The interlude's elite is health
@@ -248,17 +290,18 @@ export function createState(
   // gets any.
   const court: Actor[] = []
   if (fight.stands && fight.stands.length > 1) {
-    boss.pos.x = fight.stands[0]!.x
-    boss.pos.y = fight.stands[0]!.y
+    // Written in the room's own frame, like everything else a fight places.
+    boss.pos.x = at.x + fight.stands[0]!.x
+    boss.pos.y = at.y + fight.stands[0]!.y
     boss.prevPos.x = boss.pos.x
     boss.prevPos.y = boss.pos.y
     for (let i = 1; i < fight.stands.length; i++) {
-      const at = fight.stands[i]!
+      const stand = { x: at.x + fight.stands[i]!.x, y: at.y + fight.stands[i]!.y }
       court.push({
         ...boss,
         id: FIRST_OBJECT_ID + i - 1,
-        pos: { x: at.x, y: at.y },
-        prevPos: { x: at.x, y: at.y },
+        pos: { x: stand.x, y: stand.y },
+        prevPos: { x: stand.x, y: stand.y },
         // Its own health so that nothing divides by it, and it is never read:
         // what a body without the crown takes is nothing, and what one with it
         // takes goes to the bar. See `applyDamage`.
@@ -311,7 +354,7 @@ export function createState(
     outcome: 'ongoing',
     encounter: encounterIndex(encounter),
     affix,
-    countdown: COUNTDOWN_TICKS,
+    countdown: count,
     phase: 1,
     phaseAt: 0,
     // Every mechanic, from the boss's own opening table. Written out one
@@ -456,10 +499,17 @@ export function createCorridorState(
   corridor: Corridor,
   difficulty: DifficultyId = 'normal',
   attempt = 4,
+  /** Where the party already is, for a walk that is carrying on rather than starting. */
+  standing?: Vec2[],
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
-  return createTravelState(seed, party, corridor, difficulty, (pick, i, at) =>
-    makeMember(i + 1, pick, { ...slots[i]!, x: at.x, y: at.y }, i === 0, attempt),
+  return createTravelState(
+    seed,
+    party,
+    corridor,
+    difficulty,
+    (pick, i, at) => makeMember(i + 1, pick, { ...slots[i]!, x: at.x, y: at.y }, i === 0, attempt),
+    standing,
   )
 }
 

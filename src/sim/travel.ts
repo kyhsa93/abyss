@@ -158,6 +158,17 @@ export function createTravelState(
   corridor: Corridor,
   difficulty: DifficultyId = 'normal',
   make: (pick: Pick, index: number, at: Vec2) => Actor,
+  /**
+   * Where the party already is, when it is already somewhere.
+   *
+   * Walking out of one stretch of ground and onto the next is one walk, so the
+   * bodies do not get put anywhere: they are where the last tick left them,
+   * and the ground under them changed rather than they did. Without this the
+   * party was set down at the near end of whatever it walked into, which is a
+   * teleport of a few hundred units every time it goes through a door — and a
+   * few hundred units is what the whole of this was about.
+   */
+  standing?: Vec2[],
 ): SimState {
   const size = party.length as RaidSize
   // Facing the middle of the ways out, which for a passage is the far door
@@ -169,8 +180,11 @@ export function createTravelState(
   const facing = Math.atan2(aim.y - corridor.entry.y, aim.x - corridor.entry.x)
   const places = entryPlaces(size, corridor.entry, facing)
   const actors = party.map((pick, i) => {
-    const at = places[i] ?? corridor.entry
-    pushInside(corridor.room, at, PARTY_RADIUS)
+    const at = standing?.[i] ? { ...standing[i]! } : (places[i] ?? corridor.entry)
+    // Only a body that was put here is pushed into this room. One that walked
+    // in is already standing on the building's floor, and a doorway belongs to
+    // the passage as much as to the room.
+    if (!standing?.[i]) pushInside(corridor.room, at, PARTY_RADIUS)
     return make(pick, i, at)
   })
 

@@ -1,6 +1,6 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor } from './sim/travel'
-import { ROUND_ARENA, pushInside, type RoomShape } from './sim/room'
+import { ROUND_ARENA, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 
@@ -498,12 +498,18 @@ function planOf(id: string): { x: number; y: number } {
 
 /** Where the wall is on this bearing, a doorway's width in from it. */
 function onWall(room: RoomShape, angle: number, inset = DOOR_INSET): Vec2 {
-  // Far out and then clamped, so one line answers for every shape there is
-  // and a fourth shape answers without being asked. In a hall this lands a
-  // diagonal in the corner, which is still the wall; two bearings that land
-  // in the same corner are two doors in one place, and the build measures
-  // that rather than trusting the angle.
-  const at = { x: Math.cos(angle) * 100000, y: Math.sin(angle) * 100000 }
+  // Far out *from the room* and then clamped, so one line answers for every
+  // shape there is and a fourth shape answers without being asked. In a hall
+  // this lands a diagonal in the corner, which is still the wall; two bearings
+  // that land in the same corner are two doors in one place, and the build
+  // measures that rather than trusting the angle.
+  //
+  // From the room and not from the origin: once the rooms are placed in a
+  // building, a bearing taken from the middle of the world points somewhere
+  // else entirely, and the build caught it the moment they were — two of the
+  // oratory's doors came out on top of each other.
+  const c = roomAt(room)
+  const at = { x: c.x + Math.cos(angle) * 100000, y: c.y + Math.sin(angle) * 100000 }
   pushInside(room, at, inset)
   return at
 }
@@ -564,7 +570,11 @@ export function hallFor(
   from: string | null,
   canGo: (to: string) => boolean,
 ): Corridor {
-  const room = roomOf(id)
+  // The room where it stands, so the door the party walks to is the same point
+  // in the same coordinates as the door it walks out of. That is the whole of
+  // what stops a doorway being a teleporter: nothing about the party moves
+  // when it goes through one, because there is only one set of coordinates.
+  const room: RoomShape = { ...roomOf(id), at: placeOf(id) }
   const doors = doorsOf(id, canGo)
   const back = doors.find((door) => door.to === from)
   // A step in from the door they came by, along the same bearing, so the party
@@ -691,6 +701,26 @@ function bridge(from: string, to: string, corridor?: Corridor): Cell {
   return {
     id: `${from}>${to}`,
     room: { kind: 'hall', halfWidth: 220, front: half, back: half, at: mid, turn },
+  }
+}
+
+/** The ground behind one door, placed, for a party about to walk it. */
+export function groundFor(from: string, to: string): Corridor | null {
+  const passage = passageBetween(from, to)
+  if (!passage?.corridor) return null
+  const cell = bridge(from, to, passage.corridor)
+  if (cell.room.kind !== 'hall') return null
+  const room = cell.room
+  // The packs and the doors were written in the corridor's own frame; the cell
+  // says where that frame is, so they are put through it rather than left at
+  // the origin.
+  const place = (p: Vec2): Vec2 => fromRoom(room, p)
+  return {
+    ...passage.corridor,
+    room,
+    entry: place({ x: 0, y: room.front - 60 }),
+    ways: passage.corridor.ways.map((way) => ({ to: way.to, at: place(way.at) })),
+    packs: passage.corridor.packs.map((pack) => ({ ...pack, pos: place(pack.pos) })),
   }
 }
 

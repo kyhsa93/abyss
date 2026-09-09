@@ -37,7 +37,7 @@ import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/type
 import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawGrave, drawObstacles, floorTexture } from './scenery'
-import { EDGE_LAP, roomHasOutside } from '../sim/room'
+import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
 import { COLORS, L, classColor, setWorldRoom, worldReach, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
@@ -295,13 +295,20 @@ export function drawWorld(
   ctx.save()
   ctx.translate(shove.x * L.scale, shove.y * L.scale)
 
-  drawArena(
-    ctx,
-    s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss,
-    s.seed,
-    s.encounter,
-    s.mode === 'raid' ? s.gauge : 0,
-  )
+  // Every piece of floor near enough to be on the glass.
+  //
+  // One room, for a fight or a battleground, which is what this always drew.
+  // A building is drawn a piece at a time and culled to what the camera can
+  // reach: sixteen rooms and sixteen stretches of ground is thirty-two floors
+  // with slabs on them, and all but two or three of them are somewhere else.
+  const accent = s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
+  const gauge = s.mode === 'raid' ? s.gauge : 0
+  const seen = L.w / L.scale + L.h / L.scale
+  for (const cell of s.floor ?? [s.room]) {
+    const middle = roomAt(cell)
+    if (dist(middle, cam) > roomReach(cell) + seen) continue
+    drawArena(ctx, accent, s.seed, s.encounter, gauge, cell)
+  }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawDoors(ctx, s, clock)
@@ -732,15 +739,23 @@ function drawArena(
    * Zero everywhere else, which is every other room.
    */
   gauge = 0,
+  /**
+   * The room being drawn, which used to be the only one there was.
+   *
+   * A fight is one room and this defaults to it. An evening in the citadel is
+   * a building, and the floor is drawn a piece at a time — the party is
+   * standing on one of them and looking at the next, so both have to be there.
+   */
+  room: RoomShape = worldRoom(),
 ): void {
-  // The arena is centred on the world origin; the camera decides where that
+  // Each room is drawn around its own middle; the camera decides where that
   // lands on screen. The grid is drawn in world space too, so it slides past
   // the player and makes their own movement readable.
-  const c = worldToScreen({ x: 0, y: 0 })
+  const c = worldToScreen(roomAt(room))
 
   ctx.save()
   ctx.beginPath()
-  arenaPath(ctx, c)
+  arenaPath(ctx, c, room)
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
@@ -839,7 +854,7 @@ function drawArena(
   if (gauge > 0) {
     ctx.save()
     ctx.beginPath()
-    arenaPath(ctx, c)
+    arenaPath(ctx, c, room)
     ctx.clip()
     ctx.globalAlpha = Math.min(1, gauge) * FLOOR_GORGE
     ctx.fillStyle = accent
@@ -848,7 +863,7 @@ function drawArena(
   }
 
   ctx.beginPath()
-  arenaPath(ctx, c)
+  arenaPath(ctx, c, room)
   ctx.strokeStyle = COLORS.floorEdge
   ctx.lineWidth = 2
   ctx.stroke()
@@ -858,8 +873,8 @@ function drawArena(
   // platform has no wall at all, and drawing one there would be the single
   // most misleading thing on the screen — the whole of what a player has to
   // read off that room is that the floor ends.
-  if (worldRoom().kind === 'round') drawFarWall(ctx, c)
-  drawBrink(ctx, c)
+  if (room.kind === 'round') drawFarWall(ctx, c, room)
+  drawBrink(ctx, c, room)
 }
 
 /**
@@ -873,8 +888,7 @@ function drawArena(
  * The AI reads the same strip as a reason to move (`onEdge`), so what is drawn
  * and what is played are the same lane.
  */
-function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
-  const room = worldRoom()
+function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
   // Narrowed on the kind rather than through `roomHasOutside`, which answers
   // the question but does not tell the compiler that the answer implies a
   // radius. Both are checked so the two cannot drift apart.
@@ -900,10 +914,6 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2): void {
 }
 
 /** How far the room reaches, on the glass. */
-function floorReach(): number {
-  return worldReach() * L.scale
-}
-
 /**
  * The outline of the floor, in screen space.
  *
@@ -912,12 +922,14 @@ function floorReach(): number {
  * every body on the floor goes through, so it turns and tips with the camera
  * like the ground it is.
  */
-function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2): void {
-  const room = worldRoom()
+function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
   if (room.kind !== 'hall') {
     floorArc(ctx, c.x, c.y, room.radius * L.scale, 0, Math.PI * 2)
     return
   }
+  // Through the room's own frame, so a hall that has been put somewhere and
+  // pointed somewhere draws where it is: the corners are written the way every
+  // room in this game is written and the room says where that is.
   const corners: Vec2[] = [
     { x: -room.halfWidth, y: -room.back },
     { x: room.halfWidth, y: -room.back },
@@ -925,7 +937,7 @@ function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2): void {
     { x: -room.halfWidth, y: room.front },
   ]
   corners.forEach((corner, i) => {
-    const at = worldToScreen(corner)
+    const at = worldToScreen(fromRoom(room, corner))
     if (i === 0) ctx.moveTo(at.x, at.y)
     else ctx.lineTo(at.x, at.y)
   })
@@ -958,8 +970,8 @@ const WALL = 34
  * back of the arena is in front of the wall behind it, which is what a raid
  * inside a bowl looks like.
  */
-function drawFarWall(ctx: CanvasRenderingContext2D, c: Vec2): void {
-  const rx = floorReach()
+function drawFarWall(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
+  const rx = roomReach(room) * L.scale
   const ry = rx * TILT
   const h = WALL * L.scale
   if (h < 1) return

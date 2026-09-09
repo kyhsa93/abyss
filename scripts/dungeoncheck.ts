@@ -7,6 +7,7 @@ import {
   killedOnce,
   padsLit,
   citadelWorld,
+  groundFor,
   hallFor,
   placeOf,
   reachable,
@@ -21,7 +22,7 @@ import { ENCOUNTERS } from '../src/sim/encounters'
 import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
-import { createCorridorState, unattended } from '../src/sim/state'
+import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
 import { autoParty, pickFor } from '../src/sim/classes'
@@ -457,6 +458,126 @@ const everywhere = () => true
     'and one off the building entirely is put back on it',
     citadelWorld().some((cell) => insideRoom(cell.room, far, 0)),
     `${Math.round(far.x)},${Math.round(far.y)}`,
+  )
+}
+
+// A fight has to survive being put somewhere.
+//
+// The citadel holds its fights in the rooms the party walks into, which means
+// a pull happens four kilometres from the origin instead of on it. Everything
+// a fight places has to be placed from the room it is in rather than from the
+// middle of the world — and three of them were not: the court of a fight with
+// several bodies stood at fixed coordinates, an arc of ground was laid around
+// the origin, and every add walked in through a door measured from it. Each
+// put the whole thing in the wrong place, and none of them fails at run time:
+// the fight simply happens somewhere the party is not.
+//
+// The window is short on purpose. A room four kilometres from the origin
+// computes its distances with fewer bits to spare, and a simulation this
+// deterministic turns the last of them into a different decision a minute
+// later — so run the two long enough and they diverge for reasons that are
+// arithmetic rather than placement, and the check starts measuring the wrong
+// thing. A body placed from the middle of the world instead of the middle of
+// its room is out by the whole offset on the tick it appears; float takes a
+// minute to move anything by ten units.
+{
+  const off = { x: -4321, y: 987 }
+  const misplaced: string[] = []
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    const party = () => autoParty(10, pickFor('warrior', 'dps')!)
+    const here = unattended(createState(0x51ed, 3, party(), 'heroic', e))
+    const there = unattended(createState(0x51ed, 3, party(), 'heroic', e, null, off))
+    const ra = new Rng(0x51ed)
+    const rb = new Rng(0x51ed)
+    let worst = 0
+    let what = ''
+    for (let t = 0; t < 30 * 25 && here.outcome === 'ongoing'; t++) {
+      step(here, { moveX: 0, moveY: 0, pressed: [] }, ra)
+      step(there, { moveX: 0, moveY: 0, pressed: [] }, rb)
+      for (const one of here.actors) {
+        const two = there.actors.find((x) => x.id === one.id)
+        if (!two) continue
+        const d = dist({ x: one.pos.x + off.x, y: one.pos.y + off.y }, two.pos)
+        if (d > worst) {
+          worst = d
+          what = `${one.name}(${one.faction})`
+        }
+      }
+      for (let i = 0; i < here.ground.length && i < there.ground.length; i++) {
+        const g = here.ground[i]!
+        const h = there.ground[i]!
+        const d = dist({ x: g.pos.x + off.x, y: g.pos.y + off.y }, h.pos)
+        if (d > worst) {
+          worst = d
+          what = `the ${g.kind} on the floor`
+        }
+      }
+    }
+    if (worst > 60) misplaced.push(`${ENCOUNTERS[e]!.name}: ${what} by ${Math.round(worst)}`)
+  }
+  expect(
+    `all ${ENCOUNTERS.length} fights are placed from their own room`,
+    misplaced.length === 0,
+    misplaced.join('; '),
+  )
+}
+
+// And going through a door moves nobody.
+//
+// This is the whole of what "walk there" means and the thing that was wrong
+// however the door was drawn: the party reached a marker, the world was thrown
+// away and rebuilt, and everybody was set down at the near end of the next
+// piece — a few hundred units, instantly, which is a teleport whatever it is
+// called. The rooms are in one set of coordinates now and the bodies are
+// handed across rather than placed, so the ground under them changes and they
+// do not.
+//
+// Measured rather than argued: walk a party out of a room, build whatever is
+// through the door it took, and ask where everybody ended up.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const floor = citadelWorld().map((cell) => cell.room)
+  const anywhere = () => true
+  const jumped: string[] = []
+  let worst = 0
+  for (const from of ['threshold', 'spire', 'oratory', 'rise', 'crossing', 'vats', 'dream']) {
+    const walking = unattended(
+      createCorridorState(9, autoParty(10, dps), hallFor(from, null, anywhere), 'normal'),
+    )
+    walking.floor = floor
+    const rng = new Rng(9)
+    for (let t = 0; t < 30 * 140 && walking.outcome === 'ongoing'; t++) {
+      step(walking, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    }
+    const to = walking.travel?.through
+    if (to === null || to === undefined) {
+      jumped.push(`${from}: never reached a door`)
+      continue
+    }
+    const left = walking.actors
+      .filter((a) => a.faction === 'party')
+      .map((a) => ({ x: a.pos.x, y: a.pos.y }))
+    const ground = groundFor(from, to)
+    const next = unattended(
+      createCorridorState(
+        9,
+        autoParty(10, dps),
+        ground ?? hallFor(to, from, anywhere),
+        'normal',
+        4,
+        left,
+      ),
+    )
+    const arrived = next.actors.filter((a) => a.faction === 'party')
+    for (let i = 0; i < left.length; i++) {
+      const moved = dist(left[i]!, arrived[i]!.pos)
+      if (moved > worst) worst = moved
+    }
+  }
+  expect(
+    'going through a door moves nobody',
+    jumped.length === 0 && worst < 0.001,
+    jumped.length > 0 ? jumped.join('; ') : `somebody moved ${Math.round(worst)} units`,
   )
 }
 

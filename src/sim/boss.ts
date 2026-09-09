@@ -131,7 +131,7 @@ import {
   holdOrFall,
   hasteOf,
 } from './combat'
-import { pushInside, roomReach } from './room'
+import { pushInside, roomAt, roomReach } from './room'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
 import { DIFFICULTIES } from './classes'
@@ -1485,7 +1485,21 @@ const DOOR_STEP = 64
  * pull continue the rotation, and so that the same seed replays the same
  * order — which is the point of not rolling it.
  */
+/**
+ * The middle of the room this fight is in.
+ *
+ * The origin, for a fight standing on its own, and every mechanic here was
+ * written that way. A fight that is one room of a building stands where the
+ * room stands, so anything placed by geometry rather than off a body has to
+ * be placed from here — and the build measures a pull against the same pull
+ * moved, which is how the ones that were not got found.
+ */
+function middle(s: SimState): Vec2 {
+  return roomAt(s.room)
+}
+
 function spawnSpot(s: SimState, rng: Rng, radius: number): Vec2 {
+  const c = middle(s)
   const doors = openDoors(fight(s), s.party.length)
   if (doors.length > 0) {
     const door = doors[s.nextDoor % doors.length]!
@@ -1494,14 +1508,14 @@ function spawnSpot(s: SimState, rng: Rng, radius: number): Vec2 {
     // is convex, so that line never leaves it.
     const away = Math.hypot(door.pos.x, door.pos.y) || 1
     const pos = {
-      x: door.pos.x - (door.pos.x / away) * DOOR_STEP,
-      y: door.pos.y - (door.pos.y / away) * DOOR_STEP,
+      x: c.x + door.pos.x - (door.pos.x / away) * DOOR_STEP,
+      y: c.y + door.pos.y - (door.pos.y / away) * DOOR_STEP,
     }
     pushInside(s.room, pos, radius)
     return pos
   }
   const angle = rng.range(0, Math.PI * 2)
-  const pos = { x: Math.cos(angle) * 230, y: Math.sin(angle) * 230 }
+  const pos = { x: c.x + Math.cos(angle) * 230, y: c.y + Math.sin(angle) * 230 }
   pushInside(s.room, pos, radius)
   return pos
 }
@@ -2764,14 +2778,15 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   const from = rng.range(0, Math.PI * 2)
   // A fixed number of patches whatever the headcount. The room is the room.
   const step = (Math.PI * 2) / (SLIME_ARC * 2.4)
+  const c = middle(s)
   for (let i = 0; i < SLIME_ARC; i++) {
     const bearing = from + (i - (SLIME_ARC - 1) / 2) * step
-    const at = { x: Math.cos(bearing) * lane, y: Math.sin(bearing) * lane }
+    const at = { x: c.x + Math.cos(bearing) * lane, y: c.y + Math.sin(bearing) * lane }
     pushInside(s.room, at, SLIME_PATCH)
     // And never over the middle, whatever the room's shape did to the point
     // above: a hall is not a circle, and pushing a patch inside one can walk
     // it inwards.
-    if (Math.hypot(at.x, at.y) < SLIME_DRY + SLIME_PATCH) continue
+    if (Math.hypot(at.x - c.x, at.y - c.y) < SLIME_DRY + SLIME_PATCH) continue
     s.ground.push({
       ...blankGround(s),
       kind: 'slime',
@@ -2957,7 +2972,7 @@ function scheduleBallast(s: SimState, b: Actor, timing: PhaseTiming): void {
   s.sounds.push('telegraph')
   const reach = roomReach(s.room)
   for (const side of [-1, 1]) {
-    const at = { x: (reach * 0.42) * side, y: -reach * 0.15 }
+      const at = { x: middle(s).x + reach * 0.42 * side, y: middle(s).y - reach * 0.15 }
     pushInside(s.room, at, BALLAST_REACH)
     const weight = makeAdd(s.nextObjectId++, at.x, at.y)
     weight.spawn = 'ballast'

@@ -152,6 +152,17 @@ export const COUNTDOWN = 3
 export const COUNTDOWN_TICKS = COUNTDOWN * TICK_RATE
 
 /**
+ * How briskly the raid takes its position during the count.
+ *
+ * Faster than it fights, because it is not fighting: this is the walk from the
+ * doorway to where everybody agreed to stand, and at fighting pace a room the
+ * size of the first one takes eight seconds of watching. Nothing is at stake
+ * during it — no timers run, the boss has not moved — so the only thing the
+ * pace decides is how long the count is.
+ */
+export const MUSTER_PACE = 1.7
+
+/**
  * Warning time before a puddle detonates.
  *
  * This is the dial that decides whether reaction time matters. Too long and
