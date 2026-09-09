@@ -394,7 +394,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'warrior',
     name: 'Warrior',
     armorType: 'plate',
-    moveSpeed: 256,
+    moveSpeed: 129,
     specs: [
       {
         id: 'protection',
@@ -441,7 +441,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'paladin',
     name: 'Paladin',
     armorType: 'plate',
-    moveSpeed: 256,
+    moveSpeed: 129,
     specs: [
       {
         id: 'protection',
@@ -506,7 +506,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'priest',
     name: 'Priest',
     armorType: 'cloth',
-    moveSpeed: 256,
+    moveSpeed: 129,
     specs: [
       {
         id: 'discipline',
@@ -551,7 +551,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'druid',
     name: 'Druid',
     armorType: 'leather',
-    moveSpeed: 272,
+    moveSpeed: 137,
     specs: [
       {
         id: 'guardian',
@@ -640,7 +640,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'shaman',
     name: 'Shaman',
     armorType: 'mail',
-    moveSpeed: 272,
+    moveSpeed: 137,
     specs: [
       {
         id: 'restoration',
@@ -685,7 +685,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'mage',
     name: 'Mage',
     armorType: 'cloth',
-    moveSpeed: 272,
+    moveSpeed: 137,
     specs: [
       {
         id: 'frost',
@@ -712,7 +712,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'warlock',
     name: 'Warlock',
     armorType: 'cloth',
-    moveSpeed: 256,
+    moveSpeed: 129,
     specs: [
       {
         id: 'destruction',
@@ -745,7 +745,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'hunter',
     name: 'Hunter',
     armorType: 'mail',
-    moveSpeed: 281,
+    moveSpeed: 142,
     specs: [
       {
         id: 'marksmanship',
@@ -773,7 +773,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'rogue',
     name: 'Rogue',
     armorType: 'leather',
-    moveSpeed: 289,
+    moveSpeed: 146,
     specs: [
       {
         id: 'assassination',

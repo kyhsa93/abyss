@@ -1,4 +1,4 @@
-import { COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
+import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
@@ -252,8 +252,8 @@ export function createState(
     faction: 'boss',
     pos: { x: at.x, y: at.y },
     prevPos: { x: at.x, y: at.y },
-    radius: 50,
-    moveSpeed: 289,
+    radius: BOSS_WIDTH / 2,
+    moveSpeed: 146,
     // Less whatever its herald is carrying. The interlude's elite is health
     // carved out of the boss rather than health added to the fight, so the
     // raid has the same bar to chew through and the enrage clock keeps meaning

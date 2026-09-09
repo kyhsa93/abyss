@@ -77,7 +77,21 @@ const SHARDS = [
  * single-process run is diffed against.
  */
 function mine(): Array<{ at: number; tag: string }> {
-  const all = SHARDS.map((tag, at) => ({ at, tag }))
+  // Shards nobody is reading, named by whoever is not reading them.
+  //
+  // `balancecheck` has three bands and two of them are switched off while the
+  // fights are being given rooms of their own. The tables they read are still
+  // computed on every push, and one of them — the spec sweep, seventeen specs
+  // across every boss — is twenty-one minutes on a core and cannot be split
+  // any further than itself: every other shard in this file finishes inside
+  // eighty seconds, and that one alone decided how long the whole run took.
+  //
+  // So the build skips it by name while its band is off, and the two come back
+  // together. The name is passed in rather than hard-coded here, because a
+  // list of skips that lives next to the shards is a list that outlives the
+  // reason for it.
+  const skip = new Set((process.env.ABYSS_SKIP ?? '').split(',').filter(Boolean))
+  const all = SHARDS.map((tag, at) => ({ at, tag })).filter(({ tag }) => !skip.has(tag))
   const of = Number(process.env.ABYSS_CHUNKS ?? '1')
   const which = Number(process.env.ABYSS_CHUNK ?? '0')
   if (!Number.isInteger(of) || of < 1 || !Number.isInteger(which) || which < 0 || which >= of) {

@@ -1515,9 +1515,17 @@ function outOfPosition(s: SimState, actor: Actor): boolean {
   //
   // A tank is exempt, because where a tank stands is a job rather than a
   // preference: it is holding the thing everybody else is arranged around.
-  if (actor.role === 'tank' || actor.melee) return d > MELEE_RANGE + b.radius * 0.6
+  // Past its edge, not past six tenths of it. `MELEE_RANGE` is the reach from
+  // the surface of the thing being hit — the fraction was a fudge from when a
+  // boss was five yards across and standing "at" it meant standing most of the
+  // way inside it.
+  if (actor.role === 'tank' || actor.melee) return d > b.radius + MELEE_RANGE
 
-  if (d > CASTER_MAX_RANGE || d < CASTER_MIN_RANGE) return true
+  // Off its edge as well, for the same reason: these three numbers are how far
+  // a caster stands *back from the thing*, and a thing nine yards across
+  // swallowed the near one whole.
+  const back = d - b.radius
+  if (back > CASTER_MAX_RANGE || back < CASTER_MIN_RANGE) return true
 
   // Its own near edge is wider than the distance a caster is happy at, so a
   // shooter has to be asked about its own rule rather than the shared one.
@@ -1733,10 +1741,17 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
   // size. What a body stands around is what it is working on.
   const b = anchorOf(s)
   const d = dist(actor.pos, b.pos) || 1
+  // Melee stand off the boss's own edge, which is where a melee stands.
+  //
+  // This was eight tenths of the melee reach measured from the middle of the
+  // thing, and the thing has a middle nine yards wide: forty-one units from
+  // the centre of a body whose radius is ninety-four is a raid standing inside
+  // its own boss. It read as correct for exactly as long as the boss was drawn
+  // smaller than it is.
   const want =
     actor.role === 'tank' || actor.melee
-      ? MELEE_RANGE * 0.8 + ringOffset(actor, 9)
-      : CASTER_IDEAL_RANGE + ringOffset(actor, 26)
+      ? b.radius + MELEE_RANGE * 0.8 + ringOffset(actor, 9)
+      : b.radius + CASTER_IDEAL_RANGE + ringOffset(actor, 26)
 
   let bearingX = (actor.pos.x - b.pos.x) / d
   let bearingY = (actor.pos.y - b.pos.y) / d

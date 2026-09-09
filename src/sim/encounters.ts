@@ -1279,17 +1279,20 @@ export const ENCOUNTERS: Encounter[] = [
      * photographs agree — you look down it between two rows of pillars and the
      * far wall is not far.
      *
-     * The floor is 1620 by 1580, two and a half million square units against
-     * the yardstick's two and two thirds. That is the same number it was, and
-     * deliberately: this room has now been reshaped twice and each time the
-     * area was held, because a reshaped room that is also a smaller one is two
-     * changes measured as one.
+     * A hundred and fourteen and a half yards by a hundred and ten, which is
+     * the plan's — measured, not proportioned. The two reshapings before this
+     * one held the floor's area on purpose, because the shape was being
+     * corrected against a picture and the size was not known; the sheet has a
+     * scale now, calibrated against a distance in the source's own scripts
+     * (the adds walk into this very room through doors at y=2154.5 and
+     * y=2269.0, so it is 114.5 yards wall to wall), and the size is known. It
+     * is nearly twice the floor it had.
      *
      * The frame is `RoomShape`'s: the boss at the origin, the raid coming in
      * from `+y`. So `front` is the floor the raid fights across and `back` is
      * the apse behind the lich.
      */
-    room: { kind: 'hall', halfWidth: 810, front: 1050, back: 530 },
+    room: { kind: 'hall', halfWidth: 1115, front: 1432, back: 716 },
     /**
      * Two rows of seats down the sides, and a clear middle.
      *
@@ -1315,16 +1318,16 @@ export const ENCOUNTERS: Encounter[] = [
      * sizes. `rendercheck` measures all four.
      */
     terrain: [
-      { pos: { x: -665, y: -380 }, radius: 70 },
-      { pos: { x: -665, y: -60 }, radius: 70 },
-      { pos: { x: -665, y: 260 }, radius: 70 },
-      { pos: { x: -665, y: 580 }, radius: 70 },
-      { pos: { x: -665, y: 900 }, radius: 70 },
-      { pos: { x: 665, y: -380 }, radius: 70 },
-      { pos: { x: 665, y: -60 }, radius: 70 },
-      { pos: { x: 665, y: 260 }, radius: 70 },
-      { pos: { x: 665, y: 580 }, radius: 70 },
-      { pos: { x: 665, y: 900 }, radius: 70 },
+      { pos: { x: -970, y: -560 }, radius: 70 },
+      { pos: { x: -970, y: -90 }, radius: 70 },
+      { pos: { x: -970, y: 380 }, radius: 70 },
+      { pos: { x: -970, y: 850 }, radius: 70 },
+      { pos: { x: -970, y: 1280 }, radius: 70 },
+      { pos: { x: 970, y: -560 }, radius: 70 },
+      { pos: { x: 970, y: -90 }, radius: 70 },
+      { pos: { x: 970, y: 380 }, radius: 70 },
+      { pos: { x: 970, y: 850 }, radius: 70 },
+      { pos: { x: 970, y: 1280 }, radius: 70 },
     ],
     /**
      * Four side doors, and two of them only open for a big raid.
@@ -1341,10 +1344,10 @@ export const ENCOUNTERS: Encounter[] = [
      * the hall and never look behind them.
      */
     doors: [
-      { pos: { x: -810, y: 420 } },
-      { pos: { x: 810, y: 420 } },
-      { pos: { x: -810, y: -220 }, from: 25 },
-      { pos: { x: 810, y: -220 }, from: 25 },
+      { pos: { x: -1115, y: 615 } },
+      { pos: { x: 1115, y: 615 } },
+      { pos: { x: -1115, y: -325 }, from: 25 },
+      { pos: { x: 1115, y: -325 }, from: 25 },
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
@@ -1659,7 +1662,11 @@ export const ENCOUNTERS: Encounter[] = [
      * more available. It is the last room of the lower spire and the one every
      * evening walks through, so it is also the room a player will know best.
      */
-    room: { kind: 'round', radius: 840 },
+    // A hundred and three yards across, off the plan of this floor at the
+    // 0.592 yards a pixel it is calibrated at — the raid's arrival point and
+    // the boss's own position are written down in the source's script 44.97
+    // yards apart. It was eighty-six.
+    room: { kind: 'round', radius: 1003 },
     /**
      * Nothing standing in it, and that is the mechanic's doing.
      *
@@ -1676,8 +1683,8 @@ export const ENCOUNTERS: Encounter[] = [
      * gauge and the people filling it.
      */
     doors: [
-      { pos: { x: -355, y: -761 } },
-      { pos: { x: 355, y: -761 } },
+      { pos: { x: -424, y: -909 } },
+      { pos: { x: 424, y: -909 } },
     ],
     /** Open stone, worn smooth: the top of a spire rather than a hall. */
     floor: 'floor-cobble',

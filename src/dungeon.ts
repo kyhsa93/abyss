@@ -131,7 +131,9 @@ export const CHAMBERS: Chamber[] = [
     // Small and round, at the top of the shaft. It is the room the pad is in,
     // which is what the plan draws there: a spiral in a circle barely wider
     // than the passage it opens onto.
-    room: { kind: 'round', radius: 520 },
+    // Thirty-three and a half yards across, off the plan of this floor at the
+    // 1.05 yards a pixel that floor is calibrated at.
+    room: { kind: 'round', radius: 327 },
     pad: { kind: 'always' },
   },
   {
@@ -144,7 +146,11 @@ export const CHAMBERS: Chamber[] = [
     // fight's chamber no wider than it is. Two bays with a stair between them
     // in the source; one room here, because a stair is a thing this game has
     // no way to be on.
-    room: { kind: 'hall', halfWidth: 1000, front: 1820, back: 1820 },
+    // A hundred and twenty-six yards wide by a hundred and eighty-seven long,
+    // which is the plan's, measured rather than proportioned: it was sized by
+    // eye off the picture before the sheet had a scale, and came out a fifth
+    // too narrow at exactly the right length.
+    room: { kind: 'hall', halfWidth: 1228, front: 1820, back: 1821 },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   {
@@ -178,6 +184,13 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: 3,
     pad: killed('mooring'),
+    // Measured, and the only room above the lower spire that is: the plan of
+    // this floor carries two positions written down in the source's own
+    // script — where the raid arrives at the top of the stair and where the
+    // boss stands — and they are 44.97 yards apart across 76 pixels of it, so
+    // that sheet is 0.592 yards to the pixel. The quatrefoil comes out 104 by
+    // 102 yards, and the shape it is here is a circle of that width. See
+    // `gorged` in `encounters.ts`.
   },
   // The room where the citadel stops being a corridor. No fight in it, and
   // that is the point: it is the only place in the building where the player
@@ -187,9 +200,16 @@ export const CHAMBERS: Chamber[] = [
     name: 'The Upper Crossing',
     wing: 'lower',
     encounter: null,
-    // A circle with a cross laid in it, and about the size of the first
-    // fight's chamber — which is what the plan of this floor draws, measured
-    // against that floor's own corridor width.
+    // A circle with a cross laid in it, and a hundred and forty yards across.
+    //
+    // The plan of this floor has no distance written down in the source's
+    // scripts that could be pinned to a pixel on it, so it is scaled by the
+    // one thing a floor plan repeats: a corridor is a corridor. The passages
+    // on the lower spire are 14.7 yards wide over fourteen pixels; the ones on
+    // this sheet are twenty pixels, which puts it at 0.735 yards a pixel and
+    // this room at a hundred and forty-one. Weaker than a measurement and
+    // stronger than a guess, and used here rather than on the rooms with
+    // fights in them: a proxy is not good enough to move an arena on.
     //
     // It was less than half that, on the argument that every door has to be on
     // the screen at once or the room has hidden its own question. That
@@ -197,7 +217,7 @@ export const CHAMBERS: Chamber[] = [
     // whole citadel while the party is walking, so the doors do not all have
     // to be in one glance any more. What the room has to be instead is the
     // thing the building says it is — the place where the spire opens out.
-    room: { kind: 'round', radius: 820 },
+    room: { kind: 'round', radius: 1378 },
     pad: killed('rise'),
   },
 
@@ -358,7 +378,7 @@ function corridor(
     // ground is not for. The build walks every one of these and says whether a
     // party still fits: nobody in a wall, nobody out of the room, and it still
     // costs something to cross.
-    room: { kind: 'hall', halfWidth: 250, front, back: 240 },
+    room: { kind: 'hall', halfWidth: 143, front, back: 240 },
     entry: { x: 0, y: front - 60 },
     ways: [{ to, at: { x: 0, y: -120 } }],
     packs,
@@ -407,7 +427,7 @@ export const PASSAGES: Passage[] = [
       'spire',
       [
         { pos: { x: 0, y: 520 }, count: 3, pulls: 240 },
-        { pos: { x: -120, y: 180 }, count: 3, pulls: 230 },
+        { pos: { x: -50, y: 180 }, count: 3, pulls: 230 },
       ],
       [
         {
@@ -427,7 +447,7 @@ export const PASSAGES: Passage[] = [
     gate: killed('oratory'),
     corridor: corridor('rampartway', 'mooring', [
       { pos: { x: 0, y: 560 }, count: 3, pulls: 250 },
-      { pos: { x: -100, y: 200 }, count: 3, pulls: 230 },
+      { pos: { x: -42, y: 200 }, count: 3, pulls: 230 },
     ]),
   },
   {
@@ -436,7 +456,7 @@ export const PASSAGES: Passage[] = [
     gate: killed('mooring'),
     corridor: corridor('riseway', 'rise', [
       { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
-      { pos: { x: 120, y: 320 }, count: 3, pulls: 240 },
+      { pos: { x: 50, y: 320 }, count: 3, pulls: 240 },
     ]),
   },
   { from: 'rise', to: 'crossing', gate: killed('rise') },
@@ -449,8 +469,8 @@ export const PASSAGES: Passage[] = [
     to: 'vats',
     corridor: corridor('plagueway', 'vats', [
       { pos: { x: 0, y: 780 }, count: 3, pulls: 240 },
-      { pos: { x: -120, y: 380 }, count: 3, pulls: 250 },
-      { pos: { x: 110, y: 60 }, count: 4, pulls: 260 },
+      { pos: { x: -50, y: 380 }, count: 3, pulls: 250 },
+      { pos: { x: 46, y: 60 }, count: 4, pulls: 260 },
     ]),
   },
   // And inside it the two rooms are a step to either side. No ground between:
@@ -468,8 +488,8 @@ export const PASSAGES: Passage[] = [
     to: 'crimson',
     corridor: corridor('crimsonway', 'crimson', [
       { pos: { x: 0, y: 940 }, count: 3, pulls: 230 },
-      { pos: { x: 140, y: 540 }, count: 4, pulls: 250 },
-      { pos: { x: -110, y: 160 }, count: 3, pulls: 230 },
+      { pos: { x: 58, y: 540 }, count: 4, pulls: 250 },
+      { pos: { x: -46, y: 160 }, count: 3, pulls: 230 },
     ]),
   },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },
@@ -479,7 +499,7 @@ export const PASSAGES: Passage[] = [
     to: 'dream',
     corridor: corridor('dreamway', 'dream', [
       { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
-      { pos: { x: -130, y: 300 }, count: 3, pulls: 260 },
+      { pos: { x: -54, y: 300 }, count: 3, pulls: 260 },
     ]),
   },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
@@ -491,8 +511,8 @@ export const PASSAGES: Passage[] = [
     to: 'lair',
     corridor: corridor('gauntlet', 'lair', [
       { pos: { x: 0, y: 980 }, count: 4, pulls: 230 },
-      { pos: { x: -130, y: 560 }, count: 3, pulls: 250 },
-      { pos: { x: 140, y: 120 }, count: 5, pulls: 240 },
+      { pos: { x: -54, y: 560 }, count: 3, pulls: 250 },
+      { pos: { x: 58, y: 120 }, count: 5, pulls: 240 },
     ]),
   },
 

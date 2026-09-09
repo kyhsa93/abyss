@@ -139,6 +139,7 @@ import {
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
+  BOSS_WIDTH,
   MELEE_RANGE,
   SHOT_MIN_RANGE,
   SPELL_RANGE,
@@ -3163,7 +3164,8 @@ for (const [label, w, h] of [
 
     for (let i = 0; i < 30 * 10; i++) {
       const b = bossOf(s)
-      player.pos.x = b.pos.x + 250
+      // Off its edge, and past the bow's near one.
+      player.pos.x = b.pos.x + b.radius + SHOT_MIN_RANGE + 90
       player.pos.y = b.pos.y
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     }
@@ -3826,7 +3828,9 @@ for (const [label, w, h] of [
   }
 
   {
-    const { s, player, slot } = setup(220)
+    // Off the boss's edge, which is what every range in the game is measured
+    // from. Two hundred and twenty from its middle is inside a nine-yard body.
+    const { s, player, slot } = setup(BOSS_WIDTH / 2 + 220)
     const before = dist(player.pos, boss(s).pos)
     step(s, { moveX: 0, moveY: 0, pressed: [slot] }, new Rng(0x51ed))
     const after = dist(player.pos, boss(s).pos)
@@ -3882,7 +3886,7 @@ for (const [label, w, h] of [
       pickFor('rogue', 'dps')!,
     ])
     const arms = s.actors.find((a) => a.classId === 'warrior' && a.spec === 'arms')!
-    arms.pos.x = bossOf(s).pos.x + 200
+    arms.pos.x = bossOf(s).pos.x + bossOf(s).radius + 200
     arms.pos.y = bossOf(s).pos.y
     const rng = new Rng(0x51ed)
     let charged = false
@@ -3946,8 +3950,9 @@ for (const [label, w, h] of [
   }
 
   {
-    // Backed off: fine, exactly as before.
-    const { s, player } = setup(220)
+    // Backed off: fine, exactly as before. Past the bow's near edge, which is
+    // eight yards off the target's own edge.
+    const { s, player } = setup(BOSS_WIDTH / 2 + SHOT_MIN_RANGE + 40)
     expect(
       'from range it is a shot like any other',
       castBlocker(s, player, ABILITIES.steady_shot!, boss(s).id) === null,
@@ -3958,13 +3963,13 @@ for (const [label, w, h] of [
   {
     // The bow shoots past what is standing on it rather than at it: a hunter
     // with a thrall in its face still puts its damage on the boss.
-    const { s, player } = setup(200)
+    const { s, player } = setup(BOSS_WIDTH / 2 + SHOT_MIN_RANGE + 40)
     const auto = specOf(pickFor('hunter', 'dps')!).auto!
     const rng = new Rng(0x51ed)
     let shotSomething = false
     for (let i = 0; i < 30 * 8; i++) {
       const b = bossOf(s)
-      player.pos.x = b.pos.x + 200
+      player.pos.x = b.pos.x + b.radius + SHOT_MIN_RANGE + 40
       player.pos.y = b.pos.y
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
       shotSomething ||= (s.tally[player.id]?.damage ?? 0) > 0
@@ -7237,11 +7242,14 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
     const runner = fight.actors.find((a) => a.isPlayer)!
     const boss = bossOf(fight)
     boss.pos = { x: 0, y: 0 }
-    runner.pos = { x: 260, y: 0 }
+    runner.pos = { x: boss.radius + 260, y: 0 }
     runner.power = 0
-    const gapBefore = dist(runner.pos, boss.pos)
+    // From its edge, which is where a charge stops. Measured to the middle it
+    // looks like a charge that only got half way once the thing being charged
+    // is nine and a half yards across.
+    const gapBefore = dist(runner.pos, boss.pos) - boss.radius
     landAbility(fight, runner, ability, boss.id, new Rng(1))
-    const gapAfter = dist(runner.pos, boss.pos)
+    const gapAfter = dist(runner.pos, boss.pos) - boss.radius
     expect(`${specLabel(pick)}: it crosses the gap`, gapAfter < gapBefore * 0.5, `${gapBefore.toFixed(0)} -> ${gapAfter.toFixed(0)}`)
     expect(`${specLabel(pick)}: and arrives with rage`, runner.power >= CHARGE_RAGE, `${runner.power}`)
   }

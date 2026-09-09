@@ -25,7 +25,7 @@ import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
-import { PARTY_RADIUS } from '../src/sim/constants'
+import { ARENA_RADIUS, BOSS_WIDTH, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
@@ -710,9 +710,10 @@ const everywhere = () => true
         closest = Math.min(closest, dist(bodies[i]!.pos, bodies[j]!.pos))
       }
     }
-    // A body is forty across. Standing closer than that is standing inside
-    // somebody, which is what it looked like.
-    if (closest < 20) tight.push(`${size}-man: ${Math.round(closest)} apart`)
+    // Off the body rather than off a number, because the body has since been
+    // measured against the source's and halved. Standing closer than a body's
+    // own width is standing inside somebody, which is what it looked like.
+    if (closest < PARTY_RADIUS * 1.5) tight.push(`${size}-man: ${Math.round(closest)} apart`)
   }
   expect('a raid walking is not standing inside itself', tight.length === 0, tight.join(', '))
 }
@@ -1084,19 +1085,26 @@ expect(
     `entry ${Math.round(first.entry.y)}, door ${Math.round(out?.at.y ?? 0)}`,
   )
 
-  // The great hall is the biggest room on the floor and twice as long as it is
-  // wide, which is what the source's own plan of it says. It was a middling
-  // hall doing the work of the pad chamber and the hall at once.
-  const great = roomOf('vigil')
-  const spire = roomOf('spire')
-  expect(
-    'the great hall is long, and no narrower than the first fight',
-    great.kind === 'hall' &&
-      great.front + great.back > great.halfWidth * 3 &&
-      spire.kind === 'round' &&
-      great.halfWidth >= spire.radius,
-    JSON.stringify(great),
-  )
+  // The lower spire's rooms, in yards, against the plan of the floor they are
+  // on — which is calibrated against a distance written down in the source's
+  // own scripts, so these are measurements and not proportions.
+  const yd = (units: number) => units / YARD
+  const said: string[] = []
+  const across = (id: string): [number, number] => {
+    const r = roomOf(id)
+    return r.kind === 'hall' ? [r.halfWidth * 2, r.front + r.back] : [r.radius * 2, r.radius * 2]
+  }
+  for (const [id, w, d] of [
+    ['threshold', 33.6, 33.6],
+    ['vigil', 126.1, 187.0],
+    ['spire', 94.5, 94.5],
+    ['oratory', 114.5, 110.3],
+  ] as const) {
+    const [gw, gd] = across(id)
+    if (Math.abs(yd(gw) - w) > w * 0.06) said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${w}`)
+    if (Math.abs(yd(gd) - d) > d * 0.06) said.push(`${id} is ${yd(gd).toFixed(0)} yd deep, not ${d}`)
+  }
+  expect('the lower spire is the size the plan says it is', said.length === 0, said.join('; '))
 }
 
 // The way in is held by somebody still arriving.
@@ -1543,38 +1551,50 @@ expect(
   store.clear()
 }
 
-// A body crosses the same number of itself a second as the source's does.
+// The scale, in the unit the source is written in.
 //
-// The one scale this game shares with the raid it comes from, and the only
-// unit both of them have: a body's own width. A character there is about nine
-// tenths of a yard across and runs seven yards a second — a little under eight
-// of itself every second. That is the number a player feels as "how big is
-// this place", because a room is not measured in units, it is measured in how
-// long it takes to walk across.
+// This game was built to the source's yardstick without writing it down: the
+// first fight's floor is ninety-four and a half yards across there and
+// eighteen hundred and forty units here, which puts a yard at 19.47 — and read
+// at that scale the fights land where they should, a spread mark at five and a
+// half yards and a soak at seven.
 //
-// It read four and three quarters here, five eighths of the source's, and the
-// room that produced was described as too wide. It was not the rooms — those
-// are less than half the size of the source's measured the same way — it was
-// the seconds.
-//
-// A band rather than a number, because the classes differ from each other by
-// design and that spread is not the scale.
+// Three things were not built to it, and they are the three a player sees
+// against each other. Every number on the right is measured: a character's
+// model geometry is 0.95 yards across and Marrowgar's is 9.69, off the game's
+// own model data; melee reach is five yards; a character runs seven a second.
 {
-  const slowest = Math.min(...Object.values(CLASSES).map((c) => c.moveSpeed))
-  const fastest = Math.max(...Object.values(CLASSES).map((c) => c.moveSpeed))
-  const body = PARTY_RADIUS * 2
-  const wide = (speed: number) => speed / body
+  const yd = (units: number) => units / YARD
+  const said: string[] = []
+  const near = (what: string, got: number, want: number, slack: number) => {
+    if (Math.abs(got - want) > slack) said.push(`${what}: ${got.toFixed(2)} yd, wanted ${want}`)
+  }
+  near('a body is as wide as a character', yd(PARTY_RADIUS * 2), 0.95, 0.12)
+  near('a boss is as wide as one', yd(BOSS_WIDTH), 9.69, 1.0)
+  near('melee reach past an edge', yd(MELEE_RANGE), 5.0, 0.6)
+  const speeds = Object.values(CLASSES).map((c) => c.moveSpeed)
+  near('the slowest runs', yd(Math.min(...speeds)), 7.0, 0.8)
+  near('the fastest runs', yd(Math.max(...speeds)), 7.0, 0.8)
+  expect('the body, the boss, the reach and the pace are the source\'s', said.length === 0, said.join('; '))
+
+  // And the ratios those produce, which are what is actually looked at.
+  const room = ARENA_RADIUS * 2
   expect(
-    "a body crosses about eight of itself a second, as the source's does",
-    wide(slowest) > 7.2 && wide(fastest) < 8.8,
-    `${wide(slowest).toFixed(2)} to ${wide(fastest).toFixed(2)} body widths a second`,
+    'so the first fight\'s floor is a hundred bodies across, as it is there',
+    room / (PARTY_RADIUS * 2) > 95 && room / (PARTY_RADIUS * 2) < 115,
+    `${(room / (PARTY_RADIUS * 2)).toFixed(0)} bodies`,
   )
-  // And the spread between classes is still the spread it was: a tenth from
-  // end to end, which is a fact about the classes rather than about the scale.
+  expect(
+    'and a boss is ten of them, as it is there',
+    BOSS_WIDTH / (PARTY_RADIUS * 2) > 9 && BOSS_WIDTH / (PARTY_RADIUS * 2) < 11.5,
+    `${(BOSS_WIDTH / (PARTY_RADIUS * 2)).toFixed(1)} bodies`,
+  )
+  // The classes still differ from each other by a tenth, which is a fact about
+  // the classes and not about the scale.
   expect(
     'and the classes are still a tenth apart end to end',
-    fastest / slowest < 1.2,
-    `${(fastest / slowest).toFixed(3)}`,
+    Math.max(...speeds) / Math.min(...speeds) < 1.2,
+    `${(Math.max(...speeds) / Math.min(...speeds)).toFixed(3)}`,
   )
 }
 

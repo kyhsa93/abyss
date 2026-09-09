@@ -20,6 +20,34 @@ export const DT = 1 / TICK_RATE
  */
 export const ARENA_RADIUS = 920
 
+/**
+ * How many units a yard is, and it is read off the building rather than picked.
+ *
+ * The source measures everything in yards, and this game turns out to have been
+ * built to that yardstick without ever writing it down: the first fight's floor
+ * is ninety-four and a half yards across in the source — measured off the plan
+ * that game draws of the floor, calibrated against a distance in its own
+ * scripts — and eighteen hundred and forty units across here. So a yard is
+ * 19.47 units, and read at that scale the rest of it lands where it should. A
+ * spread mark is five and a half yards. A soak is seven. Those are the numbers
+ * the source's own fights are written in.
+ *
+ * It is here so the things that were *not* built to it can say so in the same
+ * unit: a body, a boss, and how far a melee reaches. See `PARTY_RADIUS`.
+ */
+export const YARD = ARENA_RADIUS * 2 / 94.5
+
+/**
+ * How wide the thing the raid is fighting is.
+ *
+ * Nine and seven tenths of a yard, which is the model geometry of the first
+ * boss read out of the game's own data — a box 9.69 across against a
+ * character's 0.95. It was five yards here, half of it, and a melee's standing
+ * ring was measured from the middle of it rather than the edge, so the raid
+ * fought from inside the boss.
+ */
+export const BOSS_WIDTH = Math.round(9.69 * YARD)
+
 export const GLOBAL_COOLDOWN = 1.5
 
 /**
@@ -360,8 +388,15 @@ export const YOKE_SHARE = 105
  */
 export const YOKE_ALONE = 1500
 
-/** Melee actors need to be this close to their target to swing. */
-export const MELEE_RANGE = 52
+/**
+ * How close a melee gets, past the edge of what it is hitting.
+ *
+ * Five yards, which is the source's, and it is measured from the target's own
+ * surface rather than from the middle of it — a thing with a nine-yard body
+ * cannot be reached at five yards from its centre. It was fifty-two units from
+ * the centre, which is two and two thirds yards *inside* a boss.
+ */
+export const MELEE_RANGE = 97
 
 /**
  * How far away a bow needs its target.
@@ -370,7 +405,7 @@ export const MELEE_RANGE = 52
  * ranged class that cannot simply stand on what it is shooting. Just outside
  * melee, and just inside where the party AI already keeps its ranged.
  */
-export const SHOT_MIN_RANGE = 90
+export const SHOT_MIN_RANGE = 156
 
 /**
  * Reach of everything cast from a distance, and of the hunter's bow.
@@ -488,11 +523,25 @@ export const SCHISM_MUSTER_ROOM = 80
 export const TURN_RATE = 3.2
 
 /**
- * How wide a raider stands, which is also how tall: the body is drawn against
- * its own footprint. Named because the renderer aims at a person's chest and
- * had otherwise to know the number by heart.
+ * How wide a body is, and it is measured rather than chosen.
+ *
+ * The world is already built to the source's own yardstick: the first fight's
+ * floor is ninety-four and a half yards across in the source and eighteen
+ * hundred and forty units here, which puts a yard at 19.47 units — and read at
+ * that scale the rest of the game comes out where it should. A spread mark is
+ * five and a half yards, a soak is seven. Those are the numbers that raid is
+ * written in.
+ *
+ * A body was not. Thirty-four units across is one and three quarter yards,
+ * where a character in the source measures 0.95 by its own model geometry —
+ * near enough double. Everything that felt wrong about the scale is that one
+ * number: a room half the size it should be measured in bodies, a boss barely
+ * three times a body across, a melee range under three yards. The rooms were
+ * right all along.
+ *
+ * Eighteen units across is 0.92 of a yard.
  */
-export const PARTY_RADIUS = 17
+export const PARTY_RADIUS = 9
 /**
  * The plate somebody has to stand on, and how long the raid has to send them.
  *
@@ -1353,7 +1402,21 @@ export const PRISON_CAP = 6
  * end of the first clock would be a mechanic with no telegraph, which is the
  * one thing every other demand in this game has.
  */
-export const GIFT_REACH = 55
+/**
+ * How far the gift is handed, which is a touch.
+ *
+ * Off the body rather than written down, because what the mechanic says is
+ * "touch somebody": three radii is two bodies side by side with a little
+ * between them, about a yard and a half.
+ *
+ * It was fifty-five units, and that number was chosen while the raid stood
+ * bunched inside a boss drawn at half its size. Measured against the ring a
+ * raid actually stands on now — off a nine-and-a-half-yard boss — fifty-five
+ * reaches a neighbour every single time, and a handoff that never fails is a
+ * mechanic that never fires: the build caught the fight no longer throwing its
+ * own last rung. At a touch it fails often enough to be a thing you go and do.
+ */
+export const GIFT_REACH = PARTY_RADIUS * 3
 export const GIFT_POWER = 0.45
 export const GIFT_LEECH = 0.2
 export const GIFT_LIFE = 60

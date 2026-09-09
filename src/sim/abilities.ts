@@ -1,4 +1,4 @@
-import { SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
+import { MELEE_RANGE, SHOT_MIN_RANGE, SPELL_RANGE } from './constants'
 import type { AuraId, Role } from './types'
 
 export type AbilityKind = 'damage' | 'heal' | 'defensive' | 'taunt' | 'charge' | 'raid'
@@ -59,16 +59,22 @@ export interface Ability {
   selfCost?: number
 }
 
-const MELEE = 52
+// The one in `constants.ts`, not a copy of the number it used to hold. It was
+// written out here as 52 and stayed 52 when melee reach became five yards
+// measured off a target's edge, so every auto-attack in the game reached two
+// and two thirds yards while the raid stood five out.
+const MELEE = MELEE_RANGE
 const SPELL = SPELL_RANGE
 const HEAL_RANGE = 390
 
 /**
  * As far as a warrior will run at something.
  *
- * Short of a spell's range: this is a sprint, not a leap across the arena.
+ * Twenty-five yards, which is the source's, and short of a spell's range: this
+ * is a sprint, not a leap across the arena. Thirteen and a half before, from
+ * back when a yard here was worth two.
  */
-const CHARGE_RANGE = 260
+const CHARGE_RANGE = 487
 
 /**
  * Taunts reach further than a swing.
@@ -77,7 +83,7 @@ const CHARGE_RANGE = 260
  * for: the boss has already walked off to eat somebody else, and the tank is
  * the one thing that is not next to it.
  */
-const TAUNT_RANGE = 260
+const TAUNT_RANGE = 584
 
 /**
  * Long enough that losing the boss twice in a row is a real failure rather
