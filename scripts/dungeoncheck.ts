@@ -25,10 +25,11 @@ import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
+import { PARTY_RADIUS } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
-import { autoParty, pickFor } from '../src/sim/classes'
+import { CLASSES, autoParty, pickFor } from '../src/sim/classes'
 import { insideRoom } from '../src/sim/room'
 import { inTerrain } from '../src/sim/battleground'
 import {
@@ -1540,6 +1541,41 @@ expect(
     JSON.stringify(instances(monday).map((r) => r.size)),
   )
   store.clear()
+}
+
+// A body crosses the same number of itself a second as the source's does.
+//
+// The one scale this game shares with the raid it comes from, and the only
+// unit both of them have: a body's own width. A character there is about nine
+// tenths of a yard across and runs seven yards a second — a little under eight
+// of itself every second. That is the number a player feels as "how big is
+// this place", because a room is not measured in units, it is measured in how
+// long it takes to walk across.
+//
+// It read four and three quarters here, five eighths of the source's, and the
+// room that produced was described as too wide. It was not the rooms — those
+// are less than half the size of the source's measured the same way — it was
+// the seconds.
+//
+// A band rather than a number, because the classes differ from each other by
+// design and that spread is not the scale.
+{
+  const slowest = Math.min(...Object.values(CLASSES).map((c) => c.moveSpeed))
+  const fastest = Math.max(...Object.values(CLASSES).map((c) => c.moveSpeed))
+  const body = PARTY_RADIUS * 2
+  const wide = (speed: number) => speed / body
+  expect(
+    "a body crosses about eight of itself a second, as the source's does",
+    wide(slowest) > 7.2 && wide(fastest) < 8.8,
+    `${wide(slowest).toFixed(2)} to ${wide(fastest).toFixed(2)} body widths a second`,
+  )
+  // And the spread between classes is still the spread it was: a tenth from
+  // end to end, which is a fact about the classes rather than about the scale.
+  expect(
+    'and the classes are still a tenth apart end to end',
+    fastest / slowest < 1.2,
+    `${(fastest / slowest).toFixed(3)}`,
+  )
 }
 
 if (failures > 0) {

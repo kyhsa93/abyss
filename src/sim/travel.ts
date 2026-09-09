@@ -195,7 +195,7 @@ function makeTrash(id: number, x: number, y: number, hp: number): Actor {
     pos: { x, y },
     prevPos: { x, y },
     radius: 20,
-    moveSpeed: 125,
+    moveSpeed: 206,
     hp,
     maxHp: hp,
     resource: 'mana',
@@ -816,12 +816,14 @@ function follow(s: SimState, actor: Actor, lead: Vec2, close = GATHER): Vec2 {
 function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   if (!target) return
   const d = dist(actor.pos, target)
-  if (d < 6) {
+  const step = actor.moveSpeed * DT * hasteOf(actor)
+  // A step, not six units — see the same window in `ai.ts` for what a fixed
+  // one costs once a step is bigger than it.
+  if (d < Math.max(6, step)) {
     actor.ai!.moveTarget = null
     return
   }
   actor.ai!.moveTarget = { x: target.x, y: target.y }
-  const step = actor.moveSpeed * DT * hasteOf(actor)
   const stepX = ((target.x - actor.pos.x) / d) * step
   const stepY = ((target.y - actor.pos.y) / d) * step
   // Facing the way it is walking. Nothing turned a body while it walked, so a

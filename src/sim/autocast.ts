@@ -83,8 +83,8 @@ export function autoPress(s: SimState): number[] {
   // healer once healed for nothing at all. Instants only, while moving.
   //
   // Half a step, not half a unit. A body walking under its own power covers
-  // `moveSpeed * DT` in a tick — five units for most of the roster — and the
-  // old half-unit threshold called a tenth of that walking. So did being
+  // `moveSpeed * DT` in a tick — eight and a half units for most of the roster
+  // — and the old half-unit threshold called a sixteenth of that walking. So did being
   // shoved by a teammate, and sliding around a rock, and every other way a
   // position changes without anybody asking it to: the rotation read all of
   // them as feet moving and refused to cast.

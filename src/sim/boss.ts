@@ -3437,7 +3437,7 @@ function makeAdd(id: number, x: number, y: number): Actor {
     pos: { x, y },
     prevPos: { x, y },
     radius: 20,
-    moveSpeed: 130,
+    moveSpeed: 214,
     hp: ADD_HP,
     maxHp: ADD_HP,
     resource: 'mana',

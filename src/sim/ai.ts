@@ -2279,12 +2279,25 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   // not a step, because it takes the step away.
   if (getAura(actor, 'spiked')) return
   const d = dist(actor.pos, target)
-  if (d < 6) {
+  const stepLen = actor.moveSpeed * DT * hasteOf(actor)
+  // Arrived is a step, not six units.
+  //
+  // Six was most of a step while a body covered five in a tick. It stopped
+  // being that the day the roster was given the source's own pace — nine and a
+  // half a tick — and what six units of arrival means at nine and a half a
+  // tick is that a body cannot arrive: it crosses the window in one step,
+  // overshoots, turns round, overshoots again, and is *walking* on every tick
+  // of it. A body that is always walking never finishes a cast. The first
+  // fight went from a hundred per cent to a half and started meeting its
+  // enrage, on a change that only made everybody faster.
+  //
+  // So the window is the step. Whatever the pace, a body that would arrive
+  // this tick has arrived.
+  if (d < Math.max(6, stepLen)) {
     actor.ai!.moveTarget = null
     return
   }
 
-  const stepLen = actor.moveSpeed * DT * hasteOf(actor)
   const stepX = ((target.x - actor.pos.x) / d) * stepLen
   const stepY = ((target.y - actor.pos.y) / d) * stepLen
   actor.pos.x += stepX

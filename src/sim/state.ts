@@ -253,7 +253,7 @@ export function createState(
     pos: { x: at.x, y: at.y },
     prevPos: { x: at.x, y: at.y },
     radius: 50,
-    moveSpeed: 175,
+    moveSpeed: 289,
     // Less whatever its herald is carrying. The interlude's elite is health
     // carved out of the boss rather than health added to the fight, so the
     // raid has the same bar to chew through and the enrage clock keeps meaning

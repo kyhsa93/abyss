@@ -603,13 +603,15 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
     return
   }
   const d = dist(actor.pos, target)
-  if (d < 6) {
+  const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1) * hasteOf(actor)
+  // A step, not six units — see the same window in `ai.ts` for what a fixed
+  // one costs once a step is bigger than it.
+  if (d < Math.max(6, step)) {
     ai.moveTarget = null
     return
   }
   ai.moveTarget = { x: target.x, y: target.y }
 
-  const step = actor.moveSpeed * DT * (carrying(s, actor) ? CARRIER_SPEED : 1) * hasteOf(actor)
   const stepX = ((target.x - actor.pos.x) / d) * step
   const stepY = ((target.y - actor.pos.y) / d) * step
   actor.pos.x += stepX
