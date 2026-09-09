@@ -22,7 +22,7 @@ import {
   type Chamber,
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
-import { LADDER, RUNGS_PER_BOSS } from '../src/progress'
+import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
 import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
@@ -43,6 +43,7 @@ import {
   startRun,
   stepTo,
   walkedTo,
+  wayOpen,
   ways,
   wiped,
 } from '../src/citadel'
@@ -1337,6 +1338,82 @@ expect(
     }
   }
   expect('nobody walks out of a fight while it is on', escaped.length === 0, escaped.join(', '))
+}
+
+// The chain does not hold a door.
+//
+// Two ways of opening things met in the frame loop and one of them won
+// quietly. The progression chain runs a boss's six settings — five normal,
+// five heroic, ten, ten heroic, twenty-five, twenty-five heroic — before it
+// reaches the next boss at all, and the walk asked it as well as asking the
+// building. So the citadel's second room did not open until its first had been
+// cleared six times: kill the thing in the way and the way was still shut.
+//
+// The rule lives in `wayOpen` now, which is here rather than in the frame
+// loop, and that is half of the fix — the branch that broke this was in a file
+// no check imports.
+{
+  const start = startRun(4242, 5, 'normal')
+  const fresh = { ...start, at: 'spire', cleared: ['spire'], visited: ['threshold', 'spire'] }
+  expect(
+    'killing the first thing opens the way to the second',
+    wayOpen(fresh, 'oratory'),
+    stepTo(fresh, 'oratory').kind,
+  )
+  // And the chain has emphatically not reached it, which is the whole point:
+  // if this ever comes back true the check above stops meaning anything.
+  expect(
+    'and it opens while the chain is still five rungs short of it',
+    !isOpen(FIRST_TIER + 1, chamberAt('oratory')!.encounter!, 5, 'normal'),
+    `chain rung ${FIRST_TIER + 1}, oratory at ${tierOf(chamberAt('oratory')!.encounter!, 5, 'normal')}`,
+  )
+  // Every room of the lower spire in turn, since the chain would have held
+  // each of them.
+  const chain: string[] = []
+  const order = ['spire', 'oratory', 'mooring', 'rise']
+  for (let i = 0; i < order.length - 1; i++) {
+    const at = order[i]!
+    const next = order[i + 1]!
+    const run = {
+      ...start,
+      at,
+      cleared: order.slice(0, i + 1),
+      visited: ['threshold', ...order.slice(0, i + 1)],
+    }
+    if (!wayOpen(run, next)) chain.push(`${at} -> ${next}`)
+  }
+  expect('and so does every room of the lower spire', chain.length === 0, chain.join(', '))
+}
+
+// And a kill opens one rung, not the gap to wherever it landed.
+//
+// The other side of the same change. Reaching the second boss no longer means
+// having earned its place on the chain, so a kill can land far ahead of where
+// the chain is — and `tier + 1` would have handed over everything in between:
+// beat the second boss with five people on normal and the first one would open
+// at twenty-five heroic, which nothing that evening said anything about.
+{
+  const jumped: string[] = []
+  for (let unlocked = 0; unlocked < LADDER.length; unlocked++) {
+    for (const tier of LADDER) {
+      const after = clearedTier(unlocked, tier.encounter, tier.size, tier.difficulty)
+      if (after > unlocked + 1) jumped.push(`${unlocked} -> ${after}`)
+      if (after < unlocked) jumped.push(`${unlocked} -> ${after} (backwards)`)
+    }
+  }
+  expect('a kill opens one rung and never two', jumped.length === 0, jumped.slice(0, 4).join(', '))
+  // And the ordinary climb still climbs: six kills at six settings walks the
+  // first boss's whole ladder.
+  let unlocked = FIRST_TIER
+  for (let i = 0; i < RUNGS_PER_BOSS; i++) {
+    const rung = LADDER[i]!
+    unlocked = clearedTier(unlocked, rung.encounter, rung.size, rung.difficulty)
+  }
+  expect(
+    `and ${RUNGS_PER_BOSS} kills walk the first boss's ladder`,
+    unlocked === RUNGS_PER_BOSS,
+    `${unlocked}`,
+  )
 }
 
 if (failures > 0) {

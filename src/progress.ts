@@ -82,11 +82,22 @@ export function isOpen(unlocked: number, encounter: number, size: number, diffic
 }
 
 /**
- * What a kill opens.
+ * What a kill opens: the next rung, and never more than that.
  *
- * Only ever forward: clearing a rung already behind you opens nothing, which
+ * Only ever forward — clearing a rung already behind you opens nothing, which
  * is what lets a player go back and farm the first boss without the rest of
  * the game closing behind them.
+ *
+ * And never more than one rung, which used not to matter and now does. The
+ * citadel is walked in one evening: the party reaches the second boss by
+ * killing the first and carrying on, not by earning the second's place on this
+ * list. So a kill can land far ahead of where the chain is, and `tier + 1`
+ * would hand over everything in between — beat the second boss with five
+ * people on normal and the chain would open the *first* one at twenty-five
+ * heroic, which nothing in that evening said anything about.
+ *
+ * One rung a kill, whichever kill it was. The chain stays a prefix, cannot be
+ * jumped, and a night spent walking the building still moves it.
  */
 export function cleared(
   unlocked: number,
@@ -96,7 +107,7 @@ export function cleared(
 ): number {
   const tier = tierOf(encounter, size, difficulty)
   if (tier < 0) return unlocked
-  return Math.max(unlocked, Math.min(LADDER.length - 1, tier + 1))
+  return Math.min(LADDER.length - 1, Math.max(unlocked, Math.min(tier + 1, unlocked + 1)))
 }
 
 /** Whether the whole boss is reachable at all, for the row of boss buttons. */

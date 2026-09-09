@@ -195,6 +195,25 @@ export function stepTo(run: Run, to: string): Step {
   return { kind: 'step', to }
 }
 
+/**
+ * Whether the party may walk from where they are into this room.
+ *
+ * One question and one owner. It lived in the frame loop as two — the
+ * citadel's, and the progression chain's "has this evening earned what is in
+ * there" — and the second one made the building unwalkable: the chain runs a
+ * boss's six settings before it reaches the next boss, so the second room of
+ * the citadel did not open until the first had been cleared six times.
+ *
+ * It also lived somewhere no check could reach it, which is why nothing caught
+ * that. The chain says which settings an evening may be *started* at. Where
+ * the party may walk once it has started is the building's, and the building
+ * already says it: the door out of the spire is held by the thing standing in
+ * the spire.
+ */
+export function wayOpen(run: Run, to: string): boolean {
+  return stepTo(run, to).kind !== 'shut'
+}
+
 /** Every door out of where the party is standing, and the pads. */
 export function ways(run: Run): Array<{ to: string; step: Step }> {
   const seen = new Set<string>()

@@ -108,7 +108,6 @@ import {
   RUNGS_PER_BOSS,
   cleared,
   doorSetting,
-  isOpen,
   moved,
   nextDoor,
   nextSetting,
@@ -136,6 +135,7 @@ import {
   enter as enterChamber,
   isCleared,
   stepTo,
+  wayOpen,
   stepped,
   throughDoor,
   walkedTo,
@@ -153,6 +153,7 @@ import {
   citadelPacks,
   citadelSprings,
   citadelWorld,
+  standing as fightBuilt,
   groundFor,
   hallFor,
   passageKey,
@@ -718,28 +719,28 @@ function carryInto(fight: SimState): void {
  * somewhere in the state it left the last place in — and the same seed rule,
  * so a corridor walked twice in one evening is the same corridor.
  */
-/** Whether the chain has bought whatever is in this room. */
-function chainOpens(id: string): boolean {
-  const chamber = chamberAt(id)
-  if (!run || !chamber) return false
-  if (chamber.encounter === null || chamber.encounter >= ENCOUNTERS.length) return true
-  return isOpen(unlocked, chamber.encounter, run.size, run.difficulty)
-}
-
 /**
  * Whether there is a door to this room on the floor of the one we are in.
  *
- * Two questions, and both of them have to be the ones asked again when the
- * party actually reaches the door: the citadel's own — is that passage open —
- * and the chain's — has this evening earned what is in there. The first is
- * asked through `stepTo` rather than re-derived, because a door that is drawn
- * by one rule and opened by another is a door the party walks into and
- * bounces off, and the build caught exactly that: the plagueworks drew a door
- * to the laboratory that the step then refused.
+ * One question, and it is the citadel's: is that passage open. Asked through
+ * `stepTo` rather than re-derived, because a door that is drawn by one rule
+ * and opened by another is a door the party walks into and bounces off, and
+ * the build caught exactly that: the plagueworks drew a door to the laboratory
+ * that the step then refused.
+ *
+ * It used to ask the chain as well — whether this evening's size and
+ * difficulty had been earned for the fight in there — and that made the
+ * building unwalkable. The chain runs a boss's six settings before it reaches
+ * the next boss at all, so the citadel's second room did not open until the
+ * first had been cleared six times. A raid is a building you walk through, and
+ * a building whose second door needs six evenings is a boss list with a
+ * corridor drawn on it. What the chain is for is which settings an evening may
+ * be *started* at; where the party may walk once it has started is the
+ * building's own business, and the building already says it — the door to the
+ * oratory is held by the thing standing in the spire.
  */
 function canGoTo(to: string): boolean {
-  if (!run) return false
-  return stepTo(run, to).kind !== 'shut' && chainOpens(to)
+  return run !== null && wayOpen(run, to)
 }
 
 /** Whether the room the party is standing in still has something in it. */
@@ -747,7 +748,7 @@ function fightAwaits(id: string): boolean {
   const chamber = chamberAt(id)
   if (!run || !chamber || chamber.encounter === null) return false
   if (chamber.encounter >= ENCOUNTERS.length) return false
-  return !isCleared(run, id) && chainOpens(id)
+  return !isCleared(run, id)
 }
 
 /**
@@ -940,11 +941,13 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
     screen = 'home'
     return
   }
-  const allowed = new Set(
-    CHAMBERS.filter(
-      (c) => c.encounter !== null && isOpen(unlocked, c.encounter, run!.size, run!.difficulty),
-    ).map((c) => c.id),
-  )
+  // Rooms with a fight in them that is actually built. It used to be the
+  // rooms the chain had bought at tonight's setting, and that answer stopped
+  // being true the day the walk stopped asking the chain: the map would call
+  // an evening finished with six bosses still standing in it, because the
+  // chain had not reached them yet and the party could walk to them anyway.
+  // What ends an evening is nothing left alive that the party can reach.
+  const allowed = new Set(CHAMBERS.filter((c) => fightBuilt(c.id)).map((c) => c.id))
   // Where to walk in next when this one has nothing left. The screen decides
   // whether to offer it — it only does when the map is genuinely stuck — and
   // this is only the answer to "at what".
