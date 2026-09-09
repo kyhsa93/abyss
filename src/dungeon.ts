@@ -294,16 +294,17 @@ export const CHAMBERS: Chamber[] = [
     id: 'dream',
     name: 'The Dreaming Hall',
     wing: 'frostwing',
-    encounter: null,
-    awaiting: 'the boss that is healed (#11)',
-    // Square-ish with a lobe off each side, which is what the plan draws and
-    // is not what "long, with the thing that has to be kept alive lying down
-    // the middle" made of it. Round here: four lobes on a square is a shape
-    // whose corners this game cannot walk out of.
-    // A hundred and twenty-four yards across the walkable middle, off the
-    // frostwing plan at its measured 0.7722 yards to the pixel; the lobes
-    // reach 178 corner to corner. It was 62, which is half the room.
-    room: { kind: 'round', radius: 1175 },
+    // Square-ish with a lobe off each side is what the plan draws, and round is
+    // what this game can walk: four lobes on a square is a shape whose corners
+    // nobody can get out of. A hundred and twenty-four yards across the
+    // walkable middle, off the frostwing plan at its measured 0.7722 yards to
+    // the pixel; the lobes reach 178 corner to corner.
+    //
+    // The fight is in it now, and an encounter's own room is the one that gets
+    // used -- so the measurement lives on the encounter rather than here, and
+    // this line would be dead weight. See `saved` in `encounters.ts`, which
+    // also carries the reason it is not the full measurement.
+    encounter: 8,
   },
   // A landing between the dragon's hall and the lair above it. What is on it
   // is a fact about the door rather than about the room — see the passage.

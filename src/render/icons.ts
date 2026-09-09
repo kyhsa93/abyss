@@ -284,6 +284,12 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // stands away from it.
   // The crimson gift's five. The gift itself is the only thing in this game
   // drawn in a colour that means "come here" rather than "leave".
+  // The one you save. Green because it is the only fight here whose colour
+  // means the raid is winning rather than the boss is.
+  boss_bleed: { colour: '#dc2626', style: 'burst' },
+  boss_kin: { colour: '#22c55e', style: 'crush' },
+  boss_portal: { colour: '#15803d', style: 'burst' },
+  boss_suppress: { colour: '#57534e', style: 'pierce' },
   boss_gift: { colour: '#f43f5e', style: 'burst' },
   boss_turning: { colour: '#6b21a8', style: 'crush' },
   boss_bond: { colour: '#fda4af', style: 'pierce' },

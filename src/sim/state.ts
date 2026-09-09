@@ -1,4 +1,4 @@
-import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
+import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MENDING_START, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
@@ -259,7 +259,9 @@ export function createState(
     // raid has the same bar to chew through and the enrage clock keeps meaning
     // what it meant. A fight that simply grew an elite would be a fight with a
     // longer timer wearing a costume.
-    hp: bossHealth(fight, scale),
+    // Halfway, on the one fight that is won by filling this rather than
+    // emptying it. Everything else about the number is the same number.
+    hp: bossHealth(fight, scale) * (fight.saving ? MENDING_START : 1),
     maxHp: bossHealth(fight, scale),
     resource: 'mana',
     power: 0,
