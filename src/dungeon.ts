@@ -153,12 +153,9 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: 1,
     pad: killed('spire'),
-    // NOT MATCHED YET. The plan gives this room as very nearly square — as
-    // wide as it is long, entered down a stair, with a gallery up either side
-    // and a dais at the far end. The shape it has instead is the fight's own,
-    // twice as long as it is wide, and changing it is changing the fight
-    // rather than the building: every mechanic in there is placed against
-    // those walls. It is left alone deliberately and on its own.
+    // The shape is the fight's own — see `whisper` in `encounters.ts`, where
+    // it is now the plan's: very nearly square and no bigger than the first
+    // fight's chamber, with a gallery up either side.
   },
   {
     id: 'mooring',

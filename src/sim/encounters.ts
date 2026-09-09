@@ -1264,24 +1264,32 @@ export const ENCOUNTERS: Encounter[] = [
     short: 'Whisper',
     demand: 'cut the shard, swap the hold, and hold off your own',
     /**
-     * A long room instead of a round one — the first in the game.
+     * A straight-walled room instead of a round one — the first in the game.
      *
      * Everything this fight throws travels in a straight line: the shard, the
      * shade, the mind it turns and sends back. In a disc every bearing is the
-     * same bearing and a line is a line wherever it points; in a hall there is
-     * an axis, and "am I on it" becomes a thing to know. That is the whole
-     * reason this room is not round.
+     * same bearing and a line is a line wherever it points; between two
+     * colonnades there is an axis, and "am I on it" becomes a thing to know.
+     * That is the whole reason this room is not round.
      *
-     * The floor is 1120 by 2280, which is two and a half million square units
-     * against the yardstick's two and two thirds — the same amount of room,
-     * differently shaped. A long room that was also a smaller one would be two
+     * It was twice as long as it was wide, which the source's own plan of this
+     * floor says it is not: the room is very nearly square and no bigger than
+     * the first fight's chamber, entered down a stair at one end with a
+     * gallery up either side and the lich in an apse at the far one. The
+     * photographs agree — you look down it between two rows of pillars and the
+     * far wall is not far.
+     *
+     * The floor is 1620 by 1580, two and a half million square units against
+     * the yardstick's two and two thirds. That is the same number it was, and
+     * deliberately: this room has now been reshaped twice and each time the
+     * area was held, because a reshaped room that is also a smaller one is two
      * changes measured as one.
      *
      * The frame is `RoomShape`'s: the boss at the origin, the raid coming in
-     * from `+y`. So `front` is the length of hall the raid fights down and
-     * `back` is what is behind the lich.
+     * from `+y`. So `front` is the floor the raid fights across and `back` is
+     * the apse behind the lich.
      */
-    room: { kind: 'hall', halfWidth: 560, front: 1560, back: 720 },
+    room: { kind: 'hall', halfWidth: 810, front: 1050, back: 530 },
     /**
      * Two rows of seats down the sides, and a clear middle.
      *
@@ -1291,22 +1299,32 @@ export const ENCOUNTERS: Encounter[] = [
      * middle is left empty on purpose: it is where the straight lines travel
      * and where the rotting floor is laid.
      *
+     * Re-laid when the room stopped being a long one. Same five a side and the
+     * same clearances; what changed is that the walls they stand 75 units off
+     * are further apart and the floor they run down is shorter, so the rows
+     * are further out and closer together.
+     *
+     * Seventy-five is the gap from the rock's *edge* to the wall, not from its
+     * middle — the first attempt at re-laying these subtracted it from the
+     * half-width as though it were a centre offset and stood every one of them
+     * five units off the wall. The build said so, ten times a raid size.
+     *
      * Against the rules the terrain roll obeys: 75 units off the side wall
-     * (a lane is 64), 382 off the middle at the nearest (the melee ring is
-     * 210), 200 between neighbours, and clear of every starting mark at all
-     * three raid sizes. `rendercheck` measures all four.
+     * (a lane is 64), well off the middle (the melee ring is 210), a lane
+     * between neighbours, and clear of every starting mark at all three raid
+     * sizes. `rendercheck` measures all four.
      */
     terrain: [
-      { pos: { x: -415, y: -520 }, radius: 70 },
-      { pos: { x: -415, y: -180 }, radius: 70 },
-      { pos: { x: -415, y: 160 }, radius: 70 },
-      { pos: { x: -415, y: 500 }, radius: 70 },
-      { pos: { x: -415, y: 840 }, radius: 70 },
-      { pos: { x: 415, y: -520 }, radius: 70 },
-      { pos: { x: 415, y: -180 }, radius: 70 },
-      { pos: { x: 415, y: 160 }, radius: 70 },
-      { pos: { x: 415, y: 500 }, radius: 70 },
-      { pos: { x: 415, y: 840 }, radius: 70 },
+      { pos: { x: -665, y: -380 }, radius: 70 },
+      { pos: { x: -665, y: -60 }, radius: 70 },
+      { pos: { x: -665, y: 260 }, radius: 70 },
+      { pos: { x: -665, y: 580 }, radius: 70 },
+      { pos: { x: -665, y: 900 }, radius: 70 },
+      { pos: { x: 665, y: -380 }, radius: 70 },
+      { pos: { x: 665, y: -60 }, radius: 70 },
+      { pos: { x: 665, y: 260 }, radius: 70 },
+      { pos: { x: 665, y: 580 }, radius: 70 },
+      { pos: { x: 665, y: 900 }, radius: 70 },
     ],
     /**
      * Four side doors, and two of them only open for a big raid.
@@ -1323,10 +1341,10 @@ export const ENCOUNTERS: Encounter[] = [
      * the hall and never look behind them.
      */
     doors: [
-      { pos: { x: -560, y: 240 } },
-      { pos: { x: 560, y: 240 } },
-      { pos: { x: -560, y: -420 }, from: 25 },
-      { pos: { x: 560, y: -420 }, from: 25 },
+      { pos: { x: -810, y: 420 } },
+      { pos: { x: 810, y: 420 } },
+      { pos: { x: -810, y: -220 }, from: 25 },
+      { pos: { x: 810, y: -220 }, from: 25 },
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
