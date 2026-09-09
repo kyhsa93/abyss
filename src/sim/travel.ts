@@ -55,6 +55,43 @@ export interface Pack {
 }
 
 /**
+ * A place that keeps sending bodies out until somebody walks up to it.
+ *
+ * A pack is a thing standing still that you decide when to wake. This is the
+ * other half of what held ground is, and the citadel had none of it: ground
+ * that is being held *now*, by somebody who is still arriving. It is what the
+ * front door of the building is for — you come in, and what the place makes of
+ * that is a line of watchmen coming down the passage at you.
+ *
+ * Two distances and no script. It notices you from `pulls`, the way a pack
+ * does, and it stops for good at `stops`, which is near enough to be inside
+ * the passage: the tap is turned off by walking into it rather than by killing
+ * anything, so the answer to a stream is to commit to it. Standing at the door
+ * trading with whatever comes out is the mistake, and it is a mistake the
+ * player can make for as long as they like.
+ *
+ * `most` is what keeps it from being a wave. A wave of adds measures at
+ * nothing — `docs/mechanic-rules.md` is explicit — because it is not a
+ * decision, it is a bill. A cap turns the bill into a rate: the ground in
+ * front of you is held by a fixed number of bodies, and how long you leave it
+ * held is yours.
+ */
+export interface Spring {
+  /** Where they come out of. */
+  at: Vec2
+  /** Where they walk, which is out of the passage rather than at anybody. */
+  toward: Vec2
+  /** Seconds between one and the next. */
+  every: number
+  /** The most of them that may be up at once. */
+  most: number
+  /** How far off it notices somebody and starts. */
+  pulls: number
+  /** And how near they have to get for it to stop for good. */
+  stops: number
+}
+
+/**
  * A way out, and what is on the other side of it.
  *
  * A corridor had one, because a corridor is a passage and a passage joins two
@@ -78,14 +115,28 @@ export interface Corridor {
   /** Where it can go. One for a passage; one per door for a room. */
   ways: Way[]
   packs: Pack[]
+  /** What is still arriving, if anything is. Most ground is held by nobody. */
+  springs?: Spring[]
 }
 
 export interface TravelState {
   corridor: Corridor
   /** Which packs have noticed, by index. Nothing ever goes back to sleep. */
   woken: boolean[]
-  /** Which pack each body belongs to, by actor id. */
+  /**
+   * Which pack each body belongs to, by actor id.
+   *
+   * Springs are counted as packs past the end of the list, one each, so that
+   * everything alive in a passage answers `awake` the same way. Theirs are
+   * awake from the moment they are made — a body that walked out of a doorway
+   * at you is not asleep — and `listen` never reaches them because it only
+   * walks the packs that were written down.
+   */
   belongs: Record<number, number>
+  /** Where each body that came out of a spring is walking, while it still is. */
+  streaming: Record<number, Vec2>
+  /** What each spring has done: when the next one is due, and whether it is over. */
+  springing: Array<{ timer: number; done: boolean }>
   /**
    * The door the party actually went through, once it is through one.
    *
@@ -249,8 +300,15 @@ export function createTravelState(
     held: [],
     travel: {
       corridor,
-      woken: corridor.packs.map(() => false),
+      // The written packs asleep, and one entry per spring already awake —
+      // see `TravelState.belongs` for why a spring is a pack here.
+      woken: [...corridor.packs.map(() => false), ...(corridor.springs ?? []).map(() => true)],
       belongs,
+      streaming: {},
+      // The first body out of a spring is not free: it takes as long to come
+      // as every one after it, so walking in and straight back out is a walk
+      // that met nobody.
+      springing: (corridor.springs ?? []).map((spring) => ({ timer: spring.every, done: false })),
       through: null,
       building,
     },
@@ -327,6 +385,40 @@ export function heading(s: SimState): Way | null {
 }
 
 /**
+ * How near a fight has to be before the raid is in it.
+ *
+ * A walk across the whole citadel has fifty-two bodies on the same floor as
+ * the party, and a passage that keeps sending more comes out of a doorway the
+ * length of a hall away. Without a distance, "the nearest thing that is awake"
+ * is an order to charge it — twenty-five people setting off up a corridor at
+ * something they can barely see, which is both the wrong answer to a stream
+ * and the wrong answer to a pull.
+ *
+ * Measured from whoever is leading rather than from each body, so the raid
+ * commits or holds together. What comes to them is fought; what is a room away
+ * is walked past.
+ */
+const ENGAGE = 900
+
+/** Whoever the raid is walking behind: the player, or the first still standing. */
+function leader(s: SimState): Actor | null {
+  return (
+    s.actors.find((a) => a.isPlayer && a.alive) ??
+    s.actors.find((a) => a.faction === 'party' && a.alive) ??
+    null
+  )
+}
+
+/** What is awake and near enough to be the raid's problem. */
+function engaged(s: SimState): Actor[] {
+  const lead = leader(s)
+  if (!lead) return []
+  const near = awake(s).filter((a) => dist(a.pos, lead.pos) <= ENGAGE)
+  near.sort((a, b) => dist(a.pos, lead.pos) - dist(b.pos, lead.pos))
+  return near
+}
+
+/**
  * What the view should be arranged around while walking, if anything.
  *
  * Whatever woke up, and *nothing* when nothing has. It used to be the door,
@@ -341,7 +433,12 @@ export function heading(s: SimState): Way | null {
  * across it.
  */
 export function travelAnchor(s: SimState): Vec2 | null {
-  const foes = awake(s)
+  // The nearest one the raid is actually in a fight with. Whatever happened to
+  // be first in the list was fine when everything awake was in the same
+  // corridor and stopped being the day a passage started sending bodies down
+  // itself: the view swung a hall's length up the citadel at a watchman
+  // nobody had met yet, and turned the floor over while it did.
+  const foes = engaged(s)
   return foes.length > 0 ? foes[0]!.pos : null
 }
 
@@ -374,6 +471,80 @@ export function wakeFor(s: SimState, victim: Actor): void {
   if (index !== undefined) travel.woken[index] = true
 }
 
+/** A body that was not there when the walk started, given the books it needs. */
+function enrol(s: SimState, body: Actor): void {
+  s.actors.push(body)
+  s.threat[body.id] = 0
+  s.tally[body.id] = {
+    damage: 0,
+    healing: 0,
+    overhealing: 0,
+    damageTaken: 0,
+    mechanicHits: 0,
+    byMechanic: {},
+    deathAt: null,
+  }
+}
+
+/**
+ * The passage sends another one out.
+ *
+ * Deterministic to the last body: the ring they come out on is stepped by the
+ * golden angle off how many are already up, so two runs of the same seed put
+ * the same watchman in the same doorway at the same second. Nothing here draws
+ * from the rng — a mode that spent rolls at a rate set by how long the player
+ * stood still would be a mode whose replays are not replays.
+ */
+function springStep(s: SimState): void {
+  const travel = s.travel!
+  const springs = travel.corridor.springs
+  if (!springs || springs.length === 0) return
+  const alive = livingParty(s)
+  if (alive.length === 0) return
+  const hp = Math.round(TRASH_HP * DIFFICULTIES[s.difficulty].health)
+
+  springs.forEach((spring, i) => {
+    const seat = travel.springing[i]
+    if (!seat || seat.done) return
+    let near = Infinity
+    for (const a of alive) near = Math.min(near, dist(a.pos, spring.at))
+    // Walked into, and that is the end of it. Not killed empty: what turns a
+    // stream off is the party being where it comes from.
+    if (near <= spring.stops) {
+      seat.done = true
+      return
+    }
+    // Rooms away and it is doing nothing. Otherwise a passage the party left
+    // behind an hour ago would still be filling itself up.
+    if (near > spring.pulls) return
+
+    seat.timer -= DT
+    if (seat.timer > 0) return
+    seat.timer = spring.every
+
+    const mine = travel.corridor.packs.length + i
+    const up = s.actors.filter((a) => a.alive && travel.belongs[a.id] === mine).length
+    if (up >= spring.most) return
+
+    // Off the count rather than off a roll, so the doorway fills evenly and
+    // the same run twice is the same run.
+    const angle = up * 2.39996
+    const body = makeTrash(
+      s.nextObjectId++,
+      spring.at.x + Math.cos(angle) * 26,
+      spring.at.y + Math.sin(angle) * 26,
+      hp,
+    )
+    travel.belongs[body.id] = mine
+    travel.streaming[body.id] = { ...spring.toward }
+    enrol(s, body)
+    s.sounds.push('telegraph')
+  })
+}
+
+/** How near a streaming body has to get to be counted out of the passage. */
+const STREAMED = 70
+
 function trashStep(s: SimState): void {
   for (const body of awake(s)) {
     let nearest: Actor | null = null
@@ -386,10 +557,24 @@ function trashStep(s: SimState): void {
       }
     }
     if (!nearest) continue
-    turnToward(body, Math.atan2(nearest.pos.y - body.pos.y, nearest.pos.x - body.pos.x))
-    if (best > MELEE_RANGE) {
-      const stepX = ((nearest.pos.x - body.pos.x) / best) * body.moveSpeed * DT
-      const stepY = ((nearest.pos.y - body.pos.y) / best) * body.moveSpeed * DT
+    // A body that just came out of a passage is walking out of it, not at
+    // anybody. That is the difference between a stream and a spawn: they
+    // arrive going somewhere, and the party is met by them rather than
+    // teleported a fight. Once they are out, they are trash like any other.
+    const came = s.travel!.streaming[body.id]
+    if (came && dist(body.pos, came) <= STREAMED) delete s.travel!.streaming[body.id]
+    const out = s.travel!.streaming[body.id] ?? null
+    const going = out ?? nearest.pos
+    const far = dist(body.pos, going) || 1
+    // Close enough to a body is melee; close enough to a place is arrived.
+    // Written out rather than left to the fact that one number happens to be
+    // smaller than the other, which is how a body ends up walking on the spot
+    // a hand's breadth from where it was going.
+    const stop = out ? STREAMED : MELEE_RANGE
+    turnToward(body, Math.atan2(going.y - body.pos.y, going.x - body.pos.x))
+    if (far > stop) {
+      const stepX = ((going.x - body.pos.x) / far) * body.moveSpeed * DT
+      const stepY = ((going.y - body.pos.y) / far) * body.moveSpeed * DT
       body.pos.x += stepX
       body.pos.y += stepY
       holdOrFall(s, body)
@@ -432,6 +617,7 @@ export function updateTravel(s: SimState, rng: Rng): void {
   const travel = s.travel
   if (!travel) return
   listen(s)
+  springStep(s)
   trashStep(s)
   void rng
 
@@ -494,14 +680,20 @@ const MARCH_SPREAD = 1.8
  * Measured from the leader's own slot rather than from the middle of the
  * formation, so that the body everybody is following does not walk away from
  * itself.
+ *
+ * Turned by the leader and not by the door. It was the door first, and what
+ * that produces is a raid that swings round the moment the player is nearer a
+ * different one: the formation was arranged about a point on the wall rather
+ * than about the walk, and in a room with several ways out it turned while
+ * nobody was turning. The leader already faces the way they are walking, so
+ * their bearing is the walk's bearing and costs nothing to read.
  */
 function station(s: SimState, actor: Actor, lead: Actor): Vec2 {
   const slots = makeSlots(s.party.length as RaidSize)
   const mine = slots[actor.id - 1]
   const theirs = slots[lead.id - 1]
   if (!mine || !theirs || actor.id === lead.id) return lead.pos
-  const going = heading(s)
-  const aim = going ? Math.atan2(going.at.y - lead.pos.y, going.at.x - lead.pos.x) : lead.facing
+  const aim = lead.facing
   const c = Math.cos(aim - Math.PI / 2)
   const sn = Math.sin(aim - Math.PI / 2)
   const dx = (mine.x - theirs.x) * MARCH_SPREAD
@@ -542,13 +734,19 @@ function mostHurt(s: SimState): Actor | null {
  * corridor is the one place in this game where the person is in front and the
  * AI is behind, and a party that walked to the far door on its own would be a
  * party that pulled the corridor for you.
+ *
+ * And in a building it follows the player or nobody at all. A single stretch
+ * of held ground is a thing that has to be crossed — with nobody driving,
+ * walking to the far door is the only way it ever ends — but a citadel is not
+ * going anywhere, and a leaderless raid that set off for the nearest door
+ * would be a raid touring the building by itself.
  */
 export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
   if (!ai || !actor.alive || !s.travel) return
   ai.chatCooldown = Math.max(0, ai.chatCooldown - DT)
 
-  const foes = awake(s)
+  const foes = engaged(s)
   let target: Actor | null = null
   let best = Infinity
   for (const foe of foes) {
@@ -564,7 +762,7 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   // first of them still standing when there is none. A raid with nobody
   // leading walked at the door itself, which put every one of them on the
   // same point.
-  const lead = player ?? s.actors.find((a) => a.faction === 'party' && a.alive) ?? null
+  const lead = leader(s)
   // The formation is for crossing a building, where nothing has to arrive
   // anywhere together. A single stretch of held ground is over when everybody
   // is through the far door at once, and a raid strung out in marching order
@@ -575,7 +773,11 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
     ? standAt(s, actor, target)
     : marching
       ? follow(s, actor, station(s, actor, lead!), 24)
-      : follow(s, actor, player ? player.pos : (heading(s)?.at ?? actor.pos))
+      : player
+        ? follow(s, actor, player.pos)
+        : s.travel.building
+          ? actor.pos
+          : follow(s, actor, heading(s)?.at ?? actor.pos)
   moveToward(s, actor, want)
 
   const moving = ai.moveTarget !== null

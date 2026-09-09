@@ -151,6 +151,7 @@ import {
   PASSAGES,
   chamberAt,
   citadelPacks,
+  citadelSprings,
   citadelWorld,
   groundFor,
   hallFor,
@@ -790,7 +791,12 @@ function standIn(id: string, from: string | null): void {
   // already standing where it stands, and the doors of the room the party is
   // in. Reaching one of them changes which room they are in and nothing else —
   // there is no end to a walk across a citadel.
-  const ground: Corridor = { ...hallFor(id, from, canGoTo), id: 'citadel', packs: citadelPacks() }
+  const ground: Corridor = {
+    ...hallFor(id, from, canGoTo),
+    id: 'citadel',
+    packs: citadelPacks(),
+    springs: citadelSprings(),
+  }
   state = createCorridorState(
     roomSeed(run, 'citadel'),
     party,

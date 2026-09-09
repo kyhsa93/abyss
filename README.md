@@ -82,23 +82,40 @@ that kind of thing actually has:
        ┌─────┴─────┐
    THE THRESHOLD  PULL        (a raid walks in; a battleground pulls)
        │
-   walk to a door ──> the next room ──> a fight, or another door
+   walk on ──> the next room ──> a fight, or more building
 ```
 
 **A raid is a building you walk through.** There is no field that names a
 fight and no list of rooms to pick one off. Pressing RAID asks how many of you
 there are and how hard it should be, then who you are playing, and then you
-are *standing in the first room* — the threshold, with its door on the floor
-in front of you.
+are *standing in the first room* — the entrance hall, with the way up the
+building in front of you. Onward is up the screen, which is the one direction
+the player is holding when they arrive. The map the citadel is traced off is
+printed with the way in halfway down its left edge and the lower spire below
+that; which way up a poster was drawn is a fact about the poster, so the
+building is stood up the other way and walked.
 
-You go on by walking to a door. The raid follows you, so which door you walk
-to is which way the evening goes; when everybody is through it, you are in the
-next room. If something is alive in there the fight starts as you arrive. If
-not, that room has its own doors and you keep going. Nothing in between is a
+You go on by walking. Nothing on the floor is labelled and no doorway is drawn
+— the floor simply runs through the opening and out the other side, and seeing
+ground going that way is how you know there is a way out. The raid follows
+*you*, not the nearest exit: which way you walk is which way the evening goes,
+and left alone in the crossing with five ways off it they stay where they are.
+When you are in the next room, you are in it. If something is alive there the
+fight starts as you arrive. If not, you keep going. Nothing in between is a
 screen: the citadel is a spire you climb — one way up for the first four
 fights, a crossing at the top of it, three wings off the crossing that may be
 taken in any order, and a throne above it all that does not open until the
 last fight of each wing is down. It is crossed on foot from end to end.
+
+**The way in is held by somebody still arriving.** Everywhere else in the
+building is a place you find things standing in; the first passage is a place
+that has noticed you. Two packs stand in it, and behind them a doorway keeps
+sending watchmen back down it and out into the entrance hall while you are
+anywhere near. It is not a wave — never more than six are up at once, so what
+it costs is a rate rather than a bill — and nothing kills it. It stops when
+the raid is most of the way up the passage. Standing at the door trading with
+whatever comes out is a thing you can do for as long as you like, and it is
+the wrong answer; the answer is to walk into it.
 
 A wing is entered once and branches inside itself. The plagueworks is a hall
 with a room off either side and a laboratory past both, so which of the two
@@ -114,7 +131,7 @@ the fights' own: a long hall, a wide disc, a small one. The rooms that hold
 nothing say their own shape, and the two that exist to be chosen from are
 sized so every door is on the screen at once.
 
-Some doors have ground behind them — a corridor, a stretch of hall with packs
+Some ways on have ground behind them — a corridor, a stretch of hall with packs
 standing in it. Walking one costs time and health, and the packs are placed so
 that taking the first carelessly brings the second, which is the only decision
 a corridor has. Ground is also what mends you: nothing is awake, so the party

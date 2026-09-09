@@ -1,5 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
-import type { Corridor, Pack } from './sim/travel'
+import type { Corridor, Pack, Spring } from './sim/travel'
 import { ROUND_ARENA, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
@@ -284,6 +284,15 @@ function corridor(
   /** The room through the far door, which is the only way out of a passage. */
   to: string,
   packs: Array<{ pos: Vec2; count: number; pulls: number }>,
+  /**
+   * And what is still arriving in it, for the one passage where anything is.
+   *
+   * Written without saying where its bodies walk to, the same way the entry is
+   * written without saying where the party comes in: both are the near end of
+   * the passage, and a corridor does not know where its near end is until it
+   * has been laid between two rooms. `groundFor` fills both in.
+   */
+  springs?: Array<Omit<Spring, 'toward'>>,
 ): Corridor {
   // The hall is as long as what is standing in it, plus room to arrive.
   //
@@ -306,11 +315,60 @@ function corridor(
     entry: { x: 0, y: front - 60 },
     ways: [{ to, at: { x: 0, y: -120 } }],
     packs,
+    ...(springs ? { springs: springs.map((spring) => ({ ...spring, toward: mouth(front) })) } : {}),
   }
 }
 
+/**
+ * How far past the mouth of a passage the bodies coming out of it walk.
+ *
+ * Out of it and into the room behind, so the party is met in the room rather
+ * than in the doorway — a fight in a doorway is a fight nobody can see the
+ * shape of, and the shape is the only thing this game asks anybody to read.
+ */
+const SPILL = 260
+
+/** Where a passage's stream is walking, given how long the passage came out. */
+function mouth(front: number): Vec2 {
+  return { x: 0, y: front - 60 + SPILL }
+}
+
 export const PASSAGES: Passage[] = [
-  { from: 'threshold', to: 'spire' },
+  // The way in, which is the only passage in the building that is held by
+  // somebody still arriving.
+  //
+  // Everywhere else the citadel is a place you find things standing in. Here
+  // it is a place that has noticed you: two packs down the passage the way
+  // every other one has them, and behind them a doorway that keeps sending
+  // watchmen back down it toward the door you came in by. The first thing the
+  // building does is push, and the answer is to push back up the passage —
+  // walk into it and it stops, stand at the entrance and it does not.
+  //
+  // `stops` is most of the passage's length, so turning it off is a commitment
+  // rather than a step; `pulls` covers the whole entrance hall, so it is
+  // running before the party is anywhere near it and they walk in on something
+  // already happening.
+  {
+    from: 'threshold',
+    to: 'spire',
+    corridor: corridor(
+      'spireway',
+      'spire',
+      [
+        { pos: { x: 0, y: 520 }, count: 3, pulls: 240 },
+        { pos: { x: -120, y: 180 }, count: 3, pulls: 230 },
+      ],
+      [
+        {
+          at: { x: 0, y: 40 },
+          every: 4,
+          most: 6,
+          pulls: 2400,
+          stops: 900,
+        },
+      ],
+    ),
+  },
   { from: 'spire', to: 'oratory', gate: killed('spire') },
   {
     from: 'oratory',
@@ -528,14 +586,15 @@ function onWall(room: RoomShape, angle: number, inset = DOOR_INSET): Vec2 {
  * straight back to themselves.
  */
 function doorsOf(id: string, canGo: (to: string) => boolean): Array<{ to: string; angle: number }> {
-  const here = planOf(id)
+  const here = placeOf(id)
   const found = PASSAGES.flatMap((passage) => {
     const to = passage.from === id ? passage.to : passage.to === id ? passage.from : null
     if (to === null || !canGo(to)) return []
-    const there = planOf(to)
-    // The plan climbs and the world's forward is -y, so the two agree without
-    // a sign flip: a room higher up the plan is a smaller y, and a smaller y
-    // is the way a party walks.
+    // Off where the rooms actually stand rather than off the plan they were
+    // read from. The two differ by a flip, and a door placed from the plan
+    // while the room it opens onto was placed from the world is a door on the
+    // wrong wall — every one of them, pointing back the way the party came.
+    const there = placeOf(to)
     return [{ to, angle: Math.atan2(there.y - here.y, there.x - here.x) }]
   })
   found.sort((a, b) => a.angle - b.angle)
@@ -578,7 +637,20 @@ export function hallFor(
   const back = doors.find((door) => door.to === from)
   // A step in from the door they came by, along the same bearing, so the party
   // is standing in the room rather than in its doorway.
-  const arrival = back ? onWall(room, back.angle, DOOR_INSET + ARRIVE_IN) : { x: 0, y: 0 }
+  //
+  // Nobody came from anywhere on the first night, and the door they came in by
+  // is the one door the map does not draw — the street. A room with one way on
+  // is that street's hallway, so they start at the other end of it and walk its
+  // length; a room with several is a room, and the middle of it is as good an
+  // answer as any. It used to be the world's origin, which in a building whose
+  // rooms are all somewhere else is a point in none of them: the party was
+  // clamped into whichever corner of the entrance hall was nearest the middle
+  // of the map, all twenty-five of them onto the same one.
+  const arrival = back
+    ? onWall(room, back.angle, DOOR_INSET + ARRIVE_IN)
+    : doors.length === 1
+      ? onWall(room, doors[0]!.angle + Math.PI, DOOR_INSET + ARRIVE_IN)
+      : roomAt(room)
   return {
     id: `hall:${id}`,
     room,
@@ -618,15 +690,36 @@ export interface Cell {
  * reconciles them — the build recomputes it and says so if a room grows past
  * what the plan leaves it.
  */
-export const CITADEL_SCALE = 12800
+export const CITADEL_SCALE = 16700
 
-/** How far a passage runs inside the rooms at either end of it. */
-const KNIT = 150
+/**
+ * How far a passage runs inside the rooms at either end of it.
+ *
+ * The overlap is what makes the floor continuous, and how much of it there has
+ * to be is set by the worst junction rather than by taste: a passage meeting a
+ * narrow hall on the diagonal leaves the room through a side wall, and the
+ * last stretch before it does is a wedge too thin to stand a body in. Knitting
+ * further back puts the passage's own width under that wedge. The build walks
+ * every centre line with a body's width and says where it runs out.
+ */
+const KNIT = 220
 
-/** Where a room stands in the citadel. */
+/**
+ * Where a room stands in the citadel.
+ *
+ * The plan is written the way the raid's own map is printed — the way in
+ * halfway down the left edge, the lower spire *below* it — and the building is
+ * stood up with that flipped, so the walk from the door to the first fight
+ * goes up the screen. Which way up a poster was drawn is a fact about the
+ * poster. Which way you walk when you come in is a fact about the building,
+ * and the one a player is holding: they press up, and up has to be onward.
+ *
+ * A flip and not a turn, so left stays left: the plagueworks is away to one
+ * side of the crossing on the map and is away to the same side here.
+ */
 export function placeOf(id: string): Vec2 {
   const entry = planOf(id)
-  return { x: (entry.x - 0.5) * CITADEL_SCALE, y: (entry.y - 0.5) * CITADEL_SCALE }
+  return { x: (entry.x - 0.5) * CITADEL_SCALE, y: (0.5 - entry.y) * CITADEL_SCALE }
 }
 
 /**
@@ -720,6 +813,19 @@ export function groundFor(from: string, to: string): Corridor | null {
     entry: place({ x: 0, y: room.front - 60 }),
     ways: passage.corridor.ways.map((way) => ({ to: way.to, at: place(way.at) })),
     packs: passage.corridor.packs.map((pack) => ({ ...pack, pos: place(pack.pos) })),
+    ...(passage.corridor.springs
+      ? {
+          springs: passage.corridor.springs.map((spring) => ({
+            ...spring,
+            at: place(spring.at),
+            // Off the passage's placed length, the same as its entry: what a
+            // corridor is written with is the gap between the two rooms it was
+            // written for, and what it is laid at is the gap it actually got.
+            // Deliberately outside the passage — where they are going is out.
+            toward: place(mouth(room.front)),
+          })),
+        }
+      : {}),
   }
 }
 
@@ -734,6 +840,11 @@ export function groundFor(from: string, to: string): Corridor | null {
  */
 export function citadelPacks(): Pack[] {
   return PASSAGES.flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
+}
+
+/** And everything in it that has not arrived yet, placed the same way. */
+export function citadelSprings(): Spring[] {
+  return PASSAGES.flatMap((passage) => groundFor(passage.from, passage.to)?.springs ?? [])
 }
 
 /** Every room and every stretch of ground, placed. */

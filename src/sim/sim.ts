@@ -65,7 +65,7 @@ import {
   INFECTION_FLUSH, MUSTER_PACE } from './constants'
 import type { Rng } from './rng'
 import { roomAt } from './room'
-import { heading, updateTravel, updateTravelAi } from './travel'
+import { updateTravel, updateTravelAi } from './travel'
 import { BOSS_ID } from './state'
 import type { Ability } from './abilities'
 import type { Actor, PlayerInput, SimState } from './types'
@@ -548,10 +548,12 @@ function updatePlayer(s: SimState, input: PlayerInput, rng: Rng): void {
   // facing has already lost the mechanic.
   //
   // Standing still with nothing to face is a real state now: a room the party
-  // is only crossing has no boss in it. There the thing worth looking at is
-  // the way out, and where there is not one either the bearing is left alone
-  // rather than pointed at the origin.
-  const look = bossOrNone(s)?.pos ?? (s.mode === 'travel' ? (heading(s)?.at ?? null) : null)
+  // is only crossing has no boss in it. There the bearing is left alone. It
+  // used to be pointed at the way out, and a body that turns to the nearest
+  // door the moment it stops walking is a body arranged around the door —
+  // cross a hub with five of them and the whole raid pivots as you go, for a
+  // thing nobody is looking at. Where there is nothing to face, nothing turns.
+  const look = bossOrNone(s)?.pos ?? null
   if (len > 0.01) {
     turnToward(player, Math.atan2(input.moveY, input.moveX))
   } else if (look) {

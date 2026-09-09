@@ -859,7 +859,12 @@ function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   // true, never useful, and takes the place of the only line that is — which
   // of the six the party is walking to.
   const held = 'THE WAY AHEAD IS HELD'
-  const door = going ? `walk to the door — ${chamberAt(going.to)?.name ?? going.to}` : null
+  // What is that way, not an instruction to walk to it. Nothing in the raid is
+  // arranged around a doorway any more — not the formation, not the bearing a
+  // body keeps when it stops, and not the floor, which lost the names that
+  // used to be lit on it. A line telling the player to go and stand on one
+  // would be the last of that, and it was the only one they could read.
+  const door = going ? `onward — ${chamberAt(going.to)?.name ?? going.to}` : null
   ctx.fillText(
     up > 0
       ? `${up} ON YOU`

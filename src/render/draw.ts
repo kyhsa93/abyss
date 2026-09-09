@@ -34,9 +34,8 @@ import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/bat
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
-import { chamberAt } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
-import { awake, heading, travelAnchor } from '../sim/travel'
+import { travelAnchor } from '../sim/travel'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
@@ -317,7 +316,6 @@ export function drawWorld(
   }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
-  drawDoors(ctx, s, clock)
   drawGround(ctx, s, clock)
   drawShades(ctx, s, clock)
   drawCasts(ctx, s, alpha)
@@ -1065,49 +1063,20 @@ function drawShades(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
 }
 
 /**
- * What is written over a door, which is the room it opens onto.
+ * Nothing is drawn at a doorway, and nothing is written on one either.
  *
- * The building's own name for it and not the fight's: a party walking has not
- * met what is in there yet, and a door labelled with a boss would be telling
- * them something the room has not.
+ * It was an oval first, which in this game is a pad you stand on; then a frame
+ * with a lintel, which from above is a slab standing in a gap. Both read as a
+ * thing you step into and go somewhere, which is exactly what a door here must
+ * not be. What replaced them was the name of the room beyond, laid on the
+ * floor and lit for whichever one the party was nearest — and that turned out
+ * to be the same mistake in letters: a label that brightens as you walk past
+ * it is a thing to walk to, and the raid was arranged around it.
+ *
+ * So the floor is the only answer now. It runs through the opening and out the
+ * other side, and the way you know there is a way out is that you can see
+ * ground going that way.
  */
-function doorName(id: string): string {
-  return (chamberAt(id)?.name ?? id).toUpperCase()
-}
-
-/**
- * What is through the openings, named on the floor.
- *
- * Nothing is drawn *at* a doorway any more. It was an oval first, which in
- * this game is a pad you stand on; then a frame with a lintel, which from
- * above is a slab standing in a gap. Both read as a thing you step into and go
- * somewhere, which is exactly what a door here must not be — the floor runs
- * through the opening and out the other side, and the way you know there is a
- * way out is that you can see the floor going that way.
- *
- * So what is left is the name of the room the floor leads to, laid on it, and
- * brighter for the one the party is heading for.
- */
-function drawDoors(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
-  const travel = s.travel
-  if (!travel || travel.corridor.ways.length === 0) return
-  // Nothing while something is awake: a way out you cannot take yet is
-  // something to read after the fight, and the floor is busy.
-  if (awake(s).length > 0) return
-  const going = heading(s)
-  const pulse = 0.7 + 0.3 * Math.sin(clock * 2.6)
-  for (const way of travel.corridor.ways) {
-    const lit = way.to === going?.to
-    const at = worldToScreen(way.at)
-    ctx.save()
-    ctx.globalAlpha = lit ? pulse : 0.4
-    ctx.fillStyle = lit ? COLORS.castBar : COLORS.textDim
-    ctx.font = font(11, lit)
-    ctx.textAlign = 'center'
-    ctx.fillText(doorName(way.to), at.x, at.y)
-    ctx.restore()
-  }
-}
 
 function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
   for (const g of s.ground) {

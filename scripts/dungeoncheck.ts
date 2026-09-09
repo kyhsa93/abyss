@@ -1,5 +1,6 @@
 import {
   CHAMBERS,
+  CITADEL_SCALE,
   PASSAGES,
   chamberAt,
   clearedFrom,
@@ -7,6 +8,7 @@ import {
   killedOnce,
   padsLit,
   citadelPacks,
+  citadelSprings,
   citadelWorld,
   groundFor,
   hallFor,
@@ -423,6 +425,34 @@ const everywhere = () => true
     }
   }
   expect('and no two rooms stand in each other', shared.length === 0, shared.join(', '))
+
+  // And no bigger than that. The scale is written down rather than computed,
+  // because a building whose size moves when a room is resized is a building
+  // whose every walk is a different length — but what it is written down *as*
+  // is a claim, and the claim is that it is the smallest that fits. It was a
+  // claim this file made in a comment and did not check, and the day the plan
+  // was flipped so that walking in goes up the screen, two pairs of rooms
+  // stood in each other and the number needed to be a third larger.
+  let tightest = 0
+  for (let i = 0; i < CHAMBERS.length; i++) {
+    for (let j = i + 1; j < CHAMBERS.length; j++) {
+      const a = CHAMBERS[i]!.id
+      const b = CHAMBERS[j]!.id
+      const pa = placeOf(a)
+      const pb = placeOf(b)
+      const d = dist(pa, pb)
+      if (d === 0) continue
+      const ux = (pb.x - pa.x) / d
+      const uy = (pb.y - pa.y) / d
+      const need = support(roomOf(a), ux, uy) + support(roomOf(b), -ux, -uy)
+      tightest = Math.max(tightest, (need / d) * CITADEL_SCALE)
+    }
+  }
+  expect(
+    'and the building is no larger than the plan needs',
+    CITADEL_SCALE < tightest * 1.25,
+    `${CITADEL_SCALE} against a smallest of ${Math.ceil(tightest)}`,
+  )
 }
 
 // And a body on that floor is held by the building rather than by one room of
@@ -615,11 +645,25 @@ const everywhere = () => true
   )
 
   // Spread across it, not heaped where the party is standing.
-  const start = placeOf('threshold')
+  //
+  // Measured against the party rather than against the entrance hall's middle,
+  // which is what it was and stopped being true the day the way in got a
+  // passage of its own: there is a pack fourteen hundred units up it now, on
+  // purpose, and a check that reads any body within sixteen hundred of the
+  // door as heaped reads the citadel's first pack as the bug it was written
+  // to catch. What it is actually about is fifty-two bodies clamped onto one
+  // doorway, and the shape of that is somebody standing on top of the party.
   const heaped = s.actors.filter(
-    (a) => a.faction === 'boss' && dist(a.pos, start) < 1600,
+    (a) =>
+      a.faction === 'boss' &&
+      s.actors.some((p) => p.faction === 'party' && dist(a.pos, p.pos) < 400),
   ).length
-  expect('and standing where they were put, not where the party is', heaped === 0, `${heaped} in the doorway`)
+  expect('and standing where they were put, not where the party is', heaped === 0, `${heaped} on top of the party`)
+
+  // And spread across the building rather than all in one stretch of it.
+  const far = s.actors.filter((a) => a.faction === 'boss')
+  const spread = Math.max(...far.map((a) => dist(a.pos, placeOf('threshold'))))
+  expect('and spread over the whole of it', spread > CITADEL_SCALE / 2, `${Math.round(spread)} units at the furthest`)
 
   const rng = new Rng(5)
   for (let t = 0; t < 30 * 120; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
@@ -994,6 +1038,166 @@ expect(
     JSON.stringify(back?.walked),
   )
   save(null)
+}
+
+// Up is onward.
+//
+// The plan is traced off the raid's own printed map, which has the way in
+// halfway down the left edge and the lower spire below it — so the building
+// stood up straight off the plan had the party walking down the screen to the
+// first fight, into three hundred units of hall, with the seven hundred and
+// sixty the entrance hall is long stretching away behind them. Which way up a
+// poster was drawn is a fact about the poster. The player presses up, and up
+// has to be the way on.
+{
+  const anywhere = () => true
+  const hall = hallFor('threshold', null, anywhere)
+  const way = hall.ways.find((w) => w.to === 'spire')
+  expect(
+    'the way to the first fight is up the screen from the door',
+    way !== undefined && way.at.y < placeOf('threshold').y - 100,
+    way ? `${Math.round(way.at.y - placeOf('threshold').y)} units` : 'no way to the spire',
+  )
+  // And they start below it rather than in the middle of the map, which is
+  // where a fresh evening used to put them: the origin of a world whose rooms
+  // are all somewhere else, clamped into whichever corner was nearest.
+  expect(
+    'and a fresh evening starts below it, in the hall',
+    way !== undefined && hall.entry.y > way.at.y && insideRoom(hall.room, hall.entry, 40),
+    `entry ${Math.round(hall.entry.y)}, door ${Math.round(way?.at.y ?? 0)}`,
+  )
+  const climb = hall.entry.y - (way?.at.y ?? 0)
+  expect(
+    'and the hall is walked up rather than stood in the middle of',
+    climb > 400,
+    `${Math.round(climb)} units of hall`,
+  )
+}
+
+// The way in is held by somebody still arriving.
+//
+// Two packs standing in the passage the way every other one has them, and
+// behind them a doorway that keeps sending watchmen back down it at the party.
+// The three things worth holding: they appear, they walk *out* of the passage
+// rather than at whoever is nearest, and walking into the passage turns it off
+// for good. A stream you can turn off by standing still would be a wave, and a
+// wave measures at nothing.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const springs = citadelSprings()
+  expect('the way in has a passage that keeps sending bodies out', springs.length === 1, `${springs.length} springs`)
+
+  const spring = springs[0]!
+  const inHall = insideRoom({ ...roomOf('threshold'), at: placeOf('threshold') }, spring.toward, 60)
+  expect(
+    'and where it sends them is out of the passage and into the entrance hall',
+    inHall,
+    `${Math.round(spring.toward.x)}, ${Math.round(spring.toward.y)}`,
+  )
+
+  const build = () => {
+    const ground = {
+      ...hallFor('threshold', null, anywhere),
+      id: 'citadel',
+      packs: citadelPacks(),
+      springs: citadelSprings(),
+    }
+    const s = unattended(
+      createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
+    )
+    s.floor = citadelWorld().map((cell) => cell.room)
+    s.chamber = 'threshold'
+    return s
+  }
+
+  // Standing at the door doing nothing. They come.
+  const held = build()
+  const before = held.actors.filter((a) => a.faction === 'boss').length
+  const rng = new Rng(5)
+  for (let t = 0; t < 30 * 40; t++) step(held, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const made = held.actors.filter((a) => a.faction === 'boss').length - before
+  expect('and standing at the door does not stop it', made > 0, `${made} came out in forty seconds`)
+
+  // But never more than the cap: a rate, not a bill.
+  const mine = citadelPacks().length
+  const up = held.actors.filter((a) => a.alive && held.travel!.belongs[a.id] === mine).length
+  expect('and no more of them are up at once than it is allowed', up <= spring.most, `${up} up, ${spring.most} allowed`)
+
+  // And they walk out of it: the furthest any of them got from the doorway is
+  // most of the way to where it was sending them.
+  const out = held.actors.filter((a) => held.travel!.belongs[a.id] === mine)
+  const reached = Math.max(0, ...out.map((a) => dist(spring.at, a.pos)))
+  const trip = dist(spring.at, spring.toward)
+  expect(
+    'and they walk out toward the door the party came in by',
+    reached > trip * 0.5,
+    `${Math.round(reached)} of ${Math.round(trip)} units`,
+  )
+
+  // Walk into the passage and it is over. Carried by hand rather than steered,
+  // because what is being measured is the rule and not the pathfinding.
+  const walked = build()
+  for (const a of walked.actors) {
+    if (a.faction !== 'party') continue
+    a.pos.x = spring.at.x
+    a.pos.y = spring.at.y + spring.stops - 40
+    a.prevPos.x = a.pos.x
+    a.prevPos.y = a.pos.y
+  }
+  const rng2 = new Rng(5)
+  for (let t = 0; t < 30 * 2; t++) step(walked, { moveX: 0, moveY: 0, pressed: [] }, rng2)
+  const stopped = walked.travel!.springing[0]!.done
+  const sealed = walked.actors.filter((a) => a.faction === 'boss').length
+  for (let t = 0; t < 30 * 40; t++) step(walked, { moveX: 0, moveY: 0, pressed: [] }, rng2)
+  expect(
+    'and walking into the passage turns it off for good',
+    stopped && walked.actors.filter((a) => a.faction === 'boss').length <= sealed,
+    `${stopped ? 'stopped' : 'still running'}, ${walked.actors.filter((a) => a.faction === 'boss').length} from ${sealed}`,
+  )
+}
+
+// A raid walking is not walking at a door.
+//
+// The formation used to be turned by whichever way out the player was nearest
+// and, with nobody steering, the whole raid set off for it. Both are the same
+// mistake: the citadel is not somewhere the party is trying to get to, so a
+// point on a wall is not a thing to arrange twenty-five people around. Left
+// alone in a room with six doors off it, a raid stays where it is.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const ground = { ...hallFor('crossing', null, anywhere), id: 'citadel', packs: citadelPacks() }
+  const s = unattended(
+    createCorridorState(5, autoParty(25, dps), ground, 'normal', 4, undefined, true),
+  )
+  s.floor = citadelWorld().map((cell) => cell.room)
+  s.chamber = 'crossing'
+  const doors = s.travel!.corridor.ways
+  const middle = (): { x: number; y: number } => {
+    const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive)
+    return {
+      x: bodies.reduce((n, a) => n + a.pos.x, 0) / bodies.length,
+      y: bodies.reduce((n, a) => n + a.pos.y, 0) / bodies.length,
+    }
+  }
+  const from = middle()
+  const rng = new Rng(5)
+  for (let t = 0; t < 30 * 60; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const to = middle()
+  // The middle of the raid, not the nearest body to a door. Twenty-five people
+  // opened out in a room four hundred across put somebody near the wall by
+  // arithmetic, and the wall is where the doors are — measuring that would be
+  // measuring the formation's width and calling it an intention. What a raid
+  // walking at a door looks like is the whole raid arriving somewhere.
+  const drift = dist(from, to)
+  let toward = Infinity
+  for (const door of doors) toward = Math.min(toward, dist(to, door.at) - dist(from, door.at))
+  expect(
+    `a leaderless raid stays put in a room with ${doors.length} doors off it`,
+    drift < 250 && toward > -250,
+    `the raid moved ${Math.round(drift)} units, ${Math.round(-toward)} of it at a door`,
+  )
 }
 
 if (failures > 0) {
