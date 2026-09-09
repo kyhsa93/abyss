@@ -838,22 +838,41 @@ export function groundFor(from: string, to: string): Corridor | null {
  * when somebody comes near, which is what they always did — there are simply
  * no longer any of them that do not exist yet.
  */
-export function citadelPacks(): Pack[] {
-  return PASSAGES.flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
+export function citadelPacks(cleared?: ReadonlySet<string>): Pack[] {
+  return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
 }
 
 /** And everything in it that has not arrived yet, placed the same way. */
-export function citadelSprings(): Spring[] {
-  return PASSAGES.flatMap((passage) => groundFor(passage.from, passage.to)?.springs ?? [])
+export function citadelSprings(cleared?: ReadonlySet<string>): Spring[] {
+  return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.springs ?? [])
+}
+
+/**
+ * Which stretches of ground exist tonight.
+ *
+ * All of them when nobody asks, which is what the build does: the map's own
+ * questions — is the floor continuous, is every fight placed in its own room —
+ * are about the building and not about one evening in it.
+ *
+ * Given what is dead, a passage held shut is not laid at all. That is the
+ * whole of what makes a shut door shut: the citadel is one continuous floor
+ * now, so a door that is only *absent from a list* is a door you walk through.
+ * The party stopped at the wall of the room they are in because the ground
+ * they would have crossed is not there, and it appears the moment the thing
+ * holding it goes down.
+ */
+function laid(cleared?: ReadonlySet<string>): Passage[] {
+  if (!cleared) return PASSAGES
+  return PASSAGES.filter((passage) => passageOpen(passage.gate, cleared))
 }
 
 /** Every room and every stretch of ground, placed. */
-export function citadelWorld(): Cell[] {
+export function citadelWorld(cleared?: ReadonlySet<string>): Cell[] {
   const cells: Cell[] = CHAMBERS.map((c) => ({
     id: c.id,
     room: { ...roomOf(c.id), at: placeOf(c.id) },
   }))
-  for (const passage of PASSAGES) {
+  for (const passage of laid(cleared)) {
     cells.push(bridge(passage.from, passage.to, passage.corridor))
   }
   return cells

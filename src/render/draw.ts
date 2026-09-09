@@ -35,7 +35,6 @@ import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { encounterAt } from '../sim/encounters'
 import { bgAnchor } from '../sim/bgai'
-import { travelAnchor } from '../sim/travel'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
@@ -147,10 +146,18 @@ function anchorOf(s: SimState): Vec2 | null {
   const player = s.actors.find((a) => a.isPlayer)
   if (!player) return null
   if (s.mode === 'battleground') return bgAnchor(s, player)
-  // Walking, the thing the view is arranged around is whatever woke up — and
-  // nothing when nothing has, so the floor holds still while the party crosses
-  // it rather than turning to keep the nearest door at the top.
-  if (s.mode === 'travel') return travelAnchor(s)
+  // Walking, nothing. The view is arranged around the thing you are working
+  // on, and crossing a building there is no such thing — so the floor holds
+  // still and the party moves across it.
+  //
+  // It was the nearest door once and then whatever had woken up, and both are
+  // the same mistake in different clothes: a camera that turns for anything
+  // other than a fight turns while the player is only walking, and this game
+  // is read off the floor. A floor that rotates under you is a floor you
+  // cannot navigate — press up, and up stops meaning what it meant a second
+  // ago. Trash in a corridor is not a fight worth turning the world for; it
+  // walks to you.
+  if (s.mode === 'travel') return null
   const target = s.actors.find((a) => a.id === playerTarget(s) && a.alive)
   if (target) return target.pos
   const b = s.actors.find((a) => a.id === BOSS_ID && a.alive)

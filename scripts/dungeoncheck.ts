@@ -1200,6 +1200,145 @@ expect(
   )
 }
 
+// A shut way is ground that is not there.
+//
+// The citadel is one continuous floor, which is the point of it and is also
+// what made every gate on the map decorative: a door held shut was a door
+// missing from a list of ways out, and a list is not a wall. The floor ran
+// through the opening either way, so a party could walk from the entrance
+// past the first fight and keep going. What holds a door shut now is that the
+// ground behind it has not been laid — the party is stopped at the wall of the
+// room they are in, and the ground appears when the thing holding it is down.
+//
+// Walked rather than asserted about the graph. `reachable` already answers the
+// graph's question, and the graph agreeing with itself would prove nothing:
+// what is being checked is that the *floor* says the same thing, which is a
+// claim about geometry and is where a passage laid across a room it does not
+// join would show up.
+{
+  const STEP = 70
+  const BODY = 40
+  const walkableFrom = (start: string, cleared: ReadonlySet<string>): Set<string> => {
+    const cells = citadelWorld(cleared).map((cell) => cell.room)
+    const stands = (p: { x: number; y: number }): boolean =>
+      cells.some((cell) => insideRoom(cell, p, BODY))
+    const key = (x: number, y: number): string => `${x},${y}`
+    const at = placeOf(start)
+    const x0 = Math.round(at.x / STEP)
+    const y0 = Math.round(at.y / STEP)
+    const seen = new Set<string>([key(x0, y0)])
+    const queue: Array<[number, number]> = [[x0, y0]]
+    // A ceiling on the flood rather than a trust in it terminating: this walks
+    // a sixteen-thousand-unit building and a bug in `stands` is an infinite
+    // one.
+    let budget = 200000
+    while (queue.length > 0 && budget-- > 0) {
+      const [x, y] = queue.shift()!
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nx = x + dx
+        const ny = y + dy
+        const k = key(nx, ny)
+        if (seen.has(k)) continue
+        if (!stands({ x: nx * STEP, y: ny * STEP })) continue
+        seen.add(k)
+        queue.push([nx, ny])
+      }
+    }
+    const got = new Set<string>()
+    for (const k of seen) {
+      const [x, y] = k.split(',').map(Number) as [number, number]
+      const p = { x: x * STEP, y: y * STEP }
+      for (const c of CHAMBERS) {
+        if (insideRoom({ ...roomOf(c.id), at: placeOf(c.id) }, p, 0)) got.add(c.id)
+      }
+    }
+    return got
+  }
+
+  // Night one: nothing is dead, so the walk ends at the first fight.
+  const fresh = walkableFrom('threshold', new Set())
+  expect(
+    'on the first night the floor reaches the first fight',
+    fresh.has('threshold') && fresh.has('spire'),
+    [...fresh].sort().join(', '),
+  )
+  expect(
+    'and stops there — the way past it is not ground yet',
+    !fresh.has('oratory') && !fresh.has('crossing'),
+    [...fresh].sort().join(', '),
+  )
+
+  // And the floor says exactly what the map says, room for room, at every
+  // stage of an evening. Either one drifting from the other is a wall the
+  // player can see through or a door that opens onto nothing.
+  const drift: string[] = []
+  const stages: Array<[string, string[]]> = [
+    ['nothing dead', []],
+    ['the first down', ['spire']],
+    ['the lower spire done', ['spire', 'oratory', 'mooring', 'rise']],
+    ['a wing in', ['spire', 'oratory', 'mooring', 'rise', 'sludge', 'airless']],
+  ]
+  for (const [name, dead] of stages) {
+    const cleared = new Set(dead)
+    const floor = walkableFrom('threshold', cleared)
+    const map = reachable(cleared)
+    const extra = [...floor].filter((id) => !map.has(id))
+    const missing = [...map].filter((id) => !floor.has(id))
+    if (extra.length > 0 || missing.length > 0) {
+      drift.push(`${name}: floor has ${extra.join('/') || 'nothing'} extra, ${missing.join('/') || 'nothing'} missing`)
+    }
+  }
+  expect('and the floor and the map agree at every stage', drift.length === 0, drift.join('; '))
+
+  // Killing the thing lays the ground. Stated on its own because it is the
+  // half a player feels: the wall they were stopped by is a way through now.
+  const after = walkableFrom('threshold', new Set(['spire']))
+  expect(
+    'and putting it down lays the ground behind it',
+    after.has('oratory'),
+    [...after].sort().join(', '),
+  )
+}
+
+// And the room a fight is in is the whole of the floor while it lasts.
+//
+// The other half of the same hole. Blocking the way onward stops a party
+// walking past a boss; it does not stop them walking *away* from one, and
+// with the citadel's whole floor underfoot during a fight — which is what a
+// fight inherited, because the walk needs it and nobody switched it off — a
+// player could step out of the boss's door and stand in the corridor while
+// the raid fought it. The mechanics are clamped to the room, so out there
+// nothing could reach them.
+//
+// What `enterRoom` hands a fight is its own room and nothing else. This walks
+// each built fight into every wall it has at full speed.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const escaped: string[] = []
+  for (const chamber of CHAMBERS) {
+    if (!standing(chamber.id)) continue
+    for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0], [0.7, 0.7], [-0.7, -0.7]] as const) {
+      const s = unattended(
+        createState(11, 1, autoParty(10, dps), 'normal', chamber.encounter!, null, placeOf(chamber.id)),
+      )
+      s.floor = [s.room]
+      s.countdown = 0
+      const rng = new Rng(11)
+      const me = s.actors.find((a) => a.faction === 'party')!
+      me.isPlayer = true
+      for (let t = 0; t < 30 * 20 && s.outcome === 'ongoing'; t++) {
+        step(s, { moveX: dx, moveY: dy, pressed: [] }, rng)
+        if (!me.alive) break
+        if (!insideRoom(s.room, me.pos, 0)) {
+          escaped.push(`${chamber.id} out the ${dx},${dy} side`)
+          break
+        }
+      }
+    }
+  }
+  expect('nobody walks out of a fight while it is on', escaped.length === 0, escaped.join(', '))
+}
+
 if (failures > 0) {
   console.error(`dungeoncheck: ${failures} check(s) failed`)
   process.exit(1)

@@ -418,29 +418,6 @@ function engaged(s: SimState): Actor[] {
   return near
 }
 
-/**
- * What the view should be arranged around while walking, if anything.
- *
- * Whatever woke up, and *nothing* when nothing has. It used to be the door,
- * and a camera that puts the door straight up the screen is a camera that
- * swings every time the party is nearer a different one — walking a building
- * with six doors off the middle of it, the whole floor turns under you while
- * you cross a room. The way out is somewhere you are going, not something you
- * are facing.
- *
- * With nothing to arrange around, the view keeps the bearing it had, which is
- * what a player walking somewhere wants: the floor stays still and they move
- * across it.
- */
-export function travelAnchor(s: SimState): Vec2 | null {
-  // The nearest one the raid is actually in a fight with. Whatever happened to
-  // be first in the list was fine when everything awake was in the same
-  // corridor and stopped being the day a passage started sending bodies down
-  // itself: the view swung a hall's length up the citadel at a watchman
-  // nobody had met yet, and turned the floor over while it did.
-  const foes = engaged(s)
-  return foes.length > 0 ? foes[0]!.pos : null
-}
 
 /**
  * A pack notices.

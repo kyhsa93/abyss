@@ -160,7 +160,7 @@ import {
   placeOf,
 } from './dungeon'
 import type { Corridor } from './sim/travel'
-import { insideRoom } from './sim/room'
+import { insideRoom, type RoomShape } from './sim/room'
 import type { SimState, Vec2 } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -482,11 +482,20 @@ let run: Run | null = loadRun()
 /**
  * The building's own floor, which every state of an evening stands on.
  *
- * Built once: it is the same rooms and the same stretches of ground whatever
- * the party is doing on them, and a state carrying its own copy would be a
- * state that could disagree with the map about where the walls are.
+ * Built per evening rather than once, because it is not the same floor all
+ * evening: a passage held shut by something still alive is not laid, so the
+ * ground the party can stand on ends at the wall of the room they are in and
+ * grows when the thing goes down. That is the only way a shut door can mean
+ * anything on a floor this continuous — a door that is merely missing from a
+ * list of ways out is a door you walk straight through, and the citadel was
+ * one you could walk from the entrance to the crossing without fighting.
+ *
+ * Read off `run.cleared` every time it is handed over, so nothing has to
+ * remember to rebuild it.
  */
-const FLOOR = citadelWorld().map((cell) => cell.room)
+function floorNow(): RoomShape[] {
+  return citadelWorld(new Set(run?.cleared ?? [])).map((cell) => cell.room)
+}
 
 /** Which room the fight on screen is in, and what the party walked into it with. */
 let roomId: string | null = null
@@ -648,7 +657,17 @@ function enterRoom(id: string): void {
   // walk left them, and the count is spent taking position.
   state = newState(placeOf(id), whereTheyStand())
   state.chamber = id
-  state.floor = FLOOR
+  // The room, and only the room. A fight's floor used to be the whole citadel,
+  // which is what the walk needs and is the wrong answer the moment something
+  // in the room is alive: a player could walk out of the boss's door and stand
+  // in the corridor while the raid fought it. Nothing about that was a
+  // decision — it was the walk's floor left switched on.
+  //
+  // Everybody walked in on their own feet and the doorway is a step behind
+  // them, so what this costs is a straggler still in it being set down inside;
+  // the countdown then walks the raid into formation, which it was already
+  // doing.
+  state.floor = [state.room]
   rng = rngFor(state)
 
   carryInto(state)
@@ -786,6 +805,11 @@ function standIn(id: string, from: string | null): void {
   recorded = false
   graded = false
   announced = []
+  // Square to the world, because the walk will not turn it again. Crossing a
+  // building the view is arranged around nothing, so whatever bearing the last
+  // fight ended on would be the bearing the citadel is walked at — and the
+  // building is laid out so that up the screen is the way on.
+  resetView()
   const carried = from === null ? undefined : whereTheyStand()
   // One walk for the whole evening: the building's own floor, every pack in it
   // already standing where it stands, and the doors of the room the party is
@@ -794,8 +818,11 @@ function standIn(id: string, from: string | null): void {
   const ground: Corridor = {
     ...hallFor(id, from, canGoTo),
     id: 'citadel',
-    packs: citadelPacks(),
-    springs: citadelSprings(),
+    // What is standing in the ground that exists tonight. A pack in a passage
+    // that has not been laid is a pack standing on nothing, drawn in the dark
+    // beyond a wall the party cannot reach.
+    packs: citadelPacks(new Set(run.cleared)),
+    springs: citadelSprings(new Set(run.cleared)),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),
@@ -809,7 +836,7 @@ function standIn(id: string, from: string | null): void {
   state.chamber = id
   // The whole building is underfoot, not just this room: a doorway is floor,
   // which is what lets the party stand in one.
-  state.floor = FLOOR
+  state.floor = floorNow()
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))
@@ -883,7 +910,7 @@ function walkTo(to: string, key: string, walk: Corridor): void {
   announced = []
   state = createCorridorState(roomSeed(run, key), party, walk, run.difficulty, 4, whereTheyStand())
   state.chamber = to
-  state.floor = FLOOR
+  state.floor = floorNow()
   rng = rngFor(state)
   carryInto(state)
   fightingParty = party.map((p) => ({ ...p }))

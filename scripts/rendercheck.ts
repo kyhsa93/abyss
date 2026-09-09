@@ -6,7 +6,7 @@ import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
 import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
-import { viewAngle } from '../src/render/camera'
+import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
 import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
@@ -174,7 +174,7 @@ import {
 } from '../src/sim/battleground'
 import { aiGoal } from '../src/sim/bgai'
 import { createBattlegroundState } from '../src/sim/state'
-import { CHAMBERS, PASSAGES, hallFor } from '../src/dungeon'
+import { CHAMBERS, PASSAGES, citadelPacks, citadelSprings, citadelWorld, hallFor } from '../src/dungeon'
 import type { BgKind } from '../src/sim/types'
 import { autoPress } from '../src/sim/autocast'
 import { dailyFor, dailyKey } from '../src/sim/daily'
@@ -389,6 +389,47 @@ console.log(`rendered ${frames} frames with no exceptions`)
     }
   }
   updateLayout(1440, 900)
+}
+
+// --- the floor does not turn while you are only walking ---------------------
+//
+// The view is arranged around the thing you are working on, and crossing a
+// building there is not one. It was the nearest door first, which swung the
+// whole floor every time the player crossed the middle of a hub; then it was
+// whatever had woken up, which is the same thing wearing a corridor's clothes
+// — a passage that sends bodies at you turned the world the moment the first
+// one appeared, a hall's length away.
+//
+// It matters more than a camera usually does because this game is read off the
+// floor and walked with a stick: press up, and up has to still mean what it
+// meant a second ago. The building is laid out so that walking up the screen
+// from the entrance reaches the first fight, and a view that rotates on its
+// own is that promise withdrawn.
+//
+// Drawn with something awake and standing on the party, which is the state
+// that used to turn it hardest.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const ground = { ...hallFor('threshold', null, () => true), id: 'citadel', packs: citadelPacks(), springs: citadelSprings() }
+  const s = createCorridorState(9, autoParty(10, dps), ground, 'normal', 4, undefined, true)
+  s.floor = citadelWorld().map((cell) => cell.room)
+  s.chamber = 'threshold'
+  resetView()
+  const rng = new Rng(9)
+  let worst = 0
+  let woke = 0
+  for (let i = 0; i < 30 * 45 && s.outcome === 'ongoing'; i++) {
+    step(s, { moveX: 0, moveY: -1, pressed: [] }, rng)
+    drawWorld(ctx, s, 0.5, s.time, new Effects())
+    worst = Math.max(worst, Math.abs(viewAngle()))
+    woke = Math.max(woke, s.actors.filter((a) => a.faction === 'boss' && a.alive).length)
+  }
+  expect('a raid walking has something to walk into', woke > 0, `${woke} standing`)
+  expect(
+    'and the view does not turn while it walks',
+    worst < 0.001,
+    `turned ${((worst * 180) / Math.PI).toFixed(1)} degrees`,
+  )
 }
 
 // --- the clock must not bank time on menus --------------------------------
