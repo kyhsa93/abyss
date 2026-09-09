@@ -501,6 +501,8 @@ export function createCorridorState(
   attempt = 4,
   /** Where the party already is, for a walk that is carrying on rather than starting. */
   standing?: Vec2[],
+  /** Whether this walk is the whole citadel. See `TravelState.building`. */
+  building = false,
 ): SimState {
   const slots = makeSlots(party.length as RaidSize)
   return createTravelState(
@@ -510,6 +512,7 @@ export function createCorridorState(
     difficulty,
     (pick, i, at) => makeMember(i + 1, pick, { ...slots[i]!, x: at.x, y: at.y }, i === 0, attempt),
     standing,
+    building,
   )
 }
 

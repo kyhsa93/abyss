@@ -810,11 +810,35 @@ function fitLeft(
  * raid frame for the other side. What a corridor has instead is a count — what
  * is awake and what is left — which is the only question it asks.
  */
+/** How far off counts as the stretch of ground the party is on. */
+const NEARBY = 1600
+
+function middleOfParty(s: SimState): { x: number; y: number } | null {
+  const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive)
+  if (bodies.length === 0) return null
+  return {
+    x: bodies.reduce((n, a) => n + a.pos.x, 0) / bodies.length,
+    y: bodies.reduce((n, a) => n + a.pos.y, 0) / bodies.length,
+  }
+}
+
 function drawWalkFrame(ctx: CanvasRenderingContext2D, s: SimState): void {
   const travel = s.travel
   if (!travel) return
-  const left = s.actors.filter((a) => a.faction === 'boss' && a.alive)
+  // What is on the party, and what is standing in the stretch they are in.
+  //
+  // Not everything alive in the building: with the whole citadel in one walk
+  // that is fifty-two bodies, most of them rooms away and asleep, and a line
+  // saying the way ahead is held by all of them is a line that is never not
+  // true. Awake is what is happening; near is what is next.
   const up = awake(s).length
+  const mid = middleOfParty(s)
+  const left =
+    s.travel?.building === true
+      ? s.actors.filter(
+          (a) => a.faction === 'boss' && a.alive && mid !== null && dist(a.pos, mid) < NEARBY,
+        )
+      : s.actors.filter((a) => a.faction === 'boss' && a.alive)
   // Where you are, which is the one thing a party crossing a building needs
   // and the one thing a boss frame never had to say.
   const room = s.chamber === null ? null : chamberAt(s.chamber)
@@ -1232,7 +1256,12 @@ function drawFightInfo(ctx: CanvasRenderingContext2D, s: SimState): void {
   if (s.mode === 'travel') {
     ctx.fillText(`${s.time.toFixed(0)}s`, L.infoX, y)
     y += line
-    ctx.fillText(`${s.actors.filter((a) => a.faction === 'boss' && a.alive).length} ahead`, L.infoX, y)
+    // What is left of the building, rather than what is left of the stretch:
+    // walking a citadel, the count of everything still alive in it is a
+    // number about the evening. Walking one corridor it is the same number it
+    // always was, because the corridor is all there is.
+    const rest = s.actors.filter((a) => a.faction === 'boss' && a.alive).length
+    ctx.fillText(s.travel?.building === true ? `${rest} left in it` : `${rest} ahead`, L.infoX, y)
     return
   }
 

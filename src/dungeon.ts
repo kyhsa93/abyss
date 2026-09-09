@@ -1,5 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
-import type { Corridor } from './sim/travel'
+import type { Corridor, Pack } from './sim/travel'
 import { ROUND_ARENA, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
@@ -722,6 +722,19 @@ export function groundFor(from: string, to: string): Corridor | null {
     ways: passage.corridor.ways.map((way) => ({ to: way.to, at: place(way.at) })),
     packs: passage.corridor.packs.map((pack) => ({ ...pack, pos: place(pack.pos) })),
   }
+}
+
+/**
+ * Everything standing in the building, placed.
+ *
+ * All of it at once, because the party walks the whole citadel in one go now:
+ * a pack that only existed while its own corridor was the world was a pack
+ * that could not be walked into. They sleep where they were put and notice
+ * when somebody comes near, which is what they always did — there are simply
+ * no longer any of them that do not exist yet.
+ */
+export function citadelPacks(): Pack[] {
+  return PASSAGES.flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
 }
 
 /** Every room and every stretch of ground, placed. */

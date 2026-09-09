@@ -150,13 +150,16 @@ import {
   CHAMBERS,
   PASSAGES,
   chamberAt,
+  citadelPacks,
   citadelWorld,
   groundFor,
   hallFor,
   passageKey,
+  roomOf,
   placeOf,
 } from './dungeon'
 import type { Corridor } from './sim/travel'
+import { insideRoom } from './sim/room'
 import type { SimState, Vec2 } from './sim/types'
 
 const BASE_SEED = 0x51ed
@@ -736,6 +739,26 @@ function fightAwaits(id: string): boolean {
  * behind it.
  */
 /**
+ * The room the party is standing in, or null while they are between two.
+ *
+ * The middle of the raid rather than any one body, because half of them in a
+ * doorway is not half an arrival: a room is somewhere the party is, and the
+ * party is where most of it is.
+ */
+function roomUnderfoot(): string | null {
+  const bodies = state.actors.filter((a) => a.faction === 'party' && a.alive)
+  if (bodies.length === 0) return null
+  const mid = {
+    x: bodies.reduce((n, a) => n + a.pos.x, 0) / bodies.length,
+    y: bodies.reduce((n, a) => n + a.pos.y, 0) / bodies.length,
+  }
+  for (const chamber of CHAMBERS) {
+    if (insideRoom({ ...roomOf(chamber.id), at: placeOf(chamber.id) }, mid, 0)) return chamber.id
+  }
+  return null
+}
+
+/**
  * Where every body is standing, right now.
  *
  * Handed to whatever the party walks into next, so that walking into it is a
@@ -763,13 +786,19 @@ function standIn(id: string, from: string | null): void {
   graded = false
   announced = []
   const carried = from === null ? undefined : whereTheyStand()
+  // One walk for the whole evening: the building's own floor, every pack in it
+  // already standing where it stands, and the doors of the room the party is
+  // in. Reaching one of them changes which room they are in and nothing else —
+  // there is no end to a walk across a citadel.
+  const ground: Corridor = { ...hallFor(id, from, canGoTo), id: 'citadel', packs: citadelPacks() }
   state = createCorridorState(
-    roomSeed(run, `hall:${id}`),
+    roomSeed(run, 'citadel'),
     party,
-    hallFor(id, from, canGoTo),
+    ground,
     run.difficulty,
     4,
     carried,
+    true,
   )
   state.chamber = id
   // The whole building is underfoot, not just this room: a doorway is floor,
@@ -1752,6 +1781,34 @@ function frame(now: number): void {
     effects.ingest(state)
     timing.accumulator -= DT
     ticks++
+  }
+
+  // Which room the party has walked into.
+  //
+  // Read off where they are standing rather than off a door they touched: on
+  // one continuous floor there is no moment of arrival to catch, only a party
+  // that is now somewhere else. When that somewhere has a fight in it the
+  // fight starts; when it does not, the doors on the floor become that room's
+  // and the walk carries on without anything ending.
+  if (state.mode === 'travel' && state.travel?.building === true && run && state.outcome === 'ongoing') {
+    const here = roomUnderfoot()
+    if (here !== null && here !== state.chamber) {
+      const from = state.chamber
+      run = stepped(run, here, run.carried)
+      saveRun(run)
+      standing = here
+      state.chamber = here
+      if (fightAwaits(here)) {
+        enterRoom(here)
+        requestAnimationFrame(frame)
+        return
+      }
+      // The same walk, with this room's doors on the floor. Nothing about the
+      // party changes — the ground under them is the same ground.
+      const next = hallFor(here, typeof from === 'string' ? from : null, canGoTo)
+      state.travel.corridor.room = next.room
+      state.travel.corridor.ways = next.ways
+    }
   }
 
   // A walk that finished walks on.

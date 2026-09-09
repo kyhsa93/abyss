@@ -6,6 +6,7 @@ import {
   gateOpen,
   killedOnce,
   padsLit,
+  citadelPacks,
   citadelWorld,
   groundFor,
   hallFor,
@@ -578,6 +579,54 @@ const everywhere = () => true
     'going through a door moves nobody',
     jumped.length === 0 && worst < 0.001,
     jumped.length > 0 ? jumped.join('; ') : `somebody moved ${Math.round(worst)} units`,
+  )
+}
+
+// One walk, not sixteen.
+//
+// The floor was continuous and the walking was not: reaching a doorway ended
+// the walk, the world was rebuilt on the other side, and the party carried on
+// in a new one. Continuous floor with a scene change every twenty seconds is
+// still a building you cross by teleporting, which is what was said about it.
+//
+// A walk across the citadel has every pack in the building already standing
+// where it stands, and does not end. Both of those are things that were wrong
+// and are worth holding: the packs were pushed into whichever room the party
+// happened to be in, so all fifty-two of them stood in the first doorway.
+{
+  const dps = pickFor('warrior', 'dps')!
+  const anywhere = () => true
+  const ground = {
+    ...hallFor('threshold', null, anywhere),
+    id: 'citadel',
+    packs: citadelPacks(),
+  }
+  const s = unattended(
+    createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
+  )
+  s.floor = citadelWorld().map((cell) => cell.room)
+  s.chamber = 'threshold'
+
+  expect(
+    `the whole building's ${citadelPacks().length} packs are in the walk`,
+    s.actors.filter((a) => a.faction === 'boss').length ===
+      citadelPacks().reduce((n, pack) => n + pack.count, 0),
+    `${s.actors.filter((a) => a.faction === 'boss').length} bodies`,
+  )
+
+  // Spread across it, not heaped where the party is standing.
+  const start = placeOf('threshold')
+  const heaped = s.actors.filter(
+    (a) => a.faction === 'boss' && dist(a.pos, start) < 1600,
+  ).length
+  expect('and standing where they were put, not where the party is', heaped === 0, `${heaped} in the doorway`)
+
+  const rng = new Rng(5)
+  for (let t = 0; t < 30 * 120; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect(
+    'and two minutes of walking never ends the walk',
+    s.outcome === 'ongoing' && s.travel?.through === null,
+    `${s.outcome}, through ${s.travel?.through ?? 'nothing'}`,
   )
 }
 

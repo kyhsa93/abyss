@@ -92,8 +92,21 @@ export interface TravelState {
    * Read after the walk rather than decided before it. With one way out this
    * is the only answer there was; with three it is the evening's choice, and
    * it was made by walking rather than by pressing.
+   *
+   * Never set while `building` is on: a walk across a whole citadel does not
+   * end at a door, it carries on through it.
    */
   through: string | null
+  /**
+   * Whether this walk is the whole building rather than one stretch of it.
+   *
+   * A corridor is a thing you get to the end of; a citadel is not. With this
+   * on, the party is on the building's own floor with every pack in it already
+   * standing where it stands, the room they are in is read off where they are,
+   * and nothing about reaching a doorway ends anything. It is the difference
+   * between sixteen walks with a scene change between each and one walk.
+   */
+  building: boolean
 }
 
 /** How close counts as through the far door. */
@@ -169,6 +182,8 @@ export function createTravelState(
    * few hundred units is what the whole of this was about.
    */
   standing?: Vec2[],
+  /** Whether this is the whole building. See `TravelState.building`. */
+  building = false,
 ): SimState {
   const size = party.length as RaidSize
   // Facing the middle of the ways out, which for a passage is the far door
@@ -199,7 +214,11 @@ export function createTravelState(
       const angle = (i / pack.count) * Math.PI * 2
       const spread = 34 + (i % 2) * 22
       const at = { x: pack.pos.x + Math.cos(angle) * spread, y: pack.pos.y + Math.sin(angle) * spread }
-      pushInside(corridor.room, at, 20)
+      // Into the room, for a walk that *is* one room. Not for a building: the
+      // packs of a citadel stand in fifteen different stretches of it, and
+      // pushing them into whichever room the party happens to be standing in
+      // put all fifty-two of them in the doorway of the first one.
+      if (!building) pushInside(corridor.room, at, 20)
       const body = makeTrash(nextId++, at.x, at.y, hp)
       belongs[body.id] = index
       actors.push(body)
@@ -227,7 +246,13 @@ export function createTravelState(
     room: corridor.room,
     chamber: null,
     gauge: 0,
-    travel: { corridor, woken: corridor.packs.map(() => false), belongs, through: null },
+    travel: {
+      corridor,
+      woken: corridor.packs.map(() => false),
+      belongs,
+      through: null,
+      building,
+    },
     nextDoor: 0,
     only: null,
     healing: 1,
@@ -413,6 +438,10 @@ export function updateTravel(s: SimState, rng: Rng): void {
     return
   }
   if (awake(s).length > 0) return
+  // A walk across the whole building does not finish. There is nowhere it is
+  // trying to get to: the party is somewhere in a citadel and stays there
+  // until something in it stops them.
+  if (travel.building) return
   // Everybody through the same door, rather than whoever got there first: a
   // passage left behind by half a party is a party in two rooms, which is the
   // one state the citadel does not model — and with several doors, half a
