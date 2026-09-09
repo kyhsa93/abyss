@@ -2240,13 +2240,24 @@ you cannot pass. It does not show that today, and the honest thing is to say so
 rather than to print a number and a sentence that disagree.
 
 This is one fixed party at one size. The per-cell table — three sizes by two
-difficulties, which is where a fight is actually judged — reads 100/100 across
-the Bonegrinder, 98 down to 60 across the Whisper's six, 98 down to 60 across
-the Host's, 100 down to 75 across the Bloodgorged's, 100 down to 88 across the
-Confluence's, 100 down to 45 across the Two Flasks', 100 down to 70 across the
-Three Crowns', and 100 down to 70 across the Crimson Gift's. What this row is
-catching is the one composition it uses against the seven fights that ask for a
-target call and a second tank, none of which a fixed party makes well.
+difficulties, which is where a fight is actually judged — reads, as a first
+pull across each boss's six: 100/100 on the Bonegrinder, 100 down to 5 on the
+Whisper's, 100 down to 63 on the Host's, 100 down to 75 on the Bloodgorged's,
+100 down to 90 on the Confluence's, 100 down to 45 on the Two Flasks', 100 down
+to 80 on the Three Crowns', 100 down to 83 on the Crimson Gift's, and 100 down
+to 95 on The One You Save's. What this row is catching is the one composition
+it uses against the seven fights that ask for a target call and a second tank,
+none of which a fixed party makes well.
+
+The last of those is the honest exception and is worth saying plainly: every
+cell of The One You Save is won, and nearly all of them on the first pull. The
+raid answers all four of its demands with rules it already had — walking into
+the middle is the wound, not hitting the kindred is the same "leave that one
+alone" the turned body taught it, and the blocking is an ordinary target call.
+What the fight has that nothing else here does is an inverted victory
+condition, and an inverted victory condition is not a demand on anybody. The
+clock is the whole of its difficulty, and 178 seconds against 190 at the top of
+its ladder is the only place that clock is close.
 
 It is also being read against rooms that are still being written. The bands
 that would normally hold this line are switched off by name until the twelve
