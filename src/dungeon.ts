@@ -817,6 +817,28 @@ export interface Cell {
 }
 
 /**
+ * The same plan, squashed into a unit square.
+ *
+ * The plan is in measured yards, which is what a building wants and not what a
+ * *drawing* of one wants: the map screen lays rooms out as fractions of the
+ * space it has been given, and handed yards it put twelve of the seventeen off
+ * the edge of a phone. So the normalising happens once, here, rather than in
+ * the drawing — the map is a picture of the plan and should not be allowed a
+ * second opinion about where a room is.
+ */
+export const CITADEL_CHART: Array<{ id: string; x: number; y: number }> = (() => {
+  const xs = CITADEL_PLAN.map((e) => e.x)
+  const ys = CITADEL_PLAN.map((e) => e.y)
+  const x0 = Math.min(...xs)
+  const y0 = Math.min(...ys)
+  const w = Math.max(...xs) - x0
+  const h = Math.max(...ys) - y0
+  // Drawn with the way on running *down* the screen, which is how the raid's
+  // own poster prints it and how this list read before it was in yards.
+  return CITADEL_PLAN.map((e) => ({ id: e.id, x: (e.x - x0) / w, y: 1 - (e.y - y0) / h }))
+})()
+
+/**
  * How far the furthest room stands from the door, in units.
  *
  * Reported rather than chosen. The plan used to be fractions of a square times

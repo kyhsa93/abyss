@@ -2,7 +2,7 @@ import { BATTLEGROUNDS } from '../sim/battleground'
 import { ART } from '../credits'
 import {
   CHAMBERS,
-  CITADEL_PLAN,
+  CITADEL_CHART,
   PASSAGES,
   chamberAt,
   passageKey,
@@ -971,10 +971,10 @@ export function citadelLayout(
   // still clears on one axis or the other, which is monotone in the scale and
   // so is found by halving.
   const clear = (w: number, h: number): boolean => {
-    for (let i = 0; i < CITADEL_PLAN.length; i++) {
-      for (let j = i + 1; j < CITADEL_PLAN.length; j++) {
-        const a = CITADEL_PLAN[i]!
-        const b = CITADEL_PLAN[j]!
+    for (let i = 0; i < CITADEL_CHART.length; i++) {
+      for (let j = i + 1; j < CITADEL_CHART.length; j++) {
+        const a = CITADEL_CHART[i]!
+        const b = CITADEL_CHART[j]!
         const apart =
           Math.abs(a.x - b.x) * (span - w) >= w || Math.abs(a.y - b.y) * (vspan - h) >= h
         if (!apart) return false
@@ -1001,7 +1001,7 @@ export function citadelLayout(
   const low = bottom - height / 2
 
   const reached = new Set(open(run).map((c) => c.id))
-  const rows = CITADEL_PLAN.map((entry) => {
+  const rows = CITADEL_CHART.map((entry) => {
     const cx = left + (right - left) * entry.x
     const cy = high + (low - high) * entry.y
     const chamber = chamberAt(entry.id)
@@ -1053,7 +1053,7 @@ export function citadelLayout(
   // because the press on this map means *go there*, so a map with somewhere
   // to stand is not the same as a map with something to do. What ends an
   // evening is a fight — reached, alive, and open at the rung being walked.
-  const alive = CITADEL_PLAN.some((entry) => {
+  const alive = CITADEL_CHART.some((entry) => {
     const chamber = chamberAt(entry.id)
     return (
       chamber !== undefined &&
@@ -1164,7 +1164,7 @@ export function drawCitadel(
   // size — a disc for a disc, a rectangle at the hall's proportions, the big
   // ones bigger — inside the box the layout solved for, never over it, so the
   // spacing still holds whatever the shapes turn out to be.
-  const biggest = Math.max(...CITADEL_PLAN.map((entry) => roomArea(roomOf(entry.id))))
+  const biggest = Math.max(...CITADEL_CHART.map((entry) => roomArea(roomOf(entry.id))))
   for (const row of layout.rows) {
     const chamber = chamberAt(row.id)
     if (!chamber) continue
