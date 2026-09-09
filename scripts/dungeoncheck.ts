@@ -42,6 +42,12 @@ import {
   save,
   startRun,
   stepTo,
+  abandon,
+  instanceAt,
+  instances,
+  isSaved,
+  lockAt,
+  resetsAt,
   walkedTo,
   wayOpen,
   ways,
@@ -963,7 +969,7 @@ expect(
     JSON.stringify(back),
   )
   save(null)
-  expect('and giving up on it leaves nothing behind', load() === null)
+  expect('and stepping out of it leaves nobody standing in it', load() === null)
 
   // A save from another version: a room that no longer exists, and a party
   // standing somewhere the doors no longer reach.
@@ -1414,6 +1420,105 @@ expect(
     unlocked === RUNGS_PER_BOSS,
     `${unlocked}`,
   )
+}
+
+// The building is a place you are saved to, not a session you can restart.
+//
+// It was one evening at a time with a button to throw it away, and that makes
+// every fight in it optional: walk in, wipe, give up, walk in again with
+// everything back up. Nothing cost anything, so nothing was a decision — and
+// an order with three wings taken in any order is a decision the game was
+// declining to charge for.
+//
+// The source's rule instead. A lock a week; four settings are four separate
+// buildings; what you kill stays dead until the lock turns over; and you are
+// bound to one the moment something in it dies, not before.
+{
+  const store = new Map<string, string>()
+  ;(globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  }
+
+  // A Wednesday, and the same hour a week on. Written as instants rather than
+  // taken off the clock, or this check would pass or fail by the day it ran.
+  const week = 7 * 24 * 60 * 60 * 1000
+  const monday = Date.UTC(2026, 8, 7, 12)
+  const thursday = Date.UTC(2026, 8, 10, 12)
+  const nextWeek = monday + week
+  expect(
+    'a week is one lock and the Wednesday in it turns it over',
+    lockAt(monday) === lockAt(monday + 60_000) &&
+      lockAt(thursday) === lockAt(monday) + 1 &&
+      lockAt(nextWeek) === lockAt(monday) + 1,
+    `${lockAt(monday)} / ${lockAt(thursday)} / ${lockAt(nextWeek)}`,
+  )
+  expect(
+    'and the lock says when it turns over',
+    resetsAt(lockAt(monday)) > monday && resetsAt(lockAt(monday)) <= monday + week,
+    `${(resetsAt(lockAt(monday)) - monday) / (60 * 60 * 1000)} hours`,
+  )
+
+  // What is killed stays killed, and only for this lock.
+  store.clear()
+  const ten = cleared(startRun(1, 10, 'normal'), 'spire', [])
+  save(ten, monday)
+  expect(
+    'what is dead in an instance is still dead when you come back to it',
+    load(monday)?.cleared.join() === 'spire',
+    JSON.stringify(load(monday)?.cleared),
+  )
+  expect(
+    'and it is standing again on the other side of the reset',
+    load(thursday) === null && instanceAt(10, 'normal', thursday) === null,
+    JSON.stringify(load(thursday)),
+  )
+
+  // Four settings, four buildings.
+  store.clear()
+  save(cleared(startRun(1, 10, 'normal'), 'spire', []), monday)
+  save(startRun(2, 25, 'heroic'), monday)
+  expect(
+    'four settings are four separate instances',
+    instanceAt(10, 'normal', monday)?.cleared.join() === 'spire' &&
+      instanceAt(25, 'heroic', monday)?.cleared.length === 0 &&
+      instanceAt(5, 'normal', monday) === null,
+    instances(monday).map((r) => `${r.size}${r.difficulty[0]}:${r.cleared.length}`).join(', '),
+  )
+
+  // Bound by the first kill and not before.
+  store.clear()
+  const looked = startRun(3, 10, 'normal')
+  expect('an instance nobody has killed anything in is not saved', !isSaved(looked))
+  save(looked, monday)
+  abandon(looked, monday)
+  expect(
+    'and giving that one up leaves nothing behind',
+    instanceAt(10, 'normal', monday) === null,
+    JSON.stringify(instanceAt(10, 'normal', monday)),
+  )
+  const bound = cleared(looked, 'spire', [])
+  expect('one with something dead in it is saved', isSaved(bound))
+  save(bound, monday)
+  abandon(bound, monday)
+  expect(
+    'and giving that one up only walks out of the door',
+    load(monday) === null && instanceAt(10, 'normal', monday)?.cleared.join() === 'spire',
+    JSON.stringify(instanceAt(10, 'normal', monday)),
+  )
+
+  // And a save from before there were instances is somebody's evening, not
+  // rubbish to be swept up: it belongs to the setting it was played at.
+  store.clear()
+  store.set('abyss.citadel', JSON.stringify(cleared(startRun(4, 25, 'normal'), 'spire', [])))
+  expect(
+    'a save from before the lock keeps its evening, at its own setting',
+    instanceAt(25, 'normal', monday)?.cleared.join() === 'spire' &&
+      instanceAt(10, 'normal', monday) === null,
+    JSON.stringify(instances(monday).map((r) => r.size)),
+  )
+  store.clear()
 }
 
 if (failures > 0) {

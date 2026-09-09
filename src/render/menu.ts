@@ -1072,25 +1072,48 @@ export function citadelLayout(
   }
 }
 
+/**
+ * How long is left on a lock, in words rather than in a clock.
+ *
+ * Days while there are days and hours once there are not, because the only
+ * decision it feeds is whether tonight is the night to spend what is left of
+ * this week's building — and "2 days" answers that where "1 day 19:42:03"
+ * only asks to be read.
+ */
+function reads(ms: number): string {
+  const hours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)))
+  if (hours >= 48) return `for ${Math.floor(hours / 24)} more days`
+  if (hours >= 24) return 'for another day'
+  if (hours >= 2) return `for ${hours} more hours`
+  return 'until the hour is out'
+}
+
 export function drawCitadel(
   ctx: CanvasRenderingContext2D,
   run: Run,
   allowed: ReadonlySet<string> = ALL,
   /** The rung to walk it again at, when the evening has nothing left in it. */
   again: string | null = null,
+  /** Milliseconds until this lock turns over, or null where nothing is held. */
+  untilReset: number | null = null,
 ): void {
   backdrop(ctx)
   const layout = citadelLayout(run, allowed, again)
   const down = run.cleared.length
   const rung = `${run.size}-man ${run.difficulty === 'heroic' ? 'heroic' : 'normal'}`
+  // What is standing is a fact about a *lock*, not about a session, so the
+  // subtitle says which lock and how long it has left. Four settings are four
+  // buildings and each keeps its own dead.
+  const left = untilReset === null ? null : reads(untilReset)
+  const locked = down > 0 && left !== null ? ` — locked ${left}` : ''
   screenTitle(
     ctx,
     'THE CITADEL',
     layout.again
-      ? `${rung} — nothing above this is open yet`
+      ? `${rung} — nothing above this is open yet${locked}`
       : down === 0
         ? `${rung} — where you are, and what is still shut`
-        : `${rung} — ${down} down, ${run.entered} rooms entered`,
+        : `${rung} — ${down} down, ${run.entered} rooms entered${locked}`,
   )
 
   // The passages first, under the rooms: a corridor is ground the party walks
@@ -1202,7 +1225,19 @@ export function drawCitadel(
   }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
-  if (layout.abandon) button(ctx, layout.abandon, 'GIVE UP', '', COLORS.boss)
+  // Two different presses under one button, so it must not wear one name.
+  // Nothing dead in here: the evening is thrown away and the setting is fresh.
+  // Something dead: the week holds it, and this only walks out of the door.
+  if (layout.abandon) {
+    const bound = down > 0
+    button(
+      ctx,
+      layout.abandon,
+      bound ? 'LEAVE' : 'GIVE UP',
+      bound ? 'the dead stay dead' : '',
+      bound ? COLORS.textDim : COLORS.boss,
+    )
+  }
   if (layout.again && again) {
     button(ctx, layout.again, `WALK IT AGAIN — ${again}`, '', COLORS.castBar, true)
   }

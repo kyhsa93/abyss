@@ -139,7 +139,11 @@ import {
   stepped,
   throughDoor,
   walkedTo,
+  abandon as abandonRun,
+  instanceAt,
+  lockAt,
   load as loadRun,
+  resetsAt,
   roomSeed,
   save as saveRun,
   startRun,
@@ -960,10 +964,13 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       return
     }
     if (hit?.kind === 'abandon') {
+      // Given up if it is still allowed to be given up, and otherwise only
+      // stepped out of: the building is locked for the week the moment
+      // something in it dies. `abandon` knows which of the two this is.
+      abandonRun(run)
       run = null
       roomId = null
       standing = null
-      saveRun(null)
       screen = 'home'
       return
     }
@@ -975,7 +982,7 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       difficulty = climb.difficulty
       if (climb.size !== party.length) resize(climb.size)
       saveSetup()
-      run = startRun(Date.now(), climb.size, climb.difficulty)
+      run = instanceAt(climb.size, climb.difficulty) ?? startRun(Date.now(), climb.size, climb.difficulty)
       roomId = null
       saveRun(run)
       // Straight back to the door of the new evening, in it.
@@ -992,7 +999,7 @@ function updateCitadel(tap: { x: number; y: number } | null): void {
       return
     }
   }
-  drawCitadel(ctx, run, allowed, again)
+  drawCitadel(ctx, run, allowed, again, resetsAt(lockAt(Date.now())) - Date.now())
 }
 
 let state: SimState = newState()
@@ -1126,10 +1133,18 @@ function walkIn(): void {
     standIn(standing, null)
     return
   }
-  if (!run) {
-    run = startRun(Date.now(), party.length as RaidSize, difficulty)
-    saveRun(run)
+  // The instance for tonight's setting, resumed. Four settings are four
+  // separate places — killing the first boss with ten on normal says nothing
+  // about the same boss with twenty-five on heroic — so which one the press
+  // opens is read off the fields the player just set rather than off whichever
+  // one they happened to be in last.
+  const want = party.length as RaidSize
+  if (!run || run.size !== want || run.difficulty !== difficulty) {
+    run = instanceAt(want, difficulty) ?? startRun(Date.now(), want, difficulty)
+    roomId = null
+    standing = null
   }
+  saveRun(run)
   // At the door, in it. An evening used to open on a plan of the building
   // with the first room a press away; it opens standing in the first room.
   standIn(run.at, null)

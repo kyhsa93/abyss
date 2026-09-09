@@ -310,12 +310,115 @@ export function wiped(run: Run, was: number[]): Run {
   return { ...run, carried: was }
 }
 
+// --- the instance ------------------------------------------------------------
+//
+// A raid is a place you are saved to, not a session you can start again.
+//
+// This was one evening at a time and a button to throw it away, which makes
+// every fight in the building optional: walk in, wipe, abandon, walk in again
+// with everything back. Nothing in it cost anything, so nothing in it was a
+// decision — and the map's whole shape, an order and three wings taken in
+// whatever order you like, is a decision the game was not charging for.
+//
+// So the source's rule. The building is entered on a lock, the things you kill
+// in it stay dead until the lock turns over, and the four settings are four
+// different places: killing the first boss with ten people on normal says
+// nothing about the same boss with twenty-five on heroic. You are bound to one
+// the moment something in it dies, and not before — an evening nobody has
+// killed anything in is a room you walked into and left, which is the one
+// escape hatch the source has and the reason this is not a trap.
+
 const KEY = 'abyss.citadel'
 
-export function save(run: Run | null): void {
+/** A week, and the moment one turns over. */
+const WEEK = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Midnight UTC on the first Wednesday of the epoch.
+ *
+ * Wednesday because that is the day this raid's own resets fall on, and UTC
+ * rather than the player's clock because a reset that moves with the timezone
+ * is a reset that can be walked backwards by changing it. Ninety in the
+ * morning in Korea, which is close enough to where the source puts it.
+ */
+const FIRST_RESET = 6 * 24 * 60 * 60 * 1000
+
+/** Which lock a moment falls in. */
+export function lockAt(now: number): number {
+  return Math.floor((now - FIRST_RESET) / WEEK)
+}
+
+/** And when that lock turns over. */
+export function resetsAt(lock: number): number {
+  return FIRST_RESET + (lock + 1) * WEEK
+}
+
+/**
+ * Which of the four places this is.
+ *
+ * Size and difficulty, because they are four separate instances in the source
+ * and the reason is the one that matters here: what you have already killed
+ * this week is a claim about a *setting*, and the same building at another one
+ * has not been walked at all.
+ */
+export function instanceOf(size: RaidSize, difficulty: DifficultyId): string {
+  return `${size}:${difficulty}`
+}
+
+/**
+ * Whether the evening is bound to this instance yet.
+ *
+ * The first kill binds it, which is the source's rule and is also the only
+ * humane place to put the line: an instance somebody walked into, looked at
+ * and left is not a week thrown away, and one with a boss down in it is a
+ * week's progress that must not be re-rolled until it can be earned again.
+ */
+export function isSaved(run: Run): boolean {
+  return run.cleared.length > 0
+}
+
+/** Everything held, and which one is being played. */
+interface Vault {
+  lock: number
+  /** The instance the player is in, by key, or null for standing outside. */
+  at: string | null
+  runs: Record<string, Run>
+}
+
+function readVault(now: number): Vault {
+  const empty: Vault = { lock: lockAt(now), at: null, runs: {} }
   try {
-    if (run === null) localStorage.removeItem(KEY)
-    else localStorage.setItem(KEY, JSON.stringify(run))
+    const raw = localStorage.getItem(KEY)
+    if (!raw) return empty
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return empty
+    const value = parsed as Partial<Vault> & Partial<Run>
+    // A save from before there were instances: one run, no lock. It is this
+    // week's, in its own setting's place. Thrown away instead would be a
+    // player's evening deleted by an update.
+    if (typeof value.runs !== 'object' || value.runs === null) {
+      const only = readRun(parsed)
+      if (!only) return empty
+      const key = instanceOf(only.size, only.difficulty)
+      return { lock: lockAt(now), at: key, runs: { [key]: only } }
+    }
+    // Last week's, which is to say nobody's. The building is standing again.
+    if (value.lock !== lockAt(now)) return empty
+    const runs: Record<string, Run> = {}
+    for (const [key, raw] of Object.entries(value.runs)) {
+      const run = readRun(raw)
+      if (run && instanceOf(run.size, run.difficulty) === key) runs[key] = run
+    }
+    const at = typeof value.at === 'string' && runs[value.at] ? value.at : null
+    return { lock: lockAt(now), at, runs }
+  } catch {
+    return empty
+  }
+}
+
+function writeVault(vault: Vault): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(vault))
   } catch {
     // A run that cannot be saved is still a run. Storage is refused in a
     // private window and full on a phone, and neither is a reason to stop
@@ -324,7 +427,7 @@ export function save(run: Run | null): void {
 }
 
 /**
- * The evening, resumed.
+ * One instance, read back.
  *
  * Every field is checked rather than trusted: this is the one save in the game
  * that names rooms, and a room that has been renamed or removed between two
@@ -332,11 +435,8 @@ export function save(run: Run | null): void {
  * back cleanly is no run at all, which puts the player at the door with
  * nothing lost but an evening they were not in the middle of.
  */
-export function load(): Run | null {
+function readRun(parsed: unknown): Run | null {
   try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return null
     const value = parsed as Partial<Run>
     if (typeof value.seed !== 'number' || typeof value.at !== 'string') return null
@@ -373,4 +473,57 @@ export function load(): Run | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Save the instance, and stand in it.
+ *
+ * `null` steps out rather than throwing away: leaving the building is not the
+ * same as never having been in it, and with a lock on it the difference is a
+ * week. What actually removes one is `abandon`, and only while nothing in it
+ * has died.
+ */
+export function save(run: Run | null, now = Date.now()): void {
+  const vault = readVault(now)
+  if (run === null) {
+    writeVault({ ...vault, at: null })
+    return
+  }
+  const key = instanceOf(run.size, run.difficulty)
+  writeVault({ lock: lockAt(now), at: key, runs: { ...vault.runs, [key]: run } })
+}
+
+/** The instance the player is standing in, if this lock still holds one. */
+export function load(now = Date.now()): Run | null {
+  const vault = readVault(now)
+  return vault.at === null ? null : (vault.runs[vault.at] ?? null)
+}
+
+/** The instance at a setting, whether or not it is the one being played. */
+export function instanceAt(size: RaidSize, difficulty: DifficultyId, now = Date.now()): Run | null {
+  return readVault(now).runs[instanceOf(size, difficulty)] ?? null
+}
+
+/** Every instance held on this lock, for a screen that has to show them. */
+export function instances(now = Date.now()): Run[] {
+  return Object.values(readVault(now).runs)
+}
+
+/**
+ * Give one up, if it is still allowed to be given up.
+ *
+ * Nothing dead in it: it is removed, and the setting is fresh again. Something
+ * dead in it: the lock holds, and this only steps outside. The button that
+ * calls this says which of the two it is about to do, because a player who
+ * pressed it expecting the first and got the second has lost a week.
+ */
+export function abandon(run: Run, now = Date.now()): void {
+  const vault = readVault(now)
+  if (isSaved(run)) {
+    writeVault({ ...vault, at: null })
+    return
+  }
+  const runs = { ...vault.runs }
+  delete runs[instanceOf(run.size, run.difficulty)]
+  writeVault({ lock: lockAt(now), at: null, runs })
 }
