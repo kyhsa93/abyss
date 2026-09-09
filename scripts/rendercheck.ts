@@ -8,7 +8,8 @@ import { MAX_CATCHUP_TICKS, advance, type Clock } from '../src/loop'
 import { TILT, drawOrder, drawWorld, focusOn } from '../src/render/draw'
 import { resetView, viewAngle } from '../src/render/camera'
 import { HINT_KEYS } from '../src/render/hints'
-import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_ROW } from '../src/render/lpc'
+import { walkFrame } from '../src/render/lpcimage'
+import { LPC_ANIMATIONS, LPC_ARMS, LPC_CELLS, LPC_FRAMES, LPC_ROW } from '../src/render/lpc'
 import { Effects } from '../src/render/effects'
 import { allIcons, hitStyleFor, iconFor } from '../src/render/icons'
 import {
@@ -6011,6 +6012,40 @@ for (const [label, w, h] of [
     'melee are paid for standing where the boss aims',
     MELEE_CALL < 1,
     `${MELEE_CALL} of everybody else's count`,
+  )
+}
+
+// --- a body walks through its own row, wherever it is standing ------------
+//
+// The walk frame is taken from a body's position, and `%` in this language
+// keeps the sign of its left-hand side. Every room in the citadel sits at
+// negative coordinates, so the cycle ran 1, 0, -1, -2 — and a negative frame
+// does not clamp to the row, it indexes backwards off the start of it and
+// lands in the row above, which is a different *facing*. What that looked like
+// was the whole raid glancing sideways twice a second while walking in a
+// straight line, and it was invisible to everything that watches the
+// simulation: the bearing was measured at exactly minus a half pi for a
+// hundred and eighty frames while it happened.
+{
+  const bad: string[] = []
+  // Across the whole building and then some, both signs, and the fractions in
+  // between — a position is not an integer.
+  for (let p = -40000; p <= 40000; p += 137.7) {
+    const f = walkFrame(p)
+    if (!Number.isInteger(f) || f < 1 || f > LPC_FRAMES - 1) bad.push(`${p.toFixed(0)} -> ${f}`)
+  }
+  expect(
+    'a walking body stays inside its own row of frames',
+    bad.length === 0,
+    bad.slice(0, 5).join(', '),
+  )
+  // And it is a cycle rather than a clamp: every frame of the walk is used.
+  const seen = new Set<number>()
+  for (let p = -1000; p < 1000; p += 1) seen.add(walkFrame(p))
+  expect(
+    `and uses all ${LPC_FRAMES - 1} of them`,
+    seen.size === LPC_FRAMES - 1,
+    [...seen].sort((a, b) => a - b).join(','),
   )
 }
 

@@ -116,6 +116,24 @@ const lastSide = new Map<number, number>()
  */
 const HOLD_SIDE = 0.2
 
+/**
+ * Which frame of the walk a body is on, and it is never negative.
+ *
+ * Its own function so the build can ask. `%` in this language keeps the sign
+ * of its left-hand side, and what is fed to it here is a *position* — so the
+ * day the rooms were placed in a building, every body west or north of the
+ * middle of the map started walking through frames 1, 0, -1, -2. A negative
+ * frame does not clamp: it indexes backwards off the start of the row and
+ * lands in the row above, which is a different facing. The raid glanced
+ * sideways twice a second while walking in a straight line, and nothing in the
+ * simulation had moved — the bearing was measured at exactly minus a half pi
+ * for a hundred and eighty frames while it was happening.
+ */
+export function walkFrame(phase: number): number {
+  const cycle = LPC_FRAMES - 1
+  return 1 + (((Math.floor(phase) % cycle) + cycle) % cycle)
+}
+
 function directionOf(facing: number, who?: number): number {
   const dx = Math.cos(facing)
   const dy = Math.sin(facing)
@@ -194,8 +212,21 @@ export function drawBody(
       ? Math.min(LPC_FRAMES - 1, Math.floor(casting * LPC_FRAMES))
       : // Frame zero is the standing pose, so a body that is not walking must
         // not land on the cycle by accident.
+        //
+        // A remainder that cannot be negative, and it has to be said out loud
+        // because the language's cannot promise that: `%` keeps the sign of
+        // the left-hand side, `phase` is a position, and the day the rooms
+        // were placed in a building every position west or north of the middle
+        // of the map went negative. So the cycle ran 1, 0, -1, -2 — and a
+        // negative frame does not clamp, it indexes backwards off the start of
+        // the row and lands in the row above, which is a different *facing*.
+        //
+        // What that looks like is the whole raid glancing sideways twice a
+        // second while walking in a straight line. Nothing in the simulation
+        // moved: the bearing this is drawn from was measured at exactly
+        // minus a half pi for a hundred and eighty frames while it happened.
         moving
-        ? 1 + (Math.floor(phase) % (LPC_FRAMES - 1))
+        ? walkFrame(phase)
         : 0
   const direction = directionOf(facing, who)
 
