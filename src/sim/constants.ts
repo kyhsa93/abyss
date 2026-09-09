@@ -1706,3 +1706,136 @@ export const PORTAL_POWER = 0.18
 
 /** What one of the things that block the mending takes off it. */
 export const SUPPRESS_CUT = 0.45
+
+/**
+ * The chill, which is what a swing into the cold costs.
+ *
+ * Nobody answers it and nobody is meant to. What it does is make a melee
+ * place cost the healers something every second of the pull, so that a raid's
+ * composition is a fact the healing has to carry rather than a free choice --
+ * and it is at the bottom of the ladder because a mechanic with no answer
+ * teaches nothing and must never be sold as an idea.
+ *
+ * Twenty percent a swing behind a cadence that is the phase's, capped at
+ * eight, and off twelve seconds after the last one landed. Measured it will
+ * come back at nothing at all, and that nothing is the point: a background
+ * load that measures as a background load is working.
+ */
+export const CHILL_CHANCE = 0.2
+export const CHILL_LIFE = 12
+export const CHILL_MAX = 8
+export const CHILL_BITE = 4
+
+/**
+ * The mark that is answered by doing nothing.
+ *
+ * Fifteen seconds, one per four bodies, half of them on healers. Every cast
+ * started while it is on adds one to the debt, and the bill at the end is the
+ * square of the debt -- two casts is nothing, five is most of a bar, eight is
+ * a body. Squared rather than linear because a linear bill is a tax a raid
+ * pays and carries on, and what this asks for is a stop.
+ */
+export const UNSTABLE_LIFE = 15
+export const UNSTABLE_PER = 4
+export const UNSTABLE_DEBT = 190
+
+/**
+ * The drag, and the band it drags everybody into.
+ *
+ * Three stages on one count: everything alive is pulled toward the middle for
+ * the first one and a fifth of it, the band reddens for the last one and a
+ * tenth, and then it falls in. The pull is the whole mechanic -- without it
+ * the melee are already inside and the ranged already outside, and a cast
+ * that asks nobody anything is a cast that teaches nothing.
+ *
+ * One point one seconds of warning is not a number to move. It is the
+ * steepest dial in this game: nought point nine five is a wall and one point
+ * one five is a formality.
+ */
+export const HAUL_RADIUS = 240
+export const HAUL_DRAG = 1.2
+export const HAUL_READ = 1.1
+export const HAUL_PULL = 340
+/**
+ * How close in the drag will actually put anybody.
+ *
+ * Without it the pull is an execution rather than a mechanic: it drags every
+ * body to the middle, and a body in the middle has to cover two hundred and
+ * forty units in one point one seconds against a walk of a hundred and
+ * fifty-five. That is not a steep dial, it is an unanswerable one -- measured
+ * at a hundred percent of the raid hit by every cast, and a five-man dead in
+ * thirty-five seconds.
+ *
+ * At a hundred and ten the walk out is a hundred and thirty units, which is
+ * eight tenths of a second of walking inside one and a tenth of warning. The
+ * quarter second that leaves is the reaction delay, which is the thing the
+ * mechanic is actually charging for.
+ */
+export const HAUL_INNER = 110
+export const HAUL_BITE = 800
+export const HAUL_ROOT = 3
+
+/**
+ * The wash, and the shadows that are the only answer to it.
+ *
+ * Three seconds of warning because the walk is long, and the destination is
+ * whatever coffins the raid has not broken yet. `COVER_HOLD` is rule five
+ * written as a ceiling: a shadow shelters so many bodies and no more, so a
+ * bigger raid cannot answer a room-wide bill by crowding one strip.
+ */
+export const COVER_READ = 3
+export const COVER_LONG = 400
+export const COVER_WIDE = 70
+export const COVER_BITE = 3000
+export const COVER_HOLD = 8
+/** The least two coffins may stand apart, so two shadows are two places. */
+export const COVER_APART = 260
+
+/**
+ * The cold, and it is the rung that argued with the rest of the game.
+ *
+ * A stack every so many seconds inside the reach, one back per `BUFFET_SHED`
+ * outside it, each worth `BUFFET_BITE` more magic damage taken. There is no
+ * instant in it at all: what it bills is the decision to stay, and the raid
+ * that is winning is the raid that most wants to.
+ *
+ * The reach was written at four hundred and twenty, on the argument that the
+ * ranged should be inside it too. They are -- and so is everything else. A
+ * raid stands about two hundred from the boss, healers two hundred and sixty,
+ * and a spell reaches three hundred and forty, so a reach of four hundred and
+ * twenty makes "leave" mean *leave the fight*: out of casting range of the
+ * boss, and out of the ring the healers are covering. Measured, the answer was
+ * worse than the mechanic -- with the raid told never to leave, the top cell
+ * read fifty percent; with it leaving at five stacks, nought.
+ *
+ * That is not a fact about the cold, it is a fact about this game's
+ * positioning: there is no "step out and keep working" in it at four hundred
+ * and twenty, because the room's own numbers do not leave one. At three
+ * hundred there is. A body pushed to three hundred and ten is at the far edge
+ * of its range rather than outside it, and what leaving costs is the walk, the
+ * casts the walk eats and the worse position it leaves you in -- which is a
+ * decision, and the one the fight was written to ask.
+ */
+export const BUFFET_REACH = 300
+export const BUFFET_SHED = 3
+export const BUFFET_BITE = 0.045
+
+/**
+ * As deep as the cold goes, and it was written with no ceiling at all.
+ *
+ * The argument for no ceiling is good -- a ceiling is a point past which
+ * staying costs nothing more, which is the decision the mechanic is asking
+ * about -- and it is wrong for exactly one body in the raid. Everybody else
+ * can walk to the edge of their range and pay for it in damage they did not
+ * deal. The one holding the boss cannot: it is standing at fifty-two units
+ * and no rule lets it be anywhere else. Uncapped, measured, the tank carried
+ * twenty-eight stacks and every twenty-five man heroic cell read nought.
+ *
+ * So a ceiling, high enough that the decision is still a decision for the
+ * eleven-twelfths of the raid that has one -- the threshold to leave is five,
+ * and this is eight -- and low enough that the one body with no answer is not
+ * billed for having none.
+ */
+export const BUFFET_MAX = 8
+/** Where the AI decides the reach is no longer worth standing in. */
+export const BUFFET_LEAVE = 5

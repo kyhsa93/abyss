@@ -511,15 +511,14 @@ export const CHAMBERS: Chamber[] = [
     id: 'lair',
     name: 'The Rimeward Lair',
     wing: 'frostwing',
-    encounter: null,
-    awaiting: 'the stacking that is answered by leaving (#12)',
-    // Open ice at the end of the long way round, and a big room: the plan puts
-    // it at the far end of the frostwing halls with nothing else on that
-    // reach.
-    // A hundred and twenty-six yards across, off the frostwing plan: the
-    // cloverleaf's own floor is 104 and the points reach 147. The source's
-    // trigger over it is a box 113 by 60, which sits inside that.
-    room: { kind: 'platform', radius: 1194 },
+    encounter: 9,
+    // The placeholder was a platform five hundred and twenty across, and the
+    // fight that arrived brought a circle eight hundred and forty across
+    // instead -- which is the encounter's own room and therefore the one that
+    // is used. The width is the premise rather than a preference: the last
+    // rung's reach is four hundred and twenty, and a fight that tells a raid
+    // to withdraw needs somewhere outside to withdraw to. The floor with a
+    // real edge is #36's, and it is still #36's.
     pad: killed('dream'),
   },
 
@@ -1250,10 +1249,25 @@ export function hallFor(
   // rooms are all somewhere else is a point in none of them: the party was
   // clamped into whichever corner of the entrance hall was nearest the middle
   // of the map, all twenty-five of them onto the same one.
+  //
+  // Except in a room with something asleep in it, where the far end is the
+  // worst place in the building to be put down. "Start at the far end and walk
+  // its length" is a rule about the street: the way in is the one door the map
+  // does not draw, so the length of the room is the walk the party owes it.
+  // A room with a boss in the middle owes nothing -- the party is resuming an
+  // evening it has already walked -- and putting them at the far end means the
+  // only way out is on the other side of the thing that is asleep. Measured in
+  // the frost queen's lair, which is the first room wide enough for it to
+  // matter: put down at the far wall, seven hundred and thirty-two units from
+  // her and clear of her two-hundred-and-thirty-one circle, a twenty-five man
+  // sets off for the door and has somebody inside her reach in under three
+  // seconds. Put down at the door, nobody moves at all and the nearest body
+  // is eight hundred away when the three seconds are up.
+  const far = clearOf === undefined || clearOf.length === 0
   const stood = back
     ? onWall(room, back.angle, DOOR_INSET + ARRIVE_IN)
     : doors.length === 1
-      ? onWall(room, doors[0]!.angle + Math.PI, DOOR_INSET + ARRIVE_IN)
+      ? onWall(room, doors[0]!.angle + (far ? Math.PI : 0), DOOR_INSET + ARRIVE_IN)
       : roomAt(room)
   // And clear of the room's *other* doors, which a step in from one door is
   // not on its own.

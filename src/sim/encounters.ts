@@ -77,6 +77,11 @@ export type MechanicId =
   | 'kin'
   | 'portal'
   | 'suppress'
+  | 'chill'
+  | 'instability'
+  | 'haul'
+  | 'cover'
+  | 'buffet'
 
 /** What each is called anywhere it has to be read rather than dodged. */
 /**
@@ -180,6 +185,21 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   kin: true, // more of the wave means more of the ones that came to help
   portal: false, // one way out, and anybody may take it
   suppress: true, // one per so many bodies, so a bigger raid has more to clear
+  // A tax on a place rather than a thing thrown at people: it lands on
+  // whoever is swinging, so a bigger raid brings more melee and pays more of
+  // it. Nothing about it is aimed, and nothing about it is answered.
+  chill: true,
+  // One mark per so many bodies, half of them healers. See the encounter.
+  instability: true,
+  // The band is the band. Twenty-five people dragged into it are twenty-five
+  // people in a band that was never measured in bodies.
+  haul: false,
+  // The shadows are cast by the coffins, and the coffins already scale: what
+  // is capped here is how many bodies one shadow will hold, which is rule 5
+  // written as a ceiling rather than as a scale.
+  cover: false,
+  // A radius round the boss, and a radius is the same radius at any headcount.
+  buffet: false,
   // A group per body, and a third group once there are enough bodies to need
   // one: what it asks grows with the roster twice over, in how many people
   // have to be sorted and in how many places they have to be sorted into.
@@ -265,6 +285,11 @@ export function noTimers(): Record<MechanicId, number> {
 }
 
 export const MECHANIC_NAMES: Record<MechanicId, string> = {
+  chill: 'the chill',
+  instability: 'the unstable',
+  haul: 'the haul',
+  cover: 'the shadow',
+  buffet: 'the cold',
   caustic: 'the caustic',
   slime: 'the rising',
   bleed: 'the wound',
@@ -785,6 +810,56 @@ export interface PhaseTiming {
    */
   suppress: number
   /**
+   * Seconds a body that has just been chilled is safe from being chilled again.
+   *
+   * A cadence in name only, and the one on this table that is not a beat the
+   * boss keeps: nothing schedules the chill, a melee swing does, and what
+   * this holds is how long after one lands the next may. It is written here
+   * rather than as a constant because it is the one dial that decides how
+   * much a melee place costs, and a dial that decides that belongs on the
+   * table that decides everything else about a phase.
+   */
+  chill: number
+  /**
+   * Seconds between one round of marks and the next.
+   *
+   * The mark itself is fifteen seconds of debt: every cast the marked body
+   * starts while it is on adds one, and the bill at the end is the square of
+   * what it counted. The answer is to press nothing, which is why half of
+   * them go on healers -- a dealer that stops has spent the enrage timer, and
+   * a healer that stops has spent somebody else.
+   */
+  instability: number
+  /**
+   * Seconds between one drag and the next.
+   *
+   * Three stages on one clock: everybody is pulled in for a second and a
+   * fifth, a band round the boss reddens for one and a tenth, and then it
+   * falls in on whoever is still inside it. The pull is what makes every cast
+   * of it a question -- without it the melee are already in and the ranged
+   * are already out, and nobody is asked anything.
+   */
+  haul: number
+  /**
+   * Seconds between one wash of the room and the next.
+   *
+   * The only place in this game where the answer to a mechanic is the wreck
+   * another one left: what is safe is the shadow behind a coffin, and the
+   * coffins are the thing the raid has been breaking all fight. It needs
+   * them, so `REQUIRES` says so.
+   */
+  cover: number
+  /**
+   * Seconds between one turn of the cold and the next, in the last phase only.
+   *
+   * A refresh rather than a cast: standing inside the boss's reach adds a
+   * stack, standing outside it drops one more slowly, and every stack is nine
+   * percent more magic damage taken. There is no moment it goes off. What it
+   * asks is that a raid which is winning walks away from the thing it is
+   * winning against, which nothing else in this game asks for.
+   */
+  buffet: number
+  /**
    * Physical damage to everyone standing in reach.
    *
    * The only thing the boss does that armour answers — everything else it
@@ -1154,6 +1229,12 @@ export interface Encounter {
     kin: number
     portal: number
     suppress: number
+    /** Nought: a swing is what starts the chill, so it has no first cast. */
+    chill: number
+    instability: number
+    haul: number
+    cover: number
+    buffet: number
   }
   /**
    * Whether this fight is won by the bar going up rather than down.
@@ -1261,6 +1342,14 @@ export interface Encounter {
     bleed: string
     kin: string
     suppress: string
+    instability: string
+    haul: string
+    cover: string
+    // The chill and the cold have no key, which is the absence this table
+    // already allows twice over. Neither is an event: one is what a swing
+    // costs and the other is what standing costs, and both are read off the
+    // floor under a body rather than off a cast bar. A boss announcing either
+    // would be a boss announcing a rate.
     // The way out has no key here, which is the same absence the stain and the
     // merging have: it is not an event the fight announces, it is a hole that
     // is either open or not, and the picture says so. It is also the one
@@ -1441,6 +1530,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
+      instability: '',
+      haul: '',
+      cover: '',
       caustic: '',
       slime: '',
       rotation: '',
@@ -1731,6 +1823,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
+      instability: '',
+      haul: '',
+      cover: '',
       caustic: '',
       slime: '',
       rotation: '',
@@ -1928,6 +2023,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
+      instability: '',
+      haul: '',
+      cover: '',
       caustic: '',
       slime: '',
       rotation: '',
@@ -2128,6 +2226,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
+      instability: '',
+      haul: '',
+      cover: '',
       caustic: '',
       slime: '',
       rotation: '',
@@ -2302,6 +2403,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
+      instability: '',
+      haul: '',
+      cover: '',
       caustic: '',
       slime: 'The floor is coming up — off the edge',
       rotation: '',
@@ -2500,6 +2604,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
+      instability: '',
+      haul: '',
+      cover: '',
       slime: '',
       rotation: '',
       gift: '',
@@ -2689,6 +2796,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
+      instability: '',
+      haul: '',
+      cover: '',
       gift: '',
       bleed: '',
       kin: '',
@@ -2843,6 +2953,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',
+      instability: '',
+      haul: '',
+      cover: '',
       bleed: '',
       kin: '',
       suppress: '',
@@ -2907,17 +3020,25 @@ export const ENCOUNTERS: Encounter[] = [
     demand: 'the thing in the middle is not the enemy, and it is running out of time',
     saving: true,
     /**
-     * Issue #35's room: a circle with something in the middle of it.
+     * Issue #35's room, off the source's own boundary rather than off a
+     * picture of the floor.
      *
-     * The frostwing plan measures that hall at a hundred and twenty-four yards
-     * across the walkable middle, and every fight's floor is built at
-     * `BUILD_SCALE` -- so this is half of it, which is where the other eight
-     * already stand. Written at the full eleven hundred and seventy-five
-     * first, which is the measurement rather than the floor: the day fights
-     * stopped being one arena and started being their own boundaries, the
-     * scale moved onto the encounter and this had not been through it.
-     * The map and the floor have to be the same room, and the map is the one
-     * that was measured.
+     * `RectangleBoundary(4112.5, 4293.5, 2385.0, 2585.0)` against
+     * `DATA_VALITHRIA_DREAMWALKER` in TrinityCore's `boundaries` table: a
+     * hundred and eighty-one yards by two hundred, at `BUILD_SCALE` like every
+     * other fight's floor. A rectangle is a hall here, which is what it is --
+     * the plan draws a square with a lobe off each side, and the lobes are
+     * corners this game cannot walk out of.
+     *
+     * It is the widest floor on the roster, which is what issue #35 said it
+     * should be and what the boundary independently makes it. Two wrong
+     * numbers came first and both were read off the client's map tile rather
+     * than off the instance: eleven hundred and seventy-five, which was that
+     * tile's whole circle and about right for the depth and half again too
+     * wide for the width, and then five hundred and eighty-eight when the
+     * `BUILD_SCALE` rule caught up with it, which was a quarter of the room.
+     * A tile says where a shape is; the boundary says what the fight's floor
+     * is, and the boundary is what the other eight are built from.
      *
      * Giving it its real size found a wall that was not there. See the frost
      * gauntlet in `dungeon.ts`: the stem above this hall reached fifty units
@@ -2932,7 +3053,7 @@ export const ENCOUNTERS: Encounter[] = [
      * is the fight -- the wound opens on it and the raid has to walk *in* --
      * so the room is written around a middle that is occupied.
      */
-    room: { kind: 'round', radius: 588 },
+    room: { kind: 'hall', halfWidth: 1046, front: 1156, back: 1156 },
     terrain: [],
     /** Wet stone and moss, which is the first green floor in the citadel. */
     floor: 'floor-earth',
@@ -2952,8 +3073,8 @@ export const ENCOUNTERS: Encounter[] = [
     // that took about a hundred and thirty, every cell finished with a minute
     // to spare and read a hundred percent. What the raid is actually racing is
     // how much of the climb the wound takes back, and the clock is what makes
-    // that a race rather than an arithmetic exercise. The four cells now land
-    // at 163, 181, 165 and 184 seconds against it.
+    // that a race rather than an arithmetic exercise. The four cells land at
+    // 164, 180, 165 and 183 seconds against it.
     enrage: 190,
     // Unused: the phases here turn on the clock. Kept at the roster's usual
     // values rather than at nought so that nothing reading them divides by
@@ -2984,9 +3105,16 @@ export const ENCOUNTERS: Encounter[] = [
     // all -- the bar stalls at 88% and 97% and the enrage takes it -- 0.68
     // wins 5% of first pulls on heroic and 40% of ninths, and 0.6 wins every
     // cell on the first pull in about 170 seconds of a 190-second clock. 0.64
-    // is the one with a fight in it: 100% and 85% on a first pull at normal
-    // and heroic, both at a hundred by the ninth, and the heroic climb lands
-    // at 184 seconds with six to spare.
+    // is the one with a fight in it.
+    //
+    // Those six readings were taken in a room a quarter of this one, before
+    // the boundary said how wide the hall is. Widening it moved the fight less
+    // than the clock does: the four cells read 100/100, 80/100, 100/100 and
+    // 80/100 now against 100/100, 63/100, 100/100 and 85/100 then, and the
+    // times moved by a second or two. What that says is that this fight is not
+    // about its floor -- everything on its ladder happens on the thing in the
+    // middle or on the bodies walking at it -- which is the one fight here of
+    // which that is true.
     //
     // The narrowness is worth writing down rather than smoothing over. A
     // victory condition that is a bar going up against a clock has no partial
@@ -3041,6 +3169,9 @@ export const ENCOUNTERS: Encounter[] = [
     lines: {
       phaseTwo: 'It is fading',
       phaseThree: 'HOLD ON',
+      instability: '',
+      haul: '',
+      cover: '',
       adds: 'They are coming for it',
       empower: 'One of them is wrong — that one first',
       bleed: 'It is bleeding — get in there',
@@ -3085,6 +3216,168 @@ export const ENCOUNTERS: Encounter[] = [
       bond: '',
       flight: '',
       crimson: '',
+    },
+  },
+  {
+    // The tenth, and the two things it asks for are things this game has
+    // never asked for.
+    //
+    // Everything else here is answered by where a body is standing: get off
+    // the line, get behind it, come in, spread out. This one asks a body to
+    // *stop pressing buttons* while a mark is on it, and it asks a raid that
+    // is winning to walk out of the fight it is winning and come back later.
+    // Neither is a place. Both are decisions about time.
+    id: 'cold',
+    name: 'The Long Cold',
+    short: 'Cold',
+    demand: 'do nothing while it is on you, and know when to walk out of a fight that is going well',
+    /**
+     * Issue #36's room, and the room is the premise of two of the rungs.
+     *
+     * `EllipseBoundary(Position(4408.6, 2484.0), 100.0, 75.0)` against
+     * `DATA_SINDRAGOSA` in TrinityCore's `boundaries` table -- two hundred
+     * yards by a hundred and fifty -- taken as a circle of its mean width at
+     * `BUILD_SCALE`, which is the rule the eight before it are built by.
+     *
+     * The premise of two of the rungs is that it is wide. A fight that tells
+     * the raid to withdraw needs somewhere to withdraw *to*, and the wash
+     * needs room for shadows four hundred long to fall into; a mechanic whose
+     * answer does not fit in the room is not a hard mechanic, it is an
+     * unanswerable one. It was written at eight hundred and forty on that
+     * argument alone, before anybody looked the boundary up -- and the
+     * boundary is wider than the argument asked for, which is the happier way
+     * round. The reach the last rung asks a body to step outside of is three
+     * hundred rather than the four hundred and twenty it was written as, for a
+     * reason about this game's own numbers rather than about this fight. See
+     * `BUFFET_REACH`.
+     */
+    room: { kind: 'round', radius: 1012 },
+    terrain: [],
+    /** Pale grit under frost, and the only floor on the roster nothing uses. */
+    floor: 'floor-sand',
+    // The fastest thing on the roster, off `creature_template` row 36853 --
+    // `boss_sindragosa`, at 2.28571 against the first boss's 1.21429. A fight
+    // whose last rung is "walk out of it" is a fight where being able to walk
+    // away from the boss matters, and the source's own row says a raid cannot:
+    // it closes at nearly twice the pace of the thing in the first room.
+    pace: 2.28571,
+    // Tuned here rather than at any of the rungs, because what the sweep found
+    // was a raid that nearly wins. At the forty-five thousand this was written
+    // with, the four cells read 38/55, 45/48, 28/23 and 23/33 over forty pulls
+    // apiece -- and every one of those losses ended with the boss between
+    // fourteen and twenty-four percent and the enrage nowhere near: they were
+    // not running out of clock, they were dying in the last third with the
+    // fight almost done. A demand that is answerable and expensive is the
+    // thing being sold; a bar that is longer than the answer lasts is not part
+    // of it. At thirty-eight thousand every cell clears the line and the top
+    // two clear it by three points; at thirty-five they read 65/65, 70/63,
+    // 60/68 and 60/65, which is room enough that a forty-pull sample cannot
+    // put them under it.
+    hp: 35000,
+    enrage: 280,
+    phaseTwoHp: 0.65,
+    // The last third is where the cold bites -- it turns every six seconds
+    // there against every twenty in the first phase -- so the last third is
+    // the fight's actual question and the first two are where the raid learns
+    // enough to answer it.
+    phaseThreeHp: 0.35,
+    swingDamage: 620,
+    slamDamage: 1300,
+    // The floor of this fight. Written at a hundred and sixty on the argument
+    // that the last rung multiplies magic damage taken and a multiplier on
+    // nothing is nothing -- which is true and was still forty too high: at a
+    // hundred and sixty the five-man died in a hundred seconds with the boss
+    // at a quarter, before any of that ever came up.
+    raidDamage: 88,
+    mechanicDamage: 0.68,
+    // Anti-scaled, which is what a fight made of a radius and a band should
+    // be: neither the drag nor the cold is measured in bodies, so a bigger
+    // raid meets the same two of them with more people to spare. Steeper than
+    // it was written, and the reason is the two rungs a twenty-five man is the
+    // only raid to buy: the wash bills whoever is not in a shadow, and there
+    // are three shadows at that size whatever anybody does.
+    sizeMechanic: { 10: 1.0, 25: 0.7 },
+    // The chill, the mark, the drag, the coffin, the shadow it casts, and the
+    // cold. The coffin is the one borrowed rung on this ladder and it is
+    // borrowed for the rung above it: here a coffin is a prison and a wall,
+    // and when to break one is the fight's only target call.
+    kit: ['chill', 'instability', 'haul', 'spike', 'cover', 'buffet'],
+    always: [],
+    herald: null,
+    accent: '#a5f3fc',
+    names: { slam: 'THE COLD HAND', shard: '', raid: 'THE LONG WINTER' },
+    phases: {
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ chill: 2.4, instability: 26, haul: 19, spike: 26, cover: 40, buffet: 20 }) },
+      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ chill: 2.0, instability: 22, haul: 16, spike: 23, cover: 30, buffet: 12 }) },
+      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ chill: 1.6, instability: 19, haul: 13, spike: 20, cover: 26, buffet: 6 }) },
+    },
+    // The cold turns every fourteen seconds in the first phase and every six
+    // in the last, which is also not what the issue asked for -- it asked for
+    // nothing at all until the third. Two separate checks in this repo take
+    // the same line about that, and they are right: a rung a raid *bought* and
+    // never meets is a rung that was not sold. So it is there from the start
+    // and slow, and the last third is still where it decides the fight, since
+    // six seconds is two and a third times the rate of fourteen.
+    //
+    // The wash opens at thirty-four and runs at forty in the first phase,
+    // which is not what the issue asked for -- it asked for nothing at all
+    // until the second. A mechanic this table announces has to have a cadence
+    // in every phase, or the check that says "every announced mechanic comes
+    // round sooner as the fight goes on" has a hole in it exactly where a
+    // phase-gated mechanic sits. So it is rare rather than absent, and the
+    // opening is what keeps the first two minutes recognisably the fight the
+    // issue described.
+    opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 34, buffet: 8 }) },
+    lines: {
+      phaseTwo: 'The cold gets in',
+      instability: 'You are coming apart — hands off',
+      haul: 'It is dragging us in',
+      cover: 'Behind the ice, all of you',
+      phaseThree: 'NOTHING WARM LEAVES HERE',
+      spike: 'Ice through the floor — cut them out',
+      adds: '',
+      coldflame: '',
+      blight: '',
+      inhale: '',
+      pungent: '',
+      spore: '',
+      vilegas: '',
+      bloat: '',
+      bonestorm: '',
+      decay: '',
+      frostbolt: '',
+      volley: '',
+      shade: '',
+      insignificance: '',
+      empower: '',
+      dominate: '',
+      siphon: '',
+      spill: '',
+      fester: '',
+      champion: '',
+      gorge: '',
+      spray: '',
+      infection: '',
+      flood: '',
+      engulf: '',
+      caustic: '',
+      slime: '',
+      rotation: '',
+      thirst: '',
+      ballast: '',
+      nuclei: '',
+      prison: '',
+      gift: '',
+      bond: '',
+      flight: '',
+      crimson: '',
+      bleed: '',
+      kin: '',
+      suppress: '',
+      hound: '',
+      gather: '',
+      decant: '',
+      reagent: '',
     },
   },
 ]
@@ -3135,6 +3428,11 @@ const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   // to be one of: it is not a summon of its own, it is a fact about one that
   // was already coming.
   empower: ['adds'],
+  // The shadow is cast by a coffin, so a kit with the wash and no coffins is
+  // a room-wide bill with nowhere to stand. This is safe in the direction
+  // `REQUIRES` is dangerous in: an entry pulls a prerequisite *in*, so the
+  // first boss, which owns coffins and has never seen the cold, is untouched.
+  cover: ['spike'],
 }
 
 /**

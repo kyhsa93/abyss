@@ -30,6 +30,13 @@ import {
   KIN_LIFE,
   PORTAL_AWAY,
   PORTAL_CARRY,
+  CHILL_LIFE,
+  CHILL_MAX,
+  CHILL_BITE,
+  UNSTABLE_LIFE,
+  HAUL_ROOT,
+  BUFFET_BITE,
+  BUFFET_MAX,
   PORTAL_POWER,
   SUPPRESS_CUT,
   INFECTION_HEALING,
@@ -272,6 +279,13 @@ export const AURA_DURATION: Record<AuraId, number> = {
   kindred: KIN_LIFE,
   away: PORTAL_AWAY,
   carried: PORTAL_CARRY,
+  chilled: CHILL_LIFE,
+  unstable: UNSTABLE_LIFE,
+  rooted: HAUL_ROOT,
+  // No clock of its own: it is refreshed while a body stands in the reach and
+  // shed a stack at a time once it does not, so a duration long enough to
+  // outlast the shedding is a duration that never expires on its own.
+  buffeted: 600,
   // How long the surface stays closed. Long enough that stopping and staying
   // stopped are two different things -- a raid that reads the cast and holds
   // for one global is a raid that starts again inside the window.
@@ -317,6 +331,14 @@ const AURA_MAX: Partial<Record<AuraId, number>> = {
   slighted: SLIGHT_MAX,
   engulfed: ENGULF_MAX,
   dosed: REAGENT_MAX,
+  chilled: CHILL_MAX,
+  // The debt, and it has no ceiling on purpose: the bill is the square of it,
+  // so a cap would be a promise that the worst case is survivable and the
+  // whole mechanic is that it is not.
+  unstable: 99,
+  // The cold has one after all, and `BUFFET_MAX` says why: it is the only
+  // mark here that the body holding the boss cannot walk away from.
+  buffeted: BUFFET_MAX,
 }
 
 
@@ -363,6 +385,16 @@ export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
   festering: 'fester',
   swallowed: 'gorge',
   infected: 'infection',
+  chilled: 'chill',
+  // The three below tick nothing, so nothing in the damage path ever asks
+  // about them. They are here because this is the one table that says which
+  // mark belongs to which rung, and two checks read it to find out whether a
+  // fight actually threw what its ladder sells -- a mark whose name does not
+  // match its mechanic's is otherwise invisible to both. `chilled` is here on
+  // the same grounds and happens to tick as well.
+  unstable: 'instability',
+  rooted: 'haul',
+  buffeted: 'buffet',
 }
 
 export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number }>> = {
@@ -378,6 +410,9 @@ export const AURA_TICK: Partial<Record<AuraId, { damage?: number; heal?: number 
   // to get worse while nobody does. `rotBite` already does this for the rot
   // and the shape is borrowed from there.
   spiked: { damage: 34 },
+  // Per stack, like every other entry here, and it is the only one whose
+  // stacks are bought by the wearer's own swings.
+  chilled: { damage: CHILL_BITE },
   reek: { damage: 62 },
   // Flat rather than climbing, and it is the one dot here that should be.
   // What makes it urgent is not that it gets worse -- it is that every tick
@@ -790,6 +825,13 @@ export function applyDamage(
   if (carrying(s, target)) final *= CARRIER_FRAGILITY
 
   final *= tankTrait(s, target, school)
+
+  // The cold, which is the one vulnerability in this game that a body walks
+  // into rather than has put on it. Magic only: the boss's weapon is the one
+  // thing armour answers and a multiplier on top of armour would make plate
+  // the answer to a mechanic about where to stand.
+  const cold = getAura(target, 'buffeted')
+  if (cold && school === 'magic') final *= 1 + cold.stacks * BUFFET_BITE
 
   // What the fight is holding, it holds on to. See `TURNED_GUARD`: this is the
   // window the raid gets to notice whose body it is aiming at, and without it
@@ -1240,6 +1282,16 @@ export function beginCast(s: SimState, actor: Actor, abilityId: string, targetId
     ability.kind === 'raid' && actor.melee ? ability.cooldown * MELEE_CALL : ability.cooldown
 
   if (actor.isPlayer) s.sounds.push('cast')
+
+  // One more on the debt, if the tenth boss has marked this body.
+  //
+  // Here rather than where a cast resolves, so that an instant costs exactly
+  // what a two-second cast does: what the mark charges for is pressing a
+  // button, and an instant is a button. Off-global abilities count too, for
+  // the same reason -- a body that answers "stop" by spending its off-global
+  // cooldowns has not stopped.
+  const shake = getAura(actor, 'unstable')
+  if (shake) shake.stacks += 1
 
   if (ability.castTime <= 0) {
     resolveAbility(s, actor, ability, targetId, rng)

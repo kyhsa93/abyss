@@ -743,7 +743,7 @@ scoreboard across the two compares nothing.
 **What the day does not decide is what the boss does.** It used to: the daily
 drew its own kit out of every boss's vocabulary and rolled cadences for it, so
 a daily was one fight's shape throwing another fight's mechanics. That was
-worth having while five of the nine bosses were invented and a rolled fight
+worth having while five of the ten bosses were invented and a rolled fight
 was the only way to see the vocabulary used differently. It also meant the one
 pull a day everybody shares was the one pull nobody could prepare for, and
 everything learned about a boss was worth nothing on the day it came up. The
@@ -1754,9 +1754,9 @@ them. Six rungs a boss, in the order the fight gets harder, and the last of
 one boss opens the first of the next:
 
 > Bonegrinder 5 normal → 5 heroic → 10 normal → 10 heroic → 25 normal →
-> 25 heroic → Whisper 5 normal → … → Saved 25 heroic
+> 25 heroic → Whisper 5 normal → … → Cold 25 heroic
 
-Fifty-four kills to open the game. **Clearing a rung opens the one after it, and
+Sixty kills to open the game. **Clearing a rung opens the one after it, and
 nothing else does** — not reaching it, not clearing something harder somewhere
 else — so what is open is always a prefix of that list and a single number
 describes it. Which is also why nothing in here ever has to ask "but did they
@@ -1827,19 +1827,19 @@ the two axes the setup screen already had — every step up the size or across t
 heroic buys another rung. A ladder is also a price list, read top to bottom in
 the order the fight gets harder.
 
-| Rung | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| carried | — | thralls | — | — | the rising | — | — | — | — |
-| 1 | the cold line | the volley | the blight | the spill | the spray | the caustic | the crown | the gift | the wound |
-| 2 | the spikes | the rotting ground | the swelling | the gorging | the infection | the hound | the thirst | the bond | the kindred |
-| 3 | the storm | the shard | the reek | the festering | the small things | the gathering | the ballast | the stain | the way out |
-| 4 | — | the shade | the spore | blood beasts | the flood | the chase | the grain | the flight | thralls |
-| 5 | — | the slight | the breath in | the mark | the merging | the flasks | the stillness | the turning | the empowered |
-| 6 | — | the empowered | the breath out | the swallowing | the engulfing | the reagent | thralls | the crimson | the blocking |
-| 7 | — | the turned | — | — | — | — | — | — | — |
+| Rung | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved | Cold |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| carried | — | thralls | — | — | the rising | — | — | — | — | — |
+| 1 | the cold line | the volley | the blight | the spill | the spray | the caustic | the crown | the gift | the wound | the chill |
+| 2 | the spikes | the rotting ground | the swelling | the gorging | the infection | the hound | the thirst | the bond | the kindred | the unstable |
+| 3 | the storm | the shard | the reek | the festering | the small things | the gathering | the ballast | the stain | the way out | the haul |
+| 4 | — | the shade | the spore | blood beasts | the flood | the chase | the grain | the flight | thralls | the spikes |
+| 5 | — | the slight | the breath in | the mark | the merging | the flasks | the stillness | the turning | the empowered | the shadow |
+| 6 | — | the empowered | the breath out | the swallowing | the engulfing | the reagent | thralls | the crimson | the blocking | the cold |
+| 7 | — | the turned | — | — | — | — | — | — | — | — |
 
 The order is the design, not the contents. The first rungs are disjoint across
-all nine, so the fight everybody sees — the smallest raid, and the first
+all ten, so the fight everybody sees — the smallest raid, and the first
 stretch of any pull that goes wrong — is a different fight per boss: a line
 walking outward, a shard aimed at whoever is holding it, and a room that has
 gone bad. **No boss's kit is ever a subset of another's** at any rung, and the
@@ -1871,8 +1871,9 @@ that comes back wrong.
 | The Three Crowns | only one is real, and it is not the one you are hitting | three bodies of which two take nothing at all, a crown that moves between them, and two mouths drinking from whoever stands near them |
 | The Crimson Gift | pass it and it doubles; drop it and it is one of you | a weight worth carrying, a bill that grows with how many are in play, and a body that turns when one is dropped |
 | The One You Save | the thing in the middle is not the enemy, and it is running out of time | a wound taking back what the raid just put in, bodies that came to help mixed in with the ones that came to bite, and a thing that hurts nobody and stops most of the raid arriving |
+| The Long Cold | do nothing while it is on you, and know when to walk out of a fight that is going well | a mark that charges for every button pressed under it, a drag that puts the whole room in the wrong place before it asks anything, and a vulnerability that only ever comes off by leaving |
 
-They are one script and nine tables (`src/sim/encounters.ts`). A second boss
+They are one script and ten tables (`src/sim/encounters.ts`). A second boss
 written as a second timeline would be a second copy of what each mechanic does,
 and those rules took several attempts each to get right. They are not being
 written twice.
@@ -1970,6 +1971,60 @@ reading the clock, because a fight whose bar is supposed to *rise* cannot use
 its own health as a timer. Nothing else on this roster gets harder because time
 passed, and this one does.
 
+The Long Cold asks for the two things this game has never asked for, and
+neither of them is a place. The first is *press nothing*: a mark lands for
+fifteen seconds and every button pressed while it is on is a debt, paid all at
+once at the end and squared — two is nothing, five is most of a bar, eight is a
+body. Half of them go on healers on purpose, because that is what makes it one
+rule with two prices: a dealer who stops has spent the enrage timer, and a
+healer who stops has spent somebody else. The second is *leave*: standing
+inside the boss's reach adds a stack of magic vulnerability on a clock that
+runs every twenty seconds at the start and every six by the end, and it comes
+off only outside and more slowly than it went on. Nothing forces the walk.
+What the last third of this fight is actually about is whether a raid that is
+winning will give up ground it is not being pushed off.
+
+That rung is also the one that argued with the game and lost. The reach was
+written at four hundred and twenty so that the ranged would be inside it too.
+They are — and so is everything else: a raid stands about two hundred units
+from the boss, its healers two hundred and sixty, and a spell reaches three
+hundred and forty. At four hundred and twenty, "leave" means leave the fight
+entirely, out of casting range and out of the ring the healers are covering,
+and the measurement is blunt about what that costs: told never to leave, the
+top cell of this boss wins half its pulls; told to leave at five stacks, it
+wins none of them. The answer was worse than the mechanic. That is not a fact
+about the cold, it is a fact about this game's distances — there is no "step
+out and keep working" at four hundred and twenty because the room's own numbers
+do not leave one. At three hundred there is: a body pushed to three hundred and
+ten is at the far edge of its range rather than outside it, and what leaving
+costs is the walk, the casts the walk eats, and the worse position it leaves
+you in. The rung is the same rung. It is now askable.
+
+Between them sits the one cast here that is answered by walking, and it is
+built so that every cast of it asks somebody something. A plain band round the
+boss asks nothing — the melee are already inside it and the ranged are already
+outside — so this one drags the whole room in first, holds everybody at a
+hundred and ten units for a second and a fifth, and only then reddens and
+falls. The walk out is a hundred and thirty units against one and a tenth
+seconds of warning, which is eight tenths of a second of walking: the quarter
+second left over is the reaction delay, and the reaction delay is what the
+mechanic is charging for. Written without that clamp it dragged everybody to
+the centre, where the walk is two hundred and forty units and nobody in the
+game is fast enough — a hundred percent of the raid hit by every cast, and a
+five-man dead in thirty-five seconds. That is not a steep dial, it is an
+absent answer.
+
+Its fifth rung is the only mechanic in this game whose answer is another
+mechanic's wreckage. The room goes white and the only shelter is the strip of
+shadow behind a coffin — and the coffins are the rung below, the ones the raid
+has been breaking all fight. So *when* to break one becomes the question, and
+`REQUIRES` says the wash cannot be sold to a raid that was never sold the
+coffins. Two numbers there are rule five rather than flavour: coffins are
+placed at least two hundred and sixty apart, because two together cast one
+shadow and one shadow for a raid is a bill with no answer; and a shadow holds
+eight bodies and no more, because otherwise a twenty-five man answers a
+room-wide cast by standing in the one strip a five-man was given.
+
 | Sweep | Physical damage to everyone in reach — **the one thing armour answers** |
 | Rot | A magic dot on somebody; armour is no help at all |
 
@@ -1983,63 +2038,68 @@ hit would be a tax on exactly the people whose armour was supposed to be the
 reward — and the rot is the counterweight, so no stat block is the whole answer
 to a fight.
 
-| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always | | | | | |
-| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | | | | | |
-| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | | | | | |
-| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | | | | rung 4 |
-| The rising | The sludgeworks floods its own edge; the middle never goes | | | | | carried | | | | |
-| The cold line | It walks outward from the boss — step off it | rung 1 | | | | | | | | |
-| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | | | | | |
-| The storm | It lets go of the tank and comes for the room | rung 3 | | | | | | | | |
-| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | | | | | | |
-| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | | | | | | |
-| The shard | A cast at whoever is holding it — cut it | | rung 3 | | | | | | | |
-| The shade | It follows the one it picked; keep walking | | rung 4 | | | | | | | |
-| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | | | | | | |
-| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | | | | | | rung 5 |
-| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | | | | | | |
-| The blight | The room itself, billing everybody every few seconds | | | rung 1 | | | | | | |
-| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | | | | | | |
-| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | | | | | | |
-| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | | | | | | |
-| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | | | | | | |
-| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | | | | | | |
-| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 | | | | | |
-| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 | | | | | |
-| The festering | A wound that must be healed off, not ridden out | | | | rung 3 | | | | | |
-| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 | | | | | |
-| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 | | | | | |
-| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 | | | | | |
-| The spray | A cone off the big arm — be behind it | | | | | rung 1 | | | | |
-| The infection | It ends in a body where you were standing; pick the place | | | | | rung 2 | | | | |
-| The small things | Almost harmless alone; killing them all is the mistake | | | | | rung 3 | | | | |
-| The flood | Costs nothing to stand in and makes fixing it late too slow | | | | | rung 4 | | | | |
-| The merging | Two that touch become one; the fifth is a radius | | | | | rung 5 | | | | |
-| The engulfing | It eats what nobody cleared, and the tank pays for it | | | | | rung 6 | | | | |
-| The caustic | Broken glass that stays, and decides where the rest can happen | | | | | | rung 1 | | | |
-| The hound | It cannot be killed; one of you walks for twenty-two seconds | | | | | | rung 2 | | | |
-| The gathering | Everybody in one circle, and the bill is divided by who came | | | | | | rung 3 | | | |
-| The chase | That circle lands on the one being hunted, and follows them | | | | | | rung 4 | | | |
-| The flasks | A twenty-second count on a small circle — leave it early | | | | | | rung 5 | | | |
-| The reagent | It drinks its own work; the tank pays, and swaps at six | | | | | | rung 6 | | | |
-| The crown | Two of the three take nothing at all — hit the third | | | | | | | rung 1 | | |
-| The thirst | The two you cannot hurt drink from whoever is close | | | | | | | rung 2 | | |
-| The ballast | It must not reach the floor, and damage is the only answer | | | | | | | rung 3 | | |
-| The grain | An errand, and it belongs to the tank | | | | | | | rung 4 | | |
-| The stillness | Ten seconds where every step costs more than the last | | | | | | | rung 5 | | |
-| The gift | Carry it, then hand it to somebody who never has | | | | | | | | rung 1 | |
-| The bond | Two of you tied; the distance between you is the bill | | | | | | | | rung 2 | |
-| The stain | Your own success, on the floor, for thirty-five seconds | | | | | | | | rung 3 | |
-| The flight | Fourteen seconds with nothing to hit at all | | | | | | | | rung 4 | |
-| The turning | A gift nobody took turns the body holding it | | | | | | | | rung 5 | |
-| The crimson | A raid-wide bill, one size per gift in play | | | | | | | | rung 6 | |
-| The wound | It takes back what the raid just gave; close it with hands | | | | | | | | | rung 1 |
-| The kindred | One of the wave came to help — the answer is not hitting it | | | | | | | | | rung 2 |
-| The way out | One door, open at the worst moment, and anybody may take it | | | | | | | | | rung 3 |
-| The blocking | It hurts nobody and most of what you are doing does not arrive | | | | | | | | | rung 6 |
-| Enrage | A hard damage check | 240s | 240s | 240s | 240s | 245s | 250s | 250s | 230s | 190s |
+| Mechanic | What it asks of you | Bonegrinder | Whisper | Host | Gorged | Confluence | Flasks | Crowns | Gift | Saved | Cold |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Slam | Tank cooldown, or the tank takes a large hit | always | always | always | always | | | | | | |
+| Crushing tide | Unavoidable party damage — the floor under the healer | always | always | always | always | | | | | | |
+| The boss itself | Faster than the whole party; you cannot outrun it | always | always | always | always | | | | | | |
+| Thralls | Summoned adds beeline for the nearest body; dealers switch | | carried | | | | | | | rung 4 | |
+| The rising | The sludgeworks floods its own edge; the middle never goes | | | | | carried | | | | | |
+| The cold line | It walks outward from the boss — step off it | rung 1 | | | | | | | | | |
+| The spikes | Bodies pinned where they stand; somebody has to break them | rung 2 | | | | | | | | | rung 4 |
+| The storm | It lets go of the tank and comes for the room | rung 3 | | | | | | | | | |
+| The volley | Nothing to dodge — everybody at once, and the healers carry it | | rung 1 | | | | | | | | |
+| The rotting ground | It stays where it fell; walk out and do not walk back | | rung 2 | | | | | | | | |
+| The shard | A cast at whoever is holding it — cut it | | rung 3 | | | | | | | | |
+| The shade | It follows the one it picked; keep walking | | rung 4 | | | | | | | | |
+| The slight | The tank's hold thins each time; the other tank takes it | | rung 5 | | | | | | | | |
+| The empowered | One of the wave came back wrong — kill that one first | | rung 6 | | | | | | | rung 5 | |
+| The turned | One of your own, hostile, and it must **not** be killed | | rung 7 | | | | | | | | |
+| The blight | The room itself, billing everybody every few seconds | | | rung 1 | | | | | | | |
+| The swelling | A count on whoever is tanking, lethal at the top | | | rung 2 | | | | | | | |
+| The reek | A mark that spreads to whoever is standing near it | | | rung 3 | | | | | | | |
+| The spore | Stand in it, or the breath out has nothing to protect you | | | rung 4 | | | | | | | |
+| The breath in | It drinks the room and hits the tank harder for it | | | rung 5 | | | | | | | |
+| The breath out | Everything it drank, returned to everybody at once | | | rung 6 | | | | | | | |
+| The spill | Blood on somebody, six seconds out — everybody else, leave | | | | rung 1 | | | | | | |
+| The gorging | A bar the raid fills with what it lets happen | | | | rung 2 | | | | | | |
+| The festering | A wound that must be healed off, not ridden out | | | | rung 3 | | | | | | |
+| Blood beasts | A wave that picks somebody; bring it to the damage | | | | rung 4 | | | | | | |
+| The mark | Bought by the bar, on one of yours, and it never comes off | | | | rung 5 | | | | | | |
+| The swallowing | Your tank, gone for four seconds — somebody else, hold it | | | | rung 6 | | | | | | |
+| The spray | A cone off the big arm — be behind it | | | | | rung 1 | | | | | |
+| The infection | It ends in a body where you were standing; pick the place | | | | | rung 2 | | | | | |
+| The small things | Almost harmless alone; killing them all is the mistake | | | | | rung 3 | | | | | |
+| The flood | Costs nothing to stand in and makes fixing it late too slow | | | | | rung 4 | | | | | |
+| The merging | Two that touch become one; the fifth is a radius | | | | | rung 5 | | | | | |
+| The engulfing | It eats what nobody cleared, and the tank pays for it | | | | | rung 6 | | | | | |
+| The caustic | Broken glass that stays, and decides where the rest can happen | | | | | | rung 1 | | | | |
+| The hound | It cannot be killed; one of you walks for twenty-two seconds | | | | | | rung 2 | | | | |
+| The gathering | Everybody in one circle, and the bill is divided by who came | | | | | | rung 3 | | | | |
+| The chase | That circle lands on the one being hunted, and follows them | | | | | | rung 4 | | | | |
+| The flasks | A twenty-second count on a small circle — leave it early | | | | | | rung 5 | | | | |
+| The reagent | It drinks its own work; the tank pays, and swaps at six | | | | | | rung 6 | | | | |
+| The crown | Two of the three take nothing at all — hit the third | | | | | | | rung 1 | | | |
+| The thirst | The two you cannot hurt drink from whoever is close | | | | | | | rung 2 | | | |
+| The ballast | It must not reach the floor, and damage is the only answer | | | | | | | rung 3 | | | |
+| The grain | An errand, and it belongs to the tank | | | | | | | rung 4 | | | |
+| The stillness | Ten seconds where every step costs more than the last | | | | | | | rung 5 | | | |
+| The gift | Carry it, then hand it to somebody who never has | | | | | | | | rung 1 | | |
+| The bond | Two of you tied; the distance between you is the bill | | | | | | | | rung 2 | | |
+| The stain | Your own success, on the floor, for thirty-five seconds | | | | | | | | rung 3 | | |
+| The flight | Fourteen seconds with nothing to hit at all | | | | | | | | rung 4 | | |
+| The turning | A gift nobody took turns the body holding it | | | | | | | | rung 5 | | |
+| The crimson | A raid-wide bill, one size per gift in play | | | | | | | | rung 6 | | |
+| The wound | It takes back what the raid just gave; close it with hands | | | | | | | | | rung 1 | |
+| The kindred | One of the wave came to help — the answer is not hitting it | | | | | | | | | rung 2 | |
+| The way out | One door, open at the worst moment, and anybody may take it | | | | | | | | | rung 3 | |
+| The blocking | It hurts nobody and most of what you are doing does not arrive | | | | | | | | | rung 6 | |
+| The chill | A swing costs the healer something; there is no answer | | | | | | | | | | rung 1 |
+| The unstable | Every button pressed under it is a debt, paid squared | | | | | | | | | | rung 2 |
+| The haul | It drags the room in, then falls in on the room | | | | | | | | | | rung 3 |
+| The shadow | The room goes white; only what the raid broke gives shelter | | | | | | | | | | rung 5 |
+| The cold | Standing near it costs more every turn of it, and never stops | | | | | | | | | | rung 6 |
+| Enrage | A hard damage check | 240s | 240s | 240s | 240s | 245s | 250s | 250s | 230s | 190s | 280s |
 
 A cadence of zero disables a mechanic, and that is also how a rung the raid
 did not buy is switched off: one rule for a mechanic being absent rather than

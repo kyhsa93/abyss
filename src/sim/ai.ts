@@ -24,6 +24,10 @@ import {
   FLIGHT_WARNING,
   CAUSTIC_TELEGRAPH,
   DECANT_COUNT,
+  HAUL_READ,
+  COVER_LONG,
+  BUFFET_REACH,
+  BUFFET_LEAVE,
 } from './constants'
 import {
   turnToward,
@@ -31,6 +35,7 @@ import {
   insideCone,
   untouchable,
   drinks,
+  coverShelter,
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -475,7 +480,8 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
   const held = ai.striking
   ai.striking = ai.switchTimer > 0 ? null : want
   if (ai.striking !== null && ai.striking !== held) {
-    if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
+    if (ai.striking.startsWith('still:')) say(s, actor, 'I am coming apart — hands off')
+    else if (ai.striking.startsWith('spike:')) say(s, actor, 'Break the spike — get them out')
     else if (ai.striking.startsWith('hold:')) say(s, actor, 'That is one of ours — off them')
     else if (ai.striking.startsWith('first:')) say(s, actor, 'That one came back wrong — it first')
     else say(s, actor, 'Leave that one alone')
@@ -494,6 +500,17 @@ function readTheField(s: SimState, actor: Actor, rng: Rng): void {
  * spike is a second decision and has to be paid for again.
  */
 function targetCall(s: SimState, actor: Actor): string | null {
+  // Above everything, because it is not a call about what to hit -- it is a
+  // call to hit *nothing*, and a body still choosing a target has not made it.
+  //
+  // This channel rather than the danger one on purpose. What the mark asks
+  // for is not a place, so nothing about a step answers it, and the thing it
+  // has to be able to be is *late*: the whole shape of the mechanic is that a
+  // body carries on pressing buttons for a second or two after it lands, and
+  // the reaction delay and the fumble roll on this channel are exactly that
+  // second or two. A rule in `useAbilities` that read the aura directly would
+  // be an answer no raid could ever get wrong.
+  if (getAura(actor, 'unstable')) return `still:${actor.id}`
 
   // Above the count, because a body that cannot move is losing health now and
   // a count has not cost anybody anything yet. Nearest first: the walk is what
@@ -1078,6 +1095,31 @@ function flushTarget(s: SimState, actor: Actor): Actor | null {
  * to go off is worth walking out of while bound, and a body somebody else is
  * standing too close to is not.
  */
+/** How deep in the cold a body is. */
+function coldOn(actor: Actor): number {
+  return getAura(actor, 'buffeted')?.stacks ?? 0
+}
+
+/**
+ * Whether this body has decided the cold is no longer worth standing in.
+ *
+ * Two thresholds rather than one, and the second is the whole of it. A single
+ * threshold makes a body walk out, shed one stack four seconds later, walk
+ * back in, take one, and walk out again -- which is not a decision, it is an
+ * oscillation, and it spends the whole fight in the doorway. So: leave at the
+ * threshold, and *keep* leaving until nearly clean. A body already outside is
+ * one that has paid for the walk and should get what it paid for.
+ *
+ * Nothing new is stored for it. Where the body is standing is the memory.
+ */
+function leavingCold(s: SimState, actor: Actor): boolean {
+  const deep = coldOn(actor)
+  if (deep === 0) return false
+  const away = dist(actor.pos, boss(s).pos)
+  if (away > BUFFET_REACH) return deep >= 2
+  return deep >= BUFFET_LEAVE
+}
+
 function dangerCost(key: string | null): number {
   if (key === null) return 0
   for (const [prefix, cost] of BOUND_WORTH) {
@@ -1094,6 +1136,10 @@ function dangerCost(key: string | null): number {
  * at a known moment, and a drink or a slow is a tick paid while standing.
  */
 const BOUND_WORTH: ReadonlyArray<readonly [string, number]> = [
+  // The wash first: it is the only thing on this list whose bill is most of a
+  // health bar and whose answer is a place seventy across.
+  ['cover', 100],
+  ['haul', 95],
   ['ballast', 100],
   ['gather', 95],
   ['caustic', 90],
@@ -1109,6 +1155,11 @@ const BOUND_WORTH: ReadonlyArray<readonly [string, number]> = [
   ['mark', 30],
   ['reek', 20],
   ['grain', 10],
+  // The cold is the cheapest thing on this list by a wide margin, and it is
+  // the only one whose cost is not a hit at all. A body that cannot move is a
+  // body that should be spending its stillness on the thing that is about to
+  // land, not on a multiplier it can walk out of in four seconds' time.
+  ['cold', 5],
 ]
 
 /** How much a step has to be worth before it is taken while bound. */
@@ -1204,6 +1255,41 @@ function currentDanger(s: SimState, actor: Actor): string | null {
       consider(`thirst:${body.id}`, 52)
     }
   }
+
+  // The band the drag put everybody inside, once it has stopped dragging.
+  //
+  // The highest ordinary urgency in this game bar the wash, and it earns it:
+  // there are one and a tenth seconds of warning, and everybody starts the
+  // cast standing in it because the first stage of the cast put them there.
+  // Nothing is gained by reading it early -- the drag walks a body back in
+  // faster than it can walk out -- so it is deliberately not considered until
+  // the pulling has stopped.
+  for (const g of s.ground) {
+    if (g.kind !== 'haul' || g.detonated) continue
+    if (g.telegraph > HAUL_READ) continue
+    if (dist(actor.pos, g.pos) <= g.radius + DANGER_MARGIN) consider(`haul:${g.id}`, 88)
+  }
+
+  // The wash, which is the only thing here answered by walking to a place
+  // rather than away from one. Highest in the game: three seconds of warning
+  // sounds generous and is not, because the destination is a strip seventy
+  // across somewhere behind a coffin.
+  for (const g of s.ground) {
+    if (g.kind !== 'cover' || g.detonated) continue
+    if (coverShelter(g, actor.pos) === null) consider(`cover:${g.id}`, 92)
+  }
+
+  // The cold, and this is the one entry on this list that is allowed to be
+  // late.
+  //
+  // Everything above answers an instant: a body either was standing somewhere
+  // when something happened or it was not. This answers a rate, and a rate has
+  // no moment to be on time for -- what it asks is that a raid notice a number
+  // climbing and decide to give up ground it is not being forced off. So it
+  // sits below every shape on this list, which means a body walks out of the
+  // reach only when nothing else is happening, and that is exactly the
+  // lateness the mechanic is about.
+  if (leavingCold(s, actor)) consider('cold:self', 24 + Math.min(20, coldOn(actor) - BUFFET_LEAVE))
 
   // The wound on the thing in the middle, which is closed by standing in it.
   //
@@ -1474,6 +1560,14 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     }
     // And the two that are answered by being inside them rather than outside.
     if (g.kind === 'bleed' || g.kind === 'portal') {
+      continue
+    }
+    // The wash, whose radius is the whole room. Priced by the rule below it
+    // would refuse every tile in the building, which is true and useless: what
+    // it asks is the opposite question, and the answer is a strip seventy
+    // across behind each coffin.
+    if (g.kind === 'cover') {
+      if (!g.detonated && coverShelter(g, spot) === null) return false
       continue
     }
     // The one shape in the game that makes a spot safe rather than unsafe: a
@@ -2082,6 +2176,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
   // candidate.
   const aloft = getAura(b, 'aloft')
   const landing = aloft !== undefined && aloft.remaining <= FLIGHT_WARNING
+  const leaving = leavingCold(s, actor)
   const spillActive = livingParty(s).some((a) => getAura(a, 'spilling') !== undefined)
   const swallowActive = s.actors.some((a) => getAura(a, 'swallowed') !== undefined)
 
@@ -2101,6 +2196,7 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     let strandedActive = false
     let sentActive = false
     let gathering: GroundEffect | null = null
+    let washing: GroundEffect | null = null
     for (const g of s.ground) {
       // Ground that costs nothing to stand in is not a reason to stand
       // anywhere else. Scored as a hazard it pushed the whole raid off a third
@@ -2119,6 +2215,13 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       // here: it is the one shape a body should be walking towards.
       if (g.kind === 'gather') {
         if (!g.detonated) gathering = g
+        continue
+      }
+      // And the wash, for the same reason and in the other direction: its
+      // radius is the room, so the rule below would price every tile the same
+      // and choose nothing. Kept for its own term.
+      if (g.kind === 'cover') {
+        if (!g.detonated) washing = g
         continue
       }
       const d = dist(candidate, g.pos)
@@ -2183,6 +2286,53 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
       const d = dist(candidate, gathering.pos)
       if (d <= gathering.radius - DANGER_MARGIN) score += 900
       else score -= Math.min(1400, (d - gathering.radius) * 2.2)
+    }
+
+    // Behind a coffin, which is the only place the room is not about to be.
+    //
+    // Scored above everything except a puddle already under the feet, and it
+    // has to be: what it is fighting is every positional rule in this file at
+    // once -- a healer's range, a caster's near edge, the ring, the elbow
+    // room -- and it is fighting them on behalf of a strip seventy across.
+    // A gradient rather than a flag, because the strip is usually further
+    // than one sweep of candidates can reach and a flag with nothing to climb
+    // is a body standing still wanting to be somewhere else.
+    if (washing) {
+      if (coverShelter(washing, candidate) !== null) score += 1600
+      else {
+        let closest = Infinity
+        for (const stone of washing.spots ?? []) {
+          const dx = stone.x - washing.pos.x
+          const dy = stone.y - washing.pos.y
+          const len = Math.hypot(dx, dy)
+          if (len < 1) continue
+          const at = {
+            x: stone.x + (dx / len) * COVER_LONG * 0.4,
+            y: stone.y + (dy / len) * COVER_LONG * 0.4,
+          }
+          closest = Math.min(closest, dist(candidate, at))
+        }
+        if (closest < Infinity) score -= Math.min(2600, closest * 3)
+      }
+    }
+
+    // Out of the cold, for a body that has decided it has had enough of it.
+    //
+    // Deliberately the weakest positional term here, and the only one whose
+    // threshold is a number of stacks rather than a shape on the floor. It is
+    // asking a raid to give up ground nothing is forcing it off, so it has to
+    // lose to every actual hazard and to the ring the raid is standing in --
+    // which is what makes leaving late, and late is the mechanic.
+    if (leaving) {
+      const d = dist(candidate, b.pos)
+      // Heavier than the terms it is fighting, for the same reason the wound's
+      // term is: every positional rule in this file pulls a body *towards* the
+      // thing it is fighting -- a caster's near edge alone is four a unit --
+      // so a rule that says "stand further out than you can cast from" has to
+      // outweigh all of them together or it does nothing at all. Measured
+      // before it did: the raid spent one percent of a pull outside the reach
+      // and carried thirty stacks of it.
+      if (d < BUFFET_REACH + 30) score -= Math.min(2600, (BUFFET_REACH + 30 - d) * 7)
     }
 
     // 3e. And the body this healer is about to heal, which is the burden's
@@ -2447,7 +2597,8 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   if (roomHasOutside(s.room)) pushInside(s.room, target, actor.radius)
   // Pinned bodies do not walk. The one mechanic in the game whose answer is
   // not a step, because it takes the step away.
-  if (getAura(actor, 'spiked')) return
+  // Pinned, or with its feet still out from under it after the band fell in.
+  if (getAura(actor, 'spiked') || getAura(actor, 'rooted')) return
   const d = dist(actor.pos, target)
   const stepLen = actor.moveSpeed * DT * hasteOf(actor)
   // Arrived is a step, not six units.
@@ -2504,6 +2655,15 @@ function useAbilities(s: SimState, actor: Actor, rng: Rng): void {
   // While relocating, only instants are available — exactly the constraint a
   // human healer plays under. Without this the AI starts a cast every tick and
   // movement cancels it every tick, so it heals for nothing.
+  // The one answer in this game that is not pressing something.
+  //
+  // Read off the target call rather than off the aura, so that stopping costs
+  // a reaction delay and can be fumbled the way every other answer here can.
+  // A body that has not noticed yet carries on and buys another point of
+  // debt, which is the mechanic: the bill is the square of how long it took
+  // to notice.
+  if (actor.ai!.striking?.startsWith('still:')) return
+
   const moving = actor.ai!.moveTarget !== null
   if (actor.role === 'tank') tankRotation(s, actor, rng, moving)
   else if (actor.role === 'healer') healerRotation(s, actor, rng, moving)

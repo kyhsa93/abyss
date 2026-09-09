@@ -1797,6 +1797,10 @@ expect(
     // And the rooms nobody fights in, which are still the client map tile's
     // reading of the same building. There is no boss boundary for a room with
     // no boss in it, so there is nothing better to have.
+    ['dream', 181.0, 200.0], // RectangleBoundary(4112.5, 4293.5, 2385, 2585), Valithria
+    ['lair', 175.0, 175.0], // EllipseBoundary(4408.6, 2484.0), 100 by 75, as a mean
+    // And the rooms nobody fights in, which are still the client map tile's
+    // reading of the same building.
     ['vigil', 130.0, 125.0],
     ['eastclimb', 19.0, 95.0],
     ['westclimb', 19.0, 95.0],
@@ -1804,9 +1808,7 @@ expect(
     ['mooring', 145.7, 145.7],
     ['crossing', 199.9, 199.9],
     ['vats', 61.4, 136.0],
-    ['dream', 101.6, 101.6],
     ['gauntlet', 18.8, 69.6],
-    ['lair', 103.2, 103.2],
     ['throne', 114.6, 114.6],
   ] as const) {
     const [gw, gd] = across(id)
