@@ -33,7 +33,8 @@ import { AURA_DURATION, dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
-import { encounterAt } from '../sim/encounters'
+import { ENCOUNTERS, encounterAt } from '../sim/encounters'
+import { CHAMBERS, placeOf, type Chamber, type WingId } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
@@ -41,7 +42,7 @@ import { iconFor } from './icons'
 import type { Effects } from './effects'
 import { drawGrave, drawObstacles, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
-import { COLORS, L, classColor, setWorldRoom, worldReach, worldRoom } from './theme'
+import { COLORS, L, classColor, setWorldRoom, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
 import { drawBolt } from './boltimage'
 import { drawFxLoop } from './fximage'
@@ -316,10 +317,45 @@ export function drawWorld(
   const accent = s.mode === 'raid' ? encounterAt(s.encounter).accent : COLORS.boss
   const gauge = s.mode === 'raid' ? s.gauge : 0
   const seen = L.w / L.scale + L.h / L.scale
-  for (const cell of s.floor ?? [s.room]) {
-    const middle = roomAt(cell)
-    if (dist(middle, cam) > roomReach(cell) + seen) continue
-    drawArena(ctx, accent, s.seed, s.encounter, gauge, cell)
+  const cells = (s.floor ?? [s.room]).filter(
+    (cell) => dist(roomAt(cell), cam) <= roomReach(cell) + seen,
+  )
+  // A building is walled once, not thirty-two times.
+  //
+  // Every piece of floor used to draw its own outline, and a building made of
+  // overlapping pieces then wore every seam between them: the entrance hall
+  // met the passage to the first fight in a line straight across the opening,
+  // which is the one thing an opening must not have. So the wall is laid under
+  // the floor instead — every cell filled a little larger in the wall's colour
+  // first, then every cell filled properly on top. Where two pieces overlap
+  // the second pass covers the first, so what is left is the outline of the
+  // union and nothing inside it, and the party walks out of a room and into a
+  // passage across unbroken ground.
+  //
+  // One pass and then the other, rather than wall-and-floor per cell, because
+  // per cell the next cell's wall lands on the last cell's floor.
+  const building = cells.length > 1
+  if (building) {
+    ctx.save()
+    ctx.fillStyle = COLORS.floorEdge
+    for (const cell of cells) {
+      ctx.beginPath()
+      arenaPath(ctx, worldToScreen(roomAt(cell)), thicken(cell, RIM))
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+  for (const cell of cells) {
+    drawArena(
+      ctx,
+      wearing(s, cell, accent),
+      s.seed,
+      floorOf(s, cell),
+      gauge,
+      cell,
+      !building,
+      s.mode === 'travel' ? WING_WASH : 0,
+    )
   }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
@@ -772,6 +808,17 @@ function drawArena(
    * standing on one of them and looking at the next, so both have to be there.
    */
   room: RoomShape = worldRoom(),
+  /**
+   * Whether this piece of floor draws its own outline.
+   *
+   * One room does: a fight's arena is a shape, and its edge is most of what
+   * says where the fight ends. A piece of a building does not — the building
+   * is walled once, underneath, and an outline per piece is a line drawn
+   * across every opening in it.
+   */
+  edged = true,
+  /** How much of the accent the ground itself wears. See below. */
+  tint = 0,
 ): void {
   // Each room is drawn around its own middle; the camera decides where that
   // lands on screen. The grid is drawn in world space too, so it slides past
@@ -784,6 +831,26 @@ function drawArena(
   ctx.fillStyle = COLORS.floor
   ctx.fill()
   ctx.clip()
+
+  // The wing's colour, in the ground rather than on it.
+  //
+  // Under the grain, the slabs and the grid, which is the whole of why it is
+  // here and not at the end with the gorge's wash. Laid on top it covered
+  // them: the grid went, the slabs came up as a chequerboard, and the floor
+  // stopped saying which way the player was moving across it — which is the
+  // one job the grid has. Under them it is the colour the ground is made of
+  // and everything drawn on the ground is exactly as legible as before.
+  //
+  // The accent alone could not carry it. It reaches a fight's floor as a trace
+  // on one slab in a hundred, which is right for a fight and says nothing
+  // across a building: all thirty-two pieces of the citadel read as one grey
+  // room. Only ever on while walking — a fight's floor keeps its own.
+  if (tint > 0) {
+    ctx.globalAlpha = tint
+    ctx.fillStyle = accent
+    ctx.fillRect(c.x - L.w, c.y - L.h, L.w * 2, L.h * 2)
+    ctx.globalAlpha = 1
+  }
 
   // Slabs first, under everything, and deliberately near the threshold of
   // being seen at all. The first pass at these read as a chequerboard, which
@@ -837,7 +904,15 @@ function drawArena(
     ctx.restore()
   }
 
-  const reach = worldReach() * L.scale
+  // This piece of floor's own reach, not the room the fight is in.
+  //
+  // The two were the same thing for as long as there was one room. In a
+  // building they are not, and the slabs and the grid were laid over a square
+  // the size of whatever room the party happened to be standing in, centred on
+  // each piece in turn — so a passage twice the length of the hall it leaves
+  // was textured for its middle third and flat black for the rest of it, and
+  // the party walked out of a floor onto nothing.
+  const reach = roomReach(room) * L.scale
   const slab = 64 * L.scale
   const cols = Math.ceil((reach * 2) / slab) + 1
   for (let gx = 0; gx < cols; gx++) {
@@ -886,6 +961,8 @@ function drawArena(
     ctx.fillRect(c.x - L.w, c.y - L.h, L.w * 2, L.h * 2)
     ctx.restore()
   }
+
+  if (!edged) return
 
   ctx.beginPath()
   arenaPath(ctx, c, room)
@@ -947,6 +1024,102 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
  * every body on the floor goes through, so it turns and tips with the camera
  * like the ground it is.
  */
+/**
+ * How far the wall stands out past the floor.
+ *
+ * A band rather than a line, because what it is standing in for is a wall
+ * seen from above and a hairline is a drawn edge. Kept small for the reason
+ * the arena's own wall is low: everything in this game is read off the floor,
+ * and a wall wide enough to notice is floor taken away from the fight.
+ */
+const RIM = 26
+
+/** The same room, a little larger, for the band that goes under it. */
+function thicken(room: RoomShape, by: number): RoomShape {
+  if (room.kind === 'hall') {
+    return { ...room, halfWidth: room.halfWidth + by, front: room.front + by, back: room.back + by }
+  }
+  return { ...room, radius: room.radius + by }
+}
+
+/**
+ * What colour a piece of the building is.
+ *
+ * The four quarters of the citadel, which the source colours and this did not:
+ * every one of the thirty-two pieces of floor was drawn in the first fight's
+ * accent, so the entrance hall, the plagueworks and the frostwing halls were
+ * the same grey room over and over and nothing on the screen said which wing
+ * you had walked into. The wing is on the map already — it is what holds the
+ * throne shut — so the floor can wear it for nothing.
+ *
+ * Only while walking. A fight is the fight's own colour, which is a thing
+ * players learn a boss by.
+ */
+function wearing(s: SimState, cell: RoomShape, accent: string): string {
+  if (s.mode !== 'travel') return accent
+  const chamber = nearestChamber(roomAt(cell))
+  return chamber ? WING_COLOUR[chamber.wing] : accent
+}
+
+/**
+ * How much of it the floor wears.
+ *
+ * Enough to tell two wings apart at a glance and not enough to be a thing on
+ * the floor. Every mechanic in this game is a shape drawn on the ground, so
+ * the ground's own colour has a ceiling: whatever it is, a telegraph on top of
+ * it has to read exactly as well as it did on grey.
+ */
+const WING_WASH = 0.16
+
+const WING_COLOUR: Record<WingId, string> = {
+  // Bone and old iron on the way up, which is what the lower spire is made of.
+  lower: '#8ea0b4',
+  // The plagueworks, which is the one part of the building that is alive.
+  plague: '#7fb069',
+  // The crimson hall.
+  crimson: '#c04d5a',
+  // Ice, and the dragon in it.
+  frostwing: '#6fb6d6',
+  // The top, which is the same ice gone white.
+  throne: '#cfd8e6',
+}
+
+/**
+ * Which fight's floor a piece of the building wears.
+ *
+ * The grain a room is made of is written on the fight in it, and a walk had
+ * no fight — so it passed the first one's, and the whole citadel was floored
+ * in Marrowgar's bone. Read off whichever room the piece belongs to instead.
+ * A stretch of ground between two rooms takes the nearer one's, which is what
+ * a passage is: the near end of somewhere.
+ */
+function floorOf(s: SimState, cell: RoomShape): number {
+  if (s.mode !== 'travel') return s.encounter
+  const chamber = nearestChamber(roomAt(cell))
+  if (!chamber) return -1
+  const written = chamber.encounter
+  if (written !== null && written < ENCOUNTERS.length) return written
+  // No fight here, so nothing is written down and the grain is rolled. A
+  // different number for each of them, or the way in, the crossing and every
+  // passage between them would be one floor repeated across the building —
+  // which is what the whole citadel was.
+  return -1 - CHAMBERS.indexOf(chamber)
+}
+
+/** The room a piece of floor belongs to, which is the one it is nearest. */
+function nearestChamber(at: Vec2): Chamber | null {
+  let best: Chamber | null = null
+  let near = Infinity
+  for (const chamber of CHAMBERS) {
+    const d = dist(at, placeOf(chamber.id))
+    if (d < near) {
+      near = d
+      best = chamber
+    }
+  }
+  return best
+}
+
 function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
   if (room.kind !== 'hall') {
     floorArc(ctx, c.x, c.y, room.radius * L.scale, 0, Math.PI * 2)

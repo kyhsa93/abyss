@@ -790,7 +790,13 @@ function standAt(s: SimState, actor: Actor, target: Actor): Vec2 {
   if (Math.abs(d - reach) < 40) return actor.pos
   const t = (d - reach) / d
   const want = { x: actor.pos.x + (target.pos.x - actor.pos.x) * t, y: actor.pos.y + (target.pos.y - actor.pos.y) * t }
-  pushInside(s.room, want, actor.radius)
+  // Into the room, for a walk that is one room. Not for a building — the same
+  // rule `follow` has, and it was missing here, which is worse than it sounds:
+  // the player walks up the passage, the pack that comes out of it is a room
+  // away from the room the raid is standing in, and every one of them clamped
+  // their answer back through the wall. The raid held the entrance hall while
+  // the person they were following was killed forty feet away.
+  if (s.travel?.building !== true) pushInside(s.room, want, actor.radius)
   return want
 }
 

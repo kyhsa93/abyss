@@ -11,11 +11,12 @@ import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BOSS_ID } from '../sim/state'
 import { BATTLEGROUNDS, living } from '../sim/battleground'
 import { awake, heading } from '../sim/travel'
-import { chamberAt } from '../dungeon'
+import { insideRoom, roomAt, roomReach } from '../sim/room'
+import { CHAMBERS, CITADEL_SCALE, PASSAGES, chamberAt, placeOf, roomOf } from '../dungeon'
 import { teamColour } from './draw'
 import type { Actor, AuraId, BgKind, SimState } from '../sim/types'
 import { drawIcon } from './icons'
-import { COLORS, L, classColor, resourceColor, worldReach } from './theme'
+import { COLORS, L, classColor, resourceColor, worldReach, worldRoom } from './theme'
 
 export interface Rect {
   x: number
@@ -561,6 +562,88 @@ function bgName(kind: BgKind): string {
 }
 
 /**
+ * The building from above, for a party crossing it.
+ *
+ * A minimap of the room you are standing in is the right answer to "where am
+ * I in this fight" and no answer at all to "where am I in this citadel" — the
+ * building is thirty-two pieces of floor across sixteen thousand units, and
+ * one of them fills the disc. So while the party is walking, the disc holds
+ * the plan: every room where the plan puts it, the ways between them, the one
+ * you are standing in, and you.
+ *
+ * Off `CITADEL_PLAN` through `placeOf`, the same as the floor itself, so the
+ * picture and the building cannot disagree about where anything is. Which
+ * passages are drawn is read off the floor the party is actually standing on
+ * — a way held shut is ground that has not been laid, so it is not on the map
+ * either, and the player can see what is still closed without being told.
+ */
+function drawPlan(ctx: CanvasRenderingContext2D, s: SimState): void {
+  const { mapX: cx, mapY: cy, mapR: r } = L
+  // The whole plan inside the disc, with a little air around it.
+  const k = (r * 2) / (CITADEL_SCALE * 1.08)
+  const at = (p: { x: number; y: number }) => ({ x: cx + p.x * k, y: cy + p.y * k })
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(10, 10, 15, 0.82)'
+  ctx.fill()
+  ctx.clip()
+
+  // The ways first, under the rooms. Only the ones whose ground exists: the
+  // citadel does not lay a passage held shut, so an unopened way is a gap on
+  // the map exactly as it is a wall on the floor.
+  const floor = s.floor ?? []
+  ctx.lineCap = 'round'
+  for (const passage of PASSAGES) {
+    const a = placeOf(passage.from)
+    const b = placeOf(passage.to)
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    const laid = floor.some((cell) => insideRoom(cell, mid, 0))
+    const p = at(a)
+    const q = at(b)
+    ctx.beginPath()
+    ctx.moveTo(p.x, p.y)
+    ctx.lineTo(q.x, q.y)
+    ctx.strokeStyle = laid ? 'rgba(148, 163, 184, 0.5)' : 'rgba(148, 163, 184, 0.13)'
+    ctx.lineWidth = laid ? 2 : 1
+    if (!laid) ctx.setLineDash([2, 3])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // Then the rooms, sized by how big they actually are so the hub reads as a
+  // hub and the entrance hall as a hall.
+  for (const chamber of CHAMBERS) {
+    const p = at(placeOf(chamber.id))
+    const here = chamber.id === s.chamber
+    const dot = Math.max(2, roomReach(roomOf(chamber.id)) * k)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, dot, 0, Math.PI * 2)
+    ctx.fillStyle = here ? 'rgba(203, 213, 225, 0.85)' : 'rgba(148, 163, 184, 0.28)'
+    ctx.fill()
+  }
+
+  // The raid, and the player picked out of it. Only the party: fifty-two
+  // sleeping bodies across a building is not a map, it is static.
+  for (const a of s.actors) {
+    if (!a.alive || a.faction !== 'party') continue
+    const p = at(a.pos)
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, a.isPlayer ? 2.5 : 1.5, 0, Math.PI * 2)
+    ctx.fillStyle = a.isPlayer ? COLORS.player : classColor(a.classId)
+    ctx.fill()
+  }
+  ctx.restore()
+
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.strokeStyle = COLORS.panelEdge
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+}
+
+/**
  * The floor from above, and deliberately not from behind.
  *
  * This does not turn with the view, and that is the point of it. The world
@@ -574,11 +657,29 @@ function bgName(kind: BgKind): string {
  * here", and a player who has lost their bearings has somewhere to find them.
  */
 function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
+  // Crossing a building, the map is the building. Everywhere else it is the
+  // room, which is what it always was.
+  if (s.mode === 'travel' && s.travel?.building === true) {
+    drawPlan(ctx, s)
+    return
+  }
   const { mapX: cx, mapY: cy, mapR: r } = L
   // The map is the room scaled onto a disc, so what it divides by is how far
   // the room reaches rather than a constant radius.
   const k = r / worldReach()
-  const at = (p: { x: number; y: number }) => ({ x: cx + p.x * k, y: cy + p.y * k })
+  // Around the room's own middle, not the world's.
+  //
+  // These were the same point for as long as every fight was fought at the
+  // origin. They stopped being the day the rooms were placed in a building —
+  // and this went on multiplying raw world coordinates, so a fight seven
+  // thousand units from the middle of the map plotted every token thousands of
+  // pixels outside the disc, where the clip threw them away. The minimap has
+  // been an empty circle in every room of the citadel since.
+  const middle = roomAt(worldRoom())
+  const at = (p: { x: number; y: number }) => ({
+    x: cx + (p.x - middle.x) * k,
+    y: cy + (p.y - middle.y) * k,
+  })
 
   ctx.save()
   ctx.beginPath()

@@ -49,13 +49,22 @@ function begin(): void {
  * Null until the sheet arrives, and the caller draws its flat fill either way:
  * the floor is a complete floor without this.
  */
-let floorPattern: CanvasPattern | null | undefined
+/**
+ * Kept by key rather than one at a time.
+ *
+ * One slot was right while a frame drew one floor. A building draws three or
+ * four pieces of it at once, each wearing its own room's grain, and a single
+ * slot means every one of them misses — a canvas cut, drawn and desaturated
+ * three times a frame, ninety times a second, for a picture that never
+ * changes.
+ */
+const floorPatterns = new Map<string, CanvasPattern | null>()
 let floorFor: CanvasRenderingContext2D | null = null
-let floorKey = ''
 
 export function floorTexture(
   ctx: CanvasRenderingContext2D,
   seed: number,
+  /** The fight whose floor this is, or below zero for a room with no fight. */
   encounter: number,
 ): CanvasPattern | null {
   begin()
@@ -63,14 +72,25 @@ export function floorTexture(
   // A pattern belongs to the context that made it, and the harness makes more
   // than one.
   const key = `${seed}:${encounter}`
-  if (floorPattern !== undefined && floorFor === ctx && floorKey === key) return floorPattern
+  // A pattern belongs to the context that made it, so a new one empties the
+  // lot rather than handing out somebody else's.
+  if (floorFor !== ctx) {
+    floorPatterns.clear()
+    floorFor = ctx
+  }
+  const held = floorPatterns.get(key)
+  if (held !== undefined) return held
 
   // The fight's own, or rolled. A room that is written down is written down to
   // the grain: its shape, what stands in it and what it is made of are all
   // things a player is meant to recognise on the second pull. A floor rolled
   // somewhere else — a descent's — borrows the boss it borrowed its shape
   // from, which is the same answer the terrain gives.
-  const written = encounterAt(encounter).floor
+  // A room with no fight in it has nothing written down, and takes a rolled
+  // one. Below zero says so: the citadel is mostly rooms nobody fights in —
+  // the way in, the crossing, the passages between them — and reading a floor
+  // off a clamped index gave every one of them the first boss's.
+  const written = encounter >= 0 ? encounterAt(encounter).floor : undefined
   const pick =
     written && PROPS[written]
       ? written
@@ -96,10 +116,9 @@ export function floorTexture(
   tc.fillStyle = '#808080'
   tc.fillRect(0, 0, sw, sh)
 
-  floorFor = ctx
-  floorKey = key
-  floorPattern = ctx.createPattern(tile, 'repeat')
-  return floorPattern
+  const made = ctx.createPattern(tile, 'repeat')
+  floorPatterns.set(key, made)
+  return made
 }
 
 
