@@ -331,6 +331,72 @@ fifths. (Those absolute numbers are five times the live ones — the emulator
 applies a rate multiplier this table does not carry — which does not touch a
 ratio.)
 
+### The wave that is two creatures
+
+Every summon in this game walks at a body and hits it. The Watcher's does not:
+`SummonWaveP1` alternates between two entries, and they are not variants of
+each other.
+
+| | source | here |
+| --- | --- | --- |
+| Cult Fanatic | melee. Necrotic Strike every 17s (70% weapon damage and a 20,000 heal absorb), Shadow Cleave every 14s (19–21,000 in front), Vampiric Might every 25s (+25% damage, heals for 300% of damage dealt) | the thrall this game already had |
+| Cult Adherent | stands off. Deathchill Bolt every 2.5s, 45 yards, 2s cast, 11.5–13.5k; Curse of Torpor every 18s; Shroud of the Occult every 10s | **`spawn: 'adherent'`** — walks to its own reach and casts from there |
+
+Half of every wave, because the source's alternates two-to-one and then
+one-to-two, which is half and half over a fight.
+
+**What was left, and why.** Necrotic Strike's heal absorb is the same idea as
+the Confluence's infection — healing that is *wrong* rather than insufficient —
+and this repo's rule is that no fight repeats another fight's idea. Vampiric
+Might and Shroud of the Occult are each a second new idea inside one wave.
+Curse of Torpor is the slow the sludgeworks already has, cast by a body instead
+of laid on a floor. The one that is genuinely new is the reach, and that is the
+one that was taken.
+
+**What it cost to find out.** Two things, both worth writing down:
+
+- Matched by damage *a second* to a fanatic, the fight fell from 70% of its
+  pulls to 15%. A fanatic spends most of a wave walking and then hits one body
+  in armour; an adherent shoots from the moment it lands and its bolt is magic,
+  which nothing in this game reduces. The bolt is worth one of a fanatic's
+  swings now, at the source's own 2.5-second cadence: reach paid for in tempo.
+- That was not the whole of it. A melee dealer picks the summon with the least
+  health left, and the movement layer arranges the raid around the *boss* — so
+  a melee that picked an adherent walked nowhere and swung at nothing for as
+  long as it lived. Half the raid was standing still. A body that has to be
+  next to what it hits now picks something it can reach.
+
+### The rest of the building's trash
+
+Every corridor is the source's own spawns, taken the way the first one was:
+`creature` rows on map 631, clustered by position at thirteen yards, placed at
+the distance they stand from the thing at the end of the walk, and converted at
+`BUILD_SCALE`.
+
+| corridor | what stands in it | packs |
+| --- | --- | --- |
+| the way to the first fight | The Damned, Servants of the Throne, four Deathbound Wards on wires | 9 |
+| **the Oratory** (both climbs) | 28 Deathspeakers — two scouts, two files of five, two of seven, a High Priest either side of the door. Every pack has a twin at the same distance on the other side of the centre line | 8 |
+| **the Rampart of Skulls** | two Rotting Frost Giants at the far end, then gargoyles standing singly, then three on the way onto the ship. The other 32 bodies up there are two armies fighting each other | 6 |
+| **Deathbringer's Rise** | nothing. Six bodies, all of them your own side's | — |
+| **the plagueworks approach** | abominations, a knot of horrors, **twelve Vengeful Fleshreapers in one heap**, scientists standing singly, Stinky and Precious, and a Decaying Colossus on the airlock | 13 |
+| **the crimson stair** | eight San'layn at the top of it, and nothing else | 1 |
+| **the frostwing halls** | twenty Ymirjar in a funnel: threes, then singles alternating sides, then two threes abreast, then six across the way | 9 |
+| **the whelp gauntlet** | two frostwyrms, and two heaps of fourteen Frostwing Whelps with a Frostwarden Handler in each | 4 |
+
+Two numbers that used to be typed are facts now:
+
+- **How far a pack notices.** `creature_template.detection_range` is twenty
+  yards for every one of the six hundred creatures in this raid — the heaviest
+  elite notices from exactly as far as the lightest — so it is that, converted,
+  everywhere. It had been spread by hand between 230 and 260.
+- **What a body in a pack is worth.** `creature_template.HealthModifier`
+  against `creature_classlevelstats`, as a ratio to The Damned, square-rooted.
+  The source's spread is forty to one between the lightest trash here and the
+  heaviest, and a body worth forty is a boss standing in a corridor; the root
+  keeps every ordering and brings the spread to about seven to one. A whelp is
+  two thirds of a body, a frost giant six and a half.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid
@@ -360,7 +426,7 @@ seventeen files, what the instance *does*:
 | the spirit alarms and the stoneform they take off | **taken** |
 | every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | **taken** for all eight fights |
 | what ends a phase: a health share, a mana bar, blood power, an air phase | **taken** — and five of the eight have none |
-| what the adds are and what *they* cast | available |
+| what the adds are and what *they* cast | **taken** for the wave that has two kinds |
 | the achievement criteria — "nobody impaled", "all five kinds alive at once" | available |
 | every line spoken | not wanted: the names here are this game's own |
 
@@ -375,7 +441,7 @@ stands:
 | `creature_model_info` — bounding radius, combat reach | all of them | **taken**: it is the yardstick |
 | `creature_addon` — auras and patrol paths | 5 of the 597 | available, and small: this raid stands still |
 | `waypoint_data` — the paths those five walk | 5 paths | available; nothing here patrols yet |
-| the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | available |
+| the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | **taken** — every corridor |
 
 **The client's own tables** — what the emulators do not carry, published at
 wago.tools and readable through Wowhead's WotLK tooltip endpoint
@@ -399,11 +465,10 @@ which is why a ramp is a room and a stair is a doorway.
    something this game does not have.
 2. ~~**Phase triggers**: what actually ends a phase there.~~ **Taken** — and
    the finding was that there mostly are none. See below.
-3. **What the adds are.** Cult Fanatics and Adherents have kits of their own —
-   Necrotic Strike, Shadow Cleave, Vampiric Might, Deathchill Bolt — and this
-   game's waves are bodies with a health bar.
-4. **The rest of the building's trash**, the same way the first corridor's was
-   taken: 330 spawns, already clustered by room.
+3. ~~**What the adds are.**~~ **Taken in part** — the wave is two creatures
+   now, not one. See below for what was taken and what was left.
+4. ~~**The rest of the building's trash.**~~ **Taken** — every corridor in the
+   building is the source's own spawns now. See below.
 5. **Spell numbers** from the client tables — radius, duration, tick — which is
    the one source that can settle a mechanic's size rather than its shape.
 6. **The teleport pads**, at the source's own coordinates.

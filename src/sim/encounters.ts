@@ -862,6 +862,19 @@ export interface Encounter {
    */
   always?: MechanicId[]
   /**
+   * What share of a wave stands off and casts instead of walking in.
+   *
+   * One fight has one, and it is the fight the source builds its waves out of
+   * two creatures: Cult Fanatics walk at somebody, Cult Adherents stop at
+   * range and cast. `SummonWaveP1` alternates which of the two it summons more
+   * of, two to one and then one to two, so over a fight it is half and half.
+   *
+   * Absent everywhere else, because everywhere else a wave is one creature in
+   * the source as well. A field rather than a fight's name in `boss.ts`: the
+   * next fight that wants casters in its wave says so here.
+   */
+  casters?: number
+  /**
    * Health fractions the phases turn on.
    *
    * Three phases at set shares of the bar is this game's own device, and it
@@ -1459,6 +1472,8 @@ export const ENCOUNTERS: Encounter[] = [
     // carried rather than sold: every setting has a wave, and what the ladder
     // sells is the one that comes back wrong.
     always: ['adds'],
+    // Half of every wave stands off and casts. See `casters`.
+    casters: 0.5,
     kit: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
     /**
      * Two fights rather than one boss getting faster, which is the only place

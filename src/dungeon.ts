@@ -463,11 +463,50 @@ export const CHAMBERS: Chamber[] = [
  * They differ in how much of it there is. The approach to a wing is one pack
  * and a warning; the ground before a lair is three and a lesson.
  */
+/**
+ * How far a body notices, in world units.
+ *
+ * Twenty yards, at the scale the building is walked at, and the twenty is not
+ * chosen: it is `creature_template.detection_range`, and every one of the six
+ * hundred creatures this raid places carries the same value for it -- the
+ * heaviest elite in the wing notices from exactly as far as the lightest.
+ *
+ * The corridors used to spread this by hand between two hundred and thirty and
+ * two hundred and sixty, which was a number being nudged where a fact would
+ * do.
+ */
+const PULL = Math.round(20 * YARD * BUILD_SCALE)
+
+/**
+ * What is standing in the Oratory of the Damned, from the source's own rows.
+ *
+ * Written once and hung on both ways up out of the first fight, because the
+ * source has one hall and this building has two ramps into it. Distances are
+ * measured back from the Watcher herself rather than from the hall's door: the
+ * door is a hundred and fourteen yards short of her and everything in here
+ * stands past it, so the door is not what any of it is arranged around.
+ *
+ * The arrangement is the finding. Every pack has a twin on the other side of
+ * the centre line, at the same distance to within a yard: two lone attendants
+ * at sixty-six, two files of five at forty-nine, two of seven at thirty-four,
+ * and a High Priest either side at fifteen. Nothing here was placed by eye.
+ */
+const ORATORY: Pack[] = [
+  { pos: { x: 18, y: 762 }, count: 1, pulls: PULL, weight: 0.73 },
+  { pos: { x: -17, y: 755 }, count: 1, pulls: PULL, weight: 0.73 },
+  { pos: { x: 21, y: 572 }, count: 5, pulls: PULL, weight: 0.77 },
+  { pos: { x: -21, y: 564 }, count: 5, pulls: PULL, weight: 0.77 },
+  { pos: { x: 18, y: 403 }, count: 7, pulls: PULL, weight: 0.78 },
+  { pos: { x: -19, y: 382 }, count: 7, pulls: PULL, weight: 0.78 },
+  { pos: { x: 54, y: 178 }, count: 1, pulls: PULL, weight: 1.4 },
+  { pos: { x: -53, y: 169 }, count: 1, pulls: PULL, weight: 1.4 },
+]
+
 function corridor(
   id: string,
   /** The room through the far door, which is the only way out of a passage. */
   to: string,
-  packs: Array<{ pos: Vec2; count: number; pulls: number }>,
+  packs: Pack[],
   /**
    * And what is still arriving in it, for the one passage where anything is.
    *
@@ -571,17 +610,17 @@ export const PASSAGES: Passage[] = [
       'spireway',
       'spire',
       [
-        { pos: { x: -62, y: 2001 }, count: 3, pulls: 240 },
-        { pos: { x: 62, y: 1930 }, count: 4, pulls: 240 },
+        { pos: { x: -62, y: 2001 }, count: 3, pulls: PULL },
+        { pos: { x: 62, y: 1930 }, count: 4, pulls: PULL },
         // Statues until a wire is stood on: no circle, so walking past one
         // does nothing. `pulls: 0` is the game's stoneform.
-        { pos: { x: -78, y: 1620 }, count: 1, pulls: 0 },
-        { pos: { x: 78, y: 1620 }, count: 1, pulls: 0 },
-        { pos: { x: -58, y: 1087 }, count: 4, pulls: 240 },
-        { pos: { x: 58, y: 1087 }, count: 4, pulls: 240 },
-        { pos: { x: 0, y: 1029 }, count: 3, pulls: 230 },
-        { pos: { x: -55, y: 301 }, count: 3, pulls: 0 },
-        { pos: { x: 55, y: 301 }, count: 3, pulls: 0 },
+        { pos: { x: -78, y: 1620 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: 78, y: 1620 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: -58, y: 1087 }, count: 4, pulls: PULL },
+        { pos: { x: 58, y: 1087 }, count: 4, pulls: PULL },
+        { pos: { x: 0, y: 1029 }, count: 3, pulls: PULL },
+        { pos: { x: -55, y: 301 }, count: 3, pulls: 0, weight: 1.81 },
+        { pos: { x: 55, y: 301 }, count: 3, pulls: 0, weight: 1.81 },
       ],
       [
         {
@@ -612,26 +651,46 @@ export const PASSAGES: Passage[] = [
   // which is the two ice walls the instance registers against it.
   { from: 'spire', to: 'eastclimb', gate: killed('spire') },
   { from: 'spire', to: 'westclimb', gate: killed('spire') },
-  { from: 'eastclimb', to: 'oratory' },
-  { from: 'westclimb', to: 'oratory' },
+  // And what is standing in the Oratory when you get up there.
+  //
+  // The same on both, because the source has one Oratory and this building has
+  // two ways up into it: whichever ramp a raid takes, what it walks into is
+  // the hall the Watcher preaches in, and the hall is full. Twenty-eight
+  // Deathspeakers in the source's own arrangement — two scouts, then two files
+  // of five, then two of seven, then a High Priest either side of the door.
+  // Every pair is a pair: they stand mirrored about the line down the middle,
+  // which is why the sides here alternate rather than being spread by eye.
+  { from: 'eastclimb', to: 'oratory', corridor: corridor('eastoratory', 'oratory', ORATORY) },
+  { from: 'westclimb', to: 'oratory', corridor: corridor('westoratory', 'oratory', ORATORY) },
   {
     from: 'oratory',
     to: 'mooring',
     gate: killed('oratory'),
+    // The Rampart of Skulls, which is the source's and is mostly empty.
+    //
+    // Nine bodies over a hundred and fifty yards, and the two at the far end
+    // are the whole of it: a pair of Rotting Frost Giants, whose health in the
+    // source is forty times a body of ordinary trash and six times one here
+    // after `weight`'s root. Everything after them is gargoyles standing one
+    // at a time, alternating sides, until three of them hold the way onto the
+    // ship. The other thirty-two creatures on this rampart are the two armies
+    // fighting each other over it, and neither is fighting the raid.
     corridor: corridor('rampartway', 'mooring', [
-      { pos: { x: 0, y: 560 }, count: 3, pulls: 250 },
-      { pos: { x: -42, y: 200 }, count: 3, pulls: 230 },
+      { pos: { x: 90, y: 1763 }, count: 2, pulls: PULL, weight: 6.59 },
+      { pos: { x: 90, y: 854 }, count: 1, pulls: PULL, weight: 0.81 },
+      { pos: { x: -90, y: 760 }, count: 1, pulls: PULL, weight: 0.81 },
+      { pos: { x: -90, y: 731 }, count: 1, pulls: PULL, weight: 0.81 },
+      { pos: { x: 90, y: 622 }, count: 1, pulls: PULL, weight: 0.81 },
+      { pos: { x: 61, y: 214 }, count: 3, pulls: PULL, weight: 0.94 },
     ]),
   },
-  {
-    from: 'mooring',
-    to: 'rise',
-    gate: killed('mooring'),
-    corridor: corridor('riseway', 'rise', [
-      { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
-      { pos: { x: 50, y: 320 }, count: 3, pulls: 240 },
-    ]),
-  },
+  // And nothing at all between the ship and the fight at the top.
+  //
+  // This had two packs and they were invented. Deathbringer's Rise carries six
+  // bodies in the source and all six are your own side's, standing behind the
+  // general who is about to be the boss. A walk with nothing in it is what the
+  // source puts here, and a corridor with nothing in it is not a corridor.
+  { from: 'mooring', to: 'rise', gate: killed('mooring') },
   { from: 'rise', to: 'crossing', gate: killed('rise') },
 
   // The way into the plagueworks: one pack on the stair, and a second standing
@@ -640,10 +699,31 @@ export const PASSAGES: Passage[] = [
   {
     from: 'crossing',
     to: 'vats',
+    // Two hundred yards of the plagueworks' own approach, and the longest
+    // stretch of held ground in the building.
+    //
+    // It reads as a working floor rather than a guard: two abominations either
+    // side of the way in, a scientist alone, a knot of horrors, and then the
+    // thing this corridor is for — twelve Vengeful Fleshreapers in one heap,
+    // each worth a bit over half a body. A wave that size is the one moment in
+    // the citadel where the answer is not to pick a pack but to survive one.
+    // Past it the floor is scientists standing singly, the wing's two named
+    // pets (Stinky at a fifth of a boss, Precious just under), and a Decaying
+    // Colossus on the airlock itself.
     corridor: corridor('plagueway', 'vats', [
-      { pos: { x: 0, y: 780 }, count: 3, pulls: 240 },
-      { pos: { x: -50, y: 380 }, count: 3, pulls: 250 },
-      { pos: { x: 46, y: 60 }, count: 4, pulls: 260 },
+      { pos: { x: 17, y: 2326 }, count: 1, pulls: PULL, weight: 1.4 },
+      { pos: { x: -18, y: 2318 }, count: 1, pulls: PULL, weight: 1.4 },
+      { pos: { x: -10, y: 2092 }, count: 1, pulls: PULL, weight: 0.96 },
+      { pos: { x: 3, y: 1900 }, count: 3, pulls: PULL, weight: 1.09 },
+      { pos: { x: 2, y: 1110 }, count: 12, pulls: PULL, weight: 0.57 },
+      { pos: { x: -90, y: 649 }, count: 1, pulls: PULL, weight: 0.96 },
+      { pos: { x: 90, y: 608 }, count: 1, pulls: PULL, weight: 0.96 },
+      { pos: { x: 43, y: 559 }, count: 2, pulls: PULL, weight: 1.94 },
+      { pos: { x: -74, y: 495 }, count: 1, pulls: PULL, weight: 2.56 },
+      { pos: { x: -21, y: 383 }, count: 1, pulls: PULL, weight: 0.96 },
+      { pos: { x: 90, y: 345 }, count: 1, pulls: PULL, weight: 0.57 },
+      { pos: { x: 16, y: 339 }, count: 1, pulls: PULL, weight: 0.57 },
+      { pos: { x: 0, y: 110 }, count: 1, pulls: PULL, weight: 1.81 },
     ]),
   },
   // And inside it the two rooms are a step to either side. No ground between:
@@ -659,10 +739,16 @@ export const PASSAGES: Passage[] = [
   {
     from: 'crossing',
     to: 'crimson',
+    // One pack, and that is what the source has.
+    //
+    // Written as three landings on a long stair, which was a guess. What the
+    // stair up to the Crimson Hall actually holds is eight San'layn standing
+    // together at the top of it — three archmages, two blood knights, two
+    // nobles and an advisor — and nothing else between the crossing and the
+    // door. Everything else the wing carries stands *inside* the hall, which
+    // is the fight's own room rather than the ground before it.
     corridor: corridor('crimsonway', 'crimson', [
-      { pos: { x: 0, y: 940 }, count: 3, pulls: 230 },
-      { pos: { x: 58, y: 540 }, count: 4, pulls: 250 },
-      { pos: { x: -46, y: 160 }, count: 3, pulls: 230 },
+      { pos: { x: 0, y: 650 }, count: 8, pulls: PULL, weight: 0.93 },
     ]),
   },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },
@@ -670,9 +756,24 @@ export const PASSAGES: Passage[] = [
   {
     from: 'crossing',
     to: 'dream',
+    // The Ymirjar column, straight down the middle of the frostwing halls.
+    //
+    // Twenty of them in the source, and the shape is a funnel: threes at the
+    // far end, then singles alternating sides, then two threes abreast, then
+    // six across the way at the bottom with a warlord in front of them. Almost
+    // all one weight — this is the one wing whose trash is all the same size —
+    // so what varies is only how many arrive at once, which is the cleanest
+    // version of the decision a corridor asks.
     corridor: corridor('dreamway', 'dream', [
-      { pos: { x: 0, y: 700 }, count: 4, pulls: 250 },
-      { pos: { x: -54, y: 300 }, count: 3, pulls: 260 },
+      { pos: { x: 1, y: 1810 }, count: 3, pulls: PULL, weight: 1.03 },
+      { pos: { x: -9, y: 1623 }, count: 1, pulls: PULL, weight: 1.09 },
+      { pos: { x: 11, y: 1617 }, count: 1, pulls: PULL, weight: 1.09 },
+      { pos: { x: -12, y: 1430 }, count: 1, pulls: PULL, weight: 0.97 },
+      { pos: { x: 16, y: 1418 }, count: 1, pulls: PULL, weight: 1.09 },
+      { pos: { x: 13, y: 1086 }, count: 3, pulls: PULL, weight: 1.01 },
+      { pos: { x: -13, y: 1084 }, count: 3, pulls: PULL, weight: 1.05 },
+      { pos: { x: -2, y: 458 }, count: 6, pulls: PULL, weight: 1.07 },
+      { pos: { x: 12, y: 301 }, count: 1, pulls: PULL, weight: 1.15 },
     ]),
   },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
@@ -682,10 +783,20 @@ export const PASSAGES: Passage[] = [
   {
     from: 'gauntlet',
     to: 'lair',
+    // The whelps, which is what this corridor is called after in the source
+    // too.
+    //
+    // Thirty-two bodies in four packs: the two frostwyrms that circle the far
+    // end at two and a half bodies each, and then two heaps of fourteen
+    // Frostwing Whelps with a Frostwarden Handler in the middle of each. A
+    // whelp is worth two thirds of a body of ordinary trash — the lightest
+    // thing in the raid — so a heap of fifteen is nine bodies' worth arriving
+    // at once, and the handler is the thing to kill first.
     corridor: corridor('gauntlet', 'lair', [
-      { pos: { x: 0, y: 980 }, count: 4, pulls: 230 },
-      { pos: { x: -54, y: 560 }, count: 3, pulls: 250 },
-      { pos: { x: 58, y: 120 }, count: 5, pulls: 240 },
+      { pos: { x: -42, y: 2721 }, count: 1, pulls: PULL, weight: 2.51 },
+      { pos: { x: 80, y: 2669 }, count: 1, pulls: PULL, weight: 2.51 },
+      { pos: { x: 44, y: 1306 }, count: 15, pulls: PULL, weight: 0.64 },
+      { pos: { x: -42, y: 1247 }, count: 15, pulls: PULL, weight: 0.64 },
     ]),
   },
 

@@ -41,6 +41,7 @@ import {
   PUNGENT_PER_BREATH,
   DT,
   MELEE_RANGE,
+  SPELL_RANGE,
   TICK_RATE,
   PUDDLE_TELEGRAPH,
   TURN_RATE,
@@ -424,6 +425,37 @@ const HERALD_DAMAGE = 150
 /** How far from the boss the interlude's elite walks in, in world units. */
 const HERALD_WALK_IN = 150
 const ADD_SWING = 1.8
+
+/**
+ * The other half of a cultist wave: the one that does not have to reach you.
+ *
+ * Every summon in this game walks at a body and hits it, which makes a wave a
+ * thing the raid answers by standing somewhere else for a moment. In the
+ * source the Watcher's waves are two creatures, not one -- Cult Fanatics, who
+ * are that, and Cult Adherents, who stop at range and cast Deathchill Bolt
+ * every two and a half seconds. A raid that walks away from an adherent is a
+ * raid still being shot, so the answer is to *go to it*, and that is a
+ * different answer from any other wave here.
+ *
+ * The bolt is worth one of a fanatic's swings, and it comes round more slowly
+ * than one: reach is paid for in tempo. Written the other way first -- the
+ * same damage a *second* as a fanatic -- and it was not the same thing at all.
+ * A fanatic spends most of a wave walking and then hits one body in armour; an
+ * adherent is shooting from the moment it lands and its bolt is magic, which
+ * nothing in this game reduces. Matched by the second, the Watcher fell from
+ * seventy percent of its pulls to fifteen.
+ */
+const ADHERENT_CAST = 2.5
+const ADHERENT_DAMAGE = ADD_DAMAGE
+
+/**
+ * How near an adherent needs to be, in world units.
+ *
+ * The party's own ranged reach, so what it can do to the raid is what the raid
+ * can do back to it, and a raid that wants it dead has to close exactly the
+ * distance it was keeping.
+ */
+const ADHERENT_REACH = SPELL_RANGE
 
 export function updateBoss(s: SimState, rng: Rng): void {
   const b = boss(s)
@@ -1582,6 +1614,14 @@ function scheduleAdds(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): voi
         thrall.spawn = 'beast'
         thrall.quarry = rng.pick(quarry).id
       }
+    }
+    // And on the fight whose waves are two creatures, every other body in one
+    // is the kind that does not walk in. Counted off the index rather than
+    // rolled, because a wave that is all casters by luck is a different wave,
+    // and the source alternates them rather than rolling them too.
+    const casters = fight(s).casters ?? 0
+    if (casters > 0 && i % Math.max(1, Math.round(1 / casters)) === 0) {
+      thrall.spawn = 'adherent'
     }
     s.actors.push(thrall)
   }
@@ -3567,7 +3607,11 @@ function updateAdds(s: SimState): void {
     // facing right. One chasing somebody to its left walked there backwards.
     turnToward(add, Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x))
 
-    if (best > MELEE_RANGE) {
+    // How near this one wants to be. An adherent stops at its own reach and
+    // casts from there; everything else walks into arm's length.
+    const wants = add.spawn === 'adherent' ? ADHERENT_REACH : MELEE_RANGE
+
+    if (best > wants) {
       const stepX = ((nearest.pos.x - add.pos.x) / best) * add.moveSpeed * DT
       const stepY = ((nearest.pos.y - add.pos.y) / best) * add.moveSpeed * DT
       add.pos.x += stepX
@@ -3577,6 +3621,29 @@ function updateAdds(s: SimState): void {
       // room does rather than one it chooses.
       holdOrFall(s, add)
       clearTerrain(s.obstacles, add.pos, add.radius, stepX, stepY)
+    }
+
+    // The one that shoots. Its bolt is spent where it is thrown rather than
+    // where it lands, which is how every other bolt in this game bills: the
+    // shot in the air is the picture of a hit that has already happened, and
+    // an add killed mid-flight is a hit the raid was too late for either way.
+    if (add.spawn === 'adherent') {
+      add.swingTimer -= DT
+      if (add.swingTimer <= 0 && best <= ADHERENT_REACH) {
+        const damage = hit(
+          s,
+          ADHERENT_DAMAGE * (getAura(add, 'empowered') ? EMPOWER_POWER : 1),
+        )
+        applyDamage(s, nearest, damage, 'magic', { sourceId: add.id })
+        spawnBolt(s, add, nearest.id, 'bolt', 'boss_adherent', add.id)
+        pushEffect(s, 'impact', nearest.pos, {
+          abilityId: 'boss_adherent',
+          power: damage,
+          angle: Math.atan2(nearest.pos.y - add.pos.y, nearest.pos.x - add.pos.x),
+        })
+        add.swingTimer = ADHERENT_CAST
+      }
+      continue
     }
 
     add.swingTimer -= DT

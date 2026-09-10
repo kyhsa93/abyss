@@ -719,8 +719,28 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const summoned = pool.filter((a) => a.spawn !== 'spike' && a.id !== held)
   if (summoned.length === 0) return b
 
-  let focus = summoned[0]!
-  for (const a of summoned) if (a.hp < focus.hp) focus = a
+  // Something this body can actually reach, for a body that has to be next to
+  // what it is hitting.
+  //
+  // Nothing here asked until the Watcher's waves stopped being all melee. Half
+  // of hers stand off and cast, and a melee dealer would pick one -- it has
+  // least health left, which is the rule below -- walk nowhere, because the
+  // movement layer arranges the raid around the boss rather than around its
+  // target, and then swing at nothing for as long as the adherent lived. The
+  // fight went from seventy percent of its pulls to fifteen and the reason was
+  // not the bolts: it was half the raid standing still.
+  //
+  // A tank is exempt for the reason it always is: where it stands is a job,
+  // and the wave that walks into it is in reach by definition.
+  const reach = MELEE_RANGE + actor.radius
+  const pickable =
+    actor.melee && actor.role !== 'tank'
+      ? summoned.filter((a) => dist(actor.pos, a.pos) <= reach + a.radius)
+      : summoned
+  if (pickable.length === 0) return b
+
+  let focus = pickable[0]!
+  for (const a of pickable) if (a.hp < focus.hp) focus = a
   return focus
 }
 

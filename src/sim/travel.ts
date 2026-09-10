@@ -50,8 +50,34 @@ export interface Pack {
    * circles overlap are one pack for anybody who walks between them, and that
    * is the corridor's single mistake to make — so the overlap is a thing the
    * build measures rather than a thing that happens.
+   *
+   * Not a decision any more, in fact: every creature in this raid notices from
+   * twenty yards (`creature_template.detection_range`, the same number for all
+   * six hundred of them), so it is that, converted. What is still a decision is
+   * a pack with nought here, which is a thing standing in stoneform until
+   * something else wakes it.
    */
   pulls: number
+  /**
+   * What each body in it is worth, against a body of ordinary trash.
+   *
+   * A corridor used to be one creature repeated: every pack the same bodies at
+   * the same health, differing only in how many. The building is not -- a
+   * fifteen-strong swarm of whelps and a pair of frost giants are both "a pack"
+   * and are not remotely the same thing to walk into -- and which it is, is in
+   * the source: `creature_template` carries a health modifier for every one of
+   * them.
+   *
+   * The square root of that ratio rather than the ratio. The source's own
+   * spread is forty to one between the lightest trash in this raid and the
+   * heaviest, and a body worth forty is a boss standing in a corridor; the
+   * root keeps every ordering the source has and brings the spread to about
+   * seven to one, which is the range these corridors are built for. One stated
+   * decision, applied to all of them, rather than a number a pack at a time.
+   *
+   * Absent is one, which is what a corridor written before this meant.
+   */
+  weight?: number
 }
 
 /**
@@ -309,7 +335,7 @@ export function createTravelState(
       // pushing them into whichever room the party happens to be standing in
       // put all fifty-two of them in the doorway of the first one.
       if (!building) pushInside(corridor.room, at, 20)
-      const body = makeTrash(nextId++, at.x, at.y, hp)
+      const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * (pack.weight ?? 1)))
       belongs[body.id] = index
       actors.push(body)
     }

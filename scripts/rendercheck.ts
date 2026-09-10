@@ -1215,8 +1215,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const rng = new Rng(0x5ad0)
   const b = s.actors.find((a) => a.faction === 'boss')!
 
+  // The whole fight rather than ninety seconds, for the reason the volley
+  // check runs long: the shard is a second-phase cast, and the wall of mana
+  // comes down when the raid takes it down rather than on a clock.
   let caught = false
-  while (s.outcome === 'ongoing' && s.time < 90 && !caught) {
+  while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage && !caught) {
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     if (b.castId === 'boss_frostbolt') caught = true
   }
@@ -1418,7 +1421,12 @@ console.log(`rendered ${frames} frames with no exceptions`)
       s.countdown = 0
       const rng = new Rng(seed)
       const watch = new Set<number>()
-      while (s.outcome === 'ongoing' && s.time < 130) {
+      // The whole fight rather than the first hundred and thirty seconds. The
+      // raid kills one of its own turned bodies by accident, and what it has
+      // to hit it with is second-phase damage: behind the wall of mana this
+      // boss summons and curses and throws nothing, so a window that ends
+      // before the wall does is a window in which nobody could have.
+      while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage) {
         step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
         for (const a of s.actors) {
           if (a.ai?.striking?.startsWith('hold:')) called = true
@@ -1529,7 +1537,11 @@ console.log(`rendered ${frames} frames with no exceptions`)
   let worst = Infinity
   const missed: string[] = []
 
-  while (s.outcome === 'ongoing' && s.time < 40) {
+  // For as long as the fight lasts rather than for forty seconds. The volley
+  // is a second-phase cast now -- the Watcher's script throws nothing direct
+  // while her barrier is up -- so a window measured in seconds is a window
+  // that closes before the raid has taken the wall down.
+  while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage) {
     const before = volley().length
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     const now = volley()
@@ -1546,7 +1558,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
     }
   }
 
-  expect('the volley goes out', casts > 0, `${casts} casts in forty seconds`)
+  expect('the volley goes out', casts > 0, `${casts} casts in a whole fight`)
   expect('and puts one shot on every body', missed.length === 0, missed.join('; '))
   expect(
     'and none of them is over before it is seen',
@@ -4388,18 +4400,37 @@ for (const [label, w, h] of [
         `uses ${uses(key)}, says "${line}"`,
       )
       if (!uses(key)) continue
+      const beat = [1, 2, 3].map((phase) => encounter.phases[phase]![key])
+      const live = beat.map((n) => n > 0)
+      // A cadence somewhere, and an opening to reach it by.
+      //
+      // This asked for one in *every* phase until the Watcher was written the
+      // way its script is: her two phases throw disjoint sets, so half her kit
+      // is nought in the first and half is nought in the second. What the rule
+      // was really guarding is a mechanic a boss owns and never throws, and
+      // that is still caught -- by "at least one", and by the window below
+      // being contiguous, so a mechanic cannot be smuggled in as a hole.
       expect(
-        `${label}: and has a cadence for it in every phase`,
-        [1, 2, 3].every((phase) => encounter.phases[phase]![key] > 0) && encounter.opening[key] > 0,
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![key]).join('/')} from ${encounter.opening[key]}`,
+        `${label}: and has a cadence for it`,
+        live.some(Boolean) && encounter.opening[key] > 0,
+        `${beat.join('/')} from ${encounter.opening[key]}`,
+      )
+      const first = live.indexOf(true)
+      const last = live.lastIndexOf(true)
+      expect(
+        `${label}: and throws it over a run of phases rather than in and out`,
+        first < 0 || live.slice(first, last + 1).every(Boolean),
+        beat.join('/'),
       )
       // Later phases ask sooner. A cadence that is flat is a boss that does
-      // not build.
+      // not build -- read over the phases it is actually thrown in, because a
+      // mechanic that starts in the second phase has no first-phase number to
+      // be faster than.
+      const run = beat.slice(Math.max(0, first), last + 1)
       expect(
         `${label}: and asks for it sooner as it goes`,
-        encounter.phases[1]![key] > encounter.phases[2]![key] &&
-          encounter.phases[2]![key] > encounter.phases[3]![key],
-        `${[1, 2, 3].map((phase) => encounter.phases[phase]![key]).join('/')}`,
+        run.every((n, i) => i === 0 || n < run[i - 1]!),
+        beat.join('/'),
       )
     }
     // And nothing it does not own has a cadence either, or a boss carries a
@@ -8648,12 +8679,22 @@ for (const [label, w, h] of [
       s.countdown = 0
       // The boss may not die before its late rungs come round, and the raid
       // may not wipe: what this asks is what the boss does, not who wins.
+      //
+      // Held at a health, rather than given forty times as much of it. The
+      // multiplier kept the boss alive by keeping it at full, which kept it in
+      // its first phase for the whole three hundred seconds -- and the day one
+      // fight started throwing half its kit only in its second, that half read
+      // as a boss that owns mechanics it never uses. So the bar is pinned just
+      // under each threshold in turn instead: a third of the run per phase,
+      // and the fight breaks between them through its own `advancePhase`
+      // rather than by anything here reaching into the state.
       const monster = bossOf(s)
-      monster.maxHp *= 40
-      monster.hp = monster.maxHp
       const rng = new Rng(seed + 8 * 7919)
       let ticks = 0
       while (s.outcome === 'ongoing' && s.time < 300) {
+        const share =
+          s.time < 100 ? 1 : s.time < 200 ? encounter.phaseTwoHp - 0.01 : encounter.phaseThreeHp - 0.01
+        monster.hp = Math.max(1, Math.round(monster.maxHp * share))
         step(s, { moveX: 0, moveY: 0, pressed: ticks % 45 === 0 ? [0] : [] }, rng)
         ticks++
         for (const fx of s.effects) {
