@@ -9,6 +9,7 @@ import {
   padsLit,
   citadelJets,
   citadelPacks,
+  citadelWardens,
   citadelSprings,
   citadelWorld,
   groundFor,
@@ -25,14 +26,14 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
-import { EXIT_REACH, overlapping, packOf, packSize, packsPlaced, unguarded, type Pack } from '../src/sim/travel'
+import { EXIT_REACH, marchReach, overlapping, packOf, packSize, packsPlaced, unguarded, wakeFor, type Pack } from '../src/sim/travel'
 import { TRASH_KINDS, trashMends } from '../src/sim/trash'
 import { dist, holdOrFall } from '../src/sim/combat'
 import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
-import { CLASSES, autoParty, pickFor } from '../src/sim/classes'
+import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
 import { MUSTER_HALF, fromRoom, insideRoom } from '../src/sim/room'
 import type { Vec2 } from '../src/sim/types'
 import { inTerrain } from '../src/sim/battleground'
@@ -52,6 +53,7 @@ import {
   instances,
   isSaved,
   lockAt,
+  felled,
   resetInstance,
   resetWeek,
   resetsAt,
@@ -753,6 +755,221 @@ const everywhere = () => true
       citadelPacks().reduce((n, pack) => n + packSize(pack, 10), 0),
     `${s.actors.filter((a) => a.faction === 'boss').length} bodies`,
   )
+
+  // And what is killed in it is still on the floor when it is built again.
+  //
+  // The bug this is about: an evening is one walk, and the walk is torn down
+  // and built from the building's plan every time the evening does something
+  // that is not walking. The plan does not know about tonight, so the first
+  // boss killed used to put forty-eight bodies back on their feet behind the
+  // party -- the way up, to be walked a second time.
+  {
+    const mender = s.actors.find(
+      (a) => a.faction === 'boss' && a.spawn === 'mender' && s.travel!.slot[a.id] !== undefined,
+    )!
+    const pack = s.travel!.corridor.packs[s.travel!.belongs[mender.id]!]!
+    const key = pack.key!
+    // The mender and one other out of the same pack, because which body died
+    // is the half of this a count cannot check.
+    const also = s.actors.find(
+      (a) => a.faction === 'boss' && a.id !== mender.id && s.travel!.belongs[a.id] === s.travel!.belongs[mender.id],
+    )!
+    const down: Array<readonly [string, number]> = [
+      [key, 1 << s.travel!.slot[mender.id]!],
+      [key, 1 << s.travel!.slot[also.id]!],
+    ]
+    const before = startRun(7, 10, 'normal')
+    const after = felled(before, down)
+    expect(
+      'what the walk killed is written down against the pack it stood in',
+      after.felled[key] === ((1 << s.travel!.slot[mender.id]!) | (1 << s.travel!.slot[also.id]!)),
+      JSON.stringify(after.felled),
+    )
+    const again = {
+      ...hallFor('threshold', null, anywhere),
+      id: 'citadel',
+      packs: citadelPacks(undefined, after.felled),
+      jets: citadelJets(),
+    }
+    const back = unattended(
+      createCorridorState(5, autoParty(10, dps), again, 'normal', 4, undefined, true),
+    )
+    const was = s.actors.filter((a) => a.faction === 'boss').length
+    const now = back.actors.filter((a) => a.faction === 'boss').length
+    expect(
+      'and the walk built again is two bodies lighter, not whole',
+      now === was - 2,
+      `${was} then ${now}`,
+    )
+    // And the two gone are the two that fell rather than two off the end.
+    //
+    // Compared by place in the pack rather than by count, because the count is
+    // the half a mask gets right by accident: this file's own pack of five is
+    // two Broodkeepers and three others, so killing a mender and taking a body
+    // off the end leaves the same five-minus-two with the wrong one standing.
+    const left = back.actors.filter(
+      (a) => a.faction === 'boss' && back.travel!.corridor.packs[back.travel!.belongs[a.id]!]?.key === key,
+    )
+    const want = packOf(pack, 10)
+      .map((_, i) => i)
+      .filter((i) => i !== s.travel!.slot[mender.id] && i !== s.travel!.slot[also.id])
+    const got = left.map((a) => back.travel!.slot[a.id]!).sort((x, y) => x - y)
+    expect(
+      'and it is the two that fell that are missing, by their place in it',
+      got.join() === want.join(),
+      `${got.join()} standing, wanted ${want.join()}`,
+    )
+  }
+
+  // And every fight in the building is standing in its own room.
+  //
+  // A boss used to exist only inside its own fight, and crossing the doorway
+  // was the pull: you were in it before you had seen the thing you were in it
+  // with. It stands on the floor now and is woken the way everything else in
+  // the building is -- walked up to, or hit.
+  {
+    const built = CHAMBERS.filter(
+      (c) => c.encounter !== null && c.encounter < ENCOUNTERS.length,
+    )
+    const wardens = citadelWardens()
+    expect(
+      `all ${built.length} built fights have their boss standing in the room`,
+      wardens.length === built.length,
+      `${wardens.length} standing`,
+    )
+    // Where the fight puts it, to the unit: a boss drawn anywhere else would
+    // step sideways the moment it was pulled.
+    const adrift = wardens.filter(
+      (w) => dist(w.pos, placeOf(w.warden!.room)) > 0.5,
+    )
+    expect(
+      'and each of them where its own fight puts it',
+      adrift.length === 0,
+      adrift.map((w) => w.warden!.room).join(', '),
+    )
+    // Last in the list, because an alarm names the pack it wakes by its place
+    // in it and `citadelAlarms` shifts those by what came before.
+    const all = citadelPacks()
+    expect(
+      'and standing behind every pack, so no tripwire moved',
+      all.slice(all.length - wardens.length).every((p) => p.warden !== undefined) &&
+        all.slice(0, all.length - wardens.length).every((p) => p.warden === undefined),
+      'a boss is in among the corridor packs',
+    )
+    // And a room whose fight is down has nobody left in it.
+    const after = citadelWardens(new Set(['spire']))
+    expect(
+      'and a fight already down leaves its room empty',
+      after.length === wardens.length - 1 && after.every((w) => w.warden!.room !== 'spire'),
+      `${after.length} left standing`,
+    )
+
+    // Walked up to, and hit: the two ways anything in this building notices,
+    // and a boss has no others. Both are checked because they are two rules --
+    // `pulls` is a distance the walk measures every tick, and `wakeFor` is
+    // what a hit calls -- and a boss that answered only one of them would be
+    // either unpullable or unkillable from range.
+    const index = citadelPacks().findIndex((p) => p.warden?.room === 'spire')
+    const near = unattended(
+      createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
+    )
+    near.floor = citadelWorld().map((cell) => cell.room)
+    near.chamber = 'spire'
+    expect(
+      'a boss nobody has walked up to is asleep',
+      near.travel!.woken[index] === false,
+      `pack ${index} of ${near.travel!.corridor.packs.length}`,
+    )
+    // Onto the floor of its room, a stride outside its own reach.
+    const there = placeOf('spire')
+    const reach = citadelPacks()[index]!.pulls
+    for (const a of near.actors.filter((b) => b.faction === 'party')) {
+      a.pos = { x: there.x, y: there.y - reach - 40 }
+      a.prevPos = { ...a.pos }
+    }
+    step(near, { moveX: 0, moveY: 0, pressed: [] }, new Rng(3))
+    expect(
+      'and standing just outside its reach it still is',
+      near.travel!.woken[index] === false,
+      'it noticed from further than twenty yards',
+    )
+    for (const a of near.actors.filter((b) => b.faction === 'party')) {
+      a.pos = { x: there.x, y: there.y - reach + 40 }
+      a.prevPos = { ...a.pos }
+    }
+    step(near, { moveX: 0, moveY: 0, pressed: [] }, new Rng(3))
+    expect(
+      'and one stride inside it, it has noticed',
+      near.travel!.woken[index] === true,
+      'walking up to a boss did nothing',
+    )
+    // And nobody is ever *put down* inside that reach, which is a different
+    // promise and the one that was broken: resuming an evening in a boss's
+    // room dropped the raid on the spot the boss stands on, so the fight began
+    // before the screen had finished drawing. The arrival point being clear is
+    // not enough -- the formation spreads around it.
+    for (const size of RAID_SIZES) {
+      const stood: string[] = []
+      for (const w of wardens) {
+        const where = w.warden!.room
+        const shape = { ...roomOf(where), at: placeOf(where) }
+        // A room has to be able to hold the raid outside that reach before it
+        // can be asked to. Some cannot: the sludgeworks is fifty-eight yards
+        // across and a mustered raid is forty of them wide, so standing in it
+        // at all is standing inside twenty yards of the middle. That is not a
+        // bug, it is what a small room is -- so the promise is made where it
+        // can be kept and the rest are named.
+        // The narrowest way out of the middle, which for the first fight is
+        // the apse behind the boss rather than the fifty yards in front.
+        const across =
+          shape.kind === 'hall'
+            ? Math.min(shape.halfWidth, shape.back)
+            : shape.kind === 'apse'
+              ? Math.max(shape.radius, shape.back)
+              : shape.radius
+        if (across < w.pulls + marchReach(size)) continue
+        const room = {
+          ...hallFor(where, null, anywhere, { at: w.pos, radius: w.pulls + marchReach(size) }),
+          id: 'citadel',
+          packs: citadelPacks(),
+        }
+        const set = unattended(
+          createCorridorState(2, autoParty(size, dps), room, 'normal', 4, undefined, true),
+        )
+        set.floor = citadelWorld().map((cell) => cell.room)
+        set.chamber = where
+        // Three seconds of standing there, because the raid walks into
+        // formation after it is put down and the formation is wider than the
+        // point: placed at two hundred and forty and mustered to two hundred
+        // and twenty-seven is a boss pulled by nobody.
+        const rng = new Rng(11)
+        for (let t = 0; t < 30 * 3; t++) step(set, { moveX: 0, moveY: 0, pressed: [] }, rng)
+        const closest = Math.min(
+          ...set.actors.filter((a) => a.faction === 'party').map((a) => dist(a.pos, w.pos)),
+        )
+        if (closest < w.pulls) stood.push(`${where}: ${Math.round(closest)} of ${w.pulls}`)
+      }
+      expect(
+        `and a ${size}-man that walks into a boss's room and forms up has not pulled it`,
+        stood.length === 0,
+        stood.join('; '),
+      )
+    }
+
+    // And the other way in: hit it from wherever you like.
+    const hit = unattended(
+      createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
+    )
+    hit.floor = citadelWorld().map((cell) => cell.room)
+    hit.chamber = 'spire'
+    const body = hit.actors.find((a) => hit.travel!.belongs[a.id] === index)!
+    wakeFor(hit, body)
+    expect(
+      'and a boss that is hit has noticed too',
+      hit.travel!.woken[index] === true,
+      'hitting a boss did nothing',
+    )
+  }
 
   // Spread across it, not heaped where the party is standing.
   //

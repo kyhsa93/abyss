@@ -32,7 +32,7 @@ import {
 } from './combat'
 import { blankGround, turnToward } from './boss'
 import { trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
-import { ROUND_ARENA, pushInside, wallGap, type RoomShape } from './room'
+import { ROUND_ARENA, pushInside, pushOutside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, Obstacle, SimState, Vec2 } from './types'
 
@@ -108,6 +108,54 @@ export interface Pack {
    * arrive, not how the fight goes once it starts.
    */
   walks?: Vec2
+  /**
+   * What this pack is called where it stands, for a walk that is rebuilt.
+   *
+   * A citadel walk is torn down and built again every time the evening does
+   * something that is not walking — a boss pulled, a room resumed, a save
+   * reopened — and until this was here, everything killed in it stood back up:
+   * the world was rebuilt from the building's own plan, and the plan does not
+   * know what happened tonight. The index a pack has in the walk is no use as
+   * a name, because clearing a room lays new passages and moves it.
+   *
+   * `${from}>${to}#${i}` — the passage it stands in and its place in that
+   * passage's own list, which nothing tonight can change.
+   */
+  key?: string
+  /**
+   * And which of its bodies are already down, as a bit each.
+   *
+   * A mask rather than a count, because which one matters: a pack of five with
+   * its mender killed and its four swingers alive is not the same pack as one
+   * with four dead and the mender standing.
+   */
+  dead?: number
+  /**
+   * The boss of a room, standing in it, for the pack that is one body and it.
+   *
+   * A boss used to exist only inside its own fight, and the fight began the
+   * instant the party crossed the doorway: you walked into a room and were in
+   * a pull, having never seen the thing that pulled. It stands on the floor
+   * now like everything else in the building does, and it is woken the way
+   * everything else is -- by being walked up to or by being hit. That is what
+   * makes it a pack rather than a new kind of thing: `pulls`, `woken` and
+   * `wakeFor` are already the rules for "when does this notice me", and a boss
+   * needs no others.
+   *
+   * What it does *not* share is the fight. Waking one is not a corridor
+   * scrap: the walk hands the room over to its encounter, which is why this
+   * carries the room's name. See `enterRoom`.
+   */
+  warden?: {
+    /** The chamber whose fight this is. */
+    room: string
+    /** And the encounter's own id, which is what it is drawn as. */
+    fight: string
+    hp: number
+    radius: number
+    /** Its own `speed_run`, already in world units a second. */
+    pace: number
+  }
 }
 
 /** How many bodies this pack has, given who walked in. */
@@ -118,6 +166,21 @@ export function packSize(pack: Pack, size: number): number {
 /** Which creatures are standing in it, given who walked in. */
 export function packOf(pack: Pack, size: number): string[] {
   return size > 10 ? [...pack.of, ...(pack.more ?? [])] : pack.of
+}
+
+/**
+ * And how many of them are still on their feet tonight.
+ *
+ * `packSize` is what the building holds; this is what is left of it. The
+ * difference matters in one place and it is the one that would hang an
+ * evening: a pack whose every body was killed before the walk was rebuilt has
+ * nobody in it to wake, so it has to count as done rather than as asleep.
+ */
+export function standingIn(pack: Pack, size: number): number {
+  const dead = pack.dead ?? 0
+  let n = 0
+  for (let i = 0; i < packSize(pack, size); i++) if (((dead >> i) & 1) === 0) n++
+  return n
 }
 
 /**
@@ -264,6 +327,14 @@ export interface TravelState {
    */
   belongs: Record<number, number>
   /**
+   * And where in its own pack each body stands, by actor id.
+   *
+   * The pack decides which bodies a walk builds and this decides which of them
+   * a killed one was, so that a walk rebuilt tonight leaves the same one on
+   * the floor. See `Pack.dead`.
+   */
+  slot: Record<number, number>
+  /**
    * How far along its walk each pack is, from nought to two.
    *
    * One number rather than a distance and a direction: nought to one is the
@@ -391,23 +462,46 @@ export function createTravelState(
     // Only a body that was put here is pushed into this room. One that walked
     // in is already standing on the building's floor, and a doorway belongs to
     // the passage as much as to the room.
-    if (!standing?.[i]) pushInside(corridor.room, at, PARTY_RADIUS)
+    if (!standing?.[i]) {
+      pushInside(corridor.room, at, PARTY_RADIUS)
+      // And out of the reach of anything the room is waiting on.
+      //
+      // Only a boss, and only a body that was placed. `hallFor` keeps the
+      // arrival *point* clear of one, and that is not the same as keeping the
+      // raid clear of it: the formation spreads around that point, so resuming
+      // an evening in a boss's room put the entry at two hundred and eighty
+      // units and the nearest body at a hundred and twenty -- inside twenty
+      // yards, so the fight began before anybody had touched the screen. A
+      // pull is a thing you walk into.
+      for (const pack of corridor.packs) {
+        if (!pack.warden) continue
+        pushOutside(at, pack.pos, pack.pulls + PARTY_RADIUS, facing + Math.PI)
+      }
+      pushInside(corridor.room, at, PARTY_RADIUS)
+    }
     return make(pick, i, at)
   })
 
   const belongs: Record<number, number> = {}
+  const slot: Record<number, number> = {}
   let nextId = 900
   const hp = Math.round(TRASH_HP * DIFFICULTIES[difficulty].health)
   corridor.packs.forEach((pack, index) => {
     const standing = packOf(pack, party.length)
     const here = standing.length
     for (let i = 0; i < here; i++) {
+      // Killed earlier tonight and not standing again. The id still moves, so
+      // which body a survivor is does not depend on what died beside it.
+      if (((pack.dead ?? 0) >> i) & 1) {
+        nextId++
+        continue
+      }
       const kind = standing[i]!
       // Around their own spot, which is where they were put rather than where
       // a roll landed them: a pack somebody walked past yesterday is standing
       // in the same place today.
       const angle = (i / here) * Math.PI * 2
-      const spread = 34 + (i % 2) * 22
+      const spread = pack.warden ? 0 : 34 + (i % 2) * 22
       const at = { x: pack.pos.x + Math.cos(angle) * spread, y: pack.pos.y + Math.sin(angle) * spread }
       // Into the room, for a walk that *is* one room. Not for a building: the
       // packs of a citadel stand in fifteen different stretches of it, and
@@ -417,16 +511,30 @@ export function createTravelState(
       // Everything about a body is its kind's: what it is called, how big it
       // is, how fast it walks, what it is worth killing, and whether it shoots
       // or closes. See `TRASH_KINDS`.
-      const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * trashWeight(kind)))
+      //
+      // Except a boss, which is not a kind: it is the room's own, and its
+      // numbers come off the encounter rather than off the trash table. It
+      // stands here to be seen and to be walked into; the moment it wakes the
+      // walk hands the room to its fight, so nothing it would do as a body
+      // ever happens.
+      const warden = pack.warden
+      const body = makeTrash(
+        nextId++,
+        at.x,
+        at.y,
+        warden ? warden.hp : Math.round(hp * trashWeight(kind)),
+      )
       body.name = kind
-      body.radius = trashRadius(kind)
-      body.moveSpeed = trashPace(kind)
-      if (trashShoots(kind)) body.melee = false
-      if (trashMends(kind)) {
+      if (warden) body.warden = warden.fight
+      body.radius = warden ? warden.radius : trashRadius(kind)
+      body.moveSpeed = warden ? warden.pace : trashPace(kind)
+      if (!warden && trashShoots(kind)) body.melee = false
+      if (!warden && trashMends(kind)) {
         body.spawn = 'mender'
         body.swingTimer = MEND_FIRST
       }
       belongs[body.id] = index
+      slot[body.id] = i
       actors.push(body)
     }
   })
@@ -460,11 +568,12 @@ export function createTravelState(
       // A pack with nobody in it at this size is not asleep, it is not there.
       // Left "asleep" it would be a corridor nothing could finish waking.
       woken: [
-        ...corridor.packs.map((pack) => packSize(pack, party.length) === 0),
+        ...corridor.packs.map((pack) => standingIn(pack, party.length) === 0),
         ...(corridor.springs ?? []).map(() => true),
       ],
       tripped: (corridor.alarms ?? []).map(() => false),
       belongs,
+      slot,
       strolled: corridor.packs.map(() => 0),
       jetted: (corridor.jets ?? []).map((jet) => jet.offset),
       streaming: {},
@@ -1068,6 +1177,28 @@ function rankAt(actor: Actor, lead: Actor, across: number): Vec2 {
   const column = (ordinal % perRank) - (perRank - 1) / 2
   const rank = 1 + Math.floor(ordinal / perRank)
   return { x: column * RANK_STEP, y: rank * RANK_STEP }
+}
+
+/**
+ * How far the marching formation reaches, out from the body leading it.
+ *
+ * `marchHalf` is the same question asked across the walk, for a corridor that
+ * has to be fitted into. This one is asked in every direction, and it exists
+ * for one thing: a raid *placed* clear of a sleeping boss walks into formation
+ * over the next second and the formation is wider than the placement, so the
+ * body that ends up nearest is this much nearer than the point they were put
+ * at. Twenty-four hundred units of raid closing on a two-hundred-unit circle
+ * is a pull nobody asked for.
+ */
+export function marchReach(size: number): number {
+  const slots = makeSlots(size)
+  const theirs = slots[0]
+  if (!theirs) return 0
+  let far = 0
+  for (const slot of slots) {
+    far = Math.max(far, Math.hypot(slot.x - theirs.x, slot.y - theirs.y) * MARCH_SPREAD)
+  }
+  return Math.round(far)
 }
 
 /** How wide the marching formation stands, out from the body leading it. */

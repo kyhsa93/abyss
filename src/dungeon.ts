@@ -1,9 +1,9 @@
 import { ENCOUNTERS } from './sim/encounters'
 import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
-import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
+import { ROUND_ARENA, atScale, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Obstacle, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
-import { BUILD_SCALE, JET_RADIUS, YARD } from './sim/constants'
+import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -1161,6 +1161,17 @@ export function hallFor(
   id: string,
   from: string | null,
   canGo: (to: string) => boolean,
+  /**
+   * Something already standing in the room that the party must not arrive on.
+   *
+   * There is exactly one thing this is ever about and it is the boss. A room
+   * with several doors used to put an arriving party in its middle, on the
+   * reasoning that the middle is as good an answer as any -- which was true
+   * while the middle was empty floor. It is where the boss stands, so
+   * resuming an evening in a boss's room set the raid down inside its reach
+   * and the fight began before the screen had finished drawing.
+   */
+  clearOf?: { at: Vec2; radius: number },
 ): Corridor {
   // The room where it stands, so the door the party walks to is the same point
   // in the same coordinates as the door it walks out of. That is the whole of
@@ -1205,6 +1216,46 @@ export function hallFor(
   for (let step = 1; step <= 8 && !clear(arrival); step++) {
     const t = step / 8
     arrival = { x: stood.x + (mid.x - stood.x) * t, y: stood.y + (mid.y - stood.y) * t }
+  }
+  // And out again, past whatever is standing there. Away from the thing rather
+  // than toward a door: the two are the same bearing when the thing is in the
+  // middle, and when the party is standing exactly on it there is no bearing at
+  // all -- so the way back out is the way in, reversed.
+  if (clearOf) {
+    const off = Math.hypot(arrival.x - clearOf.at.x, arrival.y - clearOf.at.y)
+    if (off < clearOf.radius) {
+      // Whichever way the room has the floor for, rather than straight out
+      // from where they were standing.
+      //
+      // The first fight is why. Its room is a half-disc with the boss near the
+      // flat side, so the one bearing that has fifty yards of floor behind it
+      // is the one pointing away from the door -- which is exactly the bearing
+      // "step back from where you are" chooses, into twenty-nine yards of apse
+      // and then clamped to the wall, still inside its reach. Tried all the
+      // way round and the best kept: a room that can hold the raid clear of
+      // the boss somewhere will be found to.
+      const from = off > 1 ? Math.atan2(arrival.y - clearOf.at.y, arrival.x - clearOf.at.x) : 0
+      let best = arrival
+      let far = off
+      for (let i = 0; i < 12; i++) {
+        const bearing = from + (i / 12) * Math.PI * 2
+        const at = {
+          x: clearOf.at.x + Math.cos(bearing) * clearOf.radius,
+          y: clearOf.at.y + Math.sin(bearing) * clearOf.radius,
+        }
+        pushInside(room, at, PARTY_RADIUS)
+        const got = Math.hypot(at.x - clearOf.at.x, at.y - clearOf.at.y)
+        // Never onto a doorway, which is the other thing an arrival must not
+        // be -- unless nothing else clears the boss at all, in which case the
+        // room is too small and the doorway is the least of it.
+        const worth = got + (clear(at) ? clearOf.radius : 0)
+        if (worth > far) {
+          far = worth
+          best = at
+        }
+      }
+      arrival = best
+    }
   }
   return {
     id: `hall:${id}`,
@@ -1921,8 +1972,70 @@ export function groundFor(from: string, to: string): Corridor | null {
  * when somebody comes near, which is what they always did — there are simply
  * no longer any of them that do not exist yet.
  */
-export function citadelPacks(cleared?: ReadonlySet<string>): Pack[] {
-  return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
+export function citadelPacks(
+  cleared?: ReadonlySet<string>,
+  /** What is already on the floor tonight, by `Pack.key`. See `Run.felled`. */
+  felled?: Readonly<Record<string, number>>,
+): Pack[] {
+  return [...corridorPacks(cleared, felled), ...citadelWardens(cleared)]
+}
+
+/**
+ * The bosses, standing in their own rooms.
+ *
+ * Last in the list on purpose. An alarm names the pack it wakes by its place
+ * in the walk's one list, and `citadelAlarms` shifts those by how many packs
+ * came before -- so anything added has to be added after all of them, or a
+ * tripwire on the way up wakes a boss in the plagueworks.
+ *
+ * Where the boss stands is where its fight puts it: `placeOf` is the room's
+ * own position and the encounter builds its boss at the middle of the room.
+ * A boss drawn anywhere else here would step sideways the moment it was
+ * pulled.
+ */
+export function citadelWardens(cleared?: ReadonlySet<string>): Pack[] {
+  return CHAMBERS.flatMap((chamber) => {
+    const at = chamber.encounter
+    if (at === null || at >= ENCOUNTERS.length) return []
+    if (cleared?.has(chamber.id) === true) return []
+    const fight = ENCOUNTERS[at]!
+    return [
+      {
+        pos: placeOf(chamber.id),
+        of: [fight.name],
+        // The same twenty yards everything else in this raid notices from.
+        // A boss with a longer reach would be a boss that pulls itself, and
+        // one with a shorter reach would be a boss you can walk around.
+        pulls: PULL,
+        key: `warden#${chamber.id}`,
+        warden: {
+          room: chamber.id,
+          fight: fight.id,
+          hp: fight.hp,
+          radius: Math.round(BOSS_WIDTH / 2),
+          pace: Math.round(fight.pace * 7 * YARD),
+        },
+      },
+    ]
+  })
+}
+
+function corridorPacks(
+  cleared?: ReadonlySet<string>,
+  felled?: Readonly<Record<string, number>>,
+): Pack[] {
+  return laid(cleared).flatMap((passage) => {
+    const here = groundFor(passage.from, passage.to)?.packs ?? []
+    // Named where they stand rather than where they end up in the list. A walk
+    // is rebuilt several times an evening and the list is rebuilt with it, so
+    // an index is a name that moves; the passage and the place in its own list
+    // are the two things nothing tonight changes.
+    return here.map((pack, i) => {
+      const key = `${passageKey(passage.from, passage.to)}#${i}`
+      const dead = felled?.[key] ?? 0
+      return dead === 0 ? { ...pack, key } : { ...pack, key, dead }
+    })
+  })
 }
 
 /**

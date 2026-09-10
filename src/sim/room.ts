@@ -199,6 +199,27 @@ export function insideRoom(room: RoomShape, pos: Vec2, radius = 0): boolean {
  * A room smaller than the body — nothing builds one, but a shrinking room
  * will — collapses to the middle rather than turning inside out.
  */
+/**
+ * The other direction: out of a circle something else has claimed.
+ *
+ * Used where a body is *put down* rather than walked. A raid set down inside a
+ * boss's notice is a raid that has pulled it without deciding to, and the
+ * arrival point being clear is not enough on its own -- the formation spreads
+ * around that point, so the nearest body is a formation's width closer than
+ * the point is.
+ */
+export function pushOutside(pos: Vec2, from: Vec2, radius: number, bearing = 0): void {
+  const dx = pos.x - from.x
+  const dy = pos.y - from.y
+  const off = Math.hypot(dx, dy)
+  if (off >= radius) return
+  // Standing exactly on it has no direction of its own, so it takes the one it
+  // was given.
+  const angle = off > 1 ? Math.atan2(dy, dx) : bearing
+  pos.x = from.x + Math.cos(angle) * radius
+  pos.y = from.y + Math.sin(angle) * radius
+}
+
 export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
   const p = local(room, pos)
   if (room.kind === 'hall') {

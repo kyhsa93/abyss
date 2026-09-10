@@ -449,6 +449,22 @@ export interface Actor {
   spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'adherent' | 'mender'
 
   /**
+   * The fight this body is the boss of, while it is only standing there.
+   *
+   * A boss on the walk is not the boss of a fight: the fight has its own state
+   * with its own boss in it, and this is the thing standing in the room
+   * beforehand, waiting to be walked up to. It is a body in a pack -- that is
+   * what makes it wakeable by the rules everything else in the building is
+   * woken by -- and this is the one thing about it that is not a pack's, so
+   * that the picture on the floor is the boss rather than another thrall.
+   *
+   * Carried rather than looked up by name: a name is a label and two of them
+   * could agree, and the last thing to match creatures up by a display name
+   * took five Darkfallen Commanders out of the crimson hall.
+   */
+  warden?: string
+
+  /**
    * The body a beast has picked, which is the whole of what makes it one.
    *
    * Absent on everything else in the game: a thrall walks at whoever is

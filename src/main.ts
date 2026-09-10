@@ -131,6 +131,7 @@ import {
 import { SPEC_OPTIONS, specLabel } from './sim/classes'
 import {
   cleared as clearedRoom,
+  felled,
   enter as enterChamber,
   isCleared,
   stepTo,
@@ -156,6 +157,7 @@ import {
   PASSAGES,
   chamberAt,
   citadelPacks,
+  citadelWardens,
   citadelJets,
   citadelSprings,
   citadelAlarms,
@@ -168,7 +170,7 @@ import {
   roomOf,
   placeOf,
 } from './dungeon'
-import type { Corridor } from './sim/travel'
+import { marchReach, type Corridor } from './sim/travel'
 import { insideRoom, type RoomShape } from './sim/room'
 import type { SimState, Vec2 } from './sim/types'
 
@@ -644,6 +646,7 @@ function buildState(at?: Vec2, standing?: Vec2[]): SimState {
 function enterRoom(id: string): void {
   const chamber = chamberAt(id)
   if (!run || !chamber || chamber.encounter === null) return
+  harvest()
   standing = null
   // A room whose fight is down is a room to walk through. Pressing it again
   // used to re-pull it, which would let an evening farm its own first boss.
@@ -794,15 +797,67 @@ function roomUnderfoot(): string | null {
  * walk: the ground under them changes and they do not move. Null before an
  * evening has begun, which is the one time nobody is anywhere yet.
  */
+/**
+ * What is on the floor of the walk on screen, folded into the evening.
+ *
+ * Called wherever the world is about to be rebuilt — a boss pulled, a room
+ * resumed, a door taken, a room walked into. Everything killed on the way up
+ * used to stand back up at the first of those, because a walk is built from
+ * the building's plan and the plan does not know about tonight.
+ *
+ * Read off `travel`, which is the only thing that knows which pack a body was
+ * in and where in it: the pack's own name and a bit for the body's place.
+ */
+function harvest(): void {
+  if (!run || state.mode !== 'travel') return
+  const travel = state.travel
+  if (!travel) return
+  const down: Array<readonly [string, number]> = []
+  for (const a of state.actors) {
+    if (a.faction !== 'boss' || a.alive) continue
+    const key = travel.corridor.packs[travel.belongs[a.id] ?? -1]?.key
+    const slot = travel.slot[a.id]
+    // A body out of a spring belongs to no written pack and has no place in
+    // one, so there is nothing to remember it by. What a spring sends is a
+    // stream rather than a garrison; it is meant to be walked away from.
+    if (key === undefined || slot === undefined) continue
+    down.push([key, 1 << slot])
+  }
+  if (down.length === 0) return
+  const next = felled(run, down)
+  if (next === run) return
+  run = next
+  saveRun(run)
+}
+
 function whereTheyStand(): Vec2[] | undefined {
-  if (state.mode !== 'travel' || state.chamber === null) return undefined
+  // Any state that knows which room it is, rather than the walk alone. A fight
+  // that has just ended is a room with a party standing in it, and the walk
+  // that takes over from it should start with them where they are: the moment
+  // this read `travel` only, killing a boss put the raid back at the room's
+  // doorway, which is a teleport at the end of every fight.
+  if (state.chamber === null) return undefined
   const bodies = state.actors.filter((a) => a.faction === 'party')
   if (bodies.length !== party.length) return undefined
   return bodies.map((a) => ({ x: a.pos.x, y: a.pos.y }))
 }
 
-function standIn(id: string, from: string | null): void {
+function standIn(
+  id: string,
+  from: string | null,
+  /**
+   * Whether the party is already standing where it should be.
+   *
+   * `from` says which door they came in by, and its other job used to be this
+   * one: a room entered from nowhere put everybody at its entry. That is right
+   * for resuming a save and wrong for the end of a fight, where nobody has
+   * moved and the room has simply stopped being a fight.
+   */
+  keep = false,
+): void {
   if (!run) return
+  // Before the world is built again, and this is the whole of why it exists.
+  harvest()
   roomId = null
   walkKey = null
   standing = id
@@ -819,18 +874,30 @@ function standIn(id: string, from: string | null): void {
   // fight ended on would be the bearing the citadel is walked at — and the
   // building is laid out so that up the screen is the way on.
   resetView()
-  const carried = from === null ? undefined : whereTheyStand()
+  const carried = from === null && !keep ? undefined : whereTheyStand()
   // One walk for the whole evening: the building's own floor, every pack in it
   // already standing where it stands, and the doors of the room the party is
   // in. Reaching one of them changes which room they are in and nothing else —
   // there is no end to a walk across a citadel.
+  // Clear of whatever is standing in the middle of it, which is the boss when
+  // the room has one. See `hallFor`.
+  const boss = citadelWardens(new Set(run.cleared)).find((p) => p.warden?.room === id)
   const ground: Corridor = {
-    ...hallFor(id, from, canGoTo),
+    ...hallFor(
+      id,
+      from,
+      canGoTo,
+      // Its own reach plus the raid's: they are put down at this point and
+      // then walk into formation around it, and the formation is wider than
+      // the point. A room too small to hold both is a room where the boss
+      // notices you, which is what twenty yards means in a small room.
+      boss ? { at: boss.pos, radius: boss.pulls + marchReach(party.length) } : undefined,
+    ),
     id: 'citadel',
     // What is standing in the ground that exists tonight. A pack in a passage
     // that has not been laid is a pack standing on nothing, drawn in the dark
     // beyond a wall the party cannot reach.
-    packs: citadelPacks(new Set(run.cleared)),
+    packs: citadelPacks(new Set(run.cleared), run.felled),
     springs: citadelSprings(new Set(run.cleared)),
     // And what is standing in the rooms themselves, which is not conditional
     // on anything: furniture does not wait for a door to open.
@@ -871,10 +938,11 @@ function standIn(id: string, from: string | null): void {
  */
 function arriveAt(to: string, from: string): void {
   if (!run) return
-  if (fightAwaits(to)) {
-    enterRoom(to)
-    return
-  }
+  // Both answers are the same one now: you are standing in the room. What is
+  // alive in it is standing in it too -- a pack, or the boss -- and it is
+  // walked up to rather than walked into. A door that started a fight by being
+  // taken was the last place in the building where something happened to the
+  // party rather than being done by it.
   standIn(to, from)
 }
 
@@ -911,6 +979,7 @@ function goThrough(to: string, carried: number[]): void {
 
 function walkTo(to: string, key: string, walk: Corridor): void {
   if (!run) return
+  harvest()
   standing = null
   roomId = to
   walkKey = key
@@ -1886,20 +1955,48 @@ function frame(now: number): void {
     const here = roomUnderfoot()
     if (here !== null && here !== state.chamber) {
       const from = state.chamber
+      harvest()
       run = stepped(run, here, run.carried)
       saveRun(run)
       standing = here
       state.chamber = here
-      if (fightAwaits(here)) {
-        enterRoom(here)
-        requestAnimationFrame(frame)
-        return
-      }
+      // Walking in is not pulling. The boss is standing in the room like
+      // everything else in the building, and what starts its fight is walking
+      // up to it or hitting it — see the block below. Until this changed, the
+      // doorway was the pull: you were in a fight with something you had not
+      // seen yet, in a room you had not looked at.
+      //
       // The same walk, with this room's doors on the floor. Nothing about the
       // party changes — the ground under them is the same ground.
       const next = hallFor(here, typeof from === 'string' ? from : null, canGoTo)
       state.travel.corridor.room = next.room
       state.travel.corridor.ways = next.ways
+    }
+  }
+
+  // And a boss that has noticed hands its room over to its own fight.
+  //
+  // The wake is the corridor's, not a new rule: a pack notices at twenty yards
+  // or when something hits it, and a boss is a pack of one. What is different
+  // is what waking means — the walk stops being the thing on screen and the
+  // encounter takes the room, with the doors shut behind it. See `Pack.warden`.
+  if (state.mode === 'travel' && state.travel?.building === true && run && state.outcome === 'ongoing') {
+    const travel = state.travel
+    const roused = travel.corridor.packs.findIndex(
+      (pack, i) => pack.warden !== undefined && travel.woken[i] === true,
+    )
+    const room = travel.corridor.packs[roused]?.warden?.room
+    if (room !== undefined && fightAwaits(room)) {
+      // Into the room it is standing in, whether or not that is the room the
+      // party thinks it is in: a boss woken through a doorway is still that
+      // boss's fight.
+      if (run.at !== room) {
+        run = stepped(run, room, run.carried)
+        saveRun(run)
+      }
+      enterRoom(room)
+      requestAnimationFrame(frame)
+      return
     }
   }
 
@@ -2029,6 +2126,37 @@ function frame(now: number): void {
         })),
       ]
     }
+  }
+
+  // A boss down opens its own doors again, and the walk carries on.
+  //
+  // There is no screen between the two. A kill used to stop the evening on a
+  // full-page report with a meter on it and a button saying carry on, which is
+  // the same list this whole walk was built to replace -- and the meter is
+  // already on the screen during the fight, so what the page added was the
+  // stopping. What the room owes you afterwards is its doors.
+  //
+  // A wipe is not this: it keeps its page, because a wipe is the one outcome
+  // with a question in it and PULL AGAIN is the answer.
+  if (
+    state.outcome === 'victory' &&
+    state.mode === 'raid' &&
+    graded &&
+    run !== null &&
+    roomId !== null &&
+    !playingDaily &&
+    !visiting
+  ) {
+    // Anything the kill earned is said over the walk instead of over a page
+    // that is no longer drawn. `standIn` clears them, so they are carried.
+    const said = announced
+    const where = roomId
+    run = clearedRoom(run, where, carriedOut(state))
+    saveRun(run)
+    standIn(where, null, true)
+    announced = said
+    requestAnimationFrame(frame)
+    return
   }
 
   setShareLabel(fresh(shareSaid, shareSaidAt) ?? null)

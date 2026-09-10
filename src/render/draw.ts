@@ -2222,6 +2222,9 @@ function drawSwallowed(
  * for a second would be asking eight fights to justify a sheet apiece.
  */
 function bossBody(s: SimState, body?: Actor): string | null {
+  // A boss standing in its room on the walk, which is not a fight and has no
+  // encounter to read: it carries its own. See `Actor.warden`.
+  if (body?.warden !== undefined) return `boss-${body.warden}`
   if (s.mode !== 'raid') return null
   const id = `boss-${encounterAt(s.encounter).id}`
   // A fight with more than one body draws each of them as its own sheet, and
@@ -2321,7 +2324,11 @@ function drawActor(
   const r = Math.max(4, a.radius * L.scale * swell)
   // In a battleground the other side is five people, not a boss and its
   // thralls: they keep their class colours and are told apart by a ring.
-  const isBoss = a.id === BOSS_ID && !battleground
+  // The one in the middle of the fight, or the one standing in the room
+  // waiting to be walked up to. Both are the boss: it is the same creature and
+  // it is drawn, coloured and ringed the same either side of the pull, which
+  // is the whole of what putting it on the floor was for.
+  const isBoss = (a.id === BOSS_ID || a.warden !== undefined) && !battleground
   const isAdd = a.faction === 'boss' && !isBoss && !battleground
   const hostile = battleground && a.faction === 'boss'
   // Everything that is trying to kill the party, under one name: a boss, its

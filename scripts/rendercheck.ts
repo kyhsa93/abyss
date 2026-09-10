@@ -9822,7 +9822,7 @@ for (const [label, w, h] of [
   // An evening two rooms in: the first fight down, the party standing in the
   // second with it still alive, and the room after that one waiting for a
   // fight nobody has built.
-  const run = { seed: 1, size: 10 as const, difficulty: 'normal' as const, at: 'oratory', cleared: ['spire'], carried: [0.5], entered: 2, walked: [], visited: ['threshold', 'spire', 'oratory'] }
+  const run = { seed: 1, size: 10 as const, difficulty: 'normal' as const, at: 'oratory', cleared: ['spire'], carried: [0.5], entered: 2, walked: [], visited: ['threshold', 'spire', 'oratory'], felled: {} }
   const allowed = new Set(['spire', 'oratory', 'airless'])
   for (const [label, w, h] of [
     ['desktop 1440x900', 1440, 900],

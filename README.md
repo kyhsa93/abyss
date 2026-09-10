@@ -102,9 +102,20 @@ You go on by walking. Nothing on the floor is labelled and no doorway is drawn
 ground going that way is how you know there is a way out. The raid follows
 *you*, not the nearest exit: which way you walk is which way the evening goes,
 and left alone in the crossing with five ways off it they stay where they are.
-When you are in the next room, you are in it. If something is alive there the
-fight starts as you arrive. If not, you keep going. Nothing in between is a
-screen: the citadel is a spire you climb — one way up for the first four
+When you are in the next room, you are in it. What is alive in it is standing
+in it — trash where there is trash, and in a fight's room the boss itself, on
+the floor at the spot it fights from. It notices the way everything else in the
+building notices: at twenty yards, or when something hits it. So a boss is
+walked up to rather than walked into, and you can stand in its room and look at
+it first.
+
+The moment it does notice, the room's doors shut and the fight is the room.
+When it falls they open again and the walk carries on from where everybody is
+standing — no report, no meter over the screen, no button saying carry on. The
+meter is on screen during the fight, which is when it is worth reading. A wipe
+keeps its page, because a wipe is the one outcome with a question in it.
+
+Nothing else in between is a screen either: the citadel is a spire you climb — one way up for the first four
 fights, a crossing at the top of it, three wings off the crossing that may be
 taken in any order, and a throne above it all that does not open until the
 last fight of each wing is down. It is crossed on foot from end to end.

@@ -65,6 +65,21 @@ export interface Run {
    * corridors switched off, which is most of what an evening in it is.
    */
   visited: string[]
+  /**
+   * What is already on the floor, by pack, as a bit for each body in it.
+   *
+   * An evening is one walk, and a walk is torn down and built again every time
+   * the evening does something that is not walking: a boss pulled, a room
+   * resumed, the tab reopened. The world it is built from is the building's
+   * own plan, and the plan does not know what happened tonight — so everything
+   * killed on the way up stood back up the moment the first boss died, which
+   * is a corridor to be walked twice.
+   *
+   * Keyed by `Pack.key`, which is the passage a pack stands in and its place
+   * in that passage's list. Not by its index in the walk: clearing a room lays
+   * new passages, and every pack after them would shift.
+   */
+  felled: Record<string, number>
 }
 
 /**
@@ -115,7 +130,28 @@ export function startRun(seed: number, size: RaidSize, difficulty: DifficultyId)
     entered: 0,
     walked: [],
     visited: [DOOR],
+    felled: {},
   }
+}
+
+/**
+ * What the walk left on the floor, folded into the evening.
+ *
+ * Taken off the walk rather than written as it happens: a body falls in the
+ * simulation, which has no idea it is inside an evening, and the evening only
+ * has to know before the walk it fell in is torn down. So this is read at the
+ * moments the world is about to be rebuilt, and nowhere else.
+ */
+export function felled(run: Run, down: Iterable<readonly [string, number]>): Run {
+  const marks = { ...run.felled }
+  let moved = false
+  for (const [key, bit] of down) {
+    const was = marks[key] ?? 0
+    if ((was & bit) === bit) continue
+    marks[key] = was | bit
+    moved = true
+  }
+  return moved ? { ...run, felled: marks } : run
 }
 
 /** Whether the ground behind this door has already been taken tonight. */
@@ -459,6 +495,15 @@ function readRun(parsed: unknown): Run | null {
     // thrown away, because what it is worth keeping for is what it killed.
     const size = value.size === 10 || value.size === 25 ? value.size : 10
     const difficulty = value.difficulty === 'heroic' ? 'heroic' : 'normal'
+    // A save from before the floor was remembered has an empty one, which
+    // reads as "nothing has been killed" — the old behaviour, for the one
+    // evening that was already going when this arrived.
+    const felled: Record<string, number> = {}
+    if (typeof value.felled === 'object' && value.felled !== null) {
+      for (const [key, mask] of Object.entries(value.felled)) {
+        if (typeof mask === 'number' && Number.isFinite(mask) && mask > 0) felled[key] = mask
+      }
+    }
     const run: Run = {
       seed: value.seed,
       size,
@@ -469,6 +514,7 @@ function readRun(parsed: unknown): Run | null {
       entered: typeof value.entered === 'number' ? value.entered : cleared.length,
       walked,
       visited: visited.includes(value.at) ? visited : [...visited, value.at],
+      felled,
     }
     // And the room the party is standing in has to be one the doors actually
     // reach. A save written before a gate changed could otherwise resume
