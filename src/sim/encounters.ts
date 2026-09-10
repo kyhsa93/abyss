@@ -218,6 +218,19 @@ export const MECHANIC_IDS = Object.keys(MECHANIC_SCALES) as MechanicId[]
  *
  * A boss now names what it throws. Absent is zero, which is what zero already
  * meant.
+ *
+ * Where the numbers come from: every one of them is the interval the fight's
+ * own script schedules the matching event at, midpoint where the source gives
+ * a range, and `opening` is that event's first cast rather than its repeat.
+ * Phases two and three are not in the source -- most of these fights have no
+ * phases there at all -- so they keep the ratio to phase one that this game
+ * had already tuned. `docs/reading-the-source.md` has the mechanic-by-mechanic
+ * mapping, including the two numbers that were taken and put back because the
+ * source's number describes something this game does not have.
+ *
+ * They were all written by hand before that, and two of them were backwards:
+ * Deathwhisper's volley came round twice as often here as in the fight it was
+ * copied from, and her shades half as often.
  */
 function beats(some: Partial<Record<MechanicId, number>>): Record<MechanicId, number> {
   const all = {} as Record<MechanicId, number>
@@ -848,7 +861,22 @@ export interface Encounter {
    * say so. This is beside that rule rather than a hole in it.
    */
   always?: MechanicId[]
-  /** Health fractions the phases turn on. */
+  /**
+   * Health fractions the phases turn on.
+   *
+   * Three phases at set shares of the bar is this game's own device, and it
+   * had to be, because the source mostly has no phases: five of these eight
+   * fights escalate on something else entirely -- a bone storm on a clock, a
+   * third inhale, an invocation passed between three bodies, an air phase two
+   * minutes in -- and simply get harder because more of them are up at once.
+   * Two do state a trigger and are written to it: Putricide's eighty and
+   * thirty-five, and the wall of mana that ends Deathwhisper's first phase.
+   * Saurfang's frenzy at thirty is a third, and the number here already
+   * matched it.
+   *
+   * So: where the script says a number, this is that number. Where it says
+   * nothing, this is pacing, and the fight's own comment says so.
+   */
   phaseTwoHp: number
   phaseThreeHp: number
   swingDamage: number
@@ -1215,11 +1243,11 @@ export const ENCOUNTERS: Encounter[] = [
     names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
     kit: ['coldflame', 'spike', 'bonestorm'],
     phases: {
-      1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 13, spike: 27, bonestorm: 62 }) },
-      2: { swing: 2.0, slam: 17, puddleCount: 1, raid: 11, ...beats({ coldflame: 11, spike: 24, bonestorm: 56 }) },
-      3: { swing: 1.8, slam: 15, puddleCount: 1, raid: 10, ...beats({ coldflame: 9.5, spike: 21, bonestorm: 50 }) },
+      1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 5, spike: 17.5, bonestorm: 92.5 }) },
+      2: { swing: 2.0, slam: 17, puddleCount: 1, raid: 11, ...beats({ coldflame: 4.2, spike: 15.6, bonestorm: 83.5 }) },
+      3: { swing: 1.8, slam: 15, puddleCount: 1, raid: 10, ...beats({ coldflame: 3.7, spike: 13.6, bonestorm: 74.6 }) },
     },
-    opening: { slam: 14, raid: 13, ...beats({ coldflame: 11, spike: 22, bonestorm: 48 }) },
+    opening: { slam: 14, raid: 13, ...beats({ coldflame: 5, spike: 15, bonestorm: 47.5 }) },
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
@@ -1377,7 +1405,26 @@ export const ENCOUNTERS: Encounter[] = [
     floor: 'floor-slate',
     hp: 58000,
     enrage: 240,
-    phaseTwoHp: 0.7,
+    /**
+     * The wall of mana, as a share of what has to be taken off her.
+     *
+     * Not a health percentage in the source at all: her barrier absorbs damage
+     * until it is spent, and the phase ends on the hit that outlasts it
+     * (`damage > me->GetPower(POWER_MANA)`). Which is a health percentage once
+     * the two bars are one bar, and the share is in the database:
+     * `creature_template` gives her a health and a mana modifier for each of
+     * the four settings, and `creature_classlevelstats` the level-83 base both
+     * are multiplied by.
+     *
+     *   ten normal   3,264,800 mana / 6,611,600 total = 49%
+     *   ten heroic  11,193,600 / 24,580,800 = 46%
+     *   twenty-five normal 3,264,800 / 9,958,400 = 33%
+     *   twenty-five heroic 13,992,000 / 40,766,400 = 34%
+     *
+     * A fight here has one threshold rather than four, so it is their mean:
+     * two fifths of her is the wall. It was 0.7, hand-tuned.
+     */
+    phaseTwoHp: 0.6,
     phaseThreeHp: 0.36,
     swingDamage: 580,
     slamDamage: 1150,
@@ -1413,12 +1460,39 @@ export const ENCOUNTERS: Encounter[] = [
     // sells is the one that comes back wrong.
     always: ['adds'],
     kit: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
+    /**
+     * Two fights rather than one boss getting faster, which is the only place
+     * in this game a phase changes *what* is thrown rather than how often.
+     *
+     * It is what the source does. Her first phase is a wall of mana she stands
+     * behind: waves of cultists, one of them empowered, a plague on the floor
+     * and a mind turned, and no direct damage at all. The wall comes down and
+     * she starts casting -- frostbolt, the volley, the mark on her tank, and
+     * shades pulled out of the raid -- and every one of the first phase's own
+     * ideas is cancelled on the spot (`scheduler.CancelGroup(GROUP_ONE)`).
+     * Two things cross the break, because the source schedules them outside
+     * both phases: the plague and the turned mind.
+     *
+     * Written as one kit of eight, which is what this was, it is eight
+     * mechanics at once from the first second, and the fight won nought to
+     * five percent of its pulls at every size and difficulty. It is not that
+     * they were too hard. It is that they were all of them, always.
+     *
+     * The wave carries into the second phase because heroic's script does
+     * (`SummonWaveP2` every 45s); on normal the source stops summoning and
+     * this does not, which is the one place this table is knowingly the
+     * heroic script at both difficulties.
+     */
     phases: {
-      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 44, volley: 12, decay: 15, frostbolt: 21, shade: 26, insignificance: 10, empower: 47, dominate: 38 }) },
-      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 39, volley: 10.5, decay: 13, frostbolt: 18, shade: 23, insignificance: 9, empower: 41, dominate: 33 }) },
-      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ adds: 34, volley: 9, decay: 11, frostbolt: 16, shade: 20, insignificance: 8, empower: 36, dominate: 29 }) },
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 60, decay: 26, empower: 25, dominate: 42.5 }) },
+      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 45, volley: 20, decay: 22.5, frostbolt: 12, shade: 12, insignificance: 7.5, dominate: 36.9 }) },
+      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ adds: 39.2, volley: 17.4, decay: 19.1, frostbolt: 10.4, shade: 10.4, insignificance: 6.5, dominate: 32.4 }) },
     },
-    opening: { slam: 13, raid: 15, ...beats({ adds: 40, volley: 11, decay: 14, frostbolt: 19, shade: 24, insignificance: 11, empower: 44, dominate: 36 }) },
+    // Each mechanic's own first cast in the source. The second phase's four
+    // sit here as well and are simply never reached in the first, because a
+    // scheduler whose cadence is nought does not spend its timer -- so what
+    // they mean is "this long after the wall comes down".
+    opening: { slam: 13, raid: 15, ...beats({ adds: 5, volley: 20, decay: 17, frostbolt: 12, shade: 12, insignificance: 7.5, empower: 15, dominate: 27 }) },
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
@@ -1603,11 +1677,11 @@ export const ENCOUNTERS: Encounter[] = [
     /** Fine and flat: a room that is worked in rather than fought over. */
     floor: 'floor-slate',
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 11, vilegas: 17, spore: 24, inhale: 33, pungent: 116 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 10, vilegas: 15, spore: 21, inhale: 29, pungent: 102 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 9, vilegas: 13, spore: 18, inhale: 25, pungent: 88 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 16.2, vilegas: 31.5, spore: 42.5, inhale: 34.2, pungent: 116 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 14.8, vilegas: 27.8, spore: 37.2, inhale: 30.1, pungent: 102 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 13.3, vilegas: 24.1, spore: 31.9, inhale: 25.9, pungent: 88 }) },
     },
-    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 10, vilegas: 16, spore: 20, inhale: 30, pungent: 112 }) },
+    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 13.8, vilegas: 31.5, spore: 22.5, inhale: 27.5, pungent: 112 }) },
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
@@ -1726,11 +1800,18 @@ export const ENCOUNTERS: Encounter[] = [
     floor: 'floor-cobble',
     hp: 56000,
     enrage: 240,
+    // Nothing in the source ends a phase here: what escalates is the bar, and
+    // the mark it buys. This is this game's own pacing, and it is left alone
+    // for that reason -- with one number that turned out to agree with the
+    // script by accident and is now written down as deliberate.
     phaseTwoHp: 0.7,
     // Lower than the usual third, because the last phase of this fight is
     // whatever the gauge has already bought. A boss that starts hitting harder
     // at forty percent on top of two marks it has been paid for is a fight
     // that ends in a wall rather than in a mistake.
+    //
+    // And it is where the source frenzies -- `HealthBelowPct(31) // AT 30%,
+    // not below`, which is the only health threshold in that script.
     phaseThreeHp: 0.3,
     swingDamage: 600,
     slamDamage: 1250,
@@ -1773,14 +1854,14 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#7f1d1d',
     names: { slam: 'RENDING BLOW', shard: '', raid: 'THE TAKING' },
     phases: {
-      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 12, ...beats({ siphon: 20, spill: 14, fester: 30, adds: 42, champion: 75, gorge: 26 }) },
-      2: { swing: 1.8, slam: 14, puddleCount: 1, raid: 11, ...beats({ siphon: 17, spill: 12, fester: 26, adds: 37, champion: 68, gorge: 23 }) },
-      3: { swing: 1.6, slam: 12, puddleCount: 1, raid: 10, ...beats({ siphon: 15, spill: 10, fester: 22, adds: 32, champion: 60, gorge: 20 }) },
+      1: { swing: 2.0, slam: 16, puddleCount: 1, raid: 12, ...beats({ siphon: 22.5, spill: 17.5, fester: 22.5, adds: 40, champion: 75, gorge: 26 }) },
+      2: { swing: 1.8, slam: 14, puddleCount: 1, raid: 11, ...beats({ siphon: 19.1, spill: 15, fester: 19.5, adds: 35.2, champion: 68, gorge: 23 }) },
+      3: { swing: 1.6, slam: 12, puddleCount: 1, raid: 10, ...beats({ siphon: 16.9, spill: 12.5, fester: 16.5, adds: 30.5, champion: 60, gorge: 20 }) },
     },
     // The mark's opening is the floor under the gauge rather than a first
     // cast: nothing marks anybody in the first minute unless the raid fills
     // the bar, which is the whole point of it.
-    opening: { slam: 13, raid: 13, ...beats({ siphon: 20, spill: 12, fester: 24, adds: 38, champion: 75, gorge: 30 }) },
+    opening: { slam: 13, raid: 13, ...beats({ siphon: 17, spill: 15.5, fester: 20, adds: 30, champion: 75, gorge: 30 }) },
     lines: {
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
@@ -1917,9 +1998,9 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#4d7c0f',
     names: { slam: 'THE BIG ARM', shard: '', raid: 'THE SEEPING' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 11, infection: 21, flood: 27, engulf: 7, slime: 24 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 10, infection: 18, flood: 24, engulf: 6.5, slime: 21 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ spray: 8, infection: 16, flood: 21, engulf: 6, slime: 18 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ spray: 20, infection: 14, flood: 25, engulf: 7, slime: 15 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ spray: 18.2, infection: 12, flood: 22.2, engulf: 6.5, slime: 13.1 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ spray: 14.5, infection: 10.7, flood: 19.4, engulf: 6, slime: 11.2 }) },
     },
     // The infection is written slower than it plays, on purpose and against
     // the rule of thumb that a cadence is what a raid meets. A short kit is
@@ -1935,7 +2016,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the whole boss slowed down by a fifth and went to a hundred percent at
     // every size with nobody dying. What `kitCadence` gives back for variety
     // has to be taken out of the table, or a room becomes a discount.
-    opening: { slam: 13, raid: 14, ...beats({ spray: 10, infection: 19, flood: 26, engulf: 8, slime: 22 }) },
+    opening: { slam: 13, raid: 14, ...beats({ spray: 20, infection: 14, flood: 25, engulf: 8, slime: 5 }) },
     lines: {
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
@@ -2044,8 +2125,22 @@ export const ENCOUNTERS: Encounter[] = [
     floor: 'floor-slate',
     hp: 58000,
     enrage: 250,
-    phaseTwoHp: 0.68,
-    phaseThreeHp: 0.34,
+    /**
+     * Eighty and thirty-five, off the script rather than off a feel.
+     *
+     * The one fight in this wing whose phases the source states outright, and
+     * as health shares rather than as anything else: `DamageTaken` watches for
+     * `HealthAbovePct(80)` in the first and `HealthAbovePct(35)` in the
+     * second, and each break stops the boss dead while it runs to a table and
+     * drinks. They were 0.68 and 0.34, which is this game's house default.
+     *
+     * The long first phase is the point of it. Eighty percent is a fifth of a
+     * fight, not a third, so what the raid meets first is nearly the whole of
+     * one idea before a second is added -- which is the shape every other
+     * fight here reaches for by hand.
+     */
+    phaseTwoHp: 0.8,
+    phaseThreeHp: 0.35,
     swingDamage: 560,
     slamDamage: 1150,
     raidDamage: 105,
@@ -2075,11 +2170,11 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#a3e635',
     names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 15, hound: 38, gather: 38, chase: 38, decant: 46, reagent: 10 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 13, hound: 34, gather: 34, chase: 34, decant: 41, reagent: 9 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ caustic: 11, hound: 30, gather: 30, chase: 30, decant: 36, reagent: 8 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 37.5, hound: 23.5, gather: 35, chase: 90, decant: 37.5, reagent: 10 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 32.5, hound: 21, gather: 31.3, chase: 80.5, decant: 33.4, reagent: 9 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ caustic: 27.5, hound: 18.6, gather: 27.6, chase: 71.1, decant: 29.3, reagent: 8 }) },
     },
-    opening: { slam: 14, raid: 13, ...beats({ caustic: 14, hound: 36, gather: 36, chase: 36, decant: 44, reagent: 11 }) },
+    opening: { slam: 14, raid: 13, ...beats({ caustic: 37.5, hound: 23.5, gather: 10, chase: 90, decant: 32.5, reagent: 11 }) },
     lines: {
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
@@ -2233,14 +2328,14 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#be123c',
     names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 50, thirst: 45, ballast: 40, nuclei: 20, prison: 55, adds: 48 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 45, thirst: 40, ballast: 36, nuclei: 18, prison: 49, adds: 43 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ rotation: 40, thirst: 35, ballast: 32, nuclei: 16, prison: 43, adds: 38 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ rotation: 46, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 48 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ rotation: 41.4, thirst: 17.8, ballast: 18.9, nuclei: 11.2, prison: 15.6, adds: 43 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ rotation: 36.8, thirst: 15.6, ballast: 16.8, nuclei: 10, prison: 13.7, adds: 38 }) },
     },
     // The first crown comes at thirty rather than at forty-five, because a
     // raid that has not seen one does not know what fight it is in -- and a
     // short pull would end without it ever having moved.
-    opening: { slam: 14, raid: 13, ...beats({ rotation: 35, thirst: 45, ballast: 38, nuclei: 19, prison: 52, adds: 46 }) },
+    opening: { slam: 14, raid: 13, ...beats({ rotation: 46, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 46 }) },
     lines: {
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
@@ -2351,9 +2446,9 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#e11d48',
     names: { slam: 'THE RED HAND', shard: '', raid: 'THE COURT BLEEDS' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 18, bond: 26, flight: 52, crimson: 33 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 17, bond: 23, flight: 46, crimson: 29 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ gift: 16, bond: 20, flight: 40, crimson: 25 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 15, bond: 30.5, flight: 52, crimson: 22.5 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 14.2, bond: 27, flight: 46, crimson: 19.8 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ gift: 13.3, bond: 23.5, flight: 40, crimson: 17 }) },
     },
     // The crimson opens well before the first flight rather than on top of it.
     //
@@ -2361,7 +2456,7 @@ export const ENCOUNTERS: Encounter[] = [
     // fight, it is a wipe with two names: at thirty-one the first crimson
     // landed inside the first landing and took a twenty-five man from
     // fifty-four percent to twenty-eight in one tick.
-    opening: { slam: 14, raid: 14, ...beats({ gift: 18, bond: 24, flight: 50, crimson: 22 }) },
+    opening: { slam: 14, raid: 14, ...beats({ gift: 15, bond: 15, flight: 52, crimson: 12.5 }) },
     lines: {
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',

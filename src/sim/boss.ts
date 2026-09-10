@@ -143,7 +143,7 @@ import {
   holdOrFall,
   hasteOf,
 } from './combat'
-import { pushInside, roomAt, roomReach } from './room'
+import { pushInside, roomArea, roomAt, roomReach } from './room'
 import type { Rng } from './rng'
 import { BOSS_ID } from './state'
 import { DIFFICULTIES } from './classes'
@@ -2794,6 +2794,34 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   }
   say(s, b, lineFor(fight(s), 'slime'))
   s.sounds.push('telegraph')
+
+  // How long a patch stays up, read off rule 5 rather than typed.
+  //
+  // The cap on how much floor is under at once is a promise about an
+  // *instant*, and what decides it is not the arc -- it is how many arcs are
+  // up together. One arc of four is 59% of the third this room is allowed, so
+  // two of them overlapping breaks the promise while every number that was
+  // tuned for it is untouched. That is exactly how it broke: the round that
+  // took this fight's cadences from its source script tightened the rise from
+  // one every eighteen seconds to one every fifteen, heroic stretches a
+  // patch's life by 15%, and the third phase tightens it again -- so the wave
+  // stopped clearing before its successor rose and 39% of the floor was under.
+  //
+  // So the life is whatever leaves the room inside its budget: as many waves
+  // as the third of the floor will hold, and gone before the one after that.
+  // Nothing here has to be re-tuned when the cadence, the room, the arc or the
+  // difficulty's linger changes, which is the point.
+  const waveArea = SLIME_ARC * Math.PI * SLIME_PATCH * SLIME_PATCH
+  const waves = Math.max(1, Math.floor(roomArea(s.room) / 3 / waveArea))
+  // `lingering` is spent at a rate the difficulty sets, so the number a patch
+  // is given is not seconds. This is the conversion, taken from the same place
+  // the spending is.
+  const drain = DT / lingerStep(s)
+  const life = Math.min(
+    SLIME_LINGER,
+    Math.max(0, waves * timing.slime - SLIME_TELEGRAPH - DT) / drain,
+  )
+
   const from = rng.range(0, Math.PI * 2)
   // A fixed number of patches whatever the headcount. The room is the room.
   const step = (Math.PI * 2) / (SLIME_ARC * 2.4)
@@ -2812,7 +2840,7 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
       pos: at,
       radius: SLIME_PATCH,
       telegraph: SLIME_TELEGRAPH,
-      lingering: SLIME_LINGER,
+      lingering: life,
       damage: SLIME_TICK,
     })
   }

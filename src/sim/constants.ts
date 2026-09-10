@@ -1321,6 +1321,11 @@ export const REAGENT_BURST_REACH = 160
  * somewhere to be; and the arc is capped so that what is covered at any one
  * moment stays under a third of the floor. Area denial super-scales, and a
  * flooded room with merging bodies in it is a moment with no answer in it.
+ *
+ * The linger below is a ceiling rather than the life a patch gets. What it
+ * actually gets is worked out where it is laid, out of the cadence in hand and
+ * the room's own floor, because what breaks the third-of-the-floor promise is
+ * two waves being up at once and no number here can see the cadence.
  */
 export const SLIME_PATCH = 210
 export const SLIME_ARC = 4

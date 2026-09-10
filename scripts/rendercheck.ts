@@ -3361,6 +3361,21 @@ for (const [label, w, h] of [
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     for (const e of s.effects) {
       if (e.kind !== 'impact') continue
+      // Named party abilities only, which is the population the rule is about.
+      //
+      // `crit` on an effect is a drawing weight, not a die roll -- its own doc
+      // says "worth drawing bigger, and worth a shove of the camera" -- and
+      // the boss sets it on twenty-one things that are not crits and cannot
+      // be, chief among them the flash a piece of hazardous floor makes when
+      // it goes off. Counting every impact therefore measured the party's
+      // crit rate against a denominator of boss flashes, and it only looked
+      // right while the boss made few of them: the round that gave the first
+      // fight its source cadence took the cold line from one throw every
+      // eleven seconds to one every five, each throw laying a line of floor,
+      // and the "crit rate" jumped to 21.9% without a single die having
+      // changed. An anonymous impact is a weapon and there is no telling
+      // whose from the effect alone, so those are left out too.
+      if (!e.abilityId || !ABILITIES[e.abilityId]) continue
       hits++
       if (e.crit) crits++
     }

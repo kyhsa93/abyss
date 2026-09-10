@@ -240,25 +240,96 @@ from descriptions rather than from data:
 | Coldflame, Bone Spike Graveyard, Bone Storm, Bone Slice | coldflame, spike, bonestorm, and the tank's slam |
 | Death and Decay, Frostbolt, Frostbolt Volley, Touch of Insignificance, Summon Shade, Dominate Mind, Dark Empowerment, add waves | decay, frostbolt, volley, insignificance, shade, dominate, empower, adds |
 
-The *cadence* does not, and this is the largest single thing the data could
-still settle. `boss_lord_marrowgar.cpp` schedules its events outright:
+Every fight's cadence now comes off its own script, and that was the largest
+single thing the data had left to settle. The rule used: **phase one is the
+source's repeat, the opening is the source's first cast, and a range is its
+midpoint.** Phases two and three keep the ratio each fight already had, so a
+boss tightens the way it always did — the source has no phase-two cadence to
+copy for most of them, because most of them have no phases.
 
-| | source | here, phase one → three |
+`boss_lord_marrowgar.cpp`, as the shape all the rest are in:
+
+| | source | here, phase one → three | opening |
+| --- | --- | --- | --- |
+| Coldflame | 5s, from 5s in | 5 → 3.7 | 5 |
+| Bone Spike Graveyard | 15s, then 15–20s | 17.5 → 13.6 | 15 |
+| Bone Storm | warned at 45–50s, then 90–95s | 92.5 → 74.6 | 47.5 |
+| Bone Slice | enabled at 10s | the tank's slam, 19 → 15 | 14 |
+| enrage | 10 minutes | 240s | |
+
+The whole mapping, mechanic here ← event there. Everything unmarked is the
+source's own number:
+
+| fight | here ← source |
+| --- | --- |
+| Marrow (Lord Marrowgar) | coldflame ← Coldflame 5s · spike ← Bone Spike Graveyard 15–20s · bonestorm ← Bone Storm 90–95s, warned at 45–50s |
+| Whisper (Lady Deathwhisper) | adds ← wave 60s (45s heroic) · decay ← Death and Decay 22–30s, first at 17s · dominate ← Dominate Mind 40–45s, first at 27s · empower ← Dark Empowerment 25s, first at 15s · frostbolt ← Frostbolt 12s · volley ← Frostbolt Volley 20s · insignificance ← Touch of Insignificance 6–9s · shade ← Summon Spirits 12s |
+| Host (Festergut) | inhale ← Inhale Blight 33.5–35s, first at 25–30s · spore ← Gas Spore 40–45s, first at 20–25s · bloat ← Gastric Bloat 15–17.5s, first at 12.5–15s · vilegas ← Vile Gas 28–35s · blight, pungent — this game's own |
+| Gorged (Deathbringer Saurfang) | adds ← Summon Blood Beast 40s, first at 30s · spill ← Boiling Blood 15–20s, first at 15.5s · siphon ← Blood Nova 20–25s, first at 17s · fester ← Rune of Blood 20–25s, first at 20s · champion ← Mark of the Fallen Champion, which is a bar rather than a clock |
+| Confluence (Rotface) | spray ← Slime Spray 20s · infection ← Mutated Infection 14s · flood ← Ooze Flood 25s · slime ← Sticky Ooze 15s, first at 5s · engulf, ooze, merge — this game's own |
+| Flasks (Professor Putricide) | hound ← Malleable Goo 21–26s · gather ← Slime Puddle 35s, first at 10s · decant ← Choking Gas Bomb 35–40s · caustic ← Unstable Experiment 35–40s · chase ← Unbound Plague 90s |
+| Crowns (Blood Prince Council) | rotation ← Invocation of Blood 46.5s · nuclei ← Shadow Resonance 10–15s · thirst ← Conjure Flame 20s · ballast ← Kinetic Bomb 18–24s · prison ← Shock Vortex 15–20s |
+| Gift (Blood-Queen Lana'thel) | gift ← Vampiric Bite 15s · bond ← Pact of the Darkfallen 30.5s, first at 15s · crimson ← Twilight Bloodbolt 20–25s · flight ← Air Phase, **not** taken |
+
+Two were taken and put back, and both for the same reason — the source's
+number describes something this game does not have:
+
+- **`reagent`** is Mutated Plague, which the source casts every 25s and then
+  every 10s. Here it is not a cast at all: it is a dose that stacks on whoever
+  is tanking, so its "cadence" is the rate the stack grows. Written at the
+  source's number it stopped landing.
+- **`flight`** is the air phase, 124s in and every 100–120s after. This game's
+  fights run 245 seconds and enrage; a mechanic on a two-minute clock fires
+  once or not at all, and `rendercheck` caught it never firing. It stays at 52.
+
+Two values this reading found backwards, both from the round that tuned these
+fights without the numbers: this game threw Deathwhisper's volley twice as
+often as the source and summoned a shade half as often.
+
+### What ends a phase, and how little of it is health
+
+Three phases at fixed shares of the health bar is this game's own pacing
+device. It had to be invented, because the source mostly does not have one:
+
+| fight | what ends a phase there | here |
 | --- | --- | --- |
-| Coldflame | 5s, from 5s in | 13s → 9.5s |
-| Bone Spike | 15s, then 15–20s | 27s → 21s |
-| Bone Storm | warned at 45–50s, then every 90–95s; twenty seconds long at ten, thirty at twenty-five; the boss moves at three times its own speed and re-picks three times | one beat, 62s → 50s, re-picked every 5s |
-| the tank's cleave | enabled at 10s | slam, 19s → 15s |
-| enrage | 10 minutes | 240s |
+| Marrow (Marrowgar) | nothing. Bone Storm on a clock is the whole escalation | pacing, left alone |
+| Whisper (Deathwhisper) | the mana barrier: the hit that outlasts it (`damage > GetPower(POWER_MANA)`), and the two phases throw **different mechanics** | phase two at 0.6, and the kit is split — see below |
+| Host (Festergut) | nothing. The third inhale is the escalation | pacing, left alone |
+| Gorged (Saurfang) | nothing ends a phase; the bar fills and buys marks. One health threshold exists: Frenzy at 30% (`HealthBelowPct(31) // AT 30%, not below`) | phase three was already 0.3, now written down as that |
+| Confluence (Rotface) | nothing. Hasten Infections at 90s is the escalation | pacing, left alone |
+| Flasks (Putricide) | **80% and 35%**, stated outright, with the boss stopping to drink at each | 0.8 and 0.35, was 0.68 / 0.34 |
+| Crowns (Blood Council) | nothing. The invocation moves between three bodies every 46.5s | pacing, left alone |
+| Gift (Lana'thel) | nothing. The air phase is a clock, 124s in | pacing, left alone |
 
-Lady Deathwhisper's are in the same shape: waves every 60s at ten and 45s at
-heroic (here 44s → 34s), Frostbolt every 12s (here 21s → 16s), the volley
-every 20s (here 12s → 9s), Insignificance every 6–9s (here 10s → 8s), a shade
-every 12s (here 26s → 20s).
+**Deathwhisper is the one that mattered.** Her two phases are two different
+fights, not one boss getting faster: behind the wall she summons waves, one of
+them empowered, drops a plague and turns a mind, and deals no direct damage;
+when the wall falls the script cancels every one of those (`CancelGroup`) and
+she starts casting — frostbolt, volley, the mark on her tank, shades pulled out
+of the raid. Only the plague and the turned mind cross the break, because the
+source schedules those outside both phases.
 
-Two of those are backwards — this game throws the volley twice as often as the
-source and a shade half as often — and neither was a decision. They came out of
-tuning a fight nobody had the source's numbers for.
+Written here as one kit of eight thrown from the first second, that fight won
+between nought and five percent of its pulls at every size and difficulty. The
+mechanics were not too hard. They were all of them, always. It is now split the
+way the script splits it.
+
+**The share of the bar the wall is worth** is in the database rather than in
+the script. `creature_template` carries a health and a mana modifier per
+difficulty and `creature_classlevelstats` the level-83 base they multiply:
+
+| | mana (the wall) | health | wall's share |
+| --- | --- | --- | --- |
+| ten normal | 3,264,800 | 3,346,800 | 49% |
+| ten heroic | 11,193,600 | 13,387,200 | 46% |
+| twenty-five normal | 3,264,800 | 6,693,600 | 33% |
+| twenty-five heroic | 13,992,000 | 26,774,400 | 34% |
+
+A fight here has one threshold rather than four, so it is their mean: two
+fifths. (Those absolute numbers are five times the live ones — the emulator
+applies a rate multiplier this table does not carry — which does not touch a
+ratio.)
 
 ### Deliberately different
 
@@ -287,8 +358,8 @@ seventeen files, what the instance *does*:
 | boss boundaries — the shape of every fight's floor, as circles, rectangles, ellipses and one parallelogram | **taken** for the first fight |
 | doors, and what opens them: `DOOR_TYPE_ROOM` while a fight runs, `DOOR_TYPE_PASSAGE` once it is done | **taken** — the two ice walls |
 | the spirit alarms and the stoneform they take off | **taken** |
-| every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | available — the biggest thing left |
-| what ends a phase: a health share, a mana bar, blood power, an air phase | available |
+| every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | **taken** for all eight fights |
+| what ends a phase: a health share, a mana bar, blood power, an air phase | **taken** — and five of the eight have none |
 | what the adds are and what *they* cast | available |
 | the achievement criteria — "nobody impaled", "all five kinds alive at once" | available |
 | every line spoken | not wanted: the names here are this game's own |
@@ -323,11 +394,11 @@ which is why a ramp is a room and a stair is a doorway.
 
 ### In the order it is worth taking
 
-1. **Every fight's cadence**, from its own script. Thirteen of them, all in the
-   same shape as the two read here, and the two that were read turned up two
-   values this game had backwards.
-2. **Phase triggers**: what actually ends a phase there, against three phases
-   on a timer here.
+1. ~~**Every fight's cadence**, from its own script.~~ **Taken** — the table
+   above. Every mechanic on all eight fights, except the two that describe
+   something this game does not have.
+2. ~~**Phase triggers**: what actually ends a phase there.~~ **Taken** — and
+   the finding was that there mostly are none. See below.
 3. **What the adds are.** Cult Fanatics and Adherents have kits of their own —
    Necrotic Strike, Shadow Cleave, Vampiric Might, Deathchill Bolt — and this
    game's waves are bodies with a health bar.
