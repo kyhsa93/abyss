@@ -30,6 +30,7 @@ import {
   MARK_REACH,
   insideCone,
   untouchable,
+  drinks,
 } from './boss'
 import { specOf } from './classes'
 import { damageOrder } from './autocast'
@@ -49,7 +50,6 @@ import {
   topThreatTarget,
 } from './combat'
 import { EDGE_LAP, dropGap, onEdge, pushInside, roomHasOutside, wallGap } from './room'
-import { BOSS_ID } from './state'
 import type { Rng } from './rng'
 import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
 
@@ -142,6 +142,11 @@ const WALK_LINE = 0.3
 export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
   const ai = actor.ai
   if (!ai || !actor.alive) return
+
+  // A body that stepped out of the fight does nothing at all for five seconds.
+  // That is the price, and it is the only one in this game paid in existence
+  // rather than in health.
+  if (getAura(actor, 'away')) return
 
   // A body inside the boss does nothing at all. It is not standing anywhere,
   // it cannot be reached and it cannot reach anything -- the four seconds are
@@ -269,6 +274,10 @@ export function updatePartyAi(s: SimState, actor: Actor, rng: Rng): void {
       say(s, actor, 'Off our own blood')
     } else if (danger.startsWith('flight')) {
       say(s, actor, 'She is coming down')
+    } else if (danger.startsWith('wound')) {
+      say(s, actor, 'Into the middle, close it')
+    } else if (danger.startsWith('portal')) {
+      say(s, actor, 'Taking the way through')
     } else if (danger.startsWith('crown')) {
       say(s, actor, 'It has moved — switch')
     } else if (danger.startsWith('grain')) {
@@ -534,6 +543,34 @@ function targetCall(s: SimState, actor: Actor): string | null {
     return `beast:${near.id}`
   }
 
+  // The thing that is stopping the mending, on the fight that is won by
+  // mending. It hurts nobody at all and it is the most dangerous body on the
+  // floor: while it stands, most of what the raid is doing does not arrive.
+  {
+    const ward = adds(s).find((a) => a.spawn === 'ward')
+    if (ward) return `focus:${ward.id}`
+  }
+
+  // And the one that came to help, answered by *not* hitting it.
+  //
+  // The call names something else to hit rather than filtering the friend out
+  // of the pool: a rule that quietly refused to target it would be a mechanic
+  // answered by code that cannot be late, which measures at nothing. This goes
+  // through the same notice-and-fumble every other call does, so a raid that
+  // has not looked yet swings at whatever was nearest -- which is sometimes
+  // the body it must not kill.
+  {
+    const friend = adds(s).some((a) => a.spawn === 'kin')
+    if (friend) {
+      const others = adds(s).filter((a) => a.spawn !== 'kin' && a.spawn !== 'ward')
+      if (others.length > 0) {
+        let weakest = others[0]!
+        for (const one of others) if (one.hp < weakest.hp) weakest = one
+        return `spare:${weakest.id}`
+      }
+    }
+  }
+
   // The thing that must not reach the floor, and half the raid goes to it.
   //
   // This is the fight's own decision made explicit: the answer to a ballast is
@@ -686,6 +723,17 @@ function strikeTarget(s: SimState, actor: Actor, pool: Actor[]): Actor {
   const wrong = calledId(call, 'first:')
   if (wrong !== null) {
     const one = s.actors.find((a) => a.faction === 'boss' && a.id === wrong)
+    if (one && one.alive) return one
+  }
+
+  // The thing stopping the mending, and the body to hit instead of the one
+  // that came to help. Read before the sweep for the same reason: the sweep
+  // takes whatever has least health left, which on that fight is often exactly
+  // the body the raid must not touch.
+  for (const prefix of ['focus:', 'spare:'] as const) {
+    const id = calledId(call, prefix)
+    if (id === null) continue
+    const one = s.actors.find((a) => a.faction === 'boss' && a.id === id)
     if (one && one.alive) return one
   }
 
@@ -1151,11 +1199,33 @@ function currentDanger(s: SimState, actor: Actor): string | null {
   // rather than a hit at an instant -- and above it because what this one
   // drinks it gives back to the thing the raid is trying to kill.
   for (const body of s.actors) {
-    if (body.faction !== 'boss' || !body.alive) continue
-    if (body.id !== BOSS_ID && body.spawn !== 'crown') continue
-    if (!untouchable(s, body)) continue
+    if (!body.alive || !drinks(s, body)) continue
     if (dist(actor.pos, body.pos) <= THIRST_REACH + DANGER_MARGIN) {
       consider(`thirst:${body.id}`, 52)
+    }
+  }
+
+  // The wound on the thing in the middle, which is closed by standing in it.
+  //
+  // The one demand in this game answered by walking *towards* the boss, and
+  // ranked with the shapes that are answered by walking rather than with the
+  // errands: what it costs while nobody is in it is the fight itself.
+  for (const g of s.ground) {
+    if (g.kind !== 'bleed' || g.detonated) continue
+    if (dist(actor.pos, g.pos) > g.radius) consider(`wound:${g.id}`, 72)
+    break
+  }
+
+  // The way out, for whoever is going to take it.
+  //
+  // A third of the raid, by a rule that picks the same third every time rather
+  // than by whoever noticed: nobody is named for this, and a raid where
+  // everybody volunteers is a raid that stopped fighting.
+  if (actor.id % 3 === 0 && getAura(actor, 'carried') === undefined) {
+    for (const g of s.ground) {
+      if (g.kind !== 'portal' || g.detonated) continue
+      consider(`portal:${g.id}`, 44)
+      break
     }
   }
 
@@ -1246,6 +1316,12 @@ function currentDanger(s: SimState, actor: Actor): string | null {
 
 
 
+
+    // The two pieces of ground in this game that are answered by standing in
+    // them. Read as hazards by the generic arm below they were read as fire,
+    // and on the fight that is won by standing in the middle that meant the
+    // raid ran out of the middle every time the wound opened.
+    if (g.kind === 'bleed' || g.kind === 'portal') continue
 
     // Blood the raid left itself. Priced like a pool, because that is what it
     // is once it exists -- the decision that put it there was taken a minute
@@ -1396,6 +1472,10 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
     if (g.kind === 'flood') {
       continue
     }
+    // And the two that are answered by being inside them rather than outside.
+    if (g.kind === 'bleed' || g.kind === 'portal') {
+      continue
+    }
     // The one shape in the game that makes a spot safe rather than unsafe: a
     // tile outside the circle is a tile that pays the whole bill.
     if (g.kind === 'gather') {
@@ -1447,9 +1527,7 @@ function isSpotSafe(s: SimState, actor: Actor, spot: Vec2): boolean {
   // scored, because what it costs is continuous and what it gives back is the
   // thing the raid is trying to kill.
   for (const body of s.actors) {
-    if (body.faction !== 'boss' || !body.alive) continue
-    if (body.id !== BOSS_ID && body.spawn !== 'crown') continue
-    if (!untouchable(s, body)) continue
+    if (!body.alive || !drinks(s, body)) continue
     if (dist(spot, body.pos) < THIRST_REACH + DANGER_MARGIN) return false
   }
 
@@ -1761,17 +1839,42 @@ function idlePosition(s: SimState, actor: Actor): Vec2 {
   // size. What a body stands around is what it is working on.
   const b = anchorOf(s)
   const d = dist(actor.pos, b.pos) || 1
-  // Melee stand off the boss's own edge, which is where a melee stands.
+  // A wound open in the middle collapses the ring into it.
   //
-  // This was eight tenths of the melee reach measured from the middle of the
-  // thing, and the thing has a middle nine yards wide: forty-one units from
-  // the centre of a body whose radius is ninety-four is a raid standing inside
-  // its own boss. It read as correct for exactly as long as the boss was drawn
-  // smaller than it is.
-  const want =
-    actor.role === 'tank' || actor.melee
-      ? b.radius + MELEE_RANGE * 0.8 + ringOffset(actor, 9)
-      : b.radius + CASTER_IDEAL_RANGE + ringOffset(actor, 26)
+  // Not an optimisation: without it the raid oscillates. The walk in is a
+  // danger response, and the moment a body is inside the wound the danger is
+  // gone -- so the position rules take over, walk it back out to its ring, and
+  // the danger fires again. Measured, that left about one body in the wound at
+  // a five-man and the fight was unwinnable at that size.
+  {
+    const wound = s.ground.find((g) => g.kind === 'bleed' && !g.detonated)
+    if (wound) {
+      const bearing = ((actor.id % 8) / 8) * Math.PI * 2
+      const at = wound.radius * 0.55
+      return {
+        x: wound.pos.x + Math.cos(bearing) * at,
+        y: wound.pos.y + Math.sin(bearing) * at,
+      }
+    }
+  }
+
+  // Melee stand off the boss's own edge, except where there is nothing to be
+  // in melee with.
+  //
+  // The offset is measured from the edge rather than from the middle. It was
+  // eight tenths of the melee reach from the centre of a thing whose radius is
+  // ninety-four, which is a raid standing inside its own boss, and it read as
+  // correct for exactly as long as the boss was drawn smaller than it is.
+  //
+  // And on the fight that is won by healing the thing in the middle, standing
+  // on it is not a position -- it is standing on a patient. That also quietly
+  // answered that fight's whole mechanic: the wound opens on the body, the
+  // melee were already inside it, and a demand that asks the raid to walk into
+  // the middle was closed in three seconds by people who had not moved.
+  const close = (actor.role === 'tank' || actor.melee) && !untouchable(s, b)
+  const want = close
+    ? b.radius + MELEE_RANGE * 0.8 + ringOffset(actor, 9)
+    : b.radius + CASTER_IDEAL_RANGE + ringOffset(actor, 26)
 
   let bearingX = (actor.pos.x - b.pos.x) / d
   let bearingY = (actor.pos.y - b.pos.y) / d
@@ -2036,6 +2139,30 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
         closest = Math.min(closest, dist(candidate, other.pos))
       }
       if (closest < Infinity) score -= Math.min(800, closest * 0.9)
+    }
+
+    // The wound, and the way out. Both are places to walk *to*, which is rare
+    // enough in this file that they sit together: everything else here is
+    // scored on how far it is from something.
+    for (const g of s.ground) {
+      if (g.kind === 'bleed' && !g.detonated) {
+        // Heavier than the terms it is fighting.
+        //
+        // Every other positional rule in this file pushes a body *away* from
+        // the middle -- a caster's near edge alone is four a unit -- so a pull
+        // toward it has to outweigh all of them or the raid stands at range
+        // wanting to go in and never arriving. Measured: twenty-four bodies
+        // reacting to the wound and nought inside it, for four minutes.
+        score -= Math.min(2400, Math.max(0, dist(candidate, g.pos) - g.radius * 0.5) * 6)
+      }
+      if (
+        g.kind === 'portal' &&
+        !g.detonated &&
+        actor.id % 3 === 0 &&
+        getAura(actor, 'carried') === undefined
+      ) {
+        score -= Math.min(700, Math.max(0, dist(candidate, g.pos) - g.radius * 0.5) * 0.9)
+      }
     }
 
     // The grain, for whoever has been sent for it. Scored below the floor for

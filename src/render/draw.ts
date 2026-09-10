@@ -19,6 +19,8 @@ import {
   BALLAST_REACH,
   NUCLEUS_LIFE,
   STAIN_LIFE,
+  BLEED_TELEGRAPH,
+  PORTAL_OPEN,
   BOND_REACH,
   FLIGHT_REACH,
   FLIGHT_WARNING,
@@ -393,6 +395,7 @@ export function drawWorld(
   drawCourt(ctx, s, alpha)
   drawBallast(ctx, s, alpha)
   drawGifts(ctx, s, alpha, clock)
+  drawHelpers(ctx, s, alpha, clock)
   drawFlight(ctx, s, alpha)
 
   for (const a of drawOrder(s, alpha)) {
@@ -401,6 +404,10 @@ export function drawWorld(
     // has to be answerable, and a figure standing in the middle of the arena
     // taking no damage and casting nothing would answer it wrongly.
     if (getAura(a, 'swallowed')) continue
+    // And a body that stepped out of the fight is not on the floor at all.
+    // The party frame keeps its row -- grey rather than empty -- because gone
+    // and dead are two different things and the raid has to be able to tell.
+    if (getAura(a, 'away')) continue
     // And a boss that is off the floor is drawn above where it was. Everything
     // in this game stands in a footprint, so lifting one out of it is the
     // strongest thing the picture can say about a rule having changed --
@@ -1361,6 +1368,55 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       continue
     }
 
+    // The wound on the thing in the middle. Cracks rather than a circle: what
+    // the raid reads is how much of it is left, and the count runs on bodies
+    // rather than on the clock, so a shrinking ring would say the wrong thing
+    // -- it would look like a timer.
+    if (g.kind === 'bleed') {
+      if (g.detonated) continue
+      const open = Math.max(0, Math.min(1, g.telegraph / BLEED_TELEGRAPH))
+      footprint(ctx, p.x, p.y, r)
+      ctx.fillStyle = `rgba(220, 38, 38, ${(0.06 + open * 0.14).toFixed(2)})`
+      ctx.fill()
+      ctx.strokeStyle = iconFor('boss_bleed').colour
+      ctx.lineWidth = 2
+      ctx.stroke()
+      // Five cracks across it, shortening as it closes, so the *speed* they
+      // shrink at is the answer to "do we need more people in here".
+      ctx.save()
+      ctx.strokeStyle = iconFor('boss_bleed').colour
+      ctx.lineWidth = 2.5
+      for (let i = 0; i < 5; i++) {
+        const at = (i / 5) * Math.PI * 2 + 0.4
+        const len = r * 0.85 * open
+        ctx.beginPath()
+        ctx.moveTo(p.x + Math.cos(at) * r * 0.15, p.y + Math.sin(at) * r * 0.15 * TILT)
+        ctx.lineTo(p.x + Math.cos(at) * len, p.y + Math.sin(at) * len * TILT)
+        ctx.stroke()
+      }
+      ctx.restore()
+      continue
+    }
+
+    // The way out: a hole with depth, which is the only piece of ground in
+    // this game a body is meant to step into on purpose.
+    if (g.kind === 'portal') {
+      if (g.detonated) continue
+      const left = Math.max(0, Math.min(1, g.telegraph / PORTAL_OPEN))
+      footprint(ctx, p.x, p.y, r)
+      const well = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, Math.max(1, r))
+      well.addColorStop(0, '#05070a')
+      well.addColorStop(1, 'rgba(20, 83, 45, 0.55)')
+      ctx.fillStyle = well
+      ctx.fill()
+      ctx.beginPath()
+      floorArc(ctx, p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left)
+      ctx.strokeStyle = iconFor('boss_portal').colour
+      ctx.lineWidth = 3
+      ctx.stroke()
+      continue
+    }
+
     // A grain: the one piece of ground in this game worth standing on, so it
     // is drawn as a light rather than as a shape to leave.
     if (g.kind === 'nucleus') {
@@ -1907,6 +1963,67 @@ function drawGifts(ctx: CanvasRenderingContext2D, s: SimState, alpha: number, cl
     ctx.strokeStyle = iconFor('boss_gift').colour
     ctx.lineWidth = 3
     ctx.stroke()
+  }
+}
+
+/**
+ * The two bodies in the wave that are not there to bite, and what each is
+ * doing to the thing in the middle.
+ *
+ * One line joined and one line broken, and they are opposite pictures on
+ * purpose: a green thread running into the middle is healing arriving, and
+ * grey strokes that scatter halfway are healing being stopped. The raid has
+ * about half a second to tell them apart before it throws something, and a
+ * body colour cannot carry that -- a line can.
+ */
+function drawHelpers(
+  ctx: CanvasRenderingContext2D,
+  s: SimState,
+  alpha: number,
+  clock: number,
+): void {
+  const b = s.actors.find((a) => a.id === BOSS_ID)
+  if (!b) return
+  const to = screenPos(b, alpha)
+  for (const one of s.actors) {
+    if (!one.alive || one.faction !== 'boss') continue
+    if (one.spawn !== 'kin' && one.spawn !== 'ward') continue
+    const p = screenPos(one, alpha)
+    // Read off the mark rather than off the spawn kind. The two agree, and the
+    // check downstairs asks whether every mark this fight applies reaches a
+    // picture -- which is a question about the mark, so the picture has to be
+    // the one answering it.
+    const kin = getAura(one, 'kindred') !== undefined
+
+    footprint(ctx, p.x, p.y, Math.max(4, one.radius * L.scale) + 6)
+    ctx.strokeStyle = iconFor(kin ? 'boss_kin' : 'boss_suppress').colour
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    ctx.save()
+    ctx.strokeStyle = iconFor(kin ? 'boss_kin' : 'boss_suppress').colour
+    ctx.lineWidth = kin ? 2 : 2.5
+    if (kin) {
+      // Joined, and moving toward the middle: this is help arriving.
+      ctx.globalAlpha = 0.7
+      ctx.setLineDash([7, 5])
+      ctx.lineDashOffset = -clock * 26
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y)
+      ctx.lineTo(to.x, to.y)
+      ctx.stroke()
+    } else {
+      // Broken halfway, which is what it does: the strokes set off and stop.
+      ctx.globalAlpha = 0.8
+      ctx.setLineDash([5, 9])
+      ctx.lineDashOffset = -clock * 18
+      ctx.beginPath()
+      ctx.moveTo(p.x, p.y)
+      ctx.lineTo(p.x + (to.x - p.x) * 0.55, p.y + (to.y - p.y) * 0.55)
+      ctx.stroke()
+    }
+    ctx.setLineDash([])
+    ctx.restore()
   }
 }
 

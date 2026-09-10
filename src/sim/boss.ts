@@ -48,6 +48,16 @@ import {
   SPILL_RADIUS,
   SPILL_DAMAGE,
   HEALTH,
+  MENDING_RATE,
+  BLEED_RADIUS,
+  BLEED_TELEGRAPH,
+  BLEED_DRAIN,
+  BLEED_CLOSE,
+  BLEED_HANDS,
+  KIN_HEAL,
+  KIN_COST,
+  PORTAL_RADIUS,
+  PORTAL_OPEN,
   GIFT_REACH,
   BOND_REACH,
   BOND_TICK,
@@ -130,6 +140,8 @@ import {
   getAura,
   pushEffect,
   applyDamage,
+  applyHeal,
+  pushText,
   spawnBolt,
   PROJECTILE_SPEED,
   boss,
@@ -477,7 +489,14 @@ export function updateBoss(s: SimState, rng: Rng): void {
   // Nothing is holding it while it storms, which is the mechanic: it has let
   // go, so the tank has nothing to hold and the raid has no front to stand
   // behind. `updateStorm` does the walking for that stretch.
-  const storming = getAura(b, 'storming') !== undefined || getAura(b, 'aloft') !== undefined
+  // The one fight where the thing in the middle does not fight: it does not
+  // hold anybody, does not turn to look, and above all does not walk. It is
+  // lying in the middle of the room, and the wound the raid has to stand in
+  // opens where it is lying -- a patient that chased the raid would drag the
+  // one place they have to be around the floor behind it.
+  const still = fight(s).saving
+  const storming =
+    still || getAura(b, 'storming') !== undefined || getAura(b, 'aloft') !== undefined
   const target = storming ? null : topThreatTarget(s)
   faceTarget(s, b, target)
 
@@ -571,6 +590,11 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleFlight(s, b, timing)
   updateFlight(s, b)
   scheduleCrimson(s, b, timing)
+  updateMending(s, b)
+  scheduleBleed(s, b, timing)
+  scheduleKin(s, b, rng, timing)
+  scheduleWard(s, b, rng, timing)
+  schedulePortal(s, b, rng, timing)
   updateHounds(s)
 
   updateAdds(s)
@@ -636,9 +660,21 @@ function summonHerald(s: SimState, b: Actor): void {
 
 function advancePhase(s: SimState, b: Actor): void {
   const encounter = fight(s)
-  const ratio = b.hp / b.maxHp
+  // A fight whose bar goes up turns its phases on the clock instead.
+  //
+  // Not a special case so much as the only reading that works: the phases are
+  // written as "when it is this far gone", and on the one fight where the bar
+  // rises that sentence runs backwards -- a raid doing well would walk the
+  // fight *back* to its first phase. Time is the honest substitute, and it is
+  // worth having anyway: nothing else on this roster gets harder because
+  // seconds passed.
+  const ratio = encounter.saving
+    ? 1 - Math.min(1, s.time / PHASE_THREE_AT)
+    : b.hp / b.maxHp
+  const two = encounter.saving ? 1 - PHASE_TWO_AT / PHASE_THREE_AT : encounter.phaseTwoHp
+  const three = encounter.saving ? 0 : encounter.phaseThreeHp
 
-  if (s.phase === 1 && ratio <= encounter.phaseTwoHp) {
+  if (s.phase === 1 && ratio <= two) {
     s.phase = 2
     s.sounds.push('phase')
     phaseBreak(s, b)
@@ -673,7 +709,7 @@ function advancePhase(s: SimState, b: Actor): void {
     return
   }
 
-  if (s.phase === 2 && ratio <= encounter.phaseThreeHp) {
+  if (s.phase === 2 && ratio <= three) {
     s.phase = 3
     s.sounds.push('phase')
     phaseBreak(s, b)
@@ -2656,6 +2692,22 @@ function updateHounds(s: SimState): void {
   }
 }
 
+/**
+ * Whether this body is one of the two that drink from whoever stands near it.
+ *
+ * Asked of the fight rather than of the body, because "a boss-faction body
+ * that cannot be hurt" is true of three different things in this game now --
+ * the two uncrowned bodies, a boss that has left the floor, and the patient
+ * that is not an enemy at all. The party used to read all three as a mouth and
+ * back away from them, which on the fight that is won by standing *in* the
+ * middle meant nobody ever stood in the middle.
+ */
+export function drinks(s: SimState, a: Actor): boolean {
+  if ((fight(s).stands ?? []).length === 0) return false
+  if (a.id !== BOSS_ID && a.spawn !== 'crown') return false
+  return untouchable(s, a)
+}
+
 /** Whoever the hound is walking at, if anybody. */
 export function houndedBody(s: SimState): Actor | null {
   return livingParty(s).find((a) => getAura(a, 'hounded') !== undefined) ?? null
@@ -2929,6 +2981,15 @@ export function crowned(s: SimState): Actor | null {
  */
 export function untouchable(s: SimState, target: Actor): boolean {
   if (target.faction !== 'boss') return false
+  // The thing in the middle of the fight that is not a fight.
+  //
+  // It is not an enemy, so nothing the raid throws at it does anything -- and
+  // that has to be a rule rather than an instruction to the party, because a
+  // raid *will* aim at the thing in the middle: it is the biggest body on the
+  // floor and every other pull in this game has been about killing it.
+  // Without this the roster shot the patient down to nothing in sixty
+  // seconds and the fight reported a wipe.
+  if (target.id === BOSS_ID && fight(s).saving) return true
   // Off the floor, which is the one state in this game where there is nothing
   // to hit at all. The storm is the nearest thing to it and is not close: a
   // storming boss has let go of the tank and is walking, and it can still be
@@ -3504,6 +3565,179 @@ export function crimsonBill(s: SimState): number {
   return mechanic(s, CRIMSON_BASE + gifted(s).length * CRIMSON_PER_GIFT)
 }
 
+// --- the one you save -----------------------------------------------------
+//
+// The thing in the middle is not an enemy. Its bar starts halfway, it is
+// already mending, and every rung on this ladder is something taking that
+// away. The pull is won when the bar reaches the top.
+
+/**
+ * What it gets back on its own, and what stops it.
+ *
+ * The climb is the fight's clock: a pull with nothing going wrong reaches full
+ * a little inside the enrage, so what every mechanic here actually costs is
+ * seconds off that. Without a climb of its own the bottom of the ladder would
+ * be unwinnable -- the rungs that raise the bar are the fourth and fifth, and
+ * a five-man never buys them.
+ */
+function updateMending(s: SimState, b: Actor): void {
+  if (!fight(s).saving || !b.alive) return
+  // The wound first, because it is the one thing that takes rather than slows.
+  for (const g of s.ground) {
+    if (g.kind !== 'bleed' || g.detonated) continue
+    b.hp = Math.max(0, b.hp - b.maxHp * BLEED_DRAIN * mechanicScale(s) * DT)
+  }
+  // And what came to help, which heals it the ordinary way -- through the same
+  // funnel the blocking things cut. Divided by `HEALTH` on the way in for the
+  // reason everything else on this fight is: these numbers are shares of the
+  // bar, and `applyHeal` is written in the units a party heals in.
+  for (const one of s.actors) {
+    if (!one.alive || one.spawn !== 'kin') continue
+    applyHeal(s, b, (b.maxHp * KIN_HEAL * DT) / HEALTH, one.id)
+  }
+  applyHeal(s, b, (b.maxHp * MENDING_RATE * DT) / HEALTH, b.id)
+}
+
+/**
+ * A wound on the thing in the middle, closed by standing in it.
+ *
+ * The first bill in this game charged to the boss: nobody in the raid is hurt
+ * by it at all. What it takes is the thing the raid is trying to raise, and
+ * the answer is to walk into the middle -- which is where the wave is, and
+ * where the one that must not be killed is standing.
+ *
+ * Bodies close it faster, which is the only place here where the roster
+ * answers with the speed of an answer rather than by meeting a bigger demand.
+ */
+function scheduleBleed(s: SimState, b: Actor, timing: PhaseTiming): void {
+  if (timing.bleed <= 0) return
+  s.next.bleed -= DT
+  if (s.next.bleed > 0) return
+  s.next.bleed = timing.bleed
+  if (s.ground.some((g) => g.kind === 'bleed' && !g.detonated)) return
+
+  say(s, b, lineFor(fight(s), 'bleed'))
+  s.sounds.push('telegraph')
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'bleed',
+    pos: { x: b.pos.x, y: b.pos.y },
+    radius: BLEED_RADIUS,
+    // How far open it is, from one down to nothing. It is not a countdown to
+    // anything: what closes it is bodies, and the number is how much of it is
+    // left rather than how long there is.
+    telegraph: BLEED_TELEGRAPH,
+    lingering: 1,
+    damage: BLEED_DRAIN,
+  })
+  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_bleed', radius: BLEED_RADIUS })
+}
+
+/**
+ * One of the wave that came to help rather than to bite.
+ *
+ * Not weak, and not filtered out of anybody's target list. A body that dies to
+ * a stray cleave is an accident; what this asks for is that a raid look before
+ * it swings, and a rule that quietly stopped the party hitting it would be a
+ * mechanic answered by code rather than by anybody -- rule 3, and it would
+ * measure at nothing.
+ */
+function scheduleKin(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.kin <= 0) return
+  s.next.kin -= DT
+  if (s.next.kin > 0) return
+  s.next.kin = timing.kin
+
+  const pos = spawnSpot(s, rng, 16)
+  const friend = makeAdd(s.nextObjectId++, pos.x, pos.y)
+  friend.spawn = 'kin'
+  friend.name = 'Kindred'
+  friend.maxHp = addHealth(s)
+  friend.hp = friend.maxHp
+  addAura(friend, 'kindred', b.id)
+  s.actors.push(friend)
+  say(s, b, lineFor(fight(s), 'kin'))
+  pushEffect(s, 'cast', pos, { abilityId: 'boss_kin' })
+}
+
+/**
+ * Something that hurts nobody and is the most dangerous thing on the floor.
+ *
+ * While it stands, most of what the raid is doing does not arrive. It is the
+ * first mechanic in this game where what to hit is decided by the boss's bar
+ * rather than by what is hurting the raid -- and it stands in the same wave as
+ * the one that must not be hit, which is the last sentence of this ladder.
+ */
+function scheduleWard(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.suppress <= 0) return
+  s.next.suppress -= DT
+  if (s.next.suppress > 0) return
+  s.next.suppress = timing.suppress
+
+  const count = Math.max(1, Math.round(s.party.length / 12))
+  say(s, b, lineFor(fight(s), 'suppress'))
+  s.sounds.push('telegraph')
+  for (let i = 0; i < count; i++) {
+    const pos = spawnSpot(s, rng, 16)
+    const ward = makeAdd(s.nextObjectId++, pos.x, pos.y)
+    ward.spawn = 'ward'
+    ward.name = 'Warden'
+    // Twice a thrall's health, so it is not something that dies to whatever
+    // was already being thrown: switching to it has to be a decision.
+    ward.maxHp = addHealth(s) * 2
+    ward.hp = ward.maxHp
+    s.actors.push(ward)
+    pushEffect(s, 'cast', pos, { abilityId: 'boss_suppress' })
+  }
+}
+
+/**
+ * A way out of the fight, for anybody who chooses to take it.
+ *
+ * The only demand in this game paid in existence rather than in health: a body
+ * that steps through answers nothing for five seconds, and comes back better
+ * at the one thing this fight is about. Nobody is named and nobody is forced;
+ * a raid may ignore it entirely and lose slowly.
+ *
+ * Its clock does not move with the phases, so it drifts against everything
+ * else here. The way out is always open at the worst possible moment, which is
+ * the whole of what makes taking it a decision.
+ */
+function schedulePortal(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): void {
+  if (timing.portal <= 0) return
+  s.next.portal -= DT
+  if (s.next.portal > 0) return
+  s.next.portal = timing.portal
+  if (s.ground.some((g) => g.kind === 'portal')) return
+
+  const bearing = rng.range(0, Math.PI * 2)
+  const away = roomReach(s.room) * 0.72
+  const at = { x: Math.cos(bearing) * away, y: Math.sin(bearing) * away }
+  pushInside(s.room, at, PORTAL_RADIUS)
+  say(s, b, lineFor(fight(s), 'portal'))
+  s.ground.push({
+    ...blankGround(s),
+    kind: 'portal',
+    pos: at,
+    radius: PORTAL_RADIUS,
+    telegraph: PORTAL_OPEN,
+    lingering: 0,
+    damage: 0,
+  })
+  pushEffect(s, 'cast', at, { abilityId: 'boss_portal', radius: PORTAL_RADIUS })
+}
+
+/** What killing the one that came to help costs the thing it came to help. */
+export function killedKin(s: SimState, one: Actor): void {
+  if (s.mode !== 'raid' || one.spawn !== 'kin') return
+  const b = boss(s)
+  if (!b.alive) return
+  b.hp = Math.max(0, b.hp - b.maxHp * KIN_COST * mechanicScale(s))
+  pushText(s, b.pos, 'NO', 'crit')
+  pushEffect(s, 'impact', b.pos, { abilityId: 'boss_kin', power: KIN_COST, crit: true })
+  s.sounds.push('raid')
+}
+
 function makeAdd(id: number, x: number, y: number): Actor {
   return {
     id,
@@ -3818,6 +4052,18 @@ function slowable(a: Actor): boolean {
   return a.faction === 'party' || a.spawn === 'ooze'
 }
 
+/**
+ * When the fight that runs on a clock turns its phases.
+ *
+ * Fifty-five seconds and a hundred and ten, which is a third and two thirds of
+ * the way up a clean climb. The first draft used eighty and a hundred and
+ * seventy, taken from where the other fights turn on health -- and a fight
+ * that is over at a hundred and thirty seconds then spent most of itself in
+ * its first phase and never reached its third at all.
+ */
+const PHASE_TWO_AT = 55
+const PHASE_THREE_AT = 110
+
 /** Ground damage is applied once per second while standing in a live puddle. */
 export function updateGround(s: SimState): void {
   for (const g of s.ground) {
@@ -3957,6 +4203,51 @@ export function updateGround(s: SimState): void {
           silent: true,
         })
       }
+      continue
+    }
+
+    // The wound, which is closed by bodies rather than by time.
+    //
+    // `telegraph` here is how far open it still is, from one down to nothing,
+    // and it is the one piece of ground in this game whose count runs on what
+    // the raid is doing rather than on the clock: four percent a second for
+    // each body standing in it.
+    if (g.kind === 'bleed') {
+      if (g.detonated) {
+        g.lingering -= lingerStep(s)
+        continue
+      }
+      // Capped at four, which is what keeps this a demand rather than a
+      // headcount. The roster is meant to answer with the *speed* of the
+      // answer -- more hands close it sooner -- but uncapped that is not a
+      // curve, it is two different fights: a twenty-five man shut it in three
+      // seconds while a five-man needed twelve, and at a thirty-four second
+      // cadence that is the difference between winning every pull and winning
+      // none of them.
+      const inside = Math.min(
+        BLEED_HANDS,
+        livingParty(s).filter((a) => dist(a.pos, g.pos) <= g.radius).length,
+      )
+      if (inside > 0) g.telegraph -= inside * BLEED_CLOSE * DT * BLEED_TELEGRAPH
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      g.lingering = 0.4
+      pushEffect(s, 'impact', g.pos, { abilityId: 'boss_bleed', radius: g.radius, power: 300 })
+      continue
+    }
+
+    // The way out, which is the only ground here worth stepping into.
+    if (g.kind === 'portal') {
+      g.telegraph -= DT
+      for (const a of livingParty(s)) {
+        if (getAura(a, 'away') || getAura(a, 'carried')) continue
+        if (dist(a.pos, g.pos) > g.radius) continue
+        addAura(a, 'away', BOSS_ID)
+        pushEffect(s, 'impact', a.pos, { abilityId: 'boss_portal', power: 200 })
+      }
+      if (g.telegraph > 0) continue
+      g.detonated = true
+      g.lingering = 0
       continue
     }
 

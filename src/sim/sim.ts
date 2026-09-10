@@ -63,6 +63,7 @@ import {
   TICK_RATE,
   FESTER_LINE,
   INFECTION_FLUSH, MUSTER_PACE } from './constants'
+import { encounterAt } from './encounters'
 import type { Rng } from './rng'
 import { roomAt } from './room'
 import { updateTravel, updateTravelAi } from './travel'
@@ -506,6 +507,9 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       if (aura.id === 'souring' && a.alive) dropGift(s, a)
       // And the boss coming down.
       if (aura.id === 'aloft' && a.alive) landFlight(s, a)
+      // And a body coming back from the way out, better at the one thing that
+      // fight is about.
+      if (aura.id === 'away' && a.alive) addAura(a, 'carried', BOSS_ID)
     }
   }
 }
@@ -779,7 +783,37 @@ function ageEphemera(s: SimState): void {
  */
 function resolveOutcome(s: SimState): void {
   const b = boss(s)
-  if (!b.alive || b.hp <= 0) {
+  // The one fight here that is won by filling the bar rather than emptying it.
+  //
+  // A parameter rather than a second outcome rule: what changes is which end
+  // of the same number is the finish line, and everything else about a pull --
+  // the wipe, the enrage, the clock -- means exactly what it always did.
+  if (encounterAt(s.encounter).saving) {
+    if (b.hp >= b.maxHp) {
+      s.outcome = 'victory'
+      s.sounds.push('victory')
+      return
+    }
+    // And the other end of it is a loss rather than a win. Nothing in the
+    // fight aims at this today -- the wound and the blocking only slow the
+    // mending -- but a bar with a bottom needs to say what the bottom means.
+    if (!b.alive || b.hp <= 0) {
+      s.outcome = 'wipe'
+      s.sounds.push('wipe')
+      return
+    }
+    // And the clock, which everywhere else is a damage amplifier: a boss that
+    // has run out of patience hits hard enough to kill the raid, and the raid
+    // dying is what ends the pull. Nothing here swings, so amplifying it
+    // amplifies nothing -- the enrage would have sat on a fight that simply
+    // carried on, and the only thing stopping it was the harness's own cap.
+    // Here the enrage is the ending: the thing in the middle ran out of time.
+    if (b.auras.some((a) => a.id === 'enrage')) {
+      s.outcome = 'enrage'
+      s.sounds.push('wipe')
+      return
+    }
+  } else if (!b.alive || b.hp <= 0) {
     s.outcome = 'victory'
     s.sounds.push('victory')
     return
