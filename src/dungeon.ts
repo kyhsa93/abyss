@@ -84,6 +84,22 @@ export interface Chamber {
    * it. In this game the lit pads are also the boss list — see `padsLit` —
    * which is what keeps "learn one fight by repeating it" and "walk in from
    * the door" the same game rather than two.
+   *
+   * Which rooms have one is not a choice either. The instance places seven
+   * Scourge Transporters and they are these, in the source's own coordinates:
+   *
+   *   -17.1, 2211.5, z 30    the way in                    `threshold`
+   *  -503.6, 2211.5, z 63    the Oratory's door            `oratory`
+   *  -615.1, 2211.5, z 200   the Rampart of Skulls         `mooring`
+   *  -549.1, 2211.3, z 539   Deathbringer's Rise           `rise`
+   *  4356.9, 2769.4, z 356   the upper spire               `crossing`
+   *  4199.4, 2769.4, z 351   the upper spire's far end     — the same landing
+   *  4356.6, 2565.8, z 220   the frostwyrm's approach      `lair`
+   *
+   * Two of the seven are the two ends of one landing, which is why there are
+   * six pads and not seven. The two climbs out of the first fight had one each
+   * and the source has none on either: a pad stands where a wing begins, and a
+   * ramp is not the beginning of anything.
    */
   pad?: Gate
 }
@@ -241,7 +257,9 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: null,
     room: { kind: 'hall', halfWidth: 220, front: 578, back: 1620 },
-    pad: killed('spire'),
+    // No pad on either ramp. The source puts one transporter on this floor
+    // above the first fight and it stands at the Oratory's door, not on the
+    // way up to it -- see the note on `pad` and the seven rows it is read off.
   },
   {
     id: 'westclimb',
@@ -249,7 +267,6 @@ export const CHAMBERS: Chamber[] = [
     wing: 'lower',
     encounter: null,
     room: { kind: 'hall', halfWidth: 220, front: 578, back: 1620 },
-    pad: killed('spire'),
   },
   {
     id: 'oratory',

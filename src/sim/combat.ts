@@ -154,8 +154,16 @@ export const AURA_DURATION: Record<AuraId, number> = {
    * handles it gets back to the boss with the enrage still far away.
    */
   storming: 24,
-  /** Long enough that the other tank has to actually take it. */
-  slighted: 16,
+  /**
+   * Long enough that the other tank has to actually take it.
+   *
+   * Thirty, off the client's own table: Touch of Insignificance is "30 seconds
+   * remaining" and takes 20% of a body's threat generation per stack, which is
+   * `SLIGHT_SHARE` to the digit. Half of this mechanic was already the
+   * source's and the other half was sixteen, guessed -- and sixteen is short
+   * enough that a tank can wait one out, which is the swap not happening.
+   */
+  slighted: 30,
   /** It dies or the wave does; the count is only a floor under both. */
   empowered: 40,
   /**
@@ -174,8 +182,11 @@ export const AURA_DURATION: Record<AuraId, number> = {
    * The spore is the one demand here answered by arriving rather than by
    * leaving, and the number is what separates a raid that gathers from a raid
    * that happened to be standing together.
+   *
+   * Twelve, which is the source's own: the client's tooltip for Gas Spore says
+   * "12 seconds remaining" outright. It was seven, guessed.
    */
-  spore: 7,
+  spore: 12,
   /**
    * Long enough to still be there when the breath out comes.
    *
@@ -219,10 +230,14 @@ export const AURA_DURATION: Record<AuraId, number> = {
   // shorter and the second tank never has to move; any longer and the fight
   // is a fight with a tank missing rather than a fight with a handover in it.
   swallowed: 4,
-  // Fourteen seconds, which is long enough to be a decision twice: the carrier
+  // Twelve seconds, which is long enough to be a decision twice: the carrier
   // chooses where to be standing and the healer chooses when it ends, and
   // neither choice is worth making if there is no time to make the other one.
-  infected: 14,
+  //
+  // And it is the source's: Mutated Infection runs twelve seconds and drops an
+  // ooze where the body was standing when it ends, which is the mechanic. It
+  // was fourteen because fourteen felt like enough time for two decisions.
+  infected: 12,
   // It does not run out on its own -- the eighth is what ends it, and the swap
   // is what stops the eighth. Long enough to outlast a pull.
   engulfed: 3600,
@@ -325,7 +340,16 @@ export function clearAura(actor: Actor, id: AuraId): void {
  * would file the party's rotation under the boss's page.
  */
 export const AURA_MECHANIC: Partial<Record<AuraId, MechanicId>> = {
-  spiked: 'spike',
+  // The pin is not here, and that is deliberate. Every other entry is a dot
+  // whose every tick is the mistake continuing; a pin is one mistake with a
+  // length, and counted a tick at a time it billed a body pinned for four
+  // seconds four times over -- so a fight with spikes read as four times the
+  // mechanic hits of one without, for the same number of mistakes.
+  //
+  // It is charged once, where the pin runs its full term, which is also the
+  // source's own criterion for the achievement it hangs on this mechanic: a
+  // spike that is broken in time costs nothing and one that is not costs
+  // exactly one. See `spiked` in `sim.ts`.
   reek: 'vilegas',
   haunted: 'shade',
   festering: 'fester',

@@ -2853,14 +2853,24 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   // difficulty's linger changes, which is the point.
   const waveArea = SLIME_ARC * Math.PI * SLIME_PATCH * SLIME_PATCH
   const waves = Math.max(1, Math.floor(roomArea(s.room) / 3 / waveArea))
+  // The tightest gap this fight can ever have, not the one in hand.
+  //
+  // A phase break does not wait for the timers it inherits -- `advancePhase`
+  // pulls every one of them in to the new cadence, so the wave after a break
+  // can rise a good deal sooner than the phase it was laid in would have
+  // allowed. Written against the current phase's cadence this held the
+  // third-of-the-floor promise inside a phase and broke it across one, which
+  // is precisely the kind of thing a promise about an *instant* has to survive.
+  const gap = Math.min(
+    ...[1, 2, 3]
+      .map((n) => scaled(fight(s).phases[n]!, s).slime)
+      .filter((n) => n > 0),
+  )
   // `lingering` is spent at a rate the difficulty sets, so the number a patch
   // is given is not seconds. This is the conversion, taken from the same place
   // the spending is.
   const drain = DT / lingerStep(s)
-  const life = Math.min(
-    SLIME_LINGER,
-    Math.max(0, waves * timing.slime - SLIME_TELEGRAPH - DT) / drain,
-  )
+  const life = Math.min(SLIME_LINGER, Math.max(0, waves * gap - SLIME_TELEGRAPH - DT) / drain)
 
   const from = rng.range(0, Math.PI * 2)
   // A fixed number of patches whatever the headcount. The room is the room.

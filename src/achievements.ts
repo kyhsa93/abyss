@@ -1,6 +1,7 @@
 import { damageBoard, healingBoard, standings, type Attempt } from './history'
 import { CLASSES } from './sim/classes'
-import type { SimState } from './sim/types'
+import { ENCOUNTERS, type MechanicId } from './sim/encounters'
+import type { AuraId, SimState } from './sim/types'
 
 /**
  * Things worth having done.
@@ -34,6 +35,48 @@ const played = (history: Attempt[]): Set<string> =>
 
 const player = (s: SimState) => s.actors.find((a) => a.isPlayer)
 const party = (s: SimState) => s.actors.filter((a) => a.faction === 'party')
+
+/** This pull's fight, by id, so an award can be about one of them. */
+const fight = (s: SimState) => ENCOUNTERS[s.encounter]?.id
+
+/** How many times the raid, all of it, was billed for these mechanics. */
+const billed = (s: SimState, ...ids: MechanicId[]): number =>
+  party(s).reduce(
+    (total, a) => total + ids.reduce((n, id) => n + (s.tally[a.id]?.byMechanic[id] ?? 0), 0),
+    0,
+  )
+
+/** How many bodies are wearing this at the end. */
+const wearing = (s: SimState, id: AuraId): number =>
+  party(s).filter((a) => a.auras.some((au) => au.id === id)).length
+
+/**
+ * A kill on one fight, judged by one rule.
+ *
+ * These six are the source's own achievement criteria, which are the one thing
+ * in the whole instance that is *already* a designed goal for these fights
+ * rather than a fact about them -- somebody sat down and decided what doing a
+ * fight well looks like, and wrote it down. They are worth more than anything
+ * else left in the data for that reason.
+ *
+ * Two of its eight are not here and both for the same reason: they ask a
+ * question about a moment inside the fight rather than about the fight. Full
+ * House wants five kinds of cultist standing at once, and Once Bitten wants to
+ * know whether a particular body ever wore the gift. Nothing in this file can
+ * see inside a pull -- an award is judged from the state the pull ended in,
+ * which is what stops one from ever changing how a pull plays out -- so taking
+ * those two would mean the simulation carrying a flag for the award layer, and
+ * that is the trade this file exists not to make.
+ */
+function onKill(
+  id: string,
+  name: string,
+  detail: string,
+  boss: string,
+  rule: (s: SimState) => boolean,
+): Award {
+  return { id, name, detail, earned: (s) => won(s) && fight(s) === boss && rule(s) }
+}
 
 export const AWARDS: Award[] = [
   {
@@ -132,6 +175,58 @@ export const AWARDS: Award[] = [
     detail: `Pull as all ${Object.keys(CLASSES).length} classes.`,
     earned: (_s, history) => played(history).size >= Object.keys(CLASSES).length,
   },
+  // --- the six the source already designed --------------------------------
+  onKill(
+    'unbroken',
+    'Nobody Left Standing',
+    'Kill the Bonegrinder with every spike broken in time.',
+    // Boned: the source's own fails eight seconds after a body is impaled
+    // rather than when one is, so what this asks is that no pin ran out.
+    'marrow',
+    (s) => billed(s, 'spike') === 0,
+  ),
+  onKill(
+    'clean_board',
+    'A Clean Board',
+    'Kill the Bloodgorged with fewer than three marks out.',
+    // I've Gone and Made a Mess: fewer than three at ten, five at
+    // twenty-five, which is the raid's own size read the source's way.
+    'gorged',
+    (s) => wearing(s, 'championed') < (party(s).length > 10 ? 5 : 3),
+  ),
+  onKill(
+    'short_of_shots',
+    'Short of Shots',
+    'Kill the Reeking Host with fewer than three of you covered.',
+    // Flu Shot Shortage: `DATA_INOCULATED_STACK < 3`.
+    'host',
+    (s) => wearing(s, 'inoculated') < 3,
+  ),
+  onKill(
+    'nothing_merged',
+    'Nothing Merged',
+    'Kill the Confluence without two small things ever becoming one.',
+    // Dances with Oozes.
+    'confluence',
+    (s) => billed(s, 'merge') === 0,
+  ),
+  onKill(
+    'neither_goo_nor_gas',
+    'Neither Goo Nor Gas',
+    'Kill the Two Flasks with nobody caught by the chase or the gas.',
+    // Nausea, Heartburn, Indigestion: nobody hit by Malleable Goo or a
+    // Choking Gas Bomb.
+    'flasks',
+    (s) => billed(s, 'hound', 'decant') === 0,
+  ),
+  onKill(
+    'orb_whisperer',
+    'The Orb Whisperer',
+    'Kill the Three Crowns with nobody touched by what the crown empowers.',
+    // The Orb Whisperer: no damage taken from an empowered ability.
+    'crowns',
+    (s) => billed(s, 'prison', 'thirst', 'ballast') === 0,
+  ),
 ]
 
 const KEY = 'abyss.awards'

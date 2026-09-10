@@ -397,6 +397,128 @@ Two numbers that used to be typed are facts now:
   keeps every ordering and brings the spread to about seven to one. A whelp is
   two thirds of a body, a frost giant six and a half.
 
+### What a tooltip can settle, and what it cannot
+
+The client's spell tables are the only source that can say how big a mechanic
+is rather than what shape it is. Reading them turned up a clean line, and it is
+not the one this file expected: **the source settles times, counts and
+thresholds; it cannot settle percentages or distances.**
+
+Distances, because this game compresses them on purpose — a caster stands
+eighteen yards back here against the source's forty, for the reason written on
+`SPELL_RANGE` — so a radius copied across would be a mechanic covering twice
+the floor it should.
+
+Percentages, because each one trades against this game's own health, healing
+and damage, which are a fortieth of the source's and tuned against a fixed
+roster. What the source says, against what this game does:
+
+| | source | here | |
+| --- | --- | --- | --- |
+| Touch of Insignificance | −20% threat a stack | `SLIGHT_SHARE` 0.2 | already the same |
+| Gastric Bloat | explodes at 10 stacks, +10% damage each | `BLOAT_BURST_AT` 10, `BLOAT_POWER` now 0.1 | taken |
+| Inhale Blight | three of them, +30% damage each | `INHALE_MAX` 3, `INHALE_POWER` 0.22 | count taken, share kept |
+| Dominate Mind | 12s, +200% damage | `turned` 12s, `TURNED_POWER` 1.3 | time already the same, share kept |
+| Essence of the Blood Queen | 1 minute, +100% damage, heals 10% of damage dealt | `GIFT_LIFE` 60, `GIFT_POWER` 0.45, `GIFT_LEECH` 0.2 | time already the same, shares kept |
+| Mutated Infection | 12s, −75% healing | `infected` now 12, `INFECTION_HEALING` 0.35 | time taken, share kept |
+| Mark of the Fallen Champion | heals the boss 20% of its health on death | 5% here | kept |
+
+And the times that were simply guessed and are now the source's:
+
+| | was | now |
+| --- | --- | --- |
+| the spore's fuse (Gas Spore) | 7 | **12** |
+| the infection (Mutated Infection) | 14 | **12** |
+| the slight (Touch of Insignificance) | 16 | **30** |
+| the shard's cast (Frostbolt) | 1.9 + notice | **2.0 + notice** |
+| the spray's cast (Slime Spray) | 1.7 + notice | **1.5 + notice** |
+
+Three more were already right and are worth naming, because a hand-tuned number
+that lands on the source's is a sign the tuning was reading the same thing:
+`GATHER_TELEGRAPH` is 5 and Ooze Flood is a five-second channel; `turned` is 12
+and Dominate Mind is 12 seconds; `GIFT_LIFE` is 60 and the Essence lasts a
+minute.
+
+### The pads
+
+Six now, and which rooms have them is not a choice. The instance places seven
+Scourge Transporters:
+
+| source | here |
+| --- | --- |
+| −17.1, 2211.5, z 30 | the way in |
+| −503.6, 2211.5, z 63 | the Oratory's door |
+| −615.1, 2211.5, z 200 | the Rampart of Skulls |
+| −549.1, 2211.3, z 539 | Deathbringer's Rise |
+| 4356.9, 2769.4, z 356 | the upper spire |
+| 4199.4, 2769.4, z 351 | — the same landing's far end |
+| 4356.6, 2565.8, z 220 | the frostwyrm's approach |
+
+Two of the seven are the two ends of one landing, which is why six pads and not
+seven. The two ramps out of the first fight had one each and the source has
+none on either: a pad stands where a wing begins, and a ramp is not the
+beginning of anything.
+
+### Boss health: an order, not a set of ratios
+
+The eight fights here carry between five and a half and fourteen million in the
+source, counting the Watcher's mana barrier as part of her bar (it is what has
+to be taken off her) and the council as its Blood Orb Controller's pool — the
+three princes share one, `newPrince->SetHealth(me->GetHealth())`.
+
+| | source, ten normal | ratio |
+| --- | --- | --- |
+| the three crowns | 5,647,725 | 0.81 |
+| the last whisper | 6,611,600 | 0.95 |
+| the bonegrinder | 6,972,500 | 1.00 |
+| the confluence | 7,321,125 | 1.05 |
+| the bloodgorged | 8,785,350 | 1.26 |
+| the reeking host | 9,412,875 | 1.35 |
+| the two flasks | 9,761,500 | 1.40 |
+| the crimson gift | 14,154,175 | 2.03 |
+
+The ratios cannot be used, and the reason is not scale. It is that in the
+source the raid gears up between the wings: a boss at the back of the building
+asks two and a half times what the first one did and still dies in four
+minutes, because the people fighting it are stronger than they were. Here it is
+the same roster on the same night against one enrage, so health *is* fight
+length — the source's spread would put two fights past their enrage and two
+under two minutes.
+
+What the source can settle is **which fight is bigger than which**. So the
+eight numbers the balance sweep arrived at are kept to the digit and dealt out
+in the source's order. The total is unchanged, every fight is still inside the
+envelope it was tuned in, and four of the eight did not move at all.
+
+### The source's own goals
+
+Its achievement criteria are the one thing in the instance that is already a
+*designed goal* rather than a fact about a fight — somebody decided what doing
+each of these well looks like and wrote it down. Six of the eight are now
+awards:
+
+| source | here | the rule |
+| --- | --- | --- |
+| Boned | Nobody Left Standing | no spike ran its full term. The source's fails eight seconds after a body is impaled rather than when one is, so being pinned is not the mistake — leaving somebody pinned is |
+| I've Gone and Made a Mess | A Clean Board | fewer than three marks out at ten, five at twenty-five, which is the source's own `RAID_MODE(3, 5, 3, 5)` |
+| Flu Shot Shortage | Short of Shots | fewer than three covered — `DATA_INOCULATED_STACK < 3` |
+| Dances with Oozes | Nothing Merged | no two small things ever became one |
+| Nausea, Heartburn, Indigestion | Neither Goo Nor Gas | nobody caught by the chase or the gas |
+| The Orb Whisperer | The Orb Whisperer | nobody touched by what the crown empowers |
+
+The two that are not here — Full House (five kinds of cultist standing at once)
+and Once Bitten, Twice Shy (whether one particular body ever wore the gift) —
+ask about a *moment inside* a fight. An award here is judged from the state a
+pull ended in, and that is what stops one from ever changing how a pull plays
+out; taking those two would mean the simulation carrying a flag for the award
+layer.
+
+Taking the first of them changed a rule that was quietly wrong. The pin used to
+bill a mechanic hit every tick, so a body pinned for four seconds was charged
+four times and a fight with spikes read as four times the mistakes of one
+without. A pin is one mistake with a length, and it is charged once now, where
+it runs out.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid
@@ -427,7 +549,7 @@ seventeen files, what the instance *does*:
 | every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | **taken** for all eight fights |
 | what ends a phase: a health share, a mana bar, blood power, an air phase | **taken** — and five of the eight have none |
 | what the adds are and what *they* cast | **taken** for the wave that has two kinds |
-| the achievement criteria — "nobody impaled", "all five kinds alive at once" | available |
+| the achievement criteria — "nobody impaled", "all five kinds alive at once" | **taken**, six of eight |
 | every line spoken | not wanted: the names here are this game's own |
 
 **AzerothCore's world database** — `data/sql/base/db_world/`, where everything
@@ -449,7 +571,7 @@ wago.tools and readable through Wowhead's WotLK tooltip endpoint
 
 | | example | status |
 | --- | --- | --- |
-| a spell's range, cast time, duration and tick | Death and Decay: 200 yd, instant, 6000 shadow a second for 10s | available — and it is exactly the class of number this game tunes by hand |
+| a spell's range, cast time, duration and tick | Death and Decay: 200 yd, instant, 6000 shadow a second for 10s | **taken** for times; ranges and shares are this game's own |
 | a spell's radius | some state it, some say "the affected area" | partly available |
 | map tiles and the world rectangle each covers | the sheet this file's first table came off | **taken** |
 
@@ -469,13 +591,16 @@ which is why a ramp is a room and a stair is a doorway.
    now, not one. See below for what was taken and what was left.
 4. ~~**The rest of the building's trash.**~~ **Taken** — every corridor in the
    building is the source's own spawns now. See below.
-5. **Spell numbers** from the client tables — radius, duration, tick — which is
-   the one source that can settle a mechanic's size rather than its shape.
-6. **The teleport pads**, at the source's own coordinates.
-7. **Boss health ratios** between fights, even where the absolute numbers
-   cannot be used.
-8. **The source's own extra credit**: its achievement criteria are goals
-   already designed for these fights.
+5. ~~**Spell numbers** from the client tables.~~ **Taken** — the times. See
+   below for the line between what a tooltip can settle here and what it
+   cannot.
+6. ~~**The teleport pads**, at the source's own coordinates.~~ **Taken** —
+   seven transporter rows, six pads, and two ramps that had one and should
+   not have.
+7. ~~**Boss health ratios** between fights.~~ **Taken as an order** — the
+   ratios themselves cannot be used, and why is worth reading.
+8. ~~**The source's own extra credit**: its achievement criteria.~~ **Six of
+   eight taken.** The other two ask about a moment inside a fight.
 
 ## How to take a measurement off a picture
 

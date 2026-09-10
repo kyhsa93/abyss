@@ -823,6 +823,38 @@ export interface Encounter {
    * stays the encounter's accent.
    */
   floor?: string
+  /**
+   * The bar, and where this fight sits against the other seven.
+   *
+   * The *order* is the source's and the *values* are this game's own, which is
+   * not a compromise -- it is the only reading the data supports. In the
+   * source these eight bosses carry between five and a half and fourteen
+   * million, and the raid that fights them is a different raid each week: it
+   * gears up between the wings, so a boss at the back of the building may ask
+   * two and a half times what the first one did and still take four minutes.
+   * Here it is the same roster on the same night against one enrage, so health
+   * *is* fight length, and the source's spread would put two fights past their
+   * enrage and two under two minutes.
+   *
+   * What the source can settle is which fight is bigger than which. Ascending,
+   * with the mana barrier counted as the Watcher's bar (it is what has to be
+   * taken off her) and the council counted as its Blood Orb Controller's pool
+   * (the three princes share one, `newPrince->SetHealth(me->GetHealth())`):
+   *
+   *   the three crowns    5,647,725   0.81
+   *   the last whisper    6,611,600   0.95
+   *   the bonegrinder     6,972,500   1.00
+   *   the confluence      7,321,125   1.05
+   *   the bloodgorged     8,785,350   1.26
+   *   the reeking host    9,412,875   1.35
+   *   the two flasks      9,761,500   1.40
+   *   the crimson gift   14,154,175   2.03
+   *
+   * So the eight numbers the balance sweep arrived at are kept, to the digit,
+   * and dealt out in that order. The roster's total is unchanged and every
+   * fight is still inside the envelope it was tuned in; what moved is which
+   * fight got which. Four of the eight did not move at all.
+   */
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number
@@ -1243,7 +1275,7 @@ export const ENCOUNTERS: Encounter[] = [
     // tile is its grain and not its colour, so this is how coarse the ground
     // reads: the coarsest of the five, for a hall that has been ground down.
     floor: 'floor-cobble',
-    hp: 46000,
+    hp: 52000,
     enrage: 240,
     phaseTwoHp: 0.66,
     phaseThreeHp: 0.33,
@@ -1416,7 +1448,7 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
-    hp: 58000,
+    hp: 51000,
     enrage: 240,
     /**
      * The wall of mana, as a share of what has to be taken off her.
@@ -1595,7 +1627,7 @@ export const ENCOUNTERS: Encounter[] = [
     // where the smallest raid clears at 95% and the twenty-five man normal,
     // which is the longest fight on the roster, sits at 65% with seven in ten
     // of the raid dead at the end of it.
-    hp: 60000,
+    hp: 58000,
     enrage: 240,
     phaseTwoHp: 0.68,
     phaseThreeHp: 0.35,
@@ -2316,7 +2348,7 @@ export const ENCOUNTERS: Encounter[] = [
     // It is a steep number: at forty-six thousand every cell came out at 93%
     // or better, because a shorter fight is also fewer seconds of standing in
     // the thirst. Fifty-one is where the top rung still costs something.
-    hp: 51000,
+    hp: 46000,
     enrage: 250,
     phaseTwoHp: 0.7,
     phaseThreeHp: 0.35,
@@ -2428,7 +2460,7 @@ export const ENCOUNTERS: Encounter[] = [
     terrain: [],
     /** Red stone, and a balcony that is a painting rather than a place. */
     floor: 'floor-slate',
-    hp: 52000,
+    hp: 60000,
     // The shortest clock on the roster, and it is the flight that decides it:
     // fourteen seconds with nothing to hit, four times a pull, is fifty-six
     // seconds of a raid doing no damage at all.

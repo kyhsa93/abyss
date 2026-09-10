@@ -908,7 +908,7 @@ export const REEK_REACH = 130
  * loses the body holding the boss and whoever was standing near it. The one
  * demand in this game answered by a job rather than by a place.
  */
-export const BLOAT_BURST_AT = 10
+export const BLOAT_BURST_AT = 10 // Gastric Bloat explodes at ten stacks there too.
 /**
  * The stack the other tank takes it on.
  *
@@ -917,7 +917,8 @@ export const BLOAT_BURST_AT = 10
  * where the swap is both possible and necessary.
  */
 export const BLOAT_SWAP_AT = BLOAT_BURST_AT - 1
-export const BLOAT_POWER = 0.09
+// A tenth a stack, which is the source's own number for it.
+export const BLOAT_POWER = 0.1
 export const BLOAT_BURST = 4200
 export const BLOAT_SPLASH = 190
 
@@ -984,8 +985,13 @@ export const STORM_REPICK = 5
 export const DECAY_RADIUS = 105
 export const DECAY_LINGER = 26
 export const DECAY_DAMAGE = 240
-/** The cast the tank cannot survive twice, and the window to cut it in. */
-export const FROSTBOLT_CAST = readable(1.9)
+/**
+  * The cast the tank cannot survive twice, and the window to cut it in.
+  *
+  * Two seconds and the notice grant on top, and the two is the source's:
+  * Frostbolt is a two-second cast in the client's table. It was 1.9.
+  */
+export const FROSTBOLT_CAST = readable(2)
 export const FROSTBOLT_DAMAGE = 2600
 export const VOLLEY_DAMAGE = 300
 /** How close a shade has to be, and how fast it follows. */
@@ -1091,7 +1097,8 @@ export const GORGE_BURST = 900
 export const SPRAY_HALF_WIDTH = 0.7
 export const SPRAY_RANGE = 420
 export const SPRAY_DAMAGE = 640
-export const SPRAY_CAST = readable(1.7)
+/** A second and a half, which is Slime Spray's cast in the client's table. */
+export const SPRAY_CAST = readable(1.5)
 
 /**
  * The infection: a dot whose expiry is a place rather than a number.

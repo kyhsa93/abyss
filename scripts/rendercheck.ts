@@ -1319,7 +1319,17 @@ console.log(`rendered ${frames} frames with no exceptions`)
     const rng = new Rng(seed)
     const watch = new Set<number>()
     const peers = new Map<number, number[]>()
+    // The bar held at full for the length of the window.
+    //
+    // What this measures is the wave, and the wave is a first-phase thing: the
+    // source cancels every one of the Watcher's first-phase events when her
+    // barrier falls, and this game does the same. Left to run, a pull spends
+    // half of these hundred and forty seconds in a phase that does not summon
+    // anything, and the sample is not a fact about the mechanic -- it is a
+    // fact about how fast twenty-five people happened to break a wall.
+    const wall = bossOf(s)
     while (s.outcome === 'ongoing' && s.time < 140) {
+      wall.hp = wall.maxHp
       step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
       for (const a of adds(s)) {
         if (!getAura(a, 'empowered') || watch.has(a.id)) continue
@@ -1494,7 +1504,17 @@ console.log(`rendered ${frames} frames with no exceptions`)
   let wasStorming = false
   let wasCasting: string | null = null
 
+  // Neither side is allowed to end this early. What is being measured is what
+  // a storming boss does, not who wins: a raid that wipes at two minutes has
+  // seen one storm, and a check that reads that as "the boss does not storm"
+  // is reading the fight's difficulty through a claim about its mechanics.
   while (s.outcome === 'ongoing' && s.time < 180) {
+    b.hp = b.maxHp
+    for (const a of s.actors) {
+      if (a.faction !== 'party') continue
+      a.alive = true
+      a.hp = a.maxHp
+    }
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     const storming = b.auras.some((x) => x.id === 'storming')
     if (storming && !wasStorming) storms++

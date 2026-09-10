@@ -475,7 +475,17 @@ function updateTimers(s: SimState, a: Actor, breathed: Set<number>): void {
       // The pin running out on its own, which takes the spike with it: a
       // spike still standing over somebody who is free again is a target the
       // raid would keep answering for nothing.
-      if (aura.id === 'spiked') freeSpiked(s, aura.sourceId)
+      //
+      // And it is where the pin is charged as a mistake: a spike the raid
+      // turned round and broke costs the fight nothing, and one it left
+      // standing until the clock ran out costs exactly one. That is the
+      // source's own line -- its achievement fails eight seconds after a body
+      // is impaled, not when one is -- and it is why the pin is the one aura
+      // left out of `AURA_MECHANIC`.
+      if (aura.id === 'spiked') {
+        freeSpiked(s, aura.sourceId)
+        applyDamage(s, a, 0, 'none', { sourceId: aura.sourceId, mechanic: 'spike', silent: true })
+      }
       // The spore going, which is the moment everybody who came to stand in
       // it is covered against a mechanic that has not happened yet.
       if (aura.id === 'spore' && a.alive) burstSpore(s, a)
