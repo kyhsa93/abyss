@@ -116,3 +116,72 @@ export function trashShoots(kind: string): boolean {
 export function trashMends(kind: string): boolean {
   return TRASH_KINDS[kind]?.mends === true
 }
+
+/**
+ * Which of the nine bodies this kind is drawn as.
+ *
+ * Thirty-seven creatures and one sprite between them: a corridor of the same
+ * person at thirty-seven sizes. Size is a real difference and it is not the one
+ * a player reads first -- a skeleton, a robed cultist and a rotting giant are
+ * three silhouettes at any size, and one of them repeated is a corridor with no
+ * information in it.
+ *
+ * Nine rather than thirty-seven, because a look is a row of the sprite atlas
+ * and the atlas is decoded whole: each costs about six hundred kilobytes of
+ * memory on a phone whether or not it is on screen. So they are grouped by what
+ * the source's creature *is* -- bone, cult, risen, stitched, San'layn, vrykul,
+ * gargoyle, nerubian, drake -- which is the same axis the names are grouped on,
+ * because the raid names its creatures after what they are.
+ *
+ * Where the source's creature is not a person, the sprite is the nearest
+ * silhouette Liberated Pixel Cup has. The set draws no spiders and no
+ * quadrupeds at all, so a Nerub'ar Broodkeeper is a carapace with a tail and a
+ * Spire Gargoyle is stone with bat's wings. See `ADD` in `scripts/lpc.ts`.
+ */
+const TRASH_LOOK: Record<string, string> = {
+  'The Damned': 'bone',
+  'Ancient Skeletal Soldier': 'bone',
+  'Deathbound Ward': 'bone',
+  'Servant of the Throne': 'ghoul',
+  'Spire Minion': 'ghoul',
+  'Pustulating Horror': 'ghoul',
+  'Vengeful Fleshreaper': 'ghoul',
+  "Nerub'ar Broodkeeper": 'crawler',
+  'Deathspeaker Zealot': 'cult',
+  'Deathspeaker Disciple': 'cult',
+  'Deathspeaker Attendant': 'cult',
+  'Deathspeaker Servant': 'cult',
+  'Deathspeaker High Priest': 'cult',
+  'Plague Scientist': 'cult',
+  'Spire Gargoyle': 'stone',
+  'Frenzied Abomination': 'hulk',
+  'Blighted Abomination': 'hulk',
+  'Rotting Frost Giant': 'hulk',
+  'Decaying Colossus': 'hulk',
+  Stinky: 'hulk',
+  Precious: 'hulk',
+  'Darkfallen Archmage': 'blood',
+  'Darkfallen Blood Knight': 'blood',
+  'Darkfallen Noble': 'blood',
+  'Darkfallen Advisor': 'blood',
+  'Darkfallen Commander': 'blood',
+  'Darkfallen Lieutenant': 'blood',
+  'Darkfallen Tactician': 'blood',
+  'Ymirjar Huntress': 'vrykul',
+  'Ymirjar Battle-Maiden': 'vrykul',
+  'Ymirjar Warlord': 'vrykul',
+  'Ymirjar Frostbinder': 'vrykul',
+  'Ymirjar Deathbringer': 'vrykul',
+  'Frostwarden Handler': 'vrykul',
+  'Frostwing Whelp': 'drake',
+  Spinestalker: 'drake',
+  Rimefang: 'drake',
+}
+
+/** Which sheet a body of this kind is drawn from. */
+export function trashLook(kind: string): string {
+  return TRASH_LOOK[kind] ?? 'thrall'
+}
+
+/** Every look the building uses, for a check that has to know them all. */
+export const TRASH_LOOKS = [...new Set(Object.values(TRASH_LOOK))].sort()

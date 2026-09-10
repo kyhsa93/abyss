@@ -31,7 +31,7 @@ import {
   pushEffect,
 } from './combat'
 import { blankGround, turnToward } from './boss'
-import { trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
+import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, pushInside, pushOutside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, Obstacle, SimState, Vec2 } from './types'
@@ -526,6 +526,7 @@ export function createTravelState(
       )
       body.name = kind
       if (warden) body.warden = warden.fight
+      else body.look = trashLook(kind)
       body.radius = warden ? warden.radius : trashRadius(kind)
       body.moveSpeed = warden ? warden.pace : trashPace(kind)
       if (!warden && trashShoots(kind)) body.melee = false

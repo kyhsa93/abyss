@@ -932,6 +932,41 @@ cannot walk any further out has arrived.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
 
+### Nine bodies, because thirty-seven is a phone's memory
+
+The creatures came off the rows first and the *pictures* did not follow: for a
+round the building was thirty-seven kinds drawn as one sprite at thirty-seven
+sizes, which is a corridor of the same person, big and small. Size is a real
+difference and it is not the one anybody reads first.
+
+What the source's creature is, is in its name — the raid names them after what
+they are — so the looks are grouped on that axis:
+
+| look | what it is in the source | who wears it |
+| --- | --- | --- |
+| bone | armoured skeletons | The Damned, Ancient Skeletal Soldier, Deathbound Ward |
+| cult | robed people | every Deathspeaker, the Plague Scientists |
+| ghoul | risen dead | Servant of the Throne, Fleshreaper, Pustulating Horror, Spire Minion |
+| hulk | stitched flesh | both abominations, the Frost Giants, the Colossus, Stinky, Precious |
+| blood | San'layn | all seven Darkfallen |
+| vrykul | Ymirjar | all five, and the Frostwarden Handler |
+| stone | gargoyles | Spire Gargoyle |
+| crawler | nerubians | Nerub'ar Broodkeeper |
+| drake | frostwyrms | Frostwing Whelp, Spinestalker, Rimefang |
+
+**Nine and not thirty-seven, and the reason is memory rather than taste.** A
+look is a row of `public/art/lpc.webp`, the atlas is decoded whole, and a row
+costs about six hundred kilobytes of it whether or not anything on screen is
+wearing it. Nine took the sheet from 56.6 MB decoded to 65. Thirty-seven would
+not fit on a phone.
+
+**And where the source's creature is not a person, the sprite is the nearest
+silhouette Liberated Pixel Cup has.** The set draws people: no spiders, no
+quadrupeds, no dragons. So a Nerub'ar Broodkeeper is a carapace with a tail, a
+Spire Gargoyle is stone with bat's wings and horns, and a frostwyrm is a
+lizard's head with wings — each of them a shape that is not a person's, which
+is the half of the job that survives being twenty pixels tall.
+
 ### The room the trash is in
 
 Every corridor in this building was written as *held ground on a passage*,

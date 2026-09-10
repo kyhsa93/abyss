@@ -1,3 +1,4 @@
+import { TRASH_KINDS, TRASH_LOOKS, trashLook } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
@@ -5907,6 +5908,41 @@ for (const [label, w, h] of [
     hitHome(...middle(home.reset)) === 'reset',
     `${hitHome(...middle(home.reset))}`,
   )
+
+  // The building's trash is nine bodies, not one at thirty-seven sizes.
+  //
+  // Every kind names a look and every look is a row of the atlas. The lookup
+  // falls back to the thrall rather than throwing, which is right at runtime
+  // and is exactly what has to be checked: a look named one letter wrong is a
+  // Rotting Frost Giant quietly drawn as a summoned thrall, and nothing on the
+  // screen would say so.
+  {
+    // Against the atlas's own table rather than `hasBody`, which also asks
+    // whether the image has finished loading and so is false everywhere off a
+    // browser. What is being checked is that the row was packed.
+    const missing = TRASH_LOOKS.filter((look) => LPC_ROW[`add-${look}`] === undefined)
+    expect(
+      `${TRASH_LOOKS.length} bodies for the building's trash, all of them drawn`,
+      missing.length === 0,
+      missing.join(', '),
+    )
+    const kinds = Object.keys(TRASH_KINDS)
+    const adrift = kinds.filter((kind) => !TRASH_LOOKS.includes(trashLook(kind)))
+    expect(
+      `and all ${kinds.length} creatures name one of them`,
+      adrift.length === 0,
+      adrift.join(', '),
+    )
+    // And they are not all the same one, which is the state this replaced.
+    const used = new Set(kinds.map(trashLook))
+    expect(
+      'and no look is carrying the whole building',
+      used.size === TRASH_LOOKS.length &&
+        Math.max(...TRASH_LOOKS.map((l) => kinds.filter((k) => trashLook(k) === l).length)) <=
+          kinds.length / 3,
+      `${used.size} look(s) over ${kinds.length} creatures`,
+    )
+  }
 
   // Raid setup: two fields that open, and the way on. Drawn at both ends of
   // the chain, since the locked labels are a different set.

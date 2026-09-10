@@ -585,6 +585,127 @@ const ADD: Record<string, Layer[]> = {
     // different weapon on a body this size is a detail nobody can see.
     { z: 140, dir: 'weapon/sword/dagger' },
   ],
+
+  // --- and what stands in the building ---------------------------------------
+  //
+  // Thirty-seven creatures walk this citadel (`TRASH_KINDS`) and until these
+  // existed they were one sprite at thirty-seven sizes: a corridor of the same
+  // person, big and small. Size is a real difference and it is not the one a
+  // player reads first -- a skeleton and a vampire and a rotting giant are
+  // three silhouettes, and this set can draw all three.
+  //
+  // Nine looks rather than thirty-seven, because a look is a row of the atlas
+  // and the atlas is decoded whole on a phone: each of these costs about six
+  // hundred kilobytes of memory whether or not it is on screen. They are
+  // grouped by what the source's creature *is* -- see `trashLook` for which
+  // kind wears which -- and where the source's creature is not a person, the
+  // sprite is the nearest silhouette LPC has and the comment says so.
+
+  // The bone. The Damned and the Ancient Skeletal Soldiers on the way up, and
+  // the Deathbound Wards, which are the same thing in armour and are three
+  // times the health of everything around them.
+  bone: [
+    { z: 10, dir: 'body/bodies/skeleton' },
+    { z: 100, dir: 'head/heads/skeleton/adult' },
+    { z: 140, dir: 'weapon/sword/arming' },
+  ],
+  // The cult. Every Deathspeaker in the Oratory, and the plague scientists in
+  // the works: people, in robes, doing something to a room on purpose. The
+  // robe decides the body -- `torso/clothes/robe` exists in the female cut and
+  // nothing else, which is the same reason the lich they preach to is drawn on
+  // that body.
+  cult: [
+    { z: 5, dir: 'cape/tattered/bg', half: 'behind', tint: '#4c1d95' },
+    { z: 10, dir: 'body/bodies/female' },
+    { z: 60, dir: 'torso/clothes/robe/female', tint: '#4c1d95' },
+    { z: 100, dir: 'head/heads/human/female' },
+    // Hooded. Without it the robe sat under a bare head and the whole thing
+    // read as somebody's grandmother rather than as a congregation: a cult is
+    // a face you cannot see, and at this size the hood is the face.
+    { z: 120, dir: 'hat/cloth/hood/adult', tint: '#4c1d95' },
+    { z: 130, dir: 'cape/tattered/fg', tint: '#4c1d95' },
+  ],
+  // The risen. Servants of the Throne, the Fleshreapers that come off a wire,
+  // the Pustulating Horrors, the Spire Minions: dead, and moving anyway.
+  ghoul: [
+    { z: 10, dir: 'body/bodies/zombie' },
+    { z: 20, dir: 'legs/pants/male', tint: '#57534e' },
+    { z: 100, dir: 'head/heads/zombie/adult' },
+  ],
+  // The stitched. The abominations, the Decaying Colossus, the Rotting Frost
+  // Giants and the pair on the plagueworks door -- the heaviest bodies in the
+  // building, and bandage is the only thing in the set that reads as surgery.
+  hulk: [
+    { z: 10, dir: 'body/bodies/muscular', tint: '#84cc16' },
+    { z: 20, dir: 'legs/pants/male', tint: '#3f3f46' },
+    { z: 60, dir: 'torso/bandage/male' },
+    { z: 100, dir: 'head/heads/zombie/adult' },
+  ],
+  // The San'layn. Every Darkfallen in the crimson hall: blood elves who died
+  // and kept the tailoring. The one look in the building that is meant to read
+  // as *court* rather than as a thing in a corridor.
+  blood: [
+    { z: 10, dir: 'body/bodies/male' },
+    { z: 15, dir: 'feet/boots/basic/male', tint: '#7f1d1d' },
+    { z: 20, dir: 'legs/armour/plate/male', tint: '#7f1d1d' },
+    { z: 60, dir: 'torso/armour/plate/male', tint: '#7f1d1d' },
+    { z: 100, dir: 'head/heads/vampire/adult' },
+    // Long and black, because a bald head at this size is a bald head whatever
+    // is under it: the crimson hall is the one wing whose trash is meant to
+    // read as people who chose this.
+    { z: 110, dir: 'hair/long/adult', tint: '#18181b' },
+    { z: 140, dir: 'weapon/sword/rapier' },
+  ],
+  // The Ymirjar. Vrykul -- half again a person's height in the source, which
+  // is what `CombatReach` already says here -- in mail, with spears, holding
+  // the frostwing halls.
+  vrykul: [
+    { z: 10, dir: 'body/bodies/muscular' },
+    { z: 15, dir: 'feet/boots/fold/male', tint: '#78716c' },
+    { z: 20, dir: 'legs/armour/plate/male', tint: '#64748b' },
+    { z: 60, dir: 'torso/armour/leather/male', tint: '#64748b' },
+    { z: 120, dir: 'hat/helmet/barbarian_viking/adult' },
+    { z: 140, dir: 'weapon/polearm/spear' },
+  ],
+  // The gargoyles on the spire. Not a person: stone, with wings, standing
+  // still until it is not. The set has no gargoyle and it has bat wings and a
+  // lizard's head, which at the size a body is drawn is the same outline.
+  stone: [
+    { z: 5, dir: 'body/wings/bat/adult/bg', half: 'behind', tint: '#94a3b8' },
+    { z: 10, dir: 'body/bodies/muscular', tint: '#94a3b8' },
+    { z: 100, dir: 'head/heads/lizard/male', tint: '#94a3b8' },
+    // Horns, which is what turns a grey lizard into a thing carved onto a
+    // building. The tint on the head only pushes it towards stone -- shading
+    // is kept, which is the whole point of tinting rather than filling -- so
+    // the silhouette has to carry the rest.
+    { z: 95, dir: 'hat/accessory/horns_upward/bg/adult', half: 'behind', tint: '#94a3b8' },
+    { z: 120, dir: 'hat/accessory/horns_upward/fg/adult', tint: '#94a3b8' },
+    { z: 130, dir: 'body/wings/bat/adult/fg', tint: '#94a3b8' },
+  ],
+  // The Nerub'ar Broodkeepers, which are spiders. There is no spider in this
+  // set and no quadruped at all, so what is drawn is the next true thing about
+  // them: something with a carapace and a tail that is not standing like a
+  // person. Eight of them hold the way up and they are worth telling apart
+  // from the skeletons they stand with -- two of the three menders in the
+  // building are these.
+  crawler: [
+    { z: 5, dir: 'body/tail/lizard/adult/bg', half: 'behind', tint: '#365314' },
+    { z: 10, dir: 'body/bodies/zombie', tint: '#365314' },
+    { z: 100, dir: 'head/heads/lizard/male', tint: '#365314' },
+    { z: 120, dir: 'body/tail/lizard/adult/fg', tint: '#365314' },
+  ],
+  // The frostwyrms and their whelps. A quarter of a body of health apiece and
+  // twenty-eight of them in one gauntlet, and the two named drakes above them
+  // at twenty-four times that -- the same creature at two sizes, which is
+  // exactly what a scaled sprite is for.
+  drake: [
+    { z: 5, dir: 'body/wings/lizard/adult/bg', half: 'behind', tint: '#a5f3fc' },
+    { z: 10, dir: 'body/bodies/child', tint: '#a5f3fc' },
+    { z: 90, dir: 'body/tail/lizard/child/bg', half: 'behind', tint: '#a5f3fc' },
+    { z: 100, dir: 'head/heads/lizard/child', tint: '#a5f3fc' },
+    { z: 120, dir: 'body/tail/lizard/child/fg', tint: '#a5f3fc' },
+    { z: 130, dir: 'body/wings/lizard/adult/fg', tint: '#a5f3fc' },
+  ],
 }
 
 /**

@@ -465,6 +465,17 @@ export interface Actor {
   warden?: string
 
   /**
+   * Which of the building's bodies this one is drawn as.
+   *
+   * Only the trash sets it, and only because the trash is thirty-seven
+   * creatures rather than one: `spawn` says what a summoned body *does*, which
+   * is a rule, and this says what it looks like, which is not. Absent
+   * everywhere else -- a party member is drawn as its spec and a summon as
+   * whatever it was summoned as.
+   */
+  look?: string
+
+  /**
    * The body a beast has picked, which is the whole of what makes it one.
    *
    * Absent on everything else in the game: a thrall walks at whoever is

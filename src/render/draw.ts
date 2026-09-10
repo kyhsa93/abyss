@@ -2392,10 +2392,12 @@ function drawActor(
   const token = isBoss
     ? bossBody
     : isAdd
-      ? // A beast is a thrall that has chosen somebody, so it is drawn as one.
-        // What tells it apart is not its body, it is the line to whoever it
-        // picked -- see `drawQuarryLines`.
-        `add-${a.spawn === 'beast' ? 'thrall' : (a.spawn ?? 'thrall')}`
+      ? // The building's own trash carries which of the nine bodies it is --
+        // see `trashLook`. A summon does not: it is drawn as what it was
+        // summoned as, and a beast is a thrall that has chosen somebody, so it
+        // is drawn as one. What tells that apart is not its body, it is the
+        // line to whoever it picked -- see `drawQuarryLines`.
+        `add-${a.look ?? (a.spawn === 'beast' ? 'thrall' : (a.spawn ?? 'thrall'))}`
       : `${a.classId}-${a.spec}`
   const bodied = token !== null && a.alive && hasBody(token)
 
