@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { RAID_SIZES } from '../src/sim/classes'
 import { ENCOUNTERS } from '../src/sim/encounters'
 
 /**
@@ -90,7 +91,13 @@ const BANDS: Band[] = [
       // Three sizes by two difficulties for every boss on the roster. Counted
       // rather than "more than none", because the way this table went wrong
       // was a boss missing from it while the others were all present.
-      bad.push(...atLeast(found, ENCOUNTERS.length * 6, 'the size and difficulty table'))
+      // Two sizes by two difficulties. It was six for a while after the
+      // five-man went away, which is a band that could never have passed --
+      // and did not have to, because it has been suspended since before the
+      // sizes changed under it.
+      bad.push(
+        ...atLeast(found, ENCOUNTERS.length * RAID_SIZES.length * 2, 'the size and difficulty table'),
+      )
       for (const line of found) {
         const pulls = percents(line)
         if (pulls.length >= 2 && pulls[1] < CELL_FLOOR) {

@@ -497,10 +497,21 @@ the same roster on the same night against one enrage, so health *is* fight
 length — the source's spread would put two fights past their enrage and two
 under two minutes.
 
-What the source can settle is **which fight is bigger than which**. So the
-eight numbers the balance sweep arrived at are kept to the digit and dealt out
-in the source's order. The total is unchanged, every fight is still inside the
-envelope it was tuned in, and four of the eight did not move at all.
+**Nor can the order be used**, which took a sweep to find out. The reasoning
+was that the eight numbers the balance sweep arrived at were a *set*, so the
+source could say which fight got which without moving anything: same total,
+same eight values, dealt out in the source's order. It is wrong, and the way it
+is wrong is worth keeping. A fight's health is not a number drawn from a shared
+pool. It is that fight's own answer to that fight's own damage, and permuting
+them moved four cells out of band in a single pass — the crimson gift, handed
+the largest bar because the source's queen carries it, went to nought percent
+at twenty-five; the three crowns, handed the smallest, went to a hundred at
+every setting.
+
+So the table above is a fact about the source and not a fact about this game,
+and it is the one item on the whole inventory that was taken and then given
+back. What it is still good for is the shape of an argument: if this game ever
+grows a raid that gears up between wings, the order is here waiting.
 
 ### The source's own goals
 
@@ -716,8 +727,8 @@ which is why a ramp is a room and a stair is a doorway.
 6. ~~**The teleport pads**, at the source's own coordinates.~~ **Taken** —
    seven transporter rows, six pads, and two ramps that had one and should
    not have.
-7. ~~**Boss health ratios** between fights.~~ **Taken as an order** — the
-   ratios themselves cannot be used, and why is worth reading.
+7. ~~**Boss health ratios** between fights.~~ **Read and not taken** — neither
+   the ratios nor even the order survive a sweep, and why is worth reading.
 8. ~~**The source's own extra credit**: its achievement criteria.~~ **Six of
    eight taken.** The other two ask about a moment inside a fight.
 9. **The rooms' sizes**, off the same boundaries their shapes now come from.
