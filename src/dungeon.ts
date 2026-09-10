@@ -509,14 +509,19 @@ const PULL = Math.round(20 * YARD * BUILD_SCALE)
  * and a High Priest either side at fifteen. Nothing here was placed by eye.
  */
 const ORATORY: Pack[] = [
-  // The two scouts are a twenty-five-man's alone: their rows carry
-  // `spawnMask` 10, which is the two twenty-five settings and neither ten.
-  { pos: { x: 18, y: 758 }, count: 0, crowd: 1, pulls: PULL, weight: 0.73 },
-  { pos: { x: -17, y: 758 }, count: 0, crowd: 1, pulls: PULL, weight: 0.73 },
-  { pos: { x: 20, y: 575 }, count: 2, crowd: 3, pulls: PULL, weight: 0.77 },
-  { pos: { x: -20, y: 567 }, count: 2, crowd: 3, pulls: PULL, weight: 0.77 },
-  { pos: { x: 18, y: 402 }, count: 3, crowd: 4, pulls: PULL, weight: 0.78 },
-  { pos: { x: -19, y: 380 }, count: 3, crowd: 4, pulls: PULL, weight: 0.78 },
+  // Two files and two priests, which is what `creature_formations` says.
+  //
+  // This was six packs of two, three and four, and they were an artefact of
+  // reading positions rather than groups: AzerothCore writes the Oratory's
+  // Deathspeakers as four formations, and each file stands over about thirty
+  // yards, so clustering at thirteen split every one of them.
+  //
+  // The two files are the same two files at both sizes, and only their size
+  // changes: `spawnMask` 5 on a group of five, 10 on a group of eight, both
+  // led from the same spot. So it is one pack with a count and a crowd rather
+  // than two sets of packs, which is exactly what that field is for.
+  { pos: { x: 20, y: 490 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77 },
+  { pos: { x: -20, y: 474 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77 },
   // The two priests are `spawnMask` 15 and stand there whoever came.
   { pos: { x: 54, y: 178 }, count: 1, pulls: PULL, weight: 1.4 },
   { pos: { x: -53, y: 169 }, count: 1, pulls: PULL, weight: 1.4 },
@@ -798,8 +803,9 @@ export const PASSAGES: Passage[] = [
     // pets (Stinky at a fifth of a boss, Precious just under), and a Decaying
     // Colossus on the airlock itself.
     corridor: corridor('plagueway', 'vats', [
-      { pos: { x: 17, y: 2326 }, count: 1, pulls: PULL, weight: 1.4 },
-      { pos: { x: -18, y: 2318 }, count: 1, pulls: PULL, weight: 1.4 },
+      // One pack of two, not two of one: `creature_formations` leads the
+      // second abomination off the first.
+      { pos: { x: 0, y: 2322 }, count: 2, pulls: PULL, weight: 1.4 },
       { pos: { x: -10, y: 2092 }, count: 1, pulls: PULL, weight: 0.96 },
       { pos: { x: 3, y: 1900 }, count: 3, pulls: PULL, weight: 1.09 },
       // And the heap itself moves: one of the twelve carries path 3703800, a
@@ -838,8 +844,8 @@ export const PASSAGES: Passage[] = [
     // The two Geist Alarms, at their own distance back from the airlock and
     // their own offsets across it, each waking one of the two heaps above.
     [
-      { at: { x: -26, y: 521 }, radius: 143, wakes: 5 },
-      { at: { x: 21, y: 521 }, radius: 143, wakes: 6 },
+      { at: { x: -26, y: 521 }, radius: 143, wakes: 4 },
+      { at: { x: 21, y: 521 }, radius: 143, wakes: 5 },
     ]),
   },
   // And inside it the two rooms are a step to either side. No ground between:
@@ -875,11 +881,11 @@ export const PASSAGES: Passage[] = [
       { pos: { x: -90, y: 1328 }, count: 3, pulls: PULL, weight: 0.96 },
       { pos: { x: -90, y: 1158 }, count: 1, pulls: PULL, weight: 0.92 },
       { pos: { x: 90, y: 1136 }, count: 1, pulls: PULL, weight: 0.92 },
-      { pos: { x: -90, y: 987 }, count: 2, pulls: PULL, weight: 1.19 },
-      { pos: { x: 90, y: 943 }, count: 2, pulls: PULL, weight: 1.19 },
-      { pos: { x: -22, y: 714 }, count: 3, pulls: PULL, weight: 1.14 },
-      { pos: { x: 22, y: 704 }, count: 3, pulls: PULL, weight: 1.14 },
-      { pos: { x: 44, y: 396 }, count: 2, pulls: PULL, weight: 1.19 },
+      { pos: { x: -90, y: 1005 }, count: 3, pulls: PULL, weight: 1.17 },
+      { pos: { x: 90, y: 942 }, count: 3, pulls: PULL, weight: 1.17 },
+      { pos: { x: 20, y: 715 }, count: 4, pulls: PULL, weight: 1.14 },
+      { pos: { x: -25, y: 707 }, count: 4, pulls: PULL, weight: 1.14 },
+      { pos: { x: 43, y: 394 }, count: 3, pulls: PULL, weight: 1.17 },
     ]),
   },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },

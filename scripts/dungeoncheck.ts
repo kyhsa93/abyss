@@ -1029,6 +1029,21 @@ expect(
     near.length === 0,
     near.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
   )
+  // And what it wakes is something that cannot be woken any other way.
+  //
+  // A wire pointed at an ordinary pack is either doing nothing — the pack has
+  // a circle and would have noticed anyway — or it is a wire pointed at the
+  // wrong index, which is what happens the moment a pack is inserted above it.
+  // Merging two abominations into the one pack `creature_formations` says they
+  // are moved every plagueworks index down by one and both of its wires with
+  // them; the rule above still passed, because a pack four hundred units away
+  // is outside its own circle whatever it is.
+  const loud = wires.filter(({ c, a }) => c.packs[a.wakes]!.pulls > 0)
+  expect(
+    'and what it wakes is something with no circle of its own',
+    loud.length === 0,
+    loud.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
+  )
 
   // Trash that is a raid size, which is what the source's own spawn table
   // makes it. Two rules and one number.

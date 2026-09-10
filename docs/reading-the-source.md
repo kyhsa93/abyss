@@ -380,7 +380,7 @@ the distance they stand from the thing at the end of the walk, and converted at
 | **the Rampart of Skulls** | two Rotting Frost Giants at the far end, then gargoyles standing singly, then three on the way onto the ship. The other 32 bodies up there are two armies fighting each other | 6 |
 | **Deathbringer's Rise** | nothing. Six bodies, all of them your own side's | — |
 | **the plagueworks approach** | abominations, a knot of horrors, **twelve Vengeful Fleshreapers in one heap**, scientists standing singly, Stinky and Precious, and a Decaying Colossus on the airlock | 13 |
-| **the crimson wing** | eight San'layn at the top of the stair, then pairs and threes up the hall's two balconies, then the guard on the dais — 28 bodies | 10 |
+| **the crimson wing** | eight San'layn at the top of the stair, then threes and fours up the hall's two balconies, then the guard on the dais — 33 bodies | 10 |
 | **the frostwing halls** | twenty Ymirjar in a funnel: threes, then singles alternating sides, then two threes abreast, then six across the way | 9 |
 | **the whelp gauntlet** | two frostwyrms, and two heaps of fourteen Frostwing Whelps with a Frostwarden Handler in each | 4 |
 
@@ -389,8 +389,8 @@ a bit for each of the four settings, and fourteen of this raid's spawns are set
 to one size and not the other. Two things follow, and one of them was a bug:
 
 - The Oratory holds **twelve** Deathspeakers for a ten-man and **eighteen** for
-  a twenty-five, in the same places — two files that grow from two to three and
-  from three to four, and two lone scouts a ten-man never meets at all.
+  a twenty-five: two files led from the same two spots, five bodies each or
+  eight, `spawnMask` 5 on the fives and 10 on the eights.
 - The Rampart's "two" Rotting Frost Giants are **one giant, written twice**:
   the same position with `spawnMask` 5 on one row and 10 on the other. Counting
   bodies off a spawn table without reading that column doubles it.
@@ -792,6 +792,33 @@ says "meeting" rather than "waking". And "under a thousand yards of the citadel
 is bare corridor" counted every gap between rooms whether anything stood in it
 or not, so the citadel read as emptier the more crowded it got; bare means
 holding nothing, and a passage with ground on it is not bare.
+
+### The source says which bodies are a pack
+
+`creature_formations` is the table that answers the question the clustering was
+guessing at. AzerothCore writes eleven formations for this raid — a leader
+guid, its members, and how far behind each one stands — and where there is one,
+it is the pack.
+
+It agreed with the clustering on the heap of twelve Fleshreapers, on the trio
+of Damned patrolling the way up, and on the Darkfallen threes in the crimson
+hall. It disagreed on two:
+
+- **The Oratory's two files.** Written as four formations: a group of five and
+  a group of eight on each side, led from the same spot, `spawnMask` 5 on the
+  fives and 10 on the eights. Each file stands over about thirty yards, so
+  clustering at thirteen split every one of them — six packs of two, three and
+  four where the source has two packs whose size is five or eight depending on
+  who walked in. Which is exactly what `count` and `crowd` are for.
+- **The plagueworks abominations.** One pack of two, not two of one.
+
+And the sweep found a filter bug of this file's own making. The extraction drops
+friendly names by substring, and one of the substrings was `Commander` — meant
+for the Ebon Blade and Argent Commanders standing about in the great hall, and
+it quietly ate every one of the five **Darkfallen** Commanders in the crimson
+hall as well. The wing is thirty-three bodies, not twenty-eight. A name filter
+wide enough to be convenient is wide enough to be wrong, and nothing about the
+count looked odd until the formations disagreed with it.
 
 ### Deliberately different
 
