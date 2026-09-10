@@ -156,6 +156,7 @@ import {
   chamberAt,
   citadelPacks,
   citadelSprings,
+  citadelTerrain,
   citadelWorld,
   standing as fightBuilt,
   groundFor,
@@ -828,6 +829,9 @@ function standIn(id: string, from: string | null): void {
     // beyond a wall the party cannot reach.
     packs: citadelPacks(new Set(run.cleared)),
     springs: citadelSprings(new Set(run.cleared)),
+    // And what is standing in the rooms themselves, which is not conditional
+    // on anything: furniture does not wait for a door to open.
+    terrain: citadelTerrain(),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),

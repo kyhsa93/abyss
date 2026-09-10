@@ -16,7 +16,7 @@ import {
 import { turnToward } from './boss'
 import { ROUND_ARENA, pushInside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
-import type { Actor, SimState, Vec2 } from './types'
+import type { Actor, Obstacle, SimState, Vec2 } from './types'
 
 /**
  * The walk between two rooms.
@@ -117,6 +117,19 @@ export interface Corridor {
   packs: Pack[]
   /** What is still arriving, if anything is. Most ground is held by nobody. */
   springs?: Spring[]
+  /**
+   * What is standing on this ground, which a body has to walk around.
+   *
+   * A fight's room has had furniture since it had a floor; the citadel had
+   * none, so the building a raid walks across was thirty-two pieces of empty
+   * stone. The source is not empty: its own object rows put a forge, its
+   * anvils, its barrels and its stacked bars in the great hall, and the hall
+   * is a town because of them.
+   *
+   * In world coordinates, placed where they stand, because the walk is one
+   * set of coordinates for the whole building — see `citadelTerrain`.
+   */
+  terrain?: Obstacle[]
 }
 
 export interface TravelState {
@@ -334,7 +347,14 @@ export function createTravelState(
     nextObjectId: nextId,
     attempt: 0,
     seed,
-    obstacles: [],
+    // What is standing on the ground being walked. Copied rather than handed
+    // over: `s.obstacles` is a room being crossed and a mechanic that breaks
+    // something writes there, while the list on the corridor is the building
+    // and outlives the walk.
+    obstacles: (corridor.terrain ?? []).map((rock) => ({
+      pos: { x: rock.pos.x, y: rock.pos.y },
+      radius: rock.radius,
+    })),
     party: party.map((p) => ({ ...p })),
     difficulty,
     tally,

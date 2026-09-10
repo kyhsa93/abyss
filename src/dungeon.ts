@@ -1,7 +1,7 @@
 import { ENCOUNTERS } from './sim/encounters'
 import type { Corridor, Pack, Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
-import type { Vec2 } from './sim/types'
+import type { Obstacle, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 import { BUILD_SCALE, YARD } from './sim/constants'
 
@@ -60,6 +60,21 @@ export interface Chamber {
    * hub, the bridge, and the ones still waiting on an issue.
    */
   room?: RoomShape
+
+  /**
+   * What is standing in the room, in the room's own frame.
+   *
+   * Furniture rather than a mechanic: something to walk around and something
+   * for the room to be recognised by. A fight's room has had this since it had
+   * a floor (`Encounter.terrain`); the rooms nobody fights in had nothing at
+   * all, so the building a raid crosses was empty stone from the door to the
+   * throne.
+   *
+   * Taken off the source's own object rows where it has any — see
+   * `docs/reading-the-source.md`. Where it has none, the room has none: the
+   * first fight's chamber is empty in the data and empty here.
+   */
+  terrain?: Obstacle[]
 
   /**
    * The pad in this room, and what lights it.
@@ -166,6 +181,30 @@ export const CHAMBERS: Chamber[] = [
     // scale the source's own coordinates disagree with by about half again —
     // see `docs/reading-the-source.md`.
     room: { kind: 'hall', halfWidth: 1504, front: 1446, back: 1446 },
+    // The forge, and what stands around it.
+    //
+    // The source's own object rows, at `BUILD_SCALE`, in the room's frame: two
+    // forges with their coals, four anvils, the barrels they quench in, the
+    // stacked saronite behind them, the runeforge off to one side and the
+    // transporter pad by the way in. Nothing here is a mechanic. It is what
+    // makes the great hall a place a raid walks *through* rather than a floor
+    // it crosses — and the reason the hall has no packs is on the same sheet:
+    // what the source puts in here is forty people who are not fighting
+    // anybody.
+    terrain: [
+      { pos: { x: -114, y: 7 }, radius: 55 },
+      { pos: { x: 181, y: 7 }, radius: 55 },
+      { pos: { x: -166, y: 40 }, radius: 34 },
+      { pos: { x: -52, y: 1 }, radius: 34 },
+      { pos: { x: 124, y: 9 }, radius: 34 },
+      { pos: { x: 232, y: 23 }, radius: 34 },
+      { pos: { x: -214, y: 14 }, radius: 28 },
+      { pos: { x: 271, y: 7 }, radius: 28 },
+      { pos: { x: -116, y: -140 }, radius: 40 },
+      { pos: { x: 160, y: -118 }, radius: 40 },
+      { pos: { x: -619, y: 29 }, radius: 50 },
+      { pos: { x: 5, y: 520 }, radius: 45 },
+    ],
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   // The way out of the first fight, and there are two of them because the
@@ -1620,6 +1659,24 @@ export function groundFor(from: string, to: string): Corridor | null {
  */
 export function citadelPacks(cleared?: ReadonlySet<string>): Pack[] {
   return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.packs ?? [])
+}
+
+/**
+ * Everything standing in the building, placed where it stands.
+ *
+ * The rooms carry their furniture in their own frames — see `Chamber.terrain`
+ * — and the walk is one set of coordinates for the whole citadel, so this is
+ * where the two meet. Every room, not only the one the party is in: the floor
+ * is continuous and a body two rooms ahead is still walking around what is
+ * there.
+ */
+export function citadelTerrain(): Obstacle[] {
+  return CHAMBERS.flatMap((chamber) => {
+    const rocks = chamber.terrain
+    if (rocks === undefined) return []
+    const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+    return rocks.map((rock) => ({ pos: fromRoom(room, rock.pos), radius: rock.radius }))
+  })
 }
 
 /** And everything in it that has not arrived yet, placed the same way. */
