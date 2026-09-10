@@ -445,7 +445,13 @@ export function createTravelState(
       const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * (pack.weight ?? 1)))
       // The ones that keep the rest up, first in the ring so that a pack's
       // menders are its menders whoever walked in.
-      if (i < (pack.mends ?? 0)) {
+      //
+      // Shared out rather than fixed, because the source shares them out: an
+      // Oratory file is five bodies with one Deathspeaker Disciple in it at
+      // ten and eight with two at twenty-five. `mends` is the ten-man count
+      // and the crowd gets the same fraction of itself.
+      const menders = Math.round(((pack.mends ?? 0) * here) / Math.max(1, pack.count))
+      if (i < menders) {
         body.spawn = 'mender'
         body.swingTimer = MEND_FIRST
       }

@@ -826,10 +826,19 @@ A pack is a pile of health bars, and the answer to a pile of health bars is to
 hit it — so which body first has never mattered in a corridor. In the source it
 does, twice, and both are in stretches this game builds:
 
-| | source | |
+| | source | where it is written |
 | --- | --- | --- |
 | Nerub'ar Broodkeeper (8, the way up) | Dark Mending on its own side, every 15–25s | `npc_icc_nerubar_broodkeeper` |
+| Deathspeaker Disciple (2 in the Oratory at ten, 4 at twenty-five) | Shadow Mend, every 15–30s | `smart_scripts` |
 | Darkfallen Advisor (5, the crimson hall) | Shroud of Spell Warding on the lowest friendly, every 20–25s | `npc_darkfallen_advisor` |
+
+Thirty-nine of this raid's creatures are `SmartAI` rather than C++, which is a
+table this file had not opened: the Damned, every Deathspeaker, the gargoyles,
+the wards and all six Darkfallen are scripted in `smart_scripts` and nowhere
+else. Reading it is what turned up the third healer — and confirmed that the
+rest of what is in there is damage, plus the one line that appears on nearly
+every row of it, "call for help upon entering combat", which is what this
+game's overlapping `pulls` circles already are.
 
 Both are the same shape and it is the shape this game already teaches on the
 Watcher's empowered body: there is one in the pack worth killing first, and

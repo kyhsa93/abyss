@@ -520,8 +520,12 @@ const ORATORY: Pack[] = [
   // changes: `spawnMask` 5 on a group of five, 10 on a group of eight, both
   // led from the same spot. So it is one pack with a count and a crowd rather
   // than two sets of packs, which is exactly what that field is for.
-  { pos: { x: 20, y: 490 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77 },
-  { pos: { x: -20, y: 474 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77 },
+  // One Deathspeaker Disciple in each file, and two when the file is eight:
+  // `smart_scripts` gives the Disciple Shadow Mend on a fifteen-to-thirty
+  // second timer, which is the same body-worth-killing-first the Broodkeepers
+  // and the Advisors are.
+  { pos: { x: 20, y: 490 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77, mends: 1 },
+  { pos: { x: -20, y: 474 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77, mends: 1 },
   // The two priests are `spawnMask` 15 and stand there whoever came.
   { pos: { x: 54, y: 178 }, count: 1, pulls: PULL, weight: 1.4 },
   { pos: { x: -53, y: 169 }, count: 1, pulls: PULL, weight: 1.4 },
