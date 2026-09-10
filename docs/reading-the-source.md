@@ -384,12 +384,24 @@ the distance they stand from the thing at the end of the walk, and converted at
 | **the frostwing halls** | twenty Ymirjar in a funnel: threes, then singles alternating sides, then two threes abreast, then six across the way | 9 |
 | **the whelp gauntlet** | two frostwyrms, and two heaps of fourteen Frostwing Whelps with a Frostwarden Handler in each | 4 |
 
-Two numbers that used to be typed are facts now:
+**And how many of them there are is a raid size.** `creature.spawnMask` carries
+a bit for each of the four settings, and fourteen of this raid's spawns are set
+to one size and not the other. Two things follow, and one of them was a bug:
+
+- The Oratory holds **twelve** Deathspeakers for a ten-man and **eighteen** for
+  a twenty-five, in the same places — two files that grow from two to three and
+  from three to four, and two lone scouts a ten-man never meets at all.
+- The Rampart's "two" Rotting Frost Giants are **one giant, written twice**:
+  the same position with `spawnMask` 5 on one row and 10 on the other. Counting
+  bodies off a spawn table without reading that column doubles it.
+
+Three numbers that used to be typed are facts now:
 
 - **How far a pack notices.** `creature_template.detection_range` is twenty
   yards for every one of the six hundred creatures in this raid — the heaviest
   elite notices from exactly as far as the lightest — so it is that, converted,
   everywhere. It had been spread by hand between 230 and 260.
+- **How many bodies are in one.** `creature.spawnMask`, read per size.
 - **What a body in a pack is worth.** `creature_template.HealthModifier`
   against `creature_classlevelstats`, as a ratio to The Damned, square-rooted.
   The source's spread is forty to one between the lightest trash here and the

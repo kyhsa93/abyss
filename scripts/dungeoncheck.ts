@@ -24,7 +24,7 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
-import { EXIT_REACH, overlapping, packsPlaced, unguarded } from '../src/sim/travel'
+import { EXIT_REACH, overlapping, packSize, packsPlaced, unguarded } from '../src/sim/travel'
 import { dist, holdOrFall } from '../src/sim/combat'
 import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
@@ -961,6 +961,30 @@ expect(
     near.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
   )
 
+  // Trash that is a raid size, which is what the source's own spawn table
+  // makes it. Two rules and one number.
+  const shrinks = corridors.flatMap((c) =>
+    c.packs.filter((p) => p.crowd !== undefined && p.crowd < p.count).map(() => c.id),
+  )
+  expect('no corridor is emptier for a bigger raid', shrinks.length === 0, shrinks.join(', '))
+  const varies = corridors.flatMap((c) => c.packs.filter((p) => p.crowd !== undefined))
+  expect(
+    `${varies.length} pack(s) are a different size for a different raid`,
+    varies.length > 0,
+    'every pack is the same whoever walked in',
+  )
+  // And the worked example, because the whole point is that these are counted
+  // rather than chosen: the Oratory's own rows are twelve Deathspeakers for a
+  // ten-man and eighteen for a twenty-five.
+  const oratory = PASSAGES.find((p) => p.corridor?.id === 'eastoratory')?.corridor
+  const bodies = (size: number): number =>
+    (oratory?.packs ?? []).reduce((n, p) => n + packSize(p, size), 0)
+  expect(
+    'and the Oratory holds twelve for a ten and eighteen for a twenty-five',
+    bodies(10) === 12 && bodies(25) === 18,
+    `${bodies(10)} and ${bodies(25)}`,
+  )
+
   // The patrols, which are the one thing in a corridor that is somewhere else
   // by the time you get there.
   const walking = corridors.flatMap((c) => c.packs.filter((p) => p.walks).map(() => c.id))
@@ -990,10 +1014,19 @@ expect(
 // door — and the one it must not: nobody walks out of the room.
 {
   const dps = pickFor('mage', 'dps')!
-  for (const passage of PASSAGES.filter((p) => p.corridor)) {
+  // Every corridor at ten, and the ones whose packs change at twenty-five as
+  // well. A corridor that varies by size has two shapes and both have to be
+  // walkable; the Oratory's twenty-five-man is half again the trash its
+  // ten-man is, and nothing here would have said so.
+  const walks = PASSAGES.filter((p) => p.corridor).flatMap((p) =>
+    p.corridor!.packs.some((k) => k.crowd !== undefined && k.crowd !== k.count)
+      ? [{ passage: p, size: 10 }, { passage: p, size: 25 }]
+      : [{ passage: p, size: 10 }],
+  )
+  for (const { passage, size } of walks) {
     const corridor = passage.corridor!
-    const chamber = { name: `${passage.from} to ${passage.to}` }
-    const s = unattended(createCorridorState(31337, autoParty(10, dps), corridor, 'normal'))
+    const chamber = { name: `${passage.from} to ${passage.to}${size === 10 ? '' : ' at twenty-five'}` }
+    const s = unattended(createCorridorState(31337, autoParty(size, dps), corridor, 'normal'))
     const rng = new Rng(31337)
     let outside = 0
     let stuck = 0

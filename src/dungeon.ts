@@ -509,12 +509,15 @@ const PULL = Math.round(20 * YARD * BUILD_SCALE)
  * and a High Priest either side at fifteen. Nothing here was placed by eye.
  */
 const ORATORY: Pack[] = [
-  { pos: { x: 18, y: 762 }, count: 1, pulls: PULL, weight: 0.73 },
-  { pos: { x: -17, y: 755 }, count: 1, pulls: PULL, weight: 0.73 },
-  { pos: { x: 21, y: 572 }, count: 5, pulls: PULL, weight: 0.77 },
-  { pos: { x: -21, y: 564 }, count: 5, pulls: PULL, weight: 0.77 },
-  { pos: { x: 18, y: 403 }, count: 7, pulls: PULL, weight: 0.78 },
-  { pos: { x: -19, y: 382 }, count: 7, pulls: PULL, weight: 0.78 },
+  // The two scouts are a twenty-five-man's alone: their rows carry
+  // `spawnMask` 10, which is the two twenty-five settings and neither ten.
+  { pos: { x: 18, y: 758 }, count: 0, crowd: 1, pulls: PULL, weight: 0.73 },
+  { pos: { x: -17, y: 758 }, count: 0, crowd: 1, pulls: PULL, weight: 0.73 },
+  { pos: { x: 20, y: 575 }, count: 2, crowd: 3, pulls: PULL, weight: 0.77 },
+  { pos: { x: -20, y: 567 }, count: 2, crowd: 3, pulls: PULL, weight: 0.77 },
+  { pos: { x: 18, y: 402 }, count: 3, crowd: 4, pulls: PULL, weight: 0.78 },
+  { pos: { x: -19, y: 380 }, count: 3, crowd: 4, pulls: PULL, weight: 0.78 },
+  // The two priests are `spawnMask` 15 and stand there whoever came.
   { pos: { x: 54, y: 178 }, count: 1, pulls: PULL, weight: 1.4 },
   { pos: { x: -53, y: 169 }, count: 1, pulls: PULL, weight: 1.4 },
 ]
@@ -705,7 +708,11 @@ export const PASSAGES: Passage[] = [
       // running from x -330.7 to -235.8 -- ninety-five yards along the walk,
       // which is most of the rampart. What holds this corridor is not where
       // they are, it is that they are somewhere.
-      { pos: { x: 90, y: 1763 }, count: 2, pulls: PULL, weight: 6.59, walks: { x: 90, y: 664 } },
+      // One giant, not two. There are two rows for it and they are the same
+      // giant twice -- `spawnMask` 5 on one and 10 on the other, ten-man and
+      // twenty-five-man -- which is exactly the trap a count read off a spawn
+      // table walks into.
+      { pos: { x: 90, y: 1763 }, count: 1, pulls: PULL, weight: 6.59, walks: { x: 90, y: 664 } },
       { pos: { x: 90, y: 854 }, count: 1, pulls: PULL, weight: 0.81 },
       { pos: { x: -90, y: 760 }, count: 1, pulls: PULL, weight: 0.81 },
       { pos: { x: -90, y: 731 }, count: 1, pulls: PULL, weight: 0.81 },

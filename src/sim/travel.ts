@@ -42,6 +42,20 @@ import type { Actor, Obstacle, SimState, Vec2 } from './types'
 /** One group of bodies, standing where somebody put them. */
 export interface Pack {
   pos: Vec2
+  /**
+   * How many bodies, for a ten-man.
+   *
+   * A raid size, because the source's own trash is one: `creature.spawnMask`
+   * carries a bit for each of the four settings, and fourteen of the raid's
+   * spawns are set to one size and not the other. The Oratory is the worked
+   * example -- twelve Deathspeakers stand in it for a ten-man and eighteen for
+   * a twenty-five, in the same six or eight places -- and the rampart is the
+   * other: the two Rotting Frost Giants there are one giant, spawned twice,
+   * once for each size.
+   *
+   * Nought is allowed and means the pack is not there at all at this size,
+   * which is what those two lone attendants in the Oratory are.
+   */
   count: number
   /**
    * How far away it notices.
@@ -96,6 +110,13 @@ export interface Pack {
    * arrive, not how the fight goes once it starts.
    */
   walks?: Vec2
+  /** How many for a twenty-five. Absent is `count`, which most packs are. */
+  crowd?: number
+}
+
+/** How many bodies this pack has, given who walked in. */
+export function packSize(pack: Pack, size: number): number {
+  return size > 10 ? (pack.crowd ?? pack.count) : pack.count
 }
 
 /**
@@ -350,11 +371,12 @@ export function createTravelState(
   let nextId = 900
   const hp = Math.round(TRASH_HP * DIFFICULTIES[difficulty].health)
   corridor.packs.forEach((pack, index) => {
-    for (let i = 0; i < pack.count; i++) {
+    const here = packSize(pack, party.length)
+    for (let i = 0; i < here; i++) {
       // Around their own spot, which is where they were put rather than where
       // a roll landed them: a pack somebody walked past yesterday is standing
       // in the same place today.
-      const angle = (i / pack.count) * Math.PI * 2
+      const angle = (i / here) * Math.PI * 2
       const spread = 34 + (i % 2) * 22
       const at = { x: pack.pos.x + Math.cos(angle) * spread, y: pack.pos.y + Math.sin(angle) * spread }
       // Into the room, for a walk that *is* one room. Not for a building: the
@@ -394,7 +416,12 @@ export function createTravelState(
       corridor,
       // The written packs asleep, and one entry per spring already awake —
       // see `TravelState.belongs` for why a spring is a pack here.
-      woken: [...corridor.packs.map(() => false), ...(corridor.springs ?? []).map(() => true)],
+      // A pack with nobody in it at this size is not asleep, it is not there.
+      // Left "asleep" it would be a corridor nothing could finish waking.
+      woken: [
+        ...corridor.packs.map((pack) => packSize(pack, party.length) === 0),
+        ...(corridor.springs ?? []).map(() => true),
+      ],
       tripped: (corridor.alarms ?? []).map(() => false),
       belongs,
       strolled: corridor.packs.map(() => 0),
