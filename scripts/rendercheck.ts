@@ -228,6 +228,7 @@ import { DEFAULT_NAME, NAME_MAX, cleanName, nameThePlayer } from '../src/name'
  * than every check that can reach it.
  */
 let failures = 0
+import { mayStrike } from '../src/sim/ai'
 import { bossEffect, bossEffectIds } from '../src/render/icons'
 import {
 } from '../src/sim/boss'
@@ -1461,13 +1462,28 @@ console.log(`rendered ${frames} frames with no exceptions`)
   }
 
   const green = toll(0)
+  // Asked of the rule rather than of the accident rate.
+  //
+  // This used to be "somebody was killed at least once in ten pulls", which is
+  // a measurement of how often a raid fails to react in twelve seconds — two
+  // in thirty when it was written, nought in sixty the moment the fight got
+  // gentler, and neither number is the claim. The claim is that a turned body
+  // is *hittable*: that its own side may aim at it and that what lands does
+  // damage, so the answer to it has to be a decision instead of a rule the
+  // engine keeps for you. That is a fact about one hit, and it is checked as
+  // one.
+  {
+    const s = pulled(0x7717, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', e)
+    const one = s.actors.find((a) => a.faction === 'party' && !a.isPlayer)!
+    const hitter = s.actors.find((a) => a.faction === 'party' && a.id !== one.id)!
+    addAura(one, 'turned', BOSS_ID)
+    const before = one.hp
+    expect('a turned body is something its own side may aim at', mayStrike(hitter, one), 'it was called off')
+    applyDamage(s, one, 2000, 'none', { sourceId: hitter.id })
+    expect('and what lands on it lands', one.hp < before, `${before} to ${one.hp}`)
+  }
   expect(
-    'a turned body is something the raid can kill',
-    green.killed > 0,
-    `${green.killed} of ${green.turned} unpractised`,
-  )
-  expect(
-    'and not something it always does',
+    'and it is not something the raid always kills',
     green.killed < green.turned,
     `${green.killed} of ${green.turned} unpractised`,
   )

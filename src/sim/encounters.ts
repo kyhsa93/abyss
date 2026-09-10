@@ -1549,7 +1549,11 @@ export const ENCOUNTERS: Encounter[] = [
     // for, which is a cell that passes and has no margin -- and a band read
     // off forty pulls a cell carries about sixteen points of noise. Enough
     // room to be measured rather than guessed at.
-    sizeMechanic: { 10: 1.0, 25: 0.74 },
+    // And down again when the volley came off AzerothCore's own script at
+    // fourteen seconds rather than TrinityCore's twenty. Twenty-five heroic
+    // went from 70% of its pulls to 38 on that one number: a bill that lands
+    // on everybody is the one mechanic whose cost is the size of the raid.
+    sizeMechanic: { 10: 1.0, 25: 0.62 },
     accent: '#38bdf8',
     names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
@@ -2592,7 +2596,11 @@ export const ENCOUNTERS: Encounter[] = [
     // is another one on a thirty-three second clock -- a tide on top of those
     // is the same demand three times, and the healers cannot tell them apart.
     raidDamage: 70,
-    mechanicDamage: 0.55,
+    // Cut again when the bolt came off AzerothCore at twelve and a half
+    // seconds rather than the twenty-two and a half this game had invented for
+    // it. That is nearly twice the mechanic, and the fight went from 95% and
+    // 65% at twenty-five to 13% and nought.
+    mechanicDamage: 0.48,
     // Every cell of this fight was under the floor -- 33, 15, 3 and nought --
     // and the reason is the cadence rather than the size: the source throws
     // Twilight Bloodbolt every twenty-two and a half seconds where this game
@@ -2604,7 +2612,14 @@ export const ENCOUNTERS: Encounter[] = [
     // Twenty-five bodies bound to each other in pairs is a mechanic whose cost
     // is the square of how many people are in it, so a tenth on this dial is
     // not a tenth of anything.
-    sizeMechanic: { 10: 0.9, 25: 0.7 },
+    // The twenty-five side of this fight is the most sensitive number on the
+    // roster and it is worth writing the ladder down rather than the argument:
+    // 0.58 wins 98% and 100%, 0.60 wins 78% and 70%, 0.63 wins 57% and 50%,
+    // 0.66 wins 65% and 40%. Twenty-five bodies bound to each other in pairs
+    // costs the square of how many are in it, and a band read off forty pulls
+    // carries sixteen points of noise — so the last two of those are the same
+    // measurement twice, and the number to stand on is the one with room.
+    sizeMechanic: { 10: 0.9, 25: 0.6 },
     // The gift first, because nothing else here means anything without it. The
     // bond second, because it is what makes the gift a decision rather than a
     // walk: one says go and find somebody clean, the other says do not leave
