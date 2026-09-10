@@ -840,6 +840,49 @@ const everywhere = () => true
   )
 }
 
+// The one target call a corridor makes.
+//
+// A pack with a mender in it is the corridor's version of the Watcher's
+// empowered body: there is one worth killing first, and every default rule —
+// nearest, lowest health — picks it last, because it stands behind its pack
+// and it is the one thing in the pack being healed. So the claim is not that
+// the heal exists, it is that the raid answers it.
+{
+  const dps = pickFor('mage', 'dps')!
+  const passage = PASSAGES.find((p) => p.corridor?.id === 'spireway')!
+  const s = unattended(
+    createCorridorState(31337, autoParty(10, dps), passage.corridor!, 'normal'),
+  )
+  const rng = new Rng(31337)
+  const mends = new Set<number>()
+  for (const a of s.actors) if (a.spawn === 'mender') mends.add(a.id)
+  let healed = 0
+  const fell: Record<number, number> = {}
+  while (s.outcome === 'ongoing' && s.time < 300) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const fx of s.effects) if (fx.abilityId === 'boss_mend') healed++
+    for (const a of s.actors) {
+      if (a.faction !== 'boss' || a.alive || fell[a.id] !== undefined) continue
+      fell[a.id] = s.time
+    }
+  }
+  expect(`${mends.size} bodies on the way up mend, and did it ${healed} times`, healed > 0, 'nobody healed anybody')
+  // Killed first, measured against its own pack rather than against the
+  // corridor: a mender at the far end dying late says nothing.
+  const late: string[] = []
+  for (const [id] of Object.entries(s.travel!.belongs).map(([k, v]) => [Number(k), v] as const)) {
+    if (!mends.has(id)) continue
+    const pack = s.travel!.belongs[id]
+    const peers = Object.entries(s.travel!.belongs)
+      .filter(([other, at]) => at === pack && Number(other) !== id)
+      .map(([other]) => fell[Number(other)] ?? Infinity)
+    if (peers.length === 0) continue
+    const mine = fell[id] ?? Infinity
+    if (mine > Math.max(...peers)) late.push(`${id} in pack ${pack}`)
+  }
+  expect('and every one of them was killed before the pack it was in', late.length === 0, late.join(', '))
+}
+
 // A raid walking is a raid taking up room.
 //
 // Every one of them used to walk at whoever was leading and stop within sixty
@@ -1067,6 +1110,20 @@ expect(
     'and the Oratory holds twelve for a ten and eighteen for a twenty-five',
     bodies(10) === 12 && bodies(25) === 18,
     `${bodies(10)} and ${bodies(25)}`,
+  )
+
+  // The bodies that keep a pack up, which are the corridor's only target call.
+  const menders = corridors.flatMap((c) => c.packs.filter((p) => (p.mends ?? 0) > 0))
+  expect(
+    `${menders.reduce((n, p) => n + (p.mends ?? 0), 0)} bodies in ${menders.length} packs keep the rest up`,
+    menders.length > 0,
+    'nothing in a corridor heals',
+  )
+  const overmended = menders.filter((p) => (p.mends ?? 0) >= p.count && p.count > 1)
+  expect(
+    'and none of them is a pack of nothing but menders',
+    overmended.length === 0,
+    `${overmended.length}`,
   )
 
   // The floor that holds a corridor on its own.

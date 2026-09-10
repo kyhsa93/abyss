@@ -806,6 +806,35 @@ export const JET_LINGER = 3
 export const JET_DAMAGE = 300
 
 /**
+ * What a body in a pack that mends gives back, and how often.
+ *
+ * Not the source's twenty, and this is the third time a source time has had to
+ * be given back for the same reason: it describes a fight this game does not
+ * have. Dark Mending is fifteen to twenty-five seconds and the Advisor's
+ * shroud twenty to twenty-five, against a pull that lasts minutes. A corridor
+ * pack lives about ten seconds, so at twenty the mender is a body with a
+ * spell it never casts — measured, eight of them on the way up healed nobody,
+ * not once, in a walk that killed all forty-eight.
+ *
+ * Six, with the first at three, which is the same shape every cadence in this
+ * game has: an opening and a repeat. A mender that is ignored gets one heal
+ * off and then another; a mender that is answered gets none, which is the
+ * decision being made rather than the mechanic being absent.
+ *
+ * The reach is far enough to cover a pack and not the next one, because what
+ * this is for is a pack that keeps itself up rather than a corridor that does.
+ *
+ * A quarter of a body of ordinary trash per cast. Enough that a pack with one
+ * in it takes noticeably longer if it is left alone, and nowhere near enough
+ * to outrun a raid that turns and kills it — the decision is worth making and
+ * ignoring it is not fatal, which is the band every trash mechanic sits in.
+ */
+export const MEND_EVERY = 6
+export const MEND_FIRST = 3
+export const MEND_AMOUNT = 225
+export const MEND_REACH = 420
+
+/**
  * How much of a hit a turned body keeps out while the fight is holding it.
  *
  * Not toughness for its own sake -- it is the window the decision needs. A

@@ -9,11 +9,16 @@ import {
   JET_RADIUS,
   JET_TELEGRAPH,
   MELEE_RANGE,
+  MEND_AMOUNT,
+  MEND_EVERY,
+  MEND_FIRST,
+  MEND_REACH,
   PARTY_RADIUS,
   YARD,
 } from './constants'
 import {
   applyDamage,
+  applyHeal,
   beginCast,
   dist,
   getAura,
@@ -122,6 +127,22 @@ export interface Pack {
   walks?: Vec2
   /** How many for a twenty-five. Absent is `count`, which most packs are. */
   crowd?: number
+  /**
+   * How many of its bodies keep the others up.
+   *
+   * The one decision a corridor could not ask for. A pack is a pile of health
+   * bars and the answer to a pile of health bars is to hit it, so which body
+   * first has never mattered — and in the source it does, twice: the eight
+   * Nerub'ar Broodkeepers on the way up cast Dark Mending on their own side
+   * every fifteen to twenty-five seconds, and the five Darkfallen Advisors in
+   * the crimson hall shroud whichever of theirs is lowest every twenty to
+   * twenty-five.
+   *
+   * Both are the same shape, and it is the shape this game already teaches on
+   * the Watcher's empowered body: there is one in the pack worth killing
+   * first, and a rotation that aims at the lowest health bar aims at it last.
+   */
+  mends?: number
 }
 
 /** How many bodies this pack has, given who walked in. */
@@ -422,6 +443,12 @@ export function createTravelState(
       // put all fifty-two of them in the doorway of the first one.
       if (!building) pushInside(corridor.room, at, 20)
       const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * (pack.weight ?? 1)))
+      // The ones that keep the rest up, first in the ring so that a pack's
+      // menders are its menders whoever walked in.
+      if (i < (pack.mends ?? 0)) {
+        body.spawn = 'mender'
+        body.swingTimer = MEND_FIRST
+      }
       belongs[body.id] = index
       actors.push(body)
     }
@@ -835,6 +862,7 @@ function trashStep(s: SimState): void {
     // a hand's breadth from where it was going.
     const stop = out ? STREAMED : MELEE_RANGE
     turnToward(body, Math.atan2(going.y - body.pos.y, going.x - body.pos.x))
+    const was = { x: body.pos.x, y: body.pos.y }
     if (far > stop) {
       const stepX = ((going.x - body.pos.x) / far) * body.moveSpeed * DT
       const stepY = ((going.y - body.pos.y) / far) * body.moveSpeed * DT
@@ -842,7 +870,44 @@ function trashStep(s: SimState): void {
       body.pos.y += stepY
       holdOrFall(s, body)
       clearTerrain(s.obstacles, body.pos, body.radius, stepX, stepY)
+      // A body walking out that cannot walk any further out has arrived.
+      //
+      // Where a stream sends its bodies is deliberately outside the passage —
+      // "where they are going is out" — and the floor deliberately keeps them
+      // on it, so what a body streamed into a long corridor does is press
+      // itself against the far wall and stay there. It never arrives, so it
+      // never stops streaming, so it never turns round and comes; and because
+      // it is awake and alive the walk it is standing in can never end. The
+      // day the way up went from twenty-six bodies to the forty-eight its rows
+      // carry, the party outran the stream and the passage stopped finishing.
+      if (out && dist(body.pos, was) < body.moveSpeed * DT * 0.5) {
+        delete s.travel!.streaming[body.id]
+      }
     }
+    // A mender mends instead of swinging, and only while somebody needs it.
+    //
+    // Its own side, and the worst of them: the source's two both pick the
+    // lowest friendly rather than themselves, which is what makes killing the
+    // mender the answer rather than out-damaging it.
+    if (body.spawn === 'mender') {
+      body.swingTimer -= DT
+      if (body.swingTimer > 0) continue
+      {
+        let worst: Actor | null = null
+        for (const other of awake(s)) {
+          if (!other.alive || other.hp >= other.maxHp) continue
+          if (dist(body.pos, other.pos) > MEND_REACH) continue
+          if (!worst || other.hp / other.maxHp < worst.hp / worst.maxHp) worst = other
+        }
+        body.swingTimer = MEND_EVERY
+        if (worst) {
+          applyHeal(s, worst, MEND_AMOUNT * HEALTH, body.id)
+          pushEffect(s, 'impact', worst.pos, { abilityId: 'boss_mend', power: MEND_AMOUNT })
+        }
+        continue
+      }
+    }
+
     body.swingTimer -= DT
     if (body.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
       body.swingTimer = TRASH_SWING
@@ -1089,9 +1154,18 @@ export function updateTravelAi(s: SimState, actor: Actor, rng: Rng): void {
   ai.chatCooldown = Math.max(0, ai.chatCooldown - DT)
 
   const foes = engaged(s)
+  // The body that is keeping the others up, ahead of the body that is nearest.
+  //
+  // It is the corridor's only target call and it is the same one the Watcher's
+  // empowered body needs: left alone, a mender undoes a quarter of a body
+  // every twenty seconds, and the rule that would otherwise pick for the raid
+  // — nearest, or lowest health — picks it last, because it is behind its
+  // pack and it is the one thing in the pack being healed.
+  const mending = foes.filter((foe) => foe.spawn === 'mender')
+  const pool = mending.length > 0 ? mending : foes
   let target: Actor | null = null
   let best = Infinity
-  for (const foe of foes) {
+  for (const foe of pool) {
     const d = dist(actor.pos, foe.pos)
     if (d < best) {
       best = d

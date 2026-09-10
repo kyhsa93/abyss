@@ -820,6 +820,54 @@ hall as well. The wing is thirty-three bodies, not twenty-eight. A name filter
 wide enough to be convenient is wide enough to be wrong, and nothing about the
 count looked odd until the formations disagreed with it.
 
+### The body in the pack worth killing first
+
+A pack is a pile of health bars, and the answer to a pile of health bars is to
+hit it — so which body first has never mattered in a corridor. In the source it
+does, twice, and both are in stretches this game builds:
+
+| | source | |
+| --- | --- | --- |
+| Nerub'ar Broodkeeper (8, the way up) | Dark Mending on its own side, every 15–25s | `npc_icc_nerubar_broodkeeper` |
+| Darkfallen Advisor (5, the crimson hall) | Shroud of Spell Warding on the lowest friendly, every 20–25s | `npc_darkfallen_advisor` |
+
+Both are the same shape and it is the shape this game already teaches on the
+Watcher's empowered body: there is one in the pack worth killing first, and
+every default rule — nearest, lowest health — picks it last, because it stands
+behind its pack and it is the one thing in the pack being healed. So the
+corridor AI gets its first target call, and `dungeoncheck` asks the thing worth
+asking: not that the heal exists, but that the raid answers it — every mender
+dead before the pack it was in.
+
+**And a third source time had to be given back.** Dark Mending is fifteen to
+twenty-five seconds against a pull that lasts minutes; a corridor pack lives
+about ten. At twenty, measured, eight menders on the way up healed nobody, not
+once, in a walk that killed all forty-eight bodies. It is six with the first at
+three — an opening and a repeat, which is the shape every cadence here has. A
+mender that is ignored gets a heal off; one that is answered gets none, and
+that is the decision being made rather than the mechanic being absent.
+
+The trash has more kits than this — the Rotting Frost Giants stomp and breathe,
+the Darkfallen Archmage polymorphs, the Fleshreapers leap — and none of the
+rest is taken. `docs/mechanic-rules.md` is why: trash is a thing to spend, not
+a thing to learn, and a corridor full of things to read is a fight with no boss
+in it. What was taken is the one that turns a pile of health bars into a
+choice.
+
+### A stream that could not get out
+
+Found by lengthening the way up rather than by looking for it. A spring sends
+its bodies at a point deliberately outside the passage — "where they are going
+is out" — and the floor deliberately keeps them on it. So a body streamed into
+a corridor long enough that the party outruns it walks to the far wall, presses
+against it, and never *arrives*: it never stops streaming, so it never turns
+round and comes, and because it is awake and alive the walk it is standing in
+can never end.
+
+The way up going from twenty-six bodies to the forty-eight its rows carry is
+what made the party slow enough to outrun the stream. A body walking out that
+cannot walk any further out has arrived.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid

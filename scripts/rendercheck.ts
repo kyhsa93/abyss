@@ -4971,6 +4971,12 @@ for (const [label, w, h] of [
     // would be demanding the party play badly. The block that puts a gift
     // somewhere it cannot be handed on asserts the rule instead.
     if (id === 'boss_turning') continue
+    // And the one thrown somewhere this sweep does not go. `boss_mend` is a
+    // body in a corridor pack putting one of its own back up, and everything
+    // above is eight boss fights. `dungeoncheck` is where corridors are
+    // walked, and it asserts both halves of it there: that the mend fires, and
+    // that the raid kills the body doing it before the pack it was in.
+    if (id === 'boss_mend') continue
     expect(`${id} is something a boss actually does`, everything.has(id), 'nothing ever threw it')
   }
   const shades = bossEffectIds().map((id) => bossEffect(id)!.colour)

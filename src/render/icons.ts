@@ -320,6 +320,10 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // is somewhere else when it hits you, and two colours is how that reads at
   // a glance.
   boss_adherent: { colour: '#c084fc', style: 'pierce' },
+  // A body in a corridor pack putting one of its own back up. Its own entry
+  // because it is the one thing on that floor a raid is meant to *look* for,
+  // and a heal drawn in the colour of a hit is a heal nobody reads as one.
+  boss_mend: { colour: '#4ade80', style: 'burst' },
   // The interlude's elite. Its own entry rather than the thrall's, because a
   // thrall on the floor is one boss's idea and this walks in on four others —
   // and because a fight that has stopped for one thing should not be drawing

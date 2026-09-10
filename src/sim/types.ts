@@ -446,7 +446,7 @@ export interface Actor {
    * gauge. A wave that goes for the nearest body dies where the damage already
    * is, which is a wave nobody had to answer.
    */
-  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'adherent'
+  spawn?: 'herald' | 'spike' | 'beast' | 'ooze' | 'crown' | 'ballast' | 'adherent' | 'mender'
 
   /**
    * The body a beast has picked, which is the whole of what makes it one.
