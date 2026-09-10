@@ -17,7 +17,7 @@ import { Rng } from '../src/sim/rng'
 import { createState } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { ENCOUNTERS, encounterAt } from '../src/sim/encounters'
-import { autoParty, pickFor, type DifficultyId, type Pick, type RaidSize } from '../src/sim/classes'
+import { autoParty, pickFor, RAID_SIZES, type DifficultyId, type Pick, type RaidSize } from '../src/sim/classes'
 import type { PlayerInput, SimState } from '../src/sim/types'
 
 const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
@@ -59,7 +59,10 @@ function run(seed: number, attempt: number, party: Pick[], difficulty: Difficult
 const SIZE_RUNS = 40
 const [, , encArg, sizeArg, diffArg] = process.argv
 const encs = encArg === undefined || encArg === 'all' ? ENCOUNTERS.map((_, i) => i) : [Number(encArg)]
-const sizes = (sizeArg === undefined ? [5, 10, 25] : [Number(sizeArg)]) as RaidSize[]
+// The sizes the game has, rather than a list typed here: five was a raid size
+// once and this probe went on printing two rows of nought percent for it long
+// after it stopped being one, which is a probe inviting a wrong conclusion.
+const sizes = (sizeArg === undefined ? RAID_SIZES : [Number(sizeArg)]) as RaidSize[]
 const diffs = (diffArg === undefined ? ['normal', 'heroic'] : [diffArg]) as DifficultyId[]
 
 for (const e of encs) {

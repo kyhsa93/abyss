@@ -599,6 +599,14 @@ its boundary's two sides as a diameter and a hall takes them as they are:
 | the three crowns | 188 × 131 | 60 × 85 | −79% |
 | the crimson gift | 63 across | 64 | +3% |
 
+**And the re-tune it arrived with was one dial.** Thirty-one of the thirty-two
+cells took a floor between half and a fifth of what they had and stayed inside
+the band; the sludgeworks did not. Its whole mechanic is two small things not
+reaching each other, so halving the floor is halving the mechanic's answer, and
+ten heroic fell from 57% to 35% on the room alone. `sizeMechanic` at ten went
+1.3 → 1.05 → 1.18: the first move overshot to 88%, which is the fight handed
+over rather than fixed, and the second lands it at 73%. Nothing else moved.
+
 The bonegrinder is the one that did not move, and it is the one worth reading.
 Its boundary is a circle of 95 cut by a rectangle at x −430, and the circle's
 middle is at −428 — so read off the circle the flat side is two yards behind
@@ -924,12 +932,12 @@ cannot walk any further out has arrived.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
 
-### Thirty-six creatures where there was one
+### Thirty-seven creatures where there was one
 
 A corridor used to be one creature repeated. Every body in the building was a
 "Watchman" with the same bar, the same size, the same speed and one swing, and
 the packs were counts: five here, eight there. The rows say something else —
-thirty-six kinds stand between the door and the frost queen, and they are not
+thirty-seven kinds stand between the door and the frost queen, and they are not
 variations on each other.
 
 A pack is a list of names now, read straight off `creature` in spawn order, and
@@ -1036,7 +1044,7 @@ which is why a ramp is a room and a stair is a doorway.
    **Taken** — every fight's floor is its own `BossBoundaryData` entry at
    `BUILD_SCALE`.
 10. ~~**What the trash actually is**: kind, size, speed and kit, per body.~~
-   **Taken** — thirty-six creatures where there was one, in `src/sim/trash.ts`.
+   **Taken** — thirty-seven creatures where there was one, in `src/sim/trash.ts`.
    See above for the two columns that had to be handled rather than copied.
    That is the last item on this list.
 

@@ -1452,10 +1452,17 @@ export const ENCOUNTERS: Encounter[] = [
      * from `+y`. So `front` is the floor the raid fights across and `back` is
      * the apse behind the lich.
      */
-    // A hundred and sixteen yards square, and the one room that was already
-    // right: the doors its adds come out of are written down in the source
-    // 115.7 yards apart, and the floor between the galleries measures the same
-    // on the plan. Only the yardstick moved under it.
+    // A hundred and fifty yards across the walk by a hundred and thirty-five
+    // along it, off `RectangleBoundary(-670, -520, 2145, 2280)` at
+    // `BUILD_SCALE`. A rectangle boundary is a bound rather than a shape, and
+    // this is the one room where that costs nothing: the room is a hall and a
+    // hall is a rectangle.
+    //
+    // It was a hundred and sixteen square, which the plan and the doors its
+    // adds come out of agreed on -- they stand 115.7 yards apart in the
+    // source. Two measurements agreeing is not two measurements: they were the
+    // same reading of the same picture. Built, that is 2198 units square going
+    // to 1562 across by 1735 deep: narrower than it was, and deeper.
     room: { kind: 'hall', halfWidth: 781, front: 1157, back: 578 },
     /**
      * Two rows of seats down the sides, and a clear middle.
@@ -1897,17 +1904,26 @@ export const ENCOUNTERS: Encounter[] = [
      * more available. It is the last room of the lower spire and the one every
      * evening walks through, so it is also the room a player will know best.
      */
-    // A hundred and three yards across, off the plan of this floor at the
-    // 0.592 yards a pixel it is calibrated at — the raid's arrival point and
-    // the boss's own position are written down in the source's script 44.97
-    // yards apart. It was eighty-six.
-    // Seventy-eight yards across, which is the mean of a balcony that is 92
-    // wide and 65 deep — a circle cannot be both, and a circle sized to the
-    // wide way would put half the fight off the front of it.
+    // A hundred and sixteen yards across, off
+    // `RectangleBoundary(4205, 4325, 3082, 3195)` at `BUILD_SCALE` — 120 by
+    // 113, and a round room takes the mean of a rectangle's two sides for its
+    // diameter. It was a hundred and three, off the plan of this floor at
+    // 0.592 yards a pixel.
     //
-    // It was 103, from that same 44.97-yard pair of positions read against a
-    // plan calibrated at 0.592 yards to the pixel. The tile's own world
-    // rectangle says 0.195, so that sheet was read three times too coarse.
+    // Built, 1952 units across going to 1348 -- a room that lost half its
+    // floor. The note above still holds and holds harder: what is small here
+    // is small against the yardstick, and the yardstick grew while this
+    // shrank.
+    // A hundred yards across, off `RectangleBoundary(-565, -465, 2160, 2260)`
+    // at `BUILD_SCALE`: a hundred by a hundred, the one boundary in the
+    // building that is square, so the mean a round room takes of it is the
+    // thing itself.
+    //
+    // It was 78 -- the mean of a balcony measured 92 wide and 65 deep off the
+    // map tile -- and 103 before that, off a sheet read three times too
+    // coarse. Three readings of one balcony, and the boundary is the only one
+    // of them that is not somebody looking at a picture. Built, 1478 units
+    // across going to 1156.
     room: { kind: 'round', radius: 578 },
     /**
      * Nothing standing in it, and that is the mechanic's doing.
@@ -2076,8 +2092,18 @@ export const ENCOUNTERS: Encounter[] = [
      * apart in a big room is not a decision, it is a stroll. At 68% of a floor
      * the geometry closes on its own and the raid has to open it again.
      */
-    // A hundred yards across, off the plagueworks plan at its measured 1.1465
-    // yards to the pixel. It was seventy-eight.
+    // A hundred and sixteen yards across, off
+    // `RectangleBoundary(4385, 4505, 3082, 3195)` at `BUILD_SCALE` — the same
+    // 120 by 113 as the airless room next door, which is what the plagueworks
+    // is: two chambers off one corridor, built the same. It was a hundred, off
+    // that floor's plan.
+    //
+    // Built, 1894 units across going to 1348: close to half the floor gone,
+    // and it cost this fight twenty points of win rate at ten heroic in one
+    // pass. That is the clearest case in the building of a room being a
+    // difficulty dial -- a fight whose whole mechanic is two things not
+    // reaching each other is a fight where floor *is* the answer. The mechanic
+    // share below was cut to pay for it.
     room: { kind: 'round', radius: 674 },
     /**
      * One tank, against the wall.
@@ -2112,13 +2138,18 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1180,
     raidDamage: 130,
     mechanicDamage: 0.92,
-    // Lightest at five, which is the opposite of what this table usually says
-    // and follows from where the fight's weight sits. Most of what this boss
-    // does lands on one named body at a time -- a carrier, a small thing
-    // walking at whoever made it -- and a five-man answers all of it with one
-    // healer and three dealers. Written the other way round the smallest raid
-    // won a pull in six while the ten-man won every one of them.
-    sizeMechanic: { 10: 1.3, 25: 0.85 },
+    // Heaviest at ten, which follows from where the fight's weight sits: most
+    // of what this boss does lands on one named body at a time -- a carrier, a
+    // small thing walking at whoever made it -- and the fewer bodies there are
+    // the more often that one is somebody who cannot afford it.
+    //
+    // These two are what paid for the room. Taking the source's boundary
+    // halved this floor, and a fight whose mechanic is two things not reaching
+    // each other felt all of it: ten heroic fell from 57% to 35% on the room
+    // alone. 1.3 and 0.85 went to 1.05, which put ten heroic at 88% -- the
+    // fight handed over rather than fixed, the same overcorrection the first
+    // boss's comment records. 1.18 lands it at 73%.
+    sizeMechanic: { 10: 1.18, 25: 0.8 },
     // The spray is first because it is the only thing here a player has met
     // before, and a fight whose every rung is a new idea is a fight with no
     // way in. Everything above it is the one idea this boss is made of, added
@@ -2261,6 +2292,12 @@ export const ENCOUNTERS: Encounter[] = [
     //
     // At that ratio, keeping the floor it already had to the square unit:
     // 2530 across by 1566 deep. The benches move with it.
+    //
+    // And then the size came off the same parallelogram rather than off the
+    // floor it happened to have: 155 yards across the walk by 96 along it at
+    // `BUILD_SCALE`, which is 1794 by 1111. Smaller in both directions than
+    // the area-preserving version above, because the area it was preserving
+    // was itself a guess.
     room: { kind: 'hall', halfWidth: 897, front: 741, back: 370 },
     /**
      * Four benches, in two rows.
@@ -2430,6 +2467,14 @@ export const ENCOUNTERS: Encounter[] = [
     // It was 77 by 84, a fifth of the area. The round chamber in the middle of
     // the real hall is not in this shape: this game draws it as the room next
     // door, which is where the fight in it happens.
+    //
+    // The size is now `EllipseBoundary(4660.95, 2769.194)` with radii 85 and
+    // 60 -- 120 yards across the walk by 170 along it at `BUILD_SCALE`, so
+    // 1388 by 1967. Built, 4358 across by 3031 deep going to that: a third of
+    // the width and two thirds of the depth. The biggest correction in the
+    // building, and the fight did not notice -- it was at a hundred percent
+    // before and it is at a hundred percent now, which says what this one is
+    // decided by and it is not floor.
     room: { kind: 'hall', halfWidth: 694, front: 1311, back: 656 },
     // An equal triangle with a side of seven hundred, which is what the
     // measurement left of the room's first answer.
@@ -2584,8 +2629,15 @@ export const ENCOUNTERS: Encounter[] = [
      * -- and furniture in the middle of that is a third party deciding the
      * distances.
      */
-    // Seventy-seven yards across — the round chamber in the middle of the
-    // crimson hall, which draws 210 by 205 pixels on that sheet. It was 82.
+    // A hundred and twenty-eight yards across, off
+    // `CircleBoundary(4595.93, 2769.365)` with a radius of 64 at
+    // `BUILD_SCALE`. A circle boundary is the one kind that needs no
+    // interpretation at all: the shape is a circle and the room is a circle.
+    //
+    // It was 77 off a sheet where this chamber draws 210 by 205 pixels, and 82
+    // before that. Built, this is the one room the picture had right: 1458
+    // units across going to 1480, eleven units of radius. Seven rooms moved by
+    // up to a third and this one moved by one and a half percent.
     room: { kind: 'round', radius: 740 },
     terrain: [],
     /** Red stone, and a balcony that is a painting rather than a place. */

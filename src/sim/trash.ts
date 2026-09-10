@@ -5,7 +5,7 @@ import { PARTY_RADIUS, YARD } from './constants'
  *
  * A corridor used to be one creature repeated: every body a "Watchman" with
  * the same health, the same size, the same speed and one swing. The building
- * is not that. Thirty-six kinds stand in it, they are between a quarter of
+ * is not that. Thirty-seven kinds stand in it, they are between a quarter of
  * each other's size and forty times each other's health, a third of them shoot
  * rather than close, and three of them keep the rest up.
  *

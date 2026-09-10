@@ -26,7 +26,7 @@ import {
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
 import { EXIT_REACH, overlapping, packOf, packSize, packsPlaced, unguarded, type Pack } from '../src/sim/travel'
-import { trashMends } from '../src/sim/trash'
+import { TRASH_KINDS, trashMends } from '../src/sim/trash'
 import { dist, holdOrFall } from '../src/sim/combat'
 import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
@@ -1111,6 +1111,26 @@ expect(
     'and the Oratory holds twelve for a ten and eighteen for a twenty-five',
     bodies(10) === 12 && bodies(25) === 18,
     `${bodies(10)} and ${bodies(25)}`,
+  )
+
+  // Every name in a corridor is a creature this game knows.
+  //
+  // The lookups all fall back rather than throw -- an unknown name is ordinary
+  // trash at an ordinary size and an ordinary pace -- which is the right
+  // behaviour at runtime and the wrong one to leave unchecked: a name typed
+  // one letter wrong would be a Rotting Frost Giant quietly built as a
+  // cultist, and nothing on the screen would say so.
+  const unknown = [
+    ...new Set(
+      corridors.flatMap((c) =>
+        c.packs.flatMap((p) => [...packOf(p, 10), ...packOf(p, 25)]),
+      ),
+    ),
+  ].filter((name) => TRASH_KINDS[name] === undefined)
+  expect(
+    `all ${Object.keys(TRASH_KINDS).length} kinds in the building have a row of their own`,
+    unknown.length === 0,
+    unknown.join(', '),
   )
 
   // The bodies that keep a pack up, which are the corridor's only target call.
