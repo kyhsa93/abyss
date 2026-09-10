@@ -1563,13 +1563,16 @@ console.log(`rendered ${frames} frames with no exceptions`)
   // that closes before the raid has taken the wall down.
   while (s.outcome === 'ongoing' && s.time < encounterAt(e).enrage) {
     const before = volley().length
+    // Counted before the step, not after: the volley is aimed at everyone who
+    // is standing when it is cast, and it kills some of them on the way in. A
+    // denominator read after the tick reported more shots than bodies.
+    const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive).length
     step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
     const now = volley()
     if (now.length <= before) continue
 
     casts++
     const b = s.actors.find((a) => a.id === BOSS_ID)!
-    const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive).length
     // Counted off the landings rather than off what is still in the air.
     //
     // A bolt aimed at somebody standing on the boss crosses no distance at
@@ -4416,6 +4419,17 @@ for (const [label, w, h] of [
       encounter.kit.includes(key) || (encounter.always ?? []).includes(key)
 
     expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
+    // And it walks at its own pace rather than the first boss's.
+    //
+    // `creature_template.speed_run`, a multiplier of the source's base seven
+    // yards a second. Every boss had 197 units — the bonegrinder's 1.21429 —
+    // so a raid that learned it could walk away from that one had learned
+    // something untrue about the professor, who is half again faster.
+    expect(
+      `${label}: and walks at the pace its own row gives it`,
+      encounter.pace >= 1 && encounter.pace <= 2.5,
+      `${encounter.pace}`,
+    )
     // Every mechanic, not a list written out here. The list version named ten
     // of them and was never extended, so twenty could have been announced by a
     // boss that does not throw them, or thrown in silence, and nothing would
@@ -4468,6 +4482,15 @@ for (const [label, w, h] of [
     const stray = MECHANIC_IDS.filter((key) => !uses(key) && encounter.phases[1]![key] > 0)
     expect(`${label}: and throws nothing it does not own`, stray.length === 0, stray.join(','))
   }
+
+  // And the roster does not all walk at one speed, which is the state this
+  // came out of: eight fights, one number.
+  const paces = new Set(ENCOUNTERS.map((e) => e.pace))
+  expect(
+    `the roster walks at ${paces.size} different paces`,
+    paces.size >= 4,
+    [...paces].join(', '),
+  )
 
   // Two bosses sharing a word is two bosses the player cannot tell apart while
   // reading a cast bar, which is the only place either name is ever seen.

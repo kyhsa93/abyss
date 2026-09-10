@@ -375,12 +375,12 @@ the distance they stand from the thing at the end of the walk, and converted at
 
 | corridor | what stands in it | packs |
 | --- | --- | --- |
-| the way to the first fight | The Damned, Servants of the Throne, four Deathbound Wards on wires | 9 |
+| the way to the first fight | The Damned, Servants of the Throne, Nerub'ar Broodkeepers, Ancient Skeletal Soldiers, four Deathbound Wards on wires — 48 bodies | 26 |
 | **the Oratory** (both climbs) | 28 Deathspeakers — two scouts, two files of five, two of seven, a High Priest either side of the door. Every pack has a twin at the same distance on the other side of the centre line | 8 |
 | **the Rampart of Skulls** | two Rotting Frost Giants at the far end, then gargoyles standing singly, then three on the way onto the ship. The other 32 bodies up there are two armies fighting each other | 6 |
 | **Deathbringer's Rise** | nothing. Six bodies, all of them your own side's | — |
 | **the plagueworks approach** | abominations, a knot of horrors, **twelve Vengeful Fleshreapers in one heap**, scientists standing singly, Stinky and Precious, and a Decaying Colossus on the airlock | 13 |
-| **the crimson stair** | eight San'layn at the top of it, and nothing else | 1 |
+| **the crimson wing** | eight San'layn at the top of the stair, then pairs and threes up the hall's two balconies, then the guard on the dais — 28 bodies | 10 |
 | **the frostwing halls** | twenty Ymirjar in a funnel: threes, then singles alternating sides, then two threes abreast, then six across the way | 9 |
 | **the whelp gauntlet** | two frostwyrms, and two heaps of fourteen Frostwing Whelps with a Frostwarden Handler in each | 4 |
 
@@ -648,6 +648,120 @@ different and smaller fight. The source's gates a mechanic that changes what a
 raid already knows how to do — a plague that has to be passed on, a binding
 that charges for running — onto the setting where the raid has already won
 once. It is a fight being a different fight, not a cheaper one.
+
+### Read against AzerothCore, which is the one this repo cites
+
+The cadences above were taken from TrinityCore's scripts and the coordinates
+from AzerothCore's database, which is one raid read out of two emulators. They
+are not the same raid. Reading AzerothCore's own scripts against what was built
+turned up nine numbers that differ, and AzerothCore is the one this repo names
+everywhere else, so it is the one that wins:
+
+| | was (TrinityCore) | is (AzerothCore) |
+| --- | --- | --- |
+| the Watcher's volley | every 20s | **every 14s** (`Repeat(13s, 15s)`) |
+| the Watcher's empowered body | every 25s, first at 15s | **every 21.5s, first at 25s** |
+| the Watcher's plague | first at 17s | **first at 10s** |
+| the Watcher's shard | first at 12s | first at 11s |
+| the Watcher's shade | first at 12s | first at 13.5s |
+| the Watcher's turned mind | first at 27s | first at 30s |
+| the bonegrinder's spike | first at 15s | first at 12.5s |
+| the reeking host's vile gas | first at 31.5s | **first at 35s** |
+| the confluence's flood | first at 25s | **first at 8s** |
+| the two flasks' chase | first at 90s | **first at 20s** |
+| the two flasks' hound | every 23.5s | **every 27.5s** |
+| the two flasks' caustic | first at 37.5s | first at 32.5s |
+| the two flasks' gas | first at 32.5s | first at 37.5s |
+| the crowns' rotation | first at 46s | first at 45s |
+| the gift's bond | every 30.5s, first at 15s | every 30s, first at 20s |
+| the gift's crimson | **every 22.5s, first at 12.5s** | **every 12.5s, first at 20s** |
+
+The last one is the one worth looking at twice: the two numbers were the right
+pair and the wrong way round. The bolt comes round every twelve and a half
+seconds and is first thrown at twenty, and this game had it every twenty-two
+and a half and first at twelve and a half — the repeat used as the opening and
+a made-up number used as the repeat.
+
+Two of the crowns' mechanics turn out not to be the source's at all, which the
+mapping table above claimed they were. The binding is Shadow Prison, which the
+princes cast once at the start of a heroic pull and never again — so it has no
+cadence to take, and the seventeen and a half seconds here is this game's own
+window on the same idea. The thirst has no counterpart in the source; those
+princes fight, they do not drink.
+
+### Counted again, and twice the trash
+
+The corridors above were built by clustering the source's rows, and two of them
+were built from a *summary* of those rows instead — a note in this file listing
+five positions, written in an earlier round. Counting the rows themselves:
+
+- **The way to the first fight is forty-eight bodies, not twenty-six.** What
+  the summary lost was the Damned standing singly at the top of it, every one
+  of the eight Nerub'ar Broodkeepers, and both files of Ancient Skeletal
+  Soldiers. What it kept was the rhythm, which is why it read as right.
+- **The crimson wing is twenty-eight, not eight.** That one was a wrong cut
+  rather than a lost row: twenty of the twenty-eight stand *inside* the hall,
+  and the hall is where the fight happens, so they were left out as the
+  fight's room rather than the ground before it. But a raid clears them before
+  it pulls, exactly as it clears the Oratory's Deathspeakers, and the Oratory
+  is modelled that way. So the corridor holds all twenty-eight and is measured
+  back from the princes rather than from the door.
+
+Every other stretch matched to the body. The count is now checked rather than
+trusted: hostile elites on map 631, minus the two armies fighting each other on
+the rampart and the friendly escort in the frostwing halls, come to two hundred
+and fifty-eight, and every one of them is in a corridor or in a fight that has
+not been built.
+
+### The other pair of tripwires
+
+`gameobject` puts two Geist Alarms in the plagueworks approach, at (4335.6,
+3026.4) and (4374.3, 3027.1), forty-five yards short of the airlock. What each
+does is not wake something standing about: `spell_icc_geist_alarm` summons a
+Vengeful Fleshreaper and five more around it at (4356.77, 2971.90) — which is
+where the heap of twelve already stands, a hundred yards back down the
+corridor. So they arrive behind a raid that has just walked past that heap.
+
+Written the way the way up's stone wards are: two packs of six with no circle
+at all, and a wire each. That is this game's word for "not there yet".
+
+### A boss walks at its own pace
+
+`creature_template.speed_run` is a multiplier of the source's base seven yards
+a second, and it is the same unit this game's party speeds are already in. Every
+boss here moved at 197 units — the bonegrinder's 1.21429 — and the roster's own
+rows are not close to each other:
+
+| | `speed_run` | units a second |
+| --- | --- | --- |
+| the last whisper | 1.14286 | 185 |
+| the bonegrinder | 1.21429 | 197 |
+| the bloodgorged, the three crowns, the crimson gift | 1.42857 | 231 |
+| the reeking host, the confluence | 1.5873 | 257 |
+| the two flasks | 1.71429 | 278 |
+
+Against a party moving at 158 to 178, that is the difference between a fight
+you can walk away from and one you cannot, and a raid that learned it on the
+first boss had learned something untrue about every fight after it.
+
+### Read and not taken, this round
+
+- **A boss's size.** `creature_model_info` gives a bounding radius per model
+  and the raid's rows are not usable: Saurfang's is 0.00, Festergut — an
+  abomination the size of a room — is 0.31, and Marrowgar's is 4.5. `BOSS_WIDTH`
+  is nine yards because Marrowgar's row happens to be the one that is real.
+  Combat reach is populated everywhere and measures something else (how far
+  melee reaches, 1.75 on a prince and 20.25 on Marrowgar), so it cannot stand
+  in for a width either.
+- **A boss's swing.** `BaseAttackTime` is 0 on four of the eight, which is the
+  core's word for "use the default". Half a column is not a column.
+- **The three crowns' stations.** The source puts three Empowering Blood Orbs
+  at (4522.8, 2769.2), (4573.8, 2854.8) and (4574.2, 2683.5) — an isosceles
+  triangle, two sides of a hundred yards and a base of a hundred and seventy.
+  This game uses an equilateral triangle of seven hundred units, tuned so that
+  moving between stations is four seconds of walking. Taking the source's would
+  be taking a *distance*, and distance is the axis this game compresses; the
+  shape would arrive without the reason for it.
 
 ### Deliberately different
 

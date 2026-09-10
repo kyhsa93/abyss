@@ -603,52 +603,61 @@ export const PASSAGES: Passage[] = [
     to: 'spire',
     // The walk the source actually has here, taken off its own spawns.
     //
-    // Two hundred and eight yards of it, from the far side of the great hall
-    // to the first fight's door, and none of it empty: every creature the
-    // instance places between them, clustered by where it stands
-    // (AzerothCore's `creature` table, map 631), comes out as
+    // Two hundred and fifty-six yards of it, from the far side of the great
+    // hall to the first fight's door, and none of it empty: every hostile
+    // elite the instance places between them, clustered by where it stands at
+    // thirteen yards (AzerothCore's `creature` table, map 631), anchored on
+    // Lord Marrowgar's Entrance at x -338.1 and converted at `BUILD_SCALE`.
     //
-    //   x -160   three and four, one either side of the way on
-    //   x -193   one alone, and another alone opposite it
-    //   x -239   four and four, again one either side
-    //   x -244   three, in the middle
-    //   x -307   the door, held: two more either side and two on the line
+    // Forty-eight bodies in twenty-six packs. This was twenty-six bodies in
+    // nine, read off a summary of the same rows rather than off the rows, and
+    // what the summary lost was most of the corridor: the Damned standing
+    // singly at the top of it, every Nerub'ar Broodkeeper, and both files of
+    // Ancient Skeletal Soldiers. What it kept was the shape, which is why it
+    // read as right -- it alternates, a pair you can take one at a time by
+    // going up the side and a pair you cannot.
     //
-    // — which is a rhythm rather than a list. It alternates: a pair you can
-    // take one at a time if you go up the side, a pair you cannot, and a
-    // guard on the door that has to be cleared whatever you did before it.
-    // The hall behind is not on this list and that is the other half of the
-    // reading: the source fills it with people who are not fighting anybody,
-    // so the great hall is a town and the corridor out of it is the fight.
+    // What is not the source's is the *width*: this corridor is a hundred and
+    // fifty yards across there and fifteen here, because held ground a raid
+    // can walk round is not held. So the pairs are pairs by being on opposite
+    // sides of a narrow way rather than of a wide one.
     //
-    // Distances are the source's, at `BUILD_SCALE`, measured back from the
-    // door. What is not the source's is the *width*: this corridor is a
-    // hundred and fifty yards across there and fifteen here, because held
-    // ground a raid can walk round is not held. So the pairs are pairs by
-    // being on opposite sides of a narrow way rather than of a wide one.
+    // The great hall behind is not on this list and that is the other half of
+    // the reading: what the source fills it with is people who are not
+    // fighting anybody, so the hall is a town and the corridor out of it is
+    // the fight.
     corridor: corridor(
       'spireway',
       'spire',
       [
-        { pos: { x: -62, y: 2001 }, count: 3, pulls: PULL },
-        // A Damned at (-175, 2215) carries path 3701100 and walks fifty yards
-        // across the way up. It is not built, and the reason is this
-        // corridor's own note: the source is a hundred and fifty yards wide
-        // here and this is fifteen, because held ground a raid can walk round
-        // is not held. A patrol across fifteen yards moves a twenty-yard
-        // circle by less than its own radius, which is arithmetic rather than
-        // a decision. The two patrols that *are* built walk along a corridor
-        // rather than across one.
-        { pos: { x: 62, y: 1930 }, count: 4, pulls: PULL },
+        { pos: { x: 5, y: 2959 }, count: 1, pulls: PULL },
+        { pos: { x: -36, y: 2747 }, count: 1, pulls: PULL },
+        { pos: { x: 35, y: 2710 }, count: 1, pulls: PULL },
+        { pos: { x: 1, y: 2474 }, count: 2, pulls: PULL },
+        { pos: { x: 18, y: 2081 }, count: 1, pulls: PULL },
+        { pos: { x: 70, y: 2073 }, count: 3, pulls: PULL },
+        { pos: { x: -58, y: 2056 }, count: 3, pulls: PULL },
+        { pos: { x: -39, y: 1896 }, count: 2, pulls: PULL, weight: 0.95 },
+        { pos: { x: 5, y: 1887 }, count: 3, pulls: PULL },
+        { pos: { x: 40, y: 1869 }, count: 1, pulls: PULL, weight: 0.89 },
         // Statues until a wire is stood on: no circle, so walking past one
         // does nothing. `pulls: 0` is the game's stoneform.
-        { pos: { x: -78, y: 1620 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: 78, y: 1620 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: -58, y: 1087 }, count: 4, pulls: PULL },
-        { pos: { x: 58, y: 1087 }, count: 4, pulls: PULL },
-        { pos: { x: 0, y: 1029 }, count: 3, pulls: PULL },
-        { pos: { x: -55, y: 301 }, count: 3, pulls: 0, weight: 1.81 },
-        { pos: { x: 55, y: 301 }, count: 3, pulls: 0, weight: 1.81 },
+        { pos: { x: 90, y: 1669 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: -88, y: 1667 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: 0, y: 1525 }, count: 5, pulls: PULL, weight: 0.83 },
+        { pos: { x: 41, y: 1407 }, count: 1, pulls: PULL, weight: 0.81 },
+        { pos: { x: -41, y: 1362 }, count: 1, pulls: PULL, weight: 0.81 },
+        { pos: { x: 60, y: 1264 }, count: 1, pulls: PULL },
+        { pos: { x: 39, y: 1208 }, count: 1, pulls: PULL },
+        { pos: { x: 1, y: 1193 }, count: 1, pulls: PULL, weight: 0.89 },
+        { pos: { x: -45, y: 1153 }, count: 4, pulls: PULL },
+        { pos: { x: 52, y: 1058 }, count: 2, pulls: PULL },
+        { pos: { x: 13, y: 1043 }, count: 2, pulls: PULL, weight: 0.85 },
+        { pos: { x: -12, y: 1027 }, count: 2, pulls: PULL, weight: 0.85 },
+        { pos: { x: 37, y: 436 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: -34, y: 434 }, count: 1, pulls: 0, weight: 1.81 },
+        { pos: { x: 5, y: 362 }, count: 5, pulls: PULL, weight: 0.83 },
+        { pos: { x: -25, y: 236 }, count: 1, pulls: PULL, weight: 0.89 },
       ],
       [
         {
@@ -660,17 +669,18 @@ export const PASSAGES: Passage[] = [
         },
       ],
       // The four spirit alarms, at the source's own distances back from the
-      // door — x -176.6, -209.6, -288.0 and -304.0 against a door at -333 —
+      // door — x -176.6, -209.6, -288.0 and -304.0 against a door at -338.1 —
       // and each waking one of the four bodies that stand in this corridor
       // alone. Those are its Deathbound Wards, and in the source they are
-      // statues until a foot finds a wire: two of them halfway up, two on the
-      // door. Across the whole width, because the point of a wire is that
-      // going wide is not an answer to it.
+      // statues until a foot finds a wire: a pair of wires flanking the pair
+      // of wards halfway up, and a pair flanking the pair on the door. Across
+      // the whole width, because the point of a wire is that going wide is not
+      // an answer to it.
       [
-        { at: { x: 0, y: 1809 }, radius: 143, wakes: 2 },
-        { at: { x: 0, y: 1427 }, radius: 143, wakes: 3 },
-        { at: { x: 0, y: 521 }, radius: 143, wakes: 7 },
-        { at: { x: 0, y: 335 }, radius: 143, wakes: 8 },
+        { at: { x: 0, y: 1868 }, radius: 143, wakes: 10 },
+        { at: { x: 0, y: 1486 }, radius: 143, wakes: 11 },
+        { at: { x: 0, y: 580 }, radius: 143, wakes: 22 },
+        { at: { x: 0, y: 394 }, radius: 143, wakes: 23 },
       ],
     ),
   },
@@ -756,6 +766,18 @@ export const PASSAGES: Passage[] = [
       // is the same decision, and it is the decision -- twelve bodies is not
       // something to walk round, so what is left is when.
       { pos: { x: 2, y: 1110 }, count: 12, pulls: PULL, weight: 0.57, walks: { x: 2, y: 1560 } },
+      // And two more heaps of six that are not there until a foot finds a
+      // wire. The plagueworks has the building's other pair of tripwires —
+      // two Geist Alarms at (4335.6, 3026.4) and (4374.3, 3027.1), forty-five
+      // yards short of the airlock — and what each one does is not wake
+      // something standing about: `spell_icc_geist_alarm` summons a Vengeful
+      // Fleshreaper and five more around it, at (4356.77, 2971.90), which is
+      // where the heap of twelve already stands. So they come out behind a
+      // raid that has just walked past that heap. Written as packs with no
+      // circle, which is how this game says "not there yet" — the same shape
+      // as the way up's stone wards.
+      { pos: { x: -26, y: 1150 }, count: 6, pulls: 0, weight: 0.57 },
+      { pos: { x: 21, y: 1150 }, count: 6, pulls: 0, weight: 0.57 },
       { pos: { x: -90, y: 649 }, count: 1, pulls: PULL, weight: 0.96 },
       { pos: { x: 90, y: 608 }, count: 1, pulls: PULL, weight: 0.96 },
       // The wing's two named pets pass each other in the source -- Precious
@@ -770,6 +792,13 @@ export const PASSAGES: Passage[] = [
       { pos: { x: 90, y: 345 }, count: 1, pulls: PULL, weight: 0.57 },
       { pos: { x: 16, y: 339 }, count: 1, pulls: PULL, weight: 0.57 },
       { pos: { x: 0, y: 110 }, count: 1, pulls: PULL, weight: 1.81 },
+    ],
+    undefined,
+    // The two Geist Alarms, at their own distance back from the airlock and
+    // their own offsets across it, each waking one of the two heaps above.
+    [
+      { at: { x: -26, y: 521 }, radius: 143, wakes: 5 },
+      { at: { x: 21, y: 521 }, radius: 143, wakes: 6 },
     ]),
   },
   // And inside it the two rooms are a step to either side. No ground between:
@@ -785,16 +814,31 @@ export const PASSAGES: Passage[] = [
   {
     from: 'crossing',
     to: 'crimson',
-    // One pack, and that is what the source has.
+    // The whole crimson wing, anchored on the council rather than on the door.
     //
-    // Written as three landings on a long stair, which was a guess. What the
-    // stair up to the Crimson Hall actually holds is eight San'layn standing
-    // together at the top of it — three archmages, two blood knights, two
-    // nobles and an advisor — and nothing else between the crossing and the
-    // door. Everything else the wing carries stands *inside* the hall, which
-    // is the fight's own room rather than the ground before it.
+    // This was one pack of eight, on the reading that the wing's other twenty
+    // stand *inside* the hall and the hall is the fight's own room. That is
+    // the wrong cut. What is inside the hall is trash a raid clears before it
+    // pulls, the same as the Oratory's Deathspeakers — the room being the
+    // fight's room is a fact about where the fight happens, not about what is
+    // standing in it beforehand — so the corridor holds all twenty-eight and
+    // is measured back from the princes at x 4682 rather than from the door
+    // at 4581.
+    //
+    // The shape is a stair and then a hall: eight San'layn together at the
+    // top of the stair, then pairs and threes alternating up the sides of the
+    // hall on its two balconies, then the guard on the dais.
     corridor: corridor('crimsonway', 'crimson', [
-      { pos: { x: 0, y: 650 }, count: 8, pulls: PULL, weight: 0.93 },
+      { pos: { x: 0, y: 1818 }, count: 8, pulls: PULL, weight: 0.93 },
+      { pos: { x: 90, y: 1339 }, count: 3, pulls: PULL, weight: 0.96 },
+      { pos: { x: -90, y: 1328 }, count: 3, pulls: PULL, weight: 0.96 },
+      { pos: { x: -90, y: 1158 }, count: 1, pulls: PULL, weight: 0.92 },
+      { pos: { x: 90, y: 1136 }, count: 1, pulls: PULL, weight: 0.92 },
+      { pos: { x: -90, y: 987 }, count: 2, pulls: PULL, weight: 1.19 },
+      { pos: { x: 90, y: 943 }, count: 2, pulls: PULL, weight: 1.19 },
+      { pos: { x: -22, y: 714 }, count: 3, pulls: PULL, weight: 1.14 },
+      { pos: { x: 22, y: 704 }, count: 3, pulls: PULL, weight: 1.14 },
+      { pos: { x: 44, y: 396 }, count: 2, pulls: PULL, weight: 1.19 },
     ]),
   },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },

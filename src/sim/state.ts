@@ -1,4 +1,4 @@
-import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, bar } from './constants'
+import { BOSS_WIDTH, COUNTDOWN_TICKS, HEALTH, MUSTER_PACE, PARTY_RADIUS, TICK_RATE, YARD, bar } from './constants'
 import { FIRST_ENCOUNTER, encounterAt, encounterIndex, noTimers, openingTimers } from './encounters'
 import type { Encounter } from './encounters'
 import { battlegroundTerrain, createBattleground, raidTerrain, spawnPoint } from './battleground'
@@ -254,9 +254,11 @@ export function createState(
     pos: { x: at.x, y: at.y },
     prevPos: { x: at.x, y: at.y },
     radius: BOSS_WIDTH / 2,
-    // Eight and a half yards a second: `speed_run` 1.21429 on the first
-    // boss's `creature_template` row, against the source's base seven.
-    moveSpeed: 197,
+    // Its own, off `creature_template.speed_run` — a multiplier of the
+    // source's base seven yards a second, which is the unit the party's speeds
+    // are already in. It was 197 for every boss, which is the first one's
+    // 1.21429; the professor's is 1.71429 and the Watcher's 1.14286.
+    moveSpeed: Math.round(fight.pace * 7 * YARD),
     // Less whatever its herald is carrying. The interlude's elite is health
     // carved out of the boss rather than health added to the fight, so the
     // raid has the same bar to chew through and the enrage clock keeps meaning

@@ -863,6 +863,20 @@ export interface Encounter {
    * about the source rather than a fact about this game. It is the one thing
    * on this list that was taken and then given back.
    */
+  /**
+   * How fast it walks, as `creature_template.speed_run`.
+   *
+   * A multiplier of the source's base seven yards a second, which is the same
+   * unit the party's speeds are in. Every boss in this raid carries its own
+   * and they are not close: the Watcher moves at 1.14 and the professor at
+   * 1.71, half again as fast, which is most of the difference between a fight
+   * you can walk away from and one you cannot.
+   *
+   * This was one number — the first boss's — given to all eight, so a raid
+   * that learned it could outrun the bonegrinder learned something untrue
+   * about every fight after it.
+   */
+  pace: number
   hp: number
   /** Seconds before the fight is lost outright. */
   enrage: number
@@ -1308,6 +1322,7 @@ export const ENCOUNTERS: Encounter[] = [
     // tile is its grain and not its colour, so this is how coarse the ground
     // reads: the coarsest of the five, for a hall that has been ground down.
     floor: 'floor-cobble',
+    pace: 1.21429,
     hp: 46000,
     enrage: 240,
     phaseTwoHp: 0.66,
@@ -1331,7 +1346,7 @@ export const ENCOUNTERS: Encounter[] = [
       2: { swing: 2.0, slam: 17, puddleCount: 1, raid: 11, ...beats({ coldflame: 4.2, spike: 15.6, bonestorm: 83.5 }) },
       3: { swing: 1.8, slam: 15, puddleCount: 1, raid: 10, ...beats({ coldflame: 3.7, spike: 13.6, bonestorm: 74.6 }) },
     },
-    opening: { slam: 14, raid: 13, ...beats({ coldflame: 5, spike: 15, bonestorm: 47.5 }) },
+    opening: { slam: 14, raid: 13, ...beats({ coldflame: 5, spike: 12.5, bonestorm: 47.5 }) },
     lines: {
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
@@ -1487,6 +1502,7 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Cut stone, laid in courses: a room that is still in use. */
     floor: 'floor-slate',
+    pace: 1.14286,
     hp: 58000,
     enrage: 240,
     /**
@@ -1578,15 +1594,15 @@ export const ENCOUNTERS: Encounter[] = [
      * heroic script at both difficulties.
      */
     phases: {
-      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 60, decay: 26, empower: 25, dominate: 42.5 }) },
-      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 45, volley: 20, decay: 22.5, frostbolt: 12, shade: 12, insignificance: 7.5, dominate: 36.9 }) },
-      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ adds: 39.2, volley: 17.4, decay: 19.1, frostbolt: 10.4, shade: 10.4, insignificance: 6.5, dominate: 32.4 }) },
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 60, decay: 26, empower: 21.5, dominate: 42.5 }) },
+      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 45, volley: 14, decay: 22.5, frostbolt: 12, shade: 12, insignificance: 7.5, dominate: 36.9 }) },
+      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ adds: 39.2, volley: 12.2, decay: 19.1, frostbolt: 10.4, shade: 10.4, insignificance: 6.5, dominate: 32.4 }) },
     },
     // Each mechanic's own first cast in the source. The second phase's four
     // sit here as well and are simply never reached in the first, because a
     // scheduler whose cadence is nought does not spend its timer -- so what
     // they mean is "this long after the wall comes down".
-    opening: { slam: 13, raid: 15, ...beats({ adds: 5, volley: 20, decay: 17, frostbolt: 12, shade: 12, insignificance: 7.5, empower: 15, dominate: 27 }) },
+    opening: { slam: 13, raid: 15, ...beats({ adds: 5, volley: 20, decay: 10, frostbolt: 11, shade: 13.5, insignificance: 7.5, empower: 25, dominate: 30 }) },
     lines: {
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
@@ -1674,6 +1690,7 @@ export const ENCOUNTERS: Encounter[] = [
     // where the smallest raid clears at 95% and the twenty-five man normal,
     // which is the longest fight on the roster, sits at 65% with seven in ten
     // of the raid dead at the end of it.
+    pace: 1.5873,
     hp: 60000,
     enrage: 240,
     phaseTwoHp: 0.68,
@@ -1775,11 +1792,11 @@ export const ENCOUNTERS: Encounter[] = [
     /** Fine and flat: a room that is worked in rather than fought over. */
     floor: 'floor-slate',
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 16.2, vilegas: 31.5, spore: 42.5, inhale: 34.2, pungent: 116 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 14.8, vilegas: 27.8, spore: 37.2, inhale: 30.1, pungent: 102 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 13.3, vilegas: 24.1, spore: 31.9, inhale: 25.9, pungent: 88 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ blight: 3.2, bloat: 16.2, vilegas: 31.5, spore: 42.5, inhale: 34, pungent: 116 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ blight: 2.8, bloat: 14.8, vilegas: 27.8, spore: 37.2, inhale: 29.9, pungent: 102 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ blight: 2.4, bloat: 13.3, vilegas: 24.1, spore: 31.9, inhale: 25.7, pungent: 88 }) },
     },
-    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 13.8, vilegas: 31.5, spore: 22.5, inhale: 27.5, pungent: 112 }) },
+    opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 13.8, vilegas: 35, spore: 22.5, inhale: 27.5, pungent: 112 }) },
     lines: {
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
@@ -1896,6 +1913,7 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** Open stone, worn smooth: the top of a spire rather than a hall. */
     floor: 'floor-cobble',
+    pace: 1.42857,
     hp: 56000,
     enrage: 240,
     // Nothing in the source ends a phase here: what escalates is the bar, and
@@ -2068,6 +2086,7 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** A workshop floor: laid, drained, and about to be ruined. */
     floor: 'floor-clay',
+    pace: 1.5873,
     hp: 54000,
     enrage: 245,
     phaseTwoHp: 0.7,
@@ -2121,7 +2140,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the whole boss slowed down by a fifth and went to a hundred percent at
     // every size with nobody dying. What `kitCadence` gives back for variety
     // has to be taken out of the table, or a room becomes a discount.
-    opening: { slam: 13, raid: 14, ...beats({ spray: 20, infection: 14, flood: 25, engulf: 8, slime: 5 }) },
+    opening: { slam: 13, raid: 14, ...beats({ spray: 20, infection: 14, flood: 8, engulf: 8, slime: 5 }) },
     lines: {
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
@@ -2243,6 +2262,7 @@ export const ENCOUNTERS: Encounter[] = [
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',
+    pace: 1.71429,
     hp: 58000,
     enrage: 250,
     /**
@@ -2299,11 +2319,11 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#a3e635',
     names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 37.5, hound: 23.5, gather: 35, chase: 90, decant: 37.5, reagent: 10 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 32.5, hound: 21, gather: 31.3, chase: 80.5, decant: 33.4, reagent: 9 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ caustic: 27.5, hound: 18.6, gather: 27.6, chase: 71.1, decant: 29.3, reagent: 8 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 12, ...beats({ caustic: 37.5, hound: 27.5, gather: 35, chase: 90, decant: 37.5, reagent: 10 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 11, ...beats({ caustic: 32.5, hound: 24.6, gather: 31.3, chase: 80.5, decant: 33.4, reagent: 9 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 10, ...beats({ caustic: 27.5, hound: 21.8, gather: 27.6, chase: 71.1, decant: 29.3, reagent: 8 }) },
     },
-    opening: { slam: 14, raid: 13, ...beats({ caustic: 37.5, hound: 23.5, gather: 10, chase: 90, decant: 32.5, reagent: 11 }) },
+    opening: { slam: 14, raid: 13, ...beats({ caustic: 32.5, hound: 27.5, gather: 10, chase: 20, decant: 37.5, reagent: 11 }) },
     lines: {
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
@@ -2430,6 +2450,7 @@ export const ENCOUNTERS: Encounter[] = [
     // It is a steep number: at forty-six thousand every cell came out at 93%
     // or better, because a shorter fight is also fewer seconds of standing in
     // the thirst. Fifty-one is where the top rung still costs something.
+    pace: 1.42857,
     hp: 51000,
     enrage: 250,
     phaseTwoHp: 0.7,
@@ -2474,7 +2495,7 @@ export const ENCOUNTERS: Encounter[] = [
     // The first crown comes at thirty rather than at forty-five, because a
     // raid that has not seen one does not know what fight it is in -- and a
     // short pull would end without it ever having moved.
-    opening: { slam: 14, raid: 13, ...beats({ rotation: 46, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 46 }) },
+    opening: { slam: 14, raid: 13, ...beats({ rotation: 45, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 46 }) },
     lines: {
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
@@ -2552,6 +2573,7 @@ export const ENCOUNTERS: Encounter[] = [
     terrain: [],
     /** Red stone, and a balcony that is a painting rather than a place. */
     floor: 'floor-slate',
+    pace: 1.42857,
     hp: 52000,
     // The shortest clock on the roster, and it is the flight that decides it:
     // fourteen seconds with nothing to hit, four times a pull, is fifty-six
@@ -2596,9 +2618,9 @@ export const ENCOUNTERS: Encounter[] = [
     accent: '#e11d48',
     names: { slam: 'THE RED HAND', shard: '', raid: 'THE COURT BLEEDS' },
     phases: {
-      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 15, bond: 30.5, flight: 52, crimson: 22.5 }) },
-      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 14.2, bond: 27, flight: 46, crimson: 19.8 }) },
-      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ gift: 13.3, bond: 23.5, flight: 40, crimson: 17 }) },
+      1: { swing: 2.1, slam: 17, puddleCount: 1, raid: 13, ...beats({ gift: 15, bond: 30, flight: 52, crimson: 12.5 }) },
+      2: { swing: 1.9, slam: 15, puddleCount: 1, raid: 12, ...beats({ gift: 14.2, bond: 26.6, flight: 46, crimson: 11 }) },
+      3: { swing: 1.7, slam: 13, puddleCount: 1, raid: 11, ...beats({ gift: 13.3, bond: 23.1, flight: 40, crimson: 9.4 }) },
     },
     // The crimson opens well before the first flight rather than on top of it.
     //
@@ -2606,7 +2628,7 @@ export const ENCOUNTERS: Encounter[] = [
     // fight, it is a wipe with two names: at thirty-one the first crimson
     // landed inside the first landing and took a twenty-five man from
     // fifty-four percent to twenty-eight in one tick.
-    opening: { slam: 14, raid: 14, ...beats({ gift: 15, bond: 15, flight: 52, crimson: 12.5 }) },
+    opening: { slam: 14, raid: 14, ...beats({ gift: 15, bond: 20, flight: 52, crimson: 20 }) },
     lines: {
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',
