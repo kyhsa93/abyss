@@ -609,7 +609,17 @@ function patrolStep(s: SimState): void {
       // moves. A pack is a ring of bodies around a point, so a patrol that
       // takes its centre to within its own spread of a wall walks the far half
       // of itself through it.
-      pushInside(travel.corridor.room, body.pos, body.radius)
+      //
+      // For one corridor only, and this is the whole of the bug it caused.
+      // `corridor.room` on a walk across the building is the room the *party*
+      // is standing in, not the stretch this pack is patrolling half a citadel
+      // away -- so every patrolling body was clamped into the entrance hall on
+      // the first tick and stood there, asleep, in front of a raid that had
+      // nothing to attack because none of it was awake. `createCorridorState`
+      // carries the same rule with the same reason written on it; a patrol's
+      // line is inside its own corridor already, because that is where it was
+      // written and placed.
+      if (!travel.building) pushInside(travel.corridor.room, body.pos, body.radius)
       turnToward(body, Math.atan2(dy, dx))
     }
   })

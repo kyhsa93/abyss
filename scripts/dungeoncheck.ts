@@ -769,6 +769,47 @@ const everywhere = () => true
     s.outcome === 'ongoing' && s.travel?.through === null,
     `${s.outcome}, through ${s.travel?.through ?? 'nothing'}`,
   )
+
+  // And they are still where they were put after it, which is the half of this
+  // that was missing.
+  //
+  // Everything above is measured on the state as it is built, and the building
+  // was built correctly: the bug that made this necessary was a *tick*. A
+  // patrol held its bodies inside `corridor.room`, which on a walk across a
+  // citadel is the room the party happens to be standing in rather than the
+  // stretch the pack is patrolling half a building away — so on the very first
+  // tick twelve sleeping bodies were clamped into the entrance hall, in front
+  // of a raid that had nothing to attack because none of them was awake. The
+  // player walks in and there is a monster standing there that nobody will
+  // hit. Nothing here noticed, because nothing here looked twice.
+  const strayed = s.actors.filter((a) => {
+    if (a.faction !== 'boss' || !a.alive) return false
+    const pack = ground.packs[s.travel!.belongs[a.id] ?? -1]
+    if (!pack) return false
+    // Its own place, plus the ring the pack stands in, plus the line it walks.
+    const room = 60 + (pack.walks ? dist(pack.pos, pack.walks) : 0)
+    return dist(a.pos, pack.pos) > room
+  })
+  expect(
+    'and every one of them is still with its own pack afterwards',
+    strayed.length === 0,
+    strayed
+      .slice(0, 4)
+      .map((a) => `${a.id} is ${Math.round(dist(a.pos, ground.packs[s.travel!.belongs[a.id]!]!.pos))} from pack ${s.travel!.belongs[a.id]}`)
+      .join(', '),
+  )
+  const crowded = s.actors.filter(
+    (a) =>
+      a.faction === 'boss' &&
+      a.alive &&
+      s.travel!.woken[s.travel!.belongs[a.id] ?? -1] !== true &&
+      s.actors.some((p) => p.faction === 'party' && p.alive && dist(a.pos, p.pos) < 400),
+  ).length
+  expect(
+    'and nothing asleep is standing on the raid two minutes in',
+    crowded === 0,
+    `${crowded} asleep on top of the party`,
+  )
 }
 
 // A raid walking is a raid taking up room.
