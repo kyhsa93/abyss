@@ -77,6 +77,24 @@ export interface Chamber {
   terrain?: Obstacle[]
 
   /**
+   * And what is standing in it, in the same frame.
+   *
+   * A room, not a corridor. The building's trash used to live entirely on the
+   * passages between rooms, because a corridor is what "held ground" was
+   * written for -- and the source does not agree: the Oratory of the Damned is
+   * the Watcher's own hall and twenty-eight Deathspeakers stand *in* it, every
+   * one of them inside `RectangleBoundary(-670, -520, 2145, 2280)`, which is
+   * the boundary of her fight. Hung on the two ramps up to it instead, they
+   * were met on the way rather than in the room, and the arrangement was lost
+   * with them: a corridor here is twelve yards wide and the real hall stands a
+   * High Priest forty-four yards out to either side.
+   *
+   * Positions are the room's own frame, the same as `terrain` and the same as
+   * `Encounter.terrain`: the boss at the origin, the raid coming in from `+y`.
+   */
+  packs?: Pack[]
+
+  /**
    * The pad in this room, and what lights it.
    *
    * The source's transporters, which are the reason a citadel this size is
@@ -146,6 +164,57 @@ const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
  * fights — the shape comes across and the name does not — holds for its rooms
  * too, so nothing here is called what the source calls it.
  */
+/**
+ * How far a body notices, in world units.
+ *
+ * Twenty yards, at the scale the building is walked at, and the twenty is not
+ * chosen: it is `creature_template.detection_range`, and every one of the six
+ * hundred creatures this raid places carries the same value for it -- the
+ * heaviest elite in the wing notices from exactly as far as the lightest.
+ *
+ * The corridors used to spread this by hand between two hundred and thirty and
+ * two hundred and sixty, which was a number being nudged where a fact would
+ * do.
+ */
+const PULL = Math.round(20 * YARD * BUILD_SCALE)
+
+/**
+ * What is standing in the Oratory of the Damned, from the source's own rows.
+ *
+ * In the hall, which is the correction. It used to be written as a corridor
+ * and hung on both ramps up out of the first fight, on the reasoning that the
+ * source has one Oratory and this building has two ways into it. The rows say
+ * the hall is where it stands: every one of the twenty-eight Deathspeakers is
+ * inside `RectangleBoundary(-670, -520, 2145, 2280)`, which is the boundary of
+ * the Watcher's own fight. Held on the ramps they were something you met on
+ * the way to her room rather than in it, and there were two sets of them
+ * standing in the building at once, of which a raid ever walked into one.
+ *
+ * Positions are the room's frame -- the Watcher at the origin at
+ * (-634.7, 2211.4), the raid coming in from `+y`, at `BUILD_SCALE`. She is not
+ * in the middle of her hall: she stands thirty-five yards off the back wall
+ * and a hundred and fifteen from the door, so everything here is between
+ * fourteen and fifty yards in front of her.
+ *
+ * The arrangement is the finding, and a corridor could not hold it. Every pack
+ * has a twin across the centre line at the same distance to within a yard: two
+ * files led from the same two spots sixteen yards either side of the middle,
+ * and a High Priest forty-four yards out on each flank. Hung on a passage
+ * twelve yards wide, all four were squeezed onto the centre line.
+ *
+ * `creature_formations` is what says these are four groups rather than eight:
+ * 247130 and 247140 lead the two files on one side, 247135 and 247141 the two
+ * on the other, and the pair on a side stands on the same spot -- one file for
+ * a ten-man (`spawnMask` 5, five bodies) and one for a twenty-five (mask 10,
+ * eight). The two High Priests are mask 15 and lead nobody.
+ */
+const ORATORY: Pack[] = [
+  { pos: { x: -186, y:   567 }, of: ['Deathspeaker Servant', 'Deathspeaker Zealot', 'Deathspeaker Zealot', 'Deathspeaker Attendant', 'Deathspeaker Disciple'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
+  { pos: { x:  186, y:   582 }, of: ['Deathspeaker Servant', 'Deathspeaker Attendant', 'Deathspeaker Disciple', 'Deathspeaker Zealot', 'Deathspeaker Zealot'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
+  { pos: { x: -509, y:   169 }, of: ['Deathspeaker High Priest'], pulls: PULL },
+  { pos: { x:  517, y:   178 }, of: ['Deathspeaker High Priest'], pulls: PULL },
+]
+
 export const CHAMBERS: Chamber[] = [
   // --- the lower spire: one way up, no choices ------------------------------
   // Two rooms, and it was one.
@@ -279,6 +348,10 @@ export const CHAMBERS: Chamber[] = [
     // The shape is the fight's own — see `whisper` in `encounters.ts`, where
     // it is now the plan's: very nearly square and no bigger than the first
     // fight's chamber, with a gallery up either side.
+    //
+    // And the hall is full, which is the source's arrangement rather than a
+    // corridor's: see `ORATORY`.
+    packs: ORATORY,
   },
   {
     id: 'mooring',
@@ -482,40 +555,7 @@ export const CHAMBERS: Chamber[] = [
  * They differ in how much of it there is. The approach to a wing is one pack
  * and a warning; the ground before a lair is three and a lesson.
  */
-/**
- * How far a body notices, in world units.
- *
- * Twenty yards, at the scale the building is walked at, and the twenty is not
- * chosen: it is `creature_template.detection_range`, and every one of the six
- * hundred creatures this raid places carries the same value for it -- the
- * heaviest elite in the wing notices from exactly as far as the lightest.
- *
- * The corridors used to spread this by hand between two hundred and thirty and
- * two hundred and sixty, which was a number being nudged where a fact would
- * do.
- */
-const PULL = Math.round(20 * YARD * BUILD_SCALE)
 
-/**
- * What is standing in the Oratory of the Damned, from the source's own rows.
- *
- * Written once and hung on both ways up out of the first fight, because the
- * source has one hall and this building has two ramps into it. Distances are
- * measured back from the Watcher herself rather than from the hall's door: the
- * door is a hundred and fourteen yards short of her and everything in here
- * stands past it, so the door is not what any of it is arranged around.
- *
- * The arrangement is the finding. Every pack has a twin on the other side of
- * the centre line, at the same distance to within a yard: two lone attendants
- * at sixty-six, two files of five at forty-nine, two of seven at thirty-four,
- * and a High Priest either side at fifteen. Nothing here was placed by eye.
- */
-const ORATORY: Pack[] = [
-  { pos: { x:   20, y:   464 }, of: ['Deathspeaker Servant', 'Deathspeaker Zealot', 'Deathspeaker Zealot', 'Deathspeaker Attendant', 'Deathspeaker Disciple'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
-  { pos: { x:  -20, y:   444 }, of: ['Deathspeaker Servant', 'Deathspeaker Attendant', 'Deathspeaker Disciple', 'Deathspeaker Zealot', 'Deathspeaker Zealot'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
-  { pos: { x:   54, y:   178 }, of: ['Deathspeaker High Priest'], pulls: PULL },
-  { pos: { x:  -53, y:   169 }, of: ['Deathspeaker High Priest'], pulls: PULL },
-]
 
 function corridor(
   id: string,
@@ -692,17 +732,20 @@ export const PASSAGES: Passage[] = [
   // which is the two ice walls the instance registers against it.
   { from: 'spire', to: 'eastclimb', gate: killed('spire') },
   { from: 'spire', to: 'westclimb', gate: killed('spire') },
-  // And what is standing in the Oratory when you get up there.
+  // And nothing on either ramp, which is what the rows say is on them.
   //
-  // The same on both, because the source has one Oratory and this building has
-  // two ways up into it: whichever ramp a raid takes, what it walks into is
-  // the hall the Watcher preaches in, and the hall is full. Twenty-eight
-  // Deathspeakers in the source's own arrangement — two scouts, then two files
-  // of five, then two of seven, then a High Priest either side of the door.
-  // Every pair is a pair: they stand mirrored about the line down the middle,
-  // which is why the sides here alternate rather than being spread by eye.
-  { from: 'eastclimb', to: 'oratory', corridor: corridor('eastoratory', 'oratory', ORATORY) },
-  { from: 'westclimb', to: 'oratory', corridor: corridor('westoratory', 'oratory', ORATORY) },
+  // They used to carry the Oratory between them -- the same twenty-eight
+  // Deathspeakers written twice, once per ramp -- and the hall they actually
+  // stand in is through the door at the top. See `ORATORY`, which is on the
+  // room now. Between the first fight and that door the source has one quest
+  // giver, two spiders and nothing else.
+  // Gated with the ramps themselves, which is what they are the far end of.
+  // Ground behind a door that is behind a locked door is floor laid in mid-air
+  // -- and it used to be, and got away with it because the corridor that was
+  // written here happened to be narrow enough not to touch the bowl. A
+  // measurement is not a gate.
+  { from: 'eastclimb', to: 'oratory', gate: killed('spire') },
+  { from: 'westclimb', to: 'oratory', gate: killed('spire') },
   {
     from: 'oratory',
     to: 'mooring',
@@ -1162,16 +1205,22 @@ export function hallFor(
   from: string | null,
   canGo: (to: string) => boolean,
   /**
-   * Something already standing in the room that the party must not arrive on.
+   * What is already standing in the room that the party must not arrive on.
    *
-   * There is exactly one thing this is ever about and it is the boss. A room
-   * with several doors used to put an arriving party in its middle, on the
-   * reasoning that the middle is as good an answer as any -- which was true
-   * while the middle was empty floor. It is where the boss stands, so
+   * A room with several doors used to put an arriving party in its middle, on
+   * the reasoning that the middle is as good an answer as any -- which was
+   * true while the middle was empty floor. It is where the boss stands, so
    * resuming an evening in a boss's room set the raid down inside its reach
    * and the fight began before the screen had finished drawing.
+   *
+   * A list rather than the boss alone, because the Oratory is a hall with four
+   * packs of Deathspeakers in it as well as the Watcher, and being put down
+   * clear of her and on top of a file is the same bug with a smaller circle.
+   * Where the room cannot clear all of them the best spot is taken: a hall
+   * seventy-five yards deep with five circles in it has one, and it is not
+   * always the middle.
    */
-  clearOf?: { at: Vec2; radius: number },
+  clearOf?: Array<{ at: Vec2; radius: number }>,
 ): Corridor {
   // The room where it stands, so the door the party walks to is the same point
   // in the same coordinates as the door it walks out of. That is the whole of
@@ -1221,41 +1270,46 @@ export function hallFor(
   // than toward a door: the two are the same bearing when the thing is in the
   // middle, and when the party is standing exactly on it there is no bearing at
   // all -- so the way back out is the way in, reversed.
-  if (clearOf) {
-    const off = Math.hypot(arrival.x - clearOf.at.x, arrival.y - clearOf.at.y)
-    if (off < clearOf.radius) {
-      // Whichever way the room has the floor for, rather than straight out
-      // from where they were standing.
-      //
-      // The first fight is why. Its room is a half-disc with the boss near the
-      // flat side, so the one bearing that has fifty yards of floor behind it
-      // is the one pointing away from the door -- which is exactly the bearing
-      // "step back from where you are" chooses, into twenty-nine yards of apse
-      // and then clamped to the wall, still inside its reach. Tried all the
-      // way round and the best kept: a room that can hold the raid clear of
-      // the boss somewhere will be found to.
-      const from = off > 1 ? Math.atan2(arrival.y - clearOf.at.y, arrival.x - clearOf.at.x) : 0
-      let best = arrival
-      let far = off
+  if (clearOf && clearOf.length > 0) {
+    // How much room a spot has: the tightest of the circles it is standing in,
+    // as a share of that circle, so that being half a boss's reach away scores
+    // the same as being half a pack's. A spot outside all of them scores one.
+    //
+    // Searched rather than stepped, and the first fight is why. Its room is a
+    // half-disc with the boss near the flat side, so the one bearing with
+    // fifty yards of floor behind it is the one pointing away from the door --
+    // and "step back from where you are" is exactly the other one, into
+    // twenty-nine yards of apse and then clamped to the wall, still inside its
+    // reach.
+    const room_ = room
+    const margin = (at: Vec2): number => {
+      let worst = 1
+      for (const thing of clearOf) {
+        worst = Math.min(worst, Math.min(1, dist(at, thing.at) / Math.max(1, thing.radius)))
+      }
+      // A doorway is the other thing an arrival must not be, and it is worth
+      // less than standing clear: a spot on a door that nothing is about to
+      // notice beats a spot in the open that something is.
+      return worst + (clear(at) ? 0.15 : 0)
+    }
+    let best = arrival
+    let far = margin(arrival)
+    for (const thing of clearOf) {
       for (let i = 0; i < 12; i++) {
-        const bearing = from + (i / 12) * Math.PI * 2
+        const bearing = (i / 12) * Math.PI * 2
         const at = {
-          x: clearOf.at.x + Math.cos(bearing) * clearOf.radius,
-          y: clearOf.at.y + Math.sin(bearing) * clearOf.radius,
+          x: thing.at.x + Math.cos(bearing) * thing.radius,
+          y: thing.at.y + Math.sin(bearing) * thing.radius,
         }
-        pushInside(room, at, PARTY_RADIUS)
-        const got = Math.hypot(at.x - clearOf.at.x, at.y - clearOf.at.y)
-        // Never onto a doorway, which is the other thing an arrival must not
-        // be -- unless nothing else clears the boss at all, in which case the
-        // room is too small and the doorway is the least of it.
-        const worth = got + (clear(at) ? clearOf.radius : 0)
+        pushInside(room_, at, PARTY_RADIUS)
+        const worth = margin(at)
         if (worth > far) {
           far = worth
           best = at
         }
       }
-      arrival = best
     }
+    arrival = best
   }
   return {
     id: `hall:${id}`,
@@ -1977,7 +2031,41 @@ export function citadelPacks(
   /** What is already on the floor tonight, by `Pack.key`. See `Run.felled`. */
   felled?: Readonly<Record<string, number>>,
 ): Pack[] {
-  return [...corridorPacks(cleared, felled), ...citadelWardens(cleared)]
+  return [
+    // Corridors first, and that ordering is load-bearing twice over: an alarm
+    // names the pack it wakes by its place in this one list and
+    // `citadelAlarms` shifts those by however many packs came before it, and
+    // the wardens have to be last so that a boss is never in among them.
+    ...corridorPacks(cleared, felled),
+    ...roomPacks(cleared, felled),
+    ...citadelWardens(cleared),
+  ]
+}
+
+/**
+ * What is standing in the rooms themselves, placed.
+ *
+ * The same move `citadelTerrain` makes and for the same reason: a room carries
+ * its own furniture in its own frame, and the walk is one set of coordinates
+ * for the whole building. A room whose fight is down is empty -- what stood in
+ * the Oratory was killed on the way to the Watcher, and killing her does not
+ * put it back.
+ */
+function roomPacks(
+  cleared?: ReadonlySet<string>,
+  felled?: Readonly<Record<string, number>>,
+): Pack[] {
+  return CHAMBERS.flatMap((chamber) => {
+    const here = chamber.packs
+    if (here === undefined || cleared?.has(chamber.id) === true) return []
+    const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+    return here.map((pack, i) => {
+      const key = `room:${chamber.id}#${i}`
+      const dead = felled?.[key] ?? 0
+      const placed = { ...pack, pos: fromRoom(room, pack.pos), key }
+      return dead === 0 ? placed : { ...placed, dead }
+    })
+  })
 }
 
 /**

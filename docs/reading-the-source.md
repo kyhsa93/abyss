@@ -932,6 +932,55 @@ cannot walk any further out has arrived.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
 
+### The room the trash is in
+
+Every corridor in this building was written as *held ground on a passage*,
+because that is what the first one was: the way up to the first fight really is
+a corridor with packs in it. The Oratory is not, and the rows say so plainly.
+
+Take Lady Deathwhisper's boundary — `RectangleBoundary(-670, -520, 2145, 2280)`
+— and ask which creatures stand inside it. All twenty-eight Deathspeakers do.
+They are not on the way to her hall; they are in it, between fourteen and fifty
+yards in front of her, and she is at the far end of the same room.
+
+| | |
+| --- | --- |
+| Lady Deathwhisper | −634.7, 2211.4 |
+| the two files, led from | −585.7, 2195.3 and −584.4, 2227.5 |
+| the two High Priests | −620.1, 2167.4 and −619.3, 2256.1 |
+| the Oratory's door | −503.6, 2211.5 |
+
+Two things came out of putting them where they stand.
+
+**A corridor could not hold the arrangement.** A passage here is twelve yards
+wide and the hall is a hundred and thirty-five: the High Priests stand
+forty-four yards out on either flank and the two files sixteen. Written as a
+corridor, all four were squeezed onto the centre line and the shape of the
+place — two files down the middle with a priest watching from each side — was
+flattened into a queue.
+
+**And the hall was in the building twice.** The source has one Oratory and this
+game has two ramps up into it, so the corridor was hung on both: whichever ramp
+you took you met twelve Deathspeakers, and the other twelve stood in the dark
+on the ramp you did not take. A room holds its own once.
+
+The same sweep over every other boundary says the Oratory is the only one:
+Rotface's, Festergut's and Putricide's rooms contain nothing but the invisible
+stalkers their scripts aim puddles at, Marrowgar's and Saurfang's are empty, and
+the crimson pair overlap each other so heavily that the Darkfallen in the hall
+are inside both — which is why the wing this game deliberately swaps rooms in is
+left alone. See "The shape of a fight's floor".
+
+**One thing found and not taken.** She is not in the middle of her own hall.
+The boundary runs from −670 to −520 along the walk and she stands at −634.7, so
+the floor is thirty-five yards behind her and a hundred and fifteen in front —
+and this game builds the room `front: 1157, back: 578`, which is two thirds and
+one third, the split every hall in the building was given. Off her own position
+it is 1327 and 408. The other two halls are the same guess and can be settled
+the same way. It is left for its own round because moving a boss inside its
+room moves the fight: the benches are placed against those walls and the raid's
+floor in front of her grows by fifteen percent.
+
 ### Thirty-seven creatures where there was one
 
 A corridor used to be one creature repeated. Every body in the building was a

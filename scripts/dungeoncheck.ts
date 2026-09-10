@@ -34,7 +34,7 @@ import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
 import { CLASSES, RAID_SIZES, autoParty, pickFor } from '../src/sim/classes'
-import { MUSTER_HALF, fromRoom, insideRoom } from '../src/sim/room'
+import { MUSTER_HALF, fromRoom, insideRoom, type RoomShape } from '../src/sim/room'
 import type { Vec2 } from '../src/sim/types'
 import { inTerrain } from '../src/sim/battleground'
 import {
@@ -821,6 +821,39 @@ const everywhere = () => true
     )
   }
 
+  // What stands in a room stands on its floor, clear of its furniture, and
+  // clear of the boss.
+  //
+  // The corridors have had all three for as long as they have had packs
+  // (`packsPlaced`); a room did not, because until the Oratory moved into one,
+  // nothing stood in a room. The third is the one that is new: a pack inside
+  // the boss's own circle is a pack that cannot be fought without pulling it,
+  // which is the room having no first half.
+  {
+    const wrong: string[] = []
+    for (const chamber of CHAMBERS) {
+      const here = chamber.packs
+      if (here === undefined) continue
+      const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
+      const rocks = (chamber.terrain ?? []).map((rock) => ({
+        pos: fromRoom(room, rock.pos),
+        radius: rock.radius,
+      }))
+      const boss = citadelWardens().find((w) => w.warden?.room === chamber.id)
+      for (const [i, pack] of here.entries()) {
+        const at = fromRoom(room, pack.pos)
+        if (!insideRoom(room, at, 40)) wrong.push(`${chamber.id}#${i} is outside its room`)
+        if (rocks.some((rock) => dist(at, rock.pos) < rock.radius + 40)) {
+          wrong.push(`${chamber.id}#${i} is standing in the furniture`)
+        }
+        if (boss && dist(at, boss.pos) <= boss.pulls) {
+          wrong.push(`${chamber.id}#${i} is inside the boss's own circle`)
+        }
+      }
+    }
+    expect('everything standing in a room is on its floor, clear of it', wrong.length === 0, wrong.join('; '))
+  }
+
   // And every fight in the building is standing in its own room.
   //
   // A boss used to exist only inside its own fight, and crossing the doorway
@@ -910,6 +943,7 @@ const everywhere = () => true
     // not enough -- the formation spreads around it.
     for (const size of RAID_SIZES) {
       const stood: string[] = []
+      const pulled: string[] = []
       for (const w of wardens) {
         const where = w.warden!.room
         const shape = { ...roomOf(where), at: placeOf(where) }
@@ -928,8 +962,20 @@ const everywhere = () => true
               ? Math.max(shape.radius, shape.back)
               : shape.radius
         if (across < w.pulls + marchReach(size)) continue
+        // Everything asleep in the room, not the boss alone: the Oratory is a
+        // hall with four files of Deathspeakers in it as well as the Watcher,
+        // and being put down clear of her and on top of a file is the same
+        // bug with a smaller circle.
+        const mine = citadelPacks().filter(
+          (p) => p.warden?.room === where || (p.key ?? '').startsWith(`room:${where}#`),
+        )
         const room = {
-          ...hallFor(where, null, anywhere, { at: w.pos, radius: w.pulls + marchReach(size) }),
+          ...hallFor(
+            where,
+            null,
+            anywhere,
+            mine.map((p) => ({ at: p.pos, radius: p.pulls + marchReach(size) })),
+          ),
           id: 'citadel',
           packs: citadelPacks(),
         }
@@ -948,11 +994,21 @@ const everywhere = () => true
           ...set.actors.filter((a) => a.faction === 'party').map((a) => dist(a.pos, w.pos)),
         )
         if (closest < w.pulls) stood.push(`${where}: ${Math.round(closest)} of ${w.pulls}`)
+        // And nothing else in the room noticed either.
+        const woke = citadelPacks()
+          .map((p, i) => [p, i] as const)
+          .filter(([p, i]) => mine.includes(p) && set.travel!.woken[i] === true)
+        if (woke.length > 0) pulled.push(`${where}: ${woke.length} pack(s)`)
       }
       expect(
         `and a ${size}-man that walks into a boss's room and forms up has not pulled it`,
         stood.length === 0,
         stood.join('; '),
+      )
+      expect(
+        'and has not woken anything else standing in the room either',
+        pulled.length === 0,
+        pulled.join('; '),
       )
     }
 
@@ -1309,11 +1365,14 @@ expect(
 
   // Trash that is a raid size, which is what the source's own spawn table
   // makes it. Two rules and one number.
-  const shrinks = corridors.flatMap((c) =>
-    c.packs.filter((p) => packSize(p, 25) < packSize(p, 10)).map(() => c.id),
-  )
-  expect('no corridor is emptier for a bigger raid', shrinks.length === 0, shrinks.join(', '))
-  const varies = corridors.flatMap((c) => c.packs.filter((p) => (p.more ?? []).length > 0))
+  //
+  // Over everything the building holds rather than over the corridors, because
+  // it does not all stand in corridors any more: the Oratory is a room with a
+  // hall full of Deathspeakers in it, which is where the source puts them.
+  const standing = [...corridors.flatMap((c) => c.packs), ...CHAMBERS.flatMap((c) => c.packs ?? [])]
+  const shrinks = standing.filter((p) => packSize(p, 25) < packSize(p, 10))
+  expect('nowhere in it is emptier for a bigger raid', shrinks.length === 0, `${shrinks.length}`)
+  const varies = standing.filter((p) => (p.more ?? []).length > 0)
   expect(
     `${varies.length} pack(s) are a different size for a different raid`,
     varies.length > 0,
@@ -1322,13 +1381,21 @@ expect(
   // And the worked example, because the whole point is that these are counted
   // rather than chosen: the Oratory's own rows are twelve Deathspeakers for a
   // ten-man and eighteen for a twenty-five.
-  const oratory = PASSAGES.find((p) => p.corridor?.id === 'eastoratory')?.corridor
-  const bodies = (size: number): number =>
-    (oratory?.packs ?? []).reduce((n, p) => n + packSize(p, size), 0)
+  const oratory = CHAMBERS.find((c) => c.id === 'oratory')?.packs ?? []
+  const bodies = (size: number): number => oratory.reduce((n, p) => n + packSize(p, size), 0)
   expect(
     'and the Oratory holds twelve for a ten and eighteen for a twenty-five',
     bodies(10) === 12 && bodies(25) === 18,
     `${bodies(10)} and ${bodies(25)}`,
+  )
+  // In the Oratory, which is the correction this pair of numbers moved with.
+  // Every one of the twenty-eight Deathspeakers is inside the Watcher's own
+  // boss boundary in the source; they were on the two ramps up to her door.
+  expect(
+    'and it holds them in the hall rather than on the ramp up to it',
+    oratory.length === 4 &&
+      PASSAGES.filter((p) => p.to === 'oratory').every((p) => p.corridor === undefined),
+    `${oratory.length} pack(s) in the room`,
   )
 
   // Every name in a corridor is a creature this game knows.

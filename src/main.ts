@@ -157,7 +157,6 @@ import {
   PASSAGES,
   chamberAt,
   citadelPacks,
-  citadelWardens,
   citadelJets,
   citadelSprings,
   citadelAlarms,
@@ -881,18 +880,16 @@ function standIn(
   // there is no end to a walk across a citadel.
   // Clear of whatever is standing in the middle of it, which is the boss when
   // the room has one. See `hallFor`.
-  const boss = citadelWardens(new Set(run.cleared)).find((p) => p.warden?.room === id)
+  // Everything asleep in the room the party is arriving in, with each circle
+  // widened by the raid's own: they are put down at one point and then walk
+  // into formation around it, and the formation is wider than the point. A
+  // room too small to hold both is a room where you are noticed, which is
+  // what twenty yards means in a small room.
+  const asleep = citadelPacks(new Set(run.cleared), run.felled)
+    .filter((pack) => pack.warden?.room === id || (pack.key ?? '').startsWith(`room:${id}#`))
+    .map((pack) => ({ at: pack.pos, radius: pack.pulls + marchReach(party.length) }))
   const ground: Corridor = {
-    ...hallFor(
-      id,
-      from,
-      canGoTo,
-      // Its own reach plus the raid's: they are put down at this point and
-      // then walk into formation around it, and the formation is wider than
-      // the point. A room too small to hold both is a room where the boss
-      // notices you, which is what twenty yards means in a small room.
-      boss ? { at: boss.pos, radius: boss.pulls + marchReach(party.length) } : undefined,
-    ),
+    ...hallFor(id, from, canGoTo, asleep),
     id: 'citadel',
     // What is standing in the ground that exists tonight. A pack in a passage
     // that has not been laid is a pack standing on nothing, drawn in the dark
