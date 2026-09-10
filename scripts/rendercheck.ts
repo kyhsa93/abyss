@@ -658,7 +658,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
 // pull, so what it may produce is checked here rather than trusted to the
 // screen that draws it.
 {
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     const start = autoParty(size, pickFor('mage', 'dps')!)
     expect(`a ${size} starts legal`, legalCompose(beginCompose(start)), composeSummary(start))
 
@@ -769,7 +769,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   // press in that area means two different things.
   for (const [w, h] of [[1440, 900], [390, 844], [844, 390], [360, 640]] as const) {
     updateLayout(w, h)
-    for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const size of [5, 10, 25] as number[]) {
       const closed = beginCompose(autoParty(size, pickFor('priest', 'healer')!))
       const open = pressSlot(closed, size - 1)
       for (const c of [closed, open]) drawComposition(stubCtx(), c)
@@ -864,7 +864,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   }
 
   // Role caps hold for every generated roster.
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     const rosters = [autoParty(size, pickFor('mage', 'dps')!)]
     let seed = 7
     const random = () => {
@@ -902,7 +902,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
     return seed / 0x7fffffff
   }
 
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     const combos = new Set<string>()
     let worstTanks = Infinity
     let worstHealers = Infinity
@@ -1976,7 +1976,7 @@ for (const [label, w, h] of [
 // end up with the boss parked on a tank rather than chewing through the back
 // line for the whole fight.
 {
-  for (const size of [5, 25] as RaidSize[]) {
+  for (const size of [5, 25] as number[]) {
     const party = autoParty(size, pickFor('mage', 'dps')!)
     const s = pulled(0x51ed, 3, party)
     const rng = new Rng(0x51ed + 3 * 7919)
@@ -2142,7 +2142,7 @@ for (const [label, w, h] of [
       return seed / 0x7fffffff
     }
     const built: Pick[][] = []
-    for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const size of [5, 10, 25] as number[]) {
       for (const starter of SPEC_OPTIONS) built.push(autoParty(size, starter))
       for (let i = 0; i < 100; i++) built.push(randomParty(size, random))
     }
@@ -2914,7 +2914,7 @@ for (const [label, w, h] of [
   ] as const) {
     updateLayout(w, h)
 
-    for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const size of [5, 10, 25] as number[]) {
       const rects = partyFrames(size)
       expect(`${label} ${size}: one frame each`, rects.length === size, `${rects.length}`)
 
@@ -3702,7 +3702,7 @@ for (const [label, w, h] of [
 
   const illegal: string[] = []
   const misplaced: string[] = []
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     for (const own of SPEC_OPTIONS) {
       for (let trial = 0; trial < 12; trial++) {
         const raid = randomAround(size, own, random)
@@ -3721,7 +3721,7 @@ for (const [label, w, h] of [
   expect('and yours is the one it was built around', misplaced.length === 0, misplaced.slice(0, 3).join('; '))
 
   // Including when what you picked is the role the raid only needs one of.
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     const asTank = randomAround(size, pickFor('warrior', 'tank')!, random)
     const roles = countRoles(asTank)
     expect(
@@ -4940,22 +4940,23 @@ for (const [label, w, h] of [
 
 // --- the chain the raid opens along ----------------------------------------
 //
-// One chain through every setting rather than three locked doors: six rungs
-// per boss in the order the fight gets harder, and the last of one boss opens
+// One chain through every setting rather than locked doors: four rungs per
+// boss in the order the fight gets harder — ten and twenty-five, normal and
+// heroic, which are the sizes the source has — and the last of one boss opens
 // the first of the next. What is open is always a prefix of it, which is why a
 // single number describes it — and why nothing here has to ask "but did they
 // clear the *other* twenty-five man".
 {
   expect(
-    'six rungs a boss, and one chain through all of them',
-    LADDER.length === ENCOUNTERS.length * RUNGS_PER_BOSS && RUNGS_PER_BOSS === 6,
+    'four rungs a boss, and one chain through all of them',
+    LADDER.length === ENCOUNTERS.length * RUNGS_PER_BOSS && RUNGS_PER_BOSS === 4,
     `${LADDER.length} rungs over ${ENCOUNTERS.length} bosses`,
   )
 
   // Every setting the setup screen can offer is somewhere on it, exactly once.
   const seen = new Set<string>()
   for (let i = 0; i < ENCOUNTERS.length; i++) {
-    for (const size of [5, 10, 25] as RaidSize[]) {
+    for (const size of RAID_SIZES) {
       for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
         const at = tierOf(i, size, difficulty)
         expect(
@@ -4984,21 +4985,21 @@ for (const [label, w, h] of [
   // difficulties.
   expect(
     'and it steps size, difficulty, size, difficulty',
-    [0, 1, 2, 3, 4, 5].every((i) => {
+    [0, 1, 2, 3].every((i) => {
       const rung = tierAt(i)
-      return rung.size === ([5, 5, 10, 10, 25, 25] as const)[i] &&
+      return rung.size === ([10, 10, 25, 25] as const)[i] &&
         rung.difficulty === (i % 2 === 0 ? 'normal' : 'heroic')
     }),
-    [0, 1, 2, 3, 4, 5].map((i) => `${tierAt(i).size}${tierAt(i).difficulty[0]}`).join(' '),
+    [0, 1, 2, 3].map((i) => `${tierAt(i).size}${tierAt(i).difficulty[0]}`).join(' '),
   )
 
   // A new save opens exactly one thing.
   const fresh = FIRST_TIER
   expect(
     'a new player has one fight and one setting',
-    isOpen(fresh, 0, 5, 'normal') &&
-      !isOpen(fresh, 0, 5, 'heroic') &&
-      !isOpen(fresh, 0, 10, 'normal') &&
+    isOpen(fresh, 0, 10, 'normal') &&
+      !isOpen(fresh, 0, 10, 'heroic') &&
+      !isOpen(fresh, 0, 25, 'normal') &&
       !bossOpen(fresh, 1),
     'more than the first rung was open',
   )
@@ -5026,11 +5027,15 @@ for (const [label, w, h] of [
       walked.push(`${ENCOUNTERS[rung.encounter]!.short}${rung.size}${rung.difficulty[0]}`)
       open = cleared(open, rung.encounter, rung.size, rung.difficulty)
     }
-    expect('the whole game opens in eighteen kills', open === LADDER.length - 1, `${open}`)
+    expect(
+      `the whole game opens in ${LADDER.length - 1} kills`,
+      open === LADDER.length - 1,
+      `${open}`,
+    )
     expect(
       'and the handovers land where they should',
       walked[RUNGS_PER_BOSS - 1] === `${ENCOUNTERS[0]!.short}25h` &&
-        walked[RUNGS_PER_BOSS] === `${ENCOUNTERS[1]!.short}5n`,
+        walked[RUNGS_PER_BOSS] === `${ENCOUNTERS[1]!.short}10n`,
       walked.join(' '),
     )
   }
@@ -5056,7 +5061,7 @@ for (const [label, w, h] of [
     const unreached = bestOpen(open, ENCOUNTERS.length - 1)
     expect(
       'and a boss not reached at all falls back to the first rung of the game',
-      unreached.encounter === 0 && unreached.size === 5 && unreached.difficulty === 'normal',
+      unreached.encounter === 0 && unreached.size === 10 && unreached.difficulty === 'normal',
       `${unreached.encounter}/${unreached.size}/${unreached.difficulty}`,
     )
   }
@@ -5076,11 +5081,10 @@ for (const [label, w, h] of [
 
     // A fresh save: every press but the one that is already selected refuses.
     const fresh = FIRST_TIER
-    const start = at(0, 5, 'normal')
+    const start = at(0, 10, 'normal')
     expect(
       'a new player cannot press past the first rung',
-      !moved(start, pressSize(fresh, start, 10)) &&
-        !moved(start, pressSize(fresh, start, 25)) &&
+      !moved(start, pressSize(fresh, start, 25)) &&
         !moved(start, pressDifficulty(fresh, start, 'heroic')) &&
         !moved(start, pressBoss(fresh, start, 1)),
       'a locked press moved something',
@@ -5089,19 +5093,19 @@ for (const [label, w, h] of [
     // Stepping up a size lands on its normal even from heroic, because the
     // rung that opens a size *is* that size on normal.
     {
-      const open = tierOf(0, 10, 'normal')
-      const onFiveHeroic = at(0, 5, 'heroic')
-      const stepped = pressSize(open, onFiveHeroic, 10)
+      const open = tierOf(0, 25, 'normal')
+      const onTenHeroic = at(0, 10, 'heroic')
+      const stepped = pressSize(open, onTenHeroic, 25)
       expect(
         'stepping up a size lands on its normal',
-        stepped.size === 10 && stepped.difficulty === 'normal',
+        stepped.size === 25 && stepped.difficulty === 'normal',
         `${stepped.size}/${stepped.difficulty}`,
       )
       // And once its heroic is open too, the difficulty is kept.
-      const later = pressSize(tierOf(0, 10, 'heroic'), onFiveHeroic, 10)
+      const later = pressSize(tierOf(0, 25, 'heroic'), onTenHeroic, 25)
       expect(
         'and keeps heroic once heroic is open there',
-        later.size === 10 && later.difficulty === 'heroic',
+        later.size === 25 && later.difficulty === 'heroic',
         `${later.size}/${later.difficulty}`,
       )
     }
@@ -5109,11 +5113,11 @@ for (const [label, w, h] of [
     // Pressing a boss brings the rows down with it rather than carrying a
     // heroic twenty-five onto a boss only opened at five.
     {
-      const open = tierOf(1, 5, 'normal')
+      const open = tierOf(1, 10, 'normal')
       const carried = pressBoss(open, at(0, 25, 'heroic'), 1)
       expect(
         'a new boss is entered at the rung it was opened on',
-        carried.encounter === 1 && carried.size === 5 && carried.difficulty === 'normal',
+        carried.encounter === 1 && carried.size === 10 && carried.difficulty === 'normal',
         `${carried.encounter}/${carried.size}/${carried.difficulty}`,
       )
       // And a press only brings the rows down when it has to. Going back to a
@@ -5121,10 +5125,10 @@ for (const [label, w, h] of [
       // they are: the two rows are their own controls, and a boss press that
       // silently moved them when it did not need to would be a press with a
       // second effect nobody asked for.
-      const back = pressBoss(open, at(1, 5, 'normal'), 0)
+      const back = pressBoss(open, at(1, 10, 'normal'), 0)
       expect(
         'and an old one keeps the rows it can',
-        back.encounter === 0 && back.size === 5 && back.difficulty === 'normal',
+        back.encounter === 0 && back.size === 10 && back.difficulty === 'normal',
         `${back.encounter}/${back.size}/${back.difficulty}`,
       )
     }
@@ -5138,7 +5142,7 @@ for (const [label, w, h] of [
         settled.encounter === 0 && settled.size === 10 && settled.difficulty === 'normal',
         `${settled.encounter}/${settled.size}/${settled.difficulty}`,
       )
-      const already = at(0, 5, 'normal')
+      const already = at(0, 10, 'normal')
       expect('and leaves an open setting alone', !moved(already, settle(open, already)), 'it moved')
     }
 
@@ -5146,7 +5150,7 @@ for (const [label, w, h] of [
     // the path a player who never touches the setup screen actually takes.
     {
       let open = FIRST_TIER
-      let where = at(0, 5, 'normal')
+      let where = at(0, 10, 'normal')
       const seen: string[] = []
       for (let step = 0; step < LADDER.length; step++) {
         expect(
@@ -5201,15 +5205,15 @@ for (const [label, w, h] of [
   top.outcome = 'victory'
   expect('the last kill has nowhere to go', !canAdvance(top), 'it offered one')
 
-  // The last boss at the *first* setting is not the last kill: five more rungs
-  // of it are left, and the old check said otherwise because a boss was the
-  // only thing that was ever locked.
+  // The last boss at the *first* setting is not the last kill: three more
+  // rungs of it are left, and the old check said otherwise because a boss was
+  // the only thing that was ever locked.
   const lastBossFirstRung = pulled(0x51ed, 0, undefined, 'normal', ENCOUNTERS.length - 1)
   lastBossFirstRung.outcome = 'victory'
-  expect('but its five-man normal has five', canAdvance(lastBossFirstRung), 'it offered none')
+  expect('but its ten-man normal has three', canAdvance(lastBossFirstRung), 'it offered none')
   expect(
     'and says which one',
-    advanceLabel(lastBossFirstRung) === '5-MAN HEROIC',
+    advanceLabel(lastBossFirstRung) === '10-MAN HEROIC',
     advanceLabel(lastBossFirstRung),
   )
 
@@ -7543,7 +7547,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   const day = parseInvite(dailyLink(20260820))
   expect('a daily link comes back as its day', day?.day === 20260820, JSON.stringify(day))
 
-  for (const size of [5, 10, 25] as const) {
+  for (const size of [10, 25] as const) {
     for (const difficulty of ['normal', 'heroic'] as const) {
       const id = ENCOUNTERS[1]!.id
       const back = parseInvite(fightLink(id, size, difficulty))
@@ -8754,7 +8758,7 @@ for (const [label, w, h] of [
       return s
     }
 
-    const small = play(5, 'normal')
+    const small = play(10, 'normal')
     const one = fold({}, small)
     const page = pageFor(one, 0)!
     expect(`${fight.short}: one pull is one pull`, page.pulls === 1, `${page.pulls}`)

@@ -1210,7 +1210,7 @@ export const ENCOUNTERS: Encounter[] = [
     slamDamage: 1050,
     raidDamage: 120,
     mechanicDamage: 0.9,
-    sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
+    sizeMechanic: { 10: 1.0, 25: 1.0 },
     accent: '#e7e5e4',
     names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
     kit: ['coldflame', 'spike', 'bonestorm'],
@@ -1398,7 +1398,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the kill and the twenty-five heroic climbing 50 to 75 between a first
     // pull and a ninth. Taking them further -- 0.85/1.0/0.72 -- puts all six
     // cells at 95 or better, which is the fight being handed over.
-    sizeMechanic: { 5: 0.95, 10: 1.0, 25: 0.82 },
+    sizeMechanic: { 10: 1.0, 25: 0.82 },
     accent: '#38bdf8',
     names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
@@ -1538,7 +1538,7 @@ export const ENCOUNTERS: Encounter[] = [
     //
     // The old row was 1.6/1.45/1.0 and no measurement of it existed: the
     // harness never printed a size table for this boss. See `SHARDS`.
-    sizeMechanic: { 5: 1.25, 10: 1.1, 25: 0.65 },
+    sizeMechanic: { 10: 1.1, 25: 0.65 },
     accent: '#84cc16',
     names: { slam: 'GORGE', shard: '', raid: 'BAD AIR' },
     // The air is the first rung rather than something outside the ladder, and
@@ -1746,7 +1746,7 @@ export const ENCOUNTERS: Encounter[] = [
     // answer all of them while a twenty-five has five. At 1.15 the five-man
     // heroic wiped with the boss at five percent in twelve pulls out of twelve
     // and the ten-man won every pull it played.
-    sizeMechanic: { 5: 0.9, 10: 1.0, 25: 0.8 },
+    sizeMechanic: { 10: 1.0, 25: 0.8 },
     // The gauge is the second rung rather than the first, and the reason is
     // worth writing down because the first draft had it the other way round.
     //
@@ -1896,7 +1896,7 @@ export const ENCOUNTERS: Encounter[] = [
     // walking at whoever made it -- and a five-man answers all of it with one
     // healer and three dealers. Written the other way round the smallest raid
     // won a pull in six while the ten-man won every one of them.
-    sizeMechanic: { 5: 1.15, 10: 1.3, 25: 0.85 },
+    sizeMechanic: { 10: 1.3, 25: 0.85 },
     // The spray is first because it is the only thing here a player has met
     // before, and a fight whose every rung is a new idea is a fight with no
     // way in. Everything above it is the one idea this boss is made of, added
@@ -2055,7 +2055,7 @@ export const ENCOUNTERS: Encounter[] = [
     // somebody, a thing following somebody -- and a five-man answers all of it
     // with one healer. Written at 1.2 the smallest raid wiped in every pull
     // with the boss at a quarter, while the ten-man won every one of them.
-    sizeMechanic: { 5: 0.85, 10: 1.25, 25: 1.0 },
+    sizeMechanic: { 10: 1.25, 25: 1.0 },
     // The order is the argument. The pool is first because it is the only
     // familiar thing here; the hound second, because the fight's idea needs
     // something to be followed before it can put a circle on it; the gathering
@@ -2220,7 +2220,7 @@ export const ENCOUNTERS: Encounter[] = [
     // fifth of its damage to the same walk a twenty-five man loses a
     // twenty-fifth of -- and then has one healer to answer everything the walk
     // did not stop. At the usual weights the smallest raid won one pull in ten.
-    sizeMechanic: { 5: 0.55, 10: 0.75, 25: 0.95 },
+    sizeMechanic: { 10: 0.75, 25: 0.95 },
     // The crown is first because without it there is no fight here, only three
     // statues; the thirst second because it is what makes the other two
     // bodies places rather than scenery. Then the ballast, which is the first
@@ -2337,7 +2337,7 @@ export const ENCOUNTERS: Encounter[] = [
     // is the same demand three times, and the healers cannot tell them apart.
     raidDamage: 70,
     mechanicDamage: 0.7,
-    sizeMechanic: { 5: 1.25, 10: 1.0, 25: 0.85 },
+    sizeMechanic: { 10: 1.0, 25: 0.85 },
     // The gift first, because nothing else here means anything without it. The
     // bond second, because it is what makes the gift a decision rather than a
     // walk: one says go and find somebody clean, the other says do not leave

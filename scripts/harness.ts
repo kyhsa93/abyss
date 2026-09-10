@@ -273,7 +273,7 @@ if (want('size:0:5:normal')) console.log(
     `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       if (!want(`size:${i}:${size}:${difficulty}`)) continue
       const party = autoParty(size, dps('mage'))

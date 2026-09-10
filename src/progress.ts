@@ -30,17 +30,17 @@ export interface Tier {
 }
 
 /**
- * The six settings of one boss, hardest last.
+ * The four settings of one boss, hardest last.
  *
  * Size before difficulty at each step rather than all the sizes and then all
  * the difficulties, because that is the order they actually get harder in:
  * heroic at one size is measured below normal at the next in every cell of the
- * harness table, and a chain that ran 5N-10N-25N-5H would ask a raid to go
- * back down to five to carry on.
+ * harness table, and a chain that ran 10N-25N-10H would ask a raid to go back
+ * down to ten to carry on.
+ *
+ * Four rather than six since the five-man went away — see `RaidSize`.
  */
 const RUNGS: ReadonlyArray<{ size: RaidSize; difficulty: DifficultyId }> = [
-  { size: 5, difficulty: 'normal' },
-  { size: 5, difficulty: 'heroic' },
   { size: 10, difficulty: 'normal' },
   { size: 10, difficulty: 'heroic' },
   { size: 25, difficulty: 'normal' },

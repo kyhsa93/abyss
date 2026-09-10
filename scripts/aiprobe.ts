@@ -22,9 +22,10 @@ import type { Actor, PlayerInput, SimState } from '../src/sim/types'
  * classes out, and a class left out is a class this cannot say anything about.
  */
 function everyone(size: RaidSize): Pick[] {
-  // The five-man the harness reads its per-member columns off, so the two can
-  // be compared. Anything wider gets one of everything instead.
-  if (size === 5) return DEFAULT_PARTY
+  // The five the harness reads its per-member columns off, so the two can be
+  // compared — a battleground team's size, since the raid's smallest is ten.
+  // Anything wider gets one of everything instead.
+  if (size <= 5) return DEFAULT_PARTY
   const party: Pick[] = [
     pickFor('warrior', 'tank')!,
     pickFor('paladin', 'tank')!,

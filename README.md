@@ -178,12 +178,12 @@ row of specs on every screen, twenty-five pixels into them on a desktop. Every
 check passed at the time: the layout checks compare rectangles, and text is not
 a rectangle. They read the drawn labels now.
 
-On the raid screen: a size (5, 10 or 25) and a difficulty — from what you have
-opened, which starts at five on normal and grows one setting per kill along
-[the chain](#the-chain). Both apply to the whole evening. The chain still gates
-the rooms one at a time, so an evening walked at a rung you have only just
-opened reaches the first room and finds the next one shut: the citadel is
-somewhere to walk the ladder through, not a way round it. Then the class
+On the raid screen: a size (10 or 25, which are the sizes the source has) and a
+difficulty — from what you have opened, which starts at ten on normal and grows
+one setting per kill along [the chain](#the-chain). Both apply to the whole
+evening. The chain still gates the rooms one at a time, so an evening walked at
+a rung you have only just opened reaches the first room and finds the next one
+shut: the citadel is somewhere to walk the chain through, not a way round it. Then the class
 screen asks what you are playing. That last one is the only pick you make, and
 the screen shows nothing else — you show up to a raid, you do not build one,
 and a board of twenty-four strangers you did not choose and cannot change is a
@@ -197,8 +197,8 @@ everything else to chance: which classes fill them and where they stand.
 Drawing freely would leave you without a tank about half the time, since only
 one class in eight tanks, and a pull that cannot be won is a penalty rather
 than a surprise. Your own role comes out of the counts the raid needed anyway,
-so taking the tank spot in a five-man means the raid rolls one fewer tank
-rather than fielding two. Your pick is remembered between visits, so a return
+so taking the tank spot means the raid rolls one fewer tank rather than
+fielding an extra. Your pick is remembered between visits, so a return
 trip is one tap.
 
 **Colour is the class, the glyph is the role.** Every class has its own colour
@@ -635,17 +635,18 @@ third tank or a fourth healer cannot be selected on the party screen at all —
 the entry is drawn locked — and a roster saved before the caps existed falls
 back to the default instead of loading.
 
-**A five-man is exact rather than capped: one tank, one healer, three
-damage.** There is no arrangement of five slots that plays, so picking a role
-there is read as a trade — tap a tank into your own slot and the slot that was
-tanking takes the one you gave up. Refusing it instead would freeze the
-composition, since a fixed shape has no legal intermediate state to pass
-through and the player could never move off the role they started on.
+**A battleground team of five is exact rather than capped: one tank, one
+healer, three damage.** There is no arrangement of five slots that plays, so
+picking a role there is read as a trade — tap a tank into your own slot and the
+slot that was tanking takes the one you gave up. Refusing it instead would
+freeze the composition, since a fixed shape has no legal intermediate state to
+pass through and the player could never move off the role they started on.
 
-So a twenty-five man is mostly damage, and it works out because the extra
-damage shortens the fight rather than adding survival — 25-player normal ends
-up at the same four ninth pulls in five as a five-man does, having won almost
-none of its first ones.
+The raid comes in ten and twenty-five, which are the sizes the source has.
+There was a five-man of it here and there is not now: the day the settings
+stopped hiding mechanics, a party of five met the whole of the second boss and
+the fourth, and neither can be answered by one tank and one healer. It won
+nought pulls in forty at both.
 
 Mechanics scale with headcount, in three ways.
 
@@ -657,69 +658,64 @@ than banded now, and floored at one rather than two: three thralls against ten
 and five against twenty-five is not the same ask, and neither is two against
 five.
 
-**And the *number* of them scales**, which is the ladder below.
+**And that is the whole of it.** Which mechanics a boss throws is not a dial:
+every setting meets the whole fight.
 
 Boss health is not linear with headcount either: larger groups lose
 proportionally more time to mechanics, so a flat multiple per player would
 again make 25 the soft option.
 
-**Both axes buy a rung of the boss's ladder.** A boss owns more mechanics than
-any one raid meets: which of them turn up tonight is decided by how many of
-you came and which button you ticked at the door. A five-man on normal meets
-two, and every step up the size or across to heroic buys one more, to five for
-a heroic twenty-five. See [The bosses](#the-bosses) for the ladders themselves.
+**Every setting meets the whole boss.** This used to be a ladder: a boss owned
+more mechanics than any one raid met, and which turned up was decided by how
+many of you came and which button you ticked at the door. The source does not
+work that way, and its own scripts say so — they schedule every ability an
+encounter has whatever the setting, and what a setting changes is the numbers:
+how many people a spell picks (`RAID_MODE(3, 8, 3, 8)`), which rank of it
+lands, how long before the berserk (`IsHeroic() ? 360s : 480s`). Nobody there
+meets a smaller fight, only a gentler one. So nobody here does either.
 
 Heroic used to be boss health and nothing else — the difficulty button
 literally said *more health, same mechanics* — and the honest description of
 it was "the same fight for longer". Tuning it that way had revealed that fight
 length *is* a difficulty here: time spent dodging is damage not dealt, which
 lengthens the fight, which brings round more mechanics and drains more healer
-mana. That is still true and heroic still carries a health multiplier. What it
-cannot do is ask for something the normal fight never asked for, and a rung
-can.
+mana. That is still true, and heroic now carries what it carries in the
+source: harder numbers rather than more ideas.
 
-**A short kit is paid back as tempo.** Two mechanics on the boss's own cadence
-is not an easier fight, it is a quieter one: measured, a five-man normal pull
-went from winning a fifth of its first pulls to winning all of them,
-and the pulls were shorter and emptier rather than gentler. So the rungs a
-raid did not buy come back as speed — a kit of two runs at about five-eighths
-of the table's interval, and by the full five it is on the table's own
-numbers. The pressure still rises with the rungs, because five mechanics at
-full cadence ask for more per second than two at five-eighths *and* they ask
-for five different things.
+**A narrow kit is paid back as tempo.** A boss with three ideas throwing them
+on the same intervals as a boss with seven is not an easier fight, it is a
+quieter one: measured, a normal pull of a three-idea boss went from winning a
+fifth of its first pulls to winning all of them, and the pulls were shorter
+and emptier rather than gentler. So a short kit runs closer together — three
+ideas at about five-eighths of the table's interval, and by six it is on the
+table's own numbers. That is a fact about the boss rather than about the
+progression.
 
-Every attempt to raise heroic's damage or mechanic frequency on top of that
-took the win rate from 80% to 0% with nothing in between — survival turns out
-to be a cliff, not a slope. It holds until healing throughput is exceeded,
-then collapses. The rung is the lever that does not behave that way, because
-what it costs is attention rather than health.
+Every attempt to raise heroic's damage or mechanic frequency took the win rate
+from 80% to 0% with nothing in between — survival turns out to be a cliff, not
+a slope. It holds until healing throughput is exceeded, then collapses.
 
-Measured against the Last Whisper, a balanced roster at each size, forty pulls
-a cell:
+Measured against the Last Whisper while the settings still sold mechanics one
+at a time, forty pulls a cell — the shape of the thing that is gone:
 
 | | 1st pull | 9th pull | kit |
 | --- | --- | --- | --- |
-| 5-player normal | 98% | 98% | thralls, the volley, the rotting ground, the shard |
-| 5-player heroic | 63% | 60% | + the shade |
 | 10-player normal | 98% | 98% | thralls, the volley, the rotting ground, the shard, the shade |
 | 10-player heroic | 88% | 98% | + the slight, the empowered |
-| 25-player normal | 100% | 100% | thralls, the volley, the rotting ground, the shard, the shade, the slight, the empowered |
+| 25-player normal | 100% | 100% | + nothing; more of you |
 | 25-player heroic | 5% | 38% | + the turned |
 
-**Heroic never wins more than normal at the same size, and wins clearly less
-by the ninth pull, in all nine boss-and-size cells.** That is the thing the
-rung was added to make true — it used to hold on some of them and be a coin
-flip on the rest, because more health is not more difficulty when the party
-had health to spare. The harness prints the kit beside every row, so a
-difficulty that stopped costing anything would show up as two rows asking for
-the same list.
+Every one of those cells now throws all eight.
 
-The cells that sit at the edges are the ones where a ladder is bought whole. A
-heroic twenty-five man is the only setting that reaches a boss's last rung, so
-it is the only place every demand a fight owns arrives at once — and the last
-rung is, by construction, the one the fight was least able to afford anywhere
-else. Those cells are meant to be the hardest thing in the game and they are
-left there.
+**Heroic never wins more than normal at the same size, and wins clearly less
+by the ninth pull.** More health on its own was not enough to make that true —
+it held on some cells and was a coin flip on the rest, because more health is
+not more difficulty when the party had health to spare. What carries it now is
+what carries it in the source: harder numbers on the same fight.
+
+The hardest cell is the heroic twenty-five, and it is meant to be. Every
+setting meets every demand a fight owns; the widest one meets them with the
+most bodies in the way of each other and the numbers turned up.
 
 ## Today's run
 
@@ -1840,17 +1836,12 @@ containment down each column holds: heroic asks for everything normal did and
 one thing more, and so does each size against the one below it. Both are
 asserted rather than eyeballed.
 
-Two of the eight ladders are longer than any raid climbs, which is the point of
-a ladder rather than a list. The Whisper sells seven and a heroic twenty-five
-reaches all of them; a five-man on normal meets three and never learns what the
-fight is called after that.
-
-The Bonegrinder is the exception and it is deliberate: three rungs, and every
-size and difficulty buys all three. It is the first fight, and a first fight
-that shows a five-man two thirds of itself is a first fight that teaches two
-thirds of what the game is. What size and difficulty change there is how hard
-it hits and how often, which is the other half of the pair and the half a
-player meets before they have a vocabulary to meet the first with.
+The kits differ in length — the Whisper owns eight, the Bonegrinder three —
+and every setting of every one of them throws the whole thing. It was a ladder
+once, with the smaller settings meeting a prefix of it, and the source's own
+scripts are the argument against: they schedule every ability an encounter has
+at every setting. What size and difficulty change is how hard it hits and how
+often.
 
 The wave is *carried* rather than sold, which is the one entry above that is
 not a rung. It is not one of the Whisper's ideas; it is the thing one of its

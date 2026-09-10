@@ -1572,7 +1572,7 @@ expect(
 // loop, and that is half of the fix — the branch that broke this was in a file
 // no check imports.
 {
-  const start = startRun(4242, 5, 'normal')
+  const start = startRun(4242, 10, 'normal')
   const fresh = { ...start, at: 'spire', cleared: ['spire'], visited: ['threshold', 'spire'] }
   // The way out of the first fight is the ledge around its cliff, and the
   // second fight is the far end of that.
@@ -1709,7 +1709,7 @@ expect(
     'four settings are four separate instances',
     instanceAt(10, 'normal', monday)?.cleared.join() === 'spire' &&
       instanceAt(25, 'heroic', monday)?.cleared.length === 0 &&
-      instanceAt(5, 'normal', monday) === null,
+      instanceAt(25, 'normal', monday) === null,
     instances(monday).map((r) => `${r.size}${r.difficulty[0]}:${r.cleared.length}`).join(', '),
   )
 

@@ -408,7 +408,7 @@ function apply(next: Setting): void {
 }
 
 /** Keeps the player's own pick and rolls the rest around the new size. */
-function resize(size: RaidSize): void {
+function resize(size: number): void {
   party = randomAround(size, party[0] ?? DEFAULT_PARTY[0]!, Math.random)
   saveSetup()
 }

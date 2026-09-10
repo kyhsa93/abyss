@@ -47,7 +47,9 @@ export function parseInvite(hash: string): Invite | null {
     if (key === 'b' && ENCOUNTERS.some((e) => e.id === value)) invite.boss = value
     if (key === 's') {
       const size = Number.parseInt(value, 10)
-      if (size === 5 || size === 10 || size === 25) invite.size = size
+      // An invite written at five is from before the five-man went away.
+      if (size === 10 || size === 25) invite.size = size
+      if (size === 5) invite.size = 10
     }
     if (key === 'h') invite.difficulty = value === '1' ? 'heroic' : 'normal'
   }

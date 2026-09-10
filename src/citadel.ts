@@ -454,7 +454,10 @@ function readRun(parsed: unknown): Run | null {
     const visited = Array.isArray(value.visited)
       ? value.visited.filter((id): id is string => typeof id === 'string' && chamberAt(id) !== undefined)
       : []
-    const size = value.size === 5 || value.size === 10 || value.size === 25 ? value.size : 10
+    // A run saved at five is a run from before the five-man went away — see
+    // `RaidSize`. It becomes the smallest raid there is rather than being
+    // thrown away, because what it is worth keeping for is what it killed.
+    const size = value.size === 10 || value.size === 25 ? value.size : 10
     const difficulty = value.difficulty === 'heroic' ? 'heroic' : 'normal'
     const run: Run = {
       seed: value.seed,

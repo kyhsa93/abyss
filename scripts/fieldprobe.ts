@@ -15,7 +15,7 @@ import type { Encounter, MechanicId, PhaseTiming } from '../src/sim/encounters'
 import { createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
-import { autoParty, pickFor, type RaidSize } from '../src/sim/classes'
+import { autoParty, pickFor } from '../src/sim/classes'
 
 const RUNS = Number(process.argv[2] ?? 120)
 const host = ENCOUNTERS[0]!
@@ -29,7 +29,7 @@ function donorOf(mech: MechanicId): Encounter | null {
   return ENCOUNTERS.find((e) => (e.phases[1]![mech] ?? 0) > 0) ?? null
 }
 
-function pull(seed: number, attempt: number, size: RaidSize, mech: MechanicId): number {
+function pull(seed: number, attempt: number, size: number, mech: MechanicId): number {
   const s = unattended(createState(seed, attempt, autoParty(size, pickFor('mage', 'dps')!), 'heroic', 0))
   s.only = mech
   s.countdown = 0
@@ -62,7 +62,7 @@ for (const mech of MECHANIC_IDS) {
   host.kit = [mech, ...baseLadder.filter((m) => m !== mech)]
 
   const cells: string[] = []
-  for (const size of [5, 10, 25] as RaidSize[]) {
+  for (const size of [5, 10, 25] as number[]) {
     const diffs: number[] = []
     let green = 0
     let vet = 0

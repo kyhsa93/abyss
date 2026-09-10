@@ -8,6 +8,7 @@ import { createTravelState, type Corridor } from './travel'
 import {
   CLASSES,
   DEFAULT_PARTY,
+  DEFAULT_RAID,
   RESOURCES,
   DIFFICULTIES,
   makeSlots,
@@ -165,7 +166,7 @@ export function heraldHealth(fight: Encounter, scale: number): number {
 export function createState(
   seed: number,
   attempt: number,
-  party: Pick[] = DEFAULT_PARTY,
+  party: Pick[] = DEFAULT_RAID,
   difficulty: DifficultyId = 'normal',
   encounter: number = FIRST_ENCOUNTER,
   affix: AffixId | null = null,

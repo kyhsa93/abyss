@@ -1014,7 +1014,6 @@ export function sizeScale(s: SimState): number {
   const table = encounterAt(s.encounter).sizeMechanic
   if (!table) return 1
   const count = s.party.length
-  if (count <= 5) return table[5] ?? 1
   if (count <= 10) return table[10] ?? 1
   return table[25] ?? 1
 }

@@ -854,8 +854,21 @@ export function specLabel(pick: Pick): string {
   return `${cls.name} ${suffix}`
 }
 
-export type RaidSize = 5 | 10 | 25
-export const RAID_SIZES: RaidSize[] = [5, 10, 25]
+/**
+ * The sizes a raid comes in, which are the source's own.
+ *
+ * Ten and twenty-five. There is no five-man version of the raid this is taken
+ * from and there is no five-man version here either — it was this game's own
+ * invention, and it stopped working the day the settings stopped hiding
+ * mechanics: a party of five meets the whole of the second boss and the
+ * fourth, and neither can be answered by one tank and one healer. Measured, it
+ * won nought pulls in forty at both.
+ *
+ * Five is still a number this game uses. It is the size of a battleground
+ * team, and `PARTY_UNIT` — the block a raid is built out of.
+ */
+export type RaidSize = 10 | 25
+export const RAID_SIZES: RaidSize[] = [10, 25]
 
 /** A raid is built from parties of five: 10 is two, 25 is five. */
 export const PARTY_UNIT = 5
@@ -1091,13 +1104,13 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
  * re-measuring.
  */
 export const SIZE_HEALTH: Record<RaidSize, number> = {
-  5: 1,
   10: 2.2,
   25: 6.7,
 }
 
 export function sizeHealth(count: number): number {
-  if (count <= 5) return SIZE_HEALTH[5]
+  // A battleground team is five and never fights a boss, so anything under a
+  // raid reads as the smallest raid there is.
   if (count <= 10) return SIZE_HEALTH[10]
   return SIZE_HEALTH[25]
 }
@@ -1125,7 +1138,7 @@ const PERSONALITIES: Personality[] = ['steady', 'timid', 'greedy']
  * Names and temperaments belong to the slot rather than the class put in it,
  * so swapping a mage for a rogue does not also swap who is reckless.
  */
-export function makeSlots(size: RaidSize): Slot[] {
+export function makeSlots(size: number): Slot[] {
   const slots: Slot[] = []
   const parties = partyCount(size)
 
@@ -1162,7 +1175,7 @@ export function makeSlots(size: RaidSize): Slot[] {
 }
 
 /** A balanced composition for a given size: tanks, then healers, then damage. */
-function roleTargets(size: RaidSize): { tanks: number; healers: number } {
+function roleTargets(size: number): { tanks: number; healers: number } {
   // A bigger raid gets more damage than support, but not none: five and ten
   // both run one healer per five bodies, and twenty-five ran one per eight.
   //
@@ -1179,9 +1192,11 @@ function roleTargets(size: RaidSize): { tanks: number; healers: number } {
   // the edge of what it can cover. Three healers waste 7%, four waste 10%,
   // five waste 14% — five is where the role stops having to choose. The
   // biggest raid is allowed to be the tightest one.
+  // A battleground's five is not a raid and has no boss to hold, so it takes
+  // the one-tank-one-healer shape a five ever had.
   return {
-    tanks: size === 5 ? 1 : 2,
-    healers: size === 5 ? 1 : size === 10 ? 2 : 4,
+    tanks: size < 10 ? 1 : 2,
+    healers: size < 10 ? 1 : size <= 10 ? 2 : 4,
   }
 }
 
@@ -1219,7 +1234,7 @@ const POOLS: Record<Role, Pick[]> = {
   ],
 }
 
-export function autoParty(size: RaidSize, player: Pick): Pick[] {
+export function autoParty(size: number, player: Pick): Pick[] {
   const { tanks, healers } = roleTargets(size)
   const party: Pick[] = [player]
 
@@ -1235,6 +1250,19 @@ export function autoParty(size: RaidSize, player: Pick): Pick[] {
   }
   return party
 }
+
+/**
+ * The raid a pull gets when nobody says otherwise.
+ *
+ * Ten, because ten is the smallest raid there is — see `RaidSize`. It used to
+ * be `DEFAULT_PARTY`, which is five, and five stopped being a raid when the
+ * five-man went away: a fight built from it asks the progression for a setting
+ * that does not exist, and what comes back is "no such rung".
+ *
+ * `DEFAULT_PARTY` is still the default *team*, which is what a battleground
+ * fields.
+ */
+export const DEFAULT_RAID: Pick[] = autoParty(10, pickFor('mage', 'dps')!)
 
 export const DEFAULT_PARTY: Pick[] = [
   pickFor('mage', 'dps')!,
@@ -1295,7 +1323,7 @@ export function abilityBar(pick: Pick): string[] {
  * that already needs one tank does not end up with two because the player
  * wanted to be it.
  */
-export function randomAround(size: RaidSize, player: Pick, random: () => number): Pick[] {
+export function randomAround(size: number, player: Pick, random: () => number): Pick[] {
   const { tanks, healers } = roleTargets(size)
 
   const roles: Role[] = []
@@ -1322,7 +1350,7 @@ export function randomAround(size: RaidSize, player: Pick, random: () => number)
   ]
 }
 
-export function randomParty(size: RaidSize, random: () => number): Pick[] {
+export function randomParty(size: number, random: () => number): Pick[] {
   const { tanks, healers } = roleTargets(size)
 
   const roles: Role[] = []
