@@ -283,21 +283,18 @@ export interface ClassDef {
   name: string
   armorType: ArmorType
   /**
-   * Units a second, and the number is anchored rather than chosen.
+   * Units a second, and the number is the source's ratio rather than a taste.
    *
-   * The anchor is the source, measured in the one unit both games have: a
-   * body's own width. A character in the raid this comes from is about nine
-   * tenths of a yard across and runs seven yards a second, so it covers a
-   * little under eight of itself every second. A body here is thirty-four
-   * units across, which makes eight of itself two hundred and sixty-five.
+   * A character in the source runs seven yards a second — `baseMoveSpeed`
+   * `MOVE_RUN` in TrinityCore — and is 0.778 yards across, its own collision
+   * radius doubled. So it covers nine of itself every second, and nine of
+   * eighteen units is a hundred and sixty-two.
    *
-   * It was a hundred and fifty-five to a hundred and seventy-five — four and
-   * three quarters of itself a second, five eighths of the source's — and that
-   * is where "the map is too wide" came from. It was not the map: the rooms
-   * are less than half the size of the source's measured the same way, forty-
-   * eight body widths across the second fight's chamber against a hundred and
-   * twenty-seven for the room it is drawn from. What was wrong was how long
-   * they took to cross.
+   * It was a hundred and twenty-nine to a hundred and forty-six, which was the
+   * same seven yards a second read against a body nine tenths of a yard wide:
+   * a picture of a character rather than the collision the source actually
+   * uses. Twenty-two per cent slow, in the one thing a player feels
+   * continuously.
    *
    * The spread between classes is kept — the same five per cent either side of
    * the middle it always had — because that is a fact about the classes and
@@ -394,7 +391,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'warrior',
     name: 'Warrior',
     armorType: 'plate',
-    moveSpeed: 129,
+    moveSpeed: 158,
     specs: [
       {
         id: 'protection',
@@ -441,7 +438,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'paladin',
     name: 'Paladin',
     armorType: 'plate',
-    moveSpeed: 129,
+    moveSpeed: 158,
     specs: [
       {
         id: 'protection',
@@ -506,7 +503,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'priest',
     name: 'Priest',
     armorType: 'cloth',
-    moveSpeed: 129,
+    moveSpeed: 158,
     specs: [
       {
         id: 'discipline',
@@ -551,7 +548,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'druid',
     name: 'Druid',
     armorType: 'leather',
-    moveSpeed: 137,
+    moveSpeed: 167,
     specs: [
       {
         id: 'guardian',
@@ -640,7 +637,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'shaman',
     name: 'Shaman',
     armorType: 'mail',
-    moveSpeed: 137,
+    moveSpeed: 167,
     specs: [
       {
         id: 'restoration',
@@ -685,7 +682,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'mage',
     name: 'Mage',
     armorType: 'cloth',
-    moveSpeed: 137,
+    moveSpeed: 167,
     specs: [
       {
         id: 'frost',
@@ -712,7 +709,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'warlock',
     name: 'Warlock',
     armorType: 'cloth',
-    moveSpeed: 129,
+    moveSpeed: 158,
     specs: [
       {
         id: 'destruction',
@@ -745,7 +742,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'hunter',
     name: 'Hunter',
     armorType: 'mail',
-    moveSpeed: 142,
+    moveSpeed: 173,
     specs: [
       {
         id: 'marksmanship',
@@ -773,7 +770,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     id: 'rogue',
     name: 'Rogue',
     armorType: 'leather',
-    moveSpeed: 146,
+    moveSpeed: 178,
     specs: [
       {
         id: 'assassination',

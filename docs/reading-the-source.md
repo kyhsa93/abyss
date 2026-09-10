@@ -137,6 +137,46 @@ he stands on**. Which is where a ramp round the outside of a bowl has to
 start: at the ends of the cliff's edge. `RING_LEAN` in `dungeon.ts` is the
 average of those two angles and nothing else.
 
+### The ratios: a body, a boss, a pace, a reach
+
+The unit in this game is a body, and what a body is worth is now the source's
+own collision rather than the width of a picture of one.
+
+| | source | where |
+| --- | --- | --- |
+| a body across | 0.778 yards | `DEFAULT_PLAYER_BOUNDING_RADIUS` 0.389, doubled |
+| a body's run | 7.0 yards a second | `baseMoveSpeed[MOVE_RUN]` |
+| melee's floor | 5.0 yards | `NOMINAL_MELEE_RANGE` |
+| the first boss across | 9.0 yards | `creature_model_info` 31119, bounding radius 4.5 |
+| the first boss's run | 8.5 yards a second | `creature_template` 36612, `speed_run` 1.21429 |
+
+All four of the first three are in TrinityCore's headers; the boss's two are
+rows in AzerothCore's world database.
+
+In ratios, which is what the game actually holds: a body covers **nine of
+itself a second**, melee reaches **six and a half bodies** past what it is
+hitting, and the boss is **eleven and a half bodies** across. The yardstick
+used to hang on a body 0.95 yards wide, off the model rather than the
+collision, and every one of those ratios was a fifth short — which is most of
+what "the map is too big" was. The map did not change; the pace did.
+
+### The lower spire, from the instance's own coordinates
+
+| | world x | yards from the way in |
+| --- | --- | --- |
+| the way in | 76.9 | 0 |
+| the great hall, middle of its spawns | -62 | 139 |
+| the first boss | -401.4 | 478 |
+| the second fight's room, middle of its boundary | -595 | 672 |
+
+The hall is a hundred and thirty yards wide by a hundred and twenty-five long
+— every creature the instance places in it stands between x -125 and x 0 and
+between y 2153 and y 2283 — and the walk from it to the first fight is two
+hundred and ten yards of corridor, which is the stretch the raid fights its
+way down.
+
+Built at `BUILD_SCALE`, that is the lower spire this game has.
+
 ### One thing the data and the picture disagree about
 
 Size. The boundary circle is ninety-five yards and the doors either side of
@@ -148,12 +188,19 @@ again in the distance between rooms: the source puts the first two fights a
 hundred and sixty-seven yards apart and this game's plan had two hundred and
 sixty-five.
 
-Nothing here has been rescaled on the strength of that, because the building
-is deliberately built at `BUILD_SCALE` of what it measures and the direction
-of the disagreement is "the source is bigger" — which is the direction this
-game has just spent a round moving away from. What is worth doing with it is
-what has been done: the *shape* is taken from the data, which is exact, and
-the *size* stays where the game wants it.
+It resolves itself, and pleasantly. The rooms this game already had are close
+to half the source's when both are measured in bodies — so taking the source's
+own figures and building them at `BUILD_SCALE` lands almost exactly where the
+rooms already stood: the first fight's floor comes out 1099 units against the
+1103 it was, and the great hall 1504 against 1516. The map tile's yardage was
+wrong and the game's rooms were not.
+
+What is still the map tile's reading, and still to be re-taken: every room
+above the first fight. Their numbers are in `dungeoncheck`'s size table,
+marked. The next one is the second fight's — its boss's boundary is a hundred
+and thirty-five by a hundred and fifty against the ninety-five square it is
+built at — and moving it means re-laying the ten rocks and four doors that
+`rendercheck` measures against its walls.
 
 ## What was built from this, and what was not
 

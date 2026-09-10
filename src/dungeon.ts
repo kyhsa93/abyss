@@ -155,13 +155,17 @@ export const CHAMBERS: Chamber[] = [
     // fight's chamber no wider than it is. Two bays with a stair between them
     // in the source; one room here, because a stair is a thing this game has
     // no way to be on.
-    // A hundred and sixty yards wide by a hundred and eighty-seven long. The
-    // width is the source's own: the trigger that fires when a raid walks into
-    // this hall is a box a hundred and sixty yards across the way in, and a
-    // trigger laid over a doorless hall is laid to its walls — the plan agrees
-    // to within two yards. It was a hundred and twenty-six, sized by eye off
-    // that plan before the sheet had a scale on it.
-    room: { kind: 'hall', halfWidth: 1516, front: 1772, back: 1771 },
+    // A hundred and thirty yards wide by a hundred and twenty-five long, at
+    // `BUILD_SCALE` like everything else that is only crossed.
+    //
+    // Off the source's own spawns rather than off a picture of the floor. Every
+    // creature the instance places in this hall stands between x -125 and x 0
+    // and between y 2153 and y 2283 (AzerothCore's `creature` table, map 631),
+    // and a hall's furniture is laid to its walls. The map tile said a hundred
+    // and sixty by a hundred and eighty-seven, which is the same sheet whose
+    // scale the source's own coordinates disagree with by about half again —
+    // see `docs/reading-the-source.md`.
+    room: { kind: 'hall', halfWidth: 1504, front: 1446, back: 1446 },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   // The way out of the first fight, and there are two of them because the
@@ -197,7 +201,7 @@ export const CHAMBERS: Chamber[] = [
     name: 'The East Climb',
     wing: 'lower',
     encounter: null,
-    room: { kind: 'hall', halfWidth: 180, front: 500, back: 1300 },
+    room: { kind: 'hall', halfWidth: 220, front: 578, back: 1620 },
     pad: killed('spire'),
   },
   {
@@ -205,7 +209,7 @@ export const CHAMBERS: Chamber[] = [
     name: 'The West Climb',
     wing: 'lower',
     encounter: null,
-    room: { kind: 'hall', halfWidth: 180, front: 500, back: 1300 },
+    room: { kind: 'hall', halfWidth: 220, front: 578, back: 1620 },
     pad: killed('spire'),
   },
   {
@@ -650,11 +654,23 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   // numbers here that are chosen. The two teleporters are the same case.
   //
   // The lower spire, straight up the left: the entrance, the great hall, the
-  // first fight, the second. All four sit on one line at y 2212 in the source,
-  // so these are differences in world x and nothing else.
+  // first fight, the second. All four sit on one line at y 2211 in the source,
+  // so these are differences in world x and nothing else — and the x's are the
+  // instance's own, not a reading of a picture:
+  //
+  //   the way in            76.9   `areatrigger_teleport`, the entrance
+  //   the great hall       -62     the middle of its spawns
+  //   the first boss      -401.4   Lord Marrowgar's spawn
+  //   the second        -595       the middle of its boss's boundary
+  //
+  // Which makes the walk in a hundred and thirty-nine yards, the walk from the
+  // hall to the first fight three hundred and thirty-nine, and the first fight
+  // to the second a hundred and ninety-four. The plan is bearings now, so what
+  // these still decide is the order and the line; the distances come out of
+  // the rooms and the ground between them.
   { id: 'threshold', x: 0, y: 0 },
-  { id: 'vigil', x: 0, y: 292 },
-  { id: 'spire', x: 0, y: 420 },
+  { id: 'vigil', x: 0, y: 139 },
+  { id: 'spire', x: 0, y: 478 },
   // Due east of the first fight's room and barely past it, which is the
   // bearing the walkway leaves on. Its distance, like every other, is the two
   // rooms and the ground between them — the number here is only which way
@@ -669,7 +685,7 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   // a number with a check either side of it rather than a preference.
   { id: 'eastclimb', x: 100, y: 430 },
   { id: 'westclimb', x: -100, y: 430 },
-  { id: 'oratory', x: 0, y: 685 },
+  { id: 'oratory', x: 0, y: 672 },
 
   // Then the turn along the bottom and up. The gunship is 162 yards from the
   // Oratory in the source and directly over it in height; the Rise is over the
@@ -1015,17 +1031,23 @@ const PASSAGE_HALF = 220
 const RING_GAP = 120
 
 /**
- * How far round toward the floor the mouth of a climb sits.
+ * How far round toward the floor the mouth of a climb sits, measured from the
+ * middle of the bowl.
  *
  * Measured, not chosen. The instance's own data puts its two ice walls — the
- * things that hold these ways shut — at (-407.3, 2147.9) and (-413.0, 2285.2)
- * against a boss standing at (-401.4, 2211.1): sixty-three and seventy-four
- * yards out on the two flanks, and six and twelve yards behind the line the
- * boss stands on. That is four to nine degrees round from square, toward the
- * ice rather than away from it, and the average of the two is this.
- * See `docs/reading-the-source.md`.
+ * things that hold these ways shut — at (-407.3, 2147.9) and (-413.0, 2285.2),
+ * and the middle of the bowl they are cut into at (-428, 2211). So they stand
+ * sixty-three and seventy-four yards out on the two flanks and twenty-three
+ * and seventeen yards round toward the floor: twenty and thirteen degrees, of
+ * which this is the average.
+ *
+ * From the middle of the bowl and not from the boss, which is the mistake
+ * worth leaving a note about — the boss stands twenty-nine yards in front of
+ * that middle, so the same two walls read as nine degrees the *other* way
+ * against him, and a mouth placed round toward the ice drags the ground behind
+ * it across the lip of the cliff. The build caught it; the arithmetic did not.
  */
-const RING_LEAN = -0.11
+const RING_LEAN = 0.29
 
 /**
  * The walkway around the first fight's bowl, as bearings off the bowl itself.

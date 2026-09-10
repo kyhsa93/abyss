@@ -145,6 +145,7 @@ import {
   SHOT_MIN_RANGE,
   SPELL_RANGE,
   MELEE_CALL,
+  PARTY_RADIUS,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -9369,9 +9370,16 @@ for (const [label, w, h] of [
     }
   }
   expect(`${waves} beast(s) walked in`, waves > 0, 'none arrived')
+  // Sixteen bodies of ground, which is what three melee ranges used to be and
+  // is the same distance it always was. It stopped being three of them when
+  // the yardstick moved onto the source's own collision radius and every reach
+  // in yards grew a fifth — and the doors cannot answer that by moving, since
+  // they are already on the wall of the room. What the promise is about is the
+  // walk a wave has to make before it reaches anybody, so it is written as a
+  // walk.
   expect(
     'and every one of them arrived with ground to cross',
-    closest > MELEE_RANGE * 3,
+    closest > PARTY_RADIUS * 2 * 16,
     `one arrived ${closest.toFixed(0)} from somebody`,
   )
 }

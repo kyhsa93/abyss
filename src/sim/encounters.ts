@@ -1170,20 +1170,22 @@ export const ENCOUNTERS: Encounter[] = [
     //
     // The circle on the client's own map of this floor is drawn in two
     // colours: a red near half with the boss marker on it, and a blue-green
-    // far half with an ice texture. The eighty-four pixels across were read as
-    // the walkable disc and only the red is floor — see
-    // `docs/reading-the-source.md`, which is the sheet, the ruler and the
-    // measurements. So this fight is fought on half a disc a hundred and
-    // sixteen yards wide and fifty-eight deep, with the drop along the
-    // straight side and the boss standing twenty-three yards in front of it,
-    // where the marker is.
+    // far half with an ice texture. Only the red is floor.
+    //
+    // The numbers are the instance's own, not the picture's. Its script fences
+    // this fight with a circle of radius ninety-five about (-428, 2211) and a
+    // rectangle that cuts everything past x = -430 — a half-disc, cut two
+    // yards behind that circle's middle — and the boss spawns at (-401.4,
+    // 2211.1), twenty-nine yards in front of the cut. Built at `BUILD_SCALE`
+    // like every other measured room, that is a floor ninety-five yards wide
+    // and forty-eight deep with the drop along the straight side.
     //
     // It is no longer the yardstick, and `ARENA_RADIUS` still is: every number
     // in `docs/mechanic-rules.md` was measured in that disc and this room is
     // half of one. What that costs is real and is the point — a line out of
     // the middle reaches the drop in twenty-three yards, and a raid that backs
     // away from the storm has somewhere it must not back into.
-    room: { kind: 'apse', radius: 1103, back: 436 },
+    room: { kind: 'apse', radius: 1099, back: 335 },
     //
     // Nothing standing in it, said on purpose rather than rolled empty. The
     // three things this fight does all reach the wall — a line out of the

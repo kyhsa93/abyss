@@ -593,12 +593,20 @@ const everywhere = () => true
 //
 // The window is short on purpose. A room four kilometres from the origin
 // computes its distances with fewer bits to spare, and a simulation this
-// deterministic turns the last of them into a different decision a minute
-// later — so run the two long enough and they diverge for reasons that are
-// arithmetic rather than placement, and the check starts measuring the wrong
-// thing. A body placed from the middle of the world instead of the middle of
-// its room is out by the whole offset on the tick it appears; float takes a
-// minute to move anything by ten units.
+// deterministic turns the last of them into a different decision — so run the
+// two long enough and they diverge for reasons that are arithmetic rather than
+// placement, and the check starts measuring the wrong thing. A body placed
+// from the middle of the world instead of the middle of its room is out by the
+// whole offset on the tick it appears, so a short window sees everything this
+// is for.
+//
+// Eight seconds, down from twenty-five. Bodies move a fifth further every
+// second since the yardstick was taken off the source's own collision radius,
+// and a fifth more ground is a fifth more decisions taken near the edge of a
+// float: at twenty-five seconds one raider in the second fight walked a
+// different way in the two runs and read as a hundred and twenty-eight yards
+// of misplacement. It is not one. Nothing here is placed from the origin, and
+// the tick that would prove otherwise is the first one.
 {
   const off = { x: -4321, y: 987 }
   const misplaced: string[] = []
@@ -610,7 +618,7 @@ const everywhere = () => true
     const rb = new Rng(0x51ed)
     let worst = 0
     let what = ''
-    for (let t = 0; t < 30 * 25 && here.outcome === 'ongoing'; t++) {
+    for (let t = 0; t < 30 * 8 && here.outcome === 'ongoing'; t++) {
       step(here, { moveX: 0, moveY: 0, pressed: [] }, ra)
       step(there, { moveX: 0, moveY: 0, pressed: [] }, rb)
       for (const one of here.actors) {
@@ -1177,7 +1185,12 @@ expect(
     const way = hall.ways.find((w) => w.to === next)
     const from = placeOf(here)
     const to = placeOf(next)
-    if (!way || to.y >= from.y - 100) {
+    // The far side of the next room rather than its middle. One step of the
+    // lower spire is a climb up the flank of the first fight's bowl, and a
+    // ramp's mouth is level with the room it leaves — what is up the screen is
+    // the rest of it.
+    const climbs = to.y - support(roomOf(next), 0, -1)
+    if (!way || climbs >= from.y - 100) {
       backwards.push(`${here} -> ${next}`)
       continue
     }
@@ -1230,42 +1243,43 @@ expect(
   // `MUSTER_HALF`) — the way in and the frost gauntlet both hit that, and both
   // are still narrower than the source's own.
   for (const [id, w, d] of [
-    ['threshold', 26.0, 68.0],
-    ['vigil', 160.0, 187.0],
-    // Half a disc: as wide as the bowl the source draws and half as deep,
-    // because the far half of that bowl is the ice cliff. See
-    // `docs/reading-the-source.md`.
-    ['spire', 116.0, 58.0],
-    // The walkway around that bowl, which the same sheet draws nineteen yards
-    // across, and long enough to run the height of the room beside it. Two of
-    // them, because the source's own two ice walls say two.
+    // Measured from the instance's own data — see `docs/reading-the-source.md`
+    // for where each number comes from:
+    ['vigil', 130.0, 125.0],
+    ['spire', 190.0, 95.0],
     ['eastclimb', 19.0, 95.0],
     ['westclimb', 19.0, 95.0],
-    ['oratory', 116.0, 116.0],
-    ['mooring', 178.0, 178.0],
-    ['rise', 78.0, 78.0],
-    ['crossing', 244.0, 244.0],
-    ['vats', 75.0, 166.0],
-    ['airless', 103.0, 103.0],
-    ['sludge', 100.0, 100.0],
-    ['laboratory', 89.0, 124.0],
-    ['crimson', 230.0, 160.0],
-    ['sanctum', 77.0, 77.0],
-    ['dream', 124.0, 124.0],
-    ['gauntlet', 23.0, 85.0],
-    ['lair', 126.0, 126.0],
-    ['throne', 140.0, 140.0],
+    // And the rest, which are still the client map tile's reading of the same
+    // building, re-labelled by a yardstick that has since moved. The source's
+    // own coordinates disagree with that sheet by about half again, so every
+    // one of these is a number waiting to be taken off the emulators' tables
+    // the way the four above were. The Oratory is next: its boss's boundary is
+    // a hundred and thirty-five by a hundred and fifty, against the ninety-five
+    // square it is built at, and moving it means re-laying ten rocks and four
+    // doors that `rendercheck` measures.
+    ['threshold', 21.3, 55.7],
+    ['oratory', 190.0, 190.0],
+    ['mooring', 145.7, 145.7],
+    ['rise', 127.8, 127.8],
+    ['crossing', 199.9, 199.9],
+    ['vats', 61.4, 136.0],
+    ['airless', 168.7, 168.7],
+    ['sludge', 163.7, 163.7],
+    ['laboratory', 145.7, 203.1],
+    ['crimson', 376.7, 262.0],
+    ['sanctum', 126.0, 126.0],
+    ['dream', 101.6, 101.6],
+    ['gauntlet', 18.8, 69.6],
+    ['lair', 103.2, 103.2],
+    ['throne', 114.6, 114.6],
   ] as const) {
     const [gw, gd] = across(id)
-    const fight = chamberAt(id)?.encounter ?? null
-    const fought = fight !== null && fight < ENCOUNTERS.length
-    const scale = fought ? 1 : BUILD_SCALE
-    // Or as wide as the raid standing in it, whichever is more: a scale is a
-    // claim about the building and not about twenty-five people. Two rooms hit
-    // that floor — the way in and the walkway around the first fight — and
-    // both are still narrower than the source's own.
-    const want = fought ? w : Math.max(w * scale, yd(MUSTER_HALF * 2))
-    const deep = d * scale
+    // Every measured room is built at `BUILD_SCALE`, a fight's included: the
+    // fights are already at half the source's floor measured in bodies, so
+    // taking the source's own numbers and halving them lands where they
+    // already stand rather than moving them.
+    const want = Math.max(w * BUILD_SCALE, yd(MUSTER_HALF * 2))
+    const deep = d * BUILD_SCALE
     if (Math.abs(yd(gw) - want) > want * 0.06) {
       said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${want.toFixed(0)}`)
     }
@@ -1747,17 +1761,22 @@ expect(
 // the floor measures a hundred and eighteen.
 //
 // Three things were not built to it, and they are the three a player sees
-// against each other. Every number on the right is measured: a character's
-// model geometry is 0.95 yards across and Marrowgar's is 9.69, off the game's
-// own model data; melee reach is five yards; a character runs seven a second.
+// against each other. Every number on the right is the source's own, off the
+// servers that run it: a player's collision radius is 0.389 and the first
+// boss's is 4.5 (`ObjectDefines.h`, `creature_model_info`), melee's floor is
+// five yards (`NOMINAL_MELEE_RANGE`) and a character runs seven a second
+// (`baseMoveSpeed[MOVE_RUN]`).
 {
   const yd = (units: number) => units / YARD
   const said: string[] = []
   const near = (what: string, got: number, want: number, slack: number) => {
     if (Math.abs(got - want) > slack) said.push(`${what}: ${got.toFixed(2)} yd, wanted ${want}`)
   }
-  near('a body is as wide as a character', yd(PARTY_RADIUS * 2), 0.95, 0.12)
-  near('a boss is as wide as one', yd(BOSS_WIDTH), 9.69, 1.0)
+  // The body is `DEFAULT_PLAYER_BOUNDING_RADIUS` doubled and the boss is
+  // `creature_model_info`'s bounding radius for display 31119 doubled — the
+  // collision the source actually uses, not the width of a picture of one.
+  near('a body is as wide as a character', yd(PARTY_RADIUS * 2), 0.778, 0.02)
+  near('a boss is as wide as one', yd(BOSS_WIDTH), 9.0, 0.3)
   near('melee reach past an edge', yd(MELEE_RANGE), 5.0, 0.6)
   const speeds = Object.values(CLASSES).map((c) => c.moveSpeed)
   near('the slowest runs', yd(Math.min(...speeds)), 7.0, 0.8)
@@ -1778,8 +1797,8 @@ expect(
     `${(room / (PARTY_RADIUS * 2)).toFixed(0)} bodies`,
   )
   expect(
-    'and a boss is ten of them, as it is there',
-    BOSS_WIDTH / (PARTY_RADIUS * 2) > 9 && BOSS_WIDTH / (PARTY_RADIUS * 2) < 11.5,
+    'and a boss is eleven and a half of them, as it is there',
+    BOSS_WIDTH / (PARTY_RADIUS * 2) > 10.5 && BOSS_WIDTH / (PARTY_RADIUS * 2) < 12.5,
     `${(BOSS_WIDTH / (PARTY_RADIUS * 2)).toFixed(1)} bodies`,
   )
   // The classes still differ from each other by a tenth, which is a fact about

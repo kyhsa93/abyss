@@ -3,42 +3,38 @@ export const TICK_RATE = 30
 export const DT = 1 / TICK_RATE
 
 /**
- * How wide a body is, and it is measured rather than chosen.
+ * How wide a body is, in units, and everything else is measured against it.
  *
- * A character in the source measures 0.95 across by its own model geometry.
- * That is the one length in this game taken straight off the source's own data
- * rather than off a picture of a floor, which is why the yardstick below hangs
- * on it. Eighteen units across is 0.95 of a yard.
- *
- * It was thirty-four, near enough double, and everything that felt wrong about
- * the scale was that one number: a room half the size it should be measured in
- * bodies, a boss barely three times a body across, a melee range under three
- * yards.
+ * The unit is arbitrary and this is where it is pinned: a body is eighteen
+ * units across. Every length in this game that means anything is a ratio to
+ * that, and the ratios come from the source — see `YARD`.
  */
 export const PARTY_RADIUS = 9
 
 /**
- * How many units a yard is, read off a body rather than off a room.
+ * How many units a yard is, and the yard is the source's own unit.
  *
  * The source measures everything in yards — a spread mark is five and a half,
- * a soak is seven — so the game needs the conversion, and where it is hung
- * matters. It used to be `ARENA_RADIUS * 2 / 94.5`: the arena divided by a
- * claim that the first fight's floor is ninety-four and a half yards across in
- * the source.
+ * a soak is seven, a character runs seven a second — so the game needs the
+ * conversion, and where it is hung decides every ratio in the game. It hangs
+ * on the body, and the body's width is now read off the server the source runs
+ * on rather than off a picture of a character:
  *
- * The claim was wrong. It came off a floor plan calibrated against a different
- * sheet than the one it was read from — the plan taken for the lower spire is
- * the gunship deck. The client's map tiles turn out to carry the world
- * rectangle each one covers, which converts a pixel on any of them to yards
- * exactly, and checked that way the first fight's floor is a hundred and
- * eighteen. Two independent spans on that sheet confirm the scale to within a
- * couple of yards: the doors the second fight's adds come out of stand where
- * their world coordinates say, and the great hall measures the hundred and
- * sixty yards its own area trigger is built to.
+ *   DEFAULT_PLAYER_BOUNDING_RADIUS   0.388999998569489
  *
- * So the yardstick hangs on the body, and the arena is free to be measured.
+ * — TrinityCore, `ObjectDefines.h`. That is the radius the source's own
+ * collision uses for a player, so a body is 0.778 yards across, and eighteen
+ * units is 0.778 of a yard.
+ *
+ * It was 0.95, off the visual model rather than off the collision, and the
+ * difference is twenty-two per cent on every length in yards: a body covers
+ * nine of itself a second at seven yards a second, not seven and a third, and
+ * melee reaches six and a half bodies rather than five and a half. Those are
+ * the source's ratios and they are what this file exists to carry.
+ *
+ * See `docs/reading-the-source.md` for the rest of what the emulators answer.
  */
-export const YARD = (PARTY_RADIUS * 2) / 0.95
+export const YARD = (PARTY_RADIUS * 2) / 0.778
 
 /**
  * How much of the building gets built, for the parts of it nobody fights in.
@@ -69,46 +65,40 @@ export const YARD = (PARTY_RADIUS * 2) / 0.95
 export const BUILD_SCALE = 0.5
 
 /**
- * Circular arena centred on the origin.
+ * The floor a fight gets when it names none, and the one a battleground is
+ * always played on.
  *
- * Everything else here is expressed relative to it: widening the floor without
- * widening ability ranges just moves the party out of range of each other.
+ * In units, and deliberately not in yards any more. It used to be a hundred
+ * and eighteen of them — the first fight's floor, measured off the client's
+ * map tile — and that was wrong twice over: the disc it measured is half floor
+ * and half ice cliff (see `docs/reading-the-source.md`), and the tile's scale
+ * disagrees with the source's own coordinates by about half again. The first
+ * fight has a room of its own now, taken from the instance's data, and this is
+ * no longer a measurement of anything.
  *
- * A hundred and eighteen yards across, which is the first fight's floor
- * measured. That room is this constant: it is the one the yardstick used to be
- * defined by, and now that the yardstick hangs on a body instead it is free to
- * be the size it is. The client's map tile for the lower spire covers a known
- * rectangle of the world, so a pixel on it is 1.3528 yards; the walkable disc
- * inside the colonnade draws 84 by 88 pixels. It was 920 units — 94.5 yards on
- * the old reading, 97 on this one, and either way a fifth short.
- *
- * The number moving is a real change and not a rendering one, for the reason
- * the sentence above gives. The mechanics written as a fraction of the room —
- * the wedge, the split, the ring — grow with it and ask the same question of a
- * bigger floor. The distances written as numbers do not: a bow reaches as far
- * as it reached, a step covers what a step covers, and a body walking out of
- * something walks at the speed it always walked. So the room is the room and
- * the party's reach into it is what it was, which is what makes space
- * something a raid has to spend rather than something it has.
- *
- * What does *not* move with it is the camera. That used to be framed on this
- * constant, so a bigger arena would have drawn every body smaller — see
- * `VIEW_REACH` in `theme.ts`, which is now its own number in yards.
+ * What it still is, is the floor eight fights and three battlegrounds were
+ * tuned on. So it is frozen where it stands: a hundred and twenty-two bodies
+ * across, which is what every mechanic in `docs/mechanic-rules.md` was
+ * measured in. Re-anchoring it to a yard figure would move all eleven of them
+ * for the sake of a label.
  */
-export const ARENA_RADIUS = Math.round((118 * YARD) / 2)
+export const ARENA_RADIUS = 1118
 
 
 
 /**
  * How wide the thing the raid is fighting is.
  *
- * Nine and seven tenths of a yard, which is the model geometry of the first
- * boss read out of the game's own data — a box 9.69 across against a
- * character's 0.95. It was five yards here, half of it, and a melee's standing
- * ring was measured from the middle of it rather than the edge, so the raid
- * fought from inside the boss.
+ * Nine yards, which is the first boss's own collision radius doubled:
+ * `creature_model_info` gives display 31119 — Lord Marrowgar's — a bounding
+ * radius of 4.5. Against a body's 0.389 that is eleven and a half bodies
+ * across, and it is the ratio rather than the yardage that matters.
+ *
+ * It was 9.69 off the model's geometry, and before that five, with a melee's
+ * standing ring measured from the middle of it rather than the edge — so the
+ * raid fought from inside the boss.
  */
-export const BOSS_WIDTH = Math.round(9.69 * YARD)
+export const BOSS_WIDTH = Math.round(9.0 * YARD)
 
 export const GLOBAL_COOLDOWN = 1.5
 
@@ -453,29 +443,41 @@ export const YOKE_ALONE = 1500
 /**
  * How close a melee gets, past the edge of what it is hitting.
  *
- * Five yards, which is the source's, and it is measured from the target's own
- * surface rather than from the middle of it — a thing with a nine-yard body
- * cannot be reached at five yards from its centre. It was fifty-two units from
- * the centre, which is two and two thirds yards *inside* a boss.
+ * Five yards, which is the source's — `NOMINAL_MELEE_RANGE` in TrinityCore,
+ * and the floor its melee range never goes below — measured from the target's
+ * own surface rather than from the middle of it, since a thing with a nine
+ * yard body cannot be reached at five yards from its centre.
+ *
+ * Written against the yardstick rather than as a unit count, which is the
+ * change: five yards is six and a half bodies now that a body is the source's
+ * 0.778 rather than a picture's 0.95, and the reach a raid actually has is the
+ * ratio and not the number.
  */
-export const MELEE_RANGE = 97
+export const MELEE_RANGE = Math.round(5 * YARD)
 
 /**
  * How far away a bow needs its target.
  *
  * A drawn bow has a near edge that a spell does not: the hunter is the one
  * ranged class that cannot simply stand on what it is shooting. Just outside
- * melee, and just inside where the party AI already keeps its ranged.
+ * melee, and just inside where the party AI already keeps its ranged. In
+ * yards, like every other reach, so a change of yardstick moves it with them.
  */
-export const SHOT_MIN_RANGE = 156
+export const SHOT_MIN_RANGE = Math.round(8 * YARD)
 
 /**
  * Reach of everything cast from a distance, and of the hunter's bow.
  *
  * One number rather than two: a band where a hunter's shots land but its
  * weapon does not would read as a bug, not as a rule.
+ *
+ * Eighteen yards rather than the source's forty. That is a decision and not a
+ * measurement: forty yards is most of the way across a room here, and a fight
+ * where nobody has to close is a fight with one less thing in it. The reason
+ * it is written in yards at all is so it keeps its size against a body when
+ * the yardstick moves.
  */
-export const SPELL_RANGE = 340
+export const SPELL_RANGE = Math.round(18 * YARD)
 
 /**
  * What a health bar is worth, everywhere.
