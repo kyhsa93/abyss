@@ -89,6 +89,72 @@ anywhere in the simulation. Against the list above that means:
   reads as a walk around the outside; the stairs down are the passage that is
   already there.
 
+## The instance's own data, which beats any picture
+
+A map is a drawing of a place. A server that runs the place has to know the
+place, so the emulator projects carry the same facts as numbers — and they are
+public. Two of them were used here:
+
+**TrinityCore's instance script** (`src/server/scripts/Northrend/IcecrownCitadel/`)
+carries what the fight is *allowed* to be:
+
+```
+{ GO_LORD_MARROWGAR_S_ENTRANCE, DATA_LORD_MARROWGAR, DOOR_TYPE_ROOM },
+{ GO_ICEWALL,                   DATA_LORD_MARROWGAR, DOOR_TYPE_PASSAGE },
+{ GO_DOODAD_ICECROWN_ICEWALL02, DATA_LORD_MARROWGAR, DOOR_TYPE_PASSAGE },
+
+{ DATA_LORD_MARROWGAR, new CircleBoundary(Position(-428.0f, 2211.0f), 95.0) },
+{ DATA_LORD_MARROWGAR, new RectangleBoundary(-430.0f, -330.0f, 2110.0f, 2310.0f) },
+```
+
+`DOOR_TYPE_ROOM` is a door that opens when the encounter is *not running*;
+`DOOR_TYPE_PASSAGE` is one that opens when it is *done* — the server's own
+comments say so. So the first fight has one way in, shut while it is being
+fought, and **two ways on, both ice, both shut until the boss is down**. Not a
+reading of a picture: a table.
+
+The two boundaries are ANDed, and the second one only bites on one edge: a
+circle of radius ninety-five with everything past `x = -430` cut off, two
+yards behind that circle's own middle. A half-disc, cut through the middle,
+which is the same shape the map draws in two colours.
+
+**AzerothCore's world database** (`data/sql/base/db_world/`) carries where
+everything stands:
+
+| what | entry | world x | world y |
+| --- | --- | --- | --- |
+| Lord Marrowgar | 36612 | -401.37 | 2211.14 |
+| his room's door | 201857 | -338.09 | 2211.47 |
+| ice wall | 201911 | -407.35 | 2147.88 |
+| ice wall | 201910 | -412.97 | 2285.24 |
+| the Oratory's door | 201563 | -520.44 | 2211.47 |
+
+Read against the boss, that is: the way in sixty-three yards in front of him,
+the drop twenty-nine yards behind him, the next fight's door a hundred and
+nineteen yards behind that, and **the two ice walls sixty-three and
+seventy-four yards out on either flank, six and twelve yards behind the line
+he stands on**. Which is where a ramp round the outside of a bowl has to
+start: at the ends of the cliff's edge. `RING_LEAN` in `dungeon.ts` is the
+average of those two angles and nothing else.
+
+### One thing the data and the picture disagree about
+
+Size. The boundary circle is ninety-five yards and the doors either side of
+the room stand ninety and ninety-two yards off its middle, so the source's
+bowl is about a hundred and eighty across. The same bowl measured off the map
+tile — this file's own table — comes out a hundred and sixteen. The two
+disagree by about a factor of one and a half, and the same factor turns up
+again in the distance between rooms: the source puts the first two fights a
+hundred and sixty-seven yards apart and this game's plan had two hundred and
+sixty-five.
+
+Nothing here has been rescaled on the strength of that, because the building
+is deliberately built at `BUILD_SCALE` of what it measures and the direction
+of the disagreement is "the source is bigger" — which is the direction this
+game has just spent a round moving away from. What is worth doing with it is
+what has been done: the *shape* is taken from the data, which is exact, and
+the *size* stays where the game wants it.
+
 ## What was built from this, and what was not
 
 The first fight's room is an `apse` now: half a disc a hundred and sixteen
@@ -98,10 +164,18 @@ walking into the curve is a wall. The room's own bowl — floor *and* ice — is
 what the plan keeps other rooms out of, because the ice is part of the chamber
 even though nobody stands on it.
 
-The walkway is a room called the Ledge, which is what a citadel of rooms and
-doors can hold of a ramp: the way on leaves the first fight by the side of the
-room, runs along a ledge past the ice, and turns in at the far end. It does not
-climb, because nothing in this game does.
+The walkway is two rooms, the East Climb and the West Climb, one on each flank
+— which is what a citadel of rooms and doors can hold of a ramp, and what the
+source's two ice walls say there should be. Both are held shut by the fight, so
+before the boss is down there is no way out of that room but the way in. Neither
+climbs, because nothing in this game does.
+
+There was a third room for an afternoon: a ledge across the head of the bowl
+where the two meet. It is gone, and the reason is worth keeping. A room at the
+head has both of its doors cut in the wall facing the bowl, a doorway apart,
+because a door is placed where the bearing to the next room leaves this one —
+so the two read as one door, and the build says so. Nothing in this game walks
+round a curve; a ring of rooms around a bowl is the one shape it cannot hold.
 
 ## How to take a measurement off a picture
 

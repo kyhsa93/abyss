@@ -523,9 +523,13 @@ const everywhere = () => true
 // of the back of this room, which is the middle of the cliff. It goes around
 // now, by the ledge, and this is what says so.
 //
-// A body's width in from the lip, because the ramp starts at the corner of the
-// straight wall and clips the rim of the bowl by a couple of yards on its way
-// past. That corner is where a ramp round the outside of a bowl has to begin.
+// The middle of the cliff rather than all of it, and that is the promise worth
+// holding. The walkway the raid leaves by is carved into the rim of the bowl,
+// and nothing in this game walks round a curve — so the ground laid between
+// two rooms of that walkway is a straight line that shaves the rim. Standing
+// the walkway far enough out to stop that puts it forty yards clear of the
+// bowl it is supposed to be part of. What must not happen is the way on
+// running *across* the ice, and that is what this asks.
 {
   const bowl = roomOf('spire')
   const middle = placeOf('spire')
@@ -540,7 +544,7 @@ const everywhere = () => true
     for (let a = 0; a <= 24; a++) {
       for (let r = 1; r <= 8; r++) {
         const bearing = Math.PI + (a / 24) * Math.PI
-        const out = (r / 8) * (bowl.radius - PARTY_RADIUS * 2)
+        const out = (r / 8) * bowl.radius * 0.6
         const p = fromRoom(room, {
           x: Math.cos(bearing) * out,
           y: Math.sin(bearing) * out - bowl.back - PARTY_RADIUS * 2,
@@ -1165,7 +1169,7 @@ expect(
   // the lower spire goes *back down* the screen and every door faces the room
   // it opens onto, which is the same promise a player is holding.
   const backwards: string[] = []
-  const climb = ['threshold', 'vigil', 'spire', 'ledge', 'oratory']
+  const climb = ['threshold', 'vigil', 'spire', 'eastclimb', 'oratory']
   for (let i = 0; i < climb.length - 1; i++) {
     const here = climb[i]!
     const next = climb[i + 1]!
@@ -1233,8 +1237,10 @@ expect(
     // `docs/reading-the-source.md`.
     ['spire', 116.0, 58.0],
     // The walkway around that bowl, which the same sheet draws nineteen yards
-    // across, and long enough to run the height of the room beside it.
-    ['ledge', 19.0, 95.0],
+    // across, and long enough to run the height of the room beside it. Two of
+    // them, because the source's own two ice walls say two.
+    ['eastclimb', 19.0, 95.0],
+    ['westclimb', 19.0, 95.0],
     ['oratory', 116.0, 116.0],
     ['mooring', 178.0, 178.0],
     ['rise', 78.0, 78.0],
@@ -1558,8 +1564,15 @@ expect(
   // second fight is the far end of that.
   expect(
     'killing the first thing opens the way to the second',
-    wayOpen(fresh, 'ledge'),
-    stepTo(fresh, 'ledge').kind,
+    wayOpen(fresh, 'eastclimb') && wayOpen(fresh, 'westclimb'),
+    `${stepTo(fresh, 'eastclimb').kind} / ${stepTo(fresh, 'westclimb').kind}`,
+  )
+  // And neither of them before that, which is what an ice wall is.
+  const alive = { ...start, at: 'spire', visited: ['threshold', 'spire'] }
+  expect(
+    'and neither way is open while it is still standing',
+    !wayOpen(alive, 'eastclimb') && !wayOpen(alive, 'westclimb'),
+    `${stepTo(alive, 'eastclimb').kind} / ${stepTo(alive, 'westclimb').kind}`,
   )
   // And the chain has emphatically not reached it, which is the whole point:
   // if this ever comes back true the check above stops meaning anything.
@@ -1574,7 +1587,7 @@ expect(
   // The rooms in the order they are walked, and what has been killed by the
   // time each is stood in — which is not the same list, since the ledge is a
   // room with nothing in it.
-  const order = ['spire', 'ledge', 'oratory', 'mooring', 'rise']
+  const order = ['spire', 'eastclimb', 'oratory', 'mooring', 'rise']
   for (let i = 0; i < order.length - 1; i++) {
     const at = order[i]!
     const next = order[i + 1]!

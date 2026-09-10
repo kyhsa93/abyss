@@ -164,28 +164,48 @@ export const CHAMBERS: Chamber[] = [
     room: { kind: 'hall', halfWidth: 1516, front: 1772, back: 1771 },
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
+  // The way out of the first fight, and there are two of them because the
+  // source has two.
+  //
+  // That room is half a disc with an ice cliff along the straight side (see
+  // `apse` in `room.ts`), and the second fight is on the far side of the
+  // cliff. Nobody walks across it there either: the client's map of the floor
+  // draws a walkway right round the outside of the bowl, and a raid that has
+  // killed the first boss climbs it, crosses above the ice and comes down a
+  // stair into the hall beyond.
+  //
+  // Two, and shut until the boss is down, is the instance's own data rather
+  // than a reading of a picture. Its script registers three doors against this
+  // encounter — one `DOOR_TYPE_ROOM`, which is the entrance and is shut only
+  // while the fight is running, and two `DOOR_TYPE_PASSAGE`, which by the
+  // server's own definition open when the encounter is *done*. Both of those
+  // are ice: `GO_ICEWALL` and `GO_DOODAD_ICECROWN_ICEWALL02`. See
+  // `docs/reading-the-source.md`.
+  //
+  // There is no height in this game and no path-finding in it, so what is kept
+  // is the shape of the journey — out of one side of the room or the other,
+  // along past the ice, and down into the hall at the far end. The balcony
+  // where the two meet above the cliff was a room here for an afternoon and is
+  // not one now: a walkway room at the head of the bowl has both of its doors
+  // cut in the wall facing the bowl, a doorway apart, which is one door
+  // wearing two names. The climbs run the whole way instead.
+  //
+  // Nineteen yards across, which is what the walkway measures on that sheet,
+  // and long enough to run the height of the bowl beside it.
   {
-    id: 'ledge',
-    name: 'The Ledge',
+    id: 'eastclimb',
+    name: 'The East Climb',
     wing: 'lower',
     encounter: null,
-    // The way out of the first fight, and it exists because the first fight's
-    // room has a hole in the middle of one wall.
-    //
-    // That room is half a disc with an ice cliff along the straight side (see
-    // `apse` in `room.ts`), and the second fight is on the far side of the
-    // cliff. The source does not walk anybody across it either: its map draws
-    // a walkway right around the outside of the bowl, and a raid that has
-    // killed the first boss takes it, climbs the outside of the room and comes
-    // down a stair into the hall beyond. There is no height in this game and
-    // no path-finding in it, so what is kept is the shape of the journey — out
-    // of the side of the room, along a ledge that runs past the ice, and in at
-    // the far end — as the one thing a citadel of rooms and doors can hold: a
-    // room.
-    //
-    // Nineteen yards across, which is what the walkway measures on that sheet,
-    // and long enough to run the height of the bowl beside it.
-    room: { kind: 'hall', halfWidth: 180, front: 900, back: 900 },
+    room: { kind: 'hall', halfWidth: 180, front: 500, back: 1300 },
+    pad: killed('spire'),
+  },
+  {
+    id: 'westclimb',
+    name: 'The West Climb',
+    wing: 'lower',
+    encounter: null,
+    room: { kind: 'hall', halfWidth: 180, front: 500, back: 1300 },
     pad: killed('spire'),
   },
   {
@@ -495,9 +515,12 @@ export const PASSAGES: Passage[] = [
     ),
   },
   // Out of the side of the first fight's room rather than out of the back of
-  // it: the back of it is the cliff.
-  { from: 'spire', to: 'ledge', gate: killed('spire') },
-  { from: 'ledge', to: 'oratory' },
+  // it: the back of it is the cliff. Both sides, and both held by the fight —
+  // which is the two ice walls the instance registers against it.
+  { from: 'spire', to: 'eastclimb', gate: killed('spire') },
+  { from: 'spire', to: 'westclimb', gate: killed('spire') },
+  { from: 'eastclimb', to: 'oratory' },
+  { from: 'westclimb', to: 'oratory' },
   {
     from: 'oratory',
     to: 'mooring',
@@ -644,7 +667,8 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   // walks backwards. Both are checked — see "nothing lays floor over the first
   // fight's cliff" and "the lower spire is walked up the screen" — so this is
   // a number with a check either side of it rather than a preference.
-  { id: 'ledge', x: 100, y: 430 },
+  { id: 'eastclimb', x: 100, y: 430 },
+  { id: 'westclimb', x: -100, y: 430 },
   { id: 'oratory', x: 0, y: 685 },
 
   // Then the turn along the bottom and up. The gunship is 162 yards from the
@@ -885,7 +909,7 @@ export interface Cell {
  * further back puts the passage's own width under that wedge. The build walks
  * every centre line with a body's width and says where it runs out.
  */
-const KNIT = 220
+const KNIT = 300
 
 /**
  * The room the citadel is entered by, which is where the building starts.
@@ -908,13 +932,13 @@ const ENTRY_WALK = 20 * YARD
 /**
  * The longest a stretch of nothing is allowed to be.
  *
- * Forty yards, which is about five seconds. Long enough that a door reads as
+ * Thirty yards, which is about four seconds. Long enough that a door reads as
  * leading somewhere rather than into the next room's wall; short enough that
  * nobody is walking it wondering whether they missed a turn. Anything longer
  * than this in the source is a distance that was measured for a building with
  * a flight path and a mount in it.
  */
-const BARE_MOST = 40 * YARD
+const BARE_MOST = 30 * YARD
 
 /** The room as the source measured it, before the building was scaled down. */
 function writtenRoom(id: string): RoomShape {
@@ -976,6 +1000,84 @@ const CLEARANCE = 80
 const PASSAGE_HALF = 220
 
 /**
+ * How far off the rim a walkway stands.
+ *
+ * A doorway's worth, so the walkway hugs the bowl the way the source draws it.
+ *
+ * Nothing in this game walks round a curve, so the raid crosses from one room
+ * of the ring to the next in a straight line and that line cuts the corner —
+ * over the rim of the ice. Standing the ring far enough off to stop that
+ * takes it forty yards clear of a bowl it is supposed to be carved into, which
+ * is a worse lie than the one it fixes. What the build holds instead is the
+ * promise that matters: the way on goes *round* the ice rather than across it,
+ * so the middle of the cliff stays floorless and the rim is allowed its ramp.
+ */
+const RING_GAP = 120
+
+/**
+ * How far round toward the floor the mouth of a climb sits.
+ *
+ * Measured, not chosen. The instance's own data puts its two ice walls — the
+ * things that hold these ways shut — at (-407.3, 2147.9) and (-413.0, 2285.2)
+ * against a boss standing at (-401.4, 2211.1): sixty-three and seventy-four
+ * yards out on the two flanks, and six and twelve yards behind the line the
+ * boss stands on. That is four to nine degrees round from square, toward the
+ * ice rather than away from it, and the average of the two is this.
+ * See `docs/reading-the-source.md`.
+ */
+const RING_LEAN = -0.11
+
+/**
+ * The walkway around the first fight's bowl, as bearings off the bowl itself.
+ *
+ * These three rooms are not placed by the plan and cannot be. They are the
+ * ring the source draws around that room — two climbs on the flanks and the
+ * ledge across the head of it — so where they stand is a fact about the bowl:
+ * hard against its rim, at the bearing they leave on. Written as a bearing and
+ * a room rather than as coordinates, and derived rather than typed, because
+ * the alternative is what this was for an afternoon: a number in the plan,
+ * nudged, checked, nudged again.
+ *
+ * A room on this ring never gives way when the building is pushed apart. It
+ * cannot: it would leave the rim it is a walkway for. What gives way instead
+ * is the room it is hung off — the bowl — and the ring goes with it.
+ */
+const RING: Array<{ id: string; bearing: number; gap: number }> = [
+  // Leaned toward the floor rather than square across the bowl. The ground to
+  // a walkway is knitted a passage's length back into the room it leaves, so a
+  // mouth level with the middle of the circle drags that knitting across the
+  // lip of the cliff and lays floor over the ice — which the build catches. A
+  // ramp starts where there is floor to start it on.
+  { id: 'eastclimb', bearing: RING_LEAN, gap: RING_GAP },
+  { id: 'westclimb', bearing: Math.PI - RING_LEAN, gap: RING_GAP },
+  // Screen y grows downward and up the screen is onward, so the head of the
+  // bowl — the far side, past the ice — is a quarter turn the negative way.
+]
+
+
+/** Where a room of the ring stands, given where the bowl it wraps stands. */
+function onTheRing(
+  bowl: RoomShape,
+  at: Vec2,
+  id: string,
+  bearing: number,
+  gap: number,
+): Vec2 | null {
+  if (bowl.kind !== 'apse') return null
+  const ux = Math.cos(bearing)
+  const uy = Math.sin(bearing)
+  // From the middle of the bowl rather than from the boss: the boss stands in
+  // front of the drop and the ring is drawn about the circle.
+  const out = bowl.radius + support(roomOf(id), -ux, -uy) + gap
+  return { x: at.x + ux * out, y: at.y - bowl.back + uy * out }
+}
+
+/** The distance a passage was laid at: two walls and the ground between. */
+function linkLength(from: string, to: string, ux: number, uy: number): number {
+  return exitAlong(roomOf(from), ux, uy) + linkGap(from, to) + exitAlong(roomOf(to), -ux, -uy)
+}
+
+/**
  * Where every room stands, in units, with the way on running up the screen.
  *
  * Two things decide it, and neither of them is a coordinate. The *bearing*
@@ -1019,6 +1121,10 @@ const PLACES: Map<string, Vec2> = (() => {
   // aside on its own would have a corridor stretched to nothing behind it.
   const parent = new Map<string, { of: string; ux: number; uy: number }>()
   const children = new Map<string, string[]>()
+  // Rooms that are a fact about the room they hang off rather than a place in
+  // the plan — see `RING`. They never move on their own; their bowl moves and
+  // takes them with it.
+  const pinned = new Set<string>()
 
   // Outward from the door, one room at a time, so that every room is placed
   // off one that has already been placed. The citadel has one loop in it — the
@@ -1032,15 +1138,25 @@ const PLACES: Map<string, Vec2> = (() => {
     for (const passage of PASSAGES) {
       const to = passage.from === from ? passage.to : passage.to === from ? passage.from : null
       if (to === null || out.has(to)) continue
-      const a = measuredAt(from)
-      const b = measuredAt(to)
-      const d = Math.hypot(b.x - a.x, b.y - a.y)
-      const ux = (b.x - a.x) / d
-      const uy = (b.y - a.y) / d
-      const apart =
-        exitAlong(roomOf(from), ux, uy) + linkGap(from, to) + exitAlong(roomOf(to), -ux, -uy)
-      out.set(to, { x: at.x + ux * apart, y: at.y + uy * apart })
-      parent.set(to, { of: from, ux, uy })
+      // A walkway around a bowl is placed by the bowl, not by a bearing in the
+      // plan and a length derived from two walls. Everything else is.
+      const ring = RING.find((r) => r.id === to)
+      const hung = ring ? onTheRing(roomOf(from), at, to, ring.bearing, ring.gap) : null
+      if (hung !== null) {
+        const away = Math.hypot(hung.x - at.x, hung.y - at.y)
+        out.set(to, hung)
+        parent.set(to, { of: from, ux: (hung.x - at.x) / away, uy: (hung.y - at.y) / away })
+        pinned.add(to)
+      } else {
+        const a = measuredAt(from)
+        const b = measuredAt(to)
+        const d = Math.hypot(b.x - a.x, b.y - a.y)
+        const ux = (b.x - a.x) / d
+        const uy = (b.y - a.y) / d
+        const apart = linkLength(from, to, ux, uy)
+        out.set(to, { x: at.x + ux * apart, y: at.y + uy * apart })
+        parent.set(to, { of: from, ux, uy })
+      }
       children.set(from, [...(children.get(from) ?? []), to])
       queue.push(to)
     }
@@ -1060,19 +1176,34 @@ const PLACES: Map<string, Vec2> = (() => {
   // on the bearing the source put it on and the ground behind it grows rather
   // than bends — and its own wing goes with it, since everything hung off it
   // was placed by the same rule.
-  const slide = (id: string, dx: number, dy: number): void => {
+  // Everything hung off it goes too, pinned or not: what makes a walkway
+  // pinned is that it may not move *by itself*, not that it stays behind when
+  // its bowl moves.
+  const carry = (id: string, dx: number, dy: number): void => {
     const at = out.get(id)!
     out.set(id, { x: at.x + dx, y: at.y + dy })
-    for (const child of children.get(id) ?? []) slide(child, dx, dy)
+    for (const child of children.get(id) ?? []) carry(child, dx, dy)
+  }
+  const slide = (id: string, dx: number, dy: number): void => {
+    const of = pinned.has(id) ? parent.get(id)?.of : undefined
+    if (of !== undefined) {
+      slide(of, dx, dy)
+      return
+    }
+    carry(id, dx, dy)
   }
   const shove = (id: string, by: number): void => {
     const link = parent.get(id)
     if (!link) return
+    if (pinned.has(id)) {
+      // A walkway cannot step off the rim it wraps. What moves is the bowl.
+      shove(link.of, by)
+      return
+    }
     slide(id, link.ux * by, link.uy * by)
   }
-  const joined = new Set(PASSAGES.flatMap((p) => [`${p.from}/${p.to}`, `${p.to}/${p.from}`]))
   /**
-   * Which of two rooms gives way, and by how much.
+   * Which of two rooms gives way.
    *
    * A room is pushed back out along the passage it was placed by, so the
    * ground behind it grows and its bearing off the source's plan is kept. That
@@ -1085,9 +1216,9 @@ const PLACES: Map<string, Vec2> = (() => {
    * So both are costed and the cheaper one moves. Picking the one further from
    * the door instead — plausible, and what this did first — chose the throne's
    * neighbour every time, because the throne is one door off the hub and the
-   * frostwing lair is three: a platform the source reaches by teleporter stayed
-   * where the compression had put it and the last room of a wing was pushed
-   * three hundred yards up its own corridor to get away from it.
+   * frostwing lair is three: a platform the source reaches by teleporter
+   * stayed where the compression had put it and the last room of a wing was
+   * pushed three hundred yards up its own corridor to get away from it.
    *
    * The way in never gives way. It is the one room in the plan that is not
    * allowed to move, because it is where the plan is measured from.
@@ -1106,67 +1237,124 @@ const PLACES: Map<string, Vec2> = (() => {
     if (costA === Infinity && costB === Infinity) return null
     return costA <= costB ? a : b
   }
-  for (let pass = 0; pass < 24; pass++) {
-    let moved = false
+  const joined = new Set(PASSAGES.flatMap((p) => [`${p.from}/${p.to}`, `${p.to}/${p.from}`]))
+  /**
+   * Whether two rooms are one thing that moves together.
+   *
+   * A bowl and the walkway round it are: pushing either of them moves both, so
+   * asking whether they are standing too close is asking a question no push
+   * can ever answer — and the loop below, told to fix it, shoved the whole
+   * lower spire a thousand yards up the screen trying. Their clearance is
+   * built in instead: `RING_GAP` is what holds them apart, once, at placement.
+   */
+  const rigid = (a: string, b: string): boolean => {
+    const pa = pinned.has(a) ? parent.get(a)?.of : a
+    const pb = pinned.has(b) ? parent.get(b)?.of : b
+    return pa === pb || pa === b || pb === a
+  }
+  // Everything that must not happen, in one place: rooms a door joins may
+  // stand a doorway apart, rooms nothing joins stand clear of each other, and
+  // no room stands in the ground laid between two others. The first two are
+  // what the build checks as "no room holds another room's middle" and "rooms
+  // nothing joins do not touch"; the third is the floor and the map
+  // disagreeing about which rooms exist, which is the same sentence from the
+  // player's side.
+  const crowding = (): { id: string; ux: number; uy: number; by: number } | null => {
     for (const a of CHAMBERS) {
       for (const b of CHAMBERS) {
-        if (a.id === b.id) continue
+        if (a.id === b.id || rigid(a.id, b.id)) continue
         const pa = out.get(a.id)!
         const pb = out.get(b.id)!
         const d = Math.hypot(pb.x - pa.x, pb.y - pa.y)
         if (d === 0) continue
         const ux = (pb.x - pa.x) / d
         const uy = (pb.y - pa.y) / d
-        // Rooms a door joins may stand a doorway apart; rooms nothing joins
-        // stand clear of each other, or the floor has a way through that the
-        // map has never heard of. The plagueworks is the case that needs
-        // saying: its four rooms close a loop, so one of its passages is the
-        // way round that did *not* place the room at the far end of it, and
-        // that one is as long as the two rooms leave it.
         const want =
           support(roomOf(a.id), ux, uy) +
           support(roomOf(b.id), -ux, -uy) +
           (joined.has(`${a.id}/${b.id}`) ? 0 : CLEARANCE)
-        if (d >= want) continue
-        const yields = givesWay(a.id, b.id, ux, uy)
-        if (yields === null) continue
-        const link = parent.get(yields)!
-        const away = yields === a.id ? -1 : 1
-        shove(yields, (want - d) / Math.max(0.05, (link.ux * ux + link.uy * uy) * away))
-        moved = true
+        // Reported whoever can fix it, and even if nobody can. This is the
+        // question "is anything standing in anything" and it is asked twice —
+        // once to decide what to push, and once as the thing a pull may not
+        // break. Folding "who yields" into it made the second use a lie: a
+        // pair nobody could separate read as no pair at all, and the pull that
+        // followed walked a room straight into its neighbour.
+        if (d < want) {
+          const yields = givesWay(a.id, b.id, ux, uy) ?? (parent.has(b.id) ? b.id : a.id)
+          const away = yields === a.id ? -1 : 1
+          return { id: yields, ux: ux * away, uy: uy * away, by: want - d }
+        }
       }
     }
-    // And clear of the ground between rooms, not only of the rooms.
-    //
-    // A room nothing touches is still a room a corridor can be laid through,
-    // and the floor is the union of both — so the ground from the frost
-    // gauntlet to the lair was laid across the throne, and a party that had
-    // opened neither could walk into the last room in the building. The build
-    // catches it as the floor and the map disagreeing about which rooms exist,
-    // which is the same sentence from the player's side.
-    //
-    // Pushed off the passage rather than out along its own, which is the one
-    // place in this layout that leaves a source bearing. The alternative is
-    // worse in both directions: a room nearly in line with the passage has to
-    // travel an enormous way along its own bearing to clear it, and what came
-    // out was a building twice the size to keep one platform out of one
-    // corridor. A bearing is a fact about the source; a corridor running
-    // through a room is not a fact about anything.
     for (const passage of PASSAGES) {
       const a = out.get(passage.from)!
       const b = out.get(passage.to)!
       for (const c of CHAMBERS) {
         if (c.id === passage.from || c.id === passage.to) continue
+        if (rigid(c.id, passage.from) || rigid(c.id, passage.to)) continue
         const off = awayFromLine(out.get(c.id)!, a, b)
         if (off.d === 0) continue
         const want = support(roomOf(c.id), -off.ux, -off.uy) + PASSAGE_HALF
-        if (off.d >= want) continue
-        const by = want - off.d
-        slide(c.id, off.ux * by, off.uy * by)
-        moved = true
+        if (off.d < want) return { id: c.id, ux: off.ux, uy: off.uy, by: want - off.d }
       }
     }
-    if (!moved) break
+    return null
+  }
+
+  // Pushed apart until nothing is standing in anything.
+  //
+  // A room gives way along the passage it was placed by, so it keeps the
+  // bearing the source put it on and what grows is the ground behind it. The
+  // exception is a room a *passage* runs through, which is slid off the
+  // passage instead: a room nearly in line with one would have to travel an
+  // enormous way along its own bearing to clear it, and what came out of that
+  // was a building twice the size to keep one platform out of one corridor.
+  for (let pass = 0; pass < 200; pass++) {
+    const crowded = crowding()
+    if (crowded === null) break
+    const link = parent.get(crowded.id)
+    const along = link ? link.ux * crowded.ux + link.uy * crowded.uy : 0
+    if (link && along > 0.35) shove(crowded.id, crowded.by / along)
+    else slide(crowded.id, crowded.ux * crowded.by, crowded.uy * crowded.by)
+  }
+
+  // And then pulled back in, because a push never comes back on its own.
+  //
+  // Every push above is sized against the building as it stood at that moment,
+  // and a room crowded twice is pushed twice — so the ground behind it ends up
+  // longer than anything still asks for. The lower spire's two climbs came out
+  // with a hundred and sixty yards of bare floor on a link whose own ground is
+  // thirty. This walks each room back toward the room it was placed off, as
+  // far as it will go without putting anything back inside anything, which is
+  // the only direction the pushes cannot travel by themselves.
+  for (let round = 0; round < 8; round++) {
+    let pulled = false
+    for (const id of CHAMBERS.map((c) => c.id)) {
+      const link = parent.get(id)
+      if (!link) continue
+      const at = out.get(id)!
+      const from = out.get(link.of)!
+      const now = (at.x - from.x) * link.ux + (at.y - from.y) * link.uy
+      const slack = now - linkLength(link.of, id, link.ux, link.uy)
+      if (slack <= 1) continue
+      // The furthest it can come in, found by halving: pulling is legal or it
+      // is not, and it does not stop being legal on the way back.
+      let lo = 0
+      let hi = slack
+      for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2
+        shove(id, -mid)
+        const bad = crowding() !== null
+        shove(id, mid)
+        if (bad) hi = mid
+        else lo = mid
+      }
+      if (lo > 1) {
+        shove(id, -lo)
+        pulled = true
+      }
+    }
+    if (!pulled) break
   }
   return out
 })()
