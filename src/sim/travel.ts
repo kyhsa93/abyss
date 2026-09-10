@@ -608,7 +608,11 @@ export function updateTravel(s: SimState, rng: Rng): void {
   }
 
   const alive = livingParty(s)
-  if (alive.length === 0) {
+  // The body a person is driving ends the walk when it falls, the same way it
+  // ends a pull — see `resolveOutcome`. A raid that carried on without them
+  // would be a citadel crossing itself.
+  const player = s.actors.find((a) => a.isPlayer)
+  if (alive.length === 0 || (player !== undefined && !player.alive)) {
     s.outcome = 'wipe'
     s.sounds.push('wipe')
     return

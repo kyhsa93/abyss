@@ -754,11 +754,30 @@ function ageEphemera(s: SimState): void {
   s.chat = s.chat.filter((c) => c.age < 6)
 }
 
+/**
+ * How a pull ends, and one of the three ways is new.
+ *
+ * The boss goes down, or the raid does — and now, or the *player* does. A
+ * fight that carried on after the one body a person is driving had fallen was
+ * a fight the person watched: the AI played the rest of it, won or lost it,
+ * and the result screen reported something that had happened to somebody else.
+ * Death has to cost the thing the player is holding, which is the pull.
+ *
+ * Only when there is a player. `unattended` takes the flag off before the
+ * harness runs a pull, so a swept fight still ends the way it always did:
+ * everybody down, or the boss.
+ */
 function resolveOutcome(s: SimState): void {
   const b = boss(s)
   if (!b.alive || b.hp <= 0) {
     s.outcome = 'victory'
     s.sounds.push('victory')
+    return
+  }
+  const player = s.actors.find((a) => a.isPlayer)
+  if (player !== undefined && !player.alive) {
+    s.outcome = b.auras.some((a) => a.id === 'enrage') ? 'enrage' : 'wipe'
+    s.sounds.push('wipe')
     return
   }
   if (livingParty(s).length === 0) {

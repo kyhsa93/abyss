@@ -22,6 +22,7 @@ import { execFile } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import { resolve } from 'node:path'
+import { RAID_SIZES } from '../src/sim/classes'
 import { ENCOUNTERS } from '../src/sim/encounters'
 
 /**
@@ -59,7 +60,7 @@ const SHARDS = [
   // the output of the shards is concatenated in this order and has to come out
   // byte-identical to a single run.
   ...ENCOUNTERS.flatMap((_, i) =>
-    [5, 10, 25].flatMap((size) => ['normal', 'heroic'].map((d) => `size:${i}:${size}:${d}`)),
+    [...RAID_SIZES].flatMap((size) => ['normal', 'heroic'].map((d) => `size:${i}:${size}:${d}`)),
   ),
   'member',
   'spec',

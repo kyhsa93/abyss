@@ -8673,6 +8673,47 @@ for (const [label, w, h] of [
   }
 }
 
+// --- the pull ends with the body you are driving ----------------------------
+//
+// A fight that carried on after the player had fallen was a fight the player
+// watched: the AI played the rest of it, and the result screen reported
+// something that happened to somebody else. Death costs the pull.
+//
+// Both halves are checked, because the second is what keeps the harness
+// honest: a swept pull has no player at all — `unattended` takes the flag off
+// — and has to end the way it always did, when the last body falls.
+{
+  const withPlayer = pulled(0x51ed, 0, undefined, 'normal', 0)
+  const rng = new Rng(0x51ed)
+  step(withPlayer, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  const you = withPlayer.actors.find((a) => a.isPlayer)!
+  const others = withPlayer.actors.filter((a) => a.faction === 'party' && !a.isPlayer)
+  expect('a pull has a player and a raid around them', others.length > 0, `${others.length}`)
+  you.alive = false
+  you.hp = 0
+  step(withPlayer, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  expect(
+    'the pull ends when the player falls',
+    withPlayer.outcome === 'wipe' || withPlayer.outcome === 'enrage',
+    withPlayer.outcome,
+  )
+  expect(
+    'and the rest of the raid was still standing',
+    others.some((a) => a.alive),
+    'nobody was left to carry on',
+  )
+
+  // And with nobody driving, the same fight runs until the last body falls.
+  const swept = unattended(createState(0x51ed, 0, undefined, 'normal', 0))
+  const rng2 = new Rng(0x51ed)
+  step(swept, { moveX: 0, moveY: 0, pressed: [] }, rng2)
+  const first = swept.actors.find((a) => a.faction === 'party')!
+  first.alive = false
+  first.hp = 0
+  step(swept, { moveX: 0, moveY: 0, pressed: [] }, rng2)
+  expect('a swept pull carries on without one body', swept.outcome === 'ongoing', swept.outcome)
+}
+
 // --- what a kill pays out ----------------------------------------------------
 //
 // Two things a pull hands over, neither of which is power: the rung it opened

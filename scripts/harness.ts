@@ -10,6 +10,7 @@ import {
   autoParty,
   pickFor,
   randomAround,
+  RAID_SIZES,
   SPEC_OPTIONS,
   type DifficultyId,
   type Pick,
@@ -265,7 +266,7 @@ const SIZE_RUNS = 40
 const SIZE_ATTEMPTS = [0, 8]
 // The header belongs to the first cell of the first boss, which is the shard
 // that prints the first row under it.
-if (want('size:0:5:normal')) console.log(
+if (want(`size:0:${RAID_SIZES[0]}:normal`)) console.log(
   '\nboss / size / difficulty  ' +
     SIZE_ATTEMPTS.map((a) => `pull${a + 1}`.padEnd(9)).join('') +
     'avgTime  bossHP%  kit' +
@@ -273,7 +274,7 @@ if (want('size:0:5:normal')) console.log(
     `${(2 * Math.sqrt(0.25 / SIZE_RUNS) * 100).toFixed(0)} points)`,
 )
 for (let i = 0; i < ENCOUNTERS.length; i++) {
-  for (const size of [5, 10, 25] as number[]) {
+  for (const size of RAID_SIZES) {
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       if (!want(`size:${i}:${size}:${difficulty}`)) continue
       const party = autoParty(size, dps('mage'))
