@@ -961,6 +961,18 @@ expect(
     near.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
   )
 
+  // The patrols, which are the one thing in a corridor that is somewhere else
+  // by the time you get there.
+  const walking = corridors.flatMap((c) => c.packs.filter((p) => p.walks).map(() => c.id))
+  expect(`${walking.length} pack(s) are walking rather than standing`, walking.length > 0, 'nothing patrols')
+  // A patrol that never leaves its own circle is a pack with extra arithmetic:
+  // what it is for is that where it notices you from is not where the map says
+  // it is, and that needs the walk to be longer than the noticing.
+  const short = corridors.flatMap((c) =>
+    c.packs.filter((p) => p.walks && dist(p.pos, p.walks) < p.pulls).map(() => c.id),
+  )
+  expect('and every one of them walks further than it notices', short.length === 0, short.join(', '))
+
   const pairs = corridors.flatMap((c) => overlapping(c).map(() => c.id))
   expect(
     `and ${pairs.length} pack(s) can be pulled into each other, which is the decision`,
@@ -1286,7 +1298,14 @@ expect(
     ['vats', 61.4, 136.0],
     ['airless', 168.7, 168.7],
     ['sludge', 163.7, 163.7],
-    ['laboratory', 145.7, 203.1],
+    // Turned, and the two numbers now come from two places. The *ratio* is the
+    // source's own boss boundary -- a parallelogram 155 yards across the walk
+    // by 96 along it -- and the area is still this sheet's, because turning a
+    // room and resizing it at once is two changes measured as one. So neither
+    // of these is a straight reading of anything; together they are the map
+    // tile's floor at the instance's proportions. See `flasks` in
+    // `encounters.ts`.
+    ['laboratory', 218.7, 135.4],
     ['crimson', 376.7, 262.0],
     ['sanctum', 126.0, 126.0],
     ['dream', 101.6, 101.6],
@@ -1309,6 +1328,50 @@ expect(
     }
   }
   expect('every room is the size the source says it is', said.length === 0, said.join('; '))
+
+  // And every fight's room is the *shape* its boss boundary is.
+  //
+  // A different question from the one above, and the one the data can answer
+  // outright. `instance_icecrown_citadel.cpp` gives every fight a boundary --
+  // a circle, a rectangle, an ellipse or one parallelogram -- and however that
+  // shape is sized here, how much wider than deep it is has no excuse to
+  // differ. Measured across the walk over along it, with the walk running the
+  // way the raid comes in by.
+  //
+  // It is here because a room got turned twice by eye. The laboratory carried
+  // a note saying it must be wider than it is deep, over numbers that made it
+  // deeper than wide, and the note and the numbers argued with each other for
+  // a year while both sides cited a picture. A boundary settles it in one
+  // line, and this is the line.
+  const shapes: string[] = []
+  for (const [id, w, d] of [
+    // width across the walk, depth along it, in the source's own yards
+    ['spire', 190.0, 95.0], // CircleBoundary(-428, 2211) r95, cut to a half-disc
+    ['oratory', 135.0, 150.0], // RectangleBoundary(-670, -520, 2145, 2280)
+    ['rise', 100.0, 100.0], // RectangleBoundary(-565, -465, 2160, 2260)
+    ['airless', 120.0, 113.0], // RectangleBoundary(4205, 4325, 3082, 3195)
+    ['sludge', 120.0, 113.0], // RectangleBoundary(4385, 4505, 3082, 3195)
+    ['laboratory', 155.0, 96.0], // ParallelogramBoundary, Putricide
+    ['sanctum', 128.0, 128.0], // CircleBoundary(4595.93, 2769.365) r64
+    // The crimson hall is not here, and deliberately. The source fights the
+    // council in the round chamber at the end of that hall and the queen in
+    // the hall itself; this game draws the two rooms the same way round and
+    // swaps which fight is in which, so the council's ellipse is not the
+    // boundary of the room this game puts it in. The hall's own shape -- 119
+    // yards across by 77 along, off its two council doors -- is what the room
+    // is built to, and it is.
+  ] as const) {
+    const [gw, gd] = across(id)
+    const want = w / d
+    const got = gw / gd
+    // A fifth, which is loose on purpose: what this is for is a room built the
+    // wrong way round, and every one of these shapes is sized by something
+    // else. The laboratory was out by a factor of two and a quarter.
+    if (Math.abs(got - want) > want * 0.2) {
+      shapes.push(`${id} is ${got.toFixed(2)} wide-to-deep, not ${want.toFixed(2)}`)
+    }
+  }
+  expect('and every fight is the shape its boundary is', shapes.length === 0, shapes.join('; '))
 }
 
 // The way in is held by somebody still arriving.

@@ -1,7 +1,7 @@
 import { ABILITIES } from './abilities'
 import { clearTerrain, inTerrain } from './battleground'
 import { DIFFICULTIES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
-import { DT, HEALTH, MELEE_RANGE, PARTY_RADIUS } from './constants'
+import { DT, HEALTH, MELEE_RANGE, PARTY_RADIUS, YARD } from './constants'
 import {
   applyDamage,
   beginCast,
@@ -78,6 +78,24 @@ export interface Pack {
    * Absent is one, which is what a corridor written before this meant.
    */
   weight?: number
+  /**
+   * The far end of a walk this pack is making, in the corridor's own frame.
+   *
+   * A pack is a thing standing still and deciding when to wake it is the
+   * corridor's one question. This is the other question the source asks and
+   * this game did not: *when*. Fifteen of the six hundred creatures in the
+   * raid carry a `creature_addon` path, and five of them are in corridors that
+   * are built here -- a Damned crossing the way up, two Rotting Frost Giants
+   * walking the length of the rampart, and Stinky and Precious passing each
+   * other across the plagueworks floor.
+   *
+   * There and back along a line, because that is what four of the five source
+   * paths are once the waypoints are read (the fifth is a loop, and a line
+   * across it is the same decision). It moves while it is asleep and stops the
+   * moment it wakes: what a patrol changes is where the circle is when you
+   * arrive, not how the fight goes once it starts.
+   */
+  walks?: Vec2
 }
 
 /**
@@ -198,6 +216,15 @@ export interface TravelState {
    * walks the packs that were written down.
    */
   belongs: Record<number, number>
+  /**
+   * How far along its walk each pack is, from nought to two.
+   *
+   * One number rather than a distance and a direction: nought to one is the
+   * way out and one to two is the way back, so a pack that has been walking
+   * for a while is at `phase % 2` and nothing has to remember which way it was
+   * facing. Packs that do not walk sit at nought forever.
+   */
+  strolled: number[]
   /** Where each body that came out of a spring is walking, while it still is. */
   streaming: Record<number, Vec2>
   /** What each spring has done: when the next one is due, and whether it is over. */
@@ -370,6 +397,7 @@ export function createTravelState(
       woken: [...corridor.packs.map(() => false), ...(corridor.springs ?? []).map(() => true)],
       tripped: (corridor.alarms ?? []).map(() => false),
       belongs,
+      strolled: corridor.packs.map(() => 0),
       streaming: {},
       // The first body out of a spring is not free: it takes as long to come
       // as every one after it, so walking in and straight back out is a walk
@@ -499,6 +527,67 @@ function engaged(s: SimState): Actor[] {
  * that lost interest would make walking away from a fight a strategy, and the
  * corridor's whole point is that what you wake you pay for.
  */
+/**
+ * How fast a patrol walks, in world units a second.
+ *
+ * Two and a half yards a second, which is the base walk speed every one of
+ * these creatures carries in `creature_template.speed_walk` -- all five of the
+ * patrols this game builds are at a multiplier of one. Against a party moving
+ * at seven yards a second it is slow enough that a patrol is something to be
+ * timed rather than something to be outrun, which is what it is for.
+ */
+const PATROL_PACE = Math.round(2.5 * YARD)
+
+/** Where a pack is standing this instant, which for most of them is where it was put. */
+export function packAt(travel: TravelState, index: number): Vec2 {
+  const pack = travel.corridor.packs[index]
+  if (!pack || !pack.walks) return pack?.pos ?? { x: 0, y: 0 }
+  const phase = travel.strolled[index] ?? 0
+  const t = phase <= 1 ? phase : 2 - phase
+  return {
+    x: pack.pos.x + (pack.walks.x - pack.pos.x) * t,
+    y: pack.pos.y + (pack.walks.y - pack.pos.y) * t,
+  }
+}
+
+/**
+ * The packs that are walking, walking.
+ *
+ * Before `listen`, so a pack that stepped into somebody this tick notices them
+ * this tick rather than next: a patrol that walks through a raid and only
+ * looks up afterwards is a patrol the raid can stand still and let pass.
+ *
+ * The bodies are moved by the step rather than placed at an offset from a
+ * remembered home, which is the same reason the streams move their bodies
+ * rather than posting them: a body in a corridor is somewhere, and anything
+ * that puts it back where it "should" be undoes whatever else moved it.
+ */
+function patrolStep(s: SimState): void {
+  const travel = s.travel!
+  travel.corridor.packs.forEach((pack, index) => {
+    if (!pack.walks || travel.woken[index]) return
+    const span = dist(pack.pos, pack.walks)
+    if (span <= 0) return
+    const before = packAt(travel, index)
+    travel.strolled[index] = ((travel.strolled[index] ?? 0) + (PATROL_PACE * DT) / span) % 2
+    const after = packAt(travel, index)
+    const dx = after.x - before.x
+    const dy = after.y - before.y
+    for (const body of s.actors) {
+      if (body.faction !== 'boss' || !body.alive) continue
+      if (travel.belongs[body.id] !== index) continue
+      body.pos.x += dx
+      body.pos.y += dy
+      // Held to the floor it is walking on, the same as everything else that
+      // moves. A pack is a ring of bodies around a point, so a patrol that
+      // takes its centre to within its own spread of a wall walks the far half
+      // of itself through it.
+      pushInside(travel.corridor.room, body.pos, body.radius)
+      turnToward(body, Math.atan2(dy, dx))
+    }
+  })
+}
+
 function listen(s: SimState): void {
   const travel = s.travel!
   // The floor first. A tripwire wakes something that is nowhere near it, so it
@@ -522,8 +611,11 @@ function listen(s: SimState): void {
     // past one does nothing at all — what wakes it is a wire in the floor
     // somewhere else, or being hit. See `Alarm`.
     if (pack.pulls <= 0) return
+    // Where it is now rather than where it was put, which for a patrol is not
+    // the same place.
+    const at = packAt(travel, index)
     for (const body of livingParty(s)) {
-      if (dist(body.pos, pack.pos) <= pack.pulls) {
+      if (dist(body.pos, at) <= pack.pulls) {
         travel.woken[index] = true
         s.sounds.push('telegraph')
         return
@@ -685,6 +777,7 @@ const CORRIDOR_MEND = 0.014
 export function updateTravel(s: SimState, rng: Rng): void {
   const travel = s.travel
   if (!travel) return
+  patrolStep(s)
   listen(s)
   springStep(s)
   trashStep(s)

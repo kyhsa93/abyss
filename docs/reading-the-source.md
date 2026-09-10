@@ -519,6 +519,84 @@ four times and a fight with spikes read as four times the mistakes of one
 without. A pin is one mistake with a length, and it is charged once now, where
 it runs out.
 
+### The shape of a fight's floor
+
+Every fight has a boundary in `instance_icecrown_citadel.cpp`, and a boundary
+is the one thing about a room that a picture cannot argue with:
+
+| fight | boundary | across the walk × along it |
+| --- | --- | --- |
+| Marrowgar | `CircleBoundary(-428, 2211) r95` ∩ `RectangleBoundary(-430, -330, 2110, 2310)` | a half-disc, 190 × 95 |
+| Deathwhisper | `RectangleBoundary(-670, -520, 2145, 2280)` | 135 × 150 |
+| Saurfang | `RectangleBoundary(-565, -465, 2160, 2260)` | 100 × 100 |
+| Festergut | `RectangleBoundary(4205, 4325, 3082, 3195)` | 120 × 113 |
+| Rotface | `RectangleBoundary(4385, 4505, 3082, 3195)` | 120 × 113 |
+| Putricide | `ParallelogramBoundary((4356, 3290), (4435, 3194), (4280, 3194))` | 155 × 96 |
+| Blood Prince Council | `EllipseBoundary(4660.95, 2769.194) 85 × 60` | 120 × 170 |
+| Blood-Queen Lana'thel | `CircleBoundary(4595.93, 2769.365) r64` | 128 × 128 |
+| Sister Svalna | `RectangleBoundary(4291, 4423, 2438, 2653)` | 132 × 215 |
+| Valithria | `RectangleBoundary(4112.5, 4293.5, 2385, 2585)` | 181 × 200 |
+| Sindragosa | `EllipseBoundary(4408.6, 2484) 100 × 75` | 200 × 150 |
+
+**Read a rectangle as a bound and a circle as a shape.** Nobody writes a circle
+boundary for a square room, so Marrowgar's half-disc and the queen's circle are
+floor plans; a rectangle may be the room or may be the box around it. That is
+why what has been taken from this table is *proportion* rather than outline.
+
+Seven of the eight fights here were already the right shape to within a fifth.
+The eighth was turned ninety degrees, and had been for a year with its own
+comment arguing against its own numbers: the laboratory is written as "wide,
+shallow, and with straight walls" because the mechanic wants the raid to split
+left and right, and it was built 1686 across by 2349 deep. The parallelogram
+settles it — half again wider than deep — so it is 2530 by 1566 now, at the
+floor it already had. `dungeoncheck` measures the ratio against this table so
+that a room cannot be turned by eye again.
+
+The council is deliberately not measured against its own boundary: the source
+fights the council in the round chamber at the end of the Crimson Hall and the
+queen in the hall, and this game swaps which fight is in which room. The hall's
+own shape — 119 across by 77 along, off the two council doors — is what that
+room is built to, and it is.
+
+**What is still on the table** is the other half: the *sizes*. Every fight room
+here is sized off the client's map tile at `BUILD_SCALE`, and the boundaries
+above disagree with that sheet by up to forty per cent — the Oratory is built
+ninety-five yards square against a boundary of 135 by 150, the airless room
+eighty-four across against 120. Taking them would halve some fights' floors,
+and floor is the single biggest lever this game has (`docs/mechanic-rules.md`
+rule 5), so it is a change that arrives with a full re-tune attached. The
+numbers are all in the table above, so it is a decision rather than a search.
+
+### The packs that are somewhere else when you get there
+
+Fifteen creatures in this raid carry a `creature_addon` path, and five of them
+stand in corridors this game builds:
+
+| | path | what it walks |
+| --- | --- | --- |
+| a Damned on the way up | 3701100 | 50 yards **across** the corridor |
+| two Rotting Frost Giants | 2087860 | 39 waypoints, x −330.7 to −235.8: 95 yards **along** the rampart |
+| a Vengeful Fleshreaper | 3703800 | a 13-point loop around the plagueworks floor |
+| Stinky | 2012400 | 78 yards **across**, x 4344.9 → 4267.0 |
+| Precious | 2012470 | 74 yards **across**, the other way, at the same depth |
+
+Two are built and three are not, and the line between them is this game's own
+compression rather than taste. A corridor here is fifteen yards across where
+the source's is a hundred and fifty — deliberately, because held ground a raid
+can walk round is not held — so a patrol that walks *across* one moves a
+twenty-yard circle by less than its own radius. That is arithmetic, not a
+decision. A patrol that walks *along* a corridor is a decision, and both of
+those are built: the giants walk most of the rampart, and the heap of twelve
+Fleshreapers drifts up and down the plagueworks approach.
+
+`dungeoncheck` holds the rule rather than the taste: every patrol must walk
+further than it notices.
+
+What a patrol adds is the only question a corridor did not already ask. A pack
+asks *which one first*; a patrol asks *when*. It walks while it is asleep and
+stops the moment it wakes, so what it changes is where the circle is when the
+raid arrives, not how the fight goes once it starts.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid
@@ -561,8 +639,8 @@ stands:
 | `gameobject` — every object, with position | 111 | **taken** for the great hall and the alarms |
 | `creature_template` — name, rank, scale, speeds | all of them | **taken** for the first boss's pace |
 | `creature_model_info` — bounding radius, combat reach | all of them | **taken**: it is the yardstick |
-| `creature_addon` — auras and patrol paths | 5 of the 597 | available, and small: this raid stands still |
-| `waypoint_data` — the paths those five walk | 5 paths | available; nothing here patrols yet |
+| `creature_addon` — auras and patrol paths | 15 of the 597 | **taken**, in part — see below |
+| `waypoint_data` — the paths those fifteen walk | 15 paths | **taken** for the two that matter |
 | the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | **taken** — every corridor |
 
 **The client's own tables** — what the emulators do not carry, published at
@@ -601,6 +679,11 @@ which is why a ramp is a room and a stair is a doorway.
    ratios themselves cannot be used, and why is worth reading.
 8. ~~**The source's own extra credit**: its achievement criteria.~~ **Six of
    eight taken.** The other two ask about a moment inside a fight.
+9. **The rooms' sizes**, off the same boundaries their shapes now come from.
+   Every fight's floor is still the client map tile's reading, and the two
+   disagree by up to forty per cent. This is the one item left that changes how
+   every fight plays, so it comes with a re-tune: see "The shape of a fight's
+   floor" for the numbers.
 
 ## How to take a measurement off a picture
 

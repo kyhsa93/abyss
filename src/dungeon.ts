@@ -628,6 +628,14 @@ export const PASSAGES: Passage[] = [
       'spire',
       [
         { pos: { x: -62, y: 2001 }, count: 3, pulls: PULL },
+        // A Damned at (-175, 2215) carries path 3701100 and walks fifty yards
+        // across the way up. It is not built, and the reason is this
+        // corridor's own note: the source is a hundred and fifty yards wide
+        // here and this is fifteen, because held ground a raid can walk round
+        // is not held. A patrol across fifteen yards moves a twenty-yard
+        // circle by less than its own radius, which is arithmetic rather than
+        // a decision. The two patrols that *are* built walk along a corridor
+        // rather than across one.
         { pos: { x: 62, y: 1930 }, count: 4, pulls: PULL },
         // Statues until a wire is stood on: no circle, so walking past one
         // does nothing. `pulls: 0` is the game's stoneform.
@@ -693,7 +701,11 @@ export const PASSAGES: Passage[] = [
     // ship. The other thirty-two creatures on this rampart are the two armies
     // fighting each other over it, and neither is fighting the raid.
     corridor: corridor('rampartway', 'mooring', [
-      { pos: { x: 90, y: 1763 }, count: 2, pulls: PULL, weight: 6.59 },
+      // And they walk. Both giants carry path 2087860, thirty-nine waypoints
+      // running from x -330.7 to -235.8 -- ninety-five yards along the walk,
+      // which is most of the rampart. What holds this corridor is not where
+      // they are, it is that they are somewhere.
+      { pos: { x: 90, y: 1763 }, count: 2, pulls: PULL, weight: 6.59, walks: { x: 90, y: 664 } },
       { pos: { x: 90, y: 854 }, count: 1, pulls: PULL, weight: 0.81 },
       { pos: { x: -90, y: 760 }, count: 1, pulls: PULL, weight: 0.81 },
       { pos: { x: -90, y: 731 }, count: 1, pulls: PULL, weight: 0.81 },
@@ -732,9 +744,19 @@ export const PASSAGES: Passage[] = [
       { pos: { x: -18, y: 2318 }, count: 1, pulls: PULL, weight: 1.4 },
       { pos: { x: -10, y: 2092 }, count: 1, pulls: PULL, weight: 0.96 },
       { pos: { x: 3, y: 1900 }, count: 3, pulls: PULL, weight: 1.09 },
-      { pos: { x: 2, y: 1110 }, count: 12, pulls: PULL, weight: 0.57 },
+      // And the heap itself moves: one of the twelve carries path 3703800, a
+      // thirteen-point loop around the floor they stand on. A line across it
+      // is the same decision, and it is the decision -- twelve bodies is not
+      // something to walk round, so what is left is when.
+      { pos: { x: 2, y: 1110 }, count: 12, pulls: PULL, weight: 0.57, walks: { x: 2, y: 1560 } },
       { pos: { x: -90, y: 649 }, count: 1, pulls: PULL, weight: 0.96 },
       { pos: { x: 90, y: 608 }, count: 1, pulls: PULL, weight: 0.96 },
+      // The wing's two named pets pass each other in the source -- Precious
+      // on path 2012470 and Stinky on 2012400, seventy-odd yards each, across
+      // the floor, in opposite directions -- and they stand still here for the
+      // reason the Damned on the way up does: across is the axis this game
+      // compresses, and a walk across a corridor moves a circle less far than
+      // the circle reaches.
       { pos: { x: 43, y: 559 }, count: 2, pulls: PULL, weight: 1.94 },
       { pos: { x: -74, y: 495 }, count: 1, pulls: PULL, weight: 2.56 },
       { pos: { x: -21, y: 383 }, count: 1, pulls: PULL, weight: 0.96 },
@@ -1778,7 +1800,14 @@ export function groundFor(from: string, to: string): Corridor | null {
     room,
     entry: place({ x: 0, y: room.front - 60 }),
     ways: passage.corridor.ways.map((way) => ({ to: way.to, at: place(way.at) })),
-    packs: passage.corridor.packs.map((pack) => ({ ...pack, pos: place(pack.pos) })),
+    packs: passage.corridor.packs.map((pack) => ({
+      ...pack,
+      pos: place(pack.pos),
+      // The far end of a patrol goes through the same frame its near end does,
+      // or a pack laid into the building would walk toward a point in the
+      // corridor's own coordinates and end up somewhere else entirely.
+      ...(pack.walks ? { walks: place(pack.walks) } : {}),
+    })),
     ...(passage.corridor.springs
       ? {
           springs: passage.corridor.springs.map((spring) => ({

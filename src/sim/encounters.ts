@@ -2149,10 +2149,25 @@ export const ENCOUNTERS: Encounter[] = [
      * was — the same rule the second fight's room is held to. Turning a room
      * and shrinking it at once is two changes measured as one.
      */
-    // Eighty-nine yards wide by a hundred and twenty-four long. The width was
-    // already right; the length was seventy-seven, which made a room the plan
-    // draws as a long diamond into very nearly a square.
-    room: { kind: 'hall', halfWidth: 843, front: 1566, back: 783 },
+    // Twice turned, and the source settles it.
+    //
+    // The note above says this room must be wider than it is deep and gives a
+    // shape that is. What was actually here was 1686 across by 2349 deep --
+    // turned back the way the note forbids, by a later round that measured the
+    // plan by eye and read a long diamond off it. So the file has carried its
+    // own argument against its own numbers for a while, which is what happens
+    // when a shape is settled twice by looking at pictures.
+    //
+    // `instance_icecrown_citadel.cpp` ends it. The fight's floor is a
+    // parallelogram -- `ParallelogramBoundary((4356, 3290), (4435, 3194),
+    // (4280, 3194))` -- a hundred and fifty-five yards across the walk and
+    // ninety-six along it, which is wider than deep by a little over half. The
+    // raid comes in through the Scientist Entrance at (4356.8, 3155.9), which
+    // is the long wall, so the width is the x span and the depth is the y one.
+    //
+    // At that ratio, keeping the floor it already had to the square unit:
+    // 2530 across by 1566 deep. The benches move with it.
+    room: { kind: 'hall', halfWidth: 1265, front: 1044, back: 522 },
     /**
      * Four benches, in two rows.
      *
@@ -2163,10 +2178,10 @@ export const ENCOUNTERS: Encounter[] = [
      * answer to all three.
      */
     terrain: [
-      { pos: { x: -547, y: -297 }, radius: 85 },
-      { pos: { x: 547, y: -297 }, radius: 85 },
-      { pos: { x: -547, y: 469 }, radius: 85 },
-      { pos: { x: 547, y: 469 }, radius: 85 },
+      { pos: { x: -821, y: -198 }, radius: 85 },
+      { pos: { x: 821, y: -198 }, radius: 85 },
+      { pos: { x: -821, y: 313 }, radius: 85 },
+      { pos: { x: 821, y: 313 }, radius: 85 },
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',
