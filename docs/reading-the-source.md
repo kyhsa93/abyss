@@ -224,6 +224,90 @@ because a door is placed where the bearing to the next room leaves this one —
 so the two read as one door, and the build says so. Nothing in this game walks
 round a curve; a ring of rooms around a bowl is the one shape it cannot hold.
 
+## What is taken, what differs, and what is still on the table
+
+The emulators carry the whole instance, not just its geometry. This is what
+has been used, what the game does differently on purpose, and what is still
+sitting there.
+
+### The two fights of the lower spire, against their scripts
+
+The kits match almost exactly, which is worth saying because they were built
+from descriptions rather than from data:
+
+| the source | here |
+| --- | --- |
+| Coldflame, Bone Spike Graveyard, Bone Storm, Bone Slice | coldflame, spike, bonestorm, and the tank's slam |
+| Death and Decay, Frostbolt, Frostbolt Volley, Touch of Insignificance, Summon Shade, Dominate Mind, Dark Empowerment, add waves | decay, frostbolt, volley, insignificance, shade, dominate, empower, adds |
+
+The *cadence* does not, and this is the largest single thing the data could
+still settle. `boss_lord_marrowgar.cpp` schedules its events outright:
+
+| | source | here, phase one → three |
+| --- | --- | --- |
+| Coldflame | 5s, from 5s in | 13s → 9.5s |
+| Bone Spike | 15s, then 15–20s | 27s → 21s |
+| Bone Storm | warned at 45–50s, then every 90–95s; twenty seconds long at ten, thirty at twenty-five; the boss moves at three times its own speed and re-picks three times | one beat, 62s → 50s, re-picked every 5s |
+| the tank's cleave | enabled at 10s | slam, 19s → 15s |
+| enrage | 10 minutes | 240s |
+
+Lady Deathwhisper's are in the same shape: waves every 60s at ten and 45s at
+heroic (here 44s → 34s), Frostbolt every 12s (here 21s → 16s), the volley
+every 20s (here 12s → 9s), Insignificance every 6–9s (here 10s → 8s), a shade
+every 12s (here 26s → 20s).
+
+Two of those are backwards — this game throws the volley twice as often as the
+source and a shade half as often — and neither was a decision. They came out of
+tuning a fight nobody had the source's numbers for.
+
+### Deliberately different
+
+- **Health.** Forty-six thousand against a boss with about a million. The raid
+  here is five to twenty-five bodies with this game's own damage; the bar is
+  sized against them.
+- **The ladder.** The source varies a fight by raid size and difficulty inside
+  one script (`RAID_MODE`); this game sells whole mechanics by rung.
+- **Names, and every line spoken.** The rule from the round that took these
+  fights: the shape comes across and the name does not.
+- **Scale.** The building is at `BUILD_SCALE` and there is no elevation, so a
+  ramp is a room and a stair is a doorway.
+- **Ranged reach.** Eighteen yards against the source's forty, for the reason
+  written on `SPELL_RANGE`.
+
+### Still on the table, in the order it is worth taking
+
+1. **Every fight's cadence**, from its own script: first cast, repeat, and what
+   changes at twenty-five and at heroic. Thirteen scripts, all in the same
+   shape as the two read here. It is the biggest unused thing and the one that
+   would move every fight's rhythm onto the source's.
+2. **Phase structure**: what actually ends a phase there — Deathwhisper's
+   barrier is "damage taken exceeds mana", Saurfang's is blood power,
+   Putricide's are health percentages. This game gives every boss three phases
+   on a timer.
+3. **What the adds are.** Cult Fanatics and Adherents have kits of their own —
+   Necrotic Strike, Shadow Cleave, Vampiric Might, Deathchill Bolt — and this
+   game's waves are bodies with a health bar.
+4. **The real trash.** `creature` has every pack in the corridor with its own
+   position, and `waypoint_data` has what patrols. The packs in the lower
+   spire's corridor here are hand-placed.
+5. **The teleport pads.** `go_icecrown_citadel_teleport.cpp` and the gameobject
+   rows behind it put the source's own pads where they stand; this game's pads
+   are a rule rather than a place.
+6. **Boss health *ratios*** between fights, from `creature_template`, even
+   where the absolute numbers cannot be used.
+7. **Mechanic geometry** — a spell's radius and range — which is the one thing
+   on this list the emulators do *not* carry: it lives in the client's
+   `SpellRadius` and `SpellRange` tables, published at wago.tools. That is
+   where "how big is Death and Decay" is answered exactly, and it is the class
+   of number this game currently tunes by hand.
+8. **The source's own extra credit**: `instance_encounters` and the achievement
+   criteria — "nobody impaled", "all five add types alive at once" — which are
+   goals already designed for these fights.
+
+And what no emulator can give: the floor itself. Walkable geometry is the
+client's navmesh, so every room here is a convex approximation of a shape
+nobody can read out of a table.
+
 ## How to take a measurement off a picture
 
 The point of the list below is that a number can be taken again by somebody
