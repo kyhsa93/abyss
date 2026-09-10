@@ -907,6 +907,31 @@ export interface Encounter {
    */
   casters?: number
   /**
+   * Mechanics the source only throws at some settings, and which.
+   *
+   * This game had a ladder of its own once -- a fight sold its mechanics one
+   * at a time as a raid got bigger or braver -- and it was retired, because a
+   * fight with a mechanic taken out of it is not easier, it is emptier. What
+   * is here is not that. It is the *source's* own gating, four lines of it
+   * across the whole instance, each of which reads as a fight being a
+   * different fight at a different setting rather than a cheaper one:
+   *
+   *   `if (IsHeroic()) events.ScheduleEvent(EVENT_UNBOUND_PLAGUE, 20s)`
+   *   `if (IsHeroic()) DoCastSelf(SPELL_SHADOW_PRISON, true)`
+   *   `if (GetDifficulty() != RAID_DIFFICULTY_10MAN_NORMAL)` around Dominate Mind
+   *   `if (IsHeroic())` around the Watcher's second-phase waves
+   *
+   * `heroic` is the first two shapes; `beyond-ten-normal` is the third, which
+   * is the one setting in the source that is neither a difficulty nor a size
+   * on its own.
+   *
+   * Nothing else in the instance gates a whole mechanic. Everything else it
+   * varies by setting it varies by *number* -- how many spores, how many
+   * targets a blight needs, how long a storm runs -- and that is what
+   * `sizeMechanic` and the difficulty table already do here.
+   */
+  gates?: Partial<Record<MechanicId, 'heroic' | 'beyond-ten-normal'>>
+  /**
    * Health fractions the phases turn on.
    *
    * Three phases at set shares of the bar is this game's own device, and it
@@ -1507,6 +1532,10 @@ export const ENCOUNTERS: Encounter[] = [
     // Half of every wave stands off and casts. See `casters`.
     casters: 0.5,
     kit: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
+    // The one mechanic in the source that a ten-man on normal never sees:
+    // `if (GetDifficulty() != RAID_DIFFICULTY_10MAN_NORMAL)` is written round
+    // Dominate Mind and round nothing else in the instance.
+    gates: { dominate: 'beyond-ten-normal' },
     /**
      * Two fights rather than one boss getting faster, which is the only place
      * in this game a phase changes *what* is thrown rather than how often.
@@ -2228,6 +2257,9 @@ export const ENCOUNTERS: Encounter[] = [
     // Above that: the flasks, which are the one demand here answered by being
     // early rather than by reacting, and the reagent, which is the swap.
     kit: ['caustic', 'hound', 'gather', 'chase', 'decant', 'reagent'],
+    // Unbound Plague is heroic-only there -- `if (IsHeroic())` in the
+    // professor's `Reset` -- and the chase is what this game made of it.
+    gates: { chase: 'heroic' },
     herald: null,
     accent: '#a3e635',
     names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
@@ -2386,6 +2418,12 @@ export const ENCOUNTERS: Encounter[] = [
     // the game answered by not walking; and the wave, which is this fight's
     // fourth target call.
     kit: ['rotation', 'thirst', 'ballast', 'nuclei', 'prison', 'adds'],
+    // Shadow Prison is the aura this game calls the binding, and all three
+    // princes cast it on themselves with `if (IsHeroic())` and never
+    // otherwise. It is the fight's own answer to a raid that runs from
+    // everything, which is a thing to ask of a raid that has already won here
+    // once rather than of one meeting the crowns for the first time.
+    gates: { prison: 'heroic' },
     herald: null,
     accent: '#be123c',
     names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
@@ -2644,10 +2682,16 @@ export function withRequired(kit: readonly MechanicId[]): MechanicId[] {
  */
 export function encounterKit(
   encounter: Encounter,
-  _size: number,
-  _difficulty: DifficultyId,
+  size: number,
+  difficulty: DifficultyId,
 ): MechanicId[] {
-  return withRequired([...(encounter.always ?? []), ...encounter.kit])
+  const shown = (id: MechanicId): boolean => {
+    const gate = encounter.gates?.[id]
+    if (gate === undefined) return true
+    if (gate === 'heroic') return difficulty === 'heroic'
+    return difficulty === 'heroic' || size > 10
+  }
+  return withRequired([...(encounter.always ?? []), ...encounter.kit].filter(shown))
 }
 
 /**

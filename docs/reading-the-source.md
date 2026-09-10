@@ -597,13 +597,42 @@ asks *which one first*; a patrol asks *when*. It walks while it is asleep and
 stops the moment it wakes, so what it changes is where the circle is when the
 raid arrives, not how the fight goes once it starts.
 
+### The source's own ladder
+
+This game had a ladder once — a fight sold its mechanics one at a time as a
+raid got bigger or braver — and it was retired, because a fight with a mechanic
+taken out of it is not easier, it is emptier.
+
+The source has one too, and it is four lines across the whole instance:
+
+| | source | here |
+| --- | --- | --- |
+| Unbound Plague | `if (IsHeroic())` in Putricide's `Reset` | the chase, heroic only |
+| Shadow Prison | `if (IsHeroic())` on all three princes | the binding, heroic only |
+| Dominate Mind | `if (GetDifficulty() != RAID_DIFFICULTY_10MAN_NORMAL)` | the turned mind, everywhere but a ten-man on normal |
+| the Watcher's second-phase waves | `if (IsHeroic())` | not expressible — a gate here is per mechanic, and this one is per phase |
+| Vile Gas on Rotface | `if (IsHeroic())` | the Confluence does not carry that mechanic at all |
+
+That is the whole of it. Everything else the instance varies by setting it
+varies by *number* — how many spores, how many targets a blight needs, how long
+a bone storm runs — and that is what `sizeMechanic` and the difficulty table
+already do here.
+
+The difference between the two ladders is worth stating, because it is the
+reason one was removed and the other put in. This game's sold *ideas*: the
+five-man never met the turned mind at all, so the fight it played was a
+different and smaller fight. The source's gates a mechanic that changes what a
+raid already knows how to do — a plague that has to be passed on, a binding
+that charges for running — onto the setting where the raid has already won
+once. It is a fight being a different fight, not a cheaper one.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid
   here is five to twenty-five bodies with this game's own damage; the bar is
   sized against them.
-- **The ladder.** The source varies a fight by raid size and difficulty inside
-  one script (`RAID_MODE`); this game sells whole mechanics by rung.
+- ~~**The ladder.**~~ Gone both ways. This game's own is retired, and the
+  source's four gates are built — see "The source's own ladder".
 - **Names, and every line spoken.** The rule from the round that took these
   fights: the shape comes across and the name does not.
 - **Scale.** The building is at `BUILD_SCALE` and there is no elevation, so a

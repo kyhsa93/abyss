@@ -8798,23 +8798,36 @@ for (const [label, w, h] of [
   // What a rung pays out, which is no longer a mechanic.
   //
   // It used to be one: a boss's six settings each bought the next idea in its
-  // ladder, and a five-man on normal met three of six. The source does not do
-  // that — every setting there schedules the whole fight and what changes is
-  // how many people a spell picks, which rank lands, and how long the berserk
-  // is — so this game does not either. `encounterKit` returns the boss, whole,
-  // at every setting.
+  // ladder, and a five-man on normal met three of six. That is retired — a
+  // fight with a mechanic taken out of it is not easier, it is emptier — so
+  // what a rung buys now is the setting itself: more bodies, and heroic's
+  // numbers.
   //
-  // What a rung buys now is the setting itself: more bodies, and heroic's
-  // numbers. So the only thing left to check is that nothing still claims
-  // otherwise.
+  // "Every setting there schedules the whole fight" is what this note used to
+  // say about the source, and it is not true. The instance gates four things,
+  // written down in `Encounter.gates` with the lines they come off. So the
+  // check is not that nothing is ever missing; it is that what is missing is
+  // exactly the list, which is the difference between a fight varying the way
+  // the source varies it and a fight quietly losing a mechanic.
   const sells = LADDER.map((_, i) => i).every((i) => rungBuys(i).length === 0)
   expect('a rung buys the setting and not a mechanic', sells, 'a rung sold a mechanic')
-  const whole = ENCOUNTERS.every((fight) => {
-    const small = encounterKit(fight, 5, 'normal')
+  const grudging: string[] = []
+  for (const fight of ENCOUNTERS) {
+    const small = encounterKit(fight, 10, 'normal')
     const big = encounterKit(fight, 25, 'heroic')
-    return small.length === big.length && small.every((id) => big.includes(id))
-  })
-  expect('and the smallest raid meets the same fight as the largest', whole, 'a setting met less')
+    const missing = big.filter((id) => !small.includes(id)).sort()
+    const named = Object.keys(fight.gates ?? {}).sort()
+    const extra = small.filter((id) => !big.includes(id))
+    if (extra.length > 0) grudging.push(`${fight.id} throws ${extra.join(',')} only at the small end`)
+    if (missing.join(',') !== named.join(',')) {
+      grudging.push(`${fight.id} is missing ${missing.join(',') || 'nothing'}, and names ${named.join(',') || 'nothing'}`)
+    }
+  }
+  expect(
+    'and a raid meets the whole fight but for what the source itself gates',
+    grudging.length === 0,
+    grudging.join('; '),
+  )
 
   // The page: what a pull writes on it is what the pull put in front of you.
   // A bill for a mechanic the fight was not carrying would be a page that
