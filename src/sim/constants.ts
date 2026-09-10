@@ -783,6 +783,29 @@ export const COLDFLAME_TELEGRAPH = readable(0.9)
 export const COLDFLAME_LINGER = 1.6
 
 /**
+ * The jets in the floor of the way up from the rise, and what each one costs.
+ *
+ * The source's own, as far as the source states them. `SPELL_COLDFLAME_JETS`
+ * is a two-second cast, the trap reschedules itself every twenty-two seconds,
+ * and what it leaves is Coldflame — "11000 Frost damage every 1 sec for 3
+ * sec". So the telegraph is the cast, the linger is the three seconds, and the
+ * cadence is the twenty-two.
+ *
+ * The radius is not stated and is the boss's own patch doubled: a jet is a
+ * column out of the floor rather than a footprint of a line, and a hazard a
+ * party can be half inside is a hazard nobody can read.
+ *
+ * What it costs is this game's, because eleven thousand is a third of a
+ * player's health there and the whole of one here. A body caught by a full
+ * cycle of one loses about a fifth of itself, which is the corridor's price
+ * for standing still in it.
+ */
+export const JET_RADIUS = COLDFLAME_RADIUS * 2
+export const JET_TELEGRAPH = readable(2)
+export const JET_LINGER = 3
+export const JET_DAMAGE = 300
+
+/**
  * How much of a hit a turned body keeps out while the fight is holding it.
  *
  * Not toughness for its own sake -- it is the window the decision needs. A

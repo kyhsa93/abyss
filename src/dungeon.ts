@@ -1,9 +1,9 @@
 import { ENCOUNTERS } from './sim/encounters'
-import type { Alarm, Corridor, Pack, Spring } from './sim/travel'
+import type { Alarm, Corridor, Jet, Pack, Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Obstacle, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
-import { BUILD_SCALE, YARD } from './sim/constants'
+import { BUILD_SCALE, JET_RADIUS, YARD } from './sim/constants'
 
 /**
  * The citadel as a graph: rooms, what joins them, and what opens.
@@ -538,6 +538,8 @@ function corridor(
   springs?: Array<Omit<Spring, 'toward'>>,
   /** Tripwires in its floor, by the pack each one wakes. See `Alarm`. */
   alarms?: Alarm[],
+  /** And what is buried in it, for the one passage held by its floor. */
+  jets?: Jet[],
 ): Corridor {
   // The hall is as long as what is standing in it, plus room to arrive.
   //
@@ -546,7 +548,14 @@ function corridor(
   // inside the first pack's circle, which is a corridor that pulls itself.
   // The way in has to be outside everything, so it is derived rather than
   // chosen.
-  const top = Math.max(...packs.map((p) => p.pos.y + p.pulls))
+  // Everything that has to be inside it, which is not only what stands in it:
+  // one passage in the building is held by its floor and has no packs at all,
+  // and `Math.max` of nothing is minus infinity.
+  const top = Math.max(
+    0,
+    ...packs.map((p) => p.pos.y + p.pulls),
+    ...(jets ?? []).map((j) => j.at.y + JET_RADIUS),
+  )
   const front = top + 200
   return {
     id,
@@ -562,6 +571,7 @@ function corridor(
     packs,
     ...(springs ? { springs: springs.map((spring) => ({ ...spring, toward: mouth(front) })) } : {}),
     ...(alarms ? { alarms } : {}),
+    ...(jets ? { jets } : {}),
   }
 }
 
@@ -737,7 +747,38 @@ export const PASSAGES: Passage[] = [
   // general who is about to be the boss. A walk with nothing in it is what the
   // source puts here, and a corridor with nothing in it is not a corridor.
   { from: 'mooring', to: 'rise', gate: killed('mooring') },
-  { from: 'rise', to: 'crossing', gate: killed('rise') },
+  // The way up to the crossing, which is the one stretch of this building
+  // held by nothing with a health bar.
+  //
+  // Twelve Frost Freeze Traps stand in it — `creature` rows on map 631, from
+  // x 4135.8 to 4225.1 across ninety yards of floor — and what they do is
+  // fire Coldflame Jets. `at_icc_saurfang_portal` starts them the first time
+  // anybody steps through, alternating so half go at one second and half at
+  // eleven, and `at_icc_shutdown_traps` at the far end is what turns them off.
+  //
+  // So it is a corridor with nothing to kill in it, and that is the point:
+  // every other stretch of held ground asks which pack to wake first, and this
+  // one asks when to be standing where. It had no ground at all before —
+  // `rise` and `crossing` were two rooms with a doorway between them.
+  {
+    from: 'rise',
+    to: 'crossing',
+    gate: killed('rise'),
+    corridor: corridor('coldway', 'crossing', [], undefined, undefined, [
+      { at: { x: 15, y: 2558 }, every: 22, offset: 0 },
+      { at: { x: 15, y: 2317 }, every: 22, offset: 11 },
+      { at: { x: -41, y: 2281 }, every: 22, offset: 0 },
+      { at: { x: 42, y: 2280 }, every: 22, offset: 11 },
+      { at: { x: 23, y: 2277 }, every: 22, offset: 0 },
+      { at: { x: -21, y: 2002 }, every: 22, offset: 11 },
+      { at: { x: -43, y: 1901 }, every: 22, offset: 0 },
+      { at: { x: 72, y: 1896 }, every: 22, offset: 11 },
+      { at: { x: -23, y: 1793 }, every: 22, offset: 0 },
+      { at: { x: 42, y: 1529 }, every: 22, offset: 11 },
+      { at: { x: -41, y: 1528 }, every: 22, offset: 0 },
+      { at: { x: 23, y: 1525 }, every: 22, offset: 11 },
+    ]),
+  },
 
   // The way into the plagueworks: one pack on the stair, and a second standing
   // close enough behind it that a careless pull brings both.
@@ -1875,6 +1916,9 @@ export function groundFor(from: string, to: string): Corridor | null {
     ...(passage.corridor.alarms
       ? { alarms: passage.corridor.alarms.map((a) => ({ ...a, at: place(a.at) })) }
       : {}),
+    ...(passage.corridor.jets
+      ? { jets: passage.corridor.jets.map((j) => ({ ...j, at: place(j.at) })) }
+      : {}),
   }
 }
 
@@ -1923,6 +1967,10 @@ export function citadelSprings(cleared?: ReadonlySet<string>): Spring[] {
  * however many packs came before this corridor, or the way up to the first
  * fight would wake something in the plagueworks.
  */
+export function citadelJets(cleared?: ReadonlySet<string>): Jet[] {
+  return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.jets ?? [])
+}
+
 export function citadelAlarms(cleared?: ReadonlySet<string>): Alarm[] {
   let before = 0
   const out: Alarm[] = []

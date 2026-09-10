@@ -1,7 +1,17 @@
 import { ABILITIES } from './abilities'
 import { clearTerrain, inTerrain } from './battleground'
 import { DIFFICULTIES, makeSlots, specOf, type DifficultyId, type Pick, type RaidSize } from './classes'
-import { DT, HEALTH, MELEE_RANGE, PARTY_RADIUS, YARD } from './constants'
+import {
+  DT,
+  HEALTH,
+  JET_DAMAGE,
+  JET_LINGER,
+  JET_RADIUS,
+  JET_TELEGRAPH,
+  MELEE_RANGE,
+  PARTY_RADIUS,
+  YARD,
+} from './constants'
 import {
   applyDamage,
   beginCast,
@@ -13,7 +23,7 @@ import {
   livingParty,
   pushEffect,
 } from './combat'
-import { turnToward } from './boss'
+import { blankGround, turnToward } from './boss'
 import { ROUND_ARENA, pushInside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, Obstacle, SimState, Vec2 } from './types'
@@ -157,6 +167,29 @@ export interface Spring {
 }
 
 /**
+ * A jet in the floor, and when it fires.
+ *
+ * The one stretch of this building that is held by nothing with a health bar.
+ * After the rise the way up to the upper spire is twelve Frost Freeze Traps
+ * (`creature` rows on map 631, x 4135.8 to 4225.1) firing Coldflame Jets --
+ * `at_icc_saurfang_portal` starts them, alternating, and `at_icc_shutdown_traps`
+ * at the far end is what turns them off. So the corridor is not a thing to
+ * clear, it is a thing to cross, and what it asks is the one question a pack
+ * cannot: when to be standing where.
+ *
+ * `offset` is how far into its own cycle a jet starts, which is what makes a
+ * row of them a rhythm rather than a wall: the source alternates its traps
+ * between firing at one second and at eleven.
+ */
+export interface Jet {
+  at: Vec2
+  /** Seconds between one firing and the next. */
+  every: number
+  /** How far into the first cycle it fires. */
+  offset: number
+}
+
+/**
  * A way out, and what is on the other side of it.
  *
  * A corridor had one, because a corridor is a passage and a passage joins two
@@ -197,6 +230,8 @@ export interface Corridor {
    * piece of furniture in that corridor that is a mechanic.
    */
   alarms?: Alarm[]
+  /** What is buried in the floor of it, if anything is. See `Jet`. */
+  jets?: Jet[]
   /**
    * What is standing on this ground, which a body has to walk around.
    *
@@ -246,6 +281,8 @@ export interface TravelState {
    * facing. Packs that do not walk sit at nought forever.
    */
   strolled: number[]
+  /** Seconds until each jet in the floor fires again. */
+  jetted: number[]
   /** Where each body that came out of a spring is walking, while it still is. */
   streaming: Record<number, Vec2>
   /** What each spring has done: when the next one is due, and whether it is over. */
@@ -425,6 +462,7 @@ export function createTravelState(
       tripped: (corridor.alarms ?? []).map(() => false),
       belongs,
       strolled: corridor.packs.map(() => 0),
+      jetted: (corridor.jets ?? []).map((jet) => jet.offset),
       streaming: {},
       // The first body out of a spring is not free: it takes as long to come
       // as every one after it, so walking in and straight back out is a walk
@@ -625,6 +663,33 @@ function patrolStep(s: SimState): void {
   })
 }
 
+/**
+ * The floor firing, which is the one thing in a corridor that is not a body.
+ *
+ * It lays the same cold a boss's line lays, so everything downstream of it --
+ * the telegraph, the damage, the drawing -- is the ground system this game
+ * already has. `updateGround` runs in every mode, which is what makes that
+ * free; nothing here has to know what a hazard looks like.
+ */
+function jetStep(s: SimState): void {
+  const travel = s.travel!
+  ;(travel.corridor.jets ?? []).forEach((jet, index) => {
+    travel.jetted[index] = (travel.jetted[index] ?? 0) - DT
+    if (travel.jetted[index]! > 0) return
+    travel.jetted[index] = jet.every
+    s.ground.push({
+      ...blankGround(s),
+      kind: 'coldflame',
+      pos: { x: jet.at.x, y: jet.at.y },
+      radius: JET_RADIUS,
+      telegraph: JET_TELEGRAPH,
+      lingering: JET_LINGER,
+      damage: JET_DAMAGE,
+      detonated: false,
+    })
+  })
+}
+
 function listen(s: SimState): void {
   const travel = s.travel!
   // The floor first. A tripwire wakes something that is nowhere near it, so it
@@ -814,6 +879,7 @@ const CORRIDOR_MEND = 0.014
 export function updateTravel(s: SimState, rng: Rng): void {
   const travel = s.travel
   if (!travel) return
+  jetStep(s)
   patrolStep(s)
   listen(s)
   springStep(s)
@@ -1153,7 +1219,15 @@ function moveToward(s: SimState, actor: Actor, target: Vec2 | null): void {
   if (actor.castId) interruptCast(s, actor, 'moved')
 }
 
-/** Whether a corridor can be crossed without waking anything, which it must not. */
+/**
+ * Whether a corridor can be crossed without meeting anything, which it must not.
+ *
+ * Packs and jets both count, and the jets are why this says "meeting" rather
+ * than "waking". One passage in the building is held by twelve holes in the
+ * floor and nothing else: nothing there is asleep, so nothing there can be
+ * woken, and a rule written as "wakes something" read that stretch as an
+ * unguarded walk when it is the one place a raid actually has to run.
+ */
 export function unguarded(corridor: Corridor): boolean {
   // Every way out, because a corridor is only guarded if it is guarded
   // whichever door you are making for.
@@ -1162,6 +1236,7 @@ export function unguarded(corridor: Corridor): boolean {
     for (let i = 0; i <= 40; i++) {
       const at = { x: corridor.entry.x + (along.x * i) / 40, y: corridor.entry.y + (along.y * i) / 40 }
       if (corridor.packs.some((pack) => dist(at, pack.pos) <= pack.pulls)) return false
+      if ((corridor.jets ?? []).some((jet) => dist(at, jet.at) <= JET_RADIUS)) return false
     }
     return true
   })

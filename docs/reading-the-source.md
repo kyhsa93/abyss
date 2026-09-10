@@ -763,6 +763,36 @@ first boss had learned something untrue about every fight after it.
   be taking a *distance*, and distance is the axis this game compresses; the
   shape would arrive without the reason for it.
 
+### The corridor held by its floor
+
+After the rise, the way up to the upper spire is the one stretch of this
+building held by nothing with a health bar — and this game had nothing there at
+all: `rise` and `crossing` were two rooms with a doorway between them.
+
+The source fills it. Twelve Frost Freeze Traps stand in ninety yards of floor
+(`creature` rows on map 631, x 4135.8 to 4225.1), `at_icc_saurfang_portal`
+starts them the first time anybody steps through — alternating, half at one
+second and half at eleven — and `at_icc_shutdown_traps` at the far end is what
+turns them off. `SPELL_COLDFLAME_JETS` is a two-second cast and what it leaves
+is Coldflame, "11000 Frost damage every 1 sec for 3 sec".
+
+So: a two-second telegraph, a three-second burn, twenty-two seconds between,
+two offsets. Everything downstream of that is the ground system this game
+already has — `updateGround` runs in every mode and the renderer draws
+`s.ground` in every mode, so a jet is eight lines and no new machinery.
+
+It is worth having because of what it asks. Every other stretch of held ground
+asks *which pack to wake first*; this one asks *when to be standing where*, and
+that is a question a corridor could not ask before.
+
+Two checks had to learn it. "No corridor can be crossed without waking
+anything" read a corridor with nothing asleep in it as an unguarded walk —
+nothing there can be woken, which is the point — so it counts jets as well and
+says "meeting" rather than "waking". And "under a thousand yards of the citadel
+is bare corridor" counted every gap between rooms whether anything stood in it
+or not, so the citadel read as emptier the more crowded it got; bare means
+holding nothing, and a passage with ground on it is not bare.
+
 ### Deliberately different
 
 - **Health.** Forty-six thousand against a boss with about a million. The raid
@@ -807,7 +837,7 @@ stands:
 | `creature_model_info` — bounding radius, combat reach | all of them | **taken**: it is the yardstick |
 | `creature_addon` — auras and patrol paths | 15 of the 597 | **taken**, in part — see below |
 | `waypoint_data` — the paths those fifteen walk | 15 paths | **taken** for the two that matter |
-| the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | **taken** — every corridor |
+| the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | **taken** — every corridor, counted off the rows |
 
 **The client's own tables** — what the emulators do not carry, published at
 wago.tools and readable through Wowhead's WotLK tooltip endpoint

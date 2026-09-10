@@ -7,6 +7,7 @@ import {
   gateOpen,
   killedOnce,
   padsLit,
+  citadelJets,
   citadelPacks,
   citadelSprings,
   citadelWorld,
@@ -460,8 +461,17 @@ const everywhere = () => true
   // so there is no scale left to be too generous with — what is worth holding
   // instead is the bare floor, because bare floor between rooms is the whole
   // of what "the map feels enormous" was. It was 1611 yards of it.
+  //
+  // Bare means *holding nothing*, which is not the same as "between two rooms",
+  // and it used to be counted as the second. Every passage's gap went into the
+  // total whether something stood in it or not, so the day the way to the first
+  // fight went from twenty-six bodies to the forty-eight its rows actually
+  // carry, the citadel read as a hundred yards emptier — sorry, fuller — for
+  // having become more crowded. A passage with ground on it is held: that is
+  // what `unguarded` is for, and it is checked there.
   let bare = 0
   for (const passage of PASSAGES) {
+    if (passage.corridor) continue
     const a = placeOf(passage.from)
     const b = placeOf(passage.to)
     const d = dist(a, b)
@@ -727,6 +737,7 @@ const everywhere = () => true
     ...hallFor('threshold', null, anywhere),
     id: 'citadel',
     packs: citadelPacks(),
+    jets: citadelJets(),
   }
   const s = unattended(
     createCorridorState(5, autoParty(10, dps), ground, 'normal', 4, undefined, true),
@@ -763,7 +774,24 @@ const everywhere = () => true
   expect('and spread over the whole of it', spread > CITADEL_REACH / 2, `${Math.round(spread)} units at the furthest`)
 
   const rng = new Rng(5)
-  for (let t = 0; t < 30 * 120; t++) step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+  // Counted across the walk rather than read off the end of it: a jet is up
+  // for five seconds in every twenty-two, so an instant chosen at random has
+  // three chances in four of finding the floor quiet.
+  let fired = 0
+  const burning = new Set<number>()
+  for (let t = 0; t < 30 * 120; t++) {
+    step(s, { moveX: 0, moveY: 0, pressed: [] }, rng)
+    for (const g of s.ground) {
+      if (burning.has(g.id)) continue
+      burning.add(g.id)
+      fired++
+    }
+  }
+  expect(
+    `and the ${citadelJets().length} jets in its floor went off ${fired} times`,
+    fired > 0,
+    'nothing in the floor ever fired',
+  )
   expect(
     'and two minutes of walking never ends the walk',
     s.outcome === 'ongoing' && s.travel?.through === null,
@@ -1025,6 +1053,23 @@ expect(
     bodies(10) === 12 && bodies(25) === 18,
     `${bodies(10)} and ${bodies(25)}`,
   )
+
+  // The floor that holds a corridor on its own.
+  const jetted = corridors.filter((c) => (c.jets ?? []).length > 0)
+  expect(
+    `${jetted.reduce((n, c) => n + (c.jets ?? []).length, 0)} jet(s) in the floor of ${jetted.length} corridor(s)`,
+    jetted.length > 0,
+    'nothing is held by its floor',
+  )
+  // Alternating, which is what makes a row of them a rhythm rather than a
+  // wall: the source's traps go at one second and at eleven, in turn.
+  const together = jetted.filter((c) => new Set((c.jets ?? []).map((j) => j.offset)).size < 2)
+  expect('and they do not all fire at once', together.length === 0, together.map((c) => c.id).join(', '))
+  // And it is actually a corridor: something the raid has to cross rather than
+  // a decoration. A jet-only corridor has nothing to kill, so `unguarded`
+  // above is the only thing standing between it and being an empty walk.
+  const idle = jetted.filter((c) => c.packs.length === 0 && unguarded(c))
+  expect('and a corridor of nothing but floor still holds it', idle.length === 0, idle.map((c) => c.id).join(', '))
 
   // The patrols, which are the one thing in a corridor that is somewhere else
   // by the time you get there.

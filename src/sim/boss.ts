@@ -3685,7 +3685,14 @@ function updateAdds(s: SimState): void {
   s.actors = s.actors.filter((a) => a.faction !== 'boss' || a.alive || a.id === boss(s).id)
 }
 
-function blankGround(s: SimState): GroundEffect {
+/**
+ * A piece of hazardous floor with nothing set on it yet.
+ *
+ * Exported because a corridor lays one too: the way up from Deathbringer's
+ * Rise is held by twelve jets in the floor rather than by anything with a
+ * health bar, and what a jet leaves is the same cold this boss's line leaves.
+ */
+export function blankGround(s: SimState): GroundEffect {
   return {
     id: s.nextObjectId++,
     kind: 'coldflame',

@@ -155,6 +155,7 @@ import {
   PASSAGES,
   chamberAt,
   citadelPacks,
+  citadelJets,
   citadelSprings,
   citadelAlarms,
   citadelTerrain,
@@ -834,6 +835,7 @@ function standIn(id: string, from: string | null): void {
     // on anything: furniture does not wait for a door to open.
     terrain: citadelTerrain(),
     alarms: citadelAlarms(new Set(run.cleared)),
+    jets: citadelJets(new Set(run.cleared)),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),
