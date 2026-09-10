@@ -521,6 +521,36 @@ export function instances(now = Date.now()): Run[] {
  * calls this says which of the two it is about to do, because a player who
  * pressed it expecting the first and got the second has lost a week.
  */
+/**
+ * Put an instance back the way it was found.
+ *
+ * The source does not let a raid do this — a lockout there is weekly and the
+ * button is for five-man dungeons only — and the reason it does not is loot:
+ * an instance a group can reset is an instance a group can farm. Nothing here
+ * drops anything. What the lock is worth here is that an evening means
+ * something, and that survives a player who wants to walk the same building
+ * again on a Sunday.
+ *
+ * So it is allowed, and it is named. It is not a side effect of leaving: the
+ * button that gives an evening up says it is leaving the dead where they are,
+ * and this is the other button. What it does not touch is the chain — what a
+ * kill opened stays open, because that is progress rather than an instance.
+ *
+ * From outside the instance, which is the source's rule for the dungeons it
+ * does allow this on: `at` is cleared, so a player standing in one is standing
+ * at the door of the new one instead.
+ */
+export function resetInstance(
+  size: RaidSize,
+  difficulty: DifficultyId,
+  now = Date.now(),
+): void {
+  const vault = readVault(now)
+  const runs = { ...vault.runs }
+  delete runs[instanceOf(size, difficulty)]
+  writeVault({ lock: lockAt(now), at: null, runs })
+}
+
 export function abandon(run: Run, now = Date.now()): void {
   const vault = readVault(now)
   if (isSaved(run)) {

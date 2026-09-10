@@ -189,14 +189,68 @@ const dps = (classId: Pick['classId']): Pick => pickFor(classId, 'dps')!
 const heal = (classId: Pick['classId']): Pick => pickFor(classId, 'healer')!
 const tank = (classId: Pick['classId']): Pick => pickFor(classId, 'tank')!
 
+/**
+ * Compositions a player might actually build, including bad ones.
+ *
+ * Ten, which is the smallest raid there is. They were fives, and a five
+ * stopped being a raid the day the five-man went away — the whole table was
+ * measuring a setting nobody can play, and every row of it read as nought per
+ * cent once the fights stopped hiding mechanics from small rosters.
+ *
+ * The shapes are the same shapes at the new size: what a raid is meant to
+ * field, one short of a tank, one short of a healer, and the two that are all
+ * of one reach.
+ */
 const PARTIES: Array<{ label: string; party: Pick[] }> = [
-  { label: 'default  1t 1h 3d', party: [dps('mage'), tank('warrior'), heal('priest'), dps('hunter'), dps('rogue')] },
-  { label: 'two heals 1t 2h 2d', party: [dps('mage'), tank('warrior'), heal('priest'), heal('paladin'), dps('rogue')] },
-  { label: 'no healer 1t 0h 4d', party: [dps('mage'), tank('warrior'), dps('hunter'), dps('rogue'), dps('shaman')] },
-  { label: 'no tank   0t 1h 4d', party: [dps('mage'), dps('druid'), heal('priest'), dps('hunter'), dps('rogue')] },
-  { label: 'all melee 1t 1h 3d', party: [dps('rogue'), tank('warrior'), heal('priest'), dps('rogue'), dps('warrior')] },
-  { label: 'all caster 1t 1h 3d', party: [dps('mage'), tank('warrior'), heal('priest'), dps('shaman'), dps('druid')] },
-  { label: 'druid tank + shaman', party: [dps('mage'), tank('druid'), heal('shaman'), dps('priest'), dps('paladin')] },
+  {
+    label: 'default  2t 2h 6d',
+    party: [
+      dps('mage'), tank('warrior'), tank('druid'), heal('priest'), heal('paladin'),
+      dps('hunter'), dps('rogue'), dps('shaman'), dps('warlock'), dps('druid'),
+    ],
+  },
+  {
+    label: 'three heals 2t 3h 5d',
+    party: [
+      dps('mage'), tank('warrior'), tank('druid'), heal('priest'), heal('paladin'),
+      heal('shaman'), dps('hunter'), dps('rogue'), dps('warlock'), dps('druid'),
+    ],
+  },
+  {
+    label: 'one healer 2t 1h 7d',
+    party: [
+      dps('mage'), tank('warrior'), tank('druid'), heal('priest'),
+      dps('hunter'), dps('rogue'), dps('shaman'), dps('warlock'), dps('druid'), dps('paladin'),
+    ],
+  },
+  {
+    label: 'one tank  1t 2h 7d',
+    party: [
+      dps('mage'), tank('warrior'), heal('priest'), heal('paladin'),
+      dps('hunter'), dps('rogue'), dps('shaman'), dps('warlock'), dps('druid'), dps('mage'),
+    ],
+  },
+  {
+    label: 'all melee 2t 2h 6d',
+    party: [
+      dps('rogue'), tank('warrior'), tank('druid'), heal('priest'), heal('paladin'),
+      dps('rogue'), dps('warrior'), dps('shaman'), dps('druid'), dps('paladin'),
+    ],
+  },
+  {
+    label: 'all caster 2t 2h 6d',
+    party: [
+      dps('mage'), tank('warrior'), tank('druid'), heal('priest'), heal('paladin'),
+      dps('mage'), dps('warlock'), dps('shaman'), dps('druid'), dps('priest'),
+    ],
+  },
+  {
+    label: 'druid tank + shaman',
+    party: [
+      dps('mage'), tank('druid'), tank('warrior'), heal('shaman'), heal('priest'),
+      dps('priest'), dps('paladin'), dps('hunter'), dps('rogue'), dps('warlock'),
+    ],
+  },
 ]
 
 const RUNS = 60

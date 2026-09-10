@@ -50,6 +50,7 @@ import {
   instances,
   isSaved,
   lockAt,
+  resetInstance,
   resetsAt,
   walkedTo,
   wayOpen,
@@ -1731,6 +1732,34 @@ expect(
   expect(
     'and giving that one up only walks out of the door',
     load(monday) === null && instanceAt(10, 'normal', monday)?.cleared.join() === 'spire',
+    JSON.stringify(instanceAt(10, 'normal', monday)),
+  )
+
+  // And the one press that puts an instance back the way it was found. The
+  // source has no such thing for a raid — its lockouts are weekly and the
+  // button is for five-mans — and the reason it has none is loot, which this
+  // game does not have. See `resetInstance`.
+  store.clear()
+  save(cleared(startRun(11, 10, 'normal'), 'spire', []), monday)
+  save(cleared(startRun(12, 25, 'heroic'), 'spire', []), monday)
+  resetInstance(10, 'normal', monday)
+  expect(
+    'a reset puts one instance back and leaves the rest',
+    instanceAt(10, 'normal', monday) === null &&
+      instanceAt(25, 'heroic', monday)?.cleared.join() === 'spire',
+    instances(monday).map((r) => `${r.size}${r.difficulty[0]}:${r.cleared.length}`).join(', '),
+  )
+  expect(
+    'and puts the player at the door rather than inside it',
+    load(monday) === null,
+    JSON.stringify(load(monday)),
+  )
+  // Walking back in is a fresh evening at the same setting, with the week's
+  // own lock still on it.
+  save(startRun(13, 10, 'normal'), monday)
+  expect(
+    'and the setting is walkable again',
+    instanceAt(10, 'normal', monday)?.cleared.length === 0,
     JSON.stringify(instanceAt(10, 'normal', monday)),
   )
 

@@ -355,6 +355,8 @@ export interface RaidSetupLayout {
   next: Rect
   headings: number[]
   summaryY: number
+  /** The press that puts this week's instance back — see `resetInstance`. */
+  reset: Rect
 }
 
 export type RaidSetupHit =
@@ -363,6 +365,7 @@ export type RaidSetupHit =
   | { kind: 'dismiss' }
   | { kind: 'back' }
   | { kind: 'next' }
+  | { kind: 'reset' }
 
 /** One entry of a field's list, and whether it can be taken. */
 interface Choice {
@@ -448,9 +451,11 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
   const w = Math.min(420, L.w - p * 2)
   const x = L.w / 2 - w / 2
   const top = titleY() + 30 * L.ui * MENU_TEXT
-  // Three lines under the last field: what the fight asks of you, what it
-  // throws tonight, and how much of the boss that is.
-  const summary = 46 * L.ui * MENU_TEXT
+  // Three lines under the last field — what the fight asks of you, what it
+  // throws tonight, and how much of the boss that is — and room under those
+  // for the one thing on this screen that is a press rather than a reading:
+  // putting this week's instance back the way it was found.
+  const summary = 62 * L.ui * MENU_TEXT
   const bottom = back.y - 12
 
   // A heading and the control under it are one unit, and the units are
@@ -482,6 +487,12 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
     next: primaryRect(),
     headings,
     summaryY: startY + stack + 18 * L.ui * MENU_TEXT,
+    reset: {
+      x: L.w / 2 - Math.min(220, w) / 2,
+      y: startY + stack + 46 * L.ui * MENU_TEXT,
+      w: Math.min(220, w),
+      h: 18 * L.ui * MENU_TEXT,
+    },
   }
 }
 
@@ -550,6 +561,16 @@ export function drawRaidSetup(
   difficulty: DifficultyId,
   /** Which field's list is down, if any. */
   open: RaidField | null = null,
+  /**
+   * How many rooms this week's instance at this setting is already holding
+   * down, and whether the press to put it back is armed.
+   *
+   * Nought is no instance — nothing to put back, and no button. See
+   * `resetInstance` for why the button exists at all when the source has no
+   * such thing for a raid.
+   */
+  down = 0,
+  armed = false,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'RAID', 'how many, and how hard — the building decides the rest')
@@ -598,6 +619,26 @@ export function drawRaidSetup(
   // it counts is rooms, because that is what the pair decides once the boss
   // is not a field — how far up the building this evening may be walked.
   drawSummary(ctx, unlocked, size, difficulty, layout)
+
+  // The one press on this screen that is not a choice about tonight: it is
+  // about the week. Only drawn when there is something to undo, and it asks
+  // twice, because a week of kills is not a thing to lose to a stray tap.
+  if (down > 0) {
+    ctx.textAlign = 'center'
+    ctx.fillStyle = armed ? COLORS.boss : COLORS.textDim
+    ctx.font = font(9, armed)
+    fitText(
+      ctx,
+      armed
+        ? `PRESS AGAIN TO RESET — ${down === 1 ? '1 room stands' : `${down} rooms stand`} again`
+        : `this week: ${down} down · RESET THE INSTANCE`,
+      L.w / 2,
+      layout.reset.y + layout.reset.h * 0.72,
+      layout.reset.w,
+      8,
+    )
+    ctx.textAlign = 'left'
+  }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
   button(ctx, layout.next, 'PICK YOUR CLASS', '', COLORS.castBar, true)
@@ -701,6 +742,7 @@ export function hitRaidSetup(
 
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.next, x, y)) return { kind: 'next' }
+  if (inside(layout.reset, x, y)) return { kind: 'reset' }
   for (let i = 0; i < RAID_FIELDS.length; i++) {
     if (inside(layout.fields[i]!, x, y)) return { kind: 'open', field: RAID_FIELDS[i]! }
   }

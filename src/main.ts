@@ -140,6 +140,7 @@ import {
   walkedTo,
   abandon as abandonRun,
   instanceAt,
+  resetInstance,
   lockAt,
   load as loadRun,
   resetsAt,
@@ -1374,14 +1375,46 @@ function updateDaily(tap: { x: number; y: number } | null): void {
 /** Which of the raid screen's three fields has its list down, if any. */
 let raidOpen: RaidField | null = null
 
+/**
+ * Whether the press that puts this week's instance back is armed.
+ *
+ * It asks twice. A week of kills is not a thing to lose to a stray tap, and
+ * the second press is the whole of the confirmation — a dialog here would be
+ * a screen in front of a screen for one button. Cleared whenever the setting
+ * moves or the screen is left, so an arming never outlives what it was aimed
+ * at.
+ */
+let resetArmed = false
+
 function updateRaidSetup(tap: { x: number; y: number } | null): void {
   if (tap) {
     const hit = hitRaidSetup(tap.x, tap.y, raidOpen)
     if (hit?.kind === 'back') {
       raidOpen = null
+      resetArmed = false
       screen = 'home'
       return
     }
+    if (hit?.kind === 'reset') {
+      // Twice, and only where there is something to put back. The second
+      // press is the confirmation; everything else on this screen disarms it.
+      const held = instanceAt(party.length as RaidSize, difficulty)
+      if (held !== null && held.cleared.length > 0) {
+        if (resetArmed) {
+          resetInstance(party.length as RaidSize, difficulty)
+          if (run !== null && run.size === party.length && run.difficulty === difficulty) {
+            run = null
+            roomId = null
+            standing = null
+          }
+          resetArmed = false
+        } else {
+          resetArmed = true
+        }
+      }
+      return
+    }
+    resetArmed = false
     if (hit?.kind === 'next') {
       raidOpen = null
       // The first room of the building is the fight the class screen shows,
@@ -1416,7 +1449,16 @@ function updateRaidSetup(tap: { x: number; y: number } | null): void {
       if (moved(before, next)) raidOpen = null
     }
   }
-  drawRaidSetup(ctx, unlocked, party.length, difficulty, raidOpen)
+  const held = instanceAt(party.length as RaidSize, difficulty)
+  drawRaidSetup(
+    ctx,
+    unlocked,
+    party.length,
+    difficulty,
+    raidOpen,
+    held?.cleared.length ?? 0,
+    resetArmed,
+  )
 }
 
 function updateBgSetup(tap: { x: number; y: number } | null): void {
