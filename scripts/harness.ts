@@ -775,7 +775,7 @@ for (let e = 0; e < ENCOUNTERS.length; e++) {
     // all and filtering to it leaves an empty fight. Saying so beats printing
     // a zero that reads like a finding.
     const reached = encounterKit(ENCOUNTERS[e]!, 10, 'heroic')
-    for (const mech of ENCOUNTERS[e]!.ladder) {
+    for (const mech of ENCOUNTERS[e]!.kit) {
       if (!reached.includes(mech)) {
         console.log(`${mech} / ${ENCOUNTERS[e]!.short}`.padEnd(23), '   —  a ten-man heroic never meets it')
         continue

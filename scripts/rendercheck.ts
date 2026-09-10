@@ -155,7 +155,6 @@ import {
   withRequired,
   MECHANIC_SCALES,
   MECHANIC_NAMES,
-  kitCount,
   kitThrough,
   type MechanicId,
   MECHANIC_IDS,
@@ -1081,7 +1080,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
       // opposite things with it, so which one this was is a fact about the
       // fight rather than about the body.
       if (
-        encounterAt(s.encounter).ladder.includes('turning') &&
+        encounterAt(s.encounter).kit.includes('turning') &&
         s.actors.some((a) => a.faction === 'party' && a.auras.some((au) => au.id === 'turned'))
       ) {
         seen.add('turning')
@@ -1096,7 +1095,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   // reads straight off the table -- so a fight added tomorrow has its rungs
   // guarded without anybody remembering to come back here.
   const want = [
-    ...new Set(ENCOUNTERS.flatMap((e) => [...(e.always ?? []), ...e.ladder])),
+    ...new Set(ENCOUNTERS.flatMap((e) => [...(e.always ?? []), ...e.kit])),
     // Except the one rung in the game that only happens when the raid fails.
     //
     // Everything else here is something a boss does; this is what is left when
@@ -1376,7 +1375,7 @@ console.log(`rendered ${frames} frames with no exceptions`)
   const named = new Set(HINT_KEYS)
   const missing: string[] = []
   for (const e of [ENCOUNTERS.findIndex((x) => x.id === 'marrow'), ENCOUNTERS.findIndex((x) => x.id === 'whisper')]) {
-    for (const rung of [...(ENCOUNTERS[e]!.always ?? []), ...ENCOUNTERS[e]!.ladder]) {
+    for (const rung of [...(ENCOUNTERS[e]!.always ?? []), ...ENCOUNTERS[e]!.kit]) {
       if (!named.has(rung)) missing.push(`${ENCOUNTERS[e]!.short}: ${rung}`)
     }
   }
@@ -4267,7 +4266,13 @@ for (const [label, w, h] of [
   for (let i = 0; i < ENCOUNTERS.length; i++) {
     const kinds = new Set<string>()
     let adds = 0
-    const s = pulled(0x51ed, 8, undefined, 'normal', i)
+    // A twenty-five man rather than the default five, because what this reads
+    // is what a boss *does* and the reading has to survive long enough to see
+    // it. Every setting meets the whole fight now — see `kit` — so a five-man
+    // meets the swallowing on the fourth boss with no second tank to answer
+    // it, wipes in half a minute, and reports a fight that never had adds. The
+    // widest roster is the one that gets shown the most of a boss.
+    const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'normal', i)
     const rng = new Rng(0x51ed)
     while (s.outcome === 'ongoing' && s.time < encounterAt(s.encounter).enrage + 60) {
       step(s, { moveX: 0, moveY: 0, pressed: [0] }, rng)
@@ -4278,11 +4283,19 @@ for (const [label, w, h] of [
       // and were reported as the same fight. What a boss asks for is not only
       // what it draws on the tiles.
       for (const a of s.actors) for (const aura of a.auras) kinds.add(aura.id)
-      // Thralls only, told apart by `spawn`: a herald and a spike are also
-      // bodies on the boss's side, and counting them as a wave said a boss had
-      // adds on a rung where it has one of those instead.
+      // Thralls only, told apart by `spawn`: a herald, a spike, a crown and a
+      // ballast are also bodies on the boss's side, and counting them as a
+      // wave said a boss had adds where it has one of those instead.
+      //
+      // A beast counts. It is a thrall with an errand — the fourth boss tags
+      // the wave it sends after somebody — and leaving it out said that fight
+      // had no adds at all, which only went unnoticed while a five-man was too
+      // low on the ladder to be sold them.
       adds += s.actors.filter(
-        (a) => a.faction === 'boss' && a.id !== bossOf(s).id && a.spawn === undefined,
+        (a) =>
+          a.faction === 'boss' &&
+          a.id !== bossOf(s).id &&
+          (a.spawn === undefined || a.spawn === 'beast'),
       ).length
     }
     if (adds > 0) kinds.add('adds')
@@ -4291,10 +4304,10 @@ for (const [label, w, h] of [
     const encounter = ENCOUNTERS[i]!
     const label = encounter.name
 
-    // Whatever tonight's kit says it does, it does — and whatever the kit
-    // left on the ladder, it never does. Read at the size and difficulty this
-    // pull was actually run at, since that is what decides the kit.
-    const kit = encounterKit(encounter, 5, 'normal')
+    // Whatever the boss's kit says it does, it does, and what is not in the
+    // kit never happens. The kit is the same list at every setting now, so the
+    // arguments below are the pull's and nothing turns on them.
+    const kit = encounterKit(encounter, 25, 'normal')
     for (const key of ['adds'] as const) {
       const wanted = kit.includes(key)
       const happened = kinds.has(key)
@@ -4343,7 +4356,7 @@ for (const [label, w, h] of [
     // that the table refuses to name is the worst version of this rule being
     // broken, not an exception to it.
     const uses = (key: MechanicId) =>
-      encounter.ladder.includes(key) || (encounter.always ?? []).includes(key)
+      encounter.kit.includes(key) || (encounter.always ?? []).includes(key)
 
     expect(`${label}: its slam has a name`, encounter.names.slam !== '', 'it had none')
     // Every mechanic, not a list written out here. The list version named ten
@@ -4417,8 +4430,8 @@ for (const [label, w, h] of [
   for (const encounter of ENCOUNTERS) {
     expect(
       `${encounter.name}: asks for the same thing twice on no rung`,
-      new Set(encounter.ladder).size === encounter.ladder.length,
-      encounter.ladder.join(','),
+      new Set(encounter.kit).size === encounter.kit.length,
+      encounter.kit.join(','),
     )
     // One, which is the smallest thing that is still a fight rather than a
     // health bar. There is no bound above it in either direction now: what a
@@ -4430,8 +4443,8 @@ for (const [label, w, h] of [
     // judgement is still true and it is not this file's to enforce.
     expect(
       `${encounter.name}: throws something`,
-      encounter.ladder.length >= 1,
-      `${encounter.ladder.length} rungs`,
+      encounter.kit.length >= 1,
+      `${encounter.kit.length} rungs`,
     )
   }
 
@@ -4466,8 +4479,8 @@ for (const [label, w, h] of [
     expect(
       `${encounter.name}: the last rung is the whole boss`,
       encounterKit(encounter, 25, 'heroic').length >=
-        encounter.ladder.length + (encounter.always?.length ?? 0),
-      `${encounterKit(encounter, 25, 'heroic').length} of ${encounter.ladder.length}`,
+        encounter.kit.length + (encounter.always?.length ?? 0),
+      `${encounterKit(encounter, 25, 'heroic').length} of ${encounter.kit.length}`,
     )
     for (const difficulty of ['normal', 'heroic'] as DifficultyId[]) {
       const five = encounterKit(encounter, 5, difficulty)
@@ -4519,10 +4532,15 @@ for (const [label, w, h] of [
     expect('every mechanic says whether it scales', unclassified.length === 0, unclassified.join(','))
   }
 
-  // And no two bosses are the same fight at any rung. The opening is held to
-  // the stricter rule: a five-man on normal meets three mechanics and no
-  // more, so if any of the three overlap the two bosses open alike, which is
-  // the complaint this whole arrangement answers.
+  // And no two bosses are the same fight. The opening is held to the stricter
+  // rule: what everybody sees is the first few things a boss throws, and if
+  // those overlap the two bosses open alike — which is the complaint this
+  // whole arrangement answers.
+  //
+  // The opening used to be "what a five-man on normal meets", because that
+  // setting bought three rungs and no more. Every setting meets the whole
+  // fight now, the way the source's do, so the opening is the first three of
+  // the boss's own order instead.
   for (const { size, difficulty } of RUNGS) {
     const kits = ENCOUNTERS.map((e) => ({ e, kit: encounterKit(e, size, difficulty) }))
     for (let i = 0; i < kits.length; i++) {
@@ -4536,10 +4554,11 @@ for (const [label, w, h] of [
           `${a.kit.join(',')} vs ${b.kit.join(',')}`,
         )
         if (size === 5 && difficulty === 'normal') {
+          const opens = a.e.kit.slice(0, 3).filter((id) => b.e.kit.slice(0, 3).includes(id))
           expect(
             `and they open on nothing in common: ${a.e.short} / ${b.e.short}`,
-            shared.length === 0,
-            shared.join(','),
+            opens.length === 0,
+            opens.join(','),
           )
         }
       }
@@ -7015,7 +7034,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // fight with nothing on the floor -- the exact mistake this comment was
   // written about, arriving from the other direction.
   const pooled = ENCOUNTERS.findIndex((e) =>
-    [...(e.always ?? []), ...e.ladder].some((m) => m === 'decay' || m === 'coldflame'),
+    [...(e.always ?? []), ...e.kit].some((m) => m === 'decay' || m === 'coldflame'),
   )
   const play = (affix: AffixId | null, seconds: number) => {
     const fight = createState(
@@ -7061,7 +7080,7 @@ for (const kind of ['conquest', 'flags'] as BgKind[]) {
   // passing until the ladders were redealt and the thralls moved, which is
   // the argument for asking the ladder rather than remembering a number.
   {
-    const summoner = ENCOUNTERS.findIndex((e) => [...(e.always ?? []), ...e.ladder].includes('adds'))
+    const summoner = ENCOUNTERS.findIndex((e) => [...(e.always ?? []), ...e.kit].includes('adds'))
     expect('some boss summons at all', summoner >= 0, 'none has thralls')
     const addsUnder = (affix: AffixId | null): number => {
       const fight = createState(
@@ -8655,64 +8674,26 @@ for (const [label, w, h] of [
 // Two things a pull hands over, neither of which is power: the rung it opened
 // and what that rung is for, and the page of the boss it was against.
 {
-  // What a rung pays out, which the results screen now says out loud.
+  // What a rung pays out, which is no longer a mechanic.
   //
-  // Never more than one mechanic, and one exactly when the kit grows: the
-  // chain alternates, since 5-heroic and 10-normal buy the same four ideas
-  // and the second of them is paying for bodies instead. A line that promised
-  // a mechanic on every rung would be lying on half of them, which is why the
-  // screen has a second thing to say.
-  const inside = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS !== 0)
+  // It used to be one: a boss's six settings each bought the next idea in its
+  // ladder, and a five-man on normal met three of six. The source does not do
+  // that — every setting there schedules the whole fight and what changes is
+  // how many people a spell picks, which rank lands, and how long the berserk
+  // is — so this game does not either. `encounterKit` returns the boss, whole,
+  // at every setting.
   //
-  // How many a rung may sell is not capped any more.
-  //
-  // It was one, then a share of what the boss owns, and both were the same
-  // idea: this game introduces things one at a time. That is a good idea and
-  // it is a judgement about a particular fight's ladder rather than a rule
-  // every fight has to obey — a boss with twelve mechanics cannot introduce
-  // them one at a time across six settings, and telling it to try only means
-  // it may not have twelve.
-  //
-  // What replaces it is the pair below, which is the part that was actually
-  // load-bearing: a rung never sells something the setting did not widen for,
-  // and the top of the ladder is the whole boss. Between them a raid still
-  // meets more as it climbs and meets all of it by the end; how that is
-  // parcelled out is the fight's business.
-  //
-  // "At most one", where this used to say "exactly one when the kit grows".
-  //
-  // The rule was written when every boss owned six mechanics, because six is
-  // how many rungs there are — three sizes by two difficulties — and that made
-  // the count of a boss's ideas a fact about the progression rather than about
-  // the boss. A fight that owns something which cannot be a rung now says so
-  // in `always`, and one of them owns five ladder entries and its room. Its
-  // last setting sells no new mechanic, and what a raid buys there is the size
-  // and the difficulty, which were always most of what a rung was.
-  //
-  // What must not happen is still checked above: no rung ever sells two ideas
-  // at once, because a rung is how this game introduces things one at a time.
-  const grows = inside.every((i) => {
-    const here = tierAt(i)
-    const before = tierAt(i - 1)
-    const wider = kitCount(here.size, here.difficulty) > kitCount(before.size, before.difficulty)
-    return rungBuys(i).length === 0 || wider
+  // What a rung buys now is the setting itself: more bodies, and heroic's
+  // numbers. So the only thing left to check is that nothing still claims
+  // otherwise.
+  const sells = LADDER.map((_, i) => i).every((i) => rungBuys(i).length === 0)
+  expect('a rung buys the setting and not a mechanic', sells, 'a rung sold a mechanic')
+  const whole = ENCOUNTERS.every((fight) => {
+    const small = encounterKit(fight, 5, 'normal')
+    const big = encounterKit(fight, 25, 'heroic')
+    return small.length === big.length && small.every((id) => big.includes(id))
   })
-  expect('and never buys one where the kit does not grow', grows, 'a rung paid the wrong thing')
-  // And the first rung of a boss buys a fight rather than a mechanic, so the
-  // line that names one has to have something else to say.
-  const firsts = LADDER.map((_, i) => i).filter((i) => i % RUNGS_PER_BOSS === 0)
-  expect(
-    'and the first rung of a boss buys none',
-    firsts.every((i) => rungBuys(i).length === 0),
-    'a boss opened owing a mechanic',
-  )
-  // What it names is what the fight will actually throw at that rung.
-  const named = inside.every((i) => {
-    const tier = tierAt(i)
-    const fight = ENCOUNTERS[tier.encounter]!
-    return rungBuys(i).every((id) => encounterKit(fight, tier.size, tier.difficulty).includes(id))
-  })
-  expect('and names something the rung actually throws', named, 'a rung sold what it does not throw')
+  expect('and the smallest raid meets the same fight as the largest', whole, 'a setting met less')
 
   // The page: what a pull writes on it is what the pull put in front of you.
   // A bill for a mechanic the fight was not carrying would be a page that
@@ -8782,12 +8763,13 @@ for (const [label, w, h] of [
       page.kills === (small.outcome === 'victory' ? 1 : 0),
       `${page.kills} on a ${small.outcome}`,
     )
-    // The five-man kit is three of the six, so a page written by one of them
-    // has to still be saying that the other three are up there.
+    // The page holds the whole boss, and what a pull marks off is what that
+    // pull was shown — which is bounded by the phase it reached rather than by
+    // the setting it was played at, now that a five-man meets the same fight a
+    // twenty-five man does.
     expect(
-      'and a small kit leaves the rest of the boss unmet',
-      page.metCount === kitCount(5, 'normal', fight.ladder.length) &&
-        page.rungs.length === fight.ladder.length,
+      'and the page holds the whole boss',
+      page.rungs.length === fight.kit.length && page.metCount <= fight.kit.length,
       `${page.metCount} of ${page.rungs.length}`,
     )
     const billed = small.tally[small.actors.find((a) => a.isPlayer)!.id]?.byMechanic ?? {}
@@ -8804,9 +8786,9 @@ for (const [label, w, h] of [
     const wider = pageFor(two, 0)!
     expect(`${fight.short}: a second pull is counted`, wider.pulls === 2, `${wider.pulls}`)
     expect(
-      'and a wider kit only ever adds to the page',
+      'and a later pull only ever adds to the page',
       page.rungs.every((r) => !r.met || wider.rungs.find((o) => o.id === r.id)?.met === true) &&
-        wider.metCount === kitCount(25, 'heroic', fight.ladder.length),
+        wider.metCount >= page.metCount,
       `${wider.metCount} of ${wider.rungs.length}`,
     )
     // And a battleground has no boss to write about.
@@ -9134,7 +9116,7 @@ for (const [label, w, h] of [
 
   // The gate, on a fight given one door of each kind.
   const subject = ENCOUNTERS.findIndex(
-    (e) => e.ladder.includes('adds') || (e.always ?? []).includes('adds'),
+    (e) => e.kit.includes('adds') || (e.always ?? []).includes('adds'),
   )
   expect('a fight that summons exists to hang doors on', subject >= 0, 'no boss on the roster summons')
   const fight = ENCOUNTERS[subject]!

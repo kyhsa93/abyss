@@ -77,7 +77,7 @@ function pull(seed: number, attempt: number, e: number, mech: MechanicId): numbe
 for (let e = 0; e < ENCOUNTERS.length; e++) {
   const enc = ENCOUNTERS[e]!
   const kit = encounterKit(enc, SIZE, DIFF)
-  for (const mech of enc.ladder) {
+  for (const mech of enc.kit) {
     if (wanted !== undefined && wanted !== 'all' && mech !== wanted) continue
     if (!kit.includes(mech)) {
       if (wanted === mech) console.log(`${mech} / ${enc.short}: not in a ${SIZE}-man ${DIFF} kit`)

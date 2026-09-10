@@ -161,7 +161,7 @@ export function pageFor(notes: Notes, encounter: number): NotePage | null {
   if (!fight) return null
   const note = notes[fight.id] ?? empty(fight.id)
 
-  const rungs = fight.ladder.map((id) => ({
+  const rungs = fight.kit.map((id) => ({
     id,
     name: MECHANIC_NAMES[id],
     met: note.met[id] !== undefined,

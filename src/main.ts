@@ -101,7 +101,7 @@ import {
   type RaidSize,
 } from './sim/classes'
 import { createBattlegroundState, createCorridorState, createState } from './sim/state'
-import { ENCOUNTERS, MECHANIC_NAMES, encounterIndex } from './sim/encounters'
+import { ENCOUNTERS, encounterIndex } from './sim/encounters'
 import {
   FIRST_TIER,
   LADDER,
@@ -113,7 +113,6 @@ import {
   nextSetting,
   pressDifficulty,
   pressSize,
-  rungBuys,
   settle,
   tierAt,
   tierLabel,
@@ -1930,23 +1929,19 @@ function frame(now: number): void {
       if (opened !== unlocked) {
         unlocked = opened
         saveSetup()
-        // And what that rung is for. Said only on the pull that earned it:
-        // a line that stayed up on every later kill would be a description
-        // of where you are rather than of what you just did.
+        // And what that rung is for. Said only on the pull that earned it: a
+        // line that stayed up on every later kill would be a description of
+        // where you are rather than of what you just did.
+        //
+        // A rung used to buy a mechanic and the line named it. It does not any
+        // more — every setting throws the whole fight, the way the source's do
+        // — so what a rung opens is either the next boss or more of you.
         const rung = tierAt(opened)
-        const buys = rungBuys(opened)
         const fight = ENCOUNTERS[rung.encounter]
-        // Two shapes, because a rung pays out two ways. The chain alternates:
-        // five heroic and ten normal throw the same four ideas, so the second
-        // of them is bought with bodies rather than with a mechanic, and a
-        // line that promised a mechanic every time would be wrong every other
-        // rung.
         setOpenedLine(
           rung.encounter !== state.encounter
             ? `OPENED  ${fight?.name ?? 'the next fight'}`
-            : buys.length > 0
-              ? `OPENED  ${tierLabel(rung).toLowerCase()}  ·  brings ${buys.map((id) => MECHANIC_NAMES[id]).join(' and ')}`
-              : `OPENED  ${tierLabel(rung).toLowerCase()}  ·  the same kit, ${rung.size} of you`,
+            : `OPENED  ${tierLabel(rung).toLowerCase()}  ·  the same fight, ${rung.size} of you`,
         )
       }
     }

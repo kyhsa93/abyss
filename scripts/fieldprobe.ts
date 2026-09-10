@@ -21,7 +21,7 @@ const RUNS = Number(process.argv[2] ?? 120)
 const host = ENCOUNTERS[0]!
 const basePhases: Encounter['phases'] = { 1: host.phases[1]!, 2: host.phases[2]!, 3: host.phases[3]! }
 const baseOpening = host.opening
-const baseLadder = host.ladder
+const baseLadder = host.kit
 const baseLines = host.lines
 
 /** The cadence some boss actually gives this mechanic, or null if none does. */
@@ -59,7 +59,7 @@ for (const mech of MECHANIC_IDS) {
   host.lines = spoken
     ? { ...baseLines, [mech]: (donor.lines as Record<string, string>)[mech]! }
     : baseLines
-  host.ladder = [mech, ...baseLadder.filter((m) => m !== mech)]
+  host.kit = [mech, ...baseLadder.filter((m) => m !== mech)]
 
   const cells: string[] = []
   for (const size of [5, 10, 25] as RaidSize[]) {
@@ -85,5 +85,5 @@ for (const mech of MECHANIC_IDS) {
 }
 host.phases = basePhases
 host.opening = baseOpening
-host.ladder = baseLadder
+host.kit = baseLadder
 host.lines = baseLines

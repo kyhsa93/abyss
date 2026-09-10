@@ -1083,11 +1083,12 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
  * gave back thirty points of win rate, which is more than any rung above it
  * takes away.
  *
- * That step is the reason this number moved. `kitCount` runs 2, 3, 3, 4, 4, 5
- * across the six rungs, so two of them add no mechanic at all and change only
- * the headcount — and the headcount, on its own, is help. The ladder was a
- * sawtooth: every heroic rung cost 13 to 30 points and every size rung handed
- * 17 to 30 straight back.
+ * That step is the reason this number moved. While a rung bought a mechanic,
+ * the chain was a sawtooth — every heroic rung cost 13 to 30 points of win
+ * rate and every size rung handed 17 to 30 straight back, because the
+ * headcount on its own is help. A rung buys no mechanic now; the sawtooth is
+ * whatever this table and the difficulty's own numbers leave, and it is worth
+ * re-measuring.
  */
 export const SIZE_HEALTH: Record<RaidSize, number> = {
   5: 1,

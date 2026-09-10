@@ -59,7 +59,7 @@ export type HistoryHit =
   | { kind: 'boss'; index: number }
 
 /** The longest ladder any boss has, which is what the page has to hold. */
-const LADDER_ROWS = Math.max(...ENCOUNTERS.map((e) => e.ladder.length))
+const LADDER_ROWS = Math.max(...ENCOUNTERS.map((e) => e.kit.length))
 
 function font(size: number, bold = false): string {
   return `${bold ? 'bold ' : ''}${Math.round(size * L.ui * MENU_TEXT)}px ui-monospace, monospace`

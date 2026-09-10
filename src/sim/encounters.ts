@@ -889,24 +889,28 @@ export interface Encounter {
    */
   sizeMechanic?: Partial<Record<RaidSize, number>>
   /**
-   * What this one asks for, in the order it starts asking.
+   * The mechanics this boss owns, in the order it teaches them.
    *
-   * The tables below hold the cadence of every mechanic a boss *can* throw;
-   * this says how many of them it actually throws tonight, and which. A
-   * five-man on normal gets the first two rungs, and every step up the raid
-   * size or across to heroic buys one more — see `kitCount`.
+   * All of them, at every size and every difficulty. It was a ladder — the
+   * first three at five normal, one more per step up to six at twenty-five
+   * heroic — and the source does not work that way. Its own scripts schedule
+   * every ability a fight has whatever the setting, and what the setting
+   * changes is the numbers: how many people a spell picks (`RAID_MODE(3, 8,
+   * 3, 8)`), which rank of it lands, how long until the berserk (`IsHeroic()
+   * ? 360s : 480s`). Nobody there meets a smaller fight, only a gentler one.
    *
-   * The order is the whole design. Two bosses whose first rungs overlap are
-   * two bosses that open the same way, and the opening is the only part of a
-   * fight everybody sees: a party that wipes at forty percent has met three
-   * mechanics and no more. So the first rungs are disjoint across all
-   * three — the brand and the crush, marks and the stalker, the cone and the ring
-   * — and the sets only begin to rhyme at the sizes where a raid has the
-   * bodies to notice. No boss's ladder is a prefix or a subset of another's at
-   * any rung, which is the thing that stops the second boss being the first
-   * one wearing a different colour.
+   * So a five-man on normal meets the whole boss. What still scales with the
+   * roster is volume, through `MECHANIC_SCALES`, which is the same rule the
+   * source's own target counts are.
+   *
+   * The order is still the design. It is what the fight opens with and
+   * therefore what everybody sees: a party that wipes at forty percent has met
+   * the first few and no more. Two bosses whose openings overlap are two
+   * bosses that open the same way, so the first few are disjoint across all
+   * three of the early fights — the brand and the crush, marks and the
+   * stalker, the cone and the ring.
    */
-  ladder: MechanicId[]
+  kit: MechanicId[]
   phases: Record<number, PhaseTiming>
   /**
    * Seconds to the first of each mechanic.
@@ -1209,7 +1213,7 @@ export const ENCOUNTERS: Encounter[] = [
     sizeMechanic: { 5: 1.0, 10: 1.0, 25: 1.0 },
     accent: '#e7e5e4',
     names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
-    ladder: ['coldflame', 'spike', 'bonestorm'],
+    kit: ['coldflame', 'spike', 'bonestorm'],
     phases: {
       1: { swing: 2.2, slam: 19, puddleCount: 1, raid: 12, ...beats({ coldflame: 13, spike: 27, bonestorm: 62 }) },
       2: { swing: 2.0, slam: 17, puddleCount: 1, raid: 11, ...beats({ coldflame: 11, spike: 24, bonestorm: 56 }) },
@@ -1408,7 +1412,7 @@ export const ENCOUNTERS: Encounter[] = [
     // carried rather than sold: every setting has a wave, and what the ladder
     // sells is the one that comes back wrong.
     always: ['adds'],
-    ladder: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
+    kit: ['volley', 'decay', 'frostbolt', 'shade', 'insignificance', 'empower', 'dominate'],
     phases: {
       1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ adds: 44, volley: 12, decay: 15, frostbolt: 21, shade: 26, insignificance: 10, empower: 47, dominate: 38 }) },
       2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ adds: 39, volley: 10.5, decay: 13, frostbolt: 18, shade: 23, insignificance: 9, empower: 41, dominate: 33 }) },
@@ -1554,7 +1558,7 @@ export const ENCOUNTERS: Encounter[] = [
     // seventh mechanic onto a boss needs the rung count itself to stop being
     // the same number for everybody, which is a change to how the whole
     // progression is indexed rather than a change to this fight.
-    ladder: ['blight', 'bloat', 'vilegas', 'spore', 'inhale', 'pungent'],
+    kit: ['blight', 'bloat', 'vilegas', 'spore', 'inhale', 'pungent'],
     /**
      * Two thirds of the yardstick's radius, which is 45% of its floor.
      *
@@ -1759,10 +1763,12 @@ export const ENCOUNTERS: Encounter[] = [
     // escalation the fight is about.
     //
     // The swallowing is last for a reason that is not difficulty: it is
-    // answered by a second tank, and a five-man does not have one. A rung
-    // `kitCount(5, 'heroic')` cannot reach is the only honest place for a
-    // mechanic the smallest roster cannot answer at all.
-    ladder: ['spill', 'siphon', 'fester', 'adds', 'champion', 'gorge'],
+    // answered by a second tank, and a five-man does not have one. It was put
+    // last so the smallest raid never met it — and nothing hides it any more,
+    // because every setting meets the whole fight the way the source's do. A
+    // five-man's answer to it is the one the source gives a raid short a tank:
+    // burn the thing holding the body, faster.
+    kit: ['spill', 'siphon', 'fester', 'adds', 'champion', 'gorge'],
     herald: null,
     accent: '#7f1d1d',
     names: { slam: 'RENDING BLOW', shard: '', raid: 'THE TAKING' },
@@ -1898,7 +1904,7 @@ export const ENCOUNTERS: Encounter[] = [
     // ground that makes fixing it late expensive, the merging itself, and
     // finally the boss eating what nobody cleared and handing the bill to the
     // tank.
-    ladder: ['spray', 'infection', 'ooze', 'flood', 'merge', 'engulf'],
+    kit: ['spray', 'infection', 'ooze', 'flood', 'merge', 'engulf'],
     /**
      * The room rises, at every size and difficulty.
      *
@@ -2064,7 +2070,7 @@ export const ENCOUNTERS: Encounter[] = [
     //
     // Above that: the flasks, which are the one demand here answered by being
     // early rather than by reacting, and the reagent, which is the swap.
-    ladder: ['caustic', 'hound', 'gather', 'chase', 'decant', 'reagent'],
+    kit: ['caustic', 'hound', 'gather', 'chase', 'decant', 'reagent'],
     herald: null,
     accent: '#a3e635',
     names: { slam: 'THE HEAVY FLASK', shard: '', raid: 'FUMES' },
@@ -2222,7 +2228,7 @@ export const ENCOUNTERS: Encounter[] = [
     // which is the tank's errand; the stillness, which is the one demand in
     // the game answered by not walking; and the wave, which is this fight's
     // fourth target call.
-    ladder: ['rotation', 'thirst', 'ballast', 'nuclei', 'prison', 'adds'],
+    kit: ['rotation', 'thirst', 'ballast', 'nuclei', 'prison', 'adds'],
     herald: null,
     accent: '#be123c',
     names: { slam: 'THE RED HOUR', shard: '', raid: 'THE COURT' },
@@ -2340,7 +2346,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the Whisper owns saying a different sentence, because there a clock
     // takes somebody and here *the raid lost one* -- and finally the bill for
     // all of it.
-    ladder: ['gift', 'bond', 'stain', 'flight', 'turning', 'crimson'],
+    kit: ['gift', 'bond', 'stain', 'flight', 'turning', 'crimson'],
     herald: null,
     accent: '#e11d48',
     names: { slam: 'THE RED HAND', shard: '', raid: 'THE COURT BLEEDS' },
@@ -2408,69 +2414,7 @@ export const ENCOUNTERS: Encounter[] = [
 
 export const FIRST_ENCOUNTER = 0
 
-/**
- * How many rungs of a boss's ladder tonight's raid actually meets.
- *
- * Two axes, one rung each, and both of them monotone: a bigger raid meets
- * more of the fight, and heroic meets one more than normal at the same size.
- *
- *   5 normal 2 · 5 heroic 3 · 10 normal 3 · 10 heroic 4 · 25 normal 4 · 25 heroic 5
- *
- * The size rungs are the honest half. Every mechanic in here already scales
- * its *volume* with the headcount — puddles per cast, spread marks, add waves
- * — which made a twenty-five man the same fight arriving in bigger pieces. It
- * is not: a raid of twenty-five has the bodies to answer a mechanic a
- * five-man cannot even be asked, which is the reason the size exists at all.
- *
- * Heroic is the half that was missing outright. It was twenty-two percent more
- * health and nothing else, so the honest description of it was "the same fight
- * for longer" — and the difficulty button said so, in those words. A rung
- * costs the raid something a health bar never can.
- */
-export function kitCount(size: number, difficulty: DifficultyId, owns = 6): number {
-  // Three, so that the smallest fight anybody can buy is still a fight. Two
-  // rungs meant a five-man on normal met one mechanic and its pair, and the
-  // ladder above it was five steps of adding one thing to a fight that had
-  // barely started -- which is also why two of the six rungs used to buy
-  // bodies without buying an idea.
-  //
-  // `owns` is how many the boss has, and it used to be six for everybody
-  // because six is how many settings there are: three sizes by two
-  // difficulties. That made the number of ideas a fight is allowed to hold a
-  // fact about the progression rather than about the fight, and it cut both
-  // ways -- a boss with seven had nowhere to put the seventh, and a boss with
-  // four had two settings that sold nothing.
-  //
-  // So what a step buys scales with what there is to sell. The three axes
-  // still buy the same three steps in the same order; each step is just worth
-  // a third of whatever is above the floor of three. At six that is one a
-  // step, which is exactly what this returned before and returns still. At
-  // nine it is two, and at three it is none -- a fight small enough that
-  // everyone meets all of it, which is the right shape for the boss a raid
-  // meets first.
-  //
-  // Three, or the whole boss if it has fewer.
-  //
-  // Three was a cap wearing a floor's clothes while it was written as the
-  // constant: a fight with two ideas had one setting selling both and five
-  // selling nothing. Taking the constant out is right; replacing it with half
-  // the boss was not, and the first boss is where that showed. It owns three
-  // and its own spec says every setting sells all three — a five-man meets the
-  // whole fight, because what is being unlocked there is the player — and half
-  // of three is two, so the smallest raid stopped being sold the storm, which
-  // is the third of its three ideas.
-  //
-  // Bounded by what there is rather than fixed at what there used to be. A
-  // fight with one sells it to everybody; a fight with twelve still opens on
-  // three and climbs to twelve.
-  const floor = Math.min(owns, 3)
-  const step = (owns - floor) / 3
-  let bought = floor
-  if (size >= 10) bought += step
-  if (size >= 25) bought += step
-  if (difficulty === 'heroic') bought += step
-  return Math.min(owns, Math.round(bought))
-}
+
 
 /**
  * Mechanics that are half a mechanic without another one.
@@ -2483,11 +2427,11 @@ export function kitCount(size: number, difficulty: DifficultyId, owns = 6): numb
  * nothing; and the breath out is lethal to a raid that was never inoculated,
  * so without the spore it is not a mechanic, it is a wipe on a timer.
  *
- * Written here rather than left to the ladder's ordering. A ladder is
- * arranged so the prerequisite comes first -- these ones are -- but a ladder
- * is not bought whole: `kitCount` buys the first few rungs by size and
- * difficulty, and `always` adds mechanics from outside the ordering
- * altogether. Neither of those can see that the breath out needs the air.
+ * Written here rather than left to the kit's ordering. The order a boss
+ * teaches its ideas in puts the prerequisite first -- these ones do -- but
+ * order is not dependency: `always` adds mechanics from outside the ordering
+ * altogether, and `SimState.only` narrows a kit to one mechanic for
+ * measurement. Neither can see that the breath out needs the air.
  */
 const REQUIRES: Partial<Record<MechanicId, MechanicId[]>> = {
   inhale: ['blight'],
@@ -2534,16 +2478,19 @@ export function withRequired(kit: readonly MechanicId[]): MechanicId[] {
   return out
 }
 
-/** Which mechanics this boss throws at this size and difficulty. */
+/**
+ * Which mechanics this boss throws, which is all of them.
+ *
+ * The size and the difficulty are still asked for, because the source's own
+ * answer to this question reads them — but its answer is the same list every
+ * time and so is this one. See `kit`.
+ */
 export function encounterKit(
   encounter: Encounter,
-  size: number,
-  difficulty: DifficultyId,
+  _size: number,
+  _difficulty: DifficultyId,
 ): MechanicId[] {
-  return withRequired([
-    ...(encounter.always ?? []),
-    ...encounter.ladder.slice(0, kitCount(size, difficulty, encounter.ladder.length)),
-  ])
+  return withRequired([...(encounter.always ?? []), ...encounter.kit])
 }
 
 /**
@@ -2573,23 +2520,32 @@ export function kitThrough(
 }
 
 /**
- * How much faster a short kit comes round.
+ * How much faster a narrow kit comes round.
  *
- * Two mechanics on the boss's own cadence is not an easier fight, it is a
- * quieter one — measured, a five-man normal Warden went from winning a fifth
- * of its first pulls to winning all of them, and the pulls were shorter and
- * emptier rather than gentler. Which is the wrong trade: what a small raid
- * should meet is a narrower fight, not a slack one.
+ * A boss with three ideas throwing them on the same intervals as a boss with
+ * seven is not an easier fight, it is a quieter one — measured, a five-man
+ * normal Warden went from winning a fifth of its first pulls to winning all of
+ * them, and the pulls were shorter and emptier rather than gentler. What a
+ * narrow fight should be is narrow, not slack.
  *
- * So the rungs a raid did not buy are paid back as tempo. A kit of two runs
- * its two ideas at about five-eighths of the interval, and by the full five it
- * is on the table's own numbers. The pressure still rises with the rungs —
- * five mechanics at full cadence ask for more per second than two at
- * five-eighths, and they ask for five different things — but the bottom of the
- * ladder is a fight rather than a wait.
+ * So a kit shorter than `KIT_WIDE` gets the difference back as tempo: three
+ * ideas run at about five-eighths of the table's intervals, and by six they
+ * are on the table's own numbers. It used to be read as "the rungs a raid did
+ * not buy", which is gone — nobody buys rungs now, every setting throws the
+ * whole fight — but the number is the same one the eight fights are tuned at,
+ * and what it is really about was never the progression: it is how many ideas
+ * the boss owns.
+ *
+ * The second use is measurement. `SimState.only` cuts a kit to the mechanic
+ * under test, and a boss throwing one idea on the table's cadence is a boss
+ * nobody plays; every teaching figure in `docs/mechanic-rules.md` taken before
+ * this existed was reading a mechanic arriving about twice as often as it does
+ * in the fight it belongs to.
  */
+const KIT_WIDE = 6
+
 export function kitCadence(rungs: number): number {
-  return Math.min(1, 1 - (kitCount(25, 'heroic') - rungs) * 0.127)
+  return Math.min(1, 1 - (KIT_WIDE - rungs) * 0.127)
 }
 
 /**
@@ -2658,7 +2614,7 @@ export function hasNext(index: number): boolean {
  * have a cone in it — is about the boss, not about tonight.
  */
 export function usesMechanic(encounter: Encounter, key: MechanicId): boolean {
-  return encounter.ladder.includes(key)
+  return encounter.kit.includes(key)
 }
 
 export type { DifficultyId }
