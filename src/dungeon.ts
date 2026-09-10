@@ -1,5 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
-import type { Alarm, Corridor, Jet, Pack, Spring } from './sim/travel'
+import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Obstacle, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
@@ -134,6 +134,8 @@ export function passageKey(from: string, to: string): string {
 export function passageBetween(a: string, b: string): Passage | undefined {
   return PASSAGES.find((p) => (p.from === a && p.to === b) || (p.from === b && p.to === a))
 }
+
+const dist = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y)
 
 const killed = (...chambers: string[]): Gate => ({ kind: 'killed', chambers })
 
@@ -1221,11 +1223,32 @@ export function hallFor(
   // rooms are all somewhere else is a point in none of them: the party was
   // clamped into whichever corner of the entrance hall was nearest the middle
   // of the map, all twenty-five of them onto the same one.
-  const arrival = back
+  const stood = back
     ? onWall(room, back.angle, DOOR_INSET + ARRIVE_IN)
     : doors.length === 1
       ? onWall(room, doors[0]!.angle + Math.PI, DOOR_INSET + ARRIVE_IN)
       : roomAt(room)
+  // And clear of the room's *other* doors, which a step in from one door is
+  // not on its own.
+  //
+  // A narrow room whose two doors face the same way is the case: the two ramps
+  // out of the first fight are nine yards across and both of their doors are on
+  // the near side of them, because the ramps stand behind the bowl and
+  // everything they lead to is ahead. Step in from one and you are standing on
+  // the other, and walking into a room by arriving at its far door is a room
+  // the party crosses without crossing.
+  //
+  // Walked toward the middle rather than nudged along a bearing: the middle is
+  // the one point in a convex room that every wall is away from, so a step
+  // toward it is a step away from every door at once.
+  const mid = roomAt(room)
+  const others = doors.filter((door) => door.to !== from).map((door) => onWall(room, door.angle))
+  const clear = (at: Vec2): boolean => others.every((door) => dist(at, door) > EXIT_REACH * 1.2)
+  let arrival = stood
+  for (let step = 1; step <= 8 && !clear(arrival); step++) {
+    const t = step / 8
+    arrival = { x: stood.x + (mid.x - stood.x) * t, y: stood.y + (mid.y - stood.y) * t }
+  }
   return {
     id: `hall:${id}`,
     room,

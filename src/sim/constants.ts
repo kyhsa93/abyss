@@ -1386,9 +1386,28 @@ export const REAGENT_BURST_REACH = 160
  * the room's own floor, because what breaks the third-of-the-floor promise is
  * two waves being up at once and no number here can see the cadence.
  */
-export const SLIME_PATCH = 210
 export const SLIME_ARC = 4
-export const SLIME_DRY = 300
+/**
+ * How wide a patch is and how much middle stays dry, as shares of the room.
+ *
+ * Both were units — two hundred and ten and three hundred — and both are a
+ * fraction of the floor they are laid on rather than a length. The day the
+ * fights were rebuilt to their own boss boundaries the sludgeworks went from a
+ * radius of 947 to 674, and at a fixed size the arc went from just under a
+ * third of the floor to well over it, while the dry middle plus one patch grew
+ * past the wall and the mechanic stopped laying anything at all.
+ *
+ * The shares are the ones the mechanic was tuned at, kept to four figures, so
+ * this is the same room it always was expressed against the room. Rule 5 holds
+ * by arithmetic now instead of by the room not moving: four patches of
+ * `SLIME_SHARE` come to `4 * SHARE^2` of the floor, and at 0.2217 that is 20%.
+ */
+export const SLIME_SHARE = 0.2217
+export const SLIME_DRY_SHARE = 0.3168
+
+/** The same two, against the room a fight is actually laid in. */
+export const slimePatch = (reach: number): number => Math.round(reach * SLIME_SHARE)
+export const slimeDry = (reach: number): number => Math.round(reach * SLIME_DRY_SHARE)
 export const SLIME_TELEGRAPH = readable(1.8)
 export const SLIME_LINGER = 10
 export const SLIME_TICK = 190

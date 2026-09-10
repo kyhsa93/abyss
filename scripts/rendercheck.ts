@@ -136,7 +136,7 @@ import {
   GLOBAL_COOLDOWN,
   INHALE_MAX,
   PUNGENT_PER_BREATH,
-  SLIME_DRY,
+  slimeDry,
   HEALTH,
   CRIT_CHANCE,
   CRIT_MULTIPLIER,
@@ -145,7 +145,6 @@ import {
   SHOT_MIN_RANGE,
   SPELL_RANGE,
   MELEE_CALL,
-  PARTY_RADIUS,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -9434,10 +9433,15 @@ for (const [label, w, h] of [
     wettest <= floor / 3,
     `${((wettest / floor) * 100).toFixed(0)}% of ${Math.round(floor)}`,
   )
+  // Against the room's own dry middle, which is a share of the room now: the
+  // day the rooms were rebuilt to their boss boundaries this was a length, and
+  // a length that was three tenths of the old sludgeworks is four tenths of the
+  // new one.
+  const wantsDry = slimeDry(roomReach(room))
   expect(
     `and the middle stayed dry (nearest edge ${dry === Infinity ? 'n/a' : dry.toFixed(0)})`,
-    dry >= SLIME_DRY,
-    `${dry.toFixed(0)} from the middle, wants ${SLIME_DRY}`,
+    dry >= wantsDry,
+    `${dry.toFixed(0)} from the middle, wants ${wantsDry}`,
   )
 }
 
@@ -9523,6 +9527,7 @@ for (const [label, w, h] of [
   const gorged = ENCOUNTERS.findIndex((e) => e.id === 'gorged')
   expect('the fight whose clock is a walk is on the roster', gorged >= 0, `${gorged}`)
   const s = pulled(0x51ed, 8, autoParty(25, pickFor('mage', 'dps')!), 'heroic', gorged)
+  const pulledRoom = s.room
   const rng = new Rng(0x51ed)
   const known = new Set(s.actors.map((a) => a.id))
   let waves = 0
@@ -9548,10 +9553,18 @@ for (const [label, w, h] of [
   // they are already on the wall of the room. What the promise is about is the
   // walk a wave has to make before it reaches anybody, so it is written as a
   // walk.
+  // A share of the room rather than sixteen bodies of it, for the reason the
+  // sludgeworks' patches are a share: the day the fights were rebuilt to their
+  // own boss boundaries this room went from a radius of 739 to 578, and a
+  // fixed distance measured against a room that has moved is a promise about
+  // nothing. Thirty-nine hundredths is what sixteen bodies were of the room
+  // this was written in, so it is the same promise expressed against the floor
+  // it is actually made on.
+  const window = roomReach(pulledRoom) * 0.39
   expect(
     'and every one of them arrived with ground to cross',
-    closest > PARTY_RADIUS * 2 * 16,
-    `one arrived ${closest.toFixed(0)} from somebody`,
+    closest > window,
+    `one arrived ${closest.toFixed(0)} from somebody, wants ${window.toFixed(0)}`,
   )
 }
 

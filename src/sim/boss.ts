@@ -73,9 +73,9 @@ import {
   NUCLEUS_LIFE,
   PRISON_TICK,
   PRISON_CAP,
-  SLIME_PATCH,
+  slimePatch,
   SLIME_ARC,
-  SLIME_DRY,
+  slimeDry,
   SLIME_TELEGRAPH,
   SLIME_LINGER,
   SLIME_TICK,
@@ -2826,8 +2826,11 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   // guaranteed by arithmetic rather than by hope, and inside the wall by their
   // own radius so none of them is half outside the room.
   const reach = roomReach(s.room)
-  const lane = Math.max(SLIME_DRY + SLIME_PATCH, reach - SLIME_PATCH)
-  if (lane + SLIME_PATCH > reach + SLIME_PATCH * 0.5) {
+  // Both of these are shares of the room rather than lengths. See `SLIME_SHARE`.
+  const patch = slimePatch(reach)
+  const dry = slimeDry(reach)
+  const lane = Math.max(dry + patch, reach - patch)
+  if (lane + patch > reach + patch * 0.5) {
     // A room too small to have an outside without swallowing its middle keeps
     // its floor. Nothing in the citadel is that small today; the day one is,
     // this is the line that decides it rather than a wipe nobody expected.
@@ -2851,7 +2854,7 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   // as the third of the floor will hold, and gone before the one after that.
   // Nothing here has to be re-tuned when the cadence, the room, the arc or the
   // difficulty's linger changes, which is the point.
-  const waveArea = SLIME_ARC * Math.PI * SLIME_PATCH * SLIME_PATCH
+  const waveArea = SLIME_ARC * Math.PI * patch * patch
   const waves = Math.max(1, Math.floor(roomArea(s.room) / 3 / waveArea))
   // The tightest gap this fight can ever have, not the one in hand.
   //
@@ -2879,16 +2882,16 @@ function scheduleSlime(s: SimState, b: Actor, rng: Rng, timing: PhaseTiming): vo
   for (let i = 0; i < SLIME_ARC; i++) {
     const bearing = from + (i - (SLIME_ARC - 1) / 2) * step
     const at = { x: c.x + Math.cos(bearing) * lane, y: c.y + Math.sin(bearing) * lane }
-    pushInside(s.room, at, SLIME_PATCH)
+    pushInside(s.room, at, patch)
     // And never over the middle, whatever the room's shape did to the point
     // above: a hall is not a circle, and pushing a patch inside one can walk
     // it inwards.
-    if (Math.hypot(at.x - c.x, at.y - c.y) < SLIME_DRY + SLIME_PATCH) continue
+    if (Math.hypot(at.x - c.x, at.y - c.y) < dry + patch) continue
     s.ground.push({
       ...blankGround(s),
       kind: 'slime',
       pos: at,
-      radius: SLIME_PATCH,
+      radius: patch,
       telegraph: SLIME_TELEGRAPH,
       lingering: life,
       damage: SLIME_TICK,

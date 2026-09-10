@@ -581,14 +581,47 @@ queen in the hall, and this game swaps which fight is in which room. The hall's
 own shape — 119 across by 77 along, off the two council doors — is what that
 room is built to, and it is.
 
-**What is still on the table** is the other half: the *sizes*. Every fight room
-here is sized off the client's map tile at `BUILD_SCALE`, and the boundaries
-above disagree with that sheet by up to forty per cent — the Oratory is built
-ninety-five yards square against a boundary of 135 by 150, the airless room
-eighty-four across against 120. Taking them would halve some fights' floors,
-and floor is the single biggest lever this game has (`docs/mechanic-rules.md`
-rule 5), so it is a change that arrives with a full re-tune attached. The
-numbers are all in the table above, so it is a decision rather than a search.
+**And the sizes are taken too**, which was the last item on the whole list and
+was left until last on purpose: floor is the single biggest lever this game has
+(`docs/mechanic-rules.md` rule 5), so it arrives with a re-tune attached.
+
+A rectangle is a bound rather than a shape, so a round room takes the mean of
+its boundary's two sides as a diameter and a hall takes them as they are:
+
+| | was | is | floor |
+| --- | --- | --- | --- |
+| the bonegrinder | apse r1099 back 335 | unchanged | — |
+| the last whisper | 95 × 95 yd | 68 × 75 | −44% |
+| the bloodgorged | 64 across | 50 | −39% |
+| the reeking host | 84 across | 58 | −52% |
+| the confluence | 82 across | 58 | −50% |
+| the two flasks | 109 × 68 | 78 × 48 | −50% |
+| the three crowns | 188 × 131 | 60 × 85 | −79% |
+| the crimson gift | 63 across | 64 | +3% |
+
+The bonegrinder is the one that did not move, and it is the one worth reading.
+Its boundary is a circle of 95 cut by a rectangle at x −430, and the circle's
+middle is at −428 — so read off the circle the flat side is two yards behind
+the middle and the room is very nearly a whole disc. It is not. **`back` is
+measured from the boss**, and Marrowgar stands at −401.4, twenty-six and a half
+yards in *front* of that middle: the drop behind him is 28.6 yards, which at
+`BUILD_SCALE` is the 335 the room was already built at. Built off the circle
+instead it comes out as two, which puts the boss on his own wall — and
+`dungeoncheck` says so in three places at once, because a room whose middle is
+within a body's width of its own edge is a room with no middle.
+
+Two lengths had to become shares of the room, and both for the same reason: a
+distance tuned against a room that has since moved is a promise about nothing.
+
+- **The sludgeworks' patches.** `SLIME_PATCH` and `SLIME_DRY` were 210 and 300
+  units. At a radius of 674 instead of 947 the arc went from just under a third
+  of the floor to well over it, and the dry middle plus one patch grew past the
+  wall — so the mechanic would have laid nothing at all. They are 0.2217 and
+  0.3168 of the room now, which is what they were of the room they were tuned
+  in, and rule 5 holds by arithmetic rather than by the room not moving.
+- **The walk a blood beast has to make.** Sixteen bodies of ground, written when
+  the bloodgorged's room had a radius of 739. It is thirty-nine hundredths of
+  the room now, which is what sixteen bodies were of that one.
 
 ### The packs that are somewhere else when you get there
 
@@ -959,11 +992,9 @@ which is why a ramp is a room and a stair is a doorway.
    the ratios nor even the order survive a sweep, and why is worth reading.
 8. ~~**The source's own extra credit**: its achievement criteria.~~ **Six of
    eight taken.** The other two ask about a moment inside a fight.
-9. **The rooms' sizes**, off the same boundaries their shapes now come from.
-   Every fight's floor is still the client map tile's reading, and the two
-   disagree by up to forty per cent. This is the one item left that changes how
-   every fight plays, so it comes with a re-tune: see "The shape of a fight's
-   floor" for the numbers.
+9. ~~**The rooms' sizes**, off the same boundaries their shapes now come from.~~
+   **Taken** — every fight's floor is its own `BossBoundaryData` entry at
+   `BUILD_SCALE`. That is the last item on this list.
 
 ## How to take a measurement off a picture
 

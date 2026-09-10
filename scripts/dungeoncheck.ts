@@ -1468,37 +1468,33 @@ expect(
   // are still narrower than the source's own.
   for (const [id, w, d] of [
     // Measured from the instance's own data — see `docs/reading-the-source.md`
-    // for where each number comes from:
+    // for where each number comes from.
+    //
+    // Every fight's room is its own `BossBoundaryData` entry now. That was the
+    // last thing on the inventory and it was left until last on purpose: floor
+    // is the biggest lever this game has, and the boundaries disagreed with the
+    // map tile by up to half, so taking them is a re-tune rather than a
+    // measurement. A rectangle boundary is a bound rather than a shape, so a
+    // round room takes the mean of its two sides as a diameter and a hall takes
+    // them as they are — see "The shape of a fight's floor".
+    ['spire', 190.0, 95.0], // CircleBoundary r95, cut two yards past its middle
+    ['oratory', 135.0, 150.0], // RectangleBoundary(-670, -520, 2145, 2280)
+    ['rise', 100.0, 100.0], // RectangleBoundary(-565, -465, 2160, 2260)
+    ['airless', 120.0, 113.0], // RectangleBoundary(4205, 4325, 3082, 3195)
+    ['sludge', 120.0, 113.0], // RectangleBoundary(4385, 4505, 3082, 3195)
+    ['laboratory', 155.0, 96.0], // ParallelogramBoundary, Putricide
+    ['crimson', 120.0, 170.0], // EllipseBoundary(4660.95, 2769.194), 85 by 60
+    ['sanctum', 128.0, 128.0], // CircleBoundary(4595.93, 2769.365) r64
+    // And the rooms nobody fights in, which are still the client map tile's
+    // reading of the same building. There is no boss boundary for a room with
+    // no boss in it, so there is nothing better to have.
     ['vigil', 130.0, 125.0],
-    ['spire', 190.0, 95.0],
     ['eastclimb', 19.0, 95.0],
     ['westclimb', 19.0, 95.0],
-    // And the rest, which are still the client map tile's reading of the same
-    // building, re-labelled by a yardstick that has since moved. The source's
-    // own coordinates disagree with that sheet by about half again, so every
-    // one of these is a number waiting to be taken off the emulators' tables
-    // the way the four above were. The Oratory is next: its boss's boundary is
-    // a hundred and thirty-five by a hundred and fifty, against the ninety-five
-    // square it is built at, and moving it means re-laying ten rocks and four
-    // doors that `rendercheck` measures.
     ['threshold', 21.3, 55.7],
-    ['oratory', 190.0, 190.0],
     ['mooring', 145.7, 145.7],
-    ['rise', 127.8, 127.8],
     ['crossing', 199.9, 199.9],
     ['vats', 61.4, 136.0],
-    ['airless', 168.7, 168.7],
-    ['sludge', 163.7, 163.7],
-    // Turned, and the two numbers now come from two places. The *ratio* is the
-    // source's own boss boundary -- a parallelogram 155 yards across the walk
-    // by 96 along it -- and the area is still this sheet's, because turning a
-    // room and resizing it at once is two changes measured as one. So neither
-    // of these is a straight reading of anything; together they are the map
-    // tile's floor at the instance's proportions. See `flasks` in
-    // `encounters.ts`.
-    ['laboratory', 218.7, 135.4],
-    ['crimson', 376.7, 262.0],
-    ['sanctum', 126.0, 126.0],
     ['dream', 101.6, 101.6],
     ['gauntlet', 18.8, 69.6],
     ['lair', 103.2, 103.2],
