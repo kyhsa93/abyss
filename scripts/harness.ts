@@ -15,7 +15,7 @@ import {
   type DifficultyId,
   type Pick,
   type RaidSize,
-  SLOTS,
+  makeSlots,
   specLabel,
   specOf,
 } from '../src/sim/classes'
@@ -375,6 +375,15 @@ for (let i = 0; i < ENCOUNTERS.length; i++) {
 const DETAIL_RUNS = 20
 const DETAIL_ATTEMPTS = [0, 8]
 const detailParty = PARTIES[0]!.party
+/**
+ * The formation that party actually stands in, which is its own.
+ *
+ * It was `SLOTS`, the five the module keeps for a battleground team, and the
+ * sweep read a name off slot six of five the moment the default composition
+ * became a raid of ten. The build caught it, in the one shard nothing else
+ * runs.
+ */
+const detailSlots = makeSlots(detailParty.length)
 
 if (want('member')) console.log('\nper member, default composition, puddle% / units walked per s')
 if (want('member')) console.log(
@@ -399,7 +408,7 @@ if (want('member')) for (const attempt of DETAIL_ATTEMPTS) {
 // Slot one is the player, who is a scripted stand-in here rather than the AI
 // under test, and whose puddle time would read as somebody's bad decision.
 if (want('member')) for (let i = 1; i < detailParty.length; i++) {
-  const slot = SLOTS[i]!
+  const slot = detailSlots[i]!
   const pick = detailParty[i]!
   const label = `${slot.name} ${specLabel(pick)}, ${slot.personality}`
   const cells = DETAIL_ATTEMPTS.map((attempt) => {
