@@ -31,7 +31,8 @@ import { createCorridorState, createState, unattended } from '../src/sim/state'
 import { step } from '../src/sim/sim'
 import { Rng } from '../src/sim/rng'
 import { CLASSES, autoParty, pickFor } from '../src/sim/classes'
-import { insideRoom } from '../src/sim/room'
+import { MUSTER_HALF, fromRoom, insideRoom } from '../src/sim/room'
+import type { Vec2 } from '../src/sim/types'
 import { inTerrain } from '../src/sim/battleground'
 import {
   DOOR,
@@ -510,6 +511,69 @@ const everywhere = () => true
     citadelWorld().some((cell) => insideRoom(cell.room, far, 0)),
     `${Math.round(far.x)},${Math.round(far.y)}`,
   )
+}
+
+// The ice is not floor, and the way on does not cross it.
+//
+// The first fight's room is half a disc: floor on the near side of a straight
+// wall and an ice cliff on the far side of it, which is what the source's own
+// map draws and what `docs/reading-the-source.md` is about. Half a room is
+// only half a room if nothing quietly lays ground over the other half — and
+// something nearly did: the way to the second fight used to run straight out
+// of the back of this room, which is the middle of the cliff. It goes around
+// now, by the ledge, and this is what says so.
+//
+// A body's width in from the lip, because the ramp starts at the corner of the
+// straight wall and clips the rim of the bowl by a couple of yards on its way
+// past. That corner is where a ramp round the outside of a bowl has to begin.
+{
+  const bowl = roomOf('spire')
+  const middle = placeOf('spire')
+  const floor = citadelWorld().map((cell) => cell.room)
+  const laid: string[] = []
+  if (bowl.kind !== 'apse') {
+    laid.push(`the first fight's room is a ${bowl.kind}`)
+  } else {
+    // The far half of the bowl, swept: past the straight wall, inside the
+    // curve, and a body clear of both.
+    const room = { ...bowl, at: middle }
+    for (let a = 0; a <= 24; a++) {
+      for (let r = 1; r <= 8; r++) {
+        const bearing = Math.PI + (a / 24) * Math.PI
+        const out = (r / 8) * (bowl.radius - PARTY_RADIUS * 2)
+        const p = fromRoom(room, {
+          x: Math.cos(bearing) * out,
+          y: Math.sin(bearing) * out - bowl.back - PARTY_RADIUS * 2,
+        })
+        const on = floor.find((cell) => insideRoom(cell, p, 0))
+        if (on !== undefined) laid.push(`${Math.round(p.x)},${Math.round(p.y)}`)
+      }
+    }
+  }
+  expect('nothing lays floor over the first fight\'s cliff', laid.length === 0, laid.slice(0, 3).join(' / '))
+
+  // And a body that walks off it goes over, while one that walks into the
+  // curved wall is a body against a wall. Both halves matter: a room that
+  // drops you at every edge is a room the raid cannot use, and one that drops
+  // you at none of them is the disc this was before.
+  const dropped = (at: Vec2): boolean => {
+    const party = autoParty(5, pickFor('warrior', 'dps')!)
+    const s = unattended(createCorridorState(1, party, hallFor('spire', null, () => true), 'normal'))
+    s.floor = citadelWorld().map((cell) => cell.room)
+    const body = s.actors.find((a) => a.faction === 'party')!
+    body.pos = { x: at.x, y: at.y }
+    holdOrFall(s, body)
+    return !body.alive
+  }
+  const room = bowl.kind === 'apse' ? { ...bowl, at: middle } : { ...bowl, at: middle }
+  const over = bowl.kind === 'apse'
+    ? fromRoom(room, { x: 0, y: -bowl.back - PARTY_RADIUS * 4 })
+    : middle
+  const wall = bowl.kind === 'apse'
+    ? fromRoom(room, { x: 0, y: bowl.radius - bowl.back + PARTY_RADIUS * 4 })
+    : middle
+  expect('a body that walks off the cliff goes over it', dropped(over), `${Math.round(over.x)},${Math.round(over.y)}`)
+  expect('and one that walks into the curved wall does not', !dropped(wall), `${Math.round(wall.x)},${Math.round(wall.y)}`)
 }
 
 // A fight has to survive being put somewhere.
@@ -1094,14 +1158,28 @@ expect(
   // Every step of the lower spire, which is one straight line in the source
   // and had better be one here: the way in, the great hall, the first fight,
   // the second. Pressing up walks the whole of it.
+  //
+  // One of its five steps is not straight up and cannot be: the first fight's
+  // room is half a disc with a cliff along the back of it, so the way on
+  // leaves by the side and goes around. What the rule means is that no step of
+  // the lower spire goes *back down* the screen and every door faces the room
+  // it opens onto, which is the same promise a player is holding.
   const backwards: string[] = []
-  const climb = ['threshold', 'vigil', 'spire', 'oratory']
+  const climb = ['threshold', 'vigil', 'spire', 'ledge', 'oratory']
   for (let i = 0; i < climb.length - 1; i++) {
     const here = climb[i]!
     const next = climb[i + 1]!
     const hall = hallFor(here, i === 0 ? null : climb[i - 1]!, anywhere)
     const way = hall.ways.find((w) => w.to === next)
-    if (!way || way.at.y >= placeOf(here).y - 100) backwards.push(`${here} -> ${next}`)
+    const from = placeOf(here)
+    const to = placeOf(next)
+    if (!way || to.y >= from.y - 100) {
+      backwards.push(`${here} -> ${next}`)
+      continue
+    }
+    // And the door is on the side of the room the next one is on.
+    const onward = (way.at.x - from.x) * (to.x - from.x) + (way.at.y - from.y) * (to.y - from.y)
+    if (onward <= 0) backwards.push(`${here} -> ${next} by the wrong wall`)
   }
   expect('the lower spire is walked up the screen, end to end', backwards.length === 0, backwards.join(', '))
 
@@ -1123,7 +1201,12 @@ expect(
   const said: string[] = []
   const across = (id: string): [number, number] => {
     const r = roomOf(id)
-    return r.kind === 'hall' ? [r.halfWidth * 2, r.front + r.back] : [r.radius * 2, r.radius * 2]
+    if (r.kind === 'hall') return [r.halfWidth * 2, r.front + r.back]
+    // Half a disc is as wide as a disc and half as deep, which is the whole
+    // point of the first fight's room and would pass unnoticed if this asked
+    // for a diameter twice.
+    if (r.kind === 'apse') return [r.radius * 2, r.radius]
+    return [r.radius * 2, r.radius * 2]
   }
   //
   // All seventeen, because every one of them has been measured now and a table
@@ -1145,7 +1228,13 @@ expect(
   for (const [id, w, d] of [
     ['threshold', 26.0, 68.0],
     ['vigil', 160.0, 187.0],
-    ['spire', 118.0, 118.0],
+    // Half a disc: as wide as the bowl the source draws and half as deep,
+    // because the far half of that bowl is the ice cliff. See
+    // `docs/reading-the-source.md`.
+    ['spire', 116.0, 58.0],
+    // The walkway around that bowl, which the same sheet draws nineteen yards
+    // across, and long enough to run the height of the room beside it.
+    ['ledge', 19.0, 95.0],
     ['oratory', 116.0, 116.0],
     ['mooring', 178.0, 178.0],
     ['rise', 78.0, 78.0],
@@ -1165,12 +1254,15 @@ expect(
     const fight = chamberAt(id)?.encounter ?? null
     const fought = fight !== null && fight < ENCOUNTERS.length
     const scale = fought ? 1 : BUILD_SCALE
-    const want = w * scale
+    // Or as wide as the raid standing in it, whichever is more: a scale is a
+    // claim about the building and not about twenty-five people. Two rooms hit
+    // that floor — the way in and the walkway around the first fight — and
+    // both are still narrower than the source's own.
+    const want = fought ? w : Math.max(w * scale, yd(MUSTER_HALF * 2))
     const deep = d * scale
-    // Wider than the scale asks is only allowed up to the source's own width,
-    // and only because the raid has to stand somewhere.
-    const wide = yd(gw) > want ? yd(gw) > w * 1.06 : Math.abs(yd(gw) - want) > want * 0.06
-    if (wide) said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${want.toFixed(0)}`)
+    if (Math.abs(yd(gw) - want) > want * 0.06) {
+      said.push(`${id} is ${yd(gw).toFixed(0)} yd wide, not ${want.toFixed(0)}`)
+    }
     if (Math.abs(yd(gd) - deep) > deep * 0.06) {
       said.push(`${id} is ${yd(gd).toFixed(0)} yd deep, not ${deep.toFixed(0)}`)
     }
@@ -1462,10 +1554,12 @@ expect(
 {
   const start = startRun(4242, 5, 'normal')
   const fresh = { ...start, at: 'spire', cleared: ['spire'], visited: ['threshold', 'spire'] }
+  // The way out of the first fight is the ledge around its cliff, and the
+  // second fight is the far end of that.
   expect(
     'killing the first thing opens the way to the second',
-    wayOpen(fresh, 'oratory'),
-    stepTo(fresh, 'oratory').kind,
+    wayOpen(fresh, 'ledge'),
+    stepTo(fresh, 'ledge').kind,
   )
   // And the chain has emphatically not reached it, which is the whole point:
   // if this ever comes back true the check above stops meaning anything.
@@ -1477,15 +1571,19 @@ expect(
   // Every room of the lower spire in turn, since the chain would have held
   // each of them.
   const chain: string[] = []
-  const order = ['spire', 'oratory', 'mooring', 'rise']
+  // The rooms in the order they are walked, and what has been killed by the
+  // time each is stood in — which is not the same list, since the ledge is a
+  // room with nothing in it.
+  const order = ['spire', 'ledge', 'oratory', 'mooring', 'rise']
   for (let i = 0; i < order.length - 1; i++) {
     const at = order[i]!
     const next = order[i + 1]!
+    const walked = order.slice(0, i + 1)
     const run = {
       ...start,
       at,
-      cleared: order.slice(0, i + 1),
-      visited: ['threshold', ...order.slice(0, i + 1)],
+      cleared: walked.filter((id) => chamberAt(id)?.encounter !== null),
+      visited: ['threshold', ...walked],
     }
     if (!wayOpen(run, next)) chain.push(`${at} -> ${next}`)
   }

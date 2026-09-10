@@ -22,8 +22,15 @@ import type { Vec2 } from './types'
  *              is a change to the AI rather than to the geometry. The kind
  *              exists now so that a room specified as a platform does not
  *              have to be re-specified when the fall arrives.
+ *   apse       half a disc: a straight wall behind the boss, a curve in front
+ *              of it, and nothing at all on the far side of the straight one.
+ *              The first fight's room is this, and the reason it was a full
+ *              disc until now is written in `docs/reading-the-source.md`: the
+ *              circle on the client's map is drawn in two colours and only
+ *              the near half of it is floor. The far half is an ice cliff, so
+ *              the straight wall is a drop and the curve is a wall.
  *
- * All three are convex. That is not an accident of what has been needed so
+ * All four are convex. That is not an accident of what has been needed so
  * far: everything that moves in this game walks straight at where it wants to
  * be, so a convex room is left by walking out of it and re-entered by being
  * pushed back, and a concave one needs path-finding. The same rule is why
@@ -38,6 +45,7 @@ export type RoomShape =
   | { kind: 'round'; radius: number; at?: Vec2; turn?: number }
   | { kind: 'hall'; halfWidth: number; front: number; back: number; at?: Vec2; turn?: number }
   | { kind: 'platform'; radius: number; at?: Vec2; turn?: number }
+  | { kind: 'apse'; radius: number; back: number; at?: Vec2; turn?: number }
 
 /**
  * Where the room is, which used to be a question with one answer.
@@ -114,7 +122,28 @@ export const EDGE_LAP = 64
  * what callers actually want to know and a fourth shape may answer it too.
  */
 export function roomHasOutside(room: RoomShape): boolean {
-  return room.kind === 'platform'
+  return room.kind === 'platform' || room.kind === 'apse'
+}
+
+/**
+ * How far inside the *drop* a point is, which is not the same as how far
+ * inside the room.
+ *
+ * A platform is a drop the whole way round, so for one this is `wallGap` and
+ * nothing else. An apse is not: one of its walls is a wall and the other is a
+ * cliff, and a raid pushed off the curved side by a wall it cannot see is a
+ * raid killed by a rendering decision. So this asks only about the edge you
+ * can fall off, and everything that cares about falling — the fall itself, the
+ * strip of floor beside it, the AI's dislike of standing there — asks this
+ * rather than `wallGap`.
+ *
+ * Infinity in a room with no outside, so a caller does not have to check
+ * twice.
+ */
+export function dropGap(room: RoomShape, pos: Vec2, radius = 0): number {
+  if (room.kind === 'platform') return wallGap(room, pos, radius)
+  if (room.kind !== 'apse') return Infinity
+  return local(room, pos).y + room.back - radius
 }
 
 /**
@@ -123,7 +152,7 @@ export function roomHasOutside(room: RoomShape): boolean {
  * False in a room with no outside: a wall is not a hazard, it is furniture.
  */
 export function onEdge(room: RoomShape, pos: Vec2, radius = 0): boolean {
-  return roomHasOutside(room) && wallGap(room, pos, radius) < EDGE_LAP
+  return dropGap(room, pos, radius) < EDGE_LAP
 }
 
 /**
@@ -135,6 +164,14 @@ export function onEdge(room: RoomShape, pos: Vec2, radius = 0): boolean {
  */
 export function wallGap(room: RoomShape, pos: Vec2, radius = 0): number {
   const p = local(room, pos)
+  if (room.kind === 'apse') {
+    // Two walls and the nearer one answers: the straight one behind the boss,
+    // and the curve, which is a circle about the middle of that straight wall
+    // rather than about the boss — the boss does not stand in the middle of
+    // this room, it stands `back` in front of the drop.
+    const y = p.y + room.back
+    return Math.min(y - radius, room.radius - radius - Math.hypot(p.x, y))
+  }
   if (room.kind === 'hall') {
     return Math.min(
       room.halfWidth - radius - Math.abs(p.x),
@@ -175,6 +212,31 @@ export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
     pos.y = back.y
     return
   }
+  if (room.kind === 'apse') {
+    const limit = Math.max(0, room.radius - radius)
+    // In the frame the curve is written in, which is the middle of the
+    // straight wall and not the boss.
+    const y = p.y + room.back
+    const dist = Math.hypot(p.x, y)
+    let px = p.x
+    let py = y
+    if (dist > limit) {
+      const scale = limit / dist
+      px *= scale
+      py *= scale
+    }
+    // And then off the straight wall, and back in off the curve for the
+    // corner that produces: at the ends of a straight wall cut across a disc
+    // the two are the same wall twice, and clamping either one alone leaves a
+    // body standing in the other.
+    py = Math.max(py, radius)
+    const across = Math.sqrt(Math.max(0, limit * limit - py * py))
+    px = Math.max(-across, Math.min(across, px))
+    const back = world(room, { x: px, y: py - room.back })
+    pos.x = back.x
+    pos.y = back.y
+    return
+  }
   const limit = Math.max(0, room.radius - radius)
   const dist = Math.hypot(p.x, p.y)
   if (dist > limit) {
@@ -183,6 +245,34 @@ export function pushInside(room: RoomShape, pos: Vec2, radius = 0): void {
     pos.x = back.x
     pos.y = back.y
   }
+}
+
+/**
+ * The same push, but only off the walls that are walls.
+ *
+ * What holds a body in a room is not the same question as what a mechanic asks
+ * when it places something: a puddle laid over a cliff is a puddle nobody can
+ * be asked to move out of, so `pushInside` keeps everything off the drop —
+ * while a body walking at that drop is *supposed* to go over it. This is the
+ * push for the second case. A platform is drop the whole way round and so is
+ * not pushed at all, which is what it did before this existed; an apse is
+ * pushed off its curve and left alone at its straight edge.
+ */
+export function pushOffWalls(room: RoomShape, pos: Vec2, radius = 0): void {
+  if (room.kind === 'platform') return
+  if (room.kind !== 'apse') {
+    pushInside(room, pos, radius)
+    return
+  }
+  const p = local(room, pos)
+  const limit = Math.max(0, room.radius - radius)
+  const y = p.y + room.back
+  const dist = Math.hypot(p.x, y)
+  if (dist <= limit) return
+  const scale = limit / dist
+  const back = world(room, { x: p.x * scale, y: y * scale - room.back })
+  pos.x = back.x
+  pos.y = back.y
 }
 
 /** A point written in the room's own frame, put where the room actually is. */
@@ -211,6 +301,13 @@ export function atScale(room: RoomShape, k: number): RoomShape {
       back: room.back * k,
     }
   }
+  if (room.kind === 'apse') {
+    return {
+      ...room,
+      radius: Math.max(MUSTER_HALF, room.radius * k),
+      back: room.back * k,
+    }
+  }
   return { ...room, radius: Math.max(MUSTER_HALF, room.radius * k) }
 }
 
@@ -231,7 +328,7 @@ export function atScale(room: RoomShape, k: number): RoomShape {
  * the widest slot the largest raid has, and a body's width outside that so the
  * ones on the end are standing in the room rather than against it.
  */
-const MUSTER_HALF =
+export const MUSTER_HALF =
   Math.max(...makeSlots(25).map((slot) => Math.abs(slot.x))) + PARTY_RADIUS * 2
 
 /**
@@ -247,6 +344,9 @@ export function roomReach(room: RoomShape): number {
   if (room.kind === 'hall') {
     return Math.hypot(room.halfWidth, Math.max(room.front, room.back))
   }
+  // An apse reaches furthest at the two ends of its straight wall, which are
+  // on the curve and `back` off the line the boss stands on.
+  if (room.kind === 'apse') return Math.hypot(room.radius, room.back)
   return room.radius
 }
 
@@ -260,5 +360,8 @@ export function roomReach(room: RoomShape): number {
  */
 export function roomArea(room: RoomShape): number {
   if (room.kind === 'hall') return room.halfWidth * 2 * (room.front + room.back)
+  // Half a disc, exactly: the straight wall is cut through the middle of the
+  // circle, which is what the source's own map draws.
+  if (room.kind === 'apse') return (Math.PI * room.radius * room.radius) / 2
   return Math.PI * room.radius * room.radius
 }

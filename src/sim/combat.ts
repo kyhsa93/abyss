@@ -32,7 +32,7 @@ import {
 } from './constants'
 import type { Rng } from './rng'
 import { CHAMPION_HEAL, untouchable } from './boss'
-import { insideRoom, pushInside, roomHasOutside, wallGap } from './room'
+import { dropGap, insideRoom, pushInside, pushOffWalls, wallGap } from './room'
 import { BOSS_ID, PLAYER_ID } from './state'
 import type {
   Actor,
@@ -629,19 +629,27 @@ export function holdOrFall(s: SimState, actor: Actor): void {
         best = cell
       }
     }
-    if (roomHasOutside(best) && actor.id !== BOSS_ID) {
+    // Off which edge, rather than out of which room. A platform is a drop the
+    // whole way round and answers the same either way; the first fight's room
+    // is half a disc with a cliff along the straight side and a wall around
+    // the curve, and a raid dropped by the wall would be a raid killed by
+    // geometry it was never shown.
+    if (dropGap(best, actor.pos) < 0 && actor.id !== BOSS_ID) {
       fall(s, actor)
       return
     }
-    pushInside(best, actor.pos, actor.radius)
+    pushOffWalls(best, actor.pos, actor.radius)
     return
   }
-  if (!roomHasOutside(s.room) || actor.id === BOSS_ID) {
+  if (actor.id === BOSS_ID) {
     pushInside(s.room, actor.pos, actor.radius)
     return
   }
-  if (wallGap(s.room, actor.pos) >= 0) return
-  fall(s, actor)
+  if (dropGap(s.room, actor.pos) < 0) {
+    fall(s, actor)
+    return
+  }
+  pushOffWalls(s.room, actor.pos, actor.radius)
 }
 
 /**

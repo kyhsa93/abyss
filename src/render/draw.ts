@@ -994,6 +994,10 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
   // Narrowed on the kind rather than through `roomHasOutside`, which answers
   // the question but does not tell the compiler that the answer implies a
   // radius. Both are checked so the two cannot drift apart.
+  if (room.kind === 'apse') {
+    drawApseBrink(ctx, room)
+    return
+  }
   if (room.kind !== 'platform' || !roomHasOutside(room)) return
   const outer = room.radius * L.scale
   const inner = Math.max(1, outer - EDGE_LAP * L.scale)
@@ -1009,6 +1013,47 @@ function drawBrink(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): 
   // in this game that is worth looking at.
   ctx.beginPath()
   floorArc(ctx, c.x, c.y, outer, 0, Math.PI * 2)
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.55)'
+  ctx.lineWidth = 2
+  ctx.stroke()
+  ctx.restore()
+}
+
+/**
+ * The same lane, along the one straight edge of an apse.
+ *
+ * A band inside the chord and a brighter line on it. Drawn in the room's own
+ * frame and put through the same projection as the floor, so it lies on the
+ * ground rather than across the glass — and only along the straight side,
+ * because the curve is a wall and a wall is not worth looking at.
+ */
+function drawApseBrink(
+  ctx: CanvasRenderingContext2D,
+  room: RoomShape & { kind: 'apse' },
+): void {
+  const half = Math.sqrt(Math.max(0, room.radius * room.radius - EDGE_LAP * EDGE_LAP))
+  const lip = [
+    { x: -room.radius, y: -room.back },
+    { x: room.radius, y: -room.back },
+  ].map((p) => worldToScreen(fromRoom(room, p)))
+  const in1 = [
+    { x: half, y: EDGE_LAP - room.back },
+    { x: -half, y: EDGE_LAP - room.back },
+  ].map((p) => worldToScreen(fromRoom(room, p)))
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(lip[0]!.x, lip[0]!.y)
+  ctx.lineTo(lip[1]!.x, lip[1]!.y)
+  ctx.lineTo(in1[0]!.x, in1[0]!.y)
+  ctx.lineTo(in1[1]!.x, in1[1]!.y)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(10, 10, 16, 0.45)'
+  ctx.fill()
+
+  ctx.beginPath()
+  ctx.moveTo(lip[0]!.x, lip[0]!.y)
+  ctx.lineTo(lip[1]!.x, lip[1]!.y)
   ctx.strokeStyle = 'rgba(226, 232, 240, 0.55)'
   ctx.lineWidth = 2
   ctx.stroke()
@@ -1039,6 +1084,9 @@ function thicken(room: RoomShape, by: number): RoomShape {
   if (room.kind === 'hall') {
     return { ...room, halfWidth: room.halfWidth + by, front: room.front + by, back: room.back + by }
   }
+  // The curve grows and the straight side does not: the band this draws is a
+  // wall seen from above, and there is no wall along a cliff.
+  if (room.kind === 'apse') return { ...room, radius: room.radius + by }
   return { ...room, radius: room.radius + by }
 }
 
@@ -1121,6 +1169,27 @@ function nearestChamber(at: Vec2): Chamber | null {
 }
 
 function arenaPath(ctx: CanvasRenderingContext2D, c: Vec2, room = worldRoom()): void {
+  if (room.kind === 'apse') {
+    // Walked round rather than drawn as an arc, for the reason the hall's
+    // corners are: this shape has a straight side, and a straight side has to
+    // turn and tip with the camera like the ground it is. The curve is a
+    // circle about the middle of that straight side — half of one — and the
+    // path closes along the side itself, which is the drop.
+    const steps = 40
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI
+      const at = worldToScreen(
+        fromRoom(room, {
+          x: Math.cos(a) * room.radius,
+          y: Math.sin(a) * room.radius - room.back,
+        }),
+      )
+      if (i === 0) ctx.moveTo(at.x, at.y)
+      else ctx.lineTo(at.x, at.y)
+    }
+    ctx.closePath()
+    return
+  }
   if (room.kind !== 'hall') {
     floorArc(ctx, c.x, c.y, room.radius * L.scale, 0, Math.PI * 2)
     return

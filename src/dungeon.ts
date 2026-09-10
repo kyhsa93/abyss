@@ -165,6 +165,30 @@ export const CHAMBERS: Chamber[] = [
   },
   { id: 'spire', name: 'The Spire', wing: 'lower', encounter: 0 },
   {
+    id: 'ledge',
+    name: 'The Ledge',
+    wing: 'lower',
+    encounter: null,
+    // The way out of the first fight, and it exists because the first fight's
+    // room has a hole in the middle of one wall.
+    //
+    // That room is half a disc with an ice cliff along the straight side (see
+    // `apse` in `room.ts`), and the second fight is on the far side of the
+    // cliff. The source does not walk anybody across it either: its map draws
+    // a walkway right around the outside of the bowl, and a raid that has
+    // killed the first boss takes it, climbs the outside of the room and comes
+    // down a stair into the hall beyond. There is no height in this game and
+    // no path-finding in it, so what is kept is the shape of the journey — out
+    // of the side of the room, along a ledge that runs past the ice, and in at
+    // the far end — as the one thing a citadel of rooms and doors can hold: a
+    // room.
+    //
+    // Nineteen yards across, which is what the walkway measures on that sheet,
+    // and long enough to run the height of the bowl beside it.
+    room: { kind: 'hall', halfWidth: 180, front: 900, back: 900 },
+    pad: killed('spire'),
+  },
+  {
     id: 'oratory',
     name: 'The Oratory',
     wing: 'lower',
@@ -470,7 +494,10 @@ export const PASSAGES: Passage[] = [
       ],
     ),
   },
-  { from: 'spire', to: 'oratory', gate: killed('spire') },
+  // Out of the side of the first fight's room rather than out of the back of
+  // it: the back of it is the cliff.
+  { from: 'spire', to: 'ledge', gate: killed('spire') },
+  { from: 'ledge', to: 'oratory' },
   {
     from: 'oratory',
     to: 'mooring',
@@ -605,6 +632,19 @@ export const CITADEL_PLAN: Array<{ id: string; x: number; y: number }> = [
   { id: 'threshold', x: 0, y: 0 },
   { id: 'vigil', x: 0, y: 292 },
   { id: 'spire', x: 0, y: 420 },
+  // Due east of the first fight's room and barely past it, which is the
+  // bearing the walkway leaves on. Its distance, like every other, is the two
+  // rooms and the ground between them — the number here is only which way
+  // round the bowl the raid goes.
+  //
+  // Narrower than it looks: the ground to it is knitted a passage's length
+  // back *into* the first fight's room, along this bearing, so a bearing
+  // pointed further up the screen drags that knitting across the lip of the
+  // cliff and lays floor over the ice. Further down the screen and the way on
+  // walks backwards. Both are checked — see "nothing lays floor over the first
+  // fight's cliff" and "the lower spire is walked up the screen" — so this is
+  // a number with a check either side of it rather than a preference.
+  { id: 'ledge', x: 100, y: 430 },
   { id: 'oratory', x: 0, y: 685 },
 
   // Then the turn along the bottom and up. The gunship is 162 yards from the
@@ -1206,6 +1246,17 @@ export const CITADEL_REACH = Math.max(
  * again as it needs to be.
  */
 export function support(room: RoomShape, ux: number, uy: number): number {
+  if (room.kind === 'apse') {
+    // The whole bowl, floor and cliff together, because this answers a
+    // question about the plan rather than about walking: what the building
+    // may not put another room inside. The ice on the far side of the drop is
+    // as much a part of this chamber as the floor on the near side of it —
+    // it is the thing the raid walks around — so the circle is asked whole.
+    // Where the *floor* stops is `exitAlong`, which is asked by the doors.
+    const t = room.turn ?? 0
+    const vy = ux * Math.sin(-t) + uy * Math.cos(-t)
+    return room.radius - room.back * vy
+  }
   if (room.kind !== 'hall') return room.radius
   return Math.abs(ux) * room.halfWidth + (uy > 0 ? uy * room.front : -uy * room.back)
 }
@@ -1221,6 +1272,19 @@ export function support(room: RoomShape, ux: number, uy: number): number {
  * looks for one.
  */
 export function exitAlong(room: RoomShape, ux: number, uy: number): number {
+  if (room.kind === 'apse') {
+    const t = room.turn ?? 0
+    const vy = ux * Math.sin(-t) + uy * Math.cos(-t)
+    // Out through the curve: the ray from the origin against a circle whose
+    // middle is `back` behind it, which is one root of a quadratic and always
+    // has exactly one positive one, since the origin is inside that circle.
+    const b = vy * room.back
+    const curve = -b + Math.sqrt(b * b + room.radius * room.radius - room.back * room.back)
+    // Or out over the straight wall, which is only ahead of a ray pointed
+    // behind the boss.
+    const drop = vy < 0 ? room.back / -vy : Infinity
+    return Math.min(curve, drop)
+  }
   if (room.kind !== 'hall') return room.radius
   const t = room.turn ?? 0
   const cos = Math.cos(-t)

@@ -1182,7 +1182,12 @@ export function drawCitadel(
     const boxW = row.rect.w * 0.92
     const boxH = row.rect.h - nameH
     const wide = room.kind === 'hall' ? room.halfWidth * 2 : room.radius * 2
-    const deep = room.kind === 'hall' ? room.front + room.back : room.radius * 2
+    const deep =
+      room.kind === 'hall'
+        ? room.front + room.back
+        : room.kind === 'apse'
+          ? room.radius
+          : room.radius * 2
     // Bigger rooms draw bigger, but only within their own box: the smallest
     // still has to be a room rather than a dot.
     const share = 0.68 + 0.32 * Math.sqrt(roomArea(room) / biggest)
@@ -1198,11 +1203,27 @@ export function drawCitadel(
     ctx.lineWidth = row.state === 'here' ? 2 : 1
     ctx.beginPath()
     if (room.kind === 'hall') ctx.rect(cx - w / 2, cy - h / 2, w, h)
+    // Half a disc, and drawn as one: the flat side is the thing worth seeing
+    // on a map, because it is where the floor stops. Flat side up, since up is
+    // onward and what is past it is the next room.
+    else if (room.kind === 'apse') ctx.ellipse(cx, cy - h / 2, w / 2, h, 0, 0, Math.PI)
     else ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
     // A platform has no wall, which is the one thing about a room worth
     // knowing before walking into it.
+    // The same dashed line for the edge you can walk off, on the one side of
+    // an apse that is one.
+    if (room.kind === 'apse' && w > 12) {
+      ctx.globalAlpha = 0.5
+      ctx.setLineDash([3, 3])
+      ctx.beginPath()
+      ctx.moveTo(cx - w / 2 + 2, cy - h / 2)
+      ctx.lineTo(cx + w / 2 - 2, cy - h / 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.globalAlpha = 1
+    }
     if (room.kind === 'platform' && w > 12) {
       ctx.globalAlpha = 0.5
       ctx.setLineDash([3, 3])

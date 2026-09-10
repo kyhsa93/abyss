@@ -1725,7 +1725,12 @@ for (const [label, w, h] of [
   ['portrait 390x844', 390, 844],
 ] as const) {
   updateLayout(w, h)
-  const s = pulled(0x51ed, 0)
+  // A fight in a disc, because what this asks for is a circle on the canvas
+  // and it used to ask the first fight for one. That room is half a disc now
+  // — see `apse` — and a half-disc is drawn as a walked path rather than as an
+  // ellipse, so the check would be looking for a shape the renderer is right
+  // not to draw. The camera is the same camera in every room.
+  const s = pulled(0x51ed, 0, undefined, undefined, 2)
   const rng = new Rng(0x51ed)
 
   // Walk off the origin, or a camera that never moved would pass this.
@@ -1788,7 +1793,7 @@ for (const [label, w, h] of [
   // ARENA_RADIUS` — so the arena came out exactly `arenaR` pixels wide and
   // this line could look for that. The view carries its own reach now, so the
   // two are only equal by coincidence.
-  const drawn = ARENA_RADIUS * L.scale
+  const drawn = roomReach(s.room) * L.scale
   const floor = circles.find((c) => Math.abs(c.r - drawn) < 0.01)
   const want = Math.hypot(player.pos.x, player.pos.y) * L.scale
   const off = floor === undefined ? -1 : Math.hypot(floor.x - L.cx, floor.y - L.cy)

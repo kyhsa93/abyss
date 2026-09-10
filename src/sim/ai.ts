@@ -48,7 +48,7 @@ import {
   holdOrFall,
   topThreatTarget,
 } from './combat'
-import { EDGE_LAP, onEdge, pushInside, roomHasOutside, wallGap } from './room'
+import { EDGE_LAP, dropGap, onEdge, pushInside, roomHasOutside, wallGap } from './room'
 import { BOSS_ID } from './state'
 import type { Rng } from './rng'
 import type { Actor, AuraId, GroundEffect, SimState, Vec2 } from './types'
@@ -2227,14 +2227,22 @@ function findSafeSpot(s: SimState, actor: Actor, rng: Rng): Vec2 {
     // answers for any room. Candidates are pushed inside before they are
     // scored, so this measures the wall a body would actually end up against.
     const gap = wallGap(s.room, candidate)
-    if (roomHasOutside(s.room)) {
-      // On a platform the last lane is not an untidy place to stand, it is one
+    // A wall is untidy and a drop is fatal, so they are scored apart and a
+    // room may have both: the first fight's is half a disc, walled around the
+    // curve and open along the straight side. `dropGap` is the distance to the
+    // edge that kills and `wallGap` the distance to the nearest of either, so
+    // asking each its own question is the only way a body reads a room with
+    // two kinds of edge in it.
+    const drop = dropGap(s.room, candidate)
+    if (drop < Infinity) {
+      // The last lane beside a drop is not an untidy place to stand, it is one
       // step from the end of the fight. Weighted with the shapes that kill --
       // the cone, the caving floor -- rather than with the wall, and graded
       // across the lane so a body pushed to the edge walks in rather than
       // along it.
-      score -= Math.max(0, (EDGE_LAP - gap) / EDGE_LAP) * 1700
-    } else {
+      score -= Math.max(0, (EDGE_LAP - drop) / EDGE_LAP) * 1700
+    }
+    if (!roomHasOutside(s.room) || s.room.kind === 'apse') {
       score -= Math.max(0, WALL_LAP - gap) * 2
     }
 

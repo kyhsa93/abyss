@@ -1166,10 +1166,24 @@ export const ENCOUNTERS: Encounter[] = [
     // the other seven bosses and nothing at all for four of them. Losing a
     // first boss to a timer teaches less than losing it to the thing that
     // killed you, so the bar pays for the damage the mechanic now costs.
-    // The room, and it is the one every other room in this game is described
-    // against. Round nine hundred and twenty, which is what every fight was
-    // fought in and what every number in `docs/mechanic-rules.md` was measured
-    // in, so it is left unwritten: `room` omitted *is* this room.
+    // The room, and half of it is a cliff.
+    //
+    // The circle on the client's own map of this floor is drawn in two
+    // colours: a red near half with the boss marker on it, and a blue-green
+    // far half with an ice texture. The eighty-four pixels across were read as
+    // the walkable disc and only the red is floor — see
+    // `docs/reading-the-source.md`, which is the sheet, the ruler and the
+    // measurements. So this fight is fought on half a disc a hundred and
+    // sixteen yards wide and fifty-eight deep, with the drop along the
+    // straight side and the boss standing twenty-three yards in front of it,
+    // where the marker is.
+    //
+    // It is no longer the yardstick, and `ARENA_RADIUS` still is: every number
+    // in `docs/mechanic-rules.md` was measured in that disc and this room is
+    // half of one. What that costs is real and is the point — a line out of
+    // the middle reaches the drop in twenty-three yards, and a raid that backs
+    // away from the storm has somewhere it must not back into.
+    room: { kind: 'apse', radius: 1103, back: 436 },
     //
     // Nothing standing in it, said on purpose rather than rolled empty. The
     // three things this fight does all reach the wall — a line out of the

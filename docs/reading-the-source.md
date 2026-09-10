@@ -25,8 +25,8 @@ was wrong. On the instance map that circle is drawn in two colours:
 So the first fight's room is not a disc a hundred and eighteen yards across.
 It is a **half-disc**: a chord straight through the middle of that circle, the
 floor on the near side of it, the drop on the far side. The room in this game
-is currently twice the floor the source has there, and the half that does not
-exist is the half a raid would fall off.
+was twice the floor the source has there, and the half that did not exist was
+the half a raid would fall off.
 
 Nothing in the picture says which colour means floor. A person who has walked
 the place says it in one sentence, and that sentence belongs here rather than
@@ -80,13 +80,28 @@ anywhere in the simulation. Against the list above that means:
   of the circle the room does not include. `roomHasOutside` already exists for
   a room you can step off.
 - **The ring is not one room.** An annulus is concave, and this game does not
-  buy path-finding — see `RoomShape`. It is expressible as a *chain* of short
-  convex cells laid around the arc, which is exactly what the citadel already
-  does with corridors: several segments, each one convex, laid end to end.
+  buy path-finding — see `RoomShape`. What it is expressible as is a room
+  beside the bowl with ground either end of it, which is what the Ledge is:
+  the shape of the journey — out of the side, along past the ice, in at the far
+  end — kept, and the circle of it dropped.
 - **The climb is not expressible at all.** Walking round and coming out above
   the cliff is a change in height, and height is not a thing this game has. It
   reads as a walk around the outside; the stairs down are the passage that is
   already there.
+
+## What was built from this, and what was not
+
+The first fight's room is an `apse` now: half a disc a hundred and sixteen
+yards wide and fifty-eight deep, the boss twenty-three yards in front of the
+straight side, the drop along it. Walking off the straight side is a fall;
+walking into the curve is a wall. The room's own bowl — floor *and* ice — is
+what the plan keeps other rooms out of, because the ice is part of the chamber
+even though nobody stands on it.
+
+The walkway is a room called the Ledge, which is what a citadel of rooms and
+doors can hold of a ramp: the way on leaves the first fight by the side of the
+room, runs along a ledge past the ice, and turns in at the far end. It does not
+climb, because nothing in this game does.
 
 ## How to take a measurement off a picture
 
