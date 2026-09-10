@@ -971,15 +971,37 @@ the crimson pair overlap each other so heavily that the Darkfallen in the hall
 are inside both — which is why the wing this game deliberately swaps rooms in is
 left alone. See "The shape of a fight's floor".
 
-**One thing found and not taken.** She is not in the middle of her own hall.
-The boundary runs from −670 to −520 along the walk and she stands at −634.7, so
-the floor is thirty-five yards behind her and a hundred and fifteen in front —
-and this game builds the room `front: 1157, back: 578`, which is two thirds and
-one third, the split every hall in the building was given. Off her own position
-it is 1327 and 408. The other two halls are the same guess and can be settled
-the same way. It is left for its own round because moving a boss inside its
-room moves the fight: the benches are placed against those walls and the raid's
-floor in front of her grows by fifteen percent.
+**And the same reading settles where a boss stands in its own room.** A
+boundary says where the walls are; it does not say where inside them the fight
+happens, and that is a `creature` row. All three of this game's halls were built
+`front` twice `back` — two thirds of the floor in front of the boss and one
+third behind — which is not a measurement, it is the same guess made three
+times.
+
+| hall | boss, and the walls along the walk | was | is |
+| --- | --- | --- | --- |
+| the Oratory | Lady Deathwhisper at −634.7, walls −670 and −520 | 1157 / 578 | 1327 / 408 |
+| the laboratory | Professor Putricide at 3262.9, walls 3194 and 3290 | 741 / 370 | 797 / 313 |
+| the crimson hall | the three princes at 4680.3, ellipse 4575.95 to 4745.95 | 1311 / 656 | 1207 / 760 |
+
+Each room keeps its floor to the unit — only the boss's place in it moves — and
+each moves the same way the source does: the lich preaches from an altar near
+her back wall, the professor works at a table at the back of his laboratory,
+and the princes' dais is past the middle of the hall rather than at the end of
+it. The benches in the Oratory were re-spaced with it: the first pair of seats
+was at −440 in a room whose back wall is now −408, which is furniture standing
+outside the building.
+
+**What the room shapes still cannot hold.** Three bosses stand off the middle of
+a *disc*, and a disc in this game is centred on its boss, so there is nowhere to
+put the difference. Marrowgar is 26.6 yards in front of the middle of his own
+circle, so the floor ahead of him is 68 yards in the source and 95 here (the
+half-disc's cut behind him is right, at 28.6). The Blood-Queen stands 29 yards
+off the middle of hers. Saurfang's spawn is three yards *outside* his own
+boundary, because it is where he stands before he walks down. Written down
+rather than fixed: an off-centre disc is a shape this game has no primitive
+for, and inventing one to hold three numbers would be a worse trade than the
+three numbers.
 
 ### Thirty-seven creatures where there was one
 

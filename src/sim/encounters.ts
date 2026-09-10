@@ -1463,7 +1463,17 @@ export const ENCOUNTERS: Encounter[] = [
     // source. Two measurements agreeing is not two measurements: they were the
     // same reading of the same picture. Built, that is 2198 units square going
     // to 1562 across by 1735 deep: narrower than it was, and deeper.
-    room: { kind: 'hall', halfWidth: 781, front: 1157, back: 578 },
+    //
+    // And she is not in the middle of it, which is the second correction and
+    // the one a boundary cannot make on its own. A boundary says where the
+    // walls are; where the boss stands inside them is a `creature` row, and
+    // hers is x -634.69 against walls at -670 and -520. So the floor is
+    // thirty-five yards behind her and a hundred and fifteen in front: 408 and
+    // 1327, against the 578 and 1157 this was built at -- one third and two
+    // thirds, which is the split every hall in this building was given because
+    // nobody had looked up where its boss stands. The room is the same size;
+    // what moved is her place in it, and that is most of what a hall is.
+    room: { kind: 'hall', halfWidth: 781, front: 1327, back: 408 },
     /**
      * Two rows of seats down the sides, and a clear middle.
      *
@@ -1488,17 +1498,27 @@ export const ENCOUNTERS: Encounter[] = [
      * between neighbours, and clear of every starting mark at all three raid
      * sizes. `rendercheck` measures all four.
      */
+    // Re-spaced when the lich took her own place in her own hall: the row ran
+    // from -440 to 1020 in a room whose back wall was at -578, and the back
+    // wall is at -408 now, so the first pair of seats was standing outside the
+    // building.
+    //
+    // Searched rather than nudged, against the four rules a rolled rock obeys
+    // and the four doorways -- five a side, evenly spaced, the widest mouth
+    // the room will give both pairs of doors. It comes out ahead of her rather
+    // than around her, which is what an oratory is: the pews face the altar
+    // and the altar is at the back.
     terrain: [
-      { pos: { x: -640, y: -440 }, radius: 70 },
-      { pos: { x: -640, y: -73 }, radius: 70 },
-      { pos: { x: -640, y: 307 }, radius: 70 },
-      { pos: { x: -640, y: 687 }, radius: 70 },
-      { pos: { x: -640, y: 1020 }, radius: 70 },
-      { pos: { x: 640, y: -440 }, radius: 70 },
-      { pos: { x: 640, y: -73 }, radius: 70 },
-      { pos: { x: 640, y: 307 }, radius: 70 },
-      { pos: { x: 640, y: 687 }, radius: 70 },
-      { pos: { x: 640, y: 1020 }, radius: 70 },
+      { pos: { x: -640, y: 25 }, radius: 70 },
+      { pos: { x: -640, y: 315 }, radius: 70 },
+      { pos: { x: -640, y: 605 }, radius: 70 },
+      { pos: { x: -640, y: 895 }, radius: 70 },
+      { pos: { x: -640, y: 1185 }, radius: 70 },
+      { pos: { x: 640, y: 25 }, radius: 70 },
+      { pos: { x: 640, y: 315 }, radius: 70 },
+      { pos: { x: 640, y: 605 }, radius: 70 },
+      { pos: { x: 640, y: 895 }, radius: 70 },
+      { pos: { x: 640, y: 1185 }, radius: 70 },
     ],
     /**
      * Four side doors, and two of them only open for a big raid.
@@ -2298,7 +2318,13 @@ export const ENCOUNTERS: Encounter[] = [
     // `BUILD_SCALE`, which is 1794 by 1111. Smaller in both directions than
     // the area-preserving version above, because the area it was preserving
     // was itself a guess.
-    room: { kind: 'hall', halfWidth: 897, front: 741, back: 370 },
+    //
+    // And the professor's place in it off his own row: he stands at y 3262.90
+    // between walls at 3194 and 3290, which is 69 yards of floor in front of
+    // him and 27 behind -- 797 and 313, against the 741 and 370 this was
+    // built at. He is at his table at the back of his laboratory, which is
+    // where the source puts him and is not a two-to-one split.
+    room: { kind: 'hall', halfWidth: 897, front: 797, back: 313 },
     /**
      * Four benches, in two rows.
      *
@@ -2475,7 +2501,13 @@ export const ENCOUNTERS: Encounter[] = [
     // building, and the fight did not notice -- it was at a hundred percent
     // before and it is at a hundred percent now, which says what this one is
     // decided by and it is not floor.
-    room: { kind: 'hall', halfWidth: 694, front: 1311, back: 656 },
+    //
+    // And the three of them stand at x 4680.3 against an ellipse reaching from
+    // 4575.95 to 4745.95, so the dais is past the middle of the hall rather
+    // than at its end: 104 yards of floor in front of them and 66 behind, or
+    // 1207 and 760. It was 1311 and 656, which is the two-to-one split this
+    // building gave every hall before anybody read where its boss stands.
+    room: { kind: 'hall', halfWidth: 694, front: 1207, back: 760 },
     // An equal triangle with a side of seven hundred, which is what the
     // measurement left of the room's first answer.
     //
