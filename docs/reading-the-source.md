@@ -274,39 +274,72 @@ tuning a fight nobody had the source's numbers for.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
 
-### Still on the table, in the order it is worth taking
+### Everything the source will give, and what has been taken
 
-1. **Every fight's cadence**, from its own script: first cast, repeat, and what
-   changes at twenty-five and at heroic. Thirteen scripts, all in the same
-   shape as the two read here. It is the biggest unused thing and the one that
-   would move every fight's rhythm onto the source's.
-2. **Phase structure**: what actually ends a phase there — Deathwhisper's
-   barrier is "damage taken exceeds mana", Saurfang's is blood power,
-   Putricide's are health percentages. This game gives every boss three phases
-   on a timer.
+Four places hold it. Three are public and machine-readable; the fourth is the
+one that answers what nobody can.
+
+**TrinityCore's scripts** — `src/server/scripts/Northrend/IcecrownCitadel/`,
+seventeen files, what the instance *does*:
+
+| | status |
+| --- | --- |
+| boss boundaries — the shape of every fight's floor, as circles, rectangles, ellipses and one parallelogram | **taken** for the first fight |
+| doors, and what opens them: `DOOR_TYPE_ROOM` while a fight runs, `DOOR_TYPE_PASSAGE` once it is done | **taken** — the two ice walls |
+| the spirit alarms and the stoneform they take off | **taken** |
+| every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | available — the biggest thing left |
+| what ends a phase: a health share, a mana bar, blood power, an air phase | available |
+| what the adds are and what *they* cast | available |
+| the achievement criteria — "nobody impaled", "all five kinds alive at once" | available |
+| every line spoken | not wanted: the names here are this game's own |
+
+**AzerothCore's world database** — `data/sql/base/db_world/`, where everything
+stands:
+
+| | rows for this raid | status |
+| --- | --- | --- |
+| `creature` — every spawn, with position | 597 on map 631 | **taken** for the way to the first fight (133) |
+| `gameobject` — every object, with position | 111 | **taken** for the great hall and the alarms |
+| `creature_template` — name, rank, scale, speeds | all of them | **taken** for the first boss's pace |
+| `creature_model_info` — bounding radius, combat reach | all of them | **taken**: it is the yardstick |
+| `creature_addon` — auras and patrol paths | 5 of the 597 | available, and small: this raid stands still |
+| `waypoint_data` — the paths those five walk | 5 paths | available; nothing here patrols yet |
+| the rest of the building: the Oratory (67), the ramparts (66), the plagueworks (62), the crimson hall (23), the frostwing halls (112) | 330 | available |
+
+**The client's own tables** — what the emulators do not carry, published at
+wago.tools and readable through Wowhead's WotLK tooltip endpoint
+(`nether.wowhead.com/wotlk/tooltip/spell/<id>`):
+
+| | example | status |
+| --- | --- | --- |
+| a spell's range, cast time, duration and tick | Death and Decay: 200 yd, instant, 6000 shadow a second for 10s | available — and it is exactly the class of number this game tunes by hand |
+| a spell's radius | some state it, some say "the affected area" | partly available |
+| map tiles and the world rectangle each covers | the sheet this file's first table came off | **taken** |
+
+**And what nothing gives.** The floor itself. Walkable geometry lives in the
+client's WMO models and the navmesh built from them, so every room here is a
+convex approximation of a shape no table describes — and elevation with it,
+which is why a ramp is a room and a stair is a doorway.
+
+### In the order it is worth taking
+
+1. **Every fight's cadence**, from its own script. Thirteen of them, all in the
+   same shape as the two read here, and the two that were read turned up two
+   values this game had backwards.
+2. **Phase triggers**: what actually ends a phase there, against three phases
+   on a timer here.
 3. **What the adds are.** Cult Fanatics and Adherents have kits of their own —
    Necrotic Strike, Shadow Cleave, Vampiric Might, Deathchill Bolt — and this
    game's waves are bodies with a health bar.
-4. **The real trash.** `creature` has every pack in the corridor with its own
-   position, and `waypoint_data` has what patrols. The packs in the lower
-   spire's corridor here are hand-placed.
-5. **The teleport pads.** `go_icecrown_citadel_teleport.cpp` and the gameobject
-   rows behind it put the source's own pads where they stand; this game's pads
-   are a rule rather than a place.
-6. **Boss health *ratios*** between fights, from `creature_template`, even
-   where the absolute numbers cannot be used.
-7. **Mechanic geometry** — a spell's radius and range — which is the one thing
-   on this list the emulators do *not* carry: it lives in the client's
-   `SpellRadius` and `SpellRange` tables, published at wago.tools. That is
-   where "how big is Death and Decay" is answered exactly, and it is the class
-   of number this game currently tunes by hand.
-8. **The source's own extra credit**: `instance_encounters` and the achievement
-   criteria — "nobody impaled", "all five add types alive at once" — which are
-   goals already designed for these fights.
-
-And what no emulator can give: the floor itself. Walkable geometry is the
-client's navmesh, so every room here is a convex approximation of a shape
-nobody can read out of a table.
+4. **The rest of the building's trash**, the same way the first corridor's was
+   taken: 330 spawns, already clustered by room.
+5. **Spell numbers** from the client tables — radius, duration, tick — which is
+   the one source that can settle a mechanic's size rather than its shape.
+6. **The teleport pads**, at the source's own coordinates.
+7. **Boss health ratios** between fights, even where the absolute numbers
+   cannot be used.
+8. **The source's own extra credit**: its achievement criteria are goals
+   already designed for these fights.
 
 ## How to take a measurement off a picture
 
