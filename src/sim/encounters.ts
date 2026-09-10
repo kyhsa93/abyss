@@ -1320,7 +1320,9 @@ export const ENCOUNTERS: Encounter[] = [
     // the cold line comes round every five seconds off the source's schedule
     // instead of every thirteen, and a twenty-five-man rings a bigger circle
     // and eats more of it. Twenty-five heroic was the one cell under the floor.
-    sizeMechanic: { 10: 1.0, 25: 0.85 },
+    // 0.85 was an overcorrection: the cell that was at 43% went to 98%, which
+    // is the fight handed over rather than fixed. Between the two.
+    sizeMechanic: { 10: 1.0, 25: 0.92 },
     accent: '#e7e5e4',
     names: { slam: 'SABER LASH', shard: '', raid: 'THE GRINDING' },
     kit: ['coldflame', 'spike', 'bonestorm'],
@@ -1527,7 +1529,11 @@ export const ENCOUNTERS: Encounter[] = [
     // the kill and the twenty-five heroic climbing 50 to 75 between a first
     // pull and a ninth. Taking them further -- 0.85/1.0/0.72 -- puts all six
     // cells at 95 or better, which is the fight being handed over.
-    sizeMechanic: { 10: 1.0, 25: 0.82 },
+    // Twenty-five heroic landed on exactly the fifty percent the band asks
+    // for, which is a cell that passes and has no margin -- and a band read
+    // off forty pulls a cell carries about sixteen points of noise. Enough
+    // room to be measured rather than guessed at.
+    sizeMechanic: { 10: 1.0, 25: 0.74 },
     accent: '#38bdf8',
     names: { slam: 'A WORD OF ENDING', shard: 'WINTER SHARD', raid: 'SETTLING COLD' },
     // Cheapest idea first, and the two that need somebody else to act on them
@@ -1682,7 +1688,7 @@ export const ENCOUNTERS: Encounter[] = [
     // -- the bloat every sixteen seconds instead of eleven, the vile gas every
     // thirty-one instead of seventeen -- and the fight went to a hundred
     // percent at every setting, which is not a fight.
-    mechanicDamage: 0.72,
+    mechanicDamage: 0.9,
     // Weighted toward the small rosters, which is the opposite of every other
     // boss here and is a fact about this one's kit. Three of its demands are
     // paid per body — the mark, the spore, the swelling — so a bigger raid
@@ -1924,7 +1930,9 @@ export const ENCOUNTERS: Encounter[] = [
     // the boss a fifth of its health if it dies, and a ten-man has ten bodies
     // to spare it from: measured, 23% and 10% against the twenty-five's 90%
     // and 78%. The number below is that gap closed rather than a preference.
-    sizeMechanic: { 10: 0.7, 25: 0.8 },
+    // 0.7 took the ten-man from 23% to 95%, which is the same mistake in the
+    // other direction. Two thirds of the way back.
+    sizeMechanic: { 10: 0.8, 25: 0.8 },
     // The gauge is the second rung rather than the first, and the reason is
     // worth writing down because the first draft had it the other way round.
     //
@@ -2267,7 +2275,8 @@ export const ENCOUNTERS: Encounter[] = [
     // two answers' worth of bodies and no more. Written at 1.25 the ten-man
     // won 18% of its pulls on normal and 3% on heroic against the
     // twenty-five's 55% and 63%.
-    sizeMechanic: { 10: 0.8, 25: 1.0 },
+    // 0.8 took the ten-man from 18% to 100%. Most of the way back.
+    sizeMechanic: { 10: 0.95, 25: 1.0 },
     // The order is the argument. The pool is first because it is the only
     // familiar thing here; the hound second, because the fight's idea needs
     // something to be followed before it can put a circle on it; the gathering
@@ -2432,7 +2441,7 @@ export const ENCOUNTERS: Encounter[] = [
     // crown moves every forty-six seconds off `EVENT_INVOCATION_OF_BLOOD`
     // rather than the fifty this game had guessed, but everything it empowers
     // slowed right down. A hundred percent at three settings of four.
-    mechanicDamage: 0.85,
+    mechanicDamage: 1.0,
     // Far lighter at the small sizes than any other row on the roster, and it
     // is the fight's shape rather than its numbers that asks for it. A crossing
     // costs a caster its cast whatever the headcount, so a five-man loses a
@@ -2561,13 +2570,19 @@ export const ENCOUNTERS: Encounter[] = [
     // is another one on a thirty-three second clock -- a tide on top of those
     // is the same demand three times, and the healers cannot tell them apart.
     raidDamage: 70,
-    mechanicDamage: 0.5,
+    mechanicDamage: 0.55,
     // Every cell of this fight was under the floor -- 33, 15, 3 and nought --
     // and the reason is the cadence rather than the size: the source throws
     // Twilight Bloodbolt every twenty-two and a half seconds where this game
     // had written thirty-three, and the bite every fifteen where it had
     // eighteen. Cadences are facts now; this is where the fight is tuned.
-    sizeMechanic: { 10: 0.9, 25: 0.65 },
+    // The most sensitive dial on the roster, and it is worth writing the
+    // three measurements down rather than the reasoning: at 0.85 this cell won
+    // nought percent of its pulls, at 0.65 it won 83, and at 0.78 it won 15.
+    // Twenty-five bodies bound to each other in pairs is a mechanic whose cost
+    // is the square of how many people are in it, so a tenth on this dial is
+    // not a tenth of anything.
+    sizeMechanic: { 10: 0.9, 25: 0.7 },
     // The gift first, because nothing else here means anything without it. The
     // bond second, because it is what makes the gift a decision rather than a
     // walk: one says go and find somebody clean, the other says do not leave

@@ -1570,7 +1570,17 @@ console.log(`rendered ${frames} frames with no exceptions`)
     casts++
     const b = s.actors.find((a) => a.id === BOSS_ID)!
     const bodies = s.actors.filter((a) => a.faction === 'party' && a.alive).length
-    if (now.length !== bodies) missed.push(`${now.length} bolts for ${bodies} bodies`)
+    // Counted off the landings rather than off what is still in the air.
+    //
+    // A bolt aimed at somebody standing on the boss crosses no distance at
+    // all, so it is spawned and consumed inside one tick and is not in the
+    // list by the time this reads it. That is not a body the volley missed --
+    // it is the tank, and the volley hit it hardest of anyone. Reading the
+    // projectiles alone made a second-phase volley report "24 bolts for 25
+    // bodies" every time the tank was in melee, which for this boss is the
+    // whole of its second phase.
+    const landed = s.effects.filter((fx) => fx.abilityId === 'boss_volley' && fx.kind === 'impact')
+    if (landed.length !== bodies) missed.push(`${landed.length} shots for ${bodies} bodies`)
     for (const p of now) {
       const t = s.actors.find((a) => a.id === p.targetId)
       if (!t) continue
