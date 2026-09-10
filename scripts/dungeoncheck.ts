@@ -25,7 +25,8 @@ import {
 } from '../src/dungeon'
 import { ENCOUNTERS } from '../src/sim/encounters'
 import { FIRST_TIER, LADDER, RUNGS_PER_BOSS, cleared as clearedTier, isOpen, tierOf } from '../src/progress'
-import { EXIT_REACH, overlapping, packSize, packsPlaced, unguarded } from '../src/sim/travel'
+import { EXIT_REACH, overlapping, packOf, packSize, packsPlaced, unguarded, type Pack } from '../src/sim/travel'
+import { trashMends } from '../src/sim/trash'
 import { dist, holdOrFall } from '../src/sim/combat'
 import { ARENA_RADIUS, BOSS_WIDTH, BUILD_SCALE, MELEE_RANGE, PARTY_RADIUS, YARD } from '../src/sim/constants'
 import { createCorridorState, createState, unattended } from '../src/sim/state'
@@ -748,7 +749,7 @@ const everywhere = () => true
   expect(
     `the whole building's ${citadelPacks().length} packs are in the walk`,
     s.actors.filter((a) => a.faction === 'boss').length ===
-      citadelPacks().reduce((n, pack) => n + pack.count, 0),
+      citadelPacks().reduce((n, pack) => n + packSize(pack, 10), 0),
     `${s.actors.filter((a) => a.faction === 'boss').length} bodies`,
   )
 
@@ -1091,10 +1092,10 @@ expect(
   // Trash that is a raid size, which is what the source's own spawn table
   // makes it. Two rules and one number.
   const shrinks = corridors.flatMap((c) =>
-    c.packs.filter((p) => p.crowd !== undefined && p.crowd < p.count).map(() => c.id),
+    c.packs.filter((p) => packSize(p, 25) < packSize(p, 10)).map(() => c.id),
   )
   expect('no corridor is emptier for a bigger raid', shrinks.length === 0, shrinks.join(', '))
-  const varies = corridors.flatMap((c) => c.packs.filter((p) => p.crowd !== undefined))
+  const varies = corridors.flatMap((c) => c.packs.filter((p) => (p.more ?? []).length > 0))
   expect(
     `${varies.length} pack(s) are a different size for a different raid`,
     varies.length > 0,
@@ -1113,13 +1114,16 @@ expect(
   )
 
   // The bodies that keep a pack up, which are the corridor's only target call.
-  const menders = corridors.flatMap((c) => c.packs.filter((p) => (p.mends ?? 0) > 0))
+  const mendersIn = (p: Pack, size: number) => packOf(p, size).filter(trashMends).length
+  const menders = corridors.flatMap((c) => c.packs.filter((p) => mendersIn(p, 10) > 0))
   expect(
-    `${menders.reduce((n, p) => n + (p.mends ?? 0), 0)} bodies in ${menders.length} packs keep the rest up`,
+    `${menders.reduce((n, p) => n + mendersIn(p, 10), 0)} bodies in ${menders.length} packs keep the rest up`,
     menders.length > 0,
     'nothing in a corridor heals',
   )
-  const overmended = menders.filter((p) => (p.mends ?? 0) >= p.count && p.count > 1)
+  const overmended = menders.filter(
+    (p) => mendersIn(p, 10) >= packSize(p, 10) && packSize(p, 10) > 1,
+  )
   expect(
     'and none of them is a pack of nothing but menders',
     overmended.length === 0,
@@ -1177,7 +1181,7 @@ expect(
   // walkable; the Oratory's twenty-five-man is half again the trash its
   // ten-man is, and nothing here would have said so.
   const walks = PASSAGES.filter((p) => p.corridor).flatMap((p) =>
-    p.corridor!.packs.some((k) => k.crowd !== undefined && k.crowd !== k.count)
+    p.corridor!.packs.some((k) => (k.more ?? []).length > 0)
       ? [{ passage: p, size: 10 }, { passage: p, size: 25 }]
       : [{ passage: p, size: 10 }],
   )

@@ -511,26 +511,10 @@ const PULL = Math.round(20 * YARD * BUILD_SCALE)
  * and a High Priest either side at fifteen. Nothing here was placed by eye.
  */
 const ORATORY: Pack[] = [
-  // Two files and two priests, which is what `creature_formations` says.
-  //
-  // This was six packs of two, three and four, and they were an artefact of
-  // reading positions rather than groups: AzerothCore writes the Oratory's
-  // Deathspeakers as four formations, and each file stands over about thirty
-  // yards, so clustering at thirteen split every one of them.
-  //
-  // The two files are the same two files at both sizes, and only their size
-  // changes: `spawnMask` 5 on a group of five, 10 on a group of eight, both
-  // led from the same spot. So it is one pack with a count and a crowd rather
-  // than two sets of packs, which is exactly what that field is for.
-  // One Deathspeaker Disciple in each file, and two when the file is eight:
-  // `smart_scripts` gives the Disciple Shadow Mend on a fifteen-to-thirty
-  // second timer, which is the same body-worth-killing-first the Broodkeepers
-  // and the Advisors are.
-  { pos: { x: 20, y: 490 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77, mends: 1 },
-  { pos: { x: -20, y: 474 }, count: 5, crowd: 8, pulls: PULL, weight: 0.77, mends: 1 },
-  // The two priests are `spawnMask` 15 and stand there whoever came.
-  { pos: { x: 54, y: 178 }, count: 1, pulls: PULL, weight: 1.4 },
-  { pos: { x: -53, y: 169 }, count: 1, pulls: PULL, weight: 1.4 },
+  { pos: { x:   20, y:   464 }, of: ['Deathspeaker Servant', 'Deathspeaker Zealot', 'Deathspeaker Zealot', 'Deathspeaker Attendant', 'Deathspeaker Disciple'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
+  { pos: { x:  -20, y:   444 }, of: ['Deathspeaker Servant', 'Deathspeaker Attendant', 'Deathspeaker Disciple', 'Deathspeaker Zealot', 'Deathspeaker Zealot'], pulls: PULL, more: ['Deathspeaker Disciple', 'Deathspeaker Attendant', 'Deathspeaker Attendant'] },
+  { pos: { x:   54, y:   178 }, of: ['Deathspeaker High Priest'], pulls: PULL },
+  { pos: { x:  -53, y:   169 }, of: ['Deathspeaker High Priest'], pulls: PULL },
 ]
 
 function corridor(
@@ -651,34 +635,32 @@ export const PASSAGES: Passage[] = [
       'spireway',
       'spire',
       [
-        { pos: { x: 5, y: 2959 }, count: 1, pulls: PULL },
-        { pos: { x: -36, y: 2747 }, count: 1, pulls: PULL },
-        { pos: { x: 35, y: 2710 }, count: 1, pulls: PULL },
-        { pos: { x: 1, y: 2474 }, count: 2, pulls: PULL },
-        { pos: { x: 18, y: 2081 }, count: 1, pulls: PULL },
-        { pos: { x: 70, y: 2073 }, count: 3, pulls: PULL },
-        { pos: { x: -58, y: 2056 }, count: 3, pulls: PULL },
-        { pos: { x: -39, y: 1896 }, count: 2, pulls: PULL, weight: 0.95 },
-        { pos: { x: 5, y: 1887 }, count: 3, pulls: PULL },
-        { pos: { x: 40, y: 1869 }, count: 1, pulls: PULL, weight: 0.89 },
-        // Statues until a wire is stood on: no circle, so walking past one
-        // does nothing. `pulls: 0` is the game's stoneform.
-        { pos: { x: 90, y: 1669 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: -88, y: 1667 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: 0, y: 1525 }, count: 5, pulls: PULL, weight: 0.83, mends: 2 },
-        { pos: { x: 41, y: 1407 }, count: 1, pulls: PULL, weight: 0.81, mends: 1 },
-        { pos: { x: -41, y: 1362 }, count: 1, pulls: PULL, weight: 0.81, mends: 1 },
-        { pos: { x: 60, y: 1264 }, count: 1, pulls: PULL },
-        { pos: { x: 39, y: 1208 }, count: 1, pulls: PULL },
-        { pos: { x: 1, y: 1193 }, count: 1, pulls: PULL, weight: 0.89 },
-        { pos: { x: -45, y: 1153 }, count: 4, pulls: PULL },
-        { pos: { x: 52, y: 1058 }, count: 2, pulls: PULL },
-        { pos: { x: 13, y: 1043 }, count: 2, pulls: PULL, weight: 0.85, mends: 1 },
-        { pos: { x: -12, y: 1027 }, count: 2, pulls: PULL, weight: 0.85, mends: 1 },
-        { pos: { x: 37, y: 436 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: -34, y: 434 }, count: 1, pulls: 0, weight: 1.81 },
-        { pos: { x: 5, y: 362 }, count: 5, pulls: PULL, weight: 0.83, mends: 2 },
-        { pos: { x: -25, y: 236 }, count: 1, pulls: PULL, weight: 0.89 },
+        { pos: { x:    5, y:  2959 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:  -36, y:  2747 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:   35, y:  2710 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:    1, y:  2474 }, of: ['The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:   18, y:  2081 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:   70, y:  2073 }, of: ['The Damned', 'The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:  -58, y:  2056 }, of: ['The Damned', 'The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:  -39, y:  1896 }, of: ['Servant of the Throne', 'The Damned'], pulls: PULL },
+        { pos: { x:    5, y:  1887 }, of: ['The Damned', 'The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:   40, y:  1869 }, of: ['Servant of the Throne'], pulls: PULL },
+        { pos: { x:   90, y:  1669 }, of: ['Deathbound Ward'], pulls: 0 },
+        { pos: { x:  -88, y:  1667 }, of: ['Deathbound Ward'], pulls: 0 },
+        { pos: { x:    0, y:  1525 }, of: ['Ancient Skeletal Soldier', "Nerub'ar Broodkeeper", 'Servant of the Throne', "Nerub'ar Broodkeeper", 'Ancient Skeletal Soldier'], pulls: PULL },
+        { pos: { x:   41, y:  1407 }, of: ["Nerub'ar Broodkeeper"], pulls: PULL },
+        { pos: { x:  -41, y:  1362 }, of: ["Nerub'ar Broodkeeper"], pulls: PULL },
+        { pos: { x:   60, y:  1264 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:   39, y:  1208 }, of: ['The Damned'], pulls: PULL },
+        { pos: { x:    1, y:  1193 }, of: ['Servant of the Throne'], pulls: PULL },
+        { pos: { x:  -45, y:  1153 }, of: ['The Damned', 'The Damned', 'The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:   52, y:  1058 }, of: ['The Damned', 'The Damned'], pulls: PULL },
+        { pos: { x:   13, y:  1043 }, of: ['Servant of the Throne', "Nerub'ar Broodkeeper"], pulls: PULL },
+        { pos: { x:  -12, y:  1027 }, of: ['Servant of the Throne', "Nerub'ar Broodkeeper"], pulls: PULL },
+        { pos: { x:   37, y:   436 }, of: ['Deathbound Ward'], pulls: 0 },
+        { pos: { x:  -34, y:   434 }, of: ['Deathbound Ward'], pulls: 0 },
+        { pos: { x:    5, y:   362 }, of: ["Nerub'ar Broodkeeper", 'Servant of the Throne', 'Ancient Skeletal Soldier', 'Ancient Skeletal Soldier', "Nerub'ar Broodkeeper"], pulls: PULL },
+        { pos: { x:  -25, y:   236 }, of: ['Servant of the Throne'], pulls: PULL },
       ],
       [
         {
@@ -735,20 +717,12 @@ export const PASSAGES: Passage[] = [
     // ship. The other thirty-two creatures on this rampart are the two armies
     // fighting each other over it, and neither is fighting the raid.
     corridor: corridor('rampartway', 'mooring', [
-      // And they walk. Both giants carry path 2087860, thirty-nine waypoints
-      // running from x -330.7 to -235.8 -- ninety-five yards along the walk,
-      // which is most of the rampart. What holds this corridor is not where
-      // they are, it is that they are somewhere.
-      // One giant, not two. There are two rows for it and they are the same
-      // giant twice -- `spawnMask` 5 on one and 10 on the other, ten-man and
-      // twenty-five-man -- which is exactly the trap a count read off a spawn
-      // table walks into.
-      { pos: { x: 90, y: 1763 }, count: 1, pulls: PULL, weight: 6.59, walks: { x: 90, y: 664 } },
-      { pos: { x: 90, y: 854 }, count: 1, pulls: PULL, weight: 0.81 },
-      { pos: { x: -90, y: 760 }, count: 1, pulls: PULL, weight: 0.81 },
-      { pos: { x: -90, y: 731 }, count: 1, pulls: PULL, weight: 0.81 },
-      { pos: { x: 90, y: 622 }, count: 1, pulls: PULL, weight: 0.81 },
-      { pos: { x: 61, y: 214 }, count: 3, pulls: PULL, weight: 0.94 },
+      { pos: { x: 90, y: 1763 }, of: ['Rotting Frost Giant'], pulls: PULL, walks: { x: 90, y: 664 } },
+      { pos: { x:   90, y:   854 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x:  -90, y:   760 }, of: ['Spire Minion'], pulls: PULL },
+      { pos: { x:  -90, y:   731 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x:   90, y:   622 }, of: ['Spire Gargoyle'], pulls: PULL },
+      { pos: { x:   61, y:   214 }, of: ['Frenzied Abomination', 'Spire Gargoyle', 'Spire Gargoyle'], pulls: PULL },
     ]),
   },
   // And nothing at all between the ship and the fight at the top.
@@ -809,49 +783,32 @@ export const PASSAGES: Passage[] = [
     // pets (Stinky at a fifth of a boss, Precious just under), and a Decaying
     // Colossus on the airlock itself.
     corridor: corridor('plagueway', 'vats', [
-      // One pack of two, not two of one: `creature_formations` leads the
-      // second abomination off the first.
-      { pos: { x: 0, y: 2322 }, count: 2, pulls: PULL, weight: 1.4 },
-      { pos: { x: -10, y: 2092 }, count: 1, pulls: PULL, weight: 0.96 },
-      { pos: { x: 3, y: 1900 }, count: 3, pulls: PULL, weight: 1.09 },
-      // And the heap itself moves: one of the twelve carries path 3703800, a
-      // thirteen-point loop around the floor they stand on. A line across it
-      // is the same decision, and it is the decision -- twelve bodies is not
-      // something to walk round, so what is left is when.
-      { pos: { x: 2, y: 1110 }, count: 12, pulls: PULL, weight: 0.57, walks: { x: 2, y: 1560 } },
+      { pos: { x:   -1, y:  2322 }, of: ['Blighted Abomination', 'Blighted Abomination'], pulls: PULL },
+      { pos: { x:  -10, y:  2092 }, of: ['Plague Scientist'], pulls: PULL },
+      { pos: { x:    3, y:  1900 }, of: ['Pustulating Horror', 'Pustulating Horror', 'Plague Scientist'], pulls: PULL },
+      { pos: { x:    2, y:  1110 }, of: ['Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper'], pulls: PULL, walks: { x: 2, y: 1560 } },
+      { pos: { x:  -90, y:   649 }, of: ['Plague Scientist'], pulls: PULL },
+      { pos: { x:   90, y:   608 }, of: ['Plague Scientist'], pulls: PULL },
+      { pos: { x:   43, y:   559 }, of: ['Plague Scientist', 'Precious'], pulls: PULL },
+      { pos: { x:  -74, y:   495 }, of: ['Stinky'], pulls: PULL },
+      { pos: { x:  -21, y:   383 }, of: ['Plague Scientist'], pulls: PULL },
+      { pos: { x:   90, y:   345 }, of: ['Vengeful Fleshreaper'], pulls: PULL },
+      { pos: { x:   16, y:   339 }, of: ['Vengeful Fleshreaper'], pulls: PULL },
+      { pos: { x:    0, y:   110 }, of: ['Decaying Colossus'], pulls: PULL },
       // And two more heaps of six that are not there until a foot finds a
-      // wire. The plagueworks has the building's other pair of tripwires —
-      // two Geist Alarms at (4335.6, 3026.4) and (4374.3, 3027.1), forty-five
-      // yards short of the airlock — and what each one does is not wake
-      // something standing about: `spell_icc_geist_alarm` summons a Vengeful
-      // Fleshreaper and five more around it, at (4356.77, 2971.90), which is
-      // where the heap of twelve already stands. So they come out behind a
-      // raid that has just walked past that heap. Written as packs with no
-      // circle, which is how this game says "not there yet" — the same shape
-      // as the way up's stone wards.
-      { pos: { x: -26, y: 1150 }, count: 6, pulls: 0, weight: 0.57 },
-      { pos: { x: 21, y: 1150 }, count: 6, pulls: 0, weight: 0.57 },
-      { pos: { x: -90, y: 649 }, count: 1, pulls: PULL, weight: 0.96 },
-      { pos: { x: 90, y: 608 }, count: 1, pulls: PULL, weight: 0.96 },
-      // The wing's two named pets pass each other in the source -- Precious
-      // on path 2012470 and Stinky on 2012400, seventy-odd yards each, across
-      // the floor, in opposite directions -- and they stand still here for the
-      // reason the Damned on the way up does: across is the axis this game
-      // compresses, and a walk across a corridor moves a circle less far than
-      // the circle reaches.
-      { pos: { x: 43, y: 559 }, count: 2, pulls: PULL, weight: 1.94 },
-      { pos: { x: -74, y: 495 }, count: 1, pulls: PULL, weight: 2.56 },
-      { pos: { x: -21, y: 383 }, count: 1, pulls: PULL, weight: 0.96 },
-      { pos: { x: 90, y: 345 }, count: 1, pulls: PULL, weight: 0.57 },
-      { pos: { x: 16, y: 339 }, count: 1, pulls: PULL, weight: 0.57 },
-      { pos: { x: 0, y: 110 }, count: 1, pulls: PULL, weight: 1.81 },
+      // wire. See the Geist Alarms below.
+      { pos: { x: -26, y: 1150 }, of: ['Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper'], pulls: 0 },
+      { pos: { x: 21, y: 1150 }, of: ['Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper', 'Vengeful Fleshreaper'], pulls: 0 },
     ],
     undefined,
     // The two Geist Alarms, at their own distance back from the airlock and
     // their own offsets across it, each waking one of the two heaps above.
+    // `spell_icc_geist_alarm` puts six Vengeful Fleshreapers on the floor at
+    // (4356.77, 2971.90) — where the heap of twelve already stands, a hundred
+    // yards back down the corridor from the wire.
     [
-      { at: { x: -26, y: 521 }, radius: 143, wakes: 4 },
-      { at: { x: 21, y: 521 }, radius: 143, wakes: 5 },
+      { at: { x: -26, y: 521 }, radius: 143, wakes: 12 },
+      { at: { x: 21, y: 521 }, radius: 143, wakes: 13 },
     ]),
   },
   // And inside it the two rooms are a step to either side. No ground between:
@@ -882,16 +839,16 @@ export const PASSAGES: Passage[] = [
     // top of the stair, then pairs and threes alternating up the sides of the
     // hall on its two balconies, then the guard on the dais.
     corridor: corridor('crimsonway', 'crimson', [
-      { pos: { x: 0, y: 1818 }, count: 8, pulls: PULL, weight: 0.93, mends: 1 },
-      { pos: { x: 90, y: 1339 }, count: 3, pulls: PULL, weight: 0.96, mends: 1 },
-      { pos: { x: -90, y: 1328 }, count: 3, pulls: PULL, weight: 0.96, mends: 1 },
-      { pos: { x: -90, y: 1158 }, count: 1, pulls: PULL, weight: 0.92 },
-      { pos: { x: 90, y: 1136 }, count: 1, pulls: PULL, weight: 0.92 },
-      { pos: { x: -90, y: 1005 }, count: 3, pulls: PULL, weight: 1.17 },
-      { pos: { x: 90, y: 942 }, count: 3, pulls: PULL, weight: 1.17 },
-      { pos: { x: 20, y: 715 }, count: 4, pulls: PULL, weight: 1.14, mends: 1 },
-      { pos: { x: -25, y: 707 }, count: 4, pulls: PULL, weight: 1.14, mends: 1 },
-      { pos: { x: 43, y: 394 }, count: 3, pulls: PULL, weight: 1.17 },
+      { pos: { x:    0, y:  1818 }, of: ['Darkfallen Blood Knight', 'Darkfallen Noble', 'Darkfallen Archmage', 'Darkfallen Archmage', 'Darkfallen Advisor', 'Darkfallen Archmage', 'Darkfallen Blood Knight', 'Darkfallen Noble'], pulls: PULL },
+      { pos: { x:   90, y:  1339 }, of: ['Darkfallen Advisor', 'Darkfallen Archmage', 'Darkfallen Blood Knight'], pulls: PULL },
+      { pos: { x:  -90, y:  1328 }, of: ['Darkfallen Noble', 'Darkfallen Advisor', 'Darkfallen Archmage'], pulls: PULL },
+      { pos: { x:  -90, y:  1158 }, of: ['Darkfallen Blood Knight'], pulls: PULL },
+      { pos: { x:   90, y:  1136 }, of: ['Darkfallen Noble'], pulls: PULL },
+      { pos: { x:  -90, y:  1005 }, of: ['Darkfallen Lieutenant', 'Darkfallen Tactician', 'Darkfallen Commander'], pulls: PULL },
+      { pos: { x:   90, y:   942 }, of: ['Darkfallen Tactician', 'Darkfallen Commander', 'Darkfallen Lieutenant'], pulls: PULL },
+      { pos: { x:   20, y:   715 }, of: ['Darkfallen Advisor', 'Darkfallen Tactician', 'Darkfallen Commander', 'Darkfallen Lieutenant'], pulls: PULL },
+      { pos: { x:  -25, y:   707 }, of: ['Darkfallen Commander', 'Darkfallen Lieutenant', 'Darkfallen Advisor', 'Darkfallen Tactician'], pulls: PULL },
+      { pos: { x:   43, y:   394 }, of: ['Darkfallen Commander', 'Darkfallen Lieutenant', 'Darkfallen Tactician'], pulls: PULL },
     ]),
   },
   { from: 'crimson', to: 'sanctum', gate: killed('crimson') },
@@ -908,15 +865,15 @@ export const PASSAGES: Passage[] = [
     // so what varies is only how many arrive at once, which is the cleanest
     // version of the decision a corridor asks.
     corridor: corridor('dreamway', 'dream', [
-      { pos: { x: 1, y: 1810 }, count: 3, pulls: PULL, weight: 1.03 },
-      { pos: { x: -9, y: 1623 }, count: 1, pulls: PULL, weight: 1.09 },
-      { pos: { x: 11, y: 1617 }, count: 1, pulls: PULL, weight: 1.09 },
-      { pos: { x: -12, y: 1430 }, count: 1, pulls: PULL, weight: 0.97 },
-      { pos: { x: 16, y: 1418 }, count: 1, pulls: PULL, weight: 1.09 },
-      { pos: { x: 13, y: 1086 }, count: 3, pulls: PULL, weight: 1.01 },
-      { pos: { x: -13, y: 1084 }, count: 3, pulls: PULL, weight: 1.05 },
-      { pos: { x: -2, y: 458 }, count: 6, pulls: PULL, weight: 1.07 },
-      { pos: { x: 12, y: 301 }, count: 1, pulls: PULL, weight: 1.15 },
+      { pos: { x:    1, y:  1810 }, of: ['Ymirjar Warlord', 'Ymirjar Huntress', 'Ymirjar Huntress'], pulls: PULL },
+      { pos: { x:   -9, y:  1623 }, of: ['Ymirjar Battle-Maiden'], pulls: PULL },
+      { pos: { x:   11, y:  1617 }, of: ['Ymirjar Battle-Maiden'], pulls: PULL },
+      { pos: { x:  -12, y:  1430 }, of: ['Ymirjar Frostbinder'], pulls: PULL },
+      { pos: { x:   16, y:  1418 }, of: ['Ymirjar Deathbringer'], pulls: PULL },
+      { pos: { x:   13, y:  1086 }, of: ['Ymirjar Frostbinder', 'Ymirjar Battle-Maiden', 'Ymirjar Huntress'], pulls: PULL },
+      { pos: { x:  -13, y:  1084 }, of: ['Ymirjar Battle-Maiden', 'Ymirjar Huntress', 'Ymirjar Deathbringer'], pulls: PULL },
+      { pos: { x:   -2, y:   458 }, of: ['Ymirjar Battle-Maiden', 'Ymirjar Warlord', 'Ymirjar Huntress', 'Ymirjar Battle-Maiden', 'Ymirjar Warlord', 'Ymirjar Huntress'], pulls: PULL },
+      { pos: { x:   12, y:   301 }, of: ['Ymirjar Warlord'], pulls: PULL },
     ]),
   },
   { from: 'dream', to: 'gauntlet', gate: killed('dream') },
@@ -936,10 +893,10 @@ export const PASSAGES: Passage[] = [
     // thing in the raid — so a heap of fifteen is nine bodies' worth arriving
     // at once, and the handler is the thing to kill first.
     corridor: corridor('gauntlet', 'lair', [
-      { pos: { x: -42, y: 2721 }, count: 1, pulls: PULL, weight: 2.51 },
-      { pos: { x: 80, y: 2669 }, count: 1, pulls: PULL, weight: 2.51 },
-      { pos: { x: 44, y: 1306 }, count: 15, pulls: PULL, weight: 0.64 },
-      { pos: { x: -42, y: 1247 }, count: 15, pulls: PULL, weight: 0.64 },
+      { pos: { x:  -42, y:  2721 }, of: ['Rimefang'], pulls: PULL },
+      { pos: { x:   80, y:  2669 }, of: ['Spinestalker'], pulls: PULL },
+      { pos: { x:   44, y:  1306 }, of: ['Frostwarden Handler', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp'], pulls: PULL },
+      { pos: { x:  -42, y:  1247 }, of: ['Frostwarden Handler', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp', 'Frostwing Whelp'], pulls: PULL },
     ]),
   },
 

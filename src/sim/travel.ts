@@ -9,6 +9,7 @@ import {
   JET_RADIUS,
   JET_TELEGRAPH,
   MELEE_RANGE,
+  SPELL_RANGE,
   MEND_AMOUNT,
   MEND_EVERY,
   MEND_FIRST,
@@ -19,6 +20,7 @@ import {
 import {
   applyDamage,
   applyHeal,
+  spawnBolt,
   beginCast,
   dist,
   getAura,
@@ -29,6 +31,7 @@ import {
   pushEffect,
 } from './combat'
 import { blankGround, turnToward } from './boss'
+import { trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
 import { ROUND_ARENA, pushInside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, Obstacle, SimState, Vec2 } from './types'
@@ -58,96 +61,63 @@ import type { Actor, Obstacle, SimState, Vec2 } from './types'
 export interface Pack {
   pos: Vec2
   /**
-   * How many bodies, for a ten-man.
+   * The creatures standing in it, by name, for a ten-man.
    *
-   * A raid size, because the source's own trash is one: `creature.spawnMask`
-   * carries a bit for each of the four settings, and fourteen of the raid's
-   * spawns are set to one size and not the other. The Oratory is the worked
-   * example -- twelve Deathspeakers stand in it for a ten-man and eighteen for
-   * a twenty-five, in the same six or eight places -- and the rampart is the
-   * other: the two Rotting Frost Giants there are one giant, spawned twice,
-   * once for each size.
+   * A list rather than a count, because a pack in this raid is not one
+   * creature repeated: the file that walks the Oratory is Zealots and a
+   * Servant and an Attendant and a Disciple, and which of those a body is
+   * decides how big it is, how fast it walks, how much it is worth killing and
+   * whether it shoots or closes. See `TRASH_KINDS`, where all four of those
+   * come off AzerothCore's own columns.
    *
-   * Nought is allowed and means the pack is not there at all at this size,
-   * which is what those two lone attendants in the Oratory are.
+   * It replaced a count and a `weight`, which said "five bodies, each worth
+   * about four fifths of ordinary trash" — the average of a pack rather than
+   * the pack.
    */
-  count: number
+  of: string[]
+  /**
+   * And the bodies a twenty-five-man adds to it.
+   *
+   * `creature.spawnMask` carries a bit for each of the four settings and
+   * fourteen of this raid's spawns are set to one size and not the other. The
+   * Oratory is the worked example: the same two files, five bodies each at ten
+   * and eight at twenty-five, led from the same two spots.
+   */
+  more?: string[]
   /**
    * How far away it notices.
    *
-   * The only number in a corridor that is a design decision. Two packs whose
-   * circles overlap are one pack for anybody who walks between them, and that
-   * is the corridor's single mistake to make — so the overlap is a thing the
-   * build measures rather than a thing that happens.
-   *
-   * Not a decision any more, in fact: every creature in this raid notices from
-   * twenty yards (`creature_template.detection_range`, the same number for all
-   * six hundred of them), so it is that, converted. What is still a decision is
-   * a pack with nought here, which is a thing standing in stoneform until
-   * something else wakes it.
+   * Not a decision: every creature in this raid notices from twenty yards
+   * (`creature_template.detection_range`, the same number for all six hundred
+   * of them), so it is that, converted. What is still a decision is a pack
+   * with nought here, which is a thing standing in stoneform until something
+   * else wakes it.
    */
   pulls: number
-  /**
-   * What each body in it is worth, against a body of ordinary trash.
-   *
-   * A corridor used to be one creature repeated: every pack the same bodies at
-   * the same health, differing only in how many. The building is not -- a
-   * fifteen-strong swarm of whelps and a pair of frost giants are both "a pack"
-   * and are not remotely the same thing to walk into -- and which it is, is in
-   * the source: `creature_template` carries a health modifier for every one of
-   * them.
-   *
-   * The square root of that ratio rather than the ratio. The source's own
-   * spread is forty to one between the lightest trash in this raid and the
-   * heaviest, and a body worth forty is a boss standing in a corridor; the
-   * root keeps every ordering the source has and brings the spread to about
-   * seven to one, which is the range these corridors are built for. One stated
-   * decision, applied to all of them, rather than a number a pack at a time.
-   *
-   * Absent is one, which is what a corridor written before this meant.
-   */
-  weight?: number
   /**
    * The far end of a walk this pack is making, in the corridor's own frame.
    *
    * A pack is a thing standing still and deciding when to wake it is the
    * corridor's one question. This is the other question the source asks and
    * this game did not: *when*. Fifteen of the six hundred creatures in the
-   * raid carry a `creature_addon` path, and five of them are in corridors that
-   * are built here -- a Damned crossing the way up, two Rotting Frost Giants
-   * walking the length of the rampart, and Stinky and Precious passing each
-   * other across the plagueworks floor.
+   * raid carry a `creature_addon` path, and the two that are built walk along
+   * a corridor rather than across one.
    *
-   * There and back along a line, because that is what four of the five source
-   * paths are once the waypoints are read (the fifth is a loop, and a line
-   * across it is the same decision). It moves while it is asleep and stops the
+   * There and back along a line. It moves while it is asleep and stops the
    * moment it wakes: what a patrol changes is where the circle is when you
    * arrive, not how the fight goes once it starts.
    */
   walks?: Vec2
-  /** How many for a twenty-five. Absent is `count`, which most packs are. */
-  crowd?: number
-  /**
-   * How many of its bodies keep the others up.
-   *
-   * The one decision a corridor could not ask for. A pack is a pile of health
-   * bars and the answer to a pile of health bars is to hit it, so which body
-   * first has never mattered — and in the source it does, twice: the eight
-   * Nerub'ar Broodkeepers on the way up cast Dark Mending on their own side
-   * every fifteen to twenty-five seconds, and the five Darkfallen Advisors in
-   * the crimson hall shroud whichever of theirs is lowest every twenty to
-   * twenty-five.
-   *
-   * Both are the same shape, and it is the shape this game already teaches on
-   * the Watcher's empowered body: there is one in the pack worth killing
-   * first, and a rotation that aims at the lowest health bar aims at it last.
-   */
-  mends?: number
 }
 
 /** How many bodies this pack has, given who walked in. */
 export function packSize(pack: Pack, size: number): number {
-  return size > 10 ? (pack.crowd ?? pack.count) : pack.count
+  return packOf(pack, size).length
+}
+
+/** Which creatures are standing in it, given who walked in. */
+export function packOf(pack: Pack, size: number): string[] {
+  return size > 10 ? [...pack.of, ...(pack.more ?? [])] : pack.of
 }
 
 /**
@@ -429,8 +399,10 @@ export function createTravelState(
   let nextId = 900
   const hp = Math.round(TRASH_HP * DIFFICULTIES[difficulty].health)
   corridor.packs.forEach((pack, index) => {
-    const here = packSize(pack, party.length)
+    const standing = packOf(pack, party.length)
+    const here = standing.length
     for (let i = 0; i < here; i++) {
+      const kind = standing[i]!
       // Around their own spot, which is where they were put rather than where
       // a roll landed them: a pack somebody walked past yesterday is standing
       // in the same place today.
@@ -441,17 +413,16 @@ export function createTravelState(
       // packs of a citadel stand in fifteen different stretches of it, and
       // pushing them into whichever room the party happens to be standing in
       // put all fifty-two of them in the doorway of the first one.
-      if (!building) pushInside(corridor.room, at, 20)
-      const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * (pack.weight ?? 1)))
-      // The ones that keep the rest up, first in the ring so that a pack's
-      // menders are its menders whoever walked in.
-      //
-      // Shared out rather than fixed, because the source shares them out: an
-      // Oratory file is five bodies with one Deathspeaker Disciple in it at
-      // ten and eight with two at twenty-five. `mends` is the ten-man count
-      // and the crowd gets the same fraction of itself.
-      const menders = Math.round(((pack.mends ?? 0) * here) / Math.max(1, pack.count))
-      if (i < menders) {
+      if (!building) pushInside(corridor.room, at, trashRadius(kind))
+      // Everything about a body is its kind's: what it is called, how big it
+      // is, how fast it walks, what it is worth killing, and whether it shoots
+      // or closes. See `TRASH_KINDS`.
+      const body = makeTrash(nextId++, at.x, at.y, Math.round(hp * trashWeight(kind)))
+      body.name = kind
+      body.radius = trashRadius(kind)
+      body.moveSpeed = trashPace(kind)
+      if (trashShoots(kind)) body.melee = false
+      if (trashMends(kind)) {
         body.spawn = 'mender'
         body.swingTimer = MEND_FIRST
       }
@@ -866,7 +837,14 @@ function trashStep(s: SimState): void {
     // Written out rather than left to the fact that one number happens to be
     // smaller than the other, which is how a body ends up walking on the spot
     // a hand's breadth from where it was going.
-    const stop = out ? STREAMED : MELEE_RANGE
+    //
+    // And a third of this raid's trash does not close at all. A Deathspeaker
+    // Attendant throws Shadow Bolt, a Spire Gargoyle spits, an Ymirjar
+    // Huntress shoots — `smart_scripts` and the C++ AIs say which, and a kind
+    // whose own attack is a bolt stops at its reach. What that changes about a
+    // corridor is who can answer it: a raid that backs away from a pack is
+    // still being shot by half of it.
+    const stop = out ? STREAMED : body.melee ? MELEE_RANGE : SPELL_RANGE
     turnToward(body, Math.atan2(going.y - body.pos.y, going.x - body.pos.x))
     const was = { x: body.pos.x, y: body.pos.y }
     if (far > stop) {
@@ -915,10 +893,20 @@ function trashStep(s: SimState): void {
     }
 
     body.swingTimer -= DT
-    if (body.swingTimer <= 0 && best <= MELEE_RANGE + nearest.radius) {
+    const armed = body.melee ? MELEE_RANGE + nearest.radius : SPELL_RANGE
+    if (body.swingTimer <= 0 && best <= armed) {
       body.swingTimer = TRASH_SWING
-      applyDamage(s, nearest, TRASH_DAMAGE * HEALTH, 'physical', { sourceId: body.id })
-      pushEffect(s, 'impact', nearest.pos, { abilityId: 'swing', power: TRASH_DAMAGE })
+      // Spent where it is thrown rather than where it lands, which is how
+      // every other bolt in this game bills: the shot in the air is the
+      // picture of a hit that has already happened.
+      applyDamage(s, nearest, TRASH_DAMAGE * HEALTH, body.melee ? 'physical' : 'magic', {
+        sourceId: body.id,
+      })
+      if (!body.melee) spawnBolt(s, body, nearest.id, 'bolt', 'boss_adherent', body.id)
+      pushEffect(s, 'impact', nearest.pos, {
+        abilityId: body.melee ? 'swing' : 'boss_adherent',
+        power: TRASH_DAMAGE,
+      })
     }
   }
 }
@@ -1353,5 +1341,5 @@ export const PLAIN_CORRIDOR: Corridor = {
   room: ROUND_ARENA,
   entry: { x: 0, y: 700 },
   ways: [{ to: 'plain', at: { x: 0, y: -700 } }],
-  packs: [{ pos: { x: 0, y: 200 }, count: 4, pulls: 260 }],
+  packs: [{ pos: { x: 0, y: 200 }, of: ['The Damned', 'The Damned', 'The Damned', 'The Damned'], pulls: 260 }],
 }

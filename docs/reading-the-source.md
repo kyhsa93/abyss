@@ -924,6 +924,46 @@ cannot walk any further out has arrived.
 - **Ranged reach.** Eighteen yards against the source's forty, for the reason
   written on `SPELL_RANGE`.
 
+### Thirty-six creatures where there was one
+
+A corridor used to be one creature repeated. Every body in the building was a
+"Watchman" with the same bar, the same size, the same speed and one swing, and
+the packs were counts: five here, eight there. The rows say something else —
+thirty-six kinds stand between the door and the frost queen, and they are not
+variations on each other.
+
+A pack is a list of names now, read straight off `creature` in spawn order, and
+four columns say what each name is:
+
+| what | column | what it turned out to be |
+| --- | --- | --- |
+| how big a bar | `creature_template.HealthModifier` against `creature_classlevelstats` at level 83 | forty to one, end to end: a Frostwing Whelp is 0.26 of The Damned and a Rotting Frost Giant is 43 |
+| how big a body | `creature_model_info.CombatReach` | a quarter of a player to six players wide |
+| how fast | `creature_template.speed_run` | 0.57 (a gargoyle) to 2.0 (the two drakes) |
+| what it does | `smart_scripts` and the C++ AIs | a third of them shoot rather than close; three of them heal |
+
+Two of those need a note.
+
+**`BoundingRadius` is the column this should have used for size, and it cannot
+be used.** Six thousand of the twenty-four thousand models in the table carry
+0.00 and eleven hundred carry exactly 2.00, and this raid's rows are in both
+piles — a Frostwing Whelp is 0.00 and a Rotting Frost Giant is 0.54, which
+would draw the biggest thing on the rampart smaller than a cultist. Combat
+reach has defaults of its own, but it *orders* them correctly, and an ordering
+is what a size is for here. This is the same lesson as the boss health ratios,
+one table further down: a column being present is not a column being populated.
+
+**Forty to one is a spread a corridor cannot hold.** A body worth forty
+ordinary ones is a boss standing in a passage, and the pull that contains it is
+either trivial or the wall the walk ends at. So health is the square root of
+the source's ratio — every ordering kept, the spread brought to about seven to
+one — which is the same move `SPELL_RANGE` makes on distance and for the same
+reason: this game is a compression of that one, and the compression has to be
+applied to the numbers that are ratios, not just to the ones that are lengths.
+
+Size, pace and the two flags are taken whole; there is nothing to compress in
+"it is three bodies wide" or "it shoots".
+
 ### Everything the source will give, and what has been taken
 
 Four places hold it. Three are public and machine-readable; the fourth is the
@@ -994,7 +1034,11 @@ which is why a ramp is a room and a stair is a doorway.
    eight taken.** The other two ask about a moment inside a fight.
 9. ~~**The rooms' sizes**, off the same boundaries their shapes now come from.~~
    **Taken** — every fight's floor is its own `BossBoundaryData` entry at
-   `BUILD_SCALE`. That is the last item on this list.
+   `BUILD_SCALE`.
+10. ~~**What the trash actually is**: kind, size, speed and kit, per body.~~
+   **Taken** — thirty-six creatures where there was one, in `src/sim/trash.ts`.
+   See above for the two columns that had to be handled rather than copied.
+   That is the last item on this list.
 
 ## How to take a measurement off a picture
 
