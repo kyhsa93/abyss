@@ -500,12 +500,43 @@ export const PASSAGES: Passage[] = [
   {
     from: 'vigil',
     to: 'spire',
+    // The walk the source actually has here, taken off its own spawns.
+    //
+    // Two hundred and eight yards of it, from the far side of the great hall
+    // to the first fight's door, and none of it empty: every creature the
+    // instance places between them, clustered by where it stands
+    // (AzerothCore's `creature` table, map 631), comes out as
+    //
+    //   x -160   three and four, one either side of the way on
+    //   x -193   one alone, and another alone opposite it
+    //   x -239   four and four, again one either side
+    //   x -244   three, in the middle
+    //   x -307   the door, held: two more either side and two on the line
+    //
+    // — which is a rhythm rather than a list. It alternates: a pair you can
+    // take one at a time if you go up the side, a pair you cannot, and a
+    // guard on the door that has to be cleared whatever you did before it.
+    // The hall behind is not on this list and that is the other half of the
+    // reading: the source fills it with people who are not fighting anybody,
+    // so the great hall is a town and the corridor out of it is the fight.
+    //
+    // Distances are the source's, at `BUILD_SCALE`, measured back from the
+    // door. What is not the source's is the *width*: this corridor is a
+    // hundred and fifty yards across there and fifteen here, because held
+    // ground a raid can walk round is not held. So the pairs are pairs by
+    // being on opposite sides of a narrow way rather than of a wide one.
     corridor: corridor(
       'spireway',
       'spire',
       [
-        { pos: { x: 0, y: 520 }, count: 3, pulls: 240 },
-        { pos: { x: -50, y: 180 }, count: 3, pulls: 230 },
+        { pos: { x: -62, y: 2001 }, count: 3, pulls: 240 },
+        { pos: { x: 62, y: 1930 }, count: 4, pulls: 240 },
+        { pos: { x: -78, y: 1620 }, count: 1, pulls: 200 },
+        { pos: { x: 78, y: 1620 }, count: 1, pulls: 200 },
+        { pos: { x: -58, y: 1087 }, count: 4, pulls: 240 },
+        { pos: { x: 58, y: 1087 }, count: 4, pulls: 240 },
+        { pos: { x: 0, y: 1029 }, count: 3, pulls: 230 },
+        { pos: { x: 0, y: 301 }, count: 6, pulls: 260 },
       ],
       [
         {
