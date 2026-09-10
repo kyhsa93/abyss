@@ -53,6 +53,7 @@ export type HomeChoice =
   | 'settings'
   | 'record'
   | 'share'
+  | 'reset'
 
 function inside(r: Rect, x: number, y: number): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h
@@ -220,6 +221,8 @@ export interface HomeLayout {
   choices: Rect[]
   record: Rect
   share: Rect
+  /** The press that puts this week back the way it was found — see `resetWeek`. */
+  reset: Rect
 }
 
 export function homeLayout(): HomeLayout {
@@ -228,11 +231,22 @@ export function homeLayout(): HomeLayout {
   const base = backRect()
   const gap = 8
   const left = L.w / 2 - base.w - gap / 2
-  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui * MENU_TEXT, base.y - 16)
+  // And a line above the pair for the one press here that is about the week
+  // rather than about tonight. It is a line and not a button on purpose: four
+  // ways in are the question this screen asks, and a fifth button would be a
+  // fifth answer to it.
+  const strip = 18 * L.ui * MENU_TEXT
+  const choices = column(HOME_ORDER.length, titleY() + 34 * L.ui * MENU_TEXT, base.y - 16 - strip)
   return {
     choices,
     record: { ...base, x: left },
     share: { ...base, x: left + base.w + gap },
+    reset: {
+      x: L.w / 2 - Math.min(300, L.w - pad() * 2) / 2,
+      y: base.y - 8 - strip,
+      w: Math.min(300, L.w - pad() * 2),
+      h: strip,
+    },
   }
 }
 
@@ -258,6 +272,16 @@ export function drawHome(
   clock: number,
   /** Replaces the share button's label after a press, to confirm what happened. */
   shareLabel?: string,
+  /**
+   * How many rooms this week is holding down across every setting, and whether
+   * the press that puts them back is armed.
+   *
+   * Nought is nothing to put back, and no line. See `resetWeek` for why the
+   * front page's version of this button is about the week and not about one
+   * setting.
+   */
+  down = 0,
+  armed = false,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'ABYSS', 'a raid boss, or five people who would rather you left')
@@ -295,6 +319,28 @@ export function drawHome(
 
   button(ctx, layout.record, 'RECORD', '', COLORS.textDim, false, pair)
   button(ctx, layout.share, shareLabel ?? 'SHARE', '', COLORS.tank, false, pair)
+
+  // Only drawn when there is something to undo, and it asks twice, because a
+  // week of kills is not a thing to lose to a stray tap. Both labels count the
+  // rooms: what makes the second press safe is that the first one printed the
+  // size of what it is about to take.
+  if (down > 0) {
+    const rooms = down === 1 ? '1 room' : `${down} rooms`
+    ctx.textAlign = 'center'
+    ctx.fillStyle = armed ? COLORS.boss : COLORS.textDim
+    ctx.font = font(9, armed)
+    fitText(
+      ctx,
+      armed
+        ? `PRESS AGAIN TO RESET THE WEEK — ${rooms} stand again`
+        : `this week: ${rooms} down · RESET THE WEEK`,
+      L.w / 2,
+      layout.reset.y + layout.reset.h * 0.72,
+      layout.reset.w,
+      8,
+    )
+    ctx.textAlign = 'left'
+  }
 }
 
 export function hitHome(x: number, y: number): HomeChoice | null {
@@ -304,6 +350,7 @@ export function hitHome(x: number, y: number): HomeChoice | null {
   }
   if (inside(layout.record, x, y)) return 'record'
   if (inside(layout.share, x, y)) return 'share'
+  if (inside(layout.reset, x, y)) return 'reset'
   return null
 }
 
@@ -355,8 +402,6 @@ export interface RaidSetupLayout {
   next: Rect
   headings: number[]
   summaryY: number
-  /** The press that puts this week's instance back — see `resetInstance`. */
-  reset: Rect
 }
 
 export type RaidSetupHit =
@@ -365,7 +410,6 @@ export type RaidSetupHit =
   | { kind: 'dismiss' }
   | { kind: 'back' }
   | { kind: 'next' }
-  | { kind: 'reset' }
 
 /** One entry of a field's list, and whether it can be taken. */
 interface Choice {
@@ -451,10 +495,11 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
   const w = Math.min(420, L.w - p * 2)
   const x = L.w / 2 - w / 2
   const top = titleY() + 30 * L.ui * MENU_TEXT
-  // Three lines under the last field — what the fight asks of you, what it
-  // throws tonight, and how much of the boss that is — and room under those
-  // for the one thing on this screen that is a press rather than a reading:
-  // putting this week's instance back the way it was found.
+  // Three lines under the last field: what the fight asks of you, what it
+  // throws tonight, and how much of the boss that is. There used to be a
+  // fourth thing under them, the press that put this week's instance back, and
+  // it is on the front page now -- a control about the week does not belong on
+  // the screen that asks about tonight. See `resetWeek`.
   const summary = 62 * L.ui * MENU_TEXT
   const bottom = back.y - 12
 
@@ -487,12 +532,6 @@ export function raidSetupLayout(open: RaidField | null = null): RaidSetupLayout 
     next: primaryRect(),
     headings,
     summaryY: startY + stack + 18 * L.ui * MENU_TEXT,
-    reset: {
-      x: L.w / 2 - Math.min(220, w) / 2,
-      y: startY + stack + 46 * L.ui * MENU_TEXT,
-      w: Math.min(220, w),
-      h: 18 * L.ui * MENU_TEXT,
-    },
   }
 }
 
@@ -561,16 +600,6 @@ export function drawRaidSetup(
   difficulty: DifficultyId,
   /** Which field's list is down, if any. */
   open: RaidField | null = null,
-  /**
-   * How many rooms this week's instance at this setting is already holding
-   * down, and whether the press to put it back is armed.
-   *
-   * Nought is no instance — nothing to put back, and no button. See
-   * `resetInstance` for why the button exists at all when the source has no
-   * such thing for a raid.
-   */
-  down = 0,
-  armed = false,
 ): void {
   backdrop(ctx)
   screenTitle(ctx, 'RAID', 'how many, and how hard — the building decides the rest')
@@ -619,26 +648,6 @@ export function drawRaidSetup(
   // it counts is rooms, because that is what the pair decides once the boss
   // is not a field — how far up the building this evening may be walked.
   drawSummary(ctx, unlocked, size, difficulty, layout)
-
-  // The one press on this screen that is not a choice about tonight: it is
-  // about the week. Only drawn when there is something to undo, and it asks
-  // twice, because a week of kills is not a thing to lose to a stray tap.
-  if (down > 0) {
-    ctx.textAlign = 'center'
-    ctx.fillStyle = armed ? COLORS.boss : COLORS.textDim
-    ctx.font = font(9, armed)
-    fitText(
-      ctx,
-      armed
-        ? `PRESS AGAIN TO RESET — ${down === 1 ? '1 room stands' : `${down} rooms stand`} again`
-        : `this week: ${down} down · RESET THE INSTANCE`,
-      L.w / 2,
-      layout.reset.y + layout.reset.h * 0.72,
-      layout.reset.w,
-      8,
-    )
-    ctx.textAlign = 'left'
-  }
 
   button(ctx, layout.back, 'BACK', '', COLORS.textDim)
   button(ctx, layout.next, 'PICK YOUR CLASS', '', COLORS.castBar, true)
@@ -742,7 +751,6 @@ export function hitRaidSetup(
 
   if (inside(layout.back, x, y)) return { kind: 'back' }
   if (inside(layout.next, x, y)) return { kind: 'next' }
-  if (inside(layout.reset, x, y)) return { kind: 'reset' }
   for (let i = 0; i < RAID_FIELDS.length; i++) {
     if (inside(layout.fields[i]!, x, y)) return { kind: 'open', field: RAID_FIELDS[i]! }
   }

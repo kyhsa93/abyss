@@ -551,6 +551,24 @@ export function resetInstance(
   writeVault({ lock: lockAt(now), at: null, runs })
 }
 
+/**
+ * The same press, from a screen that has no setting on it.
+ *
+ * The button used to live on the raid setup screen, where the size and the
+ * difficulty are the two controls above it, so "this instance" was a thing the
+ * player could see. On the front page there is no such thing, and a button
+ * that quietly means "the one setting you happen to be carrying" is a trap:
+ * three rooms down at twenty-five heroic, the front page carrying ten normal,
+ * and the press would either do nothing or not be drawn at all -- from which
+ * the only thing to learn is that the game has no reset.
+ *
+ * So from there it is the week. Nothing about it is silent: the label counts
+ * what is about to go, and it still asks twice.
+ */
+export function resetWeek(now = Date.now()): void {
+  writeVault({ lock: lockAt(now), at: null, runs: {} })
+}
+
 export function abandon(run: Run, now = Date.now()): void {
   const vault = readVault(now)
   if (isSaved(run)) {

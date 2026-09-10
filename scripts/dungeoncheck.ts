@@ -53,6 +53,7 @@ import {
   isSaved,
   lockAt,
   resetInstance,
+  resetWeek,
   resetsAt,
   walkedTo,
   wayOpen,
@@ -2045,6 +2046,23 @@ expect(
   )
   expect(
     'and puts the player at the door rather than inside it',
+    load(monday) === null,
+    JSON.stringify(load(monday)),
+  )
+  // And the front page's version of the same press, which is about the week
+  // because the screen it is on has no setting. See `resetWeek`.
+  store.clear()
+  save(cleared(startRun(21, 10, 'normal'), 'spire', []), monday)
+  save(cleared(startRun(22, 25, 'heroic'), 'spire', []), monday)
+  const before = instances(monday).reduce((n, r) => n + r.cleared.length, 0)
+  resetWeek(monday)
+  expect(
+    'and the front page puts the whole week back, not one setting of it',
+    before === 2 && instances(monday).length === 0,
+    `${before} down before, ${instances(monday).length} instance(s) after`,
+  )
+  expect(
+    'and that one leaves the player at the door too',
     load(monday) === null,
     JSON.stringify(load(monday)),
   )

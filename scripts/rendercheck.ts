@@ -5875,10 +5875,15 @@ for (const [label, w, h] of [
   const middle = (r: { x: number; y: number; w: number; h: number }) =>
     [r.x + r.w / 2, r.y + r.h / 2] as const
 
-  // Home: the ways in, plus the record and the share.
+  // Home: the ways in, the record, the share, and the one press that is about
+  // the week rather than about tonight. Drawn both ways -- armed and not --
+  // because the armed label is the longer of the two and it is the one that
+  // has to fit.
   drawHome(stubCtx(), 1.5)
+  drawHome(stubCtx(), 1.5, undefined, 7, false)
+  drawHome(stubCtx(), 1.5, undefined, 7, true)
   const home = homeLayout()
-  const homeRects = [...home.choices, home.record, home.share]
+  const homeRects = [...home.choices, home.record, home.share, home.reset]
   expect(`${label}: the front page fits`, homeRects.every(onScreen), JSON.stringify(homeRects))
   expect(
     `${label}: and nothing on it overlaps`,
@@ -5892,6 +5897,15 @@ for (const [label, w, h] of [
       hitHome(...middle(home.record)) === 'record' &&
       hitHome(...middle(home.share)) === 'share',
     `${answers.map((_, i) => hitHome(...middle(home.choices[i]!))).join(',')}`,
+  )
+  // The reset moved here off the raid setup screen, where the two fields above
+  // it said which instance it meant. It has to be reachable -- a strip the
+  // width of the screen that no press ever lands on is the same as no button
+  // -- and it has to be the only thing that answers there.
+  expect(
+    `${label}: and the week's reset answers as itself`,
+    hitHome(...middle(home.reset)) === 'reset',
+    `${hitHome(...middle(home.reset))}`,
   )
 
   // Raid setup: two fields that open, and the way on. Drawn at both ends of
