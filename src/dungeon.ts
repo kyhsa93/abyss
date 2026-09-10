@@ -1,5 +1,5 @@
 import { ENCOUNTERS } from './sim/encounters'
-import type { Corridor, Pack, Spring } from './sim/travel'
+import type { Alarm, Corridor, Pack, Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, fromRoom, roomAt, type RoomShape } from './sim/room'
 import type { Obstacle, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
@@ -477,6 +477,8 @@ function corridor(
    * has been laid between two rooms. `groundFor` fills both in.
    */
   springs?: Array<Omit<Spring, 'toward'>>,
+  /** Tripwires in its floor, by the pack each one wakes. See `Alarm`. */
+  alarms?: Alarm[],
 ): Corridor {
   // The hall is as long as what is standing in it, plus room to arrive.
   //
@@ -500,6 +502,7 @@ function corridor(
     ways: [{ to, at: { x: 0, y: -120 } }],
     packs,
     ...(springs ? { springs: springs.map((spring) => ({ ...spring, toward: mouth(front) })) } : {}),
+    ...(alarms ? { alarms } : {}),
   }
 }
 
@@ -570,12 +573,15 @@ export const PASSAGES: Passage[] = [
       [
         { pos: { x: -62, y: 2001 }, count: 3, pulls: 240 },
         { pos: { x: 62, y: 1930 }, count: 4, pulls: 240 },
-        { pos: { x: -78, y: 1620 }, count: 1, pulls: 200 },
-        { pos: { x: 78, y: 1620 }, count: 1, pulls: 200 },
+        // Statues until a wire is stood on: no circle, so walking past one
+        // does nothing. `pulls: 0` is the game's stoneform.
+        { pos: { x: -78, y: 1620 }, count: 1, pulls: 0 },
+        { pos: { x: 78, y: 1620 }, count: 1, pulls: 0 },
         { pos: { x: -58, y: 1087 }, count: 4, pulls: 240 },
         { pos: { x: 58, y: 1087 }, count: 4, pulls: 240 },
         { pos: { x: 0, y: 1029 }, count: 3, pulls: 230 },
-        { pos: { x: 0, y: 301 }, count: 6, pulls: 260 },
+        { pos: { x: -55, y: 301 }, count: 3, pulls: 0 },
+        { pos: { x: 55, y: 301 }, count: 3, pulls: 0 },
       ],
       [
         {
@@ -585,6 +591,19 @@ export const PASSAGES: Passage[] = [
           pulls: 4800,
           stops: 900,
         },
+      ],
+      // The four spirit alarms, at the source's own distances back from the
+      // door — x -176.6, -209.6, -288.0 and -304.0 against a door at -333 —
+      // and each waking one of the four bodies that stand in this corridor
+      // alone. Those are its Deathbound Wards, and in the source they are
+      // statues until a foot finds a wire: two of them halfway up, two on the
+      // door. Across the whole width, because the point of a wire is that
+      // going wide is not an answer to it.
+      [
+        { at: { x: 0, y: 1809 }, radius: 143, wakes: 2 },
+        { at: { x: 0, y: 1427 }, radius: 143, wakes: 3 },
+        { at: { x: 0, y: 521 }, radius: 143, wakes: 7 },
+        { at: { x: 0, y: 335 }, radius: 143, wakes: 8 },
       ],
     ),
   },
@@ -1645,6 +1664,9 @@ export function groundFor(from: string, to: string): Corridor | null {
           })),
         }
       : {}),
+    ...(passage.corridor.alarms
+      ? { alarms: passage.corridor.alarms.map((a) => ({ ...a, at: place(a.at) })) }
+      : {}),
   }
 }
 
@@ -1682,6 +1704,29 @@ export function citadelTerrain(): Obstacle[] {
 /** And everything in it that has not arrived yet, placed the same way. */
 export function citadelSprings(cleared?: ReadonlySet<string>): Spring[] {
   return laid(cleared).flatMap((passage) => groundFor(passage.from, passage.to)?.springs ?? [])
+}
+
+/**
+ * And the tripwires, placed the same way — with their pack numbers moved.
+ *
+ * A corridor's alarm names the pack it wakes by its position in *that
+ * corridor's* list, and the building hands the walk one list with every
+ * corridor's packs in it end to end. So the number has to be shifted by
+ * however many packs came before this corridor, or the way up to the first
+ * fight would wake something in the plagueworks.
+ */
+export function citadelAlarms(cleared?: ReadonlySet<string>): Alarm[] {
+  let before = 0
+  const out: Alarm[] = []
+  for (const passage of laid(cleared)) {
+    const ground = groundFor(passage.from, passage.to)
+    if (!ground) continue
+    for (const alarm of ground.alarms ?? []) {
+      out.push({ ...alarm, wakes: alarm.wakes + before })
+    }
+    before += ground.packs.length
+  }
+  return out
 }
 
 /**

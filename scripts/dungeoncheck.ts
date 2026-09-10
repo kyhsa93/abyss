@@ -941,6 +941,26 @@ expect(
     doors.length === 0,
     doors.map((c) => c.id).join(', '),
   )
+  // The tripwires, which are the one thing in a corridor that wakes something
+  // it is nowhere near. Two halves, because both are the mechanic: the wire
+  // has to name a pack that exists, and the pack it names has to be one that
+  // would otherwise be walked past — a wire on a pack you were going to wake
+  // anyway is a wire that does nothing.
+  const wires = corridors.flatMap((c) => (c.alarms ?? []).map((a) => ({ c, a })))
+  expect(`${wires.length} tripwire(s) in the floor`, wires.length > 0, 'nothing is wired')
+  const named = wires.filter(({ c, a }) => c.packs[a.wakes] === undefined)
+  expect(
+    'and every one of them wakes a pack that is there',
+    named.length === 0,
+    named.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
+  )
+  const near = wires.filter(({ c, a }) => dist(a.at, c.packs[a.wakes]!.pos) <= c.packs[a.wakes]!.pulls)
+  expect(
+    'and wakes it from outside what it would have noticed',
+    near.length === 0,
+    near.map(({ c, a }) => `${c.id}:${a.wakes}`).join(', '),
+  )
+
   const pairs = corridors.flatMap((c) => overlapping(c).map(() => c.id))
   expect(
     `and ${pairs.length} pack(s) can be pulled into each other, which is the decision`,

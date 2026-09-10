@@ -156,6 +156,7 @@ import {
   chamberAt,
   citadelPacks,
   citadelSprings,
+  citadelAlarms,
   citadelTerrain,
   citadelWorld,
   standing as fightBuilt,
@@ -832,6 +833,7 @@ function standIn(id: string, from: string | null): void {
     // And what is standing in the rooms themselves, which is not conditional
     // on anything: furniture does not wait for a door to open.
     terrain: citadelTerrain(),
+    alarms: citadelAlarms(new Set(run.cleared)),
   }
   state = createCorridorState(
     roomSeed(run, 'citadel'),

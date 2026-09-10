@@ -118,6 +118,21 @@ export interface Corridor {
   /** What is still arriving, if anything is. Most ground is held by nobody. */
   springs?: Spring[]
   /**
+   * Tripwires, and what each one wakes.
+   *
+   * The source's own: four spirit alarms are buried in the floor of the way up
+   * to the first fight, and what a foot on one does is wake a Deathbound Ward
+   * — a body that has been standing in the corridor the whole time looking
+   * like a statue. `SPELL_STONEFORM` comes off it, it says something, and it
+   * comes for whoever is nearest.
+   *
+   * Which is a different question from the one `pulls` asks. A pack with a
+   * circle round it is avoided by going wide; a line across the floor is not,
+   * and the thing it wakes is not the thing you stepped near. It is the one
+   * piece of furniture in that corridor that is a mechanic.
+   */
+  alarms?: Alarm[]
+  /**
    * What is standing on this ground, which a body has to walk around.
    *
    * A fight's room has had furniture since it had a floor; the citadel had
@@ -132,10 +147,21 @@ export interface Corridor {
   terrain?: Obstacle[]
 }
 
+/** A tripwire in the floor, and the pack it wakes when a foot finds it. */
+export interface Alarm {
+  at: Vec2
+  /** How far either side of it counts as standing on it. */
+  radius: number
+  /** Which pack of the same corridor gets up. */
+  wakes: number
+}
+
 export interface TravelState {
   corridor: Corridor
   /** Which packs have noticed, by index. Nothing ever goes back to sleep. */
   woken: boolean[]
+  /** Which tripwires have been stood on, by index. Once each. */
+  tripped: boolean[]
   /**
    * Which pack each body belongs to, by actor id.
    *
@@ -316,6 +342,7 @@ export function createTravelState(
       // The written packs asleep, and one entry per spring already awake —
       // see `TravelState.belongs` for why a spring is a pack here.
       woken: [...corridor.packs.map(() => false), ...(corridor.springs ?? []).map(() => true)],
+      tripped: (corridor.alarms ?? []).map(() => false),
       belongs,
       streaming: {},
       // The first body out of a spring is not free: it takes as long to come
@@ -448,8 +475,27 @@ function engaged(s: SimState): Actor[] {
  */
 function listen(s: SimState): void {
   const travel = s.travel!
+  // The floor first. A tripwire wakes something that is nowhere near it, so it
+  // has to be asked before anything is asked about distance.
+  ;(travel.corridor.alarms ?? []).forEach((alarm, index) => {
+    if (travel.tripped[index]) return
+    for (const body of livingParty(s)) {
+      if (dist(body.pos, alarm.at) > alarm.radius) continue
+      travel.tripped[index] = true
+      if (!travel.woken[alarm.wakes]) {
+        travel.woken[alarm.wakes] = true
+        s.sounds.push('telegraph')
+      }
+      return
+    }
+  })
   travel.corridor.packs.forEach((pack, index) => {
     if (travel.woken[index]) return
+    // A pack with no circle notices nothing. That is a statue: the source
+    // stands its wards in the corridor under `SPELL_STONEFORM` and walking
+    // past one does nothing at all — what wakes it is a wire in the floor
+    // somewhere else, or being hit. See `Alarm`.
+    if (pack.pulls <= 0) return
     for (const body of livingParty(s)) {
       if (dist(body.pos, pack.pos) <= pack.pulls) {
         travel.woken[index] = true
