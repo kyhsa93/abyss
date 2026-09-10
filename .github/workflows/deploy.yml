@@ -139,8 +139,15 @@ jobs:
       # that finds an empty table passes having checked nothing, and this file
       # has been bitten by exactly that — so the shape of the output is
       # asserted here rather than trusted.
+      #
+      # The count is asked of the shard list rather than typed beside it. It
+      # was typed — fifty-five — and went stale the moment the five-man raid
+      # did: the sweep came back in forty-four pieces and the build failed on
+      # arithmetic rather than on anything being wrong.
+      - run: npx esbuild scripts/harnessrun.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/harnessrun.mjs --log-level=error
       - run: |
-          test "$(ls parts | wc -l)" -ge 55 || { echo "only $(ls parts | wc -l) parts came back"; exit 1; }
+          want=$(ABYSS_COUNT=1 ABYSS_SKIP=spec node node_modules/.cache/harnessrun.mjs)
+          test "$(ls parts | wc -l)" -ge "$want" || { echo "only $(ls parts | wc -l) parts came back, wanted $want"; exit 1; }
           cat $(ls parts/part-*.txt | sort) > harness.txt
           grep -q '^battleground' harness.txt || { echo "the battleground table is missing"; exit 1; }
           grep -q '^boss / size / difficulty' harness.txt || { echo "the size table is missing"; exit 1; }

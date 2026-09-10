@@ -135,6 +135,25 @@ function shard(tag: string): Promise<string> {
   })
 }
 
+/**
+ * How many pieces a whole sweep comes back in, printed and nothing else.
+ *
+ * For the build, which pastes the pieces together and has to know whether any
+ * of them went missing — a band that opens an empty table passes having
+ * checked nothing. It used to be a number typed into the workflow beside the
+ * paste, and it went stale the moment the five-man raid did: the sweep dropped
+ * from fifty-five pieces to forty-four and the build failed on arithmetic
+ * rather than on anything being wrong.
+ *
+ * Counted with the same `ABYSS_SKIP` the run itself reads, so a skipped shard
+ * is not looked for either.
+ */
+if (process.env.ABYSS_COUNT !== undefined) {
+  const skip = new Set((process.env.ABYSS_SKIP ?? '').split(',').filter(Boolean))
+  process.stdout.write(`${SHARDS.filter((tag) => !skip.has(tag)).length}\n`)
+  process.exit(0)
+}
+
 async function main(): Promise<void> {
   // Started in order and collected in order, with only as many in flight as
   // the machine has cores. Starting all thirteen at once on a four-core runner
