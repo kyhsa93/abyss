@@ -3269,10 +3269,26 @@ export const ENCOUNTERS: Encounter[] = [
     // not running out of clock, they were dying in the last third with the
     // fight almost done. A demand that is answerable and expensive is the
     // thing being sold; a bar that is longer than the answer lasts is not part
-    // of it. At thirty-eight thousand every cell clears the line and the top
-    // two clear it by three points; at thirty-five they read 65/65, 70/63,
-    // 60/68 and 60/65, which is room enough that a forty-pull sample cannot
-    // put them under it.
+    // of it.
+    //
+    // Taken out of the bar rather than out of the mechanics, and that was
+    // measured too: at 0.56 mechanic damage against this same forty-five
+    // thousand the cells read 57/50, 40/48, 48/33 and 35/50, which is the same
+    // fight with the demands quietly made cheaper and still under the line.
+    // What is killing raids here is the room's own bill and the debt the mark
+    // collects, neither of which that dial touches.
+    //
+    // At thirty-eight thousand every cell clears the line and the top two
+    // clear it by three points; at thirty-five they cleared it by ten or more.
+    // Moving `cover`'s opening in -- which thirty-five is also what forced,
+    // see below -- took some of that back at twenty-five, and the four cells
+    // stand at 68/60, 65/65, 55/57 and 40/50.
+    //
+    // **The heroic twenty-five is on the line and is the cell to watch.** It
+    // is also the one cell that did not move for anything: 0.7 and 0.6 on
+    // `sizeMechanic`, 88 and 76 on the room's bill, all four read it at 50%
+    // by the ninth pull. Whatever is holding it there is structural rather
+    // than a dial, and finding out what is the next thing this fight is owed.
     hp: 35000,
     enrage: 280,
     phaseTwoHp: 0.65,
@@ -3292,11 +3308,14 @@ export const ENCOUNTERS: Encounter[] = [
     mechanicDamage: 0.68,
     // Anti-scaled, which is what a fight made of a radius and a band should
     // be: neither the drag nor the cold is measured in bodies, so a bigger
-    // raid meets the same two of them with more people to spare. Steeper than
-    // it was written, and the reason is the two rungs a twenty-five man is the
-    // only raid to buy: the wash bills whoever is not in a shadow, and there
-    // are three shadows at that size whatever anybody does.
-    sizeMechanic: { 10: 1.0, 25: 0.7 },
+    // raid meets the same two of them with more people to spare. What is not
+    // spare is the shadow -- it holds eight and the coffins casting it scale,
+    // so a twenty-five man needs its wreckage arranged rather than merely
+    // present, and that is a thing a dial cannot buy back.
+    //
+    // Written at 0.7 and measured at both: 0.6 is worth about fifteen points
+    // to the twenty-five man on normal and nothing at all to it on heroic.
+    sizeMechanic: { 10: 1.0, 25: 0.6 },
     // The chill, the mark, the drag, the coffin, the shadow it casts, and the
     // cold. The coffin is the one borrowed rung on this ladder and it is
     // borrowed for the rung above it: here a coffin is a prison and a wall,
@@ -3327,7 +3346,18 @@ export const ENCOUNTERS: Encounter[] = [
     // phase-gated mechanic sits. So it is rare rather than absent, and the
     // opening is what keeps the first two minutes recognisably the fight the
     // issue described.
-    opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 34, buffet: 8 }) },
+    // The shadow opens at twenty-six and it opened at thirty-four, and what
+    // moved it was the health above rather than anything about the shadow.
+    // A practised twenty-five man on heroic kills a thirty-five thousand bar
+    // in something under forty seconds, so the rung the fight's fifth idea
+    // sells was landing after the fight was over: the render sweep, which
+    // plays every boss out at the top of its ladder and asks that everything
+    // it owns actually happens, reported this one throwing five of six.
+    //
+    // Twenty-six and not less, because the shadow is cast by a coffin and the
+    // coffins open at twenty-two. A wash with nothing to hide behind is not an
+    // early mechanic, it is an unanswerable one.
+    opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 26, buffet: 8 }) },
     lines: {
       phaseTwo: 'The cold gets in',
       instability: 'You are coming apart — hands off',

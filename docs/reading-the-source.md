@@ -1088,11 +1088,11 @@ seventeen files, what the instance *does*:
 
 | | status |
 | --- | --- |
-| boss boundaries — the shape of every fight's floor, as circles, rectangles, ellipses and one parallelogram | **taken** for the first fight |
+| boss boundaries — the shape of every fight's floor, as circles, rectangles, ellipses and one parallelogram | **taken** for all ten built fights, and there is one left over: `DATA_SISTER_SVALNA` |
 | doors, and what opens them: `DOOR_TYPE_ROOM` while a fight runs, `DOOR_TYPE_PASSAGE` once it is done | **taken** — the two ice walls |
 | the spirit alarms and the stoneform they take off | **taken** |
-| every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | **taken** for all eight fights |
-| what ends a phase: a health share, a mana bar, blood power, an air phase | **taken** — and five of the eight have none |
+| every ability's schedule: first cast, repeat, and the `RAID_MODE` and `IsHeroic()` variants | **taken** for all ten built fights |
+| what ends a phase: a health share, a mana bar, blood power, an air phase | **taken** — and five of the first eight have none. The ninth has none *by design*: its bar goes up, so a bar cannot be its own timer and its phases turn on the clock |
 | what the adds are and what *they* cast | **taken** for the wave that has two kinds |
 | the achievement criteria — "nobody impaled", "all five kinds alive at once" | **taken**, six of eight |
 | every line spoken | not wanted: the names here are this game's own |
@@ -1128,8 +1128,12 @@ which is why a ramp is a room and a stair is a doorway.
 ### In the order it is worth taking
 
 1. ~~**Every fight's cadence**, from its own script.~~ **Taken** — the table
-   above. Every mechanic on all eight fights, except the two that describe
-   something this game does not have.
+   above. Every mechanic on all ten built fights, except the two that describe
+   something this game does not have. The ninth and tenth read as this game's
+   own inventions and are not: `suppress` is the Suppresser, `instability` is
+   Instability, `buffet` is Mystic Buffet, `spike` is the ice tomb and `cover`
+   is what you hide behind from the bomb. The names in this game are its own;
+   the mechanics under them are the source's.
 2. ~~**Phase triggers**: what actually ends a phase there.~~ **Taken** — and
    the finding was that there mostly are none. See below.
 3. ~~**What the adds are.**~~ **Taken in part** — the wave is two creatures
@@ -1153,6 +1157,67 @@ which is why a ramp is a room and a stair is a doorway.
    **Taken** — thirty-seven creatures where there was one, in `src/sim/trash.ts`.
    See above for the two columns that had to be handled rather than copied.
    That is the last item on this list.
+
+### The boundary the room already had, which nobody had looked up
+
+Two rooms were measured off the client's map tile because at the time they held
+no fight, and a room with no fight in it has no `BossBoundaryData` entry to
+read. Then both were given fights, and nobody went back to the table.
+
+| room | what it was built from | what the source's own boundary says |
+| --- | --- | --- |
+| the dreaming hall | the frostwing tile: a circle 101.6 yards across | `RectangleBoundary(4112.5, 4293.5, 2385.0, 2585.0)` — **181 by 200 yards**, and a rectangle, so a hall |
+| the frost queen's lair | the same tile: a circle 103.2 yards across | `EllipseBoundary(Position(4408.6, 2484.0), 100.0, 75.0)` — **200 by 150 yards** |
+
+Both are nearly twice what the tile was read as. That is the same lesson as the
+first fight's half-disc, pointed the other way: the tile is a picture of the
+*floor* of a hall, and the boundary is the box the instance will let a fight
+happen inside, which is the thing a fight's floor is here. So the ninth fight's
+room went from a circle a quarter of the hall to the widest floor on the
+roster — which is what issue #35 claimed it should be, arrived at from the
+other end.
+
+**The rule that follows: the day a room is given a fight, look its `DATA_` up
+before touching its shape.** The tile is what a room is measured from only
+while nothing fights in it.
+
+### What is standing in the building that this game does not have
+
+Counted off `creature` on map 631 against `src/sim/trash.ts`, hostile elites
+only — every body with a hostile faction and a rank above nought. Three are
+missing and each is a different kind of missing:
+
+| | rows | where | what it is |
+| --- | --- | --- | --- |
+| **Sister Svalna** | 1, at (4356.7, 2484.3) | between the Ymirjar column and the dreaming hall | not trash: `boss_sister_svalna`, with a `BossBoundaryData` entry of her own — `RectangleBoundary(4291, 4423, 2438, 2653)` — and four Argent captains and Crok Scourgebane standing with her as an escort. An eleventh fight the roster does not have and the only one the source hands over already bounded. Her row: `HealthModifier` 200 against The Damned's 38, `CombatReach` 12, `speed_run` 2.28571 — the fastest thing in the building bar the two drakes. |
+| **Val'kyr Herald** | 2, at (4430.4, 2768.6) and (4323.0, 2737.5) | inside the Upper Crossing | ordinary trash by its row — HM 80, reach 4, `speed_run` 1.07143, melee, and `npc_icc_valkyr_herald` casts Severed Essence every 25 seconds on two of the raid at ten and four at twenty-five, which summons a copy of whoever it hit. Left out **on purpose**: the hub is the one room in the citadel with nothing in it, because it is the one place the player is asked which way to go, and a room with a decision in it and a fight in it is a room with one of them. This is the only place the source and this building disagree about a body and the disagreement is deliberate. |
+| **Risen Archmage** | 6, at (4182–4230, 2465–2505) | inside the dreaming hall | not trash either: they stand on the ninth fight's floor, which makes them part of that fight rather than something cleared before it. `saved` sells its wave as `adds` and the one that comes back wrong as `empower`; these are the bodies those are. |
+
+Ambient rows are not on the list and are not missing: the three Spire Frostwyrms
+circle the lower spire and cannot be attacked.
+
+### The building's own furniture, off `gameobject`
+
+A hundred and eleven rows on map 631, and most of them are not furniture — they
+are the doors, the sigils, the six transporter pads and the four instance
+portals, all of which this game holds as gates and pads rather than as things
+in a room. What is left that a room could actually be *dressed* with is small
+and it is nearly all in two places:
+
+| where | rows | status |
+| --- | --- | --- |
+| the great hall | two forges and their coals, four anvils, four quenching barrels, eleven stacks of saronite, the runeforge | **taken** — see `vigil`'s `terrain` |
+| the frozen throne | `Doodad_IceShard_standing01`–`04` at (473.7, −2096.5), (473.7, −2152.8), (533.6, −2152.8), (533.6, −2096.5); `Arthas Platform` and `Arthas Precipice` at (503.6, −2124.7); `Frozen Lavaman` and its two pillars at (426.6, −2123.9) | **not taken** — the room has no fight yet (#13) |
+| everywhere else | three Empowering Blood Orbs in the crimson hall, a plague sigil, two sets of tubes, a grate | not taken, and mostly not wanted: an orb is a mechanic there, not a rock |
+
+The throne's rows say one thing worth writing down before #13 is built: **the
+props do not fit the room as it is currently measured.** The four shards sit
+about 41 yards out from the platform's centre and the frozen throne itself 77,
+against a tile reading that makes the whole shelf 114.6 yards across — so at
+`BUILD_SCALE` the shards land inside the room and the throne lands outside it.
+There is no `DATA_THE_LICH_KING` boundary to settle it with; that is the one
+fight in the building the boundary table does not carry. Whoever builds #13
+measures that room again, and the object rows are the better ruler.
 
 ## How to take a measurement off a picture
 

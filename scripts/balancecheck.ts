@@ -174,6 +174,14 @@ process.stdout.write(text)
  * the arena has stopped being a variable. The band definitions above are
  * untouched, so coming back is deleting this list.
  *
+ * Ten of the twelve are settled as of the tenth boss: the two left are the
+ * rampart (#28) and the throne (#37), and both are waiting on the fight that
+ * stands in them rather than on a measurement. Two rooms moved in that round
+ * and neither moved by taste -- the dreaming hall and the frost queen's lair
+ * were built off the client's map tile while they held no fight, and a room
+ * with a fight in it is built off that fight's `BossBoundaryData` entry. Both
+ * came out about twice what the tile said.
+ *
  * Nothing may be added to it without the same two sentences: what is moving
  * underneath the band, and what has to settle before it is switched on again.
  */

@@ -5054,7 +5054,16 @@ for (const [label, w, h] of [
         if (mark) debts = Math.max(debts, mark.stacks)
         if (a.ai?.striking?.startsWith('still:')) stopped++
       }
-      bar.hp = Math.min(bar.hp, bar.maxHp * 0.3)
+      // Pinned *at* the floor of the last phase rather than pushed under it.
+      // `Math.min` only ever takes health away, so the raid went on killing
+      // the boss from thirty percent and the pull ended in twenty-six seconds
+      // -- and the two rungs this block exists to see are the fight's fifth
+      // and sixth, one of which opens at twenty-six. The check therefore read
+      // the boss's health bar rather than the boss: shortening that bar for a
+      // balance reason turned it red, and lengthening it would have turned it
+      // green without anything about the mechanics changing. Held, the way the
+      // block above holds the one whose bar goes the other way.
+      bar.hp = Math.round(bar.maxHp * 0.3)
       for (const event of s.effects) {
         if (event.abilityId?.startsWith('boss_')) ids.add(event.abilityId)
       }

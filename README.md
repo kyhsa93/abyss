@@ -2286,40 +2286,66 @@ be measured rather than assumed to be in range:
 
 | Boss | 1st pull | 5th | 9th | avg time | lost to enrage |
 | --- | --- | --- | --- | --- | --- |
-| The Bonegrinder | 100% | 98% | 100% | 134s | 0% |
-| The Last Whisper | 3% | 5% | 0% | 155s | 0% |
-| The Reeking Host | 0% | 0% | 0% | 130s | 0% |
-| The Bloodgorged | 0% | 8% | 0% | 150s | 0% |
-| The Confluence | 60% | 70% | 55% | 146s | 0% |
-| The Two Flasks | 18% | 23% | 20% | 145s | 0% |
-| The Three Crowns | 90% | 85% | 83% | 258s | 2% |
-| The Crimson Gift | 78% | 70% | 78% | 133s | 1% |
-| The One You Save | 100% | 100% | 100% | 109s | 0% |
+| The Bonegrinder | 93% | 98% | 95% | 103s | 0% |
+| The Last Whisper | 78% | 83% | 85% | 176s | 4% |
+| The Reeking Host | 93% | 90% | 85% | 110s | 0% |
+| The Bloodgorged | 90% | 90% | 93% | 133s | 0% |
+| The Confluence | 50% | 40% | 45% | 115s | 0% |
+| The Two Flasks | 65% | 78% | 75% | 109s | 0% |
+| The Three Crowns | 38% | 53% | 35% | 255s | 31% |
+| The Crimson Gift | 55% | 53% | 53% | 116s | 0% |
+| The One You Save | 100% | 100% | 100% | 163s | 0% |
+| The Long Cold | 57% | 53% | 45% | 70s | 0% |
 
 What this table is meant to show is a first pull getting harder down the list
 while a ninth stays winnable, so each boss is a wall you learn rather than one
 you cannot pass. It does not show that today, and the honest thing is to say so
-rather than to print a number and a sentence that disagree.
+rather than to print a number and a sentence that disagree. What it does show
+is one thing worth reading: the Three Crowns loses a third of its pulls to the
+enrage and nothing else here loses any, which is a fight tuned as a damage
+check standing in a list of fights tuned as tests of position.
 
-This is one fixed party at one size. The per-cell table — three sizes by two
+This is one fixed party at one size. The per-cell table — two sizes by two
 difficulties, which is where a fight is actually judged — reads, as a first
-pull across each boss's six: 100/100 on the Bonegrinder, 100 down to 5 on the
-Whisper's, 100 down to 63 on the Host's, 100 down to 75 on the Bloodgorged's,
-100 down to 90 on the Confluence's, 100 down to 45 on the Two Flasks', 100 down
-to 80 on the Three Crowns', 100 down to 83 on the Crimson Gift's, and 100 down
-to 95 on The One You Save's. What this row is catching is the one composition
-it uses against the seven fights that ask for a target call and a second tank,
-none of which a fixed party makes well.
+pull across each boss's four:
 
-The last of those is the honest exception and is worth saying plainly: every
-cell of The One You Save is won, and nearly all of them on the first pull. The
+| Boss | 10 normal | 10 heroic | 25 normal | 25 heroic |
+| --- | --- | --- | --- | --- |
+| The Bonegrinder | 88% | 78% | 95% | 80% |
+| The Last Whisper | 100% | 63% | 75% | 75% |
+| The Reeking Host | 100% | 100% | 100% | 100% |
+| The Bloodgorged | 93% | 83% | 85% | 88% |
+| The Confluence | 85% | 55% | 78% | 73% |
+| The Two Flasks | 95% | 80% | 48% | 60% |
+| The Three Crowns | 95% | 100% | 85% | 90% |
+| The Crimson Gift | 93% | 88% | 93% | 80% |
+| The One You Save | 100% | 80% | 100% | 80% |
+| The Long Cold | 68% | 65% | 55% | 40% |
+
+Two of those rows are worth saying plainly rather than leaving in a grid.
+
+**The One You Save wins every cell, and most of them on the first pull.** The
 raid answers all four of its demands with rules it already had — walking into
 the middle is the wound, not hitting the kindred is the same "leave that one
 alone" the turned body taught it, and the blocking is an ordinary target call.
 What the fight has that nothing else here does is an inverted victory
 condition, and an inverted victory condition is not a demand on anybody. The
-clock is the whole of its difficulty, and 178 seconds against 190 at the top of
-its ladder is the only place that clock is close.
+clock is the whole of its difficulty: the four cells climb to a full bar in
+164, 180, 165 and 183 seconds against a 190-second enrage, so the top two are
+close and the bottom two are not close at all. Its twenty-five is also the one
+place on the roster where a tuning dial has no middle — 0.75 on `sizeMechanic`
+finishes no pull and 0.6 finishes all of them, because a bar going up against a
+fixed clock has no partial credit in it.
+
+**The Long Cold is the hardest thing on the roster and its heroic twenty-five
+is on the line.** It is the only fight whose first pull is under two thirds at
+every setting, which is the shape the list above is supposed to have and only
+this one does. Its top cell reads 50% by the ninth pull, and that number did
+not move for anything tried: two values of `sizeMechanic`, two of the room's
+own bill, and a fifth off every mechanic in the fight all left it at fifty.
+Whatever holds it there is structural — most likely that the shadow a coffin
+casts holds eight bodies and a twenty-five man has seventeen who are not in
+one — and finding out is what this fight is owed next.
 
 It is also being read against rooms that are still being written. The bands
 that would normally hold this line are switched off by name until the twelve
