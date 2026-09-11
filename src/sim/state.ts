@@ -232,7 +232,16 @@ export function createState(
   // or not the room has been put anywhere.
   const rocks = (
     fight.terrain
-      ? fight.terrain.map((rock) => ({ pos: { x: rock.pos.x, y: rock.pos.y }, radius: rock.radius }))
+      ? fight.terrain.map((rock) => ({
+          pos: { x: rock.pos.x, y: rock.pos.y },
+          radius: rock.radius,
+          // Copied rather than left behind. The position and the radius were
+          // the whole of an obstacle when this was written, and the day one
+          // grew a `look` the rooms went on saying "column" while every fight
+          // drew a boulder -- the table was right and the state it was copied
+          // into had thrown the answer away.
+          ...(rock.look ? { look: rock.look } : {}),
+        }))
       : raidTerrain(
           shape,
           new Rng(seed * 13 + encounter * 7919 + 1049),

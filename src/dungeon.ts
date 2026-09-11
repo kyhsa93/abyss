@@ -1,7 +1,7 @@
 import { ENCOUNTERS } from './sim/encounters'
 import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
 import { ROUND_ARENA, atScale, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
-import type { Obstacle, Vec2 } from './sim/types'
+import type { Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, YARD } from './sim/constants'
 
@@ -75,6 +75,8 @@ export interface Chamber {
    * first fight's chamber is empty in the data and empty here.
    */
   terrain?: Obstacle[]
+  /** And what is standing in it that nothing collides with. See `Prop`. */
+  props?: Prop[]
 
   /**
    * And what is standing in it, in the same frame.
@@ -543,6 +545,26 @@ export const CHAMBERS: Chamber[] = [
     // of the world, which makes that sheet 0.2927 yards to the pixel, and the
     // cracked shelf draws 145 by 135 on it.
     room: { kind: 'platform', radius: 1326 },
+    // The four ice shards, at the corners the source puts them on.
+    //
+    // `Doodad_IceShard_standing01` through `04` at (473.7, -2152.8),
+    // (473.7, -2096.5), (533.6, -2152.8) and (533.6, -2096.5), against the
+    // `Arthas Platform` at (503.6, -2124.7): thirty yards out one way and
+    // twenty-eight the other, which is four corners of a square. They are the
+    // one thing on this floor the source draws and this game did not, and the
+    // room is otherwise bare.
+    //
+    // Standing stones rather than ice, because the set has no ice shard and a
+    // menhir is a tall pale thing standing on end. The frozen throne itself is
+    // eighty yards back and lands outside the room -- see the note in
+    // `docs/reading-the-source.md` about what that says about this room's
+    // measurement, which is a thing #13 has to settle.
+    props: [
+      { pos: { x: -325, y: -346 }, look: 'menhir', tall: 150 },
+      { pos: { x: 325, y: -346 }, look: 'menhir', tall: 150 },
+      { pos: { x: -325, y: 347 }, look: 'menhir', tall: 150 },
+      { pos: { x: 325, y: 347 }, look: 'menhir', tall: 150 },
+    ],
   },
 ]
 

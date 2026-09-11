@@ -2,7 +2,7 @@ import { TRASH_KINDS, TRASH_LOOKS, trashLook } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
-import { RIM_BAND, surroundTakes } from '../src/render/scenery'
+import { FLOOR_PIECES, FLOOR_TALL, surroundTakes } from '../src/render/scenery'
 import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
@@ -149,6 +149,7 @@ import {
   SPELL_RANGE,
   MELEE_CALL,
   COVER_LONG,
+  PARTY_RADIUS,
 } from '../src/sim/constants'
 import {
   ENCOUNTERS,
@@ -10223,55 +10224,52 @@ for (const [label, w, h] of [
   )
 }
 
-// --- scenery may not stand on the board -------------------------------------
+// --- what may be drawn on the board -----------------------------------------
 //
-// The one promise the surround makes. Everything in this game is read off the
-// floor -- a line walking outward, a pool announcing itself, a cone off an
-// arm -- and the last time a picture was drawn on that floor it competed with
-// the telegraphs and was thrown out. So the field of broken stone the citadel
-// now stands in is allowed exactly two places: outside the building, and a
-// band of `RIM_BAND` against the inside of a wall.
+// The floor is sown with broken stone now, which is the thing this repo threw
+// out once before: a picture on the ground that argued with the telegraphs
+// drawn on it. What makes it a different answer this time is that the line is
+// drawn in *what* rather than in *where* — every mark on a floor anybody
+// fights on is flat, dark and under a knee, so it cannot hide a raider and it
+// cannot hide a shape.
 //
-// Held here rather than in a comment, because the number that satisfies it can
-// then be moved by anybody: `drawSurround` asks `surroundTakes` where it may
-// draw, and so does this.
+// Held here rather than in a comment, so the numbers can be moved by anybody.
 {
-  const deep: string[] = []
-  const middle: string[] = []
+  // Nothing on the floor stands up. A body is drawn about a hundred units
+  // tall and its own footprint is nine; anything on this list at this height
+  // reads as lying on the ground rather than standing on it.
+  expect(
+    `nothing on the floor stands over ${FLOOR_TALL} units`,
+    FLOOR_TALL < PARTY_RADIUS * 4,
+    `${FLOOR_TALL} against a body's ${PARTY_RADIUS}`,
+  )
+  // And every piece of it is litter rather than an object. The boulder and the
+  // column are in the outside field and may not cross the wall: a silhouette
+  // on the board is a thing a player will read as terrain and try to stand
+  // behind.
+  const standing = ['boulder', 'menhir', 'column', 'brazier', 'cauldron', 'pebbles', 'tomb']
+  expect(
+    'and none of it is a thing with a silhouette',
+    FLOOR_PIECES.every((id) => !standing.includes(id)),
+    FLOOR_PIECES.filter((id) => standing.includes(id)).join(', '),
+  )
+  // The outside field and the floor are two different sides of one wall, and
+  // no point may be on both: the outside pass draws under the building and the
+  // floor pass draws over it, so a point taken by both is drawn twice.
+  const both: string[] = []
   for (let e = 0; e < ENCOUNTERS.length; e++) {
     const room = ENCOUNTERS[e]!.room ?? ROUND_ARENA
     const reach = roomReach(room)
-    // A grid across the room and well past it, at a step finer than the one
-    // the drawing uses, so the sample is not the same points the scatter picks.
-    for (let x = -reach * 1.6; x <= reach * 1.6; x += 37) {
-      for (let y = -reach * 1.6; y <= reach * 1.6; y += 37) {
+    for (let x = -reach * 1.4; x <= reach * 1.4; x += 41) {
+      for (let y = -reach * 1.4; y <= reach * 1.4; y += 41) {
         const at = { x, y }
-        const taken =
-          surroundTakes([room], at, 'outside') || surroundTakes([room], at, 'rim')
-        if (!taken) continue
-        const gap = wallGap(room, at)
-        if (gap >= RIM_BAND) {
-          deep.push(`${ENCOUNTERS[e]!.short} at ${Math.round(gap)} in from the wall`)
-        }
-        // And nowhere near where the raid actually stands. Measured in
-        // `docs/mechanic-rules.md`: the raid clusters ninety to a hundred and
-        // twenty-five units from the boss, and a pool is ninety-two across.
-        if (Math.hypot(x, y) < 125 + 92) {
-          middle.push(`${ENCOUNTERS[e]!.short} at ${Math.round(Math.hypot(x, y))} from the middle`)
+        if (surroundTakes([room], at, 'outside') && surroundTakes([room], at, 'floor')) {
+          both.push(`${ENCOUNTERS[e]!.short} at ${Math.round(x)},${Math.round(y)}`)
         }
       }
     }
   }
-  expect(
-    `no scenery stands more than ${RIM_BAND} units in from a wall`,
-    deep.length === 0,
-    [...new Set(deep)].slice(0, 3).join('; '),
-  )
-  expect(
-    'and none of it stands where the raid does',
-    middle.length === 0,
-    [...new Set(middle)].slice(0, 3).join('; '),
-  )
+  expect('and no point is both outside the wall and on the floor', both.length === 0, both.slice(0, 3).join('; '))
 }
 
 if (failures > 0) throw new Error(`${failures} render check(s) failed`)

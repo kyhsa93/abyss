@@ -23,7 +23,7 @@ import { Rng } from '../sim/rng'
 import { wallGap, type RoomShape } from '../sim/room'
 import { PROPS, PROPS_SRC, PROP_IDS } from './props'
 import { L } from './theme'
-import type { Obstacle, Vec2 } from '../sim/types'
+import type { Obstacle, Prop, Vec2 } from '../sim/types'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
 
@@ -243,24 +243,36 @@ function pileFor(rock: Obstacle): Lump[] {
 const SURROUND = ['boulder', 'menhir', 'rubble-a', 'rubble-b', 'pebbles', 'scatter', 'column']
 
 /**
- * And a much shorter list for the rim, which is the half of this that is
- * standing on a floor somebody is fighting on.
+ * And a much shorter list for the floor, which is the half of this that is
+ * standing where somebody is fighting.
  *
  * Litter only: no boulder, no column, nothing that stands up. The first pass
  * used one list for both and the screenshot settled it — a column rooted in
- * the near rim of the smallest room stood between the camera and the raid,
+ * the near edge of the smallest room stood between the camera and the raid,
  * brighter than the party and twice their height, which is the exact failure
  * the floor's own rule was written about. What reads as "this room has a floor
  * made of something" is gravel and broken stone; what reads as an obstacle is
  * anything with a silhouette.
+ *
+ * `pebbles` is not on this list and the other three are: it is drawn on a
+ * sixty-four cell and stands up out of the ground, which is a small rock
+ * rather than a mark on the floor.
  */
-const RIM_PIECES = ['rubble-a', 'rubble-b', 'pebbles', 'scatter']
+export const FLOOR_PIECES = ['rubble-a', 'rubble-b', 'scatter']
 
-/** How tall the rim's pieces stand — under a body, so none of them occludes one. */
-const RIM_TALL = 30
+/**
+ * How tall a piece on the floor may stand, in world units.
+ *
+ * A body's own footprint is nine and a body stands about a hundred. Twenty-six
+ * is under a knee: it cannot hide a raider, it cannot hide a telegraph, and
+ * from the camera's angle it reads as something lying on the ground rather
+ * than standing on it. `rendercheck` holds both this and the list above,
+ * because between them they are the whole of why the board is still readable.
+ */
+export const FLOOR_TALL = 26
 
-/** And dimmer than the field outside, because this half is on a lit floor. */
-const RIM_DIM = 0.4
+/** And much dimmer than the field outside, because this half is on a lit floor. */
+const FLOOR_DIM = 0.26
 
 /**
  * How far apart the pieces stand, in world units, before the jitter.
@@ -287,43 +299,29 @@ const SURROUND_JITTER = 0.34
 const SURROUND_DIM = 0.7
 
 /**
- * How far in from the wall the field is still allowed to stand.
- *
- * The second half of the answer, and the one that costs something. The void
- * outside is free; a fight, though, fills the screen with one room, so a
- * surround nobody can see is a surround that did not change the fight. What
- * can be dressed without touching the board is the *rim* — the ring of floor
- * against the wall, which the measured raid never stands in: it clusters at
- * ninety to a hundred and twenty-five units from the boss, in rooms whose
- * floors run four hundred and sixty across and up to eleven hundred.
- *
- * Seventy is about three bodies. A piece rooted there leans in over the floor,
- * which is the framing the reference art gets from trees and walls, and it is
- * drawn *under* the mechanics — a telegraph over a column is still a telegraph,
- * the same rule the rocks already keep.
- *
- * `rendercheck` holds the line rather than this comment: nothing decorative is
- * drawn further in than this, at any size, in any room.
- */
-export const RIM_BAND = 70
-
-/**
  * Whether a piece of scenery may stand here — the whole of the promise, in one
  * function, so that the check can hold the same rule the drawing obeys.
  *
  * How deep into the building a point is, taken against the union rather than
  * against one room: the cells overlap on purpose — that is what makes the
- * floor continuous — so a point in a passage's rim can be in the middle of the
- * hall the passage runs into. The deepest containment is the one that counts.
+ * floor continuous — so a point in a passage is a point on the building.
+ *
+ * There was a band here for a while: scenery on the floor was allowed only
+ * within seventy units of a wall, on the argument that the measured raid never
+ * stands there. What that bought was a decorated edge on a board nobody looks
+ * at the edge of — a fight fills the screen with the middle of one room. The
+ * line is drawn somewhere else now and it is drawn in what may be *drawn*
+ * rather than in where: on the floor, nothing with a silhouette and nothing
+ * that stands higher than a knee. See `FLOOR_PIECES` and `FLOOR_TALL`.
  */
 export function surroundTakes(
   cells: RoomShape[],
   at: Vec2,
-  where: 'outside' | 'rim',
+  where: 'outside' | 'floor',
 ): boolean {
   let deep = -Infinity
   for (const cell of cells) deep = Math.max(deep, wallGap(cell, at))
-  return where === 'outside' ? deep < 0 : deep >= 0 && deep < RIM_BAND
+  return where === 'outside' ? deep < 0 : deep >= 0
 }
 
 export function drawSurround(
@@ -339,7 +337,7 @@ export function drawSurround(
    * goes under the building, and the rim goes over the floor and under every
    * mechanic on it. One pass could not be both.
    */
-  where: 'outside' | 'rim',
+  where: 'outside' | 'floor',
   /** The world rectangle to cover, which is whatever the camera can see. */
   from: Vec2,
   to: Vec2,
@@ -347,13 +345,18 @@ export function drawSurround(
   begin()
   if (!sheet) return false
 
-  const x0 = Math.floor(from.x / SURROUND_STEP)
-  const x1 = Math.ceil(to.x / SURROUND_STEP)
-  const y0 = Math.floor(from.y / SURROUND_STEP)
-  const y1 = Math.ceil(to.y / SURROUND_STEP)
+  // The floor is walked on and looked at from much closer than the field
+  // outside is, so it is sown twice as fine: at the outside field's spacing a
+  // room the size of a fight's floor holds about forty marks, which reads as
+  // litter somebody dropped rather than as a floor made of something.
+  const pitch = SURROUND_STEP * (where === 'floor' ? 0.5 : 1)
+  const x0 = Math.floor(from.x / pitch)
+  const x1 = Math.ceil(to.x / pitch)
+  const y0 = Math.floor(from.y / pitch)
+  const y1 = Math.ceil(to.y / pitch)
   // A cap, because the camera zooms out and a frame that draws ten thousand
-  // rocks is a frame that does not arrive. At the widest zoom the field
-  // thins rather than the frame dropping.
+  // rocks is a frame that does not arrive. At the widest zoom the field thins
+  // rather than the frame dropping.
   const step = Math.max(1, Math.ceil(Math.sqrt(((x1 - x0) * (y1 - y0)) / 900)))
 
   const lumps: Array<{ id: string; at: Vec2; tall: number; flip: boolean }> = []
@@ -363,13 +366,13 @@ export function drawSurround(
       // A gap here and there, so the field is not a lattice.
       if (rng.chance(0.14)) continue
       const at = {
-        x: (gx + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * SURROUND_STEP,
-        y: (gy + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * SURROUND_STEP,
+        x: (gx + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * pitch,
+        y: (gy + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * pitch,
       }
       if (!surroundTakes(cells, at, where)) continue
-      const list = where === 'rim' ? RIM_PIECES : SURROUND
+      const list = where === 'floor' ? FLOOR_PIECES : SURROUND
       const id = list[rng.int(list.length)]!
-      const tall = where === 'rim' ? RIM_TALL : id === 'column' ? 128 : 58
+      const tall = where === 'floor' ? FLOOR_TALL : id === 'column' ? 128 : 58
       lumps.push({ id, at, tall: tall * rng.range(0.6, 1.35), flip: rng.chance(0.5) })
     }
   }
@@ -381,7 +384,7 @@ export function drawSurround(
 
   ctx.save()
   ctx.imageSmoothingEnabled = false
-  ctx.globalAlpha = where === 'rim' ? RIM_DIM : SURROUND_DIM
+  ctx.globalAlpha = where === 'floor' ? FLOOR_DIM : SURROUND_DIM
   // Back to front, so a near piece covers a far one rather than the order the
   // grid happened to produce.
   for (const lump of lumps.sort((a, b) => a.at.y - b.at.y)) {
@@ -408,6 +411,44 @@ export function drawSurround(
       ctx.restore()
       continue
     }
+    ctx.drawImage(sheet, sx, sy, sw, sh, on.x - w / 2, on.y - h, w, h)
+  }
+  ctx.restore()
+  return true
+}
+
+/**
+ * The building's own furniture, at the source's coordinates.
+ *
+ * One piece a row of `gameobject`, rather than a pile the way a rock is: a
+ * rock is a circle this game invented and filled with several stones at their
+ * own size, and this is one object the instance actually places. See `Prop`.
+ */
+export function drawProps(
+  ctx: CanvasRenderingContext2D,
+  project: (p: Vec2) => Vec2,
+  scale: number,
+  props: readonly Prop[],
+): boolean {
+  begin()
+  if (!sheet) return false
+  // The same line the field keeps: nothing in the strip the HUD lives in. A
+  // prop is at a fixed place in a room rather than sown across the floor, so
+  // one of them sits in the near foreground for a whole fight rather than for
+  // a frame -- the Oratory's bonfire stands by the door the raid came in by,
+  // which is behind the camera and at the bottom of the screen, and unguarded
+  // it was a pale lump over the ability bar for the length of the pull.
+  const nearest = L.actionY - 40
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  for (const prop of [...props].sort((a, b) => a.pos.y - b.pos.y)) {
+    const rect = PROPS[prop.look]
+    if (!rect) continue
+    const [sx, sy, sw, sh] = rect
+    const on = project(prop.pos)
+    if (on.y > nearest) continue
+    const h = prop.tall * scale
+    const w = (h * sw) / sh
     ctx.drawImage(sheet, sx, sy, sw, sh, on.x - w / 2, on.y - h, w, h)
   }
   ctx.restore()

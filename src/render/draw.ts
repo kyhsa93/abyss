@@ -42,13 +42,13 @@ import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/bat
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
 import { ENCOUNTERS, encounterAt } from '../sim/encounters'
-import { CHAMBERS, placeOf, type Chamber, type WingId } from '../dungeon'
+import { CHAMBERS, placeOf, type Chamber, type WingId, chamberAt } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { drawGrave, drawObstacles, drawSurround, floorTexture } from './scenery'
+import { drawGrave, drawObstacles, drawProps, drawSurround, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
 import { COLORS, L, classColor, setWorldRoom, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
@@ -382,8 +382,10 @@ export function drawWorld(
       s.mode === 'travel' ? WING_WASH : 0,
     )
   }
-  // And the same field again, inside the wall this time: over the floor that
-  // was just laid and under every mechanic that lands on it. See `RIM_BAND`.
+  // And the floor's own, inside the wall: over the stone that was just laid
+  // and under every mechanic that lands on it. See `FLOOR_PIECES`, which is
+  // where the line between "the room is made of something" and "the ground has
+  // opinions" is actually drawn.
   {
     const wide = L.w / L.scale + 200
     const deep = L.h / (L.scale * TILT) + 200
@@ -392,10 +394,23 @@ export function drawWorld(
       worldToScreen,
       L.scale,
       cells,
-      'rim',
+      'floor',
       { x: cam.x - wide, y: cam.y - deep },
       { x: cam.x + wide, y: cam.y + deep },
     )
+  }
+  // And the building's own furniture, at the source's coordinates: over the
+  // floor and its litter, under every mechanic. Resolved the same way the room
+  // is -- a fight's room is the encounter's, a room being crossed is the
+  // chamber's -- so the two can never disagree about which room this is.
+  {
+    const own =
+      s.mode === 'raid'
+        ? encounterAt(s.encounter).props
+        : s.chamber
+          ? chamberAt(s.chamber)?.props
+          : undefined
+    if (own && own.length > 0) drawProps(ctx, worldToScreen, L.scale, own)
   }
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
@@ -1372,7 +1387,66 @@ function drawShades(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
  * ground going that way.
  */
 
+/**
+ * What plays on top of a patch of ground, and how fast.
+ *
+ * The shape underneath is the fact and stays exactly as it was: a circle with
+ * an edge that says leave, a cone that says get behind it, a ring that says
+ * come here. Every one of those was drawn and then nothing happened in it —
+ * the floor said *where* and never said *what*, so a rotting patch and a
+ * caustic pool and the room going under were three colours of the same
+ * circle.
+ *
+ * So a sprite loops inside it. This is the same arrangement the hits have had
+ * since the effects went in, and the same reason is written there: the drawn
+ * primitive carries the meaning and the sprite carries the weight. Nothing
+ * here is tinted — an orange flame recoloured violet stops looking like fire
+ * and starts looking like a mistake — so a kind gets an effect only where the
+ * art already agrees with what the mechanic *is*.
+ *
+ * `size` is a share of the patch's own radius, so one entry covers a mark two
+ * bodies across and a flood that has eaten the room.
+ */
+const GROUND_FX: Partial<Record<string, { fx: string; size: number; cycles: number; alpha: number }>> = {
+  // The rotting ground and the melting floor, which are the same sentence in
+  // two wings: a patch that is simply bad and stays. Green, turning over.
+  decay: { fx: 'rot', size: 0.95, cycles: 0.45, alpha: 0.5 },
+  slime: { fx: 'rot', size: 0.6, cycles: 0.3, alpha: 0.42 },
+  // What a broken flask leaves is a chemical rather than a rot, so it smokes.
+  decant: { fx: 'dust', size: 0.75, cycles: 0.55, alpha: 0.5 },
+  caustic: { fx: 'dust', size: 0.6, cycles: 0.6, alpha: 0.45 },
+  // The cold line walking outward. This is the citadel's own thing and there
+  // is now an effect that is exactly it -- a burst of white and cyan frost --
+  // where before the nearest thing in the set was a wind curl.
+  coldflame: { fx: 'freezing', size: 1.0, cycles: 0.8, alpha: 0.6 },
+  // The drag that pulls the room in before it asks anything. A vortex, which
+  // is the one effect in either pack that reads as *inward*.
+  haul: { fx: 'vortex', size: 0.85, cycles: 0.7, alpha: 0.5 },
+  // The circle everybody has to be inside. Every other telegraph here says
+  // leave; this one says come here, and it is the only one that gets a ring
+  // turning inside it rather than something breaking.
+  gather: { fx: 'ring', size: 0.5, cycles: 0.5, alpha: 0.55 },
+  // The way out, which is a hole in the floor somebody steps into.
+  portal: { fx: 'nova', size: 0.9, cycles: 0.6, alpha: 0.5 },
+  // The big arm. A crescent sweep inside the cone it is already drawing, at
+  // the cone's own pace.
+  spray: { fx: 'sweep', size: 0.55, cycles: 1.1, alpha: 0.5 },
+  // The grain a body carries, which is the one patch here that is a thing
+  // rather than a place.
+  nucleus: { fx: 'nova', size: 1.1, cycles: 1.4, alpha: 0.5 },
+}
+
 function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): void {
+  // What the pass below has already put an effect inside.
+  //
+  // The generic pool -- the arm every kind with no branch of its own comes
+  // down -- has burned since long before there was a table: several small
+  // flames scattered through the circle rather than one sprite in the middle
+  // of it, which is the better picture for a patch two bodies across. So that
+  // arm reads the table too and says so, and the pass at the end skips what it
+  // has already done. Without this the cold line got both, and a line of
+  // *frost* patches came out with fires in them.
+  const painted = new Set<number>()
   for (const g of s.ground) {
     const p = worldToScreen(g.pos)
     const r = g.radius * L.scale
@@ -1618,10 +1692,23 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.fillStyle = COLORS.puddle
       ctx.fill()
 
-      // Something actually burning in it.
+      // Something actually happening in it, which is this kind's own effect
+      // and was a flame whatever the kind was.
+      const play = GROUND_FX[g.kind]
+      painted.add(g.id)
       for (const [i, spot] of flamesIn(g.radius).entries()) {
         const at = worldToScreen({ x: g.pos.x + spot.dx, y: g.pos.y + spot.dy })
-        drawFxLoop(ctx, 'flame', at.x, at.y, FLAME * L.scale, clock, 1.4, fade * 0.7, g.id * 0.37 + i * 0.23)
+        drawFxLoop(
+          ctx,
+          play?.fx ?? 'flame',
+          at.x,
+          at.y,
+          FLAME * L.scale * (play ? play.size : 1),
+          clock,
+          play?.cycles ?? 1.4,
+          fade * (play?.alpha ?? 0.7),
+          g.id * 0.37 + i * 0.23,
+        )
       }
 
       ctx.strokeStyle = COLORS.puddleEdge
@@ -1631,6 +1718,30 @@ function drawGround(ctx: CanvasRenderingContext2D, s: SimState, clock: number): 
       ctx.stroke()
       ctx.restore()
     }
+  }
+
+  // And what is happening inside them, over every shape rather than inside the
+  // branch that drew it: the loop above leaves by `continue` a dozen times, so
+  // "on top" is a second pass rather than a line at the end of each arm.
+  //
+  // Offset by the patch's own id, so two pools side by side are not the same
+  // picture twice -- the same thing the one flame already in here does.
+  for (const g of s.ground) {
+    if (g.detonated || painted.has(g.id)) continue
+    const play = GROUND_FX[g.kind]
+    if (!play) continue
+    const p = worldToScreen(g.pos)
+    drawFxLoop(
+      ctx,
+      play.fx,
+      p.x,
+      p.y,
+      g.radius * L.scale * play.size,
+      clock,
+      play.cycles,
+      play.alpha,
+      g.id * 0.37,
+    )
   }
 }
 

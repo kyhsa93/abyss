@@ -1023,6 +1023,26 @@ export interface Obstacle {
 }
 
 /**
+ * Scenery, which is an obstacle's opposite: a picture with no circle under it.
+ *
+ * The rooms carry two different kinds of thing and they were one kind until
+ * now. An `Obstacle` is a fact about the fight — nobody walks through it, the
+ * mechanics were tuned around it, and moving one retunes a boss. This is a
+ * fact about the *building*: the bonfire the source puts by the Oratory's
+ * door, the forge behind the Rise, the four ice shards at the corners of the
+ * frozen throne. Nothing collides with any of it and nothing under `src/sim`
+ * has ever heard of it, which is exactly what makes it safe to take straight
+ * off `gameobject` at the source's own coordinates.
+ */
+export interface Prop {
+  pos: Vec2
+  /** A piece id from `src/render/props.ts`. */
+  look: string
+  /** How tall it stands, in world units. */
+  tall: number
+}
+
+/**
  * What one side has decided to do, and when it may decide again.
  *
  * The alternative to this is what was here before: every actor answered "where

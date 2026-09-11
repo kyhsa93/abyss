@@ -1,6 +1,6 @@
 import type { DifficultyId, RaidSize } from './classes'
 import type { RoomShape } from './room'
-import type { Obstacle, Vec2 } from './types'
+import type { Obstacle, Prop, Vec2 } from './types'
 
 /**
  * The bosses, in the order they are fought.
@@ -917,6 +917,22 @@ export interface Encounter {
    */
   terrain?: Obstacle[]
   /**
+   * And the room's furniture, which is not terrain: see `Prop`.
+   *
+   * Straight off `gameobject` on map 631 at the source's own coordinates,
+   * converted into the room's frame the same way its spawns are -- the boss at
+   * the origin, `+y` the way the raid comes in, `YARD * BUILD_SCALE` to a
+   * yard. The frame was checked against rows this repo had already converted
+   * by hand rather than assumed: the Oratory's two High Priests come out of it
+   * at (-509, 169) and (516, 178), against the (-509, 169) and (517, 178)
+   * already written in `ORATORY`.
+   *
+   * Nothing collides with any of it, which is the whole reason it can be taken
+   * literally. An obstacle is a number a fight was tuned around; this is a
+   * thing the instance happens to put in the room.
+   */
+  props?: Prop[]
+  /**
    * Where whatever this fight summons walks in from, or omitted to roll it.
    *
    * A wave used to appear at a random bearing on a ring of 230. A random
@@ -1681,6 +1697,12 @@ export const ENCOUNTERS: Encounter[] = [
     // the room will give both pairs of doors. It comes out ahead of her rather
     // than around her, which is what an oratory is: the pews face the altar
     // and the altar is at the back.
+    // The bonfire the source puts in this hall, and it is the only piece of
+    // furniture on map 631 that is a fire standing on a floor a raid fights
+    // on. `gameobject` row `Bonfire` at (-525.3, 2229.5) against the Watcher
+    // at (-634.7, 2211.4): a hundred and nine yards in front of her and
+    // eighteen to one side, which is beside the door she is faced away from.
+    props: [{ pos: { x: 209, y: 1265 }, look: 'brazier', tall: 62 }],
     // Five a side and evenly spaced is a colonnade, which is what this room's
     // own note has called them all along -- "the pews face the altar". Drawn
     // as white rock they were ten boulders in two lines, which is a quarry.
@@ -2133,6 +2155,21 @@ export const ENCOUNTERS: Encounter[] = [
     // of them that is not somebody looking at a picture. Built, 1478 units
     // across going to 1156.
     room: { kind: 'round', radius: 578 },
+    // The forge and its anvil, which the source stands behind this fight and
+    // this game's compression stands *outside* it: `Forge` at (-514.4, 2245.0)
+    // and `Blacksmith's Anvil` at (-517.6, 2243.8) against the boss at
+    // (-461.5, 2211.1) are fifty-three yards back and thirty-four to the side,
+    // and the room the boundary gives this fight is fifty across. So they land
+    // beyond the wall, which is where they are: a raid on this rise fights in
+    // front of a forge rather than around it.
+    //
+    // The anvil is the forge again at half the height. There is no anvil in
+    // the tileset and one is not worth cutting for a piece the size of a
+    // thumbnail behind a wall.
+    props: [
+      { pos: { x: 392, y: -612 }, look: 'brazier', tall: 95 },
+      { pos: { x: 378, y: -649 }, look: 'brazier', tall: 55 },
+    ],
     /**
      * Nothing standing in it, and that is the mechanic's doing.
      *
