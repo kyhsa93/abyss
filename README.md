@@ -2451,7 +2451,24 @@ against the twenty-seven a two-to-one isometric tile is drawn for.
 | isometric **floor tiles** | **no**. A rhombus with the geometry baked into it is right at one camera angle and this camera has all of them. What a floor here is is a flat top-down texture tiled over a plane that turns — `floor-earth` and its four siblings. |
 | isometric **props** | yes, with care. A prop is a billboard standing upright on the plane, which is what the LPC props already are; what differs is only the angle it was baked at. |
 | **bodies** | yes. Directions are chosen in screen space, so a sheet with eight of them is better than one with four, not worse — `directionOf` picks the nearest. |
-| anything shipping its **3D source** | **worth more than the rest put together.** The angle stops being a fact about the download. `wyvern.blend` sits beside the sheet for exactly that reason: the day this is re-rendered at 0.62 it is a render setting rather than a redraw. |
+| anything shipping its **3D source** | **worth more than the rest put together.** The angle stops being a fact about the download. `wyvern.blend` sits beside the sheet for exactly that reason, and it has since been opened to check that the claim is true rather than hopeful — see below. |
+
+The re-render is a camera rotation and it has been measured rather than
+assumed. The wyvern ships at sixty degrees off vertical, which is thirty above
+the horizon; an orthographic camera looking at a horizontal plane squashes it
+by the sine of that, and sin 30° is 0.50 — a two-to-one isometric tile. This
+game's floor is 0.62, so its own camera is asin(0.62) = **38.32° above the
+horizon, 51.68° off vertical**, and the camera has to be re-aimed at the model
+as well as tilted or it leaves the frame. Eight frames of eight directions of
+seven animations is about a minute of CPU.
+
+The thing that is *not* obvious, and would cost somebody an afternoon: it has
+to be opened in **Blender 2.79**. The file is 2.62 and its renderer is Blender
+Internal, which 2.80 removed. Opened in a current Blender the mesh and the
+armature survive and every material does not, so the re-render comes out white.
+The recipe, the scene's layout and the numbers above are written down beside
+the asset rather than here, in the `README.md` of whatever `--beasts` points
+at.
 
 ## Hit effects
 
