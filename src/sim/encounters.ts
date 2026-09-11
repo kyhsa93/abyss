@@ -50,6 +50,7 @@ export type MechanicId =
   | 'champion'
   | 'gorge'
   | 'spray'
+  | 'breath'
   | 'infection'
   | 'ooze'
   | 'flood'
@@ -141,6 +142,10 @@ export const MECHANIC_SCALES: Record<MechanicId, boolean> = {
   champion: true,
   gorge: false, // one body swallowed and one circle of fixed radius under it
   spray: false, // a cone of a fixed angle, which catches a share rather than a count
+  // And the other cone, for the same reason: an angle is an angle at any
+  // headcount. What a bigger raid brings to a cone is more bodies to put
+  // behind it, which is the answer rather than the problem.
+  breath: false,
   infection: true, // one carrier per so many bodies, and each becomes a body
   ooze: true, // as many as there were carriers, which is the same thing said twice
   flood: false, // a circle from the boss, and the room is the room at any size
@@ -313,6 +318,7 @@ export const MECHANIC_NAMES: Record<MechanicId, string> = {
   decant: 'the flasks',
   reagent: 'the reagent',
   spray: 'the spray',
+  breath: 'the breath',
   infection: 'the infection',
   ooze: 'the small things',
   flood: 'the flood',
@@ -580,6 +586,16 @@ export interface PhaseTiming {
    * nothing familiar on it is a boss nobody has a way into.
    */
   spray: number
+  /**
+   * Seconds between one breath and the next.
+   *
+   * The frost queen's own cone, and the shape this raid was short of: she
+   * breathes in the source and the only cone in this game belonged to the
+   * plagueworks. Same geometry as the spray and a different owner, which is
+   * what `Ground.owner` is for -- a cone aimed and then committed to, so
+   * walking round it is an answer rather than a race.
+   */
+  breath: number
   /**
    * Seconds between one infection and the next.
    *
@@ -1216,6 +1232,7 @@ export interface Encounter {
     champion: number
     gorge: number
     spray: number
+    breath: number
     infection: number
     flood: number
     engulf: number
@@ -1346,6 +1363,7 @@ export interface Encounter {
     champion: string
     gorge: string
     spray: string
+    breath: string
     infection: string
     flood: string
     engulf: string
@@ -1544,6 +1562,7 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 14, raid: 13, ...beats({ coldflame: 5, spike: 12.5, bonestorm: 47.5 }) },
     lines: {
+      breath: '',
       phaseTwo: 'The floor is bone now',
       phaseThree: 'GRIND THEM ALL',
       instability: '',
@@ -1846,6 +1865,7 @@ export const ENCOUNTERS: Encounter[] = [
     // they mean is "this long after the wall comes down".
     opening: { slam: 13, raid: 15, ...beats({ adds: 5, volley: 20, decay: 10, frostbolt: 11, shade: 13.5, insignificance: 7.5, empower: 25, dominate: 30 }) },
     lines: {
+      breath: '',
       phaseTwo: 'The chorus falters',
       phaseThree: 'I HAVE HELD THIS PLACE FOR CENTURIES',
       instability: '',
@@ -2046,6 +2066,7 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 12, raid: 14, ...beats({ blight: 3.5, bloat: 13.8, vilegas: 35, spore: 22.5, inhale: 27.5, pungent: 112 }) },
     lines: {
+      breath: '',
       phaseTwo: 'The air thickens',
       phaseThree: 'BREATHE IT ALL',
       instability: '',
@@ -2264,6 +2285,7 @@ export const ENCOUNTERS: Encounter[] = [
     // the bar, which is the whole point of it.
     opening: { slam: 13, raid: 13, ...beats({ siphon: 17, spill: 15.5, fester: 20, adds: 30, champion: 75, gorge: 30 }) },
     lines: {
+      breath: '',
       phaseTwo: 'It is heavier now',
       phaseThree: 'IT HAS TAKEN ENOUGH',
       instability: '',
@@ -2441,6 +2463,7 @@ export const ENCOUNTERS: Encounter[] = [
     // has to be taken out of the table, or a room becomes a discount.
     opening: { slam: 13, raid: 14, ...beats({ spray: 20, infection: 14, flood: 8, engulf: 8, slime: 5 }) },
     lines: {
+      breath: '',
       phaseTwo: 'It is coming apart',
       phaseThree: 'ALL OF IT AT ONCE',
       instability: '',
@@ -2642,6 +2665,7 @@ export const ENCOUNTERS: Encounter[] = [
     },
     opening: { slam: 14, raid: 13, ...beats({ caustic: 32.5, hound: 27.5, gather: 10, chase: 20, decant: 37.5, reagent: 11 }) },
     lines: {
+      breath: '',
       phaseTwo: 'The second flask',
       phaseThree: 'BOTH OF THEM, THEN',
       instability: '',
@@ -2834,6 +2858,7 @@ export const ENCOUNTERS: Encounter[] = [
     // short pull would end without it ever having moved.
     opening: { slam: 14, raid: 13, ...beats({ rotation: 45, thirst: 20, ballast: 21, nuclei: 12.5, prison: 17.5, adds: 46 }) },
     lines: {
+      breath: '',
       phaseTwo: 'Another of us, then',
       phaseThree: 'ALL THREE, AND NONE OF YOU',
       instability: '',
@@ -2991,6 +3016,7 @@ export const ENCOUNTERS: Encounter[] = [
     // fifty-four percent to twenty-eight in one tick.
     opening: { slam: 14, raid: 14, ...beats({ gift: 15, bond: 20, flight: 52, crimson: 20 }) },
     lines: {
+      breath: '',
       phaseTwo: 'Take it, all of you',
       phaseThree: 'IT IS EVERYWHERE NOW',
       instability: '',
@@ -3207,6 +3233,7 @@ export const ENCOUNTERS: Encounter[] = [
     // its first pull with the wound arriving at forty-eight.
     opening: { slam: 0, raid: 14, ...beats({ adds: 20, empower: 50, bleed: 30, kin: 55, portal: 30, suppress: 55 }) },
     lines: {
+      breath: '',
       phaseTwo: 'It is fading',
       phaseThree: 'HOLD ON',
       instability: '',
@@ -3318,18 +3345,25 @@ export const ENCOUNTERS: Encounter[] = [
     // What is killing raids here is the room's own bill and the debt the mark
     // collects, neither of which that dial touches.
     //
-    // At thirty-eight thousand every cell clears the line and the top two
-    // clear it by three points; at thirty-five they cleared it by ten or more.
-    // Moving `cover`'s opening in -- which thirty-five is also what forced,
-    // see below -- took some of that back at twenty-five, and the four cells
-    // stand at 68/60, 65/65, 55/57 and 40/50.
+    // Thirty-five was where it sat with six rungs. Two more arrived -- the
+    // breath and the flight, both the source's and both counted as missing --
+    // and the cells went to 50/57, 45/48, 35/35 and 30/40, with every loss
+    // ending at seventeen to twenty-two percent: a raid dying just short
+    // again, which is the same reading the first retune had. Twenty-nine
+    // thousand: 53/53, 53/68, 55/50, 40/55. Twenty-seven was tried and read
+    // worse at the top -- 48 by the ninth pull against 55 -- which is inside
+    // the noise of a forty-pull cell and is the reason to stand on the number
+    // that measured better rather than on the one that is smaller.
     //
-    // **The heroic twenty-five is on the line and is the cell to watch.** It
-    // is also the one cell that did not move for anything: 0.7 and 0.6 on
-    // `sizeMechanic`, 88 and 76 on the room's bill, all four read it at 50%
-    // by the ninth pull. Whatever is holding it there is structural rather
-    // than a dial, and finding out what is the next thing this fight is owed.
-    hp: 35000,
+    // **The heroic twenty-five moved, and what moved it is worth keeping.**
+    // That cell had been stuck at 50% by the ninth pull through four separate
+    // dials -- two values of `sizeMechanic`, two of the room's bill, a fifth
+    // off every mechanic -- and adding the breath took it to 55. A cone is a
+    // thing practice can *remove*: the fight's problem was never how much it
+    // dealt, it was that almost nothing in it could be answered better the
+    // second time. Adding a demand made it easier by the ninth pull, which is
+    // the whole thesis of `docs/mechanic-rules.md` arriving as a measurement.
+    hp: 29000,
     enrage: 280,
     phaseTwoHp: 0.65,
     // The last third is where the cold bites -- it turns every six seconds
@@ -3360,15 +3394,26 @@ export const ENCOUNTERS: Encounter[] = [
     // cold. The coffin is the one borrowed rung on this ladder and it is
     // borrowed for the rung above it: here a coffin is a prison and a wall,
     // and when to break one is the fight's only target call.
-    kit: ['chill', 'instability', 'haul', 'spike', 'cover', 'buffet'],
+    // Eight, and the last two are the source's rather than this game's: it was
+    // counted against `boss_sindragosa.cpp` and came up two short. Her frost
+    // breath is a cone, and the only cone in this game belonged to the
+    // plagueworks two wings away -- three fights have one in the source and
+    // one had one here. Her air phase is an air phase, in an engine that
+    // plainly does them: the crimson queen's is built and this is the same
+    // machinery with her name on it.
+    //
+    // They go on the end because the order is what a raid meets first, and
+    // what this fight *is* is still the mark and the stacking. The breath and
+    // the flight are what the source says she also does.
+    kit: ['chill', 'instability', 'haul', 'spike', 'cover', 'buffet', 'breath', 'flight'],
     always: [],
     herald: null,
     accent: '#a5f3fc',
     names: { slam: 'THE COLD HAND', shard: '', raid: 'THE LONG WINTER' },
     phases: {
-      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ chill: 2.4, instability: 26, haul: 19, spike: 26, cover: 40, buffet: 20 }) },
-      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ chill: 2.0, instability: 22, haul: 16, spike: 23, cover: 30, buffet: 12 }) },
-      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ chill: 1.6, instability: 19, haul: 13, spike: 20, cover: 26, buffet: 6 }) },
+      1: { swing: 2.1, slam: 16, puddleCount: 1, raid: 14, ...beats({ chill: 2.4, instability: 26, haul: 19, spike: 26, cover: 40, buffet: 20, breath: 21, flight: 95 }) },
+      2: { swing: 1.9, slam: 14, puddleCount: 1, raid: 13, ...beats({ chill: 2.0, instability: 22, haul: 16, spike: 23, cover: 30, buffet: 12, breath: 18, flight: 85 }) },
+      3: { swing: 1.7, slam: 12, puddleCount: 1, raid: 12, ...beats({ chill: 1.6, instability: 19, haul: 13, spike: 20, cover: 26, buffet: 6, breath: 15, flight: 75 }) },
     },
     // The cold turns every fourteen seconds in the first phase and every six
     // in the last, which is also not what the issue asked for -- it asked for
@@ -3397,8 +3442,9 @@ export const ENCOUNTERS: Encounter[] = [
     // Twenty-six and not less, because the shadow is cast by a coffin and the
     // coffins open at twenty-two. A wash with nothing to hide behind is not an
     // early mechanic, it is an unanswerable one.
-    opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 26, buffet: 8 }) },
+    opening: { slam: 12, raid: 15, ...beats({ chill: 0, instability: 20, haul: 17, spike: 22, cover: 26, buffet: 8, breath: 12, flight: 60 }) },
     lines: {
+      breath: 'She is breathing — get out of the front',
       phaseTwo: 'The cold gets in',
       instability: 'You are coming apart — hands off',
       haul: 'It is dragging us in',
@@ -3439,7 +3485,7 @@ export const ENCOUNTERS: Encounter[] = [
       prison: '',
       gift: '',
       bond: '',
-      flight: '',
+      flight: 'She is up — nowhere is out of it',
       crimson: '',
       bleed: '',
       kin: '',

@@ -644,6 +644,19 @@ export interface GroundEffect {
   /** breath: centre bearing in radians, and half-width of the cone. */
   angle: number
   halfWidth: number
+  /**
+   * Which mechanic laid this, when that is not the same as what it is.
+   *
+   * Two fights throw a cone now — the plagueworks' big arm and the frost
+   * queen's breath — and they are the same shape, the same telegraph, the same
+   * answer and the same drawing. What differs is whose it is: the name on the
+   * bill, the word the boss says, the colour it is drawn in. So the geometry
+   * stays one kind and the ownership rides along, rather than a second ground
+   * kind that is a copy of the first with one string changed.
+   *
+   * Absent means the kind is its own owner, which is every other patch here.
+   */
+  owner?: string
   /** shockwave: expansion speed and the thickness of the lethal band. */
   growth: number
   band: number

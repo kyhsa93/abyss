@@ -1865,7 +1865,7 @@ function drawSpray(
   // too: what the simulation tests is a bearing in the world, and the world
   // turns under the camera.
   const angle = screenAngle(g.angle)
-  const colour = iconFor('boss_spray').colour
+  const colour = iconFor(g.owner === 'breath' ? 'boss_breath' : 'boss_spray').colour
 
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)

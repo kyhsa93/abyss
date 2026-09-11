@@ -282,6 +282,11 @@ const BOSS_EFFECTS: Record<string, { colour: string; style: HitStyle }> = {
   // the small things and the merging are the fight itself, the flood is the
   // floor, and the engulfing is what the boss does with what nobody cleared.
   boss_spray: { colour: '#65a30d', style: 'cleave' },
+  // The other cone, and a different colour on purpose: the two are the same
+  // shape and the same answer, so the one thing that tells a player which
+  // wing they are standing in is what it is drawn in. Hers is the frost
+  // queen's own ice.
+  boss_breath: { colour: '#38bdf8', style: 'cleave' },
   boss_infection: { colour: '#84cc16', style: 'pierce' },
   boss_ooze: { colour: '#6b8e23', style: 'crush' },
   boss_flood: { colour: '#9acd32', style: 'burst' },

@@ -587,6 +587,7 @@ export function updateBoss(s: SimState, rng: Rng): void {
   scheduleGorge(s, b, target, timing)
   scheduleChampion(s, b, rng, timing)
   scheduleSpray(s, b, timing)
+  scheduleBreath(s, b, timing)
   scheduleInfection(s, b, rng, timing)
   scheduleFlood(s, b, timing)
   scheduleEngulf(s, b, timing)
@@ -2292,23 +2293,40 @@ export function spitOut(s: SimState, victim: Actor): void {
  * who noticed in time.
  */
 function scheduleSpray(s: SimState, b: Actor, timing: PhaseTiming): void {
-  if (timing.spray <= 0) return
-  s.next.spray -= DT
-  if (s.next.spray > 0 || b.castId) return
-  s.next.spray = timing.spray
+  cone(s, b, timing, 'spray')
+}
+
+/**
+ * And the frost queen's, which is the same cone with her name on it.
+ *
+ * She breathes in the source and this game had one cone in it, two wings away.
+ * Not a second implementation: the shape, the committed bearing, the walk
+ * round it and the picture are all the plagueworks', and what is hers is the
+ * bill, the word and the colour. See `Ground.owner`.
+ */
+function scheduleBreath(s: SimState, b: Actor, timing: PhaseTiming): void {
+  cone(s, b, timing, 'breath')
+}
+
+function cone(s: SimState, b: Actor, timing: PhaseTiming, owner: 'spray' | 'breath'): void {
+  if (timing[owner] <= 0) return
+  s.next[owner] -= DT
+  if (s.next[owner] > 0 || b.castId) return
+  s.next[owner] = timing[owner]
 
   s.sounds.push('telegraph')
-  say(s, b, lineFor(fight(s), 'spray'))
-  b.castId = 'boss_spray'
+  say(s, b, lineFor(fight(s), owner))
+  b.castId = `boss_${owner}`
   b.castRemaining = SPRAY_CAST
   b.castTotal = SPRAY_CAST
   b.castTargetId = null
-  pushEffect(s, 'cast', b.pos, { abilityId: 'boss_spray' })
+  pushEffect(s, 'cast', b.pos, { abilityId: `boss_${owner}` })
 
   // On the floor for the whole cast, at the bearing it is committed to.
   s.ground.push({
     ...blankGround(s),
     kind: 'spray',
+    owner,
     pos: { x: b.pos.x, y: b.pos.y },
     radius: SPRAY_RANGE,
     telegraph: SPRAY_CAST,
@@ -3998,23 +4016,26 @@ export function resolveBossCast(s: SimState, castId: string, targetId: number | 
     return
   }
 
-  if (castId === 'boss_spray') {
-    const cone = s.ground.find((g) => g.kind === 'spray' && !g.detonated)
-    if (!cone) return
-    cone.detonated = true
-    cone.lingering = 0.3
+  if (castId === 'boss_spray' || castId === 'boss_breath') {
+    const owner = castId === 'boss_breath' ? 'breath' : 'spray'
+    const shape = s.ground.find(
+      (g) => g.kind === 'spray' && (g.owner ?? 'spray') === owner && !g.detonated,
+    )
+    if (!shape) return
+    shape.detonated = true
+    shape.lingering = 0.3
     for (const a of livingParty(s)) {
-      if (!insideCone(a.pos, cone)) continue
-      const damage = mechanic(s, cone.damage)
-      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: 'spray' })
+      if (!insideCone(a.pos, shape)) continue
+      const damage = mechanic(s, shape.damage)
+      applyDamage(s, a, damage, 'magic', { sourceId: b.id, mechanic: owner })
       // Along the cone rather than along the line to the boss, so the streak
-      // reads as the spray going through them.
-      pushEffect(s, 'impact', a.pos, { abilityId: 'boss_spray', power: damage, angle: cone.angle })
+      // reads as the cast going through them.
+      pushEffect(s, 'impact', a.pos, { abilityId: castId, power: damage, angle: shape.angle })
     }
     pushEffect(s, 'impact', b.pos, {
-      abilityId: 'boss_spray',
-      power: cone.damage,
-      angle: cone.angle,
+      abilityId: castId,
+      power: shape.damage,
+      angle: shape.angle,
       crit: true,
     })
     return
