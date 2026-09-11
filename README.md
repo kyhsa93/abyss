@@ -2417,6 +2417,42 @@ in this repository is under those terms. The credit list is in
 `art/LPC-CREDITS.md` and is generated from the same definitions the layers come
 from, so it cannot fall behind a change to the layer table.
 
+### The bodies that are not people
+
+Liberated Pixel Cup draws people. It ships beast heads, ears, tails and wings
+to put *on* a person and no quadrupeds at all, so everything on this floor that
+is not a person has been the nearest person-shaped thing the set has: a
+gargoyle is stone with bat's wings, a nerubian is a carapace with a tail.
+
+One of those was not an approximation but a lie. A drake was a lizard *child*
+with adult wings pinned on, tinted pale blue, standing at the height of a
+person — and what the frostwing gauntlet actually holds is thirty whelps and
+two frostwyrms. So that one body comes from somewhere else: the
+[Flare wyvern](https://opengameart.org/content/wyvern-1), modelled and animated
+by Clint Bellanger with a texture by Justin Nichol, CC-BY-SA 3.0, credited in
+`art/BEAST-CREDITS.md`.
+
+It arrives as eight directions of seven animations at 256 pixels, and the atlas
+stores four directions of five frames at about eighty. `Beast` in
+`scripts/lpc.ts` is the cut, and the three things it has to decide are the
+three a sheet cannot answer for itself: which of the eight rows are this
+game's four, how big the creature stands against the sixty-four square a person
+stands in, and where its ground line is — a sheet of a flying thing is centred
+in its cell, so taken as it comes it is drawn half sunk into the floor.
+
+**What that leaves usable and what it rules out** is worth writing down,
+because the obvious search term for this game's look is "isometric" and half of
+what that turns up cannot be used here at all. The floor turns (see *The
+camera*), and the tilt is 0.62 — about thirty-eight degrees above the floor,
+against the twenty-seven a two-to-one isometric tile is drawn for.
+
+| | |
+| --- | --- |
+| isometric **floor tiles** | **no**. A rhombus with the geometry baked into it is right at one camera angle and this camera has all of them. What a floor here is is a flat top-down texture tiled over a plane that turns — `floor-earth` and its four siblings. |
+| isometric **props** | yes, with care. A prop is a billboard standing upright on the plane, which is what the LPC props already are; what differs is only the angle it was baked at. |
+| **bodies** | yes. Directions are chosen in screen space, so a sheet with eight of them is better than one with four, not worse — `directionOf` picks the nearest. |
+| anything shipping its **3D source** | **worth more than the rest put together.** The angle stops being a fact about the download. `wyvern.blend` sits beside the sheet for exactly that reason: the day this is re-rendered at 0.62 it is a render setting rather than a redraw. |
+
 ## Hit effects
 
 The impact animations come from the
