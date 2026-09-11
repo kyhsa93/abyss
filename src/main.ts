@@ -37,34 +37,6 @@ const toScene = (x: number, y: number, z: number, cx: number, cy: number) =>
 const hud = document.getElementById('hud') as HTMLDivElement
 
 /**
- * The two packs do not share a palette, and that is the harder half.
- *
- * Kenney's Nature Kit is authored in a saturated teal-and-orange house style —
- * the kit's own preview sheet is teal trees on orange ground, so this is their
- * intent, not a mis-read on our side.  Quaternius's characters are muted earth
- * tones.  Put them in one scene and the trees glow next to the warrior.
- *
- * What makes it cheap to fix: every Kenney material is a flat `baseColorFactor`
- * with no texture, and there are only twelve distinct names across the whole
- * kit.  So the palette is a lookup, applied once at load.  Twelve numbers buy
- * a scene that reads as one place.
- */
-const PALETTE: Record<string, number> = {
-  leafsGreen: 0x4e7a3a,
-  leafsDark: 0x3d6130,
-  grass: 0x5f8c42,
-  woodBark: 0x6b4a30,
-  woodBarkDark: 0x55391f,
-  woodDark: 0x5a3d27,
-  wood: 0x7a563a,
-  woodInner: 0xa8875f,
-  dirt: 0x7a5c3c,
-  colorRed: 0x8c4238,
-  colorRedDark: 0x6f3129,
-  _defaultMat: 0x9b968b,
-}
-
-/**
  * Every one of these packs exports `metallicFactor: 1`.
  *
  * glTF's default is fully metallic, and a fully metallic surface with nothing
@@ -73,47 +45,67 @@ const PALETTE: Record<string, number> = {
  * silhouette, and both were this one line.  It is not a per-pack quirk; it is
  * what the format's default does to art authored as flat colour.
  */
-function dress(root: THREE.Object3D, repalette: boolean) {
+function dress(root: THREE.Object3D) {
   root.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
+    m.castShadow = true
+    m.receiveShadow = true
     for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) {
       if (mat.metalness === undefined) continue
       mat.metalness = 0
-      mat.roughness = 0.85
-      if (repalette && PALETTE[mat.name] !== undefined) mat.color.setHex(PALETTE[mat.name])
+      mat.roughness = 0.9
       mat.needsUpdate = true
     }
   })
 }
 
-// Kenney's Nature Kit is modelled around one unit to a metre and its trees are
-// waist-high next to a WoW yard.  These multipliers are not derived from
-// anything: they were set by looking at the result, which is the honest label
-// for them until something measures the real doodad sizes.
-const KIND: Record<string, { model: string[]; scale: number }> = {
-  tree: { model: ['tree_oak', 'tree_default', 'tree_tall'], scale: 7.0 },
-  pine: { model: ['tree_pineTallA'], scale: 7.0 },
-  bush: { model: ['plant_bushLarge', 'plant_bush'], scale: 2.4 },
-  fence: { model: ['fence_simple'], scale: 2.0 },
-  rock: { model: ['rock_largeA', 'rock_smallA'], scale: 3.4 },
-  lily: { model: ['lily_large'], scale: 2.0 },
-  water_plant: { model: ['grass_large'], scale: 2.0 },
-  grass: { model: ['grass_large'], scale: 2.0 },
-  flower: { model: ['flower_redA'], scale: 1.6 },
-  crop: { model: ['crops_wheatStageB'], scale: 2.0 },
-  mushroom: { model: ['mushroom_red'], scale: 1.6 },
-  stump: { model: ['log_stack'], scale: 2.0 },
-  log: { model: ['log_stack'], scale: 2.0 },
-  barrel: { model: ['pot_large'], scale: 1.8 },
-  lamp: { model: ['sign'], scale: 2.6 },
-  sign: { model: ['sign'], scale: 2.2 },
-  tent: { model: ['tent_smallClosed'], scale: 3.0 },
+// Doodads come out of the bake as a kind, never as a model path, so this is
+// where a kind becomes something to draw.
+//
+// The first pass used Kenney's Nature Kit, and it was the wrong pack: that kit
+// is a prototyping set — a hexagon on a stick is a tree — and next to hand
+// painted characters it read as placeholder, because it is.  Availability had
+// picked it, not quality.  Everything here is now Quaternius, the same author
+// as the characters, which also made the palette problem disappear rather than
+// need solving: one author, one palette.
+//
+// `height` is in yards and the scale is derived from the model's own bounding
+// box, so a swapped model does not need a new magic number.
+const KIND: Record<string, { model: string[]; height: number }> = {
+  // No TwistedTree here on purpose: its leaf texture averages a red that is
+  // autumn, and Elwynn is a green temperate forest.  The kit encodes season in
+  // the variant, so which variants a region may use is a property of the
+  // region — the same shape of fact as its terrain colour.
+  tree: {
+    model: ['CommonTree_1', 'CommonTree_2', 'CommonTree_3', 'CommonTree_4', 'CommonTree_5'],
+    height: 13,
+  },
+  pine: { model: ['Pine_1', 'Pine_2', 'Pine_3', 'Pine_4', 'Pine_5'], height: 15 },
+  // Bush_Common is dropped for the same reason as TwistedTree: it shares that
+  // tree's leaf texture, which is the autumn one.
+  bush: { model: ['Bush_Common_Flowers', 'Fern_1'], height: 1.7 },
+  fence: { model: ['Prop_WoodenFence_Single', 'Prop_WoodenFence_Extension1'], height: 1.4 },
+  rock: { model: ['Rock_Medium_1', 'Rock_Medium_2', 'Rock_Medium_3'], height: 1.8 },
+  lily: { model: ['Clover_1'], height: 0.35 },
+  water_plant: { model: ['Grass_Wispy_Tall'], height: 0.9 },
+  grass: { model: ['Grass_Common_Tall'], height: 0.8 },
+  flower: { model: ['Flower_3_Group', 'Flower_4_Group'], height: 0.5 },
+  crop: { model: ['Grass_Common_Short'], height: 0.7 },
+  mushroom: { model: ['Mushroom_Common'], height: 0.35 },
+  stump: { model: ['DeadTree_1', 'DeadTree_2'], height: 6 },
+  log: { model: ['DeadTree_2'], height: 5 },
+  barrel: { model: ['Prop_Crate'], height: 1.1 },
+  cart: { model: ['Prop_Wagon'], height: 2.2 },
+  prop: { model: ['Pebble_Round_1', 'Pebble_Square_2'], height: 0.5 },
 }
 
 async function main() {
   const head = await fetch('./data/terrain.json')
-  if (!head.ok) {
+  // Not just `ok`: a dev server answers a missing path with the index page and
+  // a cheerful 200, so the first sign of trouble is JSON.parse choking on
+  // "<!doctype".  Ask what came back, not whether something did.
+  if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
     // The deployed page reaches here, and that is not a bug to hide: the
     // terrain is baked from a client and cannot be committed, and the path
     // that fills the gap without one is not built yet.  Say so.
@@ -134,6 +126,7 @@ async function main() {
   const { width: W, height: H, unit: U, x0, y0 } = meta
   const [cx, cy] = meta.centre
 
+  const tex = new THREE.TextureLoader()
   const renderer = new THREE.WebGLRenderer({ antialias: true })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
   renderer.setSize(innerWidth, innerHeight)
@@ -164,15 +157,25 @@ async function main() {
   const height = (I: number, J: number) =>
     heights[Math.min(W - 1, Math.max(0, I)) * H + Math.min(H - 1, Math.max(0, J))]
 
+  // The ground is still flat colour, and it is still the weakest thing here.
+  //
+  // Tiling the kit's `Grass.png` over it was tried and was wrong twice over:
+  // that sheet is the sprite atlas the grass *models* are cut from, not a
+  // ground material, so repeating it drew stripes across the hills.  A name is
+  // not a promise about what an image is.  And the obvious replacement — a
+  // photoreal seamless grass off a PBR library — would clash with painted
+  // low-poly worse than plain colour does.  What this wants is a *stylised*
+  // tiling ground, and that has not been found yet.
   /** Terrain at a given stride, so the triangle budget can be tested by eye. */
   function buildTerrain(stride: number) {
     const w = Math.floor((W - 1) / stride) + 1
     const h = Math.floor((H - 1) / stride) + 1
     const pos = new Float32Array(w * h * 3)
     const col = new Float32Array(w * h * 3)
-    const rock = new THREE.Color(0x7d7466)
-    const grass = new THREE.Color(0x5f8c42)
-    const low = new THREE.Color(0x4f7a3f)
+
+    const rock = new THREE.Color(0x8a8272)
+    const grass = new THREE.Color(0x6d9349)
+    const low = new THREE.Color(0x5c8244)
     const c = new THREE.Color()
     for (let a = 0; a < w; a++) {
       for (let b = 0; b < h; b++) {
@@ -192,7 +195,7 @@ async function main() {
         // deterministic wobble per vertex gives it grain without giving it a
         // texture — which is the whole of what the art direction allows here.
         const n = Math.sin(I * 12.9898 + J * 78.233) * 43758.5453
-        c.offsetHSL(0, 0, ((n - Math.floor(n)) - 0.5) * 0.055)
+        c.offsetHSL(0, 0, ((n - Math.floor(n)) - 0.5) * 0.05)
         col[p] = c.r; col[p + 1] = c.g; col[p + 2] = c.b
       }
     }
@@ -227,61 +230,87 @@ async function main() {
   const cache = new Map<string, Promise<THREE.Object3D>>()
   const load = (name: string) => {
     if (!cache.has(name))
-      cache.set(name, loader.loadAsync(`./models/${name}.glb`).then((g) => g.scene))
+      cache.set(name, loader.loadAsync(`./models/nature/${name}.gltf`).then((g) => g.scene))
     return cache.get(name)!
   }
 
   let doodadTris = 0
   let instances = 0
-  const byModel = new Map<string, { d: Doodad; scale: number }[]>()
+  let drawnInstances = 0
+  let drawnTris = 0
+  const byModel = new Map<string, { d: Doodad; height: number }[]>()
   for (const dd of meta.doodads) {
     const k = KIND[dd.k]
     if (!k) continue
     const pick = k.model[(Math.abs(Math.round(dd.x * 7 + dd.y * 13)) % k.model.length)]
     if (!byModel.has(pick)) byModel.set(pick, [])
-    byModel.get(pick)!.push({ d: dd, scale: k.scale })
+    byModel.get(pick)!.push({ d: dd, height: k.height })
+  }
+
+  // The Quaternius kit is roughly twenty times the triangles of the prototyping
+  // set it replaced — 8.8 million across the slice against 450 thousand.  The
+  // art is worth it; drawing all of it at once is not.  Instances are refilled
+  // around wherever the camera is looking, which is what a game would do
+  // anyway: nothing 600 yards away needs to be in the buffer.
+  const VIEW = 220
+  const refills: ((cx2: number, cy2: number) => void)[] = []
+
+  const refill = (ax: number, ay: number) => {
+    drawnInstances = 0; drawnTris = 0
+    for (const f of refills) f(ax, ay)
   }
 
   const dummy = new THREE.Object3D()
   await Promise.all(
     [...byModel].map(async ([name, list]) => {
       const src = await load(name)
-      dress(src, true)
+      dress(src)
+      // Scale is derived, not typed: the model's own height decides it, so a
+      // pack swap does not turn into a round of nudging constants.
+      src.updateMatrixWorld(true)
+      const tall = new THREE.Box3().setFromObject(src).getSize(new THREE.Vector3()).y || 1
+      const base = list[0].height / tall
       const parts: THREE.Mesh[] = []
       src.traverse((o) => { if ((o as THREE.Mesh).isMesh) parts.push(o as THREE.Mesh) })
       for (const part of parts) {
         const inst = new THREE.InstancedMesh(part.geometry, part.material as THREE.Material, list.length)
         inst.castShadow = true
         inst.receiveShadow = true
-        list.forEach(({ d: dd, scale }, i) => {
-          const g = groundAt(dd.x, dd.y)
-          dummy.position.copy(toScene(dd.x, dd.y, g, cx, cy))
-          dummy.rotation.set(0, THREE.MathUtils.degToRad(dd.r), 0)
-          const s = scale * (0.75 + (Math.abs(Math.round(dd.x * 3 + dd.y * 5)) % 50) / 100)
-          dummy.scale.setScalar(s)
-          dummy.updateMatrix()
-          const m = new THREE.Matrix4().copy(part.matrixWorld).premultiply(dummy.matrix)
-          inst.setMatrixAt(i, m)
-        })
-        inst.instanceMatrix.needsUpdate = true
-        scene.add(inst)
-        const c = part.geometry.index ? part.geometry.index.count / 3
+        inst.frustumCulled = false
+        const local = part.matrixWorld.clone()
+        const tris = part.geometry.index ? part.geometry.index.count / 3
           : part.geometry.attributes.position.count / 3
-        doodadTris += c * list.length
+        const fill = (ax: number, ay: number) => {
+          let n = 0
+          for (const { d: dd } of list) {
+            if ((dd.x - ax) ** 2 + (dd.y - ay) ** 2 > VIEW * VIEW) continue
+            dummy.position.copy(toScene(dd.x, dd.y, groundAt(dd.x, dd.y), cx, cy))
+            dummy.rotation.set(0, THREE.MathUtils.degToRad(dd.r), 0)
+            dummy.scale.setScalar(base * (0.8 + (Math.abs(Math.round(dd.x * 3 + dd.y * 5)) % 45) / 100))
+            dummy.updateMatrix()
+            inst.setMatrixAt(n++, new THREE.Matrix4().copy(local).premultiply(dummy.matrix))
+          }
+          inst.count = n
+          inst.instanceMatrix.needsUpdate = true
+          drawnInstances += n
+          drawnTris += n * tris
+        }
+        refills.push(fill)
+        scene.add(inst)
+        doodadTris += tris * list.length
         instances += list.length
       }
     }),
   )
 
   // --- the character -----------------------------------------------------
-  const tex = new THREE.TextureLoader()
   const skin = await tex.loadAsync('./models/Warrior_Texture.png')
   const swordTex = await tex.loadAsync('./models/Warrior_Sword_Texture.png')
   for (const t of [skin, swordTex]) { t.colorSpace = THREE.SRGBColorSpace; t.flipY = false }
 
   const gltf = await loader.loadAsync('./models/Warrior.glb')
   const hero = gltf.scene
-  dress(hero, false)
+  dress(hero)
   hero.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
@@ -296,6 +325,7 @@ async function main() {
   })
   // The human warrior's own starting spot, out of `playercreateinfo`.
   const START: [number, number] = [-8949.95, -132.493]
+  refill(START[0], START[1])
   hero.position.copy(toScene(START[0], START[1], groundAt(...START), cx, cy))
   hero.scale.setScalar(1.15)
   scene.add(hero)
@@ -383,6 +413,7 @@ async function main() {
       const g = groundAt(o.x as number, o.y as number)
       target.copy(toScene(o.x as number, o.y as number, g + 2, cx, cy))
     }
+    if (o.x !== undefined && o.y !== undefined) refill(o.x as number, o.y as number)
     if (o.stride !== undefined) {
       scene.remove(terrain.mesh); terrain.mesh.geometry.dispose()
       stride = o.stride as number
@@ -402,7 +433,8 @@ async function main() {
     const info = renderer.info.render
     hud.textContent = [
       `terrain  ${terrain.tris.toLocaleString()} tris  (stride ${stride}, ${(meta.unit * stride).toFixed(2)} yd)`,
-      `doodads  ${instances.toLocaleString()} instances, ${Math.round(doodadTris).toLocaleString()} tris`,
+      `doodads  ${drawnInstances.toLocaleString()} of ${instances.toLocaleString()} within ${VIEW} yd` +
+        `  (${Math.round(drawnTris / 1000).toLocaleString()}k of ${Math.round(doodadTris / 1000).toLocaleString()}k tris)`,
       `hero     ${heroTris.toLocaleString()} tris`,
       `drawn    ${info.triangles.toLocaleString()} tris, ${info.calls} calls`,
       `camera   yaw ${(yaw * 180 / Math.PI).toFixed(0)}°  pitch ${(pitch * 180 / Math.PI).toFixed(0)}°  ` +
