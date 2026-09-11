@@ -144,7 +144,7 @@ async function main() {
   // fog at a 110 yard zoom.  It belongs at the horizon, not in the foreground.
   scene.fog = new THREE.Fog(0x93b6cf, 700, 2400)
 
-  const sun = new THREE.DirectionalLight(0xfff2e0, 2.4)
+  const sun = new THREE.DirectionalLight(0xfff4e6, 2.9)
   sun.position.set(120, 200, 90)
   sun.castShadow = true
   sun.shadow.mapSize.set(2048, 2048)
@@ -152,30 +152,46 @@ async function main() {
   const sc = sun.shadow.camera as THREE.OrthographicCamera
   sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 1; sc.far = 700
   scene.add(sun)
-  scene.add(new THREE.HemisphereLight(0xcdd9e6, 0x55603c, 0.55))
+  scene.add(new THREE.HemisphereLight(0xd6e2ee, 0x5c6640, 0.75))
 
   const height = (I: number, J: number) =>
     heights[Math.min(W - 1, Math.max(0, I)) * H + Math.min(H - 1, Math.max(0, J))]
 
-  // The ground is still flat colour, and it is still the weakest thing here.
+  // The ground.
   //
-  // Tiling the kit's `Grass.png` over it was tried and was wrong twice over:
-  // that sheet is the sprite atlas the grass *models* are cut from, not a
-  // ground material, so repeating it drew stripes across the hills.  A name is
-  // not a promise about what an image is.  And the obvious replacement — a
-  // photoreal seamless grass off a PBR library — would clash with painted
-  // low-poly worse than plain colour does.  What this wants is a *stylised*
-  // tiling ground, and that has not been found yet.
+  // Two wrong answers came first.  The kit's own `Grass.png` is the sprite
+  // atlas its grass *models* are cut from, not a ground material, and tiling it
+  // drew stripes across the hills — a name is not a promise about what an image
+  // is.  A photoreal seamless grass off a PBR library was worse still: beside
+  // painted low-poly it looks like a photograph someone dropped in.
+  //
+  // This one is hand-painted and tiles, which is the pair of properties that
+  // actually matter.  Vertex colour still carries height and slope; it
+  // multiplies the sheet rather than replacing it, so a steep face tints brown
+  // without needing a second texture.
+  const ground = await tex.loadAsync('./models/ground/grass.png')
+  ground.colorSpace = THREE.SRGBColorSpace
+  ground.wrapS = ground.wrapT = THREE.RepeatWrapping
+  ground.anisotropy = renderer.capabilities.getMaxAnisotropy()
+  // The sheet ships a normal map, and on ground this flat it is the only thing
+  // that keeps a hillside from reading as a painted plane.
+  const groundNrm = await tex.loadAsync('./models/ground/grass_nrm.png')
+  groundNrm.wrapS = groundNrm.wrapT = THREE.RepeatWrapping
+  groundNrm.anisotropy = ground.anisotropy
   /** Terrain at a given stride, so the triangle budget can be tested by eye. */
   function buildTerrain(stride: number) {
     const w = Math.floor((W - 1) / stride) + 1
     const h = Math.floor((H - 1) / stride) + 1
     const pos = new Float32Array(w * h * 3)
     const col = new Float32Array(w * h * 3)
+    const uv = new Float32Array(w * h * 2)
+    const TILE_YD = 7   // one repeat of the sheet, in yards
 
-    const rock = new THREE.Color(0x8a8272)
-    const grass = new THREE.Color(0x6d9349)
-    const low = new THREE.Color(0x5c8244)
+    // These multiply the sheet, so they sit near white where the sheet should
+    // show through as painted and only pull hard on steep ground.
+    const rock = new THREE.Color(0xb3a894)
+    const grass = new THREE.Color(0xe8f0dc)
+    const low = new THREE.Color(0xc6d8b4)
     const c = new THREE.Color()
     for (let a = 0; a < w; a++) {
       for (let b = 0; b < h; b++) {
@@ -185,6 +201,8 @@ async function main() {
         // grid index to world, then world to scene
         const wx = x0 - I * U, wy = y0 - J * U
         pos[p] = -(wy - cy); pos[p + 1] = z; pos[p + 2] = -(wx - cx)
+        const q = (a * h + b) * 2
+        uv[q] = pos[p] / TILE_YD; uv[q + 1] = pos[p + 2] / TILE_YD
         // Slope decides rock or grass; height only tints.  Colour alone is the
         // whole of the ground's material — see the wiki: "바닥은 색 빼고 결만".
         const dzx = height(I + stride, J) - height(I - stride, J)
@@ -195,7 +213,7 @@ async function main() {
         // deterministic wobble per vertex gives it grain without giving it a
         // texture — which is the whole of what the art direction allows here.
         const n = Math.sin(I * 12.9898 + J * 78.233) * 43758.5453
-        c.offsetHSL(0, 0, ((n - Math.floor(n)) - 0.5) * 0.05)
+        c.offsetHSL(0, 0, ((n - Math.floor(n)) - 0.5) * 0.045)
         col[p] = c.r; col[p + 1] = c.g; col[p + 2] = c.b
       }
     }
@@ -211,9 +229,14 @@ async function main() {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
     g.setIndex(idx)
     g.computeVertexNormals()
-    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }))
+    g.computeTangents()
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+      vertexColors: true, map: ground, normalMap: groundNrm,
+      normalScale: new THREE.Vector2(0.7, 0.7), roughness: 1, metalness: 0,
+    }))
     m.receiveShadow = true
     return { mesh: m, tris: idx.length / 3 }
   }
