@@ -1681,17 +1681,20 @@ export const ENCOUNTERS: Encounter[] = [
     // the room will give both pairs of doors. It comes out ahead of her rather
     // than around her, which is what an oratory is: the pews face the altar
     // and the altar is at the back.
+    // Five a side and evenly spaced is a colonnade, which is what this room's
+    // own note has called them all along -- "the pews face the altar". Drawn
+    // as white rock they were ten boulders in two lines, which is a quarry.
     terrain: [
-      { pos: { x: -640, y: 25 }, radius: 70 },
-      { pos: { x: -640, y: 315 }, radius: 70 },
-      { pos: { x: -640, y: 605 }, radius: 70 },
-      { pos: { x: -640, y: 895 }, radius: 70 },
-      { pos: { x: -640, y: 1185 }, radius: 70 },
-      { pos: { x: 640, y: 25 }, radius: 70 },
-      { pos: { x: 640, y: 315 }, radius: 70 },
-      { pos: { x: 640, y: 605 }, radius: 70 },
-      { pos: { x: 640, y: 895 }, radius: 70 },
-      { pos: { x: 640, y: 1185 }, radius: 70 },
+      { pos: { x: -640, y: 25 }, radius: 70, look: 'column' },
+      { pos: { x: -640, y: 315 }, radius: 70, look: 'column' },
+      { pos: { x: -640, y: 605 }, radius: 70, look: 'column' },
+      { pos: { x: -640, y: 895 }, radius: 70, look: 'column' },
+      { pos: { x: -640, y: 1185 }, radius: 70, look: 'column' },
+      { pos: { x: 640, y: 25 }, radius: 70, look: 'column' },
+      { pos: { x: 640, y: 315 }, radius: 70, look: 'column' },
+      { pos: { x: 640, y: 605 }, radius: 70, look: 'column' },
+      { pos: { x: 640, y: 895 }, radius: 70, look: 'column' },
+      { pos: { x: 640, y: 1185 }, radius: 70, look: 'column' },
     ],
     /**
      * Four side doors, and two of them only open for a big raid.
@@ -2009,8 +2012,8 @@ export const ENCOUNTERS: Encounter[] = [
      * both at all three raid sizes.
      */
     terrain: [
-      { pos: { x: -348, y: -65 }, radius: 95 },
-      { pos: { x: 348, y: -65 }, radius: 95 },
+      { pos: { x: -348, y: -65 }, radius: 95, look: 'vat' },
+      { pos: { x: 348, y: -65 }, radius: 95, look: 'vat' },
     ],
     /** Fine and flat: a room that is worked in rather than fought over. */
     floor: 'floor-slate',
@@ -2532,10 +2535,10 @@ export const ENCOUNTERS: Encounter[] = [
      * answer to all three.
      */
     terrain: [
-      { pos: { x: -582, y: -140 }, radius: 85 },
-      { pos: { x: 582, y: -140 }, radius: 85 },
-      { pos: { x: -582, y: 222 }, radius: 85 },
-      { pos: { x: 582, y: 222 }, radius: 85 },
+      { pos: { x: -582, y: -140 }, radius: 85, look: 'vat' },
+      { pos: { x: 582, y: -140 }, radius: 85, look: 'vat' },
+      { pos: { x: -582, y: 222 }, radius: 85, look: 'vat' },
+      { pos: { x: 582, y: 222 }, radius: 85, look: 'vat' },
     ],
     /** A workshop, and the brightest room in the building. */
     floor: 'floor-slate',

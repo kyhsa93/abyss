@@ -1006,6 +1006,20 @@ export interface BgFlag {
 export interface Obstacle {
   pos: Vec2
   radius: number
+  /**
+   * What it is made of, for the one side of this that is not the simulation.
+   *
+   * Nothing under `src/sim` reads it: a lump of terrain is a circle nobody
+   * walks through whatever it is drawn as, and the day this decides a
+   * collision is the day two rooms play differently because of their
+   * furniture. It is here rather than beside the drawing because the rooms are
+   * written here — the great hall's twelve lumps are a forge and its anvils,
+   * and which of them is the forge is a fact about the building, not about the
+   * renderer.
+   *
+   * Absent is stone, which is what every one of them was.
+   */
+  look?: 'rock' | 'column' | 'fire' | 'vat'
 }
 
 /**

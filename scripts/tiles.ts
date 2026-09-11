@@ -136,6 +136,32 @@ const PIECES: Piece[] = [
   { id: 'rubble-a', sheet: 'Terrain and Outside.png', x: 960, y: 512, w: 32, h: 32, by: 'sharm' },
   { id: 'rubble-b', sheet: 'Terrain and Outside.png', x: 992, y: 512, w: 32, h: 32, by: 'sharm' },
   { id: 'pebbles', sheet: 'Terrain and Outside.png', x: 960, y: 640, w: 32, h: 64, by: 'sharm' },
+
+  // And the citadel's own furniture, off the interior sheet.
+  //
+  // Seventeen pieces furnished twelve rooms, and eleven of them held nothing
+  // at all: the graveyard set above was cut for a drowned floor and a raid
+  // does not walk through a graveyard. What the building actually is is bone
+  // and cold and a laboratory, and that is on the sheet already — the set
+  // ships three thousand tiles and this table was using seventeen of them.
+  //
+  // All Sharm's, and the attribution file is specific about which of hers:
+  // the skeletons, the cauldron, the campfire and the cobwebs are hers
+  // "commissioned by William Thompsonj", and the columns are hers outright.
+  // Nothing here is from the sheet's `MISSING:` section — the banners are, and
+  // a banner would have been the obvious thing to hang in the great hall.
+  { id: 'brazier', sheet: 'Interior.png', x: 993, y: 610, w: 31, h: 30, by: 'sharm' },
+  { id: 'cauldron', sheet: 'Interior.png', x: 707, y: 449, w: 27, h: 30, by: 'sharm' },
+  // Trimmed six rows off the top, which is a curtain rail on the tile above
+  // it: the piece is a column and the rail is a gold sliver floating over its
+  // capital.
+  { id: 'column', sheet: 'Interior.png', x: 476, y: 738, w: 36, h: 114, by: 'sharm' },
+  // The skulls and the bone heaps beside these on the sheet are not cut, and
+  // the reason is the rule this table already keeps: a piece is cut when a
+  // room asks for it. There is no bone furniture in the building — the one
+  // room that would obviously hold it is the first boss's, and that floor is
+  // empty on purpose so that "step off the line" is never "walk round the
+  // rock". Cut them the day something stands on them.
 ]
 
 function unattributed(): string[] {

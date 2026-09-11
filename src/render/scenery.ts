@@ -137,6 +137,26 @@ const FLOORS = PROP_IDS.filter((id) => id.startsWith('floor-')).sort()
 const ANCHORS = ['boulder', 'menhir']
 const LITTER = ['scatter', 'rubble-a', 'rubble-b', 'pebbles']
 
+/**
+ * And the citadel's own, for a lump that is not a rock.
+ *
+ * Every obstacle in this game was stone, which is right for a room with
+ * nothing written about it and wrong for the four rooms where the source says
+ * what the thing is: the great hall's are a forge and its anvils, the
+ * Oratory's are its columns, the laboratory's are vats. Same pile, different
+ * parts — see `pileFor`, which is unchanged apart from where it reads the
+ * names from.
+ *
+ * A kind with no litter is a kind that stands alone. A column with rubble
+ * round its foot reads as a ruin, and the citadel is not ruined yet.
+ */
+const LOOKS: Record<string, { anchors: string[]; litter: string[] }> = {
+  rock: { anchors: ANCHORS, litter: LITTER },
+  column: { anchors: ['column'], litter: [] },
+  fire: { anchors: ['brazier'], litter: ['rubble-a', 'scatter'] },
+  vat: { anchors: ['cauldron'], litter: ['rubble-b', 'pebbles'] },
+}
+
 interface Lump {
   id: string
   /** Offset from the obstacle's centre, in world units. */
@@ -164,14 +184,16 @@ const piles = new Map<string, Lump[]>()
  * the simulation. Terrain does not move.
  */
 function pileFor(rock: Obstacle): Lump[] {
-  const key = `${rock.pos.x.toFixed(1)},${rock.pos.y.toFixed(1)},${rock.radius.toFixed(1)}`
+  const key = `${rock.pos.x.toFixed(1)},${rock.pos.y.toFixed(1)},${rock.radius.toFixed(1)},${rock.look ?? ''}`
   const had = piles.get(key)
   if (had) return had
 
   const rng = new Rng(Math.round(rock.pos.x * 73 + rock.pos.y * 179 + rock.radius * 13))
+  const made = LOOKS[rock.look ?? 'rock'] ?? LOOKS.rock!
+  const { anchors, litter } = made
   const lumps: Lump[] = [
     {
-      id: ANCHORS[rng.int(ANCHORS.length)]!,
+      id: anchors[rng.int(anchors.length)]!,
       dx: rng.range(-0.15, 0.15) * rock.radius,
       dy: rng.range(-0.1, 0.1) * rock.radius,
       tall: rock.radius * rng.range(1.0, 1.35),
@@ -180,12 +202,12 @@ function pileFor(rock: Obstacle): Lump[] {
   ]
   // The rest around the base, inside the circle, so the pile reads as one
   // thing rather than as a rock with debris beside it.
-  const rest = 2 + rng.int(3)
+  const rest = litter.length === 0 ? 0 : 2 + rng.int(3)
   for (let i = 0; i < rest; i++) {
     const angle = (i / rest) * Math.PI * 2 + rng.range(0, 1.2)
     const out = rng.range(0.35, 0.8) * rock.radius
     lumps.push({
-      id: LITTER[rng.int(LITTER.length)]!,
+      id: litter[rng.int(litter.length)]!,
       dx: Math.cos(angle) * out,
       dy: Math.sin(angle) * out * 0.6,
       tall: rock.radius * rng.range(0.35, 0.6),

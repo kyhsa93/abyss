@@ -278,9 +278,14 @@ export const CHAMBERS: Chamber[] = [
     // it crosses — and the reason the hall has no packs is on the same sheet:
     // what the source puts in here is forty people who are not fighting
     // anybody.
+    // And three of the twelve are lit, which is the one thing the rows already
+    // said and the drawing did not. Every lump of terrain in this game was a
+    // pile of white rock, so the forge a hall is named for was a boulder --
+    // see `Obstacle.look`, which is a fact about the building and is read by
+    // nothing under `src/sim`.
     terrain: [
-      { pos: { x: -114, y: 7 }, radius: 55 },
-      { pos: { x: 181, y: 7 }, radius: 55 },
+      { pos: { x: -114, y: 7 }, radius: 55, look: 'fire' },
+      { pos: { x: 181, y: 7 }, radius: 55, look: 'fire' },
       { pos: { x: -166, y: 40 }, radius: 34 },
       { pos: { x: -52, y: 1 }, radius: 34 },
       { pos: { x: 124, y: 9 }, radius: 34 },
@@ -289,7 +294,7 @@ export const CHAMBERS: Chamber[] = [
       { pos: { x: 271, y: 7 }, radius: 28 },
       { pos: { x: -116, y: -140 }, radius: 40 },
       { pos: { x: 160, y: -118 }, radius: 40 },
-      { pos: { x: -619, y: 29 }, radius: 50 },
+      { pos: { x: -619, y: 29 }, radius: 50, look: 'fire' },
       { pos: { x: 5, y: 520 }, radius: 45 },
     ],
   },
