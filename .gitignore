@@ -3,12 +3,11 @@ dist
 .DS_Store
 *.local
 .claude/worktrees/
-sprites.svg
-shot.png
-shot.svg
 /shots/
-.gemini-key
-# Generated art. The PNGs artgen writes are committed under art/ once they are
-# real; this keeps the throwaway ones out while the pipeline has no key.
-/art/.cache/
-/shots-land/
+*.tmp.mjs
+
+# Anything baked out of the client.  The extractor is committed; its output is
+# not, and the reason is the wiki page "저작권과 배포 경계": bytes that came out
+# of Blizzard's archives do not enter this repository whatever shape they are
+# in by the time they leave the pipeline.
+/public/data/

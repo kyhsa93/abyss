@@ -16,5 +16,5 @@
     "types": ["vite/client", "node"],
     "noEmit": true
   },
-  "include": ["src", "scripts"]
+  "include": ["src"]
 }

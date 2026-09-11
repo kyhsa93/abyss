@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""Bake one slice of the client's terrain into something a browser can hold.
+
+Reads the client's own `.adt` tiles out of the MPQ archives and writes a single
+height grid plus the doodad placements that stand on it.  Nothing that comes out
+of here is committed: see the wiki page "저작권과 배포 경계".  The output is a
+local artefact for looking at, and the checks below are what say it is right.
+
+Why Python and not TypeScript, when the pipeline page argues for TypeScript:
+reading an MPQ means the hash/block tables, the crypt table, sector
+decompression and PKWARE explode.  `mpyq` already does all of it and there is
+no equivalent on npm.  The SQL side of the pipeline can still be TypeScript —
+this is the one wall where the tool decides the language.
+
+Run:  python3 pipeline/bake_terrain.py <client dir> <out dir>
+"""
+import json
+import os
+import struct
+import sys
+
+from mpyq import MPQArchive
+
+TILE = 533.33333          # SIZE_OF_GRIDS
+CHUNK = TILE / 16         # ADT_CELLS_PER_GRID
+UNIT = CHUNK / 8          # one height cell: 4.1667 yards
+ORIGIN = 32 * TILE        # the map's corner, because the origin is its middle
+
+# Highest patch wins.  Which archive a file actually comes from differs per
+# file, so the chain is walked for every read rather than resolved once.
+CHAIN = ['patch-3.MPQ', 'patch-2.MPQ', 'patch.MPQ',
+         'lichking.MPQ', 'expansion.MPQ', 'common-2.MPQ', 'common.MPQ']
+
+
+# The client's own file paths are Blizzard's, so they do not leave this script:
+# a doodad comes out as a *kind*, and the renderer picks one of our own models
+# for that kind.  This is the boundary from the wiki made into code rather than
+# into a comment — if a path ever reached the output, it would be a licence
+# problem that nothing would catch.
+KINDS = [
+    ('TREES\\', 'tree'), ('PINE', 'pine'), ('TREE', 'tree'),
+    ('BUSH', 'bush'), ('SHRUB', 'bush'),
+    ('FENCE', 'fence'), ('WOODPOST', 'fence'), ('POST', 'fence'),
+    ('CLIFFROCK', 'rock'), ('ROCK', 'rock'), ('BOULDER', 'rock'),
+    ('LILYPAD', 'lily'), ('SEAWEED', 'water_plant'), ('SWAMPPLANT', 'water_plant'),
+    ('GRASS', 'grass'), ('PLANT', 'grass'), ('FLOWER', 'flower'), ('CABBAGE', 'crop'),
+    ('MUSHROOM', 'mushroom'), ('STUMP', 'stump'), ('LOG', 'log'),
+    ('BARREL', 'barrel'), ('CRATE', 'barrel'), ('SACK', 'barrel'),
+    ('LAMPPOST', 'lamp'), ('SIGN', 'sign'), ('CAMPFIRE', 'campfire'),
+    ('TENT', 'tent'), ('WAGON', 'cart'), ('WHEELBARROW', 'cart'),
+]
+
+
+def classify(path):
+    """Blizzard's file path in, one of our own words out — or nothing."""
+    p = path.upper()
+    if 'CRITTER' in p:          # fireflies and birds are animation, not scenery
+        return None
+    for needle, kind in KINDS:
+        if needle in p:
+            return kind
+    return 'prop'
+
+
+def chunks(data, off=0, end=None):
+    """ADT chunk magics are stored reversed."""
+    end = len(data) if end is None else end
+    while off + 8 <= end:
+        magic = data[off:off + 4][::-1].decode('ascii', 'replace')
+        size, = struct.unpack_from('<I', data, off + 4)
+        yield magic, off + 8, size
+        off += 8 + size
+
+
+def tile_of(x, y):
+    """World coordinate to tile index.
+
+    The parenthesis matters: `int(32 - x/TILE)`, not `32 - int(x/TILE)`.  The
+    two differ by one tile and both name a file that exists, so the mistake does
+    not surface as a missing file — it surfaces as terrain that is off by 533
+    yards.  Caught by measuring a known point, not by reading the code.
+    """
+    return int(32 - x / TILE), int(32 - y / TILE)
+
+
+class Client:
+    def __init__(self, root):
+        self.root = root
+        self._open = {}
+
+    def _arch(self, name):
+        if name not in self._open:
+            self._open[name] = MPQArchive(os.path.join(self.root, 'Data', name))
+        return self._open[name]
+
+    def read(self, path):
+        for name in CHAIN:
+            try:
+                data = self._arch(name).read_file(path)
+            except Exception:
+                data = None
+            if data:
+                return data, name
+        return None, None
+
+
+def read_tile(client, tx, ty):
+    """One `.adt`.  Note the file is named <Y>_<X>, not <X>_<Y>."""
+    data, src = client.read(f'World\\Maps\\Azeroth\\Azeroth_{ty}_{tx}.adt')
+    if data is None:
+        return None
+    cells, doodads = {}, []
+    names, ids = [], []
+    for magic, off, size in chunks(data):
+        if magic == 'MMDX':
+            names = [n.decode('ascii', 'replace') for n in data[off:off + size].split(b'\0')]
+        elif magic == 'MMID':
+            ids = struct.unpack_from(f'<{size // 4}I', data, off)
+        elif magic == 'MDDF':
+            for i in range(size // 36):
+                nid, uid, px, py, pz, rx, ry, rz, sc, fl = struct.unpack_from(
+                    '<IIffffffHH', data, off + i * 36)
+                # The placement is stored in the ADT's own axes.  This mapping
+                # was not read off a document: it is the one of four candidates
+                # that puts every doodad inside the tile it came from.
+                doodads.append((nid, ORIGIN - pz, ORIGIN - px, py, ry, sc / 1024.0))
+        elif magic == 'MCNK':
+            head = data[off:off + 128]
+            ix, iy = struct.unpack_from('<II', head, 4)      # ix moves Y, iy moves X
+            area, = struct.unpack_from('<I', head, 0x34)
+            holes, = struct.unpack_from('<H', head, 0x3C)
+            cx, cy, cz = struct.unpack_from('<fff', head, 0x68)
+            heights = None
+            for m2, o2, _ in chunks(data, off + 128, off + size):
+                if m2 == 'MCVT':
+                    # Not the header's ofsHeight: trusting that produced a
+                    # maximum height of 204,793,313 on one tile, and a median
+                    # that looked fine.
+                    heights = struct.unpack_from('<145f', data, o2)
+                    break
+            if heights:
+                cells[(ix, iy)] = (cx, cy, cz, area, holes, heights)
+    return cells, doodads, [n for n in names if n], src
+
+
+def bake(client, cx, cy, radius, out):
+    x_lo, x_hi = cx - radius, cx + radius
+    y_lo, y_hi = cy - radius, cy + radius
+    # Global height indices.  x = ORIGIN - I*UNIT, y = ORIGIN - J*UNIT.
+    i_lo, i_hi = int((ORIGIN - x_hi) / UNIT), int((ORIGIN - x_lo) / UNIT) + 1
+    j_lo, j_hi = int((ORIGIN - y_hi) / UNIT), int((ORIGIN - y_lo) / UNIT) + 1
+    w, h = i_hi - i_lo + 1, j_hi - j_lo + 1
+    grid = [None] * (w * h)
+    areas = {}
+
+    tiles = set()
+    for x in (x_lo, x_hi):
+        for y in (y_lo, y_hi):
+            tiles.add(tile_of(x, y))
+    tx_lo = min(t[0] for t in tiles); tx_hi = max(t[0] for t in tiles)
+    ty_lo = min(t[1] for t in tiles); ty_hi = max(t[1] for t in tiles)
+
+    doodads, sources = [], {}
+    for tx in range(tx_lo, tx_hi + 1):
+        for ty in range(ty_lo, ty_hi + 1):
+            got = read_tile(client, tx, ty)
+            if not got:
+                print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
+                continue
+            cells, dd, models, src = got
+            sources[f'{ty}_{tx}'] = src
+            for nid, wx, wy, wz, rot, sc in dd:
+                if x_lo <= wx <= x_hi and y_lo <= wy <= y_hi:
+                    name = models[nid] if nid < len(models) else ''
+                    kind = classify(name)
+                    if kind:
+                        doodads.append((kind, wx, wy, wz, rot, sc))
+            for (ix, iy), (ccx, ccy, ccz, area, holes, hv) in cells.items():
+                base_i = tx * 128 + iy * 8
+                base_j = ty * 128 + ix * 8
+                areas[area] = areas.get(area, 0) + 1
+                for r in range(9):
+                    I = base_i + r
+                    if not (i_lo <= I <= i_hi):
+                        continue
+                    for c in range(9):
+                        J = base_j + c
+                        if not (j_lo <= J <= j_hi):
+                            continue
+                        grid[(I - i_lo) * h + (J - j_lo)] = ccz + hv[r * 17 + c]
+
+    missing = sum(1 for v in grid if v is None)
+    filled = [v for v in grid if v is not None]
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
+        f.write(struct.pack(f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))
+    meta = {
+        'width': w, 'height': h, 'unit': UNIT,
+        'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
+        'centre': [cx, cy], 'radius': radius,
+        'zMin': min(filled), 'zMax': max(filled),
+        'tiles': sources,
+        'areas': areas,
+        'doodads': [{'k': k, 'x': round(x, 2), 'y': round(y, 2), 'z': round(z, 2),
+                     'r': round(rot, 1), 's': round(s, 3)} for k, x, y, z, rot, s in doodads],
+    }
+    with open(os.path.join(out, 'terrain.json'), 'w') as f:
+        json.dump(meta, f)
+
+    print(f'grid {w} x {h} = {w*h:,} vertices, {(w-1)*(h-1)*2:,} triangles')
+    print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')
+    print(f'doodads {len(doodads):,}')
+    print(f'areas {sorted(areas)}')
+    print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
+          f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
+    return meta
+
+
+def check(client, meta):
+    """The one check that matters: does this terrain agree with the server's?
+
+    `playercreateinfo` puts a human warrior at a spot the world database knows
+    the ground height of.  If the two disagree the whole chain is wrong
+    somewhere, and every other number here is decoration.
+    """
+    tx, ty, tz = -8949.95, -132.493, 83.5312
+    w, h, u = meta['width'], meta['height'], meta['unit']
+    I = int((meta['x0'] - tx) / u)
+    J = int((meta['y0'] - ty) / u)
+    with open(os.path.join(sys.argv[2], 'terrain.bin'), 'rb') as f:
+        f.seek((I * h + J) * 4)
+        z, = struct.unpack('<f', f.read(4))
+    print(f'check: human start ({tx}, {ty})  terrain {z:.2f}  vs spawn {tz:.2f}  '
+          f'delta {abs(z - tz):.2f} yd')
+    assert abs(z - tz) < 2.0, 'terrain disagrees with the world database'
+
+
+if __name__ == '__main__':
+    root = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser('~/workspace/warmane')
+    out = sys.argv[2] if len(sys.argv) > 2 else 'public/data'
+    c = Client(root)
+    m = bake(c, -9199.2, -32.1, 600.0, out)
+    check(c, m)
