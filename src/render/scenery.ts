@@ -20,7 +20,9 @@
 
 import { encounterAt } from '../sim/encounters'
 import { Rng } from '../sim/rng'
+import { wallGap, type RoomShape } from '../sim/room'
 import { PROPS, PROPS_SRC, PROP_IDS } from './props'
+import { L } from './theme'
 import type { Obstacle, Vec2 } from '../sim/types'
 
 type Sheet = CanvasImageSource & { width: number; height: number }
@@ -216,6 +218,200 @@ function pileFor(rock: Obstacle): Lump[] {
   }
   piles.set(key, lumps)
   return lumps
+}
+
+/**
+ * The ground the building is standing on.
+ *
+ * This is where the density goes, and the reason is written three times over
+ * in `draw.ts` already: the floor may not have opinions. Everything this game
+ * asks of anybody is a shape drawn on the floor, and the last time a picture
+ * was put there it competed with the telegraphs and was thrown out. So the
+ * answer to "make it look like a place" is not to decorate the board — it is
+ * to notice that the board has been floating in an empty void this whole time,
+ * and that the void is the one surface in the frame no mechanic will ever be
+ * drawn on.
+ *
+ * Every piece here is outside every cell of the building. Nothing is drawn on
+ * a floor anybody walks on, nothing is drawn on a floor anything is aimed at,
+ * and `rendercheck` holds that rather than this comment.
+ *
+ * Deterministic off the world grid rather than off a seed, so the citadel
+ * stands on the same rubble every pull and a piece does not walk when the
+ * camera turns.
+ */
+const SURROUND = ['boulder', 'menhir', 'rubble-a', 'rubble-b', 'pebbles', 'scatter', 'column']
+
+/**
+ * And a much shorter list for the rim, which is the half of this that is
+ * standing on a floor somebody is fighting on.
+ *
+ * Litter only: no boulder, no column, nothing that stands up. The first pass
+ * used one list for both and the screenshot settled it — a column rooted in
+ * the near rim of the smallest room stood between the camera and the raid,
+ * brighter than the party and twice their height, which is the exact failure
+ * the floor's own rule was written about. What reads as "this room has a floor
+ * made of something" is gravel and broken stone; what reads as an obstacle is
+ * anything with a silhouette.
+ */
+const RIM_PIECES = ['rubble-a', 'rubble-b', 'pebbles', 'scatter']
+
+/** How tall the rim's pieces stand — under a body, so none of them occludes one. */
+const RIM_TALL = 30
+
+/** And dimmer than the field outside, because this half is on a lit floor. */
+const RIM_DIM = 0.4
+
+/**
+ * How far apart the pieces stand, in world units, before the jitter.
+ *
+ * Read off the floor rather than picked: `roomReach` on the narrowest thing
+ * the building has is about two hundred, and a piece every two hundred units
+ * is a field dense enough to read as ground and sparse enough that the eye
+ * does not start counting it. Closer than this and the void stops being a
+ * surround and becomes a second floor competing with the first.
+ */
+const SURROUND_STEP = 130
+
+/** And how far off its grid point each one stands, as a share of the step. */
+const SURROUND_JITTER = 0.34
+
+/**
+ * Dim, and that is the whole of the art direction here.
+ *
+ * The building is lit and this is not. What is wanted is the difference
+ * between them: a bright floor with a fight on it, standing in a dark field of
+ * broken stone. Drawn at full strength the surround reads as the subject and
+ * the raid reads as something happening in the corner of it.
+ */
+const SURROUND_DIM = 0.7
+
+/**
+ * How far in from the wall the field is still allowed to stand.
+ *
+ * The second half of the answer, and the one that costs something. The void
+ * outside is free; a fight, though, fills the screen with one room, so a
+ * surround nobody can see is a surround that did not change the fight. What
+ * can be dressed without touching the board is the *rim* — the ring of floor
+ * against the wall, which the measured raid never stands in: it clusters at
+ * ninety to a hundred and twenty-five units from the boss, in rooms whose
+ * floors run four hundred and sixty across and up to eleven hundred.
+ *
+ * Seventy is about three bodies. A piece rooted there leans in over the floor,
+ * which is the framing the reference art gets from trees and walls, and it is
+ * drawn *under* the mechanics — a telegraph over a column is still a telegraph,
+ * the same rule the rocks already keep.
+ *
+ * `rendercheck` holds the line rather than this comment: nothing decorative is
+ * drawn further in than this, at any size, in any room.
+ */
+export const RIM_BAND = 70
+
+/**
+ * Whether a piece of scenery may stand here — the whole of the promise, in one
+ * function, so that the check can hold the same rule the drawing obeys.
+ *
+ * How deep into the building a point is, taken against the union rather than
+ * against one room: the cells overlap on purpose — that is what makes the
+ * floor continuous — so a point in a passage's rim can be in the middle of the
+ * hall the passage runs into. The deepest containment is the one that counts.
+ */
+export function surroundTakes(
+  cells: RoomShape[],
+  at: Vec2,
+  where: 'outside' | 'rim',
+): boolean {
+  let deep = -Infinity
+  for (const cell of cells) deep = Math.max(deep, wallGap(cell, at))
+  return where === 'outside' ? deep < 0 : deep >= 0 && deep < RIM_BAND
+}
+
+export function drawSurround(
+  ctx: CanvasRenderingContext2D,
+  project: (p: Vec2) => Vec2,
+  scale: number,
+  /** Every piece of floor on screen, which is what decides where this may go. */
+  cells: RoomShape[],
+  /**
+   * Which side of the wall this pass is for.
+   *
+   * Two passes because they sit at two different depths: the field outside
+   * goes under the building, and the rim goes over the floor and under every
+   * mechanic on it. One pass could not be both.
+   */
+  where: 'outside' | 'rim',
+  /** The world rectangle to cover, which is whatever the camera can see. */
+  from: Vec2,
+  to: Vec2,
+): boolean {
+  begin()
+  if (!sheet) return false
+
+  const x0 = Math.floor(from.x / SURROUND_STEP)
+  const x1 = Math.ceil(to.x / SURROUND_STEP)
+  const y0 = Math.floor(from.y / SURROUND_STEP)
+  const y1 = Math.ceil(to.y / SURROUND_STEP)
+  // A cap, because the camera zooms out and a frame that draws ten thousand
+  // rocks is a frame that does not arrive. At the widest zoom the field
+  // thins rather than the frame dropping.
+  const step = Math.max(1, Math.ceil(Math.sqrt(((x1 - x0) * (y1 - y0)) / 900)))
+
+  const lumps: Array<{ id: string; at: Vec2; tall: number; flip: boolean }> = []
+  for (let gx = x0; gx <= x1; gx += step) {
+    for (let gy = y0; gy <= y1; gy += step) {
+      const rng = new Rng(gx * 73856093 + gy * 19349663)
+      // A gap here and there, so the field is not a lattice.
+      if (rng.chance(0.14)) continue
+      const at = {
+        x: (gx + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * SURROUND_STEP,
+        y: (gy + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * SURROUND_STEP,
+      }
+      if (!surroundTakes(cells, at, where)) continue
+      const list = where === 'rim' ? RIM_PIECES : SURROUND
+      const id = list[rng.int(list.length)]!
+      const tall = where === 'rim' ? RIM_TALL : id === 'column' ? 128 : 58
+      lumps.push({ id, at, tall: tall * rng.range(0.6, 1.35), flip: rng.chance(0.5) })
+    }
+  }
+
+  // Where the floor stops being scenery and starts being the space in front of
+  // the camera. Off the layout rather than picked: the action bar is the top
+  // of the HUD, and the ground below it is ground nobody is looking at.
+  const nearest = L.actionY - 40
+
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  ctx.globalAlpha = where === 'rim' ? RIM_DIM : SURROUND_DIM
+  // Back to front, so a near piece covers a far one rather than the order the
+  // grid happened to produce.
+  for (const lump of lumps.sort((a, b) => a.at.y - b.at.y)) {
+    const rect = PROPS[lump.id]
+    if (!rect) continue
+    const [sx, sy, sw, sh] = rect
+    const on = project(lump.at)
+    // Nothing in the near foreground. The camera looks across the floor from
+    // behind the player, so the bottom of the frame is the ground *between*
+    // the viewer and the fight -- and a boulder there is a boulder standing on
+    // the joystick. Measured the hard way: at this zoom the first pass drew
+    // two of them over the controls, each half the width of the screen.
+    //
+    // A line rather than a fade, because what is wanted is not "less" but
+    // "not here": everything below it is the strip the HUD lives in.
+    if (on.y > nearest) continue
+    const h = lump.tall * scale
+    const w = (h * sw) / sh
+    if (lump.flip) {
+      ctx.save()
+      ctx.translate(on.x, 0)
+      ctx.scale(-1, 1)
+      ctx.drawImage(sheet, sx, sy, sw, sh, -w / 2, on.y - h, w, h)
+      ctx.restore()
+      continue
+    }
+    ctx.drawImage(sheet, sx, sy, sw, sh, on.x - w / 2, on.y - h, w, h)
+  }
+  ctx.restore()
+  return true
 }
 
 /** What a body gets when it stops being one. */

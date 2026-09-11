@@ -2,6 +2,7 @@ import { TRASH_KINDS, TRASH_LOOKS, trashLook } from '../src/sim/trash'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { ROUND_ARENA, insideRoom, onEdge, pushInside, roomArea, roomHasOutside, roomReach, wallGap } from '../src/sim/room'
+import { RIM_BAND, surroundTakes } from '../src/render/scenery'
 import { terrainFaults } from '../src/sim/battleground'
 import { everyAuthor } from '../src/credits'
 import { BAR_SLOTS } from '../src/input'
@@ -10219,6 +10220,57 @@ for (const [label, w, h] of [
     `${at.length} breaths out, every one of them at ${INHALE_MAX}`,
     at.length > 0 && at.every((n) => n === INHALE_MAX),
     at.join(', '),
+  )
+}
+
+// --- scenery may not stand on the board -------------------------------------
+//
+// The one promise the surround makes. Everything in this game is read off the
+// floor -- a line walking outward, a pool announcing itself, a cone off an
+// arm -- and the last time a picture was drawn on that floor it competed with
+// the telegraphs and was thrown out. So the field of broken stone the citadel
+// now stands in is allowed exactly two places: outside the building, and a
+// band of `RIM_BAND` against the inside of a wall.
+//
+// Held here rather than in a comment, because the number that satisfies it can
+// then be moved by anybody: `drawSurround` asks `surroundTakes` where it may
+// draw, and so does this.
+{
+  const deep: string[] = []
+  const middle: string[] = []
+  for (let e = 0; e < ENCOUNTERS.length; e++) {
+    const room = ENCOUNTERS[e]!.room ?? ROUND_ARENA
+    const reach = roomReach(room)
+    // A grid across the room and well past it, at a step finer than the one
+    // the drawing uses, so the sample is not the same points the scatter picks.
+    for (let x = -reach * 1.6; x <= reach * 1.6; x += 37) {
+      for (let y = -reach * 1.6; y <= reach * 1.6; y += 37) {
+        const at = { x, y }
+        const taken =
+          surroundTakes([room], at, 'outside') || surroundTakes([room], at, 'rim')
+        if (!taken) continue
+        const gap = wallGap(room, at)
+        if (gap >= RIM_BAND) {
+          deep.push(`${ENCOUNTERS[e]!.short} at ${Math.round(gap)} in from the wall`)
+        }
+        // And nowhere near where the raid actually stands. Measured in
+        // `docs/mechanic-rules.md`: the raid clusters ninety to a hundred and
+        // twenty-five units from the boss, and a pool is ninety-two across.
+        if (Math.hypot(x, y) < 125 + 92) {
+          middle.push(`${ENCOUNTERS[e]!.short} at ${Math.round(Math.hypot(x, y))} from the middle`)
+        }
+      }
+    }
+  }
+  expect(
+    `no scenery stands more than ${RIM_BAND} units in from a wall`,
+    deep.length === 0,
+    [...new Set(deep)].slice(0, 3).join('; '),
+  )
+  expect(
+    'and none of it stands where the raid does',
+    middle.length === 0,
+    [...new Set(middle)].slice(0, 3).join('; '),
   )
 }
 

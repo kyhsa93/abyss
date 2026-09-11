@@ -48,7 +48,7 @@ import { turnView, viewAngle } from './camera'
 import type { Actor, BgState, ProjectileKind, SimState, Vec2 } from '../sim/types'
 import { iconFor } from './icons'
 import type { Effects } from './effects'
-import { drawGrave, drawObstacles, floorTexture } from './scenery'
+import { drawGrave, drawObstacles, drawSurround, floorTexture } from './scenery'
 import { EDGE_LAP, fromRoom, roomAt, roomHasOutside, roomReach, type RoomShape } from '../sim/room'
 import { COLORS, L, classColor, setWorldRoom, worldRoom } from './theme'
 import { bodyHeight, drawBody, hasBody } from './lpcimage'
@@ -342,6 +342,23 @@ export function drawWorld(
   //
   // One pass and then the other, rather than wall-and-floor per cell, because
   // per cell the next cell's wall lands on the last cell's floor.
+  // The ground the whole thing is standing on, under the wall and under every
+  // floor. Outside all of them by construction -- see `drawSurround`, which is
+  // where this round's density went and why it went there rather than onto the
+  // board.
+  {
+    const wide = L.w / L.scale + 200
+    const deep = L.h / (L.scale * TILT) + 200
+    drawSurround(
+      ctx,
+      worldToScreen,
+      L.scale,
+      cells,
+      'outside',
+      { x: cam.x - wide, y: cam.y - deep },
+      { x: cam.x + wide, y: cam.y + deep },
+    )
+  }
   const building = cells.length > 1
   if (building) {
     ctx.save()
@@ -363,6 +380,21 @@ export function drawWorld(
       cell,
       !building,
       s.mode === 'travel' ? WING_WASH : 0,
+    )
+  }
+  // And the same field again, inside the wall this time: over the floor that
+  // was just laid and under every mechanic that lands on it. See `RIM_BAND`.
+  {
+    const wide = L.w / L.scale + 200
+    const deep = L.h / (L.scale * TILT) + 200
+    drawSurround(
+      ctx,
+      worldToScreen,
+      L.scale,
+      cells,
+      'rim',
+      { x: cam.x - wide, y: cam.y - deep },
+      { x: cam.x + wide, y: cam.y + deep },
     )
   }
   drawTerrain(ctx, s)
