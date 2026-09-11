@@ -1127,13 +1127,15 @@ which is why a ramp is a room and a stair is a doorway.
 
 ### In the order it is worth taking
 
-1. ~~**Every fight's cadence**, from its own script.~~ **Taken** — the table
-   above. Every mechanic on all ten built fights, except the two that describe
-   something this game does not have. The ninth and tenth read as this game's
-   own inventions and are not: `suppress` is the Suppresser, `instability` is
+1. ~~**Every fight's cadence**, from its own script.~~ **Taken in part, and it
+   used to say "every mechanic".** It is not every mechanic — see "Counted
+   against the scripts, one boss at a time" below, which is what happened when
+   somebody finally put the two lists side by side. What is true is the other
+   half of the old claim: the ninth and tenth read as this game's own
+   inventions and are not. `suppress` is the Suppresser, `instability` is
    Instability, `buffet` is Mystic Buffet, `spike` is the ice tomb and `cover`
-   is what you hide behind from the bomb. The names in this game are its own;
-   the mechanics under them are the source's.
+   is what you hide behind from the bomb. The names here are this game's; the
+   mechanics under them are the source's.
 2. ~~**Phase triggers**: what actually ends a phase there.~~ **Taken** — and
    the finding was that there mostly are none. See below.
 3. ~~**What the adds are.**~~ **Taken in part** — the wave is two creatures
@@ -1218,6 +1220,60 @@ against a tile reading that makes the whole shelf 114.6 yards across — so at
 There is no `DATA_THE_LICH_KING` boundary to settle it with; that is the one
 fight in the building the boundary table does not carry. Whoever builds #13
 measures that room again, and the object rows are the better ruler.
+
+### Counted against the scripts, one boss at a time
+
+2026-09-11. The list above said "every mechanic on all ten built fights" for a
+long time and nobody had counted. Counted — every `EVENT_` a boss's own script
+in `src/server/scripts/Northrend/IcecrownCitadel/` schedules, against the `kit`
+in `encounters.ts` — it is not true, and the gaps are worth having written down
+because most of them are one specific missing shape rather than a vague
+shortfall.
+
+| fight | the source's own | what is here | missing |
+| --- | --- | --- | --- |
+| Marrowgar | coldflame, bone spike graveyard, bone storm | coldflame, spike, bonestorm | — |
+| Deathwhisper | death and decay, dominate mind, frostbolt, frostbolt volley, shadow bolt, summon shade, touch of insignificance, empower cultist, summon wave | decay, dominate, frostbolt, volley, shade, insignificance, empower, adds | **shadow bolt**, **dark martyrdom** (a cultist that kills itself to come back worse), and the mana barrier, which was removed here on purpose |
+| Saurfang | blood nova, rune of blood, boiling blood, summon blood beast, mark of the fallen champion, blood power | spill, gorge, fester, adds, champion, siphon | — |
+| Festergut | inhale blight, gas spore, gastric bloat, vile gas, pungent blight, mortal wound | inhale, spore, bloat, vilegas, pungent, blight | — |
+| Rotface | mutated infection, slime spray, sticky ooze, ooze flood, vile gas, hasten infections, mortal wound | infection, spray, slime, flood, merge, ooze, engulf | **vile gas**, **hasten infections** — the interval shortening as the pull runs, which is the fight's own clock |
+| Putricide | slime puddle, unstable experiment, malleable goo, choking gas bomb, unbound plague, mutated plague | caustic, gather, chase, hound, decant, reagent | **choking gas bomb**, **mutated plague** (the third phase's stacking bill) |
+| Blood Council | invocation of blood, shock vortex, kinetic bomb, conjure flame, glittering sparks, shadow resonance, shadow prison | rotation, thirst, ballast, nuclei, prison, adds | **conjure flame**, **glittering sparks** — both Taldaram's, so one of the three princes has none of his own |
+| Lana'thel | vampiric bite, pact of the darkfallen, swarming shadows, twilight bloodbolt, delirious slash, blood mirror, air phase | gift, bond, stain, crimson, turning, flight | **twilight bloodbolt**, **delirious slash** |
+| Valithria | dream portal, column of frost, suppression, mana void, and four kinds of add | portal, suppress, adds, empower, bleed, kin | **column of frost**, **mana void**, and the four add kinds are one wave here. `bleed` and `kin` are this game's own and have no source at all |
+| Sindragosa | frost breath, blistering cold, unchained magic, ice tomb, frost bomb, icy grip, bellowing roar, air phase, mystic buffet, permeating chill | chill, instability, haul, spike, cover, buffet | **frost breath** (the frontal cone), **the air phase**, bellowing roar |
+
+Three things that fall out of the table rather than out of any one row:
+
+- **The cone is the shape this raid is short of.** Sindragosa's frost breath
+  and Taldaram's glittering sparks are both cones, and the Confluence's spray
+  is the only one in the game. The engine has the shape; three fights that have
+  one in the source do not have one here.
+- **Two fights have no air phase and the source gives them one.** Lana'thel's
+  is here; Sindragosa's is not, and the engine plainly can do it.
+- **The ninth fight is the least faithful of the ten**, which is the opposite
+  of what its notes imply. Its two best ideas — the wound and the one that came
+  to help — are this game's, and two of the source's own (the column of frost
+  and the mana void) are not here.
+
+### Thirteen encounters, not twelve
+
+The instance's own `DataTypes` runs `DATA_LORD_MARROWGAR` to
+`DATA_THE_LICH_KING` and there are **thirteen** fights in it, not twelve. This
+repo's plan — the room issues #26 through #37 — counts twelve, and the one it
+leaves out is `DATA_SISTER_SVALNA`, who has an encounter id, a boss script and
+a `BossBoundaryData` entry of her own. See issue #39.
+
+Her door says what she is for: `GO_GREEN_DRAGON_BOSS_ENTRANCE` is a
+`DOOR_TYPE_PASSAGE` on Svalna and a `DOOR_TYPE_ROOM` on Valithria, so in the
+source she is the lock on the ninth fight's door. Here the crossing opens
+straight onto the dreaming hall.
+
+And one more thing the door table settles, which issue #35 asked for and
+nothing had confirmed: Valithria has **four** `DOOR_TYPE_SPAWN_HOLE` doors —
+`GO_DOODAD_ICECROWN_ROOSTPORTCULLIS_01` through `04`. The four doors that room
+is supposed to have are in the source's own data, and the wave here still
+arrives without them.
 
 ## How to take a measurement off a picture
 
