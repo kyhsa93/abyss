@@ -40,15 +40,10 @@ import type { ClassId } from '../src/sim/classes'
 const IMAGE = resolve(process.cwd(), 'public/art/lpc.webp')
 const TABLE = resolve(process.cwd(), 'src/render/lpc.ts')
 const CREDITS = resolve(process.cwd(), 'art/LPC-CREDITS.md')
-const BEAST_CREDITS = resolve(process.cwd(), 'art/BEAST-CREDITS.md')
 
 const args = process.argv.slice(2)
 const at = args.indexOf('--lpc')
 const LPC = resolve(at >= 0 && args[at + 1] ? args[at + 1]! : join(homedir(), 'src/lpc'))
-const beastAt = args.indexOf('--beasts')
-const BEASTS_DIR = resolve(
-  beastAt >= 0 && args[beastAt + 1] ? args[beastAt + 1]! : join(homedir(), 'src/beasts'),
-)
 
 /** LPC's own cell, and its four directions. */
 const CELL = 64
@@ -723,127 +718,14 @@ const ADD: Record<string, Layer[]> = {
   // twenty-eight of them in one gauntlet, and the two named drakes above them
   // at twenty-four times that -- the same creature at two sizes, which is
   // exactly what a scaled sprite is for.
-}
-
-/**
- * A body that is not built out of Liberated Pixel Cup parts.
- *
- * The set draws people. Everything on this floor that is not one has so far
- * been the nearest person-shaped thing it has — a gargoyle is stone with bat's
- * wings, a nerubian is a carapace with a tail — and one of those was a lie
- * rather than an approximation: a drake was a lizard *child* with wings on it,
- * hovering at the size of a person, and what the gauntlet actually holds is
- * thirty whelps and two frostwyrms. There is no quadruped in LPC and no dragon
- * in it either.
- *
- * So one body comes from somewhere else. The shape of the sheet is different —
- * eight directions, seven animations, rendered out of a 3D scene rather than
- * drawn — and none of that reaches the atlas: `beastSheet` cuts it down to the
- * four directions and five frames every other body in here is stored as, and
- * everything past that point cannot tell the difference.
- *
- * What makes this worth doing rather than just tinting another lizard is that
- * the source is a *model*. The `.blend` sits beside the sheet in the same
- * directory, so the day this is re-rendered at the tilt the floor is actually
- * drawn at — 0.62, against the isometric camera these were baked from — it is
- * a render setting rather than a redraw.
- *
- * And the rule for whoever goes looking for the next one, because the obvious
- * search term is "isometric" and half of what that turns up is unusable here:
- * this camera *turns*. A body is fine — directions are picked in screen space,
- * so eight rows are better than four rather than worse. A prop is fine — it is
- * a billboard standing on the plane, which is what the LPC props already are.
- * A floor tile is not: a rhombus with the geometry baked into it is right at
- * one camera angle and this one has all of them, which is why the floors here
- * are flat top-down textures tiled over a plane rather than tiles.
- */
-interface Beast {
-  file: string
-  /** The source's own cell, which is not this atlas's. */
-  cell: number
-  /**
-   * The source's rows, in LPC's direction order: up, left, down, right.
-   *
-   * Read off the art rather than off a convention. The sheet's eight rows step
-   * round in forty-five degree turns and nothing in it says where they start;
-   * the two that are symmetrical are the two along the camera, and which of
-   * those is *away* is the one whose tail points at you. Rows 0, 2, 4 and 6
-   * face screen left, away, screen right and the camera.
-   */
-  rows: [number, number, number, number]
-  /** How many frames each animation is, along the sheet. */
-  beat: number
-  /** Where each animation starts, in animations rather than in frames. */
-  anims: Record<string, number>
-  /** Which of them this body walks with, and which it acts with. */
-  walk: string
-  action: string
-  /**
-   * How tall it stands, in the sixty-four square a person stands in.
-   *
-   * One and a bit rather than one: a whelp that measured exactly a person was
-   * a person-shaped smudge with wings, because a wyvern's height is mostly
-   * wing and its body is the thin part in the middle. Everything that is not
-   * this — how big a whelp is against a frostwyrm — is already the creature's
-   * own combat reach and is not set here. See `trashRadius`.
-   */
-  tall: number
-  /**
-   * Pushed towards a colour, the same way a worn layer is.
-   *
-   * Not decoration here. What the building has is *frost*wyrms, and the sheet
-   * is an olive-and-purple swamp animal — the one thing about it that is
-   * wrong for the corridor it stands in. The layer this replaced was tinted to
-   * exactly this colour for exactly this reason, and it is the same colour the
-   * tenth boss is drawn in, which is the wing of the citadel they both belong
-   * to.
-   */
-  tint: string
-  by: string
-  licence: string
-  url: string
-}
-
-/**
- * What the browser is told about a rendered sheet: the same numbers, minus the
- * ones only the credits care about.
- */
-interface BeastCut {
-  cell: number
-  rows: [number, number, number, number]
-  beat: number
-  /** Which animation, counted in animations rather than in frames. */
-  at: number
-  tall: number
-}
-
-const BEASTS: Record<string, Beast> = {
-  // The frostwyrms and their whelps. A quarter of a body of health apiece and
-  // twenty-eight of them in one gauntlet, and the two named drakes above them
-  // at twenty-four times that -- the same creature at two sizes, which is
-  // exactly what a scaled sprite is for.
-  drake: {
-    file: 'wyvern_noshadow.png',
-    cell: 256,
-    rows: [2, 0, 6, 4],
-    beat: 8,
-    anims: { hover: 0, fly: 1, sting: 2, breathe: 3, ram: 4, hit: 5, die: 6 },
-    // Hovering rather than flying, because the flying one is a glide: wings
-    // held level and the whole thing three cells wide, which is a creature
-    // crossing the sky rather than one coming down a corridor at you. The
-    // hover is a flap in place and is the narrower silhouette by half.
-    walk: 'hover',
-    // And breathing rather than stinging, because the breath is the only
-    // animation in the set that lights up: the last four frames carry a green
-    // glow at the throat, which is the one thing on this sheet that reads as
-    // "it is doing something" at the size a body is actually drawn.
-    action: 'breathe',
-    tall: 78,
-    tint: '#a5f3fc',
-    by: 'Clint Bellanger,Justin Nichol',
-    licence: 'CC-BY-SA 3.0',
-    url: 'https://opengameart.org/content/wyvern-1',
-  },
+  drake: [
+    { z: 5, dir: 'body/wings/lizard/adult/bg', half: 'behind', tint: '#a5f3fc' },
+    { z: 10, dir: 'body/bodies/child', tint: '#a5f3fc' },
+    { z: 90, dir: 'body/tail/lizard/child/bg', half: 'behind', tint: '#a5f3fc' },
+    { z: 100, dir: 'head/heads/lizard/child', tint: '#a5f3fc' },
+    { z: 120, dir: 'body/tail/lizard/child/fg', tint: '#a5f3fc' },
+    { z: 130, dir: 'body/wings/lizard/adult/fg', tint: '#a5f3fc' },
+  ],
 }
 
 /**
@@ -1227,13 +1109,6 @@ interface Subject {
    * nothing to draw here".
    */
   sheathed?: boolean
-  /**
-   * Or it is not layers at all: a sheet somebody rendered, cut to shape.
-   *
-   * Mutually exclusive with `layers`, which is empty when this is set. See
-   * `Beast`.
-   */
-  beast?: Beast
 }
 
 /** Every spec in the order the roster shows them, then every boss. */
@@ -1258,12 +1133,6 @@ function specs(): Subject[] {
   // one is what they will be doing.
   for (const [id, layers] of Object.entries(ADD)) {
     out.push({ id: `add-${id}`, layers, action: 'slash' })
-  }
-  // And the ones that are not people. Same `add-` name, because what they are
-  // called is a fact about the building rather than about where the art came
-  // from, and `trashLook` names them.
-  for (const [id, beast] of Object.entries(BEASTS)) {
-    out.push({ id: `add-${id}`, layers: [], action: 'slash', beast })
   }
   // And everything carried, on rows of its own.
   //
@@ -1378,7 +1247,6 @@ async function main(): Promise<void> {
 
   const all = specs()
   const used = new Set<string>()
-  const beasts = new Set<Beast>()
   const missing: string[] = []
   const offbeat: string[] = []
 
@@ -1391,37 +1259,6 @@ async function main(): Promise<void> {
       const sheet = anim === 'walk' ? 'walk' : spec.action
       if (anim !== 'walk' && spec.sheathed) {
         return { id: spec.id, block: index * ANIMATIONS.length + order, layers: [] }
-      }
-      // A rendered body is one layer and it is the whole sheet, handed over
-      // whole: which rows and which frames are its own to say, and the cut
-      // happens in the browser beside every other pixel read in this file.
-      if (spec.beast) {
-        const b = spec.beast
-        const file = join(BEASTS_DIR, b.file)
-        if (!existsSync(file)) {
-          missing.push(`${spec.id}: no ${b.file} in ${BEASTS_DIR}`)
-          return { id: spec.id, block: index * ANIMATIONS.length + order, layers: [] }
-        }
-        beasts.add(spec.beast)
-        return {
-          id: spec.id,
-          block: index * ANIMATIONS.length + order,
-          layers: [
-            {
-              z: 0,
-              tint: b.tint,
-              mirror: false,
-              data: `data:image/png;base64,${readFileSync(file).toString('base64')}`,
-              beast: {
-                cell: b.cell,
-                rows: b.rows,
-                beat: b.beat,
-                at: b.anims[anim === 'walk' ? b.walk : b.action]!,
-                tall: b.tall,
-              },
-            },
-          ],
-        }
       }
       // The body sets the beat. It is the one layer that is never optional and
       // never has two halves, so it is resolved first and everything else is
@@ -1512,109 +1349,6 @@ async function main(): Promise<void> {
             srcCell,
             inset: (srcCell - cell) / 2,
             count: Math.max(1, Math.round(image.naturalWidth / srcCell)),
-          }
-        }
-
-        // --- the bodies that arrived as something else ----------------------
-        //
-        // A rendered sheet is cut to the shape every other body in here is
-        // stored as before anything else looks at it: four rows in LPC's
-        // direction order, five frames, square cells with the sixty-four a
-        // person stands in centred inside. After this pass a beast is a layer
-        // like any other and nothing below knows it was ever different.
-        //
-        // The three things the cut has to decide, and none of them can be
-        // guessed from the sheet:
-        //
-        //   which rows      the source's eight directions against LPC's four,
-        //                   which the table says because the art says it
-        //   how big         scaled so the creature stands `tall` in the
-        //                   sixty-four square, measured off its own alpha
-        //                   rather than off the cell, which is mostly empty
-        //   where the floor the creature's own bottom, put on the bottom of
-        //                   that square. A sheet of a flying thing is centred
-        //                   in its cell, so taken as-is it stands with its
-        //                   ground line through its middle and is drawn half
-        //                   sunk into the floor.
-        for (const c of blocks) {
-          for (const layer of c.layers) {
-            const spec = (layer as { beast?: BeastCut }).beast
-            if (!spec) continue
-            const image = new Image()
-            image.src = layer.data
-            await image.decode()
-            const read = document.createElement('canvas')
-            read.width = image.naturalWidth
-            read.height = image.naturalHeight
-            const rc = read.getContext('2d', { willReadFrequently: true })!
-            rc.drawImage(image, 0, 0)
-
-            // The frames this block will actually hold, and no others: the
-            // sheet has eight and the atlas keeps five, and measuring the
-            // three that are dropped would size the cut for art that never
-            // lands in it. The same rule the layer probe below works by.
-            const columns: number[] = []
-            for (let f = 0; f < frames; f++) columns.push(spec.at * spec.beat + slot(f, spec.beat))
-
-            let l = Infinity
-            let r = -Infinity
-            let t = Infinity
-            let b = -Infinity
-            for (const column of columns) {
-              for (const row of spec.rows) {
-                const px = rc.getImageData(
-                  column * spec.cell,
-                  row * spec.cell,
-                  spec.cell,
-                  spec.cell,
-                ).data
-                for (let y = 0; y < spec.cell; y++) {
-                  for (let x = 0; x < spec.cell; x++) {
-                    if (px[(y * spec.cell + x) * 4 + 3]! < 8) continue
-                    if (x < l) l = x
-                    if (x > r) r = x
-                    if (y < t) t = y
-                    if (y > b) b = y
-                  }
-                }
-              }
-            }
-            if (l > r) continue
-
-            const scale = spec.tall / (b - t + 1)
-            const wide = (r - l + 1) * scale
-            // Square, because the packer reads a sheet's cell off its height
-            // and its directions off the same number. Big enough to hold the
-            // creature with the body square still centred in it: the creature
-            // is centred across the cell, so it needs half its own width
-            // either side of the middle.
-            const side = Math.max(cell, Math.ceil(Math.max(wide, spec.tall + cell) / 2) * 2)
-            const cut = document.createElement('canvas')
-            cut.width = side * frames
-            cut.height = side * directions
-            const cx = cut.getContext('2d')!
-            cx.imageSmoothingEnabled = true
-            cx.imageSmoothingQuality = 'high'
-            for (let f = 0; f < frames; f++) {
-              for (let d = 0; d < directions; d++) {
-                const column = columns[f]!
-                const row = spec.rows[d]!
-                cx.drawImage(
-                  image,
-                  column * spec.cell + l,
-                  row * spec.cell + t,
-                  r - l + 1,
-                  b - t + 1,
-                  f * side + side / 2 - wide / 2,
-                  // Bottom of the creature on the bottom of the body square,
-                  // which is where a foot goes.
-                  d * side + side / 2 + cell / 2 - spec.tall,
-                  wide,
-                  spec.tall,
-                )
-              }
-            }
-            layer.data = cut.toDataURL('image/png')
           }
         }
 
@@ -1984,30 +1718,6 @@ ${lines.join('\n')}
 `,
   )
 
-  // The bodies that are not LPC get a file of their own, because a credit
-  // file is a licence being complied with rather than a list: these are one
-  // set, under one licence, by two people, and folding them into the LPC list
-  // would put names on it that never touched it.
-  const beastLines = [...beasts]
-    .sort((a, b) => (a.file < b.file ? -1 : 1))
-    .map((b) => `- \`${b.file}\` — ${b.by} (${b.licence})\n  <${b.url}>`)
-  writeFileSync(
-    BEAST_CREDITS,
-    `# Creature credits
-
-The bodies on this floor that are not people come from somewhere else. They are
-rendered out of 3D scenes rather than drawn, and \`npm run lpc\` cuts them to the
-same four directions and five frames every LPC body in the atlas is stored as —
-see \`Beast\` in \`scripts/lpc.ts\`.
-
-Attribution is a condition of every licence below, and this list is generated
-from the same table the sheets are cut with, so it cannot fall behind a change
-to it.
-
-${beastLines.join('\n')}
-`,
-  )
-
   const kb = (bytes.length / 1024).toFixed(1)
   const { width, height } = packed
   const widest = Math.max(...packed.cells.map((c) => c[2]))
@@ -2020,10 +1730,7 @@ ${beastLines.join('\n')}
       `${((width * height * 4) / 1e6).toFixed(0)} MB decoded, ` +
       `${((filled / (width * height)) * 100).toFixed(0)}% of the sheet used`,
   )
-  console.log(
-    `  ${used.size} distinct layers and ${beasts.size} rendered sheet(s), ` +
-      `${lines.length + beastLines.length} credit lines`,
-  )
+  console.log(`  ${used.size} distinct layers, ${lines.length} credit lines`)
   if (missing.length > 0 || offbeat.length > 0 || disagreements().length > 0) process.exit(1)
 }
 

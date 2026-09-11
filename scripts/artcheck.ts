@@ -68,36 +68,6 @@ expect(
 
 // --- the tilesets, one block an author, listing what they drew ---------------
 
-/**
- * And the bodies that are not people, which are a set of their own.
- *
- * One line a sheet rather than one a layer: a rendered creature arrives whole
- * and there is nothing to layer. Same shape as the sprite lines above so the
- * same reading serves, and a file of its own because a credit file is a
- * licence being complied with — folding two names under CC-BY-SA into a list
- * of forty under eleven licences is a list nobody can act on.
- */
-const BEASTS = 'art/BEAST-CREDITS.md'
-const beastLines = [...read(BEASTS).matchAll(/^- `(.+?)` — (.+) \(([^()]*)\)$/gm)].map((m) => ({
-  part: m[1]!,
-  authors: m[2]!.split(',').map((n) => n.trim()).filter(Boolean),
-  licences: m[3]!.split(',').map((n) => n.trim()).filter(Boolean),
-}))
-expect(`${BEASTS} lists ${beastLines.length} sheet(s)`, beastLines.length > 0, `${beastLines.length}`)
-expect(
-  'and every one of them names an author and a licence',
-  beastLines.every((l) => l.authors.length > 0 && l.licences.length > 0),
-  beastLines.filter((l) => !l.authors.length || !l.licences.length).map((l) => l.part).join(', '),
-)
-// And a link to where it came from, which the LPC list does not need and this
-// one does: an LPC layer is findable by its path inside a checkout everybody
-// has, and a rendered sheet is one file somebody downloaded once.
-expect(
-  'and where it came from',
-  beastLines.length === [...read(BEASTS).matchAll(/^  <https?:\/\/\S+>$/gm)].length,
-  'a sheet with no source',
-)
-
 const TERRAIN = 'art/LPC-TERRAIN-CREDITS.md'
 const terrain = read(TERRAIN)
 const blocks = [...terrain.matchAll(/^- \*\*(.+?)\*\* — (.+?)\n\s+<(.+?)>\n\s+(.+)$/gm)].map((m) => ({
@@ -134,7 +104,6 @@ expect('and nothing is credited that is not drawn', unused.length === 0, unused.
 const summary = [
   { file: SPRITES, authors: new Set(spriteLines.flatMap((l) => l.authors)), licences: new Set(spriteLines.flatMap((l) => l.licences)) },
   { file: TERRAIN, authors: new Set(blocks.map((b) => b.author)), licences: new Set(blocks.flatMap((b) => b.licences)) },
-  { file: BEASTS, authors: new Set(beastLines.flatMap((l) => l.authors)), licences: new Set(beastLines.flatMap((l) => l.licences)) },
 ]
 for (const want of summary) {
   const set = ART.find((entry) => entry.file === want.file)
@@ -163,7 +132,4 @@ if (failures > 0) {
   console.error(`artcheck: ${failures} check(s) failed`)
   process.exit(1)
 }
-console.log(
-  `artcheck: ${drawn.size} props, ${spriteLines.length} layers, ` +
-    `${beastLines.length} rendered sheet(s), everything drawn is credited`,
-)
+console.log(`artcheck: ${drawn.size} props, ${spriteLines.length} layers, everything drawn is credited`)

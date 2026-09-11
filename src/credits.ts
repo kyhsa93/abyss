@@ -87,6 +87,7 @@ export const ART: ArtSet[] = [
       'dalonedrau',
       'gr3yh47',
       'kcilds/Rocetti/Eredah',
+      'kheftel',
       'laetissima',
       'thecilekli',
     ],
@@ -108,18 +109,6 @@ export const ART: ArtSet[] = [
       'Lanea Zimmerman (AKA Sharm)',
     ],
     file: 'art/LPC-TERRAIN-CREDITS.md',
-  },
-  {
-    // The set draws people, and the building is not all people. A drake was a
-    // lizard child with wings on it until this arrived; what it is now is a
-    // wyvern somebody modelled, rendered in eight directions, cut down to the
-    // four this atlas stores.
-    what: 'The drakes',
-    set: 'Flare',
-    url: 'https://opengameart.org/content/wyvern-1',
-    licences: ['CC-BY-SA 3.0'],
-    authors: ['Clint Bellanger', 'Justin Nichol'],
-    file: 'art/BEAST-CREDITS.md',
   },
 ]
 
