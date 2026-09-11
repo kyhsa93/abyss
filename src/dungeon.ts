@@ -1,6 +1,6 @@
 import { ENCOUNTERS } from './sim/encounters'
 import { EXIT_REACH, type Alarm, type Corridor, type Jet, type Pack, type Spring } from './sim/travel'
-import { ROUND_ARENA, atScale, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
+import { ROUND_ARENA, atScale, carried, fromRoom, pushInside, roomAt, type RoomShape } from './sim/room'
 import type { Obstacle, Prop, Vec2 } from './sim/types'
 import { RUNGS_PER_BOSS } from './progress'
 import { BOSS_WIDTH, BUILD_SCALE, JET_RADIUS, PARTY_RADIUS, YARD } from './sim/constants'
@@ -2191,7 +2191,7 @@ export function citadelTerrain(): Obstacle[] {
     const rocks = chamber.terrain
     if (rocks === undefined) return []
     const room: RoomShape = { ...roomOf(chamber.id), at: placeOf(chamber.id) }
-    return rocks.map((rock) => ({ pos: fromRoom(room, rock.pos), radius: rock.radius }))
+    return rocks.map((rock) => ({ ...carried(rock), pos: fromRoom(room, rock.pos) }))
   })
 }
 

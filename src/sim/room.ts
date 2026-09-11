@@ -1,6 +1,6 @@
 import { makeSlots } from './classes'
 import { ARENA_RADIUS, PARTY_RADIUS } from './constants'
-import type { Vec2 } from './types'
+import type { Obstacle, Vec2 } from './types'
 
 /**
  * The shape of the room a fight is fought in.
@@ -66,6 +66,22 @@ export type RoomShape =
  * the way in and out, so no caller has to know whether the room it was handed
  * has been put anywhere or pointed anywhere.
  */
+/**
+ * One lump of terrain, copied.
+ *
+ * Every place that puts a room's furniture into a state that will be played
+ * has to copy it — the list on the room is the building and outlives the
+ * pull, and a mechanic that breaks something writes into the state's. That
+ * copy was written by hand in four places when a lump was a position and a
+ * radius, and the day one grew a `look` three of the four went on making
+ * position-and-radius: the rooms said "column" and every fight drew a boulder,
+ * with nothing failing anywhere. One function, so the next field is added
+ * once.
+ */
+export function carried(rock: Obstacle): Obstacle {
+  return { ...rock, pos: { x: rock.pos.x, y: rock.pos.y } }
+}
+
 export function roomAt(room: RoomShape): Vec2 {
   return room.at ?? ORIGIN
 }

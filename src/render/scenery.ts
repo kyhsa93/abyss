@@ -289,6 +289,26 @@ const SURROUND_STEP = 130
 const SURROUND_JITTER = 0.34
 
 /**
+ * How far past a wall the field reaches, in world units, before it stops.
+ *
+ * Measured from the *building* rather than from the camera, and that is the
+ * whole of the fix. This projection has no perspective in it — the floor is
+ * turned and squashed and that is all — so a rock three thousand units away is
+ * drawn at exactly the size of one two hundred away. Sown across everything
+ * the camera can see, the far ones therefore climb the screen at full size and
+ * read as rubble hanging in the sky, which is what the title screen looked
+ * like: columns and boulders floating over the words. Culling by distance from
+ * the camera did not fix it either, because a zoomed-out view sees far more
+ * world than any reach worth having.
+ *
+ * So the field is a halo rather than a plain: ground for about forty yards
+ * outside every wall, thinning over the last quarter of it, and dark past
+ * that. A building standing on ground, with the ground running out, which is
+ * the honest picture for a citadel that has no sky in it.
+ */
+const SURROUND_HALO = 460
+
+/**
  * Dim, and that is the whole of the art direction here.
  *
  * The building is lit and this is not. What is wanted is the difference
@@ -319,9 +339,15 @@ export function surroundTakes(
   at: Vec2,
   where: 'outside' | 'floor',
 ): boolean {
+  const deep = depthIn(cells, at)
+  return where === 'outside' ? deep < 0 && -deep <= SURROUND_HALO : deep >= 0
+}
+
+/** How far inside the building a point is, negative outside it. */
+function depthIn(cells: RoomShape[], at: Vec2): number {
   let deep = -Infinity
   for (const cell of cells) deep = Math.max(deep, wallGap(cell, at))
-  return where === 'outside' ? deep < 0 : deep >= 0
+  return deep
 }
 
 export function drawSurround(
@@ -369,7 +395,15 @@ export function drawSurround(
         x: (gx + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * pitch,
         y: (gy + rng.range(-SURROUND_JITTER, SURROUND_JITTER)) * pitch,
       }
-      if (!surroundTakes(cells, at, where)) continue
+      const deep = depthIn(cells, at)
+      if (where === 'outside' ? deep >= 0 : deep < 0) continue
+      // The outside field thins out and stops; the floor's own litter does
+      // not, because a floor ends at its own wall and cannot run past it.
+      if (where === 'outside') {
+        const out = -deep
+        if (out > SURROUND_HALO) continue
+        if (out > SURROUND_HALO * 0.72 && rng.chance((out / SURROUND_HALO - 0.72) * 3.6)) continue
+      }
       const list = where === 'floor' ? FLOOR_PIECES : SURROUND
       const id = list[rng.int(list.length)]!
       const tall = where === 'floor' ? FLOOR_TALL : id === 'column' ? 128 : 58

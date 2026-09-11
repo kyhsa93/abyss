@@ -32,7 +32,7 @@ import {
 } from './combat'
 import { blankGround, turnToward } from './boss'
 import { trashLook, trashMends, trashPace, trashRadius, trashShoots, trashWeight } from './trash'
-import { ROUND_ARENA, pushInside, pushOutside, wallGap, type RoomShape } from './room'
+import { ROUND_ARENA, carried, pushInside, pushOutside, wallGap, type RoomShape } from './room'
 import type { Rng } from './rng'
 import type { Actor, Obstacle, SimState, Vec2 } from './types'
 
@@ -611,10 +611,7 @@ export function createTravelState(
     // over: `s.obstacles` is a room being crossed and a mechanic that breaks
     // something writes there, while the list on the corridor is the building
     // and outlives the walk.
-    obstacles: (corridor.terrain ?? []).map((rock) => ({
-      pos: { x: rock.pos.x, y: rock.pos.y },
-      radius: rock.radius,
-    })),
+    obstacles: (corridor.terrain ?? []).map(carried),
     party: party.map((p) => ({ ...p })),
     difficulty,
     tally,
