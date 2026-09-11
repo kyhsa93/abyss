@@ -1,0 +1,128 @@
+{
+ "oak": {
+  "x": 0,
+  "y": 0,
+  "w": 94,
+  "h": 80,
+  "kind": "object"
+ },
+ "oak2": {
+  "x": 94,
+  "y": 0,
+  "w": 94,
+  "h": 80,
+  "kind": "object"
+ },
+ "pine2": {
+  "x": 188,
+  "y": 0,
+  "w": 85,
+  "h": 80,
+  "kind": "object"
+ },
+ "pine": {
+  "x": 273,
+  "y": 0,
+  "w": 85,
+  "h": 64,
+  "kind": "object"
+ },
+ "trunk": {
+  "x": 358,
+  "y": 0,
+  "w": 47,
+  "h": 64,
+  "kind": "object"
+ },
+ "menhir": {
+  "x": 405,
+  "y": 0,
+  "w": 24,
+  "h": 59,
+  "kind": "object"
+ },
+ "grass": {
+  "x": 429,
+  "y": 0,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "grass2": {
+  "x": 461,
+  "y": 0,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "grass3": {
+  "x": 0,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "dirt": {
+  "x": 32,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "dirt2": {
+  "x": 64,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "rock_floor": {
+  "x": 96,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "boulder": {
+  "x": 128,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "object"
+ },
+ "scatter": {
+  "x": 160,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "object"
+ },
+ "bush": {
+  "x": 192,
+  "y": 80,
+  "w": 30,
+  "h": 32,
+  "kind": "object"
+ },
+ "bush2": {
+  "x": 222,
+  "y": 80,
+  "w": 32,
+  "h": 32,
+  "kind": "object"
+ },
+ "trunk2": {
+  "x": 254,
+  "y": 80,
+  "w": 64,
+  "h": 21,
+  "kind": "object"
+ },
+ "rubble": {
+  "x": 318,
+  "y": 80,
+  "w": 18,
+  "h": 19,
+  "kind": "object"
+ }
+}

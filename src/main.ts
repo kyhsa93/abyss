@@ -1,19 +1,24 @@
 /**
- * The first scene: the client's own Elwynn terrain, drawn with art we own.
+ * Elwynn Forest, drawn the way the art is drawn.
  *
- * Built to answer what the render decision left open — camera angle, whether
- * flat ground looks cheap beside hand-painted models, what the triangle count
- * really is.  It was a spike; deleting the old prototype left it as the only
- * code here, so it sits at the front instead of off to one side.  There is
- * still no simulation in it.
+ * The terrain is the client's own — `pipeline/bake_terrain.py` reads the
+ * `.adt` height grid and the doodad placements out of the MPQ archives.  What
+ * stands on it is Liberated Pixel Cup: pixel art, four directions, a real walk
+ * cycle.
  *
- * The terrain comes from `pipeline/bake_terrain.py`, which reads the client's
- * `.adt` files.  Its output is not committed — see the wiki's boundary page.
- * Without it this page has nothing to draw, which is the honest state of the
- * project: the path that fills that gap without a client is not built yet.
+ * The view is LPC's own — axis-aligned, looked down on from a tilt.  It is not
+ * an isometric diamond grid, and that is deliberate: LPC's people are drawn
+ * facing up, down, left and right, and rotating the world forty-five degrees
+ * under them leaves every stride pointing somewhere the sprite is not.  The
+ * art decides the projection.  Fighting it is the mistake this repository has
+ * already made once, from the other direction, by putting a 3D renderer next
+ * to 2D sprites.
+ *
+ * Height is carried by shading rather than by moving tiles.  A height grid can
+ * be drawn as stepped terraces, but LPC has no cliff faces at arbitrary
+ * heights, and inventing them means drawing — which this project cannot do.
+ * So a hillside is a hillside because it is lit like one.
  */
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -22,83 +27,23 @@ type Meta = {
   zMin: number; zMax: number
   doodads: Doodad[]
 }
+type Piece = { x: number; y: number; w: number; h: number; kind: string }
+type Clips = Record<string, { first: number; count: number; dirs: number }>
 
-/**
- * World axes to scene axes.
- *
- * The client's world is +X north, +Y west, +Z up.  Three's is +Y up and the
- * camera looks down -Z.  Mapping north to -Z means "up the screen is north"
- * when the camera sits south of the subject, which is the orientation every
- * map of this place is drawn in.
- */
-const toScene = (x: number, y: number, z: number, cx: number, cy: number) =>
-  new THREE.Vector3(-(y - cy), z, -(x - cx))
+/** 32 pixels to an LPC tile, and an LPC person is about five feet of them. */
+const PPY = 24              // pixels to the yard at 1:1
+const TILE = 32             // ground tile, in pixels
+const YD_PER_TILE = TILE / PPY
 
 const hud = document.getElementById('hud') as HTMLDivElement
 
-/**
- * Every one of these packs exports `metallicFactor: 1`.
- *
- * glTF's default is fully metallic, and a fully metallic surface with nothing
- * to reflect is black — or, with only a hemisphere light, a muddy tint of the
- * sky.  Kenney's trees came out teal and Quaternius's warrior came out a
- * silhouette, and both were this one line.  It is not a per-pack quirk; it is
- * what the format's default does to art authored as flat colour.
- */
-function dress(root: THREE.Object3D) {
-  root.traverse((o) => {
-    const m = o as THREE.Mesh
-    if (!m.isMesh) return
-    m.castShadow = true
-    m.receiveShadow = true
-    for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshStandardMaterial[]) {
-      if (mat.metalness === undefined) continue
-      mat.metalness = 0
-      mat.roughness = 0.9
-      mat.needsUpdate = true
-    }
+const load = (src: string) =>
+  new Promise<HTMLImageElement>((ok, no) => {
+    const i = new Image()
+    i.onload = () => ok(i)
+    i.onerror = () => no(new Error(src))
+    i.src = src
   })
-}
-
-// Doodads come out of the bake as a kind, never as a model path, so this is
-// where a kind becomes something to draw.
-//
-// The first pass used Kenney's Nature Kit, and it was the wrong pack: that kit
-// is a prototyping set — a hexagon on a stick is a tree — and next to hand
-// painted characters it read as placeholder, because it is.  Availability had
-// picked it, not quality.  Everything here is now Quaternius, the same author
-// as the characters, which also made the palette problem disappear rather than
-// need solving: one author, one palette.
-//
-// `height` is in yards and the scale is derived from the model's own bounding
-// box, so a swapped model does not need a new magic number.
-const KIND: Record<string, { model: string[]; height: number }> = {
-  // No TwistedTree here on purpose: its leaf texture averages a red that is
-  // autumn, and Elwynn is a green temperate forest.  The kit encodes season in
-  // the variant, so which variants a region may use is a property of the
-  // region — the same shape of fact as its terrain colour.
-  tree: {
-    model: ['CommonTree_1', 'CommonTree_2', 'CommonTree_3', 'CommonTree_4', 'CommonTree_5'],
-    height: 13,
-  },
-  pine: { model: ['Pine_1', 'Pine_2', 'Pine_3', 'Pine_4', 'Pine_5'], height: 15 },
-  // Bush_Common is dropped for the same reason as TwistedTree: it shares that
-  // tree's leaf texture, which is the autumn one.
-  bush: { model: ['Bush_Common_Flowers', 'Fern_1'], height: 1.7 },
-  fence: { model: ['Prop_WoodenFence_Single', 'Prop_WoodenFence_Extension1'], height: 1.4 },
-  rock: { model: ['Rock_Medium_1', 'Rock_Medium_2', 'Rock_Medium_3'], height: 1.8 },
-  lily: { model: ['Clover_1'], height: 0.35 },
-  water_plant: { model: ['Grass_Wispy_Tall'], height: 0.9 },
-  grass: { model: ['Grass_Common_Tall'], height: 0.8 },
-  flower: { model: ['Flower_3_Group', 'Flower_4_Group'], height: 0.5 },
-  crop: { model: ['Grass_Common_Short'], height: 0.7 },
-  mushroom: { model: ['Mushroom_Common'], height: 0.35 },
-  stump: { model: ['DeadTree_1', 'DeadTree_2'], height: 6 },
-  log: { model: ['DeadTree_2'], height: 5 },
-  barrel: { model: ['Prop_Crate'], height: 1.1 },
-  cart: { model: ['Prop_Wagon'], height: 2.2 },
-  prop: { model: ['Pebble_Round_1', 'Pebble_Square_2'], height: 0.5 },
-}
 
 async function main() {
   const head = await fetch('./data/terrain.json')
@@ -106,9 +51,6 @@ async function main() {
   // a cheerful 200, so the first sign of trouble is JSON.parse choking on
   // "<!doctype".  Ask what came back, not whether something did.
   if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
-    // The deployed page reaches here, and that is not a bug to hide: the
-    // terrain is baked from a client and cannot be committed, and the path
-    // that fills the gap without one is not built yet.  Say so.
     hud.textContent = [
       'No terrain.',
       '',
@@ -121,353 +63,256 @@ async function main() {
     return
   }
   const meta: Meta = await head.json()
-  const raw = await (await fetch('./data/terrain.bin')).arrayBuffer()
-  const heights = new Float32Array(raw)
+  const heights = new Float32Array(await (await fetch('./data/terrain.bin')).arrayBuffer())
   const { width: W, height: H, unit: U, x0, y0 } = meta
-  const [cx, cy] = meta.centre
 
-  const tex = new THREE.TextureLoader()
-  const renderer = new THREE.WebGLRenderer({ antialias: true })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-  renderer.setSize(innerWidth, innerHeight)
-  renderer.shadowMap.enabled = true
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.outputColorSpace = THREE.SRGBColorSpace
-  renderer.toneMapping = THREE.NoToneMapping
-  renderer.toneMappingExposure = 1.0
-  document.body.appendChild(renderer.domElement)
+  const [tilesImg, tilesMeta, heroImg, heroMeta] = await Promise.all([
+    load('./art/tiles.png'),
+    fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
+    load('./art/hero.png'),
+    fetch('./art/hero.json').then((r) => r.json() as Promise<{ cell: number; cols: number; clips: Clips }>),
+  ])
 
-  const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x93b6cf)
-  // Fog was at 260 and it turned every tree teal: an orthographic camera sits a
-  // full `dist` back from its target, so half the view was already inside the
-  // fog at a 110 yard zoom.  It belongs at the horizon, not in the foreground.
-  scene.fog = new THREE.Fog(0x93b6cf, 700, 2400)
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d', { alpha: false })!
+  document.body.appendChild(canvas)
+  ctx.imageSmoothingEnabled = false
 
-  const sun = new THREE.DirectionalLight(0xfff4e6, 2.9)
-  sun.position.set(120, 200, 90)
-  sun.castShadow = true
-  sun.shadow.mapSize.set(2048, 2048)
-  const d = 160
-  const sc = sun.shadow.camera as THREE.OrthographicCamera
-  sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 1; sc.far = 700
-  scene.add(sun)
-  scene.add(new THREE.HemisphereLight(0xd6e2ee, 0x5c6640, 0.75))
-
-  const height = (I: number, J: number) =>
-    heights[Math.min(W - 1, Math.max(0, I)) * H + Math.min(H - 1, Math.max(0, J))]
-
-  // The ground.
-  //
-  // Two wrong answers came first.  The kit's own `Grass.png` is the sprite
-  // atlas its grass *models* are cut from, not a ground material, and tiling it
-  // drew stripes across the hills — a name is not a promise about what an image
-  // is.  A photoreal seamless grass off a PBR library was worse still: beside
-  // painted low-poly it looks like a photograph someone dropped in.
-  //
-  // This one is hand-painted and tiles, which is the pair of properties that
-  // actually matter.  Vertex colour still carries height and slope; it
-  // multiplies the sheet rather than replacing it, so a steep face tints brown
-  // without needing a second texture.
-  const ground = await tex.loadAsync('./models/ground/grass.png')
-  ground.colorSpace = THREE.SRGBColorSpace
-  ground.wrapS = ground.wrapT = THREE.RepeatWrapping
-  ground.anisotropy = renderer.capabilities.getMaxAnisotropy()
-  // The sheet ships a normal map, and on ground this flat it is the only thing
-  // that keeps a hillside from reading as a painted plane.
-  const groundNrm = await tex.loadAsync('./models/ground/grass_nrm.png')
-  groundNrm.wrapS = groundNrm.wrapT = THREE.RepeatWrapping
-  groundNrm.anisotropy = ground.anisotropy
-  /** Terrain at a given stride, so the triangle budget can be tested by eye. */
-  function buildTerrain(stride: number) {
-    const w = Math.floor((W - 1) / stride) + 1
-    const h = Math.floor((H - 1) / stride) + 1
-    const pos = new Float32Array(w * h * 3)
-    const col = new Float32Array(w * h * 3)
-    const uv = new Float32Array(w * h * 2)
-    const TILE_YD = 7   // one repeat of the sheet, in yards
-
-    // These multiply the sheet, so they sit near white where the sheet should
-    // show through as painted and only pull hard on steep ground.
-    const rock = new THREE.Color(0xb3a894)
-    const grass = new THREE.Color(0xe8f0dc)
-    const low = new THREE.Color(0xc6d8b4)
-    const c = new THREE.Color()
-    for (let a = 0; a < w; a++) {
-      for (let b = 0; b < h; b++) {
-        const I = a * stride, J = b * stride
-        const z = height(I, J)
-        const p = (a * h + b) * 3
-        // grid index to world, then world to scene
-        const wx = x0 - I * U, wy = y0 - J * U
-        pos[p] = -(wy - cy); pos[p + 1] = z; pos[p + 2] = -(wx - cx)
-        const q = (a * h + b) * 2
-        uv[q] = pos[p] / TILE_YD; uv[q + 1] = pos[p + 2] / TILE_YD
-        // Slope decides rock or grass; height only tints.  Colour alone is the
-        // whole of the ground's material — see the wiki: "바닥은 색 빼고 결만".
-        const dzx = height(I + stride, J) - height(I - stride, J)
-        const dzy = height(I, J + stride) - height(I, J - stride)
-        const slope = Math.hypot(dzx, dzy) / (2 * stride * U)
-        c.copy(z < 60 ? low : grass).lerp(rock, Math.min(1, slope * 1.7))
-        // Flat colour reads as a wash rather than as ground.  A cheap
-        // deterministic wobble per vertex gives it grain without giving it a
-        // texture — which is the whole of what the art direction allows here.
-        const n = Math.sin(I * 12.9898 + J * 78.233) * 43758.5453
-        c.offsetHSL(0, 0, ((n - Math.floor(n)) - 0.5) * 0.045)
-        col[p] = c.r; col[p + 1] = c.g; col[p + 2] = c.b
-      }
-    }
-    const idx: number[] = []
-    for (let a = 0; a < w - 1; a++)
-      for (let b = 0; b < h - 1; b++) {
-        const i0 = a * h + b, i1 = i0 + 1, i2 = i0 + h, i3 = i2 + 1
-        // Winding, not a detail: the obvious order puts every normal face-down
-        // and the ground vanishes behind back-face culling — which looks like
-        // "the terrain did not load", not like "the terrain is inside out".
-        idx.push(i0, i2, i1, i1, i2, i3)
-      }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-    g.setIndex(idx)
-    g.computeVertexNormals()
-    g.computeTangents()
-    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-      vertexColors: true, map: ground, normalMap: groundNrm,
-      normalScale: new THREE.Vector2(0.7, 0.7), roughness: 1, metalness: 0,
-    }))
-    m.receiveShadow = true
-    return { mesh: m, tris: idx.length / 3 }
+  /** Bilinear, because the grid is 4.17 yards and a tile is 1.33. */
+  function groundAt(wx: number, wy: number): number {
+    const fi = (x0 - wx) / U, fj = (y0 - wy) / U
+    const i = Math.max(0, Math.min(W - 2, Math.floor(fi)))
+    const j = Math.max(0, Math.min(H - 2, Math.floor(fj)))
+    const ti = fi - i, tj = fj - j
+    const a = heights[i * H + j], b = heights[i * H + j + 1]
+    const c = heights[(i + 1) * H + j], d = heights[(i + 1) * H + j + 1]
+    return (a * (1 - tj) + b * tj) * (1 - ti) + (c * (1 - tj) + d * tj) * ti
   }
 
-  let stride = 1
-  let terrain = buildTerrain(stride)
-  scene.add(terrain.mesh)
-
-  const groundAt = (wx: number, wy: number) =>
-    height(Math.round((x0 - wx) / U), Math.round((y0 - wy) / U))
-
-  // --- doodads, instanced per kind ---------------------------------------
-  const loader = new GLTFLoader()
-  const cache = new Map<string, Promise<THREE.Object3D>>()
-  const load = (name: string) => {
-    if (!cache.has(name))
-      cache.set(name, loader.loadAsync(`./models/nature/${name}.gltf`).then((g) => g.scene))
-    return cache.get(name)!
+  /**
+   * Two different questions about the same gradient, and conflating them is
+   * what made the first hillside look like spilled gravel.
+   *
+   * `shadeAt` is *which way* the ground tilts — light from the north-west, and
+   * a face turned towards it is bright.  `slopeAt` is *how much* it tilts, with
+   * no direction in it at all.  The first picks the brightness; only the second
+   * may pick the tile, because a slope that is steep is steep whichever way it
+   * points, and a threshold on a signed number flips across every ridge.
+   */
+  function gradient(wx: number, wy: number): [number, number] {
+    const s = YD_PER_TILE
+    return [
+      (groundAt(wx + s, wy) - groundAt(wx - s, wy)) / (2 * s),
+      (groundAt(wx, wy + s) - groundAt(wx, wy - s)) / (2 * s),
+    ]
+  }
+  function shadeAt(wx: number, wy: number): number {
+    const [dx, dy] = gradient(wx, wy)
+    return Math.max(-0.55, Math.min(0.4, (dx + dy) * 0.95))
+  }
+  function slopeAt(wx: number, wy: number): number {
+    const [dx, dy] = gradient(wx, wy)
+    return Math.hypot(dx, dy)
   }
 
-  let doodadTris = 0
-  let instances = 0
-  let drawnInstances = 0
-  let drawnTris = 0
-  const byModel = new Map<string, { d: Doodad; height: number }[]>()
-  for (const dd of meta.doodads) {
-    const k = KIND[dd.k]
+  const hash = (a: number, b: number) => {
+    const n = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453
+    return n - Math.floor(n)
+  }
+
+  const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
+  const ROCK_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : GROUND_TILES[0]
+  const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
+
+  // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
+  // never emits a model path, so this table is the only place that decides
+  // what a tree looks like.
+  const KIND: Record<string, { pieces: string[]; trunk?: string }> = {
+    tree: { pieces: ['oak', 'oak2'], trunk: 'trunk' },
+    pine: { pieces: ['pine', 'pine2'] },
+    bush: { pieces: ['bush', 'bush2'] },
+    rock: { pieces: ['boulder', 'menhir'] },
+    stump: { pieces: ['trunk'] },
+    log: { pieces: ['rubble'] },
+    grass: { pieces: ['bush'] },
+    water_plant: { pieces: ['bush'] },
+    flower: { pieces: ['bush2'] },
+    crop: { pieces: ['bush2'] },
+    mushroom: { pieces: ['scatter'] },
+    lily: { pieces: ['scatter'] },
+    barrel: { pieces: ['rubble'] },
+    prop: { pieces: ['scatter', 'rubble'] },
+  }
+
+  type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
+  const placed: Placed[] = []
+  for (const d of meta.doodads) {
+    const k = KIND[d.k]
     if (!k) continue
-    const pick = k.model[(Math.abs(Math.round(dd.x * 7 + dd.y * 13)) % k.model.length)]
-    if (!byModel.has(pick)) byModel.set(pick, [])
-    byModel.get(pick)!.push({ d: dd, height: k.height })
+    const pick = k.pieces[Math.floor(hash(d.x, d.y) * k.pieces.length) % k.pieces.length]!
+    const piece = tilesMeta[pick]
+    if (!piece) continue
+    placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
   }
+  // Drawn back to front, and in this projection "back" is north — larger world
+  // x.  Sorting once is enough: nothing here moves.
+  placed.sort((a, b) => b.x - a.x)
 
-  // The Quaternius kit is roughly twenty times the triangles of the prototyping
-  // set it replaced — 8.8 million across the slice against 450 thousand.  The
-  // art is worth it; drawing all of it at once is not.  Instances are refilled
-  // around wherever the camera is looking, which is what a game would do
-  // anyway: nothing 600 yards away needs to be in the buffer.
-  const VIEW = 220
-  const refills: ((cx2: number, cy2: number) => void)[] = []
-
-  const refill = (ax: number, ay: number) => {
-    drawnInstances = 0; drawnTris = 0
-    for (const f of refills) f(ax, ay)
-  }
-
-  const dummy = new THREE.Object3D()
-  await Promise.all(
-    [...byModel].map(async ([name, list]) => {
-      const src = await load(name)
-      dress(src)
-      // Scale is derived, not typed: the model's own height decides it, so a
-      // pack swap does not turn into a round of nudging constants.
-      src.updateMatrixWorld(true)
-      const tall = new THREE.Box3().setFromObject(src).getSize(new THREE.Vector3()).y || 1
-      const base = list[0].height / tall
-      const parts: THREE.Mesh[] = []
-      src.traverse((o) => { if ((o as THREE.Mesh).isMesh) parts.push(o as THREE.Mesh) })
-      for (const part of parts) {
-        const inst = new THREE.InstancedMesh(part.geometry, part.material as THREE.Material, list.length)
-        inst.castShadow = true
-        inst.receiveShadow = true
-        inst.frustumCulled = false
-        const local = part.matrixWorld.clone()
-        const tris = part.geometry.index ? part.geometry.index.count / 3
-          : part.geometry.attributes.position.count / 3
-        const fill = (ax: number, ay: number) => {
-          let n = 0
-          for (const { d: dd } of list) {
-            if ((dd.x - ax) ** 2 + (dd.y - ay) ** 2 > VIEW * VIEW) continue
-            dummy.position.copy(toScene(dd.x, dd.y, groundAt(dd.x, dd.y), cx, cy))
-            dummy.rotation.set(0, THREE.MathUtils.degToRad(dd.r), 0)
-            dummy.scale.setScalar(base * (0.8 + (Math.abs(Math.round(dd.x * 3 + dd.y * 5)) % 45) / 100))
-            dummy.updateMatrix()
-            inst.setMatrixAt(n++, new THREE.Matrix4().copy(local).premultiply(dummy.matrix))
-          }
-          inst.count = n
-          inst.instanceMatrix.needsUpdate = true
-          drawnInstances += n
-          drawnTris += n * tris
-        }
-        refills.push(fill)
-        scene.add(inst)
-        doodadTris += tris * list.length
-        instances += list.length
-      }
-    }),
-  )
-
-  // --- the character -----------------------------------------------------
-  const skin = await tex.loadAsync('./models/Warrior_Texture.png')
-  const swordTex = await tex.loadAsync('./models/Warrior_Sword_Texture.png')
-  for (const t of [skin, swordTex]) { t.colorSpace = THREE.SRGBColorSpace; t.flipY = false }
-
-  const gltf = await loader.loadAsync('./models/Warrior.glb')
-  const hero = gltf.scene
-  dress(hero)
-  hero.traverse((o) => {
-    const m = o as THREE.Mesh
-    if (!m.isMesh) return
-    m.castShadow = true
-    const mats = Array.isArray(m.material) ? m.material : [m.material]
-    for (const mat of mats as THREE.MeshStandardMaterial[]) {
-      // The export carried material *names* but no image: the textures ship
-      // beside the meshes in this pack, so they are bound back by name.
-      mat.map = mat.name.includes('Sword') ? swordTex : skin
-      mat.needsUpdate = true
-    }
-  })
-  // The human warrior's own starting spot, out of `playercreateinfo`.
+  // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
-  refill(START[0], START[1])
-  hero.position.copy(toScene(START[0], START[1], groundAt(...START), cx, cy))
-  hero.scale.setScalar(1.15)
-  scene.add(hero)
-  const mixer = new THREE.AnimationMixer(hero)
-  const idle = gltf.animations.find((a) => a.name === 'Idle_Weapon') ?? gltf.animations[0]
-  mixer.clipAction(idle).play()
+  const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
+  const SPEED = 7.0          // yards a second, which is WoW's run speed
+  const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
 
-  const heroTris = (() => {
-    let t = 0
-    hero.traverse((o) => {
-      const m = o as THREE.Mesh
-      if (m.isMesh) t += m.geometry.index ? m.geometry.index.count / 3
-        : m.geometry.attributes.position.count / 3
-    })
-    return t
-  })()
-
-  // --- camera ------------------------------------------------------------
-  let yaw = Math.PI * 0.25
-  let pitch = THREE.MathUtils.degToRad(48)
-  let dist = 85
-  let ortho = true
-  const target = hero.position.clone().setY(hero.position.y + 2)
-  let camera: THREE.Camera = makeCamera()
-
-  function makeCamera(): THREE.Camera {
-    const aspect = innerWidth / innerHeight
-    if (ortho) {
-      const hh = dist * 0.42
-      return new THREE.OrthographicCamera(-hh * aspect, hh * aspect, hh, -hh, 0.5, 3000)
-    }
-    return new THREE.PerspectiveCamera(38, aspect, 0.5, 3000)
-  }
-  function place() {
-    const r = Math.cos(pitch) * dist
-    camera.position.set(
-      target.x + Math.sin(yaw) * r,
-      target.y + Math.sin(pitch) * dist,
-      target.z + Math.cos(yaw) * r,
-    )
-    camera.lookAt(target)
-  }
-  place()
-
-  let drag = false, lx = 0, ly = 0
-  addEventListener('pointerdown', (e) => { drag = true; lx = e.clientX; ly = e.clientY })
-  addEventListener('pointerup', () => { drag = false })
-  addEventListener('pointermove', (e) => {
-    if (!drag) return
-    yaw -= (e.clientX - lx) * 0.006
-    pitch = THREE.MathUtils.clamp(pitch + (e.clientY - ly) * 0.004, 0.15, 1.4)
-    lx = e.clientX; ly = e.clientY; place()
-  })
-  addEventListener('wheel', (e) => {
-    dist = THREE.MathUtils.clamp(dist * (1 + Math.sign(e.deltaY) * 0.12), 12, 600)
-    camera = makeCamera(); place()
-  }, { passive: true })
+  const keys = new Set<string>()
   addEventListener('keydown', (e) => {
-    if (e.key === '[') pitch = Math.max(0.15, pitch - 0.06)
-    if (e.key === ']') pitch = Math.min(1.4, pitch + 0.06)
-    if (e.key === 'o') { ortho = !ortho; camera = makeCamera() }
-    if ('1234'.includes(e.key)) {
-      scene.remove(terrain.mesh)
-      terrain.mesh.geometry.dispose()
-      stride = Number(e.key)
-      terrain = buildTerrain(stride)
-      scene.add(terrain.mesh)
-    }
-    place()
+    keys.add(e.key.toLowerCase())
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase()))
+      e.preventDefault()
   })
-  addEventListener('resize', () => {
-    renderer.setSize(innerWidth, innerHeight)
-    camera = makeCamera(); place()
-  })
+  addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
 
-  // Driven from the screenshot script: a scene is only finished when it has
-  // been looked at, and looking at it means putting the camera somewhere on
-  // purpose rather than wherever it happened to start.
-  ;(window as unknown as { __cam: (o: Record<string, number | boolean>) => void }).__cam = (o) => {
-    if (o.yaw !== undefined) yaw = THREE.MathUtils.degToRad(o.yaw as number)
-    if (o.pitch !== undefined) pitch = THREE.MathUtils.degToRad(o.pitch as number)
-    if (o.dist !== undefined) dist = o.dist as number
-    if (o.ortho !== undefined) ortho = o.ortho as boolean
-    if (o.x !== undefined && o.y !== undefined) {
-      const g = groundAt(o.x as number, o.y as number)
-      target.copy(toScene(o.x as number, o.y as number, g + 2, cx, cy))
-    }
-    if (o.x !== undefined && o.y !== undefined) refill(o.x as number, o.y as number)
-    if (o.stride !== undefined) {
-      scene.remove(terrain.mesh); terrain.mesh.geometry.dispose()
-      stride = o.stride as number
-      terrain = buildTerrain(stride); scene.add(terrain.mesh)
-    }
-    camera = makeCamera(); place()
+  let zoom = 1
+  addEventListener('wheel', (e) => {
+    zoom = Math.max(0.4, Math.min(3, zoom * (1 - Math.sign(e.deltaY) * 0.12)))
+  }, { passive: true })
+
+  function resize() {
+    canvas.width = Math.floor(innerWidth)
+    canvas.height = Math.floor(innerHeight)
+    ctx.imageSmoothingEnabled = false
   }
+  addEventListener('resize', resize)
+  resize()
 
-  const clock = new THREE.Clock()
-  let frames = 0, acc = 0, fps = 0
-  function loop() {
-    const dt = clock.getDelta()
-    mixer.update(dt)
+  // World to screen.  The client's +x is north and +y is west; on screen north
+  // is up and west is left, so both axes flip.
+  let camX = hero.x, camY = hero.y
+  const sx = (wy: number) => (camY - wy) * PPY * zoom + canvas.width / 2
+  const sy = (wx: number) => (camX - wx) * PPY * zoom + canvas.height / 2
+
+  let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0
+  let last = performance.now()
+
+  function frame(now: number) {
+    const dt = Math.min(0.05, (now - last) / 1000)
+    last = now
+
+    // --- move ---
+    let mx = 0, my = 0
+    if (keys.has('w') || keys.has('arrowup')) mx += 1
+    if (keys.has('s') || keys.has('arrowdown')) mx -= 1
+    if (keys.has('a') || keys.has('arrowleft')) my += 1
+    if (keys.has('d') || keys.has('arrowright')) my -= 1
+    hero.moving = mx !== 0 || my !== 0
+    if (hero.moving) {
+      const len = Math.hypot(mx, my)
+      hero.x += (mx / len) * SPEED * dt
+      hero.y += (my / len) * SPEED * dt
+      hero.dir = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? DIR_UP : DIR_DOWN) : (my > 0 ? DIR_LEFT : DIR_RIGHT)
+      hero.t += dt
+    } else {
+      hero.t += dt
+    }
+    camX += (hero.x - camX) * Math.min(1, dt * 8)
+    camY += (hero.y - camY) * Math.min(1, dt * 8)
+
+    // --- ground ---
+    ctx.fillStyle = '#1b2410'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    const px = TILE * zoom
+    const halfW = canvas.width / 2 / (PPY * zoom)
+    const halfH = canvas.height / 2 / (PPY * zoom)
+    const xLo = Math.floor((camX - halfH) / YD_PER_TILE) - 1
+    const xHi = Math.ceil((camX + halfH) / YD_PER_TILE) + 1
+    const yLo = Math.floor((camY - halfW) / YD_PER_TILE) - 1
+    const yHi = Math.ceil((camY + halfW) / YD_PER_TILE) + 1
+    tilesDrawn = 0
+    for (let ti = xLo; ti <= xHi; ti++) {
+      for (let tj = yLo; tj <= yHi; tj++) {
+        const wx = ti * YD_PER_TILE, wy = tj * YD_PER_TILE
+        const h = hash(ti, tj)
+        const sl = shadeAt(wx, wy)
+        // Bands on one continuous number, so bare ground follows the hillside
+        // instead of speckling across it.
+        const steep = slopeAt(wx, wy)
+        const id = steep > 0.62 ? ROCK_TILE
+          : steep > 0.44 ? DIRT_TILE
+            : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+        const p = tilesMeta[id]!
+        const X = Math.round(sx(wy) - px / 2), Y = Math.round(sy(wx) - px / 2)
+        ctx.drawImage(tilesImg, p.x, p.y, p.w, p.h, X, Y, Math.ceil(px), Math.ceil(px))
+        // Shading is the only thing carrying elevation, so it is not subtle.
+        if (sl > 0.02) {
+          ctx.fillStyle = `rgba(255,247,224,${Math.min(0.42, sl * 0.75)})`
+          ctx.fillRect(X, Y, Math.ceil(px), Math.ceil(px))
+        } else if (sl < -0.02) {
+          ctx.fillStyle = `rgba(8,14,26,${Math.min(0.5, -sl * 0.75)})`
+          ctx.fillRect(X, Y, Math.ceil(px), Math.ceil(px))
+        }
+        tilesDrawn++
+      }
+    }
+
+    // --- things that stand up, back to front ---
+    const margin = 120
+    drawn = 0
+    const heroZ = groundAt(hero.x, hero.y)
+    let heroDone = false
+    const drawHero = () => {
+      const clip = hero.moving ? heroMeta.clips['walk']! : heroMeta.clips['idle']!
+      const n = clip.count
+      const f = hero.moving
+        ? Math.floor(hero.t * 10) % n
+        : Math.floor(hero.t * 2) % n
+      const idx = clip.first + hero.dir * n + f
+      const c = heroMeta.cell
+      const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
+      const w = c * zoom * (PPY / 26), hgt = w
+      ctx.drawImage(heroImg, sxp, syp, c, c, Math.round(sx(hero.y) - w / 2),
+        Math.round(sy(hero.x) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
+      drawn++
+    }
+    for (const o of placed) {
+      if (!heroDone && o.x < hero.x) { drawHero(); heroDone = true }
+      const X = sx(o.y), Y = sy(o.x)
+      if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
+      const k = zoom * (PPY / 26)
+      if (o.trunk) {
+        const t = o.trunk
+        ctx.drawImage(tilesImg, t.x, t.y, t.w, t.h, Math.round(X - (t.w * k) / 2),
+          Math.round(Y - t.h * k), Math.ceil(t.w * k), Math.ceil(t.h * k))
+      }
+      const p = o.piece
+      const lift = o.trunk ? o.trunk.h * k * 0.78 : 0
+      ctx.drawImage(tilesImg, p.x, p.y, p.w, p.h, Math.round(X - (p.w * k) / 2),
+        Math.round(Y - p.h * k - lift), Math.ceil(p.w * k), Math.ceil(p.h * k))
+      drawn++
+    }
+    if (!heroDone) drawHero()
+
     acc += dt; frames++
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
-    renderer.render(scene, camera)
-    const info = renderer.info.render
     hud.textContent = [
-      `terrain  ${terrain.tris.toLocaleString()} tris  (stride ${stride}, ${(meta.unit * stride).toFixed(2)} yd)`,
-      `doodads  ${drawnInstances.toLocaleString()} of ${instances.toLocaleString()} within ${VIEW} yd` +
-        `  (${Math.round(drawnTris / 1000).toLocaleString()}k of ${Math.round(doodadTris / 1000).toLocaleString()}k tris)`,
-      `hero     ${heroTris.toLocaleString()} tris`,
-      `drawn    ${info.triangles.toLocaleString()} tris, ${info.calls} calls`,
-      `camera   yaw ${(yaw * 180 / Math.PI).toFixed(0)}°  pitch ${(pitch * 180 / Math.PI).toFixed(0)}°  ` +
-        `dist ${dist.toFixed(0)} yd  ${ortho ? 'ortho' : 'persp'}`,
+      `ground   ${tilesDrawn.toLocaleString()} tiles`,
+      `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn`,
+      `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd`,
+      `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
       `fps      ${fps.toFixed(0)}`,
     ].join('\n')
     ;(window as unknown as { __ready: boolean }).__ready = true
-    requestAnimationFrame(loop)
+    requestAnimationFrame(frame)
   }
-  loop()
+  requestAnimationFrame(frame)
+
+  // Driven from the screenshot script: a scene is not finished until it has
+  // been looked at, and looking means putting the camera somewhere on purpose.
+  ;(window as unknown as { __cam: (o: Record<string, number>) => void }).__cam = (o) => {
+    if (o.x !== undefined) { hero.x = o.x; camX = o.x }
+    if (o.y !== undefined) { hero.y = o.y; camY = o.y }
+    if (o.zoom !== undefined) zoom = o.zoom
+    if (o.dir !== undefined) hero.dir = o.dir
+  }
 }
 
 main().catch((e) => { hud.textContent = String(e); throw e })

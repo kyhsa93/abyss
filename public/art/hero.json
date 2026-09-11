@@ -1,0 +1,21 @@
+{
+ "cell": 64,
+ "cols": 16,
+ "clips": {
+  "walk": {
+   "first": 0,
+   "count": 9,
+   "dirs": 4
+  },
+  "idle": {
+   "first": 36,
+   "count": 2,
+   "dirs": 4
+  },
+  "slash": {
+   "first": 44,
+   "count": 6,
+   "dirs": 4
+  }
+ }
+}

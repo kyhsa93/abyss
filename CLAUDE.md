@@ -11,9 +11,10 @@ way" is answered there, usually with the measurement that settled it.
 ## What is here
 
 ```
-pipeline/   reads the client's MPQ archives and bakes a slice of terrain
-src/        the scene.  three.js, no simulation yet
-public/     CC0 models (committed) and baked terrain (not committed)
+pipeline/   bakes the world: terrain out of the client's MPQ archives, ground
+            and scenery out of the LPC tilesets, the player out of LPC parts
+src/        the scene.  canvas 2D, no simulation yet
+public/art  the baked art (committed).  public/data is not (see below)
 ```
 
 The ICC raid prototype that used to be here is gone. It is not lost: tag
@@ -41,8 +42,14 @@ ever have caught it.
 **Look at it.** The render path only runs in a browser, so a change to the
 scene is not finished until it has been seen: `npx vite`, then drive it with
 Playwright (`node_modules/playwright`, Chromium is installed). Screenshots
-catch what checks do not — the ground being invisible because every triangle
-was wound backwards, for one.
+catch what checks do not — a hillside speckled with gravel because a threshold
+was put on a signed gradient instead of its magnitude, for one.
+
+**The art decides the projection.** LPC's people are drawn facing up, down,
+left and right; rotating the world under them leaves every stride pointing
+somewhere the sprite is not. This repository has now made the matching mistake
+from the other side, by standing 2D sprites next to a 3D renderer. Pick one
+medium and let it choose the camera.
 
 **Come back with a result, not with a step.** Fetch, measure, build, check,
 look, fix — the whole loop, then report. Decide the details yourself and say
@@ -58,6 +65,11 @@ model paths and keeps only a kind (`tree`, `rock`, `fence`). The wiki page is
 
 **Blizzard's sentences are not used either.** Creature names, quest text,
 gossip. The structure comes from AzerothCore; the words are ours.
+
+**Art carries its author.** The LPC tilesets ship a `MISSING:` section — tiles
+nobody recorded the author of. A CC-BY tile with no author cannot be complied
+with, so `pipeline/bake_tiles.py` refuses a piece that names none, and both
+credit files are generated from the tables the art is built from.
 
 ## Finishing a change
 

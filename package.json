@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "bake": "python3 pipeline/bake_terrain.py",
-    "check": "tsc"
+    "check": "tsc",
+    "tiles": "python3 pipeline/bake_tiles.py",
+    "sprites": "python3 pipeline/bake_sprites.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
@@ -18,8 +20,7 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
-    "@types/three": "^0.185.4",
-    "three": "^0.186.0"
+    "@types/three": "^0.185.4"
   },
   "description": "A single-player browser RPG built on AzerothCore data."
 }
