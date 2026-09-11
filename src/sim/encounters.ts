@@ -3118,9 +3118,65 @@ export const ENCOUNTERS: Encounter[] = [
      * is where the boss stands and the raid stands around it. Here the centre
      * is the fight -- the wound opens on it and the raid has to walk *in* --
      * so the room is written around a middle that is occupied.
+     *
+     * And then it was built a quarter turn out, which is the third wrong
+     * number and the only one the boundary alone could not have caught. A
+     * rectangle has two spans and nothing in `RectangleBoundary` says which of
+     * them the raid walks along; that is decided by where the door is.
+     * `GO_GREEN_DRAGON_BOSS_ENTRANCE` stands at (4292.61, 2484.49), which is
+     * the `+x` wall at the boss's own `y` -- so `+x` is the way in, the
+     * hundred and eighty-one yard span is the depth and the two hundred yard
+     * span is the width. It had them the other way round: a room the right
+     * size, the right area and the wrong shape, turned so the long axis ran
+     * across the walk instead of along it.
+     *
+     * Her own row puts her all but dead centre of it -- 4203.65 against walls
+     * at 4112.5 and 4293.5, so ninety-one yards behind and ninety in front --
+     * which is the one hall on the roster where `front` and `back` come out
+     * nearly equal, and is the same fact the note above states about the
+     * middle being occupied, now said in numbers.
      */
-    room: { kind: 'hall', halfWidth: 1046, front: 1156, back: 1156 },
+    room: { kind: 'hall', halfWidth: 1156, front: 1039, back: 1054 },
     terrain: [],
+    /**
+     * Four doors, off the source's own rows rather than off the issue's
+     * sketch, and the back pair only opens for twenty-five.
+     *
+     * Issue #35 called this room the worked example of the rule and drew the
+     * four doors by hand at (-640, +420), (+640, +420), (-640, -520) and
+     * (+640, -520). The rows exist: `GO_DOODAD_ICECROWN_ROOSTPORTCULLIS_01`
+     * through `04` -- 201380-201383, all four `DOOR_TYPE_SPAWN_HOLE` bound to
+     * `DATA_VALITHRIA_DREAMWALKER` -- stand on map 631 at (4166.02, 2549.49),
+     * (4241.35, 2549.49), (4241.35, 2419.49) and (4166.02, 2419.49). Against
+     * her own spawn at (4203.65, 2483.89) and through the frame every other
+     * source coordinate in this file goes through, that is the four corners of
+     * a rectangle 75 yards along the walk by 130 across it.
+     *
+     * So the sketch was right about the arrangement and wrong about the
+     * proportion: it drew them nearly twice as far apart along the walk as
+     * across it, and they are nearly twice as far apart across as along. Which
+     * is the same quarter turn the room itself was built with, and finding it
+     * in the doors is how the room got looked at again.
+     *
+     * The pair at her `+y` -- 02 and 03, the two at `x` 4241.35 -- are the
+     * ones on the side the raid walks in from, so those are the two that are
+     * always open and the far pair is the twenty-five man's. That is the
+     * issue's rule kept exactly: a ten-man fights the half of the hall it
+     * entered by and never turns round.
+     *
+     * Listed right-front, left-front, right-back, left-back, because doors are
+     * taken in turn and never rolled. A ten-man therefore gets right, left,
+     * right, left and a twenty-five man gets the same alternation with the
+     * back of the room folded into it -- in both cases the next wave is on the
+     * other side from the last one, which is the thing about a wave that can
+     * be learned.
+     */
+    doors: [
+      { pos: { x: 758, y: 436 } },
+      { pos: { x: -745, y: 436 } },
+      { pos: { x: 758, y: -435 }, from: 25 },
+      { pos: { x: -745, y: -435 }, from: 25 },
+    ],
     /** Wet stone and moss, which is the first green floor in the citadel. */
     floor: 'floor-earth',
     // Its own row's `speed_run`, and it is the one on the roster that will
@@ -3188,7 +3244,27 @@ export const ENCOUNTERS: Encounter[] = [
     // the drain or it does not, and there is no tuning value that makes the
     // difference gradual. It is the one thing about this fight that the
     // inversion costs.
-    sizeMechanic: { 10: 0.7, 25: 0.64 },
+    //
+    // And then the doors arrived and it was 0.64 no longer. Everything this
+    // fight summons goes through `spawnSpot` -- the wave, the one that came to
+    // help, and the thing that stops the mending -- so all three moved from a
+    // rolled bearing on a ring of 230 to four holes 874 out, and the thing
+    // that stopped the mending moved furthest. A twenty-five man opens all
+    // four, two of which are behind it; a ten-man opens the two it walked in
+    // by. At 0.64 that read 50/90 and 25/55 against the 100/100 and 80/100 it
+    // read the day before, which is the band's floor with nothing to spare.
+    //
+    // Four values, same forty pulls a cell: 0.64 -> 50/90, 25/55; 0.62 ->
+    // 73/93, 40/75; 0.60 -> 93/98, 65/88; 0.58 -> 90/100, 70/90. 0.62, because
+    // of the four it is the one where the fight is learned rather than known
+    // or refused -- the roster reads 100/100, 85/88, 73/93, 40/75, which is a
+    // first pull that gets steadily worse across the table and a ninth that
+    // does not.
+    //
+    // Which also retracts, a little, the paragraph above it. The step was
+    // narrow because the only thing between the raid and the bar was the bar;
+    // four doors put a walk in the way, and a walk has partial credit in it.
+    sizeMechanic: { 10: 0.7, 25: 0.62 },
     // The wave is the first rung and it is deliberately cheap: it is the only
     // thing in this fight that touches the raid at all, and it is documented
     // as teaching nothing on its own -- which is right here, because it is the

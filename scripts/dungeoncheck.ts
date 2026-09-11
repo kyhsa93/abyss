@@ -1797,7 +1797,7 @@ expect(
     // And the rooms nobody fights in, which are still the client map tile's
     // reading of the same building. There is no boss boundary for a room with
     // no boss in it, so there is nothing better to have.
-    ['dream', 181.0, 200.0], // RectangleBoundary(4112.5, 4293.5, 2385, 2585), Valithria
+    ['dream', 200.0, 181.0], // RectangleBoundary(4112.5, 4293.5, 2385, 2585), Valithria
     ['lair', 175.0, 175.0], // EllipseBoundary(4408.6, 2484.0), 100 by 75, as a mean
     // And the rooms nobody fights in, which are still the client map tile's
     // reading of the same building.
@@ -1851,6 +1851,13 @@ expect(
     ['sludge', 120.0, 113.0], // RectangleBoundary(4385, 4505, 3082, 3195)
     ['laboratory', 155.0, 96.0], // ParallelogramBoundary, Putricide
     ['sanctum', 128.0, 128.0], // CircleBoundary(4595.93, 2769.365) r64
+    // RectangleBoundary(4112.5, 4293.5, 2385, 2585), Valithria. Which span is
+    // the walk is not in the boundary and is in the door:
+    // `GO_GREEN_DRAGON_BOSS_ENTRANCE` stands on the `+x` wall, so the 181-yard
+    // span is the depth. This room was built the other way round for as long
+    // as it had a fight in it -- right size, right area, quarter turn out --
+    // and this row is the line that would have said so.
+    ['dream', 200.0, 181.0],
     // The crimson hall is not here, and deliberately. The source fights the
     // council in the round chamber at the end of that hall and the queen in
     // the hall itself; this game draws the two rooms the same way round and

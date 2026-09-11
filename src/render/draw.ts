@@ -41,7 +41,7 @@ import { AURA_DURATION, dist, getAura } from '../sim/combat'
 import { CART_RADIUS, FLAG_PICKUP, FLAG_TAKE, RALLY_TELEGRAPH } from '../sim/battleground'
 import { BOSS_ID } from '../sim/state'
 import { playerTarget } from '../sim/sim'
-import { ENCOUNTERS, encounterAt } from '../sim/encounters'
+import { ENCOUNTERS, encounterAt, openDoors } from '../sim/encounters'
 import { CHAMBERS, placeOf, type Chamber, type WingId, chamberAt } from '../dungeon'
 import { bgAnchor } from '../sim/bgai'
 import { turnView, viewAngle } from './camera'
@@ -412,6 +412,7 @@ export function drawWorld(
           : undefined
     if (own && own.length > 0) drawProps(ctx, worldToScreen, L.scale, own)
   }
+  drawDoorsteps(ctx, s)
   drawTerrain(ctx, s)
   drawObjectives(ctx, s, clock)
   drawGround(ctx, s, clock)
@@ -525,6 +526,48 @@ export function drawWorld(
  * there — so the shape has to be read on top of the stone rather than cut out
  * of it.
  */
+/**
+ * A worn patch of floor where a wave comes out, and none where one does not.
+ *
+ * The doors are the one thing in this game that decides something before it
+ * happens: which side the next wave arrives on is learnable because the order
+ * is fixed, and it is only learnable if the places are visible. Without this a
+ * door is an invisible point a body appears at, and "where do they come from"
+ * is answered by watching one arrive -- which is the same as not knowing.
+ *
+ * Off `openDoors` rather than off the fight's whole list, so a ten-man sees two
+ * marks and a twenty-five man sees four. That is issue #35's last line kept
+ * exactly: the half of the dreaming hall a small raid never uses does not
+ * advertise itself, and the room reads as smaller because it is.
+ *
+ * Drawn under the terrain and under everything a mechanic puts on the ground,
+ * flat, dim, and with no edge. The floor may not have opinions -- every shape
+ * that means something here is bright and moves, and this is neither. It is
+ * the same bargain the floor litter struck: a scuff is a fact about the room,
+ * not a thing to stand on.
+ */
+function drawDoorsteps(ctx: CanvasRenderingContext2D, s: SimState): void {
+  if (s.mode !== 'raid') return
+  const doors = openDoors(encounterAt(s.encounter), s.party.length)
+  if (doors.length === 0) return
+
+  const c = roomAt(s.room)
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+  for (const door of doors) {
+    const on = worldToScreen({ x: c.x + door.pos.x, y: c.y + door.pos.y })
+    // Two overlapping discs rather than one, because a single ellipse on a
+    // floor made of slabs reads as a hole. A scuff has no middle.
+    ctx.beginPath()
+    floorArc(ctx, on.x, on.y, 54 * L.scale)
+    ctx.fill()
+    ctx.beginPath()
+    floorArc(ctx, on.x, on.y, 30 * L.scale)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
 function drawTerrain(ctx: CanvasRenderingContext2D, s: SimState): void {
   // The ground it is standing on, always. A body has a footprint under it for
   // the same reason: what says where a thing is on a tipped floor is the patch

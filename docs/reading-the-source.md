@@ -557,14 +557,51 @@ is the one thing about a room that a picture cannot argue with:
 | Putricide | `ParallelogramBoundary((4356, 3290), (4435, 3194), (4280, 3194))` | 155 × 96 |
 | Blood Prince Council | `EllipseBoundary(4660.95, 2769.194) 85 × 60` | 120 × 170 |
 | Blood-Queen Lana'thel | `CircleBoundary(4595.93, 2769.365) r64` | 128 × 128 |
-| Sister Svalna | `RectangleBoundary(4291, 4423, 2438, 2653)` | 132 × 215 |
-| Valithria | `RectangleBoundary(4112.5, 4293.5, 2385, 2585)` | 181 × 200 |
-| Sindragosa | `EllipseBoundary(4408.6, 2484) 100 × 75` | 200 × 150 |
+| Sister Svalna | `RectangleBoundary(4291, 4423, 2438, 2653)` | 215 × 132 |
+| Valithria | `RectangleBoundary(4112.5, 4293.5, 2385, 2585)` | 200 × 181 |
+| Sindragosa | `EllipseBoundary(4408.6, 2484) 100 × 75` | 150 × 200 |
 
 **Read a rectangle as a bound and a circle as a shape.** Nobody writes a circle
 boundary for a square room, so Marrowgar's half-disc and the queen's circle are
 floor plans; a rectangle may be the room or may be the box around it. That is
 why what has been taken from this table is *proportion* rather than outline.
+
+**And the boundary does not say which span is the walk. The door does.** The
+right-hand column above is *across the walk × along it*, and a boundary has no
+opinion about which of its two spans is which — it is a box. What decides is
+where the raid comes in, and that is a `DOOR_TYPE_ROOM` row in `doorData` with
+a `gameobject` position on it. Every one of them, taken:
+
+| fight | its room door, on map 631 | the walk runs along |
+| --- | --- | --- |
+| Marrowgar | `LORD_MARROWGAR_S_ENTRANCE` (−338.09, 2211.47) | `x` |
+| Deathwhisper | `ORATORY_OF_THE_DAMNED_ENTRANCE` (−520.44, 2211.47) | `x` |
+| Saurfang | `SAURFANG_S_DOOR` (−469.62, 2211.30) | `x` |
+| Festergut | `ORANGE_PLAGUE_MONSTER_ENTRANCE` (4267.71, 3085.06) | `y` |
+| Rotface | `GREEN_PLAGUE_MONSTER_ENTRANCE` (4445.72, 3085.06) | `y` |
+| Blood Prince Council | `CRIMSON_HALL_DOOR` (4581.03, 2769.33) | `x` |
+| Lana'thel | `DOODAD_ICECROWN_BLOODPRINCE_DOOR_01` (4534.99, 2769.85) | `x` |
+| Valithria | `GREEN_DRAGON_BOSS_ENTRANCE` (4292.61, 2484.49) | `x` |
+| Sindragosa | `SINDRAGOSA_ENTRANCE_DOOR` (4274.20, 2484.56) | `x` |
+
+Three rows of the boundary table had been written the wrong way round against
+that — Svalna, Valithria and Sindragosa, all three of them in the frostwing,
+and all three of them on the `x` axis in a wing whose long rooms run that way.
+Only one of the three had a fight built on it, and it was built turned: see the
+dreaming hall below.
+
+Putricide has no `DOOR_TYPE_ROOM` row. His parallelogram has its long side on
+`y = 3194` and its apex ninety-six yards past it, and the sludgeworks he is
+reached from are the rooms below that line, so the walk is along `y`.
+
+**AzerothCore and TrinityCore disagree about one of these**, and it is worth
+writing down rather than picking silently. Sindragosa's ellipse is
+`(4408.6, 2484) 100 × 75` in TrinityCore and `(4418.6, 2484) 110 × 75` in
+AzerothCore — the same near edge, twenty yards more floor at the far one. Every
+number in this document is TrinityCore's, so the frost queen's room is built at
+the mean of 100 × 75 and not of 110 × 75. Two hand-made approximations of one
+oval differing by five percent is smaller than the difference between either of
+them and a room built round, which is what this game builds it as.
 
 Seven of the eight fights here were already the right shape to within a fifth.
 The eighth was turned ninety degrees, and had been for a year with its own
@@ -1271,9 +1308,44 @@ straight onto the dreaming hall.
 
 And one more thing the door table settles, which issue #35 asked for and
 nothing had confirmed: Valithria has **four** `DOOR_TYPE_SPAWN_HOLE` doors —
-`GO_DOODAD_ICECROWN_ROOSTPORTCULLIS_01` through `04`. The four doors that room
-is supposed to have are in the source's own data, and the wave here still
-arrives without them.
+`GO_DOODAD_ICECROWN_ROOSTPORTCULLIS_01` through `04`.
+
+### Where the dreaming hall's four doors are, and which way the room faces
+
+Entries 201380–201383 in `icecrown_citadel.h`, and their `gameobject` rows on
+map 631:
+
+| door | source (x, y) | room frame |
+| --- | --- | --- |
+| `ROOSTPORTCULLIS_01` | 4166.02, 2549.49 | 758, −435 |
+| `ROOSTPORTCULLIS_02` | 4241.35, 2549.49 | 758, +436 |
+| `ROOSTPORTCULLIS_03` | 4241.35, 2419.49 | −745, +436 |
+| `ROOSTPORTCULLIS_04` | 4166.02, 2419.49 | −745, −435 |
+
+Against Valithria's own `creature` row at (4203.65, 2483.89), through the frame
+the rest of this document uses — `y_room = (x_src − x_boss) × YARD ×
+BUILD_SCALE`, `x_room = (y_src − y_boss) × YARD × BUILD_SCALE`. They are the
+four corners of a rectangle 75 yards along the walk by 130 across it, which is
+not a wall door at all: `DOOR_TYPE_SPAWN_HOLE` is a hole in the floor, and the
+nearest wall to any of them is thirty-four yards away.
+
+Two things fell out of taking them, neither of which was the doors.
+
+**The room was built a quarter turn out.** `RectangleBoundary(4112.5, 4293.5,
+2385, 2585)` has two spans, 181 yards and 200, and nothing in a boundary says
+which of them the raid walks along. That is in the door table too:
+`GO_GREEN_DRAGON_BOSS_ENTRANCE` stands at (4292.61, 2484.49), the `+x` wall at
+her own `y`. So `+x` is the way in, 181 is the depth and 200 is the width, and
+the room had been built 181 wide by 200 deep — right size, right area, long
+axis across the walk instead of along it. `dungeoncheck`'s shape table now
+carries the row that says so.
+
+**A door is not necessarily on a wall.** `rendercheck` asked for every declared
+door to sit within 64 units of one, which was true of the only doors that
+existed and is a proxy rather than the rule. What the rule is about is the walk
+a wave has to make before it reaches anybody, so it is written as that now —
+0.39 of the room's reach, the same share the Reeking Host's arrivals are
+checked against.
 
 ## How to take a measurement off a picture
 

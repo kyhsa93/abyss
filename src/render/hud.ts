@@ -5,7 +5,7 @@ import { CLASSES, PARTY_UNIT, abilityBar, partyCount, specOf } from '../sim/clas
 import { playerTarget, pressTarget } from '../sim/sim'
 import { callBar, type CallSlot } from '../sim/calls'
 import { BUILD_SCALE, GLOBAL_COOLDOWN, TICK_RATE } from '../sim/constants'
-import { encounterAt } from '../sim/encounters'
+import { encounterAt, openDoors } from '../sim/encounters'
 import { hasNextTier, tierAt, tierLabel, tierOf } from '../progress'
 import { adds, boss, castBlocker, dist, getAura, mostHurt } from '../sim/combat'
 import { BOSS_ID } from '../sim/state'
@@ -720,6 +720,31 @@ function drawMinimap(ctx: CanvasRenderingContext2D, s: SimState): void {
     ctx.arc(p.x, p.y, Math.max(1, rock.radius * k), 0, Math.PI * 2)
     ctx.fillStyle = 'rgba(148, 163, 184, 0.35)'
     ctx.fill()
+  }
+
+  // And the doors, which are the one thing on this map that says what is about
+  // to happen rather than what is there.
+  //
+  // They are marked on the floor too, and on the floor they are almost never
+  // visible: the camera shows about a third of the dreaming hall's width and
+  // the doors stand at 0.56 of its reach, so in the ordinary case a wave walks
+  // in from off the edge of the screen. That is the room being bigger than the
+  // view, which is a thing this game already has an answer for and it is this
+  // circle -- "the only thing on the screen that answers where is that, on the
+  // floor". A door order that is fixed and learnable is worth nothing if the
+  // places cannot be seen, and here they can.
+  //
+  // Hollow, thin and the floor's own edge colour, because a door is not a
+  // thing to go to. Everything else on this map is filled.
+  if (s.mode === 'raid') {
+    for (const door of openDoors(encounterAt(s.encounter), s.party.length)) {
+      const p = at({ x: middle.x + door.pos.x, y: middle.y + door.pos.y })
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, Math.max(2.5, r * 0.07), 0, Math.PI * 2)
+      ctx.strokeStyle = COLORS.floorEdge
+      ctx.lineWidth = 1
+      ctx.stroke()
+    }
   }
 
   // Objectives after: they are the map in a battleground, and everything else

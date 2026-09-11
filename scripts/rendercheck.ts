@@ -9499,10 +9499,24 @@ for (const [label, w, h] of [
 // "which side first" a question, and the room says where they are before
 // anything comes through them.
 //
-// Nothing declares doors yet — the rooms that want them are #27 and #35 — so
-// what is checked here is the rule and the machinery: a declared door has to
-// be on a wall, the mouth has to be clear, the size gate has to open and shut,
-// and a fight given doors has to actually use them, in turn.
+// What is checked here is the rule and the machinery: a declared door is
+// somewhere a wave can come from without already being on top of anybody, the
+// mouth has to be clear, the size gate has to open and shut, and a fight given
+// doors has to actually use them, in turn.
+//
+// It asked for a door to be *on a wall*, which is one of the two kinds the
+// source has and was the only kind this game had. `DoorData` marks the
+// Oratory's as passages through a wall and the dreaming hall's four as
+// `DOOR_TYPE_SPAWN_HOLE` -- holes in the floor, thirty-eight yards either side
+// of the boss and sixty-five in front and behind, nowhere near a wall. They
+// are still doors in every way this check cares about, so what the rule is
+// really about had to be said instead of stood in for: distance from where the
+// raid is, which is the walk the wave has to make.
+//
+// Thirty-nine hundredths of the room's reach, which is the number the walk is
+// already written as one check down. The Oratory's wall doors measure 0.54 and
+// 0.60 of theirs and the dreaming hall's holes 0.56 of hers, so this does not
+// let anything through that being on a wall used to stop.
 {
   const faults: string[] = []
   let declared = 0
@@ -9510,16 +9524,21 @@ for (const [label, w, h] of [
     for (const door of fight.doors ?? []) {
       declared++
       const room = fight.room ?? ROUND_ARENA
-      const gap = wallGap(room, door.pos)
-      if (Math.abs(gap) > 64) faults.push(`${fight.short}: a door sits ${gap.toFixed(0)} off its wall`)
-      const away = Math.hypot(door.pos.x, door.pos.y) || 1
+      const out = Math.hypot(door.pos.x, door.pos.y)
+      const want = roomReach(room) * 0.39
+      if (wallGap(room, door.pos) < -64) {
+        faults.push(`${fight.short}: a door sits ${(-wallGap(room, door.pos)).toFixed(0)} outside the room`)
+      } else if (out < want) {
+        faults.push(`${fight.short}: a door stands ${out.toFixed(0)} out, wants ${want.toFixed(0)}`)
+      }
+      const away = out || 1
       const mouth = { x: door.pos.x * (1 - 64 / away), y: door.pos.y * (1 - 64 / away) }
       if (inTerrain(fight.terrain ?? [], mouth, 16)) {
         faults.push(`${fight.short}: a door opens into a rock`)
       }
     }
   }
-  expect(`${declared} declared door(s) are on a wall with a clear mouth`, faults.length === 0, faults.join('; '))
+  expect(`${declared} declared door(s) stand off the middle with a clear mouth`, faults.length === 0, faults.join('; '))
 
   // The gate, on a fight given one door of each kind.
   const subject = ENCOUNTERS.findIndex(
