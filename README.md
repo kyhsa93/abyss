@@ -73,8 +73,14 @@ three CC0 model kits — [Fantasy Town](https://kenney.nl/assets/fantasy-town-ki
 them — and photographs each piece in headless Blender at the camera
 `src/main.ts` projects with: orthographic, 2:1, elevation `atan(0.5)` down the
 45° diagonal. Trees, bushes, rocks, fences, buildings, carts, stalls, logs,
-grass, flowers and mushrooms all come from there. What is still drawn is the
-ground, the people, and the farm produce.
+grass, flowers and mushrooms all come from there.
+
+So are the people, or 230 of them. `pipeline/render_actor.py` turns a rigged
+CC0 character eight times and photographs each — so the hero, the townsfolk,
+the guards and the bandits face the way they are going, which four drawn poses
+in a quarter view cannot. The kobolds, the murlocs and every animal keep the
+drawn sheet: there is no CC0 model set for fantasy monsters or forest animals
+in this style, and that was looked for rather than assumed.
 
 The art is Liberated Pixel Cup — the tilesets, the character parts and four
 animal packs from OpenGameArt, cut and composited by `pipeline/`. It is

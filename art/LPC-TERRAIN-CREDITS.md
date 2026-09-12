@@ -16,7 +16,7 @@ recorded cannot be complied with.
   <https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements>  
   `reeds`, `reeds2`, `hay`, `stall`, `carrots`, `sacks`, `corn`, `corn2`, `woodpile`, `baskets`, `baskets2`, `tomatoes`, `sprout`, `firewood`, `firewood2`, `sack`, `anvil`, `sprout2`, `fence_post`, `fence2`, `basket`, `basket2`, `crate`, `pumpkin`, `fence`
 
-- **Kenney (Fantasy Town Kit, Nature Kit, Mini Forest), rendered by pipeline/render_kit.py** — CC0 1.0  
+- **Kenney (Fantasy Town Kit, Nature Kit, Mini Forest, Mini Characters), rendered by pipeline/render_kit.py and pipeline/render_actor.py** — CC0 1.0  
   <https://kenney.nl/assets>  
   `kit_house_stone`, `kit_hall`, `kit_windmill`, `kit_house`, `kit_watermill`, `kit_tree4`, `kit_stall`, `kit_stall2`, `kit_rock4`, `kit_lantern`, `kit_pine`, `kit_pine2`, `kit_tent`, `kit_tree2`, `kit_pine3`, `kit_tree`, `kit_fountain`, `kit_tree3`, `kit_cart2`, `kit_hedge2`, `kit_pine4`, `kit_cart`, `kit_stones`, `kit_log2`, `kit_fence`, `kit_fence2`, `kit_fence2_b`, `kit_fence_b`, `kit_gate`, `kit_gate_b`, `kit_planks`, `kit_rock2`, `kit_logs`, `kit_rock`, `kit_hedge`, `kit_wheel`, `kit_log`, `kit_bush2`, `kit_grass2`, `kit_bush3`, `kit_mushroom2`, `kit_mushroom3`, `kit_flower`, `kit_plant`, `kit_bush`, `kit_grass`, `kit_rock3`, `kit_flower2`, `kit_bush4`, `kit_mushroom`, `kit_flower3`, `kit_grass3`
 

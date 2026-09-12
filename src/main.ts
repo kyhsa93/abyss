@@ -32,10 +32,17 @@ type Meta = {
   doodads: Doodad[]
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
-type Clips = Record<string, { first: number; count: number; dirs: number }>
 type NpcArt = {
   cell: number; cols: number; anchor: number
   kinds: Record<string, { first: number; frames: number; people: boolean; yards?: number }>
+}
+/** The rendered people: eight directions apiece, and clips rather than a run. */
+type ActorArt = {
+  cell: number; cols: number; anchor: number
+  kinds: Record<string, {
+    first: number; frames: number; dirs: number
+    clips: Record<string, { first: number; count: number }>
+  }>
 }
 /**
  * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
@@ -96,12 +103,11 @@ async function main() {
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
+  const [tilesImg, tilesMeta, actorImg, actorArt, npcImg, npcArt, spawns] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
-    load('./art/hero3d.png'),
-    fetch('./art/hero3d.json').then((r) => r.json() as Promise<
-      { cell: number; cols: number; dirs: number; anchor: number; clips: Clips }>),
+    load('./art/actors.png'),
+    fetch('./art/actors.json').then((r) => r.json() as Promise<ActorArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
     // Not behind the two-worlds switch, and that is not an oversight: the
@@ -191,10 +197,12 @@ async function main() {
    * decision is made twice: a coarse hash over 5-tile blocks says whether this
    * corner of the field is a meadow at all, and only inside one does the fine
    * hash pick a flowered tile.  Patches are what a meadow is; a uniform
-   * probability is what a rash is.
+   * probability is what a rash is — and the first pair of thresholds, at .62
+   * and .45, put flowers on a fifth of the whole slice, which is the rash
+   * again at a larger grain.
    */
   const BLOOM_TILES = ['bloom', 'bloom2', 'bloom3'].filter((k) => tilesMeta[k])
-  const MEADOW = 0.62
+  const MEADOW = 0.78
 
   // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
   // never emits a model path, so this table is the only place that decides
@@ -491,9 +499,29 @@ async function main() {
   const STAYS = new Set(['vendor', 'trainer', 'questgiver', 'innkeeper', 'banker',
     'stablemaster', 'flightmaster', 'spirithealer', 'talker'])
 
+  /**
+   * Who has a model, and which of them.
+   *
+   * Six townsfolk because eighty-three people who are all the same person is
+   * the complaint this repository already answered once for the drawn sheet.
+   * The kobolds, murlocs, ghosts and every animal are missing from here and
+   * cannot be added: there is no CC0 model set for fantasy monsters or forest
+   * animals in this style, which was looked for rather than assumed, so those
+   * 547 keep the drawn sheet and the seam is visible.
+   */
+  const ACTORS: Record<string, string[]> = {
+    townsfolk: ['townsfolk', 'townsfolk2', 'townsfolk3', 'townsfolk4',
+      'townsfolk5', 'townsfolk6'],
+    guard: ['guard'],
+    bandit: ['bandit', 'bandit2'],
+  }
+
   type Npc = {
     x: number; y: number; hx: number; hy: number
     dir: number; t: number; art: string; alpha: number
+    /** Set when this one was photographed; `art` is the drawn sheet's key. */
+    actor?: string
+    dirs: number
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
     kind: string; role: string; level: number; topic: Topic | null; seed: number
@@ -510,9 +538,13 @@ async function main() {
     // How much room a body takes, from the length the bake drew it at. People
     // have no `yards` — they are drawn at LPC's own scale, like the player.
     const yards = a.yards ?? 1.2
+    const cast = ACTORS[kind]
+    const actor = cast?.[Math.floor(hash(row[0]!, row[1]! + 51) * cast.length) % cast.length]
     npcs.push({
       x: row[0]!, y: row[1]!, hx: row[0]!, hy: row[1]!,
       dir: row[3]!, t: hash(row[0]!, row[1]!) * 4, art,
+      ...(actor ? { actor } : {}),
+      dirs: actor ? actorArt.kinds[actor]!.dirs : 4,
       alpha: borrowed ? borrowed.alpha : 1,
       r: Math.max(0.3, yards * 0.28),
       wander: STAYS.has(role) ? 0 : 7,
@@ -637,7 +669,7 @@ async function main() {
         (!n.swims && wetAt(x, y)) || slopeAt(x, y) > CLIFF || solidAt(x, y) || npcAt(x, y, n)
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
-      n.dir = facing(n.vx, n.vy)
+      n.dir = n.dirs === 8 ? facing8(n.vx, n.vy, 8) : facing(n.vx, n.vy)
     }
   }
 
@@ -794,7 +826,7 @@ async function main() {
     // four the sprite has, so this costs nothing and is the difference between
     // a conversation and shouting at somebody's back.
     const dx = hero.x - n.x, dy = hero.y - n.y
-    n.dir = facing(dx, dy)
+    n.dir = n.dirs === 8 ? facing8(dx, dy, 8) : facing(dx, dy)
     n.vx = 0; n.vy = 0
     drawTalk()
   }
@@ -1024,7 +1056,7 @@ async function main() {
       const stuck = blocked(hero.x, hero.y)
       if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
       if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = facing8(mx, my, heroMeta.dirs)
+      hero.dir = facing8(mx, my, actorArt.kinds['hero']!.dirs)
       hero.t += dt
     } else {
       hero.t += dt
@@ -1104,7 +1136,7 @@ async function main() {
         const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : steep > CLIFF ? ROCK_TILE
             : steep > BARE ? DIRT_TILE
-              : meadow && h > 0.45
+              : meadow && h > 0.55
                 ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                 : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         // One straight blit of a diamond that was sheared at load, placed by
@@ -1124,30 +1156,42 @@ async function main() {
     const margin = 120
     drawn = 0
     const heroZ = groundAt(hero.x, hero.y)
-    const drawHero = () => {
-      const clip = hero.moving ? heroMeta.clips['walk']! : heroMeta.clips['idle']!
-      const n = clip.count
-      const f = hero.moving
-        ? Math.floor(hero.t * 10) % n
-        : Math.floor(hero.t * 2) % n
-      const idx = clip.first + hero.dir * n + f
-      const c = heroMeta.cell
-      const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
-      // One sprite pixel to one screen pixel at zoom 1, which is the same
-      // scale the ground tiles are drawn at — 32 pixels to a 1.33 yard tile is
-      // 24 to the yard, and PPY is 24.  A separate fudge factor here had
-      // sprites eight per cent smaller than the ground they stood on.
-      const w = c * zoom, hgt = w
-      shadow(hero.x, hero.y, 0.34)
+    /**
+     * Anybody who was photographed rather than drawn.
+     *
+     * One routine for the hero and for the 230 townsfolk, guards and bandits
+     * that have a model, because after the render they are the same thing: a
+     * kind in one sheet, eight directions, a walk and a stand.
+     *
+     * One sprite pixel to one screen pixel at zoom 1, which is the scale the
+     * ground is drawn at — 32 pixels to a 1.33 yard tile is 24 to the yard,
+     * and PPY is 24.  A separate fudge factor here once had sprites eight per
+     * cent smaller than the ground they stood on.
+     */
+    const drawActor = (
+      who: string, dir: number, x: number, y: number, t: number, moving: boolean,
+    ) => {
+      const a = actorArt.kinds[who]!
+      const clip = moving ? a.clips['walk']! : a.clips['idle']!
+      const f = moving ? Math.floor(t * 9) % clip.count : 0
+      // The sheet lays a clip out as directions, each a run of frames — the
+      // same order the drawn sheets use, so this is the same arithmetic.
+      const idx = clip.first + dir * clip.count + f
+      const c = actorArt.cell
+      const sxp = (idx % actorArt.cols) * c, syp = Math.floor(idx / actorArt.cols) * c
+      const w = c * zoom
+      shadow(x, y, 0.3)
       // The foot line comes from the sheet.  A drawn sheet stands its people
-      // near the bottom of the cell; a rendered one is aimed at the model's
-      // origin, which is the floor, so the feet land near the middle — and the
-      // packer measures which rather than either of them being typed here.
-      ctx.drawImage(heroImg, sxp, syp, c, c,
-        Math.round(screenX(hero.x, hero.y) - w / 2),
-        Math.round(screenY(hero.x, hero.y) - hgt * heroMeta.anchor),
-        Math.ceil(w), Math.ceil(hgt))
+      // near the bottom of the cell; a render aimed at the model's origin puts
+      // them on it, and the packer measures which rather than either number
+      // being typed here.
+      ctx.drawImage(actorImg, sxp, syp, c, c,
+        Math.round(screenX(x, y) - w / 2),
+        Math.round(screenY(x, y) - w * actorArt.anchor), Math.ceil(w), Math.ceil(w))
       drawn++
+    }
+    const drawHero = () => {
+      drawActor('hero', hero.dir, hero.x, hero.y, hero.t, hero.moving)
     }
     /**
      * The dab of shade a body puts on the ground it stands on.
@@ -1170,6 +1214,10 @@ async function main() {
     }
 
     const drawNpc = (n: Npc) => {
+      if (n.actor) {
+        drawActor(n.actor, n.dir, n.x, n.y, n.t, n.moving)
+        return
+      }
       const a = npcArt.kinds[n.art]!
       // Frame 0 is the standing pose in every sheet the bake cuts. For people
       // the walk is the frames after it; the animal sheets have no separate

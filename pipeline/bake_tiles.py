@@ -67,8 +67,9 @@ AUTHORS = {
     # exactly why it is written down here — a credit nobody is owed is still
     # the honest record of where a picture came from.
     'kenney': {
-        'name': ('Kenney (Fantasy Town Kit, Nature Kit, Mini Forest), '
-                 'rendered by pipeline/render_kit.py'),
+        'name': ('Kenney (Fantasy Town Kit, Nature Kit, Mini Forest, '
+                 'Mini Characters), rendered by pipeline/render_kit.py and '
+                 'pipeline/render_actor.py'),
         'licences': 'CC0 1.0',
         'url': 'https://kenney.nl/assets',
     },

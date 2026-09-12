@@ -12,9 +12,9 @@ rotations of the same rig.
 Kenney's characters are rigged with thirty-two actions apiece, `walk` and
 `idle` among them, and are CC0.
 
-  blender --background --python pipeline/render_actor.py -- <kit> <model> <out>
+  blender --background --python pipeline/render_actor.py -- <out> <kit=path>... 
 
-writes `<out>/<dir>_<clip><frame>.png`, one cell each, which
+writes `<out>/<id>/<dir>_<clip><frame>.png`, one cell each, which
 `pipeline/pack_actor.py` then packs.  Rendering and packing are separate
 because Blender's bundled Python has no PIL.
 """
@@ -32,7 +32,28 @@ CELL = 80
 # Eight directions, a screen eighth apart.  `walk` is sampled evenly and `idle`
 # gives one standing frame, which is the same shape the LPC sheet has.
 DIRS = 8
-CLIPS = (('walk', 8), ('idle', 1))
+CLIPS = (('walk', 4), ('idle', 1))
+
+# (id, kit, model).  Who the slice is made of, as far as there are models for
+# them.  Twelve townsfolk because 83 people who are all the same person is the
+# thing this repository already fixed once for the drawn sheet, and the archer
+# stands in for a guard because he is the only one of these wearing anything.
+#
+# The kobolds, murlocs and every animal are not here and cannot be: there is no
+# CC0 model set for fantasy monsters or forest animals in this style, which was
+# checked rather than assumed.  Those kinds keep the drawn sheet.
+ACTORS = [
+    ('hero', 'forest', 'character-archer'),
+    ('guard', 'forest', 'character-archer'),
+    ('townsfolk', 'people', 'character-female-a'),
+    ('townsfolk2', 'people', 'character-male-a'),
+    ('townsfolk3', 'people', 'character-female-c'),
+    ('townsfolk4', 'people', 'character-male-c'),
+    ('townsfolk5', 'people', 'character-female-e'),
+    ('townsfolk6', 'people', 'character-male-e'),
+    ('bandit', 'people', 'character-male-b'),
+    ('bandit2', 'people', 'character-male-d'),
+]
 
 
 def imported(path):
@@ -82,7 +103,7 @@ def light():
     bg.inputs['Strength'].default_value = 0.55
 
 
-def main(kit, model, out):
+def one(kit, model, out):
     os.makedirs(out, exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     objs = imported(os.path.join(kit, model + '.glb'))
@@ -133,9 +154,15 @@ def main(kit, model, out):
                 sc.frame_set(int(lo + (hi - lo) * i / max(1, count)))
                 sc.render.filepath = os.path.join(out, f'{d}_{clip}{i}.png')
                 bpy.ops.render.render(write_still=True)
-    print(f'rendered {DIRS} directions')
+    print(f'rendered {model} in {DIRS} directions')
+
+
+def main(out, kits):
+    for name, kit, model in ACTORS:
+        one(kits[kit], model, os.path.join(out, name))
 
 
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:]
-    main(os.path.expanduser(argv[0]), argv[1], os.path.expanduser(argv[2]))
+    main(os.path.expanduser(argv[0]),
+         {k: os.path.expanduser(v) for k, v in (a.split('=', 1) for a in argv[1:])})
