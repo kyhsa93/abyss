@@ -11,7 +11,9 @@
     "check": "tsc",
     "tiles": "python3 pipeline/bake_tiles.py",
     "sprites": "python3 pipeline/bake_sprites.py",
-    "synth": "python3 pipeline/synth_terrain.py"
+    "synth": "python3 pipeline/synth_terrain.py",
+    "npcs": "python3 pipeline/bake_npcs.py",
+    "spawns": "python3 pipeline/spawn_npcs.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

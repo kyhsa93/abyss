@@ -1,0 +1,98 @@
+{
+ "cell": 64,
+ "cols": 18,
+ "anchor": 0.82,
+ "kinds": {
+  "townsfolk": {
+   "first": 0,
+   "frames": 5,
+   "people": true
+  },
+  "bandit": {
+   "first": 20,
+   "frames": 5,
+   "people": true
+  },
+  "guard": {
+   "first": 40,
+   "frames": 5,
+   "people": true
+  },
+  "kobold": {
+   "first": 60,
+   "frames": 5,
+   "people": true
+  },
+  "murloc": {
+   "first": 80,
+   "frames": 5,
+   "people": true
+  },
+  "bear": {
+   "first": 100,
+   "frames": 5,
+   "people": false,
+   "yards": 2.4
+  },
+  "deer": {
+   "first": 120,
+   "frames": 4,
+   "people": false,
+   "yards": 2.0
+  },
+  "spider": {
+   "first": 136,
+   "frames": 6,
+   "people": false,
+   "yards": 1.4
+  },
+  "rabbit": {
+   "first": 160,
+   "frames": 4,
+   "people": false,
+   "yards": 0.6
+  },
+  "cat": {
+   "first": 176,
+   "frames": 3,
+   "people": false,
+   "yards": 0.9
+  },
+  "horse": {
+   "first": 188,
+   "frames": 4,
+   "people": false,
+   "yards": 2.6
+  },
+  "cow": {
+   "first": 204,
+   "frames": 4,
+   "people": false,
+   "yards": 2.4
+  },
+  "boar": {
+   "first": 220,
+   "frames": 4,
+   "people": false,
+   "yards": 1.6
+  },
+  "sheep": {
+   "first": 236,
+   "frames": 4,
+   "people": false,
+   "yards": 1.5
+  },
+  "chicken": {
+   "first": 252,
+   "frames": 4,
+   "people": false,
+   "yards": 0.7
+  },
+  "wolf": {
+   "first": 268,
+   "frames": 5,
+   "people": false,
+   "yards": 2.0
+  }
+ }
+}

@@ -30,6 +30,12 @@ type Meta = {
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
 type Clips = Record<string, { first: number; count: number; dirs: number }>
+type NpcArt = {
+  cell: number; cols: number; anchor: number
+  kinds: Record<string, { first: number; frames: number; people: boolean; yards?: number }>
+}
+/** `[x, y, kind, facing, level, role]`, indices into `kinds` and `roles`. */
+type Spawns = { kinds: string[]; roles: string[]; npcs: number[][] }
 
 /** 32 pixels to an LPC tile, and an LPC person is about five feet of them. */
 const PPY = 24              // pixels to the yard at 1:1
@@ -78,11 +84,18 @@ async function main() {
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
     fetch('./art/hero.json').then((r) => r.json() as Promise<{ cell: number; cols: number; clips: Clips }>),
+    load('./art/npcs.png'),
+    fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
+    // Not behind the two-worlds switch, and that is not an oversight: the
+    // terrain has two sources because a client's height grid is sharper than
+    // anything a database knows, but where a wolf stands is a row in
+    // `creature` either way.  One spawn file, and it is the committed one.
+    fetch('./world/npcs.json').then((r) => r.json() as Promise<Spawns>),
   ])
 
   const canvas = document.createElement('canvas')
@@ -307,9 +320,174 @@ async function main() {
     return false
   }
 
-  /** Water, bare rock, a trunk, or somebody's wall. */
+  // --- who lives here ---------------------------------------------------
+
+  // LPC's own row order, which is why `spawn_npcs.py` can turn the server's
+  // orientation straight into one of these: 0 radians is +x, +x is up the
+  // screen, and a quarter turn from there is left.
+  const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
+
+  /**
+   * A kind with no art of its own borrows one.  A ghost is a townsman drawn
+   * through; there are two of them and a separate sheet for two spawns is not
+   * worth the atlas.  A kind in neither table is counted and dropped, not
+   * drawn as whatever happens to sit at index zero.
+   */
+  const BORROWED: Record<string, { art: string; alpha: number }> = {
+    ghost: { art: 'townsfolk', alpha: 0.45 },
+  }
+
+  /** Somebody standing behind a counter does not wander off mid-sentence. */
+  const STAYS = new Set(['vendor', 'trainer', 'questgiver', 'innkeeper', 'banker',
+    'stablemaster', 'flightmaster', 'spirithealer', 'talker'])
+
+  type Npc = {
+    x: number; y: number; hx: number; hy: number
+    dir: number; t: number; art: string; alpha: number
+    r: number; wander: number; swims: boolean
+    vx: number; vy: number; until: number; moving: boolean
+  }
+  const npcs: Npc[] = []
+  let unplaceable = 0
+  for (const row of spawns.npcs) {
+    const kind = spawns.kinds[row[2]!]!
+    const borrowed = BORROWED[kind]
+    const art = borrowed ? borrowed.art : kind
+    const a = npcArt.kinds[art]
+    if (!a) { unplaceable++; continue }
+    const role = spawns.roles[row[5]!]!
+    // How much room a body takes, from the length the bake drew it at. People
+    // have no `yards` — they are drawn at LPC's own scale, like the player.
+    const yards = a.yards ?? 1.2
+    npcs.push({
+      x: row[0]!, y: row[1]!, hx: row[0]!, hy: row[1]!,
+      dir: row[3]!, t: hash(row[0]!, row[1]!) * 4, art,
+      alpha: borrowed ? borrowed.alpha : 1,
+      r: Math.max(0.3, yards * 0.28),
+      wander: STAYS.has(role) ? 0 : 7,
+      swims: false, vx: 0, vy: 0, until: 0, moving: false,
+    })
+  }
+
+  /**
+   * Nudge anybody our water mask swallowed, and only by a little.
+   *
+   * A creature's position is the server's and it is a fact: something stood
+   * there.  The water is ours — the client's `MH2O` in one world, the lowest
+   * five per cent of an interpolated height field in the other — and it is
+   * sampled on a 4.17 yard grid, so a cat two yards up the beach rounds into
+   * the lake.  That is the case worth fixing, and the measurement says it is
+   * most of them: of the seventy-nine spawns inside the mask, thirty-one are
+   * within two yards of dry ground and the worst is twenty-eight.
+   *
+   * So the search stops at six yards.  Past that the creature is not a
+   * rounding error, it is a murloc, and moving it thirty yards inland to keep
+   * our own guess about where the shore is would be the tail wagging the dog.
+   * Those keep their place and are allowed to move in it.
+   */
+  let settled = 0, afloat = 0
+  const taken = (x: number, y: number) => wetAt(x, y) || solidAt(x, y)
+  const REACH = 6
+  for (const n of npcs) {
+    if (!taken(n.x, n.y)) continue
+    for (let ring = 1.5; ring <= REACH && taken(n.x, n.y); ring += 1.5)
+      for (let a = 0; a < 12; a++) {
+        const t = (a / 12) * Math.PI * 2
+        const px = n.hx + Math.cos(t) * ring, py = n.hy + Math.sin(t) * ring
+        if (!taken(px, py)) { n.x = px; n.y = py; settled++; break }
+      }
+    // Whoever is still standing in it belongs in it, and their own movement
+    // test stops asking about water. Wherever they ended up is now home, or
+    // they would walk straight back to the lake.
+    if (wetAt(n.x, n.y)) { n.swims = true; afloat++ }
+    n.hx = n.x; n.hy = n.y
+  }
+
+  /**
+   * The same bucket trick as the scenery, rebuilt every frame.
+   *
+   * The scenery's grid is built once because nothing in it moves; these do, so
+   * theirs is thrown away and refilled — seven hundred inserts, which is less
+   * work than one linear scan of the same list would be, and the alternative
+   * is a player who can walk through a cow.
+   */
+  const npcGrid = new Map<string, Npc[]>()
+  function reindex() {
+    npcGrid.clear()
+    for (const n of npcs) {
+      const k2 = key(Math.floor(n.x / BUCKET), Math.floor(n.y / BUCKET))
+      const b = npcGrid.get(k2)
+      if (b) b.push(n)
+      else npcGrid.set(k2, [n])
+    }
+  }
+  reindex()
+
+  /** `skip` is how an NPC asks without colliding with itself. */
+  const npcAt = (wx: number, wy: number, skip: Npc | null) => {
+    const bi = Math.floor(wx / BUCKET), bj = Math.floor(wy / BUCKET)
+    for (let i = -1; i <= 1; i++)
+      for (let j = -1; j <= 1; j++) {
+        const b = npcGrid.get(key(bi + i, bj + j))
+        if (!b) continue
+        for (const n of b) {
+          if (n === skip) continue
+          const dx = wx - n.x, dy = wy - n.y
+          if (dx * dx + dy * dy < n.r * n.r) return true
+        }
+      }
+    return false
+  }
+
+  /** Water, bare rock, a trunk, somebody's wall, or somebody. */
   const blocked = (wx: number, wy: number) =>
-    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy)
+    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy) || npcAt(wx, wy, null)
+
+  /**
+   * Wandering, and the reason it is not random.
+   *
+   * `hash` is the same seeded function the scenery is scattered with, keyed on
+   * the NPC's index and a slow tick, so two visitors to the same page at the
+   * same moment see the same forest doing the same thing — and so does a
+   * screenshot taken twice.  `Math.random` would have made every check of this
+   * scene a different scene.
+   */
+  const NPC_SPEED = 2.2        // yards a second, near enough WoW's walk
+  function wander(dt: number, time: number) {
+    const tick = Math.floor(time * 0.4)
+    for (let i = 0; i < npcs.length; i++) {
+      const n = npcs[i]!
+      if (n.wander === 0) { n.moving = false; continue }
+      if (time > n.until) {
+        const h = hash(i, tick)
+        n.until = time + 1.5 + h * 4
+        if (h < 0.45) { n.vx = 0; n.vy = 0 } else {
+          const a = hash(i + 7919, tick) * Math.PI * 2
+          n.vx = Math.cos(a); n.vy = Math.sin(a)
+        }
+      }
+      n.moving = n.vx !== 0 || n.vy !== 0
+      if (!n.moving) continue
+      n.t += dt
+      const dx = n.vx * NPC_SPEED * dt, dy = n.vy * NPC_SPEED * dt
+      // Nobody leaves the spot the database put them on for good.
+      if ((n.x + dx - n.hx) ** 2 + (n.y + dy - n.hy) ** 2 > n.wander ** 2) {
+        n.vx = -n.vx; n.vy = -n.vy
+        continue
+      }
+      // An NPC that spawned inside a wall stays in it rather than squeezing
+      // out: the player gets an escape from being stuck because a stuck player
+      // is unplayable, but a cow walking out through a barn is worse than a
+      // cow standing in one.
+      const wall = (x: number, y: number) =>
+        (!n.swims && wetAt(x, y)) || slopeAt(x, y) > CLIFF || solidAt(x, y) || npcAt(x, y, n)
+      if (!wall(n.x + dx, n.y)) n.x += dx
+      if (!wall(n.x, n.y + dy)) n.y += dy
+      n.dir = Math.abs(n.vx) > Math.abs(n.vy)
+        ? (n.vx > 0 ? DIR_UP : DIR_DOWN)
+        : (n.vy > 0 ? DIR_LEFT : DIR_RIGHT)
+    }
+  }
 
   // Drawn back to front, and in this projection "back" is north — larger world
   // x.  Sorting once is enough: nothing here moves.
@@ -319,7 +497,6 @@ async function main() {
   const START: [number, number] = [-8949.95, -132.493]
   const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
   const SPEED = 7.0          // yards a second, which is WoW's run speed
-  const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
 
   const keys = new Set<string>()
   addEventListener('keydown', (e) => {
@@ -348,14 +525,22 @@ async function main() {
   const sx = (wy: number) => (camY - wy) * PPY * zoom + canvas.width / 2
   const sy = (wx: number) => (camX - wx) * PPY * zoom + canvas.height / 2
 
-  let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0
+  let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
   let last = performance.now()
+  let clock = 0
+  const kindCount = new Set(npcs.map((n) => n.art)).size
 
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000)
     last = now
+    clock += dt
 
     // --- move ---
+    // Everyone else first, then the bucket grid they are in, then the player:
+    // the player's collision test reads that grid, so it has to describe where
+    // people are now rather than where they were a frame ago.
+    wander(dt, clock)
+    reindex()
     let mx = 0, my = 0
     if (keys.has('w') || keys.has('arrowup')) mx += 1
     if (keys.has('s') || keys.has('arrowdown')) mx -= 1
@@ -431,7 +616,6 @@ async function main() {
     const margin = 120
     drawn = 0
     const heroZ = groundAt(hero.x, hero.y)
-    let heroDone = false
     const drawHero = () => {
       const clip = hero.moving ? heroMeta.clips['walk']! : heroMeta.clips['idle']!
       const n = clip.count
@@ -450,8 +634,47 @@ async function main() {
         Math.round(sy(hero.x) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
       drawn++
     }
+    const drawNpc = (n: Npc) => {
+      const a = npcArt.kinds[n.art]!
+      // Frame 0 is the standing pose in every sheet the bake cuts. For people
+      // the walk is the frames after it; the animal sheets have no separate
+      // stand, so their cycle includes it.
+      const from0 = a.people ? 1 : 0
+      const span = Math.max(1, a.frames - from0)
+      const f = n.moving ? from0 + (Math.floor(n.t * 8) % span) : 0
+      const idx = a.first + n.dir * a.frames + f
+      const c = npcArt.cell
+      const sxp = (idx % npcArt.cols) * c, syp = Math.floor(idx / npcArt.cols) * c
+      const w = c * zoom
+      if (n.alpha < 1) ctx.globalAlpha = n.alpha
+      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(sx(n.y) - w / 2),
+        Math.round(sy(n.x) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
+      if (n.alpha < 1) ctx.globalAlpha = 1
+      drawn++
+    }
+
+    /**
+     * Everything that can be somewhere different next frame, in one list.
+     *
+     * The scenery is sorted once and never again, because none of it moves.
+     * These do, so they are collected and sorted per frame — but only the ones
+     * on screen, which is tens out of seven hundred.  Then the two sorted
+     * lists are merged, which is what keeps a wolf behind the tree it is
+     * behind.
+     */
+    const actors: { x: number; draw: () => void }[] = []
+    for (const n of npcs) {
+      const X = sx(n.y), Y = sy(n.x)
+      if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
+      actors.push({ x: n.x, draw: () => drawNpc(n) })
+    }
+    npcsDrawn = actors.length
+    actors.push({ x: hero.x, draw: drawHero })
+    actors.sort((a, b) => b.x - a.x)
+    let ai = 0
+
     for (const o of placed) {
-      if (!heroDone && o.x < hero.x) { drawHero(); heroDone = true }
+      while (ai < actors.length && actors[ai]!.x > o.x) actors[ai++]!.draw()
       const X = sx(o.y), Y = sy(o.x)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
       const k = zoom
@@ -466,7 +689,7 @@ async function main() {
         Math.round(Y - p.h * k - lift), Math.ceil(p.w * k), Math.ceil(p.h * k))
       drawn++
     }
-    if (!heroDone) drawHero()
+    while (ai < actors.length) actors[ai++]!.draw()
 
     acc += dt; frames++
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
@@ -474,6 +697,9 @@ async function main() {
       `ground   ${tilesDrawn.toLocaleString()} tiles`,
       `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn` +
         `  (${solids.length} solid)`,
+      `living   ${npcsDrawn} of ${npcs.length} drawn  in ${kindCount} kinds` +
+        `  (${settled} moved ashore, ${afloat} left in the water)` +
+        (unplaceable ? `  ${unplaceable} with no art` : ''),
       `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd` +
         (wetAt(hero.x, hero.y) ? '  [in water]'
           : solidAt(hero.x, hero.y) ? '  [inside]'
@@ -501,6 +727,32 @@ async function main() {
     z: groundAt(x, y), slope: slopeAt(x, y),
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
+
+  /** What is alive, and where the nearest of it is — asked by the tests. */
+  ;(window as unknown as { __npcs: (x?: number, y?: number) => unknown }).__npcs = (x, y) => {
+    const kinds: Record<string, number> = {}
+    for (const n of npcs) kinds[n.art] = (kinds[n.art] ?? 0) + 1
+    let near: { art: string; d: number; x: number; y: number } | null = null
+    if (x !== undefined && y !== undefined)
+      for (const n of npcs) {
+        const d = Math.hypot(n.x - x, n.y - y)
+        if (!near || d < near.d) near = { art: n.art, d, x: n.x, y: n.y }
+      }
+    // `wet` and `inside` are how a settle that did not take shows up: both
+    // should be zero, and a cat standing on a lake is the visible form of a
+    // number that is not.
+    return {
+      total: npcs.length, unplaceable, settled, afloat, kinds, near,
+      wet: npcs.filter((n) => wetAt(n.x, n.y)).length,
+      inside: npcs.filter((n) => solidAt(n.x, n.y)).length,
+    }
+  }
+
+  // The whole cast, for the behaviour tests: whether anybody wandered, whether
+  // the ones behind a counter stayed at it, whether anybody left their patch.
+  ;(window as unknown as { __all: () => unknown }).__all = () =>
+    npcs.map((n) => ({ x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander }))
+  ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
 
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.

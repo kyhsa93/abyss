@@ -13,8 +13,11 @@ way" is answered there, usually with the measurement that settled it.
 ```
 pipeline/   bakes the world.  `synth_terrain.py` builds one out of AzerothCore
             alone and it is committed; `bake_terrain.py` reads a real client's
-            and it is not.  `bake_tiles.py` and `bake_sprites.py` cut the art
-            out of LPC
+            and it is not.  `spawn_npcs.py` pulls the inhabitants out of
+            AzerothCore, and there is only one of those because a creature's
+            position does not depend on a client.  `bake_tiles.py`,
+            `bake_sprites.py` and `bake_npcs.py` cut the art out of LPC and
+            four animal packs
 src/        the scene.  canvas 2D, no simulation yet
 public/art  the baked art (committed).  public/data is not (see below)
 ```
@@ -70,8 +73,15 @@ gossip. The structure comes from AzerothCore; the words are ours.
 
 **Art carries its author.** The LPC tilesets ship a `MISSING:` section — tiles
 nobody recorded the author of. A CC-BY tile with no author cannot be complied
-with, so `pipeline/bake_tiles.py` refuses a piece that names none, and both
-credit files are generated from the tables the art is built from.
+with, so `pipeline/bake_tiles.py` refuses a piece that names none, and all
+three credit files are generated from the tables the art is built from.
+
+**A spritesheet's grid is measured, not divided.** Four of the animal packs
+disagree about cell size and about which row faces which way — the wolf sheet
+is two zones at 32x64 and 64x32, and the bear and the deer are ordered up,
+left, *right*, down. Every wrong reading of a grid divides evenly, so the only
+thing that catches it is cutting the sheet and looking at all four directions:
+`bake_npcs.py` writes `npcs-contact.png` for exactly that.
 
 ## Finishing a change
 
