@@ -20,10 +20,10 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { bearing, coin, goodsOf, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
+import { bearing, coin, goodsOf, josa, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud } from './hud'
-import { noticeAt, swing, xpFor, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
+import { mitigate, noticeAt, swing, xpFor, ARMOUR, FOE, HI, HP, LO, MELEE, SWING, type Fight } from './fight'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -883,7 +883,7 @@ async function main() {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
     xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
-    purse: 0,
+    purse: 0, kills: 0,
     /** word -> [how many, what the lot is worth in copper]. */
     bag: {} as Record<string, [number, number]>,
   }
@@ -895,8 +895,9 @@ async function main() {
    * step to 6 is 2,800, which is forty of them.  That is slow, and it is
    * slow in the original for the same arithmetic.
    */
-  const reward = (foe: Npc) => {
-    you.xp += xpFor(you.level, foe.level, foe.role === 'elite')
+  const reward = (foe: Npc): number => {
+    const gain = xpFor(you.level, foe.level, foe.role === 'elite')
+    you.xp += gain
     while (LADDER[you.level - 1] && you.xp >= LADDER[you.level - 1]!
       && you.level < (spawns.player?.length ?? 1)) {
       you.xp -= LADDER[you.level - 1]!
@@ -906,6 +907,7 @@ async function main() {
       you.hp = you.max
       say(hero.x, hero.y, `${you.level}레벨`, true)
     }
+    return gain
   }
   /** A number that floats off somebody and fades. */
   type Mark = { x: number; y: number; text: string; at: number; mine: boolean }
@@ -977,7 +979,11 @@ async function main() {
       const hit = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
       you.hp -= hit
       say(hero.x, hero.y, `-${hit}`, false)
-      if (you.hp <= 0) { you.hp = 0; you.died = clock; you.target = null; you.calm = 0 }
+      ui.log(`${nameOf(n.kind)}에게 ${hit} 맞았다.`, 'hurt')
+      if (you.hp <= 0) {
+        you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+        ui.log('쓰러졌다.', 'note')
+      }
     }
 
     if (quiet) {
@@ -998,11 +1004,18 @@ async function main() {
     foe.hurt = clock
     foe.angry = true
     say(foe.x, foe.y, `${hit}`, true)
+    ui.log(`${josa(nameOf(foe.kind), '을', '를')} ${hit} 때렸다.`, 'hit')
     if (foe.hp <= 0) {
       foe.hp = 0
       foe.dead = clock
       you.target = null
-      reward(foe)
+      you.kills += 1
+      const was = you.level
+      // The gain comes back from `reward` rather than being worked out twice:
+      // the same formula in two places is two formulas.
+      const worth = reward(foe)
+      ui.log(`${josa(nameOf(foe.kind), '을', '를')} 처치했다.  경험치 ${worth}`, 'gain')
+      if (you.level > was) ui.log(`${you.level}레벨이 되었다.`, 'gain')
     }
   }
 
@@ -1082,6 +1095,7 @@ async function main() {
     // The readout is a developer's and it starts out of the way.
     if (k === '`' || k === '~') hud.hidden = !hud.hidden
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
+    if (k === 'c') { e.preventDefault(); sheetOpen = !sheetOpen }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
     if (k === 'e') { e.preventDefault(); toggleTalk() }
@@ -1106,6 +1120,65 @@ async function main() {
   const pad = touchpad(canvas, ACTIONS.length)
   const ui = makeHud()
   let bagOpen = false
+  let sheetOpen = false
+
+  /**
+   * The minimap, painted rather than drawn.
+   *
+   * The same three questions the ground loop asks — is it wet, what did the
+   * client paint here, how steep is it — at one sample every other pixel and
+   * a hundred and twenty yards across.  Four times a second, because a map
+   * that updates with the frame is a map costing 22,500 lookups sixty times a
+   * second to show you something that moves at seven yards an hour on it.
+   */
+  const MAP_YARDS = 120
+  const mapCtx = ui.map.getContext('2d')!
+  let mapAt = 0
+  const INK: Record<string, string> = {
+    grass: '#3f7a3a', bloom: '#5a8a3e', road: '#8a6a44', crop: '#9a8244',
+    rock: '#6f6b66', paved: '#8f8a84', sand: '#b8a478', snow: '#dde6ee',
+  }
+  function paintMap() {
+    const n = ui.map.width
+    const step = 2
+    const yd = MAP_YARDS / n
+    const img = mapCtx.createImageData(n, n)
+    const px = img.data
+    for (let j = 0; j < n; j += step) {
+      for (let i = 0; i < n; i += step) {
+        // North up, west left — the same map the screen is.
+        const wx = hero.x + (n / 2 - j) * yd
+        const wy = hero.y + (n / 2 - i) * yd
+        let hex = wetAt(wx, wy) ? '#2d5f86'
+          : slopeAt(wx, wy) > CLIFF ? INK['rock']!
+            : INK[paintAt(wx, wy)] ?? INK['grass']!
+        const r = parseInt(hex.slice(1, 3), 16)
+        const g = parseInt(hex.slice(3, 5), 16)
+        const b = parseInt(hex.slice(5, 7), 16)
+        for (let dy = 0; dy < step; dy++) {
+          for (let dx = 0; dx < step; dx++) {
+            const o = ((j + dy) * n + (i + dx)) * 4
+            px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255
+          }
+        }
+      }
+    }
+    mapCtx.putImageData(img, 0, 0)
+    // Everybody awake, as a dot: red if it would fight you, green if it would
+    // not.  Only the awake, which is the same couple of hundred the scene is
+    // already thinking about.
+    const mid = n / 2
+    for (const m of active) {
+      if (m.dead) continue
+      const i = mid - (m.y - hero.y) / yd
+      const j = mid - (m.x - hero.x) / yd
+      if (i < 1 || i > n - 1 || j < 1 || j > n - 1) continue
+      mapCtx.fillStyle = m.fight?.[FOE] ? '#d8564a' : '#7fc46f'
+      mapCtx.fillRect(Math.round(i) - 1, Math.round(j) - 1, 2, 2)
+    }
+    mapCtx.fillStyle = '#ffffff'
+    mapCtx.fillRect(mid - 1, mid - 1, 3, 3)
+  }
   const help = document.getElementById('help') as HTMLDivElement
   let helpFor: boolean | null = null
 
@@ -1267,7 +1340,12 @@ async function main() {
     // One key for "deal with the thing in front of me" is how this game is
     // played with a thumb.
     const body = corpse()
-    if (body) { say(body.x, body.y, loot(body), true); return }
+    if (body) {
+      const got = loot(body)
+      say(body.x, body.y, got, true)
+      ui.log(`${nameOf(body.kind)}에게서 ${got}`, 'gain')
+      return
+    }
     const n = inReach()
     if (n) startTalk(n)
   }
@@ -1848,13 +1926,31 @@ async function main() {
         ? 'delapouite/sword-brandish.svg' : 'lorc/wolf-head.svg',
       foe: !!(foe.fight && foe.fight[FOE]),
     } : null)
+    if (clock - mapAt > 0.25) { mapAt = clock; paintMap() }
+    ui.setWhere(`${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`)
+    ui.setSheet(sheetOpen, [
+      ['레벨', `${you.level}`],
+      ['경험치', `${you.xp} / ${LADDER[you.level - 1] ?? '—'}`],
+      ['생명력', `${Math.round(you.hp)} / ${you.max}`],
+      ['공격력', `${you.line[LO]} – ${you.line[HI]}  (${(you.line[SWING]! / 1000).toFixed(1)}초)`],
+      ['방어도', `${you.line[ARMOUR]}  (피해 ${Math.round(mitigate(you.line[ARMOUR]!, you.level) * 100)}% 감소)`],
+      ['지갑', coin(you.purse)],
+      ['처치', `${you.kills}`],
+    ])
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
-      Object.entries(you.bag).map(([w, [n]]) => [goodsOf(w), n] as [string, number])
+      Object.entries(you.bag)
+        .map(([w, [n, worth]]) =>
+          [goodsOf(w), n, coin(worth)] as [string, number, string])
         .sort((a, b) => b[1] - a[1]))
     ui.setBar([
       {
         key: '1', label: '공격', icon: 'lorc/broadsword.svg',
+        tip: `공격  —  ${you.line[LO]}–${you.line[HI]} 피해\n`
+          + `${(you.line[SWING]! / 1000).toFixed(1)}초마다 한 번\n`
+          + (you.target ? `대상: ${nameOf(you.target.kind)}`
+            : inSwing() ? '가장 가까운 적을 친다' : '닿는 곳에 적이 없다'),
+        use: () => { if (!chat && !you.died) you.target = you.target ?? inSwing() },
         // The shutter falls as the swing comes back, so a full square is a
         // swing you have not taken rather than one you cannot.
         cooling: you.target
@@ -1863,7 +1959,12 @@ async function main() {
       },
       {
         key: 'E', label: '대화', icon: 'skoll/talk.svg',
-        cooling: 0, live: listener !== null || chat !== null,
+        tip: chat ? '대화를 끝낸다'
+          : corpse() ? `${nameOf(corpse()!.kind)}의 주머니를 뒤진다`
+            : listener ? `${nameOf(listener.kind)}에게 말을 건다`
+              : '말을 걸 사람도 뒤질 것도 없다',
+        use: () => toggleTalk(),
+        cooling: 0, live: listener !== null || chat !== null || corpse() !== null,
       },
     ])
 

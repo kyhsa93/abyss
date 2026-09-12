@@ -46,7 +46,16 @@
       /* Nothing in here takes a click: the interface reports, and the world
          underneath it is what answers a finger. */
       #ui, #ui * { pointer-events: none; }
-      #ui { position: fixed; inset: 0; color: #e8e4d8; }
+      /* Except the two things that are controls rather than reports.  Written
+         with the id in front of them because `#ui *` is more specific than a
+         bare class and quietly won: the slots were set to `auto` and computed
+         to `none`. */
+      #ui .slot, #ui #bag li { pointer-events: auto; cursor: pointer; }
+      /* Above the canvas, said out loud.  Both are painted in the positioned
+         layer and the canvas is the later sibling, so without this the two
+         controls that take a click — an action slot and a bag row — were
+         behind the world. */
+      #ui { position: fixed; inset: 0; color: #e8e4d8; z-index: 2; }
       #units { position: absolute; left: 10px; top: 10px; width: 232px; }
       .frame {
         display: grid; grid-template-columns: 40px 1fr; gap: 8px;
@@ -82,6 +91,50 @@
       #ui .xp { height: 9px; margin: -2px 0 0; }
       #ui .xp .fill { background: #6a4fb0; }
       #ui .xp .num { font-size: 9px; line-height: 9px; color: #cfc6ea; }
+
+      /* The minimap.  Square and not round: a circular mask throws away the
+         corners of something that was expensive to sample, and a square one
+         says plainly that it is a piece of the map. */
+      #map {
+        position: absolute; right: 10px; top: 10px;
+        border: 1px solid #4a4433; background: rgba(12,14,20,.85); padding: 3px;
+      }
+      #map canvas { display: block; image-rendering: pixelated; }
+      #map .where {
+        text-align: center; font: 10px/1.7 var(--mono); color: #c9a86a;
+        border-top: 1px solid #3b382e; margin-top: 3px;
+      }
+
+      /* What just happened, newest last. */
+      #log {
+        position: absolute; left: 10px; bottom: 12px; width: 300px;
+        font: 11px/1.55 var(--body); text-shadow: 0 1px 2px #000;
+      }
+      #log div { color: #b9c4cc; }
+      #log .hit { color: #ffe9a8; }
+      #log .hurt { color: #ff9d8c; }
+      #log .gain { color: #a9e39a; }
+
+      #sheet {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        min-width: 230px; background: rgba(12,14,20,.94); border: 1px solid #4a4433;
+        padding: 10px 14px; font: 12px/1.8 var(--body);
+      }
+      #sheet[hidden] { display: none; }
+      #sheet .title {
+        color: #c9a86a; font: 11px/1.8 var(--mono);
+        border-bottom: 1px solid #3b382e; margin-bottom: 5px;
+      }
+      #sheet .row { display: flex; justify-content: space-between; gap: 20px; }
+      #sheet .k { color: #8aa8bb; }
+
+      #tip {
+        position: absolute; max-width: 230px;
+        background: rgba(8,10,14,.96); border: 1px solid #4a4433;
+        padding: 5px 8px; font: 11px/1.6 var(--body); color: #e8e4d8;
+        white-space: pre-line; transform: translate(-50%, -100%);
+      }
+      #tip[hidden] { display: none; }
 
       #bag {
         position: absolute; right: 10px; bottom: 44px; width: 190px;
@@ -126,6 +179,50 @@
         position: absolute; left: 0; right: 0; bottom: -15px; text-align: center;
         font: 10px var(--body); color: #9ab; text-shadow: 0 1px 2px #000;
       }
+      /* The minimap.  Square and not round: a circular mask throws away the
+         corners of something that was expensive to sample, and a square one
+         says plainly that it is a piece of the map. */
+      #map {
+        position: absolute; right: 10px; top: 10px;
+        border: 1px solid #4a4433; background: rgba(12,14,20,.85); padding: 3px;
+      }
+      #map canvas { display: block; image-rendering: pixelated; }
+      #map .where {
+        text-align: center; font: 10px/1.7 var(--mono); color: #c9a86a;
+        border-top: 1px solid #3b382e; margin-top: 3px;
+      }
+
+      /* What just happened, newest last. */
+      #log {
+        position: absolute; left: 10px; bottom: 12px; width: 300px;
+        font: 11px/1.55 var(--body); text-shadow: 0 1px 2px #000;
+      }
+      #log div { color: #b9c4cc; }
+      #log .hit { color: #ffe9a8; }
+      #log .hurt { color: #ff9d8c; }
+      #log .gain { color: #a9e39a; }
+
+      #sheet {
+        position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        min-width: 230px; background: rgba(12,14,20,.94); border: 1px solid #4a4433;
+        padding: 10px 14px; font: 12px/1.8 var(--body);
+      }
+      #sheet[hidden] { display: none; }
+      #sheet .title {
+        color: #c9a86a; font: 11px/1.8 var(--mono);
+        border-bottom: 1px solid #3b382e; margin-bottom: 5px;
+      }
+      #sheet .row { display: flex; justify-content: space-between; gap: 20px; }
+      #sheet .k { color: #8aa8bb; }
+
+      #tip {
+        position: absolute; max-width: 230px;
+        background: rgba(8,10,14,.96); border: 1px solid #4a4433;
+        padding: 5px 8px; font: 11px/1.6 var(--body); color: #e8e4d8;
+        white-space: pre-line; transform: translate(-50%, -100%);
+      }
+      #tip[hidden] { display: none; }
+
       #bag {
         position: absolute; right: 10px; bottom: 44px; width: 190px;
         background: rgba(12,14,20,.92); border: 1px solid #4a4433; padding: 8px 10px;
@@ -182,6 +279,11 @@
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
       body.touch #bag { bottom: 130px; width: 150px; font-size: 11px; }
+      /* A phone's corners are the stick, the buttons and the readout, so the
+         map shrinks and the log gets out of the stick's way. */
+      body.touch #map canvas { width: 96px; height: 96px; }
+      body.touch #log { bottom: auto; top: 120px; width: 160px; font-size: 10px; }
+      body.touch #tip { display: none; }
       body.touch #units { width: 176px; }
       body.touch .frame { grid-template-columns: 30px 1fr; padding: 4px; }
       body.touch .frame .face { width: 30px; height: 30px; }
@@ -199,7 +301,7 @@
   </head>
   <body>
     <div id="hud" class="plain" hidden>불러오는 중…</div>
-    <div id="help">WASD: 이동   1: 공격   E: 대화·줍기   B: 가방   `: 수치</div>
+    <div id="help">WASD: 이동   1: 공격   E: 대화·줍기   B: 가방   C: 정보   `: 수치</div>
     <div id="talk" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -32,6 +32,10 @@ export type Slot = {
   key: string
   label: string
   icon: string
+  /** What hovering over it says. */
+  tip: string
+  /** Clicking it does what pressing its key does. */
+  use?: () => void
   /** 0 while ready, 1 the moment it was used — the sweep fills back down. */
   cooling: number
   /** Greyed out when there is nothing to use it on. */
@@ -87,13 +91,41 @@ export function hud() {
   const bagTitle = el('div', 'title', bagPanel)
   const bagList = el('ul', '', bagPanel)
 
+  // The minimap.  Painted by the scene rather than here, because what is on
+  // it is the ground and only the scene knows that — this owns the canvas and
+  // the ring of chrome around it.
+  const mapBox = el('div', '', ui)
+  mapBox.id = 'map'
+  const mapCv = el('canvas', '', mapBox) as HTMLCanvasElement
+  mapCv.width = mapCv.height = 150
+  const mapWhere = el('div', 'where', mapBox)
+
+  // What just happened, newest last, which is the way every game's log reads
+  // and the opposite of the way every feed does.
+  const logBox = el('div', '', ui)
+  logBox.id = 'log'
+  const lines: HTMLElement[] = []
+
+  // The character sheet.  Everything the fight arithmetic is working from,
+  // said once in one place — because the numbers exist and nothing showed them.
+  const sheet = el('div', '', ui)
+  sheet.id = 'sheet'
+  sheet.hidden = true
+
+  // One tooltip, moved about.  Two would be two things to keep in step.
+  const tip = el('div', '', ui)
+  tip.id = 'tip'
+  tip.hidden = true
+
   const bar = el('div', '', ui)
   bar.id = 'bar'
   const slots: { root: HTMLElement; icon: HTMLImageElement; sweep: HTMLElement }[] = []
 
   let shown: Slot[] = []
+  /** What the bar is showing right now, for the handlers to read. */
+  let shownNow: Slot[] = []
 
-  return {
+  const this_ = {
     /** The player's own frame, which is always there. */
     setMe(u: NonNullable<Unit>) {
       me.icon.src = ICONS + u.icon
@@ -119,11 +151,11 @@ export function hud() {
     },
 
     /** What you are carrying, and whether anybody is looking at it. */
-    setBag(open: boolean, purse: string, items: [string, number][]) {
+    setBag(open: boolean, purse: string, items: [string, number, string][]) {
       bagPanel.hidden = !open
       if (!open) return
       bagTitle.textContent = `가방  —  ${purse}`
-      const want = items.map(([w, n]) => `${w} ${n}`).join('\n')
+      const want = items.map(([w, n, t]) => `${w} ${n} ${t}`).join('\n')
       if (bagList.dataset['now'] === want) return
       bagList.dataset['now'] = want
       bagList.textContent = ''
@@ -131,11 +163,63 @@ export function hud() {
         el('li', 'empty', bagList).textContent = '비어 있다'
         return
       }
-      for (const [word, many] of items) {
+      for (const [word, many, worth] of items) {
         const li = el('li', '', bagList)
         el('span', 'what', li).textContent = word
         el('span', 'many', li).textContent = `${many}`
+        li.onmouseenter = () => {
+          const box = li.getBoundingClientRect()
+          this_.setTip(`${word} ${many}\n팔면 ${worth}`, box.left + box.width / 2, box.top - 4)
+        }
+        li.onmouseleave = () => this_.setTip(null, 0, 0)
       }
+    },
+
+    /** The minimap's own canvas, for the scene to paint into. */
+    map: mapCv,
+
+    /** Where the player is, under the map. */
+    setWhere(text: string) {
+      if (mapWhere.textContent !== text) mapWhere.textContent = text
+    },
+
+    /**
+     * One more line in the log.
+     *
+     * Capped at what fits rather than at a round number: a log that scrolls
+     * is a log nobody reads, and the ten most recent lines are the ones that
+     * are still about what you are doing.
+     */
+    log(text: string, kind: 'hit' | 'hurt' | 'gain' | 'note') {
+      const li = el('div', kind, logBox)
+      li.textContent = text
+      lines.push(li)
+      while (lines.length > 7) lines.shift()!.remove()
+    },
+
+    /** The character sheet, or nothing. */
+    setSheet(open: boolean, rows: [string, string][]) {
+      sheet.hidden = !open
+      if (!open) return
+      const want = rows.map(([k, v]) => `${k}\t${v}`).join('\n')
+      if (sheet.dataset['now'] === want) return
+      sheet.dataset['now'] = want
+      sheet.textContent = ''
+      el('div', 'title', sheet).textContent = '주인공'
+      for (const [k, v] of rows) {
+        const line = el('div', 'row', sheet)
+        el('span', 'k', line).textContent = k
+        el('span', 'v', line).textContent = v
+      }
+    },
+
+    /** The tooltip, at a point on the screen, or nothing. */
+    setTip(text: string | null, x: number, y: number) {
+      tip.hidden = text === null
+      if (text === null) return
+      if (tip.textContent !== text) tip.textContent = text
+      tip.style.left = `${Math.round(x)}px`
+      tip.style.top = `${Math.round(y)}px`
     },
 
     setXp(have: number, need: number, level: number) {
@@ -155,17 +239,27 @@ export function hud() {
       if (next.length !== slots.length) {
         bar.textContent = ''
         slots.length = 0
-        for (const s of next) {
+        next.forEach((s, i) => {
           const root = el('div', 'slot', bar)
           const icon = el('img', '', root) as HTMLImageElement
           icon.src = ICONS + s.icon
           const sweep = el('div', 'sweep', root)
           el('span', 'key', root).textContent = s.key
           el('span', 'name', root).textContent = s.label
+          // The handlers read the *current* slot rather than the one this
+          // closure was built with, because the bar is rebuilt only when its
+          // length changes and everything else about a slot moves every frame.
+          root.onmouseenter = () => {
+            const box = root.getBoundingClientRect()
+            this_.setTip(shownNow[i]?.tip ?? s.tip, box.left + box.width / 2, box.top - 6)
+          }
+          root.onmouseleave = () => this_.setTip(null, 0, 0)
+          root.onclick = () => shownNow[i]?.use?.()
           slots.push({ root, icon, sweep })
-        }
+        })
         shown = []
       }
+      shownNow = next
       for (let i = 0; i < next.length; i++) {
         const s = next[i]!, w = slots[i]!
         // Compared against what was last *shown*, and `shown` used to be
@@ -177,4 +271,5 @@ export function hud() {
       shown = next.map((s) => ({ ...s }))
     },
   }
+  return this_
 }

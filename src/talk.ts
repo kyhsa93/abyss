@@ -175,7 +175,7 @@ function count(n: number, unit: string): string {
  * could have put a particle after a count was written to want a counter
  * instead, which needs none.
  */
-function josa(word: string, withFinal: string, without: string): string {
+export function josa(word: string, withFinal: string, without: string): string {
   const c = word.charCodeAt(word.length - 1)
   const final = c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0
   return word + (final ? withFinal : without)
