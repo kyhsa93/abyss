@@ -27,7 +27,7 @@ import bpy
 PPY = 24                # pixels to the yard at zoom 1, as in main.ts
 PERSON_YARDS = 1.8      # how tall a person is, which sets the scale
 TILT = math.atan(0.5)
-CELL = 80
+CELL = 128
 
 # Eight directions, a screen eighth apart.  `walk` is sampled evenly and `idle`
 # gives one standing frame, which is the same shape the LPC sheet has.
@@ -63,23 +63,41 @@ def imported(path):
 
 
 def height(objects):
-    """The model's own height in blender units, so the scale can be derived."""
+    """The model's own height in blender units, so the scale can be derived.
+
+    Anything that dips below the floor is not the character.  Kenney's
+    characters ship with a two-unit icosphere centred on the origin — a helper,
+    invisible in the render and half of it underground — and a plain bounding
+    box over every mesh measures that instead of the person: 2.00 units against
+    the 0.78 they actually stand.  Everybody in the world was rendered at 39%
+    of the size the arithmetic asked for, and nothing looked broken, because
+    everybody was wrong by the same factor.
+    """
     lo = hi = None
     for o in objects:
         if o.type != 'MESH':
             continue
-        for v in o.data.vertices:
-            z = (o.matrix_world @ v.co).z
-            lo = z if lo is None else min(lo, z)
-            hi = z if hi is None else max(hi, z)
+        zs = [(o.matrix_world @ v.co).z for v in o.data.vertices]
+        if not zs or min(zs) < -0.01:
+            continue
+        lo = min(zs) if lo is None else min(lo, min(zs))
+        hi = max(zs) if hi is None else max(hi, max(zs))
     return (hi - lo) if lo is not None else 1.0
 
 
-def camera(res, yards_per_unit):
+def camera(res, yards_per_unit, tall):
+    """Framed on the middle of the body, not on the floor it stands on.
+
+    The camera is aimed at the world origin and a character's origin is its
+    feet, so the frame gave it half a cell of headroom and no more.  At the
+    corrected scale that clipped every head off: translating the camera up by
+    half the model's height moves the framed point up with it.
+    """
     sc = bpy.context.scene
     ppu = (yards_per_unit * PPY) / math.cos(math.radians(45))
     d = 30
-    bpy.ops.object.camera_add(location=(d, -d, d * math.tan(TILT) * math.sqrt(2)))
+    bpy.ops.object.camera_add(
+        location=(d, -d, d * math.tan(TILT) * math.sqrt(2) + tall / 2))
     cam = bpy.context.active_object
     cam.data.type = 'ORTHO'
     cam.data.ortho_scale = res / ppu
@@ -124,7 +142,7 @@ def one(kit, model, out):
     yards_per_unit = PERSON_YARDS / height(objs)
     print(f'{model} is {height(objs):.2f} units; '
           f'1 unit = {yards_per_unit:.2f} yards')
-    camera(CELL, yards_per_unit)
+    camera(CELL, yards_per_unit, height(objs))
     light()
     sc = bpy.context.scene
     sc.render.resolution_x = sc.render.resolution_y = CELL
@@ -151,7 +169,11 @@ def one(kit, model, out):
             for r in roots:
                 r.rotation_euler = (r.rotation_euler.x, r.rotation_euler.y, yaw)
             for i in range(count):
-                sc.frame_set(int(lo + (hi - lo) * i / max(1, count)))
+                # Half a step in, never on the first frame: an action's keys
+                # start at frame 1 and frame 0 is the bind pose, so sampling
+                # the start of a one-frame clip gave every standing character
+                # a T-pose — arms straight out, and wider than they were tall.
+                sc.frame_set(round(lo + (hi - lo) * (i + 0.5) / count))
                 sc.render.filepath = os.path.join(out, f'{d}_{clip}{i}.png')
                 bpy.ops.render.render(write_still=True)
     print(f'rendered {model} in {DIRS} directions')
