@@ -519,6 +519,35 @@ async function main() {
     ghost: { art: 'townsfolk', alpha: 0.45 },
   }
 
+  /**
+   * Every sheet a kind has, because one of them is not enough.
+   *
+   * The bake cuts `townsfolk`, `townsfolk2` … `townsfolk16` — sixteen people
+   * rather than one man repeated 980 times — and the engine should not have to
+   * be told how many there are.  The suffix is the whole convention: a name
+   * with digits on the end is another of whatever the name without them is.
+   */
+  const VARIANTS: Record<string, string[]> = {}
+  for (const name of Object.keys(npcArt.kinds)) {
+    const base = name.replace(/\d+$/, '')
+    ;(VARIANTS[base] ??= []).push(name)
+  }
+  for (const v of Object.values(VARIANTS))
+    v.sort((a, b) => (Number(a.match(/\d+$/)?.[0] ?? 1)) - (Number(b.match(/\d+$/)?.[0] ?? 1)))
+
+  /**
+   * Which of them this one is.
+   *
+   * Off the spawn's own position, so the same villager is the same villager
+   * every time the game is opened — and so two standing together are almost
+   * never the same, which is the whole point.
+   */
+  const faceOf = (base: string, x: number, y: number) => {
+    const v = VARIANTS[base]
+    if (!v || v.length < 2) return base
+    return v[Math.floor(hash(x + 17, y - 11) * v.length) % v.length]!
+  }
+
   /** Somebody standing behind a counter does not wander off mid-sentence. */
   const STAYS = new Set(['vendor', 'trainer', 'questgiver', 'innkeeper', 'banker',
     'stablemaster', 'flightmaster', 'spirithealer', 'talker'])
@@ -546,7 +575,7 @@ async function main() {
   for (const row of spawns.npcs) {
     const kind = spawns.kinds[row[2]!]!
     const borrowed = BORROWED[kind]
-    const art = borrowed ? borrowed.art : kind
+    const art = faceOf(borrowed ? borrowed.art : kind, row[0]!, row[1]!)
     const a = npcArt.kinds[art]
     if (!a) { unplaceable++; continue }
     const role = spawns.roles[row[5]!]!

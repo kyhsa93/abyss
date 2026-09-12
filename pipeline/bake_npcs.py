@@ -60,28 +60,129 @@ GROUP = [('body/', 'body'), ('head/', 'body'), ('hair/', 'hair')]
 # plate are three silhouettes at this size, and tinting a face to mean "bandit"
 # would be saying something about people rather than about clothes.  `dye` maps
 # a part to the palette it is repainted in; anything unlisted keeps its own.
-LOOKS = {
-    'townsfolk': dict(skin='light', parts=[
-        'body/bodies/male', 'head/heads/human/male', 'legs/pantaloons/male',
-        'feet/boots/basic/male', 'torso/clothes/longsleeve/longsleeve/male',
-        'hair/plain/adult'],
-        dye={'legs/': 'walnut', 'feet/': 'leather', 'torso/': 'tan',
-             'hair/': 'sandy'}),
-    'bandit': dict(skin='light', parts=[
-        'body/bodies/male', 'head/heads/human/male', 'legs/pantaloons/male',
-        'feet/boots/basic/male', 'torso/armour/leather/male',
-        'hair/plain/adult'],
-        dye={'legs/': 'charcoal', 'feet/': 'black', 'hair/': 'raven'}),
-    'guard': dict(skin='light', parts=[
-        'body/bodies/male', 'head/heads/human/male', 'legs/pantaloons/male',
-        'feet/boots/basic/male', 'torso/armour/legion/male',
-        'arms/armour/plate/male'],
-        dye={'legs/': 'navy', 'feet/': 'slate'}),
+# The people of a place are not one person.
+#
+# Elwynn holds 980 townsfolk and they were one sprite, which reads as a clone
+# army the moment two of them stand together — and two of them always do,
+# because the client put them in twos and threes outside the houses.  So the
+# roster is built rather than written out: a body, a head, a haircut, a shirt,
+# trousers and boots, each taken from what the sheet set actually has a walk
+# cycle for, and dyed out of LPC's own palettes.
+#
+# The mixing is arithmetic and not a random number, so the roster is the same
+# every bake — which matters because every part that lands in it has to land in
+# `art/NPC-CREDITS.md` too, and a credits file that changes when nothing did is
+# a credits file nobody reads.
+BUILD = {
+    'male': dict(body='body/bodies/male', head='head/heads/human/male',
+                 fit='male', torso='male'),
+    'female': dict(body='body/bodies/female', head='head/heads/human/female',
+                   fit='thin', torso='female'),
+}
+SHIRTS = {
+    'male': ['torso/clothes/longsleeve/longsleeve',
+             'torso/clothes/longsleeve/longsleeves',
+             'torso/clothes/shortsleeve/shortsleeve',
+             'torso/clothes/sleeveless/sleeveless1',
+             'torso/clothes/sleeveless/sleeveless2'],
+    'female': ['torso/clothes/longsleeve/longsleeve',
+               'torso/clothes/shortsleeve/shortsleeve',
+               'torso/clothes/sleeveless/sleeveless1',
+               'torso/clothes/sleeveless/sleeveless2'],
+}
+TROUSERS = {
+    'male': ['legs/pantaloons', 'legs/pants', 'legs/cuffed', 'legs/hose'],
+    'thin': ['legs/pantaloons', 'legs/pants', 'legs/leggings', 'legs/hose'],
+}
+SHOES = {'male': ['feet/boots/basic', 'feet/shoes/basic'],
+         'thin': ['feet/boots/basic', 'feet/shoes/basic']}
+HAIRCUTS = ['plain', 'bob', 'bangs', 'buzzcut', 'curly_short', 'long',
+            'messy1', 'pixie', 'bedhead', 'balding']
+SKINS = ['light', 'amber', 'olive', 'taupe', 'bronze', 'brown']
+# No `tan` and no `rose`: a sleeveless shirt dyed close to a skin tone reads as
+# a man who forgot to put one on, and two of the sixteen did.
+SHIRT_DYE = ['white', 'sky', 'forest', 'maroon', 'slate', 'navy',
+             'gray', 'teal', 'brown', 'green']
+TROUSER_DYE = ['walnut', 'brown', 'charcoal', 'navy', 'slate', 'forest',
+               'leather', 'gray']
+HAIR_DYE = ['sandy', 'chestnut', 'dark_brown', 'black', 'ginger', 'ash',
+            'gold', 'gray', 'raven', 'light_brown']
+
+# How many of each.  Every look is twenty cells of the atlas — four directions
+# by five frames — so this is the one number that decides how big the sheet
+# gets, and it is written here rather than discovered at the bottom of a loop.
+VILLAGERS, GUARDS, BANDITS = 16, 3, 3
+
+
+def spread(xs, i, step):
+    """The i-th of `xs`, walked by a stride that is coprime with its length.
+
+    A plain `i % len(xs)` makes every list turn over together, so villager 5
+    and villager 15 come out in the same shirt *and* the same trousers *and*
+    the same hair.  Different strides put the cycles out of phase.
+    """
+    return xs[(i * step) % len(xs)]
+
+
+def villagers():
+    """The roster, as `LOOKS` entries."""
+    out = {}
+    for i in range(VILLAGERS):
+        sex = 'male' if i % 2 == 0 else 'female'
+        b = BUILD[sex]
+        j = i // 2
+        out['townsfolk' if i == 0 else f'townsfolk{i + 1}'] = dict(
+            skin=spread(SKINS, j, 5),
+            parts=[b['body'], b['head'],
+                   f"{spread(TROUSERS[b['fit']], j, 3)}/{b['fit']}",
+                   f"{spread(SHOES[b['fit']], j, 1)}/{b['fit']}",
+                   f"{spread(SHIRTS[b['torso']], j, 3)}/{b['torso']}",
+                   f"hair/{spread(HAIRCUTS, i, 7)}/adult"],
+            dye={'legs/': spread(TROUSER_DYE, j, 5),
+                 'feet/': spread(['leather', 'brown', 'black'], j, 2),
+                 'torso/': spread(SHIRT_DYE, i, 7),
+                 'hair/': spread(HAIR_DYE, i, 3)})
+    return out
+
+
+def watch():
+    """Guards and bandits, same trick, fewer of them.
+
+    They keep their silhouettes — plate and leather are what tells a guard from
+    a robber at this size — and vary in what is under them.
+    """
+    out = {}
+    for i in range(GUARDS):
+        out['guard' if i == 0 else f'guard{i + 1}'] = dict(
+            skin=spread(SKINS, i, 5),
+            parts=['body/bodies/male', 'head/heads/human/male',
+                   'legs/pantaloons/male', 'feet/boots/basic/male',
+                   'torso/armour/legion/male', 'arms/armour/plate/male'],
+            dye={'legs/': spread(['navy', 'charcoal', 'forest'], i, 1),
+                 'feet/': 'slate'})
+    for i in range(BANDITS):
+        out['bandit' if i == 0 else f'bandit{i + 1}'] = dict(
+            skin=spread(SKINS, i + 2, 5),
+            parts=['body/bodies/male', 'head/heads/human/male',
+                   'legs/pantaloons/male', 'feet/boots/basic/male',
+                   'torso/armour/leather/male',
+                   f"hair/{spread(HAIRCUTS, i + 1, 7)}/adult"],
+            dye={'legs/': spread(['charcoal', 'walnut', 'slate'], i, 1),
+                 'feet/': 'black',
+                 'hair/': spread(['raven', 'dark_brown', 'ash'], i, 1)})
+    return out
+
+
+# The two that are not people: a kobold is a rat's head on a child's body and a
+# murloc is a lizard's on a man's, and neither of them owns a wardrobe.
+OTHERS = {
     'kobold': dict(skin='fur_tan', parts=[
         'body/bodies/child', 'head/heads/rat/child'], dye={}),
     'murloc': dict(skin='green', parts=[
         'body/bodies/male', 'head/heads/lizard/male'], dye={}),
 }
+
+LOOKS = {**villagers(), **watch(), **OTHERS}
 
 # Frame 0 of an LPC walk row is the standing pose, so it doubles as the idle.
 # The rest is every other frame: eight-frame cycles sampled at four still read

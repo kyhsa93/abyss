@@ -8,88 +8,183 @@
    "frames": 5,
    "people": true
   },
-  "bandit": {
+  "townsfolk2": {
    "first": 20,
    "frames": 5,
    "people": true
   },
-  "guard": {
+  "townsfolk3": {
    "first": 40,
    "frames": 5,
    "people": true
   },
-  "kobold": {
+  "townsfolk4": {
    "first": 60,
    "frames": 5,
    "people": true
   },
-  "murloc": {
+  "townsfolk5": {
    "first": 80,
    "frames": 5,
    "people": true
   },
-  "bear": {
+  "townsfolk6": {
    "first": 100,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk7": {
+   "first": 120,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk8": {
+   "first": 140,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk9": {
+   "first": 160,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk10": {
+   "first": 180,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk11": {
+   "first": 200,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk12": {
+   "first": 220,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk13": {
+   "first": 240,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk14": {
+   "first": 260,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk15": {
+   "first": 280,
+   "frames": 5,
+   "people": true
+  },
+  "townsfolk16": {
+   "first": 300,
+   "frames": 5,
+   "people": true
+  },
+  "guard": {
+   "first": 320,
+   "frames": 5,
+   "people": true
+  },
+  "guard2": {
+   "first": 340,
+   "frames": 5,
+   "people": true
+  },
+  "guard3": {
+   "first": 360,
+   "frames": 5,
+   "people": true
+  },
+  "bandit": {
+   "first": 380,
+   "frames": 5,
+   "people": true
+  },
+  "bandit2": {
+   "first": 400,
+   "frames": 5,
+   "people": true
+  },
+  "bandit3": {
+   "first": 420,
+   "frames": 5,
+   "people": true
+  },
+  "kobold": {
+   "first": 440,
+   "frames": 5,
+   "people": true
+  },
+  "murloc": {
+   "first": 460,
+   "frames": 5,
+   "people": true
+  },
+  "bear": {
+   "first": 480,
    "frames": 5,
    "people": false,
    "yards": 2.4
   },
   "deer": {
-   "first": 120,
+   "first": 500,
    "frames": 4,
    "people": false,
    "yards": 2.0
   },
   "spider": {
-   "first": 136,
+   "first": 516,
    "frames": 6,
    "people": false,
    "yards": 1.4
   },
   "rabbit": {
-   "first": 160,
+   "first": 540,
    "frames": 4,
    "people": false,
    "yards": 0.6
   },
   "cat": {
-   "first": 176,
+   "first": 556,
    "frames": 3,
    "people": false,
    "yards": 0.9
   },
   "horse": {
-   "first": 188,
+   "first": 568,
    "frames": 4,
    "people": false,
    "yards": 2.6
   },
   "cow": {
-   "first": 204,
+   "first": 584,
    "frames": 4,
    "people": false,
    "yards": 2.4
   },
   "boar": {
-   "first": 220,
+   "first": 600,
    "frames": 4,
    "people": false,
    "yards": 1.6
   },
   "sheep": {
-   "first": 236,
+   "first": 616,
    "frames": 4,
    "people": false,
    "yards": 1.5
   },
   "chicken": {
-   "first": 252,
+   "first": 632,
    "frames": 4,
    "people": false,
    "yards": 0.7
   },
   "wolf": {
-   "first": 268,
+   "first": 648,
    "frames": 5,
    "people": false,
    "yards": 2.0
