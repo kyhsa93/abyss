@@ -7,7 +7,14 @@ own.
 Right now it draws one thing: a slice of Elwynn Forest — its terrain read out of
 a WoW 3.3.5a client, its trees standing where the client says they stand, and
 **777 of its inhabitants** standing where the world database puts them, drawn in
-Liberated Pixel Cup pixel art and walked around with WASD.
+Liberated Pixel Cup pixel art and walked around with WASD. Seventy-four of them
+will talk to you: press **E**.
+
+What they say is assembled from what the database says they can *do* — how many
+lines a trader keeps and what the cheapest and dearest of them cost, how many
+lessons a teacher has and from what level, what an errand actually wants dead or
+fetched — so nobody can claim something the data does not support. None of the
+sentences are Blizzard's; see below.
 
 ## Run it
 

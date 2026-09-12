@@ -18,7 +18,11 @@ pipeline/   bakes the world.  `synth_terrain.py` builds one out of AzerothCore
             position does not depend on a client.  `bake_tiles.py`,
             `bake_sprites.py` and `bake_npcs.py` cut the art out of LPC and
             four animal packs
-src/        the scene.  canvas 2D, no simulation yet
+src/        the scene (`main.ts`, canvas 2D, no simulation yet) and what the
+            people of it say (`talk.ts`).  The pipeline carries out the numbers
+            of a conversation and `talk.ts` writes the sentences: that split is
+            what keeps Blizzard's prose out and stops an NPC claiming something
+            the data does not support
 public/art  the baked art (committed).  public/data is not (see below)
 ```
 

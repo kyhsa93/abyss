@@ -20,6 +20,8 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
+import { bearing, speak, type Direction, type Speech, type Topic } from './talk'
+
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
   width: number; height: number; unit: number
@@ -34,8 +36,14 @@ type NpcArt = {
   cell: number; cols: number; anchor: number
   kinds: Record<string, { first: number; frames: number; people: boolean; yards?: number }>
 }
-/** `[x, y, kind, facing, level, role]`, indices into `kinds` and `roles`. */
-type Spawns = { kinds: string[]; roles: string[]; npcs: number[][] }
+/**
+ * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
+ * indices into `kinds` and `roles`, and the last into `topics`, or -1 for the
+ * seven hundred who have nothing to say.
+ */
+type Spawns = {
+  kinds: string[]; roles: string[]; topics: Topic[]; npcs: number[][]
+}
 
 /** 32 pixels to an LPC tile, and an LPC person is about five feet of them. */
 const PPY = 24              // pixels to the yard at 1:1
@@ -328,6 +336,37 @@ async function main() {
   const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
 
   /**
+   * How far over the feet each kind's head is, measured off the atlas.
+   *
+   * The cell is 64 pixels for everybody and nobody fills it: a person leaves
+   * room for a hat and a chicken is a fifth of one.  Taking the height from
+   * the cell floated the talk prompt two body lengths over a chicken, and
+   * `yards` is not a substitute — it is the animal's *length*, which is what
+   * the bake scales by and is not the same number for a horse.  So it is
+   * measured, one 64x64 read a kind at load: the first row of the standing
+   * frame that has anything in it.
+   */
+  const headOf: Record<string, number> = {}
+  {
+    const c = npcArt.cell
+    const scratch = document.createElement('canvas')
+    scratch.width = scratch.height = c
+    const sc = scratch.getContext('2d', { willReadFrequently: true })!
+    for (const [kind, a] of Object.entries(npcArt.kinds)) {
+      const idx = a.first + DIR_DOWN * a.frames
+      sc.clearRect(0, 0, c, c)
+      sc.drawImage(npcImg, (idx % npcArt.cols) * c, Math.floor(idx / npcArt.cols) * c,
+        c, c, 0, 0, c, c)
+      const px = sc.getImageData(0, 0, c, c).data
+      let top = c
+      for (let y = 0; y < c && top === c; y++)
+        for (let x = 0; x < c; x++)
+          if (px[(y * c + x) * 4 + 3]! > 8) { top = y; break }
+      headOf[kind] = c * npcArt.anchor - top
+    }
+  }
+
+  /**
    * A kind with no art of its own borrows one.  A ghost is a townsman drawn
    * through; there are two of them and a separate sheet for two spawns is not
    * worth the atlas.  A kind in neither table is counted and dropped, not
@@ -346,6 +385,7 @@ async function main() {
     dir: number; t: number; art: string; alpha: number
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
+    kind: string; role: string; level: number; topic: Topic | null; seed: number
   }
   const npcs: Npc[] = []
   let unplaceable = 0
@@ -366,6 +406,8 @@ async function main() {
       r: Math.max(0.3, yards * 0.28),
       wander: STAYS.has(role) ? 0 : 7,
       swims: false, vx: 0, vy: 0, until: 0, moving: false,
+      kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
+      topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
     })
   }
 
@@ -453,11 +495,12 @@ async function main() {
    * scene a different scene.
    */
   const NPC_SPEED = 2.2        // yards a second, near enough WoW's walk
-  function wander(dt: number, time: number) {
+  function wander(dt: number, time: number, busy: Npc | null) {
     const tick = Math.floor(time * 0.4)
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i]!
-      if (n.wander === 0) { n.moving = false; continue }
+      // Nobody walks off in the middle of answering you.
+      if (n.wander === 0 || n === busy) { n.moving = false; continue }
       if (time > n.until) {
         const h = hash(i, tick)
         n.until = time + 1.5 + h * 4
@@ -500,11 +543,123 @@ async function main() {
 
   const keys = new Set<string>()
   addEventListener('keydown', (e) => {
-    keys.add(e.key.toLowerCase())
-    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase()))
+    const k = e.key.toLowerCase()
+    keys.add(k)
+    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
+    if (k === 'e') { e.preventDefault(); toggleTalk() }
+    else if (k === 'escape') endTalk()
+    else if (chat && k >= '1' && k <= '9') {
+      const i = Number(k) - 1
+      if (i < chat.speech.options.length) { chat.open = chat.open === i ? -1 : i; drawTalk() }
+    }
   })
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
+
+  // --- talking to people ------------------------------------------------
+
+  const talkEl = document.getElementById('talk') as HTMLDivElement
+  const EARSHOT = 3.2          // yards, about an arm and a step
+
+  /** Whoever is close enough to hear you, nearest first. */
+  function inReach(): Npc | null {
+    let best: Npc | null = null, bd = EARSHOT * EARSHOT
+    for (const n of npcs) {
+      const dx = n.x - hero.x, dy = n.y - hero.y
+      const d = dx * dx + dy * dy
+      if (d < bd) { bd = d; best = n }
+    }
+    return best
+  }
+
+  /**
+   * What a guard can point at, worked out from our own spawn list.
+   *
+   * `points_of_interest` was the obvious source and is the wrong one: its rows
+   * are a coordinate and a name, the name is Blizzard's, and the coordinate on
+   * its own does not say what is standing there.  Our own list does — it has a
+   * role for every one of the 777 — and it has the further advantage of being
+   * true about *this* world rather than about the one the table describes.
+   */
+  const SERVICES = ['vendor', 'trainer', 'questgiver', 'stablemaster', 'spirithealer']
+  function directionsFrom(from: Npc): Direction[] {
+    const out: Direction[] = []
+    for (const role of SERVICES) {
+      let best: Npc | null = null, bd = Infinity
+      for (const n of npcs) {
+        if (n === from || n.role !== role) continue
+        const d = (n.x - from.x) ** 2 + (n.y - from.y) ** 2
+        if (d < bd) { bd = d; best = n }
+      }
+      if (best && bd > 4)
+        out.push({ role, yards: Math.sqrt(bd), bearing: bearing(best.x - from.x, best.y - from.y) })
+    }
+    return out.sort((a, b) => a.yards - b.yards)
+  }
+
+  let chat: { npc: Npc; speech: Speech; open: number } | null = null
+
+  function drawTalk() {
+    if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; return }
+    const { speech, open } = chat
+    talkEl.hidden = false
+    talkEl.replaceChildren()
+    const add = (cls: string, text: string) => {
+      const d = document.createElement('div')
+      d.className = cls
+      d.textContent = text
+      talkEl.appendChild(d)
+      return d
+    }
+    add('who', speech.who)
+    add('say', speech.greet)
+    if (speech.options.length) {
+      const ol = document.createElement('ol')
+      speech.options.forEach((o, i) => {
+        const li = document.createElement('li')
+        const b = document.createElement('b')
+        b.textContent = String(i + 1)
+        li.append(b, document.createTextNode(o.label))
+        li.onclick = () => { chat!.open = chat!.open === i ? -1 : i; drawTalk() }
+        ol.appendChild(li)
+        if (open === i) {
+          const d = document.createElement('div')
+          d.className = 'lines'
+          d.textContent = o.lines.join('\n')
+          d.style.whiteSpace = 'pre-line'
+          ol.appendChild(d)
+        }
+      })
+      talkEl.appendChild(ol)
+      add('foot', '1-9 or click to ask   ·   E or Esc to go')
+    } else {
+      add('foot', 'E or Esc to go')
+    }
+  }
+
+  function startTalk(n: Npc) {
+    chat = {
+      npc: n,
+      speech: speak(n.kind, n.role, n.level, n.seed, n.topic, () => directionsFrom(n)),
+      open: -1,
+    }
+    // Turn to face whoever spoke to them — the four directions are the same
+    // four the sprite has, so this costs nothing and is the difference between
+    // a conversation and shouting at somebody's back.
+    const dx = hero.x - n.x, dy = hero.y - n.y
+    n.dir = Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? DIR_UP : DIR_DOWN) : (dy > 0 ? DIR_LEFT : DIR_RIGHT)
+    n.vx = 0; n.vy = 0
+    drawTalk()
+  }
+
+  function endTalk() { chat = null; drawTalk() }
+
+  function toggleTalk() {
+    if (chat) { endTalk(); return }
+    const n = inReach()
+    if (n) startTalk(n)
+  }
 
   let zoom = 1
   addEventListener('wheel', (e) => {
@@ -529,6 +684,7 @@ async function main() {
   let last = performance.now()
   let clock = 0
   const kindCount = new Set(npcs.map((n) => n.art)).size
+  const talkers = npcs.filter((n) => n.topic).length
 
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000)
@@ -539,7 +695,7 @@ async function main() {
     // Everyone else first, then the bucket grid they are in, then the player:
     // the player's collision test reads that grid, so it has to describe where
     // people are now rather than where they were a frame ago.
-    wander(dt, clock)
+    wander(dt, clock, chat && chat.npc)
     reindex()
     let mx = 0, my = 0
     if (keys.has('w') || keys.has('arrowup')) mx += 1
@@ -569,6 +725,12 @@ async function main() {
     }
     camX += (hero.x - camX) * Math.min(1, dt * 8)
     camY += (hero.y - camY) * Math.min(1, dt * 8)
+
+    // Walking away ends it, which is how it ends anywhere.  The threshold is
+    // wider than the one that starts it so that shuffling on the spot does not
+    // slam the panel shut in your face.
+    if (chat && Math.hypot(chat.npc.x - hero.x, chat.npc.y - hero.y) > EARSHOT * 1.8) endTalk()
+    const listener = chat ? null : inReach()
 
     // --- ground ---
     ctx.fillStyle = '#1b2410'
@@ -691,6 +853,27 @@ async function main() {
     }
     while (ai < actors.length) actors[ai++]!.draw()
 
+    // The prompt, over whoever is in earshot.  Drawn last so no tree covers it.
+    //
+    // The height is `headOf`, measured off the atlas, and not a constant that
+    // looked right over a townsman.
+    if (listener) {
+      const head = headOf[listener.art]! * zoom
+      const w = Math.round(16 * Math.max(1, zoom))
+      const X = Math.round(sx(listener.y))
+      const Y = Math.round(sy(listener.x) - head - w * 0.7)
+      ctx.font = `bold ${Math.round(11 * Math.max(1, zoom))}px monospace`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = 'rgba(12,14,20,.82)'
+      ctx.fillRect(X - w / 2, Y - w / 2, w, w)
+      ctx.strokeStyle = '#c9a86a'
+      ctx.lineWidth = 1
+      ctx.strokeRect(X - w / 2 + 0.5, Y - w / 2 + 0.5, w - 1, w - 1)
+      ctx.fillStyle = '#e8e4d8'
+      ctx.fillText('E', X, Y + 0.5)
+    }
+
     acc += dt; frames++
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
     hud.textContent = [
@@ -704,6 +887,8 @@ async function main() {
         (wetAt(hero.x, hero.y) ? '  [in water]'
           : solidAt(hero.x, hero.y) ? '  [inside]'
             : slopeAt(hero.x, hero.y) > CLIFF ? '  [on rock]' : ''),
+      `talk     ${talkers} of ${npcs.length} have something to say` +
+        (chat ? `  [talking: ${chat.speech.who}]` : listener ? '  [E to talk]' : ''),
       `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
       `terrain  ${from === 'data' ? "the client's own" : 'interpolated from AzerothCore spawns'}`,
       `fps      ${fps.toFixed(0)}`,
@@ -727,6 +912,14 @@ async function main() {
     z: groundAt(x, y), slope: slopeAt(x, y),
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
+
+  /** Where each kind's head is, in pixels over its feet — see `headOf`. */
+  ;(window as unknown as { __heads: () => unknown }).__heads = () => headOf
+
+  /** Every line the slice can say, so the writing can be read in one go. */
+  ;(window as unknown as { __speech: () => unknown }).__speech = () =>
+    npcs.filter((n) => n.topic).map((n) =>
+      speak(n.kind, n.role, n.level, n.seed, n.topic, () => directionsFrom(n)))
 
   /** What is alive, and where the nearest of it is — asked by the tests. */
   ;(window as unknown as { __npcs: (x?: number, y?: number) => unknown }).__npcs = (x, y) => {
