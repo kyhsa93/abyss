@@ -53,19 +53,21 @@ async function main() {
   // what `synth_terrain.py` builds out of AzerothCore alone, and it is, which
   // is why this page works for somebody who has never installed the game.
   //
-  // A dev server answers a missing path with the index page and a cheerful 200,
-  // so `ok` is not the question.  Ask what came back.
-  async function world(path: string) {
-    const r = await fetch(path)
-    if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return null
-    return r
-  }
-  const head = (await world('./data/terrain.json')) ?? (await world('./world/terrain.json'))
-  if (!head) {
-    hud.textContent = 'No world.  Run `npm run synth` (AzerothCore) or `npm run bake` (a client).'
+  // Which one exists is decided at build time, not by trying one and catching
+  // the failure: asking the network is a 404 in the console of every visitor to
+  // a page where the file is *meant* to be absent.
+  const from = __HAS_CLIENT_WORLD__ ? 'data' : 'world'
+  const head = await fetch(`./${from}/terrain.json`)
+  if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
+    hud.textContent = [
+      `No world at ./${from}/terrain.json.`,
+      '',
+      from === 'data'
+        ? 'The build saw one there. Re-run `npm run bake`, or delete public/data.'
+        : 'Run `npm run synth -- <azerothcore dir> public/world`.',
+    ].join('\n')
     return
   }
-  const from = head.url.includes('/world/') ? 'world' : 'data'
   const meta: Meta = await head.json()
   const heights = new Float32Array(await (await fetch(`./${from}/terrain.bin`)).arrayBuffer())
   const { width: W, height: H, unit: U, x0, y0 } = meta

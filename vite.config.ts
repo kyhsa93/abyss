@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, posix, relative, sep } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 
@@ -112,8 +112,22 @@ function freshShell(request) {
 `
 }
 
+/**
+ * Whether a client-baked world is sitting in `public/data`.
+ *
+ * Asked here rather than in the browser because the browser can only ask by
+ * fetching, and a fetch for something that is not there is a 404 in everybody's
+ * console — on a deployed page where it is *expected* to be missing, for every
+ * visitor, forever.  The build knows the answer; the page should be told it.
+ *
+ * Read when the config loads, so baking a world while `npm run dev` is running
+ * wants a restart.  `bake_terrain.py` says so when it finishes.
+ */
+const hasClientWorld = existsSync('public/data/terrain.json')
+
 export default defineConfig({
   base,
+  define: { __HAS_CLIENT_WORLD__: JSON.stringify(hasClientWorld) },
   build: { target: 'es2022' },
   plugins: [serviceWorker()],
 })

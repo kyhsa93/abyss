@@ -232,6 +232,9 @@ def check(client, meta):
         z, = struct.unpack('<f', f.read(4))
     print(f'check: human start ({tx}, {ty})  terrain {z:.2f}  vs spawn {tz:.2f}  '
           f'delta {abs(z - tz):.2f} yd')
+    # Which world the page loads is decided when vite starts, so a world baked
+    # underneath a running dev server is a world it has not been told about.
+    print('restart `npm run dev` to pick this up')
     assert abs(z - tz) < 2.0, 'terrain disagrees with the world database'
 
 
