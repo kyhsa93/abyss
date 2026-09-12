@@ -30,7 +30,7 @@ recorded cannot be complied with.
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0  
   <https://opengameart.org/content/tiled-terrains>  
-  `oak`, `oak2`, `pine2`, `shrub`, `shrub2`, `pine`, `trunk`, `barrels`, `menhir`, `barrel`, `grass`, `grass2`, `grass3`, `dirt`, `dirt2`, `rock_floor`, `boulder`, `scatter`, `bush`, `bush2`, `barrel2`, `barrel3`, `trunk2`, `rubble`
+  `oak`, `oak2`, `pine2`, `shrub`, `shrub2`, `pine`, `trunk`, `barrels`, `menhir`, `barrel`, `grass`, `grass2`, `grass3`, `dirt`, `dirt2`, `rock_floor`, `stone`, `boulder`, `scatter`, `bush`, `bush2`, `barrel2`, `barrel3`, `trunk2`, `rubble`
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
   <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  

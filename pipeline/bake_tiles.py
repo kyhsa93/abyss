@@ -100,7 +100,14 @@ GROUND = [
     ('grass3',     'Terrain and Outside.png',  64, 352, 32, 32, 'sharm'),
     ('dirt',       'Terrain and Outside.png', 128,  96, 32, 32, 'sharm'),
     ('dirt2',      'Terrain and Outside.png',  32,  96, 32, 32, 'sharm'),
+    # Two cobbles from the same block, and which one is a decision the zone
+    # made rather than a taste: a fifth of Elwynn's bounding box is mountain,
+    # and the dark one averages (38, 44, 47).  Under the hillside tint that
+    # came out at (25, 31, 38) — the ranges around the forest read as holes in
+    # the map rather than as rock.  `stone` is the same rock lit, at (83, 75,
+    # 80), and `rock_floor` stays for anything that wants a cave floor.
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
+    ('stone',      'Terrain and Outside.png', 416,  96, 32, 32, 'sharm'),
     # "grass with flowers", Casper Nilsson's, and the only paving in either
     # sheet that can be used at all.  Both cobbled paths — the herringbone one
     # left of the barrels and the blue brick above the lily pads — are named in

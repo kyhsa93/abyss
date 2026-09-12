@@ -148,10 +148,44 @@ async function main() {
     ]
   }
   /** The two ends of the shading, named because the ground bake steps them. */
-  const SHADE_LO = -0.55, SHADE_HI = 0.4
+  /**
+   * How dark and how bright the hillside tint ever goes.
+   *
+   * Measured off this terrain rather than chosen: with the shading below, the
+   * 2nd percentile of the forest is -1.00 and the brightest cell in it is
+   * +0.30.  The pair they replace were -0.55 and +0.4 against a shade function
+   * that was the raw gradient, and a raw gradient has no upper bound — a
+   * seventh of Elwynn sat pinned at the dark end, which is why the mountains
+   * around the forest came out as one flat black.
+   */
+  const SHADE_LO = -1.0, SHADE_HI = 0.3
+  /**
+   * The light, as a direction rather than as a pair of numbers.
+   *
+   * North-west and above, which is what the tint has always claimed to be.
+   */
+  const LIGHT: [number, number, number] = (() => {
+    const v: [number, number, number] = [1, 1, 1.4]
+    const n = Math.hypot(...v)
+    return [v[0] / n, v[1] / n, v[2] / n]
+  })()
+  /**
+   * How much light the ground catches here, which is a dot product and not a
+   * gradient.
+   *
+   * The first version was `(dx + dy) * 0.95` clamped, and the trouble with a
+   * gradient is that it has no bound: on a mountainside the sum reaches nine,
+   * so every cell steeper than about a third of a yard per yard pinned at the
+   * clamp and the whole range around the forest came out one flat colour.  A
+   * surface normal is a unit vector by construction, so this cannot pin — it
+   * is zero on the level, positive towards the light and negative away, and
+   * the extremes are the extremes of the terrain rather than of the formula.
+   */
   function shadeAt(wx: number, wy: number): number {
     const [dx, dy] = gradient(wx, wy)
-    return Math.max(SHADE_LO, Math.min(SHADE_HI, (dx + dy) * 0.95))
+    const inv = 1 / Math.hypot(dx, dy, 1)
+    return (-dx * inv) * LIGHT[0] + (-dy * inv) * LIGHT[1]
+      + inv * LIGHT[2] - LIGHT[2]
   }
   function slopeAt(wx: number, wy: number): number {
     const [dx, dy] = gradient(wx, wy)
@@ -178,13 +212,29 @@ async function main() {
    * would be stopped by grass or would stroll up a cliff face — either way by
    * something the picture did not warn them about.
    */
-  const CLIFF = 0.62
-  const BARE = 0.44
+  // As angles, because that is what they are about: a gradient of 1 is 45
+  // degrees.  At 0.62 and 0.44 — 31 and 24 degrees — a third of Elwynn was
+  // unclimbable and read as bare rock, which is rolling ground and not a
+  // cliff.  Fifty degrees is roughly where a person stops being able to walk
+  // up something and is about where the game this is modelled on stops you;
+  // forty is where grass stops holding.
+  const CLIFF = Math.tan(50 * Math.PI / 180)
+  const BARE = Math.tan(40 * Math.PI / 180)
 
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
-  const ROCK_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : GROUND_TILES[0]
+  const ROCK_TILE = tilesMeta['stone'] ? 'stone' : GROUND_TILES[0]
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
+  /**
+   * The land a lake touches.
+   *
+   * Not a shoreline in the tileset's sense — LPC's water edges are a
+   * sixteen-case autotile and this is one tile — but the thing being fixed is
+   * cruder than that: grass meeting open water at a straight cut reads as a
+   * hole in the map rather than as a lake.  A yard of sand around the edge is
+   * enough to say which of the two is the ground.
+   */
+  const SHORE_TILE = tilesMeta['dirt2'] ? 'dirt2' : DIRT_TILE
   /**
    * Flowers, in meadows rather than in a speckle.
    *
@@ -208,11 +258,20 @@ async function main() {
   // width in yards, for things whose collision is the trunk rather than the
   // picture.  A canopy is not solid — walking behind a tree is the whole reason
   // the canopy is drawn over the player instead of under.
+  // `yards`: how tall the thing should stand.  A drawn oak is 80 pixels, which
+  // at 24 to the yard is 3.3 — shorter than two people, and a wood of them
+  // reads as scrub.  Stating the height and deriving the scale from the
+  // sprite's own is the same move `bake_npcs.py` makes for an animal's length,
+  // and it means the number survives the art being recut.
   const KIND: Record<string, {
     pieces: string[]
+    yards?: number
     trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
   }> = {
-    tree: { pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk', solid: 0.5 },
+    tree: {
+      pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk',
+      yards: 8, solid: 0.5,
+    },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
     // angle is how pixel art stops looking like pixel art.
@@ -222,7 +281,7 @@ async function main() {
     fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
     lamp: { pieces: ['fence_post'] },
     sign: { pieces: ['fence_post'] },
-    pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
+    pine: { pieces: ['pine', 'pine2'], yards: 9, solid: 0.5 },
     // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
     // the texture the field had, and it reads as wallpaper however good the
     // sprite is.
@@ -232,7 +291,9 @@ async function main() {
     log: { pieces: ['trunk2', 'woodpile'] },
     grass: { pieces: ['bush', 'sprout2'] },
     // 710 of these stand in the shallows, and they were bushes.
-    water_plant: { pieces: ['reeds', 'reeds2'] },
+    // The drawn reeds are 104 pixels — four and a third yards, which put a
+    // reed bed over the top of the wood it stood beside.
+    water_plant: { pieces: ['reeds', 'reeds2'], yards: 2 },
     flower: { pieces: ['sprout', 'sprout2', 'tomatoes'] },
     crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
     // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
@@ -298,7 +359,7 @@ async function main() {
   }
   const runs = fenceRuns(meta.doodads.filter((d) => d.k === 'fence'))
 
-  type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
+  type Placed = { x: number; y: number; piece: Piece; s: number; trunk?: Piece }
   const placed: Placed[] = []
 
   /**
@@ -318,6 +379,13 @@ async function main() {
     const pick = k.pieces[Math.floor(seed * k.pieces.length) % k.pieces.length]!
     const piece = tilesMeta[pick]
     if (!piece) continue
+    // How big this one is.  `yards` says how tall the kind should stand and
+    // the sprite says how tall it is drawn, so the scale between them is
+    // arithmetic; `d.s` is the client's own word for how big *this* one is,
+    // and it was read out of the world and then ignored for three rounds —
+    // Elwynn has trees from a sixth of normal to five times it, and every one
+    // of them was the same size.
+    const size = (k.yards ? (k.yards * PPY) / piece.h : 1) * d.s
     if (k.solid === 'span') {
       // One doodad, several sections, laid end to end so a boundary is a line
       // rather than a row of posts.
@@ -327,11 +395,14 @@ async function main() {
       // the old camera — and a drawn one does not: it is front-on by
       // construction, which is the same reason its rotation is ignored.
       const piece2 = piece
-      const sec = piece2.w / PPY
+      const sec = (piece2.w * size) / PPY
       const n = Math.max(1, Math.round(r.span / sec))
       for (let i = 0; i < n; i++) {
         const off = (i - (n - 1) / 2) * sec
-        placed.push({ x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off), piece: piece2 })
+        placed.push({
+          x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off),
+          piece: piece2, s: size,
+        })
       }
       const half = (n * sec) / 2
       solids.push({
@@ -340,13 +411,19 @@ async function main() {
       })
       continue
     }
-    placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
+    placed.push({
+      x: d.x, y: d.y, piece, s: size,
+      ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}),
+    })
     if (k.solid === 'building') {
-      const halfY = piece.w / PPY / 2
-      const deep = (piece.h / PPY) * 0.32
+      const halfY = (piece.w * size) / PPY / 2
+      const deep = ((piece.h * size) / PPY) * 0.32
       solids.push({ x0: d.x - 0.8, x1: d.x + deep, y0: d.y - halfY, y1: d.y + halfY })
     } else if (typeof k.solid === 'number') {
-      solids.push({ x0: d.x - k.solid, x1: d.x + k.solid, y0: d.y - k.solid, y1: d.y + k.solid })
+      // The trunk of a tree twice the size is twice as wide, and a player who
+      // can walk through the big ones is the visible form of forgetting that.
+      const r = k.solid * size
+      solids.push({ x0: d.x - r, x1: d.x + r, y0: d.y - r, y1: d.y + r })
     }
   }
 
@@ -892,7 +969,7 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ROCK_TILE, DIRT_TILE].filter(Boolean) as string[])]
+      ROCK_TILE, DIRT_TILE, SHORE_TILE].filter(Boolean) as string[])]
     const c = document.createElement('canvas')
     c.width = px * ids.length
     c.height = px * SHADES
@@ -905,9 +982,13 @@ async function main() {
       for (let j = 0; j < SHADES; j++) {
         g.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, j * px, px, px)
         const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
+        // Straight across the range, not clamped again on the way out.  The
+        // old mapping reached its cap two thirds of the way down and flattened
+        // everything below it, which put a second black on top of the first.
         if (Math.abs(sl) > 0.02) {
-          g.fillStyle = sl > 0 ? `rgba(255,247,224,${Math.min(0.42, sl * 0.75)})`
-            : `rgba(8,14,26,${Math.min(0.5, -sl * 0.75)})`
+          g.fillStyle = sl > 0
+            ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
+            : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
           g.fillRect(i * px, j * px, px, px)
         }
       }
@@ -1090,9 +1171,13 @@ async function main() {
         const steep = slopeAt(wx, wy)
         const meadow = BLOOM_TILES.length > 0
           && hash(Math.floor(ti / 5) + 811, Math.floor(tj / 5) + 277) > MEADOW
+        const shore = !water && WATER_TILES.length > 0
+          && (wetAt(wx + T, wy) || wetAt(wx - T, wy)
+            || wetAt(wx, wy + T) || wetAt(wx, wy - T))
         const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : steep > CLIFF ? ROCK_TILE
-            : steep > BARE ? DIRT_TILE
+            : shore ? SHORE_TILE
+              : steep > BARE ? DIRT_TILE
               : meadow && h > 0.55
                 ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                 : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
@@ -1213,7 +1298,7 @@ async function main() {
       while (ai < actors.length && depth(actors[ai]!) > depth(o)) actors[ai++]!.draw()
       const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
-      const k = zoom
+      const k = zoom * o.s
       if (o.trunk) {
         const t = o.trunk
         ctx.drawImage(tilesImg, t.x, t.y, t.w, t.h, Math.round(X - (t.w * k) / 2),
