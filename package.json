@@ -19,7 +19,10 @@
     "prompt": "python3 pipeline/make_prompt.py",
     "actions": "python3 pipeline/actions.py",
     "promptcheck": "python3 pipeline/make_prompt.py --check prompts/",
-    "doll": "python3 pipeline/pack_paperdoll.py"
+    "doll": "python3 pipeline/pack_paperdoll.py",
+    "sources": "python3 pipeline/sources.py",
+    "fetch": "python3 pipeline/fetch_assets.py",
+    "catalogue": "python3 pipeline/catalogue.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
