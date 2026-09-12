@@ -175,10 +175,27 @@ low-poly, outlines, perspective.
 
 ## What each class adds
 
-**`actor`** — eight directions and a walk, sixteen cells, named in a stated
-order. Eight and not four because four leaves the pose 45 degrees out half the
-time, which is the compromise this art direction exists to end; in a stated
-order because five views at uneven spacing cannot be turned into eight.
+**`actor`** — eight directions, named in a stated order, and five rows: one
+standing and four of a walk. Eight directions and not four because four leaves
+the pose 45 degrees out half the time, which is the compromise this art
+direction exists to end; in a stated order because five views at uneven spacing
+cannot be turned into eight.
+
+Four walk frames and not one, because one held mid-stride is a character
+sliding rather than walking — and `src/main.ts` already cycles four, so a sheet
+with one is short of what the engine will play. The four are the cycle a walk
+actually is: left foot down, passing, right foot down, passing.
+
+There is a second sheet a subject can have, `<name>_combat`, and **nothing
+generates it yet on purpose.** There is no combat in this game, so nothing
+drives an attack, a flinch or a death. It exists because the expensive part of
+coming back later is not the drawing — it is that generating the same character
+twice gets you two characters. If it is wanted, generate it with the walk sheet
+as an image reference rather than from the text alone.
+
+The cell arithmetic is why this is two sheets and not one: 5 rows × 8 is 40
+cells, 7 more rows is 96, and 96 cells at the 150–200 pixels a cell wants does
+not fit in anything a generator hands back.
 
 512 townsfolk is a great deal of one person. Take `townsman` and `townswoman`
 two or three times over with different hair and cloth — the drawn sheet needed

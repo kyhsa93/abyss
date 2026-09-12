@@ -63,15 +63,48 @@ PALETTES = {
 목재 #5a4430. 물 #3a6880.""",
 }
 
-ACTOR = """생물 한 종류만. 16칸을 8열 2행으로 배치한다.
-
-윗줄  서 있는 자세, 8방향. 왼쪽부터 정확히 이 순서:
+# The eight directions, written once, because every clip sheet names them and a
+# retyped list is a list that stops agreeing with itself.
+DIRS = """8방향, 왼쪽부터 정확히 이 순서:
       ① 정면(카메라를 향함) ② 정면-오른쪽 ③ 오른쪽 옆
-      ④ 뒤-오른쪽 ⑤ 뒤 ⑥ 뒤-왼쪽 ⑦ 왼쪽 옆 ⑧ 정면-왼쪽
-      회전만 다르고 개체·복장·비율은 완전히 동일하다.
+      ④ 뒤-오른쪽 ⑤ 뒤 ⑥ 뒤-왼쪽 ⑦ 왼쪽 옆 ⑧ 정면-왼쪽"""
 
-아랫줄  같은 8방향, 걷는 중간 자세(한쪽 다리가 앞으로 나간 순간).
-        윗줄과 같은 개체, 같은 크기, 같은 밑면 높이.
+SAME = """모든 칸이 같은 개체, 같은 복장, 같은 비율, 같은 크기,
+        같은 밑면 높이. 회전과 동작만 다르다."""
+
+# What the scene plays.  `walk` is four because one held mid-stride is a
+# character sliding rather than walking, and `src/main.ts` already cycles four.
+ACTOR = """생물 한 종류만. 40칸을 8열 5행으로 배치한다.
+각 행이 {dirs}
+
+1행  서 있는 자세(대기).
+2행  걷기 1/4 — 왼발이 앞으로 나간 접지 순간.
+3행  걷기 2/4 — 두 발이 스쳐 지나가는 순간, 몸이 가장 높다.
+4행  걷기 3/4 — 오른발이 앞으로 나간 접지 순간.
+5행  걷기 4/4 — 두 발이 스쳐 지나가는 순간, 반대쪽.
+
+{same}
+
+대상  {what}
+크기  {size}"""
+
+# Not generated yet and here on purpose.  There is no combat in this game, so
+# nothing drives an attack — but coming back for these later means generating
+# the same character twice and getting two characters, which is the one thing
+# that is genuinely hard.  Generate it with the walk sheet as an image
+# reference, or not at all until there is something to swing at.
+COMBAT = """생물 한 종류만. 56칸을 8열 7행으로 배치한다.
+각 행이 {dirs}
+
+1행  공격 1/3 — 뒤로 젖히는 예비 동작.
+2행  공격 2/3 — 휘두르는 순간.
+3행  공격 3/3 — 휘두른 뒤 따라가는 자세.
+4행  피격 — 뒤로 밀리며 움츠린다.
+5행  쓰러짐 1/3 — 무릎이 꺾인다.
+6행  쓰러짐 2/3 — 앞으로 무너진다.
+7행  쓰러짐 3/3 — 땅에 누운 채 움직이지 않는다.
+
+{same}
 
 대상  {what}
 크기  {size}"""
@@ -185,8 +218,11 @@ def block(biome, topdown=False):
 def every():
     out = {}
     for name, reach, what, size in ACTORS:
+        body = dict(dirs=DIRS, same=SAME, what=what, size=size)
         out[f'actor_{reach}_{name}'] = (
-            block('temperate') + '\n\n' + ACTOR.format(what=what, size=size))
+            block('temperate') + '\n\n' + ACTOR.format(**body))
+        out[f'actor_{reach}_{name}_combat'] = (
+            block('temperate') + '\n\n' + COMBAT.format(**body))
     for name, cls, reach, biome, body in SHEETS:
         out[f'{cls}_{reach}_{name}'] = (
             block(biome, topdown=(cls == 'ground')) + '\n\n' + body)
@@ -211,6 +247,8 @@ def main(argv):
         return
     want = argv[0]
     hits = [k for k in made if k == want or k.split('_', 2)[2] == want]
+    if not hits:
+        hits = [k for k in made if k.split('_', 2)[2].startswith(want + '_')]
     if len(hits) != 1:
         sys.exit(f'{want!r} matches {len(hits)} sheets; `list` shows them all')
     print(made[hits[0]])
