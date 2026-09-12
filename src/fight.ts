@@ -99,3 +99,50 @@ export function xpFor(mine: number, theirs: number, elite: boolean): number {
   }
   return elite ? gain * 2 : gain
 }
+
+/**
+ * How much rage a blow is worth.
+ *
+ * The server's own curve, which is a quadratic in level and then a different
+ * multiplier depending on which end of the blow you were on.  Dealing damage
+ * pays more than taking it, and the swing's own length is half of what dealing
+ * it pays — which is why a slow weapon feels like it generates more.
+ *
+ * Nothing here is tuned.  At level 5 the conversion is 20.6, so a seven-damage
+ * swing on a 1.9 second weapon comes to about four and a half rage, and a
+ * fifteen-rage blow is every third swing.  That is the shape the game has.
+ */
+export function rageFrom(damage: number, level: number,
+  swingSeconds: number, dealing: boolean): number {
+  const convert = 0.0091107836 * level * level + 3.225598133 * level + 4.2652911
+  if (!dealing) return (damage / convert) * 2.5
+  const fromDamage = (damage / convert) * 7.5
+  const fromSpeed = swingSeconds * 3.5
+  return Math.min((fromDamage + fromSpeed) / 2, fromDamage * 2)
+}
+
+/** What the bar holds. */
+export const MAX_RAGE = 100
+
+/**
+ * One ability, as `pipeline/spells.py` writes it.
+ *
+ * `does` is the client's three effect slots, each `[effect, amount, dieSides,
+ * aura, period]`.  The engine implements the handful of effects it can and
+ * ignores the rest, which is honest: an ability whose effect nothing here
+ * understands simply does not appear on the bar.
+ */
+export type Spell = {
+  id: number
+  level: number
+  rage: number
+  cool: number
+  reach: [number, number]
+  holds: number
+  does: number[][]
+}
+
+/** The effect numbers this engine knows what to do with. */
+export const E_DAMAGE = 2, E_ENERGIZE = 3, E_AURA = 6, E_WEAPON_ADD = 58
+/** And the auras. */
+export const A_PERIODIC_DAMAGE = 3, A_ATTACK_POWER = 99

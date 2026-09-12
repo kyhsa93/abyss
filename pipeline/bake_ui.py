@@ -28,6 +28,11 @@ WANTED = [
     ('sbed', 'health-normal'),       # the player frame
     ('lorc', 'wolf-head'),           # the target frame, when it is a beast
     ('delapouite', 'sword-brandish'),  # and when it is a person
+    # The four a warrior has by level five, in the order he learns them.
+    ('lorc', 'sword-slice'),        # the blow that costs rage
+    ('lorc', 'shouting'),           # the shout that buys attack power
+    ('delapouite', 'charging-bull'),  # closing the gap
+    ('lorc', 'bleeding-wound'),     # the cut that keeps cutting
 ]
 
 CREDIT = ('game-icons.net', 'CC-BY 3.0', 'https://game-icons.net')

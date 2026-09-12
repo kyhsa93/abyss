@@ -23,7 +23,8 @@
     "sources": "python3 pipeline/sources.py",
     "fetch": "python3 pipeline/fetch_assets.py",
     "catalogue": "python3 pipeline/catalogue.py",
-    "ui": "python3 pipeline/bake_ui.py"
+    "ui": "python3 pipeline/bake_ui.py",
+    "spells": "python3 pipeline/spells.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

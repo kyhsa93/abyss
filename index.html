@@ -50,7 +50,7 @@
          with the id in front of them because `#ui *` is more specific than a
          bare class and quietly won: the slots were set to `auto` and computed
          to `none`. */
-      #ui .slot, #ui #bag li, #ui #micro button {
+      #ui .slot, #ui #bag li, #ui #micro button, #ui .auras .aura {
         pointer-events: auto; cursor: pointer;
       }
       /* Above the canvas, said out loud.  Both are painted in the positioned
@@ -179,6 +179,30 @@
         border: 1px solid #4a4433; padding: 5px 9px; cursor: pointer;
       }
       #micro button.on { color: #ffe9a8; border-color: #c9a86a; }
+
+      #ui .rage {
+        position: relative; height: 11px; margin: 2px 0 0;
+        background: rgba(0,0,0,.55); border: 1px solid #2c2a24; overflow: hidden;
+      }
+      #ui .rage .fill {
+        position: absolute; inset: 0 auto 0 0; width: 0; background: #b8402f;
+        transition: width .1s linear;
+      }
+      #ui .rage .num {
+        position: relative; display: block; text-align: center;
+        font: 9px/11px var(--mono); color: #ffd9d0; text-shadow: 0 1px 1px #000;
+      }
+
+      #ui .auras { display: flex; gap: 3px; margin: 3px 0 0; }
+      #ui .auras .aura {
+        position: relative; width: 22px; height: 22px;
+        background: rgba(12,14,20,.85); border: 1px solid #4a4433;
+      }
+      #ui .auras .aura img { width: 100%; height: 100%; }
+      #ui .auras .aura span {
+        position: absolute; right: 1px; bottom: 0;
+        font: 9px var(--mono); color: #ffe9a8; text-shadow: 0 1px 2px #000;
+      }
 
       /* The swing, which is the only timer there is. */
       #ui .swing {

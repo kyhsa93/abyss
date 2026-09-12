@@ -79,14 +79,24 @@ export function hud() {
   const units = el('div', '', ui)
   units.id = 'units'
   const me = frame(units, 'me')
+  // Rage, under health.  A resource bar that nothing spends is a bar that
+  // lies, so this arrived with the four things that spend it.
+  const rageBar = el('div', 'rage', me.root.parentElement!)
+  const rageFill = el('div', 'fill', rageBar)
+  const rageText = el('span', 'num', rageBar)
   // The swing, as a bar under the player rather than as a number.  It is the
   // only timer in the game and it is the one thing a player is waiting on.
   const swingBar = el('div', 'swing', me.root.parentElement!)
   const swingFill = el('div', 'fill', swingBar)
+  // What is on you goes under you, and what is on the target goes under the
+  // target.  Both were appended at the end, which put them under the
+  // experience bar and made the two strips indistinguishable.
+  const mine = el('div', 'auras', units)
   const foe = frame(units, 'foe')
   foe.root.hidden = true
   // What the target is fighting, which is nearly always you — and when it is
   // not, that is the thing worth knowing.
+  const theirs = el('div', 'auras', units)
   const foeFoe = el('div', 'oftarget', units)
   foeFoe.hidden = true
 
@@ -202,6 +212,42 @@ export function hud() {
     setWhere(text: string, time: string) {
       if (mapWhere.textContent !== text) mapWhere.textContent = text
       if (mapClock.textContent !== time) mapClock.textContent = time
+    },
+
+    setRage(now: number, most: number) {
+      rageFill.style.width = `${Math.max(0, Math.min(1, now / most)) * 100}%`
+      rageText.textContent = `${Math.round(now)}`
+    },
+
+    /**
+     * The little squares: what is on you, and what is on the target.
+     *
+     * Rebuilt whenever the set changes, which is rarely — an aura arrives and
+     * leaves, and in between only the number under it moves.
+     */
+    setAuras(who: 'me' | 'foe', got: { icon: string; left: number; text: string }[]) {
+      const box = who === 'me' ? mine : theirs
+      const key = got.map((a) => a.icon).join('|')
+      if (box.dataset['now'] !== key) {
+        box.dataset['now'] = key
+        box.textContent = ''
+        for (const a of got) {
+          const cell = el('div', 'aura', box)
+          const img = el('img', '', cell) as HTMLImageElement
+          img.src = ICONS + a.icon
+          el('span', '', cell)
+          cell.onmouseenter = () => {
+            const r = cell.getBoundingClientRect()
+            this_.setTip(a.text, r.left + r.width / 2, r.top - 4)
+          }
+          cell.onmouseleave = () => this_.setTip(null, 0, 0)
+        }
+      }
+      got.forEach((a, i) => {
+        const span = box.children[i]?.querySelector('span')
+        const want = a.left > 0 ? `${Math.ceil(a.left)}` : ''
+        if (span && span.textContent !== want) span.textContent = want
+      })
     },
 
     /** How far through the swing, 0 to 1. */

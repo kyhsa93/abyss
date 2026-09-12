@@ -20,10 +20,15 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { bearing, coin, goodsOf, josa, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
+import { abilityOf, bearing, coin, goodsOf, josa, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud } from './hud'
-import { mitigate, noticeAt, swing, xpFor, ARMOUR, FOE, HI, HP, LO, MELEE, SWING, type Fight } from './fight'
+import {
+  mitigate, noticeAt, rageFrom, swing, xpFor,
+  ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
+  E_AURA, E_ENERGIZE, E_WEAPON_ADD,
+  FOE, HI, HP, LO, MAX_RAGE, MELEE, SWING, type Fight, type Spell,
+} from './fight'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -130,7 +135,7 @@ async function main() {
   const PAINT = meta.ground ?? []
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -142,6 +147,11 @@ async function main() {
     // anything a database knows, but where a wolf stands is a row in
     // `creature` either way.  One spawn file, and it is the committed one.
     fetch('./world/npcs.json').then((r) => r.json() as Promise<Spawns>),
+    // What a warrior can do, out of the client's own `Spell.dbc` by way of
+    // `pipeline/spells.py`.  Missing is fine: without it the bar is the two
+    // things that need no table.
+    fetch('./world/spells.json').then((r) => r.json() as Promise<{ spells: Spell[] }>)
+      .catch(() => ({ spells: [] as Spell[] })),
   ])
 
   const canvas = document.createElement('canvas')
@@ -627,6 +637,8 @@ async function main() {
     hurt: number
     /** Who it is fighting, which for now is only ever the player. */
     angry: boolean; next: number
+    /** A cut that keeps cutting: when it stops, when it next bites, how hard. */
+    bleed: { until: number; next: number; each: number } | null
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
@@ -655,7 +667,7 @@ async function main() {
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
       fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
-      dead: 0, hurt: -99, angry: false, next: 0,
+      dead: 0, hurt: -99, angry: false, next: 0, bleed: null,
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
@@ -883,10 +895,89 @@ async function main() {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
     xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
+    rage: 0,
+    /** Queued by a heavier blow, spent on the next swing. */
+    extra: 0,
+    /** When each thing with a cooldown is ready again. */
+    cools: {} as Record<number, number>,
+    /** The shout, while it lasts. */
+    shout: null as { until: number; ap: number } | null,
     purse: 0, kills: 0,
     /** word -> [how many, what the lot is worth in copper]. */
     bag: {} as Record<string, [number, number]>,
   }
+  /**
+   * The four things a warrior can do by level five.
+   *
+   * Every number in them is the client's, read by `pipeline/spells.py` and
+   * never rounded on the way — fifteen rage for a heavier blow, ten for a cut
+   * that bleeds five every three seconds for fifteen, a shout that buys
+   * fifteen attack power for two minutes, and a run-up that costs nothing,
+   * covers eight to twenty-five yards and pays nine rage back.
+   *
+   * Which of them is on the bar is decided by whether this engine understands
+   * what it does.  An ability whose effects mean nothing here simply is not
+   * offered, which is more honest than a button that does nothing.
+   */
+  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA])
+  const spells = (spellbook.spells ?? [])
+    .filter((sp) => sp.level <= HERO_LEVEL && abilityOf(sp.id)
+      && sp.does.some((d) => CAN_DO.has(d[0]!)))
+    .sort((a, b) => a.level - b.level || a.id - b.id)
+  const ICON_OF: Record<number, string> = {
+    78: 'lorc/sword-slice.svg', 6673: 'lorc/shouting.svg',
+    100: 'delapouite/charging-bull.svg', 772: 'lorc/bleeding-wound.svg',
+  }
+
+  /** Whether a thing can be used right now, and why not if it cannot. */
+  const why = (sp: Spell): string | null => {
+    if (you.died) return '쓰러져 있다'
+    if (you.rage < sp.rage) return `분노가 ${sp.rage} 필요하다`
+    if ((you.cools[sp.id] ?? 0) > clock) return '아직 준비되지 않았다'
+    const far = sp.reach[1]
+    if (far > 0) {
+      const t = you.target
+      if (!t || t.dead) return '대상이 없다'
+      const d = Math.hypot(t.x - hero.x, t.y - hero.y)
+      if (d > far) return '너무 멀다'
+      if (d < sp.reach[0]) return '너무 가깝다'
+    }
+    return null
+  }
+
+  /**
+   * Use one.
+   *
+   * The effects are the client's own numbers and the handling is per effect
+   * rather than per ability, so the day `spells.py` reaches level ten nothing
+   * here needs a new branch for a second bleed.
+   */
+  const cast = (sp: Spell) => {
+    if (why(sp) !== null) return
+    you.rage -= sp.rage
+    if (sp.cool) you.cools[sp.id] = clock + sp.cool / 1000
+    const t = you.target
+    for (const [effect, amount, _die, aura, period] of sp.does) {
+      if (effect === E_WEAPON_ADD) you.extra += amount!
+      else if (effect === E_ENERGIZE) you.rage = Math.min(MAX_RAGE, you.rage + amount! / 10)
+      else if (effect === E_AURA && aura === A_ATTACK_POWER) {
+        you.shout = { until: clock + sp.holds / 1000, ap: amount! }
+      } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE && t) {
+        t.bleed = { until: clock + sp.holds / 1000, next: clock + period! / 1000, each: amount! }
+        t.angry = true
+      }
+    }
+    // A run-up is a run-up: the thing it does that no effect number says is
+    // put you next to what you were looking at.
+    if (sp.reach[0] > 0 && t) {
+      const d = Math.hypot(t.x - hero.x, t.y - hero.y) || 1
+      hero.x = t.x - ((t.x - hero.x) / d) * (MELEE * 0.7)
+      hero.y = t.y - ((t.y - hero.y) / d) * (MELEE * 0.7)
+      t.angry = true
+    }
+    ui.log(`${abilityOf(sp.id)![0]}`, 'hit')
+  }
+
   /**
    * What a kill was worth, and what it bought.
    *
@@ -946,6 +1037,20 @@ async function main() {
 
     for (const n of active) {
       if (!n.fight) continue
+      // A cut that keeps cutting, on its own clock rather than on the swing's.
+      if (n.bleed && !n.dead) {
+        if (clock > n.bleed.until) n.bleed = null
+        else if (clock >= n.bleed.next) {
+          n.bleed.next += 3
+          n.hp -= n.bleed.each
+          n.hurt = clock
+          say(n.x, n.y, `${n.bleed.each}`, true)
+          if (n.hp <= 0) { n.hp = 0; n.dead = clock; n.bleed = null; you.kills += 1
+            ui.log(`${josa(nameOf(n.kind), '은', '는')} 피를 흘리며 쓰러졌다.`, 'gain')
+            reward(n)
+            if (you.target === n) you.target = null }
+        }
+      }
       if (n.dead) {
         // Back on its feet after a while, where it stood.
         if (clock - n.dead > 30) {
@@ -978,6 +1083,9 @@ async function main() {
       n.next = clock * 1000 + n.fight[SWING]!
       const hit = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
       you.hp -= hit
+      // Taking a blow pays too, at a third of what landing one does.
+      you.rage = Math.min(MAX_RAGE,
+        you.rage + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
       say(hero.x, hero.y, `-${hit}`, false)
       ui.log(`${nameOf(n.kind)}에게 ${hit} 맞았다.`, 'hurt')
       if (you.hp <= 0) {
@@ -986,7 +1094,11 @@ async function main() {
       }
     }
 
+    if (you.shout && you.shout.until <= clock) you.shout = null
     if (quiet) {
+      // Rage drains when nobody is swinging, which is what stops you walking
+      // into a fight with a full bar you filled somewhere else.
+      you.rage = Math.max(0, you.rage - 2.5 / 60)
       you.calm += 1 / 60
       if (you.calm > 3) you.hp = Math.min(you.max, you.hp + you.max * 0.05 / 60)
     } else {
@@ -999,7 +1111,16 @@ async function main() {
     if ((foe.x - hero.x) ** 2 + (foe.y - hero.y) ** 2 > reach2) return
     if (clock * 1000 < you.next) return
     you.next = clock * 1000 + you.line[SWING]!
-    const hit = swing(you.line, foe.level, foe.fight[ARMOUR]!, Math.random())
+    // The shout, while it holds: attack power spread over the swing, which is
+    // the same line the weapon's own damage came out of.
+    const secs = you.line[SWING]! / 1000
+    const shout = (you.shout && you.shout.until > clock)
+      ? (you.shout.ap / 14) * secs : 0
+    const hit = Math.round(
+      swing(you.line, foe.level, foe.fight[ARMOUR]!, Math.random())
+      + shout + you.extra)
+    you.extra = 0
+    you.rage = Math.min(MAX_RAGE, you.rage + rageFrom(hit, you.level, secs, true))
     foe.hp -= hit
     foe.hurt = clock
     foe.angry = true
@@ -1094,6 +1215,12 @@ async function main() {
     }
     // The readout is a developer's and it starts out of the way.
     if (k === '`' || k === '~') hud.hidden = !hud.hidden
+    // 2 onwards are the abilities, in the order they are learned.
+    const slot = Number(k)
+    if (slot >= 2 && slot <= 9 && spells[slot - 2]) {
+      e.preventDefault()
+      if (!chat) cast(spells[slot - 2]!)
+    }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
     if (k === 'c') { e.preventDefault(); sheetOpen = !sheetOpen }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
@@ -1982,10 +2109,34 @@ async function main() {
         use: () => toggleTalk(),
         cooling: 0, live: listener !== null || chat !== null || corpse() !== null,
       },
-      ...KEYS.slice(2).map((key) => ({
+      ...spells.map((sp, i) => {
+        const [word, what] = abilityOf(sp.id)!
+        const stop = why(sp)
+        const ready = you.cools[sp.id] ?? 0
+        return {
+          key: KEYS[i + 2] ?? '', label: word,
+          icon: ICON_OF[sp.id] ?? 'lorc/sword-slice.svg',
+          tip: `${word}  —  분노 ${sp.rage}\n${what}`
+            + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
+            + (stop ? `\n${stop}` : ''),
+          use: () => { if (!chat) cast(sp) },
+          cooling: sp.cool ? Math.max(0, (ready - clock) / (sp.cool / 1000)) : 0,
+          live: stop === null,
+        }
+      }),
+      ...KEYS.slice(2 + spells.length).map((key) => ({
         key, label: '', icon: '', tip: '', cooling: 0, live: false,
       })),
     ])
+    ui.setRage(you.rage, MAX_RAGE)
+    ui.setAuras('me', you.shout && you.shout.until > clock
+      ? [{ icon: 'lorc/shouting.svg', left: you.shout.until - clock,
+           text: `외침  —  공격력 +${you.shout.ap}` }]
+      : [])
+    ui.setAuras('foe', you.target?.bleed
+      ? [{ icon: 'lorc/bleeding-wound.svg', left: you.target.bleed.until - clock,
+           text: `찢기  —  3초마다 ${you.target.bleed.each}` }]
+      : [])
 
     ;(window as unknown as { __ready: boolean }).__ready = true
     requestAnimationFrame(frame)

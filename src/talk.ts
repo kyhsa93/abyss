@@ -107,6 +107,26 @@ const GOODS: Record<string, string> = {
   oddment: '잡동사니',
 }
 
+/**
+ * Our word for an ability.
+ *
+ * The client's `Spell.dbc` has a name for every one of these and it is
+ * Blizzard's prose, so `pipeline/spells.py` never reads the string block and
+ * the words are here instead — named for what the thing does, which is the
+ * same bargain the creature kinds and the shop's stock make.
+ */
+const ABILITY: Record<number, [string, string]> = {
+  78: ['내려치기', '분노를 실어 다음 일격을 더 무겁게 한다'],
+  6673: ['외침', '한동안 더 세게 친다'],
+  100: ['달려들기', '멀리 있는 적에게 달려들며 분노가 붙는다'],
+  772: ['찢기', '상처가 한동안 계속 벌어진다'],
+}
+
+/** The word and the sentence for an ability, or nothing if it has none. */
+export function abilityOf(id: number): [string, string] | null {
+  return ABILITY[id] ?? null
+}
+
 /** The word for a thing you are carrying. */
 export function goodsOf(word: string): string {
   return GOODS[word] ?? word

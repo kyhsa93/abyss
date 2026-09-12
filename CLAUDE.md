@@ -134,6 +134,15 @@ which way you decided; ask only when the answer changes what the game *is*.
 
 ## Two things that are not negotiable
 
+**Numbers may leave a client's tables; words may not.** `pipeline/spells.py`
+reads `Spell.dbc` — 49 MB, of which 2.7 MB is a string block holding every
+ability name and description in the game — and never touches the block. What
+comes out is an id, a rage cost, a cooldown, a radius and an effect; `talk.ts`
+supplies the word. Same boundary as a model path in `bake_terrain.py` and an
+item name in `spawn_npcs.py`. The field offsets are checked against a fact
+rather than trusted: spell 78 has to come back rage-powered at 15, because a
+layout that is off by one cannot produce that.
+
 **Nothing extracted from a WoW client enters this repository.** Not the bytes,
 not a re-encoding of the bytes, not Blizzard's file paths. `pipeline/` is
 committed; what it writes is in `.gitignore`, and the bake step throws away
