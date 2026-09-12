@@ -1223,6 +1223,14 @@ async function main() {
     }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
     if (k === 'c') { e.preventDefault(); sheetOpen = !sheetOpen }
+    if (k === 'm') {
+      e.preventDefault()
+      mapOpen = !mapOpen
+      // Drawn the first time it is asked for, because three hundred thousand
+      // samples at load is a fifth of a second nobody asked to wait.
+      if (mapOpen && !mapDrawn) { paintWorld(); mapDrawn = true }
+    }
+    if (k === 'escape' && mapOpen) mapOpen = false
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
     if (k === 'e') { e.preventDefault(); toggleTalk() }
@@ -1248,6 +1256,8 @@ async function main() {
   const ui = makeHud()
   let bagOpen = false
   let sheetOpen = false
+  let mapOpen = false
+  let mapDrawn = false
 
   /**
    * The minimap, painted rather than drawn.
@@ -1258,6 +1268,44 @@ async function main() {
    * that updates with the frame is a map costing 22,500 lookups sixty times a
    * second to show you something that moves at seven yards an hour on it.
    */
+  /**
+   * The whole zone, drawn once.
+   *
+   * One pixel a terrain cell — 474 by 667, which is 4.17 yards a pixel and the
+   * finest the height grid can answer.  Three hundred thousand samples is a
+   * fifth of a second, so it happens the first time somebody opens the map and
+   * never again: what it shows does not change.
+   */
+  function paintWorld() {
+    // North up and west left, which is the same map the screen is.  `i` walks
+    // south and `j` walks east, so `i` is the row and `j` is the column — the
+    // picture is `H` across and `W` down, and getting that the other way round
+    // draws the same forest on its side.
+    const cv = ui.world
+    cv.width = H; cv.height = W
+    const g = cv.getContext('2d')!
+    const img = g.createImageData(H, W)
+    const px = img.data
+    for (let i = 0; i < W; i++) {
+      for (let j = 0; j < H; j++) {
+        const wx = x0 - i * U, wy = y0 - j * U
+        const hex = wetAt(wx, wy) ? '#2d5f86'
+          : slopeAt(wx, wy) > CLIFF ? INK['rock']!
+            : INK[paintAt(wx, wy)] ?? INK['grass']!
+        const o = (i * H + j) * 4
+        px[o] = parseInt(hex.slice(1, 3), 16)
+        px[o + 1] = parseInt(hex.slice(3, 5), 16)
+        px[o + 2] = parseInt(hex.slice(5, 7), 16)
+        px[o + 3] = 255
+      }
+    }
+    g.putImageData(img, 0, 0)
+  }
+
+  /** Where the hero is on that picture, in its own pixels. */
+  const onWorld = (): [number, number] =>
+    [(y0 - hero.y) / U, (x0 - hero.x) / U]
+
   const MAP_YARDS = 120
   const mapCtx = ui.map.getContext('2d')!
   let mapAt = 0
@@ -2003,7 +2051,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동\n오므려서 확대'
-        : 'WASD: 이동   1: 공격   E: 대화·줍기   B: 가방   `: 수치'
+        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  C: 정보  M: 지도  `: 수치'
     }
 
     acc += dt; frames++
@@ -2057,15 +2105,32 @@ async function main() {
     ui.setWhere(`${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
+    // Empty when there is nothing to swing at.  Full meant "ready", which on
+    // a gold bar reads as a bar that is full of something.
     ui.setSwing(you.target
-      ? 1 - Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 1)
+      ? 1 - Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 0)
     ui.setOfTarget(you.target
       ? (you.target.angry ? '→ 주인공' : '→ 아무도 아님') : null)
     ui.setMicro([
       { key: 'C', label: '정보', on: sheetOpen, use: () => { sheetOpen = !sheetOpen } },
       { key: 'B', label: '가방', on: bagOpen, use: () => { bagOpen = !bagOpen } },
+      { key: 'M', label: '지도', on: mapOpen, use: () => {
+        mapOpen = !mapOpen
+        if (mapOpen && !mapDrawn) { paintWorld(); mapDrawn = true }
+      } },
       { key: '`', label: '수치', on: !hud.hidden, use: () => { hud.hidden = !hud.hidden } },
     ])
+    // The map, and the mark on it.  The mark is a DOM element rather than a
+    // pixel on the canvas so the picture stays the picture: it is drawn once
+    // and never touched again.
+    if (mapOpen) {
+      const [mx, my] = onWorld()
+      ui.setWorld(true, '엘윈 숲',
+        `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}   ·   M이나 Esc로 닫기`)
+      ui.setPin(mx / H, my / W)
+    } else {
+      ui.setWorld(false, '', '')
+    }
     ui.setSheet(sheetOpen, [
       ['레벨', `${you.level}`],
       ['경험치', `${you.xp} / ${LADDER[you.level - 1] ?? '—'}`],

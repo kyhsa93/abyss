@@ -131,6 +131,16 @@ export function hud() {
   logBox.id = 'log'
   const lines: HTMLElement[] = []
 
+  // The whole zone, drawn once and then looked at.  A minimap is where you
+  // are; a map is where that is.
+  const worldBox = el('div', '', ui)
+  worldBox.id = 'world'
+  worldBox.hidden = true
+  const worldTitle = el('div', 'title', worldBox)
+  const worldCv = el('canvas', '', worldBox) as HTMLCanvasElement
+  const worldFoot = el('div', 'foot', worldBox)
+  const worldPin = el('div', 'pin', worldBox)
+
   // The character sheet.  Everything the fight arithmetic is working from,
   // said once in one place — because the numbers exist and nothing showed them.
   const sheet = el('div', '', ui)
@@ -207,6 +217,22 @@ export function hud() {
 
     /** The minimap's own canvas, for the scene to paint into. */
     map: mapCv,
+    /** And the world map's, which the scene paints once. */
+    world: worldCv,
+
+    /** Where you are on it, as a fraction of its width and height. */
+    setPin(x: number, y: number) {
+      worldPin.style.left = `${x * 100}%`
+      worldPin.style.top = `${y * 100}%`
+    },
+
+    /** Show or hide the world map, and say what is under the cursor. */
+    setWorld(open: boolean, title: string, foot: string) {
+      worldBox.hidden = !open
+      if (!open) return
+      if (worldTitle.textContent !== title) worldTitle.textContent = title
+      if (worldFoot.textContent !== foot) worldFoot.textContent = foot
+    },
 
     /** Where the player is, under the map, and what time it is. */
     setWhere(text: string, time: string) {
