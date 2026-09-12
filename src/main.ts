@@ -20,8 +20,9 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { bearing, speak, type Direction, type Speech, type Topic } from './talk'
+import { bearing, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
+import { noticeAt, swing, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -50,7 +51,12 @@ type HeroArt = {
  * seven hundred who have nothing to say.
  */
 type Spawns = {
-  kinds: string[]; roles: string[]; topics: Topic[]; npcs: number[][]
+  kinds: string[]; roles: string[]; topics: Topic[]
+  /** What a fight with each distinct (kind, level) costs — see `fight.ts`. */
+  fights?: Fight[]
+  /** The same for the player, by level. */
+  player?: Fight[]
+  npcs: number[][]
 }
 
 /** 32 pixels to an LPC tile, and an LPC person is about five feet of them. */
@@ -592,6 +598,15 @@ async function main() {
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
     kind: string; role: string; level: number; topic: Topic | null; seed: number
+    /** Nothing below this line exists until somebody swings. */
+    fight: Fight | null
+    hp: number; max: number
+    /** When it died, so it can lie there a while and then come back. */
+    dead: number
+    /** When it was last hit, which is how long its health bar stays up. */
+    hurt: number
+    /** Who it is fighting, which for now is only ever the player. */
+    angry: boolean; next: number
   }
   const npcs: Npc[] = []
   let unplaceable = 0
@@ -602,6 +617,8 @@ async function main() {
     const a = npcArt.kinds[art]
     if (!a) { unplaceable++; continue }
     const role = spawns.roles[row[5]!]!
+    const fight = (spawns.fights && row[7] !== undefined && row[7]! >= 0)
+      ? spawns.fights[row[7]!]! : null
     // How much room a body takes, from the length the bake drew it at. People
     // have no `yards` — they are drawn at LPC's own scale, like the player.
     const yards = a.yards ?? 1.2
@@ -614,6 +631,8 @@ async function main() {
       swims: false, vx: 0, vy: 0, until: 0, moving: false,
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
+      fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
+      dead: 0, hurt: -99, angry: false, next: 0,
     })
   }
 
@@ -726,8 +745,26 @@ async function main() {
     const tick = Math.floor(time * 0.4)
     for (let i = 0; i < active.length; i++) {
       const n = active[i]!
-      // Nobody walks off in the middle of answering you.
+      // Nobody walks off in the middle of answering you, and the dead lie
+      // where they fell.
+      if (n.dead) { n.moving = false; continue }
       if (n.wander === 0 || n === busy) { n.moving = false; continue }
+      // Something in a fight is not wandering: it is coming at you, and it
+      // ignores the leash the database gave it while it does.
+      if (n.angry) {
+        const dx0 = hero.x - n.x, dy0 = hero.y - n.y
+        const d = Math.hypot(dx0, dy0)
+        n.moving = d > MELEE * 0.8
+        n.dir = facing(dx0, dy0)
+        if (n.moving) {
+          n.t += dt
+          const step = NPC_SPEED * 1.4 * dt
+          const nx = n.x + (dx0 / d) * step, ny = n.y + (dy0 / d) * step
+          if (!((!n.swims && wetAt(nx, n.y)) || solidAt(nx, n.y))) n.x = nx
+          if (!((!n.swims && wetAt(n.x, ny)) || solidAt(n.x, ny))) n.y = ny
+        }
+        continue
+      }
       if (time > n.until) {
         const h = hash(i, tick)
         n.until = time + 1.5 + h * 4
@@ -798,12 +835,136 @@ async function main() {
   const START: [number, number] = [-8949.95, -132.493]
   const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
 
+  // --- the fight --------------------------------------------------------
+  /**
+   * Level five, which is the forest's own median.
+   *
+   * Elwynn's wolves sit at five, its kobolds at three and its bandits at five,
+   * so a hero at five is a hero the zone was built for.  There is no
+   * experience yet; when there is, this is what it moves.
+   */
+  const HERO_LEVEL = 5
+  /**
+   * How far a fight can travel before it stops being one.
+   *
+   * Forty yards from where it started or from you, whichever goes first.  A
+   * chase with no end is not a chase; it is a parade.
+   */
+  const LEASH = 40
+  const HERO: Fight = spawns.player?.[HERO_LEVEL - 1]
+    ?? [100, 3, 5, 1900, 100, 0]
+  const you = {
+    hp: HERO[HP]!, max: HERO[HP]!, level: HERO_LEVEL,
+    next: 0, target: null as Npc | null, died: 0,
+  }
+  /** A number that floats off somebody and fades. */
+  type Mark = { x: number; y: number; text: string; at: number; mine: boolean }
+  const marks: Mark[] = []
+  const say = (x: number, y: number, text: string, mine: boolean) => {
+    marks.push({ x, y, text, at: clock, mine })
+    if (marks.length > 40) marks.shift()
+  }
+
+  /**
+   * Everything that happens because two things are swinging at each other.
+   *
+   * Run over the awake list only, which is the couple of hundred within 260
+   * yards: a wolf on the far side of the forest is not in a fight with
+   * anybody, and asking 1,884 of them three times a second whether they are
+   * would cost more than the fight does.
+   */
+  function fighting() {
+    if (you.died) {
+      // Dead is dead for a moment, and then you are back where you started.
+      if (clock - you.died > 4) {
+        you.died = 0; you.hp = you.max; you.target = null
+        hero.x = START[0]; hero.y = START[1]
+      }
+      return
+    }
+    const reach2 = MELEE * MELEE
+    // The target has to still be there, still be alive, and still be close.
+    const t = you.target
+    if (t && (t.dead || (t.x - hero.x) ** 2 + (t.y - hero.y) ** 2 > reach2 * 9))
+      you.target = null
+
+    for (const n of active) {
+      if (!n.fight) continue
+      if (n.dead) {
+        // Back on its feet after a while, where it stood.
+        if (clock - n.dead > 30) {
+          n.dead = 0; n.hp = n.max; n.angry = false; n.alpha = 1
+          n.x = n.hx; n.y = n.hy
+        }
+        continue
+      }
+      const d2 = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      // A hostile notices you from a distance that depends on the gap between
+      // you, which is why nothing in the starting field chases a grown player.
+      if (!n.angry && n.fight[FOE] && !chat) {
+        const far = noticeAt(you.level, n.level)
+        if (d2 < far * far) n.angry = true
+      }
+      // And gives up.  Without this the forest arrives one at a time and never
+      // leaves: `angry` is set by walking past and nothing ever cleared it, so
+      // a walk across Elwynn ended with forty things in a queue behind you.
+      if (n.angry && (d2 > LEASH * LEASH
+        || (n.x - n.hx) ** 2 + (n.y - n.hy) ** 2 > LEASH * LEASH)) {
+        n.angry = false
+        if (you.target === n) you.target = null
+      }
+      if (!n.angry) continue
+      // Angry ones walk at you; `wander` is told to leave them alone.
+      if (d2 > reach2) continue
+      if (clock * 1000 < n.next) continue
+      n.next = clock * 1000 + n.fight[SWING]!
+      const hit = swing(n.fight, n.level, HERO[ARMOUR]!, Math.random())
+      you.hp -= hit
+      say(hero.x, hero.y, `-${hit}`, false)
+      if (you.hp <= 0) { you.hp = 0; you.died = clock; you.target = null }
+    }
+
+    // Your own swing, which only happens at something you picked.
+    const foe = you.target
+    if (!foe || foe.dead || !foe.fight) return
+    if ((foe.x - hero.x) ** 2 + (foe.y - hero.y) ** 2 > reach2) return
+    if (clock * 1000 < you.next) return
+    you.next = clock * 1000 + HERO[SWING]!
+    const hit = swing(HERO, foe.level, foe.fight[ARMOUR]!, Math.random())
+    foe.hp -= hit
+    foe.hurt = clock
+    foe.angry = true
+    say(foe.x, foe.y, `${hit}`, true)
+    if (foe.hp <= 0) {
+      foe.hp = 0
+      foe.dead = clock
+      you.target = null
+    }
+  }
+
+  /** The nearest thing worth swinging at, or nothing. */
+  const inSwing = (): Npc | null => {
+    let best: Npc | null = null, bd = MELEE * MELEE
+    for (const n of active) {
+      if (!n.fight || n.dead) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    return best
+  }
+
   const SPEED = 7.0          // yards a second, which is WoW's run speed
 
   const keys = new Set<string>()
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase()
     keys.add(k)
+    // One key, and it means "the nearest thing I can reach".  A click would
+    // want a cursor and this game is played with a thumb as often as a mouse.
+    if (k === ' ' || k === 'spacebar') {
+      e.preventDefault()
+      if (!chat && !you.died) you.target = you.target ?? inSwing()
+    }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
     if (k === 'e') { e.preventDefault(); toggleTalk() }
@@ -1107,6 +1268,7 @@ async function main() {
     awake()
     wander(dt, clock, chat && chat.npc)
     reindex()
+    fighting()
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
@@ -1319,10 +1481,24 @@ async function main() {
       // Sized off the art, like the prompt over their head: a chicken casts a
       // chicken's worth of shade.
       shadow(n.x, n.y, Math.max(0.3, (a.yards ?? 0.9) * 0.34))
-      if (n.alpha < 1) ctx.globalAlpha = n.alpha
+      // The dead lie there and thin out, and come back in half a minute.
+      const fade = n.dead ? Math.max(0.15, 1 - (clock - n.dead) / 6) : 1
+      if (n.alpha * fade < 1) ctx.globalAlpha = n.alpha * fade
       ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(screenX(n.x, n.y) - w / 2),
         Math.round(screenY(n.x, n.y) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
-      if (n.alpha < 1) ctx.globalAlpha = 1
+      if (n.alpha * fade < 1) ctx.globalAlpha = 1
+      // A bar, only while it matters: something you are fighting, or something
+      // that has been hit in the last few seconds.  A field of health bars over
+      // 1,884 people is a spreadsheet, not a forest.
+      if (!n.dead && n.fight && (n === you.target || clock - n.hurt < 5)) {
+        const X = Math.round(screenX(n.x, n.y))
+        const Y = Math.round(screenY(n.x, n.y) - (headOf[n.art] ?? 40) * zoom - 7)
+        const bw = Math.round(26 * zoom), bh = Math.max(3, Math.round(3 * zoom))
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'
+        ctx.fillRect(X - bw / 2 - 1, Y - 1, bw + 2, bh + 2)
+        ctx.fillStyle = n.fight[FOE] ? '#c4463a' : '#4f9e46'
+        ctx.fillRect(X - bw / 2, Y, Math.round(bw * (n.hp / n.max)), bh)
+      }
       drawn++
     }
 
@@ -1377,6 +1553,25 @@ async function main() {
       drawn++
     }
     while (ai < actors.length) actors[ai++]!.draw()
+
+    // Damage, floating off whoever took it.  Drawn over the scenery for the
+    // same reason the talk prompt is: a number behind a tree is not a number.
+    for (let i = marks.length - 1; i >= 0; i--) {
+      const m = marks[i]!
+      const age = clock - m.at
+      if (age > 1.1) { marks.splice(i, 1); continue }
+      ctx.globalAlpha = Math.max(0, 1 - age / 1.1)
+      ctx.font = `bold ${Math.round(13 * Math.max(1, zoom))}px system-ui, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.lineWidth = 3
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)'
+      ctx.fillStyle = m.mine ? '#ffe9a8' : '#ff8d7a'
+      const X = screenX(m.x, m.y), Y = screenY(m.x, m.y) - 34 * zoom - age * 26
+      ctx.strokeText(m.text, X, Y)
+      ctx.fillText(m.text, X, Y)
+      ctx.globalAlpha = 1
+    }
+    ctx.textAlign = 'left'
 
     // The prompt, over whoever is in earshot.  Drawn last so no tree covers it.
     //
@@ -1440,6 +1635,10 @@ async function main() {
       ['대화', `할 말 있는 이 ${talkers} / ${npcs.length}` +
         (chat ? tail(`  [대화 중 — ${chat.speech.who}]`)
           : listener ? tail(pad.on ? '' : '  [E로 대화]') : '')],
+      ['체력', you.died ? '쓰러짐 — 곧 일어남'
+        : `${you.hp} / ${you.max}  (${HERO_LEVEL}레벨)` +
+          (you.target ? tail(`  [${nameOf(you.target.kind)} ${you.target.hp}]`)
+            : tail(inSwing() ? '  [스페이스로 공격]' : ''))],
       ['시야', `${(canvas.width / (PPY * zoom)).toFixed(0)}야드  배율 ${zoom.toFixed(2)}`],
       ['지형', from === 'data' ? '클라이언트의 것'
         : tail('AzerothCore 스폰에서 보간') || '보간'],
@@ -1521,6 +1720,19 @@ async function main() {
   ;(window as unknown as { __all: () => unknown }).__all = () =>
     npcs.map((n) => ({ x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
+  // For the checks: put the player next to the nearest thing that will fight
+  // back, and say what it is.
+  ;(window as unknown as { __foe: () => unknown }).__foe = () => {
+    let best: Npc | null = null, bd = Infinity
+    for (const n of npcs) {
+      if (!n.fight || !n.fight[FOE] || n.dead) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    if (!best) return null
+    hero.x = best.x - 1.4; hero.y = best.y
+    return { kind: best.kind, level: best.level, hp: best.hp, x: best.x, y: best.y }
+  }
 
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.

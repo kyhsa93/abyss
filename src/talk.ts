@@ -63,6 +63,11 @@ const ANIMALS = new Set(['wolf', 'bear', 'boar', 'spider', 'deer', 'rabbit',
  * rogue class, which is 도적 as well — so they are 어인 and 산적, which are
  * ordinary words that were here before the game was.
  */
+/** The word for a kind, for anything outside this file that needs one. */
+export function nameOf(kind: string): string {
+  return KIND[kind] ?? kind
+}
+
 const KIND: Record<string, string> = {
   townsfolk: '마을 사람', guard: '경비병', bandit: '산적', kobold: '코볼트',
   murloc: '어인', ghost: '망령', wolf: '늑대', bear: '곰', boar: '멧돼지',

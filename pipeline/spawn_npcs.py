@@ -199,6 +199,101 @@ def role(flags, ctype, rank):
     return 'prey' if ctype in (1, 8) else 'idle'
 
 
+# The player's own faction template.  Human is faction 1, whose template says
+# FactionGroup 3 — the player bit and the Alliance bit — and everything in the
+# world decides whether to swing at you by testing its own EnemyGroup against
+# it.  Hard-coded because the player's race is, and because a constant that is
+# a lookup of a constant is a lookup nobody can read.
+PLAYER_FACTION = 1
+PLAYER_GROUP = 3
+
+
+def fight_tables(base):
+    """AzerothCore's own arithmetic for what a creature is worth in a fight.
+
+    Three tables and no invention.  `creature_classlevelstats` holds the health,
+    armour, attack power and base damage of every (level, class) the game has;
+    `creature_template` holds the per-creature multipliers over those; and
+    `factiontemplate_dbc` holds who swings at whom.
+
+    The damage formula is the core's: a weapon swing is the base damage plus
+    the attack power spread over the swing — `AP / 14 * seconds` — and the
+    maximum is the same with the base damage at one and a half.  Both are then
+    multiplied by the template's own modifier.
+    """
+    st = {}
+    cls = columns(os.path.join(base, 'creature_classlevelstats.sql'))
+    for line in rows(os.path.join(base, 'creature_classlevelstats.sql')):
+        f = split(line)
+        st[(int(f[cls['level']]), int(f[cls['class']]))] = (
+            float(f[cls['basehp0']]), float(f[cls['basearmor']]),
+            float(f[cls['attackpower']]), float(f[cls['damage_base']]))
+
+    fac = {}
+    fc = columns(os.path.join(base, 'factiontemplate_dbc.sql'))
+    for line in rows(os.path.join(base, 'factiontemplate_dbc.sql')):
+        f = split(line)
+        fac[int(f[fc['ID']])] = (
+            int(f[fc['Faction']]), int(f[fc['FactionGroup']]),
+            int(f[fc['FriendGroup']]), int(f[fc['EnemyGroup']]),
+            [int(f[fc[f'Enemies_{i}']]) for i in range(1, 5)],
+            [int(f[fc[f'Friend_{i}']]) for i in range(1, 5)])
+    return st, fac
+
+
+def hostile(fac, template):
+    """Does this one swing at a human, by the rule the core uses?
+
+    Its listed enemies first, then its listed friends, and only then the group
+    bits — which is the order that matters, because a template can name a
+    faction it fights inside a group it otherwise leaves alone.
+    """
+    got = fac.get(template)
+    if not got:
+        return False
+    _f, _group, _friend, enemy, enemies, friends = got
+    if PLAYER_FACTION in enemies:
+        return True
+    if PLAYER_FACTION in friends:
+        return False
+    return bool(enemy & PLAYER_GROUP)
+
+
+def fight_of(st, fac, level, cls, template, mods):
+    """(health, min damage, max damage, swing ms, armour, hostile)."""
+    hp_mod, dmg_mod, armour_mod, swing = mods
+    base = st.get((level, cls)) or st.get((level, 1))
+    if not base:
+        return None
+    hp, armour, ap, dmg = base
+    t = max(swing, 1000) / 1000.0
+    lo = (ap / 14.0 * t + dmg) * dmg_mod
+    return (max(1, round(hp * hp_mod)), max(1, round(lo)),
+            max(1, round((ap / 14.0 * t + dmg * 1.5) * dmg_mod)),
+            int(swing), round(armour * armour_mod),
+            1 if hostile(fac, template) else 0)
+
+
+def with_weapon(st, level, weapon):
+    """The player's line, which is a creature's plus what he is holding.
+
+    Same arithmetic as everything he swings at: the weapon's own range, plus
+    the attack power spread over the swing.  His health, armour and attack
+    power come from `creature_classlevelstats` at his level and class, because
+    this dump has no player table and inventing one would put the only made-up
+    number in the fight on the player's side.
+    """
+    base = st.get((level, 1))
+    if not base:
+        return None
+    hp, armour, ap, _dmg = base
+    wlo, whi, delay = weapon
+    t = delay / 1000.0
+    add = ap / 14.0 * t
+    return [max(1, round(hp)), max(1, round(wlo + add)), max(1, round(whi + add)),
+            delay, round(armour), 0]
+
+
 def split_head(line, n):
     """The first `n` fields of a tuple, quote-aware, then stop.
 
@@ -456,7 +551,12 @@ def main(acore, out):
         ctype = int(f[col['type']])
         info[entry] = (classify(name, ctype), ctype,
                        int(f[col['minlevel']]), int(f[col['maxlevel']]),
-                       int(f[col['npcflag']]), int(f[col['rank']]))
+                       int(f[col['npcflag']]), int(f[col['rank']]),
+                       int(f[col['unit_class']]), int(f[col['faction']]),
+                       (float(f[col['HealthModifier']]),
+                        float(f[col['DamageModifier']]),
+                        float(f[col['ArmorModifier']]),
+                        int(f[col['BaseAttackTime']])))
 
     topics = talking(base, {e for e, _, _, _ in spawns if e in info and info[e][0]})
     topic_list, topic_at = [], {}
@@ -464,13 +564,15 @@ def main(acore, out):
         topic_at[e] = len(topic_list)
         topic_list.append(t)
 
+    stats, factions = fight_tables(base)
     kinds, roles, out_rows = [], [], []
+    fights, fight_at = [], {}
     unknown = Counter()
     for entry, x, y, o in spawns:
         if entry not in info:
             dropped['no template'] += 1
             continue
-        kind, ctype, lo, hi, flags, rank = info[entry]
+        kind, ctype, lo, hi, flags, rank, cls, faction, mods = info[entry]
         if kind is None:
             unknown[ctype] += 1
             dropped['unclassified'] += 1
@@ -484,23 +586,52 @@ def main(acore, out):
         # LPC rows fall out of it directly: 0 up, pi/2 left, pi down, 3pi/2
         # right.  That agreement is luck, and it is checked below.
         facing = int(round(o / (math.pi / 2))) % 4
+        level = (lo + hi) // 2
+        # What a fight with this one costs, deduplicated: 1,884 spawns come to
+        # a few dozen distinct sets of numbers, because everything of one kind
+        # at one level is worth exactly the same.
+        got = fight_of(stats, factions, level, cls, faction, mods)
+        if got is None:
+            fi = -1
+        else:
+            if got not in fight_at:
+                fight_at[got] = len(fights)
+                fights.append(list(got))
+            fi = fight_at[got]
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
-                         (lo + hi) // 2, roles.index(r), topic_at.get(entry, -1)])
+                         level, roles.index(r), topic_at.get(entry, -1), fi])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')
     with open(path, 'w') as f:
+        # The player, at every level the forest is worth fighting through.
+        # This dump has no `player_classlevelstats`, so he is statted as a
+        # creature of his level and class would be — which is the same
+        # arithmetic everything he swings at uses, and is why a fight with a
+        # level 5 wolf comes out as a fight with a level 5 wolf.
+        # The sword a human warrior starts with: `item_template` entry 25,
+        # "Worn Shortsword", 1 to 3 damage on a 1.9 second delay.  Transcribed
+        # rather than looked up, because scanning forty-six thousand item rows
+        # for three numbers is a bake step nobody would keep.
+        #
+        # Unarmed, a level 5 hero and a level 5 wolf trade four damage a swing
+        # and the fight runs forty seconds.  A weapon is most of what a person
+        # hits with in this game, and leaving it out was not a simplification —
+        # it was a different game.
+        player = [with_weapon(stats, lv, (1, 3, 1900)) for lv in range(1, 11)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
-                   'npcs': out_rows}, f)
+                   'fights': fights, 'player': player, 'npcs': out_rows}, f)
 
     by_kind = Counter(kinds[r[2]] for r in out_rows)
     by_role = Counter(roles[r[5]] for r in out_rows)
     talkers = sum(1 for r in out_rows if r[6] >= 0)
+    foes = sum(1 for r in out_rows if r[7] >= 0 and fights[r[7]][5])
     print(f'{len(out_rows):,} spawns, {len(kinds)} kinds  '
           f'({os.path.getsize(path) / 1024:.0f} KiB)')
     what = Counter(k for t in topic_list for k in t)
     print(f'  talk: {talkers} spawns over {len(topic_list)} topics  '
           + ', '.join(f'{k} {v}' for k, v in what.most_common()))
+    print(f'  fights: {len(fights)} distinct, {foes:,} of them hostile')
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
