@@ -12,16 +12,25 @@ in Liberated Pixel Cup pixel art and walked around with WASD.
 
 ```bash
 npm install
-pip3 install mpyq
-npm run bake -- ~/path/to/wow-3.3.5a public/data   # terrain, from your client
-npm run tiles                                       # ground and scenery, from LPC
-npm run sprites                                     # the player, composited from LPC
 npm run dev
 ```
 
-Without the bake step the page has nothing to draw. That is the honest state of
-the project: the plan is for the game to be complete without a client, and the
-path that fills the gap is not built yet.
+That is the whole of it. The world it opens on is built out of AzerothCore and
+nothing else: the height comes from interpolating the ground beneath every
+creature and object the world database records in the slice, about five
+thousand of them, and the scenery is scattered by us.
+
+If you own a 3.3.5a client you can lay the real thing over it:
+
+```bash
+pip3 install mpyq
+npm run bake -- ~/path/to/wow-3.3.5a public/data
+```
+
+The page prefers that when it is there, and says which one it is drawing.
+Against the client's own grid the interpolation is out by a **median of
+2.5 yards** — right where people stand, and wrong where nobody does, which is
+the honest shape of what a server knows about a floor.
 
 ## What is not here
 

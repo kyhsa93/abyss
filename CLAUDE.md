@@ -11,8 +11,10 @@ way" is answered there, usually with the measurement that settled it.
 ## What is here
 
 ```
-pipeline/   bakes the world: terrain out of the client's MPQ archives, ground
-            and scenery out of the LPC tilesets, the player out of LPC parts
+pipeline/   bakes the world.  `synth_terrain.py` builds one out of AzerothCore
+            alone and it is committed; `bake_terrain.py` reads a real client's
+            and it is not.  `bake_tiles.py` and `bake_sprites.py` cut the art
+            out of LPC
 src/        the scene.  canvas 2D, no simulation yet
 public/art  the baked art (committed).  public/data is not (see below)
 ```

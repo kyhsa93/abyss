@@ -46,24 +46,28 @@ const load = (src: string) =>
   })
 
 async function main() {
-  const head = await fetch('./data/terrain.json')
-  // Not just `ok`: a dev server answers a missing path with the index page and
-  // a cheerful 200, so the first sign of trouble is JSON.parse choking on
-  // "<!doctype".  Ask what came back, not whether something did.
-  if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
-    hud.textContent = [
-      'No terrain.',
-      '',
-      'It is baked from a WoW 3.3.5a client and is not committed —',
-      'see the wiki page 저작권과 배포 경계.',
-      '',
-      '  pip3 install mpyq',
-      '  npm run bake -- /path/to/wow-3.3.5a public/data',
-    ].join('\n')
+  // Two worlds, and the sharper one wins if it is there.
+  //
+  // `public/data` is what `bake_terrain.py` writes out of a WoW client, and it
+  // is not committed — see the wiki page 저작권과 배포 경계.  `public/world` is
+  // what `synth_terrain.py` builds out of AzerothCore alone, and it is, which
+  // is why this page works for somebody who has never installed the game.
+  //
+  // A dev server answers a missing path with the index page and a cheerful 200,
+  // so `ok` is not the question.  Ask what came back.
+  async function world(path: string) {
+    const r = await fetch(path)
+    if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return null
+    return r
+  }
+  const head = (await world('./data/terrain.json')) ?? (await world('./world/terrain.json'))
+  if (!head) {
+    hud.textContent = 'No world.  Run `npm run synth` (AzerothCore) or `npm run bake` (a client).'
     return
   }
+  const from = head.url.includes('/world/') ? 'world' : 'data'
   const meta: Meta = await head.json()
-  const heights = new Float32Array(await (await fetch('./data/terrain.bin')).arrayBuffer())
+  const heights = new Float32Array(await (await fetch(`./${from}/terrain.bin`)).arrayBuffer())
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
   const [tilesImg, tilesMeta, heroImg, heroMeta] = await Promise.all([
@@ -298,6 +302,7 @@ async function main() {
       `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn`,
       `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd`,
       `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
+      `terrain  ${from === 'data' ? "the client's own" : 'interpolated from AzerothCore spawns'}`,
       `fps      ${fps.toFixed(0)}`,
     ].join('\n')
     ;(window as unknown as { __ready: boolean }).__ready = true

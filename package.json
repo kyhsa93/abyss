@@ -10,7 +10,8 @@
     "bake": "python3 pipeline/bake_terrain.py",
     "check": "tsc",
     "tiles": "python3 pipeline/bake_tiles.py",
-    "sprites": "python3 pipeline/bake_sprites.py"
+    "sprites": "python3 pipeline/bake_sprites.py",
+    "synth": "python3 pipeline/synth_terrain.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
