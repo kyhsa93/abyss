@@ -25,14 +25,16 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             conversation and `talk.ts` writes the sentences: that split is what
             keeps Blizzard's prose out and stops an NPC claiming something the
             data does not support
-docs/       `art-prompts.md` — what to ask a generator for, filed by what
+docs/       `art-prompts.md` — why each line of a prompt is in it, filed by what
             the engine does with it (`actor` / `prop` / `paired` / `ground`),
             then by how far the asset travels (`global` / `biome` / `zone`).
             Zone is a query and not a folder: seventeen of the forest's
             nineteen creature kinds are continental.  The prompts are Korean
             and the prose around them is English, the same split `talk.ts`
             makes — a prompt is pasted verbatim, so it stays in the language
-            it is used in
+            it is used in.  The document holds no prompt text: `npm run
+            prompt <id>` prints it finished, because the same paragraph in two
+            places is two paragraphs that drift
 scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
             controls with Chromium's own touch input over CDP; `viewcheck.mjs`
             asserts what the quarter view promises about geometry

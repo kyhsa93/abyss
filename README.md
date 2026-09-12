@@ -95,10 +95,10 @@ whose author nobody recorded cannot be complied with.
 `docs/art-prompts.md` is what to ask a generator for. Prompts are filed by
 what the engine does with the result — eight directions and a walk, a single
 billboard, a pair that has to exist twice for the two diagonals, or a tile that
-has to repeat — and then by how far the asset travels. Twenty-one sheets fill
-Elwynn Forest, and fifteen of them are the rest of the continent too: counted
-against AzerothCore, seventeen of the forest's nineteen creature kinds live
-everywhere else as well.
+has to repeat — and then by how far the asset travels. `npm run prompt <id>`
+prints one finished; `npm run prompt list` says how many there are. Most of
+them are the rest of the continent too: counted against AzerothCore, seventeen
+of the forest's nineteen creature kinds live everywhere else as well.
 
 ## The plan
 
