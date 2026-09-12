@@ -189,13 +189,29 @@ later does not cost a row. It costs the subject: generating the same character
 twice gets you two characters, and an image model has no memory between calls.
 `npm run actions` prints it.
 
-Three levels. A **clip** is one action and how many frames it takes — a walk is
-four because fewer slides, a swing is three because a wind-up and a
-follow-through are what make it land. A **group** is the clips that share a
-sheet: `base`, `melee`, `cast`, `ranged`, `state`, `social`. A **role** says
-which groups a kind of creature has at all — a chicken has no `melee` sheet,
-because a chicken does not swing at anything and a sheet nobody plays is a
-sheet of cells taken from the ones somebody does.
+Three levels. A **clip** is one action and a sentence for each frame it takes —
+a walk is four because fewer slides, a swing is three because a wind-up and a
+follow-through are what make it land. A **group** collects the clips that
+belong together: `base`, `melee`, `cast`, `ranged`, `state`, `social`. A
+**role** says which groups a kind of creature has at all — a chicken has no
+`melee` clips, because a chicken does not swing at anything and a row nobody
+plays is a row of cells taken from the ones somebody does.
+
+**A sheet is not a group.** A generator hands back one canvas whatever is asked
+of it, so filing by group threw most of a canvas away every time a group came
+to five rows — and paying for a canvas is the same act as typing a prompt. The
+clips are packed instead, in order, up to a row budget, never splitting a clip
+across two sheets. The budget is the same question as how tall an image the
+tool will return: a cell wants 128 pixels, so 16 rows is 2,048 tall.
+
+| `--rows` | image | sheets |
+|---|---|---|
+| 12 | 1024 × 1536 | 60 |
+| **16** (default) | 1024 × 2048 | **52** |
+| 24 | 1024 × 3072 | 36 |
+
+Raise it as far as the tool will go. The count falls with it and nothing is
+lost, because the rows are the same rows.
 
 | role | groups | cells |
 |---|---|---|
@@ -205,13 +221,13 @@ sheet of cells taken from the ones somebody does.
 | `livestock` | base, state | 136 |
 | `critter` | base, state | 88 |
 
-Nineteen subjects, 66 sheets, 4,648 cells.
+Nineteen subjects, 4,648 cells, and as few sheets as the tool's canvas allows.
 
-**`base` is generated first and is the identity reference for the rest.** It
+**Sheet 1 of any subject is generated first and is the identity reference for
+the rest.** The packing is in order and `base` comes first, so sheet 1 always
 carries the stand and the walk — the two poses everything else has to agree
-with — and every other sheet of that subject names it and is generated with it
-attached. That is the only thing holding a subject together across six calls,
-and it is why the split is by clip group rather than by anything else.
+with. Every later sheet names it and is generated with it attached. That is the
+only thing holding a subject together across four calls.
 
 **`prop`** — a grid at one stated scale, with a named reference object, because
 "one scale" means nothing unless something in the picture fixes it.

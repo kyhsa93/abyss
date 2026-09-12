@@ -7,8 +7,9 @@ that drifts: the block is what keeps twenty-one sheets looking like one world,
 and it only does that if all twenty-one carry it identically.
 
   python3 pipeline/make_prompt.py list          what there is
-  python3 pipeline/make_prompt.py townsman      one, to stdout
+  python3 pipeline/make_prompt.py townsman_1of4 one, to stdout
   python3 pipeline/make_prompt.py --all out/    all of them, as .txt
+  python3 pipeline/make_prompt.py --rows 24 …   fewer, taller sheets
 
 Through npm a flag needs its own `--`: `npm run prompt -- --all out/`, because
 npm eats the first one for itself.
@@ -21,6 +22,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import actions  # noqa: E402
+
+# How many rows fit on one sheet, which is the same question as how tall an
+# image the tool will hand back: a cell wants 128 pixels, so 16 rows is 2,048.
+#
+# Filed by clip group a sheet could be five rows against another's twelve, and
+# a generator returns one canvas whatever is asked of it — the short sheet threw
+# most of its away.  Packed to a budget, 19 subjects come to 47 sheets instead
+# of 66, and `--rows 24` takes it to 31 for a tool that will go to 3,072 tall.
+ROWS = 16
 
 # Every sheet carries this, unchanged, or they stop looking like one world.
 # The palette is the only line that moves, and it moves as a whole line.
@@ -213,17 +223,18 @@ def block(biome, topdown=False):
     return b
 
 
-def every():
+def every(budget=ROWS):
     out = {}
     for name, reach, role, what, size in ACTORS:
-        for group in actions.ROLE[role]:
-            lines = actions.rows(role, group)
+        packed = actions.sheets(role, budget)
+        for n, ids in enumerate(packed, 1):
+            lines = actions.lines(ids)
             table = '\n'.join(f'{i + 1:>2}행  {text}'
                                for i, (_cid, text) in enumerate(lines))
-            out[f'actor_{reach}_{name}_{group}'] = (
+            out[f'actor_{reach}_{name}_{n}of{len(packed)}'] = (
                 block('temperate') + '\n\n' + ACTOR.format(
                     cells=len(lines) * 8, rows=len(lines), dirs=DIRS, table=table,
-                    same=SAME, ref='' if group == 'base' else REFERENCE,
+                    same=SAME, ref='' if n == 1 else REFERENCE,
                     wide=8 * 128, tall=len(lines) * 128, what=what, size=size))
     for name, cls, reach, biome, body in SHEETS:
         out[f'{cls}_{reach}_{name}'] = (
@@ -232,7 +243,12 @@ def every():
 
 
 def main(argv):
-    made = every()
+    budget = ROWS
+    if '--rows' in argv:
+        i = argv.index('--rows')
+        budget = int(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
+    made = every(budget)
     if not argv or argv[0] == 'list':
         print(f'{len(made)} sheets\n')
         for k in made:
