@@ -55,6 +55,15 @@ def classify_wmo(path):
     return 'house'
 
 
+# What a doodad is, from Blizzard's path.  The order is the order it is asked
+# in, so the specific words come first.
+#
+# Everything that reaches the end of this list is **skipped**, and that is the
+# change that matters.  It used to fall through to `prop`, which draws a market
+# stall — so a thousand things this repository has no picture for became stalls
+# scattered through the forest, including twenty-six waterfalls standing in
+# their own rivers.  A doodad nobody can draw is better left out than drawn as
+# something else, and the bake now says how many it left out.
 KINDS = [
     ('TREES\\', 'tree'), ('PINE', 'pine'), ('TREE', 'tree'),
     ('BUSH', 'bush'), ('SHRUB', 'bush'),
@@ -64,8 +73,19 @@ KINDS = [
     ('GRASS', 'grass'), ('PLANT', 'grass'), ('FLOWER', 'flower'), ('CABBAGE', 'crop'),
     ('MUSHROOM', 'mushroom'), ('STUMP', 'stump'), ('LOG', 'log'),
     ('BARREL', 'barrel'), ('CRATE', 'barrel'), ('SACK', 'barrel'),
-    ('LAMPPOST', 'lamp'), ('SIGN', 'sign'), ('CAMPFIRE', 'campfire'),
+    ('LAMPPOST', 'lamp'), ('LANTERN', 'lamp'), ('TORCH', 'lamp'),
+    ('SIGN', 'sign'), ('CAMPFIRE', 'campfire'),
     ('TENT', 'tent'), ('WAGON', 'cart'), ('WHEELBARROW', 'cart'),
+    # Named rather than left to the catch-all, because each of these had a
+    # picture already and was being drawn as a market stall.
+    ('TOMBSTONE', 'grave'), ('GRAVE', 'grave'), ('HEADSTONE', 'grave'),
+    ('HAY', 'hay'), ('STRAW', 'hay'),
+    ('SKULL', 'bones'), ('BONE', 'bones'), ('RIBCAGE', 'bones'),
+    ('HUT', 'house'),
+    ('JAR', 'prop'), ('JUG', 'prop'), ('BUCKET', 'prop'), ('BASIN', 'prop'),
+    ('SHOVEL', 'prop'), ('ROPE', 'prop'), ('CHAIR', 'prop'),
+    ('TABLE', 'prop'), ('BENCH', 'prop'), ('ANVIL', 'prop'),
+    ('LUMBER', 'prop'), ('PLANK', 'prop'), ('LOG', 'log'),
 ]
 
 
@@ -195,7 +215,7 @@ def classify(path):
     for needle, kind in KINDS:
         if needle in p:
             return kind
-    return 'prop'
+    return None
 
 
 def chunks(data, off=0, end=None):
@@ -317,16 +337,18 @@ def read_tile(client, tx, ty):
                 if got:
                     painted[(ix, iy)] = got
     models = [n for n in names if n]
-    placed = []
+    placed, skipped = [], 0
     for tag, nid, wx, wy, wz, rot, sc in doodads:
         kind = classify(models[nid] if nid < len(models) else '')
         if kind:
             placed.append((kind, wx, wy, wz, rot, sc))
+        else:
+            skipped += 1
     for nid, wx, wy, wz in wmos:
         kind = classify_wmo(wmo_names[nid] if nid < len(wmo_names) else '')
         if kind:
             placed.append((kind, wx, wy, wz, 0.0, 1.0))
-    return cells, placed, water, painted, src
+    return cells, placed, water, painted, skipped, src
 
 
 def bake(client, bounds, out):
@@ -337,6 +359,7 @@ def bake(client, bounds, out):
     j_lo, j_hi = int((ORIGIN - y_hi) / UNIT), int((ORIGIN - y_lo) / UNIT) + 1
     w, h = i_hi - i_lo + 1, j_hi - j_lo + 1
     grid = [None] * (w * h)
+    dropped = 0
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
     # `GSUB` — so it gets its own array and its own indices.
@@ -360,7 +383,8 @@ def bake(client, bounds, out):
             if not got:
                 print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
                 continue
-            cells, dd, wet, painted, src = got
+            cells, dd, wet, painted, skipped, src = got
+            dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc in dd:
                 if x_lo <= wx <= x_hi and y_lo <= wy <= y_hi:
@@ -421,7 +445,8 @@ def bake(client, bounds, out):
 
     print(f'grid {w} x {h} = {w*h:,} vertices, {(w-1)*(h-1)*2:,} triangles')
     print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')
-    print(f'doodads {len(doodads):,}   water cells {sum(wetmask):,}')
+    print(f'doodads {len(doodads):,} ({dropped:,} with no picture, skipped)'
+          f'   water cells {sum(wetmask):,}')
     tally = {k: groundmask.count(i) for i, k in enumerate(GROUND_ORDER)}
     print('ground ' + '  '.join(f'{k} {v:,}' for k, v in tally.items() if v))
     print(f'areas {sorted(areas)}')

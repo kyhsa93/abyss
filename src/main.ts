@@ -332,7 +332,6 @@ async function main() {
     // boundary is all one fence.  Picking per post gave a line that alternated
     // rail, picket, rail, which is not a fence anybody built.
     fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
-    lamp: { pieces: ['fence_post'] },
     sign: { pieces: ['fence_post'] },
     pine: { pieces: ['pine', 'pine2'], yards: 9, solid: 0.5 },
     // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
@@ -368,6 +367,12 @@ async function main() {
     // is skipped without a word.
     cart: { pieces: ['cart', 'cart2', 'haycart'], solid: 0.7 },
     grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
+    // Three that the bake used to hand over as `prop`, which draws a market
+    // stall — so the abbey's graveyard was a row of stalls and every torch in
+    // Elwynn was one too.
+    hay: { pieces: ['hay'] },
+    bones: { pieces: ['rubble', 'scatter'] },
+    lamp: { pieces: ['fence_post'] },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
     house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
@@ -2312,6 +2317,22 @@ async function main() {
       }
     }
     return { seen, wrong, some }
+  }
+  // For the checks: what scenery is actually placed near the player, against
+  // what the world file says is there.
+  ;(window as unknown as { __near: (r: number) => unknown }).__near = (r) => {
+    const got: Record<string, number> = {}
+    for (const o of placed) {
+      if (Math.hypot(o.x - hero.x, o.y - hero.y) > r) continue
+      const k = Object.entries(tilesMeta).find(([, p]) => p === o.piece)?.[0] ?? '?'
+      got[k] = (got[k] ?? 0) + 1
+    }
+    const raw: Record<string, number> = {}
+    for (const d of meta.doodads) {
+      if (Math.hypot(d.x - hero.x, d.y - hero.y) > r) continue
+      raw[d.k] = (raw[d.k] ?? 0) + 1
+    }
+    return { placed: got, doodads: raw, total: placed.length }
   }
   ;(window as unknown as { __give: () => unknown }).__give = () => {
     you.bag['cloth'] = [11, 143]
