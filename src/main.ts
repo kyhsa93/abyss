@@ -21,6 +21,7 @@
  */
 
 import { bearing, speak, type Direction, type Speech, type Topic } from './talk'
+import { layoutFor, touchpad } from './touch'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -556,6 +557,20 @@ async function main() {
   })
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
 
+  // --- the phone ---------------------------------------------------------
+
+  /**
+   * One action, because the game has one verb.
+   *
+   * The cluster is shaped for five and the bar is a list, so a skill is an
+   * entry here and a case in the loop below.  An empty slot is not drawn: a
+   * row of dead buttons tells a player the game is broken rather than early.
+   */
+  const ACTIONS = ['talk'] as const
+  const pad = touchpad(canvas, ACTIONS.length)
+  const help = document.getElementById('help') as HTMLDivElement
+  let helpFor: boolean | null = null
+
   // --- talking to people ------------------------------------------------
 
   const talkEl = document.getElementById('talk') as HTMLDivElement
@@ -598,6 +613,14 @@ async function main() {
   }
 
   let chat: { npc: Npc; speech: Speech; open: number } | null = null
+  /**
+   * How tall the panel and the readout are, measured when the panel is built.
+   *
+   * Read every frame instead, these force the browser to lay the page out
+   * inside the render loop — and neither of them changes while somebody is
+   * standing still talking to you, which is the only time they are used.
+   */
+  let panelH = 0, hudH = 0
 
   function drawTalk() {
     if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; return }
@@ -631,10 +654,16 @@ async function main() {
         }
       })
       talkEl.appendChild(ol)
-      add('foot', '1-9 or click to ask   ·   E or Esc to go')
+      // What to press, on the thing you are holding.  A phone has no Esc key
+      // and no numbers, and the panel covers most of the screen, so the way
+      // out is the part that has to be said.
+      add('foot', pad.on ? 'tap an answer   ·   tap the world to go'
+        : '1-9 or click to ask   ·   E or Esc to go')
     } else {
-      add('foot', 'E or Esc to go')
+      add('foot', pad.on ? 'tap the world to go' : 'E or Esc to go')
     }
+    panelH = talkEl.offsetHeight
+    hudH = hud.offsetHeight
   }
 
   function startTalk(n: Npc) {
@@ -662,9 +691,11 @@ async function main() {
   }
 
   let zoom = 1
+  const clampZoom = (z: number) => Math.max(0.4, Math.min(3, z))
   addEventListener('wheel', (e) => {
-    zoom = Math.max(0.4, Math.min(3, zoom * (1 - Math.sign(e.deltaY) * 0.12)))
+    zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
   }, { passive: true })
+
 
   function resize() {
     canvas.width = Math.floor(innerWidth)
@@ -677,6 +708,8 @@ async function main() {
   // World to screen.  The client's +x is north and +y is west; on screen north
   // is up and west is left, so both axes flip.
   let camX = hero.x, camY = hero.y
+  /** How far above the hero the camera sits, in yards.  See the frame loop. */
+  let lift = 0
   const sx = (wy: number) => (camY - wy) * PPY * zoom + canvas.width / 2
   const sy = (wx: number) => (camX - wx) * PPY * zoom + canvas.height / 2
 
@@ -697,11 +730,32 @@ async function main() {
     // people are now rather than where they were a frame ago.
     wander(dt, clock, chat && chat.npc)
     reindex()
+
+    // --- the thumbs, before the keys, because they answer the same question
+    pad.setBusy(chat !== null)
+    zoom = clampZoom(zoom * pad.pinch())
+    // A tap on the world ends a conversation, which is how it ends anywhere.
+    // Taps on the panel itself never reach the canvas, so answering an option
+    // does not close the thing you are answering.
+    const tapped = pad.takeTap()
+    if (chat && tapped) endTalk()
+    for (const slot of pad.taken()) if (ACTIONS[slot] === 'talk') toggleTalk()
+
     let mx = 0, my = 0
     if (keys.has('w') || keys.has('arrowup')) mx += 1
     if (keys.has('s') || keys.has('arrowdown')) mx -= 1
     if (keys.has('a') || keys.has('arrowleft')) my += 1
     if (keys.has('d') || keys.has('arrowright')) my -= 1
+    const stick = pad.push()
+    if (stick) {
+      // The stick is read on the glass and the world is not drawn the way it
+      // is stored: the client's +x is north, which is up the screen, and +y is
+      // west, which is left.  Both axes flip, exactly as `sx` and `sy` flip
+      // them going the other way.  A pad wired straight through walks you
+      // south when you push north.
+      mx = -stick.y
+      my = -stick.x
+    }
     hero.moving = mx !== 0 || my !== 0
     if (hero.moving) {
       const len = Math.hypot(mx, my)
@@ -723,7 +777,20 @@ async function main() {
     } else {
       hero.t += dt
     }
-    camX += (hero.x - camX) * Math.min(1, dt * 8)
+    // On a phone the panel takes the bottom two thirds of the screen and the
+    // person talking stands behind it, which is the one thing a conversation
+    // cannot afford.  So the camera follows a point above the hero by exactly
+    // enough to centre the pair of you in the gap the panel leaves, and slides
+    // back when it closes.  The lift is in yards because the camera is: at a
+    // fixed pixel offset, zooming out would walk the pair back down the glass.
+    // The band of screen left over: under the readout, over the panel.  The
+    // first version centred the pair in everything above the panel and put
+    // them behind the readout instead, which is the same bug one corner along.
+    const top = chat && pad.on ? hudH + 16 : 0
+    const bottom = chat && pad.on ? canvas.height - panelH - 32 : canvas.height
+    const want = (canvas.height / 2 - (top + Math.max(top, bottom)) / 2) / (PPY * zoom)
+    lift += (want - lift) * Math.min(1, dt * 6)
+    camX += ((hero.x - lift) - camX) * Math.min(1, dt * 8)
     camY += (hero.y - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
@@ -871,26 +938,51 @@ async function main() {
       ctx.lineWidth = 1
       ctx.strokeRect(X - w / 2 + 0.5, Y - w / 2 + 0.5, w - 1, w - 1)
       ctx.fillStyle = '#e8e4d8'
-      ctx.fillText('E', X, Y + 0.5)
+      // A key that is not on the screen is not a prompt.  On a phone the mark
+      // says only that there is something to hear; the button says how.
+      ctx.fillText(pad.on ? '\u2026' : 'E', X, Y + 0.5)
+    }
+
+    // The pad last of all, over everything including the prompt.
+    pad.draw(ctx, [{ label: 'Talk', ready: listener !== null }])
+
+    // The help line and a conversation share the bottom of a phone, and the
+    // line is about controls that are not there while somebody is talking.
+    help.hidden = pad.on && chat !== null
+    if (helpFor !== pad.on) {
+      helpFor = pad.on
+      document.body.classList.toggle('touch', pad.on)
+      // Nothing about the button: it is round, lit and says Talk on it.
+      help.textContent = pad.on
+        ? 'drag to move\npinch to zoom'
+        : 'WASD: move   wheel: zoom   E: talk'
     }
 
     acc += dt; frames++
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
+    // Every row keeps its own tail — the part in brackets — because a phone is
+    // forty monospace columns wide and the longest of these is seventy-two.
+    // Dropping the tails rather than whole rows keeps the readout the same
+    // readout, which is the point of reading it on the device it looks wrong
+    // on.
+    const tail = (t: string) => (pad.on ? '' : t)
     hud.textContent = [
       `ground   ${tilesDrawn.toLocaleString()} tiles`,
       `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn` +
-        `  (${solids.length} solid)`,
+        tail(`  (${solids.length} solid)`),
       `living   ${npcsDrawn} of ${npcs.length} drawn  in ${kindCount} kinds` +
-        `  (${settled} moved ashore, ${afloat} left in the water)` +
+        tail(`  (${settled} moved ashore, ${afloat} left in the water)`) +
         (unplaceable ? `  ${unplaceable} with no art` : ''),
       `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd` +
         (wetAt(hero.x, hero.y) ? '  [in water]'
           : solidAt(hero.x, hero.y) ? '  [inside]'
             : slopeAt(hero.x, hero.y) > CLIFF ? '  [on rock]' : ''),
       `talk     ${talkers} of ${npcs.length} have something to say` +
-        (chat ? `  [talking: ${chat.speech.who}]` : listener ? '  [E to talk]' : ''),
+        (chat ? tail(`  [talking: ${chat.speech.who}]`)
+          : listener ? tail('  [E to talk]') : ''),
       `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
-      `terrain  ${from === 'data' ? "the client's own" : 'interpolated from AzerothCore spawns'}`,
+      `terrain  ${from === 'data' ? "the client's own"
+        : tail('interpolated from AzerothCore spawns') || 'interpolated'}`,
       `fps      ${fps.toFixed(0)}`,
     ].join('\n')
     ;(window as unknown as { __ready: boolean }).__ready = true
@@ -911,6 +1003,15 @@ async function main() {
   ;(window as unknown as { __probe: (x: number, y: number) => unknown }).__probe = (x, y) => ({
     z: groundAt(x, y), slope: slopeAt(x, y),
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
+  })
+
+  /** Where the hero is drawn, which is not the middle once the camera lifts. */
+  ;(window as unknown as { __heroScreen: () => unknown }).__heroScreen = () =>
+    ({ x: sx(hero.y), y: sy(hero.x) })
+
+  /** The pad's geometry and state, for the check that drives it with fingers. */
+  ;(window as unknown as { __pad: () => unknown }).__pad = () => ({
+    on: pad.on, ...pad.view(), ...layoutFor(canvas.width, canvas.height),
   })
 
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */

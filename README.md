@@ -10,6 +10,10 @@ a WoW 3.3.5a client, its trees standing where the client says they stand, and
 Liberated Pixel Cup pixel art and walked around with WASD. Seventy-four of them
 will talk to you: press **E**.
 
+On a phone it is a thumb stick and a button. The stick appears wherever you put
+your thumb down, two fingers pinch the camera, and the button lights up when
+there is somebody close enough to hear you.
+
 What they say is assembled from what the database says they can *do* — how many
 lines a trader keeps and what the cheapest and dearest of them cost, how many
 lessons a teacher has and from what level, what an errand actually wants dead or

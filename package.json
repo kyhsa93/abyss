@@ -13,7 +13,8 @@
     "sprites": "python3 pipeline/bake_sprites.py",
     "synth": "python3 pipeline/synth_terrain.py",
     "npcs": "python3 pipeline/bake_npcs.py",
-    "spawns": "python3 pipeline/spawn_npcs.py"
+    "spawns": "python3 pipeline/spawn_npcs.py",
+    "padcheck": "node scripts/padcheck.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

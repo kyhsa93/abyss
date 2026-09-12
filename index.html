@@ -8,7 +8,8 @@
     <meta name="theme-color" content="#93b6cf" />
     <style>
       html, body { margin: 0; height: 100%; background: #0a0a0f; overflow: hidden; }
-      canvas { display: block; }
+      canvas { display: block; touch-action: none; }
+      html { overscroll-behavior: none; }
       #hud {
         position: fixed; left: 8px; top: 8px; color: #cfe; font: 12px/1.5 monospace;
         background: rgba(0,0,0,.55); padding: 8px 10px; white-space: pre; pointer-events: none;
@@ -32,6 +33,31 @@
       #talk li b { color: #6f8ea6; font: 11px monospace; margin-right: 8px; }
       #talk .lines { color: #e8e4d8; padding: 2px 0 6px 26px; }
       #talk .foot { margin-top: 8px; color: #6b6658; font: 10px/1.4 monospace; }
+
+      /*
+        The phone.  `body.touch` is set by the scene once it knows, rather than
+        by a media query alone: a laptop with a touchscreen answers `pointer:
+        coarse` and is still a keyboard until somebody touches it.
+
+        Three things move.  The readout is sixty monospace columns wide and a
+        390-pixel phone is not, so it shrinks.  The help line lives in the
+        bottom right corner, which on touch is where the buttons are — and the
+        top is the readout and the bottom left is the stick, so what is left is
+        the gap between the two thumbs, which is 160 pixels wide and wants two
+        short lines rather than one long one.  And an option in a conversation
+        is a 20-pixel line of text, which is half of what a finger can hit.
+      */
+      body.touch #hud { font-size: 9px; padding: 6px 8px; }
+      body.touch #help {
+        right: auto; left: 50%; transform: translateX(-50%);
+        bottom: 10px; text-align: center; font-size: 10px;
+      }
+      /* Nearly opaque: at .92 the panel covers half a phone and the world
+         ghosts through all of it. */
+      body.touch #talk { bottom: 16px; font-size: 15px; background: rgba(10,12,18,.975); }
+      body.touch #talk li { padding: 11px 0; }
+      body.touch #talk li b { font-size: 13px; }
+      body.touch #talk .lines { padding: 0 0 10px 26px; }
     </style>
   </head>
   <body>

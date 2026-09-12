@@ -18,11 +18,14 @@ pipeline/   bakes the world.  `synth_terrain.py` builds one out of AzerothCore
             position does not depend on a client.  `bake_tiles.py`,
             `bake_sprites.py` and `bake_npcs.py` cut the art out of LPC and
             four animal packs
-src/        the scene (`main.ts`, canvas 2D, no simulation yet) and what the
-            people of it say (`talk.ts`).  The pipeline carries out the numbers
-            of a conversation and `talk.ts` writes the sentences: that split is
-            what keeps Blizzard's prose out and stops an NPC claiming something
-            the data does not support
+src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
+            people of it say (`talk.ts`) and the controls a phone has
+            (`touch.ts`).  The pipeline carries out the numbers of a
+            conversation and `talk.ts` writes the sentences: that split is what
+            keeps Blizzard's prose out and stops an NPC claiming something the
+            data does not support
+scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
+            controls with Chromium's own touch input over CDP
 public/art  the baked art (committed).  public/data is not (see below)
 ```
 
@@ -53,6 +56,12 @@ scene is not finished until it has been seen: `npx vite`, then drive it with
 Playwright (`node_modules/playwright`, Chromium is installed). Screenshots
 catch what checks do not — a hillside speckled with gravel because a threshold
 was put on a signed gradient instead of its magnitude, for one.
+
+**And look at it on a phone.** `npm run dev` then `npm run padcheck` opens it
+as an iPhone, drives it with real touch input and writes the screenshots to
+`shots/`. Three things that were correct on a desktop were wrong there: a
+readout seventy-two columns wide, a panel covering the person talking, and a
+help line printed on top of the buttons.
 
 **The art decides the projection.** LPC's people are drawn facing up, down,
 left and right; rotating the world under them leaves every stride pointing
