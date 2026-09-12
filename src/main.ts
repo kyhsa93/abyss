@@ -1927,7 +1927,18 @@ async function main() {
       foe: !!(foe.fight && foe.fight[FOE]),
     } : null)
     if (clock - mapAt > 0.25) { mapAt = clock; paintMap() }
-    ui.setWhere(`${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`)
+    ui.setWhere(`${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
+      new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
+    // The swing, as the only timer in the game.  Full when it is ready.
+    ui.setSwing(you.target
+      ? 1 - Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 1)
+    ui.setOfTarget(you.target
+      ? (you.target.angry ? '→ 주인공' : '→ 아무도 아님') : null)
+    ui.setMicro([
+      { key: 'C', label: '정보', on: sheetOpen, use: () => { sheetOpen = !sheetOpen } },
+      { key: 'B', label: '가방', on: bagOpen, use: () => { bagOpen = !bagOpen } },
+      { key: '`', label: '수치', on: !hud.hidden, use: () => { hud.hidden = !hud.hidden } },
+    ])
     ui.setSheet(sheetOpen, [
       ['레벨', `${you.level}`],
       ['경험치', `${you.xp} / ${LADDER[you.level - 1] ?? '—'}`],
@@ -1943,6 +1954,11 @@ async function main() {
         .map(([w, [n, worth]]) =>
           [goodsOf(w), n, coin(worth)] as [string, number, string])
         .sort((a, b) => b[1] - a[1]))
+    // Twelve squares, because that is how many the bar has.  Ten of them are
+    // empty and they are drawn empty: a bar that grows as you learn things is
+    // a bar that moves under your thumb, and the two that do something are in
+    // the same place they will always be.
+    const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=']
     ui.setBar([
       {
         key: '1', label: '공격', icon: 'lorc/broadsword.svg',
@@ -1966,6 +1982,9 @@ async function main() {
         use: () => toggleTalk(),
         cooling: 0, live: listener !== null || chat !== null || corpse() !== null,
       },
+      ...KEYS.slice(2).map((key) => ({
+        key, label: '', icon: '', tip: '', cooling: 0, live: false,
+      })),
     ])
 
     ;(window as unknown as { __ready: boolean }).__ready = true

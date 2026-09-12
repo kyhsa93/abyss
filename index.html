@@ -50,7 +50,9 @@
          with the id in front of them because `#ui *` is more specific than a
          bare class and quietly won: the slots were set to `auto` and computed
          to `none`. */
-      #ui .slot, #ui #bag li { pointer-events: auto; cursor: pointer; }
+      #ui .slot, #ui #bag li, #ui #micro button {
+        pointer-events: auto; cursor: pointer;
+      }
       /* Above the canvas, said out loud.  Both are painted in the positioned
          layer and the canvas is the later sibling, so without this the two
          controls that take a click — an action slot and a bag row — were
@@ -88,7 +90,7 @@
         position: relative; display: block; text-align: center;
         font: 10px/15px var(--mono); color: #eef; text-shadow: 0 1px 1px #000;
       }
-      #ui .xp { height: 9px; margin: -2px 0 0; }
+      #ui .xp { height: 9px; margin: 2px 0 0; }
       #ui .xp .fill { background: #6a4fb0; }
       #ui .xp .num { font-size: 9px; line-height: 9px; color: #cfc6ea; }
 
@@ -100,6 +102,9 @@
         border: 1px solid #4a4433; background: rgba(12,14,20,.85); padding: 3px;
       }
       #map canvas { display: block; image-rendering: pixelated; }
+      #map .clock {
+        text-align: center; font: 10px/1.5 var(--mono); color: #8aa8bb;
+      }
       #map .where {
         text-align: center; font: 10px/1.7 var(--mono); color: #c9a86a;
         border-top: 1px solid #3b382e; margin-top: 3px;
@@ -137,7 +142,7 @@
       #tip[hidden] { display: none; }
 
       #bag {
-        position: absolute; right: 10px; bottom: 44px; width: 190px;
+        position: absolute; right: 10px; bottom: 68px; width: 190px;
         background: rgba(12,14,20,.92); border: 1px solid #4a4433; padding: 8px 10px;
         font: 12px/1.7 var(--body);
       }
@@ -151,10 +156,41 @@
       #bag .many { color: #9ab; font: 11px var(--mono); }
       #bag[hidden] { display: none; }
 
+      /* Twelve, always, and most of them empty — which is what this bar looks
+         like before anybody has learned anything. */
       #bar {
         position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
-        display: flex; gap: 6px;
+        display: flex; gap: 4px;
       }
+      /* Empty, not see-through.  At half opacity the world showed through the
+         squares and the bar read as broken rather than as unfilled. */
+      .slot.bare { background: rgba(18,20,26,.9); border-color: #33302a; }
+      .slot.bare .key { color: #6b6658; }
+
+      /* What opens, as opposed to what you do. */
+      /* A column up the corner: the help line sits on the floor, the buttons
+         above it, and anything they open above those.  All three were at the
+         bottom right and all three were on top of each other. */
+      #micro {
+        position: absolute; right: 10px; bottom: 34px; display: flex; gap: 4px;
+      }
+      #micro button {
+        font: 11px var(--body); color: #9ab; background: rgba(12,14,20,.85);
+        border: 1px solid #4a4433; padding: 5px 9px; cursor: pointer;
+      }
+      #micro button.on { color: #ffe9a8; border-color: #c9a86a; }
+
+      /* The swing, which is the only timer there is. */
+      #ui .swing {
+        height: 4px; margin: -2px 0 0; background: rgba(0,0,0,.5);
+        border: 1px solid #2c2a24; border-top: 0; overflow: hidden;
+      }
+      #ui .swing .fill { height: 100%; width: 0; background: #c9a86a; }
+
+      #ui .oftarget {
+        margin: 2px 0 2px 48px; font: 10px/1.5 var(--mono); color: #8aa8bb;
+      }
+      #ui .oftarget[hidden] { display: none; }
       .slot {
         position: relative; width: 46px; height: 46px;
         background: rgba(12,14,20,.85); border: 1px solid #4a4433;
@@ -187,6 +223,9 @@
         border: 1px solid #4a4433; background: rgba(12,14,20,.85); padding: 3px;
       }
       #map canvas { display: block; image-rendering: pixelated; }
+      #map .clock {
+        text-align: center; font: 10px/1.5 var(--mono); color: #8aa8bb;
+      }
       #map .where {
         text-align: center; font: 10px/1.7 var(--mono); color: #c9a86a;
         border-top: 1px solid #3b382e; margin-top: 3px;
@@ -224,7 +263,7 @@
       #tip[hidden] { display: none; }
 
       #bag {
-        position: absolute; right: 10px; bottom: 44px; width: 190px;
+        position: absolute; right: 10px; bottom: 68px; width: 190px;
         background: rgba(12,14,20,.92); border: 1px solid #4a4433; padding: 8px 10px;
         font: 12px/1.7 var(--body);
       }
@@ -278,7 +317,11 @@
       /* A phone's bottom row is two thumbs, so the bar is not there — the
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
-      body.touch #bag { bottom: 130px; width: 150px; font-size: 11px; }
+      /* Under the map, not over it: the map box is a 96-pixel canvas plus two
+         lines of text, which is 156 and not 128. */
+      body.touch #micro { bottom: auto; top: 158px; right: 8px; flex-direction: column; }
+      body.touch #micro button { font-size: 10px; padding: 4px 6px; }
+      body.touch #bag { bottom: 170px; width: 150px; font-size: 11px; }
       /* A phone's corners are the stick, the buttons and the readout, so the
          map shrinks and the log gets out of the stick's way. */
       body.touch #map canvas { width: 96px; height: 96px; }

@@ -28,9 +28,15 @@ export type Unit = {
   foe: boolean
 } | null
 
+/**
+ * One square on the bar.  An empty one is a square with a key on it and
+ * nothing in it, which is what the bar looks like before you have learned
+ * anything — the twelve are always there and most of them are always empty.
+ */
 export type Slot = {
   key: string
   label: string
+  /** Empty when there is nothing in this square. */
   icon: string
   /** What hovering over it says. */
   tip: string
@@ -73,8 +79,16 @@ export function hud() {
   const units = el('div', '', ui)
   units.id = 'units'
   const me = frame(units, 'me')
+  // The swing, as a bar under the player rather than as a number.  It is the
+  // only timer in the game and it is the one thing a player is waiting on.
+  const swingBar = el('div', 'swing', me.root.parentElement!)
+  const swingFill = el('div', 'fill', swingBar)
   const foe = frame(units, 'foe')
   foe.root.hidden = true
+  // What the target is fighting, which is nearly always you — and when it is
+  // not, that is the thing worth knowing.
+  const foeFoe = el('div', 'oftarget', units)
+  foeFoe.hidden = true
 
   // The experience bar sits under the player rather than across the bottom of
   // the screen, because the bottom of the screen on a phone is two thumbs.
@@ -99,6 +113,7 @@ export function hud() {
   const mapCv = el('canvas', '', mapBox) as HTMLCanvasElement
   mapCv.width = mapCv.height = 150
   const mapWhere = el('div', 'where', mapBox)
+  const mapClock = el('div', 'clock', mapBox)
 
   // What just happened, newest last, which is the way every game's log reads
   // and the opposite of the way every feed does.
@@ -117,6 +132,10 @@ export function hud() {
   tip.id = 'tip'
   tip.hidden = true
 
+  // The buttons that are always there: what opens, rather than what you do.
+  const micro = el('div', '', ui)
+  micro.id = 'micro'
+
   const bar = el('div', '', ui)
   bar.id = 'bar'
   const slots: { root: HTMLElement; icon: HTMLImageElement; sweep: HTMLElement }[] = []
@@ -124,6 +143,7 @@ export function hud() {
   let shown: Slot[] = []
   /** What the bar is showing right now, for the handlers to read. */
   let shownNow: Slot[] = []
+  let microNow: { key: string; label: string; on: boolean; use: () => void }[] = []
 
   const this_ = {
     /** The player's own frame, which is always there. */
@@ -178,9 +198,46 @@ export function hud() {
     /** The minimap's own canvas, for the scene to paint into. */
     map: mapCv,
 
-    /** Where the player is, under the map. */
-    setWhere(text: string) {
+    /** Where the player is, under the map, and what time it is. */
+    setWhere(text: string, time: string) {
       if (mapWhere.textContent !== text) mapWhere.textContent = text
+      if (mapClock.textContent !== time) mapClock.textContent = time
+    },
+
+    /** How far through the swing, 0 to 1. */
+    setSwing(part: number) {
+      swingFill.style.width = `${Math.max(0, Math.min(1, part)) * 100}%`
+    },
+
+    /** What the target is fighting, or nothing. */
+    setOfTarget(text: string | null) {
+      foeFoe.hidden = text === null
+      if (text !== null && foeFoe.textContent !== text) foeFoe.textContent = text
+    },
+
+    /**
+     * The buttons down the corner.  Built once — what they open never changes,
+     * only whether it is open.
+     */
+    setMicro(buttons: { key: string; label: string; on: boolean; use: () => void }[]) {
+      if (micro.children.length !== buttons.length) {
+        micro.textContent = ''
+        buttons.forEach((b, i) => {
+          const el2 = el('button', '', micro)
+          el2.textContent = b.label
+          el2.onclick = () => microNow[i]?.use()
+          el2.onmouseenter = () => {
+            const r = el2.getBoundingClientRect()
+            this_.setTip(`${b.label}  (${b.key})`, r.left + r.width / 2, r.top - 4)
+          }
+          el2.onmouseleave = () => this_.setTip(null, 0, 0)
+        })
+      }
+      microNow = buttons
+      buttons.forEach((b, i) => {
+        const el2 = micro.children[i] as HTMLElement
+        el2.classList.toggle('on', b.on)
+      })
     },
 
     /**
@@ -241,8 +298,10 @@ export function hud() {
         slots.length = 0
         next.forEach((s, i) => {
           const root = el('div', 'slot', bar)
+          if (!s.icon) root.classList.add('bare')
           const icon = el('img', '', root) as HTMLImageElement
-          icon.src = ICONS + s.icon
+          if (s.icon) icon.src = ICONS + s.icon
+          else icon.remove()
           const sweep = el('div', 'sweep', root)
           el('span', 'key', root).textContent = s.key
           el('span', 'name', root).textContent = s.label
@@ -255,6 +314,7 @@ export function hud() {
           }
           root.onmouseleave = () => this_.setTip(null, 0, 0)
           root.onclick = () => shownNow[i]?.use?.()
+          if (!s.icon) { root.onmouseenter = null; root.onclick = null }
           slots.push({ root, icon, sweep })
         })
         shown = []
