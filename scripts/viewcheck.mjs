@@ -101,7 +101,45 @@ check('everybody faces the way they walk', wrong === 0 && seen > 20,
   seen > 20 ? JSON.stringify(blame) : `only ${seen} walking`)
 console.log(`      (${seen} walking, ${wrong} facing the wrong way)`)
 
-// 5. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// 5. The starting valley is a place, and the things in it can be fought.
+//
+// Three facts about Northshire, all of which were false and none of which a
+// screenshot shows.  The client's own area id says where it is; the client's
+// own ground paint says a road runs through it; and the server's own faction
+// tables say most of what lives there is a level one warrior's business.
+const ns = await p.evaluate(() => {
+  const NS = new Set([9, 59, 86, 34])
+  let cells = 0, paved = 0, wet = 0, seen = 0
+  for (let x = -9200; x < -8520; x += 4) {
+    for (let y = 140; y > -640; y -= 4) {
+      seen++
+      const q = window.__probe(x, y)
+      if (!NS.has(q.area)) continue
+      cells++
+      if (q.paint === 'paved') paved++
+      if (q.wet) wet++
+    }
+  }
+  return { cells, paved, wet, seen }
+})
+check('the valley knows it is Northshire', ns.cells > 8000,
+  `${ns.cells} cells of area 9 and its pieces in the sweep`)
+check('and there is water running through it', ns.wet > 200, `${ns.wet} wet cells`)
+const roster = await p.evaluate(() => {
+  const NS = new Set([9, 59, 86, 34])
+  const out = { friend: 0, quarry: 0, enemy: 0 }
+  for (const n of window.__all()) {
+    if (!NS.has(window.__probe(n.x, n.y).area)) continue
+    out[n.stance ?? 'friend']++
+  }
+  return out
+})
+check('and most of what lives there can be fought',
+  roster.quarry + roster.enemy > roster.friend,
+  JSON.stringify(roster))
+console.log(`      (Northshire: ${roster.enemy} start fights, ${roster.quarry} finish them, ${roster.friend} do not)`)
+
+// 6. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
 // to end, and the water a step off the side of it is not, which is the half
@@ -136,7 +174,7 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
-// 6. The ground costs what it costs.  A second tint fill over every tile,
+// 7. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -147,7 +185,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 7. And at the widest the zoom will go, which is where it stops running: the
+// 8. And at the widest the zoom will go, which is where it stops running: the
 // tile count goes as the square of how far out you are, and the floor on the
 // zoom is set by this number and not by taste.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])

@@ -87,6 +87,12 @@ KINDS = [
     ('SIGN', 'sign'), ('CAMPFIRE', 'campfire'),
     ('TENT', 'tent'), ('WAGON', 'cart'), ('WHEELBARROW', 'cart'),
     ('DOCK', 'bridge'),
+    # The vineyard is one doodad thirty-eight yards long and it is the whole of
+    # Northshire's south-west corner — five of them, and every one was dropped
+    # because no word here matched.  `CROP` does not: a crop is a row of
+    # vegetables and this is a trellis with grapes on it.
+    ('VINEYARD', 'vine'), ('GRAPE', 'vine'),
+    ('PUMPKINPATCH', 'crop'), ('PUMPKIN', 'crop'), ('CORNSTALK', 'crop'),
     # Named rather than left to the catch-all, because each of these had a
     # picture already and was being drawn as a market stall.
     ('TOMBSTONE', 'grave'), ('GRAVE', 'grave'), ('HEADSTONE', 'grave'),
@@ -314,6 +320,53 @@ def footprint(ry, ax, ay):
     return round(long_, 1), round(short, 1), round(bear % 180, 1)
 
 
+# How tall a model is, cached across tiles.  Reading one `.m2` header is cheap;
+# reading it once per instance would be ten thousand reads of the same eighty
+# files.
+_TALL = {}
+
+
+def model_size(client, path):
+    """A doodad's own size in yards, out of the model the client places.
+
+    Every tree in the forest was eight yards, because the height was a constant
+    per *kind* and a kind is one word for nineteen models.  The client knows
+    better and says so twice: an `.m2` header carries a bounding box over the
+    vertices at offset 160 and a second one for collision at 188.
+
+    The collision box is the one to believe.  The vertex box covers every frame
+    of the animation, so a tree that sways comes back sixty-five yards wide and
+    eighty tall, where the collision box of the same tree is twenty-six.  Where
+    there is no collision box at all — a vineyard trellis has none, being
+    something you walk through — the vertex box is all there is and it is the
+    answer.
+
+    Returns `(height, half the wider footprint)`.  The footprint matters for
+    the things that are a field rather than an object: one vineyard doodad is
+    thirty-eight yards by seventeen, so drawn as a single sprite it is a shrub
+    in the middle of a paddock.
+
+    Zeroes for anything unreadable, which the caller reads as "no opinion" and
+    falls back on the kind's own size.
+    """
+    if path in _TALL:
+        return _TALL[path]
+    data, _src = client.read(path)
+    if data is None:
+        data, _src = client.read(path[:-3] + '.M2')
+    tall = wide = 0.0
+    if data and len(data) > 212 and data[:4] == b'MD20':
+        vlo = struct.unpack_from('<3f', data, 160)
+        vhi = struct.unpack_from('<3f', data, 172)
+        clo = struct.unpack_from('<3f', data, 188)
+        chi = struct.unpack_from('<3f', data, 200)
+        tall = (chi[2] - clo[2]) or (vhi[2] - vlo[2])
+        wide = max(chi[0] - clo[0], chi[1] - clo[1]) \
+            or max(vhi[0] - vlo[0], vhi[1] - vlo[1])
+    _TALL[path] = (round(max(0.0, tall), 2), round(max(0.0, wide) / 2, 2))
+    return _TALL[path]
+
+
 def read_tile(client, tx, ty):
     """One `.adt`.  Note the file is named <Y>_<X>, not <X>_<Y>."""
     data, src = client.read(f'World\\Maps\\Azeroth\\Azeroth_{ty}_{tx}.adt')
@@ -346,9 +399,15 @@ def read_tile(client, tx, ty):
                 (nid, uid, px, py, pz, _rx, ry, _rz,
                  lx, ly, lz, hx, hy, hz) = struct.unpack_from(
                     '<IIffffffffffff', data, off + i * 64)
+                # The box's vertical extent is kept but not used to size the
+                # sprite: a WMO's box is the whole complex, spires and all, so
+                # Northshire's abbey comes back eighty-nine yards tall and a
+                # drawn building that size is a wall across the glass.  A model
+                # has an honest height and a building does not.
                 wmos.append((nid, uid, ORIGIN - pz, ORIGIN - px, py, ry)
                             + footprint(ry, abs(hz - lz) / 2,
-                                        abs(hx - lx) / 2))
+                                        abs(hx - lx) / 2)
+                            + (round(abs(hy - ly), 2),))
         elif magic == 'MH2O':
             # 256 chunk headers, then instances, all offset from the start of
             # this chunk's data.  A cell is wet if an instance covers it and its
@@ -414,12 +473,17 @@ def read_tile(client, tx, ty):
     models = [n for n in names if n]
     placed, skipped = [], 0
     for tag, nid, wx, wy, wz, rot, sc in doodads:
-        kind = classify(models[nid] if nid < len(models) else '')
+        path = models[nid] if nid < len(models) else ''
+        kind = classify(path)
         if kind:
-            placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0, 0))
+            # The model's own size, times the placement's own scale.  Both were
+            # in the file all along; only the second one was read.
+            tall, wide = model_size(client, path)
+            placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0, 0,
+                           round(tall * sc, 2), round(wide * sc, 2)))
         else:
             skipped += 1
-    for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear in wmos:
+    for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
         if kind:
@@ -429,7 +493,8 @@ def read_tile(client, tx, ty):
             # this script, and `bake` drops this before it writes anything.
             key = zlib.crc32(name.upper().encode()) if name else 0
             placed.append((kind, wx, wy, wz, bear, 1.0,
-                           half_l, half_w, bear, key))
+                           half_l, half_w, bear, key, 0.0,
+                           round(max(half_l or 0.0, half_w or 0.0), 2)))
     return cells, placed, water, painted, skipped, src
 
 
@@ -452,6 +517,13 @@ def bake(client, bounds, out):
     i2_lo, j2_lo = i_lo * 2, j_lo * 2
     i2_hi, j2_hi = i2_lo + w2 - 1, j2_lo + h2 - 1
     groundmask = bytearray(w2 * h2)
+    # And the zones, one byte a chunk.  Sixteen chunks to a tile, so the index
+    # is the height index divided by eight.
+    ci_lo, ci_hi = i_lo // 8, i_hi // 8
+    cj_lo, cj_hi = j_lo // 8, j_hi // 8
+    cw, ch = ci_hi - ci_lo + 1, cj_hi - cj_lo + 1
+    areamask = bytearray([255]) * (cw * ch)
+    area_ids = []
     areas = {}
 
     tiles = set()
@@ -471,7 +543,8 @@ def bake(client, bounds, out):
             cells, dd, wet, painted, skipped, src = got
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
-            for kind, wx, wy, wz, rot, sc, bl, bw, bear, key in dd:
+            for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
+                    tall, wide in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -484,7 +557,8 @@ def bake(client, bounds, out):
                     solid_seen.add((kind, round(wx, 2), round(wy, 2)))
                 if bl is not None and key:
                     shapes.setdefault(key, (bl, bw))
-                doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear, key])
+                doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
+                                key, tall, wide])
             for (iy_, ix_, sx_, sy_), level in wet.items():
                 I = tx * 128 + iy_ * 8 + sx_
                 J = ty * 128 + ix_ * 8 + sy_
@@ -506,6 +580,16 @@ def bake(client, bounds, out):
                 base_i = tx * 128 + iy * 8
                 base_j = ty * 128 + ix * 8
                 areas[area] = areas.get(area, 0) + 1
+                # Which zone this chunk belongs to, at the resolution the
+                # client states it: one id a chunk, 33.3 yards.  Nothing here
+                # knew where Northshire *was* — the readout said a coordinate
+                # and every check had to re-derive the boundary from the ADTs.
+                CI, CJ = base_i // 8, base_j // 8
+                if ci_lo <= CI <= ci_hi and cj_lo <= CJ <= cj_hi:
+                    if area not in area_ids:
+                        area_ids.append(area)
+                    areamask[(CI - ci_lo) * ch + (CJ - cj_lo)] = \
+                        area_ids.index(area)
                 for r in range(9):
                     I = base_i + r
                     if not (i_lo <= I <= i_hi):
@@ -542,6 +626,7 @@ def bake(client, bounds, out):
         f.write(struct.pack(f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))
         f.write(bytes(wetmask))     # one byte a cell, after the heights
         f.write(bytes(groundmask))  # and the painted ground, at twice that
+        f.write(bytes(areamask))    # and the zones, one byte a 33-yard chunk
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -553,15 +638,26 @@ def bake(client, bounds, out):
         'water': sum(wetmask),
         'ground': GROUND_ORDER,
         'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / 2,
+        # The zone map, and the ids it indexes.  `areaOf` in `src/main.ts`
+        # reads it; the names are ours, in `talk.ts`, because an area name is
+        # Blizzard's prose the same as everything else.
+        'areaWidth': cw, 'areaHeight': ch, 'areaUnit': UNIT * 8,
+        'areaIds': area_ids,
         # `bl`/`bw` are half a footprint, along and across, and `ba` is which
         # way the long side points — a rectangle that can lie diagonally,
         # because half these bridges do.
         'doodads': [dict({'k': k, 'x': round(x, 2), 'y': round(y, 2),
                           'z': round(z, 2), 'r': round(rot, 1), 's': round(s, 3)},
+                         # `t` is how tall the client's own model is and `w`
+                         # half its footprint, both already times this
+                         # placement's scale.
+                         **({'t': tall} if tall else {}),
+                         **({'w': wide} if wide else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
-                    for k, x, y, z, rot, s, bl, bw, ba, _key in doodads],
+                    for k, x, y, z, rot, s, bl, bw, ba, _key, tall, wide
+                    in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)

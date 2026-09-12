@@ -20,18 +20,27 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { abilityOf, bearing, coin, goodsOf, josa, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
+import { abilityOf, bearing, coin, goodsOf, josa, nameOf, speak, zoneOf, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud } from './hud'
 import {
   mitigate, noticeAt, rageFrom, swing, xpFor,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   E_AURA, E_ENERGIZE, E_WEAPON_ADD,
-  FOE, HI, HP, LO, MAX_RAGE, MELEE, SWING, type Fight, type Spell,
+  ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING,
+  aggressive, fightable, type Fight, type Spell,
 } from './fight'
 
 type Doodad = {
   k: string; x: number; y: number; z: number; r: number; s: number
+  /**
+   * How tall the client's own model is and half its footprint, in yards, both
+   * already multiplied by this placement's scale.  The kind's own height is
+   * the fallback and it was the only thing used: every tree in the forest
+   * stood eight yards whether the client had put down a sapling or a
+   * sixty-yard oak.
+   */
+  t?: number; w?: number
   /**
    * A building's own footprint: half along, half across, and the bearing of
    * the long side in degrees.  Only the ones a bridge is drawn from carry it.
@@ -43,6 +52,8 @@ type Doodad = {
 type Meta = {
   width: number; height: number; unit: number
   x0: number; y0: number; centre: [number, number]; bounds: number[]
+  areaWidth?: number; areaHeight?: number; areaUnit?: number
+  areaIds?: number[]
   zMin: number; zMax: number
   hasWater?: boolean
   /** What the client painted the ground with, at twice the height grid. */
@@ -142,6 +153,19 @@ async function main() {
   const paint = GW && bin.byteLength >= cells * 5 + GW * GH
     ? new Uint8Array(bin, cells * 5, GW * GH) : null
   const PAINT = meta.ground ?? []
+  /**
+   * Which zone a point is in, at the resolution the client states it.
+   *
+   * One id a 33-yard chunk, straight out of the `.adt` headers.  Nothing here
+   * knew this before: the readout said a coordinate, and every check that
+   * wanted to ask "is this Northshire" had to go back to the client and
+   * re-derive the boundary.
+   */
+  const AW = meta.areaWidth ?? 0, AH = meta.areaHeight ?? 0
+  const AU = meta.areaUnit ?? 1
+  const AREA_IDS = meta.areaIds ?? []
+  const zones = AW && bin.byteLength >= cells * 5 + GW * GH + AW * AH
+    ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
   const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook] = await Promise.all([
@@ -240,6 +264,30 @@ async function main() {
     const [dx, dy] = gradient(wx, wy)
     return Math.hypot(dx, dy)
   }
+  /**
+   * The steepest single step out of here, which is a different question.
+   *
+   * `slopeAt` is a central difference, so it averages the ground over eight
+   * yards — and averaging is exactly what a cliff survives.  Northshire's
+   * walls rise in four-yard steps of two and three to the yard with gentler
+   * ground in between; smoothed, every one of them came out under the limit,
+   * so the starting valley was not enclosed at all.  A flood fill from the
+   * abbey reached fourteen hundred yards by fifteen hundred, across eight
+   * zones, and climbed to a hundred and seventy yards up the rim.
+   *
+   * What stops a walker is the worst step he has to take, so that is what is
+   * measured: the largest drop or rise to a neighbouring cell of the height
+   * grid.  Shading still uses the smooth gradient, because shading is about
+   * which way the ground faces and not about whether you can stand on it.
+   */
+  function stepAt(wx: number, wy: number): number {
+    const s = U
+    const z = groundAt(wx, wy)
+    return Math.max(
+      Math.abs(groundAt(wx + s, wy) - z), Math.abs(groundAt(wx - s, wy) - z),
+      Math.abs(groundAt(wx, wy + s) - z), Math.abs(groundAt(wx, wy - s) - z),
+    ) / s
+  }
 
   const hash = (a: number, b: number) => {
     const n = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453
@@ -251,6 +299,13 @@ async function main() {
     const i = Math.round((x0 - wx) / GU), j = Math.round((y0 - wy) / GU)
     if (i < 0 || i >= GW || j < 0 || j >= GH) return 'grass'
     return PAINT[paint[i * GH + j]!] ?? 'grass'
+  }
+  /** The client's own area id here, or 0 where the slice has none. */
+  const areaOf = (wx: number, wy: number): number => {
+    if (!zones) return 0
+    const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
+    if (i < 0 || i >= AW || j < 0 || j >= AH) return 0
+    return AREA_IDS[zones[i * AH + j]!] ?? 0
   }
   const wetAt = (wx: number, wy: number) => {
     if (!wet) return false
@@ -279,6 +334,15 @@ async function main() {
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
   const ROCK_TILE = tilesMeta['stone'] ? 'stone' : GROUND_TILES[0]
+  /**
+   * A laid road, which is not a rock face.
+   *
+   * `paved` and `rock` were handed the same tile, so the cobbled road through
+   * Northshire — the one the client actually paints with a cobblestone
+   * texture — came out the same grey as the cliffs on either side of it, and
+   * the starting valley read as having no road at all.
+   */
+  const PAVED_TILES = ['cobble', 'cobble2'].filter((k) => tilesMeta[k])
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
   /**
    * The land a lake touches.
@@ -325,7 +389,8 @@ async function main() {
     trunk?: string
     /** The pieces that are already a whole tree and want no trunk under them. */
     whole?: string[]
-    run?: boolean; solid?: 'building' | 'span' | number
+    run?: boolean; patch?: boolean
+    solid?: 'building' | 'span' | number
   }> = {
     // `oak` and `oak2` are canopies and want a trunk under them.  `deadtree`
     // is a whole tree, trunk and all, and putting one under it drew two trees
@@ -357,6 +422,12 @@ async function main() {
     water_plant: { pieces: ['reeds', 'reeds2'], yards: 2 },
     flower: { pieces: ['sprout', 'sprout2', 'tomatoes'] },
     crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
+    // A vineyard is not an object, it is a field: the client puts down one
+    // doodad forty yards across and five of them are the whole of Northshire's
+    // south-west corner.  Drawn as a single sprite it was a shrub in a
+    // paddock — so `patch` sows the piece over the footprint the model
+    // declares, the same way `span` lays a fence along a line.
+    vine: { pieces: ['corn', 'corn2'], patch: true, yards: 2.6 },
     // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
     // nobody recorded who drew them — so what stands here is a seedling, and
     // that is the whole of the reason.
@@ -384,6 +455,10 @@ async function main() {
     // stall — so the abbey's graveyard was a row of stalls and every torch in
     // Elwynn was one too.
     hay: { pieces: ['hay'] },
+    // `campfire` was in the bake's word list and not in this one, so the two
+    // of them in the slice were dropped without a word — the silent half of
+    // the same mistake the market stalls were the loud half of.
+    campfire: { pieces: ['firewood', 'firewood2'] },
     bones: { pieces: ['rubble', 'scatter'] },
     lamp: { pieces: ['fence_post'] },
     // Buildings.  The client says where one stands and what sort it is; which
@@ -462,7 +537,37 @@ async function main() {
     const stem = (k.trunk && !k.whole?.includes(pick) && tilesMeta[k.trunk])
       ? tilesMeta[k.trunk]! : null
     const tall = piece.h + (stem ? stem.h * 0.78 : 0)
-    const size = (k.yards ? (k.yards * PPY) / tall : 1) * d.s
+    // How tall this one should stand.  The client's own model first — it knows
+    // the difference between the nineteen things the word `tree` covers — and
+    // the kind's figure only where there is no model to ask, which is the
+    // buildings.  `d.s` is already inside `d.t`, so it multiplies only the
+    // fallback.
+    const yards = d.t || (k.yards ? k.yards * d.s : 0)
+    const size = yards ? (yards * PPY) / tall : d.s
+    if (k.patch) {
+      // A field, sown over the footprint the client's model declares rather
+      // than drawn as one object at the middle of it.  Rows across and plants
+      // along, both spaced by the piece's own size, and the whole thing
+      // jittered by the same seeded hash the scenery is scattered with so it
+      // does not come out as graph paper.
+      const half = d.w ?? 4
+      const step = Math.max(1.2, (piece.w * size) / PPY)
+      const rows = Math.max(1, Math.round((half * 2) / (step * 1.6)))
+      const cols = Math.max(1, Math.round((half * 2) / step))
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const jx = hash(d.x + r, d.y + c) - 0.5
+          const jy = hash(d.y + c, d.x + r) - 0.5
+          placed.push({
+            x: d.x + (r - (rows - 1) / 2) * step * 1.6 + jx * step * 0.5,
+            y: d.y + (c - (cols - 1) / 2) * step + jy * step * 0.5,
+            piece: tilesMeta[k.pieces[(r + c) % k.pieces.length]!] ?? piece,
+            s: size,
+          })
+        }
+      }
+      continue
+    }
     if (k.solid === 'span') {
       // One doodad, several sections, laid end to end so a boundary is a line
       // rather than a row of posts.
@@ -889,7 +994,7 @@ async function main() {
   const blocked = (wx: number, wy: number) =>
     (onSpan(wx, wy)
       ? false
-      : wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF)
+      : wetAt(wx, wy) || stepAt(wx, wy) > CLIFF)
     || solidAt(wx, wy) || npcAt(wx, wy, null)
 
   /**
@@ -953,7 +1058,8 @@ async function main() {
       // is unplayable, but a cow walking out through a barn is worse than a
       // cow standing in one.
       const wall = (x: number, y: number) =>
-        (!n.swims && wetAt(x, y)) || slopeAt(x, y) > CLIFF || solidAt(x, y) || npcAt(x, y, n)
+        (!n.swims && wetAt(x, y)) || stepAt(x, y) > CLIFF
+        || solidAt(x, y) || npcAt(x, y, n)
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
       n.dir = facing(n.vx, n.vy)
@@ -1186,7 +1292,9 @@ async function main() {
       const d2 = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       // A hostile notices you from a distance that depends on the gap between
       // you, which is why nothing in the starting field chases a grown player.
-      if (!n.angry && n.fight[FOE] && !chat) {
+      // Only the ones that start fights: a neutral creature is attackable
+      // and will fight back, but it does not come at you across a field.
+      if (!n.angry && aggressive(n.fight) && !chat) {
         const far = noticeAt(you.level, n.level)
         if (d2 < far * far) n.angry = true
       }
@@ -1317,7 +1425,7 @@ async function main() {
   const inSwing = (): Npc | null => {
     let best: Npc | null = null, bd = MELEE * MELEE
     for (const n of active) {
-      if (!n.fight || n.dead || !n.fight[FOE]) continue
+      if (!fightable(n.fight) || n.dead) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -1471,7 +1579,8 @@ async function main() {
       const i = mid - (m.y - hero.y) / yd
       const j = mid - (m.x - hero.x) / yd
       if (i < 1 || i > n - 1 || j < 1 || j > n - 1) continue
-      mapCtx.fillStyle = m.fight?.[FOE] ? '#d8564a' : '#7fc46f'
+      mapCtx.fillStyle = aggressive(m.fight) ? '#d8564a'
+        : fightable(m.fight) ? '#d8b24a' : '#7fc46f'
       mapCtx.fillRect(Math.round(i) - 1, Math.round(j) - 1, 2, 2)
     }
     mapCtx.fillStyle = '#ffffff'
@@ -1494,7 +1603,7 @@ async function main() {
       // conversation panel, and a conversation panel stops you swinging.  So
       // walking up to a wolf and pressing the interact key made it
       // unattackable until you backed out of talking to it.
-      if (n.dead || n.fight?.[FOE]) continue
+      if (n.dead || fightable(n.fight)) continue
       const dx = n.x - hero.x, dy = n.y - hero.y
       const d = dx * dx + dy * dy
       if (d < bd) { bd = d; best = n }
@@ -1722,7 +1831,8 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b']
+      ...PAVED_TILES,
+      ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone']
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
     c.width = px * ids.length
@@ -1832,7 +1942,7 @@ async function main() {
       }
       // Only something that will fight back becomes a target; tapping a
       // townsman is how you look at one, not how you start on them.
-      if (best && best.fight![FOE]) you.target = best
+      if (best && fightable(best.fight)) you.target = best
       else if (best) you.target = null
     }
     for (const slot of pad.taken()) {
@@ -1966,6 +2076,8 @@ async function main() {
         const span = onSpan(wx, wy)
         const id = span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
+          : ink === 'paved' && PAVED_TILES.length > 0
+            ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
           : ink === 'rock' || ink === 'paved' ? ROCK_TILE
             : (ink === 'road' || ink === 'crop') && flat ? DIRT_TILE
               : ink === 'sand' ? SHORE_TILE
@@ -2066,7 +2178,8 @@ async function main() {
         const bw = Math.round(26 * zoom), bh = Math.max(3, Math.round(3 * zoom))
         ctx.fillStyle = 'rgba(0,0,0,0.55)'
         ctx.fillRect(X - bw / 2 - 1, Y - 1, bw + 2, bh + 2)
-        ctx.fillStyle = n.fight[FOE] ? '#c4463a' : '#4f9e46'
+        ctx.fillStyle = n.fight[STANCE] === ENEMY ? '#c4463a'
+          : n.fight[STANCE] === QUARRY ? '#c4a03a' : '#4f9e46'
         ctx.fillRect(X - bw / 2, Y, Math.round(bw * (n.hp / n.max)), bh)
       }
       drawn++
@@ -2232,10 +2345,11 @@ async function main() {
       icon: foe.art.startsWith('townsfolk') || foe.art.startsWith('guard')
         || foe.art.startsWith('bandit')
         ? 'delapouite/sword-brandish.svg' : 'lorc/wolf-head.svg',
-      foe: !!(foe.fight && foe.fight[FOE]),
+      foe: fightable(foe.fight),
     } : null)
     if (clock - mapAt > 0.25) { mapAt = clock; paintMap() }
-    ui.setWhere(`${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
+    ui.setWhere(`${zoneOf(areaOf(hero.x, hero.y))}  `
+      + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
     // Empty when there is nothing to swing at.  Full meant "ready", which on
@@ -2352,7 +2466,8 @@ async function main() {
    * answers to different questions.
    */
   ;(window as unknown as { __probe: (x: number, y: number) => unknown }).__probe = (x, y) => ({
-    z: groundAt(x, y), slope: slopeAt(x, y),
+    z: groundAt(x, y), slope: slopeAt(x, y), step: stepAt(x, y),
+    area: areaOf(x, y), paint: paintAt(x, y),
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
 
@@ -2410,7 +2525,12 @@ async function main() {
   // The whole cast, for the behaviour tests: whether anybody wandered, whether
   // the ones behind a counter stayed at it, whether anybody left their patch.
   ;(window as unknown as { __all: () => unknown }).__all = () =>
-    npcs.map((n) => ({ x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander }))
+    npcs.map((n) => ({
+      x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander,
+      kind: n.kind, level: n.level,
+      stance: aggressive(n.fight) ? 'enemy'
+        : fightable(n.fight) ? 'quarry' : 'friend',
+    }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   // For the checks: put the player next to the nearest thing that will fight
   // back, and say what it is.
@@ -2419,7 +2539,7 @@ async function main() {
   ;(window as unknown as { __weak: () => unknown }).__weak = () => {
     let best: Npc | null = null, bd = Infinity
     for (const n of npcs) {
-      if (!n.fight || !n.fight[FOE] || n.dead || n.level > you.level) continue
+      if (!fightable(n.fight) || n.dead || n.level > you.level) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -2482,10 +2602,10 @@ async function main() {
   ;(window as unknown as { __weakest: () => unknown }).__weakest = () => {
     let best: Npc | null = null, bl = 99
     for (const n of npcs) {
-      if (!n.fight || !n.fight[FOE] || n.dead) continue
+      if (!fightable(n.fight) || n.dead) continue
       // On its own: a pack is a different test and it is the one that keeps
       // happening by accident.
-      const alone = !npcs.some((m) => m !== n && m.fight && m.fight[FOE]
+      const alone = !npcs.some((m) => m !== n && fightable(m.fight)
         && (m.x - n.x) ** 2 + (m.y - n.y) ** 2 < 400)
       if (alone && n.level < bl) { bl = n.level; best = n }
     }
@@ -2496,7 +2616,7 @@ async function main() {
   ;(window as unknown as { __foe: () => unknown }).__foe = () => {
     let best: Npc | null = null, bd = Infinity
     for (const n of npcs) {
-      if (!n.fight || !n.fight[FOE] || n.dead) continue
+      if (!fightable(n.fight) || n.dead) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }

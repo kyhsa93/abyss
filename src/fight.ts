@@ -9,10 +9,31 @@
  * part that has to be right rather than the part that has to look right.
  */
 
-/** `[health, min damage, max damage, swing ms, armour, hostile]`. */
+/** `[health, min damage, max damage, swing ms, armour, stance]`. */
 export type Fight = number[]
 
-export const HP = 0, LO = 1, HI = 2, SWING = 3, ARMOUR = 4, FOE = 5
+export const HP = 0, LO = 1, HI = 2, SWING = 3, ARMOUR = 4, STANCE = 5
+
+/**
+ * Where a creature stands to the player, and why it is not a boolean.
+ *
+ * The server's reaction is asymmetric and `pipeline/spawn_npcs.py` asks it in
+ * both directions: `ENEMY` starts the fight, `QUARRY` only finishes one, and
+ * `FRIEND` never fights at all.  Read as a boolean it made the starting valley
+ * unplayable — a Kobold Vermin does not charge you and neither does a Diseased
+ * Young Wolf, so with one flag driving both "does it attack me" and "may I
+ * attack it", 131 of Northshire's 220 inhabitants were scenery you could walk
+ * through a level in front of.
+ */
+export const FRIEND = 0, QUARRY = 1, ENEMY = 2
+
+/** Can be attacked: everything that is not on your side. */
+export const fightable = (f: Fight | null | undefined): boolean =>
+  !!f && f[STANCE]! >= QUARRY
+
+/** Attacks first, which is a narrower thing. */
+export const aggressive = (f: Fight | null | undefined): boolean =>
+  !!f && f[STANCE] === ENEMY
 
 /**
  * How much of a hit the armour eats.

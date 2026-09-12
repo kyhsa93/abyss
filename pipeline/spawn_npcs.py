@@ -216,13 +216,19 @@ def role(flags, ctype, rank):
     return 'prey' if ctype in (1, 8) else 'idle'
 
 
-# The player's own faction template.  Human is faction 1, whose template says
-# FactionGroup 3 — the player bit and the Alliance bit — and everything in the
-# world decides whether to swing at you by testing its own EnemyGroup against
-# it.  Hard-coded because the player's race is, and because a constant that is
-# a lookup of a constant is a lookup nobody can read.
-PLAYER_FACTION = 1
-PLAYER_GROUP = 3
+# The player's own faction template.  Human is faction 1, and everything in the
+# world is measured against it.  Hard-coded because the player's race is, and
+# because a constant that is a lookup of a constant is a lookup nobody can read.
+PLAYER_TEMPLATE = 1
+
+# `FACTION_TEMPLATE_FLAG_HOSTILE_BY_DEFAULT`, the bit that makes a thing swing
+# at everybody regardless of what its groups say.
+HOSTILE_BY_DEFAULT = 0x2000
+
+# What one thing thinks of another.  Three values because the game has three,
+# and because two of them collapsed into one is what made Northshire unplayable
+# — see `stance` below.
+FRIEND, QUARRY, ENEMY = 0, 1, 2
 
 
 def fight_tables(base):
@@ -251,34 +257,99 @@ def fight_tables(base):
     fc = columns(os.path.join(base, 'factiontemplate_dbc.sql'))
     for line in rows(os.path.join(base, 'factiontemplate_dbc.sql')):
         f = split(line)
-        fac[int(f[fc['ID']])] = (
-            int(f[fc['Faction']]), int(f[fc['FactionGroup']]),
-            int(f[fc['FriendGroup']]), int(f[fc['EnemyGroup']]),
-            [int(f[fc[f'Enemies_{i}']]) for i in range(1, 5)],
-            [int(f[fc[f'Friend_{i}']]) for i in range(1, 5)])
+        fac[int(f[fc['ID']])] = {
+            'faction': int(f[fc['Faction']]),
+            # `Flags` was not read at all, and one of its bits is the only
+            # thing that makes some creatures attack.
+            'flags': int(f[fc['Flags']]),
+            'group': int(f[fc['FactionGroup']]),
+            'friend_group': int(f[fc['FriendGroup']]),
+            'enemy_group': int(f[fc['EnemyGroup']]),
+            'enemies': [int(f[fc[f'Enemies_{i}']]) for i in range(1, 5)],
+            'friends': [int(f[fc[f'Friend_{i}']]) for i in range(1, 5)],
+        }
     return st, fac
 
 
-def hostile(fac, template):
-    """Does this one swing at a human, by the rule the core uses?
+def _hostile_to(a, b):
+    """`FactionTemplateEntry::IsHostileTo`, which is the core's own function.
 
     Its listed enemies first, then its listed friends, and only then the group
     bits — which is the order that matters, because a template can name a
     faction it fights inside a group it otherwise leaves alone.
     """
-    got = fac.get(template)
-    if not got:
-        return False
-    _f, _group, _friend, enemy, enemies, friends = got
-    if PLAYER_FACTION in enemies:
-        return True
-    if PLAYER_FACTION in friends:
-        return False
-    return bool(enemy & PLAYER_GROUP)
+    if b['faction']:
+        if b['faction'] in a['enemies']:
+            return True
+        if b['faction'] in a['friends']:
+            return False
+    return bool(a['enemy_group'] & b['group'])
+
+
+def _friendly_to(a, b):
+    """`FactionTemplateEntry::IsFriendlyTo`, the same shape the other way up."""
+    if b['faction']:
+        if b['faction'] in a['enemies']:
+            return False
+        if b['faction'] in a['friends']:
+            return True
+    return bool(a['friend_group'] & b['group'])
+
+
+def _reaction(a, b):
+    """`Unit::GetReactionTo` minus the reputation branch, which is never taken.
+
+    The branch it leaves out is the one that reads a standing out of
+    `Faction.dbc`, and it is left out because no faction in Elwynn has one: a
+    faction can only have a standing if its `ReputationIndex` is not -1, and
+    every faction a creature here belongs to is -1.  Checked against the
+    client's own `Faction.dbc` rather than assumed.
+    """
+    if _hostile_to(a, b):
+        return 'hostile'
+    if _friendly_to(a, b):
+        return 'friendly'
+    if _friendly_to(b, a):
+        return 'friendly'
+    if a['flags'] & HOSTILE_BY_DEFAULT:
+        return 'hostile'
+    return 'neutral'
+
+
+def stance(fac, template):
+    """Where this one stands to a human warrior: friend, quarry, or enemy.
+
+    **The core's reaction is not symmetric, and collapsing it into one boolean
+    emptied Northshire.**  What was asked before was only "does it swing at
+    me", and for the valley's own inhabitants the answer is no — a Kobold
+    Vermin does not charge, a Diseased Young Wolf does not charge, a Defias
+    Thug does not charge.  They are still what a level one warrior is sent to
+    kill: the player's own faction template names the Monster group as an
+    enemy, so they are red to him and he may swing first.  With one boolean
+    driving both "may I attack it" and "does it attack me", 131 of the 220
+    creatures that live in the starting valley were unkillable scenery.
+
+    So: `ENEMY` is the ones that start the fight, `QUARRY` the ones that only
+    finish it, and `FRIEND` the ones that never do.  Both halves come out of
+    the same function the server uses, asked in both directions.
+    """
+    me = fac.get(PLAYER_TEMPLATE)
+    it = fac.get(template)
+    if not me or not it:
+        return FRIEND
+    if _reaction(it, me) == 'hostile':
+        return ENEMY
+    # Friendly is the narrow one, and neutral belongs with the quarry: a
+    # yellow nameplate is a thing you may hit that will not hit you first.
+    # Reading neutral as friendly left Elwynn's wolves and the valley's
+    # Defias unkillable, which is most of what a level one warrior is for.
+    if _reaction(me, it) == 'friendly':
+        return FRIEND
+    return QUARRY
 
 
 def fight_of(st, fac, level, cls, template, mods):
-    """(health, min damage, max damage, swing ms, armour, hostile)."""
+    """(health, min damage, max damage, swing ms, armour, stance)."""
     hp_mod, dmg_mod, armour_mod, swing = mods
     base = st.get((level, cls)) or st.get((level, 1))
     if not base:
@@ -289,7 +360,7 @@ def fight_of(st, fac, level, cls, template, mods):
     return (max(1, round(hp * hp_mod)), max(1, round(lo)),
             max(1, round((ap / 14.0 * t + dmg * 1.5) * dmg_mod)),
             int(swing), round(armour * armour_mod),
-            1 if hostile(fac, template) else 0)
+            stance(fac, template))
 
 
 # What a thing *is*, in our words, from `item_template.class` and its
@@ -646,7 +717,8 @@ def main(acore, out):
         name = f[col['name']].strip("'").replace("\\'", "'")
         ctype = int(f[col['type']])
         info[entry] = (classify(name, ctype,
-                                hostile(factions, int(f[col['faction']]))), ctype,
+                                stance(factions, int(f[col['faction']]))
+                                != FRIEND), ctype,
                        int(f[col['minlevel']]), int(f[col['maxlevel']]),
                        int(f[col['npcflag']]), int(f[col['rank']]),
                        int(f[col['unit_class']]), int(f[col['faction']]),
@@ -747,13 +819,17 @@ def main(acore, out):
     by_kind = Counter(kinds[r[2]] for r in out_rows)
     by_role = Counter(roles[r[5]] for r in out_rows)
     talkers = sum(1 for r in out_rows if r[6] >= 0)
-    foes = sum(1 for r in out_rows if r[7] >= 0 and fights[r[7]][5])
+    quarry = sum(1 for r in out_rows
+                 if r[7] >= 0 and fights[r[7]][5] == QUARRY)
+    enemies = sum(1 for r in out_rows
+                  if r[7] >= 0 and fights[r[7]][5] == ENEMY)
     print(f'{len(out_rows):,} spawns, {len(kinds)} kinds  '
           f'({os.path.getsize(path) / 1024:.0f} KiB)')
     what = Counter(k for t in topic_list for k in t)
     print(f'  talk: {talkers} spawns over {len(topic_list)} topics  '
           + ', '.join(f'{k} {v}' for k, v in what.most_common()))
-    print(f'  fights: {len(fights)} distinct, {foes:,} of them hostile')
+    print(f'  fights: {len(fights)} distinct; {enemies:,} start one, '
+          f'{quarry:,} only finish one')
     carry = sum(1 for r in out_rows if hauls[r[8]][2])
     print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something')
     sold = [i[4] for h in hauls for i in h[2] if i[4]]

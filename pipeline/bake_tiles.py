@@ -57,6 +57,12 @@ AUTHORS = {
         'licences': 'CC-BY-SA 3.0 / GPL 3.0',
         'url': 'https://opengameart.org/content/tiled-terrains',
     },
+    'hughspectrum': {
+        'name': 'Daniel Armstrong (AKA HughSpectrum)',
+        'licences': 'CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0',
+        'url': ('https://opengameart.org/content/'
+                'liberated-pixel-cup-lpc-base-assets-sprites-map-tiles'),
+    },
     'rivera': {
         'name': 'Barbara Rivera / C Phillips',
         'licences': 'CC-BY-SA 3.0 / GPL 3.0',
@@ -88,6 +94,7 @@ SHEETS = {
     'water.png': 'base',
     'bridges.png': 'base',
     'roofs-preview.png': 'roofs',
+    'castlefloors_outside.png': 'base',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -109,6 +116,14 @@ GROUND = [
     # 80), and `rock_floor` stays for anything that wants a cave floor.
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
     ('stone',      'Terrain and Outside.png', 416,  96, 32, 32, 'sharm'),
+    # A laid road, which is a different thing from a rock face and was drawn as
+    # one: the client paints Northshire's road with a cobblestone texture, the
+    # bake calls that `paved`, and the scene handed `paved` the same grey rock
+    # it gives a cliff.  The road through the starting valley was therefore
+    # indistinguishable from the mountain beside it.  Flagstones, out of the
+    # castle floors — the only paving in any sheet here whose author is named.
+    ('cobble',     'castlefloors_outside.png', 64,  32, 32, 32, 'hughspectrum'),
+    ('cobble2',    'castlefloors_outside.png', 32,  64, 32, 32, 'hughspectrum'),
     # Two decks, because a bridge's planks run across the way you walk: the
     # first for a crossing that runs north to south, the second for one that
     # runs east to west.  One picture turned would have the planks along the

@@ -411,3 +411,36 @@ export function bearing(dx: number, dy: number): string {
   if (ay > ax * 2.4) return ew
   return `${ns}${ew}`
 }
+
+/**
+ * Where you are, by the client's own area id.
+ *
+ * The bake writes one id a 33-yard chunk and never a name — an area name is
+ * Blizzard's prose like everything else — so the words are here.  Only the
+ * ones the forest actually contains; anything else falls back to the forest,
+ * which is what the whole slice is.
+ */
+const ZONE: Record<number, string> = {
+  9: '노스샤이어 계곡',
+  59: '노스샤이어 포도밭',
+  86: '노스샤이어 수도원',
+  34: '노스샤이어 강',
+  12: '엘윈 숲',
+  87: '골드샤이어',
+  18: '이스트베일 벌목장',
+  54: '광부의 언덕',
+  62: '제리프의 농장',
+  63: '스톤필드 농장',
+  64: '브래크웰 채석장',
+  92: '파고데프 채석장',
+  61: '삼거리',
+  1519: '스톰윈드',
+  46: '불타는 평원',
+  40: '웨스트폴',
+  44: '레드리지 산맥',
+  10: '어둠의 숲',
+}
+
+export function zoneOf(area: number): string {
+  return ZONE[area] ?? '엘윈 숲'
+}

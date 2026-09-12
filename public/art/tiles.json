@@ -566,344 +566,358 @@
   "h": 32,
   "kind": "ground"
  },
- "bridge": {
+ "cobble": {
   "x": 604,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "bridge_b": {
+ "cobble2": {
   "x": 636,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "bloom": {
+ "bridge": {
   "x": 668,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "bloom2": {
+ "bridge_b": {
   "x": 700,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "bloom3": {
+ "bloom": {
   "x": 732,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "water": {
+ "bloom2": {
   "x": 764,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "water2": {
+ "bloom3": {
   "x": 796,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "water3": {
+ "water": {
   "x": 828,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "ground"
  },
- "boulder": {
+ "water2": {
   "x": 860,
+  "y": 938,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "water3": {
+  "x": 892,
+  "y": 938,
+  "w": 32,
+  "h": 32,
+  "kind": "ground"
+ },
+ "boulder": {
+  "x": 924,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "object"
  },
  "scatter": {
-  "x": 892,
+  "x": 956,
   "y": 938,
   "w": 32,
   "h": 32,
   "kind": "object"
  },
  "bush": {
-  "x": 924,
+  "x": 988,
   "y": 938,
   "w": 30,
   "h": 32,
   "kind": "object"
  },
  "bush2": {
-  "x": 954,
-  "y": 938,
+  "x": 0,
+  "y": 982,
   "w": 32,
   "h": 32,
   "kind": "object"
  },
  "firewood": {
-  "x": 986,
-  "y": 938,
+  "x": 32,
+  "y": 982,
   "w": 30,
   "h": 32,
   "kind": "object"
  },
  "firewood2": {
-  "x": 0,
+  "x": 62,
   "y": 982,
   "w": 30,
   "h": 32,
   "kind": "object"
  },
  "kit_wheel": {
-  "x": 30,
+  "x": 92,
   "y": 982,
   "w": 30,
   "h": 32,
   "kind": "object"
  },
  "lily": {
-  "x": 60,
+  "x": 122,
   "y": 982,
   "w": 31,
   "h": 31,
   "kind": "object"
  },
  "sack": {
-  "x": 91,
+  "x": 153,
   "y": 982,
   "w": 32,
   "h": 31,
   "kind": "object"
  },
  "anvil": {
-  "x": 123,
+  "x": 185,
   "y": 982,
   "w": 29,
   "h": 31,
   "kind": "object"
  },
  "kit_log": {
-  "x": 152,
+  "x": 214,
   "y": 982,
   "w": 46,
   "h": 30,
   "kind": "object"
  },
  "kit_bush2": {
-  "x": 198,
+  "x": 260,
   "y": 982,
   "w": 32,
   "h": 29,
   "kind": "object"
  },
  "lily2": {
-  "x": 230,
+  "x": 292,
   "y": 982,
   "w": 30,
   "h": 28,
   "kind": "object"
  },
  "sprout2": {
-  "x": 260,
+  "x": 322,
   "y": 982,
   "w": 31,
   "h": 27,
   "kind": "object"
  },
  "grave2": {
-  "x": 291,
+  "x": 353,
   "y": 982,
   "w": 28,
   "h": 27,
   "kind": "object"
  },
  "fence_post": {
-  "x": 319,
+  "x": 381,
   "y": 982,
   "w": 8,
   "h": 26,
   "kind": "object"
  },
  "fence2": {
-  "x": 327,
+  "x": 389,
   "y": 982,
   "w": 32,
   "h": 25,
   "kind": "object"
  },
  "basket": {
-  "x": 359,
+  "x": 421,
   "y": 982,
   "w": 32,
   "h": 25,
   "kind": "object"
  },
  "basket2": {
-  "x": 391,
+  "x": 453,
   "y": 982,
   "w": 32,
   "h": 25,
   "kind": "object"
  },
  "barrel2": {
-  "x": 423,
+  "x": 485,
   "y": 982,
   "w": 21,
   "h": 24,
   "kind": "object"
  },
  "barrel3": {
-  "x": 444,
+  "x": 506,
   "y": 982,
   "w": 21,
   "h": 24,
   "kind": "object"
  },
  "crate": {
-  "x": 465,
+  "x": 527,
   "y": 982,
   "w": 32,
   "h": 24,
   "kind": "object"
  },
  "pumpkin": {
-  "x": 497,
+  "x": 559,
   "y": 982,
   "w": 25,
   "h": 24,
   "kind": "object"
  },
  "kit_grass2": {
-  "x": 522,
+  "x": 584,
   "y": 982,
   "w": 35,
   "h": 24,
   "kind": "object"
  },
  "fence": {
-  "x": 557,
+  "x": 619,
   "y": 982,
   "w": 32,
   "h": 23,
   "kind": "object"
  },
  "kit_bush3": {
-  "x": 589,
+  "x": 651,
   "y": 982,
   "w": 26,
   "h": 23,
   "kind": "object"
  },
  "kit_mushroom2": {
-  "x": 615,
+  "x": 677,
   "y": 982,
   "w": 20,
   "h": 23,
   "kind": "object"
  },
  "kit_mushroom3": {
-  "x": 635,
+  "x": 697,
   "y": 982,
   "w": 20,
   "h": 23,
   "kind": "object"
  },
  "lily3": {
-  "x": 655,
+  "x": 717,
   "y": 982,
   "w": 28,
   "h": 22,
   "kind": "object"
  },
  "kit_flower": {
-  "x": 683,
+  "x": 745,
   "y": 982,
   "w": 13,
   "h": 22,
   "kind": "object"
  },
  "kit_plant": {
-  "x": 696,
+  "x": 758,
   "y": 982,
   "w": 30,
   "h": 22,
   "kind": "object"
  },
  "trunk2": {
-  "x": 726,
+  "x": 788,
   "y": 982,
   "w": 64,
   "h": 21,
   "kind": "object"
  },
  "kit_bush": {
-  "x": 790,
+  "x": 852,
   "y": 982,
   "w": 22,
   "h": 21,
   "kind": "object"
  },
  "kit_grass": {
-  "x": 812,
+  "x": 874,
   "y": 982,
   "w": 26,
   "h": 21,
   "kind": "object"
  },
  "kit_rock3": {
-  "x": 838,
+  "x": 900,
   "y": 982,
   "w": 27,
   "h": 20,
   "kind": "object"
  },
  "rubble": {
-  "x": 865,
+  "x": 927,
   "y": 982,
   "w": 18,
   "h": 19,
   "kind": "object"
  },
  "kit_flower2": {
-  "x": 883,
+  "x": 945,
   "y": 982,
   "w": 13,
   "h": 19,
   "kind": "object"
  },
  "kit_bush4": {
-  "x": 896,
+  "x": 958,
   "y": 982,
   "w": 20,
   "h": 18,
   "kind": "object"
  },
  "kit_mushroom": {
-  "x": 916,
+  "x": 978,
   "y": 982,
   "w": 14,
   "h": 17,
   "kind": "object"
  },
  "kit_flower3": {
-  "x": 930,
+  "x": 992,
   "y": 982,
   "w": 13,
   "h": 16,
   "kind": "object"
  },
  "kit_grass3": {
-  "x": 943,
+  "x": 1005,
   "y": 982,
   "w": 18,
   "h": 16,
