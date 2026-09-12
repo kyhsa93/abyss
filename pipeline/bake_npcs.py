@@ -180,6 +180,23 @@ OTHERS = {
         'body/bodies/child', 'head/heads/rat/child'], dye={}),
     'murloc': dict(skin='green', parts=[
         'body/bodies/male', 'head/heads/lizard/male'], dye={}),
+    # Three that were arriving in a linen shirt because the classifier's
+    # fallback for a person was `townsfolk` whatever else was true of them.
+    # A gnoll is a hyena on two legs and a wolf's head is what this set has.
+    'gnoll': dict(skin='fur_tan', parts=[
+        'body/bodies/male', 'head/heads/wolf/male', 'legs/pantaloons/male',
+        'torso/clothes/sleeveless/sleeveless1/male'],
+        dye={'legs/': 'brown', 'torso/': 'leather'}),
+    # The muscular body has trousers but no leather, and the troll's head is
+    # `adult` rather than `male` — the sheet set is not uniform and the bake
+    # says so rather than guessing, which is why it stopped.
+    'orc': dict(skin='bright_green', parts=[
+        'body/bodies/muscular', 'head/heads/orc/male',
+        'legs/pantaloons/muscular', 'torso/armour/leather/male'],
+        dye={'legs/': 'charcoal'}),
+    'troll': dict(skin='pale_green', parts=[
+        'body/bodies/male', 'head/heads/troll/adult', 'legs/pantaloons/male'],
+        dye={'legs/': 'maroon'}),
 }
 
 LOOKS = {**villagers(), **watch(), **OTHERS}

@@ -94,6 +94,13 @@ KINDS = [
     ('cat', ('cat', 'kitten')),
     ('horse', ('horse', 'stallion', 'mare', 'palomino', 'steed', 'pony')),
     ('kobold', ('kobold',)),
+    # The three that were coming through as villagers.  Riverpaw gnolls are
+    # sixty-seven of the slice's spawns and were drawn in a linen shirt; the
+    # Blackrock orcs and the trolls are the far edge of the rectangle, and are
+    # no more townsfolk than the gnolls were.
+    ('gnoll', ('gnoll', 'riverpaw', 'hogger', 'mosh\'ogg')),
+    ('orc', ('orc', 'blackrock', 'grunt', 'peon')),
+    ('troll', ('troll',)),
     ('murloc', ('murloc', 'makrura')),
     ('skeleton', ('skeleton', 'skeletal')),
     ('ghost', ('ghost', 'spectral', 'apparition', 'spirit')),
@@ -180,14 +187,24 @@ def split(line):
     return out
 
 
-def classify(name, ctype):
+def classify(name, ctype, foe=False):
+    """Blizzard's name in, one of our own words out.
+
+    The fallback for a person used to be `townsfolk` whatever else was true of
+    them, and eleven thousand creatures in this database are hostile humanoids
+    whose names match none of the words above — so a gnoll, an orc and a
+    succubus all arrived in a linen shirt.  Something that will swing at you is
+    not a villager, and if nothing more specific fits it dresses as a robber.
+    """
     if ctype in SKIP_TYPES:
         return None
     low = name.lower()
     for kind, words in KINDS:
         if any(w in low for w in words):
             return kind
-    return 'townsfolk' if ctype in PERSON_TYPES else None
+    if ctype not in PERSON_TYPES:
+        return None
+    return 'bandit' if foe else 'townsfolk'
 
 
 def role(flags, ctype, rank):
@@ -615,6 +632,7 @@ def main(acore, out):
 
     tpl = os.path.join(base, 'creature_template.sql')
     col = columns(tpl)
+    stats, factions = fight_tables(base)
     wanted = {e for e, _, _, _ in spawns}
     info = {}
     for line in rows(tpl):
@@ -627,7 +645,8 @@ def main(acore, out):
             continue
         name = f[col['name']].strip("'").replace("\\'", "'")
         ctype = int(f[col['type']])
-        info[entry] = (classify(name, ctype), ctype,
+        info[entry] = (classify(name, ctype,
+                                hostile(factions, int(f[col['faction']]))), ctype,
                        int(f[col['minlevel']]), int(f[col['maxlevel']]),
                        int(f[col['npcflag']]), int(f[col['rank']]),
                        int(f[col['unit_class']]), int(f[col['faction']]),
@@ -644,7 +663,6 @@ def main(acore, out):
         topic_at[e] = len(topic_list)
         topic_list.append(t)
 
-    stats, factions = fight_tables(base)
     carried = loot_tables(base, None)
     goods, hauls, haul_at = [], [], {}
     kinds, roles, out_rows = [], [], []

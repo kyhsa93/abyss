@@ -83,11 +83,15 @@ export function nameOf(kind: string): string {
 const KIND: Record<string, string> = {
   townsfolk: '마을 사람', guard: '경비병', bandit: '산적', kobold: '코볼트',
   murloc: '어인', ghost: '망령', wolf: '늑대', bear: '곰', boar: '멧돼지',
+  gnoll: '놀', orc: '오크', troll: '트롤',
   spider: '거미', deer: '사슴', rabbit: '토끼', cow: '소', sheep: '양',
   chicken: '닭', cat: '고양이', horse: '말',
 }
 
 /** Whoever is counted in 명 rather than in 마리. */
+// Who speaks like a person.  A gnoll, an orc and a troll are people in the
+// database's sense — they are humanoids — and none of them is going to answer
+// you, so they stay out of this and get the same silence a wolf gets.
 const PEOPLE = new Set(['townsfolk', 'guard', 'bandit', 'ghost'])
 
 /** `item_template.class`, the way somebody behind a counter would say it. */
