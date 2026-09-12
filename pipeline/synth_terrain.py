@@ -151,6 +151,37 @@ def scatter(pts, x0, y0, W, H, grid):
                 rot = (math.sin(i * 55.3 + j * 17.7 + s) * 180)
                 out.append({'k': kind, 'x': round(x, 2), 'y': round(y, 2),
                             'z': round(z, 2), 'r': round(rot, 1), 's': 1.0})
+
+    # Fences are not scattered, because a fence alone in a field is a mistake
+    # rather than a fence.  They come in runs, which is what makes them read as
+    # somebody's boundary — the client's own Elwynn has 773 of them and every
+    # one is part of a line.
+    for i in range(0, int(2 * RADIUS / cell) + 1, 3):
+        for j in range(0, int(2 * RADIUS / cell) + 1, 3):
+            n = math.sin(i * 91.7 + j * 47.3) * 43758.5453
+            n -= math.floor(n)
+            if n > 0.12:
+                continue
+            # A section is 32 pixels and the renderer draws 24 to the yard, so
+            # posts go down every 1.33 yards.  Spaced any wider they read as a
+            # row of stakes rather than as a fence — which is how the first
+            # attempt came out.
+            SECTION = 32 / 24
+            length = 8 + int(n * 400) % 17
+            horizontal = (math.sin(i * 13.1 + j * 7.7) > 0)
+            x = CENTRE[0] - RADIUS + i * cell
+            y = CENTRE[1] - RADIUS + j * cell
+            for s in range(length):
+                px = x + (0 if horizontal else s * SECTION)
+                py = y + (s * SECTION if horizontal else 0)
+                if (px - CENTRE[0]) ** 2 + (py - CENTRE[1]) ** 2 > RADIUS ** 2:
+                    continue
+                if ((occupied[:, 0] - px) ** 2 + (occupied[:, 1] - py) ** 2).min() < 9 ** 2:
+                    continue
+                gi = int(round((x0 - px) / UNIT)); gj = int(round((y0 - py) / UNIT))
+                z = float(grid[min(max(gi, 0), W - 1), min(max(gj, 0), H - 1)])
+                out.append({'k': 'fence', 'x': round(px, 2), 'y': round(py, 2),
+                            'z': round(z, 2), 'r': 0.0, 's': 1.0})
     return out
 
 

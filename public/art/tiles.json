@@ -111,15 +111,36 @@
   "h": 32,
   "kind": "object"
  },
- "trunk2": {
+ "fence_post": {
   "x": 254,
+  "y": 80,
+  "w": 8,
+  "h": 26,
+  "kind": "object"
+ },
+ "fence2": {
+  "x": 262,
+  "y": 80,
+  "w": 32,
+  "h": 25,
+  "kind": "object"
+ },
+ "fence": {
+  "x": 294,
+  "y": 80,
+  "w": 32,
+  "h": 23,
+  "kind": "object"
+ },
+ "trunk2": {
+  "x": 326,
   "y": 80,
   "w": 64,
   "h": 21,
   "kind": "object"
  },
  "rubble": {
-  "x": 318,
+  "x": 390,
   "y": 80,
   "w": 18,
   "h": 19,

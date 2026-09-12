@@ -22,6 +22,12 @@ AUTHORS = {
         'licences': 'CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0',
         'url': 'https://opengameart.org/content/tiled-terrains',
     },
+    'eddeland': {
+        'name': 'Daniel Eddeland',
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': ('https://opengameart.org/content/'
+                'lpc-farming-tilesets-magic-animations-and-ui-elements'),
+    },
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -50,6 +56,16 @@ OBJECTS = [
     ('rubble',   'Terrain and Outside.png', 960, 512, 32, 32, 'sharm'),
     ('bush',     'Terrain and Outside.png',   0, 192, 32, 32, 'sharm'),
     ('bush2',    'Terrain and Outside.png',  32, 192, 32, 32, 'sharm'),
+    # Eddeland's wooden fences.  The attribution document names them, which is
+    # the only reason they are here — the sheet has several nicer-looking fences
+    # in its MISSING: section and those stay in it.
+    #
+    # One section each rather than the three-section run they are drawn in: a
+    # fence in the world database is one doodad at one point, and a run of three
+    # would put two of them inside their neighbours.
+    ('fence',      'Outside Objects.png',  32, 544, 32, 28, 'eddeland'),
+    ('fence2',     'Outside Objects.png', 128, 544, 32, 28, 'eddeland'),
+    ('fence_post', 'Outside Objects.png',   0, 576, 32, 32, 'eddeland'),
 ]
 
 

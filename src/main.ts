@@ -133,8 +133,17 @@ async function main() {
   // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
   // never emits a model path, so this table is the only place that decides
   // what a tree looks like.
-  const KIND: Record<string, { pieces: string[]; trunk?: string }> = {
+  const KIND: Record<string, { pieces: string[]; trunk?: string; run?: boolean }> = {
     tree: { pieces: ['oak', 'oak2'], trunk: 'trunk' },
+    // Drawn front-on, whatever the client says the rotation is.  These are
+    // pixel art with no side view, and turning a pixel sprite by an arbitrary
+    // angle is how pixel art stops looking like pixel art.
+    // `run`: pick the piece off the neighbourhood rather than the doodad, so a
+    // boundary is all one fence.  Picking per post gave a line that alternated
+    // rail, picket, rail, which is not a fence anybody built.
+    fence: { pieces: ['fence', 'fence2'], run: true },
+    lamp: { pieces: ['fence_post'] },
+    sign: { pieces: ['fence_post'] },
     pine: { pieces: ['pine', 'pine2'] },
     bush: { pieces: ['bush', 'bush2'] },
     rock: { pieces: ['boulder', 'menhir'] },
@@ -155,7 +164,8 @@ async function main() {
   for (const d of meta.doodads) {
     const k = KIND[d.k]
     if (!k) continue
-    const pick = k.pieces[Math.floor(hash(d.x, d.y) * k.pieces.length) % k.pieces.length]!
+    const seed = k.run ? hash(Math.floor(d.x / 40), Math.floor(d.y / 40)) : hash(d.x, d.y)
+    const pick = k.pieces[Math.floor(seed * k.pieces.length) % k.pieces.length]!
     const piece = tilesMeta[pick]
     if (!piece) continue
     placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
