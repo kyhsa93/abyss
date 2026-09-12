@@ -90,6 +90,13 @@ see `art/LPC-CREDITS.md`, `art/LPC-TERRAIN-CREDITS.md` and
 `art/NPC-CREDITS.md`, all generated from the tables the art is built from. Nothing is used from the tilesets' `MISSING:` section — a CC-BY tile
 whose author nobody recorded cannot be complied with.
 
+## Making more of it
+
+`docs/art-prompts.md` is the twenty-one sheets that would fill the forest —
+one per creature, four for the scenery and the ground — with the camera, the
+scale and the palette stated in the terms this engine actually draws in, and a
+note on each constraint saying which mistake put it there.
+
 ## The plan
 
 In the [wiki](https://github.com/kyhsa93/abyss/wiki). Thirty-odd pages, in

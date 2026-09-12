@@ -25,6 +25,11 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             conversation and `talk.ts` writes the sentences: that split is what
             keeps Blizzard's prose out and stops an NPC claiming something the
             data does not support
+docs/       `art-prompts.md` — the twenty-one sheets that fill the forest,
+            and why each line of the prompt is in it.  The prompts are Korean
+            and the prose around them is English, the same split `talk.ts`
+            makes: a prompt is pasted verbatim into a generator, so it is left
+            in the language it is used in
 scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
             controls with Chromium's own touch input over CDP; `viewcheck.mjs`
             asserts what the quarter view promises about geometry
