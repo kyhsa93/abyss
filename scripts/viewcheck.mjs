@@ -74,7 +74,34 @@ check('the scenery is sorted back to front along x',
   order.every((d, i) => i === 0 || order[i - 1] >= d - 1e-9),
   JSON.stringify(order.slice(0, 4)))
 
-// 4. The ground costs what it costs.  A second tint fill over every tile,
+// 4. Everybody faces the way they are going.
+//
+// Not a still's worth of bug: a wolf that reverses at the end of its leash and
+// keeps the old pose walks backwards for the four seconds until its next
+// decision, and almost every wander ends at the leash.  Sampled over time
+// because the wrong pose is transient by construction — one reading found
+// nothing and six seconds of them found a cat going south facing north.
+// Somewhere with people in it.  The walk checks above leave the hero in an
+// empty field, and only what is awake near him is examined — so run there,
+// this sampled nobody and passed for it.
+await p.evaluate(() => window.__cam({ x: -9462, y: 16, zoom: 1 }))
+await p.waitForTimeout(400)
+// The worst sample and the busiest one, kept apart.  Keeping only the worst
+// meant `seen` never moved off zero while nothing was ever wrong — so the
+// check reported that it had watched nobody, which is exactly the failure it
+// exists to catch.
+let wrong = 0, seen = 0, blame = []
+for (let i = 0; i < 16; i++) {
+  await p.waitForTimeout(200)
+  const r = await p.evaluate(() => window.__facings())
+  seen = Math.max(seen, r.seen)
+  if (r.wrong > wrong) { wrong = r.wrong; blame = r.some }
+}
+check('everybody faces the way they walk', wrong === 0 && seen > 20,
+  seen > 20 ? JSON.stringify(blame) : `only ${seen} walking`)
+console.log(`      (${seen} walking, ${wrong} facing the wrong way)`)
+
+// 5. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -85,7 +112,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 5. And at the widest the zoom will go, which is where it stops running: the
+// 6. And at the widest the zoom will go, which is where it stops running: the
 // tile count goes as the square of how far out you are, and the floor on the
 // zoom is set by this number and not by taste.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])

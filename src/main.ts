@@ -302,11 +302,18 @@ async function main() {
   const KIND: Record<string, {
     pieces: string[]
     yards?: number
-    trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
+    /** Drawn under the piece, for pieces that are a canopy and nothing else. */
+    trunk?: string
+    /** The pieces that are already a whole tree and want no trunk under them. */
+    whole?: string[]
+    run?: boolean; solid?: 'building' | 'span' | number
   }> = {
+    // `oak` and `oak2` are canopies and want a trunk under them.  `deadtree`
+    // is a whole tree, trunk and all, and putting one under it drew two trees
+    // standing in the same spot with their trunks side by side.
     tree: {
       pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk',
-      yards: 8, solid: 0.5,
+      whole: ['deadtree'], yards: 8, solid: 0.5,
     },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
@@ -421,7 +428,13 @@ async function main() {
     // and it was read out of the world and then ignored for three rounds —
     // Elwynn has trees from a sixth of normal to five times it, and every one
     // of them was the same size.
-    const size = (k.yards ? (k.yards * PPY) / piece.h : 1) * d.s
+    // A tree drawn as a canopy over a trunk is as tall as both of them, so the
+    // height `yards` states is divided over what will actually be drawn — not
+    // over the canopy alone, which made every oak thirteen yards.
+    const stem = (k.trunk && !k.whole?.includes(pick) && tilesMeta[k.trunk])
+      ? tilesMeta[k.trunk]! : null
+    const tall = piece.h + (stem ? stem.h * 0.78 : 0)
+    const size = (k.yards ? (k.yards * PPY) / tall : 1) * d.s
     if (k.solid === 'span') {
       // One doodad, several sections, laid end to end so a boundary is a line
       // rather than a row of posts.
@@ -449,7 +462,7 @@ async function main() {
     }
     placed.push({
       x: d.x, y: d.y, piece, s: size,
-      ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}),
+      ...(stem ? { trunk: stem } : {}),
     })
     if (k.solid === 'building') {
       const halfY = (piece.w * size) / PPY / 2
@@ -793,6 +806,11 @@ async function main() {
       // Nobody leaves the spot the database put them on for good.
       if ((n.x + dx - n.hx) ** 2 + (n.y + dy - n.hy) ** 2 > n.wander ** 2) {
         n.vx = -n.vx; n.vy = -n.vy
+        // And turn round with it.  Reversing the velocity and leaving the
+        // pose is how a wolf comes to walk backwards for the four seconds
+        // until its next decision — which is most of the time, because the
+        // leash is what stops almost every wander.
+        n.dir = facing(n.vx, n.vy)
         continue
       }
       // An NPC that spawned inside a wall stays in it rather than squeezing
@@ -807,19 +825,13 @@ async function main() {
     }
   }
 
-  // Drawn back to front, and in this projection "back" is north — larger world
-  // x.  Sorting once is enough: nothing here moves.
   /**
-   * Back to front, which in quarter view is neither axis on its own.
+   * Back to front, and back is north.
    *
-   * Sorting on the world's north alone was right while north was up the
-   * screen.  It is up *and to the right* now, so what decides which of two
-   * things is further away is how far up the glass it sits — and that is
-   * `x + y`, the one combination the projection squashes onto the vertical.
-   * Sorted on `x` in quarter view, a tree hides a wall it is standing beside.
+   * North is up the glass and nothing else is, so what sits further up is
+   * drawn first.  It was `x + y` for one round, because in quarter view up the
+   * glass was both axes at once.  Sorting once is enough: nothing here moves.
    */
-  // North is up the glass and nothing else is, so what is further up is drawn
-  // first.  In quarter view this was `x + y`, because up the glass was both.
   const depth = (o: { x: number; y: number }) => o.x
   placed.sort((a, b) => depth(b) - depth(a))
 
@@ -1106,7 +1118,12 @@ async function main() {
   function inReach(): Npc | null {
     let best: Npc | null = null, bd = EARSHOT * EARSHOT
     for (const n of active) {
-      if (n.dead) continue
+      // Not the dead, and not anything that would rather bite you.  A wolf had
+      // a line for being spoken to — "고개도 들지 않는다" — and it opened a
+      // conversation panel, and a conversation panel stops you swinging.  So
+      // walking up to a wolf and pressing the interact key made it
+      // unattackable until you backed out of talking to it.
+      if (n.dead || n.fight?.[FOE]) continue
       const dx = n.x - hero.x, dy = n.y - hero.y
       const d = dx * dx + dy * dy
       if (d < bd) { bd = d; best = n }
@@ -1943,6 +1960,23 @@ async function main() {
   }
   // For the checks: put something in the bag, so the counter can be tested
   // without first surviving a fight.
+  // For the checks: does each walking NPC face the way it is going?
+  ;(window as unknown as { __facings: () => unknown }).__facings = () => {
+    const want = (dx: number, dy: number) => Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3)
+    let seen = 0, wrong = 0
+    const some: unknown[] = []
+    for (const n of npcs) {
+      if (!n.moving || (n.vx === 0 && n.vy === 0)) continue
+      seen++
+      const w = want(n.vx, n.vy)
+      if (w !== n.dir) {
+        wrong++
+        if (some.length < 6) some.push({ kind: n.kind, vx: +n.vx.toFixed(2), vy: +n.vy.toFixed(2), dir: n.dir, want: w })
+      }
+    }
+    return { seen, wrong, some }
+  }
   ;(window as unknown as { __give: () => unknown }).__give = () => {
     you.bag['cloth'] = [11, 143]
     you.bag['meat'] = [3, 75]
