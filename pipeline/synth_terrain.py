@@ -116,6 +116,57 @@ def noise(gx, gy, scale, amp, seed):
     return ((a * (1 - tj) + b * tj) * (1 - ti) + (c * (1 - tj) + d * tj) * ti) * amp
 
 
+def wetness(grid, inside):
+    """Where the water is, when nothing has told us.
+
+    The client keeps this as a fact — an `MH2O` chunk, per cell, with a surface
+    height.  Without it the only evidence left is that water collects in the low
+    places, so the low places are where it goes: everything under a percentile
+    of the slice's own height distribution.
+
+    This is inference off a shape, which is the class of reasoning this
+    repository has a rule against.  It is allowed here only because the
+    alternative is no water at all, and it is labelled as a guess in the output
+    so that nothing downstream mistakes it for the other kind of fact.
+    """
+    level = float(np.percentile(grid[inside], 5.0))
+    return (grid <= level) & inside, level
+
+
+def homes(pts, x0, y0, W, H, grid):
+    """Buildings where the database says people are.
+
+    The client keeps the buildings as `MODF` placements and those stay in the
+    `.adt` files.  What is left is better evidence than it sounds: a world
+    database with twenty NPCs standing in a forty yard circle is describing a
+    settlement, whatever the geometry says, and a settlement is where houses go.
+    """
+    out = []
+    cell = 40.0
+    bins = {}
+    for x, y, _z in pts:
+        bins.setdefault((int(x / cell), int(y / cell)), []).append((x, y))
+    for (bx, by), members in sorted(bins.items()):
+        if len(members) < 9:
+            continue
+        cx = sum(m[0] for m in members) / len(members)
+        cy = sum(m[1] for m in members) / len(members)
+        if (cx - CENTRE[0]) ** 2 + (cy - CENTRE[1]) ** 2 > (RADIUS - 30) ** 2:
+            continue
+        n = math.sin(bx * 31.7 + by * 17.3) * 43758.5453
+        n -= math.floor(n)
+        kind = 'hall' if len(members) > 26 else 'house'
+        # Set beside the cluster rather than on top of it: a house dropped on
+        # fifteen NPCs puts them all indoors.
+        px = cx + math.cos(n * 6.28) * 26
+        py = cy + math.sin(n * 6.28) * 26
+        gi = int(round((x0 - px) / UNIT)); gj = int(round((y0 - py) / UNIT))
+        z = float(grid[min(max(gi, 0), W - 1), min(max(gj, 0), H - 1)])
+        out.append({'k': kind, 'x': round(px, 2), 'y': round(py, 2),
+                    'z': round(z, 2), 'r': 0.0, 's': 1.0})
+    return out
+
+
 def scatter(pts, x0, y0, W, H, grid):
     """Our own scenery, seeded off the world so it is the same world every time.
 
@@ -203,17 +254,29 @@ def main(acore, out):
     grid = field(pts, gx, gy)
     grid = grid + noise(gx, gy, 90.0, 2.2, 7.0) + noise(gx, gy, 26.0, 0.7, 19.0)
 
+    I, J = np.meshgrid(np.arange(W), np.arange(H), indexing='ij')
+    inside = ((x0 - I * UNIT - CENTRE[0]) ** 2 + (y0 - J * UNIT - CENTRE[1]) ** 2) <= RADIUS ** 2
+    wet, level = wetness(grid, inside)
+
     doodads = scatter(pts, x0, y0, W, H, grid)
+    # Nothing stands in the river.
+    def dry(d):
+        gi = int(round((x0 - d['x']) / UNIT)); gj = int(round((y0 - d['y']) / UNIT))
+        return not wet[min(max(gi, 0), W - 1), min(max(gj, 0), H - 1)]
+    doodads = [d for d in doodads if dry(d)]
+    doodads += [h for h in homes(pts, x0, y0, W, H, grid) if dry(h)]
 
     os.makedirs(out, exist_ok=True)
     flat = grid.astype(np.float32).ravel()
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         f.write(struct.pack(f'<{flat.size}f', *flat.tolist()))
+        f.write(wet.astype(np.uint8).tobytes())   # one byte a cell, after the heights
     meta = {
         'width': W, 'height': H, 'unit': UNIT,
         'x0': x0, 'y0': y0, 'centre': list(CENTRE), 'radius': RADIUS,
         'zMin': float(grid.min()), 'zMax': float(grid.max()),
         'source': 'azerothcore', 'samples': int(len(pts)),
+        'hasWater': True, 'water': int(wet.sum()), 'waterLevel': round(level, 1),
         'doodads': doodads,
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
@@ -221,7 +284,7 @@ def main(acore, out):
 
     print(f'{len(pts):,} height samples → grid {W} x {H}')
     print(f'height {grid.min():.1f} .. {grid.max():.1f} yd')
-    print(f'{len(doodads):,} scattered')
+    print(f'{len(doodads):,} placed   water {int(wet.sum()):,} cells below {level:.1f} yd')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin")) / 1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json")) / 1024:.0f} KiB')
     check(grid, x0, y0, W, H)

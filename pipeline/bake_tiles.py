@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cut the world's furniture out of the Liberated Pixel Cup tilesets.
+"""Cut the world's furniture out of the Liberated Pixel Cup sets.
 
 The sheets ship one attribution document for the lot, and that document has a
 `MISSING:` section — tiles nobody recorded the author of.  A sheet licensed
@@ -8,7 +8,11 @@ attribution and there is nobody to attribute.  So every piece here names an
 author, the build refuses one that does not, and the credits are written out of
 the same table the pieces come from.
 
-  python3 pipeline/bake_tiles.py ~/src/lpc-tiles public/art
+Three sets, because no one of them has everything: the tilesets have the ground
+and the trees, the base assets have the water, and the roofs pack has houses —
+whole ones, assembled, in its own preview sheet.
+
+  python3 pipeline/bake_tiles.py public/art
 """
 import json
 import os
@@ -28,6 +32,32 @@ AUTHORS = {
         'url': ('https://opengameart.org/content/'
                 'lpc-farming-tilesets-magic-animations-and-ui-elements'),
     },
+    'sharm_base': {
+        'name': 'Lanea Zimmerman (AKA Sharm)',
+        'licences': 'CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0',
+        'url': ('https://opengameart.org/content/'
+                'liberated-pixel-cup-lpc-base-assets-sprites-map-tiles'),
+    },
+    'roofs': {
+        'name': ('bluecarrot16, Lanea Zimmerman (Sharm), Michele Bucelli (Buch), '
+                 'Casper Nilsson, Xenodora, keith karnage, NaRNeRZz, Talon (Talosaurus)'),
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': 'https://opengameart.org/content/lpc-roofs',
+    },
+}
+
+# Where each sheet lives.  The sets are kept beside each other under ~/src the
+# way the character parts are, rather than vendored here: they are inputs.
+ROOTS = {
+    'tiles': '~/src/lpc-tiles',
+    'base': '~/src/lpc-base/tiles',
+    'roofs': '~/src/lpc-roofs',
+}
+SHEETS = {
+    'Terrain and Outside.png': 'tiles',
+    'Outside Objects.png': 'tiles',
+    'water.png': 'base',
+    'roofs-preview.png': 'roofs',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -42,6 +72,29 @@ GROUND = [
     ('dirt',       'Terrain and Outside.png', 128,  96, 32, 32, 'sharm'),
     ('dirt2',      'Terrain and Outside.png',  32,  96, 32, 32, 'sharm'),
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
+    # Open water, bottom row of Sharm's sheet — the rows above it are shorelines
+    # and a shoreline repeated is a row of ponds.
+    ('water',      'water.png',   0, 160, 32, 32, 'sharm_base'),
+    ('water2',     'water.png',  32, 160, 32, 32, 'sharm_base'),
+    ('water3',     'water.png',  64, 160, 32, 32, 'sharm_base'),
+]
+
+# Houses, cut whole out of the roofs pack's own preview sheet.
+#
+# The pack ships a tileset; the preview ships the tileset *assembled*, twenty
+# four buildings with proper alpha.  Cutting those is the difference between
+# having houses today and writing a tile-assembly system first, and the art is
+# the same art either way.  Boxes found by walking the alpha for connected
+# regions over fifty pixels across, then read off a contact sheet.
+HOUSES = [
+    ('house_a', 224,  96, 160, 192),
+    ('house_b', 800,  96, 128, 192),
+    ('house_c', 352, 384, 128, 224),
+    ('house_d', 224, 400,  96, 208),
+    ('house_e', 224, 704,  96, 192),
+    ('house_f', 736, 1056, 96, 160),
+    ('hall',    512, 384, 320, 224),
+    ('tower',   859, 1024, 234, 288),
 ]
 OBJECTS = [
     ('oak',      'Outside Objects.png', 192,   0, 96, 96, 'sharm'),
@@ -74,16 +127,16 @@ def trim(im):
     return im.crop(box) if box else im
 
 
-def main(src, out):
+def main(out):
     for _id, sheet, *_rest, by in GROUND + OBJECTS:
         if by not in AUTHORS:
             sys.exit(f'{_id} names no author ({by})')
 
     sheets = {}
-    for name in {p[1] for p in GROUND + OBJECTS}:
-        path = os.path.join(src, name)
+    for name, root in SHEETS.items():
+        path = os.path.join(os.path.expanduser(ROOTS[root]), name)
         if not os.path.exists(path):
-            sys.exit(f'missing sheet {name}')
+            sys.exit(f'missing sheet {path}')
         sheets[name] = Image.open(path).convert('RGBA')
 
     cut = []
@@ -93,11 +146,14 @@ def main(src, out):
             if do_trim:
                 im = trim(im)
             cut.append({'id': pid, 'kind': kind, 'by': by, 'im': im})
+    for pid, x, y, w, h in HOUSES:
+        im = trim(sheets['roofs-preview.png'].crop((x, y, x + w, y + h)))
+        cut.append({'id': pid, 'kind': 'object', 'by': 'roofs', 'im': im})
 
     # One row per piece height class is not worth it at this count: pack in a
     # simple shelf and write the rectangles out.
     cut.sort(key=lambda c: -c['im'].height)
-    WIDTH = 512
+    WIDTH = 1024
     x = y = row = 0
     for c in cut:
         w, h = c['im'].size
@@ -153,5 +209,4 @@ def main(src, out):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser('~/src/lpc-tiles'),
-         sys.argv[2] if len(sys.argv) > 2 else 'public/art')
+    main(sys.argv[1] if len(sys.argv) > 1 else 'public/art')

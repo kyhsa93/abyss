@@ -37,6 +37,24 @@ CHAIN = ['patch-3.MPQ', 'patch-2.MPQ', 'patch.MPQ',
 # for that kind.  This is the boundary from the wiki made into code rather than
 # into a comment — if a path ever reached the output, it would be a licence
 # problem that nothing would catch.
+# WMO placements — buildings — get the same treatment as doodads: the path is
+# Blizzard's and does not leave this script, only the word for what it is.
+WMO_KINDS = [
+    ('ABBEY', 'hall'), ('CATHEDRAL', 'hall'), ('KEEP', 'hall'), ('CASTLE', 'hall'),
+    ('TOWER', 'tower'), ('INN', 'house'), ('HOUSE', 'house'), ('HUT', 'house'),
+    ('COTTAGE', 'house'), ('FARM', 'house'), ('BARN', 'house'), ('MILL', 'house'),
+    ('BRIDGE', None), ('GATE', None), ('WALL', None), ('DOCK', None), ('SEWER', None),
+]
+
+
+def classify_wmo(path):
+    p = path.upper()
+    for needle, kind in WMO_KINDS:
+        if needle in p:
+            return kind
+    return 'house'
+
+
 KINDS = [
     ('TREES\\', 'tree'), ('PINE', 'pine'), ('TREE', 'tree'),
     ('BUSH', 'bush'), ('SHRUB', 'bush'),
@@ -111,8 +129,35 @@ def read_tile(client, tx, ty):
         return None
     cells, doodads = {}, []
     names, ids = [], []
+    wmo_names, wmos = [], []
+    water = {}
     for magic, off, size in chunks(data):
-        if magic == 'MMDX':
+        if magic == 'MWMO':
+            wmo_names = [n.decode('ascii', 'replace')
+                         for n in data[off:off + size].split(b'\0') if n]
+        elif magic == 'MODF':
+            for i in range(size // 64):
+                nid, uid, px, py, pz = struct.unpack_from('<IIfff', data, off + i * 64)
+                wmos.append((nid, ORIGIN - pz, ORIGIN - px, py))
+        elif magic == 'MH2O':
+            # 256 chunk headers, then instances, all offset from the start of
+            # this chunk's data.  A cell is wet if an instance covers it and its
+            # bitmap says so; no bitmap means the whole rectangle.
+            for c in range(256):
+                oi, layers, _oa = struct.unpack_from('<III', data, off + c * 12)
+                if not layers or not oi:
+                    continue
+                lt, lvf, mn, mx, xo, yo, w, h, obm, ovd = struct.unpack_from(
+                    '<HHffBBBBII', data, off + oi)
+                for dy in range(h):
+                    for dx in range(w):
+                        if obm:
+                            bit = (yo + dy) * 8 + (xo + dx)
+                            byte = data[off + obm + bit // 8]
+                            if not (byte >> (bit % 8)) & 1:
+                                continue
+                        water[(c // 16, c % 16, yo + dy, xo + dx)] = True
+        elif magic == 'MMDX':
             names = [n.decode('ascii', 'replace') for n in data[off:off + size].split(b'\0')]
         elif magic == 'MMID':
             ids = struct.unpack_from(f'<{size // 4}I', data, off)
@@ -123,7 +168,7 @@ def read_tile(client, tx, ty):
                 # The placement is stored in the ADT's own axes.  This mapping
                 # was not read off a document: it is the one of four candidates
                 # that puts every doodad inside the tile it came from.
-                doodads.append((nid, ORIGIN - pz, ORIGIN - px, py, ry, sc / 1024.0))
+                doodads.append(('m2', nid, ORIGIN - pz, ORIGIN - px, py, ry, sc / 1024.0))
         elif magic == 'MCNK':
             head = data[off:off + 128]
             ix, iy = struct.unpack_from('<II', head, 4)      # ix moves Y, iy moves X
@@ -140,7 +185,17 @@ def read_tile(client, tx, ty):
                     break
             if heights:
                 cells[(ix, iy)] = (cx, cy, cz, area, holes, heights)
-    return cells, doodads, [n for n in names if n], src
+    models = [n for n in names if n]
+    placed = []
+    for tag, nid, wx, wy, wz, rot, sc in doodads:
+        kind = classify(models[nid] if nid < len(models) else '')
+        if kind:
+            placed.append((kind, wx, wy, wz, rot, sc))
+    for nid, wx, wy, wz in wmos:
+        kind = classify_wmo(wmo_names[nid] if nid < len(wmo_names) else '')
+        if kind:
+            placed.append((kind, wx, wy, wz, 0.0, 1.0))
+    return cells, placed, water, src
 
 
 def bake(client, cx, cy, radius, out):
@@ -151,6 +206,7 @@ def bake(client, cx, cy, radius, out):
     j_lo, j_hi = int((ORIGIN - y_hi) / UNIT), int((ORIGIN - y_lo) / UNIT) + 1
     w, h = i_hi - i_lo + 1, j_hi - j_lo + 1
     grid = [None] * (w * h)
+    wetmask = bytearray(w * h)
     areas = {}
 
     tiles = set()
@@ -167,14 +223,16 @@ def bake(client, cx, cy, radius, out):
             if not got:
                 print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
                 continue
-            cells, dd, models, src = got
+            cells, dd, wet, src = got
             sources[f'{ty}_{tx}'] = src
-            for nid, wx, wy, wz, rot, sc in dd:
+            for kind, wx, wy, wz, rot, sc in dd:
                 if x_lo <= wx <= x_hi and y_lo <= wy <= y_hi:
-                    name = models[nid] if nid < len(models) else ''
-                    kind = classify(name)
-                    if kind:
-                        doodads.append((kind, wx, wy, wz, rot, sc))
+                    doodads.append((kind, wx, wy, wz, rot, sc))
+            for (cy_, cx_, sy_, sx_) in wet:
+                I = tx * 128 + cx_ * 8 + sx_
+                J = ty * 128 + cy_ * 8 + sy_
+                if i_lo <= I <= i_hi and j_lo <= J <= j_hi:
+                    wetmask[(I - i_lo) * h + (J - j_lo)] = 1
             for (ix, iy), (ccx, ccy, ccz, area, holes, hv) in cells.items():
                 base_i = tx * 128 + iy * 8
                 base_j = ty * 128 + ix * 8
@@ -194,6 +252,7 @@ def bake(client, cx, cy, radius, out):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         f.write(struct.pack(f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))
+        f.write(bytes(wetmask))   # one byte a cell, after the heights
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -201,6 +260,8 @@ def bake(client, cx, cy, radius, out):
         'zMin': min(filled), 'zMax': max(filled),
         'tiles': sources,
         'areas': areas,
+        'hasWater': True,
+        'water': sum(wetmask),
         'doodads': [{'k': k, 'x': round(x, 2), 'y': round(y, 2), 'z': round(z, 2),
                      'r': round(rot, 1), 's': round(s, 3)} for k, x, y, z, rot, s in doodads],
     }
@@ -209,7 +270,7 @@ def bake(client, cx, cy, radius, out):
 
     print(f'grid {w} x {h} = {w*h:,} vertices, {(w-1)*(h-1)*2:,} triangles')
     print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')
-    print(f'doodads {len(doodads):,}')
+    print(f'doodads {len(doodads):,}   water cells {sum(wetmask):,}')
     print(f'areas {sorted(areas)}')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')

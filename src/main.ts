@@ -25,6 +25,7 @@ type Meta = {
   width: number; height: number; unit: number
   x0: number; y0: number; centre: [number, number]; radius: number
   zMin: number; zMax: number
+  hasWater?: boolean
   doodads: Doodad[]
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
@@ -69,7 +70,12 @@ async function main() {
     return
   }
   const meta: Meta = await head.json()
-  const heights = new Float32Array(await (await fetch(`./${from}/terrain.bin`)).arrayBuffer())
+  // The bin is the height grid and then, if there is one, a byte a cell saying
+  // whether that cell is under water.
+  const bin = await (await fetch(`./${from}/terrain.bin`)).arrayBuffer()
+  const cells = meta.width * meta.height
+  const heights = new Float32Array(bin, 0, cells)
+  const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
   const [tilesImg, tilesMeta, heroImg, heroMeta] = await Promise.all([
@@ -126,6 +132,14 @@ async function main() {
     return n - Math.floor(n)
   }
 
+  const wetAt = (wx: number, wy: number) => {
+    if (!wet) return false
+    const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
+    if (i < 0 || i >= W || j < 0 || j >= H) return false
+    return wet[i * H + j] === 1
+  }
+
+  const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
   const ROCK_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : GROUND_TILES[0]
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
@@ -157,6 +171,12 @@ async function main() {
     lily: { pieces: ['scatter'] },
     barrel: { pieces: ['rubble'] },
     prop: { pieces: ['scatter', 'rubble'] },
+    // Buildings.  The client says where one stands and what sort it is; which
+    // of ours gets drawn there is decided here, the same as a tree.
+    house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'] },
+    hall: { pieces: ['hall'] },
+    tower: { pieces: ['tower'] },
+    tent: { pieces: ['house_f'] },
   }
 
   type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
@@ -248,13 +268,18 @@ async function main() {
       for (let tj = yLo; tj <= yHi; tj++) {
         const wx = ti * YD_PER_TILE, wy = tj * YD_PER_TILE
         const h = hash(ti, tj)
-        const sl = shadeAt(wx, wy)
+        const water = WATER_TILES.length > 0 && wetAt(wx, wy)
+        // Water is flat by definition, so it gets none of the hillside shading
+        // — a lit slope on a lake surface is the giveaway that the water is
+        // painted on the ground rather than standing on it.
+        const sl = water ? 0 : shadeAt(wx, wy)
         // Bands on one continuous number, so bare ground follows the hillside
         // instead of speckling across it.
         const steep = slopeAt(wx, wy)
-        const id = steep > 0.62 ? ROCK_TILE
-          : steep > 0.44 ? DIRT_TILE
-            : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+        const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
+          : steep > 0.62 ? ROCK_TILE
+            : steep > 0.44 ? DIRT_TILE
+              : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         const p = tilesMeta[id]!
         const X = Math.round(sx(wy) - px / 2), Y = Math.round(sy(wx) - px / 2)
         ctx.drawImage(tilesImg, p.x, p.y, p.w, p.h, X, Y, Math.ceil(px), Math.ceil(px))
@@ -284,7 +309,11 @@ async function main() {
       const idx = clip.first + hero.dir * n + f
       const c = heroMeta.cell
       const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
-      const w = c * zoom * (PPY / 26), hgt = w
+      // One sprite pixel to one screen pixel at zoom 1, which is the same
+      // scale the ground tiles are drawn at — 32 pixels to a 1.33 yard tile is
+      // 24 to the yard, and PPY is 24.  A separate fudge factor here had
+      // sprites eight per cent smaller than the ground they stood on.
+      const w = c * zoom, hgt = w
       ctx.drawImage(heroImg, sxp, syp, c, c, Math.round(sx(hero.y) - w / 2),
         Math.round(sy(hero.x) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
       drawn++
@@ -293,7 +322,7 @@ async function main() {
       if (!heroDone && o.x < hero.x) { drawHero(); heroDone = true }
       const X = sx(o.y), Y = sy(o.x)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
-      const k = zoom * (PPY / 26)
+      const k = zoom
       if (o.trunk) {
         const t = o.trunk
         ctx.drawImage(tilesImg, t.x, t.y, t.w, t.h, Math.round(X - (t.w * k) / 2),
