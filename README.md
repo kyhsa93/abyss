@@ -66,6 +66,12 @@ quest bodies — is not used either.
 pipeline and then dropping it; the kind words are ours, and the name never
 reaches the browser.
 
+One building is not drawn at all. `pipeline/render_kit.py` assembles it out of
+[Kenney's Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — 167 CC0
+models on a 1×1×1 grid — and photographs it in headless Blender at the camera
+`src/main.ts` projects with: orthographic, 2:1, elevation `atan(0.5)` down the
+45° diagonal. It stands among the flat ones on purpose.
+
 The art is Liberated Pixel Cup — the tilesets, the character parts and four
 animal packs from OpenGameArt, cut and composited by `pipeline/`. It is
 variously CC-BY-SA 3.0, CC-BY 4.0, GPL 3.0 and OGA-BY 3.0, **and those carry**:

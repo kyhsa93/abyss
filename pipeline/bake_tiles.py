@@ -62,6 +62,15 @@ AUTHORS = {
         'licences': 'CC-BY-SA 3.0 / GPL 3.0',
         'url': 'https://opengameart.org/content/tiled-terrains',
     },
+    # Not cut from a sheet: built out of a CC0 model kit and rendered at our own
+    # camera by `render_kit.py`.  CC0 asks for no attribution at all, which is
+    # exactly why it is written down here — a credit nobody is owed is still
+    # the honest record of where a picture came from.
+    'kenney': {
+        'name': 'Kenney (Fantasy Town Kit), rendered by pipeline/render_kit.py',
+        'licences': 'CC0 1.0',
+        'url': 'https://kenney.nl/assets/fantasy-town-kit',
+    },
 }
 
 # Where each sheet lives.  The sets are kept beside each other under ~/src the
@@ -212,13 +221,24 @@ OBJECTS = [
 ]
 
 
+# (id, file, author).  Pieces that are rendered rather than cut — the output of
+# `render_kit.py`, which builds them out of a 3D kit and photographs them at the
+# projection `src/main.ts` draws in.  They come in already trimmed and already
+# at the right pixels-per-yard, so this table is only where they join the atlas.
+RENDERED = [
+    ('kit_house', 'kit_house.png', 'kenney'),
+]
+# Where `render_kit.py` was told to put them.
+RENDERS = 'public/art/kit'
+
+
 def trim(im):
     box = im.getbbox()
     return im.crop(box) if box else im
 
 
 def main(out):
-    for _id, sheet, *_rest, by in GROUND + OBJECTS:
+    for _id, _sheet, *_rest, by in GROUND + OBJECTS + RENDERED:
         if by not in AUTHORS:
             sys.exit(f'{_id} names no author ({by})')
 
@@ -239,6 +259,12 @@ def main(out):
     for pid, x, y, w, h in HOUSES:
         im = trim(sheets['roofs-preview.png'].crop((x, y, x + w, y + h)))
         cut.append({'id': pid, 'kind': 'object', 'by': 'roofs', 'im': im})
+    for pid, name, by in RENDERED:
+        path = os.path.join(RENDERS, name)
+        if not os.path.exists(path):
+            sys.exit(f'missing render {path} — run pipeline/render_kit.py first')
+        cut.append({'id': pid, 'kind': 'object', 'by': by,
+                    'im': trim(Image.open(path).convert('RGBA'))})
 
     # One row per piece height class is not worth it at this count: pack in a
     # simple shelf and write the rectangles out.

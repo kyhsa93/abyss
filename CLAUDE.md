@@ -27,7 +27,9 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
 scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
             controls with Chromium's own touch input over CDP; `viewcheck.mjs`
             asserts what the quarter view promises about geometry
-public/art  the baked art (committed).  public/data is not (see below)
+public/art  the baked art (committed), including `kit/` — the renders, which
+            are art this repository made rather than cut.  public/data is not
+            (see below)
 ```
 
 The ICC raid prototype that used to be here is gone. It is not lost: tag
@@ -101,6 +103,16 @@ model paths and keeps only a kind (`tree`, `rock`, `fence`). The wiki page is
 
 **Blizzard's sentences are not used either.** Creature names, quest text,
 gossip. The structure comes from AzerothCore; the words are ours.
+
+**A rendered piece is a third way of getting art, and the camera is not a
+style choice.** `pipeline/render_kit.py` builds things out of a CC0 3D kit and
+photographs them at the exact projection `src/main.ts` draws in — orthographic,
+2:1, elevation `atan(0.5)` down the 45° diagonal — with the pixels-per-yard
+derived from `PPY` rather than nudged. Any other elevation is a different
+game's isometric and the sprite will not sit on this ground. It solves three
+things a drawn sheet cannot: the projection is ours, every asset is lit
+identically, and eight directions of a character is eight rotations rather than
+eight drawings.
 
 **Art carries its author.** The LPC tilesets ship a `MISSING:` section — tiles
 nobody recorded the author of. A CC-BY tile with no author cannot be complied

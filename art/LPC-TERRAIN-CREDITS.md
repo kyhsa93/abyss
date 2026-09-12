@@ -16,6 +16,10 @@ recorded cannot be complied with.
   <https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements>  
   `reeds`, `reeds2`, `hay`, `stall`, `carrots`, `sacks`, `corn`, `corn2`, `woodpile`, `baskets`, `baskets2`, `tomatoes`, `sprout`, `firewood`, `firewood2`, `sack`, `anvil`, `sprout2`, `fence_post`, `fence2`, `basket`, `basket2`, `crate`, `pumpkin`, `fence`
 
+- **Kenney (Fantasy Town Kit), rendered by pipeline/render_kit.py** — CC0 1.0  
+  <https://kenney.nl/assets/fantasy-town-kit>  
+  `kit_house`
+
 - **Barbara Rivera / C Phillips** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/tiled-terrains>  
   `deadtree`

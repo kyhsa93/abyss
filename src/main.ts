@@ -249,7 +249,15 @@ async function main() {
     grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
-    house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
+    // `kit_house` is not cut from a sheet: it is built out of a CC0 3D kit and
+    // photographed at this game's own camera by `pipeline/render_kit.py`.  It
+    // stands among the flat ones on purpose — the whole question is whether a
+    // rendered building sits on this ground better than a drawn one does.
+    house: {
+      pieces: ['house_a', 'house_b', 'kit_house', 'house_c', 'house_d',
+        'kit_house', 'house_e', 'house_f'],
+      solid: 'building',
+    },
     hall: { pieces: ['hall'], solid: 'building' },
     tower: { pieces: ['tower'], solid: 'building' },
     tent: { pieces: ['tent'], solid: 'building' },
