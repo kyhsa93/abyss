@@ -29,6 +29,9 @@ type Meta = {
   x0: number; y0: number; centre: [number, number]; bounds: number[]
   zMin: number; zMax: number
   hasWater?: boolean
+  /** What the client painted the ground with, at twice the height grid. */
+  ground?: string[]
+  groundWidth?: number; groundHeight?: number; groundUnit?: number
   doodads: Doodad[]
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
@@ -98,6 +101,20 @@ async function main() {
   const cells = meta.width * meta.height
   const heights = new Float32Array(bin, 0, cells)
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
+  /**
+   * The ground as the client painted it, which is the only place a road is.
+   *
+   * AzerothCore has no road table, the height grid does not bend for one, and
+   * the doodads stop at the verge — so a road exists in exactly one file, the
+   * alpha maps of the terrain tiles, and either the bake reads them or the
+   * forest has no roads in it.  Twice the height grid's resolution because at
+   * the height grid's an eight-yard road is a two-cell staircase.
+   */
+  const GW = meta.groundWidth ?? 0, GH = meta.groundHeight ?? 0
+  const GU = meta.groundUnit ?? 1
+  const paint = GW && bin.byteLength >= cells * 5 + GW * GH
+    ? new Uint8Array(bin, cells * 5, GW * GH) : null
+  const PAINT = meta.ground ?? []
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
   const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
@@ -197,6 +214,12 @@ async function main() {
     return n - Math.floor(n)
   }
 
+  const paintAt = (wx: number, wy: number): string => {
+    if (!paint) return 'grass'
+    const i = Math.round((x0 - wx) / GU), j = Math.round((y0 - wy) / GU)
+    if (i < 0 || i >= GW || j < 0 || j >= GH) return 'grass'
+    return PAINT[paint[i * GH + j]!] ?? 'grass'
+  }
   const wetAt = (wx: number, wy: number) => {
     if (!wet) return false
     const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
@@ -1203,13 +1226,27 @@ async function main() {
         const shore = !water && WATER_TILES.length > 0
           && (wetAt(wx + T, wy) || wetAt(wx - T, wy)
             || wetAt(wx, wy + T) || wetAt(wx, wy - T))
+        // What the client painted here beats what the slope guesses, because
+        // one of them is a decision somebody made and the other is arithmetic
+        // over a height field.  Where the paint says grass — or where there is
+        // none at all, which is the synthesised world — the arithmetic gets
+        // its old say.
+        const ink = paintAt(wx, wy)
+        // A road is dirt on ground you could walk a cart over.  The client
+        // paints the same dirt on the scree of every mountainside, so taking
+        // it at face value ran roads up cliffs — the mask is a road network
+        // and a great deal of loose rock, and only the slope tells them apart.
+        const flat = steep <= BARE
         const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
-          : steep > CLIFF ? ROCK_TILE
-            : shore ? SHORE_TILE
-              : steep > BARE ? DIRT_TILE
-              : meadow && h > 0.55
-                ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
-                : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+          : ink === 'rock' || ink === 'paved' ? ROCK_TILE
+            : (ink === 'road' || ink === 'crop') && flat ? DIRT_TILE
+              : ink === 'sand' ? SHORE_TILE
+                : shore ? SHORE_TILE
+                  : steep > CLIFF ? ROCK_TILE
+                    : ink === 'bloom' || (meadow && h > 0.55)
+                      ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
+                      : steep > BARE ? DIRT_TILE
+                        : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         // One straight blit of a square, centred on the tile's own point —
         // which is what `wx, wy` has always meant here.
         const step = Math.max(0, Math.min(SHADES - 1, Math.round(

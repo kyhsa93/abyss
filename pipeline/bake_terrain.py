@@ -69,6 +69,124 @@ KINDS = [
 ]
 
 
+# What the client painted the ground with, as one of our own words.  Elwynn's
+# seven textures are grass, flowers, dirt, cobble, rock, a crop field and a
+# scrub brush borrowed from Aerie Peaks — and the dirt is the road.  Nothing
+# else in this repository knows where a road is: AzerothCore has no road table,
+# the height grid does not bend for one, and the doodads stop at the verge.
+GROUND_KINDS = [
+    ('COBBLE', 'paved'), ('BRICK', 'paved'), ('PAVE', 'paved'),
+    ('ROAD', 'road'), ('DIRT', 'road'), ('TRAIL', 'road'), ('PATH', 'road'),
+    ('CROP', 'crop'), ('FARM', 'crop'), ('FIELD', 'crop'),
+    ('ROCK', 'rock'), ('CLIFF', 'rock'),
+    ('FLOWER', 'bloom'),
+    ('SNOW', 'snow'), ('SAND', 'sand'),
+]
+# The order the scene should prefer when two of them cover the same texel, most
+# deliberate first: somebody laid a road, and grass is what happens anyway.
+GROUND_ORDER = ['paved', 'road', 'crop', 'sand', 'snow', 'rock', 'bloom', 'grass']
+
+
+def classify_ground(path):
+    p = path.upper()
+    for needle, kind in GROUND_KINDS:
+        if needle in p:
+            return kind
+    return 'grass'
+
+
+def subchunks(data, off, size):
+    """The sub-chunks of one MCNK, which the generic walker cannot do.
+
+    `MCNR` is followed by thirteen bytes that its own size does not count, so a
+    walker that trusts the sizes desynchronises on the third sub-chunk and
+    finds nothing after it.  That is why the layers and the alpha maps were not
+    read for four rounds: the loop was silently returning two sub-chunks and
+    then garbage.
+    """
+    o = off + 128
+    while o + 8 <= off + size:
+        m = data[o:o + 4][::-1].decode('ascii', 'replace')
+        n, = struct.unpack_from('<I', data, o + 4)
+        yield m, o + 8, n
+        o += 8 + n + (13 if m == 'MCNR' else 0)
+
+
+def alpha_map(blob, flags, big):
+    """One layer's 64x64 coverage, out of its slice of MCAL.
+
+    Three encodings and the file says which: run-length when the layer's flags
+    ask for it, one byte a texel when the map's header does, and otherwise the
+    common case — 2,048 bytes holding two four-bit texels each, low nibble
+    first.
+    """
+    out = bytearray(64 * 64)
+    if flags & 0x200:
+        i = o = 0
+        while o < 4096 and i < len(blob):
+            cmd = blob[i]; i += 1
+            n = min(cmd & 0x7F, 4096 - o)
+            if cmd & 0x80:
+                out[o:o + n] = bytes([blob[i]]) * n; i += 1
+            else:
+                out[o:o + n] = blob[i:i + n]; i += n
+            o += n
+    elif big:
+        out[:] = blob[:4096].ljust(4096, b'\0')
+    else:
+        o = 0
+        for b in blob[:2048]:
+            out[o] = (b & 0xF) * 17
+            out[o + 1] = (b >> 4) * 17
+            o += 2
+    return out
+
+
+# How finely the painted ground is kept: sixteen samples across a chunk, which
+# is 2.08 yards.  The height grid and the water are eight, and a road eight
+# yards wide came out as a two-cell staircase at that.
+GSUB = 16
+
+
+def ground_of(data, off, size, names, big):
+    """A chunk's ground, as `GSUB` x `GSUB` of our own words.
+
+    The layers paint over each other in order, so the last one that covers a
+    texel is the one you see; a texel nothing covers is the base layer.  Taken
+    as a mean over each block rather than a single sample, because a road edge
+    is dithered and one sample in sixteen lands wherever it lands.
+    """
+    lay, mcal = [], b''
+    for m, o, n in subchunks(data, off, size):
+        if m == 'MCLY':
+            lay = [struct.unpack_from('<IIII', data, o + i * 16) for i in range(n // 16)]
+        elif m == 'MCAL':
+            mcal = data[o:o + n]
+    if not lay:
+        return None
+    kinds = [classify_ground(names[l[0]]) if l[0] < len(names) else 'grass' for l in lay]
+    cover = [alpha_map(mcal[l[2]:], l[1], big) for l in lay[1:]]
+    step = 64 // GSUB
+    out = []
+    for by in range(GSUB):
+        for bx in range(GSUB):
+            # A layer has to dominate the texel, not merely be present: the
+            # client blends, so a road at alpha 96 is 38% of a road and the
+            # rest of it is the grass underneath.  Taking anything over 96
+            # painted a quarter of Elwynn brown.
+            best, kind = 170, kinds[0]
+            for li, a in enumerate(cover, 1):
+                tot = 0
+                for y in range(by * step, by * step + step):
+                    row = y * 64 + bx * step
+                    tot += sum(a[row:row + step])
+                mean = tot / (step * step)
+                if mean >= best:
+                    best, kind = mean, kinds[li]
+            out.append(kind)
+    return out
+
+
 def classify(path):
     """Blizzard's file path in, one of our own words out — or nothing."""
     p = path.upper()
@@ -127,12 +245,22 @@ def read_tile(client, tx, ty):
     data, src = client.read(f'World\\Maps\\Azeroth\\Azeroth_{ty}_{tx}.adt')
     if data is None:
         return None
-    cells, doodads = {}, []
-    names, ids = [], []
+    cells, doodads, painted = {}, [], {}
+    names, ids, tex = [], [], []
+    big = False
     wmo_names, wmos = [], []
     water = {}
     for magic, off, size in chunks(data):
-        if magic == 'MWMO':
+        if magic == 'MHDR':
+            # Bit two says the alpha maps are a byte a texel rather than a
+            # nibble.  Azeroth's are not, but a map that is read wrong comes
+            # back as noise rather than as an error.
+            hflags, = struct.unpack_from('<I', data, off)
+            big = bool(hflags & 0x4)
+        elif magic == 'MTEX':
+            tex = [n.decode('ascii', 'replace')
+                   for n in data[off:off + size].split(b'\0') if n]
+        elif magic == 'MWMO':
             wmo_names = [n.decode('ascii', 'replace')
                          for n in data[off:off + size].split(b'\0') if n]
         elif magic == 'MODF':
@@ -185,6 +313,9 @@ def read_tile(client, tx, ty):
                     break
             if heights:
                 cells[(ix, iy)] = (cx, cy, cz, area, holes, heights)
+                got = ground_of(data, off, size, tex, big)
+                if got:
+                    painted[(ix, iy)] = got
     models = [n for n in names if n]
     placed = []
     for tag, nid, wx, wy, wz, rot, sc in doodads:
@@ -195,7 +326,7 @@ def read_tile(client, tx, ty):
         kind = classify_wmo(wmo_names[nid] if nid < len(wmo_names) else '')
         if kind:
             placed.append((kind, wx, wy, wz, 0.0, 1.0))
-    return cells, placed, water, src
+    return cells, placed, water, painted, src
 
 
 def bake(client, bounds, out):
@@ -207,6 +338,12 @@ def bake(client, bounds, out):
     w, h = i_hi - i_lo + 1, j_hi - j_lo + 1
     grid = [None] * (w * h)
     wetmask = bytearray(w * h)
+    # The painted ground is kept at twice the height grid's resolution — see
+    # `GSUB` — so it gets its own array and its own indices.
+    w2, h2 = w * 2, h * 2
+    i2_lo, j2_lo = i_lo * 2, j_lo * 2
+    i2_hi, j2_hi = i2_lo + w2 - 1, j2_lo + h2 - 1
+    groundmask = bytearray(w2 * h2)
     areas = {}
 
     tiles = set()
@@ -223,7 +360,7 @@ def bake(client, bounds, out):
             if not got:
                 print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
                 continue
-            cells, dd, wet, src = got
+            cells, dd, wet, painted, src = got
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc in dd:
                 if x_lo <= wx <= x_hi and y_lo <= wy <= y_hi:
@@ -233,6 +370,17 @@ def bake(client, bounds, out):
                 J = ty * 128 + cy_ * 8 + sy_
                 if i_lo <= I <= i_hi and j_lo <= J <= j_hi:
                     wetmask[(I - i_lo) * h + (J - j_lo)] = 1
+            for (ix, iy), got in painted.items():
+                for by in range(GSUB):
+                    I = tx * 128 * 2 + iy * GSUB + by
+                    if not (i2_lo <= I <= i2_hi):
+                        continue
+                    for bx in range(GSUB):
+                        J = ty * 128 * 2 + ix * GSUB + bx
+                        if not (j2_lo <= J <= j2_hi):
+                            continue
+                        groundmask[(I - i2_lo) * h2 + (J - j2_lo)] = \
+                            GROUND_ORDER.index(got[by * GSUB + bx])
             for (ix, iy), (ccx, ccy, ccz, area, holes, hv) in cells.items():
                 base_i = tx * 128 + iy * 8
                 base_j = ty * 128 + ix * 8
@@ -252,7 +400,8 @@ def bake(client, bounds, out):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         f.write(struct.pack(f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))
-        f.write(bytes(wetmask))   # one byte a cell, after the heights
+        f.write(bytes(wetmask))     # one byte a cell, after the heights
+        f.write(bytes(groundmask))  # and the painted ground, at twice that
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -262,6 +411,8 @@ def bake(client, bounds, out):
         'areas': areas,
         'hasWater': True,
         'water': sum(wetmask),
+        'ground': GROUND_ORDER,
+        'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / 2,
         'doodads': [{'k': k, 'x': round(x, 2), 'y': round(y, 2), 'z': round(z, 2),
                      'r': round(rot, 1), 's': round(s, 3)} for k, x, y, z, rot, s in doodads],
     }
@@ -271,13 +422,15 @@ def bake(client, bounds, out):
     print(f'grid {w} x {h} = {w*h:,} vertices, {(w-1)*(h-1)*2:,} triangles')
     print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')
     print(f'doodads {len(doodads):,}   water cells {sum(wetmask):,}')
+    tally = {k: groundmask.count(i) for i, k in enumerate(GROUND_ORDER)}
+    print('ground ' + '  '.join(f'{k} {v:,}' for k, v in tally.items() if v))
     print(f'areas {sorted(areas)}')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
     return meta
 
 
-def check(client, meta):
+def check(client, meta, out):
     """The one check that matters: does this terrain agree with the server's?
 
     `playercreateinfo` puts a human warrior at a spot the world database knows
@@ -288,7 +441,10 @@ def check(client, meta):
     w, h, u = meta['width'], meta['height'], meta['unit']
     I = int((meta['x0'] - tx) / u)
     J = int((meta['y0'] - ty) / u)
-    with open(os.path.join(sys.argv[2], 'terrain.bin'), 'rb') as f:
+    # The directory the bake actually wrote to, not `sys.argv[2]` — which is
+    # absent whenever the default is used, and the check then died after a
+    # twenty-minute bake with an IndexError.
+    with open(os.path.join(out, 'terrain.bin'), 'rb') as f:
         f.seek((I * h + J) * 4)
         z, = struct.unpack('<f', f.read(4))
     print(f'check: human start ({tx}, {ty})  terrain {z:.2f}  vs spawn {tz:.2f}  '
@@ -306,4 +462,4 @@ if __name__ == '__main__':
     # The forest, not a disc inside it — the same four numbers the synthesised
     # world uses, measured by `pipeline/measure_zone.py`.
     m = bake(c, (-9966.7, -8000.0, -1700.0, 1066.7), out)
-    check(c, m)
+    check(c, m, out)
