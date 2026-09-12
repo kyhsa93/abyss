@@ -14,6 +14,12 @@ On a phone it is a thumb stick and a button. The stick appears wherever you put
 your thumb down, two fingers pinch the camera, and the button lights up when
 there is somebody close enough to hear you.
 
+**The game is in Korean and the code is not.** `wolf`, `provisions`,
+`questgiver` come out of the pipeline and stay English for their whole life,
+because they are keys — into the sprite atlas, into a JSON file that is already
+written — and `src/talk.ts` looks the Korean up from them. Comments and these
+documents are English; everything a player reads is not.
+
 What they say is assembled from what the database says they can *do* — how many
 lines a trader keeps and what the cheapest and dearest of them cost, how many
 lessons a teacher has and from what level, what an errand actually wants dead or

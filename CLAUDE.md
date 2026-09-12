@@ -101,6 +101,25 @@ thing that catches it is cutting the sheet and looking at all four directions:
 `npm run check` is `tsc`, and it is fast. That is the whole gate right now,
 which says more about how early this is than about the standard.
 
+## Language
+
+**Everything a player reads is Korean; everything a program reads is English.**
+The ids the pipeline writes — `wolf`, `provisions`, `smithing`, `questgiver` —
+are keys into the sprite atlas and into a JSON file that is already written, so
+they never change shape; `src/talk.ts` holds the tables that turn them into
+nouns. A missing entry shows the id, which is how you find it.
+
+Korean is not English with the words swapped. Three things it costs:
+
+  * a counter is a noun and takes a space after a numeral — 네 가지, not 네가지
+    — but joins to digits, 46가지 (맞춤법 제43항)
+  * a particle agrees with the syllable before it, 전사**를** against
+    사냥꾼**을**, so it cannot be written into a sentence that has a lookup in
+    it; `josa` in `talk.ts` picks it off the final consonant
+  * a Hangul glyph is two columns where a Latin one is one, and the font a
+    phone falls back to for Korean is not monospace at all — so nothing lines
+    up by counting spaces. The readout is a CSS grid for that reason
+
 ## Style
 
 Comments explain *why*, and the reason a thing is not something else. Most

@@ -75,12 +75,15 @@ async function main() {
   const from = __HAS_CLIENT_WORLD__ ? 'data' : 'world'
   const head = await fetch(`./${from}/terrain.json`)
   if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
+    // The one screen a developer reads and a player never does, so the command
+    // in it stays as it is typed.
+    hud.className = 'plain'
     hud.textContent = [
-      `No world at ./${from}/terrain.json.`,
+      `./${from}/terrain.json 에 세계가 없습니다.`,
       '',
       from === 'data'
-        ? 'The build saw one there. Re-run `npm run bake`, or delete public/data.'
-        : 'Run `npm run synth -- <azerothcore dir> public/world`.',
+        ? '빌드는 있다고 봤습니다. `npm run bake` 를 다시 돌리거나 public/data 를 지우세요.'
+        : '`npm run synth -- <azerothcore 디렉터리> public/world` 를 돌리세요.',
     ].join('\n')
     return
   }
@@ -657,10 +660,10 @@ async function main() {
       // What to press, on the thing you are holding.  A phone has no Esc key
       // and no numbers, and the panel covers most of the screen, so the way
       // out is the part that has to be said.
-      add('foot', pad.on ? 'tap an answer   ·   tap the world to go'
-        : '1-9 or click to ask   ·   E or Esc to go')
+      add('foot', pad.on ? '답을 누르기   ·   바깥을 눌러 나가기'
+        : '1-9 또는 눌러서 묻기   ·   E나 Esc로 나가기')
     } else {
-      add('foot', pad.on ? 'tap the world to go' : 'E or Esc to go')
+      add('foot', pad.on ? '바깥을 눌러 나가기' : 'E나 Esc로 나가기')
     }
     panelH = talkEl.offsetHeight
     hudH = hud.offsetHeight
@@ -718,6 +721,33 @@ async function main() {
   let clock = 0
   const kindCount = new Set(npcs.map((n) => n.art)).size
   const talkers = npcs.filter((n) => n.topic).length
+
+  /**
+   * The readout, as a two-column grid rather than as one padded block.
+   *
+   * The labels used to be padded with spaces inside a single monospace string,
+   * which works exactly as long as every glyph is one column wide.  Korean is
+   * two — and the font a phone falls back to for it is not monospace at all —
+   * so 지면 and 주인공 put their values in different places.  A grid lets the
+   * browser measure what the font actually is.
+   *
+   * The cells are built once and written into, because this runs every frame.
+   */
+  const hudCells: HTMLSpanElement[] = []
+  function readout(rows: [string, string][]) {
+    if (hudCells.length === 0) { hud.textContent = ''; hud.className = '' }
+    while (hudCells.length < rows.length * 2) {
+      const el = document.createElement('span')
+      if (hudCells.length % 2 === 0) el.className = 'k'
+      hud.appendChild(el)
+      hudCells.push(el)
+    }
+    for (let i = 0; i < rows.length; i++) {
+      const [k, v] = rows[i]!
+      if (hudCells[i * 2]!.textContent !== k) hudCells[i * 2]!.textContent = k
+      if (hudCells[i * 2 + 1]!.textContent !== v) hudCells[i * 2 + 1]!.textContent = v
+    }
+  }
 
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000)
@@ -944,7 +974,7 @@ async function main() {
     }
 
     // The pad last of all, over everything including the prompt.
-    pad.draw(ctx, [{ label: 'Talk', ready: listener !== null }])
+    pad.draw(ctx, [{ label: '대화', ready: listener !== null }])
 
     // The help line and a conversation share the bottom of a phone, and the
     // line is about controls that are not there while somebody is talking.
@@ -954,37 +984,39 @@ async function main() {
       document.body.classList.toggle('touch', pad.on)
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
-        ? 'drag to move\npinch to zoom'
-        : 'WASD: move   wheel: zoom   E: talk'
+        ? '끌어서 이동\n오므려서 확대'
+        : 'WASD: 이동   휠: 확대   E: 대화'
     }
 
     acc += dt; frames++
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
     // Every row keeps its own tail — the part in brackets — because a phone is
-    // forty monospace columns wide and the longest of these is seventy-two.
-    // Dropping the tails rather than whole rows keeps the readout the same
-    // readout, which is the point of reading it on the device it looks wrong
-    // on.
+    // forty columns wide and the longest of these was seventy-two.  Dropping
+    // the tails rather than whole rows keeps the readout the same readout,
+    // which is the point of reading it on the device it looks wrong on.
     const tail = (t: string) => (pad.on ? '' : t)
-    hud.textContent = [
-      `ground   ${tilesDrawn.toLocaleString()} tiles`,
-      `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn` +
-        tail(`  (${solids.length} solid)`),
-      `living   ${npcsDrawn} of ${npcs.length} drawn  in ${kindCount} kinds` +
-        tail(`  (${settled} moved ashore, ${afloat} left in the water)`) +
-        (unplaceable ? `  ${unplaceable} with no art` : ''),
-      `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd` +
-        (wetAt(hero.x, hero.y) ? '  [in water]'
-          : solidAt(hero.x, hero.y) ? '  [inside]'
-            : slopeAt(hero.x, hero.y) > CLIFF ? '  [on rock]' : ''),
-      `talk     ${talkers} of ${npcs.length} have something to say` +
-        (chat ? tail(`  [talking: ${chat.speech.who}]`)
-          : listener ? tail('  [E to talk]') : ''),
-      `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
-      `terrain  ${from === 'data' ? "the client's own"
-        : tail('interpolated from AzerothCore spawns') || 'interpolated'}`,
-      `fps      ${fps.toFixed(0)}`,
-    ].join('\n')
+    readout([
+      ['지면', `${tilesDrawn.toLocaleString()}타일`],
+      ['지물', `그린 것 ${drawn.toLocaleString()} / ${placed.length.toLocaleString()}` +
+        tail(`  (막는 것 ${solids.length})`)],
+      ['주민', `그린 것 ${npcsDrawn} / ${npcs.length}, ${kindCount}종` +
+        tail(`  (${settled} 뭍으로, ${afloat} 물속)`) +
+        (unplaceable ? `  ${unplaceable} 그림 없음` : '')],
+      ['주인공', `(${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  지면 ${heroZ.toFixed(1)}야드` +
+        (wetAt(hero.x, hero.y) ? '  [물속]'
+          : solidAt(hero.x, hero.y) ? '  [안쪽]'
+            : slopeAt(hero.x, hero.y) > CLIFF ? '  [바위 위]' : '')],
+      // A count and a particle is a sentence — "74이 할 말이 있음", which is
+      // wrong, because a number agrees with how it is read and 74 is 칠십사.
+      // A readout wants the ratio anyway, and a ratio needs no particle.
+      ['대화', `할 말 있는 이 ${talkers} / ${npcs.length}` +
+        (chat ? tail(`  [대화 중 — ${chat.speech.who}]`)
+          : listener ? tail(pad.on ? '' : '  [E로 대화]') : '')],
+      ['시야', `${(canvas.width / (PPY * zoom)).toFixed(0)}야드  배율 ${zoom.toFixed(2)}`],
+      ['지형', from === 'data' ? '클라이언트의 것'
+        : tail('AzerothCore 스폰에서 보간') || '보간'],
+      ['프레임', `초당 ${fps.toFixed(0)}`],
+    ])
     ;(window as unknown as { __ready: boolean }).__ready = true
     requestAnimationFrame(frame)
   }
@@ -1016,6 +1048,13 @@ async function main() {
 
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */
   ;(window as unknown as { __heads: () => unknown }).__heads = () => headOf
+
+  /** One of every kind that has nothing to say, for reading those lines too. */
+  ;(window as unknown as { __idleSpeech: () => unknown }).__idleSpeech = () => {
+    const seen = new Set<string>()
+    return npcs.filter((n) => !n.topic && !seen.has(n.kind + n.role) && seen.add(n.kind + n.role))
+      .map((n) => speak(n.kind, n.role, n.level, n.seed, null, () => []))
+  }
 
   /** Every line the slice can say, so the writing can be read in one go. */
   ;(window as unknown as { __speech: () => unknown }).__speech = () =>

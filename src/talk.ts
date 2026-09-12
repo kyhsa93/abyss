@@ -12,14 +12,21 @@
  * So the pipeline carries out the numbers and this file writes the sentences.
  * That split is the whole design, and it has a pleasant side effect: because
  * every line is assembled from what the NPC can actually do, an NPC cannot
- * claim something the data does not support.  The smith says eighty-six
+ * claim something the data does not support.  The smith offers eighty-six
  * lessons because there are eighty-six rows.
  *
- * The words are deliberately plain.  A shopkeeper who says "I deal in
- * provisions — seventeen lines, a copper to forty silver" is telling the
- * player something they can act on; the flavour that would sit in its place is
- * exactly the part we are not allowed to borrow and have no business inventing
- * a substitute for.
+ * **The sentences are Korean and the ids are not.**  `wolf`, `provisions`,
+ * `smithing`, `questgiver` come out of the pipeline and stay English for their
+ * whole life, because they are keys — into the sprite atlas, into these
+ * tables, into a JSON file that is already written — and a key that is also a
+ * word is a key that changes when somebody rewords it.  Every Korean noun in
+ * this file is looked up from one of those ids, which is also why a missing
+ * translation shows up as the id rather than as nothing.
+ *
+ * The words are deliberately plain.  A shopkeeper who says "식료품 열일곱 가지
+ * — 25동에서 40은까지" is telling the player something they can act on; the
+ * flavour that would sit in its place is exactly the part we are not allowed
+ * to borrow and have no business inventing a substitute for.
  */
 
 export type Quest = {
@@ -48,38 +55,114 @@ export type Direction = { role: string; yards: number; bearing: string }
 const ANIMALS = new Set(['wolf', 'bear', 'boar', 'spider', 'deer', 'rabbit',
   'cow', 'sheep', 'chicken', 'cat', 'horse'])
 
-const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven',
-  'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
-  'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
-
-/** Counts a person would say out loud, and digits once they would not. */
-function count(n: number): string {
-  return n >= 0 && n < WORDS.length ? WORDS[n]! : String(n)
+/**
+ * The kinds, in Korean.
+ *
+ * Two of these are deliberately not the words a Korean client would use.
+ * `murloc` is Blizzard's own coinage, and `bandit` would collide with the
+ * rogue class, which is 도적 as well — so they are 어인 and 산적, which are
+ * ordinary words that were here before the game was.
+ */
+const KIND: Record<string, string> = {
+  townsfolk: '마을 사람', guard: '경비병', bandit: '산적', kobold: '코볼트',
+  murloc: '어인', ghost: '망령', wolf: '늑대', bear: '곰', boar: '멧돼지',
+  spider: '거미', deer: '사슴', rabbit: '토끼', cow: '소', sheep: '양',
+  chicken: '닭', cat: '고양이', horse: '말',
 }
 
-function plural(kind: string, n: number): string {
-  if (n === 1) return single(kind)
-  if (kind === 'sheep' || kind === 'deer' || kind === 'townsfolk') return kind
-  if (kind === 'wolf') return 'wolves'
-  return kind + 's'
+/** Whoever is counted in 명 rather than in 마리. */
+const PEOPLE = new Set(['townsfolk', 'guard', 'bandit', 'ghost'])
+
+/** `item_template.class`, the way somebody behind a counter would say it. */
+const GOODS: Record<string, string> = {
+  provisions: '식료품', bags: '가방', weapons: '무기', gems: '보석',
+  armour: '방어구', reagents: '시약', ammunition: '탄약', materials: '재료',
+  recipes: '도면', quivers: '화살통', 'errand goods': '심부름 물건',
+  keys: '열쇠', oddments: '잡동사니', glyphs: '문양',
 }
 
 /**
- * One of a kind, which is not always the kind word with the s taken off.
+ * The trades, in plain words rather than in a client's coined ones.
  *
- * `townsfolk` is the kind for everybody the world database calls a citizen,
- * and it has no singular — the first build had a quest that wanted "something
- * off a townsfolk".
+ * 대장일 and 마법 걸기 say what the person does.  The terms a Korean client
+ * uses for those are somebody's invention, and the rule about not borrowing
+ * Blizzard's words does not stop being the rule in translation.
  */
-function single(kind: string): string {
-  return kind === 'townsfolk' ? 'townsman' : kind
+const TRADE: Record<string, string> = {
+  'first aid': '응급 치료', smithing: '대장일', leatherworking: '가죽일',
+  alchemy: '연금술', herbalism: '약초 캐기', cooking: '요리', mining: '채광',
+  tailoring: '바느질', engineering: '기계 다루기', enchanting: '마법 걸기',
+  fishing: '낚시', skinning: '가죽 벗기기', jewelcrafting: '보석 세공',
+  riding: '말타기', inscription: '글씨 새기기',
+}
+
+const CLASS: Record<string, string> = {
+  warriors: '전사', paladins: '성기사', hunters: '사냥꾼', rogues: '도적',
+  priests: '사제', 'death knights': '죽음의 기사', shamans: '주술사',
+  mages: '마법사', warlocks: '흑마법사', druids: '드루이드',
+}
+
+/**
+ * Native numerals in the form that stands in front of a counter.
+ *
+ * 스물 becomes 스무 there and 열둘 becomes 열두, which is why this is a table
+ * and not arithmetic.  Past twenty a person says the digits, which is the line
+ * the English drew as well.
+ */
+const NATIVE = ['0', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟',
+  '아홉', '열', '열한', '열두', '열세', '열네', '열다섯', '열여섯', '열일곱',
+  '열여덟', '열아홉', '스무']
+
+function many(n: number): string {
+  return n > 0 && n < NATIVE.length ? NATIVE[n]! : String(n)
+}
+
+/**
+ * A number with its counter.
+ *
+ * 맞춤법 제43항: a counter is a noun and stands apart from the numeral — 네 가지,
+ * 여덟 개, 한 명 — except after digits, where it may be joined, and joining is
+ * what everybody actually writes: 46가지.  Both rules are the same rule here,
+ * because the digits only start where the words run out.  The first version
+ * had no space in either case and offered 네가지.
+ */
+function count(n: number, unit: string): string {
+  const word = many(n)
+  return n > 0 && n < NATIVE.length ? `${word} ${unit}` : `${word}${unit}`
+}
+
+/**
+ * 을/를, 은/는 — which one it is depends on the syllable in front of it.
+ *
+ * A Korean particle agrees with the final consonant of the word it attaches
+ * to, so it cannot be written into the sentence: 전사 takes 를 and 사냥꾼 takes
+ * 을, and both arrive from the same table lookup.  The final consonant is the
+ * remainder of the syllable's code point over 28.
+ *
+ * Only words, deliberately.  A number agrees with how it is *read* — 74 is
+ * 칠십사 and takes 가, 76 is 칠십육 and takes 이 — and every sentence here that
+ * could have put a particle after a count was written to want a counter
+ * instead, which needs none.
+ */
+function josa(word: string, withFinal: string, without: string): string {
+  const c = word.charCodeAt(word.length - 1)
+  const final = c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0
+  return word + (final ? withFinal : without)
+}
+
+function kindOf(k: string): string {
+  return KIND[k] ?? k
+}
+
+function unit(k: string): string {
+  return PEOPLE.has(k) ? '명' : '마리'
 }
 
 /** Copper the way a till would read it. */
 export function coin(c: number): string {
-  if (c <= 0) return 'nothing'
+  if (c <= 0) return '없음'
   const g = Math.floor(c / 10000), s = Math.floor((c % 10000) / 100), k = c % 100
-  return [g && `${g}g`, s && `${s}s`, k && `${k}c`].filter(Boolean).join(' ')
+  return [g && `${g}금`, s && `${s}은`, k && `${k}동`].filter(Boolean).join(' ')
 }
 
 /** Deterministic pick, so an NPC greets you the same way twice. */
@@ -91,14 +174,13 @@ function pick<T>(list: T[], seed: number): T {
 /**
  * What to call somebody, out of their kind and what they do.
  *
- * The role comes from `npcflag`, which is why a blacksmith is "a trainer" and
- * not "a blacksmith": the database says he teaches, and the sign over his door
- * is a sentence somebody wrote.
+ * The role comes from `npcflag`, which is why a blacksmith is 스승 and not
+ * 대장장이: the database says he teaches, and the sign over his door is a
+ * sentence somebody wrote.
  */
 const TITLE: Record<string, string> = {
-  vendor: 'a trader', trainer: 'a teacher', questgiver: 'someone with work',
-  stablemaster: 'a stablehand', spirithealer: 'a spirit',
-  elite: 'something dangerous',
+  vendor: '상인', trainer: '스승', questgiver: '일거리를 가진 사람',
+  stablemaster: '마구간지기', spirithealer: '영혼', elite: '위험한 것',
 }
 
 /**
@@ -106,26 +188,30 @@ const TITLE: Record<string, string> = {
  *
  * `talker` is deliberately absent from `TITLE`: the role is the `npcflag`
  * gossip bit and nothing else, which means "will speak to you", not a trade.
- * Titling on it announced eleven of the slice's city guards as "a talker,
- * level 65" while the kind field beside it said `guard` the whole time.
+ * Titling on it announced eleven of the slice's city guards as 말 거는 사람
+ * while the kind field beside it said `guard` the whole time.
  */
 function noun(kind: string): string {
-  return kind === 'guard' ? 'a guard' : kind === 'ghost' ? 'a shade' : 'a townsman'
+  return kind === 'guard' ? '경비병' : kind === 'ghost' ? '망령' : '마을 사람'
 }
 
+/**
+ * How they open.
+ *
+ * 하오체 throughout, which is the register a village of strangers speaks in:
+ * polite without being deferential, and it does not have to decide whether the
+ * player outranks a guard.
+ */
 const GREET: Record<string, string[]> = {
-  vendor: ['Come in, come in.', 'Looking for anything in particular?',
-    'Everything here is honest and priced so.'],
-  trainer: ['You want teaching, then.', 'Stand there and listen.',
-    'I have time, if you have the patience.'],
-  questgiver: ['You look like you can carry something heavy.',
-    'Good — somebody who is not busy.', 'There is work, if you want it.'],
-  stablemaster: ['Your beast is safe with me.', 'I keep them fed.'],
-  spirithealer: ['Not yet, I think.', 'You are still warm. Go on, then.'],
-  talker: ['Quiet day.', 'You are new here.', 'Mind the road after dark.'],
-  guard: ['Move along.', 'All quiet.', 'Keep to the road.'],
-  idle: ['Hm.', 'Morning.', 'Was there something?'],
-  prey: ['', ''],
+  vendor: ['어서 오시오.', '뭘 찾으시오?', '여기 물건은 값이 정직하오.'],
+  trainer: ['배우러 왔구려.', '거기 서서 듣기나 하시오.',
+    '시간은 있소. 그쪽이 참을성만 있다면.'],
+  questgiver: ['무거운 것 좀 나를 수 있겠구려.', '마침 한가한 사람이 왔군.',
+    '일거리가 있소. 하겠다면.'],
+  stablemaster: ['짐승은 내가 맡겠소.', '먹이는 내가 챙기오.'],
+  spirithealer: ['아직은 아니지.', '아직 따뜻하군. 가 보시오.'],
+  guard: ['지나가시오.', '별일 없소.', '길에서 벗어나지 마시오.'],
+  idle: ['음.', '안녕하시오.', '무슨 일이오?'],
 }
 
 /**
@@ -133,33 +219,37 @@ const GREET: Record<string, string[]> = {
  *
  * Nine chickens in the slice are `creature_queststarter` rows, and they are
  * not a mistake in the dump — a chicken really is how that errand starts.  It
- * still cannot say "Good — somebody who is not busy", which is what it said
- * until this bank existed: `who` knew it was an animal and the greeting did
- * not.
+ * still cannot say 마침 한가한 사람이 왔군, which is what it said until this
+ * bank existed: `who` knew it was an animal and the greeting did not.
  */
-const BEAST_GREET = ['It looks at you, and keeps looking.',
-  'It will not leave you alone.', 'It follows you a step, and waits.']
+const BEAST_GREET = ['쳐다보고는 눈을 떼지 않는다.', '자꾸 따라붙는다.',
+  '한 걸음 따라오다 멈춰 선다.']
 
 function greeting(kind: string, role: string, seed: number): string {
   if (ANIMALS.has(kind)) return pick(BEAST_GREET, seed)
   const bank = GREET[role] ?? (kind === 'guard' ? GREET['guard']! : GREET['idle']!)
-  return pick(bank.filter(Boolean), seed) ?? 'Hm.'
+  return pick(bank, seed)
 }
 
+/**
+ * What the errand wants, as the list of things it is.
+ *
+ * Each part is its own short clause rather than one conjugated sentence: the
+ * three kinds of objective take three different verbs, and a Korean sentence
+ * that has to end in all of them at once ends in none of them well.
+ */
 function objective(q: Quest): string {
   const parts: string[] = []
-  for (const [k, n] of q.kill) parts.push(`${count(n)} ${plural(k, n)} dead`)
+  for (const [k, n] of q.kill) parts.push(`${kindOf(k)} ${count(n, unit(k))} 잡기`)
   for (const [k, n] of q.take)
-    parts.push(n === 1 ? `something off a ${single(k)}`
-      : `${count(n)} taken off the ${plural(k, n)}`)
+    parts.push(n === 1
+      ? `${kindOf(k)}에게서 뭔가 하나 얻기`
+      : `${kindOf(k)}에게서 ${count(n, '개')} 거두기`)
   for (const [cls, n] of q.find)
-    // The class words are plurals with no singular — `armour`, `provisions`,
-    // `materials` — so they are counted in pieces.  Counted directly they come
-    // out as "one provisions", which is how this was found.
     parts.push(cls === null
-      ? (n === 1 ? 'one thing found' : `${count(n)} things found`)
-      : `${count(n)} ${n === 1 ? 'piece' : 'pieces'} of ${cls}`)
-  return parts.join(', and ')
+      ? `뭔가 ${count(n, '개')} 찾기`
+      : `${GOODS[cls] ?? cls} ${count(n, '개')} 찾기`)
+  return parts.join(', ')
 }
 
 /**
@@ -176,71 +266,74 @@ export function speak(
   topic: Topic | null, nearby: () => Direction[],
 ): Speech {
   const who = ANIMALS.has(kind)
-    ? `a ${kind}, level ${level}`
-    : `${TITLE[role] ?? noun(kind)}, level ${level}`
+    ? `${kindOf(kind)}, ${level}레벨`
+    : `${TITLE[role] ?? noun(kind)}, ${level}레벨`
 
   if (!topic) {
     // Nothing in the database says this one has anything to offer, and that is
     // most of them: 703 of the 777 are animals, kobolds, bandits and murlocs.
     // Saying so plainly beats inventing a personality for a wolf.
+    const k = kindOf(kind)
     const idle = ANIMALS.has(kind)
-      ? [`The ${kind} does not look up.`, `The ${kind} keeps its distance.`]
-      : kind === 'ghost' ? ['It looks through you.']
-        : ['Nothing to say to you.', 'They turn away.']
+      ? [`${josa(k, '은', '는')} 고개도 들지 않는다.`,
+        `${josa(k, '은', '는')} 거리를 둔다.`]
+      : kind === 'ghost' ? ['당신을 지나쳐 바라본다.']
+        : ['할 말 없소.', '고개를 돌린다.']
     return { who, greet: pick(idle, seed), options: [] }
   }
 
   const options: Option[] = []
 
   if (topic.shop) {
-    // "40s to 40s" is what a range prints when the shelf holds one price.
+    // "40은에서 40은까지" is what a range prints when the shelf holds one price.
     const price = (n: number, lo: number, hi: number) =>
-      hi <= 0 ? '' : lo < hi ? ` — ${coin(lo)} to ${coin(hi)}`
-        : n === 1 ? ` — ${coin(lo)}` : ` — ${coin(lo)} each`
+      hi <= 0 ? '' : lo < hi ? ` — ${coin(lo)}에서 ${coin(hi)}까지`
+        : n === 1 ? ` — ${coin(lo)}` : ` — 모두 ${coin(lo)}`
     const lines = topic.shop.map(([cls, n, lo, hi]) =>
-      `${count(n)} ${n === 1 ? 'line' : 'lines'} of ${cls}` + price(n, lo, hi))
+      `${GOODS[cls] ?? cls} ${count(n, '가지')}` + price(n, lo, hi))
     const total = topic.shop.reduce((a, r) => a + r[1], 0)
     options.push({
-      label: 'What are you selling?',
-      lines: [`${count(total)} ${total === 1 ? 'thing' : 'things'} on the shelf.`, ...lines],
+      label: '뭘 파시오?',
+      lines: [`선반에 ${count(total, '개')} 있소.`, ...lines],
     })
   }
 
   if (topic.train) {
     const t = topic.train
-    const subject = t.who ?? (t.of === 'mounts' ? 'riding' : t.of === 'beasts' ? 'beasts' : 'a trade')
-    const range = t.n === 0 ? 'Nothing at the moment.'
-      : t.lo >= t.hi ? `${count(t.n)} ${t.n === 1 ? 'lesson' : 'lessons'}, all of them open to you now.`
-        : `${count(t.n)} lessons — the first at level ${Math.max(1, t.lo)}, the last at ${t.hi}.`
-    options.push({
-      label: 'What can you teach?',
-      lines: [t.of === 'class' ? `I take ${subject}.` : `${subject[0]!.toUpperCase()}${subject.slice(1)}.`, range],
-    })
+    const name = t.who ? (t.of === 'class' ? CLASS[t.who] : TRADE[t.who]) ?? t.who : null
+    const head = t.of === 'class'
+      ? (name ? `${josa(name, '을', '를')} 받소.` : '제자를 받소.')
+      : `${josa(name ?? (t.of === 'mounts' ? '말타기'
+        : t.of === 'beasts' ? '짐승 다루기' : '손기술'), '을', '를')} 가르치오.`
+    const range = t.n === 0 ? '지금은 가르칠 게 없소.'
+      : t.lo >= t.hi ? `${count(t.n, '가지')}, 전부 지금 배울 수 있소.`
+        : `가르칠 것이 ${count(t.n, '가지')}. 첫째는 ${Math.max(1, t.lo)}레벨, 마지막은 ${t.hi}레벨.`
+    options.push({ label: '뭘 가르치시오?', lines: [head, range] })
   }
 
   for (const q of topic.gives ?? []) {
     const need = objective(q)
-    const lines = [need ? `${need[0]!.toUpperCase()}${need.slice(1)}.` : 'Something that needs doing.']
-    lines.push(q.lv > 0 ? `It is work for about level ${q.lv}.` : 'Anyone could do it.')
-    lines.push(q.coin > 0 ? `${coin(q.coin)} when it is done.` : 'No coin in it. Somebody has to.')
-    options.push({ label: `Is there work? (level ${q.lv > 0 ? q.lv : '—'})`, lines })
+    const lines = [need ? `${need}.` : '해야 할 일이 있소.']
+    lines.push(q.lv > 0 ? `${q.lv}레벨쯤 되는 일이오.` : '누구나 할 수 있는 일이오.')
+    lines.push(q.coin > 0 ? `끝나면 ${coin(q.coin)}.`
+      : '삯은 없소. 그래도 누군가는 해야 하오.')
+    options.push({ label: `일거리가 있소? (${q.lv > 0 ? `${q.lv}레벨` : '—'})`, lines })
   }
 
   if (topic.takes) {
     options.push({
-      label: 'Someone sent me.',
-      lines: [`Then you have found the end of it.`,
-        `${count(topic.takes)} ${topic.takes === 1 ? 'errand ends' : 'errands end'} with me.`],
+      label: '누가 보내서 왔소.',
+      lines: ['그럼 여기가 그 끝이오.', `나로 끝나는 일이 ${count(topic.takes, '건')} 있소.`],
     })
   }
 
   if (topic.directs) {
     const to = nearby()
     options.push({
-      label: 'Where do I find anyone?',
+      label: '사람을 어디서 찾소?',
       lines: to.length === 0
-        ? ['Nobody worth walking to, not from here.']
-        : to.map((d) => `${TITLE[d.role] ?? d.role}: ${Math.round(d.yards)} yards ${d.bearing}.`),
+        ? ['여기서 걸어갈 만한 사람은 없소.']
+        : to.map((d) => `${TITLE[d.role] ?? d.role} — ${d.bearing}쪽 ${Math.round(d.yards)}야드.`),
     })
   }
 
@@ -253,12 +346,13 @@ export function speak(
  * North is +x and west is +y — the server's convention, kept rather than
  * converted, because every other coordinate in this project is in it and one
  * translation somewhere in the middle is how a bearing ends up mirrored.
+ * Korean names the north half of a diagonal first, the same order English does.
  */
 export function bearing(dx: number, dy: number): string {
-  const ns = dx > 0 ? 'north' : 'south'
-  const ew = dy > 0 ? 'west' : 'east'
+  const ns = dx > 0 ? '북' : '남'
+  const ew = dy > 0 ? '서' : '동'
   const ax = Math.abs(dx), ay = Math.abs(dy)
   if (ax > ay * 2.4) return ns
   if (ay > ax * 2.4) return ew
-  return `${ns}-${ew}`
+  return `${ns}${ew}`
 }

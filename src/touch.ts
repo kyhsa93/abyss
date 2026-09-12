@@ -86,6 +86,11 @@ export type Slot = { label: string; ready: boolean }
 
 export function touchpad(canvas: HTMLCanvasElement, count: number) {
   const slots = Math.min(count, MAX_SLOTS)
+  // The same stack the page uses, read once rather than written twice: a
+  // canvas font falls back on its own, and a Latin-first list draws 대화 in
+  // whichever Hangul font the machine happens to have first.
+  const face = getComputedStyle(document.documentElement)
+    .getPropertyValue('--mono').trim() || 'monospace'
   let on = hasTouch()
   let busy = false
 
@@ -300,7 +305,7 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
           held ? 'rgba(201,168,106,.34)' : 'rgba(12,14,20,.62)',
           s.ready ? '#c9a86a' : 'rgba(107,102,88,.7)', s.ready ? 3 : 2)
         ctx.fillStyle = s.ready ? '#e8e4d8' : 'rgba(232,228,216,.35)'
-        ctx.font = `bold ${Math.round(l.btnR * 0.44)}px ui-monospace, monospace`
+        ctx.font = `bold ${Math.round(l.btnR * 0.44)}px ${face}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(s.label, b.x, b.y + 1)

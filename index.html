@@ -1,38 +1,58 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Abyss</title>
-    <meta name="description" content="Elwynn Forest, read out of a WoW client and drawn with art we own." />
+    <meta name="description" content="WoW 클라이언트에서 읽어낸 엘윈 숲을, 우리 것인 그림으로 그린다." />
     <meta name="theme-color" content="#93b6cf" />
     <style>
+      /*
+        Korean first in both stacks.  A Latin-first stack is not wrong so much
+        as invisible: the browser falls through to whatever it has for Hangul,
+        which on Linux is whichever one was installed first.
+      */
+      :root {
+        --mono: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR',
+          ui-monospace, monospace;
+        --body: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR',
+          system-ui, sans-serif;
+      }
       html, body { margin: 0; height: 100%; background: #0a0a0f; overflow: hidden; }
       canvas { display: block; touch-action: none; }
       html { overscroll-behavior: none; }
+      /*
+        The readout is a grid, not padded text: a Korean glyph is two columns
+        wide where a Latin one is one, and the font a phone falls back to for
+        Korean is not monospace at all, so nothing lines up by counting spaces.
+      */
       #hud {
-        position: fixed; left: 8px; top: 8px; color: #cfe; font: 12px/1.5 monospace;
-        background: rgba(0,0,0,.55); padding: 8px 10px; white-space: pre; pointer-events: none;
+        position: fixed; left: 8px; top: 8px; color: #cfe;
+        font: 12px/1.5 var(--mono); background: rgba(0,0,0,.55); padding: 8px 10px;
+        white-space: pre; pointer-events: none;
+        display: grid; grid-template-columns: max-content auto; gap: 0 14px;
       }
+      #hud .k { color: #8aa8bb; }
+      #hud.plain { display: block; }
       #help {
-        position: fixed; right: 8px; bottom: 8px; color: #9ab; font: 11px/1.5 monospace;
+        position: fixed; right: 8px; bottom: 8px; color: #9ab; font: 11px/1.6 var(--mono);
         background: rgba(0,0,0,.55); padding: 6px 8px; white-space: pre; pointer-events: none;
       }
       #talk {
         position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
         width: min(620px, calc(100vw - 32px)); color: #e8e4d8;
-        font: 13px/1.6 ui-serif, Georgia, serif;
+        font: 13px/1.75 var(--body);
         background: rgba(12,14,20,.92); border: 1px solid #4a4433;
         padding: 12px 16px 10px;
       }
-      #talk .who { color: #c9a86a; font: 11px/1.4 monospace; letter-spacing: .04em; }
+      #talk .who { color: #c9a86a; font: 11px/1.5 var(--mono); letter-spacing: .02em; }
       #talk .say { margin: 6px 0 10px; }
       #talk ol { margin: 0; padding: 0; list-style: none; }
       #talk li { cursor: pointer; padding: 2px 0; color: #9fc6e0; }
       #talk li:hover { color: #d8ecff; }
-      #talk li b { color: #6f8ea6; font: 11px monospace; margin-right: 8px; }
+      #talk li b { color: #6f8ea6; font: 11px var(--mono); margin-right: 8px; }
       #talk .lines { color: #e8e4d8; padding: 2px 0 6px 26px; }
-      #talk .foot { margin-top: 8px; color: #6b6658; font: 10px/1.4 monospace; }
+      #talk .foot { margin-top: 8px; color: #6b6658; font: 10px/1.5 var(--mono); }
 
       /*
         The phone.  `body.touch` is set by the scene once it knows, rather than
@@ -61,8 +81,8 @@
     </style>
   </head>
   <body>
-    <div id="hud">loading…</div>
-    <div id="help">WASD: move   wheel: zoom   E: talk</div>
+    <div id="hud" class="plain">불러오는 중…</div>
+    <div id="help">WASD: 이동   휠: 확대   E: 대화</div>
     <div id="talk" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

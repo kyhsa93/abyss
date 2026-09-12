@@ -56,7 +56,7 @@ console.log(`viewport ${p.viewportSize().width}x${p.viewportSize().height}  ` +
 check('overlay on from the start', L.on === true)
 check('body knows it is a phone', await p.evaluate(() => document.body.classList.contains('touch')))
 check('help line is the touch one',
-  (await p.evaluate(() => document.getElementById('help').textContent)).includes('drag to move'))
+  (await p.evaluate(() => document.getElementById('help').textContent)).includes('끌어서 이동'))
 
 // The stick is tested in an empty field on purpose.  The first version of
 // this check started where the game does, walked the hero two yards north into
@@ -99,7 +99,7 @@ check('lifting stops the hero', JSON.stringify(await hero()) === JSON.stringify(
 
 // 6. Two fingers are the camera, not a second stick.
 const zoomOf = () => p.evaluate(() => Number(
-  document.getElementById('hud').textContent.match(/zoom ([\d.]+)/)[1]))
+  document.getElementById('hud').textContent.match(/배율 ([\d.]+)/)[1]))
 const z0 = await zoomOf()
 await touch('touchStart', [[140, 600], [240, 600]])
 const held = await hero()
@@ -203,6 +203,14 @@ await p.waitForTimeout(120)
 check('a key hides the overlay', (await pad()).on === false)
 check('the help line goes back to the keys',
   (await p.evaluate(() => document.getElementById('help').textContent)).includes('WASD'))
+
+// Nothing the player reads is left in English.
+const shown = await p.evaluate(() => [
+  document.getElementById('hud').textContent,
+  document.getElementById('help').textContent,
+].join(' '))
+check('the readout and the help line are Korean',
+  !/[A-Za-z]{4,}/.test(shown.replace('AzerothCore', '').replace('WASD', '')), shown)
 
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
