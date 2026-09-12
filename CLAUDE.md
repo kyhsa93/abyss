@@ -184,10 +184,47 @@ left, *right*, down. Every wrong reading of a grid divides evenly, so the only
 thing that catches it is cutting the sheet and looking at all four directions:
 `bake_npcs.py` writes `npcs-contact.png` for exactly that.
 
+## Why the world kept coming out different
+
+Both sources are complete and both are on this machine, and for several rounds
+the result still did not match them. The reason was never a missing file.
+
+**Every classifier in the pipeline ends in a default, and a default is right
+often enough to be invisible and wrong often enough to matter.** `grass` is the
+correct answer for `ElwynnGrassBase` — 3,540 of the layers it fired on — and
+the wrong one for the Burning Steppes' ash, charcoal and lava, which were drawn
+as a green lawn across a ninth of the slice. `house` is the correct answer for
+a cottage and it drew Stormwind's keep as one, twelve times. Neither said a
+word, because a fallback that is usually right looks exactly like a rule.
+
+Three other shapes of the same thing:
+
+  * **A field that is present and never read.** `MCLY`/`MCAL` for four rounds,
+    `MODF`'s rotation, `MDDF`'s scale, `FactionTemplate.Flags`, the `.m2`
+    bounding boxes. Nothing listed which columns of a record are consumed, so
+    "we did not read that" and "that is not in the data" were the same
+    sentence.
+  * **A source that is a function, not a table.** Hostility is
+    `Unit::GetReactionTo`, a road is an alpha map, walkability is a slope test.
+    A partial reimplementation returns a plausible wrong answer rather than an
+    error — asking the reaction one way round instead of two left 131 of
+    Northshire's 220 creatures unkillable.
+  * **A number substituted for a source number.** Every tree was eight yards
+    because the height was a constant per *kind*, and a kind is one word for
+    nineteen models.
+
+`npm run audit` is the census that stops it. It walks the whole slice, asks
+each classifier what it would answer, and separates the placements that matched
+a rule from the placements that took a default — and a default only passes if
+its name is **declared** in `*_DEFAULT_OK` next to the rules. Anything else
+fails the gate. Adding a rule now means saying out loud which names you are
+leaving to the fallback, which is the thing nobody was saying.
+
 ## Finishing a change
 
-`npm run check` is `tsc`, and it is fast. That is the whole gate right now,
-which says more about how early this is than about the standard.
+`npm run check` is `tsc` and it is fast. `npm run audit` compares the sources
+against what was read from them and needs the client. `npm run viewcheck` and
+`npm run padcheck` need a browser and `npm run dev`.
 
 ## Language
 

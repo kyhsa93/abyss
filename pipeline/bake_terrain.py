@@ -45,6 +45,9 @@ WMO_KINDS = [
     ('ABBEY', 'hall'), ('CATHEDRAL', 'hall'), ('KEEP', 'hall'), ('CASTLE', 'hall'),
     ('TOWER', 'tower'), ('INN', 'house'), ('HOUSE', 'house'), ('HUT', 'house'),
     ('COTTAGE', 'house'), ('FARM', 'house'), ('BARN', 'house'), ('MILL', 'house'),
+    # Also found by the audit: a mine mouth and an animal den are holes in a
+    # hillside, not cottages, and there is no picture here for either.
+    ('MINE', None), ('DEN', None), ('BURROW', None),
     # A bridge was thrown away for four rounds, which is why six of Elwynn's
     # crossings were open water with a fence beside them.  It is a floor, and a
     # floor is something this repository can draw.
@@ -54,6 +57,29 @@ WMO_KINDS = [
     # river; it is a stone causeway and it is drawn as one.
     ('LIONBRIDGE', 'bridge_stone'), ('BRIDGE', 'bridge'), ('DOCK', 'bridge'),
     ('GATE', None), ('WALL', None), ('SEWER', None),
+]
+
+
+# The names the fallbacks get *right*, declared rather than assumed.
+#
+# Every classifier here ends in a default, and that is the whole reason the
+# world kept coming out different: a default is right often enough to be
+# invisible and wrong often enough to matter.  `grass` is the correct answer
+# for `ElwynnGrassBase` and the wrong one for `BurningSteppsCharcoal01`, and
+# until these lists existed nothing could tell the two apart.  `audit.py` walks
+# the slice and fails on any name that takes a default without being here.
+DOODAD_DEFAULT_OK = []      # `classify` already reports what it skips
+WMO_DEFAULT_OK = [
+    # Buildings the `house` fallback is honest about: a stable, a barracks, a
+    # smithy and a two-storey townhouse are all buildings this repository draws
+    # as a building.
+    'STABLE', 'BARRACKS', 'TWOSTORY', 'BLACKSMITH', 'KENNEL', 'HANGAR',
+    'STORMWIND.WMO',        # the city itself, drawn as one of its own houses
+]
+GROUND_DEFAULT_OK = [
+    # Ground the `grass` fallback is honest about.  Six of Elwynn's own, plus
+    # the neighbours' grass that leaks over the slice's edges.
+    'GRASSBASE', 'GRASSDARK', 'SCRUBBRUSH', 'LEAF', 'UNDERWATERGRASS',
 ]
 
 
@@ -116,6 +142,12 @@ GROUND_KINDS = [
     ('ROAD', 'road'), ('DIRT', 'road'), ('TRAIL', 'road'), ('PATH', 'road'),
     ('CROP', 'crop'), ('FARM', 'crop'), ('FIELD', 'crop'),
     ('ROCK', 'rock'), ('CLIFF', 'rock'),
+    # Found by the audit: eight thousand layers were taking the `grass`
+    # fallback and a fifth of them were the Burning Steppes — ash, charcoal and
+    # lava drawn as a green lawn, because nothing named them.
+    ('ASH', 'rock'), ('CHARCOAL', 'rock'), ('LAVA', 'rock'),
+    ('RUBBLE', 'rock'), ('BLACK', 'rock'),
+    ('STRAW', 'crop'),
     ('FLOWER', 'bloom'),
     ('SNOW', 'snow'), ('SAND', 'sand'),
 ]
