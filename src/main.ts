@@ -22,6 +22,7 @@
 
 import { bearing, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
+import { hud as makeHud } from './hud'
 import { noticeAt, swing, xpFor, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
@@ -1006,10 +1007,12 @@ async function main() {
     keys.add(k)
     // One key, and it means "the nearest thing I can reach".  A click would
     // want a cursor and this game is played with a thumb as often as a mouse.
-    if (k === ' ' || k === 'spacebar') {
+    if (k === ' ' || k === 'spacebar' || k === '1') {
       e.preventDefault()
       if (!chat && !you.died) you.target = you.target ?? inSwing()
     }
+    // The readout is a developer's and it starts out of the way.
+    if (k === '`' || k === '~') hud.hidden = !hud.hidden
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
     if (k === 'e') { e.preventDefault(); toggleTalk() }
@@ -1030,8 +1033,9 @@ async function main() {
    * entry here and a case in the loop below.  An empty slot is not drawn: a
    * row of dead buttons tells a player the game is broken rather than early.
    */
-  const ACTIONS = ['talk'] as const
+  const ACTIONS = ['attack', 'talk'] as const
   const pad = touchpad(canvas, ACTIONS.length)
+  const ui = makeHud()
   const help = document.getElementById('help') as HTMLDivElement
   let helpFor: boolean | null = null
 
@@ -1323,7 +1327,11 @@ async function main() {
     // does not close the thing you are answering.
     const tapped = pad.takeTap()
     if (chat && tapped) endTalk()
-    for (const slot of pad.taken()) if (ACTIONS[slot] === 'talk') toggleTalk()
+    for (const slot of pad.taken()) {
+      if (ACTIONS[slot] === 'talk') toggleTalk()
+      else if (ACTIONS[slot] === 'attack' && !chat && !you.died)
+        you.target = you.target ?? inSwing()
+    }
 
     // Steering happens on the glass, both for the keys and for the thumb.
     //
@@ -1642,7 +1650,10 @@ async function main() {
     }
 
     // The pad last of all, over everything including the prompt.
-    pad.draw(ctx, [{ label: '대화', ready: listener !== null }])
+    pad.draw(ctx, [
+      { label: '공격', ready: you.target !== null || inSwing() !== null },
+      { label: '대화', ready: listener !== null },
+    ])
 
     // The help line and a conversation share the bottom of a phone, and the
     // line is about controls that are not there while somebody is talking.
@@ -1653,7 +1664,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동\n오므려서 확대'
-        : 'WASD: 이동   휠: 확대   E: 대화'
+        : 'WASD: 이동   1: 공격   E: 대화   휠: 확대   `: 수치'
     }
 
     acc += dt; frames++
@@ -1690,6 +1701,35 @@ async function main() {
         : tail('AzerothCore 스폰에서 보간') || '보간'],
       ['프레임', `초당 ${fps.toFixed(0)}`],
     ])
+    // --- the interface ---
+    const foe = you.target
+    ui.setMe({
+      name: '주인공', level: you.level, hp: you.hp, max: you.max,
+      icon: 'sbed/health-normal.svg', foe: false,
+    })
+    ui.setFoe(foe ? {
+      name: nameOf(foe.kind), level: foe.level, hp: foe.hp, max: foe.max,
+      icon: foe.art.startsWith('townsfolk') || foe.art.startsWith('guard')
+        || foe.art.startsWith('bandit')
+        ? 'delapouite/sword-brandish.svg' : 'lorc/wolf-head.svg',
+      foe: !!(foe.fight && foe.fight[FOE]),
+    } : null)
+    ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
+    ui.setBar([
+      {
+        key: '1', label: '공격', icon: 'lorc/broadsword.svg',
+        // The shutter falls as the swing comes back, so a full square is a
+        // swing you have not taken rather than one you cannot.
+        cooling: you.target
+          ? Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 0,
+        live: you.target !== null || inSwing() !== null,
+      },
+      {
+        key: 'E', label: '대화', icon: 'skoll/talk.svg',
+        cooling: 0, live: listener !== null || chat !== null,
+      },
+    ])
+
     ;(window as unknown as { __ready: boolean }).__ready = true
     requestAnimationFrame(frame)
   }

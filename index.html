@@ -38,6 +38,82 @@
         position: fixed; right: 8px; bottom: 8px; color: #9ab; font: 11px/1.6 var(--mono);
         background: rgba(0,0,0,.55); padding: 6px 8px; white-space: pre; pointer-events: none;
       }
+      /*
+        The interface, as opposed to the readout above it.  Two unit frames and
+        a bar of actions: the shape the game this is modelled on settled on,
+        and the reason it reads at a glance.
+      */
+      /* Nothing in here takes a click: the interface reports, and the world
+         underneath it is what answers a finger. */
+      #ui, #ui * { pointer-events: none; }
+      #ui { position: fixed; inset: 0; color: #e8e4d8; }
+      #units { position: absolute; left: 10px; top: 10px; width: 232px; }
+      .frame {
+        display: grid; grid-template-columns: 40px 1fr; gap: 8px;
+        background: rgba(12,14,20,.82); border: 1px solid #4a4433;
+        padding: 6px; margin-bottom: 6px;
+      }
+      .frame .face {
+        width: 40px; height: 40px; opacity: .85;
+        background: rgba(255,255,255,.06); border: 1px solid #3b3a34;
+      }
+      .frame .top {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font: 12px/1.3 var(--body);
+      }
+      .frame .name { color: #e8e4d8; }
+      .frame .lv { color: #c9a86a; font: 11px var(--mono); }
+      .frame .bar, #ui .xp {
+        position: relative; height: 15px; margin-top: 5px;
+        background: rgba(0,0,0,.55); border: 1px solid #2c2a24; overflow: hidden;
+      }
+      .frame .fill, #ui .xp .fill {
+        position: absolute; inset: 0 auto 0 0; width: 0;
+        transition: width .12s linear;
+      }
+      .frame .num, #ui .xp .num {
+        position: relative; display: block; text-align: center;
+        font: 10px/15px var(--mono); color: #eef; text-shadow: 0 1px 1px #000;
+      }
+      #ui .xp { height: 9px; margin: -2px 0 0; }
+      #ui .xp .fill { background: #6a4fb0; }
+      #ui .xp .num { font-size: 9px; line-height: 9px; color: #cfc6ea; }
+
+      #bar {
+        position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+        display: flex; gap: 6px;
+      }
+      .slot {
+        position: relative; width: 46px; height: 46px;
+        background: rgba(12,14,20,.85); border: 1px solid #4a4433;
+      }
+      /* Not on the slot: `overflow: hidden` there clipped the label off the
+         bottom, which is where a label under a square lives. */
+      .slot img, .slot .sweep { position: absolute; inset: 0; }
+      .slot img { width: 100%; height: 100%; opacity: .35; }
+      .slot.live img { opacity: .95; }
+      /* The swing, drawn as a shutter that falls rather than a number. */
+      .slot .sweep {
+        position: absolute; inset: 0; background: rgba(0,0,0,.6);
+        transform-origin: top; transform: scaleY(0);
+      }
+      .slot .key {
+        position: absolute; left: 3px; top: 1px;
+        font: 10px var(--mono); color: #c9a86a;
+      }
+      /* Under the square, not over it: the label sat on the icon and the two
+         were unreadable together. */
+      .slot .name {
+        position: absolute; left: 0; right: 0; bottom: -15px; text-align: center;
+        font: 10px var(--body); color: #9ab; text-shadow: 0 1px 2px #000;
+      }
+      #bar { bottom: 30px; }
+
+      /* The readout is a developer's, so it goes where one belongs and starts
+         out of the way.  ` shows it. */
+      #hud { left: auto; right: 8px; }
+      #hud[hidden] { display: none; }
+
       #talk {
         position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
         width: min(620px, calc(100vw - 32px)); color: #e8e4d8;
@@ -68,6 +144,12 @@
         is a 20-pixel line of text, which is half of what a finger can hit.
       */
       body.touch #hud { font-size: 9px; padding: 6px 8px; }
+      /* A phone's bottom row is two thumbs, so the bar is not there — the
+         touch buttons are the action bar, and they already are. */
+      body.touch #bar { display: none; }
+      body.touch #units { width: 176px; }
+      body.touch .frame { grid-template-columns: 30px 1fr; padding: 4px; }
+      body.touch .frame .face { width: 30px; height: 30px; }
       body.touch #help {
         right: auto; left: 50%; transform: translateX(-50%);
         bottom: 10px; text-align: center; font-size: 10px;
@@ -81,8 +163,8 @@
     </style>
   </head>
   <body>
-    <div id="hud" class="plain">불러오는 중…</div>
-    <div id="help">WASD: 이동   휠: 확대   E: 대화</div>
+    <div id="hud" class="plain" hidden>불러오는 중…</div>
+    <div id="help">WASD: 이동   휠: 확대   E: 대화   1: 공격   `: 수치</div>
     <div id="talk" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

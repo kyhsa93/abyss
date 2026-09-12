@@ -103,18 +103,24 @@ await p.waitForTimeout(300)
 check('lifting stops the hero', JSON.stringify(await hero()) === JSON.stringify(still))
 
 // 6. Two fingers are the camera, not a second stick.
+//
+// Up the screen, not across the bottom.  This used to pinch at y=600, which
+// on a 390x664 phone is the button row — it worked while there was one button
+// and stopped the day there were two, because the second one sits at x=277
+// and a finger at (240, 600) is inside its hit radius.  What is being checked
+// here is the camera, so it is checked somewhere no button will ever be.
 const zoomOf = () => p.evaluate(() => Number(
   document.getElementById('hud').textContent.match(/배율 ([\d.]+)/)[1]))
 const z0 = await zoomOf()
-await touch('touchStart', [[140, 600], [240, 600]])
+await touch('touchStart', [[140, 330], [240, 330]])
 const held = await hero()
-await touch('touchMove', [[100, 600], [300, 600]])
+await touch('touchMove', [[100, 330], [300, 330]])
 await p.waitForTimeout(200)
 const z1 = await zoomOf()
 check('pinch out zooms in', z1 > z0 * 1.3, `${z0} -> ${z1}`)
 check('the pinch does not steer', JSON.stringify(await hero()) === JSON.stringify(held),
   JSON.stringify([held, await hero()]))
-await touch('touchMove', [[180, 600], [220, 600]])
+await touch('touchMove', [[180, 330], [220, 330]])
 await p.waitForTimeout(200)
 const z2 = await zoomOf()
 check('pinch in zooms out', z2 < z1 * 0.8, `${z1} -> ${z2}`)

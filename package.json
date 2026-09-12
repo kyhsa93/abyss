@@ -22,7 +22,8 @@
     "doll": "python3 pipeline/pack_paperdoll.py",
     "sources": "python3 pipeline/sources.py",
     "fetch": "python3 pipeline/fetch_assets.py",
-    "catalogue": "python3 pipeline/catalogue.py"
+    "catalogue": "python3 pipeline/catalogue.py",
+    "ui": "python3 pipeline/bake_ui.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
