@@ -243,8 +243,19 @@ async function main() {
     hero.moving = mx !== 0 || my !== 0
     if (hero.moving) {
       const len = Math.hypot(mx, my)
-      hero.x += (mx / len) * SPEED * dt
-      hero.y += (my / len) * SPEED * dt
+      const dx = (mx / len) * SPEED * dt
+      const dy = (my / len) * SPEED * dt
+      // Each axis is tested on its own, so walking into a shoreline at an angle
+      // slides along it instead of stopping dead.  Tested together, a diagonal
+      // into the bank blocks both halves and the player sticks on water they
+      // are not even walking into.
+      //
+      // And if the player is already standing in water — teleported there, or
+      // dropped in by a mask that moved under them — every move is allowed.
+      // A rule that can trap somebody is worse than the thing it prevents.
+      const stuck = wetAt(hero.x, hero.y)
+      if (stuck || !wetAt(hero.x + dx, hero.y)) hero.x += dx
+      if (stuck || !wetAt(hero.x, hero.y + dy)) hero.y += dy
       hero.dir = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? DIR_UP : DIR_DOWN) : (my > 0 ? DIR_LEFT : DIR_RIGHT)
       hero.t += dt
     } else {
@@ -341,7 +352,8 @@ async function main() {
     hud.textContent = [
       `ground   ${tilesDrawn.toLocaleString()} tiles`,
       `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn`,
-      `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd`,
+      `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd` +
+        (wetAt(hero.x, hero.y) ? '  [in water]' : ''),
       `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
       `terrain  ${from === 'data' ? "the client's own" : 'interpolated from AzerothCore spawns'}`,
       `fps      ${fps.toFixed(0)}`,
