@@ -18,7 +18,8 @@
     "viewcheck": "node scripts/viewcheck.mjs",
     "prompt": "python3 pipeline/make_prompt.py",
     "actions": "python3 pipeline/actions.py",
-    "promptcheck": "python3 pipeline/make_prompt.py --check prompts/"
+    "promptcheck": "python3 pipeline/make_prompt.py --check prompts/",
+    "doll": "python3 pipeline/pack_paperdoll.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

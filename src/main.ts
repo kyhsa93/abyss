@@ -21,6 +21,7 @@
  */
 
 import { bearing, speak, type Direction, type Speech, type Topic } from './talk'
+import { dress, needed, type Doll, type Worn } from './doll'
 import { layoutFor, touchpad } from './touch'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
@@ -43,6 +44,16 @@ type ActorArt = {
     first: number; frames: number; dirs: number
     clips: Record<string, { first: number; count: number }>
   }>
+}
+/**
+ * Anything the scene draws as a person: one image, square cells of one size,
+ * and clips looked up by name.  A packed sheet is one of these and so is the
+ * canvas `doll.ts` composites the player onto, which is the whole reason the
+ * player can be seven layers and still go through one `drawImage`.
+ */
+type Sheet = {
+  img: CanvasImageSource; cell: number; cols: number; anchor: number
+  dirs: number; clips: Record<string, { first: number; count: number }>
 }
 /**
  * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
@@ -103,13 +114,14 @@ async function main() {
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, actorImg, actorArt, npcImg, npcArt, spawns] = await Promise.all([
+  const [tilesImg, tilesMeta, actorImg, actorArt, npcImg, npcArt, doll, spawns] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/actors.png'),
     fetch('./art/actors.json').then((r) => r.json() as Promise<ActorArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
+    fetch('./art/doll.json').then((r) => r.json() as Promise<Doll>),
     // Not behind the two-worlds switch, and that is not an oversight: the
     // terrain has two sources because a client's height grid is sharper than
     // anything a database knows, but where a wolf stands is a row in
@@ -732,9 +744,71 @@ async function main() {
     else buckets.set(k, [o])
   }
 
+  /** The packed sheet a rendered kind is drawn from, built once per kind. */
+  const sheets: Record<string, Sheet> = {}
+  const sheetOf = (kind: string): Sheet => (sheets[kind] ??= {
+    img: actorImg, cell: actorArt.cell, cols: actorArt.cols,
+    anchor: actorArt.anchor, dirs: actorArt.kinds[kind]!.dirs,
+    clips: actorArt.kinds[kind]!.clips,
+  })
+
   // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
   const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
+
+  /**
+   * What the player has on.  There is no inventory yet, so this is a starting
+   * outfit and a key that cycles it — enough to prove the layers line up, and
+   * the thing an inventory will set when there is one.
+   */
+  const WHO = 'male'
+  const worn: Worn = { body: 'bare', head: 'bare', hair: '2',
+                       chest: 'light', feet: 'light', hands: 'bare' }
+  const KIT: Record<string, string[]> = {
+    chest: ['light', 'light_2', 'light_3', 'light_4', 'medium', 'heavy'],
+    feet: ['bare', 'light', 'light_2', 'medium', 'heavy'],
+    hands: ['bare', 'light', 'light_3', 'medium', 'heavy'],
+    helm: ['', 'light', 'medium', 'heavy'],
+  }
+  const dollArt = doll.who[WHO]!
+  /**
+   * Only the layers actually being worn.
+   *
+   * All thirty-two of them decode to 74 MB, and a layer is mostly transparent
+   * — which costs nothing in the file and full price in memory, because a
+   * decoded sheet is `width * height * 4` whatever is in it.  So a look is
+   * fetched when it is put on.  Gear changes when somebody opens a bag; frames
+   * happen sixty times a second.
+   */
+  const dollImages: Record<string, HTMLImageElement> = {}
+  const fetchLayers = async (want: string[]) => {
+    await Promise.all(want
+      .filter((n) => dollArt.layers[n] && !dollImages[n])
+      .map(async (n) => { dollImages[n] = await load(`./art/doll/${n}.png`) }))
+  }
+  await fetchLayers(needed(WHO, worn))
+  let heroSheet = {
+    img: dress(doll, dollArt, WHO, worn, dollImages) as CanvasImageSource,
+    cell: dollArt.cell, cols: doll.cols, anchor: dollArt.anchor,
+    dirs: dollArt.dirs, clips: dollArt.clips,
+  }
+  const redress = () => {
+    heroSheet = { ...heroSheet, img: dress(doll, dollArt, WHO, worn, dollImages) }
+  }
+  addEventListener('keydown', async (e) => {
+    if (e.key.toLowerCase() !== 'g') return
+    // One key for the lot, on purpose: a mixed outfit proves nothing a matched
+    // one does not, and what is being checked here is that the layers still
+    // line up when they change.
+    for (const [slot, list] of Object.entries(KIT)) {
+      const at = list.indexOf(worn[slot] ?? '')
+      const next = list[(at + 1) % list.length]!
+      if (next) worn[slot] = next
+      else delete worn[slot]
+    }
+    await fetchLayers(needed(WHO, worn))
+    redress()
+  })
   const SPEED = 7.0          // yards a second, which is WoW's run speed
 
   const keys = new Set<string>()
@@ -1111,7 +1185,7 @@ async function main() {
       const stuck = blocked(hero.x, hero.y)
       if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
       if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = facing8(mx, my, actorArt.kinds['hero']!.dirs)
+      hero.dir = facing8(mx, my, heroSheet.dirs)
       hero.t += dt
     } else {
       hero.t += dt
@@ -1224,29 +1298,30 @@ async function main() {
      * cent smaller than the ground they stood on.
      */
     const drawActor = (
-      who: string, dir: number, x: number, y: number, t: number, moving: boolean,
+      a: Sheet, dir: number, x: number, y: number, t: number, moving: boolean,
     ) => {
-      const a = actorArt.kinds[who]!
-      const clip = moving ? a.clips['walk']! : a.clips['idle']!
+      const clip = (moving ? a.clips['walk'] : a.clips['stand'] ?? a.clips['idle'])!
       const f = moving ? Math.floor(t * 9) % clip.count : 0
       // The sheet lays a clip out as directions, each a run of frames — the
-      // same order the drawn sheets use, so this is the same arithmetic.
+      // same order the drawn sheets use, so this is the same arithmetic.  It is
+      // also why the player can be a pile of layers and still come through
+      // here: what the composite is, is a sheet of this shape.
       const idx = clip.first + dir * clip.count + f
-      const c = actorArt.cell
-      const sxp = (idx % actorArt.cols) * c, syp = Math.floor(idx / actorArt.cols) * c
+      const c = a.cell
+      const sxp = (idx % a.cols) * c, syp = Math.floor(idx / a.cols) * c
       const w = c * zoom
       shadow(x, y, 0.3)
       // The foot line comes from the sheet.  A drawn sheet stands its people
       // near the bottom of the cell; a render aimed at the model's origin puts
       // them on it, and the packer measures which rather than either number
       // being typed here.
-      ctx.drawImage(actorImg, sxp, syp, c, c,
+      ctx.drawImage(a.img, sxp, syp, c, c,
         Math.round(screenX(x, y) - w / 2),
-        Math.round(screenY(x, y) - w * actorArt.anchor), Math.ceil(w), Math.ceil(w))
+        Math.round(screenY(x, y) - w * a.anchor), Math.ceil(w), Math.ceil(w))
       drawn++
     }
     const drawHero = () => {
-      drawActor('hero', hero.dir, hero.x, hero.y, hero.t, hero.moving)
+      drawActor(heroSheet, hero.dir, hero.x, hero.y, hero.t, hero.moving)
     }
     /**
      * The dab of shade a body puts on the ground it stands on.
@@ -1270,7 +1345,7 @@ async function main() {
 
     const drawNpc = (n: Npc) => {
       if (n.actor) {
-        drawActor(n.actor, n.dir, n.x, n.y, n.t, n.moving)
+        drawActor(sheetOf(n.actor), n.dir, n.x, n.y, n.t, n.moving)
         return
       }
       const a = npcArt.kinds[n.art]!

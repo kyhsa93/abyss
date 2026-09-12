@@ -25,6 +25,12 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             conversation and `talk.ts` writes the sentences: that split is what
             keeps Blizzard's prose out and stops an NPC claiming something the
             data does not support
+            The player is the exception to all of it: he wears gear, so he is
+            rendered a slot at a time (`paperdoll_slots.py` under Blender 2.79,
+            then `render_paperdoll.py` and `pack_paperdoll.py`) and composited
+            by `src/doll.ts`.  A generated sheet cannot do equipment — two
+            calls are two bodies, so the second call's shirt does not fit the
+            first call's body
 pipeline/actions.py is the catalogue of every action anything can perform —
             40 clips, and which of them each kind of creature needs.  Written
             out in full before anything is drawn, because adding a clip after

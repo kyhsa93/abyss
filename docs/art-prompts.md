@@ -56,6 +56,27 @@ It only attaches to ground, vegetation and buildings. **A barrel has no
 biome.** A barrel in the desert is a barrel, so nothing tagged `global` needs
 a palette variant, and that is most of the list.
 
+## The player is not on this list
+
+Nineteen subjects and not one of them is the player, which is deliberate. A
+townsman never changes his clothes, so his linen shirt belongs in his prompt
+and there is nothing to take off. The player equips gear, and that makes him a
+different kind of asset — not a harder one.
+
+Equipment means the shirt is a separate image from the body, lining up with it
+pixel for pixel in all eight directions and every frame of every clip. **No
+prompt gets that.** A generator has no memory between calls, which is the same
+fact that makes sheet 1 an attached reference — and a reference gets you a
+similar person, not the same one. The second call's shirt does not fit the
+first call's body, and no amount of describing it does.
+
+So the player is rendered: `pipeline/render_paperdoll.py` photographs one rig
+one slot at a time, and layers of the same rig in the same pose under the same
+camera cannot drift. Occlusion comes free with it — the bare body is a holdout
+while any other layer is photographed, so an arm swinging across a breastplate
+cuts an arm-shaped hole in it, and that is the per-direction ordering table a
+drawn paperdoll has to keep and this one does not.
+
 ## Zone is not an axis
 
 It is a query, not a folder. Counted out of AzerothCore's `creature` table
