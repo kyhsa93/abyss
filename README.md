@@ -66,11 +66,15 @@ quest bodies — is not used either.
 pipeline and then dropping it; the kind words are ours, and the name never
 reaches the browser.
 
-One building is not drawn at all. `pipeline/render_kit.py` assembles it out of
-[Kenney's Fantasy Town Kit](https://kenney.nl/assets/fantasy-town-kit) — 167 CC0
-models on a 1×1×1 grid — and photographs it in headless Blender at the camera
+**The scenery is not drawn at all.** `pipeline/render_kit.py` builds it out of
+three CC0 model kits — [Fantasy Town](https://kenney.nl/assets/fantasy-town-kit),
+[Nature](https://kenney.nl/assets/nature-kit) and
+[Mini Forest](https://kenney.nl/assets/mini-forest), about 500 models between
+them — and photographs each piece in headless Blender at the camera
 `src/main.ts` projects with: orthographic, 2:1, elevation `atan(0.5)` down the
-45° diagonal. It stands among the flat ones on purpose.
+45° diagonal. Trees, bushes, rocks, fences, buildings, carts, stalls, logs,
+grass, flowers and mushrooms all come from there. What is still drawn is the
+ground, the people, and the farm produce.
 
 The art is Liberated Pixel Cup — the tilesets, the character parts and four
 animal packs from OpenGameArt, cut and composited by `pipeline/`. It is

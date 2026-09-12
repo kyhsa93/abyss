@@ -19,7 +19,7 @@ pixels, and an orthographic camera's pixels-per-unit is `resolution /
 ortho_scale` — so the number below is derived from those three rather than
 nudged until it looked right.
 
-  blender --background --python pipeline/render_kit.py -- <kit dir> <out dir>
+  blender --background --python pipeline/render_kit.py -- <town> <forest> <nature> <out>
 
 Renders with Cycles on the CPU, which is what this machine has: about four
 seconds for a house at 512 pixels, and these are baked once.
@@ -55,7 +55,108 @@ BUILDS = {
         ('roof-high-gable-end', 0, 1, 1, 0),
         ('chimney', 0, -1, 1.4, 0),
     ],
+    # Stone, and a storey taller: walls stack a unit at a time, so a second
+    # floor is the same row of pieces at z=1 with the roof pushed up to 2.
+    'kit_house_stone': [
+        ('wall-window-shutters', 0, -1, 0, 180),
+        ('wall-door', 0, 0, 0, 180),
+        ('wall-window-shutters', 0, 1, 0, 180),
+        ('wall', 0, -1, 0, 0), ('wall-window-glass', 0, 0, 0, 0), ('wall', 0, 1, 0, 0),
+        ('wall-window-small', 0, 1, 0, 90), ('wall', 0, -1, 0, -90),
+        ('wall-wood-window-small', 0, -1, 1, 180),
+        ('wall-wood-window-glass', 0, 0, 1, 180),
+        ('wall-wood-window-small', 0, 1, 1, 180),
+        ('wall-wood', 0, -1, 1, 0), ('wall-wood', 0, 0, 1, 0), ('wall-wood', 0, 1, 1, 0),
+        ('wall-wood', 0, 1, 1, 90), ('wall-wood', 0, -1, 1, -90),
+        ('roof-high-gable-end', 0, -1, 2, 180),
+        ('roof-high-gable', 0, 0, 2, 0),
+        ('roof-high-gable-end', 0, 1, 2, 0),
+        ('chimney', 0, 1, 2.4, 0),
+    ],
+    # Wider, for the things the world database calls a hall.
+    'kit_hall': [
+        ('wall-window-shutters', 0, -2, 0, 180), ('wall-door', 0, -1, 0, 180),
+        ('wall-window-glass', 0, 0, 0, 180), ('wall-door', 0, 1, 0, 180),
+        ('wall-window-shutters', 0, 2, 0, 180),
+        ('wall', 1, -2, 0, 0), ('wall-window-glass', 1, -1, 0, 0),
+        ('wall', 1, 0, 0, 0), ('wall-window-glass', 1, 1, 0, 0), ('wall', 1, 2, 0, 0),
+        ('wall', 0, 2, 0, 90), ('wall', 1, 2, 0, 90),
+        ('wall', 0, -2, 0, -90), ('wall', 1, -2, 0, -90),
+        ('roof-corner', 0, -2, 1, 180), ('roof-left', 0, -1, 1, 180),
+        ('roof-flat', 0, 0, 1, 180), ('roof-right', 0, 1, 1, 180),
+        ('roof-corner-inner', 0, 2, 1, 180),
+        ('roof-corner', 1, 2, 1, 0), ('roof-left', 1, 1, 1, 0),
+        ('roof-flat', 1, 0, 1, 0), ('roof-right', 1, -1, 1, 0),
+        ('roof-corner-inner', 1, -2, 1, 0),
+        ('chimney', 1, 2, 1.4, 0),
+    ],
 }
+
+# (id, kit, model[, turn]).  Pieces the kit already has whole — no assembly,
+# just the same camera.  A fence is rendered twice, a quarter turn apart: the
+# kit draws it running along one axis, and in quarter view a fence along the
+# other axis is a different picture, not the same one moved.  `forest` is Kenney's Mini Forest and `town` the Fantasy Town
+# Kit; both are CC0 and both are inputs living under `~/src` the way LPC does.
+#
+# Mini Forest's `rocks-high` and `rocks-low` are not here on purpose: they
+# render black, which is a material the glTF import does not bring across, and
+# the town kit's rocks are fine.
+SINGLES = [
+    # The wood.  Kenney's Nature Kit is the third input and the one that has
+    # what a forest is actually made of — 329 models including the bushes,
+    # grass, flowers, logs and mushrooms neither of the others had.  The
+    # mushrooms matter beyond their looks: LPC's are in its `MISSING:` section
+    # and could not be used at all, so 160 doodads have been seedlings.
+    ('kit_tree', 'nature', 'tree_oak'),
+    ('kit_tree2', 'nature', 'tree_detailed'),
+    ('kit_tree3', 'nature', 'tree_fat'),
+    ('kit_tree4', 'nature', 'tree_default'),
+    ('kit_pine', 'nature', 'tree_pineDefaultA'),
+    ('kit_pine2', 'nature', 'tree_pineDefaultB'),
+    ('kit_pine3', 'nature', 'tree_pineRoundA'),
+    ('kit_pine4', 'nature', 'tree_pineGroundA'),
+    ('kit_bush', 'nature', 'plant_bush'),
+    ('kit_bush2', 'nature', 'plant_bushDetailed'),
+    ('kit_bush3', 'nature', 'plant_bushLarge'),
+    ('kit_bush4', 'nature', 'plant_bushSmall'),
+    ('kit_grass', 'nature', 'grass'),
+    ('kit_grass2', 'nature', 'grass_large'),
+    ('kit_grass3', 'nature', 'grass_leafs'),
+    ('kit_flower', 'nature', 'flower_redA'),
+    ('kit_flower2', 'nature', 'flower_purpleA'),
+    ('kit_flower3', 'nature', 'flower_yellowA'),
+    ('kit_mushroom', 'nature', 'mushroom_red'),
+    ('kit_mushroom2', 'nature', 'mushroom_redGroup'),
+    ('kit_mushroom3', 'nature', 'mushroom_tanGroup'),
+    ('kit_log', 'nature', 'log'),
+    ('kit_log2', 'nature', 'log_large'),
+    ('kit_logs', 'nature', 'log_stack'),
+    ('kit_rock', 'nature', 'rock_largeA'),
+    ('kit_rock2', 'nature', 'rock_largeC'),
+    ('kit_rock3', 'nature', 'rock_smallA'),
+    ('kit_rock4', 'town', 'rock-wide'),
+    ('kit_stones', 'forest', 'stones'),
+    ('kit_fence', 'town', 'fence'),
+    ('kit_fence2', 'town', 'fence-broken'),
+    ('kit_gate', 'town', 'fence-gate'),
+    ('kit_fence_b', 'town', 'fence', 90),
+    ('kit_fence2_b', 'town', 'fence-broken', 90),
+    ('kit_gate_b', 'town', 'fence-gate', 90),
+    ('kit_hedge', 'town', 'hedge'),
+    ('kit_hedge2', 'town', 'hedge-large'),
+    ('kit_plant', 'forest', 'plant'),
+    ('kit_cart', 'town', 'cart'),
+    ('kit_cart2', 'town', 'cart-high'),
+    ('kit_stall', 'town', 'stall-red'),
+    ('kit_stall2', 'town', 'stall-green'),
+    ('kit_lantern', 'town', 'lantern'),
+    ('kit_planks', 'town', 'planks'),
+    ('kit_wheel', 'town', 'wheel'),
+    ('kit_fountain', 'town', 'fountain-round'),
+    ('kit_tent', 'forest', 'tent'),
+    ('kit_windmill', 'town', 'windmill'),
+    ('kit_watermill', 'town', 'watermill'),
+]
 
 
 def build(kit, pieces):
@@ -125,16 +226,27 @@ def render(out, res):
     bpy.ops.render.render(write_still=True)
 
 
-def main(kit, out):
+def main(kits, out):
     os.makedirs(out, exist_ok=True)
     for name, pieces in BUILDS.items():
         bpy.ops.wm.read_factory_settings(use_empty=True)
-        build(kit, pieces)
+        build(kits['town'], pieces)
         light()
+        # A building fills a frame this wide; anything smaller is cropped and
+        # anything larger is mostly empty render.
         render(os.path.join(out, name + '.png'), 512)
+        print(f'built {name}')
+    for name, kit, model, *turn in SINGLES:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        build(kits[kit], [(model, 0, 0, 0, turn[0] if turn else 0)])
+        light()
+        render(os.path.join(out, name + '.png'), 256)
         print(f'rendered {name}')
 
 
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:]
-    main(os.path.expanduser(argv[0]), os.path.expanduser(argv[1]))
+    main({'town': os.path.expanduser(argv[0]),
+          'forest': os.path.expanduser(argv[1]),
+          'nature': os.path.expanduser(argv[2])},
+         os.path.expanduser(argv[3]))

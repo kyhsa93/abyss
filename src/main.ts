@@ -203,49 +203,69 @@ async function main() {
   // picture.  A canopy is not solid — walking behind a tree is the whole reason
   // the canopy is drawn over the player instead of under.
   const KIND: Record<string, {
-    pieces: string[]; trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
+    pieces: string[]
+    /** The same thing drawn along the other axis — see `alongX` below. */
+    across?: string[]
+    trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
   }> = {
-    tree: { pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk', solid: 0.5 },
+    // Rendered, not drawn.  A flat tree stands on a diamond like a card; these
+    // are the kit's, photographed at this game's camera, so they have two
+    // faces and a canopy that recedes.  No `trunk`: that split existed to draw
+    // a flat canopy over the player's head, and a depth sort does it now.
+    tree: { pieces: ['kit_tree', 'kit_tree2', 'kit_tree3', 'kit_tree4'], solid: 0.5 },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
     // angle is how pixel art stops looking like pixel art.
     // `run`: pick the piece off the neighbourhood rather than the doodad, so a
     // boundary is all one fence.  Picking per post gave a line that alternated
     // rail, picket, rail, which is not a fence anybody built.
-    fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
-    lamp: { pieces: ['fence_post'] },
-    sign: { pieces: ['fence_post'] },
-    pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
+    // `across` is the same fence rendered a quarter turn round.  Drawn flat it
+    // did not matter which way a fence ran; in quarter view a fence along x
+    // and a fence along y are two different pictures.
+    fence: {
+      pieces: ['kit_fence', 'kit_fence2'],
+      across: ['kit_fence_b', 'kit_fence2_b'],
+      run: true, solid: 'span',
+    },
+    lamp: { pieces: ['kit_lantern'] },
+    sign: { pieces: ['kit_lantern'] },
+    pine: { pieces: ['kit_pine', 'kit_pine2', 'kit_pine3', 'kit_pine4'], solid: 0.5 },
     // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
     // the texture the field had, and it reads as wallpaper however good the
     // sprite is.
-    bush: { pieces: ['bush', 'bush2', 'shrub', 'shrub2', 'bush', 'bush2'] },
-    rock: { pieces: ['boulder', 'menhir', 'rubble'], solid: 0.55 },
-    stump: { pieces: ['stump', 'trunk'], solid: 0.5 },
-    log: { pieces: ['trunk2', 'woodpile'] },
-    grass: { pieces: ['bush', 'sprout2'] },
+    bush: { pieces: ['kit_bush', 'kit_bush2', 'kit_bush3', 'kit_bush4'] },
+    rock: {
+      pieces: ['kit_rock', 'kit_rock2', 'kit_rock3', 'kit_rock4', 'kit_stones'],
+      solid: 0.55,
+    },
+    stump: { pieces: ['kit_log', 'kit_logs'], solid: 0.5 },
+    log: { pieces: ['kit_log', 'kit_log2', 'kit_logs'] },
+    grass: { pieces: ['kit_grass', 'kit_grass2', 'kit_grass3'] },
     // 710 of these stand in the shallows, and they were bushes.
     water_plant: { pieces: ['reeds', 'reeds2'] },
-    flower: { pieces: ['sprout', 'sprout2', 'tomatoes'] },
+    flower: { pieces: ['kit_flower', 'kit_flower2', 'kit_flower3'] },
     crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
     // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
     // nobody recorded who drew them — so what stands here is a seedling, and
     // that is the whole of the reason.
-    mushroom: { pieces: ['sprout2', 'sprout'] },
+    // Mushrooms at last.  LPC's are in its sheet's `MISSING:` section — nobody
+    // recorded who drew them — so for two rounds these 160 doodads were
+    // seedlings.  Kenney's are CC0, which asks nothing of anybody.
+    mushroom: { pieces: ['kit_mushroom', 'kit_mushroom2', 'kit_mushroom3'] },
     lily: { pieces: ['lily', 'lily2', 'lily3'] },
     barrel: { pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels'], solid: 0.4 },
     // `prop` is the client's word for the furniture of a yard, and 301 of them
     // were one grey blob.  A yard has firewood, sacks, crates and a stall in
     // it, and which one is decided the same way a tree's species is.
     prop: {
-      pieces: ['crate', 'sack', 'sacks', 'basket', 'baskets', 'basket2',
-        'baskets2', 'firewood', 'firewood2', 'woodpile', 'anvil', 'hay', 'stall'],
+      pieces: ['kit_stall', 'kit_stall2', 'kit_planks', 'kit_wheel',
+        'kit_fountain', 'kit_cart2', 'kit_gate', 'kit_stones'],
       solid: 0.45,
     },
     // Thirteen carts stood in the client's world and none of them were drawn:
     // `cart` was not in this table at all, and a kind that is missing from it
     // is skipped without a word.
-    cart: { pieces: ['cart', 'cart2', 'haycart'], solid: 0.7 },
+    cart: { pieces: ['kit_cart', 'kit_cart2'], solid: 0.7 },
     grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
@@ -253,14 +273,10 @@ async function main() {
     // photographed at this game's own camera by `pipeline/render_kit.py`.  It
     // stands among the flat ones on purpose — the whole question is whether a
     // rendered building sits on this ground better than a drawn one does.
-    house: {
-      pieces: ['house_a', 'house_b', 'kit_house', 'house_c', 'house_d',
-        'kit_house', 'house_e', 'house_f'],
-      solid: 'building',
-    },
-    hall: { pieces: ['hall'], solid: 'building' },
-    tower: { pieces: ['tower'], solid: 'building' },
-    tent: { pieces: ['tent'], solid: 'building' },
+    house: { pieces: ['kit_house', 'kit_house_stone'], solid: 'building' },
+    hall: { pieces: ['kit_hall'], solid: 'building' },
+    tower: { pieces: ['kit_house_stone'], solid: 'building' },
+    tent: { pieces: ['kit_tent'], solid: 'building' },
   }
 
   /**
@@ -323,11 +339,19 @@ async function main() {
       // One doodad, several sections, laid end to end so a boundary is a line
       // rather than a row of posts.
       const r = runs.get(d) ?? { span: 1.33, alongX: false }
-      const sec = piece.w / PPY
+      // The kit draws its fence running along x, so it is the run along *y*
+      // that needs the turned picture.  Wired the other way round — which is
+      // how this first went in — every fence stands across its own line and a
+      // boundary reads as a row of gates.
+      const along = !r.alongX && k.across
+        ? tilesMeta[k.across[Math.floor(seed * k.across.length) % k.across.length]!]
+        : undefined
+      const piece2 = along ?? piece
+      const sec = piece2.w / PPY
       const n = Math.max(1, Math.round(r.span / sec))
       for (let i = 0; i < n; i++) {
         const off = (i - (n - 1) / 2) * sec
-        placed.push({ x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off), piece })
+        placed.push({ x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off), piece: piece2 })
       }
       const half = (n * sec) / 2
       solids.push({

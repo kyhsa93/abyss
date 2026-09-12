@@ -67,9 +67,10 @@ AUTHORS = {
     # exactly why it is written down here — a credit nobody is owed is still
     # the honest record of where a picture came from.
     'kenney': {
-        'name': 'Kenney (Fantasy Town Kit), rendered by pipeline/render_kit.py',
+        'name': ('Kenney (Fantasy Town Kit, Nature Kit, Mini Forest), '
+                 'rendered by pipeline/render_kit.py'),
         'licences': 'CC0 1.0',
-        'url': 'https://kenney.nl/assets/fantasy-town-kit',
+        'url': 'https://kenney.nl/assets',
     },
 }
 
@@ -226,7 +227,58 @@ OBJECTS = [
 # projection `src/main.ts` draws in.  They come in already trimmed and already
 # at the right pixels-per-yard, so this table is only where they join the atlas.
 RENDERED = [
+    ('kit_bush', 'kit_bush.png', 'kenney'),
+    ('kit_bush2', 'kit_bush2.png', 'kenney'),
+    ('kit_bush3', 'kit_bush3.png', 'kenney'),
+    ('kit_bush4', 'kit_bush4.png', 'kenney'),
+    ('kit_cart', 'kit_cart.png', 'kenney'),
+    ('kit_cart2', 'kit_cart2.png', 'kenney'),
+    ('kit_fence', 'kit_fence.png', 'kenney'),
+    ('kit_fence2', 'kit_fence2.png', 'kenney'),
+    ('kit_fence2_b', 'kit_fence2_b.png', 'kenney'),
+    ('kit_fence_b', 'kit_fence_b.png', 'kenney'),
+    ('kit_flower', 'kit_flower.png', 'kenney'),
+    ('kit_flower2', 'kit_flower2.png', 'kenney'),
+    ('kit_flower3', 'kit_flower3.png', 'kenney'),
+    ('kit_fountain', 'kit_fountain.png', 'kenney'),
+    ('kit_gate', 'kit_gate.png', 'kenney'),
+    ('kit_gate_b', 'kit_gate_b.png', 'kenney'),
+    ('kit_grass', 'kit_grass.png', 'kenney'),
+    ('kit_grass2', 'kit_grass2.png', 'kenney'),
+    ('kit_grass3', 'kit_grass3.png', 'kenney'),
+    ('kit_hall', 'kit_hall.png', 'kenney'),
+    ('kit_hedge', 'kit_hedge.png', 'kenney'),
+    ('kit_hedge2', 'kit_hedge2.png', 'kenney'),
     ('kit_house', 'kit_house.png', 'kenney'),
+    ('kit_house_stone', 'kit_house_stone.png', 'kenney'),
+    ('kit_lantern', 'kit_lantern.png', 'kenney'),
+    ('kit_log', 'kit_log.png', 'kenney'),
+    ('kit_log2', 'kit_log2.png', 'kenney'),
+    ('kit_logs', 'kit_logs.png', 'kenney'),
+    ('kit_mushroom', 'kit_mushroom.png', 'kenney'),
+    ('kit_mushroom2', 'kit_mushroom2.png', 'kenney'),
+    ('kit_mushroom3', 'kit_mushroom3.png', 'kenney'),
+    ('kit_pine', 'kit_pine.png', 'kenney'),
+    ('kit_pine2', 'kit_pine2.png', 'kenney'),
+    ('kit_pine3', 'kit_pine3.png', 'kenney'),
+    ('kit_pine4', 'kit_pine4.png', 'kenney'),
+    ('kit_planks', 'kit_planks.png', 'kenney'),
+    ('kit_plant', 'kit_plant.png', 'kenney'),
+    ('kit_rock', 'kit_rock.png', 'kenney'),
+    ('kit_rock2', 'kit_rock2.png', 'kenney'),
+    ('kit_rock3', 'kit_rock3.png', 'kenney'),
+    ('kit_rock4', 'kit_rock4.png', 'kenney'),
+    ('kit_stall', 'kit_stall.png', 'kenney'),
+    ('kit_stall2', 'kit_stall2.png', 'kenney'),
+    ('kit_stones', 'kit_stones.png', 'kenney'),
+    ('kit_tent', 'kit_tent.png', 'kenney'),
+    ('kit_tree', 'kit_tree.png', 'kenney'),
+    ('kit_tree2', 'kit_tree2.png', 'kenney'),
+    ('kit_tree3', 'kit_tree3.png', 'kenney'),
+    ('kit_tree4', 'kit_tree4.png', 'kenney'),
+    ('kit_watermill', 'kit_watermill.png', 'kenney'),
+    ('kit_wheel', 'kit_wheel.png', 'kenney'),
+    ('kit_windmill', 'kit_windmill.png', 'kenney'),
 ]
 # Where `render_kit.py` was told to put them.
 RENDERS = 'public/art/kit'
