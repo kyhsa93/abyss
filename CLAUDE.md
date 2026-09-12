@@ -25,6 +25,10 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             conversation and `talk.ts` writes the sentences: that split is what
             keeps Blizzard's prose out and stops an NPC claiming something the
             data does not support
+pipeline/actions.py is the catalogue of every action anything can perform —
+            40 clips, and which of them each kind of creature needs.  Written
+            out in full before anything is drawn, because adding a clip after
+            the fact costs the whole subject and not a row
 docs/       `art-prompts.md` — why each line of a prompt is in it, filed by what
             the engine does with it (`actor` / `prop` / `paired` / `ground`),
             then by how far the asset travels (`global` / `biome` / `zone`).

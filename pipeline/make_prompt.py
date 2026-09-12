@@ -19,6 +19,9 @@ be filed under — see the document.
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import actions  # noqa: E402
+
 # Every sheet carries this, unchanged, or they stop looking like one world.
 # The palette is the only line that moves, and it moves as a whole line.
 BLOCK = """고해상도 핸드페인팅 2.5D 쿼터뷰 게임 아트. 고급 픽셀아트 RPG의 질감 —
@@ -75,82 +78,58 @@ DIRS = """8방향, 왼쪽부터 정확히 이 순서:
 SAME = """모든 칸이 같은 개체, 같은 복장, 같은 비율, 같은 크기,
         같은 밑면 높이. 회전과 동작만 다르다."""
 
-# Everything one subject needs, in one sheet.
+# One sheet is one group of clips from `actions.py`, eight directions wide.
 #
-# Split across two it would be two subjects: generating the same character
-# twice is the one part of this that is genuinely hard, and an image model has
-# no memory between calls.  So the whole clip list goes in one call even though
-# it is a large one, and the resolution line below is what makes that possible
-# rather than optimistic.
+# The whole vocabulary is decided there before anything is drawn, because
+# adding a clip after the fact does not cost a row — it costs the subject.
+# Generating the same character twice gets you two characters, and an image
+# model has no memory between calls.
 #
-# Two sets, because a chicken does not swing at anything.  What is in them is
-# what the scene will actually play — a walk that is four frames because
-# `src/main.ts` cycles four, a death because things die, and nothing else.
-# No sit, no emote, no cast: there is nothing to drive them, and a row nobody
-# plays is a row of cells taken away from the rows somebody does.
-CLIPS = {
-    'fighter': [
-        '서 있는 자세(대기).',
-        '걷기 1/4 — 왼발이 앞으로 나간 접지 순간.',
-        '걷기 2/4 — 두 발이 스쳐 지나가는 순간, 몸이 가장 높다.',
-        '걷기 3/4 — 오른발이 앞으로 나간 접지 순간.',
-        '걷기 4/4 — 두 발이 스쳐 지나가는 순간, 반대쪽.',
-        '공격 1/3 — 때릴 준비. 팔을(무기가 있으면 무기를) 뒤로 젖힌다.',
-        '공격 2/3 — 휘두르는 순간, 몸이 가장 앞으로 나간다.',
-        '공격 3/3 — 휘두른 뒤 따라가는 자세.',
-        '피격 — 뒤로 밀리며 움츠린다.',
-        '쓰러짐 1/3 — 무릎이 꺾인다.',
-        '쓰러짐 2/3 — 앞으로 무너진다.',
-        '쓰러짐 3/3 — 땅에 누운 채 움직이지 않는다.',
-    ],
-    'critter': [
-        '서 있는 자세(대기).',
-        '걷기 1/4 — 앞다리 한쪽이 앞으로 나간 접지 순간.',
-        '걷기 2/4 — 네 발이 스쳐 지나가는 순간.',
-        '걷기 3/4 — 반대쪽 앞다리가 앞으로 나간 접지 순간.',
-        '걷기 4/4 — 네 발이 스쳐 지나가는 순간, 반대쪽.',
-        '피격 — 움츠린다.',
-        '쓰러짐 1/2 — 다리가 꺾인다.',
-        '쓰러짐 2/2 — 옆으로 누운 채 움직이지 않는다.',
-    ],
-}
-
+# `base` is generated first and every other sheet of that subject is generated
+# with it as an image reference.  That is the only thing that holds a subject
+# together across six calls, and it is why `base` carries the stand and the
+# walk: the two everything else has to agree with.
 ACTOR = """생물 한 종류만. {cells}칸을 8열 {rows}행으로 배치한다.
 각 행이 {dirs}
 
 {table}
 
 {same}
-
+{ref}
 해상도  한 칸이 최소 128픽셀은 되어야 한다. 8열 {rows}행이므로
         출력은 최소 {wide}×{tall}, 가능하면 그 두 배.
 
 대상  {what}
 크기  {size}"""
 
-# (name, reach, clips, 대상, 크기).  The sizes are the ones `bake_npcs.py`
+REFERENCE = """
+참조    같은 대상의 `base` 시트를 이미지 레퍼런스로 함께 넣는다. 얼굴,
+        머리색, 옷, 비율, 키가 그 시트와 같은 인물이어야 한다.
+"""
+
+# (name, reach, role, 대상, 크기).  The sizes are the ones `bake_npcs.py`
 # recorded for the drawn sheet — an animal's length in yards, taken from its
 # side view, which is the only view a length is visible in.
 ACTORS = [
-    ('townsman', 'global', 'fighter', '중세 마을 남자. 리넨 셔츠, 가죽 조끼, 모직 바지, 가죽 장화', '키 1.8야드'),
-    ('townswoman', 'global', 'fighter', '중세 마을 여자. 리넨 원피스, 앞치마, 머릿수건, 가죽 신발', '키 1.7야드'),
-    ('guard', 'global', 'fighter', '사슬 갑옷과 할버드를 든 마을 경비병. 붉은 겉옷, 투구', '키 1.8야드'),
-    ('bandit', 'global', 'fighter', '누더기 가죽을 걸친 산적. 두건, 짧은 검, 허리에 자루', '키 1.8야드'),
-    ('ghost', 'global', 'fighter', '반투명한 망령. 형체는 사람이나 아래로 갈수록 흐려진다', '키 1.8야드'),
-    ('skeleton', 'global', 'fighter', '낡은 검과 방패를 든 해골 전사', '키 1.8야드'),
-    ('murloc', 'global', 'fighter', '늪지 어인. 비늘 피부, 물갈퀴, 지느러미 볏, 뼈 작살', '키 1.6야드'),
-    ('wolf', 'global', 'fighter', '회색 숲늑대. 날렵한 몸, 두꺼운 어깨, 쫑긋 선 귀', '길이 2.0야드'),
-    ('bear', 'global', 'fighter', '갈색 곰. 두툼한 어깨, 낮은 머리', '길이 2.4야드'),
-    ('boar', 'global', 'fighter', '숲멧돼지. 뻣뻣한 갈기, 굽은 엄니', '길이 1.6야드'),
+    ('townsman', 'global', 'human', '중세 마을 남자. 리넨 셔츠, 가죽 조끼, 모직 바지, 가죽 장화', '키 1.8야드'),
+    ('townswoman', 'global', 'human', '중세 마을 여자. 리넨 원피스, 앞치마, 머릿수건, 가죽 신발', '키 1.7야드'),
+    ('guard', 'global', 'human', '사슬 갑옷과 할버드를 든 마을 경비병. 붉은 겉옷, 투구', '키 1.8야드'),
+    ('bandit', 'global', 'human', '누더기 가죽을 걸친 산적. 두건, 짧은 검, 허리에 자루', '키 1.8야드'),
+    ('ghost', 'global', 'humanoid', '반투명한 망령. 형체는 사람이나 아래로 갈수록 흐려진다', '키 1.8야드'),
+    ('skeleton', 'global', 'humanoid', '낡은 검과 방패를 든 해골 전사', '키 1.8야드'),
+    ('murloc', 'global', 'humanoid', '늪지 어인. 비늘 피부, 물갈퀴, 지느러미 볏, 뼈 작살', '키 1.6야드'),
+    ('wolf', 'global', 'beast', '회색 숲늑대. 날렵한 몸, 두꺼운 어깨, 쫑긋 선 귀', '길이 2.0야드'),
+    ('bear', 'global', 'beast', '갈색 곰. 두툼한 어깨, 낮은 머리', '길이 2.4야드'),
+    ('boar', 'global', 'beast', '숲멧돼지. 뻣뻣한 갈기, 굽은 엄니', '길이 1.6야드'),
     ('rabbit', 'global', 'critter', '들토끼. 갈색 털, 긴 귀', '길이 0.6야드'),
-    ('cow', 'global', 'critter', '얼룩소. 흰 바탕에 갈색 반점', '길이 2.4야드'),
-    ('sheep', 'global', 'critter', '양. 두꺼운 양모, 검은 얼굴', '길이 1.5야드'),
+    ('cow', 'global', 'livestock', '얼룩소. 흰 바탕에 갈색 반점', '길이 2.4야드'),
+    ('sheep', 'global', 'livestock', '양. 두꺼운 양모, 검은 얼굴', '길이 1.5야드'),
     ('chicken', 'global', 'critter', '암탉. 갈색 깃털', '길이 0.7야드'),
     ('cat', 'global', 'critter', '길고양이. 회색 줄무늬', '길이 0.9야드'),
-    ('horse', 'global', 'critter', '짐말. 갈색 털, 굴레와 안장', '길이 2.6야드'),
-    ('spider', 'global', 'fighter', '큰 숲거미. 털 난 다리 여덟, 붉은 눈', '길이 1.4야드'),
-    ('deer', 'biome', 'critter', '붉은사슴 수컷. 가지뿔', '길이 2.0야드'),
-    ('kobold', 'zone', 'fighter', '광산 코볼트. 작고 마른 몸, 뾰족한 코, 촛불 달린 두건, 곡괭이', '키 1.1야드'),
+    ('horse', 'global', 'livestock', '짐말. 갈색 털, 굴레와 안장', '길이 2.6야드'),
+    ('spider', 'global', 'beast', '큰 숲거미. 털 난 다리 여덟, 붉은 눈', '길이 1.4야드'),
+    ('deer', 'biome', 'livestock', '붉은사슴 수컷. 가지뿔', '길이 2.0야드'),
+    ('kobold', 'zone', 'humanoid', '광산 코볼트. 작고 마른 몸, 뾰족한 코, 촛불 달린 두건, 곡괭이', '키 1.1야드'),
 ]
 
 GRID = """어두운 무채색 배경 위에 자산 시트 한 장. 물체들을 일정한 간격의 격자로
@@ -236,12 +215,17 @@ def block(biome, topdown=False):
 
 def every():
     out = {}
-    for name, reach, clips, what, size in ACTORS:
-        rows = CLIPS[clips]
-        table = '\n'.join(f'{i + 1:>2}행  {c}' for i, c in enumerate(rows))
-        out[f'actor_{reach}_{name}'] = block('temperate') + '\n\n' + ACTOR.format(
-            cells=len(rows) * 8, rows=len(rows), dirs=DIRS, table=table, same=SAME,
-            wide=8 * 128, tall=len(rows) * 128, what=what, size=size)
+    for name, reach, role, what, size in ACTORS:
+        for group in actions.ROLE[role]:
+            lines = actions.rows(role, group)
+            table = '\n'.join(
+                f'{i + 1:>2}행  ' + (what_ if n == 1 else f'{what_} [{f + 1}/{n}]')
+                for i, (_cid, f, n, what_) in enumerate(lines))
+            out[f'actor_{reach}_{name}_{group}'] = (
+                block('temperate') + '\n\n' + ACTOR.format(
+                    cells=len(lines) * 8, rows=len(lines), dirs=DIRS, table=table,
+                    same=SAME, ref='' if group == 'base' else REFERENCE,
+                    wide=8 * 128, tall=len(lines) * 128, what=what, size=size))
     for name, cls, reach, biome, body in SHEETS:
         out[f'{cls}_{reach}_{name}'] = (
             block(biome, topdown=(cls == 'ground')) + '\n\n' + body)

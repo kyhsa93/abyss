@@ -177,29 +177,41 @@ low-poly, outlines, perspective.
 
 ## What each class adds
 
-**`actor`** — eight directions, named in a stated order, and every clip the
-subject will ever play, in one sheet. Twelve rows for anything that fights, 96
-cells; eight rows for anything that does not, 64.
+**`actor`** — eight directions, named in a stated order, and one sheet per
+group of clips. Eight and not four because four leaves the pose 45 degrees out
+half the time, which is the compromise this art direction exists to end; in a
+stated order because five views at uneven spacing cannot be turned into eight.
 
-Eight directions and not four because four leaves the pose 45 degrees out half
-the time, which is the compromise this art direction exists to end; in a stated
-order because five views at uneven spacing cannot be turned into eight.
+**The whole action vocabulary is decided before anything is drawn.**
+`pipeline/actions.py` is the catalogue — 40 clips, 69 frames — and it is
+written out in full rather than grown a clip at a time, because adding one
+later does not cost a row. It costs the subject: generating the same character
+twice gets you two characters, and an image model has no memory between calls.
+`npm run actions` prints it.
 
-**One sheet and not two, even at 96 cells.** Split across two calls it is two
-subjects, because an image model has no memory between them, and generating the
-same character twice is the one part of this that is genuinely hard — harder
-than any of the drawing. So the whole clip list goes in one call, and the
-prompt states the resolution that makes that possible rather than optimistic: a
-cell wants 128 pixels at the least, which is 1024 × 1536 for twelve rows.
+Three levels. A **clip** is one action and how many frames it takes — a walk is
+four because fewer slides, a swing is three because a wind-up and a
+follow-through are what make it land. A **group** is the clips that share a
+sheet: `base`, `melee`, `cast`, `ranged`, `state`, `social`. A **role** says
+which groups a kind of creature has at all — a chicken has no `melee` sheet,
+because a chicken does not swing at anything and a sheet nobody plays is a
+sheet of cells taken from the ones somebody does.
 
-Four walk frames, because one held mid-stride is a character sliding rather
-than walking and `src/main.ts` already cycles four. A death, because things
-die. Attack and flinch, because combat is the next thing this repository does
-not have and coming back for two rows later means coming back for the whole
-character.
+| role | groups | cells |
+|---|---|---|
+| `human` | all six | 488 |
+| `humanoid` | base, melee, cast, state | 280 |
+| `beast` | base, melee, state | 192 |
+| `livestock` | base, state | 136 |
+| `critter` | base, state | 88 |
 
-Nothing else. No sit, no emote, no cast — there is nothing to drive them, and a
-row nobody plays is a row of cells taken from the rows somebody does.
+Nineteen subjects, 66 sheets, 4,648 cells.
+
+**`base` is generated first and is the identity reference for the rest.** It
+carries the stand and the walk — the two poses everything else has to agree
+with — and every other sheet of that subject names it and is generated with it
+attached. That is the only thing holding a subject together across six calls,
+and it is why the split is by clip group rather than by anything else.
 
 **`prop`** — a grid at one stated scale, with a named reference object, because
 "one scale" means nothing unless something in the picture fixes it.

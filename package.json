@@ -16,7 +16,8 @@
     "spawns": "python3 pipeline/spawn_npcs.py",
     "padcheck": "node scripts/padcheck.mjs",
     "viewcheck": "node scripts/viewcheck.mjs",
-    "prompt": "python3 pipeline/make_prompt.py"
+    "prompt": "python3 pipeline/make_prompt.py",
+    "actions": "python3 pipeline/actions.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
