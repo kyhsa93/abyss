@@ -163,7 +163,7 @@ async function main() {
   // picture.  A canopy is not solid — walking behind a tree is the whole reason
   // the canopy is drawn over the player instead of under.
   const KIND: Record<string, {
-    pieces: string[]; trunk?: string; run?: boolean; solid?: 'building' | number
+    pieces: string[]; trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
   }> = {
     tree: { pieces: ['oak', 'oak2'], trunk: 'trunk', solid: 0.5 },
     // Drawn front-on, whatever the client says the rotation is.  These are
@@ -172,12 +172,12 @@ async function main() {
     // `run`: pick the piece off the neighbourhood rather than the doodad, so a
     // boundary is all one fence.  Picking per post gave a line that alternated
     // rail, picket, rail, which is not a fence anybody built.
-    fence: { pieces: ['fence', 'fence2'], run: true },
+    fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
     lamp: { pieces: ['fence_post'] },
     sign: { pieces: ['fence_post'] },
     pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
     bush: { pieces: ['bush', 'bush2'] },
-    rock: { pieces: ['boulder', 'menhir'] },
+    rock: { pieces: ['boulder', 'menhir'], solid: 0.55 },
     stump: { pieces: ['trunk'], solid: 0.5 },
     log: { pieces: ['rubble'] },
     grass: { pieces: ['bush'] },
@@ -195,6 +195,42 @@ async function main() {
     tower: { pieces: ['tower'], solid: 'building' },
     tent: { pieces: ['house_f'], solid: 'building' },
   }
+
+  /**
+   * How far one fence doodad reaches, and which way.
+   *
+   * The client puts a fence down every 4.14 yards because its own section is
+   * that long; ours is a 32 pixel sprite, which is 1.33.  Drawn one for one they
+   * came out as a row of stakes with nearly three yards of air between them —
+   * which is what the Goldshire screenshots had been showing all along.
+   *
+   * Neither the length nor the direction is typed in here.  The length is the
+   * distance to the nearest other fence, and the direction is the axis that
+   * distance lies along, so the same code draws the client's four yard sections
+   * and the synthesised world's one-and-a-third yard ones without being told
+   * which world it is in.  Rotation is not consulted: this only ever has to
+   * choose between two axes, and for that the neighbours are better evidence
+   * than an angle whose convention nobody here has verified.
+   */
+  function fenceRuns(list: Doodad[]) {
+    const out = new Map<Doodad, { span: number; alongX: boolean }>()
+    for (const a of list) {
+      let best = Infinity, bx = 0, by = 0
+      for (const b of list) {
+        if (b === a) continue
+        const dx = b.x - a.x, dy = b.y - a.y
+        const d2 = dx * dx + dy * dy
+        if (d2 < best) { best = d2; bx = dx; by = dy }
+      }
+      const d = Math.sqrt(best)
+      out.set(a, {
+        span: Number.isFinite(d) ? Math.min(8, Math.max(1.33, d)) : 1.33,
+        alongX: Math.abs(bx) > Math.abs(by),
+      })
+    }
+    return out
+  }
+  const runs = fenceRuns(meta.doodads.filter((d) => d.k === 'fence'))
 
   type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
   const placed: Placed[] = []
@@ -216,6 +252,23 @@ async function main() {
     const pick = k.pieces[Math.floor(seed * k.pieces.length) % k.pieces.length]!
     const piece = tilesMeta[pick]
     if (!piece) continue
+    if (k.solid === 'span') {
+      // One doodad, several sections, laid end to end so a boundary is a line
+      // rather than a row of posts.
+      const r = runs.get(d) ?? { span: 1.33, alongX: false }
+      const sec = piece.w / PPY
+      const n = Math.max(1, Math.round(r.span / sec))
+      for (let i = 0; i < n; i++) {
+        const off = (i - (n - 1) / 2) * sec
+        placed.push({ x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off), piece })
+      }
+      const half = (n * sec) / 2
+      solids.push({
+        x0: d.x - (r.alongX ? half : 0.5), x1: d.x + (r.alongX ? half : 0.5),
+        y0: d.y - (r.alongX ? 0.5 : half), y1: d.y + (r.alongX ? 0.5 : half),
+      })
+      continue
+    }
     placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
     if (k.solid === 'building') {
       const halfY = piece.w / PPY / 2
