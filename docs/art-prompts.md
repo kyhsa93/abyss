@@ -129,18 +129,23 @@ cut" — done with three fields instead of one.
 
 ## Getting the text
 
-`pipeline/make_prompt.py` holds it and prints it finished. Nothing in this
-document is meant to be pasted: a prompt assembled by hand is a prompt that
-drifts, and the block is only worth having if all twenty-four sheets carry it
-identically.
+**`prompts/` holds all of them, finished, in `order.txt` order.** Paste one and
+go; nothing needs running. `pipeline/make_prompt.py` is what writes them:
 
 ```
-npm run prompt list              what there is
-npm run prompt townsman          one, to stdout
-npm run prompt -- --all out/     all of them, as .txt
+npm run prompt list                 what there is
+npm run prompt townsman             one, to stdout
+npm run prompt -- --all prompts/    rewrite the committed set
+npm run promptcheck                 are those files still what it writes?
 ```
 
 A flag needs its own `--` through npm, which eats the first one for itself.
+
+Nothing in *this* document is meant to be pasted: a prompt assembled by hand is
+a prompt that drifts, and the block is only worth having if every sheet carries
+it identically. `prompts/` is a second copy of that text and would drift the
+same way, which is what `promptcheck` is for — the files are allowed to exist
+because something compares them to the script.
 
 ## What the block says, and why each paragraph is in it
 

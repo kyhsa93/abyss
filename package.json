@@ -17,7 +17,8 @@
     "padcheck": "node scripts/padcheck.mjs",
     "viewcheck": "node scripts/viewcheck.mjs",
     "prompt": "python3 pipeline/make_prompt.py",
-    "actions": "python3 pipeline/actions.py"
+    "actions": "python3 pipeline/actions.py",
+    "promptcheck": "python3 pipeline/make_prompt.py --check prompts/"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

@@ -9,6 +9,8 @@ and it only does that if all twenty-one carry it identically.
   python3 pipeline/make_prompt.py list          what there is
   python3 pipeline/make_prompt.py townsman_1of4 one, to stdout
   python3 pipeline/make_prompt.py --all out/    all of them, as .txt
+  python3 pipeline/make_prompt.py --check out/  are those files still what
+                                                this would write?
   python3 pipeline/make_prompt.py --rows 24 …   fewer, taller sheets
 
 Through npm a flag needs its own `--`: `npm run prompt -- --all out/`, because
@@ -113,7 +115,7 @@ ACTOR = """생물 한 종류만. {cells}칸을 8열 {rows}행으로 배치한다
 크기  {size}"""
 
 REFERENCE = """
-참조    같은 대상의 `base` 시트를 이미지 레퍼런스로 함께 넣는다. 얼굴,
+참조    같은 대상의 {first} 시트를 이미지 레퍼런스로 함께 넣는다. 얼굴,
         머리색, 옷, 비율, 키가 그 시트와 같은 인물이어야 한다.
 """
 
@@ -223,6 +225,13 @@ def block(biome, topdown=False):
     return b
 
 
+# How far an asset travels decides the order to generate in, because it decides
+# how many times the asset pays for itself: file by zone and you draw the same
+# townsman forty times.  Sheets of one subject stay together whatever this does,
+# since they all carry the same reach.
+REACH = ('global', 'biome', 'zone')
+
+
 def every(budget=ROWS):
     out = {}
     for name, reach, role, what, size in ACTORS:
@@ -231,15 +240,42 @@ def every(budget=ROWS):
             lines = actions.lines(ids)
             table = '\n'.join(f'{i + 1:>2}행  {text}'
                                for i, (_cid, text) in enumerate(lines))
+            first = f'`{name}_1of{len(packed)}`'
             out[f'actor_{reach}_{name}_{n}of{len(packed)}'] = (
                 block('temperate') + '\n\n' + ACTOR.format(
                     cells=len(lines) * 8, rows=len(lines), dirs=DIRS, table=table,
-                    same=SAME, ref='' if n == 1 else REFERENCE,
+                    same=SAME,
+                    ref='' if n == 1 else REFERENCE.format(first=first),
                     wide=8 * 128, tall=len(lines) * 128, what=what, size=size))
     for name, cls, reach, biome, body in SHEETS:
         out[f'{cls}_{reach}_{name}'] = (
             block(biome, topdown=(cls == 'ground')) + '\n\n' + body)
-    return out
+    rank = {k: (REACH.index(k.split('_')[1]), i) for i, k in enumerate(out)}
+    return {k: out[k] for k in sorted(out, key=rank.get)}
+
+
+def check(made, out):
+    """Are the committed files still what this script would write?
+
+    The prompts are committed so they can be pasted without running anything,
+    and the moment a file is committed the script stops being the only copy.
+    Two copies of a paragraph are two paragraphs that drift — which is the whole
+    reason `docs/art-prompts.md` holds none of this text — so the second copy is
+    only allowed to exist with something checking it against the first.
+    """
+    want = {k + '.txt': v + '\n' for k, v in made.items()}
+    want['order.txt'] = '\n'.join(made) + '\n'
+    have = {n for n in os.listdir(out) if n.endswith('.txt')} if os.path.isdir(out) else set()
+    bad = sorted((have - set(want)) | {n for n in want
+                 if n not in have or open(os.path.join(out, n)).read() != want[n]})
+    for n in bad:
+        why = ('not generated' if n not in want else
+               'missing' if n not in have else 'differs')
+        print(f'{out}/{n}: {why}')
+    if bad:
+        sys.exit(f'{len(bad)} of {len(want)} files are not what the script '
+                 f'writes; `npm run prompt -- --all {out}/` fixes it')
+    print(f'{len(want)} files match the script')
 
 
 def main(argv):
@@ -255,13 +291,25 @@ def main(argv):
             print(' ', k)
         print('\nan id also works without its class and reach: `townsman`')
         return
-    if argv[0] == '--all':
+    if argv[0] in ('--all', '--check'):
         out = argv[1] if len(argv) > 1 else 'prompts'
+        if argv[0] == '--check':
+            return check(made, out)
         os.makedirs(out, exist_ok=True)
         for k, v in made.items():
             with open(os.path.join(out, k + '.txt'), 'w') as f:
                 f.write(v + '\n')
-        print(f'{len(made)} prompts -> {out}/')
+        # The order to generate in, which the filenames cannot carry: `global`
+        # before `biome` before `zone`, and sheet 1 of a subject before the
+        # rest of it, because the rest are generated with it attached.
+        with open(os.path.join(out, 'order.txt'), 'w') as f:
+            f.write('\n'.join(made) + '\n')
+        stale = [n for n in os.listdir(out) if n.endswith('.txt')
+                 and n != 'order.txt' and n[:-4] not in made]
+        for n in stale:
+            os.remove(os.path.join(out, n))
+        print(f'{len(made)} prompts -> {out}/'
+              + (f', {len(stale)} stale removed' if stale else ''))
         return
     want = argv[0]
     hits = [k for k in made if k == want or k.split('_', 2)[2] == want]
