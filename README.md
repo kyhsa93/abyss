@@ -4,7 +4,7 @@ A single-player browser RPG built on **AzerothCore**'s data and rules — the
 world and the arithmetic come from the emulator, the art and the words are our
 own.
 
-Right now it draws one thing: **the whole of Elwynn Forest** in quarter view —
+Right now it draws one thing: **the whole of Elwynn Forest**, flat and top-down —
 1,967 by 2,767 yards of it, the bounds measured off the client's own area map
 rather than chosen. Its terrain is read out of a WoW 3.3.5a client, its 12,451
 trees, fences and buildings stand where the client says they stand, and 1,884
@@ -67,21 +67,13 @@ pipeline and then dropping it; the kind words are ours, and the name never
 reaches the browser.
 
 **The scenery is not drawn at all.** `pipeline/render_kit.py` builds it out of
-three CC0 model kits — [Fantasy Town](https://kenney.nl/assets/fantasy-town-kit),
-[Nature](https://kenney.nl/assets/nature-kit) and
-[Mini Forest](https://kenney.nl/assets/mini-forest), about 500 models between
-them — and photographs each piece in headless Blender at the camera
-`src/main.ts` projects with: orthographic, 2:1, elevation `atan(0.5)` down the
-45° diagonal. Trees, bushes, rocks, fences, buildings, carts, stalls, logs,
-grass, flowers and mushrooms all come from there.
-
-So are the people who have a model — the hero, the townsfolk, the guards and
-the bandits. `pipeline/render_actor.py` turns a rigged
-CC0 character eight times and photographs each — so the hero, the townsfolk,
-the guards and the bandits face the way they are going, which four drawn poses
-in a quarter view cannot. The kobolds, the murlocs and every animal keep the
-drawn sheet: there is no CC0 model set for fantasy monsters or forest animals
-in this style, and that was looked for rather than assumed.
+three CC0 model kits and photographed each piece in headless Blender at the
+camera the game used to project with — orthographic, 2:1, down the 45°
+diagonal. That camera is gone: the view is flat again, so the renders are not
+loaded and the trees, fences, buildings and carts are the drawn ones once more.
+The scripts stay (`pipeline/render_kit.py`, `render_actor.py`,
+`render_paperdoll.py`), because the arithmetic in them is right and they are
+what an eight-direction anything would be made with.
 
 The art is Liberated Pixel Cup — the tilesets, the character parts and four
 animal packs from OpenGameArt, cut and composited by `pipeline/`. It is

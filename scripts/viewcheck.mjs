@@ -28,20 +28,20 @@ function check(label, ok, detail = '') {
 const EMPTY = [-9200, -600]
 const at = (x, y) => p.evaluate(([a, c]) => window.__screen(a, c), [x, y])
 
-// 1. A yard north leaves towards the top right, a yard west towards the top
-// left.  That one sentence is the whole projection, and everything else here
-// is a consequence of it.
+// 1. A yard north goes straight up the glass and a yard west goes straight
+// left, by the same number of pixels.  That one sentence is the whole
+// projection, and everything else here is a consequence of it.  It was a 2:1
+// diamond for one round; the art is drawn for this one.
 const o = await at(...EMPTY)
 const n = await at(EMPTY[0] + 10, EMPTY[1])
 const w = await at(EMPTY[0], EMPTY[1] + 10)
-check('north goes up and to the right', n.x > o.x + 4 && n.y < o.y - 2,
+check('north goes straight up', n.y < o.y - 8 && Math.abs(n.x - o.x) < 0.01,
   JSON.stringify([o, n]))
-check('west goes up and to the left', w.x < o.x - 4 && w.y < o.y - 2,
+check('west goes straight left', w.x < o.x - 8 && Math.abs(w.y - o.y) < 0.01,
   JSON.stringify([o, w]))
-check('and both by the same amount, which is what makes it 2:1',
-  Math.abs((n.x - o.x) - (o.x - w.x)) < 0.01
-  && Math.abs((n.x - o.x) / (o.y - n.y) - 2) < 0.01,
-  JSON.stringify([n.x - o.x, o.y - n.y]))
+check('and a yard is a yard either way round',
+  Math.abs((o.y - n.y) - (o.x - w.x)) < 0.01,
+  JSON.stringify([o.y - n.y, o.x - w.x]))
 
 // 2. The keys steer by what the screen shows, not by what the world stores.
 // The camera follows the hero, so a fixed mark in the world is what says which
@@ -65,16 +65,18 @@ for (const [k, wx, wy, said] of [
     `moved (${dx.toFixed(0)}, ${dy.toFixed(0)})`)
 }
 
-// 3. Back to front is x + y, not x.  Sorted on x, a thing to the west hides
-// the thing standing in front of it — which is only visible where two of them
-// overlap, so it is asserted rather than looked for.
+// 3. Back to front is north, which is up the glass and nothing else.  It was
+// x + y while the view was a diamond and up the glass was both.  Wrong either
+// way it is only visible where two things overlap, so it is asserted rather
+// than looked for.
 const order = await p.evaluate(() => window.__order())
-check('the scenery is sorted back to front along x + y',
+check('the scenery is sorted back to front along x',
   order.every((d, i) => i === 0 || order[i - 1] >= d - 1e-9),
   JSON.stringify(order.slice(0, 4)))
 
-// 4. The ground costs what it costs.  Shearing a tile per frame instead of
-// once per zoom was 934 tiles at 47 frames a second on this very view.
+// 4. The ground costs what it costs.  A second tint fill over every tile,
+// instead of one baked into the cache, was 934 tiles at 47 frames a second on
+// this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
 await p.waitForTimeout(1200)
 const hud = await p.evaluate(() => document.getElementById('hud').textContent)

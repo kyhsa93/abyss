@@ -75,24 +75,25 @@ await p.waitForTimeout(300)
 check('no drift inside the deadzone', JSON.stringify(await hero()) === JSON.stringify(before),
   JSON.stringify([before, await hero()]))
 
-// 3. Up the screen is north-west now, not north: in quarter view the world's
-// +x leaves towards the top right, so pushing the stick straight up has to
-// move the hero along both world axes at once.
+// 3. Up the screen is north and only north.  For one round it was north-west,
+// because the view was a diamond and the world's +x left towards the top
+// right; the stick is read in screen pixels and put through the projection, so
+// it followed the camera round and follows it back.
 await touch('touchMove', [[A[0], A[1] - L.base]])
 await p.waitForTimeout(400)
 let now = await hero()
-check('drag up walks up the screen (+x and +y)',
-  now.x > before.x + 0.5 && now.y > before.y + 0.5
-  && near(now.x - before.x, now.y - before.y, 0.5), JSON.stringify([before, now]))
+check('drag up walks north and nothing else',
+  now.x > before.x + 0.5 && Math.abs(now.y - before.y) < 0.5,
+  JSON.stringify([before, now]))
 
-// 4. And left is south-west, for the same reason and the other sign.
+// 4. And left is west, for the same reason and the other axis.
 const mid = now
 await touch('touchMove', [[A[0] - L.base, A[1]]])
 await p.waitForTimeout(400)
 now = await hero()
-check('drag left walks left across the screen (-x and +y)',
-  now.x < mid.x - 0.5 && now.y > mid.y + 0.5
-  && near(mid.x - now.x, now.y - mid.y, 0.5), JSON.stringify([mid, now]))
+check('drag left walks west and nothing else',
+  now.y > mid.y + 0.5 && Math.abs(now.x - mid.x) < 0.5,
+  JSON.stringify([mid, now]))
 
 // 5. Lifting stops the hero and parks the stick back in its corner.
 await touch('touchEnd', [])

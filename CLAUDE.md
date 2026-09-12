@@ -31,6 +31,14 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             by `src/doll.ts`.  A generated sheet cannot do equipment — two
             calls are two bodies, so the second call's shirt does not fit the
             first call's body
+pipeline/sources.py, fetch_assets.py, catalogue.py — where art is allowed to
+            come from, how it is acquired, and what was acquired.  **Art is not
+            made here any more; it is found.**  The register carries the licence
+            and the author of every source, the fetcher writes a `SOURCE.json`
+            beside each download, and the catalogue files every file under a
+            `kind` so a bake step asks for `tree` instead of naming a path.  The
+            acquired tree lives in `$ABYSS_ASSETS` (default `~/src/abyss-assets`)
+            and is not committed
 pipeline/actions.py is the catalogue of every action anything can perform —
             40 clips, and which of them each kind of creature needs.  Written
             out in full before anything is drawn, because adding a clip after
@@ -51,7 +59,7 @@ prompts/    those prompts written out, one file a sheet, ready to paste, in the
             script and the gate is not optional
 scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
             controls with Chromium's own touch input over CDP; `viewcheck.mjs`
-            asserts what the quarter view promises about geometry
+            asserts what the flat view promises about geometry
 public/art  the baked art (committed), including `kit/` — the renders, which
             are art this repository made rather than cut.  public/data is not
             (see below)
@@ -86,9 +94,10 @@ catch what checks do not — a hillside speckled with gravel because a threshold
 was put on a signed gradient instead of its magnitude, for one.
 
 **A geometric promise the camera makes gets a check too.** `npm run viewcheck`
-asserts the projection is 2:1, that each of WASD walks the way the screen says,
-that the scenery sorts back to front on `x + y`, and that the ground still hits
-the refresh rate. None of those is visible in a still: a stick that walks you
+asserts that north goes straight up the glass and west straight left by the
+same number of pixels, that each of WASD walks the way the screen says, that
+the scenery sorts back to front on `x`, and that the ground still hits the
+refresh rate. None of those is visible in a still: a stick that walks you
 north when you push up looks perfectly fine until you try to aim.
 
 **And look at it on a phone.** `npm run dev` then `npm run padcheck` opens it
@@ -97,14 +106,19 @@ as an iPhone, drives it with real touch input and writes the screenshots to
 readout seventy-two columns wide, a panel covering the person talking, and a
 help line printed on top of the buttons.
 
-**The art decides the projection — and the projection was overruled anyway.**
-LPC's people are drawn facing up, down, left and right; the world is now drawn
-in quarter view, where none of the four world directions is any of those. That
-was asked for deliberately and it is what the repo does, but the bill is real
-and it is paid in one place: `facing()` picks a pose from the *screen-space*
-velocity rather than the world one, so the four world diagonals land exactly on
-the four poses and the four world axes land exactly between two of them. No
-amount of code fixes that; only an eight-direction sprite set would.
+**The art decides the projection, and it took a round trip to believe it.**
+LPC's people are drawn facing up, down, left and right *on the screen*. For one
+round this was a quarter view, where none of the world's four directions was
+any of those, and `facing()` had to pick a pose from the screen-space velocity
+and be forty-five degrees out half the time. The way out of that was an
+eight-direction set, which means rendering, and rendering is where three rounds
+went: the projection is ours and every asset is lit alike, but the free 3D
+humans are astronauts and riot police, and the free *drawn* humans are
+medieval, layered, and there are hundreds of them.
+
+So it is flat again. North is up the glass, west is left, a yard is `PPY`
+pixels either way round, and a square of ground is a square. `facing()` takes
+the world velocity, straight, and there is no compromise left in it.
 
 Everything else the projection touches is derived from two functions,
 `screenX`/`screenY` and the inverse `worldAt`, and nothing else is allowed to
@@ -139,15 +153,15 @@ because the foliage was measured — the oak is 170, the bushes 165, the pines
 sit exactly on 185 — and a band that stopped at 185 moved every leaf in the
 wood except the pines'.
 
-**A rendered piece is a third way of getting art, and the camera is not a
-style choice.** `pipeline/render_kit.py` builds things out of a CC0 3D kit and
-photographs them at the exact projection `src/main.ts` draws in — orthographic,
-2:1, elevation `atan(0.5)` down the 45° diagonal — with the pixels-per-yard
-derived from `PPY` rather than nudged. Any other elevation is a different
-game's isometric and the sprite will not sit on this ground. It solves three
-things a drawn sheet cannot: the projection is ours, every asset is lit
-identically, and eight directions of a character is eight rotations rather than
-eight drawings.
+**The rendered art is on the shelf, and the camera is why.**
+`pipeline/render_kit.py`, `render_actor.py` and `render_paperdoll.py` photograph
+CC0 kits at an orthographic 2:1 camera, elevation `atan(0.5)` down the 45°
+diagonal, because that was the projection `src/main.ts` drew in. It is not any
+more. A sprite lit and framed for that camera does not sit on flat ground, so
+none of what they wrote is loaded — the scripts stay because the arithmetic in
+them is right and the day this repo wants an eight-direction anything they are
+what does it, and `pipeline/pack_paperdoll.py` is still the only thing here
+that knows how to composite a body out of slots.
 
 **Art carries its author.** The LPC tilesets ship a `MISSING:` section — tiles
 nobody recorded the author of. A CC-BY tile with no author cannot be complied

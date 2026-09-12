@@ -21,7 +21,6 @@
  */
 
 import { bearing, speak, type Direction, type Speech, type Topic } from './talk'
-import { dress, needed, type Doll, type Worn } from './doll'
 import { layoutFor, touchpad } from './touch'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
@@ -37,23 +36,10 @@ type NpcArt = {
   cell: number; cols: number; anchor: number
   kinds: Record<string, { first: number; frames: number; people: boolean; yards?: number }>
 }
-/** The rendered people: eight directions apiece, and clips rather than a run. */
-type ActorArt = {
-  cell: number; cols: number; anchor: number
-  kinds: Record<string, {
-    first: number; frames: number; dirs: number
-    clips: Record<string, { first: number; count: number }>
-  }>
-}
-/**
- * Anything the scene draws as a person: one image, square cells of one size,
- * and clips looked up by name.  A packed sheet is one of these and so is the
- * canvas `doll.ts` composites the player onto, which is the whole reason the
- * player can be seven layers and still go through one `drawImage`.
- */
-type Sheet = {
-  img: CanvasImageSource; cell: number; cols: number; anchor: number
-  dirs: number; clips: Record<string, { first: number; count: number }>
+/** The drawn player: four poses, clips by name, one sheet. */
+type HeroArt = {
+  cell: number; cols: number
+  clips: Record<string, { first: number; count: number }>
 }
 /**
  * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
@@ -114,14 +100,13 @@ async function main() {
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, actorImg, actorArt, npcImg, npcArt, doll, spawns] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
-    load('./art/actors.png'),
-    fetch('./art/actors.json').then((r) => r.json() as Promise<ActorArt>),
+    load('./art/hero.png'),
+    fetch('./art/hero.json').then((r) => r.json() as Promise<HeroArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
-    fetch('./art/doll.json').then((r) => r.json() as Promise<Doll>),
     // Not behind the two-worlds switch, and that is not an oversight: the
     // terrain has two sources because a client's height grid is sharper than
     // anything a database knows, but where a wolf stands is a row in
@@ -225,82 +210,56 @@ async function main() {
   // the canopy is drawn over the player instead of under.
   const KIND: Record<string, {
     pieces: string[]
-    /** The same thing drawn along the other axis — see `alongX` below. */
-    across?: string[]
     trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
   }> = {
-    // Rendered, not drawn.  A flat tree stands on a diamond like a card; these
-    // are the kit's, photographed at this game's camera, so they have two
-    // faces and a canopy that recedes.  No `trunk`: that split existed to draw
-    // a flat canopy over the player's head, and a depth sort does it now.
-    tree: { pieces: ['kit_tree', 'kit_tree2', 'kit_tree3', 'kit_tree4'], solid: 0.5 },
+    tree: { pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk', solid: 0.5 },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
     // angle is how pixel art stops looking like pixel art.
     // `run`: pick the piece off the neighbourhood rather than the doodad, so a
     // boundary is all one fence.  Picking per post gave a line that alternated
     // rail, picket, rail, which is not a fence anybody built.
-    // `across` is the same fence rendered a quarter turn round.  Drawn flat it
-    // did not matter which way a fence ran; in quarter view a fence along x
-    // and a fence along y are two different pictures.
-    fence: {
-      pieces: ['kit_fence', 'kit_fence2'],
-      across: ['kit_fence_b', 'kit_fence2_b'],
-      run: true, solid: 'span',
-    },
-    lamp: { pieces: ['kit_lantern'] },
-    sign: { pieces: ['kit_lantern'] },
-    pine: { pieces: ['kit_pine', 'kit_pine2', 'kit_pine3', 'kit_pine4'], solid: 0.5 },
+    fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
+    lamp: { pieces: ['fence_post'] },
+    sign: { pieces: ['fence_post'] },
+    pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
     // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
     // the texture the field had, and it reads as wallpaper however good the
     // sprite is.
-    bush: { pieces: ['kit_bush', 'kit_bush2', 'kit_bush3', 'kit_bush4'] },
-    rock: {
-      pieces: ['kit_rock', 'kit_rock2', 'kit_rock3', 'kit_rock4', 'kit_stones'],
-      solid: 0.55,
-    },
-    stump: { pieces: ['kit_log', 'kit_logs'], solid: 0.5 },
-    log: { pieces: ['kit_log', 'kit_log2', 'kit_logs'] },
-    grass: { pieces: ['kit_grass', 'kit_grass2', 'kit_grass3'] },
+    bush: { pieces: ['bush', 'bush2', 'shrub', 'shrub2', 'bush', 'bush2'] },
+    rock: { pieces: ['boulder', 'menhir', 'rubble'], solid: 0.55 },
+    stump: { pieces: ['stump', 'trunk'], solid: 0.5 },
+    log: { pieces: ['trunk2', 'woodpile'] },
+    grass: { pieces: ['bush', 'sprout2'] },
     // 710 of these stand in the shallows, and they were bushes.
-    // The drawn reeds are 104 pixels tall and a rendered tree is 70, so a reed
-    // bed stood over the wood.  Tall grass from the kit instead, at the scale
-    // everything else is at.
-    water_plant: { pieces: ['kit_grass2', 'kit_grass3', 'kit_grass'] },
-    flower: { pieces: ['kit_flower', 'kit_flower2', 'kit_flower3'] },
+    water_plant: { pieces: ['reeds', 'reeds2'] },
+    flower: { pieces: ['sprout', 'sprout2', 'tomatoes'] },
     crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
     // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
     // nobody recorded who drew them — so what stands here is a seedling, and
     // that is the whole of the reason.
-    // Mushrooms at last.  LPC's are in its sheet's `MISSING:` section — nobody
-    // recorded who drew them — so for two rounds these 160 doodads were
-    // seedlings.  Kenney's are CC0, which asks nothing of anybody.
-    mushroom: { pieces: ['kit_mushroom', 'kit_mushroom2', 'kit_mushroom3'] },
+    mushroom: { pieces: ['sprout2', 'sprout'] },
     lily: { pieces: ['lily', 'lily2', 'lily3'] },
     barrel: { pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels'], solid: 0.4 },
     // `prop` is the client's word for the furniture of a yard, and 301 of them
     // were one grey blob.  A yard has firewood, sacks, crates and a stall in
     // it, and which one is decided the same way a tree's species is.
     prop: {
-      pieces: ['kit_stall', 'kit_stall2', 'kit_planks', 'kit_wheel',
-        'kit_fountain', 'kit_cart2', 'kit_gate', 'kit_stones'],
+      pieces: ['crate', 'sack', 'sacks', 'basket', 'baskets', 'basket2',
+        'baskets2', 'firewood', 'firewood2', 'woodpile', 'anvil', 'hay', 'stall'],
       solid: 0.45,
     },
     // Thirteen carts stood in the client's world and none of them were drawn:
     // `cart` was not in this table at all, and a kind that is missing from it
     // is skipped without a word.
-    cart: { pieces: ['kit_cart', 'kit_cart2'], solid: 0.7 },
+    cart: { pieces: ['cart', 'cart2', 'haycart'], solid: 0.7 },
     grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
-    // `kit_house` is not cut from a sheet: it is built out of a CC0 3D kit and
-    // photographed at this game's own camera by `pipeline/render_kit.py`.  It
-    // stands among the flat ones on purpose — the whole question is whether a
-    // rendered building sits on this ground better than a drawn one does.
-    house: { pieces: ['kit_house', 'kit_house_stone'], solid: 'building' },
-    hall: { pieces: ['kit_hall'], solid: 'building' },
-    tower: { pieces: ['kit_house_stone'], solid: 'building' },
-    tent: { pieces: ['kit_tent'], solid: 'building' },
+    house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
+    hall: { pieces: ['hall'], solid: 'building' },
+    tower: { pieces: ['tower'], solid: 'building' },
+    tent: { pieces: ['tent'], solid: 'building' },
   }
 
   /**
@@ -363,14 +322,11 @@ async function main() {
       // One doodad, several sections, laid end to end so a boundary is a line
       // rather than a row of posts.
       const r = runs.get(d) ?? { span: 1.33, alongX: false }
-      // The kit draws its fence running along x, so it is the run along *y*
-      // that needs the turned picture.  Wired the other way round — which is
-      // how this first went in — every fence stands across its own line and a
-      // boundary reads as a row of gates.
-      const along = !r.alongX && k.across
-        ? tilesMeta[k.across[Math.floor(seed * k.across.length) % k.across.length]!]
-        : undefined
-      const piece2 = along ?? piece
+      // One picture whichever way the line runs.  A rendered fence needed two
+      // — a fence along x and a fence along y were different pictures under
+      // the old camera — and a drawn one does not: it is front-on by
+      // construction, which is the same reason its rotation is ignored.
+      const piece2 = piece
       const sec = piece2.w / PPY
       const n = Math.max(1, Math.round(r.span / sec))
       for (let i = 0; i < n; i++) {
@@ -430,43 +386,19 @@ async function main() {
   const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
 
   /**
-   * Which of the four poses to draw, decided on the glass and not in the world.
+   * Which of the four drawn poses to use.
    *
-   * LPC's people are drawn facing up, down, left and right *on the screen*,
-   * and in quarter view none of the world's four directions is any of those:
-   * north leaves towards the top right.  So the movement is projected first
-   * and the pose is whichever of the four it comes nearest — squash included,
-   * because a step north covers twice as much glass sideways as it does
-   * vertically, and sideways is therefore what it looks like.
-   *
-   * This is what the projection costs, and it is a real cost: the world's four
-   * diagonals land exactly on the four poses, and the world's four axes land
-   * exactly between two of them.  Nothing in this art set can fix that — it is
-   * the thing CLAUDE.md means by the art deciding the projection.
+   * The world velocity, straight — which is the whole point of going back to
+   * this projection.  North is up the glass, so the pose that faces up is the
+   * pose for walking north, and there is no compromise left to document.  In
+   * quarter view this took the *screen* velocity and was still 45 degrees out
+   * half the time, because none of the world's four directions was one of the
+   * four the sheet was drawn for.
    */
   function facing(dx: number, dy: number): number {
-    const sdx = dx - dy
-    const sdy = -(dx + dy) * ISO_SQUASH
-    return Math.abs(sdx) > Math.abs(sdy)
-      ? (sdx > 0 ? DIR_RIGHT : DIR_LEFT)
-      : (sdy > 0 ? DIR_DOWN : DIR_UP)
-  }
-
-  /**
-   * And the same question for somebody who was photographed rather than drawn.
-   *
-   * There is nothing to compromise here.  A rig has as many directions as you
-   * care to render it from, so the hero has eight and the pose is simply the
-   * screen direction rounded to the nearest of them — 0 is face-on to the
-   * viewer, and they go round from there.  The squash is in the angle because
-   * the direction meant is the one the player sees, and a step north covers
-   * twice as much glass sideways as it does vertically.
-   */
-  function facing8(dx: number, dy: number, n: number): number {
-    const sdx = dx - dy
-    const sdy = -(dx + dy) * ISO_SQUASH
-    const turn = Math.atan2(sdx, sdy) / (Math.PI * 2)
-    return ((Math.round(turn * n) % n) + n) % n
+    return Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? DIR_UP : DIR_DOWN)
+      : (dy > 0 ? DIR_LEFT : DIR_RIGHT)
   }
 
   /**
@@ -524,19 +456,10 @@ async function main() {
    * animals in this style, which was looked for rather than assumed, so those
    * 547 keep the drawn sheet and the seam is visible.
    */
-  const ACTORS: Record<string, string[]> = {
-    townsfolk: ['townsfolk', 'townsfolk2', 'townsfolk3', 'townsfolk4',
-      'townsfolk5', 'townsfolk6'],
-    guard: ['guard'],
-    bandit: ['bandit', 'bandit2'],
-  }
 
   type Npc = {
     x: number; y: number; hx: number; hy: number
     dir: number; t: number; art: string; alpha: number
-    /** Set when this one was photographed; `art` is the drawn sheet's key. */
-    actor?: string
-    dirs: number
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
     kind: string; role: string; level: number; topic: Topic | null; seed: number
@@ -553,13 +476,9 @@ async function main() {
     // How much room a body takes, from the length the bake drew it at. People
     // have no `yards` — they are drawn at LPC's own scale, like the player.
     const yards = a.yards ?? 1.2
-    const cast = ACTORS[kind]
-    const actor = cast?.[Math.floor(hash(row[0]!, row[1]! + 51) * cast.length) % cast.length]
     npcs.push({
       x: row[0]!, y: row[1]!, hx: row[0]!, hy: row[1]!,
       dir: row[3]!, t: hash(row[0]!, row[1]!) * 4, art,
-      ...(actor ? { actor } : {}),
-      dirs: actor ? actorArt.kinds[actor]!.dirs : 4,
       alpha: borrowed ? borrowed.alpha : 1,
       r: Math.max(0.3, yards * 0.28),
       wander: STAYS.has(role) ? 0 : 7,
@@ -705,7 +624,7 @@ async function main() {
         (!n.swims && wetAt(x, y)) || slopeAt(x, y) > CLIFF || solidAt(x, y) || npcAt(x, y, n)
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
-      n.dir = n.dirs === 8 ? facing8(n.vx, n.vy, 8) : facing(n.vx, n.vy)
+      n.dir = facing(n.vx, n.vy)
     }
   }
 
@@ -720,7 +639,9 @@ async function main() {
    * `x + y`, the one combination the projection squashes onto the vertical.
    * Sorted on `x` in quarter view, a tree hides a wall it is standing beside.
    */
-  const depth = (o: { x: number; y: number }) => o.x + o.y
+  // North is up the glass and nothing else is, so what is further up is drawn
+  // first.  In quarter view this was `x + y`, because up the glass was both.
+  const depth = (o: { x: number; y: number }) => o.x
   placed.sort((a, b) => depth(b) - depth(a))
 
   /**
@@ -744,71 +665,10 @@ async function main() {
     else buckets.set(k, [o])
   }
 
-  /** The packed sheet a rendered kind is drawn from, built once per kind. */
-  const sheets: Record<string, Sheet> = {}
-  const sheetOf = (kind: string): Sheet => (sheets[kind] ??= {
-    img: actorImg, cell: actorArt.cell, cols: actorArt.cols,
-    anchor: actorArt.anchor, dirs: actorArt.kinds[kind]!.dirs,
-    clips: actorArt.kinds[kind]!.clips,
-  })
-
   // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
   const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
 
-  /**
-   * What the player has on.  There is no inventory yet, so this is a starting
-   * outfit and a key that cycles it — enough to prove the layers line up, and
-   * the thing an inventory will set when there is one.
-   */
-  const WHO = 'male'
-  const worn: Worn = { body: 'bare', head: 'bare', hair: '2',
-                       chest: 'light', feet: 'light', hands: 'bare' }
-  const KIT: Record<string, string[]> = {
-    chest: ['light', 'light_2', 'light_3', 'light_4', 'medium', 'heavy'],
-    feet: ['bare', 'light', 'light_2', 'medium', 'heavy'],
-    hands: ['bare', 'light', 'light_3', 'medium', 'heavy'],
-    helm: ['', 'light', 'medium', 'heavy'],
-  }
-  const dollArt = doll.who[WHO]!
-  /**
-   * Only the layers actually being worn.
-   *
-   * All thirty-two of them decode to 74 MB, and a layer is mostly transparent
-   * — which costs nothing in the file and full price in memory, because a
-   * decoded sheet is `width * height * 4` whatever is in it.  So a look is
-   * fetched when it is put on.  Gear changes when somebody opens a bag; frames
-   * happen sixty times a second.
-   */
-  const dollImages: Record<string, HTMLImageElement> = {}
-  const fetchLayers = async (want: string[]) => {
-    await Promise.all(want
-      .filter((n) => dollArt.layers[n] && !dollImages[n])
-      .map(async (n) => { dollImages[n] = await load(`./art/doll/${n}.png`) }))
-  }
-  await fetchLayers(needed(WHO, worn))
-  let heroSheet = {
-    img: dress(doll, dollArt, WHO, worn, dollImages) as CanvasImageSource,
-    cell: dollArt.cell, cols: doll.cols, anchor: dollArt.anchor,
-    dirs: dollArt.dirs, clips: dollArt.clips,
-  }
-  const redress = () => {
-    heroSheet = { ...heroSheet, img: dress(doll, dollArt, WHO, worn, dollImages) }
-  }
-  addEventListener('keydown', async (e) => {
-    if (e.key.toLowerCase() !== 'g') return
-    // One key for the lot, on purpose: a mixed outfit proves nothing a matched
-    // one does not, and what is being checked here is that the layers still
-    // line up when they change.
-    for (const [slot, list] of Object.entries(KIT)) {
-      const at = list.indexOf(worn[slot] ?? '')
-      const next = list[(at + 1) % list.length]!
-      if (next) worn[slot] = next
-      else delete worn[slot]
-    }
-    await fetchLayers(needed(WHO, worn))
-    redress()
-  })
   const SPEED = 7.0          // yards a second, which is WoW's run speed
 
   const keys = new Set<string>()
@@ -945,7 +805,7 @@ async function main() {
     // four the sprite has, so this costs nothing and is the difference between
     // a conversation and shouting at somebody's back.
     const dx = hero.x - n.x, dy = hero.y - n.y
-    n.dir = n.dirs === 8 ? facing8(dx, dy, 8) : facing(dx, dy)
+    n.dir = facing(dx, dy)
     n.vx = 0; n.vy = 0
     drawTalk()
   }
@@ -1005,76 +865,55 @@ async function main() {
    * always did, and the world is the 12% larger that every isometric tileset
    * is drawn to be.
    */
-  const ISO = 1
-  const ISO_SQUASH = 0.5
-  const kx = () => PPY * zoom * ISO
-  const ky = () => PPY * zoom * ISO * ISO_SQUASH
-  const screenX = (wx: number, wy: number) =>
-    ((wx - camX) - (wy - camY)) * kx() + canvas.width / 2
-  const screenY = (wx: number, wy: number) =>
-    -((wx - camX) + (wy - camY)) * ky() + canvas.height / 2
+  const k = () => PPY * zoom
+  const screenX = (_wx: number, wy: number) =>
+    (camY - wy) * k() + canvas.width / 2
+  const screenY = (wx: number, _wy: number) =>
+    (camX - wx) * k() + canvas.height / 2
 
   /**
-   * The ground, pre-sheared.
+   * The ground, pre-tinted.
    *
-   * Drawing a square tile into a diamond means a transformed `drawImage`, and
-   * a transformed blit is about twice the cost of a straight one: 934 of them
-   * held the frame rate at 47 where the flat view ran at 60.  So each ground
-   * tile is sheared once into an offscreen diamond and then blitted straight,
-   * and the hillside tint is baked in with it rather than being a second fill
-   * over every tile — which is where the other half of the draw calls went.
+   * Flat again, so a tile is a straight blit and the shear is gone — but the
+   * tint stays baked, because that half of the cache was never about the
+   * projection.  A second fill over every tile on the screen was the other
+   * half of the draw calls, and taking it out of the frame is what bought the
+   * refresh rate back the first time.
    *
    * The tint is quantised, and the steps run between the two ends `shadeAt`
    * actually clamps to rather than between -1 and 1.  Stepped over the wider
-   * range the real values only reached four of the nine levels, and four flat
-   * levels on a diamond lattice is not shading, it is faceting — very visible,
-   * and the thing that made the first quarter-view hillside look like a low
-   * polygon model.
-   *
-   * Rebuilt when the zoom changes, which is not per frame; a pinch rebuilds it
-   * as it goes, and ninety small draws is not a cost worth caching around.
+   * range the real values only ever reached four of the levels, and four flat
+   * levels is not shading, it is faceting.
    */
   const SHADES = 21
-  let sheared: { key: number; w: number; h: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
-  function shearedGround() {
+  let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
+  function tintedGround() {
     const key = Math.round(zoom * 100)
-    if (sheared && sheared.key === key) return sheared
-    const T = YD_PER_TILE
-    const a = T * kx(), b = T * ky()
-    const w = Math.ceil(a * 2) + 2, h = Math.ceil(b * 2) + 2
+    if (baked && baked.key === key) return baked
+    const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
       ROCK_TILE, DIRT_TILE].filter(Boolean) as string[])]
     const c = document.createElement('canvas')
-    c.width = w * ids.length
-    c.height = h * SHADES
+    c.width = px * ids.length
+    c.height = px * SHADES
     const g = c.getContext('2d')!
     g.imageSmoothingEnabled = false
     const at: Record<string, number> = {}
-    const s = T / TILE
     ids.forEach((id, i) => {
-      at[id] = i * w
+      at[id] = i * px
       const p = tilesMeta[id]!
-      for (let k = 0; k < SHADES; k++) {
-        // The bitmap's origin is the tile's north-west corner, which under this
-        // map is the diamond's topmost point — so it goes at the top middle of
-        // the cell and the other three corners fall inside it.
-        g.setTransform(s * kx(), s * ky(), -s * kx(), s * ky(), i * w + a + 1, k * h + 1)
-        g.drawImage(tilesImg, p.x, p.y, p.w, p.h, 0, 0, TILE + 1, TILE + 1)
-        const sl = SHADE_LO + (k / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
+      for (let j = 0; j < SHADES; j++) {
+        g.drawImage(tilesImg, p.x, p.y, p.w, p.h, i * px, j * px, px, px)
+        const sl = SHADE_LO + (j / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
         if (Math.abs(sl) > 0.02) {
-          // Over the tile only: `source-atop` is what keeps the tint inside the
-          // diamond instead of putting a square of it on the grass.
-          g.globalCompositeOperation = 'source-atop'
           g.fillStyle = sl > 0 ? `rgba(255,247,224,${Math.min(0.42, sl * 0.75)})`
             : `rgba(8,14,26,${Math.min(0.5, -sl * 0.75)})`
-          g.fillRect(0, 0, TILE + 1, TILE + 1)
-          g.globalCompositeOperation = 'source-over'
+          g.fillRect(i * px, j * px, px, px)
         }
       }
     })
-    g.setTransform(1, 0, 0, 1, 0, 0)
-    sheared = { key, w, h, c, at }
-    return sheared
+    baked = { key, px, c, at }
+    return baked
   }
 
   /**
@@ -1085,11 +924,10 @@ async function main() {
    * rectangle the camera is in the middle of.  Inverted from the two lines
    * above rather than guessed at with a fudge factor twice their size.
    */
-  const worldAt = (X: number, Y: number) => {
-    const a = (X - canvas.width / 2) / kx()
-    const b = -(Y - canvas.height / 2) / ky()
-    return { x: camX + (a + b) / 2, y: camY + (b - a) / 2 }
-  }
+  const worldAt = (X: number, Y: number) => ({
+    x: camX - (Y - canvas.height / 2) / k(),
+    y: camY - (X - canvas.width / 2) / k(),
+  })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
   let last = performance.now()
@@ -1185,7 +1023,7 @@ async function main() {
       const stuck = blocked(hero.x, hero.y)
       if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
       if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = facing8(mx, my, heroSheet.dirs)
+      hero.dir = facing(mx, my)
       hero.t += dt
     } else {
       hero.t += dt
@@ -1202,15 +1040,13 @@ async function main() {
     const top = chat && pad.on ? hudH + 16 : 0
     const bottom = chat && pad.on ? canvas.height - panelH - 32 : canvas.height
     const wantY = (top + Math.max(top, bottom)) / 2
-    // Up the glass is not a world axis any more.  `screenY` is fed by x + y and
-    // `screenX` by x - y, so moving the camera the same distance along both
-    // slides the view straight up and leaves it centred sideways; moving it
-    // along x alone — which is what "above the hero" meant while north was up —
-    // carries the pair of you off to the right as the panel opens.
-    const want = (wantY - canvas.height / 2) / (2 * ky())
+    // Up the glass is world x and only world x, so the lift is along it alone.
+    // In quarter view it had to move along both axes together or the pair of
+    // you slid sideways as the panel opened.
+    const want = (canvas.height / 2 - wantY) / k()
     lift += (want - lift) * Math.min(1, dt * 6)
-    camX += ((hero.x + lift) - camX) * Math.min(1, dt * 8)
-    camY += ((hero.y + lift) - camY) * Math.min(1, dt * 8)
+    camX += ((hero.x - lift) - camX) * Math.min(1, dt * 8)
+    camY += (hero.y - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
     // wider than the one that starts it so that shuffling on the spot does not
@@ -1221,10 +1057,8 @@ async function main() {
     // --- ground ---
     ctx.fillStyle = '#1b2410'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    // The visible world is a diamond, so the tiles to draw are the bounding box
-    // of the four corners of the glass put back through the projection — not a
-    // rectangle around the camera, which in quarter view misses two corners of
-    // the screen and fills two with tiles nobody can see.
+    // The glass is an upright rectangle of world again, so the corners put back
+    // through the projection are the corners of the box — no slack.
     const T = YD_PER_TILE
     const seen = [worldAt(0, 0), worldAt(canvas.width, 0),
       worldAt(0, canvas.height), worldAt(canvas.width, canvas.height)]
@@ -1233,13 +1067,8 @@ async function main() {
     const yLo = Math.floor(Math.min(...seen.map((c) => c.y)) / T) - 1
     const yHi = Math.ceil(Math.max(...seen.map((c) => c.y)) / T) + 1
 
-    // A square of ground is a diamond on the glass, so the tile goes through
-    // the same map the world does: one bitmap pixel east is `+u` and one south
-    // is `+v`, and both of those are diagonals now.  The four coefficients are
-    // the same for every tile — only where it lands moves — so they are worked
-    // out once and only the origin is set per tile.
-    const iso = shearedGround()
-    const half = T * kx()
+    const ground = tintedGround()
+    const px = ground.px
     tilesDrawn = 0
     for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
@@ -1248,9 +1077,8 @@ async function main() {
         // it holds is off the glass: at 1,400 pixels across that was 2,025
         // tiles drawn where 550 are visible, and the frame rate said so.
         const cx = screenX(wx, wy), cy = screenY(wx, wy)
-        const edge = T * kx() + 2
-        if (cx < -edge || cx > canvas.width + edge
-          || cy < -edge || cy > canvas.height + edge) continue
+        if (cx < -px || cx > canvas.width + px
+          || cy < -px || cy > canvas.height + px) continue
         const h = hash(ti, tj)
         const water = WATER_TILES.length > 0 && wetAt(wx, wy)
         // Water is flat by definition, so it gets none of the hillside shading
@@ -1268,14 +1096,12 @@ async function main() {
               : meadow && h > 0.55
                 ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                 : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
-        // One straight blit of a diamond that was sheared at load, placed by
-        // its topmost point — which is the tile's north-west corner, the same
-        // corner the shear was built around.
-        const k = Math.max(0, Math.min(SHADES - 1, Math.round(
+        // One straight blit of a square, centred on the tile's own point —
+        // which is what `wx, wy` has always meant here.
+        const step = Math.max(0, Math.min(SHADES - 1, Math.round(
           ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
-        ctx.drawImage(iso.c, iso.at[id]!, k * iso.h, iso.w, iso.h,
-          Math.round(screenX(wx + T / 2, wy + T / 2) - half - 1),
-          Math.round(screenY(wx + T / 2, wy + T / 2) - 1), iso.w, iso.h)
+        ctx.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+          Math.round(cx - px / 2), Math.round(cy - px / 2), px, px)
         tilesDrawn++
       }
     }
@@ -1286,42 +1112,26 @@ async function main() {
     drawn = 0
     const heroZ = groundAt(hero.x, hero.y)
     /**
-     * Anybody who was photographed rather than drawn.
-     *
-     * One routine for the hero and for the 230 townsfolk, guards and bandits
-     * that have a model, because after the render they are the same thing: a
-     * kind in one sheet, eight directions, a walk and a stand.
+     * The player, out of the drawn sheet.
      *
      * One sprite pixel to one screen pixel at zoom 1, which is the scale the
      * ground is drawn at — 32 pixels to a 1.33 yard tile is 24 to the yard,
      * and PPY is 24.  A separate fudge factor here once had sprites eight per
      * cent smaller than the ground they stood on.
      */
-    const drawActor = (
-      a: Sheet, dir: number, x: number, y: number, t: number, moving: boolean,
-    ) => {
-      const clip = (moving ? a.clips['walk'] : a.clips['stand'] ?? a.clips['idle'])!
-      const f = moving ? Math.floor(t * 9) % clip.count : 0
-      // The sheet lays a clip out as directions, each a run of frames — the
-      // same order the drawn sheets use, so this is the same arithmetic.  It is
-      // also why the player can be a pile of layers and still come through
-      // here: what the composite is, is a sheet of this shape.
-      const idx = clip.first + dir * clip.count + f
-      const c = a.cell
-      const sxp = (idx % a.cols) * c, syp = Math.floor(idx / a.cols) * c
-      const w = c * zoom
-      shadow(x, y, 0.3)
-      // The foot line comes from the sheet.  A drawn sheet stands its people
-      // near the bottom of the cell; a render aimed at the model's origin puts
-      // them on it, and the packer measures which rather than either number
-      // being typed here.
-      ctx.drawImage(a.img, sxp, syp, c, c,
-        Math.round(screenX(x, y) - w / 2),
-        Math.round(screenY(x, y) - w * a.anchor), Math.ceil(w), Math.ceil(w))
-      drawn++
-    }
     const drawHero = () => {
-      drawActor(heroSheet, hero.dir, hero.x, hero.y, hero.t, hero.moving)
+      const clip = (hero.moving ? heroMeta.clips['walk'] : heroMeta.clips['idle'])!
+      const n = clip.count
+      const f = hero.moving ? Math.floor(hero.t * 10) % n : Math.floor(hero.t * 2) % n
+      const idx = clip.first + hero.dir * n + f
+      const c = heroMeta.cell
+      const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
+      const w = c * zoom
+      shadow(hero.x, hero.y, 0.34)
+      ctx.drawImage(heroImg, sxp, syp, c, c,
+        Math.round(screenX(hero.x, hero.y) - w / 2),
+        Math.round(screenY(hero.x, hero.y) - w * 0.82), Math.ceil(w), Math.ceil(w))
+      drawn++
     }
     /**
      * The dab of shade a body puts on the ground it stands on.
@@ -1344,10 +1154,6 @@ async function main() {
     }
 
     const drawNpc = (n: Npc) => {
-      if (n.actor) {
-        drawActor(sheetOf(n.actor), n.dir, n.x, n.y, n.t, n.moving)
-        return
-      }
       const a = npcArt.kinds[n.art]!
       // Frame 0 is the standing pose in every sheet the bake cuts. For people
       // the walk is the frames after it; the animal sheets have no separate
