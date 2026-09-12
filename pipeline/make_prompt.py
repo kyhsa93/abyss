@@ -218,9 +218,8 @@ def every():
     for name, reach, role, what, size in ACTORS:
         for group in actions.ROLE[role]:
             lines = actions.rows(role, group)
-            table = '\n'.join(
-                f'{i + 1:>2}행  ' + (what_ if n == 1 else f'{what_} [{f + 1}/{n}]')
-                for i, (_cid, f, n, what_) in enumerate(lines))
+            table = '\n'.join(f'{i + 1:>2}행  {text}'
+                               for i, (_cid, text) in enumerate(lines))
             out[f'actor_{reach}_{name}_{group}'] = (
                 block('temperate') + '\n\n' + ACTOR.format(
                     cells=len(lines) * 8, rows=len(lines), dirs=DIRS, table=table,
