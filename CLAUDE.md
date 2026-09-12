@@ -25,7 +25,8 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             keeps Blizzard's prose out and stops an NPC claiming something the
             data does not support
 scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
-            controls with Chromium's own touch input over CDP
+            controls with Chromium's own touch input over CDP; `viewcheck.mjs`
+            asserts what the quarter view promises about geometry
 public/art  the baked art (committed).  public/data is not (see below)
 ```
 
@@ -57,17 +58,34 @@ Playwright (`node_modules/playwright`, Chromium is installed). Screenshots
 catch what checks do not — a hillside speckled with gravel because a threshold
 was put on a signed gradient instead of its magnitude, for one.
 
+**A geometric promise the camera makes gets a check too.** `npm run viewcheck`
+asserts the projection is 2:1, that each of WASD walks the way the screen says,
+that the scenery sorts back to front on `x + y`, and that the ground still hits
+the refresh rate. None of those is visible in a still: a stick that walks you
+north when you push up looks perfectly fine until you try to aim.
+
 **And look at it on a phone.** `npm run dev` then `npm run padcheck` opens it
 as an iPhone, drives it with real touch input and writes the screenshots to
 `shots/`. Three things that were correct on a desktop were wrong there: a
 readout seventy-two columns wide, a panel covering the person talking, and a
 help line printed on top of the buttons.
 
-**The art decides the projection.** LPC's people are drawn facing up, down,
-left and right; rotating the world under them leaves every stride pointing
-somewhere the sprite is not. This repository has now made the matching mistake
-from the other side, by standing 2D sprites next to a 3D renderer. Pick one
-medium and let it choose the camera.
+**The art decides the projection — and the projection was overruled anyway.**
+LPC's people are drawn facing up, down, left and right; the world is now drawn
+in quarter view, where none of the four world directions is any of those. That
+was asked for deliberately and it is what the repo does, but the bill is real
+and it is paid in one place: `facing()` picks a pose from the *screen-space*
+velocity rather than the world one, so the four world diagonals land exactly on
+the four poses and the four world axes land exactly between two of them. No
+amount of code fixes that; only an eight-direction sprite set would.
+
+Everything else the projection touches is derived from two functions,
+`screenX`/`screenY` and the inverse `worldAt`, and nothing else is allowed to
+know how the camera works: the stick, the keys, the tile loop and the camera
+lift all go through them. Two things that were quietly wrong for a while
+because they did not: WASD, which walked you diagonally while the screen said
+"up", and the talk panel's camera lift, which moved along world x and carried
+the pair of you off to the right as the panel opened.
 
 **Come back with a result, not with a step.** Fetch, measure, build, check,
 look, fix — the whole loop, then report. Decide the details yourself and say

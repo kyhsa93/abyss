@@ -4,10 +4,11 @@ A single-player browser RPG built on **AzerothCore**'s data and rules — the
 world and the arithmetic come from the emulator, the art and the words are our
 own.
 
-Right now it draws one thing: a slice of Elwynn Forest — its terrain read out of
-a WoW 3.3.5a client, its trees standing where the client says they stand, and
-**777 of its inhabitants** standing where the world database puts them, drawn in
-Liberated Pixel Cup pixel art and walked around with WASD. Seventy-four of them
+Right now it draws one thing: a slice of Elwynn Forest in **quarter view** — its
+terrain read out of a WoW 3.3.5a client, its trees standing where the client
+says they stand, and **777 of its inhabitants** standing where the world
+database puts them, drawn in Liberated Pixel Cup pixel art and walked around
+with WASD. Seventy-four of them
 will talk to you: press **E**.
 
 On a phone it is a thumb stick and a button. The stick appears wherever you put

@@ -143,9 +143,11 @@ async function main() {
       (groundAt(wx, wy + s) - groundAt(wx, wy - s)) / (2 * s),
     ]
   }
+  /** The two ends of the shading, named because the ground bake steps them. */
+  const SHADE_LO = -0.55, SHADE_HI = 0.4
   function shadeAt(wx: number, wy: number): number {
     const [dx, dy] = gradient(wx, wy)
-    return Math.max(-0.55, Math.min(0.4, (dx + dy) * 0.95))
+    return Math.max(SHADE_LO, Math.min(SHADE_HI, (dx + dy) * 0.95))
   }
   function slopeAt(wx: number, wy: number): number {
     const [dx, dy] = gradient(wx, wy)
@@ -372,6 +374,29 @@ async function main() {
   const DIR_UP = 0, DIR_LEFT = 1, DIR_DOWN = 2, DIR_RIGHT = 3
 
   /**
+   * Which of the four poses to draw, decided on the glass and not in the world.
+   *
+   * LPC's people are drawn facing up, down, left and right *on the screen*,
+   * and in quarter view none of the world's four directions is any of those:
+   * north leaves towards the top right.  So the movement is projected first
+   * and the pose is whichever of the four it comes nearest — squash included,
+   * because a step north covers twice as much glass sideways as it does
+   * vertically, and sideways is therefore what it looks like.
+   *
+   * This is what the projection costs, and it is a real cost: the world's four
+   * diagonals land exactly on the four poses, and the world's four axes land
+   * exactly between two of them.  Nothing in this art set can fix that — it is
+   * the thing CLAUDE.md means by the art deciding the projection.
+   */
+  function facing(dx: number, dy: number): number {
+    const sdx = dx - dy
+    const sdy = -(dx + dy) * ISO_SQUASH
+    return Math.abs(sdx) > Math.abs(sdy)
+      ? (sdx > 0 ? DIR_RIGHT : DIR_LEFT)
+      : (sdy > 0 ? DIR_DOWN : DIR_UP)
+  }
+
+  /**
    * How far over the feet each kind's head is, measured off the atlas.
    *
    * The cell is 64 pixels for everybody and nobody fills it: a person leaves
@@ -562,15 +587,23 @@ async function main() {
         (!n.swims && wetAt(x, y)) || slopeAt(x, y) > CLIFF || solidAt(x, y) || npcAt(x, y, n)
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
-      n.dir = Math.abs(n.vx) > Math.abs(n.vy)
-        ? (n.vx > 0 ? DIR_UP : DIR_DOWN)
-        : (n.vy > 0 ? DIR_LEFT : DIR_RIGHT)
+      n.dir = facing(n.vx, n.vy)
     }
   }
 
   // Drawn back to front, and in this projection "back" is north — larger world
   // x.  Sorting once is enough: nothing here moves.
-  placed.sort((a, b) => b.x - a.x)
+  /**
+   * Back to front, which in quarter view is neither axis on its own.
+   *
+   * Sorting on the world's north alone was right while north was up the
+   * screen.  It is up *and to the right* now, so what decides which of two
+   * things is further away is how far up the glass it sits — and that is
+   * `x + y`, the one combination the projection squashes onto the vertical.
+   * Sorted on `x` in quarter view, a tree hides a wall it is standing beside.
+   */
+  const depth = (o: { x: number; y: number }) => o.x + o.y
+  placed.sort((a, b) => depth(b) - depth(a))
 
   // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
@@ -711,8 +744,7 @@ async function main() {
     // four the sprite has, so this costs nothing and is the difference between
     // a conversation and shouting at somebody's back.
     const dx = hero.x - n.x, dy = hero.y - n.y
-    n.dir = Math.abs(dx) > Math.abs(dy)
-      ? (dx > 0 ? DIR_UP : DIR_DOWN) : (dy > 0 ? DIR_LEFT : DIR_RIGHT)
+    n.dir = facing(dx, dy)
     n.vx = 0; n.vy = 0
     drawTalk()
   }
@@ -745,8 +777,109 @@ async function main() {
   let camX = hero.x, camY = hero.y
   /** How far above the hero the camera sits, in yards.  See the frame loop. */
   let lift = 0
-  const sx = (wy: number) => (camY - wy) * PPY * zoom + canvas.width / 2
-  const sy = (wx: number) => (camX - wx) * PPY * zoom + canvas.height / 2
+  /**
+   * World to screen, in quarter view.
+   *
+   * North is the world's +x and west is its +y, and neither of them is a
+   * screen axis any more: north leaves towards the top right of the glass and
+   * west towards the top left, which is what makes a square of ground a
+   * diamond and a quarter view a quarter view.
+   *
+   * The half on the vertical is the 2:1 every isometric tileset is drawn to.
+   * The horizontal is left at one rather than at the cosine that would keep a
+   * yard exactly a yard, and that is a performance decision as much as a
+   * stylistic one: a diamond of side `T` covers half the glass a square of
+   * side `T` does, so scaling the world down to fit the old measurements
+   * doubles the number of ground tiles on screen — 1,836 of them where 550
+   * used to be, at 39 frames a second.  At one, a tile covers the same area it
+   * always did, and the world is the 12% larger that every isometric tileset
+   * is drawn to be.
+   */
+  const ISO = 1
+  const ISO_SQUASH = 0.5
+  const kx = () => PPY * zoom * ISO
+  const ky = () => PPY * zoom * ISO * ISO_SQUASH
+  const screenX = (wx: number, wy: number) =>
+    ((wx - camX) - (wy - camY)) * kx() + canvas.width / 2
+  const screenY = (wx: number, wy: number) =>
+    -((wx - camX) + (wy - camY)) * ky() + canvas.height / 2
+
+  /**
+   * The ground, pre-sheared.
+   *
+   * Drawing a square tile into a diamond means a transformed `drawImage`, and
+   * a transformed blit is about twice the cost of a straight one: 934 of them
+   * held the frame rate at 47 where the flat view ran at 60.  So each ground
+   * tile is sheared once into an offscreen diamond and then blitted straight,
+   * and the hillside tint is baked in with it rather than being a second fill
+   * over every tile — which is where the other half of the draw calls went.
+   *
+   * The tint is quantised, and the steps run between the two ends `shadeAt`
+   * actually clamps to rather than between -1 and 1.  Stepped over the wider
+   * range the real values only reached four of the nine levels, and four flat
+   * levels on a diamond lattice is not shading, it is faceting — very visible,
+   * and the thing that made the first quarter-view hillside look like a low
+   * polygon model.
+   *
+   * Rebuilt when the zoom changes, which is not per frame; a pinch rebuilds it
+   * as it goes, and ninety small draws is not a cost worth caching around.
+   */
+  const SHADES = 21
+  let sheared: { key: number; w: number; h: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
+  function shearedGround() {
+    const key = Math.round(zoom * 100)
+    if (sheared && sheared.key === key) return sheared
+    const T = YD_PER_TILE
+    const a = T * kx(), b = T * ky()
+    const w = Math.ceil(a * 2) + 2, h = Math.ceil(b * 2) + 2
+    const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
+      ROCK_TILE, DIRT_TILE].filter(Boolean) as string[])]
+    const c = document.createElement('canvas')
+    c.width = w * ids.length
+    c.height = h * SHADES
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    const at: Record<string, number> = {}
+    const s = T / TILE
+    ids.forEach((id, i) => {
+      at[id] = i * w
+      const p = tilesMeta[id]!
+      for (let k = 0; k < SHADES; k++) {
+        // The bitmap's origin is the tile's north-west corner, which under this
+        // map is the diamond's topmost point — so it goes at the top middle of
+        // the cell and the other three corners fall inside it.
+        g.setTransform(s * kx(), s * ky(), -s * kx(), s * ky(), i * w + a + 1, k * h + 1)
+        g.drawImage(tilesImg, p.x, p.y, p.w, p.h, 0, 0, TILE + 1, TILE + 1)
+        const sl = SHADE_LO + (k / (SHADES - 1)) * (SHADE_HI - SHADE_LO)
+        if (Math.abs(sl) > 0.02) {
+          // Over the tile only: `source-atop` is what keeps the tint inside the
+          // diamond instead of putting a square of it on the grass.
+          g.globalCompositeOperation = 'source-atop'
+          g.fillStyle = sl > 0 ? `rgba(255,247,224,${Math.min(0.42, sl * 0.75)})`
+            : `rgba(8,14,26,${Math.min(0.5, -sl * 0.75)})`
+          g.fillRect(0, 0, TILE + 1, TILE + 1)
+          g.globalCompositeOperation = 'source-over'
+        }
+      }
+    })
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    sheared = { key, w, h, c, at }
+    return sheared
+  }
+
+  /**
+   * And back again, which the tile loop needs.
+   *
+   * The visible world is a diamond now, so the rectangle of tiles to draw is
+   * the bounding box of the four screen corners projected back — not the
+   * rectangle the camera is in the middle of.  Inverted from the two lines
+   * above rather than guessed at with a fudge factor twice their size.
+   */
+  const worldAt = (X: number, Y: number) => {
+    const a = (X - canvas.width / 2) / kx()
+    const b = -(Y - canvas.height / 2) / ky()
+    return { x: camX + (a + b) / 2, y: camY + (b - a) / 2 }
+  }
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
   let last = performance.now()
@@ -803,20 +936,27 @@ async function main() {
     if (chat && tapped) endTalk()
     for (const slot of pad.taken()) if (ACTIONS[slot] === 'talk') toggleTalk()
 
-    let mx = 0, my = 0
-    if (keys.has('w') || keys.has('arrowup')) mx += 1
-    if (keys.has('s') || keys.has('arrowdown')) mx -= 1
-    if (keys.has('a') || keys.has('arrowleft')) my += 1
-    if (keys.has('d') || keys.has('arrowright')) my -= 1
+    // Steering happens on the glass, both for the keys and for the thumb.
+    //
+    // W used to be north because north was up.  In quarter view it is up and
+    // to the right, and a W that walks you diagonally while the screen says
+    // "up" is the kind of control nobody can aim.  So the intent is collected
+    // in screen pixels and put through the same inverse the tile loop uses —
+    // one place that knows how the projection works, rather than two that have
+    // to agree.
+    let sdx = 0, sdy = 0
+    if (keys.has('w') || keys.has('arrowup')) sdy -= 1
+    if (keys.has('s') || keys.has('arrowdown')) sdy += 1
+    if (keys.has('a') || keys.has('arrowleft')) sdx -= 1
+    if (keys.has('d') || keys.has('arrowright')) sdx += 1
     const stick = pad.push()
-    if (stick) {
-      // The stick is read on the glass and the world is not drawn the way it
-      // is stored: the client's +x is north, which is up the screen, and +y is
-      // west, which is left.  Both axes flip, exactly as `sx` and `sy` flip
-      // them going the other way.  A pad wired straight through walks you
-      // south when you push north.
-      mx = -stick.y
-      my = -stick.x
+    if (stick) { sdx = stick.x; sdy = stick.y }
+    let mx = 0, my = 0
+    if (sdx !== 0 || sdy !== 0) {
+      const o = worldAt(canvas.width / 2, canvas.height / 2)
+      const t = worldAt(canvas.width / 2 + sdx * 64, canvas.height / 2 + sdy * 64)
+      mx = t.x - o.x
+      my = t.y - o.y
     }
     hero.moving = mx !== 0 || my !== 0
     if (hero.moving) {
@@ -834,7 +974,7 @@ async function main() {
       const stuck = blocked(hero.x, hero.y)
       if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
       if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? DIR_UP : DIR_DOWN) : (my > 0 ? DIR_LEFT : DIR_RIGHT)
+      hero.dir = facing(mx, my)
       hero.t += dt
     } else {
       hero.t += dt
@@ -850,10 +990,16 @@ async function main() {
     // them behind the readout instead, which is the same bug one corner along.
     const top = chat && pad.on ? hudH + 16 : 0
     const bottom = chat && pad.on ? canvas.height - panelH - 32 : canvas.height
-    const want = (canvas.height / 2 - (top + Math.max(top, bottom)) / 2) / (PPY * zoom)
+    const wantY = (top + Math.max(top, bottom)) / 2
+    // Up the glass is not a world axis any more.  `screenY` is fed by x + y and
+    // `screenX` by x - y, so moving the camera the same distance along both
+    // slides the view straight up and leaves it centred sideways; moving it
+    // along x alone — which is what "above the hero" meant while north was up —
+    // carries the pair of you off to the right as the panel opens.
+    const want = (wantY - canvas.height / 2) / (2 * ky())
     lift += (want - lift) * Math.min(1, dt * 6)
-    camX += ((hero.x - lift) - camX) * Math.min(1, dt * 8)
-    camY += (hero.y - camY) * Math.min(1, dt * 8)
+    camX += ((hero.x + lift) - camX) * Math.min(1, dt * 8)
+    camY += ((hero.y + lift) - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
     // wider than the one that starts it so that shuffling on the spot does not
@@ -864,17 +1010,36 @@ async function main() {
     // --- ground ---
     ctx.fillStyle = '#1b2410'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    const px = TILE * zoom
-    const halfW = canvas.width / 2 / (PPY * zoom)
-    const halfH = canvas.height / 2 / (PPY * zoom)
-    const xLo = Math.floor((camX - halfH) / YD_PER_TILE) - 1
-    const xHi = Math.ceil((camX + halfH) / YD_PER_TILE) + 1
-    const yLo = Math.floor((camY - halfW) / YD_PER_TILE) - 1
-    const yHi = Math.ceil((camY + halfW) / YD_PER_TILE) + 1
+    // The visible world is a diamond, so the tiles to draw are the bounding box
+    // of the four corners of the glass put back through the projection — not a
+    // rectangle around the camera, which in quarter view misses two corners of
+    // the screen and fills two with tiles nobody can see.
+    const T = YD_PER_TILE
+    const seen = [worldAt(0, 0), worldAt(canvas.width, 0),
+      worldAt(0, canvas.height), worldAt(canvas.width, canvas.height)]
+    const xLo = Math.floor(Math.min(...seen.map((c) => c.x)) / T) - 1
+    const xHi = Math.ceil(Math.max(...seen.map((c) => c.x)) / T) + 1
+    const yLo = Math.floor(Math.min(...seen.map((c) => c.y)) / T) - 1
+    const yHi = Math.ceil(Math.max(...seen.map((c) => c.y)) / T) + 1
+
+    // A square of ground is a diamond on the glass, so the tile goes through
+    // the same map the world does: one bitmap pixel east is `+u` and one south
+    // is `+v`, and both of those are diagonals now.  The four coefficients are
+    // the same for every tile — only where it lands moves — so they are worked
+    // out once and only the origin is set per tile.
+    const iso = shearedGround()
+    const half = T * kx()
     tilesDrawn = 0
     for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
-        const wx = ti * YD_PER_TILE, wy = tj * YD_PER_TILE
+        const wx = ti * T, wy = tj * T
+        // The bounding box of a diamond is twice the diamond, so half of what
+        // it holds is off the glass: at 1,400 pixels across that was 2,025
+        // tiles drawn where 550 are visible, and the frame rate said so.
+        const cx = screenX(wx, wy), cy = screenY(wx, wy)
+        const edge = T * kx() + 2
+        if (cx < -edge || cx > canvas.width + edge
+          || cy < -edge || cy > canvas.height + edge) continue
         const h = hash(ti, tj)
         const water = WATER_TILES.length > 0 && wetAt(wx, wy)
         // Water is flat by definition, so it gets none of the hillside shading
@@ -892,20 +1057,18 @@ async function main() {
               : meadow && h > 0.45
                 ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                 : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
-        const p = tilesMeta[id]!
-        const X = Math.round(sx(wy) - px / 2), Y = Math.round(sy(wx) - px / 2)
-        ctx.drawImage(tilesImg, p.x, p.y, p.w, p.h, X, Y, Math.ceil(px), Math.ceil(px))
-        // Shading is the only thing carrying elevation, so it is not subtle.
-        if (sl > 0.02) {
-          ctx.fillStyle = `rgba(255,247,224,${Math.min(0.42, sl * 0.75)})`
-          ctx.fillRect(X, Y, Math.ceil(px), Math.ceil(px))
-        } else if (sl < -0.02) {
-          ctx.fillStyle = `rgba(8,14,26,${Math.min(0.5, -sl * 0.75)})`
-          ctx.fillRect(X, Y, Math.ceil(px), Math.ceil(px))
-        }
+        // One straight blit of a diamond that was sheared at load, placed by
+        // its topmost point — which is the tile's north-west corner, the same
+        // corner the shear was built around.
+        const k = Math.max(0, Math.min(SHADES - 1, Math.round(
+          ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
+        ctx.drawImage(iso.c, iso.at[id]!, k * iso.h, iso.w, iso.h,
+          Math.round(screenX(wx + T / 2, wy + T / 2) - half - 1),
+          Math.round(screenY(wx + T / 2, wy + T / 2) - 1), iso.w, iso.h)
         tilesDrawn++
       }
     }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
 
     // --- things that stand up, back to front ---
     const margin = 120
@@ -926,8 +1089,9 @@ async function main() {
       // sprites eight per cent smaller than the ground they stood on.
       const w = c * zoom, hgt = w
       shadow(hero.x, hero.y, 0.34)
-      ctx.drawImage(heroImg, sxp, syp, c, c, Math.round(sx(hero.y) - w / 2),
-        Math.round(sy(hero.x) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
+      ctx.drawImage(heroImg, sxp, syp, c, c,
+        Math.round(screenX(hero.x, hero.y) - w / 2),
+        Math.round(screenY(hero.x, hero.y) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
       drawn++
     }
     /**
@@ -945,7 +1109,7 @@ async function main() {
       ctx.globalAlpha = 0.28
       ctx.fillStyle = '#0b1408'
       ctx.beginPath()
-      ctx.ellipse(sx(wy), sy(wx), r, r * 0.42, 0, 0, Math.PI * 2)
+      ctx.ellipse(screenX(wx, wy), screenY(wx, wy), r, r * 0.42, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
     }
@@ -966,8 +1130,8 @@ async function main() {
       // chicken's worth of shade.
       shadow(n.x, n.y, Math.max(0.3, (a.yards ?? 0.9) * 0.34))
       if (n.alpha < 1) ctx.globalAlpha = n.alpha
-      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(sx(n.y) - w / 2),
-        Math.round(sy(n.x) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
+      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(screenX(n.x, n.y) - w / 2),
+        Math.round(screenY(n.x, n.y) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
       if (n.alpha < 1) ctx.globalAlpha = 1
       drawn++
     }
@@ -981,20 +1145,20 @@ async function main() {
      * lists are merged, which is what keeps a wolf behind the tree it is
      * behind.
      */
-    const actors: { x: number; draw: () => void }[] = []
+    const actors: { x: number; y: number; draw: () => void }[] = []
     for (const n of npcs) {
-      const X = sx(n.y), Y = sy(n.x)
+      const X = screenX(n.x, n.y), Y = screenY(n.x, n.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
-      actors.push({ x: n.x, draw: () => drawNpc(n) })
+      actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
     }
     npcsDrawn = actors.length
-    actors.push({ x: hero.x, draw: drawHero })
-    actors.sort((a, b) => b.x - a.x)
+    actors.push({ x: hero.x, y: hero.y, draw: drawHero })
+    actors.sort((a, b) => depth(b) - depth(a))
     let ai = 0
 
     for (const o of placed) {
-      while (ai < actors.length && actors[ai]!.x > o.x) actors[ai++]!.draw()
-      const X = sx(o.y), Y = sy(o.x)
+      while (ai < actors.length && depth(actors[ai]!) > depth(o)) actors[ai++]!.draw()
+      const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
       const k = zoom
       if (o.trunk) {
@@ -1017,8 +1181,8 @@ async function main() {
     if (listener) {
       const head = headOf[listener.art]! * zoom
       const w = Math.round(16 * Math.max(1, zoom))
-      const X = Math.round(sx(listener.y))
-      const Y = Math.round(sy(listener.x) - head - w * 0.7)
+      const X = Math.round(screenX(listener.x, listener.y))
+      const Y = Math.round(screenY(listener.x, listener.y) - head - w * 0.7)
       ctx.font = `bold ${Math.round(11 * Math.max(1, zoom))}px monospace`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -1097,9 +1261,16 @@ async function main() {
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
 
+  /** The scenery's depth keys in draw order, for the check that they sort. */
+  ;(window as unknown as { __order: () => number[] }).__order = () => placed.map(depth)
+
+  /** Where a world point lands on the glass — asked by the movement check. */
+  ;(window as unknown as { __screen: (x: number, y: number) => unknown }).__screen =
+    (x, y) => ({ x: screenX(x, y), y: screenY(x, y) })
+
   /** Where the hero is drawn, which is not the middle once the camera lifts. */
   ;(window as unknown as { __heroScreen: () => unknown }).__heroScreen = () =>
-    ({ x: sx(hero.y), y: sy(hero.x) })
+    ({ x: screenX(hero.x, hero.y), y: screenY(hero.x, hero.y) })
 
   /** The pad's geometry and state, for the check that drives it with fingers. */
   ;(window as unknown as { __pad: () => unknown }).__pad = () => ({
