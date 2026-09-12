@@ -135,10 +135,12 @@ drifts, and the block is only worth having if all twenty-four sheets carry it
 identically.
 
 ```
-python3 pipeline/make_prompt.py list          what there is
-python3 pipeline/make_prompt.py townsman      one, to stdout
-python3 pipeline/make_prompt.py --all out/    all of them, as .txt
+npm run prompt list              what there is
+npm run prompt townsman          one, to stdout
+npm run prompt -- --all out/     all of them, as .txt
 ```
+
+A flag needs its own `--` through npm, which eats the first one for itself.
 
 ## What the block says, and why each paragraph is in it
 
@@ -175,32 +177,29 @@ low-poly, outlines, perspective.
 
 ## What each class adds
 
-**`actor`** — eight directions, named in a stated order, and five rows: one
-standing and four of a walk. Eight directions and not four because four leaves
-the pose 45 degrees out half the time, which is the compromise this art
-direction exists to end; in a stated order because five views at uneven spacing
-cannot be turned into eight.
+**`actor`** — eight directions, named in a stated order, and every clip the
+subject will ever play, in one sheet. Twelve rows for anything that fights, 96
+cells; eight rows for anything that does not, 64.
 
-Four walk frames and not one, because one held mid-stride is a character
-sliding rather than walking — and `src/main.ts` already cycles four, so a sheet
-with one is short of what the engine will play. The four are the cycle a walk
-actually is: left foot down, passing, right foot down, passing.
+Eight directions and not four because four leaves the pose 45 degrees out half
+the time, which is the compromise this art direction exists to end; in a stated
+order because five views at uneven spacing cannot be turned into eight.
 
-There is a second sheet a subject can have, `<name>_combat`, and **nothing
-generates it yet on purpose.** There is no combat in this game, so nothing
-drives an attack, a flinch or a death. It exists because the expensive part of
-coming back later is not the drawing — it is that generating the same character
-twice gets you two characters. If it is wanted, generate it with the walk sheet
-as an image reference rather than from the text alone.
+**One sheet and not two, even at 96 cells.** Split across two calls it is two
+subjects, because an image model has no memory between them, and generating the
+same character twice is the one part of this that is genuinely hard — harder
+than any of the drawing. So the whole clip list goes in one call, and the
+prompt states the resolution that makes that possible rather than optimistic: a
+cell wants 128 pixels at the least, which is 1024 × 1536 for twelve rows.
 
-The cell arithmetic is why this is two sheets and not one: 5 rows × 8 is 40
-cells, 7 more rows is 96, and 96 cells at the 150–200 pixels a cell wants does
-not fit in anything a generator hands back.
+Four walk frames, because one held mid-stride is a character sliding rather
+than walking and `src/main.ts` already cycles four. A death, because things
+die. Attack and flinch, because combat is the next thing this repository does
+not have and coming back for two rows later means coming back for the whole
+character.
 
-512 townsfolk is a great deal of one person. Take `townsman` and `townswoman`
-two or three times over with different hair and cloth — the drawn sheet needed
-the same thing, and two hundred redheads in identical white shirts is how that
-was found out.
+Nothing else. No sit, no emote, no cast — there is nothing to drive them, and a
+row nobody plays is a row of cells taken from the rows somebody does.
 
 **`prop`** — a grid at one stated scale, with a named reference object, because
 "one scale" means nothing unless something in the picture fixes it.
