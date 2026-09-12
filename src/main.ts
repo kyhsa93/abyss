@@ -132,12 +132,33 @@ async function main() {
     return n - Math.floor(n)
   }
 
+  const solidAt = (wx: number, wy: number) => {
+    for (const s of solids)
+      if (wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) return true
+    return false
+  }
+
   const wetAt = (wx: number, wy: number) => {
     if (!wet) return false
     const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
     if (i < 0 || i >= W || j < 0 || j >= H) return false
     return wet[i * H + j] === 1
   }
+
+  /**
+   * One number, used twice on purpose.
+   *
+   * Above this the ground is drawn as bare rock, and above this it cannot be
+   * walked on.  Two constants would drift, and the day they did the player
+   * would be stopped by grass or would stroll up a cliff face — either way by
+   * something the picture did not warn them about.
+   */
+  const CLIFF = 0.62
+  const BARE = 0.44
+
+  /** Water, bare rock, or somebody's wall. */
+  const blocked = (wx: number, wy: number) =>
+    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy)
 
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
@@ -181,6 +202,17 @@ async function main() {
 
   type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
   const placed: Placed[] = []
+
+  /**
+   * What a building stands on, in world yards.
+   *
+   * The sprite is drawn from its anchor upwards, and up the screen is north, so
+   * the footprint runs north from the point the bake put it at.  Not the whole
+   * sprite: the top two thirds of a house is roof, and a roof is not something
+   * you walk into.  The width is the sprite's, because the wall is.
+   */
+  const SOLID_KINDS = new Set(['house', 'hall', 'tower'])
+  const solids: { x0: number; x1: number; y0: number; y1: number }[] = []
   for (const d of meta.doodads) {
     const k = KIND[d.k]
     if (!k) continue
@@ -189,6 +221,11 @@ async function main() {
     const piece = tilesMeta[pick]
     if (!piece) continue
     placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
+    if (SOLID_KINDS.has(d.k)) {
+      const halfY = piece.w / PPY / 2
+      const deep = (piece.h / PPY) * 0.32
+      solids.push({ x0: d.x - 0.8, x1: d.x + deep, y0: d.y - halfY, y1: d.y + halfY })
+    }
   }
   // Drawn back to front, and in this projection "back" is north — larger world
   // x.  Sorting once is enough: nothing here moves.
@@ -253,9 +290,9 @@ async function main() {
       // And if the player is already standing in water — teleported there, or
       // dropped in by a mask that moved under them — every move is allowed.
       // A rule that can trap somebody is worse than the thing it prevents.
-      const stuck = wetAt(hero.x, hero.y)
-      if (stuck || !wetAt(hero.x + dx, hero.y)) hero.x += dx
-      if (stuck || !wetAt(hero.x, hero.y + dy)) hero.y += dy
+      const stuck = blocked(hero.x, hero.y)
+      if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
+      if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
       hero.dir = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? DIR_UP : DIR_DOWN) : (my > 0 ? DIR_LEFT : DIR_RIGHT)
       hero.t += dt
     } else {
@@ -288,8 +325,8 @@ async function main() {
         // instead of speckling across it.
         const steep = slopeAt(wx, wy)
         const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
-          : steep > 0.62 ? ROCK_TILE
-            : steep > 0.44 ? DIRT_TILE
+          : steep > CLIFF ? ROCK_TILE
+            : steep > BARE ? DIRT_TILE
               : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         const p = tilesMeta[id]!
         const X = Math.round(sx(wy) - px / 2), Y = Math.round(sy(wx) - px / 2)
@@ -351,9 +388,12 @@ async function main() {
     if (acc > 0.5) { fps = frames / acc; frames = 0; acc = 0 }
     hud.textContent = [
       `ground   ${tilesDrawn.toLocaleString()} tiles`,
-      `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn`,
+      `standing ${drawn.toLocaleString()} of ${placed.length.toLocaleString()} drawn` +
+        `  (${solids.length} solid)`,
       `hero     (${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  ground ${heroZ.toFixed(1)} yd` +
-        (wetAt(hero.x, hero.y) ? '  [in water]' : ''),
+        (wetAt(hero.x, hero.y) ? '  [in water]'
+          : solidAt(hero.x, hero.y) ? '  [inside]'
+            : slopeAt(hero.x, hero.y) > CLIFF ? '  [on rock]' : ''),
       `view     ${(canvas.width / (PPY * zoom)).toFixed(0)} yd across  zoom ${zoom.toFixed(2)}`,
       `terrain  ${from === 'data' ? "the client's own" : 'interpolated from AzerothCore spawns'}`,
       `fps      ${fps.toFixed(0)}`,
@@ -362,6 +402,21 @@ async function main() {
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)
+
+  /**
+   * Ask the game what it thinks of a point.
+   *
+   * Written because a test that recomputes the slope for itself is testing its
+   * own arithmetic: the first attempt at a cliff check found a steep cell by
+   * reading the height grid directly, walked at it, and watched the player
+   * stroll through — because the game samples a bilinear field at tile spacing
+   * and the test had sampled the raw grid.  Both numbers were right.  They were
+   * answers to different questions.
+   */
+  ;(window as unknown as { __probe: (x: number, y: number) => unknown }).__probe = (x, y) => ({
+    z: groundAt(x, y), slope: slopeAt(x, y),
+    wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
+  })
 
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.
