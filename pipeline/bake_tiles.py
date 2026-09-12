@@ -44,6 +44,24 @@ AUTHORS = {
         'licences': 'CC-BY-SA 3.0 / GPL 3.0',
         'url': 'https://opengameart.org/content/lpc-roofs',
     },
+    # The four below are named in the attribution document without a licence of
+    # their own, so what applies is the one the document opens with for the
+    # whole sheet.
+    'casper': {
+        'name': 'Casper Nilsson',
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': 'https://opengameart.org/content/tiled-terrains',
+    },
+    'skorpio': {
+        'name': 'Skorpio',
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': 'https://opengameart.org/content/tiled-terrains',
+    },
+    'rivera': {
+        'name': 'Barbara Rivera / C Phillips',
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': 'https://opengameart.org/content/tiled-terrains',
+    },
 }
 
 # Where each sheet lives.  The sets are kept beside each other under ~/src the
@@ -72,6 +90,14 @@ GROUND = [
     ('dirt',       'Terrain and Outside.png', 128,  96, 32, 32, 'sharm'),
     ('dirt2',      'Terrain and Outside.png',  32,  96, 32, 32, 'sharm'),
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
+    # "grass with flowers", Casper Nilsson's, and the only paving in either
+    # sheet that can be used at all.  Both cobbled paths — the herringbone one
+    # left of the barrels and the blue brick above the lily pads — are named in
+    # `MISSING:`, so a village floor is not available at any price.  These are,
+    # and a field that is one flat green everywhere is the thing they fix.
+    ('bloom',      'Terrain and Outside.png',  96, 352, 32, 32, 'casper'),
+    ('bloom2',     'Terrain and Outside.png', 128, 352, 32, 32, 'casper'),
+    ('bloom3',     'Terrain and Outside.png', 160, 352, 32, 32, 'casper'),
     # Open water, bottom row of Sharm's sheet — the rows above it are shorelines
     # and a shoreline repeated is a row of ponds.
     ('water',      'water.png',   0, 160, 32, 32, 'sharm_base'),
@@ -119,6 +145,70 @@ OBJECTS = [
     ('fence',      'Outside Objects.png',  32, 544, 32, 28, 'eddeland'),
     ('fence2',     'Outside Objects.png', 128, 544, 32, 28, 'eddeland'),
     ('fence_post', 'Outside Objects.png',   0, 576, 32, 32, 'eddeland'),
+
+    # Everything below is art the world was already asking for and not getting.
+    # The bake writes a kind for every doodad the client has — `barrel`, `cart`,
+    # `crop`, `lily`, `water_plant`, `prop` — and `src/main.ts` was drawing a
+    # grey blob for all of them, because nothing here had been cut.  Boxes are
+    # not read off the grid: they are the connected alpha regions of the sheet,
+    # the same way the house boxes were found, because a cart's shafts stick out
+    # of its cell and a 32-aligned guess cuts them off.
+
+    # Sharm's barrels, on the terrain sheet.
+    ('barrel',     'Terrain and Outside.png', 292, 586, 28, 38, 'sharm'),
+    ('barrel2',    'Terrain and Outside.png', 199, 581, 21, 24, 'sharm'),
+    ('barrel3',    'Terrain and Outside.png', 199, 613, 21, 24, 'sharm'),
+    ('barrels',    'Terrain and Outside.png', 192, 643, 48, 61, 'sharm'),
+    # Skorpio's, which the document places by where it sits: "top right corner".
+    ('barrel4',    'Outside Objects.png',     963,  24, 26, 36, 'skorpio'),
+
+    # Casper Nilsson's lily pads and stumps.
+    ('lily',       'Terrain and Outside.png', 224, 545, 31, 31, 'casper'),
+    ('lily2',      'Terrain and Outside.png', 354, 548, 30, 28, 'casper'),
+    ('lily3',      'Terrain and Outside.png', 769, 487, 28, 22, 'casper'),
+    ('stump',      'Terrain and Outside.png', 967, 747, 50, 41, 'casper'),
+
+    # Eddeland's water reeds, which is what 710 `water_plant` doodads are.
+    ('reeds',      'Terrain and Outside.png',   0, 817, 32, 104, 'eddeland'),
+    ('reeds2',     'Terrain and Outside.png',  33, 819, 94, 103, 'eddeland'),
+
+    # Eddeland's farm: what a yard has standing in it.
+    ('hay',        'Outside Objects.png', 323, 561, 57, 78, 'eddeland'),
+    ('sack',       'Outside Objects.png', 384, 529, 32, 31, 'eddeland'),
+    ('sacks',      'Outside Objects.png', 480, 513, 64, 63, 'eddeland'),
+    ('basket',     'Outside Objects.png', 384, 599, 32, 25, 'eddeland'),
+    ('baskets',    'Outside Objects.png', 480, 583, 60, 51, 'eddeland'),
+    ('basket2',    'Outside Objects.png', 384, 663, 32, 25, 'eddeland'),
+    ('baskets2',   'Outside Objects.png', 480, 647, 60, 51, 'eddeland'),
+    ('crate',      'Outside Objects.png', 288, 642, 32, 24, 'eddeland'),
+    ('stall',      'Outside Objects.png', 544, 710, 95, 68, 'eddeland'),
+    ('firewood',   'Outside Objects.png', 386, 464, 30, 32, 'eddeland'),
+    ('firewood2',  'Outside Objects.png', 434, 448, 30, 32, 'eddeland'),
+    ('woodpile',   'Outside Objects.png', 487, 453, 52, 55, 'eddeland'),
+    ('anvil',      'Outside Objects.png', 579, 480, 29, 31, 'eddeland'),
+    ('pumpkin',    'Outside Objects.png', 644, 163, 25, 24, 'eddeland'),
+    ('corn',       'Outside Objects.png', 770, 257, 28, 62, 'eddeland'),
+    ('corn2',      'Outside Objects.png', 802, 257, 28, 62, 'eddeland'),
+    ('carrots',    'Outside Objects.png', 674, 672, 24, 64, 'eddeland'),
+    ('tomatoes',   'Outside Objects.png', 865, 285, 31, 33, 'eddeland'),
+    ('sprout',     'Outside Objects.png', 865, 221, 31, 33, 'eddeland'),
+    ('sprout2',    'Outside Objects.png', 992, 165, 31, 27, 'eddeland'),
+
+    # Casper Nilsson's tent, wheelbarrows and gravestones.
+    ('tent',       'Outside Objects.png',   2, 709, 124, 150, 'casper'),
+    ('cart',       'Outside Objects.png', 288, 805, 64, 55, 'casper'),
+    ('cart2',      'Outside Objects.png', 128, 841, 64, 45, 'casper'),
+    ('haycart',    'Outside Objects.png', 200, 837, 80, 55, 'casper'),
+    ('grave',      'Outside Objects.png', 968, 596, 47, 44, 'casper'),
+    ('grave2',     'Outside Objects.png', 992, 546, 28, 27, 'casper'),
+
+    # Barbara Rivera's leafless tree — one dead trunk in a wood of live ones.
+    ('deadtree',   'Outside Objects.png', 394, 258, 76, 92, 'rivera'),
+
+    # Sharm's oak and evergreen tops again, at the size they are drawn rather
+    # than cut down to a 32 pixel cell: these are the shrubs, not the trees.
+    ('shrub',      'Outside Objects.png', 194,   0, 94, 80, 'sharm'),
+    ('shrub2',     'Outside Objects.png', 290,  16, 94, 80, 'sharm'),
 ]
 
 

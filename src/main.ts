@@ -179,6 +179,19 @@ async function main() {
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
   const ROCK_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : GROUND_TILES[0]
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
+  /**
+   * Flowers, in meadows rather than in a speckle.
+   *
+   * Rolled per tile at any rate above about a twentieth, Casper Nilsson's
+   * flowered grass turns the whole of Elwynn into a flowerbed — the tile is
+   * dense enough that four of them side by side read as solid red.  So the
+   * decision is made twice: a coarse hash over 5-tile blocks says whether this
+   * corner of the field is a meadow at all, and only inside one does the fine
+   * hash pick a flowered tile.  Patches are what a meadow is; a uniform
+   * probability is what a rash is.
+   */
+  const BLOOM_TILES = ['bloom', 'bloom2', 'bloom3'].filter((k) => tilesMeta[k])
+  const MEADOW = 0.62
 
   // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
   // never emits a model path, so this table is the only place that decides
@@ -190,7 +203,7 @@ async function main() {
   const KIND: Record<string, {
     pieces: string[]; trunk?: string; run?: boolean; solid?: 'building' | 'span' | number
   }> = {
-    tree: { pieces: ['oak', 'oak2'], trunk: 'trunk', solid: 0.5 },
+    tree: { pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk', solid: 0.5 },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
     // angle is how pixel art stops looking like pixel art.
@@ -201,24 +214,43 @@ async function main() {
     lamp: { pieces: ['fence_post'] },
     sign: { pieces: ['fence_post'] },
     pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
-    bush: { pieces: ['bush', 'bush2'] },
-    rock: { pieces: ['boulder', 'menhir'], solid: 0.55 },
-    stump: { pieces: ['trunk'], solid: 0.5 },
-    log: { pieces: ['rubble'] },
-    grass: { pieces: ['bush'] },
-    water_plant: { pieces: ['bush'] },
-    flower: { pieces: ['bush2'] },
-    crop: { pieces: ['bush2'] },
-    mushroom: { pieces: ['scatter'] },
-    lily: { pieces: ['scatter'] },
-    barrel: { pieces: ['rubble'] },
-    prop: { pieces: ['scatter', 'rubble'] },
+    // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
+    // the texture the field had, and it reads as wallpaper however good the
+    // sprite is.
+    bush: { pieces: ['bush', 'bush2', 'shrub', 'shrub2', 'bush', 'bush2'] },
+    rock: { pieces: ['boulder', 'menhir', 'rubble'], solid: 0.55 },
+    stump: { pieces: ['stump', 'trunk'], solid: 0.5 },
+    log: { pieces: ['trunk2', 'woodpile'] },
+    grass: { pieces: ['bush', 'sprout2'] },
+    // 710 of these stand in the shallows, and they were bushes.
+    water_plant: { pieces: ['reeds', 'reeds2'] },
+    flower: { pieces: ['sprout', 'sprout2', 'tomatoes'] },
+    crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
+    // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
+    // nobody recorded who drew them — so what stands here is a seedling, and
+    // that is the whole of the reason.
+    mushroom: { pieces: ['sprout2', 'sprout'] },
+    lily: { pieces: ['lily', 'lily2', 'lily3'] },
+    barrel: { pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels'], solid: 0.4 },
+    // `prop` is the client's word for the furniture of a yard, and 301 of them
+    // were one grey blob.  A yard has firewood, sacks, crates and a stall in
+    // it, and which one is decided the same way a tree's species is.
+    prop: {
+      pieces: ['crate', 'sack', 'sacks', 'basket', 'baskets', 'basket2',
+        'baskets2', 'firewood', 'firewood2', 'woodpile', 'anvil', 'hay', 'stall'],
+      solid: 0.45,
+    },
+    // Thirteen carts stood in the client's world and none of them were drawn:
+    // `cart` was not in this table at all, and a kind that is missing from it
+    // is skipped without a word.
+    cart: { pieces: ['cart', 'cart2', 'haycart'], solid: 0.7 },
+    grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
     house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
     hall: { pieces: ['hall'], solid: 'building' },
     tower: { pieces: ['tower'], solid: 'building' },
-    tent: { pieces: ['house_f'], solid: 'building' },
+    tent: { pieces: ['tent'], solid: 'building' },
   }
 
   /**
@@ -852,10 +884,14 @@ async function main() {
         // Bands on one continuous number, so bare ground follows the hillside
         // instead of speckling across it.
         const steep = slopeAt(wx, wy)
+        const meadow = BLOOM_TILES.length > 0
+          && hash(Math.floor(ti / 5) + 811, Math.floor(tj / 5) + 277) > MEADOW
         const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : steep > CLIFF ? ROCK_TILE
             : steep > BARE ? DIRT_TILE
-              : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+              : meadow && h > 0.45
+                ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
+                : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         const p = tilesMeta[id]!
         const X = Math.round(sx(wy) - px / 2), Y = Math.round(sy(wx) - px / 2)
         ctx.drawImage(tilesImg, p.x, p.y, p.w, p.h, X, Y, Math.ceil(px), Math.ceil(px))
@@ -889,10 +925,31 @@ async function main() {
       // 24 to the yard, and PPY is 24.  A separate fudge factor here had
       // sprites eight per cent smaller than the ground they stood on.
       const w = c * zoom, hgt = w
+      shadow(hero.x, hero.y, 0.34)
       ctx.drawImage(heroImg, sxp, syp, c, c, Math.round(sx(hero.y) - w / 2),
         Math.round(sy(hero.x) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
       drawn++
     }
+    /**
+     * The dab of shade a body puts on the ground it stands on.
+     *
+     * The scenery sprites carry their own — Sharm drew the trees with one
+     * under them — and the people do not, which is why a townsman read as a
+     * sticker laid on the grass rather than as somebody standing in it.  It is
+     * an ellipse and not a cast shadow: the light in this scene is the
+     * hillside shading, and that has no direction to cast along.
+     */
+    const shadow = (wx: number, wy: number, wide: number) => {
+      const r = wide * PPY * zoom
+      ctx.save()
+      ctx.globalAlpha = 0.28
+      ctx.fillStyle = '#0b1408'
+      ctx.beginPath()
+      ctx.ellipse(sx(wy), sy(wx), r, r * 0.42, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+
     const drawNpc = (n: Npc) => {
       const a = npcArt.kinds[n.art]!
       // Frame 0 is the standing pose in every sheet the bake cuts. For people
@@ -905,6 +962,9 @@ async function main() {
       const c = npcArt.cell
       const sxp = (idx % npcArt.cols) * c, syp = Math.floor(idx / npcArt.cols) * c
       const w = c * zoom
+      // Sized off the art, like the prompt over their head: a chicken casts a
+      // chicken's worth of shade.
+      shadow(n.x, n.y, Math.max(0.3, (a.yards ?? 0.9) * 0.34))
       if (n.alpha < 1) ctx.globalAlpha = n.alpha
       ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(sx(n.y) - w / 2),
         Math.round(sy(n.x) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
