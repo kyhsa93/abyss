@@ -79,6 +79,21 @@
       #ui .xp .fill { background: #6a4fb0; }
       #ui .xp .num { font-size: 9px; line-height: 9px; color: #cfc6ea; }
 
+      #bag {
+        position: absolute; right: 10px; bottom: 44px; width: 190px;
+        background: rgba(12,14,20,.92); border: 1px solid #4a4433; padding: 8px 10px;
+        font: 12px/1.7 var(--body);
+      }
+      #bag .title {
+        color: #c9a86a; font: 11px/1.6 var(--mono); border-bottom: 1px solid #3b382e;
+        padding-bottom: 4px; margin-bottom: 4px;
+      }
+      #bag ul { margin: 0; padding: 0; list-style: none; }
+      #bag li { display: flex; justify-content: space-between; }
+      #bag li.empty { color: #6b6658; justify-content: center; }
+      #bag .many { color: #9ab; font: 11px var(--mono); }
+      #bag[hidden] { display: none; }
+
       #bar {
         position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
         display: flex; gap: 6px;
@@ -107,6 +122,21 @@
         position: absolute; left: 0; right: 0; bottom: -15px; text-align: center;
         font: 10px var(--body); color: #9ab; text-shadow: 0 1px 2px #000;
       }
+      #bag {
+        position: absolute; right: 10px; bottom: 44px; width: 190px;
+        background: rgba(12,14,20,.92); border: 1px solid #4a4433; padding: 8px 10px;
+        font: 12px/1.7 var(--body);
+      }
+      #bag .title {
+        color: #c9a86a; font: 11px/1.6 var(--mono); border-bottom: 1px solid #3b382e;
+        padding-bottom: 4px; margin-bottom: 4px;
+      }
+      #bag ul { margin: 0; padding: 0; list-style: none; }
+      #bag li { display: flex; justify-content: space-between; }
+      #bag li.empty { color: #6b6658; justify-content: center; }
+      #bag .many { color: #9ab; font: 11px var(--mono); }
+      #bag[hidden] { display: none; }
+
       #bar { bottom: 30px; }
 
       /* The readout is a developer's, so it goes where one belongs and starts
@@ -147,6 +177,7 @@
       /* A phone's bottom row is two thumbs, so the bar is not there — the
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
+      body.touch #bag { bottom: 130px; width: 150px; font-size: 11px; }
       body.touch #units { width: 176px; }
       body.touch .frame { grid-template-columns: 30px 1fr; padding: 4px; }
       body.touch .frame .face { width: 30px; height: 30px; }
@@ -164,7 +195,7 @@
   </head>
   <body>
     <div id="hud" class="plain" hidden>불러오는 중…</div>
-    <div id="help">WASD: 이동   휠: 확대   E: 대화   1: 공격   `: 수치</div>
+    <div id="help">WASD: 이동   1: 공격   E: 대화·줍기   B: 가방   `: 수치</div>
     <div id="talk" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

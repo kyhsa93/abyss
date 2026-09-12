@@ -84,6 +84,20 @@ const GOODS: Record<string, string> = {
   armour: '방어구', reagents: '시약', ammunition: '탄약', materials: '재료',
   recipes: '도면', quivers: '화살통', 'errand goods': '심부름 물건',
   keys: '열쇠', oddments: '잡동사니', glyphs: '문양',
+  // What comes out of a body's pockets, which `spawn_npcs.py` words the same
+  // way it words a shop's stock: the database says which drawer an item lives
+  // in and the noun is ours, because every item name in that dump is
+  // Blizzard's prose.
+  potion: '물약', food: '식량', bandage: '붕대', bag: '가방',
+  weapon: '무기', cloth: '천', leather: '가죽',
+  ore: '광석', meat: '고기', herb: '약초', material: '재료',
+  recipe: '도면', quiver: '화살통', errand: '심부름 물건',
+  oddment: '잡동사니',
+}
+
+/** The word for a thing you are carrying. */
+export function goodsOf(word: string): string {
+  return GOODS[word] ?? word
 }
 
 /**

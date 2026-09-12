@@ -275,6 +275,68 @@ def fight_of(st, fac, level, cls, template, mods):
             1 if hostile(fac, template) else 0)
 
 
+# What a thing *is*, in our words, from `item_template.class` and its
+# subclass.  The same bargain the doodads and the creature kinds make: the
+# database says which drawer an item lives in and we supply the noun, because
+# every item name in this dump is Blizzard's prose.
+#
+# A wolf drops meat and leather and a kobold drops junk and a candle, and that
+# is the whole of what a player needs to know at this size.
+GOODS = {
+    (0, 1): 'potion', (0, 2): 'potion', (0, 3): 'potion',
+    (0, 5): 'food', (0, 7): 'bandage', (0, 0): 'potion',
+    (1, None): 'bag',
+    (2, None): 'weapon',
+    (4, None): 'armour',
+    (6, None): 'ammunition',
+    (7, 5): 'cloth', (7, 6): 'leather', (7, 7): 'ore', (7, 8): 'meat',
+    (7, 9): 'herb', (7, None): 'material',
+    (9, None): 'recipe',
+    (11, None): 'quiver',
+    (12, None): 'errand',
+    (15, None): 'oddment',
+}
+
+
+def goods_of(cls, sub):
+    """One of our words for an item, or `oddment` if it is nothing in
+    particular — which is what most of what a kobold carries actually is."""
+    return GOODS.get((cls, sub)) or GOODS.get((cls, None)) or 'oddment'
+
+
+def loot_tables(base, kinds_by_entry):
+    """What each creature carries: coins, and things by what sort they are.
+
+    `creature_loot_template` keyed through `creature_template.lootid`, which is
+    the same path the quest objectives already take through this file.  Chances
+    come out negative for grouped drops — the sign is the group's business and
+    not ours, so it is dropped.
+    """
+    iclass = {}
+    for line in rows(os.path.join(base, 'item_template.sql')):
+        f = split_head(line, 3)
+        try:
+            iclass[int(f[0])] = (int(f[1]), int(f[2]))
+        except (ValueError, IndexError):
+            continue
+
+    by_loot = {}
+    lc = columns(os.path.join(base, 'creature_loot_template.sql'))
+    for line in rows(os.path.join(base, 'creature_loot_template.sql')):
+        f = split(line)
+        try:
+            lid, item = int(f[lc['Entry']]), int(f[lc['Item']])
+            chance = abs(float(f[lc['Chance']]))
+            lo, hi = int(f[lc['MinCount']]), int(f[lc['MaxCount']])
+        except (ValueError, IndexError, KeyError):
+            continue
+        if item not in iclass or chance <= 0:
+            continue
+        by_loot.setdefault(lid, []).append(
+            (goods_of(*iclass[item]), min(100.0, chance), lo, hi))
+    return by_loot
+
+
 def with_weapon(st, level, weapon):
     """The player's line, which is a creature's plus what he is holding.
 
@@ -564,7 +626,9 @@ def main(acore, out):
                        (float(f[col['HealthModifier']]),
                         float(f[col['DamageModifier']]),
                         float(f[col['ArmorModifier']]),
-                        int(f[col['BaseAttackTime']])))
+                        int(f[col['BaseAttackTime']])),
+                       int(f[col['lootid']]),
+                       (int(f[col['mingold']]), int(f[col['maxgold']])))
 
     topics = talking(base, {e for e, _, _, _ in spawns if e in info and info[e][0]})
     topic_list, topic_at = [], {}
@@ -573,6 +637,8 @@ def main(acore, out):
         topic_list.append(t)
 
     stats, factions = fight_tables(base)
+    carried = loot_tables(base, None)
+    goods, hauls, haul_at = [], [], {}
     kinds, roles, out_rows = [], [], []
     fights, fight_at = [], {}
     unknown = Counter()
@@ -580,7 +646,7 @@ def main(acore, out):
         if entry not in info:
             dropped['no template'] += 1
             continue
-        kind, ctype, lo, hi, flags, rank, cls, faction, mods = info[entry]
+        kind, ctype, lo, hi, flags, rank, cls, faction, mods, lootid, purse = info[entry]
         if kind is None:
             unknown[ctype] += 1
             dropped['unclassified'] += 1
@@ -606,8 +672,20 @@ def main(acore, out):
                 fight_at[got] = len(fights)
                 fights.append(list(got))
             fi = fight_at[got]
+        # And what it is carrying, deduplicated the same way: a kobold is a
+        # kobold's pockets whichever kobold it is.
+        items = []
+        for word, chance, clo, chi in carried.get(lootid, [])[:8]:
+            if word not in goods:
+                goods.append(word)
+            items.append([goods.index(word), round(chance, 1), clo, chi])
+        haul = (purse[0], purse[1], tuple(map(tuple, items)))
+        if haul not in haul_at:
+            haul_at[haul] = len(hauls)
+            hauls.append([purse[0], purse[1], items])
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
-                         level, roles.index(r), topic_at.get(entry, -1), fi])
+                         level, roles.index(r), topic_at.get(entry, -1), fi,
+                         haul_at[haul]])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')
@@ -638,7 +716,7 @@ def main(acore, out):
         ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
                    'fights': fights, 'player': player, 'ladder': ladder,
-                   'npcs': out_rows}, f)
+                   'goods': goods, 'hauls': hauls, 'npcs': out_rows}, f)
 
     by_kind = Counter(kinds[r[2]] for r in out_rows)
     by_role = Counter(roles[r[5]] for r in out_rows)
@@ -650,6 +728,9 @@ def main(acore, out):
     print(f'  talk: {talkers} spawns over {len(topic_list)} topics  '
           + ', '.join(f'{k} {v}' for k, v in what.most_common()))
     print(f'  fights: {len(fights)} distinct, {foes:,} of them hostile')
+    carry = sum(1 for r in out_rows if hauls[r[8]][2])
+    print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something, '
+          + ', '.join(goods))
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))

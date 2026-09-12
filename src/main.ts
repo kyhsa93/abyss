@@ -20,7 +20,7 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { bearing, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
+import { bearing, coin, goodsOf, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud } from './hud'
 import { noticeAt, swing, xpFor, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
@@ -53,6 +53,10 @@ type HeroArt = {
  */
 type Spawns = {
   kinds: string[]; roles: string[]; topics: Topic[]
+  /** Our words for what an item is — see `spawn_npcs.py`'s `GOODS`. */
+  goods?: string[]
+  /** `[min copper, max copper, [[goods, chance, min, max], …]]` per pocket. */
+  hauls?: [number, number, number[][]][]
   /** What a fight with each distinct (kind, level) costs — see `fight.ts`. */
   fights?: Fight[]
   /** The same for the player, by level. */
@@ -610,6 +614,9 @@ async function main() {
     hurt: number
     /** Who it is fighting, which for now is only ever the player. */
     angry: boolean; next: number
+    /** What it is carrying, and whether anybody has been through it yet. */
+    haul: [number, number, number[][]] | null
+    looted: boolean
   }
   const npcs: Npc[] = []
   let unplaceable = 0
@@ -636,6 +643,9 @@ async function main() {
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
       fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
       dead: 0, hurt: -99, angry: false, next: 0,
+      haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
+        ? spawns.hauls[row[8]!]! : null,
+      looted: false,
     })
   }
 
@@ -861,6 +871,7 @@ async function main() {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
     xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
+    purse: 0, bag: {} as Record<string, number>,
   }
   /**
    * What a kill was worth, and what it bought.
@@ -923,6 +934,7 @@ async function main() {
         // Back on its feet after a while, where it stood.
         if (clock - n.dead > 30) {
           n.dead = 0; n.hp = n.max; n.angry = false; n.alpha = 1
+          n.looted = false
           n.x = n.hx; n.y = n.hy
         }
         continue
@@ -980,6 +992,44 @@ async function main() {
     }
   }
 
+  const GOODS = spawns.goods ?? []
+
+  /**
+   * Going through a body's pockets.
+   *
+   * Rolled when it is opened rather than when it died, which is the same thing
+   * to a player and one fewer list to keep: nothing is carrying loot until
+   * somebody looks.
+   */
+  const loot = (n: Npc): string => {
+    n.looted = true
+    if (!n.haul) return '아무것도 없다'
+    const [lo, hi, items] = n.haul
+    const got: string[] = []
+    const copper = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1))
+    if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
+    for (const row of items) {
+      const [idx, chance, clo, chi] = row as number[]
+      if (Math.random() * 100 >= chance!) continue
+      const word = GOODS[idx!] ?? 'oddment'
+      const many = clo! + Math.floor(Math.random() * Math.max(1, chi! - clo! + 1))
+      you.bag[word] = (you.bag[word] ?? 0) + many
+      got.push(`${goodsOf(word)} ${many}`)
+    }
+    return got.length ? got.join(', ') : '아무것도 없다'
+  }
+
+  /** The nearest body nobody has been through yet. */
+  const corpse = (): Npc | null => {
+    let best: Npc | null = null, bd = EARSHOT * EARSHOT
+    for (const n of active) {
+      if (!n.dead || n.looted) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    return best
+  }
+
   /**
    * The nearest thing worth swinging at, or nothing.
    *
@@ -1013,6 +1063,7 @@ async function main() {
     }
     // The readout is a developer's and it starts out of the way.
     if (k === '`' || k === '~') hud.hidden = !hud.hidden
+    if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
     if (k === 'e') { e.preventDefault(); toggleTalk() }
@@ -1036,6 +1087,7 @@ async function main() {
   const ACTIONS = ['attack', 'talk'] as const
   const pad = touchpad(canvas, ACTIONS.length)
   const ui = makeHud()
+  let bagOpen = false
   const help = document.getElementById('help') as HTMLDivElement
   let helpFor: boolean | null = null
 
@@ -1048,6 +1100,7 @@ async function main() {
   function inReach(): Npc | null {
     let best: Npc | null = null, bd = EARSHOT * EARSHOT
     for (const n of active) {
+      if (n.dead) continue
       const dx = n.x - hero.x, dy = n.y - hero.y
       const d = dx * dx + dy * dy
       if (d < bd) { bd = d; best = n }
@@ -1153,6 +1206,11 @@ async function main() {
 
   function toggleTalk() {
     if (chat) { endTalk(); return }
+    // A body cannot answer you, so the same key goes through its pockets.
+    // One key for "deal with the thing in front of me" is how this game is
+    // played with a thumb.
+    const body = corpse()
+    if (body) { say(body.x, body.y, loot(body), true); return }
     const n = inReach()
     if (n) startTalk(n)
   }
@@ -1630,7 +1688,10 @@ async function main() {
     //
     // The height is `headOf`, measured off the atlas, and not a constant that
     // looked right over a townsman.
-    if (listener) {
+    // A body is prompted the same way, because the same key opens it.
+    const here = listener ?? corpse()
+    if (here) {
+      const listener = here
       const head = headOf[listener.art]! * zoom
       const w = Math.round(16 * Math.max(1, zoom))
       const X = Math.round(screenX(listener.x, listener.y))
@@ -1664,7 +1725,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동\n오므려서 확대'
-        : 'WASD: 이동   1: 공격   E: 대화   휠: 확대   `: 수치'
+        : 'WASD: 이동   1: 공격   E: 대화·줍기   B: 가방   `: 수치'
     }
 
     acc += dt; frames++
@@ -1715,6 +1776,9 @@ async function main() {
       foe: !!(foe.fight && foe.fight[FOE]),
     } : null)
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
+    ui.setBag(bagOpen, coin(you.purse),
+      Object.entries(you.bag).map(([w, n]) => [goodsOf(w), n] as [string, number])
+        .sort((a, b) => b[1] - a[1]))
     ui.setBar([
       {
         key: '1', label: '공격', icon: 'lorc/broadsword.svg',

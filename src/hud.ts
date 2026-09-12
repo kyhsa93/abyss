@@ -78,6 +78,15 @@ export function hud() {
   const xpFill = el('div', 'fill', xpBar)
   const xpText = el('span', 'num', xpBar)
 
+  // The bag.  A list rather than a grid of squares: what is in it is counted
+  // goods — eleven of cloth — and a grid of squares is a lie about that until
+  // items are things in their own right.
+  const bagPanel = el('div', '', ui)
+  bagPanel.id = 'bag'
+  bagPanel.hidden = true
+  const bagTitle = el('div', 'title', bagPanel)
+  const bagList = el('ul', '', bagPanel)
+
   const bar = el('div', '', ui)
   bar.id = 'bar'
   const slots: { root: HTMLElement; icon: HTMLImageElement; sweep: HTMLElement }[] = []
@@ -107,6 +116,26 @@ export function hud() {
       foe.fill.style.width = `${part * 100}%`
       foe.fill.style.background = u.foe ? '#b8402f' : '#4f9e46'
       foe.text.textContent = `${Math.round(u.hp)} / ${u.max}`
+    },
+
+    /** What you are carrying, and whether anybody is looking at it. */
+    setBag(open: boolean, purse: string, items: [string, number][]) {
+      bagPanel.hidden = !open
+      if (!open) return
+      bagTitle.textContent = `가방  —  ${purse}`
+      const want = items.map(([w, n]) => `${w} ${n}`).join('\n')
+      if (bagList.dataset['now'] === want) return
+      bagList.dataset['now'] = want
+      bagList.textContent = ''
+      if (items.length === 0) {
+        el('li', 'empty', bagList).textContent = '비어 있다'
+        return
+      }
+      for (const [word, many] of items) {
+        const li = el('li', '', bagList)
+        el('span', 'what', li).textContent = word
+        el('span', 'many', li).textContent = `${many}`
+      }
     },
 
     setXp(have: number, need: number, level: number) {
