@@ -53,6 +53,10 @@
         background: rgba(12,14,20,.82); border: 1px solid #4a4433;
         padding: 6px; margin-bottom: 6px;
       }
+      /* A `display` of its own beats the browser's `[hidden] { display: none }`,
+         so the target frame stayed on the screen as an empty box the moment
+         there was nothing to target. */
+      .frame[hidden] { display: none; }
       .frame .face {
         width: 40px; height: 40px; opacity: .85;
         background: rgba(255,255,255,.06); border: 1px solid #3b3a34;

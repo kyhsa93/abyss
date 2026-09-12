@@ -312,11 +312,12 @@ def loot_tables(base, kinds_by_entry):
     come out negative for grouped drops — the sign is the group's business and
     not ours, so it is dropped.
     """
-    iclass = {}
+    iclass, sells = {}, {}
     for line in rows(os.path.join(base, 'item_template.sql')):
-        f = split_head(line, 3)
+        f = split_head(line, 12)
         try:
             iclass[int(f[0])] = (int(f[1]), int(f[2]))
+            sells[int(f[0])] = int(f[11])
         except (ValueError, IndexError):
             continue
 
@@ -332,8 +333,15 @@ def loot_tables(base, kinds_by_entry):
             continue
         if item not in iclass or chance <= 0:
             continue
+        # The price is this item's, carried with the drop.  Taken as a median
+        # over everything the word covers it came out at 1.7 gold for a
+        # "weapon" — which is a real price, of a real sword, dropped by
+        # something on the far side of the zone at level seventy.  A level 5
+        # bandit's weapon is worth what *his* weapon is worth.
         by_loot.setdefault(lid, []).append(
-            (goods_of(*iclass[item]), min(100.0, chance), lo, hi))
+            (word := goods_of(*iclass[item]), min(100.0, chance), lo, hi,
+             max(0, sells.get(item, 0))))
+        del word
     return by_loot
 
 
@@ -675,10 +683,10 @@ def main(acore, out):
         # And what it is carrying, deduplicated the same way: a kobold is a
         # kobold's pockets whichever kobold it is.
         items = []
-        for word, chance, clo, chi in carried.get(lootid, [])[:8]:
+        for word, chance, clo, chi, sell in carried.get(lootid, [])[:8]:
             if word not in goods:
                 goods.append(word)
-            items.append([goods.index(word), round(chance, 1), clo, chi])
+            items.append([goods.index(word), round(chance, 1), clo, chi, sell])
         haul = (purse[0], purse[1], tuple(map(tuple, items)))
         if haul not in haul_at:
             haul_at[haul] = len(hauls)
@@ -729,8 +737,10 @@ def main(acore, out):
           + ', '.join(f'{k} {v}' for k, v in what.most_common()))
     print(f'  fights: {len(fights)} distinct, {foes:,} of them hostile')
     carry = sum(1 for r in out_rows if hauls[r[8]][2])
-    print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something, '
-          + ', '.join(goods))
+    print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something')
+    sold = [i[4] for h in hauls for i in h[2] if i[4]]
+    print(f'  worth: {len(goods)} words, {len(sold)} priced drops, '
+          f'median {sorted(sold)[len(sold) // 2] if sold else 0}동')
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))

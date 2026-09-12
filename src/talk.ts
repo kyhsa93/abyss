@@ -46,7 +46,19 @@ export type Topic = {
   directs?: number
 }
 
-export type Option = { label: string; lines: string[] }
+export type Option = {
+  label: string
+  lines: string[]
+  /**
+   * An option that *does* something, rather than one that says something.
+   *
+   * Called once, the first time it is opened, and what it returns becomes its
+   * lines.  Everything `speak` builds is a line of text worked out in advance;
+   * selling is not, because it depends on what is in a bag this file has never
+   * heard of.
+   */
+  act?: () => string[]
+}
 export type Speech = { who: string; greet: string; options: Option[] }
 
 /** Where the nearest of a role is, for the ones who give directions. */

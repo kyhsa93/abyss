@@ -871,7 +871,9 @@ async function main() {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
     xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
-    purse: 0, bag: {} as Record<string, number>,
+    purse: 0,
+    /** word -> [how many, what the lot is worth in copper]. */
+    bag: {} as Record<string, [number, number]>,
   }
   /**
    * What a kill was worth, and what it bought.
@@ -1009,11 +1011,15 @@ async function main() {
     const copper = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1))
     if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
     for (const row of items) {
-      const [idx, chance, clo, chi] = row as number[]
+      const [idx, chance, clo, chi, sell] = row as number[]
       if (Math.random() * 100 >= chance!) continue
       const word = GOODS[idx!] ?? 'oddment'
       const many = clo! + Math.floor(Math.random() * Math.max(1, chi! - clo! + 1))
-      you.bag[word] = (you.bag[word] ?? 0) + many
+      // The price travels with the thing.  A bag that held only counts could
+      // not be sold: `weapon` is worth what that creature's weapon was worth,
+      // and the word on its own says nothing about that.
+      const had = you.bag[word] ?? [0, 0]
+      you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
       got.push(`${goodsOf(word)} ${many}`)
     }
     return got.length ? got.join(', ') : '아무것도 없다'
@@ -1164,7 +1170,13 @@ async function main() {
         const b = document.createElement('b')
         b.textContent = String(i + 1)
         li.append(b, document.createTextNode(o.label))
-        li.onclick = () => { chat!.open = chat!.open === i ? -1 : i; drawTalk() }
+        li.onclick = () => {
+          chat!.open = chat!.open === i ? -1 : i
+          // An option that does something does it once, the first time it is
+          // opened, and what it returns is what it then says.
+          if (chat!.open === i && o.act && o.lines.length === 0) o.lines = o.act()
+          drawTalk()
+        }
         ol.appendChild(li)
         if (open === i) {
           const d = document.createElement('div')
@@ -1187,12 +1199,40 @@ async function main() {
     hudH = hud.offsetHeight
   }
 
-  function startTalk(n: Npc) {
-    chat = {
-      npc: n,
-      speech: speak(n.kind, n.role, n.level, n.seed, n.topic, () => directionsFrom(n)),
-      open: -1,
+  /**
+   * Empty the bag over a counter.
+   *
+   * Everything at once, because what is in the bag is counted goods rather
+   * than a list of things — there is nothing to pick between yet, and an
+   * interface that makes you sell eleven pieces of cloth one at a time is an
+   * interface pretending to have a decision in it.
+   */
+  const sellAll = (): string[] => {
+    const rows = Object.entries(you.bag)
+    if (rows.length === 0) return ['팔 것이 없소.']
+    let paid = 0
+    const said: string[] = []
+    for (const [word, [many, worth]] of rows) {
+      paid += worth
+      said.push(`${goodsOf(word)} ${many} — ${worth > 0 ? coin(worth) : '값이 없다'}`)
     }
+    you.bag = {}
+    you.purse += paid
+    said.push(paid > 0 ? `모두 ${coin(paid)}.` : '한 푼도 쳐주지 않는다.')
+    return said
+  }
+
+  function startTalk(n: Npc) {
+    const speech = speak(n.kind, n.role, n.level, n.seed, n.topic,
+      () => directionsFrom(n))
+    // A shopkeeper buys as well as sells, and what you have to sell is not
+    // something `talk.ts` can know — it has never heard of a bag.
+    if (n.role === 'vendor') {
+      speech.options.push({
+        label: '가진 것을 팝니다', lines: [], act: sellAll,
+      })
+    }
+    chat = { npc: n, speech, open: -1 }
     // Turn to face whoever spoke to them — the four directions are the same
     // four the sprite has, so this costs nothing and is the difference between
     // a conversation and shouting at somebody's back.
@@ -1385,6 +1425,22 @@ async function main() {
     // does not close the thing you are answering.
     const tapped = pad.takeTap()
     if (chat && tapped) endTalk()
+    // A tap on the world picks what it lands on.  Until now the only way to
+    // choose was to be nearest to it, which is no choice at all when two
+    // things are standing together — and two of them always are.
+    else if (tapped && !you.died) {
+      const at = worldAt(tapped.x, tapped.y)
+      let best: Npc | null = null, bd = 3 * 3
+      for (const n of active) {
+        if (n.dead || !n.fight) continue
+        const d = (n.x - at.x) ** 2 + (n.y - at.y) ** 2
+        if (d < bd) { bd = d; best = n }
+      }
+      // Only something that will fight back becomes a target; tapping a
+      // townsman is how you look at one, not how you start on them.
+      if (best && best.fight![FOE]) you.target = best
+      else if (best) you.target = null
+    }
     for (const slot of pad.taken()) {
       if (ACTIONS[slot] === 'talk') toggleTalk()
       else if (ACTIONS[slot] === 'attack' && !chat && !you.died)
@@ -1777,7 +1833,7 @@ async function main() {
     } : null)
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
-      Object.entries(you.bag).map(([w, n]) => [goodsOf(w), n] as [string, number])
+      Object.entries(you.bag).map(([w, [n]]) => [goodsOf(w), n] as [string, number])
         .sort((a, b) => b[1] - a[1]))
     ui.setBar([
       {
@@ -1884,6 +1940,19 @@ async function main() {
     if (!best) return null
     hero.x = best.x - 1.4; hero.y = best.y
     return { kind: best.kind, level: best.level, hp: best.hp }
+  }
+  // For the checks: put something in the bag, so the counter can be tested
+  // without first surviving a fight.
+  ;(window as unknown as { __give: () => unknown }).__give = () => {
+    you.bag['cloth'] = [11, 143]
+    you.bag['meat'] = [3, 75]
+    return Object.keys(you.bag)
+  }
+  ;(window as unknown as { __vendor: () => unknown }).__vendor = () => {
+    const v = npcs.find((n) => n.role === 'vendor')
+    if (!v) return null
+    hero.x = v.x - 1.2; hero.y = v.y
+    return { kind: v.kind, role: v.role }
   }
   ;(window as unknown as { __weakest: () => unknown }).__weakest = () => {
     let best: Npc | null = null, bl = 99
