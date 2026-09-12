@@ -92,10 +92,13 @@ whose author nobody recorded cannot be complied with.
 
 ## Making more of it
 
-`docs/art-prompts.md` is the twenty-one sheets that would fill the forest —
-one per creature, four for the scenery and the ground — with the camera, the
-scale and the palette stated in the terms this engine actually draws in, and a
-note on each constraint saying which mistake put it there.
+`docs/art-prompts.md` is what to ask a generator for. Prompts are filed by
+what the engine does with the result — eight directions and a walk, a single
+billboard, a pair that has to exist twice for the two diagonals, or a tile that
+has to repeat — and then by how far the asset travels. Twenty-one sheets fill
+Elwynn Forest, and fifteen of them are the rest of the continent too: counted
+against AzerothCore, seventeen of the forest's nineteen creature kinds live
+everywhere else as well.
 
 ## The plan
 
