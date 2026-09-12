@@ -99,8 +99,9 @@ async function main() {
   const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
-    load('./art/hero.png'),
-    fetch('./art/hero.json').then((r) => r.json() as Promise<{ cell: number; cols: number; clips: Clips }>),
+    load('./art/hero3d.png'),
+    fetch('./art/hero3d.json').then((r) => r.json() as Promise<
+      { cell: number; cols: number; dirs: number; anchor: number; clips: Clips }>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
     // Not behind the two-worlds switch, and that is not an oversight: the
@@ -426,6 +427,23 @@ async function main() {
     return Math.abs(sdx) > Math.abs(sdy)
       ? (sdx > 0 ? DIR_RIGHT : DIR_LEFT)
       : (sdy > 0 ? DIR_DOWN : DIR_UP)
+  }
+
+  /**
+   * And the same question for somebody who was photographed rather than drawn.
+   *
+   * There is nothing to compromise here.  A rig has as many directions as you
+   * care to render it from, so the hero has eight and the pose is simply the
+   * screen direction rounded to the nearest of them — 0 is face-on to the
+   * viewer, and they go round from there.  The squash is in the angle because
+   * the direction meant is the one the player sees, and a step north covers
+   * twice as much glass sideways as it does vertically.
+   */
+  function facing8(dx: number, dy: number, n: number): number {
+    const sdx = dx - dy
+    const sdy = -(dx + dy) * ISO_SQUASH
+    const turn = Math.atan2(sdx, sdy) / (Math.PI * 2)
+    return ((Math.round(turn * n) % n) + n) % n
   }
 
   /**
@@ -1006,7 +1024,7 @@ async function main() {
       const stuck = blocked(hero.x, hero.y)
       if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
       if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = facing(mx, my)
+      hero.dir = facing8(mx, my, heroMeta.dirs)
       hero.t += dt
     } else {
       hero.t += dt
@@ -1121,9 +1139,14 @@ async function main() {
       // sprites eight per cent smaller than the ground they stood on.
       const w = c * zoom, hgt = w
       shadow(hero.x, hero.y, 0.34)
+      // The foot line comes from the sheet.  A drawn sheet stands its people
+      // near the bottom of the cell; a rendered one is aimed at the model's
+      // origin, which is the floor, so the feet land near the middle — and the
+      // packer measures which rather than either of them being typed here.
       ctx.drawImage(heroImg, sxp, syp, c, c,
         Math.round(screenX(hero.x, hero.y) - w / 2),
-        Math.round(screenY(hero.x, hero.y) - hgt * 0.82), Math.ceil(w), Math.ceil(hgt))
+        Math.round(screenY(hero.x, hero.y) - hgt * heroMeta.anchor),
+        Math.ceil(w), Math.ceil(hgt))
       drawn++
     }
     /**
