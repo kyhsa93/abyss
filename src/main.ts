@@ -132,12 +132,6 @@ async function main() {
     return n - Math.floor(n)
   }
 
-  const solidAt = (wx: number, wy: number) => {
-    for (const s of solids)
-      if (wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) return true
-    return false
-  }
-
   const wetAt = (wx: number, wy: number) => {
     if (!wet) return false
     const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
@@ -156,10 +150,6 @@ async function main() {
   const CLIFF = 0.62
   const BARE = 0.44
 
-  /** Water, bare rock, or somebody's wall. */
-  const blocked = (wx: number, wy: number) =>
-    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy)
-
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
   const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
   const ROCK_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : GROUND_TILES[0]
@@ -168,8 +158,14 @@ async function main() {
   // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
   // never emits a model path, so this table is the only place that decides
   // what a tree looks like.
-  const KIND: Record<string, { pieces: string[]; trunk?: string; run?: boolean }> = {
-    tree: { pieces: ['oak', 'oak2'], trunk: 'trunk' },
+  // `solid`: 'building' takes the footprint off the sprite; a number is a half
+  // width in yards, for things whose collision is the trunk rather than the
+  // picture.  A canopy is not solid — walking behind a tree is the whole reason
+  // the canopy is drawn over the player instead of under.
+  const KIND: Record<string, {
+    pieces: string[]; trunk?: string; run?: boolean; solid?: 'building' | number
+  }> = {
+    tree: { pieces: ['oak', 'oak2'], trunk: 'trunk', solid: 0.5 },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
     // angle is how pixel art stops looking like pixel art.
@@ -179,10 +175,10 @@ async function main() {
     fence: { pieces: ['fence', 'fence2'], run: true },
     lamp: { pieces: ['fence_post'] },
     sign: { pieces: ['fence_post'] },
-    pine: { pieces: ['pine', 'pine2'] },
+    pine: { pieces: ['pine', 'pine2'], solid: 0.5 },
     bush: { pieces: ['bush', 'bush2'] },
     rock: { pieces: ['boulder', 'menhir'] },
-    stump: { pieces: ['trunk'] },
+    stump: { pieces: ['trunk'], solid: 0.5 },
     log: { pieces: ['rubble'] },
     grass: { pieces: ['bush'] },
     water_plant: { pieces: ['bush'] },
@@ -194,10 +190,10 @@ async function main() {
     prop: { pieces: ['scatter', 'rubble'] },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
-    house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'] },
-    hall: { pieces: ['hall'] },
-    tower: { pieces: ['tower'] },
-    tent: { pieces: ['house_f'] },
+    house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
+    hall: { pieces: ['hall'], solid: 'building' },
+    tower: { pieces: ['tower'], solid: 'building' },
+    tent: { pieces: ['house_f'], solid: 'building' },
   }
 
   type Placed = { x: number; y: number; piece: Piece; trunk?: Piece }
@@ -211,8 +207,8 @@ async function main() {
    * sprite: the top two thirds of a house is roof, and a roof is not something
    * you walk into.  The width is the sprite's, because the wall is.
    */
-  const SOLID_KINDS = new Set(['house', 'hall', 'tower'])
-  const solids: { x0: number; x1: number; y0: number; y1: number }[] = []
+  type Rect = { x0: number; x1: number; y0: number; y1: number }
+  const solids: Rect[] = []
   for (const d of meta.doodads) {
     const k = KIND[d.k]
     if (!k) continue
@@ -221,12 +217,47 @@ async function main() {
     const piece = tilesMeta[pick]
     if (!piece) continue
     placed.push({ x: d.x, y: d.y, piece, ...(k.trunk && tilesMeta[k.trunk] ? { trunk: tilesMeta[k.trunk] } : {}) })
-    if (SOLID_KINDS.has(d.k)) {
+    if (k.solid === 'building') {
       const halfY = piece.w / PPY / 2
       const deep = (piece.h / PPY) * 0.32
       solids.push({ x0: d.x - 0.8, x1: d.x + deep, y0: d.y - halfY, y1: d.y + halfY })
+    } else if (typeof k.solid === 'number') {
+      solids.push({ x0: d.x - k.solid, x1: d.x + k.solid, y0: d.y - k.solid, y1: d.y + k.solid })
     }
   }
+
+  /**
+   * A bucket grid over the solids.
+   *
+   * A linear scan was fine for thirty-six buildings and is not for two and a
+   * half thousand trunks, and the cost lands in the movement test which runs
+   * three times a frame.  Buckets are eight yards, which is wider than anything
+   * in the list, so a rect can only touch the buckets its corners fall in.
+   */
+  const BUCKET = 8
+  const grid = new Map<string, Rect[]>()
+  const key = (i: number, j: number) => `${i},${j}`
+  for (const r of solids)
+    for (let i = Math.floor(r.x0 / BUCKET); i <= Math.floor(r.x1 / BUCKET); i++)
+      for (let j = Math.floor(r.y0 / BUCKET); j <= Math.floor(r.y1 / BUCKET); j++) {
+        const k2 = key(i, j)
+        const b = grid.get(k2)
+        if (b) b.push(r)
+        else grid.set(k2, [r])
+      }
+
+  const solidAt = (wx: number, wy: number) => {
+    const b = grid.get(key(Math.floor(wx / BUCKET), Math.floor(wy / BUCKET)))
+    if (!b) return false
+    for (const s of b)
+      if (wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) return true
+    return false
+  }
+
+  /** Water, bare rock, a trunk, or somebody's wall. */
+  const blocked = (wx: number, wy: number) =>
+    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy)
+
   // Drawn back to front, and in this projection "back" is north — larger world
   // x.  Sorting once is enough: nothing here moves.
   placed.sort((a, b) => b.x - a.x)
