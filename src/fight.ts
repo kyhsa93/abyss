@@ -52,3 +52,50 @@ export function noticeAt(mine: number, theirs: number): number {
 
 /** Melee reach, in yards. Two bodies and an arm. */
 export const MELEE = 3.0
+
+/**
+ * The level at which something stops being worth killing.
+ *
+ * AzerothCore's `GetGrayLevel`, which is the server's, which is the game's.
+ * Below this a kill is worth nothing at all — it is what stops a level 40
+ * adventurer farming the rabbits outside the abbey.
+ */
+export function greyAt(level: number): number {
+  if (level <= 5) return 0
+  if (level <= 39) return level - 5 - Math.floor(level / 10)
+  if (level <= 59) return level - 1 - Math.floor(level / 5)
+  return level - 9
+}
+
+/** `GetZeroDifference`: how many levels below you a kill fades out over. */
+function fadeOver(level: number): number {
+  const steps: [number, number][] = [[8, 5], [10, 6], [12, 7], [16, 8],
+    [20, 9], [30, 11], [40, 12], [45, 13], [50, 14], [55, 15], [60, 16]]
+  for (const [under, diff] of steps) if (level < under) return diff
+  return 17
+}
+
+/**
+ * What a kill is worth.
+ *
+ * `Acore::XP::BaseGain`, arithmetic for arithmetic.  Forty-five is the base
+ * for everything in the first sixty levels — the two later expansions have
+ * their own and this forest is not in them.  Something above your level is
+ * worth more, up to four levels of more; something below is worth less on a
+ * straight line down to nothing at the grey level.  An elite is worth twice
+ * whatever it would have been.
+ */
+export function xpFor(mine: number, theirs: number, elite: boolean): number {
+  const base = 45
+  let gain: number
+  if (theirs >= mine) {
+    const over = Math.min(4, theirs - mine)
+    gain = Math.floor((Math.floor((mine * 5 + base) * (20 + over) / 10) + 1) / 2)
+  } else if (theirs > greyAt(mine)) {
+    const zd = fadeOver(mine)
+    gain = Math.floor((mine * 5 + base) * (zd + theirs - mine) / zd)
+  } else {
+    gain = 0
+  }
+  return elite ? gain * 2 : gain
+}

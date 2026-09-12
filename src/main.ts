@@ -22,7 +22,7 @@
 
 import { bearing, nameOf, speak, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
-import { noticeAt, swing, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
+import { noticeAt, swing, xpFor, ARMOUR, FOE, HP, MELEE, SWING, type Fight } from './fight'
 
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
@@ -56,6 +56,8 @@ type Spawns = {
   fights?: Fight[]
   /** The same for the player, by level. */
   player?: Fight[]
+  /** What each level costs, out of `player_xp_for_level`. */
+  ladder?: number[]
   npcs: number[][]
 }
 
@@ -851,11 +853,33 @@ async function main() {
    * chase with no end is not a chase; it is a parade.
    */
   const LEASH = 40
-  const HERO: Fight = spawns.player?.[HERO_LEVEL - 1]
-    ?? [100, 3, 5, 1900, 100, 0]
+  const LADDER = spawns.ladder ?? []
+  const lineFor = (lv: number): Fight =>
+    spawns.player?.[Math.min(lv, spawns.player.length) - 1] ?? [100, 3, 5, 1900, 100, 0]
   const you = {
-    hp: HERO[HP]!, max: HERO[HP]!, level: HERO_LEVEL,
-    next: 0, target: null as Npc | null, died: 0,
+    level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
+    hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
+    xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
+  }
+  /**
+   * What a kill was worth, and what it bought.
+   *
+   * The ladder is `player_xp_for_level` and the gain is the server's own
+   * `BaseGain`, so the pace is the game's pace: a level 5 kill is 70 and the
+   * step to 6 is 2,800, which is forty of them.  That is slow, and it is
+   * slow in the original for the same arithmetic.
+   */
+  const reward = (foe: Npc) => {
+    you.xp += xpFor(you.level, foe.level, foe.role === 'elite')
+    while (LADDER[you.level - 1] && you.xp >= LADDER[you.level - 1]!
+      && you.level < (spawns.player?.length ?? 1)) {
+      you.xp -= LADDER[you.level - 1]!
+      you.level += 1
+      you.line = lineFor(you.level)
+      you.max = you.line[HP]!
+      you.hp = you.max
+      say(hero.x, hero.y, `${you.level}레벨`, true)
+    }
   }
   /** A number that floats off somebody and fades. */
   type Mark = { x: number; y: number; text: string; at: number; mine: boolean }
@@ -883,6 +907,10 @@ async function main() {
       return
     }
     const reach2 = MELEE * MELEE
+    // Out of a fight, you come back.  Without it one bad pull ends the
+    // session, and the game this is modelled on sits you down to eat for the
+    // same reason.  Five per cent a second after three seconds of quiet.
+    let quiet = you.target === null
     // The target has to still be there, still be alive, and still be close.
     const t = you.target
     if (t && (t.dead || (t.x - hero.x) ** 2 + (t.y - hero.y) ** 2 > reach2 * 9))
@@ -913,15 +941,23 @@ async function main() {
         n.angry = false
         if (you.target === n) you.target = null
       }
+      if (n.angry) quiet = false
       if (!n.angry) continue
       // Angry ones walk at you; `wander` is told to leave them alone.
       if (d2 > reach2) continue
       if (clock * 1000 < n.next) continue
       n.next = clock * 1000 + n.fight[SWING]!
-      const hit = swing(n.fight, n.level, HERO[ARMOUR]!, Math.random())
+      const hit = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
       you.hp -= hit
       say(hero.x, hero.y, `-${hit}`, false)
-      if (you.hp <= 0) { you.hp = 0; you.died = clock; you.target = null }
+      if (you.hp <= 0) { you.hp = 0; you.died = clock; you.target = null; you.calm = 0 }
+    }
+
+    if (quiet) {
+      you.calm += 1 / 60
+      if (you.calm > 3) you.hp = Math.min(you.max, you.hp + you.max * 0.05 / 60)
+    } else {
+      you.calm = 0
     }
 
     // Your own swing, which only happens at something you picked.
@@ -929,8 +965,8 @@ async function main() {
     if (!foe || foe.dead || !foe.fight) return
     if ((foe.x - hero.x) ** 2 + (foe.y - hero.y) ** 2 > reach2) return
     if (clock * 1000 < you.next) return
-    you.next = clock * 1000 + HERO[SWING]!
-    const hit = swing(HERO, foe.level, foe.fight[ARMOUR]!, Math.random())
+    you.next = clock * 1000 + you.line[SWING]!
+    const hit = swing(you.line, foe.level, foe.fight[ARMOUR]!, Math.random())
     foe.hp -= hit
     foe.hurt = clock
     foe.angry = true
@@ -939,14 +975,23 @@ async function main() {
       foe.hp = 0
       foe.dead = clock
       you.target = null
+      reward(foe)
     }
   }
 
-  /** The nearest thing worth swinging at, or nothing. */
+  /**
+   * The nearest thing worth swinging at, or nothing.
+   *
+   * Hostiles only.  One key that means "hit whatever is closest" and a village
+   * square full of people is a key that kills you: the first thing it found
+   * outside the abbey was a townsman, who is level 26 with four hundred health
+   * and hits back.  Attacking somebody who was not going to attack you should
+   * take more than a keystroke.
+   */
   const inSwing = (): Npc | null => {
     let best: Npc | null = null, bd = MELEE * MELEE
     for (const n of active) {
-      if (!n.fight || n.dead) continue
+      if (!n.fight || n.dead || !n.fight[FOE]) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -1636,7 +1681,8 @@ async function main() {
         (chat ? tail(`  [대화 중 — ${chat.speech.who}]`)
           : listener ? tail(pad.on ? '' : '  [E로 대화]') : '')],
       ['체력', you.died ? '쓰러짐 — 곧 일어남'
-        : `${you.hp} / ${you.max}  (${HERO_LEVEL}레벨)` +
+        : `${Math.round(you.hp)} / ${you.max}  (${you.level}레벨, ` +
+          `경험치 ${you.xp}/${LADDER[you.level - 1] ?? '—'})` +
           (you.target ? tail(`  [${nameOf(you.target.kind)} ${you.target.hp}]`)
             : tail(inSwing() ? '  [스페이스로 공격]' : ''))],
       ['시야', `${(canvas.width / (PPY * zoom)).toFixed(0)}야드  배율 ${zoom.toFixed(2)}`],
@@ -1722,6 +1768,33 @@ async function main() {
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   // For the checks: put the player next to the nearest thing that will fight
   // back, and say what it is.
+  // For the checks: the nearest hostile several levels below the player, which
+  // is a fight the player can actually finish.
+  ;(window as unknown as { __weak: () => unknown }).__weak = () => {
+    let best: Npc | null = null, bd = Infinity
+    for (const n of npcs) {
+      if (!n.fight || !n.fight[FOE] || n.dead || n.level > you.level) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    if (!best) return null
+    hero.x = best.x - 1.4; hero.y = best.y
+    return { kind: best.kind, level: best.level, hp: best.hp }
+  }
+  ;(window as unknown as { __weakest: () => unknown }).__weakest = () => {
+    let best: Npc | null = null, bl = 99
+    for (const n of npcs) {
+      if (!n.fight || !n.fight[FOE] || n.dead) continue
+      // On its own: a pack is a different test and it is the one that keeps
+      // happening by accident.
+      const alone = !npcs.some((m) => m !== n && m.fight && m.fight[FOE]
+        && (m.x - n.x) ** 2 + (m.y - n.y) ** 2 < 400)
+      if (alone && n.level < bl) { bl = n.level; best = n }
+    }
+    if (!best) return null
+    hero.x = best.x - 1.4; hero.y = best.y
+    return { kind: best.kind, level: best.level, hp: best.hp }
+  }
   ;(window as unknown as { __foe: () => unknown }).__foe = () => {
     let best: Npc | null = null, bd = Infinity
     for (const n of npcs) {

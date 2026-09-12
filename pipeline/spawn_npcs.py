@@ -227,7 +227,8 @@ def fight_tables(base):
         f = split(line)
         st[(int(f[cls['level']]), int(f[cls['class']]))] = (
             float(f[cls['basehp0']]), float(f[cls['basearmor']]),
-            float(f[cls['attackpower']]), float(f[cls['damage_base']]))
+            float(f[cls['attackpower']]), float(f[cls['damage_base']]),
+            float(f[cls['Strength']]))
 
     fac = {}
     fc = columns(os.path.join(base, 'factiontemplate_dbc.sql'))
@@ -265,7 +266,7 @@ def fight_of(st, fac, level, cls, template, mods):
     base = st.get((level, cls)) or st.get((level, 1))
     if not base:
         return None
-    hp, armour, ap, dmg = base
+    hp, armour, ap, dmg, _str = base
     t = max(swing, 1000) / 1000.0
     lo = (ap / 14.0 * t + dmg) * dmg_mod
     return (max(1, round(hp * hp_mod)), max(1, round(lo)),
@@ -286,7 +287,14 @@ def with_weapon(st, level, weapon):
     base = st.get((level, 1))
     if not base:
         return None
-    hp, armour, ap, _dmg = base
+    hp, armour, _ap, _dmg, strength = base
+    # A warrior's attack power comes from Strength, not from the attack power
+    # column — that column is what a *creature* of this level and class swings
+    # with, and it is a third of a player's.  Using it gave the hero three
+    # damage a swing against a hundred-health wolf, which is a fight he cannot
+    # finish.  Strength times two, plus three a level, less twenty: the game's
+    # own line, and Strength is in the same table.
+    ap = strength * 2 + level * 3 - 20
     wlo, whi, delay = weapon
     t = delay / 1000.0
     add = ap / 14.0 * t
@@ -618,9 +626,19 @@ def main(acore, out):
         # and the fight runs forty seconds.  A weapon is most of what a person
         # hits with in this game, and leaving it out was not a simplification —
         # it was a different game.
-        player = [with_weapon(stats, lv, (1, 3, 1900)) for lv in range(1, 11)]
+        player = [with_weapon(stats, lv, (1, 3, 1900)) for lv in range(1, 21)]
+        # What each level costs, straight out of `player_xp_for_level`.
+        need = {}
+        xc = columns(os.path.join(base, 'player_xp_for_level.sql'))
+        for line in rows(os.path.join(base, 'player_xp_for_level.sql')):
+            # Not `f`: that is the open file two lines down, and shadowing it
+            # here wrote a list where the JSON should have gone.
+            g = split(line)
+            need[int(g[xc['Level']])] = int(g[xc['Experience']])
+        ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
-                   'fights': fights, 'player': player, 'npcs': out_rows}, f)
+                   'fights': fights, 'player': player, 'ladder': ladder,
+                   'npcs': out_rows}, f)
 
     by_kind = Counter(kinds[r[2]] for r in out_rows)
     by_role = Counter(roles[r[5]] for r in out_rows)
