@@ -21,9 +21,12 @@ Three levels:
   GROUP   the clips that go on one sheet together, per role where they differ
   ROLE    which groups a kind of creature has at all
 
-A sheet is `<subject>_<group>`, eight directions wide by its clips' frames
-tall.  `base` is generated first and is the identity reference for the rest —
-see `docs/art-prompts.md`.
+A sheet is `<subject>_<n>of<N>`, eight directions wide by as many rows as fit
+a budget — the clips packed in order rather than filed one group a sheet, since
+a generator hands back one canvas whatever is asked of it.  Sheet 1 is the
+identity reference for the rest; see `docs/art-prompts.md`.
+
+  python3 pipeline/actions.py 24    the same, at a taller canvas
 """
 import sys
 
@@ -238,20 +241,9 @@ def lines(ids):
     return out
 
 
-def rows(role, group):
-    """One line a row: the clip's name, where in it this frame is, and the pose."""
-    out = []
-    for cid in clips(role, group):
-        label, frames = CLIP[cid]
-        for i, frame in enumerate(frames):
-            where = f'{label} {i + 1}/{len(frames)}' if len(frames) > 1 else label
-            out.append((cid, f'{where} — {frame}'))
-    return out
-
-
 def main(argv):
-    from make_prompt import ACTORS
-    budget = 12
+    from make_prompt import ACTORS, ROWS
+    budget = ROWS
     if argv and argv[0].isdigit():
         budget, argv = int(argv[0]), argv[1:]
     want = argv[0] if argv else None
