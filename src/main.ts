@@ -26,7 +26,7 @@ import { layoutFor, touchpad } from './touch'
 type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
 type Meta = {
   width: number; height: number; unit: number
-  x0: number; y0: number; centre: [number, number]; radius: number
+  x0: number; y0: number; centre: [number, number]; bounds: number[]
   zMin: number; zMax: number
   hasWater?: boolean
   doodads: Doodad[]
@@ -251,7 +251,10 @@ async function main() {
     log: { pieces: ['kit_log', 'kit_log2', 'kit_logs'] },
     grass: { pieces: ['kit_grass', 'kit_grass2', 'kit_grass3'] },
     // 710 of these stand in the shallows, and they were bushes.
-    water_plant: { pieces: ['reeds', 'reeds2'] },
+    // The drawn reeds are 104 pixels tall and a rendered tree is 70, so a reed
+    // bed stood over the wood.  Tall grass from the kit instead, at the scale
+    // everything else is at.
+    water_plant: { pieces: ['kit_grass2', 'kit_grass3', 'kit_grass'] },
     flower: { pieces: ['kit_flower', 'kit_flower2', 'kit_flower3'] },
     crop: { pieces: ['corn', 'corn2', 'carrots', 'tomatoes', 'pumpkin'] },
     // Not mushrooms.  The two in the sheet are in its `MISSING:` section —
@@ -597,9 +600,30 @@ async function main() {
    * is a player who can walk through a cow.
    */
   const npcGrid = new Map<string, Npc[]>()
+  /**
+   * Whoever is close enough to matter this frame.
+   *
+   * Everything that runs per frame over the cast — the wander, the collision
+   * grid, the earshot test — used to run over all of them, which was 777 and
+   * is now 1,884 in a forest a hundred times the size of the old slice.  A
+   * creature four hundred yards away has nobody to be seen by: it is not
+   * indexed, it does not take a step, and it is not asked whether it can hear
+   * you.  The radius is well past the widest view, so what is skipped is what
+   * cannot be looked at.
+   */
+  const NEAR = 260
+  let active: Npc[] = []
+  function awake() {
+    active = []
+    for (let i = 0; i < npcs.length; i++) {
+      const n = npcs[i]!
+      if (Math.abs(n.x - camX) < NEAR && Math.abs(n.y - camY) < NEAR) active.push(n)
+    }
+  }
+
   function reindex() {
     npcGrid.clear()
-    for (const n of npcs) {
+    for (const n of active) {
       const k2 = key(Math.floor(n.x / BUCKET), Math.floor(n.y / BUCKET))
       const b = npcGrid.get(k2)
       if (b) b.push(n)
@@ -640,8 +664,8 @@ async function main() {
   const NPC_SPEED = 2.2        // yards a second, near enough WoW's walk
   function wander(dt: number, time: number, busy: Npc | null) {
     const tick = Math.floor(time * 0.4)
-    for (let i = 0; i < npcs.length; i++) {
-      const n = npcs[i]!
+    for (let i = 0; i < active.length; i++) {
+      const n = active[i]!
       // Nobody walks off in the middle of answering you.
       if (n.wander === 0 || n === busy) { n.moving = false; continue }
       if (time > n.until) {
@@ -687,6 +711,27 @@ async function main() {
   const depth = (o: { x: number; y: number }) => o.x + o.y
   placed.sort((a, b) => depth(b) - depth(a))
 
+  /**
+   * The scenery, in buckets, because there are now twelve thousand of it.
+   *
+   * The frame used to walk the whole list and throw away what was off screen,
+   * which was fine at the four thousand a 600 yard disc held and is not at the
+   * whole forest's 12,451 — at the widest zoom that scan alone was most of a
+   * frame.  Bucketed, the same frame touches the tens of buckets the view
+   * covers.  The list stays sorted, so each bucket is sorted, and the visible
+   * pieces only have to be merged rather than sorted again.
+   */
+  const PATCH = 48
+  const patchKey = (x: number, y: number) =>
+    Math.floor(x / PATCH) * 100000 + Math.floor(y / PATCH)
+  const buckets = new Map<number, Placed[]>()
+  for (const o of placed) {
+    const k = patchKey(o.x, o.y)
+    const b = buckets.get(k)
+    if (b) b.push(o)
+    else buckets.set(k, [o])
+  }
+
   // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
   const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
@@ -729,7 +774,7 @@ async function main() {
   /** Whoever is close enough to hear you, nearest first. */
   function inReach(): Npc | null {
     let best: Npc | null = null, bd = EARSHOT * EARSHOT
-    for (const n of npcs) {
+    for (const n of active) {
       const dx = n.x - hero.x, dy = n.y - hero.y
       const d = dx * dx + dy * dy
       if (d < bd) { bd = d; best = n }
@@ -840,7 +885,16 @@ async function main() {
   }
 
   let zoom = 1
-  const clampZoom = (z: number) => Math.max(0.4, Math.min(3, z))
+  /**
+   * How far out you may pull, which is a frame-rate decision.
+   *
+   * A diamond of ground is a blit and the count goes as the square of how far
+   * out you are: at 0.4 the view is 146 yards across and 7,784 tiles, which
+   * this machine draws at 37 frames a second.  0.6 is 3,400 tiles and holds
+   * 60.  The old floor was 0.4 and the old world was a 600 yard disc, where
+   * the whole of it fit in 2,000 tiles at any zoom.
+   */
+  const clampZoom = (z: number) => Math.max(0.6, Math.min(3, z))
   addEventListener('wheel', (e) => {
     zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
   }, { passive: true })
@@ -1005,6 +1059,7 @@ async function main() {
     // Everyone else first, then the bucket grid they are in, then the player:
     // the player's collision test reads that grid, so it has to describe where
     // people are now rather than where they were a frame ago.
+    awake()
     wander(dt, clock, chat && chat.npc)
     reindex()
 
@@ -1249,7 +1304,7 @@ async function main() {
      * behind.
      */
     const actors: { x: number; y: number; draw: () => void }[] = []
-    for (const n of npcs) {
+    for (const n of active) {
       const X = screenX(n.x, n.y), Y = screenY(n.x, n.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
@@ -1259,7 +1314,21 @@ async function main() {
     actors.sort((a, b) => depth(b) - depth(a))
     let ai = 0
 
-    for (const o of placed) {
+    // Only the buckets the view covers, and the view is a diamond, so its
+    // world-space box is the one the tile loop already worked out.
+    const near: Placed[] = []
+    const bx0 = Math.floor((Math.min(...seen.map((c) => c.x)) - PATCH) / PATCH)
+    const bx1 = Math.floor((Math.max(...seen.map((c) => c.x)) + PATCH) / PATCH)
+    const by0 = Math.floor((Math.min(...seen.map((c) => c.y)) - PATCH) / PATCH)
+    const by1 = Math.floor((Math.max(...seen.map((c) => c.y)) + PATCH) / PATCH)
+    for (let bi = bx0; bi <= bx1; bi++) {
+      for (let bj = by0; bj <= by1; bj++) {
+        const b = buckets.get(bi * 100000 + bj)
+        if (b) for (const o of b) near.push(o)
+      }
+    }
+    near.sort((a, b) => depth(b) - depth(a))
+    for (const o of near) {
       while (ai < actors.length && depth(actors[ai]!) > depth(o)) actors[ai++]!.draw()
       const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue

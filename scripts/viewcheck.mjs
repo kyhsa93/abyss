@@ -83,6 +83,17 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
+// 5. And at the widest the zoom will go, which is where it stops running: the
+// tile count goes as the square of how far out you are, and the floor on the
+// zoom is set by this number and not by taste.
+await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])
+await p.waitForTimeout(1500)
+const wide = await p.evaluate(() => document.getElementById('hud').textContent)
+const wfps = Number(wide.match(/초당 (\d+)/)[1])
+const wtiles = Number(wide.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
+check('and at the widest zoom too', wfps >= 55, `${wfps} fps over ${wtiles} tiles`)
+console.log(`      (${wtiles} tiles, ${wfps} fps at the floor)`)
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

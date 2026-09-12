@@ -30,8 +30,27 @@ import numpy as np
 
 TILE = 533.33333
 UNIT = TILE / 128            # 4.1667 yards, the same grid the client's bake uses
-CENTRE = (-9199.2, -32.1)    # the slice, out of the wiki page 수직 슬라이스
-RADIUS = 600.0
+# Elwynn Forest, measured rather than chosen.
+#
+# `pipeline/measure_zone.py` sweeps the client's own map tiles and takes the
+# bounding box of every chunk it labels area 12.  The zone's sub-areas —
+# Goldshire, Northshire, the mines — are enclaves inside it, so the box of
+# area 12 is the box of the forest: 1,967 by 2,767 yards.  What this replaces
+# was a 600 yard disc around one point, which was a fifth of the forest by
+# area and the whole of it as far as anyone playing could tell.
+#
+# Four numbers, taken once and written down; nothing here needs a client to
+# use them, and the script that produced them is committed so they can be
+# taken again.
+BOUNDS = (-9966.7, -8000.0, -1700.0, 1066.7)    # x lo, x hi, y lo, y hi
+CENTRE = ((BOUNDS[0] + BOUNDS[1]) / 2, (BOUNDS[2] + BOUNDS[3]) / 2)
+SPAN = (BOUNDS[1] - BOUNDS[0], BOUNDS[3] - BOUNDS[2])
+
+
+def inside(x, y, grow=0.0):
+    """Whether a point is in the forest, with room to grow or shrink the edge."""
+    return (BOUNDS[0] - grow <= x <= BOUNDS[1] + grow
+            and BOUNDS[2] - grow <= y <= BOUNDS[3] + grow)
 MAP = 0
 ORIGIN = 32 * TILE
 
@@ -59,7 +78,9 @@ def samples(acore):
                 x, y, z = float(f[xi]), float(f[xi + 1]), float(f[xi + 2])
             except (ValueError, IndexError):
                 continue
-            if (x - CENTRE[0]) ** 2 + (y - CENTRE[1]) ** 2 <= (RADIUS * 1.35) ** 2:
+            # A margin outside the forest, so the interpolation at its edge
+            # has something to lean on rather than falling off a cliff.
+            if inside(x, y, 210):
                 out.append((x, y, z))
     return np.array(out, dtype=np.float64)
 
@@ -151,7 +172,7 @@ def homes(pts, x0, y0, W, H, grid):
             continue
         cx = sum(m[0] for m in members) / len(members)
         cy = sum(m[1] for m in members) / len(members)
-        if (cx - CENTRE[0]) ** 2 + (cy - CENTRE[1]) ** 2 > (RADIUS - 30) ** 2:
+        if not inside(cx, cy, -30):
             continue
         n = math.sin(bx * 31.7 + by * 17.3) * 43758.5453
         n -= math.floor(n)
@@ -180,16 +201,16 @@ def scatter(pts, x0, y0, W, H, grid):
     KINDS = [('tree', 0.34), ('pine', 0.08), ('bush', 0.30), ('rock', 0.06),
              ('grass', 0.12), ('flower', 0.06), ('mushroom', 0.04)]
     acc = np.cumsum([w for _, w in KINDS])
-    for i in range(int(2 * RADIUS / cell) + 1):
-        for j in range(int(2 * RADIUS / cell) + 1):
+    for i in range(int(SPAN[0] / cell) + 1):
+        for j in range(int(SPAN[1] / cell) + 1):
             for s in range(3):
                 n = math.sin(i * 127.1 + j * 311.7 + s * 74.7) * 43758.5453
                 n -= math.floor(n)
                 m = math.sin(i * 269.5 + j * 183.3 + s * 51.1) * 43758.5453
                 m -= math.floor(m)
-                x = CENTRE[0] - RADIUS + (i + n) * cell
-                y = CENTRE[1] - RADIUS + (j + m) * cell
-                if (x - CENTRE[0]) ** 2 + (y - CENTRE[1]) ** 2 > RADIUS ** 2:
+                x = BOUNDS[0] + (i + n) * cell
+                y = BOUNDS[2] + (j + m) * cell
+                if not inside(x, y):
                     continue
                 d2 = ((occupied[:, 0] - x) ** 2 + (occupied[:, 1] - y) ** 2).min()
                 if d2 < 11 ** 2:
@@ -207,8 +228,8 @@ def scatter(pts, x0, y0, W, H, grid):
     # rather than a fence.  They come in runs, which is what makes them read as
     # somebody's boundary — the client's own Elwynn has 773 of them and every
     # one is part of a line.
-    for i in range(0, int(2 * RADIUS / cell) + 1, 3):
-        for j in range(0, int(2 * RADIUS / cell) + 1, 3):
+    for i in range(0, int(SPAN[0] / cell) + 1, 3):
+        for j in range(0, int(SPAN[1] / cell) + 1, 3):
             n = math.sin(i * 91.7 + j * 47.3) * 43758.5453
             n -= math.floor(n)
             if n > 0.12:
@@ -220,12 +241,12 @@ def scatter(pts, x0, y0, W, H, grid):
             SECTION = 32 / 24
             length = 8 + int(n * 400) % 17
             horizontal = (math.sin(i * 13.1 + j * 7.7) > 0)
-            x = CENTRE[0] - RADIUS + i * cell
-            y = CENTRE[1] - RADIUS + j * cell
+            x = BOUNDS[0] + i * cell
+            y = BOUNDS[2] + j * cell
             for s in range(length):
                 px = x + (0 if horizontal else s * SECTION)
                 py = y + (s * SECTION if horizontal else 0)
-                if (px - CENTRE[0]) ** 2 + (py - CENTRE[1]) ** 2 > RADIUS ** 2:
+                if not inside(px, py):
                     continue
                 if ((occupied[:, 0] - px) ** 2 + (occupied[:, 1] - py) ** 2).min() < 9 ** 2:
                     continue
@@ -241,10 +262,10 @@ def main(acore, out):
     if len(pts) < 100:
         sys.exit(f'only {len(pts)} height samples in the slice — refusing to guess a world')
 
-    i_lo = int((ORIGIN - (CENTRE[0] + RADIUS)) / UNIT)
-    i_hi = int((ORIGIN - (CENTRE[0] - RADIUS)) / UNIT) + 1
-    j_lo = int((ORIGIN - (CENTRE[1] + RADIUS)) / UNIT)
-    j_hi = int((ORIGIN - (CENTRE[1] - RADIUS)) / UNIT) + 1
+    i_lo = int((ORIGIN - BOUNDS[1]) / UNIT)
+    i_hi = int((ORIGIN - BOUNDS[0]) / UNIT) + 1
+    j_lo = int((ORIGIN - BOUNDS[3]) / UNIT)
+    j_hi = int((ORIGIN - BOUNDS[2]) / UNIT) + 1
     W, H = i_hi - i_lo + 1, j_hi - j_lo + 1
     x0 = ORIGIN - i_lo * UNIT
     y0 = ORIGIN - j_lo * UNIT
@@ -255,8 +276,10 @@ def main(acore, out):
     grid = grid + noise(gx, gy, 90.0, 2.2, 7.0) + noise(gx, gy, 26.0, 0.7, 19.0)
 
     I, J = np.meshgrid(np.arange(W), np.arange(H), indexing='ij')
-    inside = ((x0 - I * UNIT - CENTRE[0]) ** 2 + (y0 - J * UNIT - CENTRE[1]) ** 2) <= RADIUS ** 2
-    wet, level = wetness(grid, inside)
+    gxx, gyy = x0 - I * UNIT, y0 - J * UNIT
+    in_zone = ((gxx >= BOUNDS[0]) & (gxx <= BOUNDS[1])
+               & (gyy >= BOUNDS[2]) & (gyy <= BOUNDS[3]))
+    wet, level = wetness(grid, in_zone)
 
     doodads = scatter(pts, x0, y0, W, H, grid)
     # Nothing stands in the river.
@@ -273,7 +296,7 @@ def main(acore, out):
         f.write(wet.astype(np.uint8).tobytes())   # one byte a cell, after the heights
     meta = {
         'width': W, 'height': H, 'unit': UNIT,
-        'x0': x0, 'y0': y0, 'centre': list(CENTRE), 'radius': RADIUS,
+        'x0': x0, 'y0': y0, 'centre': list(CENTRE), 'bounds': list(BOUNDS),
         'zMin': float(grid.min()), 'zMax': float(grid.max()),
         'source': 'azerothcore', 'samples': int(len(pts)),
         'hasWater': True, 'water': int(wet.sum()), 'waterLevel': round(level, 1),

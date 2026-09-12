@@ -11,7 +11,8 @@ way" is answered there, usually with the measurement that settled it.
 ## What is here
 
 ```
-pipeline/   bakes the world.  `synth_terrain.py` builds one out of AzerothCore
+pipeline/   bakes the world.  `measure_zone.py` says how big Elwynn Forest is
+            and the other three take their bounds from what it found.  `synth_terrain.py` builds one out of AzerothCore
             alone and it is committed; `bake_terrain.py` reads a real client's
             and it is not.  `spawn_npcs.py` pulls the inhabitants out of
             AzerothCore, and there is only one of those because a creature's

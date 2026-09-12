@@ -198,9 +198,9 @@ def read_tile(client, tx, ty):
     return cells, placed, water, src
 
 
-def bake(client, cx, cy, radius, out):
-    x_lo, x_hi = cx - radius, cx + radius
-    y_lo, y_hi = cy - radius, cy + radius
+def bake(client, bounds, out):
+    x_lo, x_hi, y_lo, y_hi = bounds
+    cx, cy = (x_lo + x_hi) / 2, (y_lo + y_hi) / 2
     # Global height indices.  x = ORIGIN - I*UNIT, y = ORIGIN - J*UNIT.
     i_lo, i_hi = int((ORIGIN - x_hi) / UNIT), int((ORIGIN - x_lo) / UNIT) + 1
     j_lo, j_hi = int((ORIGIN - y_hi) / UNIT), int((ORIGIN - y_lo) / UNIT) + 1
@@ -256,7 +256,7 @@ def bake(client, cx, cy, radius, out):
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
-        'centre': [cx, cy], 'radius': radius,
+        'centre': [cx, cy], 'bounds': list(bounds),
         'zMin': min(filled), 'zMax': max(filled),
         'tiles': sources,
         'areas': areas,
@@ -303,5 +303,7 @@ if __name__ == '__main__':
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser('~/workspace/warmane')
     out = sys.argv[2] if len(sys.argv) > 2 else 'public/data'
     c = Client(root)
-    m = bake(c, -9199.2, -32.1, 600.0, out)
+    # The forest, not a disc inside it — the same four numbers the synthesised
+    # world uses, measured by `pipeline/measure_zone.py`.
+    m = bake(c, (-9966.7, -8000.0, -1700.0, 1066.7), out)
     check(c, m)

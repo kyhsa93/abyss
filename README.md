@@ -4,12 +4,12 @@ A single-player browser RPG built on **AzerothCore**'s data and rules — the
 world and the arithmetic come from the emulator, the art and the words are our
 own.
 
-Right now it draws one thing: a slice of Elwynn Forest in **quarter view** — its
-terrain read out of a WoW 3.3.5a client, its trees standing where the client
-says they stand, and **777 of its inhabitants** standing where the world
-database puts them, drawn in Liberated Pixel Cup pixel art and walked around
-with WASD. Seventy-four of them
-will talk to you: press **E**.
+Right now it draws one thing: **the whole of Elwynn Forest** in quarter view —
+1,967 by 2,767 yards of it, the bounds measured off the client's own area map
+rather than chosen. Its terrain is read out of a WoW 3.3.5a client, its 12,451
+trees, fences and buildings stand where the client says they stand, and 1,884
+inhabitants stand where the world database puts them. Walked around with WASD.
+**356 of them will talk to you**: press **E**.
 
 On a phone it is a thumb stick and a button. The stick appears wherever you put
 your thumb down, two fingers pinch the camera, and the button lights up when
@@ -75,7 +75,8 @@ them — and photographs each piece in headless Blender at the camera
 45° diagonal. Trees, bushes, rocks, fences, buildings, carts, stalls, logs,
 grass, flowers and mushrooms all come from there.
 
-So are the people, or 230 of them. `pipeline/render_actor.py` turns a rigged
+So are the people who have a model — the hero, the townsfolk, the guards and
+the bandits. `pipeline/render_actor.py` turns a rigged
 CC0 character eight times and photographs each — so the hero, the townsfolk,
 the guards and the bandits face the way they are going, which four drawn poses
 in a quarter view cannot. The kobolds, the murlocs and every animal keep the

@@ -53,8 +53,10 @@ import re
 import sys
 from collections import Counter
 
-CENTRE = (-9199.2, -32.1)    # the slice, out of the wiki page 수직 슬라이스
-RADIUS = 600.0
+# Elwynn Forest, the same four numbers `synth_terrain.py` uses and for the same
+# reason — see `pipeline/measure_zone.py`, which took them off the client's own
+# area map.  A creature is in the slice if it is in the forest.
+BOUNDS = (-9966.7, -8000.0, -1700.0, 1066.7)    # x lo, x hi, y lo, y hi
 MAP = 0
 
 # `creature` column order, from the dump's own CREATE TABLE.
@@ -428,7 +430,7 @@ def main(acore, out):
             o = float(f[C_O])
         except (ValueError, IndexError):
             continue
-        if (x - CENTRE[0]) ** 2 + (y - CENTRE[1]) ** 2 > RADIUS ** 2:
+        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
             continue
         if guid in seasonal:
             dropped['seasonal'] += 1
@@ -516,11 +518,14 @@ def check(out_rows, kinds):
     if the orientation column were being read as degrees, or off by a column,
     every NPC in the world would face the same way and nothing else would say so.
     """
-    far = max(math.hypot(r[0] - CENTRE[0], r[1] - CENTRE[1]) for r in out_rows)
-    if far > RADIUS:
-        sys.exit(f'a spawn is {far:.0f} yd out, past the {RADIUS:.0f} yd slice')
+    out_x = [r[0] for r in out_rows]
+    out_y = [r[1] for r in out_rows]
+    if (min(out_x) < BOUNDS[0] or max(out_x) > BOUNDS[1]
+            or min(out_y) < BOUNDS[2] or max(out_y) > BOUNDS[3]):
+        sys.exit('a spawn is outside the forest')
+    far = max(max(out_x) - min(out_x), max(out_y) - min(out_y))
     facings = Counter(r[3] for r in out_rows)
-    print(f'check: furthest spawn {far:.0f} / {RADIUS:.0f} yd, '
+    print(f'check: spawns span {far:.0f} yd, '
           f'facings ' + '/'.join(str(facings[d]) for d in range(4)))
     if len(facings) < 4 or min(facings.values()) < len(out_rows) / 40:
         sys.exit('the facings are not spread over four directions — orientation misread')
