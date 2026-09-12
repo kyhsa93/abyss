@@ -34,7 +34,7 @@ recorded cannot be complied with.
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
   <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  
-  `water`, `water2`, `water3`
+  `bridge`, `bridge_b`, `water`, `water2`, `water3`
 
 - **Skorpio** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/tiled-terrains>  

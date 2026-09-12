@@ -101,7 +101,42 @@ check('everybody faces the way they walk', wrong === 0 && seen > 20,
   seen > 20 ? JSON.stringify(blame) : `only ${seen} walking`)
 console.log(`      (${seen} walking, ${wrong} facing the wrong way)`)
 
-// 5. The ground costs what it costs.  A second tint fill over every tile,
+// 5. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// bridge at all — the river is impassable either way and now it looks as if it
+// should not be.  So: every yard of the deck's own centre line is walkable end
+// to end, and the water a step off the side of it is not, which is the half
+// that catches a deck let through over dry land.
+const spans = await p.evaluate(() => {
+  const out = []
+  for (const b of window.__spans().list) {
+    let solid = 0, open = 0, wet = 0, dry = 0
+    for (let i = 0; i <= 48; i++) {
+      const a = b.lo + ((b.hi - b.lo) * i) / 48
+      const x = b.x + b.c * a, y = b.y + b.s * a
+      if (window.__probe(x, y).blocked) solid++; else open++
+      // A stride past the edge, across the deck rather than along it.
+      for (const side of [-1, 1]) {
+        const ox = x - b.s * (b.w + 2) * side, oy = y + b.c * (b.w + 2) * side
+        if (window.__probe(ox, oy).wet) wet++; else dry++
+      }
+    }
+    // And it has to end on something you can stand on, at both ends.
+    const foot = [b.lo - 2, b.hi + 2].map((a) =>
+      window.__probe(b.x + b.c * a, b.y + b.s * a).blocked)
+    out.push({ at: [Math.round(b.x), Math.round(b.y)], solid, open, wet, dry,
+      ends: foot })
+  }
+  return out
+})
+check('every crossing can be crossed', spans.length > 0
+  && spans.every((s) => s.solid === 0), JSON.stringify(spans))
+check('and lands on both banks', spans.every((s) => !s.ends[0] && !s.ends[1]),
+  JSON.stringify(spans.map((s) => [s.at, s.ends])))
+check('and each one has water beside it', spans.every((s) => s.wet > 0),
+  JSON.stringify(spans.map((s) => [s.at, s.wet])))
+console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
+
+// 6. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -112,7 +147,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 6. And at the widest the zoom will go, which is where it stops running: the
+// 7. And at the widest the zoom will go, which is where it stops running: the
 // tile count goes as the square of how far out you are, and the floor on the
 // zoom is set by this number and not by taste.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])

@@ -30,7 +30,16 @@ import {
   FOE, HI, HP, LO, MAX_RAGE, MELEE, SWING, type Fight, type Spell,
 } from './fight'
 
-type Doodad = { k: string; x: number; y: number; z: number; r: number; s: number }
+type Doodad = {
+  k: string; x: number; y: number; z: number; r: number; s: number
+  /**
+   * A building's own footprint: half along, half across, and the bearing of
+   * the long side in degrees.  Only the ones a bridge is drawn from carry it.
+   */
+  bl?: number; bw?: number; ba?: number
+  /** Set when the bearing is a coin toss — see the crossings below. */
+  bq?: number
+}
 type Meta = {
   width: number; height: number; unit: number
   x0: number; y0: number; centre: [number, number]; bounds: number[]
@@ -367,6 +376,10 @@ async function main() {
     // is skipped without a word.
     cart: { pieces: ['cart', 'cart2', 'haycart'], solid: 0.7 },
     grave: { pieces: ['grave', 'grave2'], solid: 0.35 },
+    // Drawn by the ground pass, not here: a bridge is a floor.  Listed so the
+    // bake's kind is known and not reported as missing.
+    bridge: { pieces: [] },
+    bridge_stone: { pieces: [] },
     // Three that the bake used to hand over as `prop`, which draws a market
     // stall — so the abbey's graveyard was a row of stalls and every torch in
     // Elwynn was one too.
@@ -770,9 +783,114 @@ async function main() {
     return false
   }
 
-  /** Water, bare rock, a trunk, somebody's wall, or somebody. */
+  /**
+   * The crossings, as rectangles the client's own records give.
+   *
+   * A bridge is a WMO and the WMO record carries a bounding box, which is the
+   * only thing in the world that says how long a crossing is.  Six of them
+   * were being thrown away outright — `classify_wmo` answered `None` for
+   * BRIDGE — so every river in Elwynn was uncrossable water with a fence
+   * standing beside it.
+   *
+   * The box is not the deck, and that cost two rounds.  It is the box *after*
+   * the thing has been turned, so a bridge lying diagonally comes back square:
+   * Elwynn's lion bridge as 68 yards by 71, Northshire's as 26 by 26.  Painted
+   * as decks those were plazas of planks, one of them over half a lake.  The
+   * bake turns each box back into the rectangle it came from — `bl` along,
+   * `bw` across, `ba` the bearing — so what is painted here is the footprint
+   * and the deck lies the way the bridge does.
+   */
+  /** How far you would have to keep walking from here before the water ends. */
+  const toBank = (x: number, y: number, cx: number, cy: number, cap: number) => {
+    let m = 0
+    while (m < cap && wetAt(x + cx * m, y + cy * m)) m += 1
+    return m
+  }
+  const spans = meta.doodads
+    .filter((d) => (d.k === 'bridge' || d.k === 'bridge_stone')
+      && !!d.bl && !!d.bw)
+    .map((d) => {
+      const rad = (d.ba! * Math.PI) / 180
+      /**
+       * Which way it lies, and the one case where the record cannot say.
+       *
+       * A box turned 45 degrees is the same square whichever way round the
+       * thing inside it is, so for Northshire's bridge the sizes come back
+       * from another instance of the model but the bearing is either this one
+       * or ninety degrees off it — `bq` is the bake admitting that.  The
+       * wrong one of the two is not subtle: the deck lies *along* the river
+       * rather than across it, so you walk onto sixty yards of planks and
+       * step off into the water at the far end.
+       *
+       * The terrain settles it, because a crossing reaches a bank at both
+       * ends.  Only for the ones flagged: a bearing the record does give is
+       * not up for revision, and letting the terrain vote on those turned a
+       * well-measured bridge nine degrees for a two-yard gain.
+       */
+      const ways = [
+        { l: d.bl!, w: d.bw!, c: Math.cos(rad), s: Math.sin(rad) },
+        ...(d.bq
+          ? [{ l: d.bl!, w: d.bw!, c: -Math.sin(rad), s: Math.cos(rad) }]
+          : []),
+      ].map((v) => ({
+        ...v,
+        // Sixty yards is further than any crossing in the forest is long, so
+        // it is a "this end is nowhere near land" answer and not a limit.
+        swim: toBank(d.x - v.c * v.l, d.y - v.s * v.l, -v.c, -v.s, 60)
+          + toBank(d.x + v.c * v.l, d.y + v.s * v.l, v.c, v.s, 60),
+      }))
+      const lie = ways[1] && ways[1].swim < ways[0]!.swim ? ways[1] : ways[0]!
+      /**
+       * And then it runs on until it is over something dry.
+       *
+       * The record's box is the model's, and a model's box stops where its
+       * geometry does — while the water mask is 4.17 yards a cell and rounds
+       * a shoreline outwards.  Between them a deck could finish in open
+       * water: you could stand on it and not get on or off, which is worse
+       * than no bridge, because the river was impassable either way and now
+       * it looks as though it should not be.
+       */
+      const back = toBank(d.x - lie.c * lie.l, d.y - lie.s * lie.l,
+        -lie.c, -lie.s, 20)
+      const on = toBank(d.x + lie.c * lie.l, d.y + lie.s * lie.l,
+        lie.c, lie.s, 20)
+      // Planks run the length of a wooden bridge, so which of the two decks
+      // is cut depends on which way it lies.  Stone has no grain.
+      const planks = Math.abs(lie.c) >= Math.abs(lie.s) ? 'bridge' : 'bridge_b'
+      return {
+        x: d.x, y: d.y, w: lie.w, c: lie.c, s: lie.s,
+        /** Half the length, one end at a time, because the banks differ. */
+        lo: -(lie.l + back), hi: lie.l + on,
+        tile: d.k === 'bridge_stone' ? 'stone' : planks,
+        /** The deck's height, which is what you stand on rather than the bed. */
+        z: d.z,
+      }
+    })
+  /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
+  const onSpan = (wx: number, wy: number) => {
+    for (const b of spans) {
+      const dx = wx - b.x, dy = wy - b.y
+      const along = dx * b.c + dy * b.s
+      if (along >= b.lo && along <= b.hi
+        && Math.abs(-dx * b.s + dy * b.c) <= b.w) return b
+    }
+    return null
+  }
+
+  /**
+   * Water, bare rock, a trunk, somebody's wall, or somebody.
+   *
+   * A deck answers neither of the first two.  Not the water, which is the
+   * point of a bridge, and not the slope either: the lion bridge crosses a
+   * ravine, so the ground a third of the way along it falls away at more than
+   * the cliff limit, and checking the ground under a floor walled the crossing
+   * off six yards from each bank.
+   */
   const blocked = (wx: number, wy: number) =>
-    wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF || solidAt(wx, wy) || npcAt(wx, wy, null)
+    (onSpan(wx, wy)
+      ? false
+      : wetAt(wx, wy) || slopeAt(wx, wy) > CLIFF)
+    || solidAt(wx, wy) || npcAt(wx, wy, null)
 
   /**
    * Wandering, and the reason it is not random.
@@ -1604,7 +1722,8 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ROCK_TILE, DIRT_TILE, SHORE_TILE].filter(Boolean) as string[])]
+      ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b']
+      .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
     c.width = px * ids.length
     c.height = px * SHADES
@@ -1841,7 +1960,12 @@ async function main() {
         // it at face value ran roads up cliffs — the mask is a road network
         // and a great deal of loose rock, and only the slope tells them apart.
         const flat = steep <= BARE
-        const id = water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
+        // A deck where a crossing stands.  In the ground pass and not among
+        // the trees, because a bridge is a floor: it is what you are standing
+        // on rather than something standing beside you.
+        const span = onSpan(wx, wy)
+        const id = span ? span.tile
+          : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'rock' || ink === 'paved' ? ROCK_TILE
             : (ink === 'road' || ink === 'crop') && flat ? DIRT_TILE
               : ink === 'sand' ? SHORE_TILE
@@ -1865,7 +1989,11 @@ async function main() {
     // --- things that stand up, back to front ---
     const margin = 120
     drawn = 0
-    const heroZ = groundAt(hero.x, hero.y)
+    // On a crossing you stand on the deck, not in the water under it — the
+    // shading that reads height off the ground would otherwise darken him into
+    // the streambed he is walking over.
+    const heroSpan = onSpan(hero.x, hero.y)
+    const heroZ = heroSpan ? heroSpan.z : groundAt(hero.x, hero.y)
     /**
      * The player, out of the drawn sheet.
      *
@@ -2334,6 +2462,12 @@ async function main() {
     }
     return { placed: got, doodads: raw, total: placed.length }
   }
+  ;(window as unknown as { __spans: () => unknown }).__spans = () => ({
+    n: spans.length, list: spans.slice(0, 4),
+    hereSpan: onSpan(hero.x, hero.y),
+    haveTiles: [!!tilesMeta['bridge'], !!tilesMeta['bridge_b']],
+    baked: Object.keys(tintedGround().at),
+  })
   ;(window as unknown as { __give: () => unknown }).__give = () => {
     you.bag['cloth'] = [11, 143]
     you.bag['meat'] = [3, 75]

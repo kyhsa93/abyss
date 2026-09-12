@@ -15,8 +15,10 @@ this is the one wall where the tool decides the language.
 Run:  python3 pipeline/bake_terrain.py <client dir> <out dir>
 """
 import json
+import math
 import os
 import struct
+import zlib
 import sys
 
 from mpyq import MPQArchive
@@ -43,7 +45,15 @@ WMO_KINDS = [
     ('ABBEY', 'hall'), ('CATHEDRAL', 'hall'), ('KEEP', 'hall'), ('CASTLE', 'hall'),
     ('TOWER', 'tower'), ('INN', 'house'), ('HOUSE', 'house'), ('HUT', 'house'),
     ('COTTAGE', 'house'), ('FARM', 'house'), ('BARN', 'house'), ('MILL', 'house'),
-    ('BRIDGE', None), ('GATE', None), ('WALL', None), ('DOCK', None), ('SEWER', None),
+    # A bridge was thrown away for four rounds, which is why six of Elwynn's
+    # crossings were open water with a fence beside them.  It is a floor, and a
+    # floor is something this repository can draw.
+    # Stone and wood are two different floors, and the kind is what carries
+    # that — the same bargain `tree` and `pine` make.  The lion bridge is
+    # thirty-three yards wide, so planking it laid a wooden plaza over the
+    # river; it is a stone causeway and it is drawn as one.
+    ('LIONBRIDGE', 'bridge_stone'), ('BRIDGE', 'bridge'), ('DOCK', 'bridge'),
+    ('GATE', None), ('WALL', None), ('SEWER', None),
 ]
 
 
@@ -76,6 +86,7 @@ KINDS = [
     ('LAMPPOST', 'lamp'), ('LANTERN', 'lamp'), ('TORCH', 'lamp'),
     ('SIGN', 'sign'), ('CAMPFIRE', 'campfire'),
     ('TENT', 'tent'), ('WAGON', 'cart'), ('WHEELBARROW', 'cart'),
+    ('DOCK', 'bridge'),
     # Named rather than left to the catch-all, because each of these had a
     # picture already and was being drawn as a market stall.
     ('TOMBSTONE', 'grave'), ('GRAVE', 'grave'), ('HEADSTONE', 'grave'),
@@ -260,6 +271,49 @@ class Client:
         return None, None
 
 
+def footprint(ry, ax, ay):
+    """A WMO's real footprint, out of its world box and its rotation.
+
+    MODF's box is the *rotated* box — the axis-aligned one that contains the
+    thing after it has been turned — and for anything lying diagonally that is
+    much bigger than the thing.  Elwynn's lion bridge came back 68 by 71 yards,
+    a square, because it lies at 41 degrees; painted as a deck it was a plaza
+    of planks over half a lake.  The sizes are recoverable, because a rotated
+    box is two equations in the two half-extents:
+
+        ax = a·|cos| + b·|sin|
+        ay = a·|sin| + b·|cos|
+
+    which solve unless the thing is at 45 degrees, where the two equations are
+    the same one and nothing can be told apart.  Returns `(half length, half
+    width, the long axis's world bearing in degrees)`, and `(None, None,
+    bearing)` for the diagonal case — Northshire's bridge is one, and the sizes
+    it needs are the ones the same model gave up in Elwynn.
+
+    The bearing is the record's own and not minus it, which is not what the
+    axis mapping looks like it should give — the world's x is the client's -z
+    and its y the client's -x, and that pair of flips reads like a reflection.
+    The terrain says otherwise and it is not a close call: turn the lion bridge
+    the reflected way and its long side runs eighty-eight yards down the middle
+    of the lake without meeting a bank, and the other way it lands on both.
+    """
+    th = math.radians(ry)
+    c, s = abs(math.cos(th)), abs(math.sin(th))
+    det = c * c - s * s
+    a = (ax * c - ay * s) / det if abs(det) >= 0.05 else -1
+    b = (ay * c - ax * s) / det if abs(det) >= 0.05 else -1
+    if a < 0 or b < 0:
+        # Either the thing lies on the diagonal, where the two equations are
+        # the same one, or the box did not come from this rotation at all.  The
+        # sizes are still recoverable, but not from this record — another
+        # instance of the same model, turned some other way, has them, and
+        # `bake` fills them in.  `None` is that request.
+        return None, None, ry % 180
+    # `a` lies along the world bearing ry; `b` across it.
+    long_, short, bear = (a, b, ry) if a >= b else (b, a, ry + 90)
+    return round(long_, 1), round(short, 1), round(bear % 180, 1)
+
+
 def read_tile(client, tx, ty):
     """One `.adt`.  Note the file is named <Y>_<X>, not <X>_<Y>."""
     data, src = client.read(f'World\\Maps\\Azeroth\\Azeroth_{ty}_{tx}.adt')
@@ -284,13 +338,31 @@ def read_tile(client, tx, ty):
             wmo_names = [n.decode('ascii', 'replace')
                          for n in data[off:off + size].split(b'\0') if n]
         elif magic == 'MODF':
+            # 64 bytes: name, id, position, rotation, and then the thing's own
+            # bounding box.  The box is what makes a bridge a bridge rather
+            # than a point — it says how long the crossing is and which way it
+            # runs, and nothing else in this file knows either.
             for i in range(size // 64):
-                nid, uid, px, py, pz = struct.unpack_from('<IIfff', data, off + i * 64)
-                wmos.append((nid, ORIGIN - pz, ORIGIN - px, py))
+                (nid, uid, px, py, pz, _rx, ry, _rz,
+                 lx, ly, lz, hx, hy, hz) = struct.unpack_from(
+                    '<IIffffffffffff', data, off + i * 64)
+                wmos.append((nid, uid, ORIGIN - pz, ORIGIN - px, py, ry)
+                            + footprint(ry, abs(hz - lz) / 2,
+                                        abs(hx - lx) / 2))
         elif magic == 'MH2O':
             # 256 chunk headers, then instances, all offset from the start of
             # this chunk's data.  A cell is wet if an instance covers it and its
             # bitmap says so; no bitmap means the whole rectangle.
+            #
+            # The header's place in the list is the chunk's place in the file,
+            # and the file runs `for iy: for ix:` — so the *slow* half of the
+            # index is `iy`, which is the half the height grid lays along world
+            # x.  Reading it the other way up transposed every river in the
+            # slice against the valley it runs in, and it did not look like an
+            # error: rivers still ran in straight lines, just not the ones the
+            # ground had.  Elwynn's wide bridge was the thing that showed it —
+            # a crossing on dry dirt with a lake beside it.  The `check_water`
+            # call at the end of a bake is what keeps it from coming back.
             for c in range(256):
                 oi, layers, _oa = struct.unpack_from('<III', data, off + c * 12)
                 if not layers or not oi:
@@ -304,7 +376,10 @@ def read_tile(client, tx, ty):
                             byte = data[off + obm + bit // 8]
                             if not (byte >> (bit % 8)) & 1:
                                 continue
-                        water[(c // 16, c % 16, yo + dy, xo + dx)] = True
+                        # Keyed (iy, ix, along x, along y) — the same order
+                        # the heights use — and holding the water's own
+                        # surface, which is what `check_water` weighs it by.
+                        water[(c // 16, c % 16, yo + dy, xo + dx)] = mx
         elif magic == 'MMDX':
             names = [n.decode('ascii', 'replace') for n in data[off:off + size].split(b'\0')]
         elif magic == 'MMID':
@@ -341,13 +416,20 @@ def read_tile(client, tx, ty):
     for tag, nid, wx, wy, wz, rot, sc in doodads:
         kind = classify(models[nid] if nid < len(models) else '')
         if kind:
-            placed.append((kind, wx, wy, wz, rot, sc))
+            placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0, 0))
         else:
             skipped += 1
-    for nid, wx, wy, wz in wmos:
-        kind = classify_wmo(wmo_names[nid] if nid < len(wmo_names) else '')
+    for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear in wmos:
+        name = wmo_names[nid] if nid < len(wmo_names) else ''
+        kind = classify_wmo(name)
         if kind:
-            placed.append((kind, wx, wy, wz, 0.0, 1.0))
+            # An opaque number for "the same model", so an instance that could
+            # not be solved can borrow from one that could.  A number and not
+            # the path: nothing from a client's file table is allowed out of
+            # this script, and `bake` drops this before it writes anything.
+            key = zlib.crc32(name.upper().encode()) if name else 0
+            placed.append((kind, wx, wy, wz, bear, 1.0,
+                           half_l, half_w, bear, key))
     return cells, placed, water, painted, skipped, src
 
 
@@ -360,6 +442,9 @@ def bake(client, bounds, out):
     w, h = i_hi - i_lo + 1, j_hi - j_lo + 1
     grid = [None] * (w * h)
     dropped = 0
+    solid_seen = set()
+    shapes = {}
+    levels = {}
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
     # `GSUB` — so it gets its own array and its own indices.
@@ -386,14 +471,26 @@ def bake(client, bounds, out):
             cells, dd, wet, painted, skipped, src = got
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
-            for kind, wx, wy, wz, rot, sc in dd:
-                if x_lo <= wx <= x_hi and y_lo <= wy <= y_hi:
-                    doodads.append((kind, wx, wy, wz, rot, sc))
-            for (cy_, cx_, sy_, sx_) in wet:
-                I = tx * 128 + cx_ * 8 + sx_
-                J = ty * 128 + cy_ * 8 + sy_
+            for kind, wx, wy, wz, rot, sc, bl, bw, bear, key in dd:
+                if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
+                    continue
+                # A building that straddles a tile border is listed by both
+                # tiles, so Elwynn's wide bridge arrived twice and every hit
+                # test against it ran twice.  Position is the identity: two
+                # records of one instance carry the same one.
+                if key and (kind, round(wx, 2), round(wy, 2)) in solid_seen:
+                    continue
+                if key:
+                    solid_seen.add((kind, round(wx, 2), round(wy, 2)))
+                if bl is not None and key:
+                    shapes.setdefault(key, (bl, bw))
+                doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear, key])
+            for (iy_, ix_, sx_, sy_), level in wet.items():
+                I = tx * 128 + iy_ * 8 + sx_
+                J = ty * 128 + ix_ * 8 + sy_
                 if i_lo <= I <= i_hi and j_lo <= J <= j_hi:
                     wetmask[(I - i_lo) * h + (J - j_lo)] = 1
+                    levels[(I - i_lo) * h + (J - j_lo)] = level
             for (ix, iy), got in painted.items():
                 for by in range(GSUB):
                     I = tx * 128 * 2 + iy * GSUB + by
@@ -419,6 +516,25 @@ def bake(client, bounds, out):
                             continue
                         grid[(I - i_lo) * h + (J - j_lo)] = ccz + hv[r * 17 + c]
 
+    # The diagonal cases, filled in from an instance of the same model that was
+    # not diagonal.  Northshire's bridge is the same model as Elwynn's and lies
+    # at exactly 45 degrees, so its own box says 26 yards by 26 — a plaza of
+    # planks.  One borrowed pair of sizes makes it the 26 by 11 crossing it is.
+    borrowed = 0
+    for d in doodads:
+        if d[6] is None:
+            d[6], d[7] = shapes.get(d[9], (0.0, 0.0))
+            # A square box is the same square whichever way round the thing in
+            # it lies, so the sizes come back but the bearing does not: it is
+            # either this one or ninety degrees off it and the record cannot
+            # say.  The flag is the record admitting that, and `src/main.ts`
+            # settles it against the terrain — a crossing lands on a bank.
+            d[8] = -d[8] if d[6] else d[8]
+            borrowed += 1 if d[6] else 0
+    if borrowed:
+        print(f'{borrowed} diagonal footprints borrowed from another instance '
+              f'of the same model')
+
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
     os.makedirs(out, exist_ok=True)
@@ -437,8 +553,15 @@ def bake(client, bounds, out):
         'water': sum(wetmask),
         'ground': GROUND_ORDER,
         'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / 2,
-        'doodads': [{'k': k, 'x': round(x, 2), 'y': round(y, 2), 'z': round(z, 2),
-                     'r': round(rot, 1), 's': round(s, 3)} for k, x, y, z, rot, s in doodads],
+        # `bl`/`bw` are half a footprint, along and across, and `ba` is which
+        # way the long side points — a rectangle that can lie diagonally,
+        # because half these bridges do.
+        'doodads': [dict({'k': k, 'x': round(x, 2), 'y': round(y, 2),
+                          'z': round(z, 2), 'r': round(rot, 1), 's': round(s, 3)},
+                         **({'bl': round(bl, 1), 'bw': round(bw, 1),
+                             'ba': round(abs(ba), 1)}
+                            | ({'bq': 1} if ba < 0 else {}) if bl else {}))
+                    for k, x, y, z, rot, s, bl, bw, ba, _key in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)
@@ -452,7 +575,39 @@ def bake(client, bounds, out):
     print(f'areas {sorted(areas)}')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
+    check_water(grid, wetmask, levels)
     return meta
+
+
+def check_water(grid, wetmask, levels):
+    """Water has to lie on the ground it is drawn on.
+
+    The one thing that is true of every lake and every river: the surface is at
+    or above the bed.  It is also the one thing a transposed mask cannot fake —
+    turn the water ninety degrees and it lands on hillsides, so most of it ends
+    up under the ground it is meant to cover.
+
+    That is not a hypothetical.  `MH2O`'s chunk headers are in file order and
+    the file runs `for iy: for ix:`, so the slow half of the index is `iy` —
+    the half the heights lay along world x.  Read the other way up, three
+    quarters of Elwynn's water sat below its own terrain and the rivers ran
+    across the valleys instead of along them.  Nothing looked broken: water
+    still drew in long straight lines, the lakes were still lakes, and the
+    thing that gave it away was a bridge standing on dry dirt beside one.
+    """
+    under = tot = 0
+    for at, level in levels.items():
+        z = grid[at]
+        if z is None or not wetmask[at]:
+            continue
+        tot += 1
+        if z - level > 1.0:
+            under += 1
+    share = under / tot if tot else 0.0
+    print(f'check: {tot:,} water cells, {share:.1%} of them under their own bed')
+    assert tot and share < 0.25, (
+        'the water mask does not lie on the terrain — at %.0f%% it is turned '
+        'against the height grid' % (share * 100))
 
 
 def check(client, meta, out):

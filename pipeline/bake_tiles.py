@@ -86,6 +86,7 @@ SHEETS = {
     'Terrain and Outside.png': 'tiles',
     'Outside Objects.png': 'tiles',
     'water.png': 'base',
+    'bridges.png': 'base',
     'roofs-preview.png': 'roofs',
 }
 
@@ -108,6 +109,12 @@ GROUND = [
     # 80), and `rock_floor` stays for anything that wants a cave floor.
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
     ('stone',      'Terrain and Outside.png', 416,  96, 32, 32, 'sharm'),
+    # Two decks, because a bridge's planks run across the way you walk: the
+    # first for a crossing that runs north to south, the second for one that
+    # runs east to west.  One picture turned would have the planks along the
+    # span, which is not how anybody builds a bridge.
+    ('bridge',     'bridges.png',              16,  96, 32, 32, 'sharm_base'),
+    ('bridge_b',   'bridges.png',              32,   0, 32, 32, 'sharm_base'),
     # "grass with flowers", Casper Nilsson's, and the only paving in either
     # sheet that can be used at all.  Both cobbled paths — the herringbone one
     # left of the barrels and the blue brick above the lily pads — are named in
