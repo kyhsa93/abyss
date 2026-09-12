@@ -104,6 +104,16 @@ model paths and keeps only a kind (`tree`, `rock`, `fence`). The wiki page is
 **Blizzard's sentences are not used either.** Creature names, quest text,
 gossip. The structure comes from AzerothCore; the words are ours.
 
+**Three kits do not agree about colour, and the drawn art owns the palette.**
+`pipeline/grade_kit.py` runs after `render_kit.py` and pulls the renders' greens
+onto the hue of the grass tiles the bake cuts — greens only, hue only. Greens
+only because nothing else clashes: grading the whole wheel onto the ground's
+palette was tried and it turned every roof in the village orange. Hue only
+because the shading is the reason for rendering at all. The band's top is 195°
+because the foliage was measured — the oak is 170, the bushes 165, the pines
+sit exactly on 185 — and a band that stopped at 185 moved every leaf in the
+wood except the pines'.
+
 **A rendered piece is a third way of getting art, and the camera is not a
 style choice.** `pipeline/render_kit.py` builds things out of a CC0 3D kit and
 photographs them at the exact projection `src/main.ts` draws in — orthographic,
