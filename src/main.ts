@@ -669,6 +669,33 @@ async function main() {
    * way.
    */
   const FLOOR_TILE = PAVED_TILES[0] ?? WALL_TILE
+
+  /**
+   * A floor a kind of building.
+   *
+   * One picture for every inside was the complaint, and `doodads` already
+   * sorts this slice's buildings into four words — `hall` 5, `house` 16,
+   * `tower` 2, `tent` 5 — so four is the whole cost.  The pictures are cut
+   * from sheets `bake_tiles.py` already uses, and that is not laziness: the
+   * one sheet with exactly the floors this wanted ends its attribution
+   * document with `MISSING attributions: Some bottomleft tiles`, and those
+   * floors are the bottom-left tiles.
+   *
+   * **A tent has no floor of its own** and is not in this table.  Its floor is
+   * the ground it is pitched on, which is both true and free — the same branch
+   * a courtyard takes.
+   */
+  const INDOOR_FLOOR: Record<string, (h: number) => string> = {}
+  for (const [k, pair] of Object.entries({
+    hall: ['in_floor', 'in_floor2'],
+    house: ['in_house', 'in_house2'],
+    tower: ['in_tower', 'in_tower2'],
+  })) {
+    const [a, b] = pair as [string, string]
+    const one = tilesMeta[a] ? a : FLOOR_TILE
+    const two = tilesMeta[b] ? b : one
+    INDOOR_FLOOR[k] = (h) => (h > 0.82 ? two : one)
+  }
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
   /**
    * The land a lake touches.
@@ -4542,6 +4569,7 @@ async function main() {
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
       // Indoors, which is its own scene and its own set.
       'in_floor', 'in_floor2', 'in_rug', 'in_wall',
+      'in_house', 'in_house2', 'in_tower', 'in_tower2',
       ...edges]
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
@@ -4649,13 +4677,13 @@ async function main() {
         // every way but where its shape came from.
         const id = isWall
           ? (b.k === 'mine' ? ROCK_TILE : 'in_wall')
-          : !roofed
+          : !roofed || b.k === 'tent'
             ? (paintAt(wx, wy) === 'paved' && PAVED_TILES.length
               ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
               : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!)
             : b.k === 'mine'
               ? (hash(i, j) > 0.7 ? 'stone' : 'rock_floor')
-              : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor')
+              : (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall']!)(hash(i, j))
         const at = ground.at[id]
         if (at === undefined) continue
         // Lit flat.  A room has no hillside and no sun in it, so the shading

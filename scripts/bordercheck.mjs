@@ -264,5 +264,47 @@ check('and they run in Node with no browser at all',
       : `all ${cols.length} of them`)
 }
 
+/**
+ * An inside does not look like an outside.
+ *
+ * The complaint was that this game had exactly one indoor floor picture and it
+ * was the road's own cobbles — so the abbey's nave and the lane through
+ * Goldshire were the same thing, and fixing the outline's paint could make a
+ * building *uniform* without making it look like an inside at all.
+ *
+ * Read off the two tables rather than off a screenshot: the words `main.ts`
+ * reaches for indoors and the words it reaches for outdoors have to be
+ * disjoint sets.  A tent is the one deliberate exception — its floor is the
+ * ground it is pitched on — and it takes the outdoor branch rather than
+ * naming an outdoor tile in the indoor table, so it does not show up here.
+ */
+{
+  const src = readFileSync(join('src', 'main.ts'), 'utf8')
+  const table = (name) => {
+    const at = src.indexOf(name)
+    if (at < 0) return []
+    const end = src.indexOf('\n  }', at)
+    return [...src.slice(at, end).matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1])
+  }
+  // The naming is the contract: a picture cut for an inside is called `in_…`,
+  // and `bake_tiles.py` is where both halves are cut, so the two sets cannot
+  // overlap without somebody renaming a tile.  Held from both ends — the
+  // indoor table may name only `in_…`, and the outdoor lists may name none.
+  const inside = table('const INDOOR_FLOOR')
+    .filter((k) => k !== 'hall' && k !== 'house' && k !== 'tower')
+  const outside = ['GROUND_TILES', 'DIRT_TILES', 'BLOOM_TILES', 'PAVED_TILES']
+    .flatMap((n) => {
+      const m = src.match(new RegExp(`const ${n} = [^\\n]*\\[([^\\]]*)\\]`))
+      return m ? [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map((q) => q[1]) : []
+    })
+  const stray = inside.filter((k) => !k.startsWith('in_'))
+  const leaked = outside.filter((k) => k.startsWith('in_'))
+  check('an inside does not use an outside\'s pictures',
+    inside.length >= 6 && outside.length >= 8
+    && stray.length === 0 && leaked.length === 0,
+    stray.concat(leaked).join(' ')
+    || `${inside.length} indoors, ${outside.length} outdoors, none shared`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

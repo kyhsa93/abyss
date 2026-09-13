@@ -184,6 +184,22 @@ GROUND = [
     ('in_floor2',  'castlefloors.png',        224, 192, 32, 32, 'sharm_base'),
     ('in_rug',     'castlefloors.png',         64,  64, 32, 32, 'sharm_base'),
     ('in_wall',    'castlewalls.png',          32,  32, 32, 32, 'sharm_base'),
+    # A floor a kind of building.  One picture for every inside was the
+    # complaint, and `doodads` already sorts the slice's buildings into four
+    # words — `hall` 5, `house` 16, `tower` 2, `tent` 5 — so four is the whole
+    # cost.  The two above are the hall's: the abbey, the barracks and the
+    # inn's own hall.
+    #
+    # These come from sheets this bake already cuts from, and that is not
+    # laziness.  `~/src/lpc-tiles/Interior.png` has exactly the floors this
+    # wanted — planks, parquet, a light stone block — in its bottom-left
+    # corner, and its attribution document ends `MISSING attributions: Some
+    # bottomleft tiles`.  A CC-BY tile with no author cannot be complied with,
+    # which is the rule `credits()` enforces, so they are not used.
+    ('in_house',   'castlefloors_outside.png', 32,  32, 32, 32, 'sharm_base'),
+    ('in_house2',  'castlefloors_outside.png', 64,  32, 32, 32, 'sharm_base'),
+    ('in_tower',   'castlefloors.png',        160,   0, 32, 32, 'sharm_base'),
+    ('in_tower2',  'castlefloors.png',        288,   0, 32, 32, 'sharm_base'),
     ('grass',      'Terrain and Outside.png',   0, 352, 32, 32, 'sharm'),
     ('grass2',     'Terrain and Outside.png',  32, 352, 32, 32, 'sharm'),
     ('grass3',     'Terrain and Outside.png',  64, 352, 32, 32, 'sharm'),
