@@ -180,7 +180,7 @@ export function threatFrom(damage: number, mods: number[] | undefined,
  * One ability, as `pipeline/spells.py` writes it.
  *
  * `does` is the client's three effect slots, each `[effect, amount, dieSides,
- * aura, period]`.  The engine implements the handful of effects it can and
+ * aura, period, triggers, misc]`.  The engine implements the handful of effects it can and
  * ignores the rest, which is honest: an ability whose effect nothing here
  * understands simply does not appear on the bar.
  */
@@ -217,6 +217,13 @@ export type Spell = {
    */
   threat?: number[]
   does: number[][]
+  /**
+   * Which shapeshift this is, if it is one.  17 Battle, 18 Defensive — the
+   * client's own numbers, out of the `MOD_SHAPESHIFT` aura's `EffectMiscValue`.
+   */
+  stance?: number
+  /** How deep the same thing may sit on one target.  Sunder Armor's five. */
+  stack?: number
 }
 
 /**
@@ -228,5 +235,24 @@ export type Spell = {
  * well, it is what makes the first area attack in this game work.
  */
 export const E_DAMAGE = 2, E_ENERGIZE = 3, E_AURA = 6, E_WEAPON_ADD = 58
+/**
+ * And the two that name another spell rather than doing anything themselves.
+ *
+ * `E_TRIGGER` is Sunder Armor's only effect — fifteen rage and one column
+ * pointing at 58567 — and `E_ATTACK_ME` is Taunt's.  Neither could be run
+ * while `spells.py` was reading the trigger out of `EffectMiscValue`, so both
+ * abilities were a cost with nothing on the other side of it.
+ */
+export const E_TRIGGER = 64, E_ATTACK_ME = 114
 /** And the auras. */
 export const A_PERIODIC_DAMAGE = 3, A_ATTACK_POWER = 99
+/**
+ * The three a stance is made of, and the one Sunder Armor is.
+ *
+ * A stance spell says only which form it is; the numbers live in a hidden
+ * passive the core names per form (SpellAuraEffects.cpp:1382-1387), and
+ * `spells.py` follows that and appends the passive's effects to the stance's
+ * own.  Battle Stance is one of these, Defensive Stance is three.
+ */
+export const A_THREAT_PCT = 10, A_DAMAGE_PCT_DONE = 79, A_DAMAGE_PCT_TAKEN = 87
+export const A_BASE_RESISTANCE_PCT = 101, A_SHAPESHIFT = 36

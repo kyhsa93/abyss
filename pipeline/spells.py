@@ -62,6 +62,27 @@ F_EFFECT, F_DIE, F_BASE = 71, 74, 80
 # ability a warrior has by level ten.
 F_GCD_CATEGORY, F_GCD = 205, 206
 F_AURA, F_PERIOD = 95, 98
+#: Where a `does` row keeps the spell it fires, for the checks below.
+TRIGGERS = 5
+#: `SPELL_AURA_MOD_BASE_RESISTANCE_PCT` and
+#: `SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN`, both of them read only to be checked.
+A_BASE_RESISTANCE_PCT, A_DAMAGE_PCT_TAKEN = 101, 87
+#: `SPELL_AURA_MOD_SHAPESHIFT`, which is how a stance says it is one.
+A_SHAPESHIFT = 36
+
+# Which passive a stance actually is.
+#
+# The stance spell itself says almost nothing — one aura of `MOD_SHAPESHIFT`
+# whose `EffectMiscValue` is the form number, 17 and 18 — and the numbers live
+# in a hidden passive the core names per form
+# (`AuraEffect::HandleAuraModShapeshift`, SpellAuraEffects.cpp:1382-1387).
+# Read through, Battle Stance is -20% threat and Defensive Stance is -10%
+# damage taken, -5% damage done and +45% threat, all of it the client's.
+#
+# Keyed on the form rather than on the stance, because the form is the number
+# the client states and the core switches on.
+FORM_PASSIVE = {17: 21156, 18: 7376}
+F_MISC = 110
 
 # The warrior's trainer, and the class's own skill lines.  Trainer 1 teaches
 # Charge at level 4 and an ability that requires spell 78 at level 8, which is
@@ -82,6 +103,92 @@ def dbc(client, name):
         sys.exit(f'{name}.dbc is not a dbc')
     return [struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
             for i in range(n)]
+
+
+# What the class is given rather than sold, and where it comes from.
+#
+# Five abilities were missing from this book and the wiki had already worked
+# out why: they are in no trainer's list anywhere in the dump — checked, all
+# five — because a warrior is *given* them.  `SkillLineAbility.dbc` files them
+# under the three skill lines `playercreateinfo_skills` hands a human warrior
+# at creation: 26 Arms, 256 Fury, 257 Protection.
+#
+# One of the five is genuinely derivable and the other four are not, and the
+# difference is a column.  `Player::LearnSkillRewardedSpells`
+# (Player.cpp:12256) learns a skill's abilities only where `AcquireMethod` is
+# 1 or 2, and of the five **only Battle Stance has one** — so that one falls
+# out of the rules and the rest have to be named.  Which is what the wiki
+# concluded on its own: *five lines, written by hand; this is a footnote and
+# not a hole.*
+#
+# Except it is four.  Berserker Stance is `spellLevel` **30** in this client
+# and this game stops at ten, so it is out of the slice the same way a
+# Westfall quest is, and no amount of hand-writing changes that.
+WARRIOR_SKILLS = (26, 256, 257)
+LEARNED_ON_SKILL_VALUE, LEARNED_ON_SKILL_LEARN = 1, 2
+
+#: `Spell.dbc` field 4, and the one bit of it read here: a passive is not an
+#: ability, and two of the candidates are the stances' own hidden passives.
+F_ATTRIBUTES, ATTR_PASSIVE = 4, 0x40
+
+#: Given to a warrior by nobody and derivable from nothing — see above.  Each
+#: is `SkillLineAbility.dbc`'s own row for it, so the claim is checkable.
+BY_HAND = {
+    71: 'Defensive Stance — SkillLineAbility 6101, skill 257, spellLevel 10',
+    355: 'Taunt — SkillLineAbility 6114, skill 257, spellLevel 10',
+    7386: 'Sunder Armor — SkillLineAbility 6109, skill 257, spellLevel 10',
+}
+
+#: And what is named and still left out, with the number that decides it.
+TOO_HIGH = {2458: 'Berserker Stance — spellLevel 30, and this game ends at 10'}
+
+
+def given(client, base, spells, upto):
+    """Everything the class is handed, as {id: level}.
+
+    Two halves for two reasons, both of them above.  The derived half asks
+    `SkillLineAbility.dbc` the question the core asks it and drops anything
+    passive; the named half is three ids the core would not learn either, with
+    the row that says where each came from.
+    """
+    from spawn_npcs import columns, rows, split
+    mine = set()
+    path = os.path.join(base, 'playercreateinfo_skills.sql')
+    col = columns(path)
+    for line in rows(path):
+        f = split(line)
+        try:
+            race, cls = int(f[col['raceMask']]), int(f[col['classMask']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        if (not race or race & 1) and (not cls or cls & 1):
+            mine.add(int(f[col['skill']]))
+    if not set(WARRIOR_SKILLS) <= mine:
+        sys.exit('a human warrior does not start with %s — the skill lines '
+                 'moved' % (set(WARRIOR_SKILLS) - mine))
+
+    out = {}
+    for r in dbc(client, 'SkillLineAbility'):
+        _id, skill, sid, _race, cls = r[0], r[1], r[2], r[3], r[4]
+        if skill not in WARRIOR_SKILLS or not cls & 1:
+            continue
+        if r[9] not in (LEARNED_ON_SKILL_VALUE, LEARNED_ON_SKILL_LEARN):
+            continue
+        sp = spells.get(sid)
+        if sp is None or sp[F_ATTRIBUTES] & ATTR_PASSIVE:
+            continue
+        lv = sp[F_LEVEL]
+        if 1 <= lv <= upto:
+            out[sid] = lv
+    for sid in BY_HAND:
+        sp = spells.get(sid)
+        if sp is None:
+            sys.exit(f'{sid} is not in this client')
+        if not 1 <= sp[F_LEVEL] <= upto:
+            sys.exit(f'{sid} is spellLevel {sp[F_LEVEL]}, outside 1..{upto} — '
+                     'move it to TOO_HIGH rather than shipping it')
+        out[sid] = sp[F_LEVEL]
+    return out
 
 
 def known(base, upto):
@@ -123,7 +230,29 @@ def known(base, upto):
 # The effect numbers that name another spell, so the closure knows to follow
 # them.  `TRIGGER_SPELL` and its two friends put a spell id in the effect's
 # own trigger field; an aura of `PERIODIC_TRIGGER_SPELL` does the same.
-F_TRIGGER = 110
+#
+# **This was 110 and 110 is `EffectMiscValue`**, which is the field that says
+# which shapeshift a stance is rather than which spell an effect fires.  Every
+# lookup through it therefore came back nought, which is what a spell that
+# triggers nothing looks like — so the closure has been walking a graph with
+# its edges cut off since it was written, and three abilities have been
+# missing the half of themselves that lives in the triggered spell:
+#
+#   * Sunder Armor 7386 fires 58567, which is the armour off the target —
+#     -4% a go, five of them, thirty seconds.  Without it 7386 is a
+#     fifteen-rage button that does nothing at all.
+#   * Bloodrage 2687 fires 29131, ten rage a second for ten seconds.
+#   * Charge 100 fires 7922, which is the stun that makes it an opener.
+#
+# Found by asking which field of Charge holds 7922, the same way the global
+# cooldown's column was found, and `check` below holds it to that.
+F_TRIGGER = 116
+
+# And how many of the same thing may sit on a target at once.  Found the same
+# way: the field that is five for 58567, which is the game's own five-stack
+# Sunder Armor.  A debuff that does not say how deep it goes is a debuff whose
+# depth somebody here would have to choose.
+F_STACK = 49
 E_TRIGGER_SPELL, E_TRIGGER_MISSILE, E_PERSISTENT_AREA = 64, 32, 27
 A_PERIODIC_TRIGGER = 23
 
@@ -214,7 +343,15 @@ def main(client_root, acore, out, upto=None):
     # How far up this game goes, out of `slice.json` rather than a default
     # argument nobody outside this file could see.
     upto = upto or LEVELS[1]
-    want, free = known(os.path.join(acore, 'data/sql/base/db_world'), upto)
+    world = os.path.join(acore, 'data/sql/base/db_world')
+    want, free = known(world, upto)
+    # And what nobody sells, which is where five of these were hiding.  Given
+    # abilities are `free` in exactly the sense the starting bar is: there is
+    # no trainer row and no money.
+    handed = given(c, world, spells, upto)
+    for sid, lv in handed.items():
+        want.setdefault(sid, lv)
+        free.add(sid)
     out_rows = []
     for sid, lv in sorted(want.items(), key=lambda kv: (kv[1], kv[0])):
         r = spells.get(sid)
@@ -244,9 +381,29 @@ def main(client_root, acore, out, upto=None):
             # one short of what the tooltip says — the game rolls
             # `base + 1 .. base + dieSides`.
             'does': [[r[F_EFFECT + i], r[F_BASE + i] + 1, r[F_DIE + i],
-                      r[F_AURA + i], r[F_PERIOD + i]]
+                      r[F_AURA + i], r[F_PERIOD + i], r[F_TRIGGER + i],
+                      r[F_MISC + i]]
                      for i in range(3) if r[F_EFFECT + i]],
+            # How deep the same thing may sit on one target.  Sunder Armor's
+            # five, which is the client's and not a choice made here.
+            'stack': r[F_STACK],
         }
+        # What a stance is, once the form it names is followed to the passive
+        # that carries its numbers.  Four fields deep and every one of them a
+        # column: the stance's aura says the form, the core says which passive
+        # that form is, and the passive says the percentages.
+        form = next((r[F_MISC + i] for i in range(3)
+                     if r[F_AURA + i] == A_SHAPESHIFT), 0)
+        if form in FORM_PASSIVE:
+            p = spells.get(FORM_PASSIVE[form])
+            if p is None:
+                sys.exit(f'form {form}\'s passive {FORM_PASSIVE[form]} is not '
+                         'in this client')
+            row['stance'] = form
+            row['does'] += [[p[F_EFFECT + i], p[F_BASE + i] + 1, p[F_DIE + i],
+                             p[F_AURA + i], p[F_PERIOD + i], p[F_TRIGGER + i],
+                             p[F_MISC + i]]
+                            for i in range(3) if p[F_EFFECT + i]]
         out_rows.append(row)
 
     # The layout, checked against a fact rather than trusted.  Spell 78 is a
@@ -271,6 +428,27 @@ def main(client_root, acore, out, upto=None):
     if not clap or clap['wide'][0] != 8.0:
         sys.exit('Spell.dbc radius index is wrong: 6343 came back %s'
                  % (clap and clap.get('wide')))
+    # And the field that says which spell an effect fires, which was
+    # `EffectMiscValue` for the whole life of this script.  Sunder Armor is
+    # nothing but a trigger — fifteen rage and one effect — so read from the
+    # wrong column it is a button that costs and does not act, which is
+    # exactly what a spell with no trigger looks like.  The thing it fires
+    # takes 4% of the armour off and five of them may sit there at once, and
+    # both numbers are the client's.
+    sunder = next((r for r in out_rows if r['id'] == 7386), None)
+    fired = sunder and next((e[TRIGGERS] for e in sunder['does'] if e[TRIGGERS]), 0)
+    debuff = spells.get(fired or 0)
+    if not debuff or debuff[F_STACK] != 5 \
+            or A_BASE_RESISTANCE_PCT not in [debuff[F_AURA + i] for i in range(3)]:
+        sys.exit('Spell.dbc trigger field is wrong: 7386 fires %s' % fired)
+    # And the stance, which is four columns deep: the aura says the form, the
+    # core says which passive that form is, and the passive says the numbers.
+    # Defensive Stance has to come back taking a tenth off what hits you.
+    guard = next((r for r in out_rows if r['id'] == 71), None)
+    taken = guard and next((e[1] for e in guard['does']
+                            if e[3] == A_DAMAGE_PCT_TAKEN), None)
+    if guard is None or guard.get('stance') != 18 or taken != -10:
+        sys.exit('the stance passive did not come through: 71 is %s' % guard)
 
     # How far a swing reaches, which was a constant in `fight.ts` — three
     # yards, "two bodies and an arm".  `SpellRange.dbc` states it: index 2 is
@@ -405,13 +583,42 @@ def main(client_root, acore, out, upto=None):
         if row['id'] in threat:
             row['threat'] = threat[row['id']]
 
+    # And the spells the player's own abilities fire, which are half of three
+    # of them.  Only one step out: Sunder Armor's debuff, Bloodrage's rage and
+    # Charge's stun are all direct triggers, and shipping the whole closure
+    # would ship a hundred and thirty spells nothing presses.
+    linked = []
+    seen = set()
+    for row in out_rows:
+        for e in row['does']:
+            fired = e[TRIGGERS]
+            if not fired or fired in seen or any(r['id'] == fired for r in out_rows):
+                continue
+            r = spells.get(fired)
+            if r is None:
+                continue
+            seen.add(fired)
+            linked.append({
+                'id': fired,
+                'holds': durations.get(r[F_DURATION], 0),
+                'stack': r[F_STACK],
+                'does': [[r[F_EFFECT + i], r[F_BASE + i] + 1, r[F_DIE + i],
+                          r[F_AURA + i], r[F_PERIOD + i], r[F_TRIGGER + i],
+                          r[F_MISC + i]]
+                         for i in range(3) if r[F_EFFECT + i]],
+            })
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')
     with open(path, 'w') as f:
         json.dump({'spells': out_rows, 'melee': melee, 'foes': foes,
-                   'cues': cues}, f)
+                   'cues': cues, 'linked': linked}, f)
     print(f'{len(out_rows)} abilities to level {upto} -> {path}'
           f'   combat range {melee} yards')
+    print('  ' + (', '.join(f"{r['id']} fires {e[TRIGGERS]}" for r in out_rows
+                            for e in r['does'] if e[TRIGGERS])
+                  or 'nothing fires anything, which is what the wrong column '
+                     'looked like'))
     runnable = sum(1 for v in foes.values() for sp in v
                    if any(e in (2, 6, 3, 58) for e, *_ in sp['does']))
     print(f'  {len(foes)} kinds of creature carry '

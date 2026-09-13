@@ -167,6 +167,15 @@ const ABILITY: Record<number, [string, string]> = {
   3127: ['막기 자세', '방패를 세운다'],
   34428: ['승리의 예감', '쓰러뜨린 직후 한 번 크게 친다'],
   59752: ['정신 집중', '붙잡힌 것을 떨쳐낸다'],
+  // The four nobody sells.  A warrior is given these rather than taught them
+  // — `SkillLineAbility.dbc` files them under the three skill lines
+  // `playercreateinfo_skills` hands him at creation — which is why they were
+  // missing from a book built out of `trainer_spell` alone.
+  2457: ['전투 자세', '공격에 무게를 싣는다. 자세를 바꾸면 분노가 사라진다'],
+  71: ['방어 자세', '맞는 것이 가벼워지고 때리는 것도 가벼워진다. '
+    + '자세를 바꾸면 분노가 사라진다'],
+  355: ['도발', '무슨 수를 쓰든 이쪽을 보게 만든다'],
+  7386: ['방어구 부수기', '방어도를 깎는다. 겹쳐 쌓인다'],
 }
 
 /** The word and the sentence for an ability, or nothing if it has none. */

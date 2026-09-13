@@ -38,7 +38,8 @@ import {
   short, take, walked, wants, type Errand,
 } from './sim/quest.ts'
 import {
-  mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE,
+  mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE, E_TRIGGER, E_ATTACK_ME,
+  A_THREAT_PCT, A_DAMAGE_PCT_DONE, A_DAMAGE_PCT_TAKEN, A_BASE_RESISTANCE_PCT,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   E_AURA, E_ENERGIZE, E_WEAPON_ADD,
   ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING, setMelee,
@@ -302,10 +303,17 @@ async function main() {
     fetch('./world/spells.json')
       .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number
         foes?: Record<string, Spell[]>
+        /**
+         * The spells the player's own abilities fire.  Half of three of them
+         * lives here: Sunder Armor's debuff, Bloodrage's rage and Charge's
+         * stun are all a trigger and nothing else.
+         */
+        linked?: Spell[]
         /** `[spell, trigger, param1, param2, chance]` — `smart_scripts`. */
         cues?: Record<string, number[][]> }>)
       .catch(() => ({ spells: [] as Spell[], melee: undefined,
         foes: {} as Record<string, Spell[]>,
+        linked: [] as Spell[],
         cues: {} as Record<string, number[][]> })),
     // What stands in the world that is not a person.  One file for both
     // worlds and for the same reason the spawns are: where a copper vein
@@ -1253,6 +1261,10 @@ async function main() {
      * and so taunt has something to act on when it arrives.
      */
     threat: Record<string, number>
+    /** Until when it is looking at you because it was told to — Taunt. */
+    taunted: number
+    /** How much of its armour is off, and until when — Sunder Armor. */
+    sunder: { until: number; pct: number } | null
     /** What is in the main hand, as an atlas kind, or null for nothing. */
     arm: string | null
     /** Whether the off hand also holds a weapon — `Creature::CanDualWield`. */
@@ -1327,6 +1339,7 @@ async function main() {
       hide: (spawns.hauls && (row[18] ?? -1) >= 0)
         ? spawns.hauls[row[18]!]! : null,
       skinned: false,
+      taunted: 0, sunder: null,
       was: { x: row[0] as number, y: row[1] as number },
       ix: row[0] as number, iy: row[1] as number,
       threat: {},
@@ -2494,6 +2507,17 @@ async function main() {
      * placeholder: a node asking for nothing would still refuse.
      */
     trades: { herbs: 1, mining: 1, skinning: 1 } as Record<string, number>,
+    /**
+     * Which stance he is standing in — the client's own form number, 17
+     * Battle or 18 Defensive, or nought before he has been given one.
+     *
+     * Nought is not "no stance" in the real game; a warrior is put in Battle
+     * Stance at creation.  Here it is what it looks like: `2457` is on the
+     * bar from level one and pressing it is the first thing that ever cost
+     * the rage bar, which is the shape of the decision the wiki was looking
+     * for in this stretch.
+     */
+    stance: 0,
     /** Experience banked by stopping somewhere sensible — see `resting`. */
     rest: 0,
     /** When the ceiling was reached, which is where this slice ends. */
@@ -2517,7 +2541,15 @@ async function main() {
   // `E_DAMAGE` joins the list: it is a number of damage right now, and with
   // `SpellRadius.dbc` finally resolved it is what makes a thunderclap hit
   // everything within eight yards instead of nothing at all.
-  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA, E_DAMAGE])
+  //
+  // And the two that name another spell rather than doing anything
+  // themselves.  Neither could have been on this list while `spells.py` read
+  // the trigger out of `EffectMiscValue`: Sunder Armor's only effect is an
+  // `E_TRIGGER` pointing at 58567, so with that column wrong it was an
+  // ability whose whole content was a nought — which is exactly what this
+  // filter is for, and it was quite right to keep it off the bar.
+  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA, E_DAMAGE,
+    E_TRIGGER, E_ATTACK_ME])
   // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
   // comment here that said "two bodies and an arm".
   if (spellbook.melee) setMelee(spellbook.melee)
@@ -2608,8 +2640,20 @@ async function main() {
     if (t && sp.threat) {
       t.threat['you'] = (t.threat['you'] ?? 0)
         + threatFrom(0, sp.threat, attackPower(you.level, statsAt(you.level)))
+          * stanceOf().threat
     }
-    for (const [slot, [effect, amount, die, aura, period]] of sp.does.entries()) {
+    // A stance is not an effect, it is a change of state, and the state it
+    // changes costs you everything you were holding.  `Rage_val` in
+    // `AuraEffect::HandleAuraModShapeshift` (SpellAuraEffects.cpp:2223) starts
+    // at nought and is only raised by talents this game has none of, so the
+    // line under it — `SetPower(POWER_RAGE, Rage_val)` — empties the bar.
+    // That is the whole cost of a stance and the reason changing one mid-fight
+    // is a decision rather than a free improvement.
+    if (sp.stance !== undefined && you.stance !== sp.stance) {
+      you.stance = sp.stance
+      you.rage = 0
+    }
+    for (const [slot, [effect, amount, die, aura, period, fires]] of sp.does.entries()) {
       if (effect === E_DAMAGE) {
         // Everything inside the radius, or just the target if there is none.
         // `SpellRadius.dbc` says eight yards for a thunderclap and thirty for
@@ -2622,13 +2666,13 @@ async function main() {
           : (t ? [t] : [])
         for (const n of at) {
           const dealt = Math.max(1, Math.round(
-            hit * (1 - mitigate(n.fight![ARMOUR]!, you.level))))
+            hit * stanceOf().deal * (1 - mitigate(armourNow(n), you.level))))
           n.hp -= dealt
           n.hurt = clock
           n.angry = true
           n.threat['you'] = (n.threat['you'] ?? 0)
             + threatFrom(dealt, sp.threat,
-              attackPower(you.level, statsAt(you.level)))
+              attackPower(you.level, statsAt(you.level))) * stanceOf().threat
           say(n.x, n.y, `${dealt}`, true)
           if (n.hp <= 0) {
             n.hp = 0; n.dead = clock; you.kills += 1
@@ -2644,6 +2688,34 @@ async function main() {
       } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE && t) {
         t.bleed = { until: clock + sp.holds / 1000, next: clock + period! / 1000, each: amount! }
         t.angry = true
+      } else if (effect === E_ATTACK_ME && t) {
+        // Taunt, which is the only thing in this game that reads the threat
+        // list rather than writing to it.  It does not add attention, it puts
+        // you at the top of whatever is there — so a creature you had lost
+        // comes back without your having to out-damage whoever took it.
+        const top = Math.max(0, ...Object.values(t.threat))
+        t.threat['you'] = top + 1
+        t.angry = true
+        t.taunted = clock + sp.holds / 1000
+        rouse(t)
+      } else if (effect === E_TRIGGER && fires && t) {
+        // The half of an ability that lives in another spell.  Sunder Armor
+        // is nothing but this: fifteen rage, one effect, and a column naming
+        // 58567 — which is `-4%` of the target's armour, five deep, for
+        // thirty seconds.  All four numbers are the client's, and none of
+        // them could be read while the trigger column was `EffectMiscValue`.
+        const fired = (spellbook.spells ?? []).find((x) => x.id === fires)
+          ?? (spellbook.linked ?? []).find((x) => x.id === fires)
+        for (const [, take, , which] of fired?.does ?? []) {
+          if (which !== A_BASE_RESISTANCE_PCT) continue
+          const deep = Math.max(1, fired!.stack ?? 1)
+          const was = t.sunder && t.sunder.until > clock ? t.sunder : null
+          t.sunder = {
+            until: clock + (fired!.holds || 30000) / 1000,
+            pct: Math.min(deep, (was?.pct ?? 0) / -take! + 1) * -take!,
+          }
+          t.angry = true
+        }
       }
     }
     // A run-up is a run-up: the thing it does that no effect number says is
@@ -2962,10 +3034,16 @@ async function main() {
         const far = noticeAt(you.level, n.level, n.notice)
         if (d2 < far * far) { n.angry = true; rouse(n) }
       }
+      // Told to look at you, whether it wanted to or not.  Taunt is the only
+      // thing in this game that writes to the list rather than adding to it —
+      // it puts you on top of whatever was there and holds the creature for
+      // the three seconds `Spell.dbc` gives it, which is what makes it a way
+      // out of a fight going wrong rather than another source of threat.
+      if (n.taunted > clock) { n.angry = true; quiet = false }
       // And gives up.  Without this the forest arrives one at a time and never
       // leaves: `angry` is set by walking past and nothing ever cleared it, so
       // a walk across Elwynn ended with forty things in a queue behind you.
-      if (n.angry && (d2 > LEASH * LEASH
+      if (n.angry && n.taunted <= clock && (d2 > LEASH * LEASH
         || (n.x - n.hx) ** 2 + (n.y - n.hy) ** 2 > LEASH * LEASH)) {
         n.angry = false
         if (you.target === n) you.target = null
@@ -3011,7 +3089,7 @@ async function main() {
         for (const [effect, amount, die, aura, period] of trick.does) {
           if (effect === E_DAMAGE) {
             const bolt = Math.max(1, Math.round(
-              between(amount!, amount! + (die ?? 0))
+              between(amount!, amount! + (die ?? 0)) * stanceOf().take
               * (1 - mitigate(you.line[ARMOUR]!, n.level))))
             you.hp -= bolt
             say(hero.x, hero.y, `-${bolt}`, false)
@@ -3039,7 +3117,8 @@ async function main() {
           parry: PARRY_WITH_WEAPON, block: 0, player: true },
         roll() * 10000)
       const raw = swing(n.fight, n.level, you.line[ARMOUR]!, roll())
-      const hit = damageAfter(fate, raw, n.level - you.level)
+      const hit = Math.max(0, Math.round(
+        damageAfter(fate, raw, n.level - you.level) * stanceOf().take))
       you.hp -= hit
       // Taking a blow pays too, at a third of what landing one does.
       you.rage = Math.min(MAX_RAGE,
@@ -3101,16 +3180,17 @@ async function main() {
       { level: foe.level, dodge: CREATURE_DODGE, block: CREATURE_BLOCK,
         parry: parries(foe.kind) ? CREATURE_PARRY_HUMANOID : 0 },
       roll() * 10000)
+    const stance = stanceOf()
     const raw = Math.round(
-      swing(you.line, foe.level, foe.fight[ARMOUR]!, roll())
-      + shout + you.extra)
+      (swing(you.line, foe.level, armourNow(foe), roll())
+        + shout + you.extra) * stance.deal)
     const hit = damageAfter(fate, raw, foe.level - you.level)
     you.extra = 0
     you.rage = Math.min(MAX_RAGE, you.rage + rageFrom(hit, you.level, secs, true))
     // Attention, before the damage, because a blow that is blocked to nothing
     // still annoys whatever you hit.
     foe.threat['you'] = (foe.threat['you'] ?? 0)
-      + threatFrom(hit, undefined, attackPower(you.level, mine))
+      + threatFrom(hit, undefined, attackPower(you.level, mine)) * stance.threat
     foe.hp -= hit
     foe.hurt = clock
     if (hit > 0) { foe.angry = true; rouse(foe) }
@@ -3136,6 +3216,41 @@ async function main() {
   }
 
   const GOODS = spawns.goods ?? []
+
+  /**
+   * What the stance you are standing in is worth, as three multipliers.
+   *
+   * Nothing here is a number chosen in this file.  A stance spell says only
+   * which form it is; the core names a hidden passive per form
+   * (`AuraEffect::HandleAuraModShapeshift`, SpellAuraEffects.cpp:1382-1387)
+   * and `spells.py` follows that and appends the passive's effects to the
+   * stance's own.  Read out, Battle Stance is one aura and Defensive Stance is
+   * three: a tenth off what hits you, a twentieth off what you deal, and
+   * nearly half again on what you are worth looking at.
+   *
+   * Which is the decision the wiki could not find in this stretch of the game.
+   * There is no right answer to "hit harder or be hit less" while anything is
+   * hitting you, and it costs the bar to change your mind.
+   */
+  const stanceOf = (): { deal: number; take: number; threat: number } => {
+    const out = { deal: 1, take: 1, threat: 1 }
+    const sp = you.stance
+      ? (spellbook.spells ?? []).find((x) => x.stance === you.stance) : null
+    for (const [effect, amount, , aura] of sp?.does ?? []) {
+      if (effect !== E_AURA) continue
+      if (aura === A_DAMAGE_PCT_DONE) out.deal *= 1 + amount! / 100
+      else if (aura === A_DAMAGE_PCT_TAKEN) out.take *= 1 + amount! / 100
+      else if (aura === A_THREAT_PCT) out.threat *= 1 + amount! / 100
+    }
+    return out
+  }
+
+  /** What is left of a creature's armour once it has been sundered. */
+  const armourNow = (n: Npc): number => {
+    const base = n.fight?.[ARMOUR] ?? 0
+    if (!n.sunder || n.sunder.until <= clock) return base
+    return Math.max(0, Math.round(base * (1 - n.sunder.pct / 100)))
+  }
 
   /**
    * Going through a body's pockets.
@@ -5940,12 +6055,21 @@ async function main() {
       // `creature_equip_template` and `skinning_loot_template` back out.
       arm: n.arm, dual: n.dual,
       hide: !!n.hide, looted: n.looted, skinned: n.skinned, dead: !!n.dead,
+      sunder: n.sunder, taunted: n.taunted, angry: n.angry,
       stance: aggressive(n.fight) ? 'enemy'
         : fightable(n.fight) ? 'quarry' : 'friend',
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   /** The trades and how far along they are — for the check that skins one. */
   ;(window as unknown as { __trades: () => unknown }).__trades = () => ({ ...you.trades })
+  /**
+   * The bits of the player a check reads back: rage, the stance he is
+   * standing in, and what the stance is worth.
+   */
+  ;(window as unknown as { __you: () => unknown }).__you = () => ({
+    level: you.level, hp: you.hp, rage: Math.round(you.rage),
+    stance: you.stance, target: you.target?.kind ?? null, ...stanceOf(),
+  })
   /** The errands, and how far along they are — for the check that walks one. */
   /**
    * Whether a roof is drawn at this point, for the check on the cutaway.
