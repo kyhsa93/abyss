@@ -58,6 +58,15 @@ type Doodad = {
   /** Which of the kind's pictures, decided by the model and not the place. */
   v?: number
   /**
+   * Where you go in, in world yards.
+   *
+   * A WMO's own `MOPT`/`MOPV` portals, filtered by the bake to the ones a man
+   * can walk through and to the ground storey.  `doorways` had found these
+   * since it was written and the bake used them to pick which floor was the
+   * ground one and threw the coordinates away.
+   */
+  d?: [number, number][]
+  /**
    * Which building placement this is, or which one put this piece down.
    *
    * A building's furniture is only hidden from outside once the scene knows
@@ -1500,6 +1509,8 @@ async function main() {
         area: d.a ?? 0,
         /** The bake's number for this placement, which its furniture cites. */
         house: d.h ?? 0,
+        /** Where you go in — see `d` on the doodad. */
+        doors: (d.d ?? []) as [number, number][],
         plan,
         rooms: rooms.length ? rooms : [{
           x: d.x, y: d.y, l: d.bl!, w: d.bw!,
@@ -1685,9 +1696,38 @@ async function main() {
    * they are the world saying no.
    */
   function footing(wx: number, wy: number) {
+    // Indoors the world is the room, and nothing else is anywhere.  A wall is
+    // the plan's own stone; off the plan is not a place.
+    if (indoors) {
+      const p = indoors.plan
+      if (!p) return false
+      const n = planCell(p, indoors, wx, wy)
+      return !(bitAt(p.floor, n) || atDoor(indoors, wx, wy)) || npcAt(wx, wy, null)
+    }
+    // Outdoors a building is closed: a roof and a wall all the way round,
+    // with the doors the client drew as the only way through.  It used to be
+    // open wherever the wall mask happened not to be, which is how you walked
+    // into the abbey by leaning on it.
     return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
       || openHole(wx, wy))
-      || solidAt(wx, wy) || wallAt(wx, wy) || npcAt(wx, wy, null)
+      || solidAt(wx, wy) || shutOut(wx, wy) || npcAt(wx, wy, null)
+  }
+  /** How near a door has to be to be the door you are standing in. */
+  const DOORSTEP = 1.6
+  const atDoor = (b: (typeof buildings)[number], wx: number, wy: number) =>
+    b.doors.some(([dx, dy]) =>
+      Math.abs(dx - wx) < DOORSTEP && Math.abs(dy - wy) < DOORSTEP)
+  /**
+   * A building, from outside, with its doorways left open.
+   *
+   * The whole footprint and not just the wall: a closed building has no
+   * inside from out here, so its floor stops you the same as its stone does.
+   * What does not stop you is a doorstep, which is where the scene changes.
+   */
+  const shutOut = (wx: number, wy: number) => {
+    const b = inRoom(wx, wy)
+    if (!b) return wallAt(wx, wy)
+    return !atDoor(b, wx, wy)
   }
 
   /**
@@ -3797,6 +3837,34 @@ async function main() {
     'isw',  // 1110  everything but SE
     null,   // 1111
   ]
+  /**
+   * The room you are in, or `null` for the world outside.
+   *
+   * **A building is closed from outside.**  What stood here before was the
+   * roof coming off whichever building you were standing in, which was the
+   * right call at the time and is the wrong one in the end: a room seen from
+   * above is not a room — the walls become lines, the ceiling and the door
+   * frames and the windows are gone, and the abbey is 45 yards across so a
+   * building fills half the glass with a handful of things in it.  Two open
+   * bugs came straight out of that transom view and both stop existing here:
+   * the inn's floor drawn as a pit, and a roof lifted off an empty field.
+   *
+   * Pokémon's answer, and the one 2D actually uses: the world is two kinds of
+   * scene, fields and rooms, and a door is the seam.  Everything it needs was
+   * already baked — the plan, the walls, the floor, the furniture, the
+   * doors — and the only thing missing was the decision.
+   */
+  let indoors: (typeof buildings)[number] | null = null
+  /**
+   * Whether the player is still standing in the doorway he arrived by.
+   *
+   * A door, not *the* door: the abbey has eight and two of them are five
+   * yards apart, so remembering which one he came through sent him straight
+   * back out the moment the step inside landed him on its neighbour.  What
+   * matters is only that he has not yet left the threshold.
+   */
+  let onStep = false
+
   const SHADES = 21
   let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
   function tintedGround() {
@@ -3809,6 +3877,8 @@ async function main() {
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
       ...PAVED_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
+      // Indoors, which is its own scene and its own set.
+      'in_floor', 'in_floor2', 'in_rug', 'in_wall',
       ...edges]
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
@@ -3841,6 +3911,73 @@ async function main() {
     })
     baked = { key, px, c, at }
     return baked
+  }
+
+  /**
+   * The room, drawn from the building's own plan.
+   *
+   * No terrain at all: a floor bit is a flagstone, a wall bit is slate, and
+   * everything else is the dark.  The plan was rasterised at `PLAN_CELL` —
+   * 32/24 of a yard, which is exactly one ground tile — precisely so that this
+   * could be one cell to one tile with nothing to alias, and until now nothing
+   * read it that way.
+   */
+  function drawRoom(b: (typeof buildings)[number], ground: ReturnType<typeof tintedGround>, px: number) {
+    const p = b.plan
+    if (!p) return
+    const wide = px
+    // The plan's own cells, walked in model space and put on the glass one at
+    // a time.  Cheaper than walking the screen: the abbey is 750 by 393 cells
+    // and a room is a few hundred of them.
+    const half = p.s / 2
+    for (let i = 0; i < p.w; i++) {
+      for (let j = 0; j < p.h; j++) {
+        const n = i * p.h + j
+        // A cell the silhouette missed but its neighbours did not is a hole
+        // in the flood fill and not a hole in the floor.  Left as it was, the
+        // nave came out speckled with black.
+        const inside = bitAt(p.bits, n)
+          || (i > 0 && j > 0 && i < p.w - 1 && j < p.h - 1
+            && bitAt(p.bits, n - p.h) && bitAt(p.bits, n + p.h)
+            && bitAt(p.bits, n - 1) && bitAt(p.bits, n + 1))
+        if (!inside) continue
+        // A room's wall is its **perimeter**, and neither of the two masks
+        // says that.  `floor` is where a man can stand, which inside a
+        // cathedral is patchy by nature — pews, steps, the pillars down the
+        // nave — so a floor drawn from it came out as scattered flagstones
+        // with holes between them.  `solid` is everything he cannot stand on,
+        // which inside the same cathedral is most of it, so a wall drawn from
+        // it came out as rubble.
+        //
+        // Seen from inside, the wall is where the building stops: an outline
+        // cell with a neighbour outside the outline.  Everything else is
+        // floor, and what is standing on it is furniture, which is drawn as
+        // furniture.
+        const out = (m: number) => !bitAt(p.bits, m)
+        const isWall = i === 0 || j === 0 || i === p.w - 1 || j === p.h - 1
+          || ((out(n - p.h) || out(n + p.h) || out(n - 1) || out(n + 1))
+            && !(out(n - p.h) && out(n + p.h))
+            && !(out(n - 1) && out(n + 1)))
+        // Model space back to the map: the inverse of `planCell`.
+        const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
+        const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
+        const wx = b.x + u, wy = b.y - v
+        const cx = screenX(wx, wy), cy = screenY(wx, wy)
+        if (cx < -wide || cx > canvas.width + wide
+          || cy < -wide || cy > canvas.height + wide) continue
+        const id = isWall ? 'in_wall'
+          : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor')
+        const at = ground.at[id]
+        if (at === undefined) continue
+        // Lit flat.  A room has no hillside and no sun in it, so the shading
+        // that makes a field read as ground would only make a floor read as
+        // a dented one.  The middle step is the unshaded one.
+        ctx.drawImage(ground.c, at, ((SHADES - 1) >> 1) * px, px, px,
+          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+        tilesDrawn++
+      }
+    }
+    void half
   }
 
   /**
@@ -3988,8 +4125,79 @@ async function main() {
         if (stuck || !footing(hero.x, hero.y + dy)) hero.y += dy
       }
       hero.dir = facing(mx, my)
+      throughTheDoor()
     }
     hero.t += step
+  }
+
+  /**
+   * The seam between the two kinds of scene.
+   *
+   * Walking on to a doorstep changes which world is drawn, and that is the
+   * whole of it: no menu, no prompt, no loading.  A door is a place, and
+   * standing in it is the act.
+   *
+   * The one thing that needs care is not walking straight back out.  A
+   * doorstep is 1.6 yards across and a step is a third of a yard, so a player
+   * crossing one is on it for five steps; the door he came through is
+   * remembered and only lets him back out once he has left it.
+   */
+  function throughTheDoor() {
+    const near = (b: (typeof buildings)[number]) => b.doors.find(([dx, dy]) =>
+      Math.abs(dx - hero.x) < DOORSTEP && Math.abs(dy - hero.y) < DOORSTEP)
+    if (indoors) {
+      const door = near(indoors)
+      if (!door) { onStep = false; return }
+      if (onStep) return
+      step(indoors, door, 1)
+      indoors = null
+      ui.log('밖으로 나왔다.', 'note')
+      return
+    }
+    // Asked of the doors and **not** of `inRoom`, which was the first
+    // attempt and cannot work: a doorway is an opening, so the outline bit at
+    // a door is nought and the building says you are not in it.  That is the
+    // whole reason the abbey's eight doors come out open in the bake's own
+    // check, and it is why walking at one entered nothing.
+    let b: (typeof buildings)[number] | null = null
+    let door: [number, number] | undefined
+    for (const x of buildings) {
+      if (!x.plan || !x.doors.length) continue
+      const d = near(x)
+      if (d) { b = x; door = d; break }
+    }
+    if (!b || !door) return
+    indoors = b
+    onStep = true
+    step(b, door, -1)
+    ui.log(`${zoneOf(b.area || areaOf(hero.x, hero.y))} 안으로 들어갔다.`, 'note')
+  }
+  /**
+   * Over the threshold, one way or the other.
+   *
+   * Which way is *in* comes from the plan's own floor bits and not from the
+   * line out of the building's middle, which was the first attempt and does
+   * not work: a placement's box is the grounds and not the room — the abbey's
+   * is 91 yards square — so its centre is nowhere near the nave, and stepping
+   * "inward" from a door walked out of the side of the building.  Eight
+   * directions at three yards, and the first one standing on floor wins.
+   */
+  function step(b: (typeof buildings)[number], door: [number, number], way: number) {
+    const p = b.plan
+    if (!p) return
+    for (const r of [3, 4.5, 6]) {
+      for (let a = 0; a < 8; a++) {
+        const t = (a / 8) * Math.PI * 2
+        const x = door[0] + Math.cos(t) * r, y = door[1] + Math.sin(t) * r
+        const on = bitAt(p.floor, planCell(p, b, x, y))
+        // Going in wants floor; coming out wants none of it, and ground that
+        // will hold a man.
+        if (way < 0 ? on : (!on && !inRoom(x, y) && !blocked(x, y))) {
+          placeHero(x, y)
+          return
+        }
+      }
+    }
   }
 
   function frame(now: number) {
@@ -4135,10 +4343,16 @@ async function main() {
     const ground = tintedGround()
     const px = ground.px
     // Which building the player is standing in, asked once a frame.
-    const under = inRoom(hero.x, hero.y)
+    //
+    // `indoors` is the room he has *walked into*, which is a different
+    // question and the one that decides which world is drawn.  A building is
+    // closed from outside now: it is a roof with a door in it, and the inside
+    // is its own scene.
+    const under = indoors
     tilesDrawn = 0
     edged = 0
-    for (let ti = xLo; ti <= xHi; ti++) {
+    if (indoors) { drawRoom(indoors, ground, px); }
+    else for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
         const wx = ti * T, wy = tj * T
         // The bounding box of a diamond is twice the diamond, so half of what
@@ -4312,6 +4526,30 @@ async function main() {
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
 
+    // --- the doors, on the roofs they are cut into ----------------------
+    //
+    // A closed building needs somewhere visible to go in, or it is a wall
+    // with a secret.  The client drew the doors and the bake now carries
+    // them; this is the only thing that says so from out here.  Drawn on the
+    // ground pass rather than among the scenery because a doorway is a hole
+    // in a roof and not a thing standing on it.
+    if (!indoors) {
+      for (const b of buildings) {
+        if (!b.doors.length) continue
+        for (const [dx, dy] of b.doors) {
+          const X = screenX(dx, dy), Y = screenY(dx, dy)
+          if (X < -40 || X > canvas.width + 40 || Y < -40 || Y > canvas.height + 40) continue
+          const w = Math.max(6, 2.2 * PPY * zoom), h = Math.max(5, 1.6 * PPY * zoom)
+          ctx.fillStyle = '#1a140e'
+          ctx.fillRect(Math.round(X - w / 2), Math.round(Y - h / 2), Math.round(w), Math.round(h))
+          ctx.strokeStyle = '#c9a86a'
+          ctx.lineWidth = 1
+          ctx.strokeRect(Math.round(X - w / 2) + 0.5, Math.round(Y - h / 2) + 0.5,
+            Math.round(w) - 1, Math.round(h) - 1)
+        }
+      }
+    }
+
     // --- things that stand up, back to front ---
     const margin = 120
     drawn = 0
@@ -4437,8 +4675,12 @@ async function main() {
       // they were drawn on top of it — a row of monks standing on the tiles,
       // which reads as a crowd on the roof rather than a crowd indoors.  The
       // roof is drawn for the same reason: you are not in there.
+      // Indoors the room is the world, so everybody outside it is out of
+      // sight; outdoors it is the other way round.  Before, an outdoor scene
+      // hid whoever was under a roof and an indoor one showed the whole
+      // forest through the walls.
       const roof = inRoom(n.x, n.y)
-      if (roof && roof !== under) continue
+      if (indoors ? roof !== indoors : !!roof) continue
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
     }
     npcsDrawn = actors.length
@@ -4457,7 +4699,10 @@ async function main() {
       for (let bj = by0; bj <= by1; bj++) {
         const b = buckets.get(bi * 100000 + bj)
         if (b) for (const o of b) {
-          if (o.in && o.in !== under) continue
+          // The same two-way test the people get: a room holds its own
+          // furniture and nothing else, and a field holds everything that is
+          // not in a room.
+          if (indoors ? o.in !== indoors : !!o.in) continue
           if (o.node && !o.node.up) continue
           // Whether it is on the glass, asked *here* rather than after the
           // sort.  A bucket is 40 yards and the widest view is 350, so the
@@ -4521,7 +4766,7 @@ async function main() {
     // a blue keeps the greens green and takes the light out of them, which is
     // what evening does.  Night is not black: nothing in this game happens
     // after dark that you would want to be unable to see.
-    if (light.tint < 1) {
+    if (light.tint < 1 && !indoors) {
       const k = 1 - light.tint
       ctx.globalCompositeOperation = 'multiply'
       ctx.fillStyle = `rgb(${Math.round(255 - 150 * k)},`
@@ -4541,8 +4786,11 @@ async function main() {
     //
     // They fade in as the light goes, which is why this lives inside the
     // tint: `1 - tint` is exactly how dark it is.
-    if (light.tint >= 0.55) sparks = 0
-    if (light.tint < 0.55) {
+    // And no sky at all under a roof: rain does not fall indoors and the sun
+    // does not set in a nave.
+    if (indoors) { sparks = 0 }
+    else if (light.tint >= 0.55) sparks = 0
+    if (light.tint < 0.55 && !indoors) {
       const glow = Math.min(1, (0.55 - light.tint) / 0.35)
       ctx.globalCompositeOperation = 'lighter'
       sparks = 0
@@ -4583,7 +4831,7 @@ async function main() {
     // so it neither flickers nor touches the stream of chance: the drops are
     // a lattice sliding down the glass, which is what rain looks like at this
     // distance and costs one path.
-    if (sky !== CLEAR) {
+    if (sky !== CLEAR && !indoors) {
       const hard = sky === STORM ? 1 : sky === SNOW ? 0.45 : 0.7
       const t = clock * (sky === SNOW ? 40 : 900)
       const gap = sky === SNOW ? 34 : 22
@@ -5026,6 +5274,39 @@ async function main() {
    */
   /** How much of the world the slice's own edge shut out. */
   /** How much of the last frame's ground was an edge rather than a fill. */
+  /** Which room the player is in, and how the doors are placed. */
+  ;(window as unknown as { __room: () => unknown }).__room = () => ({
+    inside: indoors ? indoors.k : null,
+    doors: indoors ? indoors.doors : (inRoom(hero.x, hero.y)?.doors ?? []),
+    at: [Math.round(hero.x), Math.round(hero.y)],
+    /** Buildings with a plan, and how many of them you can get into. */
+    shut: buildings.filter((b) => b.plan).length,
+    open: buildings.filter((b) => b.plan && b.doors.length).length,
+    /**
+     * Every door, and whether the ground just outside it can be walked to.
+     * A door that opens on to a cliff is a building nobody can enter.
+     */
+    reachable: buildings.filter((b) => b.doors.length).map((b) => {
+      const ok = b.doors.filter(([dx, dy]) => {
+        for (let r = 2.5; r <= 6; r += 1.5) {
+          for (let a = 0; a < 12; a++) {
+            const t = (a / 12) * Math.PI * 2
+            const x = dx + Math.cos(t) * r, y = dy + Math.sin(t) * r
+            // Not `inRoom` — a door in the middle of a big footprint has
+            // the same building on both sides of it, and the abbey's
+            // outline is its grounds.  What matters is that there is
+            // *standable ground* out there.
+            if (!blocked(x, y)) return true
+          }
+        }
+        return false
+      }).length
+      return [b.k, ok, b.doors.length]
+    }),
+    houses: buildings.length,
+    withDoors: buildings.filter((b) => b.doors.length).length,
+    planned: buildings.filter((b) => b.plan).length,
+  })
   ;(window as unknown as { __edges: () => unknown }).__edges = () => ({
     tiles: tilesDrawn, edged,
   })

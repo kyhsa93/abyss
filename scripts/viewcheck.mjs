@@ -1074,6 +1074,34 @@ check('a boundary between two grounds is drawn as one',
 console.log(`      (${(100 * seam.edged / seam.tiles).toFixed(0)}% of this view `
   + 'is a boundary between two grounds)')
 
+// 10j. A building is closed, and a door is how you get in.
+//
+// The roof used to come off whichever building you were standing in.  That
+// was right at the time and wrong in the end: a room seen from above is not a
+// room — the walls become lines, the ceiling and the doorframes and the
+// windows are gone — and the two open bugs that came out of it were the inn's
+// floor drawn as a pit and a roof lifted off an empty field.
+//
+// So the world is two kinds of scene and a door is the seam, which is the
+// answer 2D actually uses.  Everything it needed was already baked and the
+// only missing piece was the decision: `doorways` had been finding the
+// portals since it was written, and the bake used them to pick which storey
+// was the ground one and **threw the coordinates away**.
+const inside = await p.evaluate(() => window.__room())
+check('the buildings with a plan have doors', inside.open >= inside.shut * 0.5,
+  `${inside.open} of ${inside.shut} can be walked into`)
+// A door with nothing standable outside it is a building nobody can enter.
+// Two of the twenty-five are towers on their own crags, where every square
+// within six yards of the door is either the tower or a cliff — which is a
+// fact about where the client put them rather than a fault here, so it is
+// counted rather than waved away.
+const sealed = inside.reachable.filter(([, ok]) => ok === 0)
+check('and the ground outside almost every door can be walked to',
+  sealed.length <= inside.reachable.length * 0.1,
+  `${sealed.length} of ${inside.reachable.length} sealed: ${sealed.map(([k]) => k).join(', ')}`)
+console.log(`      (${inside.reachable.reduce((a, r) => a + r[2], 0)} doors on `
+  + `${inside.reachable.length} buildings)`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

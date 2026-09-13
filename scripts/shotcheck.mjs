@@ -34,8 +34,13 @@ const TOLERANCE = 0.06
 /** Where to stand, and what each one is for. */
 const SPOTS = [
   ['valley', -8949, -132, 1, 'the human start, which is where everybody begins'],
-  ['abbey', -8897, -178, 0.5, 'Northshire abbey, the one building with an inside'],
-  ['goldshire', -9462, 16, 1, 'Goldshire, which is roads and roofs'],
+  // Outside them both, which is a change of subject and the point of it.  A
+  // building is closed now — a roof with a door cut into it — so a spot in
+  // the middle of one guards a picture of a roof.  Both were: the abbey's
+  // moved 69% and Goldshire's 79% the day the buildings shut, which is the
+  // check doing its job on a change that was meant.
+  ['abbey', -8889, -196, 0.5, 'Northshire abbey from the path, roof and door'],
+  ['goldshire', -9453, 12, 1, 'Goldshire, which is roads and roofs'],
   ['river', -9100, -350, 0.8, 'water, a crossing and a bank'],
   ['wide', -8983, -316, 0.3, 'the valley from far enough to see its shape'],
   ['hills', -8700, -900, 0.7, 'bare rock, where the slope decides the ground'],

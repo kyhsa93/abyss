@@ -102,6 +102,8 @@ SHEETS = {
     'dirt.png': 'base',
     'cement.png': 'base',
     'watergrass.png': 'base',
+    'castlefloors.png': 'base',
+    'castlewalls.png': 'base',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -174,6 +176,14 @@ GROUND = [
     ('t_shore_isw',   'watergrass.png',   64,   0, 32, 32, 'sharm_base'),
     ('t_shore_ine',   'watergrass.png',   32,  32, 32, 32, 'sharm_base'),
     ('t_shore_inw',   'watergrass.png',   64,  32, 32, 32, 'sharm_base'),
+    # Indoors, which until now did not exist as a place.  A building was cut
+    # open from above and its inside was drawn with the *outdoor* set — paving
+    # for a floor and a cliff face for a wall — because there was no other
+    # set.  A flagstone floor and a slate wall are what a room is made of.
+    ('in_floor',   'castlefloors.png',        192, 192, 32, 32, 'sharm_base'),
+    ('in_floor2',  'castlefloors.png',        224, 192, 32, 32, 'sharm_base'),
+    ('in_rug',     'castlefloors.png',         64,  64, 32, 32, 'sharm_base'),
+    ('in_wall',    'castlewalls.png',          32,  32, 32, 32, 'sharm_base'),
     ('grass',      'Terrain and Outside.png',   0, 352, 32, 32, 'sharm'),
     ('grass2',     'Terrain and Outside.png',  32, 352, 32, 32, 'sharm'),
     ('grass3',     'Terrain and Outside.png',  64, 352, 32, 32, 'sharm'),

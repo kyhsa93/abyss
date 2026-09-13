@@ -1349,7 +1349,7 @@ def read_tile(client, tx, ty):
             placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
                            zlib.crc32(path.upper().encode()) & 0xffff,
                            round(tall * sc, 2), round(wide * sc, 2),
-                           [], 0, 0.0, 0, 0))
+                           [], 0, 0.0, 0, 0, []))
         else:
             skipped += 1
     for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
@@ -1369,6 +1369,23 @@ def read_tile(client, tx, ty):
             # with bookshelves standing in the road.  A building's contents
             # are the building's; the roof coming off is what reveals them.
             f_in = wmo_area(client, name, nset)
+            # The doors, in world yards.
+            #
+            # `doorways` has found them since it was written — a WMO's own
+            # `MOPT`/`MOPV` portals, filtered to the ones a man can walk
+            # through — and the bake used the answer to pick which storey is
+            # the ground one and then **threw the coordinates away**.  Fourteen
+            # in Northshire's abbey, eight on the ground floor, and not one of
+            # them left this file.  A building you can only enter by walking at
+            # its wall until the mask lets you through is a building with no
+            # door, however many the client drew.
+            #
+            # Ground storey only: an opening on the first floor is a window
+            # from out here.
+            ways = doorways(client, name)
+            sill = min((d[0] for d in ways), default=0.0)
+            doors = [[round(v, 2) for v in to_world(pos, ry, lx, ly)]
+                     for s, lx, ly in ways if abs(s - sill) <= BODY]
             # And a number for *this placement*, so its furniture can say
             # whose it is.
             #
@@ -1395,7 +1412,7 @@ def read_tile(client, tx, ty):
                                0.0, 0.0, 0.0,
                                zlib.crc32(f_path.upper().encode()) & 0xffff,
                                round(f_tall * sc, 2), round(f_wide * sc, 2),
-                               [], 0, 0.0, f_in, house))
+                               [], 0, 0.0, f_in, house, []))
             # An opaque number for "the same model", so an instance that could
             # not be solved can borrow from one that could.  A number and not
             # the path: nothing from a client's file table is allowed out of
@@ -1406,7 +1423,7 @@ def read_tile(client, tx, ty):
                            round(max(half_l or 0.0, half_w or 0.0), 2),
                            rooms_of(client, name, pos, ry, world_box),
                            plan_key(client, name, key), round(ry + 270, 1),
-                           f_in, house))
+                           f_in, house, doors))
     return cells, placed, water, painted, skipped, src, shut, gap, whole
 
 
@@ -1485,7 +1502,7 @@ def bake(client, bounds, out, acore=None):
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
-                    tall, wide, rooms, plan, mr, inside, house in dd:
+                    tall, wide, rooms, plan, mr, inside, house, doors in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -1503,7 +1520,8 @@ def bake(client, bounds, out, acore=None):
                 # the front of it to be unique across the slice.
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
                                 key, tall, wide, rooms, plan, mr, inside,
-                                (ty * 64 + tx) * 4096 + house if house else 0])
+                                (ty * 64 + tx) * 4096 + house if house else 0,
+                                doors])
                 if inside:
                     indoor_ids.add(inside)
             for (iy_, ix_, sx_, sy_), level in wet.items():
@@ -1718,11 +1736,13 @@ def bake(client, bounds, out, acore=None):
                          # used to work out whose they were from where they
                          # stood — which fails for anything against a wall.
                          **({'h': house} if house else {}),
+                         # Where you go in, in world yards — see `doorways`.
+                         **({'d': doors} if doors else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
                     for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide,
-                    rooms, plan, mr, inside, house in doodads],
+                    rooms, plan, mr, inside, house, doors in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)
