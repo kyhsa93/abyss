@@ -26,6 +26,8 @@ export type Who = {
   critRatio: Record<string, number>
   /** `[word, min damage, max damage, swing ms, armour, slot]`. */
   kit: (string | number)[][]
+  /** Which graveyards each zone sends a dead man to, `[x, y, z]` each. */
+  graveyards?: Record<string, number[][]>
 }
 
 /**

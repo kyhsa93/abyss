@@ -22,12 +22,14 @@
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
 import { parries } from './talk'
+import { between, roll, seed, reseed } from './roll'
+import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save'
 import { threatFrom } from './fight'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
 import {
-  book, done as errandDone, hand, holding, killed, mark, offers,
+  book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, wants, type Errand,
 } from './quest'
 import {
@@ -1639,7 +1641,7 @@ async function main() {
     const members = n.pool ? byPool.get(n.pool) : null
     if (!members) { n.up = true; return }
     const free = members.filter((m) => !m.up && m.due <= 0)
-    const pick = free.length ? free[Math.floor(Math.random() * free.length)]! : n
+    const pick = free.length ? free[Math.floor(roll() * free.length)]! : n
     pick.up = true
   }
 
@@ -1970,7 +1972,7 @@ async function main() {
     // And whatever anybody asked you to do about it.  The entry and not the
     // kind: all three of Northshire's kobolds are `kobold` and the chain wants
     // eight of each in turn.
-    for (const what of killed(log, foe.entry, Math.random)) {
+    for (const what of killed(log, foe.entry, roll)) {
       const [sort, id, at] = what.split(':')
       const q = log.all.get(Number(id))
       const h = holding(log, Number(id))
@@ -2010,6 +2012,26 @@ async function main() {
         ui.log(`배울 수 있는 것이 생겼다. (${spells.length - had}가지)`, 'gain')
     }
   }
+  /**
+   * The nearest graveyard that takes this zone's dead.
+   *
+   * The zone's own list first, because that is the rule the server uses; if
+   * the zone has none — the slice reaches corners of four of them — the
+   * nearest on the map, and failing everything, where you started.
+   */
+  const graveyardFor = (x: number, y: number): [number, number] => {
+    const all = who?.graveyards ?? {}
+    const here = areaOf(x, y)
+    const mine = all[String(here)] ?? all[String(inside(here))] ?? []
+    const pool = mine.length ? mine : Object.values(all).flat()
+    let best: number[] | null = null, bd = Infinity
+    for (const g of pool) {
+      const d = (g[0]! - x) ** 2 + (g[1]! - y) ** 2
+      if (d < bd) { bd = d; best = g }
+    }
+    return best ? [best[0]!, best[1]!] : [START[0], START[1]]
+  }
+
   /** A number that floats off somebody and fades. */
   type Mark = { x: number; y: number; text: string; at: number; mine: boolean }
   const marks: Mark[] = []
@@ -2045,10 +2067,27 @@ async function main() {
 
   function fighting() {
     if (you.died) {
-      // Dead is dead for a moment, and then you are back where you started.
+      // Dead is dead for a moment, and then you wake up at a graveyard.
+      //
+      // Not where you started and not where you fell.  `game_graveyard` and
+      // `graveyard_zone` say where each zone sends you — Elwynn has four, one
+      // beside the abbey and one in Goldshire — and the walk back from it is
+      // the whole cost of dying at these levels.  That is not a simplification:
+      // `Player::ResurrectPlayer` (Player.cpp:4605) says in its own comment
+      // that characters from level 1 to 10 are not affected by resurrection
+      // sickness, so charging anything else here would be inventing a rule.
+      //
+      // Before this you stood up four seconds later on the spot with full
+      // health, which meant there was never a reason to run away — and half of
+      // "should I pull this" is the other half of that decision.
       if (clock - you.died > 4) {
-        you.died = 0; you.hp = you.max; you.target = null
-        hero.x = START[0]; hero.y = START[1]
+        const [gx, gy] = graveyardFor(hero.x, hero.y)
+        you.died = 0; you.target = null
+        you.hp = Math.max(1, Math.round(you.max / 2))
+        you.rage = 0
+        hero.x = gx; hero.y = gy
+        camX = gx; camY = gy
+        ui.log('묘지에서 깨어났다.', 'note')
       }
       return
     }
@@ -2119,8 +2158,8 @@ async function main() {
         { level: n.level, crit: CREATURE_CRIT },
         { level: you.level, dodge: dodgeChance(you.level, mine, who!),
           parry: PARRY_WITH_WEAPON, block: 0, player: true },
-        Math.random() * 10000)
-      const raw = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
+        roll() * 10000)
+      const raw = swing(n.fight, n.level, you.line[ARMOUR]!, roll())
       const hit = damageAfter(fate, raw, n.level - you.level)
       you.hp -= hit
       // Taking a blow pays too, at a third of what landing one does.
@@ -2167,9 +2206,9 @@ async function main() {
       { level: you.level, crit: critChance(you.level, mine, who!), humanoid: true },
       { level: foe.level, dodge: CREATURE_DODGE, block: CREATURE_BLOCK,
         parry: parries(foe.kind) ? CREATURE_PARRY_HUMANOID : 0 },
-      Math.random() * 10000)
+      roll() * 10000)
     const raw = Math.round(
-      swing(you.line, foe.level, foe.fight[ARMOUR]!, Math.random())
+      swing(you.line, foe.level, foe.fight[ARMOUR]!, roll())
       + shout + you.extra)
     const hit = damageAfter(fate, raw, foe.level - you.level)
     you.extra = 0
@@ -2215,13 +2254,13 @@ async function main() {
     if (!n.haul) return '아무것도 없다'
     const [lo, hi, items] = n.haul
     const got: string[] = []
-    const copper = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1))
+    const copper = between(lo, hi)
     if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
     for (const row of items) {
       const [idx, chance, clo, chi, sell] = row as number[]
-      if (Math.random() * 100 >= chance!) continue
+      if (roll() * 100 >= chance!) continue
       const word = GOODS[idx!] ?? 'oddment'
-      const many = clo! + Math.floor(Math.random() * Math.max(1, chi! - clo! + 1))
+      const many = between(clo!, chi!)
       // The price travels with the thing.  A bag that held only counts could
       // not be sold: `weapon` is worth what that creature's weapon was worth,
       // and the word on its own says nothing about that.
@@ -2265,8 +2304,8 @@ async function main() {
     const got: string[] = []
     for (const row of n.haul) {
       const [word, chance, lo, hi, sell] = row as [string, number, number, number, number]
-      if (Math.random() * 100 >= chance) continue
-      const many = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1))
+      if (roll() * 100 >= chance) continue
+      const many = between(lo, hi)
       const had = you.bag[word] ?? [0, 0]
       you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
       got.push(`${goodsOf(word)} ${many}`)
@@ -2370,6 +2409,54 @@ async function main() {
     .then((r) => (r.ok ? r.json() as Promise<{ quests: Errand[] }> : null))
     .catch(() => null)
   const log = book(errands?.quests ?? [])
+
+  /**
+   * The character, written down, and put back when the tab opens again.
+   *
+   * Only what cannot be worked out again: level, experience, where he is
+   * standing, what is in the bag, how far along each errand is, and **where
+   * the stream of chance has got to**.  Maximum health is not saved because it
+   * is stamina, and stamina is the level.
+   *
+   * The world's own hash travels with it.  A save made against a different
+   * bake may hold item ids that now mean something else, and the honest thing
+   * is to say so rather than to load it and see.
+   */
+  const worldHash = await fetch('./manifest.json')
+    .then((r) => (r.ok ? r.json() as Promise<{ files?: Record<string, string> }> : null))
+    .then((m) => m?.files?.['public/world/npcs.json'] ?? '')
+    .catch(() => '')
+  const snapshot = (): Save => ({
+    version: SAVE_VERSION, world: worldHash, at: Date.now(),
+    hero: { x: hero.x, y: hero.y, dir: hero.dir },
+    you: {
+      level: you.level, xp: you.xp, hp: you.hp, rage: you.rage,
+      purse: you.purse, kills: you.kills,
+      bag: you.bag, trades: you.trades, cools: you.cools,
+    },
+    seed: seed(),
+    quests: {
+      held: log.held, done: [...log.done],
+    },
+  })
+  const restore = (save: Save) => {
+    hero.x = save.hero.x; hero.y = save.hero.y; hero.dir = save.hero.dir
+    camX = hero.x; camY = hero.y
+    you.level = Math.max(1, save.you.level)
+    you.line = lineFor(you.level)
+    you.max = you.line[HP]!
+    you.hp = Math.min(you.max, save.you.hp || you.max)
+    you.xp = save.you.xp; you.rage = save.you.rage
+    you.purse = save.you.purse; you.kills = save.you.kills
+    you.bag = save.you.bag ?? {}
+    you.trades = save.you.trades ?? you.trades
+    you.cools = save.you.cools ?? {}
+    spells = known(you.level)
+    reseed(save.seed >>> 0)
+    const q = save.quests as { held?: Held[]; done?: number[] } | undefined
+    log.held = q?.held ?? []
+    log.done = new Set(q?.done ?? [])
+  }
 
   const layout = await fetch('./world/layout.json')
     .then((r) => (r.ok ? r.json() as Promise<Layout> : null))
@@ -2873,6 +2960,9 @@ async function main() {
     reindex()
     fighting()
     restocking()
+    // Every fifteen seconds, which is cheap and means a crash costs a walk
+    // rather than an afternoon.
+    if (clock - saved > 15) { saved = clock; keep() }
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
@@ -3545,6 +3635,36 @@ async function main() {
     ;(window as unknown as { __ready: boolean }).__ready = true
     requestAnimationFrame(frame)
   }
+  /**
+   * Put the character back, and keep putting him down.
+   *
+   * Loaded before the first frame so nothing is drawn at the wrong place, and
+   * written every few seconds and on the way out — `visibilitychange` rather
+   * than `beforeunload`, because on a phone the tab is very often not closed
+   * so much as left.
+   */
+  const loaded = await readSave().catch(() => null)
+  if (loaded) {
+    const fresh = migrate(loaded)
+    if (!fresh) {
+      ui.log('예전 저장을 읽을 수 없다. 처음부터 시작한다.', 'note')
+      await wipeSave().catch(() => {})
+    } else if (fresh.world && worldHash && fresh.world !== worldHash) {
+      // A different bake: the ids in the save may point at other things now.
+      ui.log('세계가 다시 구워졌다. 저장을 버리고 처음부터 시작한다.', 'note')
+      await wipeSave().catch(() => {})
+    } else {
+      restore(fresh)
+      ui.log(`${you.level}레벨로 이어서 시작한다.`, 'note')
+    }
+  }
+  let saved = 0
+  const keep = () => { writeSave(snapshot()).catch(() => {}) }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') keep()
+  })
+  window.addEventListener('pagehide', keep)
+
   requestAnimationFrame(frame)
 
   /**
@@ -3745,7 +3865,7 @@ async function main() {
           humanoid: true },
         { level: against, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
           block: CREATURE_BLOCK },
-        Math.random() * 10000)
+        roll() * 10000)
       const word = OUTCOME_WORD[fate] ?? 'hit'
       out[word] = (out[word] ?? 0) + 1
     }
@@ -3787,9 +3907,9 @@ async function main() {
               humanoid: true },
             { level, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
               block: CREATURE_BLOCK },
-            Math.random() * 10000)
+            roll() * 10000)
           foes[target]! -= damageAfter(fate,
-            swing(line, level, foe[ARMOUR]!, Math.random()), level - lv)
+            swing(line, level, foe[ARMOUR]!, roll()), level - lv)
         }
         // Theirs, all of them.
         for (let i = 0; i < many; i++) {
@@ -3799,9 +3919,9 @@ async function main() {
             { level, crit: CREATURE_CRIT },
             { level: lv, dodge: dodgeChance(lv, mine, who!),
               parry: PARRY_WITH_WEAPON, block: 0, player: true },
-            Math.random() * 10000)
+            roll() * 10000)
           hp -= damageAfter(fate,
-            swing(foe, lv, line[ARMOUR]!, Math.random()), level - lv)
+            swing(foe, lv, line[ARMOUR]!, roll()), level - lv)
         }
         ticks += 1
       }
@@ -3809,6 +3929,21 @@ async function main() {
     }
     return { level, many, runs, mine: lv, won, survived: won / runs,
       seconds: (ticks / runs) * 0.1 }
+  }
+  /** Kill the player outright, for the check that dying costs a walk. */
+  ;(window as unknown as { __die: () => unknown }).__die = () => {
+    const was = { x: hero.x, y: hero.y, hp: you.hp }
+    you.hp = 0; you.died = clock - 5
+    fighting()
+    return { was, now: { x: hero.x, y: hero.y, hp: you.hp, max: you.max },
+      walked: Math.hypot(hero.x - was.x, hero.y - was.y) }
+  }
+  /** The save, round-tripped, for the check that closing the tab costs nothing. */
+  ;(window as unknown as { __save: () => unknown }).__save = () => snapshot()
+  ;(window as unknown as { __load: (s: Save) => unknown }).__load = (raw) => {
+    restore(raw)
+    return { level: you.level, xp: you.xp, purse: you.purse,
+      x: hero.x, y: hero.y, seed: seed() }
   }
   /** Press an ability by id and say what the waits look like after. */
   ;(window as unknown as { __press: (id: number) => unknown }).__press = (id) => {

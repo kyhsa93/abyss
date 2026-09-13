@@ -517,6 +517,29 @@ const up = await p.evaluate(() => window.__duel(5, 1, 400, 1))
 check('and so is picking on something above you', up.survived < one.survived,
   `at level 1, a level 5 alone: ${(up.survived * 100).toFixed(0)}% survived`)
 
+// 9j. Dying costs a walk.  It used to cost four seconds and nothing else —
+// you stood up on the spot at full health — so there was never a reason to run
+// away, and half of "should I pull this" is the other half of that decision.
+// `game_graveyard` and `graveyard_zone` say where each zone sends its dead.
+const died = await p.evaluate(() => window.__die())
+check('dying puts you at a graveyard and costs the walk back',
+  died.walked > 40 && died.now.hp < died.now.max,
+  `woke up ${died.walked.toFixed(0)} yards away with `
+  + `${died.now.hp} of ${died.now.max} health`)
+
+// 9k. And closing the tab costs nothing.  There was no `localStorage` and no
+// `indexedDB` anywhere in `src/`: shutting the tab deleted the character.
+const before2 = await p.evaluate(() => window.__save())
+const rolled = await p.evaluate(() => { window.__earn(500); return window.__save() })
+const back = await p.evaluate((s) => window.__load(s), before2)
+check('a save puts the character back where he was',
+  back.level === before2.you.level && back.xp === before2.you.xp
+    && Math.abs(back.x - before2.hero.x) < 0.01,
+  `level ${back.level}, ${back.xp} xp, (${back.x.toFixed(0)}, ${back.y.toFixed(0)})`)
+check('and it carries where the dice had got to', back.seed === before2.seed,
+  `stream at ${before2.seed}, and ${rolled.seed} after some rolls — `
+  + `without this, loading is how you re-roll a drop`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

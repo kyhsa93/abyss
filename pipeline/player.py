@@ -159,6 +159,28 @@ def main(acore, client, out):
         print('  no starting outfit: that is the client\'s table, and there '
               'is no client here', file=sys.stderr)
 
+    # Where you wake up.  `game_graveyard` is 685 rows and `graveyard_zone`
+    # says which zone sends you to which — Elwynn has four, one of them beside
+    # the abbey and one in Goldshire.
+    #
+    # This is the whole cost of dying at these levels, and that is not a
+    # simplification: `Player::ResurrectPlayer` (Player.cpp:4605) says in its
+    # own comment that **characters from level 1 to 10 are not affected by
+    # resurrection sickness**.  Below eleven the game charges you the walk
+    # back and nothing else, so charging anything else here would be inventing
+    # a rule.
+    yards = {}
+    for col, f in table(base, 'game_graveyard'):
+        if int(f[col['Map']]) == MAP:
+            yards[int(f[col['ID']])] = [round(float(f[col['x']]), 1),
+                                        round(float(f[col['y']]), 1),
+                                        round(float(f[col['z']]), 1)]
+    by_zone = {}
+    for col, f in table(base, 'graveyard_zone'):
+        gid, zone = int(f[col['ID']]), int(f[col['GhostZone']])
+        if gid in yards:
+            by_zone.setdefault(str(zone), []).append(yards[gid])
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'player.json')
     doc = {
@@ -172,6 +194,8 @@ def main(acore, client, out):
         'critRatio': {str(k): v for k, v in sorted(ratio.items())},
         # What a new one is holding: `[word, min, max, swing ms, armour, slot]`
         'kit': kit,
+        # Which graveyards each zone sends you to, `[x, y, z]` each.
+        'graveyards': by_zone,
     }
     with open(path, 'w') as f:
         json.dump(doc, f)
@@ -185,6 +209,8 @@ def main(acore, client, out):
               f'crit/agi {ratio.get(lv, 0):.6f}')
     print('  kit: ' + ', '.join(f'{k[0]} ({k[1]}-{k[2]}, {k[3]}ms, {k[4]} armour)'
                                 for k in kit))
+    print(f'  {len(yards)} graveyards on this map, '
+          f'{len(by_zone)} zones know where to send you')
 
 
 def check(doc):

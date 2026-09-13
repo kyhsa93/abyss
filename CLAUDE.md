@@ -349,6 +349,28 @@ plus attack power over its swing, and critical chance is the client's own
 `gtChanceToMeleeCrit` interpolation. He was statted as *a creature of his own
 level* before this, which meant nothing he wore or trained could ever matter.
 
+**There is one stream of chance and it has a state.** `Math.random` was called
+from fifteen places and none of them could be reproduced, which is two problems:
+a save that does not carry the stream's position is a save you reload to
+re-roll a drop you did not like, and a distribution is only testable if you can
+run the same twenty thousand rolls twice. `src/roll.ts` is thirty-two bits of
+mulberry32 and `save.ts` writes it down.
+
+**Closing the tab is logging out, so it has to cost nothing.** IndexedDB with
+every access wrapped — some browsers throw on the *access* in a private window,
+and a game that will not start because it could not save is worse than one that
+does not save. Derived things are never saved: maximum health is stamina and
+stamina is the level. The save carries the hash of the world it was made in,
+out of `public/manifest.json`, because a save that does not know its bake is a
+save whose item ids may now mean something else.
+
+**Dying costs the walk back, and that is the whole of it.**
+`Player::ResurrectPlayer` (Player.cpp:4605) says in its own comment that
+characters from level 1 to 10 are not affected by resurrection sickness — so
+below eleven the game charges the run from the graveyard and nothing else, and
+charging anything more here would be inventing a rule. Which graveyard is
+`game_graveyard` and `graveyard_zone`; Elwynn has four.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of
