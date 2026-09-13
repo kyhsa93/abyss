@@ -151,7 +151,7 @@ def report(title, hit, ok, bad, default, silent=True):
               f'<-- drawn as something they are not')
     else:
         print('        0 took it undeclared')
-    for name, n in bad.most_common(16):
+    for name, n in bad.most_common(int(os.environ.get("AUDIT_TOP", "16"))):
         print(f'      {n:>5}  {name.split(chr(92))[-1]}')
     return n if silent else 0
 

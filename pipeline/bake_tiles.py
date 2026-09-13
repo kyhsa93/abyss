@@ -95,6 +95,8 @@ SHEETS = {
     'bridges.png': 'base',
     'roofs-preview.png': 'roofs',
     'castlefloors_outside.png': 'base',
+    'cabinets.png': 'base',
+    'barrel.png': 'base',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -169,6 +171,20 @@ HOUSES = [
     ('tower',   859, 1024, 234, 288),
 ]
 OBJECTS = [
+    # Indoors.  `npm run audit` counts what stands inside the buildings —
+    # `MODD`, 3,759 placements — and two thirds of it took the skip default,
+    # so walking into the abbey found a tile floor with nothing on it and the
+    # inn had no kegs.  Nine names cover twelve hundred of them and they are
+    # shelves, racks, kegs and tableware: the same author and the same sheet
+    # folder the water and the bridges already come from, so there is no new
+    # licence question here at all.
+    ('shelf',    'cabinets.png',             32,   0, 32, 80, 'sharm_base'),
+    ('shelf2',   'cabinets.png',             64,   0, 32, 80, 'sharm_base'),
+    ('cabinet',  'cabinets.png',              0,  96, 32, 72, 'sharm_base'),
+    ('cabinet2', 'cabinets.png',            128,  96, 32, 72, 'sharm_base'),
+    ('keg',      'barrel.png',                0,   0, 32, 48, 'sharm_base'),
+    ('keg2',     'barrel.png',               64,   0, 32, 48, 'sharm_base'),
+    ('keg3',     'barrel.png',               96,   0, 32, 48, 'sharm_base'),
     ('oak',      'Outside Objects.png', 192,   0, 96, 96, 'sharm'),
     ('oak2',     'Outside Objects.png', 288,   0, 96, 96, 'sharm'),
     ('pine',     'Outside Objects.png', 192, 128, 96, 96, 'sharm'),

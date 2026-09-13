@@ -23,6 +23,22 @@ export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
   I_LO = 5, I_HI = 6, I_DELAY = 7, I_ARMOUR = 8, I_BUY = 9, I_SELL = 10,
   I_BOTH_HANDS = 11, I_STATS = 12
 
+/**
+ * A row of `player.json`'s `kit` — what a new character is created holding,
+ * out of `CharStartOutfit.dbc`.
+ *
+ * `[entry, word, min damage, max damage, swing ms, armour, slot]`, and the
+ * names exist because the shape changed once and the two places that read it
+ * did not change together.  The entry was added on the front so the items
+ * could actually be put in his hands, `main.ts` was updated, and `simcheck`
+ * went on summing field four — which had been armour and was now the swing.
+ * It gave a level-one warrior 2,900 armour and an unkillable character, and
+ * the only reason anybody noticed is that a check said `100% vs 100%` where
+ * it had said `4% vs 69%`.
+ */
+export const K_ID = 0, K_WORD = 1, K_LO = 2, K_HI = 3, K_DELAY = 4,
+  K_ARMOUR = 5, K_SLOT = 6
+
 export type Shelf = {
   items: Record<string, Item>
   /** What each vendor stocks: `[item, how many at once, seconds to restock]`. */

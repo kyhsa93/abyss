@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs'
 import { duel } from '../src/sim/duel.ts'
 import { reseed } from '../src/sim/roll.ts'
 import { armourOf, attackPower, maxHealth } from '../src/sim/stats.ts'
-import { withGear } from '../src/sim/gear.ts'
+import { withGear, K_LO, K_HI, K_DELAY, K_ARMOUR } from '../src/sim/gear.ts'
 
 let bad = 0
 const check = (what, ok, detail = '') => {
@@ -33,14 +33,20 @@ const book = world('spells')
 /** The player at a level, exactly the way `main.ts` builds him. */
 const player = (level) => {
   const stats = withGear(who.stats[String(level)], [])
-  const weapon = (who.kit ?? []).find((k) => k[1] > 0) ?? ['weapon', 3, 5, 2900, 0]
-  const worn = (who.kit ?? []).reduce((n, k) => n + k[4], 0)
-  const secs = weapon[3] / 1000
+  // By name, not by number.  These indices were written out by hand here and
+  // again in `main.ts`, and when the kit grew an entry id on the front only
+  // one of them moved: this went on summing field four, which had been armour
+  // and was now the swing in milliseconds, and handed a level-one warrior
+  // 2,900 armour.  `K_*` lives beside the item constants in `sim/gear.ts`.
+  const weapon = (who.kit ?? []).find((k) => k[K_LO] > 0)
+    ?? [0, 'weapon', 3, 5, 2900, 0, 17]
+  const worn = (who.kit ?? []).reduce((n, k) => n + k[K_ARMOUR], 0)
+  const secs = weapon[K_DELAY] / 1000
   const ap = (attackPower(level, stats) / 14) * secs
   return {
     level, stats,
-    line: [maxHealth(stats), Math.round(weapon[1] + ap),
-      Math.round(weapon[2] + ap), weapon[3], armourOf(stats, worn), 0],
+    line: [maxHealth(stats), Math.round(weapon[K_LO] + ap),
+      Math.round(weapon[K_HI] + ap), weapon[K_DELAY], armourOf(stats, worn), 0],
   }
 }
 

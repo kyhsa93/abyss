@@ -955,6 +955,28 @@ const undrawn = await p.evaluate(() => window.__undrawn())
 console.log(`      (${undrawn.length} worn slots the sheets cannot draw`
   + `${undrawn.length ? `: ${undrawn.join(', ')}` : ''})`)
 
+// 10e. A building's furniture belongs to the building.
+//
+// `npm run audit` counted 3,759 things standing inside the slice's buildings
+// and two thirds of them took the skip default, so the roof came off the
+// abbey and what was under it was a tiled floor with nothing on it.  Mapping
+// them is the easy half.  The hard half is that a building's contents are
+// only hidden from outside when the scene knows whose they are — and it used
+// to work that out by asking whether a piece stood inside the footprint,
+// which a shelf *against a wall* fails, because the wall is the edge of the
+// mask.  With a hundred and fifty pieces that was a curiosity.  With three
+// thousand it put bookcases in the road.
+const rooms = await p.evaluate(() => window.__scenery())
+const INDOORS = ['shelf', 'cabinet', 'keg', 'bed', 'crockery']
+const homeless = INDOORS.map((k) => [k, (rooms[k] ?? [0, 0])[0] - (rooms[k] ?? [0, 0])[1]])
+  .filter(([, n]) => n > 0)
+const loose = homeless.reduce((a, [, n]) => a + n, 0)
+const furniture = INDOORS.reduce((a, k) => a + (rooms[k] ?? [0, 0])[0], 0)
+check('a building\'s furniture knows which building it is in',
+  loose < furniture * 0.1,
+  `${loose} of ${furniture} do not: ${homeless.map(([k, n]) => `${k} ${n}`).join(', ')}`)
+console.log(`      (${furniture} pieces of furniture, ${loose} of them loose)`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

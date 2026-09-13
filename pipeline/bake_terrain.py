@@ -847,6 +847,34 @@ KINDS = [
     ('HAY', 'hay'), ('STRAW', 'hay'),
     ('SKULL', 'bones'), ('BONE', 'bones'), ('RIBCAGE', 'bones'),
     ('HUT', 'house'),
+    # What stands *inside* a building.  `MODD` is 3,759 placements and two
+    # thirds of them took the skip default, so the roof came off the abbey and
+    # what was under it was a tiled floor with nothing on it, and the inn had
+    # no kegs.  Nine names cover twelve hundred; the rest is a long tail of
+    # things that are genuinely below this projection's fidelity, and those
+    # are declared rather than mapped — a bowl drawn as a crate is a lie about
+    # what the client put there.
+    ('BOOKSTACK', 'shelf'), ('BOOKSHELF', 'shelf'), ('BOOKCASE', 'shelf'),
+    ('ABBEYSHELF', 'shelf'), ('SHELF', 'shelf'),
+    ('WARDROBE', 'cabinet'), ('FOOTLOCKER', 'cabinet'), ('CABINET', 'cabinet'),
+    # A weapon rack and an armour stand are a tall wooden thing standing
+    # against a wall, which is what the cabinet picture is.  Said out loud
+    # because it is the one substitution here that is a stretch.
+    ('WEAPONRACK', 'cabinet'), ('GUNRACK', 'cabinet'), ('ARMORSTAND', 'cabinet'),
+    ('WALLSWORD', 'cabinet'), ('WALLSHIELD', 'cabinet'),
+    ('BEERKEG', 'keg'), ('KEG', 'keg'),
+    ('CANDELABRA', 'lamp'), ('BRAZIER', 'campfire'),
+    ('BUNKBED', 'bed'), ('INNBED', 'bed'), ('SLEEPMAT', 'bed'),
+    ('INNPILLOW', 'bed'), ('BEDROLL', 'bed'),
+    # Tableware.  Small, and small is the point: a room reads as lived in
+    # because there is clutter on the tables, and 744 of these are the clutter.
+    # Drawn at two thirds of a yard, which is what they are.
+    ('GREENBOTTLE', 'crockery'), ('BOTTLESMOKE', 'crockery'),
+    ('BOTTLE', 'crockery'), ('SMALLVIALS', 'crockery'),
+    ('VIALSBOTTLES', 'crockery'), ('VIAL', 'crockery'),
+    ('STEIN', 'crockery'), ('MUG', 'crockery'), ('BOWL', 'crockery'),
+    ('TURKEYLEG', 'crockery'), ('HAUNCH', 'crockery'),
+    ('CARGONET', 'prop'), ('PICK', 'prop'),
     ('JAR', 'prop'), ('JUG', 'prop'), ('BUCKET', 'prop'), ('BASIN', 'prop'),
     ('SHOVEL', 'prop'), ('ROPE', 'prop'), ('CHAIR', 'prop'),
     ('TABLE', 'prop'), ('BENCH', 'prop'), ('ANVIL', 'prop'),
@@ -1261,6 +1289,10 @@ def read_tile(client, tx, ty):
                     painted[(ix, iy)] = got
     models = [n for n in names if n]
     placed, skipped = [], 0
+    # A running number for each building placement in this tile, so its own
+    # furniture can name it.  Zero means "belongs to nobody", which is every
+    # doodad the terrain puts down rather than a building.
+    house = 0
     for tag, nid, wx, wy, wz, rot, sc in doodads:
         path = models[nid] if nid < len(models) else ''
         kind = classify(path)
@@ -1277,7 +1309,7 @@ def read_tile(client, tx, ty):
             placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
                            zlib.crc32(path.upper().encode()) & 0xffff,
                            round(tall * sc, 2), round(wide * sc, 2),
-                           [], 0, 0.0, 0))
+                           [], 0, 0.0, 0, 0))
         else:
             skipped += 1
     for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
@@ -1287,6 +1319,28 @@ def read_tile(client, tx, ty):
         if not kind and is_mouth(name):
             MOUTHS.append((wx, wy))
         if kind:
+            # Which indoor area this building *is*, worked out before its
+            # furniture rather than after.
+            #
+            # Every piece used to go out with a zero here, meaning "not inside
+            # anything", and the scene only hides a thing when it knows which
+            # room it belongs to — so once the furniture list grew from a
+            # hundred and fifty pieces to three thousand, Goldshire filled up
+            # with bookshelves standing in the road.  A building's contents
+            # are the building's; the roof coming off is what reveals them.
+            f_in = wmo_area(client, name, nset)
+            # And a number for *this placement*, so its furniture can say
+            # whose it is.
+            #
+            # The scene used to work that out by asking whether a piece stood
+            # inside a building's footprint, and a shelf stands *against* a
+            # wall: pushed up to the stone it lands a cell outside a mask cut
+            # at 1.33 yards and reads as standing in the street.  With a
+            # hundred and fifty pieces that was a curiosity.  With three
+            # thousand it filled Goldshire with bookcases.  The bake knows
+            # exactly which building each piece came out of; it was throwing
+            # the answer away and making the scene guess it back.
+            house += 1
             # What is standing inside it.  These are the building's own
             # doodads, in the building's own space, so they turn with it.
             for f_kind, lx, ly, lz, yaw, sc, f_path in \
@@ -1301,7 +1355,7 @@ def read_tile(client, tx, ty):
                                0.0, 0.0, 0.0,
                                zlib.crc32(f_path.upper().encode()) & 0xffff,
                                round(f_tall * sc, 2), round(f_wide * sc, 2),
-                               [], 0, 0.0, 0))
+                               [], 0, 0.0, f_in, house))
             # An opaque number for "the same model", so an instance that could
             # not be solved can borrow from one that could.  A number and not
             # the path: nothing from a client's file table is allowed out of
@@ -1312,7 +1366,7 @@ def read_tile(client, tx, ty):
                            round(max(half_l or 0.0, half_w or 0.0), 2),
                            rooms_of(client, name, pos, ry, world_box),
                            plan_key(client, name, key), round(ry + 270, 1),
-                           wmo_area(client, name, nset)))
+                           f_in, house))
     return cells, placed, water, painted, skipped, src, shut, gap, whole
 
 
@@ -1391,7 +1445,7 @@ def bake(client, bounds, out, acore=None):
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
-                    tall, wide, rooms, plan, mr, inside in dd:
+                    tall, wide, rooms, plan, mr, inside, house in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -1405,8 +1459,11 @@ def bake(client, bounds, out, acore=None):
                 if bl is not None and key:
                     shapes.setdefault(key, (bl, bw))
                 variety.setdefault(kind, set()).add(key)
+                # The placement number is per tile, so it needs the tile on
+                # the front of it to be unique across the slice.
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
-                                key, tall, wide, rooms, plan, mr, inside])
+                                key, tall, wide, rooms, plan, mr, inside,
+                                (ty * 64 + tx) * 4096 + house if house else 0])
                 if inside:
                     indoor_ids.add(inside)
             for (iy_, ix_, sx_, sy_), level in wet.items():
@@ -1578,11 +1635,17 @@ def bake(client, bounds, out, acore=None):
                          # `WMOAreaTable.dbc` — the hillside the abbey stands
                          # on is 86 and its nave is 24.
                          **({'a': inside} if inside else {}),
+                         # Which building placement this is, or which one put
+                         # this piece of furniture down.  The scene hides a
+                         # building's contents until you are in it, and it
+                         # used to work out whose they were from where they
+                         # stood — which fails for anything against a wall.
+                         **({'h': house} if house else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
                     for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide,
-                    rooms, plan, mr, inside in doodads],
+                    rooms, plan, mr, inside, house in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)

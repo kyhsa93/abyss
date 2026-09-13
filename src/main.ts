@@ -26,7 +26,7 @@ import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
-import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, type Item, type Shelf } from './sim/gear.ts'
+import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, K_ARMOUR, K_ID, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
@@ -57,6 +57,15 @@ type Doodad = {
   t?: number; w?: number
   /** Which of the kind's pictures, decided by the model and not the place. */
   v?: number
+  /**
+   * Which building placement this is, or which one put this piece down.
+   *
+   * A building's furniture is only hidden from outside once the scene knows
+   * whose it is, and it used to work that out from where the piece stood — a
+   * test a shelf against a wall fails, because the wall is the edge of the
+   * mask.  The bake knows and now says.
+   */
+  h?: number
   /**
    * A building's own footprint: half along, half across, and the bearing of
    * the long side in degrees.  Only the ones a bridge is drawn from carry it.
@@ -705,6 +714,17 @@ async function main() {
     campfire: { pieces: ['firewood', 'firewood2'] },
     bones: { pieces: ['rubble', 'scatter'] },
     lamp: { pieces: ['fence_post'] },
+    // What stands inside a building, which until now was two thirds skipped:
+    // the roof came off the abbey and what was under it was a tiled floor
+    // with nothing on it.  The pictures are Lanea Zimmerman's, out of the
+    // same folder the water and the bridges already come from.
+    shelf: { pieces: ['shelf', 'shelf2'], solid: 0.4 },
+    cabinet: { pieces: ['cabinet', 'cabinet2'], solid: 0.4 },
+    keg: { pieces: ['keg', 'keg2'], solid: 0.4 },
+    bed: { pieces: ['sack', 'sacks'], solid: 0.3 },
+    // Two thirds of a yard, because that is what a stein is.  Left at the
+    // picture's own size a bottle on a table was a barrel beside it.
+    crockery: { pieces: ['barrel2', 'barrel3', 'basket', 'basket2'], yards: 0.7 },
     // Buildings.  The client says where one stands and what sort it is; which
     // of ours gets drawn there is decided here, the same as a tree.
     house: { pieces: ['house_a', 'house_b', 'house_c', 'house_d', 'house_e', 'house_f'], solid: 'building' },
@@ -762,6 +782,10 @@ async function main() {
 
   type Placed = {
     x: number; y: number; piece: Piece; s: number; trunk?: Piece
+    /** The bake's own word for it, kept for the check that reads the census. */
+    kind?: string
+    /** Which building put it here, if a building did — the bake's number. */
+    house?: number
     /** Whose roof it is under, if anybody's — worked out once, not per frame. */
     in?: unknown
     /** The object it draws, for the ones that are taken and come back. */
@@ -835,7 +859,7 @@ async function main() {
             x: d.x + (r - (rows - 1) / 2) * step * 1.6 + jx * step * 0.5,
             y: d.y + (c - (cols - 1) / 2) * step + jy * step * 0.5,
             piece: tilesMeta[k.pieces[(r + c) % k.pieces.length]!] ?? piece,
-            s: size,
+            s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
           })
         }
       }
@@ -856,7 +880,7 @@ async function main() {
         const off = (i - (n - 1) / 2) * sec
         placed.push({
           x: d.x + (r.alongX ? off : 0), y: d.y + (r.alongX ? 0 : off),
-          piece: piece2, s: size,
+          piece: piece2, s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
         })
       }
       const half = (n * sec) / 2
@@ -872,7 +896,7 @@ async function main() {
     // is and how big.
     if (!(asPlan(d) && (d.rooms?.length || d.p))) {
       placed.push({
-        x: d.x, y: d.y, piece, s: size,
+        x: d.x, y: d.y, piece, s: size, kind: d.k, ...(d.h ? { house: d.h } : {}),
         ...(stem ? { trunk: stem } : {}),
       })
     }
@@ -1417,6 +1441,8 @@ async function main() {
         x: d.x, y: d.y, l: d.bl!, w: d.bw!,
         c: Math.cos(a), s: Math.sin(a), k: d.k,
         area: d.a ?? 0,
+        /** The bake's number for this placement, which its furniture cites. */
+        house: d.h ?? 0,
         plan,
         rooms: rooms.length ? rooms : [{
           x: d.x, y: d.y, l: d.bl!, w: d.bw!,
@@ -1452,6 +1478,9 @@ async function main() {
    * hundred-yard cell is coarse enough that the grid is tiny and fine enough
    * that a tile usually lands in an empty one.
    */
+  /** Building by the bake's own placement number, for its own furniture. */
+  const byHouse = new Map<number, (typeof buildings)[number]>()
+  for (const b of buildings) if (b.house) byHouse.set(b.house, b)
   const BLOCK = 100
   const blocksOf = new Map<number, typeof buildings>()
   for (const b of buildings) {
@@ -1807,7 +1836,7 @@ async function main() {
       % k.pieces.length]!
     const piece = tilesMeta[pick]
     if (!piece) continue
-    placed.push({ x: n.x, y: n.y, piece, node: n,
+    placed.push({ x: n.x, y: n.y, piece, node: n, kind: n.kind,
       s: ((k.yards ?? 1) * PPY) / piece.h })
   }
   placed.sort((a, b) => depth(b) - depth(a))
@@ -1839,7 +1868,17 @@ async function main() {
   // the abbey has a hundred and fifty — and drawn without this they stand on
   // the roof instead: a candle-lit nave laid out across the tiles.
   for (const o of placed) {
-    const b = inRoom(o.x, o.y)
+    // Whose it is, said by the bake rather than worked out from where it
+    // stands.
+    //
+    // A shelf stands *against* a wall, and the outline it would be tested
+    // against is a 1.33-yard mask cut from the building's own triangles — so
+    // a piece pushed up to the stone lands a cell outside the silhouette and
+    // reads as standing in the street.  With a hundred and fifty pieces that
+    // was a curiosity; with three thousand it filled Goldshire with
+    // bookcases.  The bake knows exactly which building each piece came out
+    // of and now says so, which leaves nothing to get wrong.
+    const b = (o.house ? byHouse.get(o.house) : undefined) ?? inRoom(o.x, o.y)
     if (b) o.in = b
   }
 
@@ -1976,7 +2015,7 @@ async function main() {
    * 2.9 was the greatsword nobody was holding.  Nothing could be sold,
    * swapped, or drawn on the paperdoll, because there was nothing there.
    */
-  const KIT = (who?.kit ?? []).map((k) => k[0] as number)
+  const KIT = (who?.kit ?? []).map((k) => k[K_ID] as number)
   /**
    * Put on, here, before `you` exists.
    *
@@ -2020,7 +2059,7 @@ async function main() {
     if (!who || !weapon) return row
     const s = statsAt(lv)
     const worn = wornArmour(wornItems())
-      || (who?.kit ?? []).reduce((n, k) => n + (k[4] as number), 0)
+      || (who?.kit ?? []).reduce((n, k) => n + (k[K_ARMOUR] as number), 0)
     // `Player::CalculateMinMaxDamage`: the weapon's own damage plus attack
     // power spread over its swing, which is the line the shout already used.
     // This replaces a hero statted as *a creature of his level* — the comment
@@ -4655,6 +4694,26 @@ async function main() {
 
   /** The scenery's depth keys in draw order, for the check that they sort. */
   ;(window as unknown as { __order: () => number[] }).__order = () => placed.map(depth)
+
+  /**
+   * What the scenery is made of, and how much of it knows it is indoors.
+   *
+   * A building's own furniture is only hidden from outside when the scene can
+   * tell which room it belongs to, and it works that out by asking whether
+   * the piece stands inside a building's footprint.  When the indoor list
+   * grew from a hundred and fifty pieces to three thousand, that answer
+   * started mattering: a bookshelf that does not know it is in a house is a
+   * bookshelf in the road.
+   */
+  ;(window as unknown as { __scenery: () => unknown }).__scenery = () => {
+    const out: Record<string, [number, number]> = {}
+    for (const o of placed) {
+      const row = out[o.kind ?? '?'] ?? (out[o.kind ?? '?'] = [0, 0])
+      row[0]++
+      if (o.in) row[1]++
+    }
+    return out
+  }
 
   /** Where a world point lands on the glass — asked by the movement check. */
   ;(window as unknown as { __screen: (x: number, y: number) => unknown }).__screen =
