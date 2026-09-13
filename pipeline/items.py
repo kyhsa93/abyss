@@ -26,7 +26,7 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import columns, rows, split, goods_of, BOUNDS, MAP  # noqa: E402
-from slice import LEVELS  # noqa: E402
+from slice import LEVELS, CLASSES  # noqa: E402
 
 HUMAN, WARRIOR = 1, 1
 # `AllowableClass` and `AllowableRace` are bitmasks over the class and race
@@ -137,8 +137,39 @@ def wanted(base, acore, object_loots):
     return want, stock, here
 
 
-def trainers(base, here):
-    """What each trainer teaches, what it costs and what it needs first."""
+# What the server calls each class, in `trainer.Requirement`.  The slice names
+# its classes in words — `slice.json` says `["Warrior"]` — and this is the one
+# place the word has to become the number the world DB uses.
+CLASS_ID = {'Warrior': 1, 'Paladin': 2, 'Hunter': 3, 'Rogue': 4, 'Priest': 5,
+            'DeathKnight': 6, 'Shaman': 7, 'Mage': 8, 'Warlock': 9, 'Druid': 11}
+# And what the other kinds of trainer are.  A trade is learned here by doing
+# it — picking a herb teaches a point of herbalism — so a person who sells
+# trade ranks has nothing to sell; mounts and pets are not in this game at
+# all.  Named rather than numbered so the count at the end of the bake says
+# what was left out.
+TRAINER_TYPE = {1: 'mounts', 2: 'trades', 3: 'beasts'}
+
+
+def trainers(base, here, classes):
+    """What each trainer teaches, what it costs and what it needs first.
+
+    **Filtered to the classes this slice has**, which it was not.  Sixty-nine
+    trainers taught 801 distinct spells in a game whose only class is a human
+    warrior, and eleven of those spells were his: the first trainer in the
+    list sold frostbolt, fireball and conjure water.  Buying one was not even
+    refused — the id went into `taught` and was quietly dropped a second time
+    by `known()`, so there was a way to pay money for nothing.
+
+    The answer was in the table all along.  `trainer.Type` says what kind of
+    trainer it is and `trainer.Requirement` says which class, and the bake
+    read the first and dropped the second.  Type 0 is a class trainer and its
+    requirement is the class; everything else — professions, riding — asks for
+    a skill or a level instead, and none of those is in this game yet.
+    """
+    want = {CLASS_ID[c] for c in classes if c in CLASS_ID}
+    if len(want) != len(classes):
+        sys.exit('slice.json names a class this table has no number for: %s'
+                 % ', '.join(sorted(set(classes) - set(CLASS_ID))))
     tid, meta, spells = {}, {}, {}
     path = os.path.join(base, 'creature_default_trainer.sql')
     col = columns(path)
@@ -149,7 +180,8 @@ def trainers(base, here):
     col = columns(path)
     for line in rows(path):
         f = split(line)
-        meta[int(f[col['Id']])] = int(f[col['Type']])
+        meta[int(f[col['Id']])] = (int(f[col['Type']]),
+                                   int(f[col['Requirement']]))
     path = os.path.join(base, 'trainer_spell.sql')
     col = columns(path)
     for line in rows(path):
@@ -166,9 +198,30 @@ def trainers(base, here):
         except (ValueError, KeyError, IndexError):
             continue
     out = {}
+    dropped = {}
     for creature, t in tid.items():
-        if t in spells and (not here or creature in here):
-            out[str(creature)] = {'of': meta.get(t, 0), 'teaches': spells[t]}
+        if t not in spells or (here and creature not in here):
+            continue
+        kind, req = meta.get(t, (0, 0))
+        # A class trainer for a class nobody here plays teaches nothing to
+        # anybody here.  Counted and printed rather than silently skipped:
+        # this repository's own rule is that every "we left this out" is a
+        # number somebody can read.
+        if kind != 0:
+            dropped[TRAINER_TYPE.get(kind, kind)] = \
+                dropped.get(TRAINER_TYPE.get(kind, kind), 0) + 1
+            continue
+        if req not in want:
+            byname = {v: k for k, v in CLASS_ID.items()}
+            key = byname.get(req, req)
+            dropped[key] = dropped.get(key, 0) + 1
+            continue
+        out[str(creature)] = {'of': kind, 'teaches': spells[t]}
+    if dropped:
+        print('  %d trainers left out, teaching nothing this game can learn: %s'
+              % (sum(dropped.values()),
+                 ', '.join('%s %d' % (k, n) for k, n in sorted(
+                     dropped.items(), key=lambda kv: -kv[1]))))
     return out
 
 
@@ -252,7 +305,7 @@ def main(acore, client, out):
         if not stock[e]:
             del stock[e]
 
-    teach = trainers(base, here)
+    teach = trainers(base, here, CLASSES)
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'items.json')
@@ -261,6 +314,7 @@ def main(acore, client, out):
         json.dump(doc, f)
 
     check(doc)
+    check_lessons(doc, out)
     purse(out, doc)
     worn = sum(1 for v in items.values() if v[1])
     print(f'{len(items):,} items ({worn} wearable) -> {path}')
@@ -351,6 +405,35 @@ def check(doc):
     print(f'check: {sum(len(v) for v in stock.values())} things for sale, '
           f'{len(missing)} of them not in this world')
     assert not missing, f'a vendor sells what was never baked: {missing[:5]}'
+
+
+def check_lessons(doc, out):
+    """And every lesson has to be a thing this character can hold.
+
+    The line the wiki's economy page asked for and nobody had written.  Put in
+    while it was missing it would have failed 801 to 11: sixty-nine trainers
+    taught 801 distinct spells into a game whose only class is a human
+    warrior, and the first of them sold frostbolt and fireball.  `__learn`
+    took the money and `known()` dropped the spell a second time on the way
+    out, so there was a way to pay for nothing.
+
+    Checked against `spells.json`, which is baked by a different stage off a
+    different table — so this is two independent derivations agreeing, and not
+    a filter admiring itself.
+    """
+    path = os.path.join(out, 'spells.json')
+    if not os.path.exists(path):
+        print('check: no spellbook baked yet, so no lessons checked')
+        return
+    with open(path) as f:
+        book = json.load(f)
+    known = {row[0] if isinstance(row, list) else row['id']
+             for row in book.get('spells', [])}
+    taught = {row[0] for t in doc['trainers'].values() for row in t['teaches']}
+    stray = sorted(taught - known)
+    print(f'check: {len(doc["trainers"])} trainers teaching {len(taught)} '
+          f'things, {len(stray)} of them not in the spellbook')
+    assert not stray, f'a trainer sells what nobody can cast: {stray[:8]}'
 
 
 if __name__ == '__main__':

@@ -2018,9 +2018,11 @@ async function main() {
      * this lives in AzerothCore's C++ and that is not on this machine (see
      * issue 101); when it is, it goes here and nothing else changes.
      *
-     * Both trades start at one because there is nobody to learn them from
-     * yet — the trainers are standing in the slice and cannot teach (issue
-     * 80).  Starting at nought would make the number a lie rather than a
+     * Both trades start at one because in this game a trade is learned by
+     * doing it and not from a person.  The twenty-seven trade trainers the
+     * slice contains are no longer baked as trainers at all — they have
+     * nothing to sell anybody here — and `pipeline/items.py` counts them out
+     * loud.  Starting at nought would make the number a lie rather than a
      * placeholder: a node asking for nothing would still refuse.
      */
     trades: { herbs: 1, mining: 1 } as Record<string, number>,
@@ -4847,6 +4849,12 @@ async function main() {
   })
   ;(window as unknown as { __learn: (id: number) => unknown }).__learn = (id) => {
     const had = spells.length
+    // Refused rather than quietly dropped a second time.  A trainer used to
+    // be able to take money for a spell this character can never hold — the
+    // id went into `taught` and `known()` filtered it out again on the way
+    // back, so the purse was lighter and the bar was the same.  The bake no
+    // longer offers them; this is the other end of the same rule.
+    if (!abilityOf(id)) return { had, now: had, refused: id }
     taught.push(id)
     spells = known(you.level)
     return { had, now: spells.length, taught: [...taught] }
