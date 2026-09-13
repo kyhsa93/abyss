@@ -26,7 +26,14 @@ const check = (what, ok, detail = '') => {
  * ledger, the stream of chance, what an item does.  `main.ts` and `hud.ts`
  * are the other half and are allowed everything.
  */
-const PURE = ['fight.ts', 'stats.ts', 'quest.ts', 'roll.ts', 'gear.ts', 'save.ts']
+/**
+ * Everything in `src/sim/` plus the save, which is the one exception.
+ *
+ * The directory is the rule now rather than a list somebody keeps up to date:
+ * a file added to `src/sim/` is checked by being there.
+ */
+const PURE = [...readdirSync(join('src', 'sim'))
+  .filter((f) => f.endsWith('.ts')).map((f) => join('sim', f)), 'save.ts']
 const SCREEN = /\b(document|window|HTMLElement|localStorage|requestAnimationFrame|CanvasRenderingContext2D)\b/
 
 /** Comments are prose, and prose is allowed to name the thing it forbids. */
@@ -66,9 +73,9 @@ check('the pipeline and the scene do not import each other', leaks.length === 0,
 // a module nobody has tried.
 let ran = null
 try {
-  const { xpFor, greyAt } = await import('../src/fight.ts')
-  const { rollMelee, healthFromStamina, MISS } = await import('../src/stats.ts')
-  const { roll, reseed } = await import('../src/roll.ts')
+  const { xpFor, greyAt } = await import('../src/sim/fight.ts')
+  const { rollMelee, healthFromStamina, MISS } = await import('../src/sim/stats.ts')
+  const { roll, reseed } = await import('../src/sim/roll.ts')
   reseed(1)
   const outcomes = new Set()
   for (let i = 0; i < 5000; i++)

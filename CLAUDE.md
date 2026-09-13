@@ -349,6 +349,18 @@ plus attack power over its swing, and critical chance is the client's own
 `gtChanceToMeleeCrit` interpolation. He was statted as *a creature of his own
 level* before this, which meant nothing he wore or trained could ever matter.
 
+**`src/sim/` is the rules and it runs in Node.** Eight files — the hit table,
+the stat curves, the quest ledger, the stream of chance, what an item does, the
+sky, the paperdoll's layer choice, and a whole fight — none of which knows what
+a `document` is. `npm run simcheck` runs four hundred duels from a terminal and
+prints the table, which is the thing the harness design wanted and could not
+have while every rule lived in the same closure as the canvas. `bordercheck`
+enforces it by reading the *directory* rather than a list: a file put in
+`src/sim/` is checked by being there.
+
+`main.ts` calls the same `duel()` the terminal does, so there is one fight in
+this repository rather than two that are supposed to agree.
+
 **The world moves in steps of fifty milliseconds and the screen draws between
 them.** `requestAnimationFrame`'s own delta used to go straight into the
 simulation, so the frame rate changed the game — and a fight that runs

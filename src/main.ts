@@ -20,28 +20,29 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
-import { layerFor, still, ORDER, type DollMeta } from './doll'
-import { lightAt, skyAt, SKY_WORD } from './sky'
-import { parries, SLOT_WORD, STAT_WORD } from './talk'
-import { between, roll, seed, reseed } from './roll'
-import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save'
-import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, type Item, type Shelf } from './gear'
-import { threatFrom } from './fight'
-import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
-import { layoutFor, touchpad } from './touch'
-import { hud as makeHud, type Layout } from './hud'
+import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './sim/stats.ts'
+import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
+import { lightAt, skyAt, SKY_WORD } from './sim/sky.ts'
+import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
+import { between, roll, seed, reseed } from './sim/roll.ts'
+import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
+import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, type Item, type Shelf } from './sim/gear.ts'
+import { duel } from './sim/duel.ts'
+import { threatFrom } from './sim/fight.ts'
+import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk.ts'
+import { layoutFor, touchpad } from './touch.ts'
+import { hud as makeHud, type Layout } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, walked, wants, type Errand,
-} from './quest'
+} from './sim/quest.ts'
 import {
   mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   E_AURA, E_ENERGIZE, E_WEAPON_ADD,
   ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING, setMelee,
   aggressive, fightable, type Fight, type Spell,
-} from './fight'
+} from './sim/fight.ts'
 
 type Doodad = {
   k: string; x: number; y: number; z: number; r: number; s: number
@@ -413,11 +414,20 @@ async function main() {
    * cannot walk here, and it was never read: 93 chunks in the slice, nearly
    * all of them the wall along the Burning Steppes, all of them open.
    */
-  const shut = new Set((meta.closed ?? []).map(([i, j]) => `${i},${j}`))
+  /**
+   * Keyed by number rather than by string.
+   *
+   * These three masks are asked once a *tile*, and the widest view is eleven
+   * hundred tiles a frame: building `${i},${j}` for each of them allocates a
+   * string a tile a mask, which is three and a half thousand short-lived
+   * strings a frame for a question that fits in one integer.
+   */
+  const cell = (i: number, j: number) => i * 100000 + j
+  const shut = new Set((meta.closed ?? []).map(([i, j]) => cell(i, j)))
   const closedAt = (wx: number, wy: number) => {
     if (!shut.size) return false
     const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
-    return shut.has(`${i},${j}`)
+    return shut.has(cell(i, j))
   }
   /**
    * Where there is no floor at all.
@@ -433,7 +443,7 @@ async function main() {
    * it is, an opening, and refuses a step.  Walking on to a floor that is not
    * there is the one thing it certainly should not do.
    */
-  const holes = new Set((meta.gaps ?? []).map(([i, j]) => `${i},${j}`))
+  const holes = new Set((meta.gaps ?? []).map(([i, j]) => cell(i, j)))
   /**
    * The chunks where the floor is gone because a *building* owns it.
    *
@@ -443,17 +453,17 @@ async function main() {
    * but the server walks its own creatures across it, and refusing a step
    * there put 86 patrol points and 42 spawns on ground we call impassable.
    */
-  const given = new Set((meta.given ?? []).map(([i, j]) => `${i},${j}`))
+  const given = new Set((meta.given ?? []).map(([i, j]) => cell(i, j)))
   const holeAt = (wx: number, wy: number) => {
     if (!holes.size) return false
     const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
-    return holes.has(`${i},${j}`)
+    return holes.has(cell(i, j))
   }
   /** A hole you may walk over, because somebody else's floor is under it. */
   const floored = (wx: number, wy: number) => {
     if (!given.size) return false
     const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
-    return given.has(`${i},${j}`)
+    return given.has(cell(i, j))
   }
 
   /** The client's own area id here, or 0 where the slice has none. */
@@ -1406,9 +1416,32 @@ async function main() {
   }
   const bitAt = (bits: Uint8Array, n: number) =>
     n >= 0 && ((bits[n >> 3]! >> (n & 7)) & 1) === 1
+  /**
+   * The buildings, in a coarse grid.
+   *
+   * `inRoom` is asked once a ground tile and the widest view is eleven hundred
+   * tiles a frame; walking all 105 buildings for each of them is a hundred and
+   * twenty thousand box tests a frame to answer "no" almost every time.  A
+   * hundred-yard cell is coarse enough that the grid is tiny and fine enough
+   * that a tile usually lands in an empty one.
+   */
+  const BLOCK = 100
+  const blocksOf = new Map<number, typeof buildings>()
+  for (const b of buildings) {
+    const reach = Math.max(b.l, b.w) + 2
+    for (let i = Math.floor((b.x - reach) / BLOCK); i <= Math.floor((b.x + reach) / BLOCK); i++)
+      for (let j = Math.floor((b.y - reach) / BLOCK); j <= Math.floor((b.y + reach) / BLOCK); j++) {
+        const k = i * 100000 + j
+        const got = blocksOf.get(k)
+        if (got) got.push(b)
+        else blocksOf.set(k, [b])
+      }
+  }
   /** Inside any one of a building's rooms, and which building. */
   const inRoom = (wx: number, wy: number) => {
-    for (const b of buildings) {
+    const near = blocksOf.get(Math.floor(wx / BLOCK) * 100000 + Math.floor(wy / BLOCK))
+    if (!near) return null
+    for (const b of near) {
       // The whole box first, so a point outside costs one test and not
       // fourteen.
       const dx = wx - b.x, dy = wy - b.y
@@ -1486,8 +1519,26 @@ async function main() {
     return { b: here, wall: stone > room, floor: room >= stone && room > 0 }
   }
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
+  /**
+   * The crossings, in the same coarse grid the buildings use, and for the same
+   * reason: this is asked once a ground tile and there are eleven hundred of
+   * those a frame at the widest zoom.
+   */
+  const spanBlocks = new Map<number, typeof spans>()
+  for (const b of spans) {
+    const reach = Math.max(Math.abs(b.lo), Math.abs(b.hi)) + b.w + 2
+    for (let i = Math.floor((b.x - reach) / 100); i <= Math.floor((b.x + reach) / 100); i++)
+      for (let j = Math.floor((b.y - reach) / 100); j <= Math.floor((b.y + reach) / 100); j++) {
+        const k = i * 100000 + j
+        const got = spanBlocks.get(k)
+        if (got) got.push(b)
+        else spanBlocks.set(k, [b])
+      }
+  }
   const onSpan = (wx: number, wy: number) => {
-    for (const b of spans) {
+    const near = spanBlocks.get(Math.floor(wx / 100) * 100000 + Math.floor(wy / 100))
+    if (!near) return null
+    for (const b of near) {
       const dx = wx - b.x, dy = wy - b.y
       const along = dx * b.c + dy * b.s
       if (along >= b.lo && along <= b.hi
@@ -4534,84 +4585,34 @@ async function main() {
    * curve, the swing timers — over a synthetic clock, so the answer comes out
    * of the rules rather than out of a guess.
    */
+  /**
+   * How a fight actually goes, run in the fight's own arithmetic.
+   *
+   * The wiki's check list asks whether taking two is worse than taking one and
+   * nothing could answer it, because the fight lived in the frame loop.  It
+   * lives in `src/sim/duel.ts` now, which `scripts/simcheck.mjs` runs in Node
+   * with no browser at all — so this is the *same* fight rather than a second
+   * one that is supposed to agree with it.
+   */
   ;(window as unknown as {
     __duel: (level: number, many: number, runs: number, mineLevel?: number,
       policy?: string) => unknown
   }).__duel = (level, many, runs, mineLevel, policy) => {
-    // The player's level is given rather than read, so the answer does not
-    // depend on what a check ran before this one.
     const lv = mineLevel ?? you.level
-    const mine = statsAt(lv)
-    const line = lineFor(lv)
-    const foe = (spawns.fights ?? []).find((f) => f && f[HP]! > 0
-      && (spawns.npcs ?? []).some((n) => n[4] === level && n[7] === (spawns.fights ?? []).indexOf(f)))
-      ?? [60, 3, 5, 2000, 20, 2]
-    let won = 0, ticks = 0, presses = 0
-    for (let r = 0; r < runs; r++) {
-      let hp = line[HP]!
-      const foes = Array.from({ length: many }, () => foe[HP]!)
-      let mine_t = 0
-      const theirs = foes.map(() => 0)
-      // What a player *does*, as opposed to what he is.  `auto` presses
-      // nothing at all; `rota` presses the one thing a level one warrior has
-      // whenever rage will pay for it, which is the simplest fixed order
-      // anybody could write on a macro.  The gap between them is how much of
-      // this game is a decision — and if there is no gap, it is a progress
-      // bar with a sword on it.
-      let rage = 0, extra = 0, pressed = 0
-      for (let t = 0; t < 60000 && hp > 0 && foes.some((h) => h > 0); t += 100) {
-        // Yours, at whichever is still up.
-        const target = foes.findIndex((h) => h > 0)
-        if (target >= 0 && t >= mine_t) {
-          mine_t = t + line[SWING]!
-          const fate = rollMelee(
-            { level: lv, crit: who ? critChance(lv, mine, who) : 5,
-              humanoid: true },
-            { level, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
-              block: CREATURE_BLOCK },
-            roll() * 10000)
-          const dealt = damageAfter(fate,
-            swing(line, level, foe[ARMOUR]!, roll()) + extra, level - lv)
-          extra = 0
-          foes[target]! -= dealt
-          rage = Math.min(MAX_RAGE,
-            rage + rageFrom(dealt, lv, line[SWING]! / 1000, true))
-          // The macro: a heavier blow the moment rage allows one.  It rides
-          // the next swing, so it costs no wait and is strictly better than
-          // letting the rage sit there.
-          if (policy === 'rota') {
-            const hs = (spellbook.spells ?? []).find((sp) => sp.id === 78)
-            if (hs && rage >= hs.rage) {
-              rage -= hs.rage
-              extra += hs.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0
-              pressed += 1
-            }
-          }
-        }
-        // Theirs, all of them.
-        for (let i = 0; i < many; i++) {
-          if (foes[i]! <= 0 || t < theirs[i]!) continue
-          theirs[i] = t + foe[SWING]!
-          const fate = rollMelee(
-            { level, crit: CREATURE_CRIT },
-            { level: lv, dodge: dodgeChance(lv, mine, who!),
-              parry: PARRY_WITH_WEAPON, block: 0, player: true },
-            roll() * 10000)
-          const took = damageAfter(fate,
-            swing(foe, lv, line[ARMOUR]!, roll()), level - lv)
-          hp -= took
-          rage = Math.min(MAX_RAGE,
-            rage + rageFrom(took, lv, line[SWING]! / 1000, false))
-        }
-        ticks += 1
-      }
-      if (hp > 0) won += 1
-      presses += pressed
-    }
-    return { level, many, runs, mine: lv, policy: policy ?? 'auto', won,
-      survived: won / runs, seconds: (ticks / runs) * 0.1,
-      presses: presses / runs }
+    const foe = (spawns.npcs ?? []).find((r) => r[4] === level && (r[7] ?? -1) >= 0)
+    const line = foe ? spawns.fights?.[foe[7]!] : null
+    const opener = spells.find((sp) => sp.id === 78)
+    return duel(
+      { level: lv, stats: statsAt(lv), line: lineFor(lv) },
+      { level, stats: statsAt(1), line: line ?? [60, 3, 5, 2000, 20, 2] },
+      who,
+      { many, runs, policy: policy === 'rota' ? 'rota' : 'auto',
+        ...(opener ? { opener: {
+          rage: opener.rage,
+          adds: opener.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0,
+        } } : {}) })
   }
+
   /** What is for sale and what is taught nearby, and buying and learning it. */
   ;(window as unknown as { __shop: (entry: number) => unknown }).__shop =
     (entry) => ({
@@ -4779,13 +4780,6 @@ async function main() {
     return { gated: gated.slice(0, 4), n: gated.length,
       holding: log.held.map((h) => h.id) }
   }
-  /**
-   * The simulation's own clock, for the check that the frame rate does not
-   * change the game.
-   *
-   * `__steps(n)` runs exactly n steps and says how far the world moved, with
-   * no frames involved at all.
-   */
   /** Hold a direction down without a keyboard, for the step check. */
   ;(window as unknown as { __hold: (k: string | null) => void }).__hold = (k) => {
     keys.clear()

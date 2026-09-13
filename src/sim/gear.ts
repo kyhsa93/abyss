@@ -11,7 +11,7 @@
  * 46,096 in the table — with the columns that decide whether a human warrior
  * can wear a thing and what it does for him.  Names never leave the pipeline.
  */
-import { AGI, INT, SPI, STA, STR, type Stats } from './stats'
+import { AGI, INT, SPI, STA, STR, type Stats } from './stats.ts'
 
 /**
  * One item: `[word, slot, quality, item level, required level,
