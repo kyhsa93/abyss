@@ -1377,10 +1377,15 @@ async function main() {
     // thing a tile that size is standing in for is the mass underneath it.
     const reach = Math.floor(thick / 2 / p.s)
     if (!reach) return { b: here, wall: bitAt(p.solid, n), floor: bitAt(p.floor, n) }
+    // Nine samples spread over the tile, however wide it is, rather than every
+    // cell under it.  At the widest zoom a tile is ten yards and covers
+    // eighty-one cells, and asking all of them for every tile of a building
+    // cost twenty frames a second — for an answer that is a majority vote and
+    // does not change between nine samples and eighty-one.
     let stone = 0, room = 0
-    for (let di = -reach; di <= reach; di++)
-      for (let dj = -reach; dj <= reach; dj++) {
-        const m = n + di * p.h + dj
+    for (let a = -1; a <= 1; a++)
+      for (let b = -1; b <= 1; b++) {
+        const m = n + a * reach * p.h + b * reach
         if (m < 0 || m >= p.w * p.h) continue
         if (bitAt(p.solid, m)) stone++
         else if (bitAt(p.floor, m)) room++
@@ -3114,6 +3119,14 @@ async function main() {
         if (b) for (const o of b) {
           if (o.in && o.in !== under) continue
           if (o.node && !o.node.up) continue
+          // Whether it is on the glass, asked *here* rather than after the
+          // sort.  A bucket is 40 yards and the widest view is 350, so the
+          // buckets it covers hold most of the forest: 17,663 pieces went
+          // into this list and 2,463 of them were drawn, and the sort in
+          // between was paying for all seventeen thousand.
+          const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
+          if (X < -margin || X > canvas.width + margin
+            || Y < -margin || Y > canvas.height + margin) continue
           near.push(o)
         }
       }
@@ -3122,7 +3135,6 @@ async function main() {
     for (const o of near) {
       while (ai < actors.length && depth(actors[ai]!) > depth(o)) actors[ai++]!.draw()
       const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
-      if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
       const k = zoom * o.s
       if (o.trunk) {
         const t = o.trunk
