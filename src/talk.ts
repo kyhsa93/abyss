@@ -155,6 +155,18 @@ const ABILITY: Record<number, [string, string]> = {
   6673: ['외침', '한동안 더 세게 친다'],
   100: ['달려들기', '멀리 있는 적에게 달려들며 분노가 붙는다'],
   772: ['찢기', '상처가 한동안 계속 벌어진다'],
+  // Everything below needed `SpellRadius.dbc` and `SpellCastTimes.dbc`
+  // resolved before it could do anything — a thunderclap with no radius is a
+  // spell that hits nobody, so there was no point giving it a word.
+  6343: ['천둥벼락', '둘레의 모두를 한꺼번에 후려친다'],
+  284: ['내려치기 2', '더 무거운 일격'],
+  1715: ['다리 걸기', '한동안 절게 만든다'],
+  2687: ['피의 욕망', '제 피를 태워 분노를 얻는다'],
+  6546: ['달려들기 2', '더 멀리서 달려든다'],
+  6603: ['맨손 공격', '무기 없이 친다'],
+  3127: ['막기 자세', '방패를 세운다'],
+  34428: ['승리의 예감', '쓰러뜨린 직후 한 번 크게 친다'],
+  59752: ['정신 집중', '붙잡힌 것을 떨쳐낸다'],
 }
 
 /** The word and the sentence for an ability, or nothing if it has none. */

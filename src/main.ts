@@ -34,7 +34,7 @@ import {
   short, take, wants, type Errand,
 } from './quest'
 import {
-  mitigate, noticeAt, rageFrom, swing, xpFor,
+  mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   E_AURA, E_ENERGIZE, E_WEAPON_ADD,
   ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING, setMelee,
@@ -262,8 +262,10 @@ async function main() {
     // `pipeline/spells.py`.  Missing is fine: without it the bar is the two
     // things that need no table.
     fetch('./world/spells.json')
-      .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number }>)
-      .catch(() => ({ spells: [] as Spell[], melee: undefined })),
+      .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number
+        foes?: Record<string, Spell[]> }>)
+      .catch(() => ({ spells: [] as Spell[], melee: undefined,
+        foes: {} as Record<string, Spell[]> })),
     // What stands in the world that is not a person.  One file for both
     // worlds and for the same reason the spawns are: where a copper vein
     // stands is a row in `gameobject` whichever height grid it stands on.
@@ -1023,6 +1025,8 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    /** When each of its own abilities is ready again. */
+    cools: Record<number, number>
     /**
      * Who it is angry at and how much — `ThreatManager`, keyed by name.
      *
@@ -1074,6 +1078,7 @@ async function main() {
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
       threat: {},
+      cools: {},
     })
   }
 
@@ -1851,7 +1856,10 @@ async function main() {
    * what it does.  An ability whose effects mean nothing here simply is not
    * offered, which is more honest than a button that does nothing.
    */
-  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA])
+  // `E_DAMAGE` joins the list: it is a number of damage right now, and with
+  // `SpellRadius.dbc` finally resolved it is what makes a thunderclap hit
+  // everything within eight yards instead of nothing at all.
+  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA, E_DAMAGE])
   // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
   // comment here that said "two bodies and an arm".
   if (spellbook.melee) setMelee(spellbook.melee)
@@ -1938,8 +1946,35 @@ async function main() {
       t.threat['you'] = (t.threat['you'] ?? 0)
         + threatFrom(0, sp.threat, attackPower(you.level, statsAt(you.level)))
     }
-    for (const [effect, amount, _die, aura, period] of sp.does) {
-      if (effect === E_WEAPON_ADD) you.extra += amount!
+    for (const [slot, [effect, amount, die, aura, period]] of sp.does.entries()) {
+      if (effect === E_DAMAGE) {
+        // Everything inside the radius, or just the target if there is none.
+        // `SpellRadius.dbc` says eight yards for a thunderclap and thirty for
+        // a shout; a radius of nought is a spell that hits what you picked.
+        const wide = sp.wide?.[slot] ?? 0
+        const hit = between(amount!, amount! + (die ?? 0))
+        const at = wide > 0
+          ? active.filter((n) => !n.dead && fightable(n.fight)
+            && (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2 <= wide * wide)
+          : (t ? [t] : [])
+        for (const n of at) {
+          const dealt = Math.max(1, Math.round(
+            hit * (1 - mitigate(n.fight![ARMOUR]!, you.level))))
+          n.hp -= dealt
+          n.hurt = clock
+          n.angry = true
+          n.threat['you'] = (n.threat['you'] ?? 0)
+            + threatFrom(dealt, sp.threat,
+              attackPower(you.level, statsAt(you.level)))
+          say(n.x, n.y, `${dealt}`, true)
+          if (n.hp <= 0) {
+            n.hp = 0; n.dead = clock; you.kills += 1
+            if (you.target === n) you.target = null
+            reward(n)
+          }
+        }
+        if (at.length > 1) ui.log(`${at.length}을(를) 한꺼번에 쳤다.`, 'hit')
+      } else if (effect === E_WEAPON_ADD) you.extra += amount!
       else if (effect === E_ENERGIZE) you.rage = Math.min(MAX_RAGE, you.rage + amount! / 10)
       else if (effect === E_AURA && aura === A_ATTACK_POWER) {
         you.shout = { until: clock + sp.holds / 1000, ap: amount! }
@@ -2103,6 +2138,9 @@ async function main() {
    * the nine standing copper veins and the tenth spot is as likely as the one
    * you emptied, which is why the forest is not a shop with a fixed shelf.
    */
+  /** A wound of somebody else's, ticking on the player. */
+  let youBleed: { until: number; next: number; each: number } | null = null
+
   function restocking() {
     for (const n of nodes) {
       if (n.up || !n.due || clock < n.due) continue
@@ -2195,6 +2233,36 @@ async function main() {
       if (d2 > reach2) continue
       if (clock * 1000 < n.next) continue
       n.next = clock * 1000 + n.fight[SWING]!
+      // What it can do besides swing.  `creature_template_spell` is 9,556 rows
+      // and the pipeline read none of them, so every fight in the forest was
+      // the same fight: 38 of the slice's kinds carry an ability and a kobold
+      // geomancer's bolt is the difference between a wolf and a caster.
+      const trick = (spellbook.foes?.[String(n.entry)] ?? [])
+        .find((sp) => (n.cools[sp.id] ?? 0) <= clock
+          && sp.does.some((d) => d[0] === E_DAMAGE
+            || (d[0] === E_AURA && d[3] === A_PERIODIC_DAMAGE)))
+      if (trick) {
+        n.cools[trick.id] = clock + Math.max(4, trick.cool / 1000)
+        for (const [effect, amount, die, aura, period] of trick.does) {
+          if (effect === E_DAMAGE) {
+            const bolt = Math.max(1, Math.round(
+              between(amount!, amount! + (die ?? 0))
+              * (1 - mitigate(you.line[ARMOUR]!, n.level))))
+            you.hp -= bolt
+            say(hero.x, hero.y, `-${bolt}`, false)
+            ui.log(`${nameOf(n.kind)}의 주문에 ${bolt} 맞았다.`, 'hurt')
+          } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE) {
+            youBleed = { until: clock + trick.holds / 1000,
+              next: clock + (period ?? 3000) / 1000, each: amount! }
+            ui.log(`${nameOf(n.kind)}에게 물렸다.`, 'hurt')
+          }
+        }
+        if (you.hp <= 0) {
+          you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+          ui.log('쓰러졌다.', 'note')
+        }
+        continue
+      }
       // What happens when it swings, by the server's own table: one roll, and
       // miss, dodge, parry, block, crushing and critical laid end to end.  A
       // creature attacking a player is checked against *his* dodge and parry,
@@ -2221,6 +2289,19 @@ async function main() {
       }
     }
 
+    // Somebody else's wound, ticking.
+    if (youBleed) {
+      if (clock > youBleed.until) youBleed = null
+      else if (clock >= youBleed.next) {
+        youBleed.next = clock + 3
+        you.hp -= youBleed.each
+        say(hero.x, hero.y, `-${youBleed.each}`, false)
+        if (you.hp <= 0) {
+          you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+          ui.log('쓰러졌다.', 'note')
+        }
+      }
+    }
     if (you.shout && you.shout.until <= clock) you.shout = null
     if (quiet) {
       // Rage drains when nobody is swinging, which is what stops you walking
@@ -4175,6 +4256,22 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /** What the world's creatures can do besides swing, for the check. */
+  ;(window as unknown as { __foes: () => unknown }).__foes = () => {
+    const foes = spellbook.foes ?? {}
+    const kinds = Object.keys(foes)
+    const runnable = Object.values(foes).flat().filter((sp) =>
+      sp.does.some((d) => CAN_DO.has(d[0]!)))
+    const here = new Set(npcs.map((n) => String(n.entry)))
+    return {
+      kinds: kinds.length,
+      inWorld: kinds.filter((e) => here.has(e)).length,
+      abilities: Object.values(foes).flat().length,
+      runnable: runnable.length,
+      wide: (spellbook.spells ?? []).filter((sp) => (sp.wide?.[0] ?? 0) > 0)
+        .map((sp) => ({ id: sp.id, wide: sp.wide[0] })),
+    }
   }
   /** Press an ability by id and say what the waits look like after. */
   ;(window as unknown as { __press: (id: number) => unknown }).__press = (id) => {

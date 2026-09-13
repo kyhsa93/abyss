@@ -40,6 +40,16 @@ CHAIN = ['koKR/patch-koKR-3.MPQ', 'koKR/patch-koKR-2.MPQ', 'koKR/patch-koKR.MPQ'
 F_POWER, F_COST = 41, 42
 F_RECOVERY, F_CATEGORY_RECOVERY = 29, 30
 F_DURATION, F_RANGE, F_LEVEL = 40, 46, 39
+# The three index columns that were never resolved.  Without the first there
+# is no such thing as "everything within eight yards", so a thunderclap could
+# only ever hit one thing; without the second everything in the game is an
+# instant cast whether it is or not.
+#
+# Found the way the global cooldown was: by asking which field of Thunder Clap
+# holds an id that `SpellRadius.dbc` answers with eight — `check` below keeps
+# it honest.
+F_CATEGORY, F_CAST = 1, 28
+F_RADIUS = 92
 F_EFFECT, F_DIE, F_BASE = 71, 74, 80
 # The global cooldown, which is a **column** and not the constant 1.5 seconds
 # it is usually described as.  `Spell::TriggerGlobalCooldown` (Spell.cpp:8971)
@@ -121,6 +131,11 @@ def main(client_root, acore, out, upto=None):
     for r in dbc(c, 'SpellRange'):
         f = struct.unpack('<%df' % len(r), struct.pack('<%di' % len(r), *r))
         ranges[r[0]] = (round(f[1], 1), round(f[3], 1))
+    radii = {}
+    for r in dbc(c, 'SpellRadius'):
+        f = struct.unpack('<%df' % len(r), struct.pack('<%di' % len(r), *r))
+        radii[r[0]] = round(f[1], 1)
+    casts = {r[0]: r[1] for r in dbc(c, 'SpellCastTimes')}
 
     # How far up this game goes, out of `slice.json` rather than a default
     # argument nobody outside this file could see.
@@ -145,6 +160,12 @@ def main(client_root, acore, out, upto=None):
             # What it makes you wait before pressing anything else.  Nought
             # for the ones that go off the next swing.
             'gcd': r[F_GCD],
+            # How long it takes to go off, and how wide it goes off.  Both
+            # were index columns nobody resolved: the first made everything
+            # instant and the second made everything single-target.
+            'cast': casts.get(r[F_CAST], 0),
+            'wide': [radii.get(r[F_RADIUS + i], 0.0) for i in range(3)],
+            'category': r[F_CATEGORY],
             # Three effect slots; an unused one is effect 0.  `basePoints` is
             # one short of what the tooltip says — the game rolls
             # `base + 1 .. base + dieSides`.
@@ -168,6 +189,14 @@ def main(client_root, acore, out, upto=None):
     if not shout or shout['gcd'] != 1500 or check['gcd'] != 0:
         sys.exit('Spell.dbc global cooldown field is wrong: 78 is %s and 6673 '
                  'is %s' % (check.get('gcd'), shout and shout.get('gcd')))
+    # And the radius.  A thunderclap is eight yards in this game and that is
+    # not a number in any table but `SpellRadius.dbc`, reached through an index
+    # on the spell — read from the wrong field it comes back nought, which
+    # looks exactly like a game with no area effects, which is what this had.
+    clap = next((r for r in out_rows if r['id'] == 6343), None)
+    if not clap or clap['wide'][0] != 8.0:
+        sys.exit('Spell.dbc radius index is wrong: 6343 came back %s'
+                 % (clap and clap.get('wide')))
 
     # How far a swing reaches, which was a constant in `fight.ts` — three
     # yards, "two bodies and an arm".  `SpellRange.dbc` states it: index 2 is
@@ -175,6 +204,49 @@ def main(client_root, acore, out, upto=None):
     # what an auto attack points at, so the table has to be asked for the
     # *combat* row rather than the attack's own.
     melee = ranges.get(2, (0.0, 5.0))[1]
+
+    # What the creatures of this slice can do, which until now was nothing.
+    # `creature_template_spell` is 9,556 rows and 38 of the slice's 459 kinds
+    # have one — Elwynn's kobolds and bandits carry a handful each, and
+    # without them every fight in the forest is the same fight.
+    foes, unrun = {}, {}
+    ctab = os.path.join(acore, 'data/sql/base/db_world/creature_template_spell.sql')
+    spawned = set()
+    made = os.path.join(out, 'npcs.json')
+    if os.path.exists(made):
+        with open(made) as f:
+            spawned = {r[9] for r in json.load(f).get('npcs', [])}
+    if spawned and os.path.exists(ctab):
+        from spawn_npcs import columns as cols2, rows as lines2, split as cut2
+        col2 = cols2(ctab)
+        for line in lines2(ctab):
+            f = cut2(line)
+            try:
+                e, sid = int(f[col2['CreatureID']]), int(f[col2['Spell']])
+            except (ValueError, KeyError, IndexError):
+                continue
+            if e not in spawned or not sid or sid not in spells:
+                continue
+            r = spells[sid]
+            lo, hi = ranges.get(r[F_RANGE], (0.0, 5.0))
+            does = [[r[F_EFFECT + i], r[F_BASE + i] + 1, r[F_DIE + i],
+                     r[F_AURA + i], r[F_PERIOD + i]] for i in range(3)
+                    if r[F_EFFECT + i]]
+            foes.setdefault(str(e), []).append({
+                'id': sid,
+                'cool': max(r[F_RECOVERY], r[F_CATEGORY_RECOVERY]) or 8000,
+                'reach': [lo, hi],
+                'wide': [radii.get(r[F_RADIUS + i], 0.0) for i in range(3)],
+                'holds': durations.get(r[F_DURATION], 0),
+                'does': does,
+            })
+            # What this engine cannot run, counted rather than dropped in
+            # silence.  A creature whose only ability is an effect nothing
+            # here implements simply swings, and that is a fact worth
+            # printing once a bake.
+            for eff, *_ in does:
+                if eff not in (2, 6, 3, 58):
+                    unrun[eff] = unrun.get(eff, 0) + 1
 
     # How much attention each ability buys, out of `spell_threat` — a flat
     # amount, a multiplier, and a share of attack power.  106 rows, of which
@@ -201,9 +273,18 @@ def main(client_root, acore, out, upto=None):
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')
     with open(path, 'w') as f:
-        json.dump({'spells': out_rows, 'melee': melee}, f)
+        json.dump({'spells': out_rows, 'melee': melee, 'foes': foes}, f)
     print(f'{len(out_rows)} abilities to level {upto} -> {path}'
           f'   combat range {melee} yards')
+    runnable = sum(1 for v in foes.values() for sp in v
+                   if any(e in (2, 6, 3, 58) for e, *_ in sp['does']))
+    print(f'  {len(foes)} kinds of creature carry '
+          f'{sum(len(v) for v in foes.values())} abilities between them, '
+          f'{runnable} of which this engine can run')
+    if unrun:
+        print('  effects it cannot run, by how often: '
+              + ', '.join(f'{k} x{v}' for k, v in
+                          sorted(unrun.items(), key=lambda kv: -kv[1])))
     for r in out_rows:
         print('  %-6d level %-3d %2d rage  %5dms  reach %s  %s'
               % (r['id'], r['level'], r['rage'], r['cool'], r['reach'], r['does']))

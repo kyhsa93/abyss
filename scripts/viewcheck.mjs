@@ -596,6 +596,17 @@ check('and a trainer puts something new on the bar',
   shops.learnt.taught.length > 0,
   `${shops.learnt.had} abilities → ${shops.learnt.now} after one lesson`)
 
+// 9m. Everything in the forest fought the same way, because the pipeline read
+// none of `creature_template_spell`'s 9,556 rows and none of `Spell.dbc`'s
+// index columns.  A thunderclap with no radius hits nobody, so there was no
+// point giving it a word; a kobold with no ability is a wolf that talks.
+const foes = await p.evaluate(() => window.__foes())
+check('creatures do something besides swing', foes.inWorld > 0,
+  `${foes.inWorld} kinds standing in the slice carry ${foes.abilities} `
+  + `abilities, ${foes.runnable} of which this engine runs`)
+check('and an area attack has an area', foes.wide.length > 0,
+  foes.wide.map((w) => `${w.id} reaches ${w.wide} yards`).join(', '))
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

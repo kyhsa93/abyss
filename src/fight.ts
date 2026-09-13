@@ -201,6 +201,12 @@ export type Spell = {
    * half everybody quotes.
    */
   gcd: number
+  /** How long it takes to go off — `SpellCastTimes.dbc`, ms. */
+  cast: number
+  /** How wide each effect goes off — `SpellRadius.dbc`, yards per slot. */
+  wide: number[]
+  /** Which shared cooldown it belongs to, if any. */
+  category?: number
   /**
    * What it buys you in attention — `spell_threat`'s `[flat, multiplier,
    * share of attack power]`.
@@ -213,7 +219,14 @@ export type Spell = {
   does: number[][]
 }
 
-/** The effect numbers this engine knows what to do with. */
+/**
+ * The effect numbers this engine knows what to do with.
+ *
+ * `E_SCHOOL_DAMAGE` is the plain one — a number of damage, here and now — and
+ * it was not in the list, which is why a thunderclap could not be pressed: its
+ * first effect is 2 and nothing here could run a 2.  With a radius resolved as
+ * well, it is what makes the first area attack in this game work.
+ */
 export const E_DAMAGE = 2, E_ENERGIZE = 3, E_AURA = 6, E_WEAPON_ADD = 58
 /** And the auras. */
 export const A_PERIODIC_DAMAGE = 3, A_ATTACK_POWER = 99
