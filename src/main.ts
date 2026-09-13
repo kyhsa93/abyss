@@ -2208,6 +2208,8 @@ async function main() {
 
   /** A wound of somebody else's, ticking on the player. */
   let youBleed: { until: number; next: number; each: number } | null = null
+  /** A clock the render check can hold still — see `__clock`. */
+  let frozen: Date | null = null
 
   /**
    * Rest, which is what makes it matter where you close the tab.
@@ -3428,7 +3430,7 @@ async function main() {
     // the tint over every tile come out of it: the art direction took the
     // colour out of the terrain, and this is most of what is left to give the
     // land an expression.
-    const today = new Date()
+    const today = frozen ?? new Date()
     const zoneHere = areaOf(hero.x, hero.y)
     const sky = skyAt(who?.weather?.[String(zoneHere)]
       ?? who?.weather?.[String(inside(zoneHere))], today)
@@ -4395,6 +4397,16 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /**
+   * Freeze the clock, for the check that compares pictures.
+   *
+   * The sky is derived from the time of day, so a screenshot taken at dusk is
+   * a different screenshot — and a reference image that only matches between
+   * noon and four is a reference nobody trusts.
+   */
+  ;(window as unknown as { __clock: (at: Date) => void }).__clock = (at) => {
+    frozen = at
   }
   /** What the sky is doing, and what it was doing hour by hour, for the check. */
   ;(window as unknown as { __sky: () => unknown }).__sky = () => {
