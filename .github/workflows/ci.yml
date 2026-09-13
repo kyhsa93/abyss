@@ -39,6 +39,9 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run promptcheck
+      # The bake cannot run here — it reads a client that is not in this
+      # repository — so what CI checks about it is the other half: that the
+      # world committed to the tree is the world the manifest describes.
 
   browser:
     name: check:slow

@@ -20,7 +20,8 @@ from bake_terrain import Client, read_tile, TILE, ORIGIN, CHUNK
 
 client = Client(os.path.expanduser(
     sys.argv[1] if len(sys.argv) > 1 else '~/workspace/warmane'))
-ELWYNN = 12
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from slice import AREA as ELWYNN  # noqa: E402
 lo_x = lo_y = 1e9
 hi_x = hi_y = -1e9
 n = 0
@@ -47,3 +48,11 @@ print(f'centre ({(lo_x + hi_x) / 2:.1f}, {(lo_y + hi_y) / 2:.1f})  '
       f'half-diagonal {(((hi_x - lo_x) ** 2 + (hi_y - lo_y) ** 2) ** 0.5) / 2:.0f}')
 top = sorted(seen.items(), key=lambda kv: -kv[1])[:8]
 print('commonest areas in the sweep:', top)
+
+# And put it back where the pipeline reads it from, rather than leaving four
+# numbers on a terminal for somebody to copy into three source files — which
+# is what happened, and is why they were three constants instead of one.
+if '--write' in sys.argv:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import slice as sl
+    print('slice.json bounds ->', sl.rewrite((lo_x, hi_x, lo_y, hi_y)))

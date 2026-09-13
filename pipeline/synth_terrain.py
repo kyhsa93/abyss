@@ -39,10 +39,11 @@ UNIT = TILE / 128            # 4.1667 yards, the same grid the client's bake use
 # was a 600 yard disc around one point, which was a fifth of the forest by
 # area and the whole of it as far as anyone playing could tell.
 #
-# Four numbers, taken once and written down; nothing here needs a client to
-# use them, and the script that produced them is committed so they can be
-# taken again.
-BOUNDS = (-9966.7, -8000.0, -1700.0, 1066.7)    # x lo, x hi, y lo, y hi
+# Four numbers, measured once and written into `slice.json`; nothing here needs
+# a client to use them, and the script that produced them is committed so they
+# can be taken again — `npm run measure -- --write` puts the new box back.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from slice import BOUNDS, MAP  # noqa: E402,F401
 CENTRE = ((BOUNDS[0] + BOUNDS[1]) / 2, (BOUNDS[2] + BOUNDS[3]) / 2)
 SPAN = (BOUNDS[1] - BOUNDS[0], BOUNDS[3] - BOUNDS[2])
 
@@ -51,7 +52,6 @@ def inside(x, y, grow=0.0):
     """Whether a point is in the forest, with room to grow or shrink the edge."""
     return (BOUNDS[0] - grow <= x <= BOUNDS[1] + grow
             and BOUNDS[2] - grow <= y <= BOUNDS[3] + grow)
-MAP = 0
 ORIGIN = 32 * TILE
 
 

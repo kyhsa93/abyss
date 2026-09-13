@@ -24,6 +24,9 @@ import sys
 
 from mpyq import MPQArchive
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from slice import BOUNDS, START  # noqa: E402
+
 TILE = 533.33333          # SIZE_OF_GRIDS
 CHUNK = TILE / 16         # ADT_CELLS_PER_GRID
 UNIT = CHUNK / 8          # one height cell: 4.1667 yards
@@ -1394,7 +1397,12 @@ def bake(client, bounds, out, acore=None):
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
         'centre': [cx, cy], 'bounds': list(bounds),
         'zMin': min(filled), 'zMax': max(filled),
-        'tiles': sources,
+        # Which of the client's map tiles this was built from.  The keys
+        # only: which archive each came out of is provenance and belongs in
+        # `public/manifest.json`, not in a file that ships — an archive name
+        # is Blizzard's the same as a model path, and `pipeline/bake.py`
+        # greps the output for exactly that.
+        'tiles': sorted(sources),
         'areas': areas,
         'hasWater': True,
         'water': sum(wetmask),
@@ -1466,6 +1474,7 @@ def bake(client, bounds, out, acore=None):
     tally = {k: groundmask.count(i) for i, k in enumerate(GROUND_ORDER)}
     print('ground ' + '  '.join(f'{k} {v:,}' for k, v in tally.items() if v))
     print(f'areas {sorted(areas)}')
+    print('read from ' + ', '.join(sorted(set(sources.values()))))
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
     check_rooms(doodads)
@@ -1618,7 +1627,8 @@ def check(client, meta, out):
     the ground height of.  If the two disagree the whole chain is wrong
     somewhere, and every other number here is decoration.
     """
-    tx, ty, tz = -8949.95, -132.493, 83.5312
+    tx, ty = START
+    tz = 83.5312
     w, h, u = meta['width'], meta['height'], meta['unit']
     I = int((meta['x0'] - tx) / u)
     J = int((meta['y0'] - ty) / u)
@@ -1640,9 +1650,9 @@ if __name__ == '__main__':
     root = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser('~/workspace/warmane')
     out = sys.argv[2] if len(sys.argv) > 2 else 'public/data'
     c = Client(root)
-    # The forest, not a disc inside it — the same four numbers the synthesised
-    # world uses, measured by `pipeline/measure_zone.py`.
+    # The forest, not a disc inside it.  One file says where that is and every
+    # stage reads it: see `slice.json` and `pipeline/slice.py`.
     acore = os.path.expanduser(sys.argv[3] if len(sys.argv) > 3
                                else '~/src/azerothcore-wotlk')
-    m = bake(c, (-9966.7, -8000.0, -1700.0, 1066.7), out, acore)
+    m = bake(c, BOUNDS, out, acore)
     check(c, m, out)

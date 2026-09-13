@@ -53,11 +53,12 @@ import re
 import sys
 from collections import Counter
 
-# Elwynn Forest, the same four numbers `synth_terrain.py` uses and for the same
-# reason — see `pipeline/measure_zone.py`, which took them off the client's own
-# area map.  A creature is in the slice if it is in the forest.
-BOUNDS = (-9966.7, -8000.0, -1700.0, 1066.7)    # x lo, x hi, y lo, y hi
-MAP = 0
+# Where this game is, out of `slice.json` — one file for the whole pipeline.
+# These four numbers used to be typed into three scripts, which is not a
+# constant but three constants that happen to agree.  A creature is in the
+# slice if it is in the forest.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from slice import BOUNDS, MAP  # noqa: E402,F401
 
 # `creature` column order, from the dump's own CREATE TABLE.
 C_GUID, C_ID, C_MAP, C_X, C_O = 0, 1, 4, 10, 13
@@ -789,8 +790,12 @@ def main(acore, out):
     col = columns(tpl)
     stats, factions = fight_tables(base)
     swims = moving(base)
-    got = walkable(base)
-    walk = got[0] if got else 0.0
+    # `(steepest, legs, routes)`.  Named for what it is: this was `got`, and
+    # `got` is reused eighty lines further down for a creature's fight row, so
+    # the check at the end printed a creature's health as the climbing limit —
+    # or rather it did not, because it also exited with a `NameError` first.
+    climb = walkable(base)
+    walk = climb[0] if climb else 0.0
     wanted = {e for e, *_ in spawns}
     info = {}
     ways = {}
@@ -957,10 +962,10 @@ def main(acore, out):
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
     if unknown:
         print('  ! unclassified types: ' + ', '.join(f'{k} x{v}' for k, v in unknown.items()))
-    check(out_rows, kinds)
+    check(out_rows, kinds, climb)
 
 
-def check(out_rows, kinds):
+def check(out_rows, kinds, walk=None):
     """Two promises a player would notice being broken.
 
     Everyone is inside the slice — a spawn outside it is a creature standing in
@@ -976,9 +981,14 @@ def check(out_rows, kinds):
         sys.exit('a spawn is outside the forest')
     far = max(max(out_x) - min(out_x), max(out_y) - min(out_y))
     facings = Counter(r[3] for r in out_rows)
-    if got:
-        print(f'walk: steepest of {got[1]:,} patrol legs over {got[2]} routes '
-              f'is {got[0]:.2f} ({math.degrees(math.atan(got[0])):.0f} deg) — '
+    # The climbing limit, which is the one number in this file that another
+    # file depends on.  It used to be read here off a name that only existed
+    # inside `main`, so this whole script exited with a `NameError` on its last
+    # line — every run, for as long as it has had a check.  Nothing noticed
+    # because nothing ran it: see issue 105.
+    if walk:
+        print(f'walk: steepest of {walk[1]:,} patrol legs over {walk[2]} routes '
+              f'is {walk[0]:.2f} ({math.degrees(math.atan(walk[0])):.0f} deg) — '
               f'that is the climbing limit')
     print(f'check: spawns span {far:.0f} yd, '
           f'facings ' + '/'.join(str(facings[d]) for d in range(4)))

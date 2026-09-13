@@ -1,0 +1,17 @@
+{
+  "_": "What this game is a slice of. Every stage of the pipeline reads this file and nothing hard-codes any of it — see pipeline/slice.py. Widening the slice is an edit here and a re-bake, never a code change.",
+  "regions": [
+    {
+      "map": 0,
+      "area": 12,
+      "bounds": [-9966.7, -8000.0, -1700.0, 1066.7],
+      "_bounds": "x lo, x hi, y lo, y hi. Measured, not chosen: `npm run measure` takes the bounding box of every map chunk the client labels area 12, which is Elwynn Forest, and prints these four numbers."
+    }
+  ],
+  "levels": [1, 10],
+  "races": ["Human"],
+  "classes": ["Warrior"],
+  "includeDungeons": false,
+  "start": [-8949.95, -132.493],
+  "_start": "playercreateinfo for a human warrior. bake_terrain checks its own height grid against the server's figure here."
+}

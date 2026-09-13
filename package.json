@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "bake": "python3 pipeline/bake_terrain.py",
-    "check": "tsc",
+    "bake": "python3 pipeline/bake.py",
+    "check": "tsc && python3 scripts/manifestcheck.py",
     "tiles": "python3 pipeline/bake_tiles.py",
     "sprites": "python3 pipeline/bake_sprites.py",
     "synth": "python3 pipeline/synth_terrain.py",
@@ -32,7 +32,10 @@
     "questcheck": "node scripts/questcheck.mjs",
     "check:slow": "npm run viewcheck && npm run uicheck && npm run questcheck && npm run padcheck",
     "check:client": "npm run audit && npm run layout && npm run objects",
-    "objects": "python3 pipeline/objects.py"
+    "objects": "python3 pipeline/objects.py",
+    "bake:terrain": "python3 pipeline/bake_terrain.py",
+    "measure": "python3 pipeline/measure_zone.py",
+    "manifestcheck": "python3 scripts/manifestcheck.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

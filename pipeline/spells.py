@@ -28,6 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bake_terrain import Client  # noqa: E402
+from slice import LEVELS  # noqa: E402
 
 # The Korean client keeps `DBFilesClient` in its own patch archive, ahead of
 # everything the terrain reader looks in.
@@ -98,7 +99,7 @@ def known(base, upto):
     return out
 
 
-def main(client_root, acore, out, upto=10):
+def main(client_root, acore, out, upto=None):
     c = Client(client_root)
     import bake_terrain
     bake_terrain.CHAIN = CHAIN
@@ -110,6 +111,9 @@ def main(client_root, acore, out, upto=10):
         f = struct.unpack('<%df' % len(r), struct.pack('<%di' % len(r), *r))
         ranges[r[0]] = (round(f[1], 1), round(f[3], 1))
 
+    # How far up this game goes, out of `slice.json` rather than a default
+    # argument nobody outside this file could see.
+    upto = upto or LEVELS[1]
     want = known(os.path.join(acore, 'data/sql/base/db_world'), upto)
     out_rows = []
     for sid, lv in sorted(want.items(), key=lambda kv: (kv[1], kv[0])):

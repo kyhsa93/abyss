@@ -41,8 +41,8 @@ import sys
 from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spawn_npcs import columns, rows, split, split_head, goods_of, \
-    BOUNDS, MAP  # noqa: E402
+from spawn_npcs import columns, rows, split, split_head, goods_of  # noqa: E402
+from slice import BOUNDS, MAP  # noqa: E402
 import bake_terrain as terrain  # noqa: E402
 
 # `gameobject_template.type`, which is the client's own enum.  Only the ones

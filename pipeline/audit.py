@@ -41,7 +41,7 @@ import bake_terrain as B  # noqa: E402
 from spawn_npcs import columns  # noqa: E402
 
 # The forest, the same four numbers every other step uses.
-BOUNDS = (-9966.7, -8000.0, -1700.0, 1066.7)
+from slice import BOUNDS  # noqa: E402,F401  (see slice.json)
 
 
 def tiles_over(bounds):

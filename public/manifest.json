@@ -1,0 +1,52 @@
+{
+  "baked": "2026-09-13T06:36:43Z",
+  "upstream": {
+    "azerothcore": "c0e6272af9a1",
+    "client": "3.3.5a (12340)"
+  },
+  "slice": {
+    "_": "What this game is a slice of. Every stage of the pipeline reads this file and nothing hard-codes any of it — see pipeline/slice.py. Widening the slice is an edit here and a re-bake, never a code change.",
+    "regions": [
+      {
+        "map": 0,
+        "area": 12,
+        "bounds": [
+          -9966.7,
+          -8000.0,
+          -1700.0,
+          1066.7
+        ],
+        "_bounds": "x lo, x hi, y lo, y hi. Measured, not chosen: `npm run measure` takes the bounding box of every map chunk the client labels area 12, which is Elwynn Forest, and prints these four numbers."
+      }
+    ],
+    "levels": [
+      1,
+      10
+    ],
+    "races": [
+      "Human"
+    ],
+    "classes": [
+      "Warrior"
+    ],
+    "includeDungeons": false,
+    "start": [
+      -8949.95,
+      -132.493
+    ],
+    "_start": "playercreateinfo for a human warrior. bake_terrain checks its own height grid against the server's figure here."
+  },
+  "synthesised": false,
+  "files": {
+    "public/world/layout.json": "c3172659f5751b5c",
+    "public/world/npcs.json": "e35609e14485bb07",
+    "public/world/objects.json": "ed90deaf58b6558d",
+    "public/world/quests.json": "8c9610a46dd37d7c",
+    "public/world/spells.json": "980c1bb5aca05453",
+    "public/world/terrain.bin": "0278b6a1643616e0",
+    "public/world/terrain.json": "221076833dd4b254",
+    "public/data/objects.json": "ed90deaf58b6558d",
+    "public/data/terrain.bin": "8b45289107f40d80",
+    "public/data/terrain.json": "503af62532676587"
+  }
+}

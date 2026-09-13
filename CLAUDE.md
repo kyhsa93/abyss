@@ -358,6 +358,25 @@ maze, and a maze can be solved. Being pushed cannot be.
 
 ## Finishing a change
 
+**Where this game is, is one file.** `slice.json` at the top of the tree: the
+map, the area, the four bounds, the level range, the start. Every stage reads
+it through `pipeline/slice.py` and nothing hard-codes any of it — those four
+numbers used to be typed into three scripts, which is not a constant but three
+constants that happen to agree. Widening the slice is an edit there and a
+re-bake, never a code change, and `npm run measure -- --write` puts a freshly
+measured box back in the file instead of printing it for somebody to copy.
+
+**`npm run bake` is one command** and it says what it could not do. A stage
+that needs the client and has none is named as skipped, and a world built
+without one says so loudly at the end — the same promise the `· 합성` marker
+makes to the player. `--twice` bakes again into scratch and compares, because
+`public/` is committed and a build that shuffles its own output puts noise in
+every commit. It writes `public/manifest.json`: which AzerothCore commit, which
+client build, and the hash of every file, so "which upstream did this come
+from" has an answer. **The copyright boundary is a grep at the end of it** — no
+baked file may contain a model path, an archive name or a table name — which is
+how `terrain.json`'s per-tile `patch-3.MPQ` was found and moved to the manifest.
+
 `npm run check` is `tsc` and it is fast. `npm run check:slow` is the four
 browser checks — `viewcheck`, `uicheck`, `questcheck`, `padcheck` — and needs a
 browser and something serving the page; `ABYSS_URL` points them at it, and
