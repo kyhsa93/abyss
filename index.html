@@ -390,6 +390,14 @@
       body.touch #talk li b { font-size: 13px; }
       body.touch #talk .lines { padding: 0 0 10px 26px; }
     </style>
+    <!-- Installable, because closing the tab is how a session ends here: the
+         save lives in IndexedDB and the world is a file, so there is nothing
+         about this game that needs a network on the second visit.  The icon
+         is the same game-icons.net blade the attack button uses, rendered by
+         `npm run icons`; `art/UI-CREDITS.md` names its author. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="art/icon/abyss-192.png" />
+    <meta name="theme-color" content="#14161f" />
   </head>
   <body>
     <div id="hud" class="plain" hidden>불러오는 중…</div>

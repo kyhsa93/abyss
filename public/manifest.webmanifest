@@ -1,0 +1,17 @@
+{
+  "name": "abyss",
+  "short_name": "abyss",
+  "description": "엘윈 숲 한 조각. 아제로스코어의 세계 데이터와 3.3.5a 클라이언트의 지형에서 만든 1인용 브라우저 RPG.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a0a0f",
+  "theme_color": "#14161f",
+  "lang": "ko",
+  "icons": [
+    { "src": "art/icon/abyss-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "art/icon/abyss-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "art/icon/abyss-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

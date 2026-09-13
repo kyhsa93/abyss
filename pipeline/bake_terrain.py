@@ -1248,6 +1248,7 @@ def bake(client, bounds, out, acore=None):
     shapes = {}
     variety = {}
     closed = []
+    seams = []
     gaps = []
     wholly = []
     indoor_ids = set()
@@ -1359,7 +1360,18 @@ def bake(client, bounds, out, acore=None):
                         J = base_j + c
                         if not (j_lo <= J <= j_hi):
                             continue
-                        grid[(I - i_lo) * h + (J - j_lo)] = ccz + hv[r * 17 + c]
+                        # Tiles share their edge: the last column of one is
+                        # the first of the next, and the same is true of every
+                        # chunk inside a tile.  So this is written twice, and
+                        # the two values have to agree — a V9 grid stitched one
+                        # cell out of step puts a cliff along every seam, and
+                        # the only thing that would say so is the eye.
+                        at = (I - i_lo) * h + (J - j_lo)
+                        was = grid[at]
+                        now = ccz + hv[r * 17 + c]
+                        if was is not None and abs(was - now) > 0.01:
+                            seams.append(round(abs(was - now), 2))
+                        grid[at] = now
 
     # The diagonal cases, filled in from an instance of the same model that was
     # not diagonal.  Northshire's bridge is the same model as Elwynn's and lies
@@ -1481,7 +1493,29 @@ def bake(client, bounds, out, acore=None):
     check_water(grid, wetmask, levels)
     check_walls()
     check_holes(gaps, wholly, meta)
+    check_seams(seams, grid)
     return meta
+
+
+def check_seams(seams, grid):
+    """Where two tiles meet, they have to meet.
+
+    Every edge of every chunk is written twice — once by the chunk on each
+    side — and if the stitching is a cell out of step the second write
+    disagrees with the first.  474 by 667 cells with 630,036 triangles over
+    them, and a seam is a cliff a yard wide: visible, and visible *only*, which
+    is why the wiki asked for a check rather than a look.
+
+    Nothing is tolerated but floating point.  The two writes are the same
+    number out of the same file, so anything above a hundredth of a yard is a
+    grid that does not line up.
+    """
+    filled = sum(1 for v in grid if v is not None)
+    print(f'check: {filled:,} height cells, {len(seams)} of them written twice '
+          f'with different answers')
+    assert not seams, (
+        'the tiles do not meet: %d cells disagree, worst %.2f yards'
+        % (len(seams), max(seams)))
 
 
 def check_holes(gaps, full, meta):

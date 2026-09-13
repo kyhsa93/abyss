@@ -444,6 +444,22 @@ from" has an answer. **The copyright boundary is a grep at the end of it** — n
 baked file may contain a model path, an archive name or a table name — which is
 how `terrain.json`'s per-tile `patch-3.MPQ` was found and moved to the manifest.
 
+**A budget that nothing measures is a wish**, and a boundary that lives only in
+a document is not kept. `npm run budgetcheck` weighs what a visitor actually
+downloads — the script gzipped, and *one* world, because `dist` carries two and
+the page opens one — and what the sheets cost once decoded, which is not what
+they cost on the wire: a transparent pixel is free in a PNG and full price in
+memory. `npm run bordercheck` reads the source for the rules the structure page
+states, and then does the one thing reading cannot: **loads `fight.ts`,
+`stats.ts` and `roll.ts` in Node with no browser and asks them for an answer.**
+
+**It installs, and the second visit needs no network.** The worker precaches the
+shell, the script, the sheets and *one* world — precaching both would ask every
+visitor to store a world they will never open — and the cache is named after a
+hash of that list, so a new deploy drops the old one whole rather than serving
+half of each. That matters more than it sounds: a save carries the hash of the
+world it was made in.
+
 `npm run check` is `tsc` and it is fast. `npm run check:slow` is the four
 browser checks — `viewcheck`, `uicheck`, `questcheck`, `padcheck` — and needs a
 browser and something serving the page; `ABYSS_URL` points them at it, and

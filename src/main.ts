@@ -4343,4 +4343,24 @@ async function main() {
   }
 }
 
+/**
+ * Make it installable, and make the second visit work with no network.
+ *
+ * The save is in IndexedDB and the world is a handful of files, so there is
+ * nothing about this game that needs to be online twice.  Registered after the
+ * scene is up rather than before, because a service worker racing the first
+ * load is a service worker that slows down the thing it exists to speed up.
+ *
+ * Wrapped, like every other storage call here: a browser with workers turned
+ * off is a browser that should still play the game.
+ */
+function offline() {
+  if (!('serviceWorker' in navigator)) return
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`)
+      .catch(() => { /* no worker, no offline, still a game */ })
+  })
+}
+offline()
+
 main().catch((e) => { hud.textContent = String(e); throw e })

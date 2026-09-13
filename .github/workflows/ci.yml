@@ -39,6 +39,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run promptcheck
+      # The module boundary, which until now lived only in a wiki page.  The
+      # check that matters loads the rules in Node with no browser at all.
       # The bake cannot run here — it reads a client that is not in this
       # repository — so what CI checks about it is the other half: that the
       # world committed to the tree is the world the manifest describes.
@@ -69,6 +71,12 @@ jobs:
           echo 'the preview server never came up' >&2
           exit 1
       - run: npm run check:slow
+        env:
+          ABYSS_URL: http://localhost:4173/abyss/
+      # Installable, and the second visit opens with the network cut.  The
+      # save lives in IndexedDB and the world is a handful of files, so there
+      # is nothing about this game that needs to be online twice.
+      - run: npm run pwacheck
         env:
           ABYSS_URL: http://localhost:4173/abyss/
 

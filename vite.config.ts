@@ -30,7 +30,27 @@ function serviceWorker(): Plugin {
       }
       walk(dist)
 
-      const assets = files.filter((f) => !f.endsWith('sw.js')).sort()
+      /**
+       * What gets precached, which is a decision and not a sweep.
+       *
+       * `dist` carries two worlds — the client's terrain and the synthesised
+       * one — because a deploy without a client bake still needs something to
+       * stand on.  The page only ever fetches one of them, so precaching both
+       * would ask every visitor to store 2.6 MB of a world they will never
+       * open.  The one the page will not use is left to the network.
+       *
+       * Everything else goes in: the shell, the script, the sheets, the
+       * spawns, the quests, the items.  The cache is named after a hash of
+       * this list and `activate` deletes every other one, so a new deploy
+       * drops the old world rather than serving half of each — which matters
+       * more than it sounds, because a save carries the hash of the world it
+       * was made in.
+       */
+      const hasClient = files.some((f) => f.includes('/data/terrain.'))
+      const assets = files
+        .filter((f) => !f.endsWith('sw.js'))
+        .filter((f) => !(hasClient && f.includes('/world/terrain.')))
+        .sort()
       const version = createHash('sha1').update(assets.join('|')).digest('hex').slice(0, 12)
       writeFileSync(join(dist, 'sw.js'), source(version, assets, `${base}index.html`))
     },
@@ -76,7 +96,13 @@ self.addEventListener('fetch', (event) => {
 
   // Everything else is content-hashed by the build, so a cache hit can never
   // be stale: a changed file has a different name.
-  event.respondWith(caches.match(request).then((hit) => hit || fetch(request)))
+  // \`ignoreVary\` because the stored response carries whatever \`Vary\` header
+  // the server sent, and a module script is requested with an \`Origin\` the
+  // precache fetch did not have — so a match by Request missed what a match by
+  // URL found, and the page loaded offline with no script in it.
+  event.respondWith(
+    caches.match(request, { ignoreVary: true }).then((hit) => hit || fetch(request)),
+  )
 })
 
 const SHELL_TIMEOUT = 3000
@@ -88,7 +114,8 @@ function freshShell(request) {
     const fallback = () => {
       if (settled) return
       settled = true
-      caches.match(SHELL).then((hit) => resolve(hit || fetch(request)))
+      caches.match(SHELL, { ignoreVary: true })
+        .then((hit) => resolve(hit || fetch(request)))
     }
 
     // Do not let a slow network hold the game hostage.
