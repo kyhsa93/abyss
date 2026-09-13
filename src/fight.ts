@@ -156,6 +156,27 @@ export function rageFrom(damage: number, level: number,
 export const MAX_RAGE = 100
 
 /**
+ * How much attention a blow buys.
+ *
+ * `ThreatManager::AddThreat` (ThreatManager.cpp:392): damage is threat, one
+ * for one, and a spell's own row in `spell_threat` moves it — a flat amount
+ * on top, a multiplier over the whole, and a share of attack power.
+ *
+ * With one player and no pets there is only ever one name on a creature's
+ * list, so nothing *chooses* differently yet.  It is here because the list is
+ * the thing taunt acts on and because "who is it hitting" should be a rule
+ * before it is a question — and because without it, `spell_threat`'s hundred
+ * and six rows are another table nobody reads.
+ */
+export function threatFrom(damage: number, mods: number[] | undefined,
+  attackPower = 0): number {
+  if (!mods) return damage
+  const [flat, pct, apPct] = mods
+  return (damage + (flat ?? 0) + (attackPower * (apPct ?? 0)) / 100)
+    * (pct ?? 1)
+}
+
+/**
  * One ability, as `pipeline/spells.py` writes it.
  *
  * `does` is the client's three effect slots, each `[effect, amount, dieSides,
@@ -170,6 +191,23 @@ export type Spell = {
   cool: number
   reach: [number, number]
   holds: number
+  /**
+   * What pressing it makes you wait before pressing anything else.
+   *
+   * `Spell.dbc`'s `StartRecoveryTime`, which is nought for the abilities that
+   * go off your next swing — so it is a column and not the flat second and a
+   * half everybody quotes.
+   */
+  gcd: number
+  /**
+   * What it buys you in attention — `spell_threat`'s `[flat, multiplier,
+   * share of attack power]`.
+   *
+   * A heavier blow is worth five more threat than the damage it does, which
+   * is the whole reason it is the thing you open with rather than an
+   * expensive auto-attack.
+   */
+  threat?: number[]
   does: number[][]
 }
 

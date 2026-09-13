@@ -41,6 +41,16 @@ F_POWER, F_COST = 41, 42
 F_RECOVERY, F_CATEGORY_RECOVERY = 29, 30
 F_DURATION, F_RANGE, F_LEVEL = 40, 46, 39
 F_EFFECT, F_DIE, F_BASE = 71, 74, 80
+# The global cooldown, which is a **column** and not the constant 1.5 seconds
+# it is usually described as.  `Spell::TriggerGlobalCooldown` (Spell.cpp:8971)
+# reads `StartRecoveryTime` off the spell and clamps it to one to one and a
+# half seconds; a spell with nought there does not start one at all, which is
+# how Heroic Strike and Charge can follow anything.
+#
+# Field 206 was not looked up in a layout table — it was found: the only field
+# that is 1500 for Battle Shout and nought for Heroic Strike, across every
+# ability a warrior has by level ten.
+F_GCD_CATEGORY, F_GCD = 205, 206
 F_AURA, F_PERIOD = 95, 98
 
 # The warrior's trainer, and the class's own skill lines.  Trainer 1 teaches
@@ -127,6 +137,9 @@ def main(client_root, acore, out, upto=None):
             'cool': max(r[F_RECOVERY], r[F_CATEGORY_RECOVERY]),
             'reach': [lo, hi],
             'holds': durations.get(r[F_DURATION], 0),
+            # What it makes you wait before pressing anything else.  Nought
+            # for the ones that go off the next swing.
+            'gcd': r[F_GCD],
             # Three effect slots; an unused one is effect 0.  `basePoints` is
             # one short of what the tooltip says — the game rolls
             # `base + 1 .. base + dieSides`.
@@ -142,6 +155,14 @@ def main(client_root, acore, out, upto=None):
     check = next((r for r in out_rows if r['id'] == 78), None)
     if not check or check['rage'] != 15:
         sys.exit('Spell.dbc field offsets are wrong: 78 came back as %s' % check)
+    # And the global cooldown, the same way: a heavier blow goes off the next
+    # swing and starts no wait, and a shout starts a second and a half.  Read
+    # from the wrong field both come back nought, which looks like a game with
+    # no global cooldown at all — which is what this had.
+    shout = next((r for r in out_rows if r['id'] == 6673), None)
+    if not shout or shout['gcd'] != 1500 or check['gcd'] != 0:
+        sys.exit('Spell.dbc global cooldown field is wrong: 78 is %s and 6673 '
+                 'is %s' % (check.get('gcd'), shout and shout.get('gcd')))
 
     # How far a swing reaches, which was a constant in `fight.ts` — three
     # yards, "two bodies and an arm".  `SpellRange.dbc` states it: index 2 is
@@ -149,6 +170,28 @@ def main(client_root, acore, out, upto=None):
     # what an auto attack points at, so the table has to be asked for the
     # *combat* row rather than the attack's own.
     melee = ranges.get(2, (0.0, 5.0))[1]
+
+    # How much attention each ability buys, out of `spell_threat` — a flat
+    # amount, a multiplier, and a share of attack power.  106 rows, of which
+    # the warrior's first ten levels use a handful: a heavier blow is worth
+    # five more than the damage it does, and that is the whole reason it is
+    # the thing you open with.
+    threat = {}
+    tpath = os.path.join(acore, 'data/sql/base/db_world/spell_threat.sql')
+    if os.path.exists(tpath):
+        from spawn_npcs import columns as cols, rows as lines, split as cut
+        col = cols(tpath)
+        for line in lines(tpath):
+            f = cut(line)
+            try:
+                threat[int(f[col['entry']])] = [
+                    int(f[col['flatMod']]), float(f[col['pctMod']]),
+                    int(f[col['apPctMod']])]
+            except (ValueError, KeyError, IndexError):
+                continue
+    for row in out_rows:
+        if row['id'] in threat:
+            row['threat'] = threat[row['id']]
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')

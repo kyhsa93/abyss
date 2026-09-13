@@ -22,6 +22,7 @@
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
 import { parries } from './talk'
+import { threatFrom } from './fight'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
@@ -1015,6 +1016,14 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    /**
+     * Who it is angry at and how much — `ThreatManager`, keyed by name.
+     *
+     * One entry, because there is one player and no pets; the list is here so
+     * that "who is it hitting" is a rule rather than the only thing in reach,
+     * and so taunt has something to act on when it arrives.
+     */
+    threat: Record<string, number>
   }
   const npcs: Npc[] = []
   let unplaceable = 0
@@ -1057,6 +1066,7 @@ async function main() {
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
+      threat: {},
     })
   }
 
@@ -1767,6 +1777,8 @@ async function main() {
     extra: 0,
     /** When each thing with a cooldown is ready again. */
     cools: {} as Record<number, number>,
+    /** And when the global one is — see `cast`. */
+    gcd: 0,
     /** The shout, while it lasts. */
     shout: null as { until: number; ap: number } | null,
     purse: 0, kills: 0,
@@ -1829,6 +1841,10 @@ async function main() {
   const why = (sp: Spell): string | null => {
     if (you.died) return '쓰러져 있다'
     if (you.rage < sp.rage) return `분노가 ${sp.rage} 필요하다`
+    // Anything that starts a wait also has to wait; anything that does not,
+    // does not — a heavier blow goes off the next swing whatever else you
+    // just pressed.
+    if (sp.gcd && you.gcd > clock) return '아직 준비되지 않았다'
     if ((you.cools[sp.id] ?? 0) > clock) return '아직 준비되지 않았다'
     const far = sp.reach[1]
     if (far > 0) {
@@ -1848,11 +1864,38 @@ async function main() {
    * rather than per ability, so the day `spells.py` reaches level ten nothing
    * here needs a new branch for a second bleed.
    */
+  /**
+   * The global cooldown: what pressing anything makes you wait before
+   * pressing anything else.
+   *
+   * It is a **column**, not the constant second and a half it is always
+   * described as — `Spell::TriggerGlobalCooldown` (Spell.cpp:8971) reads
+   * `StartRecoveryTime` off the spell and clamps it to between one second and
+   * one and a half.  A spell with nought there starts none at all, which is
+   * how a heavier blow and a run-up can follow anything: they go off the next
+   * swing rather than instead of it.
+   *
+   * Without this you could press everything rage would pay for in the same
+   * instant, and the tick length in the wiki's own simulation design is
+   * derived from a number that was not in the code.
+   */
+  const GCD_MIN = 1000, GCD_MAX = 1500
+  const gcdOf = (sp: Spell) =>
+    sp.gcd ? Math.min(GCD_MAX, Math.max(GCD_MIN, sp.gcd)) : 0
   const cast = (sp: Spell) => {
     if (why(sp) !== null) return
     you.rage -= sp.rage
+    if (sp.gcd) you.gcd = clock + gcdOf(sp) / 1000
     if (sp.cool) you.cools[sp.id] = clock + sp.cool / 1000
     const t = you.target
+    // What pressing it buys in attention, out of `spell_threat`.  A heavier
+    // blow is worth five over the damage it does; a thunderclap is worth
+    // nearly twice its damage.  That is the rule that makes an opener an
+    // opener rather than an expensive auto-attack.
+    if (t && sp.threat) {
+      t.threat['you'] = (t.threat['you'] ?? 0)
+        + threatFrom(0, sp.threat, attackPower(you.level, statsAt(you.level)))
+    }
     for (const [effect, amount, _die, aura, period] of sp.does) {
       if (effect === E_WEAPON_ADD) you.extra += amount!
       else if (effect === E_ENERGIZE) you.rage = Math.min(MAX_RAGE, you.rage + amount! / 10)
@@ -2131,6 +2174,10 @@ async function main() {
     const hit = damageAfter(fate, raw, foe.level - you.level)
     you.extra = 0
     you.rage = Math.min(MAX_RAGE, you.rage + rageFrom(hit, you.level, secs, true))
+    // Attention, before the damage, because a blow that is blocked to nothing
+    // still annoys whatever you hit.
+    foe.threat['you'] = (foe.threat['you'] ?? 0)
+      + threatFrom(hit, undefined, attackPower(you.level, mine))
     foe.hp -= hit
     foe.hurt = clock
     if (hit > 0) foe.angry = true
@@ -3469,9 +3516,15 @@ async function main() {
           icon: ICON_OF[sp.id] ?? 'lorc/sword-slice.svg',
           tip: `${word}  —  분노 ${sp.rage}\n${what}`
             + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
+            + (sp.gcd ? `\n전역 대기 ${(gcdOf(sp) / 1000).toFixed(1)}초`
+              : '\n다음 공격에 실린다')
             + (stop ? `\n${stop}` : ''),
           use: () => { if (!chat) cast(sp) },
-          cooling: sp.cool ? Math.max(0, (ready - clock) / (sp.cool / 1000)) : 0,
+          // The shutter falls for whichever wait is longer, so the global one
+          // is visible on every square it applies to rather than nowhere.
+          cooling: Math.max(
+            sp.cool ? Math.max(0, (ready - clock) / (sp.cool / 1000)) : 0,
+            sp.gcd ? Math.max(0, (you.gcd - clock) / (gcdOf(sp) / 1000)) : 0),
           live: stop === null,
         }
       }),
@@ -3697,6 +3750,78 @@ async function main() {
       out[word] = (out[word] ?? 0) + 1
     }
     return out
+  }
+  /**
+   * How a fight actually goes, run in the fight's own arithmetic.
+   *
+   * The wiki's own check list asks whether pulling two is measurably worse
+   * than pulling one, and nothing here could answer it: the fight lives in the
+   * frame loop.  This runs the same functions — the hit table, the armour
+   * curve, the swing timers — over a synthetic clock, so the answer comes out
+   * of the rules rather than out of a guess.
+   */
+  ;(window as unknown as {
+    __duel: (level: number, many: number, runs: number, mineLevel?: number) => unknown
+  }).__duel = (level, many, runs, mineLevel) => {
+    // The player's level is given rather than read, so the answer does not
+    // depend on what a check ran before this one.
+    const lv = mineLevel ?? you.level
+    const mine = statsAt(lv)
+    const line = lineFor(lv)
+    const foe = (spawns.fights ?? []).find((f) => f && f[HP]! > 0
+      && (spawns.npcs ?? []).some((n) => n[4] === level && n[7] === (spawns.fights ?? []).indexOf(f)))
+      ?? [60, 3, 5, 2000, 20, 2]
+    let won = 0, ticks = 0
+    for (let r = 0; r < runs; r++) {
+      let hp = line[HP]!
+      const foes = Array.from({ length: many }, () => foe[HP]!)
+      let mine_t = 0
+      const theirs = foes.map(() => 0)
+      for (let t = 0; t < 60000 && hp > 0 && foes.some((h) => h > 0); t += 100) {
+        // Yours, at whichever is still up.
+        const target = foes.findIndex((h) => h > 0)
+        if (target >= 0 && t >= mine_t) {
+          mine_t = t + line[SWING]!
+          const fate = rollMelee(
+            { level: lv, crit: who ? critChance(lv, mine, who) : 5,
+              humanoid: true },
+            { level, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
+              block: CREATURE_BLOCK },
+            Math.random() * 10000)
+          foes[target]! -= damageAfter(fate,
+            swing(line, level, foe[ARMOUR]!, Math.random()), level - lv)
+        }
+        // Theirs, all of them.
+        for (let i = 0; i < many; i++) {
+          if (foes[i]! <= 0 || t < theirs[i]!) continue
+          theirs[i] = t + foe[SWING]!
+          const fate = rollMelee(
+            { level, crit: CREATURE_CRIT },
+            { level: lv, dodge: dodgeChance(lv, mine, who!),
+              parry: PARRY_WITH_WEAPON, block: 0, player: true },
+            Math.random() * 10000)
+          hp -= damageAfter(fate,
+            swing(foe, lv, line[ARMOUR]!, Math.random()), level - lv)
+        }
+        ticks += 1
+      }
+      if (hp > 0) won += 1
+    }
+    return { level, many, runs, mine: lv, won, survived: won / runs,
+      seconds: (ticks / runs) * 0.1 }
+  }
+  /** Press an ability by id and say what the waits look like after. */
+  ;(window as unknown as { __press: (id: number) => unknown }).__press = (id) => {
+    const sp = spells.find((x) => x.id === id)
+    if (!sp) return null
+    you.rage = MAX_RAGE
+    you.gcd = 0
+    cast(sp)
+    return {
+      id, gcd: sp.gcd, waits: Math.max(0, you.gcd - clock),
+      blocked: spells.filter((x) => x.gcd && why(x) !== null).map((x) => x.id),
+      free: spells.filter((x) => !x.gcd).map((x) => x.id),
+    }
   }
   /** Push the bar along, so the check can watch a level actually arrive. */
   ;(window as unknown as { __earn: (xp: number) => unknown }).__earn = (xp) => {

@@ -488,6 +488,35 @@ check('levelling up opens new things to press',
   + `${before.spells.length} abilities → ${after.spells}, `
   + `${before.hp} health → ${after.hp}`)
 
+// 9h. The global cooldown, which is a column and not a constant: `Spell.dbc`'s
+// `StartRecoveryTime`, clamped to one to one and a half seconds by
+// `Spell::TriggerGlobalCooldown`.  Nought on it means the ability goes off your
+// next swing instead of instead of it, which is how a heavier blow can follow
+// anything.  Without it you could press everything rage would pay for at once.
+const gcd = await p.evaluate(() => window.__earn(30000) && window.__press(6673))
+if (gcd) {
+  check('pressing something makes you wait before the next thing',
+    gcd.gcd === 1500 && gcd.waits > 1.2 && gcd.blocked.length > 0,
+    `a shout waits ${gcd.waits.toFixed(1)}s and blocks ${gcd.blocked.length} others`)
+  check('and the ones that ride your next swing do not',
+    gcd.free.length > 0,
+    `${gcd.free.length} abilities start no wait at all (${gcd.free.join(', ')})`)
+}
+
+// 9i. Pulling is the decision.  The wiki's own check list asks whether taking
+// two is measurably worse than taking one, and nothing could answer it because
+// the fight lived in the frame loop.  `__duel` runs the same functions — the
+// hit table, the armour curve, the swing timers — over a synthetic clock.
+const one = await p.evaluate(() => window.__duel(3, 1, 400, 1))
+const two = await p.evaluate(() => window.__duel(3, 2, 400, 1))
+check('pulling two is measurably worse than pulling one',
+  one.survived > 0.8 && two.survived < one.survived - 0.3,
+  `at level 1, a level 3 alone: ${(one.survived * 100).toFixed(0)}% survived in `
+  + `${one.seconds.toFixed(0)}s; two of them: ${(two.survived * 100).toFixed(0)}%`)
+const up = await p.evaluate(() => window.__duel(5, 1, 400, 1))
+check('and so is picking on something above you', up.survived < one.survived,
+  `at level 1, a level 5 alone: ${(up.survived * 100).toFixed(0)}% survived`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
