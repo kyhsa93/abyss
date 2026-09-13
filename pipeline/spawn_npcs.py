@@ -621,15 +621,10 @@ def talking(base, entries):
     topics = {}
     for e in entries:
         t = {}
-        # A quest whose objective is none of kill, fetch or buy is an escort,
-        # an explore or a talk-to, and every word of what it actually wants is
-        # in text we do not use.  Offering it would be offering an empty box.
-        gives = [quests[q] for q in starts.get(e, ()) if q in quests
-                 and (quests[q]['kill'] or quests[q]['take'] or quests[q]['find'])]
-        if gives:
-            t['gives'] = sorted(gives, key=lambda q: q['lv'])[:4]
-        if ends.get(e):
-            t['takes'] = len(ends[e])
+        # Errands used to be *described* here — a line saying what somebody
+        # wanted, with nothing behind it.  `pipeline/quests.py` writes the real
+        # ones now and `src/quest.ts` hands them over, counts them and pays
+        # them, so a topic no longer carries work at all.
         if vendor.get(e):
             by = {}
             for it in vendor[e]:
@@ -781,9 +776,13 @@ def main(acore, out):
         if haul not in haul_at:
             haul_at[haul] = len(hauls)
             hauls.append([purse[0], purse[1], items])
+        # The entry comes out too, because a quest is keyed on it: a quest
+        # names the creature that gives it and the creature you kill eight of,
+        # and a kind — `kobold` for all three of Northshire's — cannot tell
+        # those apart.  It is a number and not a name, so it may leave.
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
                          level, roles.index(r), topic_at.get(entry, -1), fi,
-                         haul_at[haul]])
+                         haul_at[haul], entry])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')

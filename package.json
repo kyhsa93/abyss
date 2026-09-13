@@ -27,7 +27,9 @@
     "spells": "python3 pipeline/spells.py",
     "audit": "python3 pipeline/audit.py",
     "layout": "python3 pipeline/layout.py",
-    "uicheck": "node scripts/uicheck.mjs"
+    "uicheck": "node scripts/uicheck.mjs",
+    "quests": "python3 pipeline/quests.py",
+    "questcheck": "node scripts/questcheck.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

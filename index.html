@@ -135,6 +135,20 @@
       }
       #ui #swing .fill { height: 100%; width: 0; background: var(--gold); }
 
+      /* What you are in the middle of, under the minimap. */
+      #track {
+        width: 190px; color: #e8e4d8; font: 11px/1.6 var(--body);
+        text-shadow: 0 1px 2px #000; pointer-events: none;
+      }
+      #track .title {
+        color: var(--gold); font: 11px/1.6 var(--mono); letter-spacing: .04em;
+        margin-bottom: 2px;
+      }
+      #track .job { margin-bottom: 6px; }
+      #track .job.done .line { color: #8fd08a; }
+      #track .line::before { content: '· '; color: #6f8ea6; }
+      #track .line.got { color: #8fd08a; }
+
       #ui .auras { display: flex; gap: 3px; margin: 4px 0 0; }
       #ui .auras .aura {
         position: relative; width: 22px; height: 22px; border-radius: 3px;
@@ -174,8 +188,12 @@
         border-top: 1px solid var(--gold-dark); }
 
       /* What just happened, newest last. */
+      /* A box things scroll through, bottom-aligned inside it so the newest
+         line is always at the same place.  Its size is the original's. */
       #log {
         position: absolute; left: 12px; bottom: 14px; width: 320px;
+        display: flex; flex-direction: column; justify-content: flex-end;
+        overflow: hidden;
         font: 11px/1.6 var(--body); text-shadow: 0 1px 2px #000;
       }
       #log div { color: #b9c4cc; }

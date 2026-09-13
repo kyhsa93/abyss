@@ -20,9 +20,13 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { abilityOf, bearing, coin, goodsOf, josa, nameOf, speak, zoneOf, type Direction, type Speech, type Topic } from './talk'
+import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
+import {
+  book, done as errandDone, hand, holding, killed, mark, offers,
+  short, take, wants, type Errand,
+} from './quest'
 import {
   mitigate, noticeAt, rageFrom, swing, xpFor,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
@@ -751,6 +755,10 @@ async function main() {
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
     kind: string; role: string; level: number; topic: Topic | null; seed: number
+    /** Which creature this is in the world database, which is what a quest
+     * names: all three of Northshire's kobolds are `kobold` and the chain
+     * wants eight of each in turn. */
+    entry: number
     /** Nothing below this line exists until somebody swings. */
     fight: Fight | null
     hp: number; max: number
@@ -789,6 +797,7 @@ async function main() {
       swims: false, vx: 0, vy: 0, until: 0, moving: false,
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
+      entry: row[9] ?? 0,
       fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
       dead: 0, hurt: -99, angry: false, next: 0, bleed: null,
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
@@ -1207,6 +1216,41 @@ async function main() {
     ui.log(`${abilityOf(sp.id)![0]}`, 'hit')
   }
 
+  /** Put what you are in the middle of on the screen. */
+  function showErrands() {
+    ui.setErrands(log.held.map((h) => {
+      const q = log.all.get(h.id)!
+      const lines: [string, boolean][] = []
+      q.kill.forEach(([who, want], i) => {
+        const got = h.kill[i] ?? 0
+        lines.push([`${nameOf(kindOfEntry(who))} ${tally(got, want)}`, got >= want])
+      })
+      q.fetch.forEach(([, want, word], i) => {
+        const got = h.fetch[i] ?? 0
+        lines.push([`${goodsOf(word)} ${tally(got, want)}`, got >= want])
+      })
+      if (!lines.length) lines.push(['전하는 말을 가져가기', false])
+      return { lines, done: errandDone(log, h) }
+    }))
+  }
+
+  /**
+   * What kind of thing a creature entry is, for saying what a quest asks for.
+   *
+   * The quest names an entry and the words are keyed on our kind, so the two
+   * are joined here — through the spawns, which carry both.  Anything not
+   * standing in the slice has no kind and no word, and no quest that names it
+   * survived the bake.
+   */
+  const kindByEntry = new Map<number, string>()
+  for (const n of npcs) if (!kindByEntry.has(n.entry)) kindByEntry.set(n.entry, n.kind)
+  const kindOfEntry = (e: number) => kindByEntry.get(e) ?? 'townsfolk'
+  /** One errand as `talk.ts` wants it: our words, not the database's ids. */
+  const shapeOf = (q: Errand) => ({
+    kill: q.kill.map(([who, n]) => [kindOfEntry(who), n] as [string, number]),
+    fetch: q.fetch.map(([, n, word]) => [word, n] as [string, number]),
+  })
+
   /**
    * What a kill was worth, and what it bought.
    *
@@ -1218,6 +1262,30 @@ async function main() {
   const reward = (foe: Npc): number => {
     const gain = xpFor(you.level, foe.level, foe.role === 'elite')
     you.xp += gain
+    // And whatever anybody asked you to do about it.  The entry and not the
+    // kind: all three of Northshire's kobolds are `kobold` and the chain wants
+    // eight of each in turn.
+    for (const what of killed(log, foe.entry, Math.random)) {
+      const [sort, id, at] = what.split(':')
+      const q = log.all.get(Number(id))
+      const h = holding(log, Number(id))
+      if (!q || !h) continue
+      const i = Number(at)
+      const [got, want] = sort === 'kill'
+        ? [h.kill[i]!, q.kill[i]![1]]
+        : [h.fetch[i]!, q.fetch[i]![1]]
+      const name = sort === 'kill'
+        ? nameOf(kindOfEntry(q.kill[i]![0]))
+        : goodsOf(q.fetch[i]![2])
+      ui.log(`${name} ${tally(got, want)}`, 'note')
+      if (errandDone(log, h)) ui.log('마치고 돌아가기', 'gain')
+      showErrands()
+    }
+    levelUp()
+    return gain
+  }
+  /** Spend the experience bar as many times as it will go. */
+  function levelUp() {
     while (LADDER[you.level - 1] && you.xp >= LADDER[you.level - 1]!
       && you.level < (spawns.player?.length ?? 1)) {
       you.xp -= LADDER[you.level - 1]!
@@ -1227,7 +1295,6 @@ async function main() {
       you.hp = you.max
       say(hero.x, hero.y, `${you.level}레벨`, true)
     }
-    return gain
   }
   /** A number that floats off somebody and fades. */
   type Mark = { x: number; y: number; text: string; at: number; mine: boolean }
@@ -1468,7 +1535,7 @@ async function main() {
     else if (k === 'escape') endTalk()
     else if (chat && k >= '1' && k <= '9') {
       const i = Number(k) - 1
-      if (i < chat.speech.options.length) { chat.open = chat.open === i ? -1 : i; drawTalk() }
+      if (i < chat.speech.options.length) choose(i)
     }
   })
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
@@ -1487,6 +1554,14 @@ async function main() {
   // The original's own frame places, read out of its `FrameXML` by
   // `pipeline/layout.py`.  Missing is fine: without it the stylesheet's
   // positions stand, which is what there was before there was a source.
+  // The errands, out of AzerothCore and the client's `QuestXP.dbc` by way of
+  // `pipeline/quests.py`.  Missing is fine: without it nobody asks for
+  // anything, which is where this was before.
+  const errands = await fetch('./world/quests.json')
+    .then((r) => (r.ok ? r.json() as Promise<{ quests: Errand[] }> : null))
+    .catch(() => null)
+  const log = book(errands?.quests ?? [])
+
   const layout = await fetch('./world/layout.json')
     .then((r) => (r.ok ? r.json() as Promise<Layout> : null))
     .catch(() => null)
@@ -1652,6 +1727,31 @@ async function main() {
    */
   let panelH = 0, hudH = 0
 
+  /**
+   * Open one option, and do it if it does anything.
+   *
+   * One function for the mouse and the number keys, because they were two:
+   * clicking an option ran its `act` and pressing its number only opened it,
+   * so every errand in the game could be read and none of it could be
+   * accepted from the keyboard.  And `act` runs on the first open whether or
+   * not the option already has lines — the test used to be "no lines yet",
+   * which is true of a bare answer and false of an errand that states what it
+   * wants before you agree to it.
+   */
+  const didAct = new WeakSet<object>()
+  function choose(i: number) {
+    if (!chat) return
+    const o = chat.speech.options[i]
+    if (!o) return
+    chat.open = chat.open === i ? -1 : i
+    if (chat.open === i && o.act && !didAct.has(o)) {
+      didAct.add(o)
+      const said = o.act()
+      o.lines = o.lines.length ? [...o.lines, ...said] : said
+    }
+    drawTalk()
+  }
+
   function drawTalk() {
     if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; return }
     const { speech, open } = chat
@@ -1673,13 +1773,7 @@ async function main() {
         const b = document.createElement('b')
         b.textContent = String(i + 1)
         li.append(b, document.createTextNode(o.label))
-        li.onclick = () => {
-          chat!.open = chat!.open === i ? -1 : i
-          // An option that does something does it once, the first time it is
-          // opened, and what it returns is what it then says.
-          if (chat!.open === i && o.act && o.lines.length === 0) o.lines = o.act()
-          drawTalk()
-        }
+        li.onclick = () => choose(i)
         ol.appendChild(li)
         if (open === i) {
           const d = document.createElement('div')
@@ -1728,6 +1822,41 @@ async function main() {
   function startTalk(n: Npc) {
     const speech = speak(n.kind, n.role, n.level, n.seed, n.topic,
       () => directionsFrom(n))
+    // What this one is finished with, first, and then what they are asking
+    // for.  Handing in before taking on is the order the original puts them
+    // in and the order that reads right: you came back for a reason.
+    for (const h of wants(log, n.entry)) {
+      const q = log.all.get(h.id)!
+      const ready = errandDone(log, h)
+      const say2 = {
+        label: ready ? '마쳤습니다' : `아직입니다 (${short(log, h)} 남음)`,
+        lines: ready ? [] : errand(shapeOf(q)),
+      } as Option
+      if (ready) {
+        say2.act = () => {
+          const paid = hand(log, h)
+          you.xp += paid.xp
+          you.purse += paid.coin
+          levelUp()
+          ui.log(`완료 — ${payFor(paid.xp, paid.coin)}`, 'gain')
+          showErrands()
+          return [payFor(paid.xp, paid.coin)]
+        }
+      }
+      speech.options.unshift(say2)
+    }
+    for (const q of offers(log, n.entry, you.level)) {
+      speech.options.unshift({
+        label: `일거리 (${q.level}레벨)`,
+        lines: [...errand(shapeOf(q)), `사례: ${payFor(q.xp, q.coin)}`],
+        act: () => {
+          take(log, q)
+          ui.log(`맡음 — ${errand(shapeOf(q)).join(', ')}`, 'note')
+          showErrands()
+          return ['맡았습니다.']
+        },
+      })
+    }
     // A shopkeeper buys as well as sells, and what you have to sell is not
     // something `talk.ts` can know — it has never heard of a bag.
     if (n.role === 'vendor') {
@@ -2188,6 +2317,27 @@ async function main() {
           : n.fight[STANCE] === QUARRY ? '#c4a03a' : '#4f9e46'
         ctx.fillRect(X - bw / 2, Y, Math.round(bw * (n.hp / n.max)), bh)
       }
+      // And the mark, which is how anybody finds the work at all: a full one
+      // for something on offer, a question for something finished, a hollow
+      // question for something still going.  Without it a quest giver is a
+      // person in a field who happens to want something.
+      if (!n.dead) {
+        const m = mark(log, n.entry, you.level)
+        if (m) {
+          const X = Math.round(screenX(n.x, n.y))
+          const Y = Math.round(screenY(n.x, n.y)
+            - (headOf[n.art] ?? 40) * zoom - 14 * zoom)
+          ctx.font = `bold ${Math.max(11, Math.round(17 * zoom))}px serif`
+          ctx.textAlign = 'center'
+          ctx.lineWidth = Math.max(2, 3 * zoom)
+          ctx.strokeStyle = 'rgba(0,0,0,.85)'
+          ctx.fillStyle = m === '?.' ? '#8a8a8a' : '#f2c341'
+          const glyph = m === '!' ? '!' : '?'
+          ctx.strokeText(glyph, X, Y)
+          ctx.fillText(glyph, X, Y)
+          ctx.textAlign = 'left'
+        }
+      }
       drawn++
     }
 
@@ -2538,6 +2688,34 @@ async function main() {
         : fightable(n.fight) ? 'quarry' : 'friend',
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
+  /** The errands, and how far along they are — for the check that walks one. */
+  ;(window as unknown as { __quests: () => unknown }).__quests = () => ({
+    known: log.all.size,
+    held: log.held.map((h) => ({
+      id: h.id, kill: h.kill, fetch: h.fetch,
+      short: short(log, h), done: errandDone(log, h),
+    })),
+    done: [...log.done],
+    marks: npcs.filter((n) => mark(log, n.entry, you.level))
+      .map((n) => [n.entry, mark(log, n.entry, you.level)]),
+    xp: you.xp, level: you.level, purse: you.purse,
+  })
+  /** Stand next to a given creature, so a check can talk to a named one. */
+  ;(window as unknown as { __goto: (e: number) => unknown }).__goto = (e) => {
+    const n = npcs.find((m) => m.entry === e && !m.dead)
+    if (!n) return null
+    hero.x = n.x - 1.4; hero.y = n.y
+    camX = hero.x; camY = hero.y
+    return { entry: n.entry, kind: n.kind, x: n.x, y: n.y }
+  }
+  /** Kill the nearest of a given creature outright, for the same reason. */
+  ;(window as unknown as { __slay: (e: number) => unknown }).__slay = (e) => {
+    const n = npcs.find((m) => m.entry === e && !m.dead)
+    if (!n) return null
+    n.hp = 0; n.dead = clock
+    reward(n)
+    return { entry: e, left: log.held.map((h) => short(log, h)) }
+  }
   // For the checks: put the player next to the nearest thing that will fight
   // back, and say what it is.
   // For the checks: the nearest hostile several levels below the player, which

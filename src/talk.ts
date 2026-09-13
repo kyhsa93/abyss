@@ -29,17 +29,7 @@
  * to borrow and have no business inventing a substitute for.
  */
 
-export type Quest = {
-  lv: number
-  coin: number
-  kill: [string, number][]
-  take: [string, number][]
-  find: [string | null, number][]
-}
-
 export type Topic = {
-  gives?: Quest[]
-  takes?: number
   /** class, how many lines, cheapest, dearest — all in copper. */
   shop?: [string, number, number, number][]
   train?: { of: string; who: string | null; n: number; lo: number; hi: number }
@@ -287,27 +277,6 @@ function greeting(kind: string, role: string, seed: number): string {
 }
 
 /**
- * What the errand wants, as the list of things it is.
- *
- * Each part is its own short clause rather than one conjugated sentence: the
- * three kinds of objective take three different verbs, and a Korean sentence
- * that has to end in all of them at once ends in none of them well.
- */
-function objective(q: Quest): string {
-  const parts: string[] = []
-  for (const [k, n] of q.kill) parts.push(`${kindOf(k)} ${count(n, unit(k))} 잡기`)
-  for (const [k, n] of q.take)
-    parts.push(n === 1
-      ? `${kindOf(k)}에게서 뭔가 하나 얻기`
-      : `${kindOf(k)}에게서 ${count(n, '개')} 거두기`)
-  for (const [cls, n] of q.find)
-    parts.push(cls === null
-      ? `뭔가 ${count(n, '개')} 찾기`
-      : `${GOODS[cls] ?? cls} ${count(n, '개')} 찾기`)
-  return parts.join(', ')
-}
-
-/**
  * Everything one person is willing to talk about.
  *
  * `nearby` is asked only by the ones the database says hold a real gossip menu
@@ -366,21 +335,12 @@ export function speak(
     options.push({ label: '뭘 가르치시오?', lines: [head, range] })
   }
 
-  for (const q of topic.gives ?? []) {
-    const need = objective(q)
-    const lines = [need ? `${need}.` : '해야 할 일이 있소.']
-    lines.push(q.lv > 0 ? `${q.lv}레벨쯤 되는 일이오.` : '누구나 할 수 있는 일이오.')
-    lines.push(q.coin > 0 ? `끝나면 ${coin(q.coin)}.`
-      : '삯은 없소. 그래도 누군가는 해야 하오.')
-    options.push({ label: `일거리가 있소? (${q.lv > 0 ? `${q.lv}레벨` : '—'})`, lines })
-  }
-
-  if (topic.takes) {
-    options.push({
-      label: '누가 보내서 왔소.',
-      lines: ['그럼 여기가 그 끝이오.', `나로 끝나는 일이 ${count(topic.takes, '건')} 있소.`],
-    })
-  }
+  // Work used to be described here and not handed over: a line saying what
+  // somebody wanted, with nothing behind it.  `src/quest.ts` does the real
+  // thing now — it offers, it counts and it pays — so the two sat side by side
+  // in the same panel and one of them was scenery.  It is gone; `takes` went
+  // with it, because the thing that knows what somebody is waiting for is the
+  // quest book and not a count in a topic.
 
   if (topic.directs) {
     const to = nearby()
@@ -443,4 +403,39 @@ const ZONE: Record<number, string> = {
 
 export function zoneOf(area: number): string {
   return ZONE[area] ?? '엘윈 숲'
+}
+
+/**
+ * An errand, in words.
+ *
+ * The database has a title and a description for every one of these and both
+ * are Blizzard's, so neither is read.  What is read is the shape — kill eight
+ * of creature 6, fetch eight of item 752 — and the shape is enough to say what
+ * the job is, because the job *is* the shape.  The creature's kind comes from
+ * the spawn table and the item's word from its class, both already ours.
+ */
+export function errand(
+  job: { kill: [string, number][]; fetch: [string, number][] },
+): string[] {
+  const out: string[] = []
+  for (const [what, n] of job.kill) {
+    // 마리 for a beast and 명 for a person: eight bandits are not eight head
+    // of anything, and the counter is the word that says which.
+    out.push(`${josa(nameOf(what), '을', '를')} ${n}${unit(what)} 처치`)
+  }
+  for (const [word, n] of job.fetch) {
+    out.push(`${josa(goodsOf(word), '을', '를')} ${n}개 수집`)
+  }
+  return out.length ? out : ['전하는 말을 가져가기']
+}
+
+/** How far along, as `3 / 8`. */
+export const tally = (got: number, want: number) => `${got} / ${want}`
+
+/** What an errand pays, in words. */
+export function reward(xp: number, copper: number): string {
+  const bits: string[] = []
+  if (xp) bits.push(`경험치 ${xp}`)
+  if (copper) bits.push(coin(copper))
+  return bits.length ? bits.join(', ') : '사례 없음'
 }

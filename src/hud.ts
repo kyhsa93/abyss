@@ -204,6 +204,13 @@ export function hud(layout?: Layout) {
   sheet.id = 'sheet'
   sheet.hidden = true
 
+  // What you are in the middle of, kept on the right where the original keeps
+  // its tracker — the one panel in that game that is always up and never
+  // opened.  A quest log you have to open is a quest log nobody reads.
+  const track = el('div', '', ui)
+  track.id = 'track'
+  track.hidden = true
+
   // One tooltip, moved about.  Two would be two things to keep in step.
   const tip = el('div', '', ui)
   tip.id = 'tip'
@@ -406,6 +413,27 @@ export function hud(layout?: Layout) {
       }
     },
 
+    /**
+     * What you are in the middle of: a title and its lines, ticked or not.
+     *
+     * No ids and no prose — `talk.ts` has already turned the shape into
+     * sentences and this only lays them out.
+     */
+    setErrands(jobs: { lines: [string, boolean][]; done: boolean }[]) {
+      track.hidden = jobs.length === 0
+      const want = JSON.stringify(jobs)
+      if (track.dataset['now'] === want) return
+      track.dataset['now'] = want
+      track.textContent = ''
+      el('div', 'title', track).textContent = '할 일'
+      for (const j of jobs) {
+        const box = el('div', j.done ? 'job done' : 'job', track)
+        for (const [text, got] of j.lines) {
+          el('div', got ? 'line got' : 'line', box).textContent = text
+        }
+      }
+    },
+
     /** The tooltip, at a point on the screen, or nothing. */
     setTip(text: string | null, x: number, y: number) {
       tip.hidden = text === null
@@ -477,7 +505,7 @@ export function hud(layout?: Layout) {
    */
   /** Everything `place` touches, so that a phone can be handed it all back. */
   const placed = () => [units, foe.root, mapBox, logBox, bagPanel, sheet, deck,
-    bar, micro, xpBar, swingBar, helpLine,
+    bar, micro, xpBar, swingBar, helpLine, track,
     document.getElementById('talk')].filter(Boolean) as HTMLElement[]
 
   const place = () => {
@@ -506,6 +534,11 @@ export function hud(layout?: Layout) {
     pin(foe.root.parentElement === units ? foe.root : foe.root, f['target'], s)
     pin(mapBox, f['map'], s)
     pin(logBox, f['log'], s)
+    // The log keeps the height the original gives it — 430 by 120 — because
+    // it is a box things scroll through rather than a box that grows.  Left to
+    // its content it was nought tall when empty, so nothing below it knew it
+    // was there and the key hints were printed straight through it.
+    logBox.style.height = `${Math.round((f['log']?.h ?? 120) * s)}px`
     pin(bagPanel, f['bag'], s)
     pin(sheet, f['sheet'], s)
     if (micro.parentElement !== deck) deck.appendChild(micro)
@@ -549,6 +582,16 @@ export function hud(layout?: Layout) {
       `${Math.round((f['log']?.y ?? 95) * s) + logBox.offsetHeight + 6}px`
     const talk = document.getElementById('talk')
     if (talk) pin(talk, f['talk'], s)
+    // The tracker goes under the minimap on the right, which is where that
+    // game puts it and the one strip of screen nothing else wants.
+    const m = f['map']
+    if (m) {
+      track.style.position = 'fixed'
+      track.style.left = track.style.bottom = 'auto'
+      track.style.transform = 'none'
+      track.style.right = `${Math.round(m.x * s) + 8}px`
+      track.style.top = `${Math.round((m.y + m.h) * s) + 40}px`
+    }
     // The bar is the original's full width and ours is twelve buttons; what
     // matters is that it sits on the bottom edge, so the width goes back to
     // the content and only the anchor is kept.

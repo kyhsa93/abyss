@@ -228,12 +228,27 @@ and every frame in it states a size and an anchor in plain numbers, so
 `npm run layout` reads them and `npm run uicheck` is the gate. Only the
 numbers leave; the art on our frames is ours.
 
+**A quest is three facts and this repository can carry all three**: who gives
+it, what it asks for, and what it pays. Those are numbers — a creature id, a
+count, an experience figure — so `pipeline/quests.py` reads them out of
+`quest_template`, its addon, the two relation tables and the client's own
+`QuestXP.dbc`, and `src/talk.ts` writes the sentence from the shape. Not a word
+of the title or the description is read. The experience is in the client and
+not the database, the same as the faction standings: `questxp_dbc` in
+AzerothCore's dump is a schema with no rows because the core reads that table
+out of `QuestXP.dbc` at run time.
+
+A quest names a creature **entry** and not a kind, which is why the spawn rows
+carry one: all three of Northshire's kobolds are `kobold` and the chain wants
+eight of each in turn. `npm run questcheck` walks that chain end to end against
+the table's own numbers.
+
 ## Finishing a change
 
 `npm run check` is `tsc` and it is fast. `npm run audit` and `npm run layout`
 compare the sources against what was read from them and need the client.
-`npm run viewcheck`, `npm run uicheck` and `npm run padcheck` need a browser
-and `npm run dev`.
+`npm run viewcheck`, `npm run uicheck`, `npm run questcheck` and
+`npm run padcheck` need a browser and `npm run dev`.
 
 ## Language
 

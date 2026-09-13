@@ -41,8 +41,15 @@ const ALLOWED = [
 
 const SIZES = [[1280, 820], [1100, 760], [960, 640]]
 
+// The log has to have something in it: it is a box that is nought tall when
+// empty, so an empty one is invisible to an overlap test and the key hints
+// were printed straight through a full one for as long as this check existed.
+const FILL_LOG = async (p) => p.evaluate(() => {
+  for (let i = 0; i < 8; i++) window.__slay?.(6)
+})
+
 const STATES = [
-  ['nothing open', async () => {}],
+  ['nothing open', async (p) => { await FILL_LOG(p) }],
   ['a conversation', async (p) => {
     await p.evaluate(() => window.__vendor())
     await p.waitForTimeout(250)
