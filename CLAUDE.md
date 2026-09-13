@@ -349,6 +349,18 @@ plus attack power over its swing, and critical chance is the client's own
 `gtChanceToMeleeCrit` interpolation. He was statted as *a creature of his own
 level* before this, which meant nothing he wore or trained could ever matter.
 
+**The world moves in steps of fifty milliseconds and the screen draws between
+them.** `requestAnimationFrame`'s own delta used to go straight into the
+simulation, so the frame rate changed the game — and a fight that runs
+differently on a slow machine cannot be reproduced, which is the same argument
+that put one stream of chance behind every roll. Input is read once a frame and
+*acted on* once a step; the drawing interpolates across whatever is left over,
+which changes the picture and nothing else. Two consequences worth knowing: a
+step is a third of a yard at running speed, so collision is tested in pieces no
+bigger than a body's width or you walk through a fence post; and **a teleport
+has to move where he *was* as well as where he is**, or the camera spends a
+step being dragged back toward wherever he came from.
+
 **There is one stream of chance and it has a state.** `Math.random` was called
 from fifteen places and none of them could be reproduced, which is two problems:
 a save that does not carry the stream's position is a save you reload to

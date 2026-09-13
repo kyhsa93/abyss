@@ -698,6 +698,31 @@ if (bare) {
     `${bare.layers.join(', ')} → ${dressed.layers.join(', ')}`)
 }
 
+// 9t. The frame rate does not change the game.  `requestAnimationFrame`'s own
+// delta went straight into the simulation, so a slow machine played a
+// different game — and what cannot be reproduced cannot be checked, which is
+// the same argument that put one stream of chance behind every roll.
+const steps = await p.evaluate(() => window.__steps(40))
+check('the world moves in steps of a fixed length',
+  Math.abs(steps.clock - steps.ran * steps.step) < 1e-9,
+  `${steps.ran} steps of ${steps.step * 1000}ms moved the clock exactly `
+  + `${steps.clock.toFixed(2)}s`)
+const twice = await p.evaluate(() => {
+  // The same walk, run as one long push and as many short ones: a fixed step
+  // means they agree, and a variable one means they do not.
+  window.__cam({ x: -8949.95, y: -132.493 })
+  window.__hold('w')
+  const a = window.__steps(20)
+  window.__cam({ x: -8949.95, y: -132.493 })
+  let far = 0
+  for (let i = 0; i < 20; i++) far += window.__steps(1).moved
+  window.__hold(null)
+  return { one: a.moved, many: far }
+})
+check('and twenty steps go as far as twenty steps',
+  Math.abs(twice.one - twice.many) < 0.01,
+  `${twice.one.toFixed(2)} yards in one run, ${twice.many.toFixed(2)} in twenty`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

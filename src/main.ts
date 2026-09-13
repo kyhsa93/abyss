@@ -1027,6 +1027,10 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    /** Where it was at the start of this step — the drawing interpolates. */
+    was: { x: number; y: number }
+    /** And where it is drawn, which is between the two. */
+    ix: number; iy: number
     guid: number; pool: number; most: number; leader: number
     up: boolean
     /** When each of its own abilities is ready again. */
@@ -1086,6 +1090,8 @@ async function main() {
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
+      was: { x: row[0] as number, y: row[1] as number },
+      ix: row[0] as number, iy: row[1] as number,
       threat: {},
       cools: {},
     })
@@ -1556,6 +1562,7 @@ async function main() {
     const tick = Math.floor(time * 0.4)
     for (let i = 0; i < active.length; i++) {
       const n = active[i]!
+      n.was.x = n.x; n.was.y = n.y
       // Nobody walks off in the middle of answering you, and the dead lie
       // where they fell.
       if (n.dead) { n.moving = false; continue }
@@ -1760,7 +1767,37 @@ async function main() {
 
   // --- the player -------------------------------------------------------
   const START: [number, number] = [-8949.95, -132.493]
-  const hero = { x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false }
+  const hero = {
+    x: START[0], y: START[1], dir: 2, frame: 0, t: 0, moving: false,
+    /** Where he was at the start of this step, so the drawing can interpolate. */
+    was: { x: START[0], y: START[1] },
+    /** And where he is drawn, which is between the two. */
+    ix: START[0], iy: START[1],
+  }
+  /**
+   * What the keys and the thumb are asking for.
+   *
+   * Read once a frame and acted on once a *step*: intent is an input and
+   * movement is a simulation, and keeping them apart is what lets the second
+   * run at a fixed rate while the first stays as responsive as the screen.
+   */
+  const want = { x: 0, y: 0 }
+
+  /**
+   * Put him somewhere, rather than let him walk there.
+   *
+   * A teleport has to move where he *was* as well as where he is, or the
+   * drawing spends a step interpolating across the jump — and the camera,
+   * which follows the drawn position, is dragged back toward wherever he came
+   * from.  It showed up as the movement check reporting a walk two yards
+   * sideways of the key that was pressed.
+   */
+  const placeHero = (x: number, y: number) => {
+    hero.x = x; hero.y = y
+    hero.was.x = x; hero.was.y = y
+    hero.ix = x; hero.iy = y
+  }
+
 
   // --- the fight --------------------------------------------------------
   /**
@@ -2023,8 +2060,8 @@ async function main() {
     // put you next to what you were looking at.
     if (sp.reach[0] > 0 && t) {
       const d = Math.hypot(t.x - hero.x, t.y - hero.y) || 1
-      hero.x = t.x - ((t.x - hero.x) / d) * (MELEE * 0.7)
-      hero.y = t.y - ((t.y - hero.y) / d) * (MELEE * 0.7)
+      placeHero(t.x - ((t.x - hero.x) / d) * (MELEE * 0.7),
+        t.y - ((t.y - hero.y) / d) * (MELEE * 0.7))
       t.angry = true
     }
     ui.log(`${abilityOf(sp.id)![0]}`, 'hit')
@@ -2270,7 +2307,7 @@ async function main() {
         you.died = 0; you.target = null
         you.hp = Math.max(1, Math.round(you.max / 2))
         you.rage = 0
-        hero.x = gx; hero.y = gy
+        placeHero(gx, gy)
         camX = gx; camY = gy
         ui.log('묘지에서 깨어났다.', 'note')
       }
@@ -2680,7 +2717,7 @@ async function main() {
     },
   })
   const restore = (save: Save) => {
-    hero.x = save.hero.x; hero.y = save.hero.y; hero.dir = save.hero.dir
+    placeHero(save.hero.x, save.hero.y); hero.dir = save.hero.dir
     camX = hero.x; camY = hero.y
     you.level = Math.max(1, save.you.level)
     you.line = lineFor(you.level)
@@ -3371,20 +3408,45 @@ async function main() {
     }
   }
 
-  function frame(now: number) {
-    const dt = Math.min(0.05, (now - last) / 1000)
-    last = now
-    clock += dt
+  /**
+   * How long one step of the world is.
+   *
+   * Fifty milliseconds, which is the figure the simulation design chose and
+   * nothing used: `requestAnimationFrame`'s own delta went straight into the
+   * simulation, so **the frame rate changed the game**.  A fight that runs
+   * differently on a slow machine cannot be reproduced, and what cannot be
+   * reproduced cannot be checked — the same argument that put one stream of
+   * chance behind every roll.
+   *
+   * Everything the design hangs off it lands on whole numbers: the global
+   * cooldown is thirty ticks and a 2.9 second swing is fifty-eight.
+   */
+  const STEP = 0.05
+  /**
+   * How far behind it may fall before it gives up catching up.
+   *
+   * A backgrounded tab gets no frames and comes back owing minutes; running
+   * all of them is a spiral that never closes.  Half a second is generous and
+   * the rest is the right thing to lose.
+   */
+  const BEHIND = 0.5
+  let owed = 0
 
-    // --- move ---
+  /** One step of the world, always the same length. */
+  let ticks = 0
+  function tick() {
+    ticks++
+    clock += STEP
     // Everyone else first, then the bucket grid they are in, then the player:
     // the player's collision test reads that grid, so it has to describe where
-    // people are now rather than where they were a frame ago.
+    // people are now rather than where they were a step ago.
     awake()
-    wander(dt, clock, chat && chat.npc)
+    wander(STEP, clock, chat && chat.npc)
     reindex()
     fighting()
     restocking()
+    walk(STEP)
+    slide(STEP)
     // Every fifteen seconds, which is cheap and means a crash costs a walk
     // rather than an afternoon.
     if (clock - saved > 15) { saved = clock; keep() }
@@ -3395,6 +3457,84 @@ async function main() {
       ui.log(`${q.id}번 일거리 — 그곳에 닿았다.`, 'gain')
       showErrands()
     }
+  }
+
+  /**
+   * One step of walking, at a fixed length.
+   *
+   * Split out of the frame so the simulation can run on whole steps: what the
+   * keys and the stick are asking for is read once a frame and *acted on* once
+   * a tick, which is the difference between a game that plays the same on
+   * every machine and one that does not.
+   */
+  function walk(step: number) {
+    const sdx = want.x, sdy = want.y
+    let mx = 0, my = 0
+    if (sdx !== 0 || sdy !== 0) {
+      const o = worldAt(canvas.width / 2, canvas.height / 2)
+      const t = worldAt(canvas.width / 2 + sdx * 64, canvas.height / 2 + sdy * 64)
+      mx = t.x - o.x
+      my = t.y - o.y
+    }
+    hero.was.x = hero.x; hero.was.y = hero.y
+    hero.moving = mx !== 0 || my !== 0
+    if (hero.moving) {
+      const len = Math.hypot(mx, my)
+      // A step is a third of a yard at running speed, and a collision test
+      // that only asks once a step walks *through* anything narrower than
+      // that — a tree, a fence post, the gap between two people.  So the
+      // movement is cut into pieces no bigger than a body's own width, which
+      // is what the client's collision radius is for.  Asked once, fifteen of
+      // twenty steps out of the starting camp were refused outright.
+      const each = 0.15
+      const pieces = Math.max(1, Math.ceil((SPEED * step) / each))
+      const dx = ((mx / len) * SPEED * step) / pieces
+      const dy = ((my / len) * SPEED * step) / pieces
+      for (let piece = 0; piece < pieces; piece++) {
+        // Each axis is tested on its own, so walking into a shoreline at an
+        // angle slides along it instead of stopping dead.  Tested together, a
+        // diagonal into the bank blocks both halves and the player sticks on
+        // water they are not even walking into.
+        //
+        // And if the player is already standing in water — teleported there,
+        // or dropped in by a mask that moved under them — every move is
+        // allowed.  A rule that can trap somebody is worse than the thing it
+        // prevents.
+        const stuck = footing(hero.x, hero.y)
+        if (stuck || !footing(hero.x + dx, hero.y)) hero.x += dx
+        if (stuck || !footing(hero.x, hero.y + dy)) hero.y += dy
+      }
+      hero.dir = facing(mx, my)
+    }
+    hero.t += step
+  }
+
+  function frame(now: number) {
+    const real = Math.min(0.25, (now - last) / 1000)
+    last = now
+    // As many whole steps as the time will pay for, and no more.  The leftover
+    // stays owed and the render interpolates across it, which is what keeps
+    // movement smooth without letting the frame rate into the simulation.
+    owed += real
+    let ran = 0
+    while (owed >= STEP && ran < BEHIND / STEP) { tick(); owed -= STEP; ran++ }
+    if (owed > BEHIND) owed = BEHIND
+    // How far between two steps the drawing is, in [0, 1).
+    /**
+     * How far between two steps the drawing is, in [0, 1).
+     *
+     * The simulation runs at a fixed rate and the screen does not, so a body
+     * that moves a third of a yard a step would visibly stutter at sixty
+     * frames.  This is drawn *between* where it was and where it is; it
+     * changes nothing about the world, only about the picture — which is the
+     * whole reason interpolation is allowed to exist.
+     */
+    const between = owed / STEP
+    const tween = (was: number, now: number) => was + (now - was) * between
+    for (const n of active) { n.ix = tween(n.was.x, n.x); n.iy = tween(n.was.y, n.y) }
+    hero.ix = tween(hero.was.x, hero.x)
+    hero.iy = tween(hero.was.y, hero.y)
+    const dt = real
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
@@ -3441,35 +3581,7 @@ async function main() {
     if (keys.has('d') || keys.has('arrowright')) sdx += 1
     const stick = pad.push()
     if (stick) { sdx = stick.x; sdy = stick.y }
-    let mx = 0, my = 0
-    if (sdx !== 0 || sdy !== 0) {
-      const o = worldAt(canvas.width / 2, canvas.height / 2)
-      const t = worldAt(canvas.width / 2 + sdx * 64, canvas.height / 2 + sdy * 64)
-      mx = t.x - o.x
-      my = t.y - o.y
-    }
-    hero.moving = mx !== 0 || my !== 0
-    if (hero.moving) {
-      const len = Math.hypot(mx, my)
-      const dx = (mx / len) * SPEED * dt
-      const dy = (my / len) * SPEED * dt
-      // Each axis is tested on its own, so walking into a shoreline at an angle
-      // slides along it instead of stopping dead.  Tested together, a diagonal
-      // into the bank blocks both halves and the player sticks on water they
-      // are not even walking into.
-      //
-      // And if the player is already standing in water — teleported there, or
-      // dropped in by a mask that moved under them — every move is allowed.
-      // A rule that can trap somebody is worse than the thing it prevents.
-      const stuck = footing(hero.x, hero.y)
-      if (stuck || !footing(hero.x + dx, hero.y)) hero.x += dx
-      if (stuck || !footing(hero.x, hero.y + dy)) hero.y += dy
-      hero.dir = facing(mx, my)
-      hero.t += dt
-    } else {
-      hero.t += dt
-    }
-    slide(dt)
+    want.x = sdx; want.y = sdy
     // On a phone the panel takes the bottom two thirds of the screen and the
     // person talking stands behind it, which is the one thing a conversation
     // cannot afford.  So the camera follows a point above the hero by exactly
@@ -3485,10 +3597,10 @@ async function main() {
     // Up the glass is world x and only world x, so the lift is along it alone.
     // In quarter view it had to move along both axes together or the pair of
     // you slid sideways as the panel opened.
-    const want = (canvas.height / 2 - wantY) / k()
-    lift += (want - lift) * Math.min(1, dt * 6)
-    camX += ((hero.x - lift) - camX) * Math.min(1, dt * 8)
-    camY += (hero.y - camY) * Math.min(1, dt * 8)
+    const lifted = (canvas.height / 2 - wantY) / k()
+    lift += (lifted - lift) * Math.min(1, dt * 6)
+    camX += ((hero.ix - lift) - camX) * Math.min(1, dt * 8)
+    camY += (hero.iy - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
     // wider than the one that starts it so that shuffling on the spot does not
@@ -3664,10 +3776,10 @@ async function main() {
       const c = heroMeta.cell
       const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
       const w = c * zoom
-      shadow(hero.x, hero.y, 0.34)
+      shadow(hero.ix, hero.iy, 0.34)
       ctx.drawImage(heroImg, sxp, syp, c, c,
-        Math.round(screenX(hero.x, hero.y) - w / 2),
-        Math.round(screenY(hero.x, hero.y) - w * 0.82), Math.ceil(w), Math.ceil(w))
+        Math.round(screenX(hero.ix, hero.iy) - w / 2),
+        Math.round(screenY(hero.ix, hero.iy) - w * 0.82), Math.ceil(w), Math.ceil(w))
       drawn++
     }
     /**
@@ -3704,12 +3816,12 @@ async function main() {
       const w = c * zoom
       // Sized off the art, like the prompt over their head: a chicken casts a
       // chicken's worth of shade.
-      shadow(n.x, n.y, Math.max(0.3, (a.yards ?? 0.9) * 0.34))
+      shadow(n.ix, n.iy, Math.max(0.3, (a.yards ?? 0.9) * 0.34))
       // The dead lie there and thin out, and come back in half a minute.
       const fade = n.dead ? Math.max(0.15, 1 - (clock - n.dead) / 6) : 1
       if (n.alpha * fade < 1) ctx.globalAlpha = n.alpha * fade
-      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(screenX(n.x, n.y) - w / 2),
-        Math.round(screenY(n.x, n.y) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
+      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(screenX(n.ix, n.iy) - w / 2),
+        Math.round(screenY(n.ix, n.iy) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
       if (n.alpha * fade < 1) ctx.globalAlpha = 1
       // A bar, only while it matters: something you are fighting, or something
       // that has been hit in the last few seconds.  A field of health bars over
@@ -4276,7 +4388,7 @@ async function main() {
       .sort((a, b) => a.skill - b.skill)
     if (!want.length) return null
     const n = want[0]!
-    hero.x = n.x - 1; hero.y = n.y
+    placeHero(n.x - 1, n.y)
     camX = hero.x; camY = hero.y
     const before = { ...you.trades }
     const got = gather(n)
@@ -4510,7 +4622,7 @@ async function main() {
     take(log, q)
     const before = short(log, log.held.find((h) => h.id === q.id)!)
     const [x, y] = q.walk![0] as number[]
-    hero.x = x!; hero.y = y!
+    placeHero(x!, y!)
     camX = x!; camY = y!
     const reached = walked(log, hero.x, hero.y).length
     return { quests: spots.length, id: q.id, places: q.walk!.length,
@@ -4528,6 +4640,25 @@ async function main() {
     }
     return { gated: gated.slice(0, 4), n: gated.length,
       holding: log.held.map((h) => h.id) }
+  }
+  /**
+   * The simulation's own clock, for the check that the frame rate does not
+   * change the game.
+   *
+   * `__steps(n)` runs exactly n steps and says how far the world moved, with
+   * no frames involved at all.
+   */
+  /** Hold a direction down without a keyboard, for the step check. */
+  ;(window as unknown as { __hold: (k: string | null) => void }).__hold = (k) => {
+    keys.clear()
+    if (k) keys.add(k)
+  }
+  ;(window as unknown as { __steps: (n: number) => unknown }).__steps = (n) => {
+    const from = { x: hero.x, y: hero.y, clock }
+    for (let i = 0; i < n; i++) tick()
+    return { step: STEP, ran: n, clock: clock - from.clock,
+      moved: Math.hypot(hero.x - from.x, hero.y - from.y), ticks, owed,
+      want: { ...want } }
   }
   /** What the paperdoll is made of right now, for the check. */
   ;(window as unknown as { __doll: () => unknown }).__doll = () => {
@@ -4556,7 +4687,7 @@ async function main() {
     const keep = npcs.find((n) => n.role === 'innkeeper' && inns.has(inRoom(n.x, n.y)))
       ?? npcs.find((n) => n.role === 'innkeeper')
     if (!keep) return null
-    hero.x = keep.x; hero.y = keep.y
+    placeHero(keep.x, keep.y)
     camX = hero.x; camY = hero.y
     return { inside: resting(), where: [hero.x, hero.y] }
   }
@@ -4642,7 +4773,7 @@ async function main() {
   ;(window as unknown as { __goto: (e: number) => unknown }).__goto = (e) => {
     const n = npcs.find((m) => m.entry === e && !m.dead)
     if (!n) return null
-    hero.x = n.x - 1.4; hero.y = n.y
+    placeHero(n.x - 1.4, n.y)
     camX = hero.x; camY = hero.y
     return { entry: n.entry, kind: n.kind, x: n.x, y: n.y }
   }
@@ -4666,7 +4797,7 @@ async function main() {
       if (d < bd) { bd = d; best = n }
     }
     if (!best) return null
-    hero.x = best.x - 1.4; hero.y = best.y
+    placeHero(best.x - 1.4, best.y)
     return { kind: best.kind, level: best.level, hp: best.hp }
   }
   // For the checks: put something in the bag, so the counter can be tested
@@ -4754,7 +4885,7 @@ async function main() {
   ;(window as unknown as { __vendor: () => unknown }).__vendor = () => {
     const v = npcs.find((n) => n.role === 'vendor')
     if (!v) return null
-    hero.x = v.x - 1.2; hero.y = v.y
+    placeHero(v.x - 1.2, v.y)
     return { kind: v.kind, role: v.role }
   }
   ;(window as unknown as { __weakest: () => unknown }).__weakest = () => {
@@ -4768,7 +4899,7 @@ async function main() {
       if (alone && n.level < bl) { bl = n.level; best = n }
     }
     if (!best) return null
-    hero.x = best.x - 1.4; hero.y = best.y
+    placeHero(best.x - 1.4, best.y)
     return { kind: best.kind, level: best.level, hp: best.hp }
   }
   ;(window as unknown as { __foe: () => unknown }).__foe = () => {
@@ -4779,15 +4910,15 @@ async function main() {
       if (d < bd) { bd = d; best = n }
     }
     if (!best) return null
-    hero.x = best.x - 1.4; hero.y = best.y
+    placeHero(best.x - 1.4, best.y)
     return { kind: best.kind, level: best.level, hp: best.hp, x: best.x, y: best.y }
   }
 
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.
   ;(window as unknown as { __cam: (o: Record<string, number>) => void }).__cam = (o) => {
-    if (o.x !== undefined) { hero.x = o.x; camX = o.x }
-    if (o.y !== undefined) { hero.y = o.y; camY = o.y }
+    if (o.x !== undefined) { placeHero(o.x, hero.y); camX = o.x }
+    if (o.y !== undefined) { placeHero(hero.x, o.y); camY = o.y }
     if (o.zoom !== undefined) zoom = o.zoom
     if (o.dir !== undefined) hero.dir = o.dir
   }
