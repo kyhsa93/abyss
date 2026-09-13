@@ -26,7 +26,7 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import columns, rows, split, goods_of, BOUNDS, MAP  # noqa: E402
-from slice import LEVELS, CLASSES  # noqa: E402
+from slice import LEVELS, CLASSES, REACH_OVER  # noqa: E402
 from player import outfit  # noqa: E402
 
 HUMAN, WARRIOR = 1, 1
@@ -357,7 +357,7 @@ def purse(out, doc):
     # corners of four zones, so summing every quest in it counts errands for a
     # level sixty — which is how the first run of this came out at a million
     # copper and decided the economy was free.
-    reach = LEVELS[1] + 2
+    reach = LEVELS[1] + REACH_OVER
     with open(quests) as f:
         coin = sum(q.get('coin', 0) for q in json.load(f).get('quests', [])
                    if 0 < q.get('level', 0) <= reach)

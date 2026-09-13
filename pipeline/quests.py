@@ -39,6 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake_terrain as B  # noqa: E402
 from spawn_npcs import BOUNDS, MAP, columns, goods_of, rows, split  # noqa: E402
 from spells import CHAIN  # noqa: E402
+from slice import LEVELS, REACH_OVER  # noqa: E402
 
 # How many of each objective a quest may carry, by the shape of the table.
 NPCS, ITEMS = 4, 6
@@ -66,8 +67,29 @@ def quest_xp(client):
     return out
 
 
-def spawned(base):
-    """Every creature that actually stands in the slice, by entry."""
+def spawned(base, world):
+    """Every creature that actually stands in the slice, by entry.
+
+    **Out of `npcs.json` and not out of `creature.sql`**, and that is the whole
+    point of it.  This used to take the box and nothing else, where
+    `spawn_npcs.py` takes the box *and* drops holiday spawns *and* drops
+    anything it has no picture for — so the two scripts disagreed about who
+    lives here, and the difference was quests.  Four of the five richest
+    errands in this game, 74,000 copper each, are given by creatures 24519,
+    38066 and 38325, who are Brewfest and Hallow's End staff and **do not
+    stand anywhere in this world**.
+
+    One script decides who is here.  `pipeline/bake.py` runs the spawns before
+    the quests for that reason; without the file this falls back to the box, so
+    a quests-only run still works and says what it did.
+    """
+    path = os.path.join(world, 'npcs.json')
+    if os.path.exists(path):
+        with open(path) as f:
+            doc = json.load(f)
+        here = Counter(r[9] for r in doc.get('npcs', []))
+        if here:
+            return here, 'the baked world'
     p = os.path.join(base, 'creature.sql')
     col = columns(p)
     here = Counter()
@@ -81,7 +103,30 @@ def spawned(base):
             continue
         if BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]:
             here[int(f[col['id1']])] += 1
-    return here
+    return here, 'the slice rectangle, because npcs.json is not baked yet'
+
+
+def in_range(level, minimum):
+    """Whether a quest belongs to the levels this game covers.
+
+    Two columns and they answer different questions.  `MinLevel` is what the
+    server checks and it is a floor: a quest asking for more than this game
+    ever reaches can never be taken.  `QuestLevel` is what the quest *is*, and
+    a **-1 there means it is whatever level you are** — the wiki's own named
+    trap, and the reason 58 of the slice's quests have no level at all.
+
+    A scaling quest is dropped rather than measured by its `MinLevel`, and the
+    money is why: `RewardMoney` on one of those is the figure for the level it
+    was written for, and four of them in this slice pay 74,000 copper to a
+    character who has 2,110 copper of training to buy.  Keeping them and
+    trusting the column would be shipping a number already known to be wrong;
+    keeping them and rewriting the column would be inventing one.
+    """
+    if minimum > LEVELS[1]:
+        return False
+    if level <= 0:
+        return False
+    return LEVELS[0] <= level <= LEVELS[1] + REACH_OVER
 
 
 def relation(base, name):
@@ -196,7 +241,7 @@ def main(acore, client_root, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     client = B.Client(client_root)
     xp_for = quest_xp(client)
-    here = spawned(base)
+    here, whose = spawned(base, out)
     starters = relation(base, 'creature_queststarter.sql')
     enders = relation(base, 'creature_questender.sql')
 
@@ -244,6 +289,10 @@ def main(acore, client_root, out):
             dropped['nobody in the slice takes it'] += 1
             continue
         level = int(f[col['QuestLevel']])
+        if not in_range(level, int(f[col['MinLevel']])):
+            dropped['outside the levels this game covers' if level > 0
+                     else 'levels with the player, so its reward is not ours'] += 1
+            continue
         kill, fetch, unmet = [], [], False
         for i in range(1, NPCS + 1):
             who = int(f[col['RequiredNpcOrGo%d' % i]])
@@ -320,9 +369,20 @@ def main(acore, client_root, out):
     path = os.path.join(out, 'quests.json')
     with open(path, 'w') as f:
         json.dump({'quests': quests}, f)
-    print(f'{len(quests)} quests -> {path}')
+    print(f'{len(quests)} quests -> {path}   who is here, out of {whose}')
     for why, n in dropped.most_common():
         print(f'  {n:>4} left out: {why}')
+    # The line the economy page asked for, on this side of it: every quest
+    # shipped is one a character of these levels could be handed, and the
+    # money is the money.
+    out_of = [q for q in quests
+              if not in_range(q['level'], q['min'])]
+    if out_of:
+        sys.exit('%d quests came through outside the levels: %s'
+                 % (len(out_of), [q['id'] for q in out_of][:8]))
+    rich = sorted(quests, key=lambda q: -q['coin'])[:1]
+    print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "
+          f"the fattest {rich[0]['coin'] if rich else 0}")
     doable = [q for q in quests if q['level'] and q['level'] <= 6]
     print(f'  {len(doable)} of them are for a level 1 to 6 adventurer')
     for q in sorted(doable, key=lambda v: (v['min'], v['id']))[:14]:

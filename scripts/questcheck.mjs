@@ -49,8 +49,15 @@ async function talkTo(entry) {
 const answer = async (n) => { await p.keyboard.press(String(n)); await p.waitForTimeout(250) }
 
 const start = await state()
-check('the errands came out of the sources', start.known > 50,
-  `${start.known} of them`)
+// Against the file rather than against a number typed here.  This said
+// `> 50`, which was standing in for "about a hundred, which is what the bake
+// produced the day this was written" — so when the level filter took the bake
+// from 102 to 35 the check failed for a reason that was the fix.  A threshold
+// nobody can derive is a second copy of the bake's output.
+const baked = await p.evaluate(async () =>
+  (await (await fetch('./world/quests.json')).json()).quests.length)
+check('the errands came out of the sources', start.known === baked,
+  `${start.known} in the game, ${baked} in the file`)
 check('and somebody is marked as having work', start.marks.length > 0,
   `${start.marks.length} marked`)
 

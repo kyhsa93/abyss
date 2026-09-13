@@ -38,6 +38,17 @@ MAP = _REGION['map']
 AREA = _REGION.get('area', 0)
 #: Lowest and highest level this game goes to, which is what `spells.py` reads.
 LEVELS = tuple(_SLICE.get('levels', (1, 10)))
+
+#: How far past the ceiling a quest may sit and still be one this game offers.
+#:
+#: Ours, and it has to be: `Player::SatisfyQuestLevel` is the only level rule
+#: the server has and it checks `MinLevel` alone — nothing stops a level one
+#: taking a level seventy errand except where its giver stands.  Two, because
+#: an errand a couple of levels above you is one you go and do, and it was
+#: already chosen twice in this pipeline before it was named once: `items.py`
+#: weighed the purse over `LEVELS[1] + 2` and `quests.py` did not filter at
+#: all, which is two constants that did not agree.
+REACH_OVER = 2
 #: Where a new character stands, out of `playercreateinfo`.
 START = tuple(_SLICE.get('start', (0.0, 0.0)))
 RACES = _SLICE.get('races', [])
