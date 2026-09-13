@@ -659,6 +659,52 @@ def talking(base, entries):
     return topics
 
 
+def walkable(base):
+    """The steepest ground the server itself walks a creature over.
+
+    The limit on climbing was a guess in a comment — fifty degrees, "roughly
+    where a person stops being able to walk up something" — and a guess in that
+    position is a wall in the wrong place.  At fifty the mountain between
+    Northshire and the east has a switchback in it: a route a hundred yards up
+    where every step is between 1.14 and 1.19, threading just under the limit,
+    and a flood fill from the abbey walks it and comes out on ground that
+    belongs to no zone at all.
+
+    `waypoint_data` settles it without anybody choosing a number.  It is 187
+    patrol routes in this slice and 3,954 legs of walking, laid down by the
+    people who run the server, and **not one of them climbs steeper than 0.90**
+    — forty-two degrees.  Half are under 0.04.  That is the world's own
+    statement of what walking is, so it is what this returns.
+    """
+    p = os.path.join(base, 'waypoint_data.sql')
+    if not os.path.exists(p):
+        return None
+    col = columns(p)
+    paths = {}
+    for line in rows(p):
+        f = split(line)
+        try:
+            pid, pt = int(f[col['id']]), int(f[col['point']])
+            x, y = float(f[col['position_x']]), float(f[col['position_y']])
+            z = float(f[col['position_z']])
+        except (ValueError, IndexError):
+            continue
+        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+            continue
+        paths.setdefault(pid, []).append((pt, x, y, z))
+    worst = 0.0
+    legs = 0
+    for pts in paths.values():
+        pts.sort()
+        for a, b in zip(pts, pts[1:]):
+            flat = math.hypot(b[1] - a[1], b[2] - a[2])
+            if flat < 1:
+                continue
+            legs += 1
+            worst = max(worst, abs(b[3] - a[3]) / flat)
+    return (round(worst, 3), legs, len(paths)) if legs else None
+
+
 def main(acore, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     for name in ('creature.sql', 'creature_template.sql',
@@ -699,6 +745,8 @@ def main(acore, out):
     tpl = os.path.join(base, 'creature_template.sql')
     col = columns(tpl)
     stats, factions = fight_tables(base)
+    got = walkable(base)
+    walk = got[0] if got else 0.0
     wanted = {e for e, _, _, _ in spawns}
     info = {}
     for line in rows(tpl):
@@ -812,6 +860,7 @@ def main(acore, out):
             need[int(g[xc['Level']])] = int(g[xc['Experience']])
         ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
+                   'walk': walk,
                    'fights': fights, 'player': player, 'ladder': ladder,
                    'goods': goods, 'hauls': hauls, 'npcs': out_rows}, f)
 
@@ -858,6 +907,10 @@ def check(out_rows, kinds):
         sys.exit('a spawn is outside the forest')
     far = max(max(out_x) - min(out_x), max(out_y) - min(out_y))
     facings = Counter(r[3] for r in out_rows)
+    if got:
+        print(f'walk: steepest of {got[1]:,} patrol legs over {got[2]} routes '
+              f'is {got[0]:.2f} ({math.degrees(math.atan(got[0])):.0f} deg) — '
+              f'that is the climbing limit')
     print(f'check: spawns span {far:.0f} yd, '
           f'facings ' + '/'.join(str(facings[d]) for d in range(4)))
     if len(facings) < 4 or min(facings.values()) < len(out_rows) / 40:

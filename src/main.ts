@@ -61,6 +61,7 @@ type Meta = {
   variety?: Record<string, number>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
+  closed?: [number, number][]
   zMin: number; zMax: number
   hasWater?: boolean
   /** What the client painted the ground with, at twice the height grid. */
@@ -95,6 +96,11 @@ type Spawns = {
   player?: Fight[]
   /** What each level costs, out of `player_xp_for_level`. */
   ladder?: number[]
+  /**
+   * The steepest ground the server itself walks a creature over, out of
+   * `waypoint_data`.  The climbing limit, measured rather than chosen.
+   */
+  walk?: number
   npcs: number[][]
 }
 
@@ -287,8 +293,8 @@ async function main() {
    * grid.  Shading still uses the smooth gradient, because shading is about
    * which way the ground faces and not about whether you can stand on it.
    */
-  function stepAt(wx: number, wy: number): number {
-    const s = U
+  function stepAt(wx: number, wy: number, over = U): number {
+    const s = over
     const z = groundAt(wx, wy)
     return Math.max(
       Math.abs(groundAt(wx + s, wy) - z), Math.abs(groundAt(wx - s, wy) - z),
@@ -307,6 +313,20 @@ async function main() {
     if (i < 0 || i >= GW || j < 0 || j >= GH) return 'grass'
     return PAINT[paint[i * GH + j]!] ?? 'grass'
   }
+  /**
+   * The chunks the client marks impassable, as a set of `i,j` keys.
+   *
+   * Bit two of an `.adt` chunk's flags is the world saying outright that you
+   * cannot walk here, and it was never read: 93 chunks in the slice, nearly
+   * all of them the wall along the Burning Steppes, all of them open.
+   */
+  const shut = new Set((meta.closed ?? []).map(([i, j]) => `${i},${j}`))
+  const closedAt = (wx: number, wy: number) => {
+    if (!shut.size) return false
+    const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
+    return shut.has(`${i},${j}`)
+  }
+
   /** The client's own area id here, or 0 where the slice has none. */
   const areaOf = (wx: number, wy: number): number => {
     if (!zones) return 0
@@ -329,13 +349,18 @@ async function main() {
    * would be stopped by grass or would stroll up a cliff face — either way by
    * something the picture did not warn them about.
    */
-  // As angles, because that is what they are about: a gradient of 1 is 45
-  // degrees.  At 0.62 and 0.44 — 31 and 24 degrees — a third of Elwynn was
-  // unclimbable and read as bare rock, which is rolling ground and not a
-  // cliff.  Fifty degrees is roughly where a person stops being able to walk
-  // up something and is about where the game this is modelled on stops you;
-  // forty is where grass stops holding.
-  const CLIFF = Math.tan(50 * Math.PI / 180)
+  // And it is not chosen here any more.  Fifty degrees was a guess — "roughly
+  // where a person stops being able to walk up something" — and a guess in
+  // this position is a wall in the wrong place: at fifty, the mountain east of
+  // Northshire has a switchback where every step is between 1.14 and 1.19,
+  // threading just under the limit, and a walk from the abbey climbs a hundred
+  // yards of it and comes out on ground that belongs to no zone at all.
+  //
+  // `waypoint_data` settles it.  187 patrol routes in this slice, 3,954 legs
+  // of walking laid down by the people who run the server, and not one of them
+  // climbs steeper than 0.90 — forty-two degrees.  `spawn_npcs.py` measures it
+  // and writes it; this is the world's own statement of what walking is.
+  const CLIFF = spawns.walk || Math.tan(50 * Math.PI / 180)
   const BARE = Math.tan(40 * Math.PI / 180)
 
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
@@ -1093,7 +1118,7 @@ async function main() {
   const blocked = (wx: number, wy: number) =>
     (onSpan(wx, wy)
       ? false
-      : wetAt(wx, wy) || stepAt(wx, wy) > CLIFF)
+      : wetAt(wx, wy) || stepAt(wx, wy) > CLIFF || closedAt(wx, wy))
     || solidAt(wx, wy) || npcAt(wx, wy, null)
 
   /**
@@ -1692,7 +1717,7 @@ async function main() {
       for (let j = 0; j < H; j++) {
         const wx = x0 - i * U, wy = y0 - j * U
         const hex = wetAt(wx, wy) ? '#2d5f86'
-          : slopeAt(wx, wy) > CLIFF ? INK['rock']!
+          : stepAt(wx, wy) > CLIFF ? INK['rock']!
             : INK[paintAt(wx, wy)] ?? INK['grass']!
         const o = (i * H + j) * 4
         px[o] = parseInt(hex.slice(1, 3), 16)
@@ -1727,7 +1752,7 @@ async function main() {
         const wx = hero.x + (n / 2 - j) * yd
         const wy = hero.y + (n / 2 - i) * yd
         let hex = wetAt(wx, wy) ? '#2d5f86'
-          : slopeAt(wx, wy) > CLIFF ? INK['rock']!
+          : stepAt(wx, wy) > CLIFF ? INK['rock']!
             : INK[paintAt(wx, wy)] ?? INK['grass']!
         const r = parseInt(hex.slice(1, 3), 16)
         const g = parseInt(hex.slice(3, 5), 16)
@@ -2336,7 +2361,7 @@ async function main() {
             : (ink === 'road' || ink === 'crop') && flat ? DIRT_TILE
               : ink === 'sand' ? SHORE_TILE
                 : shore ? SHORE_TILE
-                  : steep > CLIFF ? ROCK_TILE
+                  : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
                     : ink === 'bloom' || (meadow && h > 0.55)
                       ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                       : steep > BARE ? DIRT_TILE
@@ -2593,7 +2618,7 @@ async function main() {
       ['주인공', `(${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  지면 ${heroZ.toFixed(1)}야드` +
         (wetAt(hero.x, hero.y) ? '  [물속]'
           : solidAt(hero.x, hero.y) ? '  [안쪽]'
-            : slopeAt(hero.x, hero.y) > CLIFF ? '  [바위 위]' : '')],
+            : stepAt(hero.x, hero.y) > CLIFF ? '  [바위 위]' : '')],
       // A count and a particle is a sentence — "74이 할 말이 있음", which is
       // wrong, because a number agrees with how it is read and 74 is 칠십사.
       // A readout wants the ratio anyway, and a ratio needs no particle.

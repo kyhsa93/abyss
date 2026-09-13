@@ -162,7 +162,47 @@ const orphan = variety.filter((v) => v.models && !v.pieces && !v.floor)
 check('and every word the bake emits can be drawn', orphan.length === 0,
   orphan.map((v) => v.kind).join(', '))
 
-// 7. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// 7. What stops you is the world's own number, not one chosen here.
+//
+// The climbing limit used to be `tan(50°)` with a comment saying that is
+// "roughly" where a person stops.  Roughly, in that position, is a wall in the
+// wrong place: at fifty the mountain east of Northshire has a switchback where
+// every step sits between 1.14 and 1.19, and a walk from the abbey climbs a
+// hundred yards of it.  `waypoint_data` states the answer instead — 3,954 legs
+// of patrol laid down by the people who run the server, none steeper than 0.90.
+const limit = await p.evaluate(async () => {
+  const r = await fetch('./world/npcs.json')
+  const said = (await r.json()).walk
+  return { said, used: window.__probe(-8950, -132).cliff }
+})
+check('the climbing limit is the one the world walks',
+  !!limit.said && Math.abs(limit.said - limit.used) < 1e-6,
+  `world says ${limit.said}, engine uses ${limit.used}`)
+
+// And the chunks the client marks impassable are impassable.  Bit two of an
+// `.adt` chunk's flags is the world saying outright that you may not walk
+// here; 93 chunks in this slice carry it and every one of them was open.
+const shut = await p.evaluate(async () => {
+  const r = await fetch('./data/terrain.json').catch(() => null)
+  const m = r && r.ok ? await r.json() : null
+  if (!m?.closed?.length) return null
+  const u = m.areaUnit
+  let tried = 0, held = 0
+  for (const [i, j] of m.closed.slice(0, 40)) {
+    const x = m.x0 - (i + 0.5) * u, y = m.y0 - (j + 0.5) * u
+    tried++
+    if (window.__probe(x, y).blocked) held++
+  }
+  return { tried, held, all: m.closed.length }
+})
+if (shut) {
+  check('and the ground the client shuts stays shut', shut.held === shut.tried,
+    `${shut.held} of ${shut.tried} held, ${shut.all} such chunks in the slice`)
+} else {
+  console.log('      (no impassable chunks in this world — the synthesised one)')
+}
+
+// 8. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
 // to end, and the water a step off the side of it is not, which is the half
@@ -197,7 +237,7 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
-// 8. The ground costs what it costs.  A second tint fill over every tile,
+// 9. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -208,7 +248,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 9. And at the widest the zoom will go, which is where the ground used to
+// 10. And at the widest the zoom will go, which is where the ground used to
 // stop running.  The tile count went as the square of how far out you were —
 // 66,676 tiles at twenty frames a second four steps below the old floor — so
 // the floor was 0.6 and the widest view was eighty-three yards of a valley six

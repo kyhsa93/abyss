@@ -424,6 +424,7 @@ def read_tile(client, tx, ty):
     big = False
     wmo_names, wmos = [], []
     water = {}
+    shut = set()
     for magic, off, size in chunks(data):
         if magic == 'MHDR':
             # Bit two says the alpha maps are a byte a texel rather than a
@@ -500,6 +501,12 @@ def read_tile(client, tx, ty):
                 doodads.append(('m2', nid, ORIGIN - pz, ORIGIN - px, py, ry, sc / 1024.0))
         elif magic == 'MCNK':
             head = data[off:off + 128]
+            # Bit two of a chunk's flags is the client's own word for "you
+            # cannot walk here".  Blizzard uses it sparingly — 93 chunks in
+            # this slice, nearly all of them the wall along the Burning
+            # Steppes — and it was not read at all, so the one boundary the
+            # world states outright in a flag was open.
+            chunk_flags, = struct.unpack_from('<I', head, 0)
             ix, iy = struct.unpack_from('<II', head, 4)      # ix moves Y, iy moves X
             area, = struct.unpack_from('<I', head, 0x34)
             holes, = struct.unpack_from('<H', head, 0x3C)
@@ -514,6 +521,8 @@ def read_tile(client, tx, ty):
                     break
             if heights:
                 cells[(ix, iy)] = (cx, cy, cz, area, holes, heights)
+                if chunk_flags & 0x2:
+                    shut.add((ix, iy))
                 got = ground_of(data, off, size, tex, big)
                 if got:
                     painted[(ix, iy)] = got
@@ -549,7 +558,7 @@ def read_tile(client, tx, ty):
             placed.append((kind, wx, wy, wz, bear, 1.0,
                            half_l, half_w, bear, key, 0.0,
                            round(max(half_l or 0.0, half_w or 0.0), 2)))
-    return cells, placed, water, painted, skipped, src
+    return cells, placed, water, painted, skipped, src, shut
 
 
 def bake(client, bounds, out):
@@ -564,6 +573,7 @@ def bake(client, bounds, out):
     solid_seen = set()
     shapes = {}
     variety = {}
+    closed = []
     levels = {}
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
@@ -595,7 +605,13 @@ def bake(client, bounds, out):
             if not got:
                 print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
                 continue
-            cells, dd, wet, painted, skipped, src = got
+            cells, dd, wet, painted, skipped, src, shut = got
+            for (ix, iy) in shut:
+                # On the same grid and the same origin as the zone map, so the
+                # scene can index both the same way.
+                CI, CJ = tx * 16 + iy, ty * 16 + ix
+                if ci_lo <= CI <= ci_hi and cj_lo <= CJ <= cj_hi:
+                    closed.append([CI - ci_lo, CJ - cj_lo])
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
@@ -705,6 +721,9 @@ def bake(client, bounds, out):
         # Blizzard's prose the same as everything else.
         'areaWidth': cw, 'areaHeight': ch, 'areaUnit': UNIT * 8,
         'areaIds': area_ids,
+        # The chunks the client marks impassable, as `[i, j]` on the same
+        # 33-yard grid the zones use.
+        'closed': closed,
         # `bl`/`bw` are half a footprint, along and across, and `ba` is which
         # way the long side points — a rectangle that can lie diagonally,
         # because half these bridges do.
