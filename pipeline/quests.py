@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake_terrain as B  # noqa: E402
 from spawn_npcs import BOUNDS, MAP, columns, goods_of, rows, split  # noqa: E402
 from spells import CHAIN  # noqa: E402
-from slice import LEVELS, REACH_OVER  # noqa: E402
+from slice import LEVELS, REACH_OVER, CLASS_MASK, RACE_MASK, allows  # noqa: E402
 
 # How many of each objective a quest may carry, by the shape of the table.
 NPCS, ITEMS = 4, 6
@@ -288,6 +288,18 @@ def main(acore, client_root, out):
         if ender not in here:
             dropped['nobody in the slice takes it'] += 1
             continue
+        # Who may take it at all.  The class mask is on the addon and the
+        # race mask on the template, and this game has one of each — which is
+        # the same filter `trainer.Requirement` got in `5ae46c5` and the
+        # quests never did, so twenty-nine other classes' class quests were on
+        # offer to the only warrior in the world.
+        a = addon.get(q)
+        if not allows(int(a[acol['AllowableClasses']]) if a else 0, CLASS_MASK):
+            dropped['for a class this game does not have'] += 1
+            continue
+        if not allows(int(f[col['AllowableRaces']]), RACE_MASK):
+            dropped['for a race this game does not have'] += 1
+            continue
         level = int(f[col['QuestLevel']])
         if not in_range(level, int(f[col['MinLevel']])):
             dropped['outside the levels this game covers' if level > 0
@@ -329,7 +341,6 @@ def main(acore, client_root, out):
             continue
         diff = int(f[col['RewardXPDifficulty']])
         table = xp_for.get(level if level > 0 else 1, [0] * 10)
-        a = addon.get(q)
         quests.append({
             'id': q, 'level': level,
             'min': int(f[col['MinLevel']]),
@@ -338,6 +349,12 @@ def main(acore, client_root, out):
             'xp': table[diff] if 0 <= diff < len(table) else 0,
             'coin': int(f[col['RewardMoney']]),
             'after': int(a[acol['PrevQuestID']]) if a else 0,
+            # Carried so the gate at the end of this file can be run against
+            # what was shipped rather than against what was read — a filter
+            # that checks its own input is a filter that cannot be caught
+            # forgetting to run.
+            'classes': int(a[acol['AllowableClasses']]) if a else 0,
+            'races': int(f[col['AllowableRaces']]),
         })
 
     # Walking somewhere, which is a fifth kind of objective and the only one
@@ -376,9 +393,11 @@ def main(acore, client_root, out):
     # shipped is one a character of these levels could be handed, and the
     # money is the money.
     out_of = [q for q in quests
-              if not in_range(q['level'], q['min'])]
+              if not in_range(q['level'], q['min'])
+              or not allows(q['classes'], CLASS_MASK)
+              or not allows(q['races'], RACE_MASK)]
     if out_of:
-        sys.exit('%d quests came through outside the levels: %s'
+        sys.exit('%d quests came through that this character cannot take: %s'
                  % (len(out_of), [q['id'] for q in out_of][:8]))
     rich = sorted(quests, key=lambda q: -q['coin'])[:1]
     print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "

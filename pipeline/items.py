@@ -26,13 +26,15 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import columns, rows, split, goods_of, BOUNDS, MAP  # noqa: E402
-from slice import LEVELS, CLASSES, REACH_OVER  # noqa: E402
+from slice import (LEVELS, CLASSES, REACH_OVER, CLASS_ID,  # noqa: E402
+                   CLASS_MASK, RACE_MASK, allows)
 from player import outfit  # noqa: E402
 
-HUMAN, WARRIOR = 1, 1
 # `AllowableClass` and `AllowableRace` are bitmasks over the class and race
-# ids, and -1 means anybody.
-CLASS_BIT, RACE_BIT = 1 << (WARRIOR - 1), 1 << (HUMAN - 1)
+# ids, and `slice.py` builds this game's out of the words in `slice.json`.
+# This file used to open `HUMAN, WARRIOR = 1, 1` while carrying its own
+# name-to-id table two hundred lines down and using it for trainers only —
+# which is the shape of thing that lets `quests.py` filter on neither.
 
 # `InventoryType`, which is where a thing goes.  Only the slots this game has
 # a paperdoll layer for; anything else comes out as 0 and is carried, not worn.
@@ -144,11 +146,6 @@ def wanted(base, acore, object_loots, client):
     return want, stock, here
 
 
-# What the server calls each class, in `trainer.Requirement`.  The slice names
-# its classes in words — `slice.json` says `["Warrior"]` — and this is the one
-# place the word has to become the number the world DB uses.
-CLASS_ID = {'Warrior': 1, 'Paladin': 2, 'Hunter': 3, 'Rogue': 4, 'Priest': 5,
-            'DeathKnight': 6, 'Shaman': 7, 'Mage': 8, 'Warlock': 9, 'Druid': 11}
 # And what the other kinds of trainer are.  A trade is learned here by doing
 # it — picking a herb teaches a point of herbalism — so a person who sells
 # trade ranks has nothing to sell; mounts and pets are not in this game at
@@ -276,9 +273,9 @@ def main(acore, client, out):
         # Whether a human warrior could ever hold it.  -1 is "anybody", which
         # is most things; a bitmask that excludes him means the row is another
         # class's and has no business in this world's shops.
-        if allow_c != -1 and not (allow_c & CLASS_BIT):
+        if not allows(allow_c, CLASS_MASK):
             continue
-        if allow_r != -1 and not (allow_r & RACE_BIT):
+        if not allows(allow_r, RACE_MASK):
             continue
         # Nothing this game could ever use.  The ceiling is the slice's own —
         # a level 60 breastplate in a shop is a row nobody can buy and a
