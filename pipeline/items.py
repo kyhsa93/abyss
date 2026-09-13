@@ -345,7 +345,9 @@ def purse(out, doc):
     Quest money is exact (`quest_template.RewardMoney`, through
     `quests.json`).  What a creature carries is a distribution, so it is taken
     at its expectation: chance times count times what it sells for, over
-    everything that is actually spawned.
+    everything that is actually spawned.  **The skin counts too** — a carcass
+    is two pockets, and leather is the steadiest income at these levels, which
+    is the argument for gathering it at all.
     """
     quests = os.path.join(out, 'quests.json')
     npcs = os.path.join(out, 'npcs.json')
@@ -369,10 +371,13 @@ def purse(out, doc):
             continue
         if row[4] > reach:
             continue
-        lo, hi, items = hauls[h]
-        drops += (lo + hi) / 2
-        for _word, chance, clo, chi, sell, *_ in items:
-            drops += (chance / 100.0) * ((clo + chi) / 2) * sell
+        for which in (h, row[18] if len(row) > 18 else -1):
+            if which is None or which < 0 or which >= len(hauls):
+                continue
+            lo, hi, items = hauls[which]
+            drops += (lo + hi) / 2
+            for _word, chance, clo, chi, sell, *_ in items:
+                drops += (chance / 100.0) * ((clo + chi) / 2) * sell
     # What a warrior is asked for on the way to the ceiling.
     lessons = 0
     for t in doc['trainers'].values():
@@ -390,8 +395,9 @@ def purse(out, doc):
     kit = sum(price for _lvl, price in best.values())
     earn = coin + drops
     print(f'check: the slice pays about {earn:,.0f} copper — {coin:,} from '
-          f'errands and {drops:,.0f} off what dies — against {lessons:,} for '
-          f'every lesson and {kit:,} for the best of every slot')
+          f'errands and {drops:,.0f} off what dies and what is skinned — '
+          f'against {lessons:,} for every lesson and {kit:,} for the best of '
+          f'every slot')
     assert earn >= lessons, (
         'the zone cannot pay for its own trainer: %d against %d'
         % (earn, lessons))

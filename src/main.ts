@@ -1234,6 +1234,9 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    /** What comes off with a knife, once the pockets are empty. */
+    hide: [number, number, number[][]] | null
+    skinned: boolean
     /** Where it was at the start of this step — the drawing interpolates. */
     was: { x: number; y: number }
     /** And where it is drawn, which is between the two. */
@@ -1320,6 +1323,10 @@ async function main() {
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
+      // What comes off the carcass afterwards, and whether it has come off.
+      hide: (spawns.hauls && (row[18] ?? -1) >= 0)
+        ? spawns.hauls[row[18]!]! : null,
+      skinned: false,
       was: { x: row[0] as number, y: row[1] as number },
       ix: row[0] as number, iy: row[1] as number,
       threat: {},
@@ -2486,7 +2493,7 @@ async function main() {
      * loud.  Starting at nought would make the number a lie rather than a
      * placeholder: a node asking for nothing would still refuse.
      */
-    trades: { herbs: 1, mining: 1 } as Record<string, number>,
+    trades: { herbs: 1, mining: 1, skinning: 1 } as Record<string, number>,
     /** Experience banked by stopping somewhere sensible — see `resting`. */
     rest: 0,
     /** When the ceiling was reached, which is where this slice ends. */
@@ -2941,7 +2948,7 @@ async function main() {
         // Back on its feet after a while, where it stood.
         if (clock - n.dead > n.back) {
           n.dead = 0; n.hp = n.max; n.angry = false; n.alpha = 1
-          n.looted = false
+          n.looted = false; n.skinned = false
           n.x = n.hx; n.y = n.hy
         }
         continue
@@ -3137,7 +3144,50 @@ async function main() {
    * to a player and one fewer list to keep: nothing is carrying loot until
    * somebody looks.
    */
+  /**
+   * Going through a body's pockets, and then taking its skin.
+   *
+   * The order is the game's own: `Creature::AllLootRemovedFromCorpse`
+   * (Creature.cpp:3152) turns a corpse skinnable **after** its ordinary loot
+   * has been taken and only if its `SkinLootId` has a table.  So one key does
+   * both, twice, and a wolf is worth two presses.
+   *
+   * Rolled when it is opened rather than when it died, which is the same thing
+   * to a player and one fewer list to keep: nothing is carrying loot until
+   * somebody looks.
+   */
   const loot = (n: Npc): string => {
+    if (n.looted && n.hide && !n.skinned) {
+      // **And nothing is asked for it**, which took an attempt at the
+      // opposite to settle.  A herb and a vein state their own requirement —
+      // `Lock.dbc` gives a number per node — and a carcass states none:
+      // neither `skinning_loot_template` nor `creature_template` has a
+      // column for it, because the server works it out from the victim's
+      // level.  The scale this game uses for a skill against a level is in
+      // the core (`Unit.cpp:3334` takes a weapon skill as `GetLevel() * 5`),
+      // and applying it here is where it fell over: a level five wolf then
+      // wants twenty-five, the trade starts at one, and **the only thing
+      // that teaches skinning is skinning**.  A gate nobody can open is
+      // worse than no gate, and inventing a different number to unjam one is
+      // exactly the constant this repository keeps deleting.
+      n.skinned = true
+      const off: string[] = []
+      for (const row of n.hide[2]) {
+        const [idx, chance, clo, chi, sell] = row as number[]
+        if (roll() * 100 >= chance!) continue
+        const word = GOODS[idx!] ?? 'oddment'
+        const many = between(clo!, chi!)
+        const had = you.bag[word] ?? [0, 0]
+        you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
+        off.push(`${goodsOf(word)} ${many}`)
+      }
+      // Teaching by doing, the same bargain the herb and the vein make: there
+      // is no trainer in this game and the trade has to come from somewhere.
+      you.trades['skinning'] = (you.trades['skinning'] ?? 0) + 1
+      off.push(`${TRADE_WORD['skinning']} ${you.trades['skinning']}`)
+      if (off.length) play('loot')
+      return off.join(', ')
+    }
     n.looted = true
     if (!n.haul) return '아무것도 없다'
     const [lo, hi, items] = n.haul
@@ -3210,11 +3260,17 @@ async function main() {
     return got.length ? got.join(', ') : '아무것도 없다'
   }
 
-  /** The nearest body nobody has been through yet. */
+  /**
+   * The nearest body with something left on it.
+   *
+   * Which is the pockets, and then the skin: a looted carcass is still worth
+   * walking back to if it has a hide nobody has taken.
+   */
   const corpse = (): Npc | null => {
     let best: Npc | null = null, bd = EARSHOT * EARSHOT
     for (const n of active) {
-      if (!n.dead || n.looted) continue
+      if (!n.dead) continue
+      if (n.looted && !(n.hide && !n.skinned)) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
       if (d < bd) { bd = d; best = n }
     }
@@ -5879,11 +5935,17 @@ async function main() {
   ;(window as unknown as { __all: () => unknown }).__all = () =>
     npcs.map((n) => ({
       x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander,
-      kind: n.kind, level: n.level, arm: n.arm, dual: n.dual,
+      kind: n.kind, level: n.level,
+      // What it is holding and what comes off it, for the checks that read
+      // `creature_equip_template` and `skinning_loot_template` back out.
+      arm: n.arm, dual: n.dual,
+      hide: !!n.hide, looted: n.looted, skinned: n.skinned, dead: !!n.dead,
       stance: aggressive(n.fight) ? 'enemy'
         : fightable(n.fight) ? 'quarry' : 'friend',
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
+  /** The trades and how far along they are — for the check that skins one. */
+  ;(window as unknown as { __trades: () => unknown }).__trades = () => ({ ...you.trades })
   /** The errands, and how far along they are — for the check that walks one. */
   /**
    * Whether a roof is drawn at this point, for the check on the cutaway.

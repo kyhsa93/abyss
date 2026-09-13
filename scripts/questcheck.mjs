@@ -109,6 +109,63 @@ check('which is the next link of the chain',
   (await state()).held.some((h) => h.id === AFTER),
   JSON.stringify((await state()).held))
 
+// And the third gathering trade, which is the one you take off a body.
+//
+// 49 rows of `skinning_loot_template` touch this slice and there was no
+// skinning at all — 207 herbs and 186 veins and nought leather, against the
+// 448 carcasses that carry a hide.  The order is the game's own
+// (`Creature::AllLootRemovedFromCorpse`, Creature.cpp:3152): the pockets
+// first, the skin second, and a looted carcass is still worth walking back to.
+{
+  await p.evaluate(() => window.__earn(100000))
+  const spot = await p.evaluate(() => {
+    const all = window.__all()
+    // Alone, so the check is about skinning and not about being eaten, and
+    // something this character can actually finish: the first pick was a
+    // level 26 bandit still standing after a hundred and twenty swings, which
+    // fails four checks that have nothing to do with a knife.
+    // The level cap is about how long this check takes rather than about
+    // skinning: a level seven boar is two hundred health, which at one swing
+    // a global cooldown is forty seconds of a check doing nothing.
+    const it = all.find((n) => n.hide && n.stance !== 'friend' && n.level <= 3
+      && all.every((m) => m === n || Math.hypot(m.x - n.x, m.y - n.y) > 22))
+    if (it) window.__cam({ x: it.x - 1.2, y: it.y, zoom: 2 })
+    return it ? { kind: it.kind, level: it.level, x: it.x, y: it.y } : null
+  })
+  check('something in this slice carries a hide', !!spot, JSON.stringify(spot))
+  if (spot) {
+    let dead = false
+    for (let i = 0; i < 60 && !dead; i++) {
+      await p.keyboard.press('1')
+      await p.waitForTimeout(200)
+      dead = await p.evaluate(() => {
+        const h = window.__hero()
+        return window.__all().some((n) => n.dead
+          && Math.hypot(n.x - h.x, n.y - h.y) < 5)
+      })
+    }
+    check('and it can be killed', dead)
+    const state = () => p.evaluate(() => {
+      const h = window.__hero()
+      return window.__all().find((n) => n.dead
+        && Math.hypot(n.x - h.x, n.y - h.y) < 5) ?? null
+    })
+    await p.keyboard.press('e')
+    await p.waitForTimeout(300)
+    const once = await state()
+    check('one press empties its pockets', once?.looted === true,
+      JSON.stringify(once))
+    check('and the skin is still on it', once?.skinned === false)
+    await p.keyboard.press('e')
+    await p.waitForTimeout(300)
+    const twice = await state()
+    check('the next press takes the skin', twice?.skinned === true,
+      JSON.stringify(twice))
+    check('and skinning it taught the trade', await p.evaluate(() =>
+      (window.__trades()?.skinning ?? 0) > 1))
+  }
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

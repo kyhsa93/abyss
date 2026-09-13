@@ -695,6 +695,50 @@ def flatten(table, refs, cut, seen=(), depth=0):
     return out
 
 
+#: `creature_template.type_flags` bits that say a corpse is opened with some
+#: other trade — `Creature::GetRequiredLootSkill` (CreatureData.h:252) reads
+#: exactly these three and falls through to skinning.  Measured for this slice
+#: and **none of its 25 skinnable templates carries one**, so everything here
+#: is skinned with skinning; the mask is read anyway so a wider slice is told
+#: rather than quietly wrong.
+SKIN_WITH_OTHER = 0x100 | 0x200 | 0x8000000
+
+
+def skinning_tables(base, cut):
+    """What comes off a carcass, by `creature_template.skinloot`.
+
+    49 rows of `skinning_loot_template` touch this slice and the game had no
+    third gathering trade at all — 207 herbs and 186 veins and **nought
+    leather**, against 245 wolves, 137 boars, 45 bears and 17 sheep standing in
+    it.  The wiki called that the cheapest answer to "is there a trade in this
+    slice", because it is a third thing in a groove two things already run in.
+
+    The same `flatten` as everything else: a skinning table points at a
+    reference like any other.
+    """
+    iclass, sells = {}, {}
+    for line in rows(os.path.join(base, 'item_template.sql')):
+        f = split_head(line, 12)
+        try:
+            iclass[int(f[0])] = (int(f[1]), int(f[2]))
+            sells[int(f[0])] = int(f[11])
+        except (ValueError, IndexError):
+            continue
+    refs = loot_rows(base, 'reference_loot_template.sql')
+    out = {}
+    for lid, table in loot_rows(base, 'skinning_loot_template.sql').items():
+        for item, chance, lo, hi in flatten(table, refs, cut):
+            if item not in iclass:
+                cut['no such item'] += 1
+                continue
+            out.setdefault(lid, []).append(
+                (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
+                 max(0, sells.get(item, 0)), item, 0))
+    for lid in out:
+        out[lid].sort(key=lambda r: -r[1])
+    return out
+
+
 def loot_tables(base, kinds_by_entry, cut=None):
     """What each creature carries: coins, and things by what sort they are.
 
@@ -1223,7 +1267,12 @@ def main(acore, out):
                         float(f[col['ArmorModifier']]),
                         int(f[col['BaseAttackTime']])),
                        int(f[col['lootid']]),
-                       (int(f[col['mingold']]), int(f[col['maxgold']])))
+                       (int(f[col['mingold']]), int(f[col['maxgold']])),
+                       # What comes off the carcass, and whether it comes off
+                       # with a knife at all.
+                       (int(f[col['skinloot']])
+                        if not int(f[col['type_flags']]) & SKIN_WITH_OTHER
+                        else 0))
 
     # What is in the hand.  `creature_equip_template` is 309 rows touching
     # this slice and was read by nothing at all.
@@ -1238,6 +1287,7 @@ def main(acore, out):
 
     lost = Counter()
     carried = loot_tables(base, None, lost)
+    skins = skinning_tables(base, lost)
     goods, hauls, haul_at = [], [], {}
     kinds, roles, out_rows, arms = [], [], [], []
     fights, fight_at = [], {}
@@ -1249,7 +1299,8 @@ def main(acore, out):
         if entry not in info:
             dropped['no template'] += 1
             continue
-        kind, ctype, lo, hi, flags, rank, cls, faction, mods, lootid, purse = info[entry]
+        kind, ctype, lo, hi, flags, rank, cls, faction, mods, lootid, purse, \
+            skinid = info[entry]
         if kind is None:
             reason, ct, fam = why[entry]
             # Declared or not, it is counted the same way; the difference is
@@ -1291,6 +1342,25 @@ def main(acore, out):
         if haul not in haul_at:
             haul_at[haul] = len(hauls)
             hauls.append([purse[0], purse[1], items])
+        # And what comes off it afterwards, in the same shape and the same
+        # list — a skin is a pocket with no coins in it.  Kept separate from
+        # the pocket because the two are taken at different times: a corpse
+        # becomes skinnable only once its ordinary loot is gone
+        # (`Creature::AllLootRemovedFromCorpse`, Creature.cpp:3152).
+        skinned = []
+        for word, chance, clo, chi, sell, item, _need in skins.get(skinid, [])[:6]:
+            if word not in goods:
+                goods.append(word)
+            skinned.append([goods.index(word), round(chance, 1), clo, chi,
+                            sell, item, 0])
+        pelt = (0, 0, tuple(map(tuple, skinned)))
+        if not skinned:
+            hide = -1
+        else:
+            if pelt not in haul_at:
+                haul_at[pelt] = len(hauls)
+                hauls.append([0, 0, skinned])
+            hide = haul_at[pelt]
         # The entry comes out too, because a quest is keyed on it: a quest
         # names the creature that gives it and the creature you kill eight of,
         # and a kind — `kobold` for all three of Northshire's — cannot tell
@@ -1333,7 +1403,7 @@ def main(acore, out):
                          level, roles.index(r), topic_at.get(entry, -1), fi,
                          haul_at[haul], entry, move_at[way],
                          guid, pool, most, leader, round(z, 1),
-                         weapon, 1 if dual else 0])
+                         weapon, 1 if dual else 0, hide])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')
@@ -1419,6 +1489,13 @@ def main(acore, out):
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
+    skinnable = sum(1 for r in out_rows if r[18] >= 0)
+    purse_of_hide = sum(
+        sum(c * (row[1] / 100.0) * (row[2] + row[3]) / 2 * row[4]
+            for row in hauls[r[18]][2]) * 1
+        for r in out_rows if r[18] >= 0 for c in (1,))
+    print(f'  skinning: {skinnable:,} carcasses, '
+          f'{purse_of_hide:,.0f}동 if every one were skinned once')
     armed = Counter(arms[r[16]] for r in out_rows if r[16] >= 0)
     both = sum(1 for r in out_rows if r[17])
     print(f'  in hand: {sum(armed.values()):,} of {len(out_rows):,} carry '

@@ -116,7 +116,7 @@ export const STAT_WORD: Record<string, string> = {
 
 /** And the trades that open them, which `Lock.dbc` names by number. */
 export const TRADE_WORD: Record<string, string> = {
-  herbs: '약초 채집', mining: '채광',
+  herbs: '약초 채집', mining: '채광', skinning: '무두질',
 }
 
 /** Whoever is counted in 명 rather than in 마리. */
