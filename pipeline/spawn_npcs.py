@@ -456,6 +456,13 @@ GOODS = {
     (1, None): 'bag',
     (2, None): 'weapon',
     (4, None): 'armour',
+    # Arrows and bullets, told apart because nothing else tells them apart.
+    # This game ships no item names, so a row of a shop is a picture, our word
+    # for the sort of thing it is, and a price — and two quivers of arrows at
+    # the same price were the same three things twice.  The subclass is the
+    # column that says, the same way `FoodType` is the column that tells a
+    # drink from a loaf.
+    (6, 2): 'arrow', (6, 3): 'bullet',
     (6, None): 'ammunition',
     (7, 5): 'cloth', (7, 6): 'leather', (7, 7): 'ore', (7, 8): 'meat',
     (7, 9): 'herb', (7, None): 'material',

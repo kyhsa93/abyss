@@ -116,6 +116,8 @@ GOODS = {
     ('bag', ''): ('delapouite', 'backpack'),
     ('quiver', ''): ('delapouite', 'quiver'),
     ('ammunition', ''): ('lorc', 'arrowhead'),
+    ('arrow', ''): ('lorc', 'arrowhead'),
+    ('bullet', ''): ('lorc', 'crossed-pistols'),
     ('herb', ''): ('delapouite', 'herbs-bundle'),
     ('cloth', ''): ('delapouite', 'rolled-cloth'),
     ('leather', ''): ('delapouite', 'animal-hide'),

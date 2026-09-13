@@ -156,6 +156,10 @@ const GOODS: Record<string, string> = {
   ore: '광석', meat: '고기', herb: '약초', material: '재료',
   recipe: '도면', quiver: '화살통', errand: '심부름 물건',
   oddment: '잡동사니',
+  // And `ammunition` split by subclass, for the reason `food` was split by
+  // `FoodType`: a shop row here is a picture, a word and a price, and two
+  // quivers at the same price were the same three things printed twice.
+  arrow: '화살', bullet: '탄환',
 }
 
 /**

@@ -32,7 +32,7 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
-import { hud as makeHud, type Layout, type Slot } from './hud.ts'
+import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, walked, wants, type Errand,
@@ -4054,6 +4054,7 @@ async function main() {
       // samples at load is a fifth of a second nobody asked to wait.
       if (mapOpen && !mapDrawn) { paintWorld(); mapDrawn = true }
     }
+    if (k === 'escape' && shopAt) { e.preventDefault(); shutShop() }
     if (k === 'escape' && mapOpen) mapOpen = false
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
@@ -4424,6 +4425,73 @@ async function main() {
    * interface that makes you sell eleven pieces of cloth one at a time is an
    * interface pretending to have a decision in it.
    */
+  /**
+   * Which shop is open, and which page of it.
+   *
+   * Two fields rather than one, because a page is not a property of the
+   * shopkeeper: walk away and come back and you are at the front of his stock
+   * again, which is what the original does.
+   */
+  let shopAt: Npc | null = null
+  let shopPage = 0
+  /**
+   * **No buyback tab, and that is a decision rather than an omission.**
+   *
+   * The original has one and `BUYBACK_ITEMS_PER_PAGE` is twelve, which
+   * `layout.py` now reads and ships — so the number is there the day it is
+   * wanted.  What is not there is the thing it undoes: selling here is
+   * `sellAll`, one press that empties the bag, because this game's bag is a
+   * tally of goods and not a grid of things.  A buyback list is for taking
+   * back the one item you sold by mistake out of the several you sold on
+   * purpose, and there is no "one item" to point at yet.  It comes with the
+   * bag becoming a grid, not before.
+   */
+  const SHOP_PER_PAGE = () => layout?.spec?.shop?.page ?? 10
+  /**
+   * Open a shopkeeper's window.
+   *
+   * The stock is `npc_vendor` through `items.py`, and it is the whole of it —
+   * not the first four.  Ninety vendors, 528 rows between them, a median of
+   * five and a longest of twenty-eight: seventy-eight fit on one page and
+   * twelve do not, which is why the original has page buttons and why this
+   * does.
+   */
+  const openShop = (n: Npc) => { shopAt = n; shopPage = 0; drawShop() }
+  const shutShop = () => { shopAt = null; drawShop() }
+  const drawShop = () => {
+    if (!shopAt) { ui.setShop(false, '', '', 0, 0, [], () => {}, () => {}); return }
+    const stock = (shelf.stock?.[String(shopAt.entry)] ?? [])
+      .map((row) => row[0]!)
+      .filter((id) => !!itemOf(id))
+    const per = SHOP_PER_PAGE()
+    const pages = Math.max(1, Math.ceil(stock.length / per))
+    shopPage = Math.max(0, Math.min(shopPage, pages - 1))
+    const rows = stock.slice(shopPage * per, shopPage * per + per)
+      .map((id) => {
+        const it = itemOf(id)!
+        const price = it[I_BUY] as number
+        // `coin(0)` is 없음, which on a purse means "you have none" and on a
+        // price means nothing at all.  A few of the slice's stacked goods —
+        // arrows, bullets — come to under a copper each once `items.py` has
+        // divided the stack's price by its count, and a shop row saying
+        // *nothing* where the price goes is worse than saying it is free.
+        return [id, describe(it), price ? coin(price) : '거저', iconFor(it),
+          tintOf(it), detail(it), you.purse >= price] as ShopRow
+      })
+    ui.setShop(true, nameOf(shopAt.kind), coin(you.purse), shopPage, pages, rows,
+      (id) => {
+        const it = itemOf(id)
+        if (!it) return
+        const price = it[I_BUY] as number
+        if (you.purse < price) { ui.log('돈이 모자라다.', 'note'); return }
+        you.purse -= price
+        held.push(id)
+        ui.log(`${describe(it)}을(를) 샀다. ${coin(price)}`, 'note')
+        drawShop()
+      },
+      (to) => { shopPage = to; drawShop() })
+  }
+
   const sellAll = (): string[] => {
     const rows = Object.entries(you.bag)
     // And the things he is carrying but not wearing, which had no way out at
@@ -4746,6 +4814,16 @@ async function main() {
     for (const [word, amount] of (it[12] as (string | number)[][]) ?? [])
       bits.push(`${STAT_WORD[word as string] ?? word} +${amount}`)
     if (it[I_NEED]) bits.push(`${it[I_NEED]}레벨 필요`)
+    // And if it does nothing at all, what it is worth being — `ItemLevel`, the
+    // world's own one-number answer to "is this better", which `dressUp`
+    // already decides an upgrade by.
+    //
+    // Not decoration.  Two recipes at 400 copper and two lumps of ore at 200
+    // were the same picture, the same word and the same price on one page of
+    // one shop, and this game ships no item names, so `등급` is the only thing
+    // left that differs.  Without it a shopkeeper printed the same line twice
+    // and the player had nothing to choose on.
+    if (!bits.length && it[I_ILVL]) return `등급 ${it[I_ILVL]}`
     return bits.join(', ') || '쓸모는 파는 값뿐이다'
   }
 
@@ -4840,27 +4918,15 @@ async function main() {
       speech.options.push({
         label: '가진 것을 팝니다', lines: [], act: sellAll,
       })
-      // And sells.  `npc_vendor` has been read into the conversation for
-      // rounds — "twelve things, from ten copper to a gold" — and there was
-      // nothing behind the sentence.  Money you cannot spend is a number, and
-      // the whole decision this game has outside a fight is whether to spend
-      // it on a lesson or on a breastplate.
-      for (const row of (shelf.stock?.[String(n.entry)] ?? []).slice(0, 4)) {
-        const id = row[0]!
-        const it = itemOf(id)
-        if (!it) continue
-        const price = it[I_BUY] as number
+      // And sells — **in a window of its own now**, which is what the original
+      // does.  Four of them were lines of this conversation, and a shopkeeper
+      // with twenty-eight things to sell had four of them on offer with no way
+      // to reach the rest; the icons page had already printed the result,
+      // *"lines 4 and 5 have the same words and the same price."*
+      if ((shelf.stock?.[String(n.entry)] ?? []).length) {
         speech.options.push({
-          label: `${describe(it)} — ${coin(price)}`,
-          icon: iconFor(it), tint: tintOf(it),
-          lines: [detail(it)],
-          act: () => {
-            if (you.purse < price) return ['돈이 모자라오.']
-            you.purse -= price
-            held.push(id)
-            ui.log(`${describe(it)}을(를) 샀다. ${coin(price)}`, 'note')
-            return [`${describe(it)}. ${coin(you.purse)} 남았소.`]
-          },
+          label: '물건을 봅니다', lines: [],
+          act: () => { openShop(n); return [] },
         })
       }
     }
@@ -6910,7 +6976,13 @@ async function main() {
       if (gone === 'sheet') sheetOpen = false
       if (gone === 'world') mapOpen = false
       if (gone === 'talk') endTalk()
+      if (gone === 'shop') shutShop()
     }
+    // Walking away shuts the shop.  A window you can buy from across the
+    // valley is not a shop, and the conversation it was opened from is held to
+    // the same rule by `inReach`.
+    if (shopAt && ((shopAt.x - hero.x) ** 2 + (shopAt.y - hero.y) ** 2
+      > EARSHOT * EARSHOT || shopAt.dead)) shutShop()
     ui.setSheet(sheetOpen, [
       ['레벨', `${you.level}`],
       ['경험치', `${you.xp} / ${LADDER[you.level - 1] ?? '—'}`],
@@ -7865,6 +7937,67 @@ async function main() {
       teaches: (shelf.trainers?.[String(entry)]?.teaches ?? [])
         .map(([id, cost, need]) => ({ id, cost, need })),
     })
+  /**
+   * Every shop in the world, as the window would draw it.
+   *
+   * The rows and not the ids, because the failure this is for is two lines of
+   * a shop that **look the same** — `아이콘` 3절 printed it: *"lines 4 and 5
+   * have the same words and the same price."*  This game has no item names, so
+   * a row is a picture, our word for the sort of thing it is, and a price;
+   * two rows that match on all three are two rows a player cannot choose
+   * between.
+   */
+  ;(window as unknown as { __shops: () => unknown }).__shops = () => {
+    const per = SHOP_PER_PAGE()
+    const out: { entry: number; rows: number; pages: number; same: string[] }[] = []
+    /**
+     * Two rows that look the same because the **items** are the same in every
+     * column this game ships.
+     *
+     * That is not a bug in the shop, it is where the no-names rule lands: two
+     * arrows with the same damage, the same delay, the same level and the same
+     * price differ only by a name, and this game does not carry names.  Named
+     * and counted rather than hidden — the same idea as the pipeline's
+     * `*_DEFAULT_OK`, because an absence looks exactly like an oversight
+     * unless something says it out loud.
+     */
+    let twins = 0
+    for (const [entry, stock] of Object.entries(shelf.stock ?? {})) {
+      const ids = stock.map(([id]) => id!).filter((id) => !!itemOf(id))
+      const look = (id: number) => {
+        const it = itemOf(id)!
+        return `${iconFor(it)}|${tintOf(it)}|${describe(it)}|${it[I_BUY]}`
+          + `|${detail(it)}`
+      }
+      // Everything the bake ships about the thing, which is what "the same
+      // item twice" has to mean when there are no names.
+      const all = (id: number) => JSON.stringify(itemOf(id))
+      const same: string[] = []
+      // Per page, because two identical rows a page apart are never both on
+      // the glass — which is the difference between a shop that is confusing
+      // and a shop that is merely long.
+      for (let at = 0; at < ids.length; at += per) {
+        const seen = new Map<string, number>()
+        for (const id of ids.slice(at, at + per)) {
+          const key = look(id)
+          const was = seen.get(key)
+          if (was !== undefined) {
+            if (all(was) === all(id)) twins++
+            else same.push(`${was} and ${id}: ${key}`)
+          }
+          seen.set(key, id)
+        }
+      }
+      out.push({ entry: Number(entry), rows: ids.length,
+        pages: Math.max(1, Math.ceil(ids.length / per)), same })
+    }
+    return { per, vendors: out.length,
+      longest: Math.max(...out.map((v) => v.rows), 0),
+      paged: out.filter((v) => v.pages > 1).length,
+      muddled: out.filter((v) => v.same.length),
+      twins,
+    }
+  }
   ;(window as unknown as { __buy: (id: number) => unknown }).__buy = (id) => {
     const it = itemOf(id)
     if (!it) return null

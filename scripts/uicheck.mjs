@@ -326,6 +326,34 @@ for (const [W, H] of SIZES) {
   check('and what it does not take is written down',
     (said.spec?.unread ?? []).length >= 4,
     (said.spec?.unread ?? []).join('; '))
+
+  // The shop, which was four lines of a conversation.
+  //
+  // `MerchantFrame` was not in `layout.py`'s `WANT`, so buying a thing was
+  // four options of the gossip panel — and a shopkeeper with twenty-eight
+  // things to sell had four of them on offer with no way to reach the rest.
+  // The original states the window outright: 384 by 512 in the gossip
+  // window's corner, a row 153 by 44, and `MERCHANT_ITEMS_PER_PAGE` is ten.
+  //
+  // **And no two lines of it look the same.**  That was the failure the icons
+  // page printed — *"lines 4 and 5 have the same words and the same price"* —
+  // and it is the one that matters here, because this game ships no item
+  // names: a row is a picture, our word for the sort of thing it is, what it
+  // does, and a price.  Two rows that match on all four are two rows nobody
+  // can choose between.  What is allowed is two rows whose **items** are
+  // identical in every column the bake ships; those are counted and named
+  // rather than hidden, the same idea as the pipeline's `*_DEFAULT_OK`.
+  const shops = await p.evaluate(() => window.__shops())
+  check('a shop is the original\'s window', shops.per === 10,
+    `${shops.per} to a page, ${shops.vendors} vendors, the longest stock `
+    + `${shops.longest} rows, ${shops.paged} of them needing more than a page`)
+  check('and no two lines of one look the same',
+    shops.muddled.length === 0,
+    shops.muddled.length
+      ? shops.muddled.slice(0, 2).map((v) => `vendor ${v.entry}: `
+        + v.same.join(' / ')).join(' | ')
+      : `${shops.twins} pairs are the same item twice — identical in every `
+      + 'column this game ships, which is where the no-names rule lands')
   await p.close()
 }
 

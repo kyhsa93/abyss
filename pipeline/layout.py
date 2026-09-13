@@ -65,6 +65,10 @@ WANT = {
     # ours were floating above the bar and landed on the experience strip.
     'MainMenuBarBackpackButton': 'bags',
     'CharacterMicroButton': 'micro',
+    # Buying.  It was not in this list, so buying a thing was four lines of a
+    # conversation — and the icons page had already printed what that looks
+    # like: *"lines 4 and 5 have the same words and the same price."*
+    'MerchantFrame': 'shop',
 }
 
 FILES = ['PlayerFrame.xml', 'TargetFrame.xml', 'Minimap.xml', 'MainMenuBar.xml',
@@ -72,6 +76,7 @@ FILES = ['PlayerFrame.xml', 'TargetFrame.xml', 'Minimap.xml', 'MainMenuBar.xml',
          'FloatingChatFrame.xml', 'BuffFrame.xml', 'ContainerFrame.xml',
          'WorldMap.xml', 'UIPanelTemplates.xml', 'MainMenuBarBagButtons.xml',
          'MainMenuBarMicroButtons.xml', 'ActionBarFrame.xml',
+         'MerchantFrame.xml',
          'UnitFrame.xml', 'TargetFrameTemplate.xml']
 
 
@@ -323,6 +328,31 @@ def spec(client, found):
         for name, hit in zip(('xpRested', 'xp'), bars):
             cols[name] = [round(float(v), 2) for v in hit]
     out['colour'] = cols
+    # How many things a shop shows at once, and how big one row of it is.
+    #
+    # `MERCHANT_ITEMS_PER_PAGE` is a constant at the top of
+    # `MerchantFrame.lua`, the same shape of thing `from_lua` already takes out
+    # of `ContainerFrame.lua`, and it is the reason the original has page
+    # buttons at all.  Our own stock says the same: 90 vendors, 528 rows
+    # between them, a median of five and a longest of twenty-eight — **78 fit
+    # on one page and 12 do not.**
+    #
+    # The row's size comes out of the XML rather than the Lua: `MerchantItem`
+    # is a `<Button>` template with its own `<Size>`, so `size_of` reads it the
+    # way it reads any other frame.
+    lua, _src = client.read('Interface\\FrameXML\\MerchantFrame.lua')
+    if lua:
+        t = lua.decode('utf-8', 'replace')
+        for key, name in (('page', 'MERCHANT_ITEMS_PER_PAGE'),
+                          ('buyback', 'BUYBACK_ITEMS_PER_PAGE')):
+            m = re.search(r'\b%s\s*=\s*(\d+)' % name, t)
+            if m:
+                out.setdefault('shop', {})[key] = int(m.group(1))
+    row = found.get('MerchantItemTemplate')
+    if row is not None:
+        got = size_of(found, row)
+        if got:
+            out.setdefault('shop', {})['row'] = [got[0], got[1]]
     # And what is left on purpose.
     out['unread'] = ['texture file names', 'anything a player reads',
                      'frameStrata (a word, and we have no stacking model)',

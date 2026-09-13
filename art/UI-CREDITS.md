@@ -11,7 +11,7 @@ interface draws from, so this list cannot fall behind it.
 * **darkzaitzev** — fish-cooked, fried-fish
 * **delapouite** — animal-hide, backpack, bow-arrow, bread, cape, charging-bull, chest-armor, dice-six-faces-one, gauntlet, herbs-bundle, leg-armor, quiver, rolled-cloth, shoulder-armor, steak, sword-brandish, water-flask
 * **faithtoken** — ore
-* **lorc** — arrowhead, battle-axe, bleeding-heart, bleeding-wound, broadsword, cheese-wedge, cracked-shield, edged-shield, fist, foot-trip, gem-chain, grapes, leather-boot, meat-cleaver, mushroom-gills, potion-ball, saber-slash, screaming, scroll-unfurled, shield-reflect, shouting, stone-block, swap-bag, sword-slice, thunder-struck, tread, trophy, wolf-head
+* **lorc** — arrowhead, battle-axe, bleeding-heart, bleeding-wound, broadsword, cheese-wedge, cracked-shield, crossed-pistols, edged-shield, fist, foot-trip, gem-chain, grapes, leather-boot, meat-cleaver, mushroom-gills, potion-ball, saber-slash, screaming, scroll-unfurled, shield-reflect, shouting, stone-block, swap-bag, sword-slice, thunder-struck, tread, trophy, wolf-head
 * **lucasms** — belt, shirt
 * **sbed** — health-normal, helmet
 * **skoll** — bracers, breaking-chain, talk

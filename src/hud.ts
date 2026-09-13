@@ -87,6 +87,13 @@ function frame(into: HTMLElement, id: string) {
   return { root, face, icon: icon as HTMLImageElement, name, level, fill, text }
 }
 
+/**
+ * One row of a shop: what it is, what it costs, and whether you can pay.
+ *
+ * `[id, word, price, icon, tint, what it does, can you afford it]`.
+ */
+export type ShopRow = [number, string, string, string, string, string, boolean]
+
 /** One frame's place, as `pipeline/layout.py` reads it out of the client. */
 export type Box = { at: string; x: number; y: number; w: number; h: number }
 export type Layout = {
@@ -109,6 +116,12 @@ export type Layout = {
     font?: number[]
     shadow?: number[][]
     colour: Record<string, number[]>
+    /**
+     * How many things a shop shows at once — `MERCHANT_ITEMS_PER_PAGE`, which
+     * is a constant at the top of `MerchantFrame.lua` — and how big one row
+     * of it is, out of `MerchantItemTemplate`'s own `<Size>`.
+     */
+    shop?: { page?: number; buyback?: number; row?: [number, number] }
     unread: string[]
   }
   /**
@@ -243,6 +256,30 @@ export function hud(layout?: Layout) {
   const worldFoot = el('div', 'foot', worldBox)
   const worldPin = el('div', 'pin', worldBox)
 
+  // The shop.
+  //
+  // Buying was four lines of a conversation, and the icons page had already
+  // printed what that looks like: *"lines 4 and 5 have the same words and the
+  // same price."*  A shopkeeper with twenty-eight things to sell had four of
+  // them on offer and no way to see the rest.
+  //
+  // The original has a window for it and states its shape outright —
+  // `MerchantFrame` is 384 by 512 in the same corner as the gossip panel, a
+  // row is 153 by 44, and `MERCHANT_ITEMS_PER_PAGE` is ten.  All of that comes
+  // out of `layout.json` now; what is written here is the parts of a row.
+  const shopBox = el('div', '', ui)
+  shopBox.id = 'shop'
+  shopBox.hidden = true
+  const shopTitle = el('div', 'title', shopBox)
+  const shopList = el('ul', '', shopBox)
+  const shopFoot = el('div', 'foot', shopBox)
+  const shopPrev = el('button', 'page', shopFoot) as HTMLButtonElement
+  shopPrev.textContent = '◀'
+  const shopWhich = el('span', 'which', shopFoot)
+  const shopNext = el('button', 'page', shopFoot) as HTMLButtonElement
+  shopNext.textContent = '▶'
+  const shopPurse = el('span', 'purse', shopFoot)
+
   // The character sheet.  Everything the fight arithmetic is working from,
   // said once in one place — because the numbers exist and nothing showed them.
   const sheet = el('div', '', ui)
@@ -370,6 +407,69 @@ export function hud(layout?: Layout) {
         li.onmouseenter = () => {
           const box = li.getBoundingClientRect()
           this_.setTip(`${word} ${many}\n팔면 ${worth}`, box.left + box.width / 2, box.top - 4)
+        }
+        li.onmouseleave = () => this_.setTip(null, 0, 0)
+      }
+    },
+
+    /**
+     * The shop, as the original shapes one.
+     *
+     * Ten to a page because `MERCHANT_ITEMS_PER_PAGE` is ten, and the page
+     * buttons exist for the same reason the original's do: our own stock has
+     * ninety vendors, a median of five rows and a longest of twenty-eight, so
+     * seventy-eight fit on one page and twelve do not.
+     *
+     * A row is a picture, a word, what it does and what it costs.  The picture
+     * is the half that matters — without it this is ten boxes 153 by 44 with
+     * nothing in them, which is the same failure as the four identical lines
+     * it replaces.
+     */
+    setShop(open: boolean, who: string, purse: string, page: number,
+      pages: number, rows: ShopRow[], buy: (id: number) => void,
+      turn: (to: number) => void) {
+      const was = shopBox.hidden
+      shopBox.hidden = !open
+      if (was !== shopBox.hidden) seat()
+      if (!open) return
+      shopTitle.textContent = who
+      shopPurse.textContent = purse
+      shopWhich.textContent = pages > 1 ? `${page + 1} / ${pages}` : ''
+      shopPrev.hidden = pages < 2
+      shopNext.hidden = pages < 2
+      shopPrev.disabled = page <= 0
+      shopNext.disabled = page >= pages - 1
+      shopPrev.onclick = () => turn(page - 1)
+      shopNext.onclick = () => turn(page + 1)
+      const want = rows.map((r) => r.join('|')).join('\n') + `|${purse}|${page}`
+      if (shopList.dataset['now'] === want) return
+      shopList.dataset['now'] = want
+      shopList.textContent = ''
+      if (!rows.length) {
+        el('li', 'empty', shopList).textContent = '팔 것이 없소'
+        return
+      }
+      for (const [id, word, price, icon, tint, tip, afford] of rows) {
+        const li = el('li', afford ? '' : 'poor', shopList)
+        const what = el('span', 'what', li)
+        if (icon) {
+          const pic = el('span', 'pic', what)
+          pic.style.setProperty('--pic', `url(./art/ui/${icon})`)
+          if (tint) pic.style.color = tint
+        }
+        const name = el('span', 'name', what)
+        el('span', 'word', name).textContent = word
+        // **What it does, on the row.**  This game ships no item names, so a
+        // row is a picture, our word for the sort of thing it is, and a price
+        // — and that was three things a shopkeeper printed twice.  What it
+        // does is the fourth, and it is the one a player is choosing on.
+        if (tip) el('span', 'does', name).textContent = tip
+        el('span', 'price', li).textContent = price
+        li.onclick = () => buy(id)
+        li.onmouseenter = () => {
+          const box = li.getBoundingClientRect()
+          this_.setTip(`${word}\n${tip}\n${price}`,
+            box.left + box.width / 2, box.top - 4)
         }
         li.onmouseleave = () => this_.setTip(null, 0, 0)
       }
@@ -816,7 +916,8 @@ export function hud(layout?: Layout) {
     const box = (name: string): HTMLElement | null =>
       name === 'sheet' ? sheet
         : name === 'talk' ? document.getElementById('talk')
-          : name === 'world' ? worldBox : null
+          : name === 'shop' ? shopBox
+            : name === 'world' ? worldBox : null
     // Who is up now, and since when.
     for (const name of Object.keys(rule)) {
       const el = box(name)
@@ -930,6 +1031,15 @@ export function hud(layout?: Layout) {
     logBox.style.height = `${Math.round((f['log']?.h ?? 120) * s)}px`
     pin(bagPanel, f['bag'], s)
     pin(sheet, f['sheet'], s)
+    pin(shopBox, f['shop'] ?? f['sheet'], s)
+    // And the shop keeps the height the original gives it, the same as the
+    // log does.  `pin` leaves height to the content on purpose — a gossip
+    // window with three lines in it should be three lines tall — but a shop is
+    // a *fixed* window with ten places in it whether they are full or not,
+    // which is what makes its page buttons sit still.  Left to the content the
+    // tenth row fell past the bottom edge.
+    shopBox.style.height =
+      `${Math.round((f['shop']?.h ?? 512) * s)}px`
     if (micro.parentElement !== deck) deck.appendChild(micro)
     pin(deck, f['bar'], s)
     // `max-content` and not `auto`: a fixed box anchored at `left: 50%` with

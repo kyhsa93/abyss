@@ -89,7 +89,12 @@
          so this one has no place to copy and takes the corner nothing else
          wants: left of the action bar, under the chat log. */
       #help {
-        position: fixed; left: 10px; bottom: 8px; color: #9ab; font: var(--font-small)/1.6 var(--mono);
+        /* Under the panels.  It had no `z-index`, so being a sibling of `#ui`
+           later in the document it painted **over** every window in the game:
+           the key hints ran straight across the middle of the character sheet
+           and of the shop. */
+        position: fixed; z-index: 1;
+        left: 10px; bottom: 8px; color: #9ab; font: var(--font-small)/1.6 var(--mono);
         background: rgba(0,0,0,.55); padding: 6px 8px; white-space: pre; pointer-events: none;
       }
       /*
@@ -258,13 +263,14 @@
       #log .gain { color: #a9e39a; }
 
       /* Every panel is the same panel: parchment dark, gold edge, a title rule. */
-      #sheet, #bag, #world, #tip {
+      #sheet, #bag, #world, #tip, #shop {
         background: var(--panel); border: 1px solid var(--gold-dark);
         border-radius: 4px; color: var(--ink);
         box-shadow: inset 0 0 0 1px #000, 0 3px 10px rgba(0,0,0,.6);
       }
-      #sheet[hidden], #bag[hidden], #world[hidden], #tip[hidden] { display: none; }
-      #sheet .title, #bag .title, #world .title {
+      #sheet[hidden], #bag[hidden], #world[hidden], #tip[hidden],
+      #shop[hidden] { display: none; }
+      #sheet .title, #bag .title, #world .title, #shop .title {
         color: var(--gold); font: var(--font-small)/1.8 var(--mono); letter-spacing: .04em;
         border-bottom: 1px solid var(--gold-dark);
         padding-bottom: 4px; margin-bottom: 5px; text-align: center;
@@ -451,6 +457,45 @@
          to make room for it. */
       #sheet { position: fixed; }
       #sheet .doll canvas { image-rendering: pixelated; }
+      /* The shop.  Its box comes from `MerchantFrame` — 384 by 512 in the
+         gossip window's corner — so what is written here is only what a row
+         is made of.  Ten rows to a page, which is `MERCHANT_ITEMS_PER_PAGE`,
+         and page buttons because our own stock needs them: 78 vendors fit on
+         one page and 12 do not. */
+      #shop {
+        position: fixed; z-index: 6; box-sizing: border-box;
+        padding: 8px 10px 6px; display: flex; flex-direction: column;
+        font: var(--font-small)/1.5 var(--mono);
+      }
+      #shop ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+      #shop li {
+        display: flex; align-items: center; gap: 6px; cursor: pointer;
+        /* 44 is `MerchantItemTemplate`'s own height — a row of that window. */
+        min-height: 26px; padding: 2px 4px; border-radius: 3px;
+      }
+      #shop li:hover { background: rgba(201,168,106,.12); }
+      #shop li.poor { opacity: .45; cursor: default; }
+      #shop li.empty { justify-content: center; color: #8a8f9e; cursor: default; }
+      #shop .what { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+      #shop .name { display: flex; flex-direction: column; min-width: 0; }
+      #shop .does {
+        font: var(--font-tiny)/1.3 var(--mono); color: #8a8f9e;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      #shop .price { color: var(--gold); white-space: nowrap; }
+      #shop .foot {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--gold-dark);
+      }
+      /* The purse goes bottom right, which is `MerchantMoneyFrame`. */
+      #shop .purse { margin-left: auto; color: var(--gold); }
+      #shop .page {
+        background: rgba(201,168,106,.1); border: 1px solid var(--gold-dark);
+        color: var(--ink);
+        border-radius: 3px; cursor: pointer; font: inherit; padding: 0 6px;
+      }
+      #shop .page:disabled { opacity: .35; cursor: default; }
+      #shop .which { color: #8a8f9e; }
       #talk .who { color: #c9a86a; font: var(--font-small)/1.5 var(--mono); letter-spacing: .02em; }
       #talk .say { margin: 6px 0 10px; }
       #talk ol { margin: 0; padding: 0; list-style: none; }
