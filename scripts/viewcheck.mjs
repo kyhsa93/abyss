@@ -347,8 +347,48 @@ const inwall = await p.evaluate(() => {
   return { n: all.length, stuck: all.filter((x) => window.__wallAt(x.x, x.y)).length,
     indoors: all.filter((x) => window.__inside(x.x, x.y)).length }
 })
+// 9c. The floor the client takes out of its own ground.  `holes` is sixteen
+// bits a chunk and it makes the mouth of every mine and den in the forest; it
+// was read into the tile and used by nothing, so the ground was laid over each
+// entrance.  There is nothing under it here, so it is drawn as an opening and
+// it refuses a step — walking on to a floor that is not there is the one thing
+// it certainly should not do.
+const gaps = await p.evaluate(() => {
+  const g = window.__gaps()
+  if (!g.length) return { n: 0 }
+  let refused = 0, beside = 0
+  for (const [x, y] of g) {
+    if (window.__probe(x, y).blocked) refused++
+    // Floor again a few yards off, so the mask is a mouth and not a blanket
+    // over the hillside.  Asked of the hole mask itself and not of whether a
+    // step is refused: a good half of these are Stormwind's own ground and
+    // the harbour's, where what is beside the hole is a wall or the sea.
+    for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12]])
+      if (!window.__holeAt(x + dx, y + dy)) { beside++; break }
+  }
+  return { n: g.length, refused, beside }
+})
+if (gaps.n) {
+  check('the mouth of a mine is a hole and not ground', gaps.refused === gaps.n,
+    `${gaps.n} cells with no floor, ${gaps.refused} refuse a step, `
+    + `${gaps.beside} have floor again within twelve yards`)
+}
 check('and nobody is standing inside one', inwall.stuck === 0,
   `${inwall.stuck} of ${inwall.n.toLocaleString()} spawns in a wall, ${inwall.indoors} indoors`)
+
+// 9d. Where you are.  The slice has 35 areas and a shorter word list than
+// that, and what it used to do with the difference was call them all the
+// forest — so the shore of Westfall and a corner of the Burning Steppes both
+// read "엘윈 숲".  Now an area we have not named says whose ground it is,
+// from `AreaTable.dbc`'s own parent column, and shows its id.
+const areas = await p.evaluate(() => window.__areas())
+const misnamed = areas.filter((a) => a.id !== 12 && a.name === '엘윈 숲')
+const named = areas.filter((a) => !/지역 \d+/.test(a.name))
+check('no corner of the map calls itself the wrong forest', misnamed.length === 0,
+  `${areas.length} areas, ${named.length} with a word of their own, `
+  + `${areas.length - named.length} saying whose ground they are on`)
+check('and every one of them says something', areas.every((a) => a.name),
+  areas.slice(0, 3).map((a) => a.name).join(' · ') + ' …')
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it

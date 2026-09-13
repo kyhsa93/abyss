@@ -376,9 +376,20 @@ export function bearing(dx: number, dy: number): string {
  * Where you are, by the client's own area id.
  *
  * The bake writes one id a 33-yard chunk and never a name — an area name is
- * Blizzard's prose like everything else — so the words are here.  Only the
- * ones the forest actually contains; anything else falls back to the forest,
- * which is what the whole slice is.
+ * Blizzard's prose like everything else — so the words are here, and they are
+ * ours.  Each one is a description of what the slice actually holds in that
+ * area, read off the data rather than remembered: area 91 has a mage's tower
+ * standing in it and nothing else, 120 has a barracks and fourteen guards,
+ * 4411 has three dock sections, two ships and a pair of harbour towers, 57
+ * has a gold mine and forty-eight kobolds.  That is why they can be written
+ * down here at all.
+ *
+ * Eighteen of the thirty-five are named and seventeen are not, and **the ones
+ * that are not have to look like it**.  They used to fall back to "엘윈 숲",
+ * so standing on the shore of Westfall or in a corner of the Burning Steppes
+ * said you were in the forest — the silent-default mistake this repository
+ * keeps finding, in the one place a player can actually see it.  `zoneOf`
+ * says whose ground it is and shows the id instead.
  */
 const ZONE: Record<number, string> = {
   9: '노스샤이어 계곡',
@@ -399,10 +410,42 @@ const ZONE: Record<number, string> = {
   40: '웨스트폴',
   44: '레드리지 산맥',
   10: '어둠의 숲',
+  // Named from what stands in them — see above.
+  2: '난파선 해안',           // a wrecked hull on Westfall's sand
+  56: '도적 숙영지',          // fourteen bandits and not one building
+  57: '코볼트 광산',          // a gold mine, forty-eight kobolds
+  60: '다리목 초소',          // the wide bridge and a guard tower
+  88: '벌목장 마을',          // a mill, three farms, a stable, twenty-one people
+  89: '성 밖 농장',           // one farm against the city wall
+  91: '마법사의 탑',          // a mage tower, alone on its hill
+  120: '서부 주둔지',         // a barracks and fourteen guards
+  253: '오크 주둔지',         // a troll burrow and an orc tower
+  797: '무법자 선착장',       // a dock, a farm, twelve bandits
+  798: '숲길 초소',           // a guard tower beside an animal den
+  799: '어둠의 숲 농가',      // a barn and a silo on Duskwood's edge
+  916: '웨스트폴 농가',       // a farmhouse on the western road
+  1002: '사자 다리',          // the stone crossing into Redridge
+  1617: '성벽 앞',            // Stormwind's wall and its gate
+  2421: '검은바위 산',        // the mountain itself
+  4411: '스톰윈드 항구',      // three dock sections, two ships, two towers
 }
 
-export function zoneOf(area: number): string {
-  return ZONE[area] ?? '엘윈 숲'
+/**
+ * The word for an area, and what to say when there is not one.
+ *
+ * `inside` is the area's parent out of `AreaTable.dbc` — an integer, not a
+ * name — so an unnamed corner can say whose ground it is standing on and then
+ * admit it has no word of its own.  A place with no name and no named parent
+ * shows the bare id, which is what `nameOf` does for a creature nobody has
+ * written a word for: **a thing this repository has not named must not come
+ * out looking like a thing it has.**
+ */
+export function zoneOf(area: number, inside = 0): string {
+  const mine = ZONE[area]
+  if (mine) return mine
+  if (!area) return '엘윈 숲'
+  const over = ZONE[inside]
+  return over ? `${over} · 지역 ${area}` : `지역 ${area}`
 }
 
 /**

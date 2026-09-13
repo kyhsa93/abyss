@@ -73,7 +73,13 @@ type Meta = {
     string, string, string]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
+  /** Which area each of them sits inside, from `AreaTable.dbc`. */
+  areaParent?: Record<string, number>
+  /** And what level it is meant for, which is the same table's own column. */
+  areaLevel?: Record<string, number>
   closed?: [number, number][]
+  /** Where the client takes the floor out — a cave mouth — on the height grid. */
+  gaps?: [number, number][]
   zMin: number; zMax: number
   hasWater?: boolean
   /** What the client painted the ground with, at twice the height grid. */
@@ -206,6 +212,8 @@ async function main() {
   const AW = meta.areaWidth ?? 0, AH = meta.areaHeight ?? 0
   const AU = meta.areaUnit ?? 1
   const AREA_IDS = meta.areaIds ?? []
+  /** Which area an area sits inside, so an unnamed one can say whose it is. */
+  const inside = (area: number) => meta.areaParent?.[String(area)] ?? 0
   const zones = AW && bin.byteLength >= cells * 5 + GW * GH + AW * AH
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
@@ -355,6 +363,26 @@ async function main() {
     if (!shut.size) return false
     const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
     return shut.has(`${i},${j}`)
+  }
+  /**
+   * Where there is no floor at all.
+   *
+   * A chunk's `holes` field takes four by four squares out of its own ground,
+   * and that is how the client makes the mouth of a mine: 674 cells of it in
+   * this slice, every mine and den and cellar in the forest.  It was read into
+   * the tile and then used by nothing, so the ground was laid straight over
+   * every entrance — the one field the wiki singles out as *"ignore the holes
+   * and the cave mouth gets covered over"*.
+   *
+   * There is nothing under it here — no interiors — so a hole is drawn as what
+   * it is, an opening, and refuses a step.  Walking on to a floor that is not
+   * there is the one thing it certainly should not do.
+   */
+  const holes = new Set((meta.gaps ?? []).map(([i, j]) => `${i},${j}`))
+  const holeAt = (wx: number, wy: number) => {
+    if (!holes.size) return false
+    const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
+    return holes.has(`${i},${j}`)
   }
 
   /** The client's own area id here, or 0 where the slice has none. */
@@ -1353,7 +1381,8 @@ async function main() {
    * they are the world saying no.
    */
   function footing(wx: number, wy: number) {
-    return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy))
+    return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
+      || holeAt(wx, wy))
       || solidAt(wx, wy) || wallAt(wx, wy) || npcAt(wx, wy, null)
   }
 
@@ -2643,6 +2672,19 @@ async function main() {
         const edge = px * grain
         if (cx < -edge || cx > canvas.width + edge
           || cy < -edge || cy > canvas.height + edge) continue
+        // No floor here at all: the client took this square out of its own
+        // ground to make the mouth of something.  Painted as the dark behind
+        // the world rather than skipped, because the sheet the frame is
+        // cleared with is the colour of ground off the edge of the slice, and
+        // a hole is not the edge of anything — it is a way in.
+        if (holeAt(wx, wy)) {
+          const wide = px * grain
+          ctx.fillStyle = '#0a0a0f'
+          ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
+            wide, wide)
+          tilesDrawn++
+          continue
+        }
         const h = hash(ti, tj)
         const water = WATER_TILES.length > 0 && wetAt(wx, wy)
         // Water is flat by definition, so it gets none of the hillside shading
@@ -3008,7 +3050,8 @@ async function main() {
     // on a page that has no road data in it and never could: the deployed
     // build has no client bake, so it serves the synthesised world, and the
     // ground paint a road lives in comes out of `.adt` alpha maps only.
-    ui.setWhere(`${zoneOf(areaOf(hero.x, hero.y))}${MADE_UP ? ' · 합성' : ''}  `
+    const zone = areaOf(hero.x, hero.y)
+    ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}  `
       + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
@@ -3221,6 +3264,16 @@ async function main() {
     const got = inBuilding(x, y, 0)
     return got ? { wall: got.wall, floor: got.floor } : null
   }
+  /** Every area the slice has, with whose it is and what we call it. */
+  ;(window as unknown as { __areas: () => unknown }).__areas = () =>
+    AREA_IDS.map((a) => ({ id: a, inside: inside(a), name: zoneOf(a, inside(a)),
+      level: meta.areaLevel?.[String(a)] ?? 0 }))
+  /** Where the client took the floor out, for the check that you cannot walk in. */
+  ;(window as unknown as { __gaps: () => [number, number][] }).__gaps = () =>
+    (meta.gaps ?? []).map(([i, j]) => [x0 - i * U, y0 - j * U])
+  /** And whether this spot is one of them. */
+  ;(window as unknown as { __holeAt: (x: number, y: number) => boolean })
+    .__holeAt = (x, y) => holeAt(x, y)
   /** Whether a step on to this spot is refused, for the wall check. */
   ;(window as unknown as { __wallAt: (x: number, y: number) => boolean })
     .__wallAt = (x, y) => wallAt(x, y)

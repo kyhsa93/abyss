@@ -278,6 +278,27 @@ in the abbey — and they go through the same `classify` and the same audit as
 everything the terrain places. What stands under a roof is not drawn while you
 are outside it, people included: they were standing on the tiles.
 
+**A hole in the ground is a field that was read and then used by nothing.** A
+chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
+it is how the client makes the mouth of a mine: 674 cells of it in this slice.
+It was parsed into the tile from the beginning and never consulted, so the
+ground was laid straight over every entrance. Nothing in the file says which
+way the rows run, so it was settled by measuring — every hole that sits on a
+mine, a den or a cave against that model's own placement, 16 yards one way
+against 24 and as much as 56 the other — and that measurement is now the
+bake's check. A chunk that loses all sixteen bits is not a mouth: it is ground
+handed to a building that brings its own floor, which here is Stormwind.
+
+**A place we have not named must not look like a place we have.** The slice has
+35 areas and `talk.ts` has our own word for eighteen of them, every one of them
+a description of what actually stands there — a mage's tower alone on its hill,
+a barracks and fourteen guards, a gold mine and forty-eight kobolds. The rest
+used to fall through `?? '엘윈 숲'`, so the shore of Westfall and a corner of
+the Burning Steppes both said you were in the forest: the silent-default
+mistake, in the one place a player can see it. `AreaTable.dbc` states a parent
+for every area — an integer, not a name — so an unnamed one now says whose
+ground it is and shows its id.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of

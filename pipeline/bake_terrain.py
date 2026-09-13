@@ -574,6 +574,63 @@ def rooms_of(client, path, pos, ry, box=None):
     return out
 
 
+def area_tree(client, ids):
+    """Which area sits inside which, and what level it is meant for.
+
+    `AreaTable.dbc` is the client's own list of places and every one of them
+    states a parent: Northshire's valley is inside Elwynn, Elwynn is inside
+    nothing.  Three integers a row are read — the id, the parent and the
+    exploration level — and **not the fourth**, which is the name, because a
+    place name is Blizzard's prose the same as a quest's title.
+
+    Which is exactly why the parent matters here.  The slice has 35 areas and
+    our own word list is shorter than that, so without the hierarchy an
+    unnamed place has nothing to fall back on but a guess — and the guess was
+    "엘윈 숲", which is how standing on the shore of Westfall said you were in
+    the forest.  With it, an unnamed place says whose it is and admits it has
+    no name of its own.
+
+    Checked rather than trusted: area 9 has to come back inside 12, and 12
+    inside nothing.  A layout off by one field gives a tree that is still a
+    tree.
+    """
+    global CHAIN
+    was = CHAIN
+    # `DBFilesClient` lives in the locale's own archives, ahead of everything
+    # the terrain is read from.
+    CHAIN = ['koKR/patch-koKR-3.MPQ', 'koKR/patch-koKR-2.MPQ',
+             'koKR/patch-koKR.MPQ', 'koKR/locale-koKR.MPQ'] + was
+    data, _src = client.read('DBFilesClient\\AreaTable.dbc')
+    CHAIN = was
+    if not data or data[:4] != b'WDBC':
+        return {}, {}
+    _m, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+    rows = {}
+    for i in range(n):
+        v = struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
+        rows[v[0]] = (v[2], v[10])
+    if rows.get(9, (None,))[0] != 12 or rows.get(12, (None,))[0] != 0:
+        sys.exit('AreaTable.dbc field offsets are wrong: 9 sits in %s and 12 '
+                 'in %s' % (rows.get(9), rows.get(12)))
+    parent, level = {}, {}
+    for a in ids:
+        if a in rows:
+            parent[a], level[a] = rows[a]
+    return parent, level
+
+
+# Where the ground opens into something.  A mine, a den, a burrow: all three
+# are already in `WMO_KINDS` as "there is no picture here for a hole in a
+# hillside", and the *hole itself* is in the terrain — so their positions are
+# kept, and `check_holes` matches the client's own hole bits against them.
+MOUTHS = []
+
+
+def is_mouth(path):
+    p = path.upper()
+    return any(w in p for w in ('MINE', 'DEN', 'BURROW', 'CAVE', 'CRYPT'))
+
+
 def classify_wmo(path):
     p = path.upper()
     for needle, kind in WMO_KINDS:
@@ -916,6 +973,8 @@ def read_tile(client, tx, ty):
     wmo_names, wmos = [], []
     water = {}
     shut = set()
+    gap = set()
+    whole = []
     for magic, off, size in chunks(data):
         if magic == 'MHDR':
             # Bit two says the alpha maps are a byte a texel rather than a
@@ -1018,6 +1077,23 @@ def read_tile(client, tx, ty):
                 cells[(ix, iy)] = (cx, cy, cz, area, holes, heights)
                 if chunk_flags & 0x2:
                     shut.add((ix, iy))
+                # And the floor the client takes *out* of this chunk.  Sixteen
+                # bits over a four by four grid, each one a two-unit square of
+                # the eight by eight the chunk is, and that is how a cave mouth
+                # is made: without them the ground is laid over the entrance to
+                # every mine in the forest.  The field was read and put in the
+                # cell all along, and then used by nothing.
+                #
+                # A bit's row runs along world x, the same way `MCVT`'s rows do
+                # a few lines up.  `check_holes` is what says so rather than the
+                # wiki: read the other way round the mouths land a median 24
+                # yards from the mine they belong to, and 56 at worst, against
+                # 16 and 27 this way.
+                for k in range(16):
+                    if (holes >> k) & 1:
+                        gap.add((iy * 8 + (k // 4) * 2, ix * 8 + (k % 4) * 2))
+                if holes == 0xFFFF:
+                    whole.append((ix, iy))
                 got = ground_of(data, off, size, tex, big)
                 if got:
                     painted[(ix, iy)] = got
@@ -1045,6 +1121,8 @@ def read_tile(client, tx, ty):
             world_box, dset in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
+        if not kind and is_mouth(name):
+            MOUTHS.append((wx, wy))
         if kind:
             # What is standing inside it.  These are the building's own
             # doodads, in the building's own space, so they turn with it.
@@ -1071,7 +1149,7 @@ def read_tile(client, tx, ty):
                            round(max(half_l or 0.0, half_w or 0.0), 2),
                            rooms_of(client, name, pos, ry, world_box),
                            plan_key(client, name, key), round(ry + 270, 1)))
-    return cells, placed, water, painted, skipped, src, shut
+    return cells, placed, water, painted, skipped, src, shut, gap, whole
 
 
 def bake(client, bounds, out, acore=None):
@@ -1091,6 +1169,8 @@ def bake(client, bounds, out, acore=None):
     shapes = {}
     variety = {}
     closed = []
+    gaps = []
+    wholly = []
     levels = {}
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
@@ -1122,13 +1202,23 @@ def bake(client, bounds, out, acore=None):
             if not got:
                 print(f'  tile {ty}_{tx}: missing', file=sys.stderr)
                 continue
-            cells, dd, wet, painted, skipped, src, shut = got
+            cells, dd, wet, painted, skipped, src, shut, gap, whole = got
             for (ix, iy) in shut:
                 # On the same grid and the same origin as the zone map, so the
                 # scene can index both the same way.
                 CI, CJ = tx * 16 + iy, ty * 16 + ix
                 if ci_lo <= CI <= ci_hi and cj_lo <= CJ <= cj_hi:
                     closed.append([CI - ci_lo, CJ - cj_lo])
+            wholly += whole
+            for (di, dj) in gap:
+                # On the height grid, so the scene indexes it the same way it
+                # indexes water.  Each bit is two units square, so it is four
+                # cells of that grid.
+                for a in range(2):
+                    for b in range(2):
+                        I, J = tx * 128 + di + a, ty * 128 + dj + b
+                        if i_lo <= I <= i_hi and j_lo <= J <= j_hi:
+                            gaps.append([I - i_lo, J - j_lo])
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
@@ -1208,6 +1298,8 @@ def bake(client, bounds, out, acore=None):
         print(f'{borrowed} diagonal footprints borrowed from another instance '
               f'of the same model')
 
+    area_parent, area_level = area_tree(client, area_ids)
+
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
     os.makedirs(out, exist_ok=True)
@@ -1238,12 +1330,21 @@ def bake(client, bounds, out, acore=None):
         # Blizzard's prose the same as everything else.
         'areaWidth': cw, 'areaHeight': ch, 'areaUnit': UNIT * 8,
         'areaIds': area_ids,
+        # And which area each of them sits inside, out of `AreaTable.dbc`.
+        # `src/talk.ts` has our own word for seventeen of the thirty-five; the
+        # rest say whose ground they are on and show their id, rather than
+        # quietly coming out as the forest.
+        'areaParent': {str(k): v for k, v in area_parent.items()},
+        'areaLevel': {str(k): v for k, v in area_level.items() if v},
         # The footprints, one per model rather than one per placement:
         # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.
         'plans': {str(k): plan_out(v) for k, v in PLANS_BY_KEY.items() if v},
         # The chunks the client marks impassable, as `[i, j]` on the same
         # 33-yard grid the zones use.
         'closed': closed,
+        # And the floor it takes out — a cave mouth — as `[i, j]` on the
+        # height grid, the same one the water is on.
+        'gaps': gaps,
         # `bl`/`bw` are half a footprint, along and across, and `ba` is which
         # way the long side points — a rectangle that can lie diagonally,
         # because half these bridges do.
@@ -1285,7 +1386,48 @@ def bake(client, bounds, out, acore=None):
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
     check_walls()
+    check_holes(gaps, wholly, meta)
     return meta
+
+
+def check_holes(gaps, full, meta):
+    """A hole in the ground is the mouth of something.
+
+    The bits are a four by four grid over a chunk and nothing in the file says
+    which way its rows run, so it was settled by measuring: every hole in this
+    slice that sits on a mine, a den or a cave is matched against that model's
+    own placement, and one reading puts them a median 16 yards from it while
+    the other puts them 24 and as much as 56.  That is the check, because it is
+    the evidence — a transposed mask would still be a mask, and would still
+    look like holes in a hillside.
+
+    Stormwind's own ground is holed too, and the harbour's, and the inns have
+    cellars; those are not mouths and are not counted.  The ones that are, are.
+    """
+    if not gaps:
+        return
+    u, x0, y0 = meta['unit'], meta['x0'], meta['y0']
+    mouths = MOUTHS
+    near = []
+    for i, j in gaps:
+        wx, wy = x0 - i * u, y0 - j * u
+        if mouths:
+            near.append(min(math.hypot(a - wx, b - wy) for a, b in mouths))
+    near.sort()
+    close = [d for d in near if d < 45]
+    # A chunk with all sixteen bits set is not a mouth: it is ground handed
+    # over to a building that brings its own floor, which in this slice is
+    # Stormwind and its harbour.  Worth separating in the report, because the
+    # two look identical in the mask and only one of them is a cave.
+    whole = sum(1 for v in full if v)
+    print(f'check: {len(gaps):,} cells of floor the client takes out, '
+          f'{len(close)} of them at a mouth, a median '
+          f'{close[len(close)//2]:.1f} yd from it; {whole} chunks lose all '
+          f'sixteen, which is a city standing on its own floor'
+          if close else f'check: {len(gaps):,} cells of floor taken out')
+    assert not close or close[len(close) // 2] < 22, (
+        'the hole bits are transposed: the mouths land %.1f yards from the '
+        'models they belong to' % close[len(close) // 2])
 
 
 def check_walls():
