@@ -4052,8 +4052,9 @@ async function main() {
    * of the rules rather than out of a guess.
    */
   ;(window as unknown as {
-    __duel: (level: number, many: number, runs: number, mineLevel?: number) => unknown
-  }).__duel = (level, many, runs, mineLevel) => {
+    __duel: (level: number, many: number, runs: number, mineLevel?: number,
+      policy?: string) => unknown
+  }).__duel = (level, many, runs, mineLevel, policy) => {
     // The player's level is given rather than read, so the answer does not
     // depend on what a check ran before this one.
     const lv = mineLevel ?? you.level
@@ -4062,12 +4063,19 @@ async function main() {
     const foe = (spawns.fights ?? []).find((f) => f && f[HP]! > 0
       && (spawns.npcs ?? []).some((n) => n[4] === level && n[7] === (spawns.fights ?? []).indexOf(f)))
       ?? [60, 3, 5, 2000, 20, 2]
-    let won = 0, ticks = 0
+    let won = 0, ticks = 0, presses = 0
     for (let r = 0; r < runs; r++) {
       let hp = line[HP]!
       const foes = Array.from({ length: many }, () => foe[HP]!)
       let mine_t = 0
       const theirs = foes.map(() => 0)
+      // What a player *does*, as opposed to what he is.  `auto` presses
+      // nothing at all; `rota` presses the one thing a level one warrior has
+      // whenever rage will pay for it, which is the simplest fixed order
+      // anybody could write on a macro.  The gap between them is how much of
+      // this game is a decision — and if there is no gap, it is a progress
+      // bar with a sword on it.
+      let rage = 0, extra = 0, pressed = 0
       for (let t = 0; t < 60000 && hp > 0 && foes.some((h) => h > 0); t += 100) {
         // Yours, at whichever is still up.
         const target = foes.findIndex((h) => h > 0)
@@ -4079,8 +4087,23 @@ async function main() {
             { level, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
               block: CREATURE_BLOCK },
             roll() * 10000)
-          foes[target]! -= damageAfter(fate,
-            swing(line, level, foe[ARMOUR]!, roll()), level - lv)
+          const dealt = damageAfter(fate,
+            swing(line, level, foe[ARMOUR]!, roll()) + extra, level - lv)
+          extra = 0
+          foes[target]! -= dealt
+          rage = Math.min(MAX_RAGE,
+            rage + rageFrom(dealt, lv, line[SWING]! / 1000, true))
+          // The macro: a heavier blow the moment rage allows one.  It rides
+          // the next swing, so it costs no wait and is strictly better than
+          // letting the rage sit there.
+          if (policy === 'rota') {
+            const hs = (spellbook.spells ?? []).find((sp) => sp.id === 78)
+            if (hs && rage >= hs.rage) {
+              rage -= hs.rage
+              extra += hs.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0
+              pressed += 1
+            }
+          }
         }
         // Theirs, all of them.
         for (let i = 0; i < many; i++) {
@@ -4091,15 +4114,20 @@ async function main() {
             { level: lv, dodge: dodgeChance(lv, mine, who!),
               parry: PARRY_WITH_WEAPON, block: 0, player: true },
             roll() * 10000)
-          hp -= damageAfter(fate,
+          const took = damageAfter(fate,
             swing(foe, lv, line[ARMOUR]!, roll()), level - lv)
+          hp -= took
+          rage = Math.min(MAX_RAGE,
+            rage + rageFrom(took, lv, line[SWING]! / 1000, false))
         }
         ticks += 1
       }
       if (hp > 0) won += 1
+      presses += pressed
     }
-    return { level, many, runs, mine: lv, won, survived: won / runs,
-      seconds: (ticks / runs) * 0.1 }
+    return { level, many, runs, mine: lv, policy: policy ?? 'auto', won,
+      survived: won / runs, seconds: (ticks / runs) * 0.1,
+      presses: presses / runs }
   }
   /** What is for sale and what is taught nearby, and buying and learning it. */
   ;(window as unknown as { __shop: (entry: number) => unknown }).__shop =

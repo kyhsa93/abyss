@@ -515,6 +515,26 @@ const up = await p.evaluate(() => window.__duel(5, 1, 400, 1))
 check('and so is picking on something above you', up.survived < one.survived,
   `at level 1, a level 5 alone: ${(up.survived * 100).toFixed(0)}% survived`)
 
+// The wiki calls the next one this project's win-rate check: if holding down
+// auto-attack gets you to the ceiling, what has been built is a progress bar
+// with a sword on it.  The old abyss died of exactly this, and the diagnosis
+// then — "92 to 100 per cent won by standing still" — was a measurement rather
+// than an opinion.
+const auto = await p.evaluate(() => window.__duel(5, 1, 600, 1, 'auto'))
+const rota = await p.evaluate(() => window.__duel(5, 1, 600, 1, 'rota'))
+check('pressing nothing is measurably worse than pressing something',
+  rota.survived > auto.survived + 0.25 && rota.presses > 0,
+  `at level 1 against a level 5 — auto-attack alone survives `
+  + `${(auto.survived * 100).toFixed(0)}%, the simplest macro `
+  + `${(rota.survived * 100).toFixed(0)}% off ${rota.presses.toFixed(1)} `
+  + `presses a fight`)
+const even = await p.evaluate(() => window.__duel(1, 1, 600, 1, 'auto'))
+const evenR = await p.evaluate(() => window.__duel(1, 1, 600, 1, 'rota'))
+check('and there is something to press in every fight', evenR.presses > 1,
+  `even against your own level the macro presses `
+  + `${evenR.presses.toFixed(1)} times and finishes `
+  + `${(100 - (evenR.seconds / even.seconds) * 100).toFixed(0)}% sooner`)
+
 // 9j. Dying costs a walk.  It used to cost four seconds and nothing else —
 // you stood up on the spot at full health — so there was never a reason to run
 // away, and half of "should I pull this" is the other half of that decision.
