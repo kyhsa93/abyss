@@ -154,7 +154,12 @@ def main(acore, client, out):
             int(f[icol['armor']]),
             int(f[icol['InventoryType']]),
         ]
-    kit = [[iclass[e]] + idamage[e] for e in sorted(wanted) if e in idamage]
+    # **With the entry on the front.**  Without it the outfit was five rows of
+    # arithmetic and nothing else — a weapon's damage and swing with no item
+    # behind them — so the character sheet said `입은 것 없음` while the same
+    # sheet's attack line was quoting the greatsword's 2.9 second swing.  The
+    # id is what lets the scene actually put the thing in his hands.
+    kit = [[e, iclass[e]] + idamage[e] for e in sorted(wanted) if e in idamage]
     if not kit:
         print('  no starting outfit: that is the client\'s table, and there '
               'is no client here', file=sys.stderr)
@@ -207,7 +212,7 @@ def main(acore, client, out):
         # Agility to critical hit: a base per class and a ratio per level.
         'critBase': crit_base[WARRIOR - 1] if crit_base else 0.0,
         'critRatio': {str(k): v for k, v in sorted(ratio.items())},
-        # What a new one is holding: `[word, min, max, swing ms, armour, slot]`
+        # What a new one is holding: `[entry, word, min, max, swing, armour, slot]`
         'kit': kit,
         # Which graveyards each zone sends you to, `[x, y, z]` each.
         'graveyards': by_zone,

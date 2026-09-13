@@ -35,7 +35,13 @@ export function weightOf(armour: number): string {
   // Three pictures and one number.  A shirt is nothing, a leather jerkin is a
   // handful, a mail hauberk is tens: the steps are where the pictures are, not
   // where a table says.
-  if (armour <= 0) return 'bare'
+  //
+  // And nothing worn is ever drawn bare.  This is only ever asked about a
+  // slot with something in it, so `bare` here meant "you are wearing boots
+  // that show as bare feet" — which is what the starting outfit's boots did
+  // the day they were first put on somebody, since the client gives them no
+  // armour at all.  `bare` belongs to an empty slot, and an empty slot never
+  // reaches this function.
   if (armour < 20) return 'light'
   if (armour < 60) return 'medium'
   return 'heavy'

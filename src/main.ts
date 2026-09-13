@@ -1965,12 +1965,54 @@ async function main() {
    * that whatever is in the weapon slot — so **the weapon's own `delay`
    * becomes the swing**, which used to be a constant out of the level table.
    */
-  const startKit = (who?.kit ?? []).find((k) => (k[1] as number) > 0)
+  /**
+   * The items a new character is created holding, by id.
+   *
+   * `CharStartOutfit.dbc` names five and what the original does with them is
+   * **put them in his bags**.  Here they were five rows of arithmetic and
+   * nothing else: a weapon's damage and swing borrowed as a fallback whenever
+   * the weapon slot was empty, which it always was.  So the sheet said
+   * `공격력 9 – 11 (2.9초)` and `입은 것  없음` on consecutive lines, and the
+   * 2.9 was the greatsword nobody was holding.  Nothing could be sold,
+   * swapped, or drawn on the paperdoll, because there was nothing there.
+   */
+  const KIT = (who?.kit ?? []).map((k) => k[0] as number)
+  /**
+   * Put on, here, before `you` exists.
+   *
+   * `you` is built out of `lineFor`, and `lineFor` asks what is in the weapon
+   * slot — so dressing him after the fact means the first three calls see an
+   * empty hand.  They did, and the counter below caught it: the character was
+   * created bare-handed and dressed a moment later, which is invisible when
+   * both answers come out the same and is exactly the seam the whole bug
+   * lived in.
+   */
+  held = [...KIT]
+  for (const id of KIT) {
+    const it = itemOf(id)
+    if (!it || !canWear(it, HERO_LEVEL)) continue
+    const slot = it[I_SLOT] as string
+    if (!slot || gear[slot] !== undefined) continue
+    const put = wear(gear, it, id)
+    gear = put.gear
+    held = held.filter((x) => x !== id).concat(put.off)
+  }
   const heldWeapon = (): (string | number)[] | undefined => {
     const it = gear['weapon'] !== undefined ? itemOf(gear['weapon']!) : null
-    return it ? ['weapon', it[I_LO] as number, it[I_HI] as number,
-      it[I_DELAY] as number, it[I_ARMOUR] as number, 0] : startKit
+    if (it) {
+      return ['weapon', it[I_LO] as number, it[I_HI] as number,
+        it[I_DELAY] as number, it[I_ARMOUR] as number, 0]
+    }
+    // Bare hands, and it is a real answer rather than a stand-in for the
+    // outfit: one second, one damage, which is what the server gives a player
+    // with an empty weapon slot.  Reaching for the starting kit here was what
+    // let the character sheet disagree with itself, and `bordercheck` now
+    // counts how often this line is taken.
+    barehanded++
+    return ['weapon', 1, 1, 2000, 0, 0]
   }
+  /** How many times the line above was needed — see the check. */
+  let barehanded = 0
   const lineFor = (lv: number): Fight => {
     const row = spawns.player?.[Math.min(lv, spawns.player.length) - 1]
       ?? [100, 3, 5, 1900, 100, 0]
@@ -3244,6 +3286,8 @@ async function main() {
   const dollCanvas = document.createElement('canvas')
   const dollLayers = new Map<string, HTMLImageElement>()
   let dollKey = ''
+  /** Slots something is worn in that the layer sheets cannot draw. */
+  const dollMissing = new Set<string>()
   const paintDoll = () => {
     if (!dollArt) return null
     const who = 'male'
@@ -3261,6 +3305,12 @@ async function main() {
       const name = slot === 'body' ? `${who}_body_bare`
         : slot === 'hair' ? `${who}_hair_1`
           : from ? layerFor(dollArt, who, slot, armour) : null
+      // Something worn that the sheets cannot draw.  There is no `legs` layer
+      // in the set at all — 32 files and not one of them is trousers — so the
+      // starting outfit's are worn, counted and invisible.  Named rather than
+      // dropped, because a silent nothing is how the whole paperdoll came to
+      // be believed in for weeks while no such file existed.
+      if (from && !name) dollMissing.add(slot)
       if (name) want.push(name)
     }
     const key = want.join('|')
@@ -4417,10 +4467,12 @@ async function main() {
       ['공격력', `${you.line[LO]} – ${you.line[HI]}  (${(you.line[SWING]! / 1000).toFixed(1)}초)`],
       ['방어도', `${you.line[ARMOUR]}  (피해 ${Math.round(mitigate(you.line[ARMOUR]!, you.level) * 100)}% 감소)`],
       ['힘·민첩·체력', statsAt(you.level).slice(0, 3).join(' · ')],
+      // The slot is the word.  It used to be slot *and* class — 무기 무기,
+      // 속옷 방어구 — which is a label saying the same thing twice, and the
+      // second half was the only thing on the sheet that knew the outfit
+      // existed at all.
       ['입은 것', Object.entries(gear).length
-        ? Object.entries(gear)
-          .map(([slot, id]) => `${SLOT_WORD[slot] ?? slot} ${goodsOf(itemOf(id)?.[I_WORD] as string ?? '')}`)
-          .join(', ')
+        ? Object.entries(gear).map(([slot]) => SLOT_WORD[slot] ?? slot).join(', ')
         : `없음  (가진 것 ${held.length}, G로 입는다)`],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
@@ -4842,6 +4894,12 @@ async function main() {
    * the letter drawn on a square and the key that fired it came from two
    * different sums, so reading either one alone said nothing.
    */
+  /** How often the weapon slot came up empty — see `bordercheck`. */
+  ;(window as unknown as { __barehanded: () => number }).__barehanded =
+    () => barehanded
+  /** Which worn slots the paperdoll has no picture for. */
+  ;(window as unknown as { __undrawn: () => string[] }).__undrawn =
+    () => [...dollMissing]
   ;(window as unknown as { __bar: () => unknown }).__bar = () => ({
     squares: squares.map((sq) => ({ key: sq.key, label: sq.label, filled: !!sq.icon })),
     spells: spells.map((sp) => sp.id),

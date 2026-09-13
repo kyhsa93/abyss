@@ -922,6 +922,39 @@ check('and a storm is something you can see',
 await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 12, 0, 0)))
 await p.waitForTimeout(300)
 
+// 10d. He is carrying what he was created carrying.
+//
+// `CharStartOutfit.dbc` names five items and what the original does with them
+// is put them in his bags.  Here they were five rows of arithmetic borrowed as
+// a fallback whenever the weapon slot was empty — which it always was — so the
+// sheet said `공격력 9 – 11 (2.9초)` and `입은 것 없음` on consecutive lines,
+// and the 2.9 was a greatsword nobody was holding.  Nothing could be sold,
+// swapped, or drawn on the paperdoll, because there was nothing there.
+//
+// So the check is the fallback's own counter.  **If the bare-handed line is
+// ever taken, that is the bug**, and a number is the only way to see it: both
+// paths produce the same damage, which is exactly why it went unnoticed.
+// The counter is cumulative over this whole run, which makes it a stronger
+// statement than one frame's: whatever the checks above did to this character
+// — levelled him, handed him things, dressed him — his hand was never empty.
+const kit = await p.evaluate(() => ({
+  slots: window.__dress().now.worn,
+  bare: window.__barehanded(),
+}))
+check('the starting outfit is worn and not imagined',
+  kit.slots.includes('weapon') && kit.slots.length >= 4,
+  JSON.stringify(kit.slots))
+check('and the bare-handed fallback is never reached', kit.bare === 0,
+  `taken ${kit.bare} times`)
+console.log(`      (wearing ${kit.slots.join(', ')})`)
+// What is worn and cannot be drawn.  Not a failure — the layer set has no
+// trousers in it, which is a fact about thirty-two PNGs — but a silent
+// nothing is how the paperdoll came to be believed in for weeks while the
+// file that composed it did not exist.
+const undrawn = await p.evaluate(() => window.__undrawn())
+console.log(`      (${undrawn.length} worn slots the sheets cannot draw`
+  + `${undrawn.length ? `: ${undrawn.join(', ')}` : ''})`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

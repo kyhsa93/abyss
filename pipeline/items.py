@@ -27,6 +27,7 @@ from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import columns, rows, split, goods_of, BOUNDS, MAP  # noqa: E402
 from slice import LEVELS, CLASSES  # noqa: E402
+from player import outfit  # noqa: E402
 
 HUMAN, WARRIOR = 1, 1
 # `AllowableClass` and `AllowableRace` are bitmasks over the class and race
@@ -49,7 +50,7 @@ TWO_HANDED = {17, 26}
 STAT_OF = {3: 'agi', 4: 'str', 5: 'int', 6: 'spi', 7: 'sta'}
 
 
-def wanted(base, acore, object_loots):
+def wanted(base, acore, object_loots, client):
     """Every item id the slice can reach, and how it reaches it."""
     from slice import BOUNDS as B
     want = Counter()
@@ -134,6 +135,12 @@ def wanted(base, acore, object_loots):
                         continue
                     if v:
                         want[v] += 1
+    # And what a new character is created holding.  `CharStartOutfit.dbc` names
+    # five items and not one of them was baked, because the slice's filter asks
+    # what a vendor sells, what a creature drops and what an errand pays — and
+    # nobody sells you the shirt you were made in.
+    for e in outfit(client):
+        want[e] += 1
     return want, stock, here
 
 
@@ -236,7 +243,7 @@ def main(acore, client, out):
         with open(made) as f:
             for row in json.load(f).get('objects', []):
                 object_loots.add(row[8])
-    want, stock, here = wanted(base, acore, object_loots)
+    want, stock, here = wanted(base, acore, object_loots, client)
 
     ipath = os.path.join(base, 'item_template.sql')
     col = columns(ipath)
