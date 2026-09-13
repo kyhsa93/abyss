@@ -269,9 +269,12 @@ async function main() {
     // things that need no table.
     fetch('./world/spells.json')
       .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number
-        foes?: Record<string, Spell[]> }>)
+        foes?: Record<string, Spell[]>
+        /** `[spell, trigger, param1, param2, chance]` — `smart_scripts`. */
+        cues?: Record<string, number[][]> }>)
       .catch(() => ({ spells: [] as Spell[], melee: undefined,
-        foes: {} as Record<string, Spell[]> })),
+        foes: {} as Record<string, Spell[]>,
+        cues: {} as Record<string, number[][]> })),
     // What stands in the world that is not a person.  One file for both
     // worlds and for the same reason the spawns are: where a copper vein
     // stands is a row in `gameobject` whichever height grid it stands on.
@@ -2411,8 +2414,30 @@ async function main() {
       // and the pipeline read none of them, so every fight in the forest was
       // the same fight: 38 of the slice's kinds carry an ability and a kobold
       // geomancer's bolt is the difference between a wolf and a caster.
+      // What it can do, and — where `smart_scripts` says so — *when*.
+      //
+      // 52,768 rows of which 376 touch this slice and 71 are "cast this".
+      // Three triggers are carried and they are the three that make one fight
+      // different from another: the moment it turns on you, every so often
+      // while fighting, and when it drops below a share of its health.  A
+      // creature with no cue for an ability simply uses it when it is ready,
+      // which is what it did before any of this.
+      const cues = spellbook.cues?.[String(n.entry)] ?? []
+      const cued = (sp: Spell) => {
+        const rows = cues.filter((c) => c[0] === sp.id)
+        if (!rows.length) return true
+        return rows.some(([, trigger, p1, p2, chance]) => {
+          if (roll() * 100 >= (chance ?? 100)) return false
+          if (trigger === 4) return clock - n.hurt < 2      // just turned on you
+          if (trigger === 2) {                             // hurt to a share
+            const share = (n.hp / n.max) * 100
+            return share >= (p1 ?? 0) && share <= (p2 ?? 100)
+          }
+          return true                                      // every so often
+        })
+      }
       const trick = (spellbook.foes?.[String(n.entry)] ?? [])
-        .find((sp) => (n.cools[sp.id] ?? 0) <= clock
+        .find((sp) => (n.cools[sp.id] ?? 0) <= clock && cued(sp)
           && sp.does.some((d) => d[0] === E_DAMAGE
             || (d[0] === E_AURA && d[3] === A_PERIODIC_DAMAGE)))
       if (trick) {
@@ -4840,6 +4865,8 @@ async function main() {
       runnable: runnable.length,
       wide: (spellbook.spells ?? []).filter((sp) => (sp.wide?.[0] ?? 0) > 0)
         .map((sp) => ({ id: sp.id, wide: sp.wide[0] })),
+      cued: Object.keys(spellbook.cues ?? {}).length,
+      cues: Object.values(spellbook.cues ?? {}).flat().length,
     }
   }
   /** Press an ability by id and say what the waits look like after. */

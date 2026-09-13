@@ -335,6 +335,54 @@ def main(client_root, acore, out, upto=None):
         | {sp['id'] for v in foes.values() for sp in v},
         spells, acore, depth=4)
 
+    # And *when* they use them.  `smart_scripts` is 52,768 rows of which 376
+    # touch this slice, and 71 of those are "cast this spell" — the rest are
+    # talking (Blizzard's prose, so no), walking a path, or setting a flag for
+    # another row to read.
+    #
+    # Three triggers are worth carrying and they are the three that make one
+    # fight different from another:
+    #
+    #   * `UPDATE_IC` (0) — every so often while fighting, between two
+    #     figures, and then again on a longer pair
+    #   * `HEALTH_PCT` (2) — when it drops between two percentages
+    #   * `AGGRO` (4) — the moment it turns on you
+    #
+    # Everything else is counted and left alone, the same way the effects this
+    # engine cannot run are counted.
+    E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO = 0, 2, 4
+    A_CAST = 11
+    smart = os.path.join(acore, 'data/sql/base/db_world/smart_scripts.sql')
+    cues, skipped_cues = {}, {}
+    if spawned and os.path.exists(smart):
+        from spawn_npcs import columns as cols3, rows as lines3, split as cut3
+        col3 = cols3(smart)
+        for line in lines3(smart):
+            f = cut3(line)
+            try:
+                if int(f[col3['source_type']]) != 0:
+                    continue
+                who = int(f[col3['entryorguid']])
+                if who not in spawned:
+                    continue
+                event = int(f[col3['event_type']])
+                act = int(f[col3['action_type']])
+            except (ValueError, KeyError, IndexError):
+                continue
+            if act != A_CAST:
+                continue
+            if event not in (E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO):
+                skipped_cues[event] = skipped_cues.get(event, 0) + 1
+                continue
+            try:
+                sid = int(f[col3['action_param1']])
+                p1, p2 = int(f[col3['event_param1']]), int(f[col3['event_param2']])
+                chance = int(f[col3['event_chance']]) or 100
+            except (ValueError, KeyError, IndexError):
+                continue
+            cues.setdefault(str(who), []).append(
+                [sid, event, p1, p2, chance])
+
     # How much attention each ability buys, out of `spell_threat` — a flat
     # amount, a multiplier, and a share of attack power.  106 rows, of which
     # the warrior's first ten levels use a handful: a heavier blow is worth
@@ -360,7 +408,8 @@ def main(client_root, acore, out, upto=None):
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')
     with open(path, 'w') as f:
-        json.dump({'spells': out_rows, 'melee': melee, 'foes': foes}, f)
+        json.dump({'spells': out_rows, 'melee': melee, 'foes': foes,
+                   'cues': cues}, f)
     print(f'{len(out_rows)} abilities to level {upto} -> {path}'
           f'   combat range {melee} yards')
     runnable = sum(1 for v in foes.values() for sp in v
@@ -371,6 +420,10 @@ def main(client_root, acore, out, upto=None):
     print(f'  the closure over them reaches {len(reached)} spells'
           + (f', and stopped at {len(stopped)} more — {sorted(stopped)[:8]}'
              if stopped else ' and closed'))
+    print(f'  {len(cues)} of them are told *when* by `smart_scripts`: '
+          f'{sum(len(v) for v in cues.values())} cues'
+          + (f', and {sum(skipped_cues.values())} more on triggers this engine '
+             f'does not have ({sorted(skipped_cues)})' if skipped_cues else ''))
     if unrun:
         print('  effects it cannot run, by how often: '
               + ', '.join(f'{k} x{v}' for k, v in

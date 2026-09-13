@@ -608,6 +608,10 @@ const foes = await p.evaluate(() => window.__foes())
 check('creatures do something besides swing', foes.inWorld > 0,
   `${foes.inWorld} kinds standing in the slice carry ${foes.abilities} `
   + `abilities, ${foes.runnable} of which this engine runs`)
+check('and some of them are told when', foes.cued > 0,
+  `${foes.cued} kinds carry ${foes.cues} cues out of \`smart_scripts\` — `
+  + 'the moment they turn on you, every so often in a fight, and when they '
+  + 'are hurt to a share of their health')
 check('and an area attack has an area', foes.wide.length > 0,
   foes.wide.map((w) => `${w.id} reaches ${w.wide} yards`).join(', '))
 
