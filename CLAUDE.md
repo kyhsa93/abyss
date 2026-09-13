@@ -533,6 +533,33 @@ in this repository and never will be. They are the gate on the pipeline, and the
 pipeline runs where the client is. Everything else runs on every push, against
 the world that is committed.
 
+**What a check promises is narrower than what it seems to promise**, and this
+round cost six bugs to that. Every one of the twelve gates passed while the
+action bar could not grow, the square marked 3 was fired by 2, Goldshire had a
+thirty-yard pit in the middle of it, night and noon were the same picture, ten
+places wore the wrong name and a trainer sold frostbolt to a warrior. Not one
+check was broken. They were each keeping a promise nobody had noticed was
+small:
+
+| what it caught nothing of | what it actually promised |
+| --- | --- |
+| the bar's contents | `uicheck` promised where panels *are* |
+| what a key does | nothing drove the keyboard at all |
+| the black pit | `shotcheck` promised the screen is *what it was* |
+| night | no check anywhere required two screens to **differ** |
+| a place's name | the answer lived outside the code, in `AreaTable.dbc` |
+| what a trainer sells | the data checks had nine lines and not that one |
+
+The third row is the expensive one and it generalises. `shotcheck` reported
+`0.0% of the picture moved` for as long as the pit was in the reference, which
+is true and useless: a comparison can only say the screen is what it was, and
+nothing was saying the screen had been *right* when the reference was taken.
+Two things now do. Retaking writes a full-size PNG and prints the path, so
+there is something a person can look at — and every run asks whether each
+reference is a picture of somewhere at all, by the share of it that is the
+darkest two levels of sixteen. The six honest references run 0.0% to 2.0%.
+The one that was guarding the pit reads **35.5%**.
+
 **The documents get a gate too, and only for the half a machine can judge.**
 `docscheck` collects every file and every `npm run` a document names in
 backticks and asks whether it is there. That is narrow on purpose, and it earned

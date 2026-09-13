@@ -101,6 +101,24 @@ for (const [name, x, y, zoom, why] of SPOTS) {
     continue
   }
   const want = readFileSync(path, 'utf8').split('\n')[1] ?? ''
+  // Is the *reference* a picture of something?
+  //
+  // This exists because of the one that got away.  Goldshire's reference was
+  // taken while the middle of the town was a thirty-yard black pit, and for
+  // as long as it stood this check reported `0.0% of the picture moved` —
+  // truthfully.  A comparison can only ever say the screen is what it was;
+  // nothing was saying the screen had been right when it was taken.
+  //
+  // The measure is the darkest two levels of sixteen.  On the six references
+  // this repository holds that runs 0.0% to 2.0% at noon, and the reference
+  // that was guarding the pit reads **35.5%**.  Eight per cent is a long way
+  // from both, and it is the one property a picture of a lit outdoor scene
+  // has that a picture with a hole in it does not.  Checked every run and not
+  // only when the references are written, so a screen that degenerates is
+  // caught even by somebody who retakes them without looking.
+  const black = [...grid].filter((c) => c === '0' || c === '1').length / (W * H)
+  check(`${name} is a picture of somewhere`, black < 0.08,
+    `${(black * 100).toFixed(1)}% of it is the darkest two levels of sixteen`)
   let differ = 0
   for (let i = 0; i < grid.length; i++) {
     // A single step of brightness is noise; two is a different picture.
