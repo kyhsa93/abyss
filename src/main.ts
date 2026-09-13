@@ -1025,6 +1025,8 @@ async function main() {
     /** What it is carrying, and whether anybody has been through it yet. */
     haul: [number, number, number[][]] | null
     looted: boolean
+    guid: number; pool: number; most: number; leader: number
+    up: boolean
     /** When each of its own abilities is ready again. */
     cools: Record<number, number>
     /**
@@ -1072,6 +1074,11 @@ async function main() {
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
       entry: row[9] ?? 0,
+      // The world's own identity for this spawn, and who it walks with.
+      guid: row[11] ?? 0, pool: row[12] ?? 0, most: row[13] ?? 0,
+      leader: row[14] ?? 0,
+      /** Standing right now: a shared slot stands up only so many at once. */
+      up: true,
       fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
       dead: 0, hurt: -99, angry: false, next: 0, bleed: null,
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
@@ -1080,6 +1087,30 @@ async function main() {
       threat: {},
       cools: {},
     })
+  }
+
+  /**
+   * Which members of a shared slot are standing.
+   *
+   * `pool_creature` was read and used as an *exclusion* — a pooled creature
+   * was dropped, which threw away exactly the ones the server rotates.  It is
+   * the same mechanic the herb nodes use: `pool_template.max_limit` says how
+   * many of a slot stand at once.
+   */
+  {
+    const byPoolNpc = new Map<number, Npc[]>()
+    for (const n of npcs) {
+      if (!n.pool) continue
+      const got = byPoolNpc.get(n.pool)
+      if (got) got.push(n)
+      else byPoolNpc.set(n.pool, [n])
+    }
+    let asleep = 0
+    for (const [, members] of byPoolNpc) {
+      const most = members[0]?.most || members.length
+      members.forEach((m, i) => { if (i >= most) { m.up = false; asleep += 1 } })
+    }
+    if (asleep) console.info(`${asleep} spawns are waiting their turn in a pool`)
   }
 
   /**
@@ -1142,6 +1173,7 @@ async function main() {
     active = []
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i]!
+      if (!n.up) continue
       if (Math.abs(n.x - camX) < NEAR && Math.abs(n.y - camY) < NEAR) active.push(n)
     }
   }
@@ -2138,6 +2170,35 @@ async function main() {
    * the nine standing copper veins and the tenth spot is as likely as the one
    * you emptied, which is why the forest is not a shop with a fixed shelf.
    */
+  /**
+   * Who comes with whom.
+   *
+   * `creature_formations` is 6,021 rows and eleven packs of it stand in this
+   * slice, the biggest eight strong.  It was not read, so everything came at
+   * you one at a time — and pulling, which is the only decision this game's
+   * combat has, is not a decision when the world hands them over singly.
+   *
+   * Built once: a leader's followers, by the world's own guid.
+   */
+  const pack = new Map<number, Npc[]>()
+  for (const n of npcs) {
+    if (!n.leader) continue
+    const got = pack.get(n.leader)
+    if (got) got.push(n)
+    else pack.set(n.leader, [n])
+  }
+  const byGuid = new Map<number, Npc>()
+  for (const n of npcs) if (n.guid) byGuid.set(n.guid, n)
+  /** Wake everybody who walks with this one. */
+  const rouse = (n: Npc) => {
+    const head = n.leader ? byGuid.get(n.leader) : n
+    for (const m of [head, ...(head ? pack.get(head.guid) ?? [] : [])]) {
+      if (!m || m.dead || m === n) continue
+      if (Math.hypot(m.x - n.x, m.y - n.y) > 40) continue
+      m.angry = true
+    }
+  }
+
   /** A wound of somebody else's, ticking on the player. */
   let youBleed: { until: number; next: number; each: number } | null = null
 
@@ -2217,7 +2278,7 @@ async function main() {
       // and will fight back, but it does not come at you across a field.
       if (!n.angry && aggressive(n.fight) && !chat) {
         const far = noticeAt(you.level, n.level, n.notice)
-        if (d2 < far * far) n.angry = true
+        if (d2 < far * far) { n.angry = true; rouse(n) }
       }
       // And gives up.  Without this the forest arrives one at a time and never
       // leaves: `angry` is set by walking past and nothing ever cleared it, so
@@ -2346,7 +2407,7 @@ async function main() {
       + threatFrom(hit, undefined, attackPower(you.level, mine))
     foe.hp -= hit
     foe.hurt = clock
-    if (hit > 0) foe.angry = true
+    if (hit > 0) { foe.angry = true; rouse(foe) }
     say(foe.x, foe.y, fate === HIT ? `${hit}` : (OUTCOME_WORD[fate] ?? `${hit}`), true)
     ui.log(fate === HIT || fate === CRIT || fate === GLANCING
       ? `${josa(nameOf(foe.kind), '을', '를')} ${hit} 때렸다.`
@@ -4257,6 +4318,28 @@ async function main() {
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
   }
+  /** Who walks with whom, and who is waiting a turn in a shared slot. */
+  ;(window as unknown as { __packs: () => unknown }).__packs = () => ({
+    packs: pack.size,
+    biggest: Math.max(0, ...[...pack.values()].map((v) => v.length + 1)),
+    inPacks: [...pack.values()].reduce((n, v) => n + v.length, 0),
+    pooled: npcs.filter((n) => n.pool).length,
+    waiting: npcs.filter((n) => !n.up).length,
+  })
+  /** Anger one member of a pack and say how many came. */
+  ;(window as unknown as { __pull: () => unknown }).__pull = () => {
+    for (const [lead, members] of pack) {
+      const head = byGuid.get(lead)
+      if (!head || members.length < 2) continue
+      for (const m of [head, ...members]) m.angry = false
+      const one = members[0]!
+      one.angry = true
+      rouse(one)
+      const came = [head, ...members].filter((m) => m.angry).length
+      return { size: members.length + 1, came }
+    }
+    return null
+  }
   /** What the world's creatures can do besides swing, for the check. */
   ;(window as unknown as { __foes: () => unknown }).__foes = () => {
     const foes = spellbook.foes ?? {}
@@ -4480,6 +4563,11 @@ async function main() {
  * off is a browser that should still play the game.
  */
 function offline() {
+  // The worker is written by the build, so there is none in development and
+  // asking for one gets `index.html` back with the wrong media type — a
+  // console error on every run of every browser check, for a file that is not
+  // supposed to exist yet.
+  if (!import.meta.env.PROD) return
   if (!('serviceWorker' in navigator)) return
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`)

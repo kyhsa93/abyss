@@ -188,7 +188,15 @@ await p.screenshot({ path: `${SP}/pad-talking.png` })
 // 10. A tap on the world — above the panel, which swallows its own taps —
 // ends it.
 const top = await p.evaluate(() => document.getElementById('talk').getBoundingClientRect().top)
-check('there is world left to tap above the panel', top > 60, `panel starts at ${Math.round(top)}px`)
+const shape = await p.evaluate(() => {
+  const t = document.getElementById('talk')
+  const cs = getComputedStyle(t)
+  return { maxH: cs.maxHeight, pos: cs.position, h: Math.round(t.getBoundingClientRect().height),
+    inline: t.getAttribute('style') ?? '', n: t.querySelectorAll('li').length }
+})
+check('there is world left to tap above the panel', top > 60,
+  `panel starts at ${Math.round(top)}px, ${shape.h}px tall, max ${shape.maxH}, `
+  + `${shape.pos}, ${shape.n} options, inline "${shape.inline}"`)
 // Just above the panel, and not halfway up the glass: a shopkeeper who is
 // also a trainer has a taller panel, and halfway up from *its* top is the
 // readout, which swallows its own taps and is not the world.

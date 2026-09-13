@@ -760,8 +760,37 @@ def main(acore, out):
         event, guid = num.findall(line)[:2]
         if int(event) > 0:
             seasonal.add(int(guid))
-    pooled = {int(num.findall(line)[0])
-              for line in rows(os.path.join(base, 'pool_creature.sql'))}
+    pooled, limit = {}, {}
+    ppath = os.path.join(base, 'pool_creature.sql')
+    pcol = columns(ppath)
+    for line in rows(ppath):
+        f = split(line)
+        try:
+            pooled[int(f[pcol['guid']])] = int(f[pcol['pool_entry']])
+        except (ValueError, KeyError, IndexError):
+            continue
+    tpath = os.path.join(base, 'pool_template.sql')
+    tcol = columns(tpath)
+    for line in rows(tpath):
+        f = split(line)
+        try:
+            limit[int(f[tcol['entry']])] = int(f[tcol['max_limit']])
+        except (ValueError, KeyError, IndexError):
+            continue
+
+    # Who walks with whom.  `creature_formations` is 6,021 rows and eleven
+    # groups of it stand in this slice, the biggest eight strong.  Without it
+    # everything comes at you one at a time and pulling — the one decision the
+    # fun page finds in this game's combat — is not a decision.
+    packs = {}
+    fpath = os.path.join(base, 'creature_formations.sql')
+    fcol = columns(fpath)
+    for line in rows(fpath):
+        f = split(line)
+        try:
+            packs[int(f[fcol['memberGUID']])] = int(f[fcol['leaderGUID']])
+        except (ValueError, KeyError, IndexError):
+            continue
 
     spawns, dropped = [], Counter()
     for line in rows(os.path.join(base, 'creature.sql')):
@@ -779,13 +808,17 @@ def main(acore, out):
         if guid in seasonal:
             dropped['seasonal'] += 1
             continue
-        if guid in pooled:
-            dropped['pooled'] += 1
-            continue
+        # A pooled creature shares a slot with others.  Kept, rather than
+        # dropped: `pool_template.max_limit` says how many of a slot stand at
+        # once and the scene stands up that many, the same way the game
+        # objects do.  Dropped, the forest loses every creature the server
+        # rotates — and what it rotates is exactly the interesting ones.
+        pool = pooled.get(guid, 0)
         # The three columns after the orientation, which the fast split does
         # not reach: `line[1:].split(',', C_O + 1)` stops at it.
         g = split(line)
-        spawns.append((int(f[C_ID]), x, y, o,
+        spawns.append((int(f[C_ID]), x, y, o, guid, pool, limit.get(pool, 0),
+                       packs.get(guid, 0),
                        int(float(g[C_RESPAWN])), float(g[C_WANDER]),
                        int(g[C_MOVE])))
 
@@ -846,7 +879,7 @@ def main(acore, out):
     fights, fight_at = [], {}
     unknown = Counter()
     moves, move_at = [], {}
-    for entry, x, y, o, respawn, wander, mtype in spawns:
+    for entry, x, y, o, guid, pool, most, leader, respawn, wander, mtype in spawns:
         if entry not in info:
             dropped['no template'] += 1
             continue
@@ -903,9 +936,13 @@ def main(acore, out):
         if way not in move_at:
             move_at[way] = len(moves)
             moves.append(list(way))
+        # `guid` and `leader` are the world's own identities, which is what a
+        # pack and a shared slot are keyed on.  `pool` is which slot and `most`
+        # how many of it stand at once.
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
                          level, roles.index(r), topic_at.get(entry, -1), fi,
-                         haul_at[haul], entry, move_at[way]])
+                         haul_at[haul], entry, move_at[way],
+                         guid, pool, most, leader])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')

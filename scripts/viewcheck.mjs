@@ -607,6 +607,21 @@ check('creatures do something besides swing', foes.inWorld > 0,
 check('and an area attack has an area', foes.wide.length > 0,
   foes.wide.map((w) => `${w.id} reaches ${w.wide} yards`).join(', '))
 
+// 9n. The world moves.  `creature_formations` is 6,021 rows and `pool_creature`
+// was read only to *throw spawns away* — so everything came at you one at a
+// time, and pulling, the one decision this game's combat has, was not one.
+const packs = await p.evaluate(() => window.__packs())
+check('some of them walk together', packs.packs > 0,
+  `${packs.packs} packs, ${packs.inPacks} creatures in them, the biggest `
+  + `${packs.biggest} strong`)
+const pulled = await p.evaluate(() => window.__pull())
+if (pulled) {
+  check('and pulling one brings the rest', pulled.came > 1,
+    `pulled one of a pack of ${pulled.size} and ${pulled.came} came`)
+}
+check('and a shared slot stands up only its share', packs.waiting > 0,
+  `${packs.pooled} spawns share slots, ${packs.waiting} of them waiting a turn`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
