@@ -327,6 +327,12 @@
         font: 13px/1.75 var(--body);
         background: rgba(12,14,20,.92); border: 1px solid #4a4433;
         padding: 12px 16px 10px;
+        /* A shopkeeper who is also a trainer has a great many things to say,
+           and a panel that grows without a stop fills the glass — on a phone
+           it reached the top of the screen and there was no world left to tap
+           to get out of it.  The original's gossip frame scrolls; so does
+           this. */
+        max-height: min(58vh, 420px); overflow-y: auto;
       }
       #talk .who { color: #c9a86a; font: 11px/1.5 var(--mono); letter-spacing: .02em; }
       #talk .say { margin: 6px 0 10px; }

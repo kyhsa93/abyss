@@ -21,9 +21,10 @@
  */
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
-import { parries } from './talk'
+import { parries, SLOT_WORD, STAT_WORD } from './talk'
 import { between, roll, seed, reseed } from './roll'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save'
+import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, type Item, type Shelf } from './gear'
 import { threatFrom } from './fight'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
@@ -245,7 +246,7 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things, who] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things, who, shelf] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -275,6 +276,10 @@ async function main() {
     fetch('./world/player.json')
       .then((r) => r.json() as Promise<Who>)
       .catch(() => null),
+    // What can be held, bought and taught: `pipeline/items.py`.
+    fetch('./world/items.json')
+      .then((r) => r.json() as Promise<Shelf>)
+      .catch(() => ({ items: {}, stock: {}, trainers: {} } as Shelf)),
   ])
 
   const canvas = document.createElement('canvas')
@@ -1729,9 +1734,25 @@ async function main() {
    * this game where the errands run one into the next.
    */
   const HERO_LEVEL = who?.levels?.[0] ?? 1
-  /** What he is made of at each level — `pipeline/player.py`. */
-  const statsAt = (lv: number): Stats =>
-    who?.stats?.[String(Math.max(1, lv))] ?? [23, 20, 22, 20, 20, 20]
+  /**
+   * What he is carrying, what he is wearing, and what he has been taught.
+   *
+   * Declared here rather than on `you` because `lineFor` reads them and `you`
+   * is *built out of* `lineFor` — reaching into `you` from inside its own
+   * initialiser is a `ReferenceError`, which is the same trip this file has
+   * taken twice before.
+   */
+  let held: number[] = []
+  let gear: Record<string, number> = {}
+  let taught: number[] = []
+  /** What he is made of at each level — `pipeline/player.py`, plus what he wears. */
+  const itemOf = (id: number): Item | null => shelf.items?.[String(id)] ?? null
+  const wornItems = (): Item[] =>
+    Object.values(gear).map(itemOf).filter((x): x is Item => !!x)
+  const statsAt = (lv: number): Stats => {
+    const base = who?.stats?.[String(Math.max(1, lv))] ?? [23, 20, 22, 20, 20, 20]
+    return withGear(base, wornItems())
+  }
   /**
    * How far a fight can travel before it stops being one.
    *
@@ -1750,14 +1771,27 @@ async function main() {
    * used to come out of the same creature table, which meant a player had no
    * stamina and no agility and nothing he could ever wear would matter.
    */
-  /** What he is holding and wearing, out of the client's starting outfit. */
-  const weapon = (who?.kit ?? []).find((k) => (k[1] as number) > 0)
-  const worn = (who?.kit ?? []).reduce((n, k) => n + (k[4] as number), 0)
+  /**
+   * What he is holding and wearing.
+   *
+   * The client's starting outfit until he picks something else up, and after
+   * that whatever is in the weapon slot — so **the weapon's own `delay`
+   * becomes the swing**, which used to be a constant out of the level table.
+   */
+  const startKit = (who?.kit ?? []).find((k) => (k[1] as number) > 0)
+  const heldWeapon = (): (string | number)[] | undefined => {
+    const it = gear['weapon'] !== undefined ? itemOf(gear['weapon']!) : null
+    return it ? ['weapon', it[I_LO] as number, it[I_HI] as number,
+      it[I_DELAY] as number, it[I_ARMOUR] as number, 0] : startKit
+  }
   const lineFor = (lv: number): Fight => {
     const row = spawns.player?.[Math.min(lv, spawns.player.length) - 1]
       ?? [100, 3, 5, 1900, 100, 0]
+    const weapon = heldWeapon()
     if (!who || !weapon) return row
     const s = statsAt(lv)
+    const worn = wornArmour(wornItems())
+      || (who?.kit ?? []).reduce((n, k) => n + (k[4] as number), 0)
     // `Player::CalculateMinMaxDamage`: the weapon's own damage plus attack
     // power spread over its swing, which is the line the shout already used.
     // This replaces a hero statted as *a creature of his level* — the comment
@@ -1786,6 +1820,7 @@ async function main() {
     purse: 0, kills: 0,
     /** word -> [how many, what the lot is worth in copper]. */
     bag: {} as Record<string, [number, number]>,
+
     /**
      * What he is good at picking up, by trade.
      *
@@ -1831,7 +1866,12 @@ async function main() {
    */
   const known = (level: number) => (spellbook.spells ?? [])
     .filter((sp) => sp.level <= level && abilityOf(sp.id)
-      && sp.does.some((d) => CAN_DO.has(d[0]!)))
+      && sp.does.some((d) => CAN_DO.has(d[0]!))
+      // Created holding it, or paid a trainer for it.  Levelling opens
+      // nothing on its own in the game this reproduces — it opens the
+      // *option*, and the option costs money.  Handed out free, the one
+      // economic decision this stretch of the game has disappears.
+      && (sp.free || taught.includes(sp.id)))
     .sort((a, b) => a.level - b.level || a.id - b.id)
   let spells = known(HERO_LEVEL)
   const ICON_OF: Record<number, string> = {
@@ -2007,9 +2047,15 @@ async function main() {
       spells = known(you.level)
       say(hero.x, hero.y, `${you.level}레벨`, true)
       // The bar is built from `spells` every frame, so there is nothing to
-      // rebuild — only something to say.
+      // rebuild — only something to say.  And what opened is not a new button
+      // but a new *thing a trainer will sell you*, which is the shape this
+      // stretch of the game actually has.
+      const offer = (spellbook.spells ?? []).filter(
+        (sp) => sp.level === you.level && !sp.free && abilityOf(sp.id))
       if (spells.length > had)
         ui.log(`배울 수 있는 것이 생겼다. (${spells.length - had}가지)`, 'gain')
+      else if (offer.length)
+        ui.log(`훈련사가 가르칠 것이 생겼다. (${offer.length}가지)`, 'note')
     }
   }
   /**
@@ -2368,6 +2414,12 @@ async function main() {
       if (!chat) cast(spells[slot - 2]!)
     }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
+    // Put on the best of what is in the bag.  One key, because everything you
+    // own that fits an empty slot is better than the nothing in it.
+    if (k === 'g') {
+      e.preventDefault()
+      if (!chat) for (const line of dressUp()) ui.log(line, 'gain')
+    }
     if (k === 'c') { e.preventDefault(); sheetOpen = !sheetOpen }
     if (k === 'm') {
       e.preventDefault()
@@ -2433,6 +2485,7 @@ async function main() {
       level: you.level, xp: you.xp, hp: you.hp, rage: you.rage,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
+      items: held, gear, taught,
     },
     seed: seed(),
     quests: {
@@ -2451,6 +2504,15 @@ async function main() {
     you.bag = save.you.bag ?? {}
     you.trades = save.you.trades ?? you.trades
     you.cools = save.you.cools ?? {}
+    held = save.you.items ?? []
+    gear = save.you.gear ?? {}
+    taught = save.you.taught ?? []
+    // Everything downstream of what is worn, worked out again rather than
+    // stored: maximum health is stamina and stamina is the level plus a
+    // breastplate.
+    you.line = lineFor(you.level)
+    you.max = you.line[HP]!
+    you.hp = Math.min(you.max, save.you.hp || you.max)
     spells = known(you.level)
     reseed(save.seed >>> 0)
     const q = save.quests as { held?: Held[]; done?: number[] } | undefined
@@ -2715,6 +2777,57 @@ async function main() {
     return said
   }
 
+  /**
+   * Put on the best of what he is carrying.
+   *
+   * One gesture rather than a window of drag targets, for the same reason
+   * selling empties the bag in one go: there is nothing to choose between yet
+   * — everything he owns that fits a slot is better than the nothing in it —
+   * and an interface that makes you place eleven pieces one at a time is an
+   * interface pretending to have a decision in it.  When there is a choice to
+   * make (two swords, one better against armour), this is where it goes.
+   */
+  const dressUp = (): string[] => {
+    const said: string[] = []
+    let changed = false
+    for (const id of [...held]) {
+      const it = itemOf(id)
+      if (!it || !canWear(it, you.level)) continue
+      const slot = it[I_SLOT] as string
+      const now = gear[slot] !== undefined ? itemOf(gear[slot]!) : null
+      // Better is the item level, which is the world's own one-number answer
+      // to "is this an upgrade".
+      if (now && (now[I_ILVL] as number) >= (it[I_ILVL] as number)) continue
+      const put = wear(gear, it, id)
+      gear = put.gear
+      held = held.filter((x) => x !== id).concat(put.off)
+      said.push(`${describe(it)} — ${detail(it)}`)
+      changed = true
+    }
+    if (!changed) return ['새로 입을 것이 없다.']
+    // Everything downstream of a stat: health, armour, damage, the swing.
+    you.line = lineFor(you.level)
+    you.max = you.line[HP]!
+    you.hp = Math.min(you.hp, you.max)
+    return said
+  }
+
+  /** What a thing is, in our words: its sort, and where it goes. */
+  const describe = (it: Item): string => {
+    const slot = it[I_SLOT] as string
+    return slot ? `${goodsOf(it[I_WORD] as string)} (${SLOT_WORD[slot] ?? slot})`
+      : goodsOf(it[I_WORD] as string)
+  }
+  const detail = (it: Item): string => {
+    const bits: string[] = []
+    if (it[I_LO]) bits.push(`${it[I_LO]}–${it[I_HI]} 피해 / ${((it[I_DELAY] as number) / 1000).toFixed(1)}초`)
+    if (it[I_ARMOUR]) bits.push(`방어도 ${it[I_ARMOUR]}`)
+    for (const [word, amount] of (it[12] as (string | number)[][]) ?? [])
+      bits.push(`${STAT_WORD[word as string] ?? word} +${amount}`)
+    if (it[I_NEED]) bits.push(`${it[I_NEED]}레벨 필요`)
+    return bits.join(', ') || '쓸모는 파는 값뿐이다'
+  }
+
   function startTalk(n: Npc) {
     const speech = speak(n.kind, n.role, n.level, n.seed, n.topic,
       () => directionsFrom(n))
@@ -2759,6 +2872,58 @@ async function main() {
       speech.options.push({
         label: '가진 것을 팝니다', lines: [], act: sellAll,
       })
+      // And sells.  `npc_vendor` has been read into the conversation for
+      // rounds — "twelve things, from ten copper to a gold" — and there was
+      // nothing behind the sentence.  Money you cannot spend is a number, and
+      // the whole decision this game has outside a fight is whether to spend
+      // it on a lesson or on a breastplate.
+      for (const row of (shelf.stock?.[String(n.entry)] ?? []).slice(0, 4)) {
+        const id = row[0]!
+        const it = itemOf(id)
+        if (!it) continue
+        const price = it[I_BUY] as number
+        speech.options.push({
+          label: `${describe(it)} — ${coin(price)}`,
+          lines: [detail(it)],
+          act: () => {
+            if (you.purse < price) return ['돈이 모자라오.']
+            you.purse -= price
+            held.push(id)
+            ui.log(`${describe(it)}을(를) 샀다. ${coin(price)}`, 'note')
+            return [`${describe(it)}. ${coin(you.purse)} 남았소.`]
+          },
+        })
+      }
+    }
+    // And a trainer teaches.  `trainer_spell` says what, at what level, and
+    // for how much; the warrior's first ten levels come to 2,110 copper and
+    // the zone's quests pay about 1,175, which is the gap the whole economy
+    // is made of.
+    const school = shelf.trainers?.[String(n.entry)]
+    if (school) {
+      // The ones he could take now, and only a handful: a class trainer has
+      // sixty rows and a conversation is not a spreadsheet.
+      const ready = school.teaches
+        .filter(([id, , need]) => abilityOf(id!) && !taught.includes(id!)
+          && need! <= you.level + 2)
+        .sort((a, b) => a[2]! - b[2]!)
+        .slice(0, 4)
+      for (const [id, cost, need] of ready) {
+        const word = abilityOf(id!)!
+        speech.options.push({
+          label: `${word[0]} 배우기 (${need}레벨) — ${coin(cost!)}`,
+          lines: [word[1]],
+          act: () => {
+            if (you.level < need!) return [`${need}레벨이 되거든 오시오.`]
+            if (you.purse < cost!) return ['돈이 모자라오.']
+            you.purse -= cost!
+            taught.push(id!)
+            spells = known(you.level)
+            ui.log(`${word[0]}을(를) 배웠다. ${coin(cost!)}`, 'gain')
+            return [`${word[0]}. ${coin(you.purse)} 남았소.`]
+          },
+        })
+      }
     }
     chat = { npc: n, speech, open: -1 }
     // Turn to face whoever spoke to them — the four directions are the same
@@ -3453,7 +3618,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동\n오므려서 확대'
-        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  C: 정보  M: 지도  `: 수치'
+        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  G: 장비  C: 정보  M: 지도  `: 수치'
     }
 
     acc += dt; frames++
@@ -3560,6 +3725,12 @@ async function main() {
       ['생명력', `${Math.round(you.hp)} / ${you.max}`],
       ['공격력', `${you.line[LO]} – ${you.line[HI]}  (${(you.line[SWING]! / 1000).toFixed(1)}초)`],
       ['방어도', `${you.line[ARMOUR]}  (피해 ${Math.round(mitigate(you.line[ARMOUR]!, you.level) * 100)}% 감소)`],
+      ['힘·민첩·체력', statsAt(you.level).slice(0, 3).join(' · ')],
+      ['입은 것', Object.entries(gear).length
+        ? Object.entries(gear)
+          .map(([slot, id]) => `${SLOT_WORD[slot] ?? slot} ${goodsOf(itemOf(id)?.[I_WORD] as string ?? '')}`)
+          .join(', ')
+        : `없음  (가진 것 ${held.length}, G로 입는다)`],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
     ])
@@ -3929,6 +4100,38 @@ async function main() {
     }
     return { level, many, runs, mine: lv, won, survived: won / runs,
       seconds: (ticks / runs) * 0.1 }
+  }
+  /** What is for sale and what is taught nearby, and buying and learning it. */
+  ;(window as unknown as { __shop: (entry: number) => unknown }).__shop =
+    (entry) => ({
+      stock: (shelf.stock?.[String(entry)] ?? []).map(([id]) => ({
+        id, price: itemOf(id!)?.[I_BUY], slot: itemOf(id!)?.[I_SLOT],
+      })),
+      teaches: (shelf.trainers?.[String(entry)]?.teaches ?? [])
+        .map(([id, cost, need]) => ({ id, cost, need })),
+    })
+  ;(window as unknown as { __buy: (id: number) => unknown }).__buy = (id) => {
+    const it = itemOf(id)
+    if (!it) return null
+    you.purse += it[I_BUY] as number
+    const was = { purse: you.purse, held: held.length }
+    you.purse -= it[I_BUY] as number
+    held.push(id)
+    return { was, purse: you.purse, held: held.length }
+  }
+  ;(window as unknown as { __learn: (id: number) => unknown }).__learn = (id) => {
+    const had = spells.length
+    taught.push(id)
+    spells = known(you.level)
+    return { had, now: spells.length, taught: [...taught] }
+  }
+  ;(window as unknown as { __dress: () => unknown }).__dress = () => {
+    const was = { hp: you.max, armour: you.line[ARMOUR], swing: you.line[SWING],
+      stats: statsAt(you.level).slice(0, 3) }
+    const said = dressUp()
+    return { was, said, now: { hp: you.max, armour: you.line[ARMOUR],
+      swing: you.line[SWING], stats: statsAt(you.level).slice(0, 3),
+      worn: Object.keys(gear) } }
   }
   /** Kill the player outright, for the check that dying costs a walk. */
   ;(window as unknown as { __die: () => unknown }).__die = () => {

@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-13T07:06:06Z",
+  "baked": "2026-09-13T07:19:25Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -38,15 +38,16 @@
   },
   "synthesised": false,
   "files": {
+    "public/world/items.json": "a42dead084513144",
     "public/world/layout.json": "c3172659f5751b5c",
-    "public/world/npcs.json": "e35609e14485bb07",
-    "public/world/objects.json": "ed90deaf58b6558d",
+    "public/world/npcs.json": "867010b4da727e3b",
+    "public/world/objects.json": "1c179c3082d2191a",
     "public/world/player.json": "fa01741f156da222",
     "public/world/quests.json": "8c9610a46dd37d7c",
-    "public/world/spells.json": "0676afbdf58f17dd",
+    "public/world/spells.json": "4bab68c20ba1c816",
     "public/world/terrain.bin": "0278b6a1643616e0",
     "public/world/terrain.json": "221076833dd4b254",
-    "public/data/objects.json": "ed90deaf58b6558d",
+    "public/data/objects.json": "1c179c3082d2191a",
     "public/data/terrain.bin": "8b45289107f40d80",
     "public/data/terrain.json": "503af62532676587"
   }

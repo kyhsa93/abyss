@@ -371,6 +371,23 @@ below eleven the game charges the run from the graveyard and nothing else, and
 charging anything more here would be inventing a rule. Which graveyard is
 `game_graveyard` and `graveyard_zone`; Elwynn has four.
 
+**An item has an identity, not a noun.** The bag was `{our word: [how many,
+what it is worth]}`, which can count eleven bits of cloth and can never hold a
+sword — so nothing could be worn, nothing changed a stat, and the fifty-eight
+paperdoll renders committed in `public/art/doll/` had nobody to call them.
+`pipeline/items.py` bakes the 1,424 rows the slice can actually reach out of
+`item_template`'s 46,096, with the columns that say whether a human warrior can
+wear a thing and what it does for him; a drop now carries its id as well as our
+word for it.
+
+**Money is a decision, and the check says so.** The zone pays about 14,800
+copper at these levels — 1,890 from errands and the rest off what dies — against
+2,310 for every lesson a warrior trainer sells and 34,700 for the best of every
+slot. So it covers the training and it does not cover everything, which is the
+difference between an economy and a procedure, and `items.py` asserts both ends.
+**Levelling opens nothing on its own**: it opens what a trainer will sell you,
+which is the shape this stretch of the game actually has.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of

@@ -102,6 +102,18 @@ const THING: Record<string, string> = {
   forge: '용광로',
 }
 
+/** Where a thing goes, for the shop and the paperdoll. */
+export const SLOT_WORD: Record<string, string> = {
+  head: '머리', shoulder: '어깨', shirt: '속옷', chest: '가슴', belt: '허리',
+  legs: '다리', feet: '발', wrist: '손목', hands: '손', back: '등',
+  weapon: '무기', offhand: '보조', ranged: '원거리',
+}
+
+/** And the five things a stat can be. */
+export const STAT_WORD: Record<string, string> = {
+  str: '힘', agi: '민첩', sta: '체력', int: '지능', spi: '정신력',
+}
+
 /** And the trades that open them, which `Lock.dbc` names by number. */
 export const TRADE_WORD: Record<string, string> = {
   herbs: '약초 채집', mining: '채광',

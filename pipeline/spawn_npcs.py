@@ -432,10 +432,13 @@ def loot_tables(base, kinds_by_entry):
         # "weapon" — which is a real price, of a real sword, dropped by
         # something on the far side of the zone at level seventy.  A level 5
         # bandit's weapon is worth what *his* weapon is worth.
+        # The id travels with the drop as well as our word for it.  Without
+        # it a sword arrives in the bag as the noun "weapon" and can never be
+        # held — which is why there was no equipment: an item lost its
+        # identity on the way in.
         by_loot.setdefault(lid, []).append(
-            (word := goods_of(*iclass[item]), min(100.0, chance), lo, hi,
-             max(0, sells.get(item, 0))))
-        del word
+            (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
+             max(0, sells.get(item, 0)), item))
     return by_loot
 
 
@@ -876,10 +879,11 @@ def main(acore, out):
         # And what it is carrying, deduplicated the same way: a kobold is a
         # kobold's pockets whichever kobold it is.
         items = []
-        for word, chance, clo, chi, sell in carried.get(lootid, [])[:8]:
+        for word, chance, clo, chi, sell, item in carried.get(lootid, [])[:8]:
             if word not in goods:
                 goods.append(word)
-            items.append([goods.index(word), round(chance, 1), clo, chi, sell])
+            items.append([goods.index(word), round(chance, 1), clo, chi, sell,
+                          item])
         haul = (purse[0], purse[1], tuple(map(tuple, items)))
         if haul not in haul_at:
             haul_at[haul] = len(hauls)

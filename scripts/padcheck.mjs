@@ -188,8 +188,15 @@ await p.screenshot({ path: `${SP}/pad-talking.png` })
 // 10. A tap on the world — above the panel, which swallows its own taps —
 // ends it.
 const top = await p.evaluate(() => document.getElementById('talk').getBoundingClientRect().top)
-check('there is world left to tap above the panel', top > 60, String(top))
-await touch('touchStart', [[195, Math.round(top / 2)]])
+check('there is world left to tap above the panel', top > 60, `panel starts at ${Math.round(top)}px`)
+// Just above the panel, and not halfway up the glass: a shopkeeper who is
+// also a trainer has a taller panel, and halfway up from *its* top is the
+// readout, which swallows its own taps and is not the world.
+const hudLow = await p.evaluate(() =>
+  document.getElementById('hud').getBoundingClientRect().bottom)
+check('and it is world rather than the readout', top - 24 > hudLow,
+  `${Math.round(top - 24)} against a readout ending at ${Math.round(hudLow)}`)
+await touch('touchStart', [[195, Math.round(top - 24)]])
 await touch('touchEnd', [])
 await p.waitForTimeout(150)
 check('a tap on the world ends the conversation',

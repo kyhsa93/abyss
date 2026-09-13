@@ -36,6 +36,10 @@ export type Save = {
     bag: Record<string, [number, number]>
     trades: Record<string, number>
     cools: Record<number, number>
+    /** Held by id, worn by slot, and what a trainer has taught. */
+    items: number[]
+    gear: Record<string, number>
+    taught: number[]
   }
   /** Where the stream of chance is, so loading cannot re-roll a drop. */
   seed: number

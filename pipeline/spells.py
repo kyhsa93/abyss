@@ -89,7 +89,7 @@ def known(base, upto):
     """
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from spawn_npcs import columns, rows, split
-    out = {}
+    out, free = {}, set()
     act = os.path.join(base, 'playercreateinfo_action.sql')
     ac = columns(act)
     for line in rows(act):
@@ -97,6 +97,7 @@ def known(base, upto):
         if int(f[ac['class']]) == 1 and int(f[ac['race']]) == 1 \
                 and int(f[ac['type']]) == 0:
             out[int(f[ac['action']])] = 1
+            free.add(int(f[ac['action']]))
     path = os.path.join(base, 'trainer_spell.sql')
     col = columns(path)
     for line in rows(path):
@@ -106,7 +107,7 @@ def known(base, upto):
         lv = int(f[col['ReqLevel']]) or 1
         if lv <= upto:
             out.setdefault(int(f[col['SpellId']]), lv)
-    return out
+    return out, free
 
 
 def main(client_root, acore, out, upto=None):
@@ -124,7 +125,7 @@ def main(client_root, acore, out, upto=None):
     # How far up this game goes, out of `slice.json` rather than a default
     # argument nobody outside this file could see.
     upto = upto or LEVELS[1]
-    want = known(os.path.join(acore, 'data/sql/base/db_world'), upto)
+    want, free = known(os.path.join(acore, 'data/sql/base/db_world'), upto)
     out_rows = []
     for sid, lv in sorted(want.items(), key=lambda kv: (kv[1], kv[0])):
         r = spells.get(sid)
@@ -136,6 +137,10 @@ def main(client_root, acore, out, upto=None):
             'rage': r[F_COST] // RAGE,
             'cool': max(r[F_RECOVERY], r[F_CATEGORY_RECOVERY]),
             'reach': [lo, hi],
+            # Whether he is created holding it.  Everything else is bought
+            # from a trainer — `playercreateinfo_action` is the bar a new
+            # human warrior is made with, and it is two things.
+            **({'free': 1} if sid in free else {}),
             'holds': durations.get(r[F_DURATION], 0),
             # What it makes you wait before pressing anything else.  Nought
             # for the ones that go off the next swing.

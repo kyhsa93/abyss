@@ -482,11 +482,9 @@ check('and swinging above your weight is mostly glancing blows', glance > 20,
 // bar for the whole game.
 const before = await p.evaluate(() => window.__me())
 const after = await p.evaluate(() => window.__earn(30000))
-check('levelling up opens new things to press',
-  after.level > before.level && after.spells > before.spells.length,
-  `level ${before.level} → ${after.level}, `
-  + `${before.spells.length} abilities → ${after.spells}, `
-  + `${before.hp} health → ${after.hp}`)
+check('levelling up makes you bigger and gives a trainer something to sell',
+  after.level > before.level && after.hp > before.hp,
+  `level ${before.level} → ${after.level}, ${before.hp} health → ${after.hp}`)
 
 // 9h. The global cooldown, which is a column and not a constant: `Spell.dbc`'s
 // `StartRecoveryTime`, clamped to one to one and a half seconds by
@@ -539,6 +537,44 @@ check('a save puts the character back where he was',
 check('and it carries where the dice had got to', back.seed === before2.seed,
   `stream at ${before2.seed}, and ${rolled.seed} after some rolls — `
   + `without this, loading is how you re-roll a drop`)
+
+// 9l. Money you can spend.  `npc_vendor` had been read into the conversation
+// for rounds — "twelve things, from ten copper to a gold" — with nothing
+// behind the sentence, and `trainer_spell` the same.  Money you cannot spend
+// is a number, and the only decision this stretch of the game has outside a
+// fight is whether to spend it on a lesson or on a breastplate.
+const shops = await p.evaluate(async () => {
+  const s = await (await fetch('./world/items.json')).json()
+  const vendor = Object.keys(s.stock)[0], trainer = Object.keys(s.trainers)[0]
+  const wearable = Object.entries(s.items)
+    .filter(([, v]) => v[1] === 'weapon' && v[4] <= 1)
+    .sort((a, b) => b[1][3] - a[1][3])[0]
+  const bought = window.__buy(Number(wearable[0]))
+  const dressed = window.__dress()
+  const before = window.__me().spells.length
+  const lesson = s.trainers[trainer].teaches[0]
+  const learnt = window.__learn(lesson[0])
+  return {
+    vendors: Object.keys(s.stock).length,
+    trainers: Object.keys(s.trainers).length,
+    items: Object.keys(s.items).length,
+    bought, dressed, before, learnt,
+  }
+})
+check('a shopkeeper has things in it and they can be bought',
+  shops.vendors > 10 && shops.bought.held > shops.bought.was.held - 1,
+  `${shops.items.toLocaleString()} items the slice can reach, `
+  + `${shops.vendors} vendors, ${shops.trainers} trainers`)
+check('and wearing one changes what you are',
+  shops.dressed.now.swing !== shops.dressed.was.swing
+    || shops.dressed.now.armour !== shops.dressed.was.armour,
+  `${shops.dressed.said.join('; ')} — swing `
+  + `${(shops.dressed.was.swing / 1000).toFixed(1)}s → `
+  + `${(shops.dressed.now.swing / 1000).toFixed(1)}s, armour `
+  + `${shops.dressed.was.armour} → ${shops.dressed.now.armour}`)
+check('and a trainer puts something new on the bar',
+  shops.learnt.taught.length > 0,
+  `${shops.learnt.had} abilities → ${shops.learnt.now} after one lesson`)
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it

@@ -180,7 +180,7 @@ def loot_tables(base, table):
             continue
         by_loot.setdefault(lid, []).append(
             (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
-             max(0, sells.get(item, 0))))
+             max(0, sells.get(item, 0)), item))
     return by_loot
 
 
@@ -302,8 +302,8 @@ def main(acore, client_root, out):
     for x, y, kind, face, entry, trade, level, back, lootid, pool in placed:
         if pool:
             pools[str(pool)] = limit.get(pool, 1)
-        items = [[w, round(ch, 1), lo, hi, sell]
-                 for w, ch, lo, hi, sell in carried.get(lootid, [])[:6]]
+        items = [[w, round(ch, 1), lo, hi, sell, e]
+                 for w, ch, lo, hi, sell, e in carried.get(lootid, [])[:6]]
         key = (kind, tuple(map(tuple, items)))
         if key not in haul_at:
             haul_at[key] = len(hauls)

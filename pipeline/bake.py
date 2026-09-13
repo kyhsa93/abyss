@@ -59,6 +59,8 @@ STAGES = [
      'what they want doing'),
     ('objects', 'objects.py', True, 'public/world',
      'what stands there that is not a person'),
+    ('items', 'items.py', False, 'public/world',
+     'what can be held, bought and taught'),
     ('spells', 'spells.py', True, 'public/world',
      'what a warrior can do'),
     ('layout', 'layout.py', True, 'public/world',
@@ -190,7 +192,7 @@ def main():
         argv = ([args.client, where] if script == 'layout.py'
                 else [args.client, args.acore, where] if script == 'spells.py'
                 else [args.client, where, args.acore] if script == 'bake_terrain.py'
-                else [args.acore, args.client, where] if script in ('objects.py', 'player.py')
+                else [args.acore, args.client, where] if script in ('objects.py', 'player.py', 'items.py')
                 else [args.acore, args.client, where] if script == 'quests.py'
                 else [args.acore, where])
         ok, took, line, got = run(script, argv, where)
@@ -247,7 +249,7 @@ def again(args):
             argv = ([args.client, into] if script == 'layout.py'
                     else [args.client, args.acore, into] if script == 'spells.py'
                     else [args.client, into, args.acore] if script == 'bake_terrain.py'
-                    else [args.acore, args.client, into] if script in ('objects.py', 'quests.py', 'player.py')
+                    else [args.acore, args.client, into] if script in ('objects.py', 'quests.py', 'player.py', 'items.py')
                     else [args.acore, into])
             run(script, argv, into)
         second = {}

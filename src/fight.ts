@@ -191,6 +191,8 @@ export type Spell = {
   cool: number
   reach: [number, number]
   holds: number
+  /** Whether a new character is created holding it, rather than taught it. */
+  free?: number
   /**
    * What pressing it makes you wait before pressing anything else.
    *
