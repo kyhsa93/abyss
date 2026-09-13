@@ -94,7 +94,24 @@ const opened = readdirSync('src')
     .matchAll(/'\.\/(art\/[\w./-]+\.png)'/g)].map((m) => m[1]))
 const loaded = [...new Set(opened)].map((rel) => join(dist, rel))
   .filter((f) => { try { statSync(f); return true } catch { return false } })
-const pixels = loaded.reduce((n, f) => n + size(f), 0)
+/**
+ * And the one sheet whose name is not written anywhere in `src/`.
+ *
+ * `art/arms/<weapon>.png` is fetched by what he is holding, so the regex above
+ * cannot see it — and a sheet that a check cannot see is a sheet that does not
+ * count, which is how a budget stops being a budget.  Five files, one held at
+ * a time, so what this pays is the heaviest of the five: the greatsword, whose
+ * swing is the widest thing in the set.  `hero.json` carries the figure so the
+ * sum is the bake's and not a second measurement of the same PNG.
+ */
+let inHand = 0, inHandName = ''
+try {
+  const meta = JSON.parse(readFileSync(join(dist, 'art/hero.json'), 'utf8'))
+  for (const [word, sheet] of Object.entries(meta.arms ?? {})) {
+    if (sheet.px > inHand) { inHand = sheet.px; inHandName = word }
+  }
+} catch { /* a bake without a hero sheet has no hand to fill */ }
+const pixels = loaded.reduce((n, f) => n + size(f), 0) + inHand / 4
 const all = files.filter((f) => f.endsWith('.png'))
 // The phone's own column, which this budget did not have.
 //
@@ -114,6 +131,8 @@ const all = files.filter((f) => f.endsWith('.png'))
 check('and the sheets do not creep', pixels * 4 <= 24 * MB,
   `${(pixels * 4 / MB).toFixed(1)} MB of 24 — a phone's headroom is not `
   + `a desktop's, and the ratchet is what stops the atlas doubling`)
+console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
+  + `his hand — five sheets, one held, the heaviest being ${inHandName})`)
 check('the sheets fit in memory once decoded', pixels * 4 <= 64 * MB,
   `${((pixels * 4) / MB).toFixed(1)} MB of 64 over the ${loaded.length} the `
   + `scene opens (of ${all.length} shipped, `

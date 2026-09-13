@@ -977,6 +977,81 @@ check('and the paperdoll is wearing it too',
   arms.wearing.some((n) => n.includes('_weapon_')),
   arms.wearing.join(', '))
 
+// 10d3. And nothing is cut and then never played.
+//
+// Six frames of `slash` by four directions had been in `hero.png` since the
+// sprite existed and `src/main.ts` did not contain the word: a fight was two
+// people standing perfectly still exchanging numbers.  That is this
+// repository's most frequent bug and it is invisible from either end alone —
+// the bake says the cells are there, the scene says it draws the hero, and
+// nothing compared the two.  `tint` (issue 118) and `I_QUALITY` (issue 157)
+// were the same shape.
+//
+// Every weapon, because they do not all swing alike: LPC gives `magic/gnarled`
+// a thrust and no slash, so the thing in the hand decides which clip the body
+// plays and no ordinary run of the game holds all five.
+const held = await p.evaluate(async () => {
+  const out = []
+  for (const word of ['sword', 'dagger', 'axe', 'mace', 'staff']) {
+    // Standing with it first, then swinging it: those are different strips of
+    // the weapon's own sheet, and a check that only ever swings leaves four of
+    // the five walks unread.
+    window.__wield(word, false)
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const put = window.__wield(word)
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    out.push({ ...put, pose: window.__clips().pose })
+  }
+  return out
+})
+const sheet = await p.evaluate(() =>
+  fetch('./art/hero.json').then((r) => r.json()))
+const wanted = [
+  ...Object.keys(sheet.clips).map((c) => `hero:${c}`),
+  ...Object.entries(sheet.arms ?? {}).flatMap(([w, a]) =>
+    Object.keys(a.clips).map((c) => `arms:${w}:${c}`)),
+]
+const clips = await p.evaluate(() => window.__clips())
+const unplayed = wanted.filter((k) => !clips.played.includes(k))
+check('every clip that was cut gets played',
+  unplayed.length === 0,
+  `${wanted.length} baked, ${clips.played.length} played`
+  + (unplayed.length ? `; never drawn: ${unplayed.join(', ')}` : ''))
+console.log(`      (the shelved renders are not in this: `
+  + `\`art/actors.png\` and the paperdoll layers are not sheets the scene `
+  + `opens — see CLAUDE.md, and issue 184 for the paperdoll)`)
+
+// And the swing's motion is the weapon's speed, which is what makes a
+// greatsword feel like one.  Read as how far through the clip each weapon had
+// got after the same wait: the quickest is furthest.
+const armed = held.filter((h) => h.swing && h.pose.count)
+  .map((h) => ({ ...h, at: h.pose.frame / h.pose.count }))
+const quick = armed.reduce((a, b) => (a.swing <= b.swing ? a : b), armed[0])
+const slow = armed.reduce((a, b) => (a.swing >= b.swing ? a : b), armed[0])
+check('and the swing takes as long as the weapon does',
+  armed.length === 5 && armed.every((h) => h.pose.clip === sheet.arms[h.word].swing),
+  armed.map((h) => `${h.word} ${h.pose.clip} ${h.pose.frame}/${h.pose.count} `
+    + `at ${(h.swing / 1000).toFixed(1)}s`).join(', '))
+check('and a slower weapon is further behind in it',
+  quick.swing === slow.swing || quick.at >= slow.at,
+  `${quick.word} at ${(quick.swing / 1000).toFixed(1)}s is `
+  + `${(quick.at * 100).toFixed(0)}% through, ${slow.word} at `
+  + `${(slow.swing / 1000).toFixed(1)}s is ${(slow.at * 100).toFixed(0)}%`)
+
+// 10d4. And the one that was hit does not stand there.
+//
+// There is no hit pose to play, and that is a measurement: LPC draws `hurt`
+// six frames facing **down only** — one direction of four — and the animal
+// packs have no hurt row at all, so none of the forty-eight kinds here has a
+// flinch to bake.  What there is instead is motion: a body is shoved away
+// from the blow by as much of a yard as the blow was of its health.  The one
+// thing that can go wrong with that is a flinch longer than the gap between
+// blows, which is a body that never comes back to standing.
+check('a flinch is over before the next blow can land',
+  clips.hurtSeconds * 1000 < clips.fastest,
+  `${(clips.hurtSeconds * 1000).toFixed(0)}ms against the quickest weapon in `
+  + `the slice at ${clips.fastest}ms`)
+
 // 10e. A building's furniture belongs to the building.
 //
 // `npm run audit` counted 3,759 things standing inside the slice's buildings

@@ -37,34 +37,66 @@ LAYERS = [
 ]
 
 # Animations to take, and how many frames each sheet holds.
-CLIPS = [('walk', 9), ('idle', 2), ('slash', 6)]
+CLIPS = [('walk', 9), ('idle', 2), ('slash', 6), ('thrust', 8)]
 
-# What he can have in his hand, front half and behind half.
+# What he can have in his hand, and which swing goes with it.
 #
 # The same five `bake_npcs.py` cuts for everybody else, and the same reason
 # they are a layer rather than part of a look: a weapon is what he is holding
 # this minute, not what he is.  712 of the slice's people carry one and the
 # player was the only body in the world with nothing in his hands.
 #
+# `(front, behind, the sheet's own cell)`.  The cell is a column because LPC
+# packs a **swing** differently from a walk: a walking sword fits the body's
+# 64-pixel cell, and a swung one does not, so the attack sheets are drawn on a
+# 3x3 block of cells with the body in the middle.  Read at 64 they come out as
+# the top-left ninth of every frame, which is empty air for four of the five.
+#
 # **The frames are not the NPCs'.**  Those are sampled at five of the walk's
 # nine, which is enough for somebody on the far side of a field and would put
 # the player's sword a frame behind his own hand.  His walk is all nine, so
 # these are all nine.
+#
+# A polearm is the odd one and it is LPC that says so: `magic/gnarled` has a
+# thrust sheet and no slash, because a pole is pushed rather than swung.  So
+# the weapon chooses which attack the *body* plays, which is why `swing` is
+# beside the sheets rather than in `src/`.
+FRONT, BEHIND = 'front', 'behind'
 ARMS = {
-    'sword': ('sword/longsword/walk/longsword.png',
-              'sword/longsword/universal_behind/walk/longsword.png'),
-    'dagger': ('sword/dagger/walk/dagger.png',
-               'sword/dagger/behind/walk/dagger.png'),
-    'axe': ('blunt/waraxe/walk/waraxe.png',
-            'blunt/waraxe/behind/walk/waraxe.png'),
-    'mace': ('blunt/mace/walk/mace.png',
-             'blunt/mace/universal_behind/walk/mace.png'),
-    'staff': ('magic/gnarled/universal/walk/foreground.png',
-              'magic/gnarled/universal/walk/background.png'),
+    'sword': {'swing': 'slash', 'walk': (
+        'sword/longsword/walk/longsword.png',
+        'sword/longsword/universal_behind/walk/longsword.png', CELL), 'slash': (
+        'sword/longsword/attack_slash/longsword.png',
+        'sword/longsword/attack_slash/behind/longsword.png', CELL * 3)},
+    'dagger': {'swing': 'slash', 'walk': (
+        'sword/dagger/walk/dagger.png',
+        'sword/dagger/behind/walk/dagger.png', CELL), 'slash': (
+        'sword/dagger/slash/dagger.png',
+        'sword/dagger/behind/slash/dagger.png', CELL)},
+    'axe': {'swing': 'slash', 'walk': (
+        'blunt/waraxe/walk/waraxe.png',
+        'blunt/waraxe/behind/walk/waraxe.png', CELL), 'slash': (
+        'blunt/waraxe/attack_slash/waraxe.png',
+        'blunt/waraxe/attack_slash/behind/waraxe.png', CELL * 3)},
+    'mace': {'swing': 'slash', 'walk': (
+        'blunt/mace/walk/mace.png',
+        'blunt/mace/universal_behind/walk/mace.png', CELL), 'slash': (
+        'blunt/mace/attack_slash/mace.png',
+        'blunt/mace/attack_slash/behind/mace.png', CELL * 3)},
+    'staff': {'swing': 'thrust', 'walk': (
+        'magic/gnarled/universal/walk/foreground.png',
+        'magic/gnarled/universal/walk/background.png', CELL), 'thrust': (
+        'magic/gnarled/thrust/foreground.png',
+        'magic/gnarled/thrust/background.png', CELL * 3)},
 }
 
+#: Which swing a man with nothing in his hands plays.  LPC has no unarmed
+#: attack; the slash reads as a punch well enough and it is the clip every
+#: other weapon here uses, so it is the one a missing weapon falls back to.
+BARE_SWING = 'slash'
 
-def trim(im, cols, dirs):
+
+def trim(im, cols, dirs, cell=CELL):
     """The one box every cell of a sheet fits inside, as `(x, y, w, h)`.
 
     A weapon is a small thing in a 64-pixel cell — a dagger is 40 by 22 — and
@@ -72,14 +104,19 @@ def trim(im, cols, dirs):
     nothing decoded.  Trimmed to a box a sheet it is 1.8.  One box a sheet and
     not one a frame: the offset then costs nothing to carry and the hand still
     lands where the artist put it, because every frame is cropped the same way.
+
+    `cell` because a swing is drawn on a 3x3 block of cells — see `ARMS` — so
+    the box is measured over 192 pixels and reported against the middle one,
+    which is the body's.  That is what lets the offsets stay the same two
+    numbers whether the sheet is a walk or a swing.
     """
     px = im.load()
-    lo_x, lo_y, hi_x, hi_y = CELL, CELL, -1, -1
+    lo_x, lo_y, hi_x, hi_y = cell, cell, -1, -1
     for d in range(dirs):
         for f in range(cols):
-            for y in range(CELL):
-                for x in range(CELL):
-                    if px[f * CELL + x, d * CELL + y][3]:
+            for y in range(cell):
+                for x in range(cell):
+                    if px[f * cell + x, d * cell + y][3]:
                         lo_x = min(lo_x, x); hi_x = max(hi_x, x)
                         lo_y = min(lo_y, y); hi_y = max(hi_y, y)
     if hi_x < 0:
@@ -108,6 +145,16 @@ def main(root, out):
             used.append(f'{layer}/{clip}.png')
             if base is None:
                 base = Image.new('RGBA', im.size)
+            if im.size != base.size and im.height == base.height \
+                    and im.width > base.width:
+                # A layer with more frames than the body has poses.  LPC ships
+                # `feet/boots/basic/male/thrust.png` nine frames wide where
+                # every other layer of the same animation is eight, and the
+                # ninth is the pose the clip returns to.  Dropped rather than
+                # skipped: skipping the layer is a man who thrusts barefoot,
+                # and the mismatch printed below then reads as "this animation
+                # has no boots" when what it means is "this sheet is longer".
+                im = im.crop((0, 0, base.width, base.height))
             if im.size != base.size:
                 # A layer that does not line up frame for frame is not a layer;
                 # dropping it silently would show up as a limb that lags.
@@ -123,34 +170,87 @@ def main(root, out):
             for f in range(n):
                 frames.append(base.crop((f * CELL, d * CELL, f * CELL + CELL, d * CELL + CELL)))
 
-    # What is in his hand, laid out as a strip a half rather than on the
-    # body's grid: each one is trimmed to its own box, so they have ten
-    # different cell sizes and a uniform atlas would be the untrimmed one.
-    arms, strips = {}, []
-    for name, halves in ARMS.items():
-        for half, rel in zip(('', '.bg'), halves):
-            path = os.path.join(root, 'spritesheets', 'weapon', rel)
-            if not os.path.exists(path):
-                sys.exit(f'missing {path} — a hand with a hole in it is a bug')
-            used.append(f'weapon/{rel}')
-            im = Image.open(path).convert('RGBA')
-            cols_, dirs = im.width // CELL, im.height // CELL
-            if (cols_, dirs) != (CLIPS[0][1], DIRECTIONS):
-                sys.exit(f'{rel} is {cols_}x{dirs} cells, not the walk\'s '
-                         f'{CLIPS[0][1]}x{DIRECTIONS}')
-            box = trim(im, cols_, dirs)
-            if not box:
-                sys.exit(f'{rel} is empty')
-            bx, by, bw, bh = box
-            strip = Image.new('RGBA', (cols_ * bw, dirs * bh))
-            for d in range(dirs):
-                for f in range(cols_):
-                    strip.paste(im.crop((f * CELL + bx, d * CELL + by,
-                                         f * CELL + bx + bw, d * CELL + by + bh)),
-                                (f * bw, d * bh))
-            arms[name + half] = {'w': bw, 'h': bh, 'dx': bx, 'dy': by,
-                                 'cols': cols_, 'dirs': dirs}
-            strips.append((name + half, strip))
+    # What is in his hand, laid out as a strip a half rather than on the body's
+    # grid: each one is trimmed to its own box, so they have twenty different
+    # cell sizes and a uniform atlas would be the untrimmed one.
+    #
+    # **One sheet a weapon, and that is the change that paid for the swing.**
+    # All five in one atlas was 2.79 MB decoded for a man who is holding one of
+    # them; adding the attack strips to it would have been 6.1 MB, which is
+    # three times the whole budget's remaining headroom.  A weapon a file is
+    # 2.4 MB at its very worst — the greatsword, whose swing is the widest
+    # thing here — so the man now carries his attack *and* costs less than he
+    # did holding nothing but a walk cycle.
+    arms = {}
+    for name, spec in ARMS.items():
+        strips, meta = [], {'swing': spec['swing'], 'clips': {}}
+        for clip in ('walk', spec['swing']):
+            front, behind, cell = spec[clip]
+            side = {}
+            for half, rel in ((FRONT, front), (BEHIND, behind)):
+                path = os.path.join(root, 'spritesheets', 'weapon', rel)
+                if not os.path.exists(path):
+                    sys.exit(f'missing {path} — a hand with a hole in it is a bug')
+                used.append(f'weapon/{rel}')
+                im = Image.open(path).convert('RGBA')
+                cols_, dirs = im.width // cell, im.height // cell
+                want = dict(CLIPS)[clip]
+                if (cols_, dirs) != (want, DIRECTIONS):
+                    sys.exit(f'{rel} is {cols_}x{dirs} cells of {cell}, not the '
+                             f'body\'s {clip} at {want}x{DIRECTIONS}')
+                box = trim(im, cols_, dirs, cell)
+                if not box:
+                    sys.exit(f'{rel} is empty')
+                bx, by, bw, bh = box
+                strip = Image.new('RGBA', (cols_ * bw, dirs * bh))
+                for d in range(dirs):
+                    for f in range(cols_):
+                        strip.paste(im.crop((f * cell + bx, d * cell + by,
+                                             f * cell + bx + bw, d * cell + by + bh)),
+                                    (f * bw, d * bh))
+                # Against the **body's** cell, which is the middle one of a
+                # 3x3 block on the attack sheets.  Without the shift a swung
+                # sword is drawn a whole cell up and to the left of the man
+                # swinging it.
+                edge = (cell - CELL) // 2
+                side[half] = {'w': bw, 'h': bh, 'dx': bx - edge, 'dy': by - edge,
+                              'cols': cols_, 'dirs': dirs}
+                strips.append((half, clip, strip))
+            meta['clips'][clip] = side
+        # Four strips on shelves rather than four rows, because a strip is as
+        # wide as its own swing and stacking them makes the sheet as wide as
+        # the widest: the greatsword's four came to 3.31 MiB decoded of which
+        # a third was air beside the narrow ones.  Tallest first, so a short
+        # strip fills the gap beside a tall one instead of opening a shelf.
+        #
+        # A strip is never split across shelves.  `drawArm` reads a direction
+        # as `y + dir * h`, so the four rows of one strip have to stay
+        # together — which is also why this packs strips and not frames.
+        wide = max(st.width for _h, _c, st in strips)
+        shelves, order = [], sorted(strips, key=lambda t: -t[2].height)
+        for item in order:
+            for shelf in shelves:
+                if shelf['x'] + item[2].width <= wide:
+                    shelf['put'].append(item)
+                    shelf['x'] += item[2].width
+                    break
+            else:
+                shelves.append({'x': item[2].width, 'put': [item],
+                                'h': item[2].height})
+        one = Image.new('RGBA', (wide, sum(sh['h'] for sh in shelves)))
+        y = 0
+        for shelf in shelves:
+            x = 0
+            for half, clip, strip in shelf['put']:
+                one.paste(strip, (x, y))
+                meta['clips'][clip][half]['x'] = x
+                meta['clips'][clip][half]['y'] = y
+                x += strip.width
+            y += shelf['h']
+        os.makedirs(os.path.join(out, 'arms'), exist_ok=True)
+        one.save(os.path.join(out, 'arms', name + '.png'), optimize=True)
+        meta['px'] = one.width * one.height * 4
+        arms[name] = meta
 
     cols = 16
     rows = (len(frames) + cols - 1) // cols
@@ -160,21 +260,9 @@ def main(root, out):
     os.makedirs(out, exist_ok=True)
     atlas.save(os.path.join(out, 'hero.png'), optimize=True)
 
-    # The hands, in their own sheet: they are ten strips of ten different cell
-    # sizes and there is no grid they all belong to.
-    wide = max(s.width for _n, s in strips)
-    tall = sum(s.height for _n, s in strips)
-    hands = Image.new('RGBA', (wide, tall))
-    y = 0
-    for name, strip in strips:
-        hands.paste(strip, (0, y))
-        arms[name]['y'] = y
-        y += strip.height
-    hands.save(os.path.join(out, 'arms.png'), optimize=True)
-
     with open(os.path.join(out, 'hero.json'), 'w') as f:
-        json.dump({'cell': CELL, 'cols': cols, 'clips': clips, 'arms': arms}, f,
-                  indent=1)
+        json.dump({'cell': CELL, 'cols': cols, 'clips': clips, 'arms': arms,
+                   'bare': BARE_SWING}, f, indent=1)
 
     # Credits, keyed by the files actually used.
     rows_csv = list(csv.DictReader(open(os.path.join(root, 'CREDITS.csv'))))
@@ -219,11 +307,13 @@ def main(root, out):
           f'{os.path.getsize(os.path.join(out, "hero.png")) / 1024:.0f} KiB on disk, '
           f'{px / 1048576:.1f} MiB decoded')
     print('  clips: ' + ', '.join(f'{k} x{v["count"]} in {v["dirs"]} dirs' for k, v in clips.items()))
-    hpx = hands.width * hands.height * 4
-    print(f'  in hand: {len(arms)} halves, atlas {hands.width}x{hands.height}, '
-          f'{os.path.getsize(os.path.join(out, "arms.png")) / 1024:.0f} KiB on '
-          f'disk, {hpx / 1048576:.2f} MiB decoded  ('
-          + ', '.join(f'{k} {v["w"]}x{v["h"]}' for k, v in arms.items()) + ')')
+    disk = sum(os.path.getsize(os.path.join(out, 'arms', k + '.png'))
+               for k in arms)
+    worst = max(arms, key=lambda k: arms[k]['px'])
+    print(f'  in hand: {len(arms)} weapons, one sheet each, {disk / 1024:.0f} KiB '
+          f'on disk; the page holds one at a time and the heaviest is '
+          f'{worst} at {arms[worst]["px"] / 1048576:.2f} MiB decoded  ('
+          + ', '.join(f'{k} {v["px"] / 1048576:.2f}' for k, v in arms.items()) + ')')
 
     contact = Image.new('RGB', (CELL * 9 * 2, CELL * 4 * 2), (40, 44, 56))
     walk = clips['walk']

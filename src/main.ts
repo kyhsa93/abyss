@@ -173,23 +173,43 @@ type HeroArt = {
   cell: number; cols: number
   clips: Record<string, { first: number; count: number }>
   /**
-   * What can be in his hand, as strips in `arms.png`.
+   * What can be in his hand — one sheet a weapon, under `art/arms/`.
    *
-   * Front half and behind half for each of the five `bake_npcs.py` cuts for
-   * everybody else — 712 of the slice's people carry a weapon and the player
-   * was the only body in the world with nothing in his hands.
+   * Front half and behind half of each of the five `bake_npcs.py` cuts for
+   * everybody else, in the two clips he can be in while holding it: the walk,
+   * and whichever attack that weapon is used with.  712 of the slice's people
+   * carry a weapon and the player was the only body in the world with nothing
+   * in his hands.
    *
-   * Each half is trimmed to its own box, so they have ten different cell
-   * sizes and there is no grid they all belong to: `x` is always 0, `y` is
-   * where the strip starts, `w`/`h` are the cell, and `dx`/`dy` are where
-   * that box sat inside the body's 64-pixel cell.  Untrimmed they are 5.6 MiB
-   * decoded and trimmed they are 2.7, which is the difference between a
-   * dagger and forty pixels of nothing around a dagger.
+   * **A sheet a weapon rather than an atlas**, because a man holds one of
+   * them.  All five walks in one atlas cost 2.7 MiB decoded whatever he was
+   * carrying, and the swings would have taken it to 6.1; one sheet at a time
+   * is 2.8 at its very worst, which is the greatsword.  `px` is what that
+   * sheet costs, carried so `budgetcheck` can weigh the heaviest rather than
+   * guess.
+   *
+   * Each half is trimmed to its own box, so they have twenty different cell
+   * sizes and there is no grid they all belong to: `x`/`y` say where the strip
+   * sits on the weapon's sheet, `w`/`h` are its cell, and `dx`/`dy` are where
+   * that box sat inside the body's 64-pixel cell — which for an attack sheet
+   * is the middle cell of a 3x3 block, because LPC draws a swing too big to
+   * fit a walking man's square.
    */
-  arms?: Record<string, {
-    w: number; h: number; dx: number; dy: number
-    cols: number; dirs: number; y: number
-  }>
+  arms?: Record<string, ArmSheet>
+  /** Which attack a man with nothing in his hands plays. */
+  bare?: string
+}
+/** One strip of one half of one weapon in one clip. */
+type ArmStrip = {
+  w: number; h: number; dx: number; dy: number
+  cols: number; dirs: number; x: number; y: number
+}
+type ArmSheet = {
+  /** Which attack the *body* plays while holding this — see `bake_sprites`. */
+  swing: string
+  /** What the sheet costs decoded, for `budgetcheck` to weigh. */
+  px: number
+  clips: Record<string, Record<string, ArmStrip>>
 }
 /**
  * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
@@ -333,16 +353,13 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, armsImg, art, spawns, spellbook, things, who, shelf] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, who, shelf] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
     fetch('./art/hero.json').then((r) => r.json() as Promise<HeroArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
-    // What he is holding, which is its own sheet because its ten strips have
-    // ten different cell sizes — see `HeroArt.arms`.
-    load('./art/arms.png'),
     // Which picture goes with what — see `pipeline/bake_ui.py`.  One list,
     // written where the files are copied from, rather than a file list in the
     // bake and a drawing list here that quietly stop agreeing.
@@ -1323,6 +1340,14 @@ async function main() {
     dead: number
     /** When it was last hit, which is how long its health bar stays up. */
     hurt: number
+    /**
+     * And how hard, as a share of what it can take, plus which way the blow
+     * came from — `[share, x, y]`, the pair a unit vector away from whoever
+     * swung.  `knock` reads it; nothing else does.
+     */
+    knock: [number, number, number] | null
+    /** When it last swung, so the scene can lunge it — see `knock`. */
+    swung: number
     /** Who it is fighting, which for now is only ever the player. */
     angry: boolean; next: number
     /** A cut that keeps cutting: when it stops, when it next bites, how hard. */
@@ -1419,7 +1444,8 @@ async function main() {
       /** Standing right now: a shared slot stands up only so many at once. */
       up: true,
       fight, hp: fight ? fight[HP]! : 1, max: fight ? fight[HP]! : 1,
-      dead: 0, hurt: -99, angry: false, next: 0, bleed: null,
+      dead: 0, hurt: -99, knock: null, swung: -99, angry: false,
+      next: 0, bleed: null,
       haul: (spawns.hauls && row[8] !== undefined && row[8]! >= 0)
         ? spawns.hauls[row[8]!]! : null,
       looted: false,
@@ -2752,10 +2778,47 @@ async function main() {
       Math.max(2, Math.round((weapon[2] as number) + ap)),
       weapon[3] as number, armourOf(s, worn), row[5] ?? 0]
   }
+  /**
+   * How long a body is out of its own square after a blow — see `knock`.
+   *
+   * Four of the world's fifty-millisecond steps, and short on purpose: a
+   * flinch that outlasts the next blow is a body that never stands still.
+   */
+  const HURT_SECONDS = 0.2
+
+  /**
+   * Remember a blow, so the scene can shove the body it landed on.
+   *
+   * Recorded where the damage is dealt rather than worked out where it is
+   * drawn, because by then the swing is over and nothing on screen knows who
+   * hit whom.  The share is of what the target can take, not of what it has
+   * left: a blow is as hard as it is whether or not it is the last one.
+   */
+  const struck = (t: { hurt: number; knock: [number, number, number] | null },
+    hit: number, whole: number, fromX: number, fromY: number,
+    atX: number, atY: number) => {
+    t.hurt = clock
+    const dx = atX - fromX, dy = atY - fromY
+    const d = Math.hypot(dx, dy) || 1
+    t.knock = hit > 0 ? [hit / Math.max(1, whole), dx / d, dy / d] : null
+  }
+
   const you = {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
     xp: 0, next: 0, target: null as Npc | null, died: 0, calm: 0,
+    /**
+     * When the swing he is in the middle of started.
+     *
+     * The scene reads it and the rules do not: `next` says when the *next*
+     * blow lands and a picture needs to know how far through the present one
+     * he is.  Six frames of `slash` were cut and nothing at all read them —
+     * a fight was two people standing still exchanging numbers.
+     */
+    swung: -1e9,
+    /** And when he was last hit, and how hard — see `knock`. */
+    hurt: -99,
+    knock: null as [number, number, number] | null,
     rage: 0,
     /** Queued by a heavier blow, spent on the next swing. */
     extra: 0,
@@ -2895,6 +2958,30 @@ async function main() {
    * back and there is no sheet for that — which comes back as an empty hand
    * rather than as some other weapon.
    */
+  /**
+   * The sheet for one weapon, fetched the first time he picks that weapon up.
+   *
+   * One file a weapon and not one atlas, because he holds one of them: all
+   * five walks together were 2.7 MiB decoded whatever was in his hand, and
+   * the five swings would have taken it past the whole sheet budget.  The
+   * greatsword is the worst single one at 2.8 MiB, which is what
+   * `budgetcheck` weighs.
+   *
+   * Nothing evicts the old one.  Swapping weapons is rare and a dropped
+   * reference is the browser's business; what would be a bug is holding all
+   * five, and a `Map` keyed on what he is carrying cannot.
+   */
+  const armSheets = new Map<string, HTMLImageElement>()
+  const armSheet = (word: string): HTMLImageElement => {
+    let img = armSheets.get(word)
+    if (!img) {
+      img = new Image()
+      img.src = `./art/arms/${word}.png`
+      armSheets.set(word, img)
+    }
+    return img
+  }
+
   const armFor = (id: number | undefined): string | null => {
     if (id === undefined) return null
     const it = itemOf(id)
@@ -3008,7 +3095,7 @@ async function main() {
           const dealt = Math.max(1, Math.round(
             hit * stanceOf().deal * (1 - mitigate(armourNow(n), you.level))))
           n.hp -= dealt
-          n.hurt = clock
+          struck(n, dealt, n.max, hero.x, hero.y, n.x, n.y)
           n.angry = true
           n.threat['you'] = (n.threat['you'] ?? 0)
             + threatFrom(dealt, sp.threat,
@@ -3460,6 +3547,8 @@ async function main() {
       const hit = Math.max(0, Math.round(
         damageAfter(fate, raw, n.level - you.level) * stanceOf().take))
       you.hp -= hit
+      n.swung = clock
+      struck(you, hit, you.max, n.x, n.y, hero.x, hero.y)
       // Taking a blow pays too, at a third of what landing one does.
       you.rage = Math.min(MAX_RAGE,
         you.rage + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
@@ -3504,6 +3593,7 @@ async function main() {
     if (!foe || foe.dead || !foe.fight) return
     if ((foe.x - hero.x) ** 2 + (foe.y - hero.y) ** 2 > reach2) return
     if (clock * 1000 < you.next) return
+    you.swung = clock * 1000
     you.next = clock * 1000 + you.line[SWING]!
     // The shout, while it holds: attack power spread over the swing, which is
     // the same line the weapon's own damage came out of.
@@ -3532,7 +3622,7 @@ async function main() {
     foe.threat['you'] = (foe.threat['you'] ?? 0)
       + threatFrom(hit, undefined, attackPower(you.level, mine)) * stance.threat
     foe.hp -= hit
-    foe.hurt = clock
+    struck(foe, hit, foe.max, hero.x, hero.y, foe.x, foe.y)
     if (hit > 0) { foe.angry = true; rouse(foe) }
     play(fate === CRIT ? 'crit' : hit > 0 ? 'hit' : 'miss', 0.92 + roll() * 0.16)
     say(foe.x, foe.y, fate === HIT ? `${hit}` : (OUTCOME_WORD[fate] ?? `${hit}`), true)
@@ -5109,6 +5199,19 @@ async function main() {
    */
   let heroLayers = 0
   /**
+   * Every clip this page has actually put on screen, as `sheet:clip`.
+   *
+   * Kept because a clip that is cut and never played is this repository's most
+   * frequent bug and it is invisible from either end alone: the bake says six
+   * frames of `slash` exist, the scene says it draws the hero, and nothing
+   * compared the two.  Twenty-four cells sat unread for as long as the sprite
+   * has existed — `tint` (issue 118) and `I_QUALITY` (issue 157) were the same
+   * shape.  `viewcheck` drives every weapon past this and fails on a gap.
+   */
+  const played = new Set<string>()
+  /** The pose the last frame drew him in, for the check that it is the swing. */
+  let heroPose = { clip: '', frame: 0, count: 0 }
+  /**
    * What was painted inside a building's outline this frame, by tile name.
    *
    * Counted off the real draw rather than re-derived, because re-deriving the
@@ -5785,39 +5888,116 @@ async function main() {
      * cent smaller than the ground they stood on.
      */
     const drawHero = () => {
-      const clip = (hero.moving ? heroMeta.clips['walk'] : heroMeta.clips['idle'])!
+      const arm = armFor(gear['weapon'])
+      const held = arm ? heroMeta.arms?.[arm] : undefined
+      /**
+       * Which pose he is in, and which of three questions decides it.
+       *
+       * Walking wins over swinging, which is the one judgement here.  A swing
+       * lands every `SWING` milliseconds and the next one starts the instant
+       * it ends, so in melee he is *always* mid-swing — let that win and a
+       * player who backs out of a fight slides across the grass in an attack
+       * pose with his legs still.  The original cancels the attack animation
+       * on movement for the same reason.
+       *
+       * The swing itself is the weapon's, not the body's: LPC gives
+       * `magic/gnarled` a thrust and no slash, because a pole is pushed rather
+       * than swung, and it is the thing in the hand that knows which.
+       */
+      const swinging = clock * 1000 < you.swung + you.line[SWING]!
+      const want = hero.moving ? 'walk'
+        : swinging ? (held?.swing ?? heroMeta.bare ?? 'slash')
+          : 'idle'
+      const clip = (heroMeta.clips[want] ?? heroMeta.clips['idle'])!
       const n = clip.count
-      const f = hero.moving ? Math.floor(hero.t * 10) % n : Math.floor(hero.t * 2) % n
+      /**
+       * And where in it.
+       *
+       * A swing runs once over the swing's own length, so the motion *is* the
+       * weapon speed: a 2.9 second greatsword takes 2.9 seconds to come down
+       * and a dagger does not.  Twenty-four cells of `slash` were cut and
+       * nothing read them at all, which is the third time this repository has
+       * shipped a column nobody consults — `tint` (issue 118) and `I_QUALITY`
+       * (issue 157) were the other two.
+       */
+      const f = want === 'walk' ? Math.floor(hero.t * 10) % n
+        : want === 'idle' ? Math.floor(hero.t * 2) % n
+          : Math.min(n - 1, Math.floor(
+            ((clock * 1000 - you.swung) / you.line[SWING]!) * n))
       const idx = clip.first + hero.dir * n + f
       const c = heroMeta.cell
       const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
       const w = c * zoom
-      const X = Math.round(screenX(hero.ix, hero.iy) - w / 2)
-      const Y = Math.round(screenY(hero.ix, hero.iy) - w * 0.82)
+      // Shoved out of his own square by whatever last hit him, and not far
+      // enough to move where he *is*: the shadow stays put under the square
+      // he is standing on, because a man rocked back on his heels has not
+      // gone anywhere.
+      const off = knock(you)
+      const X = Math.round(screenX(hero.ix + (off?.[0] ?? 0),
+        hero.iy + (off?.[1] ?? 0)) - w / 2)
+      const Y = Math.round(screenY(hero.ix + (off?.[0] ?? 0),
+        hero.iy + (off?.[1] ?? 0)) - w * 0.82)
       shadow(hero.ix, hero.iy, 0.34)
       // What is in his hand, in two halves either side of him — the same
-      // arrangement everybody else in the world already had.  He is standing
-      // still on `idle`, and a weapon has no idle of its own, so it takes the
-      // pose LPC puts at frame 0 of the walk, which is the standing one.
-      const arm = armFor(gear['weapon'])
-      const armAt = hero.moving ? f : 0
+      // arrangement everybody else in the world already had.  A weapon has no
+      // idle of its own, so standing still it takes the pose LPC puts at frame
+      // 0 of the walk, which is the standing one.
+      const armClip = want === 'idle' ? 'walk' : want
+      const armAt = want === 'idle' ? 0 : f
+      played.add(`hero:${want}`)
+      heroPose = { clip: want, frame: f, count: n }
+      if (arm && heroMeta.arms?.[arm]?.clips[armClip]) {
+        played.add(`arms:${arm}:${armClip}`)
+      }
       heroLayers = 1
-      drawArm(arm && `${arm}.bg`, armAt, X, Y, w / c)
+      drawArm(arm, armClip, 'behind', armAt, X, Y, w / c)
       ctx.drawImage(heroImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
-      drawArm(arm, armAt, X, Y, w / c)
+      drawArm(arm, armClip, 'front', armAt, X, Y, w / c)
       drawn++
     }
 
     /** One half of what he is holding, at the body's own scale. */
-    const drawArm = (name: string | null | undefined, f: number,
-      X: number, Y: number, k: number) => {
-      const a = name ? heroMeta.arms?.[name] : undefined
-      if (!a || !armsImg.complete || !armsImg.naturalWidth) return
-      ctx.drawImage(armsImg, (f % a.cols) * a.w, a.y + hero.dir * a.h, a.w, a.h,
+    const drawArm = (word: string | null, clip: string, half: string,
+      f: number, X: number, Y: number, k: number) => {
+      const a = word ? heroMeta.arms?.[word]?.clips[clip]?.[half] : undefined
+      const img = word ? armSheet(word) : null
+      if (!a || !img || !img.complete || !img.naturalWidth) return
+      ctx.drawImage(img, a.x + (f % a.cols) * a.w, a.y + hero.dir * a.h,
+        a.w, a.h,
         Math.round(X + a.dx * k), Math.round(Y + a.dy * k),
         Math.ceil(a.w * k), Math.ceil(a.h * k))
       heroLayers++
     }
+    /**
+     * How far a body is shoved out of its own square by a blow, in yards.
+     *
+     * **There is no hit pose and that is a measurement rather than an
+     * oversight.**  LPC draws `hurt` as six frames facing *down* — one
+     * direction of four — and the animal packs this world's beasts are cut
+     * from have no hurt row at all, so not one of the forty-eight kinds here
+     * has a flinch to play.  Baking a fifth of a hit animation would put a
+     * wolf face-on to the camera every time it was struck.
+     *
+     * So the flinch is motion over the art there is, which costs no sheet: a
+     * body is shoved away from whatever hit it and eases straight back.  How
+     * far is **the size of the blow** — a hit that takes a third of you moves
+     * you three times as far as one that takes a ninth — because a knockback
+     * that is the same for every blow says nothing, and this one says how
+     * badly that went.  Half a yard is the cap, which is a body's width.
+     *
+     * `HURT_SECONDS` is four of the world's own fifty-millisecond steps, and
+     * the thing that makes it the right length is that it is over before
+     * anything in this slice can swing again: the quickest weapon here is
+     * 1,300 ms.  `viewcheck` asserts that rather than trusting it.
+     */
+    const knock = (n: { hurt: number; knock: [number, number, number] | null }) => {
+      if (!n.knock || clock - n.hurt > HURT_SECONDS) return null
+      const t = (clock - n.hurt) / HURT_SECONDS
+      // Out fast and back slowly, which is what being hit looks like.
+      const far = Math.sin(t * Math.PI) * Math.min(0.5, n.knock[0] * 1.5)
+      return [n.knock[1] * far, n.knock[2] * far] as [number, number]
+    }
+
     /**
      * The dab of shade a body puts on the ground it stands on.
      *
@@ -5856,8 +6036,22 @@ async function main() {
       // The dead lie there and thin out, and come back in half a minute.
       const fade = n.dead ? Math.max(0.15, 1 - (clock - n.dead) / 6) : 1
       if (n.alpha * fade < 1) ctx.globalAlpha = n.alpha * fade
-      const X = Math.round(screenX(n.ix, n.iy) - w / 2)
-      const Y = Math.round(screenY(n.ix, n.iy) - w * npcArt.anchor)
+      // Shoved back by a blow, or leaning into one of its own.
+      //
+      // The lunge is the same mechanism as the flinch and the same reason for
+      // it: 48 kinds are cut from walk frames and none of them has an attack
+      // pose, so a creature that could only stand or walk stood perfectly
+      // still while it killed you.  It leans a fifth of a yard at whatever it
+      // is angry with over the first tenth of its swing and comes back.
+      const hurtBy = knock(n)
+      const lean = n.swung > 0 && clock - n.swung < HURT_SECONDS
+        ? Math.sin(((clock - n.swung) / HURT_SECONDS) * Math.PI) * 0.2 : 0
+      const toward = lean
+        ? Math.hypot(hero.x - n.x, hero.y - n.y) || 1 : 1
+      const ox = (hurtBy?.[0] ?? 0) + (lean ? ((hero.x - n.x) / toward) * lean : 0)
+      const oy = (hurtBy?.[1] ?? 0) + (lean ? ((hero.y - n.y) / toward) * lean : 0)
+      const X = Math.round(screenX(n.ix + ox, n.iy + oy) - w / 2)
+      const Y = Math.round(screenY(n.ix + ox, n.iy + oy) - w * npcArt.anchor)
       // What is in the hand, in two halves either side of the body.
       //
       // `creature_equip_template` says 934 of this slice's spawns hold
@@ -7120,9 +7314,15 @@ async function main() {
     const doll = dollArt?.who['male']?.layers ?? {}
     return {
       kinds: want,
-      // Both halves, because a weapon is drawn in front of the body and
-      // behind it, and half a sword is worse than none.
-      flat: want.filter((k) => !heroMeta.arms?.[k] || !heroMeta.arms?.[`${k}.bg`]),
+      // Both halves of both clips, because a weapon is drawn in front of the
+      // body and behind it, and half a sword is worse than none — and because
+      // a weapon with a walk and no swing is a sword that freezes mid-air the
+      // moment he uses it.
+      flat: want.filter((k) => {
+        const a = heroMeta.arms?.[k]
+        return !a || !['walk', a.swing].every((c) =>
+          a.clips[c]?.['front'] && a.clips[c]?.['behind'])
+      }),
       undressed: want.filter((k) => !doll[`male_weapon_${k}`]),
       held: armFor(gear['weapon']),
       layers: heroLayers,
@@ -7158,6 +7358,43 @@ async function main() {
       swing: you.line[SWING], stats: statsAt(you.level).slice(0, 3),
       worn: Object.keys(gear) } }
   }
+  /**
+   * Put one kind of weapon in his hand and start a swing, for the check that
+   * nothing is cut and left unplayed.
+   *
+   * The five weapons do not all swing alike — a polearm is thrust and the rest
+   * are slashed — so the only way to have played every baked clip is to have
+   * held every weapon, and no ordinary run of the game does that.
+   */
+  ;(window as unknown as { __wield: (word: string, swing?: boolean) => unknown })
+    .__wield = (word, swing = true) => {
+      const found = Object.entries(shelf.items)
+        .find(([, v]) => (v as Item)[I_ARM] === word)
+      if (!found) return { word, held: null }
+      const [id, it] = found as [string, Item]
+      const put = wear(gear, it, Number(id))
+      gear = put.gear
+      you.line = lineFor(you.level)
+      // Nothing to hit, so the swing this starts is the only one: a second
+      // one landing mid-check would restart the clip and the reading would be
+      // of whatever moment the frame happened to catch.
+      you.target = null
+      // `swing: false` is how the check sees him *standing* with each of them,
+      // which is a different strip of the same sheet: a weapon has no idle, so
+      // at rest it holds frame 0 of its walk.
+      you.swung = swing ? clock * 1000 : -1e9
+      you.next = you.swung + you.line[SWING]!
+      return { word, held: armFor(gear['weapon']), swing: you.line[SWING] }
+    }
+  /** Which clips this page has actually drawn — see `played`. */
+  ;(window as unknown as { __clips: () => unknown }).__clips = () => ({
+    played: [...played].sort(),
+    pose: heroPose,
+    hurtSeconds: HURT_SECONDS,
+    fastest: Math.min(...Object.values(shelf.items)
+      .filter((v) => (v as Item)[I_ARM])
+      .map((v) => (v as Item)[I_DELAY] as number)),
+  })
   /** Kill the player outright, for the check that dying costs a walk. */
   ;(window as unknown as { __die: () => unknown }).__die = () => {
     const was = { x: hero.x, y: hero.y, hp: you.hp }
