@@ -24,6 +24,37 @@ export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
   I_BOTH_HANDS = 11, I_STATS = 12
 
 /**
+ * What quality looks like.
+ *
+ * `I_QUALITY` was defined on the line above and read **nowhere else in this
+ * repository** — 353 green items, 34 blue and 8 purple looked exactly like the
+ * 976 white ones, and in the original the colour is the first thing you read
+ * about an item, before the name.  This game does not use the names at all, so
+ * the colour has to do more work here and not less.
+ *
+ * The colours are ours.  The original's come out of an engine function
+ * (`GetItemQualityColor`) rather than out of `FrameXML`, so there is no number
+ * to read — these are the six the interface already uses for everything else,
+ * pushed apart far enough to tell at a glance on the dark panels this game
+ * draws.  Index is `item_template.Quality`.
+ */
+export const QUALITY = [
+  '#8a8a8a',  // 0 — worth less than the walk back
+  '#e8e4d8',  // 1 — the ordinary thing, and the panels' own text colour
+  '#6fc25b',  // 2 — 353 of them, and the commonest upgrade at these levels
+  '#4d90d9',  // 3 — 34
+  '#a95fd0',  // 4 — 8
+  '#d9803a',  // 5
+  '#d9b23a',  // 6
+  '#c9a86a',  // 7 — one row has this, and it is the panels' own gold
+] as const
+
+/** The colour for one item, falling back to the ordinary. */
+export function tintOf(it: Item): string {
+  return QUALITY[it[I_QUALITY] as number] ?? QUALITY[1]!
+}
+
+/**
  * A row of `player.json`'s `kit` — what a new character is created holding,
  * out of `CharStartOutfit.dbc`.
  *

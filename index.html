@@ -273,8 +273,33 @@
       #sheet {
         position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
         min-width: 240px; padding: 10px 16px; font: var(--font-med)/1.9 var(--body);
+        /* So the cap `setSheet` measures is the cap: under the default
+           `content-box` the ten of padding either side and the border made
+           the panel twenty-two pixels taller than it was told to be, which is
+           exactly the overlap `uicheck` saw. */
+        box-sizing: border-box;
       }
       #sheet .row { display: flex; justify-content: space-between; gap: 24px; }
+      /* The thirteen squares of what he is wearing — see `setSheet`. */
+      /*
+        Fixed squares rather than `repeat(7, 1fr)` with `aspect-ratio`.  The
+        panel is `overflow: auto` under a `max-height`, and a row whose height
+        is only known after the columns are sized resolves too late to be
+        clipped by it — the second row drew ninety pixels below the panel's own
+        border.  A square that knows how big it is does not have that problem.
+      */
+      #sheet .worn {
+        display: grid; grid-template-columns: repeat(auto-fill, 34px);
+        gap: 4px; margin-top: 8px; justify-content: start;
+      }
+      #sheet .worn .square {
+        display: flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px;
+        border: 1px solid #3a3a33; border-radius: 3px;
+        background: rgba(0,0,0,.3);
+      }
+      #sheet .worn .square.bare { opacity: .3; }
+      #sheet .worn .pic { width: 74%; height: 74%; margin: 0; }
       #sheet .k { color: #9aa6ae; }
 
       #tip {
@@ -328,7 +353,25 @@
          single bar frame holds both. */
       #deck { position: fixed; display: flex; align-items: flex-end; gap: 8px; }
       #deck > * { flex: none; }
-      #bar { display: flex; gap: 4px; }
+      /*
+        Two rows of eight, not one row of sixteen.
+
+        The book holds seventeen abilities and a warrior who has bought
+        everything carries fifteen, so the bar outgrew one row: at 960 wide it
+        came to 1,040 pixels and hung forty off either end of the glass.  The
+        original stacks its bars rather than lengthening one, and a fixed
+        eight-wide grid has the property a growing row does not — the squares
+        stay where they were when you learn something.
+      */
+      #bar {
+        display: grid; grid-template-columns: repeat(8, 44px);
+        /* 44 for the square and 15 for the word under it.  The label is
+           positioned `bottom: -15px`, outside its square, so a grid row of 44
+           put the top row's words on top of the bottom row's squares and the
+           bottom row's words below the glass. */
+        grid-auto-rows: 59px; gap: 4px 4px;
+        align-items: start;
+      }
       .slot {
         position: relative; width: 44px; height: 44px; border-radius: 3px;
         background: linear-gradient(#2a2622, #14120f);
@@ -389,6 +432,8 @@
            to get out of it.  The original's gossip frame scrolls; so does
            this. */
         max-height: min(58vh, 420px); overflow-y: auto;
+        /* So the cap `place()` measures is the cap — see `#sheet`. */
+        box-sizing: border-box;
       }
       /* The paperdoll: a picture of the character wearing what he is
          wearing, composed from the layer sheets in `public/art/doll/`. */
@@ -409,6 +454,23 @@
       #talk li { cursor: pointer; padding: 2px 0; color: #9fc6e0; }
       #talk li:hover { color: #d8ecff; }
       #talk li b { color: #6f8ea6; font: var(--font-small) var(--mono); margin-right: 8px; }
+      /*
+        The picture on a row that is a thing rather than a sentence.
+
+        A mask and not an `<img>`, because the icons are cut white on
+        transparent on purpose — masked, one file paints in whatever colour
+        the quality asks for, where tinting an `<img>` means either a filter
+        chain that only approximates a colour or one copy of the file per
+        colour.
+      */
+      .pic {
+        display: inline-block; width: 1.15em; height: 1.15em;
+        vertical-align: -0.2em; margin-right: 6px;
+        background: currentColor;
+        -webkit-mask: var(--pic) center/contain no-repeat;
+        mask: var(--pic) center/contain no-repeat;
+      }
+      #bag li .pic, #sheet .pic { margin-right: 8px; }
       #talk .lines { color: #e8e4d8; padding: 2px 0 6px 26px; }
       #talk .foot { margin-top: 8px; color: #6b6658; font: var(--font-tiny)/1.5 var(--mono); }
 

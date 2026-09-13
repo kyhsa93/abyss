@@ -40,6 +40,17 @@ export type Option = {
   label: string
   lines: string[]
   /**
+   * A picture beside the label, as a path under `public/art/ui/`.
+   *
+   * A shop that says `식량 — 25동` twice is two different things with the same
+   * four characters on them, and this game does not use item names — so the
+   * picture is not decoration, it is the only thing on the row that tells one
+   * from the other.
+   */
+  icon?: string
+  /** And the quality, as a colour — see `QUALITY` in `sim/gear.ts`. */
+  tint?: string
+  /**
    * An option that *does* something, rather than one that says something.
    *
    * Called once, the first time it is opened, and what it returns becomes its
@@ -136,6 +147,11 @@ const GOODS: Record<string, string> = {
   // in and the noun is ours, because every item name in that dump is
   // Blizzard's prose.
   potion: '물약', food: '식량', bandage: '붕대', bag: '가방',
+  // `food` split by `item_template.FoodType`, which is the only column that
+  // told two of Goldshire's shop rows apart: both said 식량 and both cost
+  // 25동, and one is water and the other is bread.
+  drink: '음료', bread: '빵', cheese: '치즈', fish: '생선', fruit: '과일',
+  mushroom: '버섯', 'raw meat': '생고기', 'raw fish': '생선(날것)',
   weapon: '무기', cloth: '천', leather: '가죽',
   ore: '광석', meat: '고기', herb: '약초', material: '재료',
   recipe: '도면', quiver: '화살통', errand: '심부름 물건',

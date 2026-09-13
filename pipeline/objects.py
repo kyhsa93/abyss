@@ -42,7 +42,8 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import (columns, rows, split, split_head, goods_of,  # noqa: E402
-                         loot_rows, flatten)
+                         loot_rows, flatten, ITEM_FIELDS, I_FOOD_TYPE,
+                         FOOD)
 from slice import BOUNDS, MAP  # noqa: E402
 import bake_terrain as terrain  # noqa: E402
 
@@ -164,7 +165,15 @@ def loot_tables(base, table, cut):
     for line in rows(os.path.join(base, 'item_template.sql')):
         f = split_head(line, 12)
         try:
-            iclass[int(f[0])] = (int(f[1]), int(f[2]))
+            cls, sub = int(f[1]), int(f[2])
+            # `FoodType` is column 133 and it is the only one that tells a
+            # drink from a loaf — see `FOOD_TYPE`.  Reached in a second pass
+            # over the few rows that are food rather than by splitting all
+            # 46,096 to a hundred and thirty-four fields, which took this
+            # script from six seconds to fourteen.
+            food = (int(split_head(line, ITEM_FIELDS)[I_FOOD_TYPE])
+                    if (cls, sub) == FOOD else 0)
+            iclass[int(f[0])] = (cls, sub, food)
             sells[int(f[0])] = int(f[11])
         except (ValueError, IndexError):
             continue

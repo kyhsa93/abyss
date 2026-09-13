@@ -275,6 +275,10 @@ def main(acore, client, out):
             hi = round(float(f[col['dmg_max1']]), 1)
             delay = int(f[col['delay']])
             armour = int(f[col['armor']])
+            # Which of the food types it is, or nothing for anything that is
+            # not food.  `FoodType` is the only column that tells two of
+            # Goldshire's shop rows apart — see `FOOD_TYPE`.
+            food = int(f[col['FoodType']]) if 'FoodType' in col else None
         except (ValueError, KeyError, IndexError):
             skipped += 1
             continue
@@ -311,7 +315,7 @@ def main(acore, client, out):
             if v and t in STAT_OF:
                 stats.append([STAT_OF[t], v])
         items[str(e)] = [
-            goods_of(cls, sub),          # our word for what it is
+            goods_of(cls, sub, food),    # our word for what it is
             SLOTS.get(inv, ''),          # where it goes, or nowhere
             quality, ilvl, need,
             lo, hi, delay, armour,

@@ -231,5 +231,38 @@ check('and they run in Node with no browser at all',
     clash.join('; '))
 }
 
+/**
+ * Every column of a baked item is read by something.
+ *
+ * The pipeline has had this gate since `audit.py` was written — a classifier
+ * may take a default only if somebody has declared that name — and `src/` had
+ * no such thing.  `I_QUALITY` was the proof: defined on one line of `gear.ts`
+ * and read **nowhere else in the repository**, so 353 green items, 34 blue and
+ * 8 purple were drawn exactly like the 976 white ones, and in the original the
+ * colour is the first thing you read about an item.  A baked column nobody
+ * reads is a decision somebody made in the pipeline and nobody carried out.
+ *
+ * The names rather than the numbers, because the numbers are positions and a
+ * position is not a fact about the item: `I_SLOT` is 1 today.
+ */
+{
+  const decl = readFileSync(join('src', 'sim', 'gear.ts'), 'utf8')
+  const cols = [...decl.matchAll(/\bI_([A-Z_]+)\s*=\s*\d+/g)]
+    .map((m) => `I_${m[1]}`)
+  const source = readdirSync('src', { recursive: true })
+    .filter((f) => String(f).endsWith('.ts'))
+    .map((f) => readFileSync(join('src', String(f)), 'utf8'))
+    .join('\n')
+  // The `I_X = n` that names it is not a use of it, and the export line that
+  // lists them all is one occurrence each; everything past that is somebody
+  // reading the column.
+  const unread = cols.filter((c) =>
+    [...source.matchAll(new RegExp(`\\b${c}\\b`, 'g'))].length <= 1)
+  check(`every baked item column is read somewhere in src/`,
+    unread.length === 0,
+    unread.length ? `${cols.length} columns, never read: ${unread.join(' ')}`
+      : `all ${cols.length} of them`)
+}
+
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

@@ -466,10 +466,27 @@ GOODS = {
 }
 
 
-def goods_of(cls, sub):
+# And inside `food`, what sort of food.  `item_template.FoodType` is the
+# client's own enum and it was a column nobody read — which showed, because it
+# is the only column that tells two of Goldshire's shop rows apart.  Items 159
+# and 4540 are identical in every field this bake kept: `food`, no slot,
+# quality 1, item level 5, buy 25, sell 1.  One is a drink and the other is
+# bread, and `FoodType` is where that lives.  A shop that prints the same four
+# characters and the same price on two consecutive lines is a shop with no way
+# to choose, and this game does not use item names to fall back on.
+FOOD_TYPE = {
+    0: 'drink', 1: 'meat', 2: 'fish', 3: 'cheese', 4: 'bread',
+    5: 'mushroom', 6: 'fruit', 7: 'raw meat', 8: 'raw fish',
+}
+
+
+def goods_of(cls, sub, food=None):
     """One of our words for an item, or `oddment` if it is nothing in
     particular — which is what most of what a kobold carries actually is."""
-    return GOODS.get((cls, sub)) or GOODS.get((cls, None)) or 'oddment'
+    word = GOODS.get((cls, sub)) or GOODS.get((cls, None)) or 'oddment'
+    if word == 'food' and food is not None:
+        return FOOD_TYPE.get(food, 'food')
+    return word
 
 
 # `conditions.SourceTypeOrReferenceId` — only the one this world can act on so
@@ -523,6 +540,16 @@ def loot_conditions(base):
 
 # `item_template.class` 2.  One number, named once, because three places ask.
 WEAPON_CLASS = 2
+
+#: `item_template.FoodType`'s column, and how far a row has to be split to
+#: reach it.  Read out of the dump's own `CREATE TABLE` by `columns()` in the
+#: one place that can afford to; named here because two loot readers split a
+#: fixed prefix rather than the whole row.
+I_FOOD_TYPE = 133
+ITEM_FIELDS = I_FOOD_TYPE + 1
+#: `(class, subclass)` for food and drink, which is the only pair that has to
+#: be split that far.
+FOOD = (0, 5)
 
 # `item_template.subclass` inside class 2, weapons, mapped onto the five
 # sheets `bake_npcs.py` cuts.  The numbers are the client's own enum and the
@@ -720,7 +747,15 @@ def skinning_tables(base, cut):
     for line in rows(os.path.join(base, 'item_template.sql')):
         f = split_head(line, 12)
         try:
-            iclass[int(f[0])] = (int(f[1]), int(f[2]))
+            cls, sub = int(f[1]), int(f[2])
+            # `FoodType` is column 133 and it is the only one that tells a
+            # drink from a loaf — see `FOOD_TYPE`.  Reached in a second pass
+            # over the few rows that are food rather than by splitting all
+            # 46,096 to a hundred and thirty-four fields, which took this
+            # script from six seconds to fourteen.
+            food = (int(split_head(line, ITEM_FIELDS)[I_FOOD_TYPE])
+                    if (cls, sub) == FOOD else 0)
+            iclass[int(f[0])] = (cls, sub, food)
             sells[int(f[0])] = int(f[11])
         except (ValueError, IndexError):
             continue
@@ -751,7 +786,15 @@ def loot_tables(base, kinds_by_entry, cut=None):
     for line in rows(os.path.join(base, 'item_template.sql')):
         f = split_head(line, 12)
         try:
-            iclass[int(f[0])] = (int(f[1]), int(f[2]))
+            cls, sub = int(f[1]), int(f[2])
+            # `FoodType` is column 133 and it is the only one that tells a
+            # drink from a loaf — see `FOOD_TYPE`.  Reached in a second pass
+            # over the few rows that are food rather than by splitting all
+            # 46,096 to a hundred and thirty-four fields, which took this
+            # script from six seconds to fourteen.
+            food = (int(split_head(line, ITEM_FIELDS)[I_FOOD_TYPE])
+                    if (cls, sub) == FOOD else 0)
+            iclass[int(f[0])] = (cls, sub, food)
             sells[int(f[0])] = int(f[11])
         except (ValueError, IndexError):
             continue

@@ -338,12 +338,19 @@ export function hud(layout?: Layout) {
       foe.text.textContent = `${Math.round(u.hp)} / ${u.max}`
     },
 
-    /** What you are carrying, and whether anybody is looking at it. */
-    setBag(open: boolean, purse: string, items: [string, number, string][]) {
+    /**
+     * What you are carrying, and whether anybody is looking at it.
+     *
+     * A row is a picture, a word and a count.  It was a word and a count, and
+     * a word on its own is what this game has instead of a name — so eleven
+     * kinds of thing read as eleven lines of Korean and nothing else.
+     */
+    setBag(open: boolean, purse: string,
+      items: [string, number, string, string][]) {
       bagPanel.hidden = !open
       if (!open) return
       bagTitle.textContent = `가방  —  ${purse}`
-      const want = items.map(([w, n, t]) => `${w} ${n} ${t}`).join('\n')
+      const want = items.map(([w, n, t, p]) => `${w} ${n} ${t} ${p}`).join('\n')
       if (bagList.dataset['now'] === want) return
       bagList.dataset['now'] = want
       bagList.textContent = ''
@@ -351,9 +358,14 @@ export function hud(layout?: Layout) {
         el('li', 'empty', bagList).textContent = '비어 있다'
         return
       }
-      for (const [word, many, worth] of items) {
+      for (const [word, many, worth, icon] of items) {
         const li = el('li', '', bagList)
-        el('span', 'what', li).textContent = word
+        const what = el('span', 'what', li)
+        if (icon) {
+          const p = el('span', 'pic', what)
+          p.style.setProperty('--pic', `url(./art/ui/${icon})`)
+        }
+        what.append(document.createTextNode(word))
         el('span', 'many', li).textContent = `${many}`
         li.onmouseenter = () => {
           const box = li.getBoundingClientRect()
@@ -477,12 +489,32 @@ export function hud(layout?: Layout) {
     },
 
     /** The character sheet, or nothing. */
-    setSheet(open: boolean, rows: [string, string][], doll?: HTMLCanvasElement) {
+    /**
+     * The character sheet, and the thirteen squares of what he is wearing.
+     *
+     * `worn` is one entry a slot, empty ones included: `[slot, picture,
+     * colour, what it is]`.  The sheet used to say `입은 것: 속옷, 다리, 발,
+     * 무기`, which is a list of **which squares are full** and not of what is
+     * in them — and with no item names in this game a word was never going to
+     * fill that gap.  A picture in the quality's own colour says both at once.
+     */
+    setSheet(open: boolean, rows: [string, string][], doll?: HTMLCanvasElement,
+      worn?: [string, string, string, string][]) {
       const was = sheet.hidden
       sheet.hidden = !open
       if (was !== sheet.hidden) seat()
       if (!open) return
+      // How far down it may grow, measured here rather than in `place()` —
+      // this panel is hidden when the layout runs, and a hidden element's
+      // rectangle is all noughts, so the cap came out eighty pixels too
+      // generous and the squares walked into the key hints.  From where its
+      // own top landed to where the hints begin, which is the highest thing
+      // in the strip along the bottom.
+      sheet.style.maxHeight = `${Math.round(Math.max(180,
+        innerHeight - parseFloat(helpLine.style.bottom || '0')
+        - helpLine.offsetHeight - sheet.getBoundingClientRect().top - 8))}px`
       const want = rows.map(([k, v]) => `${k}\t${v}`).join('\n')
+        + '\n' + (worn ?? []).map((w) => w.join('\t')).join('\n')
       if (sheet.dataset['now'] === want) return
       sheet.dataset['now'] = want
       sheet.textContent = ''
@@ -498,6 +530,17 @@ export function hud(layout?: Layout) {
         const line = el('div', 'row', sheet)
         el('span', 'k', line).textContent = k
         el('span', 'v', line).textContent = v
+      }
+      if (worn && worn.length) {
+        const grid = el('div', 'worn', sheet)
+        for (const [slot, icon, tint, what] of worn) {
+          const box = el('div', 'square', grid)
+          box.title = what ? `${slot} — ${what}` : `${slot} — 비어 있다`
+          if (!what) box.classList.add('bare')
+          const p = el('span', 'pic', box)
+          p.style.setProperty('--pic', `url(./art/ui/${icon})`)
+          if (tint) p.style.color = tint
+        }
       }
     },
 
@@ -915,6 +958,20 @@ export function hud(layout?: Layout) {
     // The backpack clears the whole deck.  The original's 70 clears its own
     // 53 plus 13 of experience bar with four to spare, and that is the rule.
     const floor = tall + xpBar.offsetHeight + 4
+    // And the log clears the same floor, for the reason the comment above
+    // gives: the original's 95 clears the original's 53-pixel bar, and the
+    // *relationship* is what transfers.  Ours grew to two rows the day the
+    // spellbook outgrew one (issue 155), and the strip that had been sitting
+    // at an absolute 95 was suddenly under the experience bar.
+    logBox.style.bottom = `${Math.round(Math.max(
+      (f['log']?.y ?? 95) * s,
+      tall + xpBar.offsetHeight + swingBar.offsetHeight + 6))}px`
+    // And the sheet stops before it reaches any of that.  A panel that grew —
+    // the thirteen squares of what he is wearing, issue 156 — walked straight
+    // into the strip along the bottom on a short window.  The cap is measured
+    // rather than chosen, and measured *after* everything under it has been
+    // placed: from where this panel's own top landed to where the key hints
+    // begin, which is the highest thing in that strip.
     bagPanel.style.bottom =
       `${Math.round(Math.max((f['bag']?.y ?? 70) * s, floor))}px`
     // The key hints sit above the chat log.  The original has no such line —
@@ -925,9 +982,19 @@ export function hud(layout?: Layout) {
     helpLine.style.right = 'auto'
     helpLine.style.top = 'auto'
     helpLine.style.bottom =
-      `${Math.round((f['log']?.y ?? 95) * s) + logBox.offsetHeight + 6}px`
+      `${parseFloat(logBox.style.bottom) + logBox.offsetHeight + 6}px`
     const talk = document.getElementById('talk')
-    if (talk) pin(talk, f['talk'], s)
+    if (talk) {
+      pin(talk, f['talk'], s)
+      // And the conversation stops before the key hints.  It hangs from the
+      // top — `FrameXML` anchors the gossip window `TOPLEFT` at 104 — and
+      // grows downwards, so the thing to cap is its height and not its
+      // bottom.  `FrameXML`'s own 512 clears `FrameXML`'s own bar; ours is two
+      // rows now, so the number does not transfer and the relationship does.
+      talk.style.maxHeight = `${Math.round(Math.max(160,
+        innerHeight - parseFloat(helpLine.style.bottom)
+        - helpLine.offsetHeight - parseFloat(talk.style.top || '0') - 8))}px`
+    }
     // The tracker goes under the minimap on the right, which is where that
     // game puts it and the one strip of screen nothing else wants.
     const m = f['map']

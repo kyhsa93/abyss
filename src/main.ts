@@ -26,7 +26,7 @@ import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
-import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, K_ARMOUR, K_ID, type Item, type Shelf } from './sim/gear.ts'
+import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
@@ -133,6 +133,15 @@ type Piece = { x: number; y: number; w: number; h: number; kind: string }
 type Frames = { first: number; frames: number; people: boolean; yards?: number
   /** A layer that goes on a person rather than being one — see `WEAPONS`. */
   weapon?: boolean }
+
+/** Which picture goes with what, out of `pipeline/bake_ui.py`. */
+type Art = {
+  chrome: Record<string, string>
+  spells: Record<string, string>
+  /** Keyed `"<our word>|<slot>"`, because JSON has no tuple key. */
+  goods: Record<string, string>
+  slots: Record<string, string>
+}
 
 type NpcArt = {
   cell: number; cols: number; anchor: number
@@ -285,13 +294,18 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things, who, shelf] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, who, shelf] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
     fetch('./art/hero.json').then((r) => r.json() as Promise<HeroArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
+    // Which picture goes with what — see `pipeline/bake_ui.py`.  One list,
+    // written where the files are copied from, rather than a file list in the
+    // bake and a drawing list here that quietly stop agreeing.
+    fetch('./art/ui.json').then((r) => r.json() as Promise<Art>)
+      .catch(() => ({ chrome: {}, spells: {}, goods: {}, slots: {} } as Art)),
     // Not behind the two-worlds switch, and that is not an oversight: the
     // terrain has two sources because a client's height grid is sharper than
     // anything a database knows, but where a wolf stands is a row in
@@ -2572,9 +2586,37 @@ async function main() {
       && (sp.free || taught.includes(sp.id)))
     .sort((a, b) => a.level - b.level || a.id - b.id)
   let spells = known(HERO_LEVEL)
-  const ICON_OF: Record<number, string> = {
-    78: 'lorc/sword-slice.svg', 6673: 'lorc/shouting.svg',
-    100: 'delapouite/charging-bull.svg', 772: 'lorc/bleeding-wound.svg',
+  /**
+   * Which picture goes with what, out of `pipeline/bake_ui.py`.
+   *
+   * This was a table here with four entries in it, because the bar had four
+   * squares the day somebody wrote it.  The bar grew to twelve and the table
+   * did not, and `?? 'sword-slice'` quietly put one picture on seven
+   * abilities — including the racial that shakes a snare off, drawn as a
+   * sword.  A file list in the bake and a drawing list in the scene are two
+   * lists that drift, so there is one: the bake copies exactly what it maps
+   * and writes `ui.json` beside the icons, and a spell with no entry fails
+   * the bake rather than getting a sword.
+   */
+  const iconOf = (id: number): string =>
+    art.spells[String(id)] ?? art.chrome['attack'] ?? ''
+  /** And for a thing: its sort and where it goes, which is 31 pairs in all. */
+  const iconFor = (it: Item): string =>
+    art.goods[`${it[I_WORD]}|${it[I_SLOT] ?? ''}`] ?? ''
+
+  /**
+   * One icon as an element, painted in whatever colour is asked for.
+   *
+   * A mask rather than an `<img>`, because the archive is cut white on
+   * transparent on purpose: masked, one file paints in any colour, where
+   * tinting an image means a filter chain that only approximates one.
+   */
+  const pic = (path: string, tint?: string): HTMLElement => {
+    const s = document.createElement('span')
+    s.className = 'pic'
+    s.style.setProperty('--pic', `url(./art/ui/${path})`)
+    if (tint) s.style.color = tint
+    return s
   }
 
   /** Whether a thing can be used right now, and why not if it cannot. */
@@ -3449,6 +3491,12 @@ async function main() {
     // is what the branch at the bottom of this handler is for.
     const act = !(chat && k >= '1' && k <= '9') ? pressable.get(k) : undefined
     if (act) { e.preventDefault(); act() }
+    // Talking, which is a verb and not an ability.  It had a square on the bar
+    // and the square carried the binding; when the spellbook outgrew one row
+    // the square went and the key went with it, and `questcheck` stopped
+    // being able to talk to anybody at all.  A binding that lives inside a
+    // list of abilities is a binding that leaves when the list is rearranged.
+    if (k === 'e') { e.preventDefault(); toggleTalk() }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
     // Off and on.  Everything a sound says is also on screen — that is a rule
     // with a check behind it — so this costs nothing but the noise.
@@ -3798,7 +3846,18 @@ async function main() {
         const li = document.createElement('li')
         const b = document.createElement('b')
         b.textContent = String(i + 1)
-        li.append(b, document.createTextNode(o.label))
+        li.append(b)
+        // The picture, when the row is a thing rather than a sentence.  A
+        // shop that says `식량 — 25동` on two consecutive rows is two
+        // different things wearing the same four characters, and this game
+        // does not use item names at all — so the picture is the only thing
+        // on the row that tells them apart, and the quality is the only thing
+        // that says which is worth having.
+        if (o.icon) li.append(pic(o.icon, o.tint))
+        const text = document.createElement('span')
+        text.textContent = o.label
+        if (o.tint) text.style.color = o.tint
+        li.append(text)
         li.onclick = () => choose(i)
         ol.appendChild(li)
         if (open === i) {
@@ -3832,14 +3891,30 @@ async function main() {
    */
   const sellAll = (): string[] => {
     const rows = Object.entries(you.bag)
-    if (rows.length === 0) return ['팔 것이 없소.']
+    // And the things he is carrying but not wearing, which had no way out at
+    // all: an item could be bought, found and worn, and `I_SELL` was a column
+    // the bake filled that nothing in `src/` ever read — so a spare sword was
+    // a number in a list forever.  Only what is *not* on him; taking the
+    // shirt off his back over a counter is a different gesture.
+    const spare = held.filter((id) => {
+      const it = itemOf(id)
+      return it && (it[I_SELL] as number) > 0
+    })
+    if (rows.length === 0 && spare.length === 0) return ['팔 것이 없소.']
     let paid = 0
     const said: string[] = []
     for (const [word, [many, worth]] of rows) {
       paid += worth
       said.push(`${goodsOf(word)} ${many} — ${worth > 0 ? coin(worth) : '값이 없다'}`)
     }
+    for (const id of spare) {
+      const it = itemOf(id)!
+      const worth = it[I_SELL] as number
+      paid += worth
+      said.push(`${describe(it)} — ${coin(worth)}`)
+    }
     you.bag = {}
+    held = held.filter((id) => !spare.includes(id))
     you.purse += paid
     said.push(paid > 0 ? `모두 ${coin(paid)}.` : '한 푼도 쳐주지 않는다.')
     return said
@@ -4143,6 +4218,7 @@ async function main() {
             return {
               label: `마치고 받기 — ${it ? describe(it) : `물건 ${id}`}`
                 + (many > 1 ? ` x${many}` : ''),
+              ...(it ? { icon: iconFor(it), tint: tintOf(it) } : {}),
               lines: it ? [detail(it)] : [],
               act: () => payOut(i),
             } as Option
@@ -4183,6 +4259,7 @@ async function main() {
         const price = it[I_BUY] as number
         speech.options.push({
           label: `${describe(it)} — ${coin(price)}`,
+          icon: iconFor(it), tint: tintOf(it),
           lines: [detail(it)],
           act: () => {
             if (you.purse < price) return ['돈이 모자라오.']
@@ -5652,13 +5729,13 @@ async function main() {
     const foe = you.target
     ui.setMe({
       name: '주인공', level: you.level, hp: you.hp, max: you.max,
-      icon: 'sbed/health-normal.svg', face: paintFace(), foe: false,
+      icon: art.chrome['health'] ?? '', face: paintFace(), foe: false,
     })
     ui.setFoe(foe ? {
       name: nameOf(foe.kind), level: foe.level, hp: foe.hp, max: foe.max,
-      icon: foe.art.startsWith('townsfolk') || foe.art.startsWith('guard')
+      icon: (foe.art.startsWith('townsfolk') || foe.art.startsWith('guard')
         || foe.art.startsWith('bandit')
-        ? 'delapouite/sword-brandish.svg' : 'lorc/wolf-head.svg',
+        ? art.chrome['person'] : art.chrome['beast']) ?? '',
       face: paintFoe(foe),
       foe: fightable(foe.fight),
     } : null)
@@ -5751,9 +5828,8 @@ async function main() {
       // 속옷 방어구 — which is a label saying the same thing twice, and the
       // second half was the only thing on the sheet that knew the outfit
       // existed at all.
-      ['입은 것', Object.entries(gear).length
-        ? Object.entries(gear).map(([slot]) => SLOT_WORD[slot] ?? slot).join(', ')
-        : `없음  (가진 것 ${held.length}, G로 입는다)`],
+      ['입은 것', `${Object.entries(gear).length} / ${SLOTS.length}`
+        + (held.length ? `  (가진 것 ${held.length}, G로 입는다)` : '')],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
       // What the run was, once it is over.  A ceiling that says nothing when
@@ -5765,23 +5841,57 @@ async function main() {
         ['마친 일거리', `${log.done.size}`],
         ['다음', '특성. 다음 슬라이스의 첫 항목이다'],
       ] as [string, string][] : []),
-    ], paintDoll() ?? undefined)
+    ], paintDoll() ?? undefined,
+    // And the thirteen squares, empty ones included.  What is worn rather
+    // than which squares are full, which is what this said before — and with
+    // no item names in this game a word could never have said the difference.
+    SLOTS.map((slot) => {
+      const id = gear[slot]
+      const it = id !== undefined ? itemOf(id) : null
+      return [SLOT_WORD[slot] ?? slot,
+        it ? iconFor(it) : (art.slots[slot] ?? ''),
+        it ? tintOf(it) : '',
+        it ? `${describe(it)} — ${detail(it)}` : ''] as
+        [string, string, string, string]
+    }))
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
       Object.entries(you.bag)
         .map(([w, [n, worth]]) =>
-          [goodsOf(w), n, coin(worth)] as [string, number, string])
+          // The word on its own is what this game has instead of a name, so
+          // a bag of eleven words is eleven lines of Korean.  The picture is
+          // keyed on `(word, slot)` and a stack has no slot — everything that
+          // does goes in `held` and is worn rather than counted.
+          [goodsOf(w), n, coin(worth), art.goods[`${w}|`] ?? ''] as
+            [string, number, string, string])
         .sort((a, b) => b[1] - a[1]))
-    // Twelve squares, because that is how many the bar has.  Ten of them are
-    // empty and they are drawn empty: a bar that grows as you learn things is
-    // a bar that moves under your thumb, and the two that do something are in
-    // the same place they will always be.
-    const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=']
-    // Twelve squares: attack takes the first key, talk takes `E` because it
-    // is a verb and not an ability, and the ten in between are the abilities
-    // in the order they are learned.  Ten is exactly what a warrior can hold
-    // by level ten, which is where this game ends.
-    const SPELL_KEYS = KEYS.slice(1, 11)
+    // Sixteen squares, and the number is not a taste.
+    //
+    // It was twelve — the original's bar — with attack on the first, talk on
+    // the second and ten for abilities, under a comment saying *ten is exactly
+    // what a warrior can hold by level ten*.  That was true of a book with
+    // thirteen things in it.  It holds seventeen now (issue 148), of which a
+    // character who has bought everything a trainer sells carries **fifteen**,
+    // and the four that did not fit had no key at all — which `uicheck` caught
+    // the moment the book grew, from the other end: a filled square with no
+    // letter on it.
+    //
+    // So the bar is as long as the book, and talk gives up its square.  It was
+    // never an ability and the original has no button for it either — you
+    // click the person, the help line says `E`, and on a phone `padcheck`
+    // already documents that you tap them.  A square that is a verb was the
+    // odd one out.
+    // The number row and then four letters the game was not already using.
+    // Not `W`: that walks you forward, and a key that both walks and swings
+    // is the same class of mistake as a square labelled one higher than the
+    // key that presses it, which this file has already made once.
+    const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
+      'Q', 'R', 'T', 'F']
+    // Attack takes the first key and the rest are the abilities in the order
+    // they are learned.  Fifteen is what a warrior can hold by level ten,
+    // which is where this game ends — measured by learning the whole book
+    // rather than counted off a list.
+    const SPELL_KEYS = KEYS.slice(1)
     // One table, read twice: the letter drawn on a square and the key that
     // presses it come out of the same place.  They used to be worked out
     // separately — the bar drew `KEYS[i + 2]` and the keyboard did
@@ -5791,7 +5901,7 @@ async function main() {
     // drew out to `=` and the handler stopped at `9`.
     squares = [
       {
-        key: '1', label: '공격', icon: 'lorc/broadsword.svg',
+        key: '1', label: '공격', icon: art.chrome['attack'] ?? '',
         tip: `공격  —  ${you.line[LO]}–${you.line[HI]} 피해\n`
           + `${(you.line[SWING]! / 1000).toFixed(1)}초마다 한 번\n`
           + (you.target ? `대상: ${nameOf(you.target.kind)}`
@@ -5803,22 +5913,13 @@ async function main() {
           ? Math.max(0, (you.next - clock * 1000) / you.line[SWING]!) : 0,
         live: you.target !== null || inSwing() !== null,
       },
-      {
-        key: 'E', label: '대화', icon: 'skoll/talk.svg',
-        tip: chat ? '대화를 끝낸다'
-          : corpse() ? `${nameOf(corpse()!.kind)}의 주머니를 뒤진다`
-            : listener ? `${nameOf(listener.kind)}에게 말을 건다`
-              : '말을 걸 사람도 뒤질 것도 없다',
-        use: () => toggleTalk(),
-        cooling: 0, live: listener !== null || chat !== null || corpse() !== null,
-      },
       ...spells.map((sp, i) => {
         const [word, what] = abilityOf(sp.id)!
         const stop = why(sp)
         const ready = you.cools[sp.id] ?? 0
         return {
           key: SPELL_KEYS[i] ?? '', label: word,
-          icon: ICON_OF[sp.id] ?? 'lorc/sword-slice.svg',
+          icon: iconOf(sp.id),
           tip: `${word}  —  분노 ${sp.rage}\n${what}`
             + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
             + (sp.gcd ? `\n전역 대기 ${(gcdOf(sp) / 1000).toFixed(1)}초`
@@ -5845,11 +5946,11 @@ async function main() {
     for (const sq of squares) if (sq.use) pressable.set(sq.key.toLowerCase(), sq.use)
     ui.setRage(you.rage, MAX_RAGE)
     ui.setAuras('me', you.shout && you.shout.until > clock
-      ? [{ icon: 'lorc/shouting.svg', left: you.shout.until - clock,
+      ? [{ icon: iconOf(6673), left: you.shout.until - clock,
            text: `외침  —  공격력 +${you.shout.ap}` }]
       : [])
     ui.setAuras('foe', you.target?.bleed
-      ? [{ icon: 'lorc/bleeding-wound.svg', left: you.target.bleed.until - clock,
+      ? [{ icon: iconOf(772), left: you.target.bleed.until - clock,
            text: `찢기  —  3초마다 ${you.target.bleed.each}` }]
       : [])
 
@@ -6096,7 +6197,7 @@ async function main() {
   ;(window as unknown as { __all: () => unknown }).__all = () =>
     npcs.map((n) => ({
       x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander,
-      kind: n.kind, level: n.level,
+      kind: n.kind, level: n.level, role: n.role,
       // What it is holding and what comes off it, for the checks that read
       // `creature_equip_template` and `skinning_loot_template` back out.
       arm: n.arm, dual: n.dual,

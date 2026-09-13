@@ -231,30 +231,45 @@ for (const [W, H] of SIZES) {
 
   const before = await onScreen()
   const filled = (bar) => bar.squares.filter((sq) => sq.filled).length
+  // `1 +` and not `2 +`: attack keeps the first square and **talk gave its up**
+  // when the spellbook outgrew one row (issue 155).  Talking was never an
+  // ability, the original has no button for it either — you click the person —
+  // and the help line says `E`.
   check('the bar starts with what the character knows',
-    filled(before) === 2 + before.spells.length,
+    filled(before) === 1 + before.spells.length,
     `${filled(before)} filled, ${before.spells.length} spells`)
 
   // Learn everything a trainer in this slice teaches, at the level that can
   // hold it, and look again.
+  //
+  // The whole book rather than a list typed here, because a list typed here is
+  // what let the bar outgrow its keys unnoticed: it named ten abilities on the
+  // day the book held thirteen, and when the book grew to seventeen this check
+  // went on learning the same ten.
   await p.evaluate(async () => {
     // Level ten, by earning it, so the abilities that need a level are held.
     window.__earn(100000)
-    for (const id of [78, 6673, 100, 772, 6343, 34428, 284, 1715, 6546, 59752]) {
-      window.__learn(id)
-    }
+    const book = (await (await fetch('./world/spells.json')).json()).spells
+    for (const sp of book) window.__learn(sp.id)
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
   })
   const after = await onScreen()
   check('and it grows when the character learns',
-    filled(after) === 2 + after.spells.length && after.spells.length > before.spells.length,
+    filled(after) === 1 + after.spells.length && after.spells.length > before.spells.length,
     `${before.spells.length} -> ${after.spells.length} spells, ${filled(after)} filled`)
+  // And there is a square for every one of them.  The count of squares is a
+  // decision — the original's bar is twelve and ours is two rows of eight —
+  // and the thing that must hold is that a character who has bought everything
+  // can press all of it.
+  check('and there is room for everything a character can hold',
+    after.squares.length >= 1 + after.spells.length,
+    `${after.squares.length} squares for ${1 + after.spells.length}`)
 
   // And every square answers to the letter written on it.  Pressed for real
   // through the keyboard, because the bug was in the handler and a check that
   // calls the table would have passed while it was broken.
   const wrong = []
-  for (let i = 2; i < after.squares.length; i++) {
+  for (let i = 1; i < after.squares.length; i++) {
     const sq = after.squares[i]
     if (!sq.filled) continue
     // A filled square with no letter on it is the same bug seen from the
@@ -262,8 +277,8 @@ for (const [W, H] of SIZES) {
     if (!sq.key) { wrong.push(`${sq.label} has no key`); continue }
     await p.keyboard.press(sq.key)
     const heard = await p.evaluate(() => window.__bar().asked)
-    if (heard !== after.spells[i - 2]) {
-      wrong.push(`${sq.key}=${sq.label} fired ${heard} not ${after.spells[i - 2]}`)
+    if (heard !== after.spells[i - 1]) {
+      wrong.push(`${sq.key}=${sq.label} fired ${heard} not ${after.spells[i - 1]}`)
     }
   }
   check('and every square answers to the letter on it', wrong.length === 0,
