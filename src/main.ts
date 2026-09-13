@@ -3664,6 +3664,111 @@ async function main() {
     fetch('./art/doll.json').then((r) => r.json() as Promise<DollMeta>)
       .catch(() => null),
   ]).then(([m]) => m)
+  /**
+   * The player's face, for the portrait.
+   *
+   * `PlayerFrame.xml` puts a 64 by 64 `PlayerPortrait` at the head of twenty
+   * textures and what the client puts in it is the character's own head.
+   * Ours was `sbed/health-normal` — a white cross — while the fifty-eight
+   * layer sheets of that same character sat in `public/art/doll/` and the
+   * paperdoll composed them two panels away.
+   *
+   * The same layers as the doll, cropped to the head: a helmet shows in the
+   * portrait, which is what the original does and is the reason the portrait
+   * is a portrait rather than a class badge.
+   */
+  const faceCanvas = document.createElement('canvas')
+  let faceFrom = ''
+  /**
+   * The player's face, cropped out of the paperdoll.
+   *
+   * `PlayerFrame.xml` puts a 64 by 64 `PlayerPortrait` at the head of twenty
+   * textures, and what the client puts in it is the character's own head.
+   * Ours was `sbed/health-normal` — a white cross — while the fifty-eight
+   * layer sheets of that same character sat in `public/art/doll/` and the
+   * paperdoll composed them two panels away.
+   *
+   * A window over the doll and **not a second composition**, which was the
+   * first attempt: the layers are packed at their own sizes with `dx`/`dy`
+   * into a 57-pixel cell, so recomputing that geometry with a zoom over it
+   * drew four per cent of a face.  The doll already solves it.  A helmet
+   * shows in the portrait for free, which is what the original does and the
+   * reason a portrait is a portrait rather than a class badge.
+   */
+  const paintFace = () => {
+    const doll = paintDoll()
+    if (!doll || !doll.width) return null
+    const key = `${dollKey}|${doll.width}`
+    if (key === faceFrom && faceCanvas.width) return faceCanvas
+    const side = 64
+    faceCanvas.width = side
+    faceCanvas.height = side
+    const g = faceCanvas.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    g.clearRect(0, 0, side, side)
+    // Where the figure actually is, measured rather than assumed.
+    //
+    // A 114-pixel canvas holds a 24 by 80 person somewhere in the middle of
+    // it, and *where* depends on the layer sheets: guessing at fractions of
+    // the canvas put the window on empty air twice.  Thirteen thousand pixels
+    // read once, and only when what is worn changes.
+    const d = doll.getContext('2d')!.getImageData(0, 0, doll.width, doll.height).data
+    let x0 = doll.width, y0 = doll.height, x1 = -1, y1 = -1
+    for (let y = 0; y < doll.height; y++) {
+      for (let x = 0; x < doll.width; x++) {
+        if (d[(y * doll.width + x) * 4 + 3]! <= 20) continue
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+    }
+    // Marked done only once there was something to draw.  Set before the
+    // measurement it cached the first blank frame — the layers load a moment
+    // after the first compose — and the portrait stayed empty for ever.
+    if (x1 < 0) return null
+    faceFrom = key
+    // The head is the top quarter of a standing figure, and square: a
+    // portrait is a face, not a bust.
+    const cut = Math.max(8, (y1 - y0) * 0.30)
+    g.drawImage(doll, (x0 + x1) / 2 - cut / 2, y0 - cut * 0.06, cut, cut,
+      0, 0, side, side)
+    return faceCanvas
+  }
+
+  /**
+   * And the target's face, which is the creature itself.
+   *
+   * The target frame chose between two icons — a wolf's head or a sword —
+   * while `bake_npcs.py` had already cut every creature in four directions.
+   * The first frame facing down is the one the client would use, and it is
+   * the picture the player is looking at on the ground.
+   */
+  const foeCanvas = document.createElement('canvas')
+  let foeFrom = ''
+  const paintFoe = (n: Npc) => {
+    const a = npcArt.kinds[n.art]
+    if (!a) return null
+    if (foeFrom === n.art && foeCanvas.width) return foeCanvas
+    const c = npcArt.cell
+    const side = 64
+    foeCanvas.width = side
+    foeCanvas.height = side
+    const g = foeCanvas.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    g.clearRect(0, 0, side, side)
+    // Facing down, standing still: `dir` 0 is towards the camera and frame 0
+    // is the one a creature is drawn in when it is not walking.
+    const idx = a.first
+    // The top half of the cell, which is a head on anything drawn upright and
+    // the front of anything that is not.
+    const cut = c * 0.62
+    g.drawImage(npcImg, (idx % npcArt.cols) * c + (c - cut) / 2,
+      Math.floor(idx / npcArt.cols) * c + c * 0.06, cut, cut, 0, 0, side, side)
+    foeFrom = n.art
+    return foeCanvas
+  }
+
   const dollCanvas = document.createElement('canvas')
   const dollLayers = new Map<string, HTMLImageElement>()
   let dollKey = ''
@@ -5177,13 +5282,14 @@ async function main() {
     const foe = you.target
     ui.setMe({
       name: '주인공', level: you.level, hp: you.hp, max: you.max,
-      icon: 'sbed/health-normal.svg', foe: false,
+      icon: 'sbed/health-normal.svg', face: paintFace(), foe: false,
     })
     ui.setFoe(foe ? {
       name: nameOf(foe.kind), level: foe.level, hp: foe.hp, max: foe.max,
       icon: foe.art.startsWith('townsfolk') || foe.art.startsWith('guard')
         || foe.art.startsWith('bandit')
         ? 'delapouite/sword-brandish.svg' : 'lorc/wolf-head.svg',
+      face: paintFoe(foe),
       foe: fightable(foe.fight),
     } : null)
     if (clock - mapAt > 0.25) { mapAt = clock; paintMap() }

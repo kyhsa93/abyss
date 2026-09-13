@@ -1132,6 +1132,43 @@ const dug2 = await p.evaluate(() => JSON.stringify(window.__caves()))
 check('and the same world digs the same mine', dug1 === dug2)
 console.log(`      (${mines.lost} creatures under the surface belong to no mine)`)
 
+// 10l. The portrait is a portrait.
+//
+// `PlayerFrame.xml` puts a 64 by 64 `PlayerPortrait` at the head of twenty
+// textures and what the client puts in it is the character's own head.  Ours
+// was `sbed/health-normal` — a white cross — while the fifty-eight layer
+// sheets of that same character sat in `public/art/doll/` and the paperdoll
+// composed them two panels away.  The target's chose between two icons, a
+// wolf's head or a sword, while `bake_npcs.py` had cut every creature in four
+// directions.
+const faces = await p.evaluate(async () => {
+  const paint = (c) => {
+    if (!c) return 0
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let on = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 20) on++
+    return Math.round((100 * on) / (d.length / 4))
+  }
+  const mine = paint(document.querySelector('#me .face canvas'))
+  window.__walkTo?.('fight')
+  await new Promise((r) => setTimeout(r, 2000))
+  return { mine, foe: paint(document.querySelector('#foe .face canvas')) }
+})
+await p.keyboard.press('1')
+await p.waitForTimeout(900)
+const foeFace = await p.evaluate(() => {
+  const c = document.querySelector('#foe .face canvas')
+  if (!c) return 0
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+  let on = 0
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 20) on++
+  return Math.round((100 * on) / (d.length / 4))
+})
+check('the player is looking at his own face', faces.mine > 15,
+  `${faces.mine}% of the circle is painted`)
+check('and at whatever he is hitting', foeFace > 8,
+  `${foeFace}% of the circle is painted`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

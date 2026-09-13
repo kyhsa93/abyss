@@ -26,6 +26,17 @@ export type Unit = {
   max: number
   /** Icon path under `art/ui`, already including the artist's directory. */
   icon: string
+  /**
+   * The portrait, if the scene has drawn one.
+   *
+   * `PlayerFrame.xml` puts a 64 by 64 `PlayerPortrait` at the head of twenty
+   * textures, and what the client puts in it is the character's own face.
+   * Ours was `sbed/health-normal` — a white cross — while fifty-eight layer
+   * sheets of that same character sat in `public/art/doll/` unread.  The
+   * target's was a wolf's head or a sword, chosen from two, while the
+   * creature's own four-direction sprite was already cut.
+   */
+  face?: HTMLCanvasElement | null
   foe: boolean
 } | null
 
@@ -61,7 +72,11 @@ function el(tag: string, cls?: string, into?: HTMLElement): HTMLElement {
 function frame(into: HTMLElement, id: string) {
   const root = el('div', 'frame', into)
   root.id = id
-  const icon = el('img', 'face', root) as HTMLImageElement
+  // A box rather than the image itself, so a portrait the scene has drawn can
+  // take its place.  The client's own is 64 by 64 and holds the character's
+  // face; ours held a white cross.
+  const face = el('div', 'face', root)
+  const icon = el('img', '', face) as HTMLImageElement
   const body = el('div', 'body', root)
   const top = el('div', 'top', body)
   const name = el('span', 'name', top)
@@ -69,7 +84,7 @@ function frame(into: HTMLElement, id: string) {
   const bar = el('div', 'bar', body)
   const fill = el('div', 'fill', bar)
   const text = el('span', 'num', bar)
-  return { root, icon: icon as HTMLImageElement, name, level, fill, text }
+  return { root, face, icon: icon as HTMLImageElement, name, level, fill, text }
 }
 
 /** One frame's place, as `pipeline/layout.py` reads it out of the client. */
@@ -276,10 +291,32 @@ export function hud(layout?: Layout) {
   let builtFrom = ''
   let microNow: { key: string; label: string; on: boolean; use: () => void }[] = []
 
+  /**
+   * Put a face in a frame: the scene's picture if there is one, the icon if
+   * not.
+   *
+   * Swapped rather than redrawn, because a canvas the scene owns is a canvas
+   * the scene keeps up to date — the paperdoll is recomposed only when what
+   * is worn changes, and the portrait is the same picture.
+   */
+  const wear = (f: ReturnType<typeof frame>, u: NonNullable<Unit>) => {
+    if (u.face) {
+      if (f.face.firstChild !== u.face) {
+        f.face.textContent = ''
+        f.face.appendChild(u.face)
+      }
+      f.icon.hidden = true
+      return
+    }
+    f.icon.hidden = false
+    if (f.icon.parentElement !== f.face) f.face.appendChild(f.icon)
+    f.icon.src = ICONS + u.icon
+  }
+
   const this_ = {
     /** The player's own frame, which is always there. */
     setMe(u: NonNullable<Unit>) {
-      me.icon.src = ICONS + u.icon
+      wear(me, u)
       me.name.textContent = u.name
       me.level.textContent = `${u.level}`
       const part = Math.max(0, Math.min(1, u.hp / u.max))
@@ -292,7 +329,7 @@ export function hud(layout?: Layout) {
     setFoe(u: Unit) {
       foe.root.hidden = u === null
       if (!u) return
-      foe.icon.src = ICONS + u.icon
+      wear(foe, u)
       foe.name.textContent = u.name
       foe.level.textContent = `${u.level}`
       const part = Math.max(0, Math.min(1, u.hp / u.max))
