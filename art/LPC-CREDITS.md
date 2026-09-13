@@ -13,6 +13,13 @@ layer table the sprite is built from and cannot fall behind it.
 - `head/heads/human/male` — bluecarrot16,Benjamin K. Smith (BenCreating),Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `legs/pantaloons/male` — Nila122,JaidynReiman,Johannes Sjölund (wulax),Stephen Challener (Redshrike) (OGA-BY 3.0,GPL 2.0,GPL 3.0,CC-BY-SA 3.0)
 - `torso/armour/plate/male` — Napsio (Vitruvian Studio),JaidynReiman,bluecarrot16,Michael Whitlock (bigbeargames),Johannes Sjölund (wulax) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `weapon/blunt` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
+- `weapon/blunt/mace` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
+- `weapon/blunt/waraxe` — Benjamin K. Smith (BenCreating),bluecarrot16,Sander Frenken (castelonia) (CC-BY-SA 3.0,GPL 3.0)
+- `weapon/magic/gnarled` — bluecarrot16 (OGA-BY 3.0+,GPL 3.0,CC-BY 4.0)
+- `weapon/sword` — bluecarrot16,Johannes Sjölund (wulax),Matthew Krohn (makrohn) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `weapon/sword/dagger` — bluecarrot16,Johannes Sjölund (wulax),Matthew Krohn (makrohn) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `weapon/sword/longsword` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
 
 **The game inherits the strongest of these.** GPL 3.0 and CC-BY-SA 3.0
 both carry, so the game carries them too — see the wiki page 아트 방향.

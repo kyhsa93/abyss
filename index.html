@@ -445,7 +445,10 @@
          `FrameXML`'s and a picture that pushes it taller pushes it over the
          log underneath. */
       #sheet .doll { position: absolute; top: 6px; right: 10px; }
-      #sheet .doll canvas { width: 56px; height: 56px; }
+      /* The canvas sizes itself — `paintDoll` sets it — because it is only
+         the cell while his hands are empty.  Held on a fixed 56 square, a
+         sword made the canvas 156 by 150 and the man was squashed sideways
+         to make room for it. */
       #sheet { position: fixed; }
       #sheet .doll canvas { image-rendering: pixelated; }
       #talk .who { color: #c9a86a; font: var(--font-small)/1.5 var(--mono); letter-spacing: .02em; }

@@ -28,7 +28,19 @@ export type DollMeta = {
 
 /** The order the layers stack in, back to front. */
 export const ORDER = ['body', 'feet', 'legs', 'chest', 'hands', 'head',
-  'hair', 'helm'] as const
+  'hair', 'helm', 'weapon'] as const
+
+/**
+ * The slots whose layers are told apart by what the thing *is* rather than by
+ * how heavy it is.
+ *
+ * There are three pictures of a breastplate and five of a weapon, and they are
+ * not three of the same sort of thing: a sword is not a heavier dagger.  So
+ * `weightOf` has nothing to say here, and neither does the fallback chain
+ * under it — a kind with no picture draws nothing rather than drawing the
+ * nearest one, because the nearest weapon to a bow is not a bow.
+ */
+const BY_KIND = new Set<string>(['weapon'])
 
 /** Which of the three weights a piece of armour is drawn as. */
 export function weightOf(armour: number): string {
@@ -53,10 +65,15 @@ export function weightOf(armour: number): string {
  * Falls back down the weights and then to bare, because the set is not
  * complete: there are four light chests and one heavy, and asking for a
  * medium helm that nobody drew should put a light one on rather than nothing.
+ * A slot in `BY_KIND` takes the kind instead and falls back to nothing.
  */
 export function layerFor(meta: DollMeta, who: string, slot: string,
-  armour: number): string | null {
+  armour: number, kind?: string | null): string | null {
   const have = meta.who[who]?.layers ?? {}
+  if (BY_KIND.has(slot)) {
+    const name = kind ? `${who}_${slot}_${kind}` : null
+    return name && have[name] ? name : null
+  }
   const want = weightOf(armour)
   for (const weight of [want, 'medium', 'light', 'bare']) {
     const name = `${who}_${slot}_${weight}`

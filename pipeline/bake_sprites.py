@@ -39,6 +39,53 @@ LAYERS = [
 # Animations to take, and how many frames each sheet holds.
 CLIPS = [('walk', 9), ('idle', 2), ('slash', 6)]
 
+# What he can have in his hand, front half and behind half.
+#
+# The same five `bake_npcs.py` cuts for everybody else, and the same reason
+# they are a layer rather than part of a look: a weapon is what he is holding
+# this minute, not what he is.  712 of the slice's people carry one and the
+# player was the only body in the world with nothing in his hands.
+#
+# **The frames are not the NPCs'.**  Those are sampled at five of the walk's
+# nine, which is enough for somebody on the far side of a field and would put
+# the player's sword a frame behind his own hand.  His walk is all nine, so
+# these are all nine.
+ARMS = {
+    'sword': ('sword/longsword/walk/longsword.png',
+              'sword/longsword/universal_behind/walk/longsword.png'),
+    'dagger': ('sword/dagger/walk/dagger.png',
+               'sword/dagger/behind/walk/dagger.png'),
+    'axe': ('blunt/waraxe/walk/waraxe.png',
+            'blunt/waraxe/behind/walk/waraxe.png'),
+    'mace': ('blunt/mace/walk/mace.png',
+             'blunt/mace/universal_behind/walk/mace.png'),
+    'staff': ('magic/gnarled/universal/walk/foreground.png',
+              'magic/gnarled/universal/walk/background.png'),
+}
+
+
+def trim(im, cols, dirs):
+    """The one box every cell of a sheet fits inside, as `(x, y, w, h)`.
+
+    A weapon is a small thing in a 64-pixel cell — a dagger is 40 by 22 — and
+    ten halves of thirty-six frames at the full cell is 5.6 MiB of mostly
+    nothing decoded.  Trimmed to a box a sheet it is 1.8.  One box a sheet and
+    not one a frame: the offset then costs nothing to carry and the hand still
+    lands where the artist put it, because every frame is cropped the same way.
+    """
+    px = im.load()
+    lo_x, lo_y, hi_x, hi_y = CELL, CELL, -1, -1
+    for d in range(dirs):
+        for f in range(cols):
+            for y in range(CELL):
+                for x in range(CELL):
+                    if px[f * CELL + x, d * CELL + y][3]:
+                        lo_x = min(lo_x, x); hi_x = max(hi_x, x)
+                        lo_y = min(lo_y, y); hi_y = max(hi_y, y)
+    if hi_x < 0:
+        return None
+    return lo_x, lo_y, hi_x - lo_x + 1, hi_y - lo_y + 1
+
 
 def sheet(root, layer, clip):
     p = os.path.join(root, 'spritesheets', layer, f'{clip}.png')
@@ -76,6 +123,35 @@ def main(root, out):
             for f in range(n):
                 frames.append(base.crop((f * CELL, d * CELL, f * CELL + CELL, d * CELL + CELL)))
 
+    # What is in his hand, laid out as a strip a half rather than on the
+    # body's grid: each one is trimmed to its own box, so they have ten
+    # different cell sizes and a uniform atlas would be the untrimmed one.
+    arms, strips = {}, []
+    for name, halves in ARMS.items():
+        for half, rel in zip(('', '.bg'), halves):
+            path = os.path.join(root, 'spritesheets', 'weapon', rel)
+            if not os.path.exists(path):
+                sys.exit(f'missing {path} — a hand with a hole in it is a bug')
+            used.append(f'weapon/{rel}')
+            im = Image.open(path).convert('RGBA')
+            cols_, dirs = im.width // CELL, im.height // CELL
+            if (cols_, dirs) != (CLIPS[0][1], DIRECTIONS):
+                sys.exit(f'{rel} is {cols_}x{dirs} cells, not the walk\'s '
+                         f'{CLIPS[0][1]}x{DIRECTIONS}')
+            box = trim(im, cols_, dirs)
+            if not box:
+                sys.exit(f'{rel} is empty')
+            bx, by, bw, bh = box
+            strip = Image.new('RGBA', (cols_ * bw, dirs * bh))
+            for d in range(dirs):
+                for f in range(cols_):
+                    strip.paste(im.crop((f * CELL + bx, d * CELL + by,
+                                         f * CELL + bx + bw, d * CELL + by + bh)),
+                                (f * bw, d * bh))
+            arms[name + half] = {'w': bw, 'h': bh, 'dx': bx, 'dy': by,
+                                 'cols': cols_, 'dirs': dirs}
+            strips.append((name + half, strip))
+
     cols = 16
     rows = (len(frames) + cols - 1) // cols
     atlas = Image.new('RGBA', (cols * CELL, rows * CELL))
@@ -83,8 +159,22 @@ def main(root, out):
         atlas.paste(fr, ((i % cols) * CELL, (i // cols) * CELL))
     os.makedirs(out, exist_ok=True)
     atlas.save(os.path.join(out, 'hero.png'), optimize=True)
+
+    # The hands, in their own sheet: they are ten strips of ten different cell
+    # sizes and there is no grid they all belong to.
+    wide = max(s.width for _n, s in strips)
+    tall = sum(s.height for _n, s in strips)
+    hands = Image.new('RGBA', (wide, tall))
+    y = 0
+    for name, strip in strips:
+        hands.paste(strip, (0, y))
+        arms[name]['y'] = y
+        y += strip.height
+    hands.save(os.path.join(out, 'arms.png'), optimize=True)
+
     with open(os.path.join(out, 'hero.json'), 'w') as f:
-        json.dump({'cell': CELL, 'cols': cols, 'clips': clips}, f, indent=1)
+        json.dump({'cell': CELL, 'cols': cols, 'clips': clips, 'arms': arms}, f,
+                  indent=1)
 
     # Credits, keyed by the files actually used.
     rows_csv = list(csv.DictReader(open(os.path.join(root, 'CREDITS.csv'))))
@@ -97,6 +187,17 @@ def main(root, out):
             # missing row is a gap in their table, not a licence-free file.
             cand = [x for k, x in by_file.items() if k.startswith(os.path.dirname(u) + '/')]
             r = cand[0] if cand else None
+        # And up the path, because LPC's register does not spell a weapon's
+        # path the way LPC's own tree does: on disk a sheet is
+        # `<pose>/<variant>.png` and in the register it is `<variant>/<pose>.png`,
+        # so both lookups above miss every one of them.  Safe for the reason
+        # `bake_npcs.py` checked when it hit this first: every row under a
+        # weapon's own folder carries the same authors and the same licences.
+        while not r and '/' in u:
+            u = u.rsplit('/', 1)[0]
+            cand = [x for k, x in by_file.items() if k.startswith(u + '/')]
+            if len({(x['authors'], x['licenses']) for x in cand}) == 1:
+                r = cand[0]
         if not r:
             sys.exit(f'{u} has no row in CREDITS.csv — refusing to ship an unattributed layer')
         seen[os.path.dirname(u)] = r
@@ -118,6 +219,11 @@ def main(root, out):
           f'{os.path.getsize(os.path.join(out, "hero.png")) / 1024:.0f} KiB on disk, '
           f'{px / 1048576:.1f} MiB decoded')
     print('  clips: ' + ', '.join(f'{k} x{v["count"]} in {v["dirs"]} dirs' for k, v in clips.items()))
+    hpx = hands.width * hands.height * 4
+    print(f'  in hand: {len(arms)} halves, atlas {hands.width}x{hands.height}, '
+          f'{os.path.getsize(os.path.join(out, "arms.png")) / 1024:.0f} KiB on '
+          f'disk, {hpx / 1048576:.2f} MiB decoded  ('
+          + ', '.join(f'{k} {v["w"]}x{v["h"]}' for k, v in arms.items()) + ')')
 
     contact = Image.new('RGB', (CELL * 9 * 2, CELL * 4 * 2), (40, 44, 56))
     walk = clips['walk']

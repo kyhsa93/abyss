@@ -33,8 +33,14 @@ import sys
 import bpy
 from bpy_extras.object_utils import world_to_camera_view
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# The five weapons and how long each of them is.  The table is in its own file
+# because `pack_paperdoll.py` needs the same one to credit the meshes it packed
+# and cannot import this one — `bpy` is at the top of it.
+from arms import (PERSON_YARDS, WEAPON_BONE,  # noqa: E402
+                  WEAPON_ROOT, WEAPONS)
+
 PPY = 24                # pixels to the yard at zoom 1, as in main.ts
-PERSON_YARDS = 1.8      # how tall a person stands, which sets the scale
 TILT = math.atan(0.5)   # the quarter view's elevation, 26.57 degrees
 CELL = 128
 DIRS = 8
@@ -98,9 +104,12 @@ SLOT_OF = {'armor': 'chest', 'boots': 'feet', 'gloves': 'hands',
            'body': 'body', 'feet': 'feet', 'hands': 'hands'}
 
 # Back to front.  `chest` before `hands` so a gauntlet crossing the belly is
-# drawn over the breastplate and not under it; `helm` last because it is the
-# one thing that covers everything else it touches.
-ORDER = ('body', 'feet', 'chest', 'hands', 'head', 'hair', 'helm')
+# drawn over the breastplate and not under it; `helm` over hair because it is
+# the one garment that covers everything else it touches; and the weapon in
+# front of all of it, because a sword held out crosses the body rather than
+# being worn on it.  What keeps the *hand* on top of the hilt is not this
+# order but the holdout — see `HOLDOUT`.
+ORDER = ('body', 'feet', 'chest', 'hands', 'head', 'hair', 'helm', 'weapon')
 
 # The parts that are on the character no matter what is equipped, which is the
 # holdout set: they are what an arm crossing a breastplate is made of.
@@ -112,6 +121,18 @@ ALWAYS = ('body', 'head')
 # off body and head alone made the man the right height and then stood him in
 # boots that reached fourteen pixels below the floor.
 NAKED = ('body', 'head', 'feet', 'hands')
+
+# And what else is held out while one particular slot is photographed.  The
+# weapon needs the bare hand as well as the body: a hilt is *inside* a fist, so
+# without the hand cutting its own hole the sword comes out drawn over the
+# fingers that are meant to be gripping it.  The hole is the bare hand's, which
+# is why a glove drawn under the weapon still shows through — a glove is bigger
+# than the hand in it.
+HOLDOUT = {'weapon': ('hands',)}
+
+# Where the art that is not the kit's comes from.
+ASSETS = os.path.expanduser(os.environ.get('ABYSS_ASSETS', '~/src/abyss-assets'))
+
 
 
 def unhide():
@@ -199,6 +220,106 @@ def texture(o, mats, where):
         bsdf.inputs['Metallic'].default_value = 0.0
         nt.links.new(img.outputs['Color'], bsdf.inputs['Base Color'])
         nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+
+
+def plain(o):
+    """The bundle's own materials, lit the way everything else here is lit.
+
+    Only two inputs are touched.  glTF ships physically-based metal, and a
+    mirror-finish blade beside a hand-painted linen shirt reads as two games —
+    the same argument `texture()` makes one function up, for the same reason.
+    """
+    for m in o.data.materials:
+        if not m or not m.use_nodes:
+            continue
+        for n in m.node_tree.nodes:
+            if n.type == 'BSDF_PRINCIPLED':
+                n.inputs['Metallic'].default_value = 0.0
+                n.inputs['Roughness'].default_value = 0.65
+
+
+def weapons(arm, tall):
+    """Import each weapon, size it by its own length, hang it off the hand.
+
+    Three things are derived here and none of them is placed by eye.
+
+    The **scale** is the weapon's stated length in yards against the rig's own
+    measured height, so a kit re-exported at a different size still comes out
+    right.  A scale factor written down instead would be a fact about one
+    export — exactly the shape of number this repository keeps finding tuned
+    twice.
+
+    The **grip** is the mesh's origin.  Quaternius's bundle puts it in the
+    hand: the sword's own box runs from -0.38 to 1.92 along its long axis, so
+    the pommel is behind the origin and the blade in front of it, which is
+    where a fist goes.  Nothing has to be measured.
+
+    The **aim** is the bone's.  `wep_pos_R` exists, it is a tenth of a unit
+    long and it points somewhere on purpose, so the weapon's long axis is
+    turned onto the bone's and the kit's author decides which way a sword
+    points.  Without an attachment point the only way to put a sword in a hand
+    is by eye, once per pose, forty times per direction.
+    """
+    bone = arm.data.bones[WEAPON_BONE]
+    per_yard = tall / PERSON_YARDS
+    root = os.path.join(ASSETS, WEAPON_ROOT)
+    out = {}
+    for word, (glb, yards) in sorted(WEAPONS.items()):
+        path = os.path.join(root, glb)
+        if not os.path.exists(path):
+            sys.exit('%s is not in the archive — run `npm run fetch polypizza`'
+                     % path)
+        before = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=path)
+        fresh = [o for o in bpy.data.objects if o not in before]
+        mesh = [o for o in fresh if o.type == 'MESH']
+        if not mesh:
+            sys.exit('no mesh in ' + glb)
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in mesh:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = mesh[0]
+        if len(mesh) > 1:
+            bpy.ops.object.join()
+        o = bpy.context.view_layer.objects.active
+        # The importer hangs everything off an empty that carries the Y-up to
+        # Z-up turn.  Baking that turn into the mesh and dropping the empty is
+        # what makes the long axis local `z` rather than "whatever the parent
+        # says", which is what the arithmetic below reads.
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        bpy.ops.object.transform_apply(location=False, rotation=True,
+                                       scale=True)
+        for e in fresh:
+            if e.name in bpy.data.objects and e.type != 'MESH':
+                bpy.data.objects.remove(e, do_unlink=True)
+        zs = [v.co.z for v in o.data.vertices]
+        long = max(zs) - min(zs)
+        k = yards * per_yard / long
+        o.name = 'weapon_' + word
+        o.scale = (k, k, k)
+        # The blade's own `z` onto the bone's local `x`, which is `y` about
+        # `+Y` — and which of the bone's six axes that is was **measured, not
+        # assumed**.  The obvious reading is the bone's length, `+Y`, and it is
+        # wrong here: posed for the idle, `wep_pos_R`'s `y` runs straight out
+        # in front of the man and its `x` runs straight down (0.006, -1.000,
+        # 0.001) against (-0.194, -0.002, -0.981).  Aligned to `y` he stands
+        # there holding a greatsword out level with one hand; aligned to `x` it
+        # hangs at his side, which is what a man at rest does with a sword.
+        # Rendering all six and looking is the only thing that says so, the
+        # same way a spritesheet's grid is cut and looked at rather than
+        # divided.
+        o.rotation_mode = 'XYZ'
+        o.rotation_euler = (0, math.pi / 2, 0)
+        o.parent = arm
+        o.parent_type = 'BONE'
+        o.parent_bone = WEAPON_BONE
+        # Bone parenting measures from the *tail*, so the grip lands a bone's
+        # length past the hand unless it is walked back.
+        o.location = (0, -bone.length, 0)
+        plain(o)
+        out[word] = o
+        print('  %-8s %.2f yd, %s -> x%.4f' % (word, yards, glb, k))
+    return out
 
 
 def camera(tall, floor):
@@ -317,6 +438,9 @@ def main(out):
     cam = camera(tall, floor)
     light()
     fit(cam, naked)
+    # After `fit`, always: the camera is sized on the person and a staff is
+    # taller than he is, so importing first would shrink him to fit his stick.
+    by_slot['weapon'] = weapons(arm, tall)
 
     every = [(s, v, o) for s in ORDER for v, o in sorted(by_slot.get(s, {}).items())]
     gaps = unsourced()
@@ -335,7 +459,11 @@ def main(out):
                 o.hide_render = True
                 o.is_holdout = False
         obj.hide_render = False
-        for o in body:
+        cutters = list(body)
+        for extra in HOLDOUT.get(slot, ()):
+            if 'bare' in by_slot.get(extra, {}):
+                cutters.append(by_slot[extra]['bare'])
+        for o in cutters:
             if slot_of(o) == slot:
                 continue        # replaced by this layer, not covered by it
             o.hide_render = False

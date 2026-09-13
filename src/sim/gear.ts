@@ -16,12 +16,18 @@ import { AGI, INT, SPI, STA, STR, type Stats } from './stats.ts'
 /**
  * One item: `[word, slot, quality, item level, required level,
  * min damage, max damage, swing ms, armour, buy price, sell price,
- * two-handed, [[stat, amount], …]]`.
+ * two-handed, [[stat, amount], …], which weapon it is drawn as]`.
+ *
+ * `I_ARM` is empty for everything that is not a weapon, and for the eight
+ * kinds of weapon nothing here draws — a bow is carried across the back and
+ * there is no sheet for that.  It is `item_template.subclass` through
+ * `spawn_npcs.WEAPON_SUBCLASS`, which is the same table that decides what an
+ * NPC is holding: one vocabulary, two readers.
  */
 export type Item = (string | number | (string | number)[][])[]
 export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
   I_LO = 5, I_HI = 6, I_DELAY = 7, I_ARMOUR = 8, I_BUY = 9, I_SELL = 10,
-  I_BOTH_HANDS = 11, I_STATS = 12
+  I_BOTH_HANDS = 11, I_STATS = 12, I_ARM = 13
 
 /**
  * What quality looks like.

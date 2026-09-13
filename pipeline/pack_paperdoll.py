@@ -21,6 +21,11 @@ import sys
 
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import arms  # noqa: E402
+
+ASSETS = os.path.expanduser(os.environ.get('ABYSS_ASSETS', '~/src/abyss-assets'))
+
 COLS = 16
 
 # Who made the thing.  CC0 asks for nothing and the author says so himself, but
@@ -37,8 +42,21 @@ CREDIT = ('Modular RPG Characters', 'System G6 (Qoma)', 'CC0 1.0',
 ALIAS = {'walk': 'run'}
 
 # Back to front, and the same order `src/doll.ts` draws them in.  A helmet is
-# worn instead of hair rather than over it.
-ORDER = ('body', 'feet', 'chest', 'hands', 'head', 'hair', 'helm')
+# worn instead of hair rather than over it, and the weapon goes in front of
+# everything because it is held rather than worn — what keeps the hand on top
+# of the hilt is the holdout the render cut, not this order.
+ORDER = ('body', 'feet', 'chest', 'hands', 'head', 'hair', 'helm', 'weapon')
+
+# Which variant of a slot the contact sheet dresses each tier in, where the
+# tier's own name is not one.  A weapon has no weight — it has a kind — so the
+# sheet holds the same sword in all four rows, which is the point: a row is a
+# statement about armour and the sword is there to prove the hand still lands
+# on the hilt once the gauntlet is on.
+SHOWN = {'body': 'bare', 'head': 'bare', 'hair': '2', 'weapon': 'sword'}
+
+# The slots that are held rather than worn, which are the ones left out of the
+# character's own box — see `main` below.
+HELD = {'weapon'}
 
 
 def contact(out, who, side, meta, clips, dirs):
@@ -63,7 +81,7 @@ def contact(out, who, side, meta, clips, dirs):
             for slot in ORDER:
                 if slot == 'hair' and tier != 'bare':
                     continue        # a helmet is worn instead of hair
-                want = {'body': 'bare', 'head': 'bare', 'hair': '2'}.get(slot, tier)
+                want = SHOWN.get(slot, tier)
                 name = '%s_%s_%s' % (who, slot, want)
                 box = meta.get(name)
                 if not box:
@@ -118,10 +136,20 @@ def main(root, out, who):
     if not found:
         sys.exit('no rendered cells under ' + root)
 
-    # The character's own box is the union of every layer, because a sprite has
-    # to be placed by where the person is and not by where his hat is.  Square,
-    # and a yard is a yard either way round.
-    whole = box_of([p for lay in found.values() for c in lay.values()
+    # The character's own box is the union of every *worn* layer, because a
+    # sprite has to be placed by where the person is and not by where his hat
+    # is.  Square, and a yard is a yard either way round.
+    #
+    # Held is not worn, and that distinction is the whole reason this line
+    # names a set.  A staff is as long as the man is tall and hangs from his
+    # hand, so measured into the union it took the cell from 57 pixels to 98,
+    # moved the foot line from 0.84 to 0.91, and shifted the offset of every
+    # one of the thirty-two layers that had nothing to do with it — a man
+    # framed by the stick he is carrying.  The weapon keeps its offset against
+    # this same frame and is simply allowed to stick out of it; `src/sim/doll.ts`
+    # grows the canvas to whatever is actually being drawn.
+    worn = {k: v for k, v in found.items() if k.split('_')[0] not in HELD}
+    whole = box_of([p for lay in worn.values() for c in lay.values()
                     for d in c.values() for p in d.values()])
     w, h = whole[2] - whole[0], whole[3] - whole[1]
     side = max(w, h) + 2
@@ -134,7 +162,7 @@ def main(root, out, who):
     # feet, because a man falling towards the camera ends up lower on the
     # screen than he ever stood — and the whole cast walked a foot above their
     # own shadows.  Nothing threw; it just looked like everyone was floating.
-    stood = box_of([p for lay in found.values()
+    stood = box_of([p for lay in worn.values()
                     for d in lay.get('stand', lay.get('idle', {})).values()
                     for p in d.values()])
     anchor = round(((stood or whole)[3] - frame[1]) / side, 4)
@@ -177,15 +205,27 @@ def main(root, out, who):
 
     contact(out, who, side, meta, clips, dirs)
 
+    held = [w for w in meta if w.split('_')[1] in HELD]
     with open('art/DOLL-CREDITS.md', 'w') as f:
         name, author, lic, url = CREDIT
         f.write('# Paperdoll credits\n\n'
-                'The player is rendered from one kit, so this is one line.\n\n'
+                'The player himself is rendered from one kit, so that half is\n'
+                'one line.\n\n'
                 '* **%s** — %s, %s\n  <%s>\n\n'
-                'Rendered by `pipeline/render_paperdoll.py` at this game\'s own\n'
-                'projection; the renders are art this repository made, and the\n'
-                'models and textures under them are the author\'s.\n'
                 % (name, author, lic, url))
+        if held:
+            f.write('What he is holding is not in that kit — it has no weapon\n'
+                    'at all — so the meshes come off another shelf, one a word.\n'
+                    'Generated from the table `pipeline/arms.py` renders from,\n'
+                    'so the list cannot fall behind the sheets.\n\n')
+            for word, mesh, by, howfree in arms.credits(ASSETS):
+                f.write('* **%s** — `%s`, %s, %s\n'
+                        % (word, mesh, by or 'author not recorded',
+                           howfree or 'licence not recorded'))
+            f.write('\n')
+        f.write('Rendered by `pipeline/render_paperdoll.py` at this game\'s own\n'
+                'projection; the renders are art this repository made, and the\n'
+                'models and textures under them are their authors\'.\n')
 
     path = os.path.join(out, 'doll.json')
     doll = json.load(open(path)) if os.path.exists(path) else {}

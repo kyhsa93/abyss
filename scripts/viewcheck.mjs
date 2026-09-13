@@ -955,6 +955,28 @@ const undrawn = await p.evaluate(() => window.__undrawn())
 console.log(`      (${undrawn.length} worn slots the sheets cannot draw`
   + `${undrawn.length ? `: ${undrawn.join(', ')}` : ''})`)
 
+// 10d2. And what he is carrying is drawn, in both places he is drawn.
+//
+// The hand was empty in the scene and empty on the paperdoll while the man
+// was holding a greatsword the character sheet printed the damage of, which
+// is the oldest shape of bug in this repository: a number that is right and a
+// picture that was never asked for.  Two sheets had to be cut for it — LPC's
+// ten half-strips for the world and five more renders of the kit for the doll
+// — so the check asks both, and it **fails** on a kind with no picture rather
+// than counting it.  Counting is what the bare-handed fallback did.
+const arms = await p.evaluate(() => window.__arms())
+check('every kind of weapon this world holds has a picture',
+  arms.kinds.length >= 5 && arms.flat.length === 0 && arms.undressed.length === 0,
+  `${arms.kinds.length} kinds (${arms.kinds.join(', ')}); `
+  + `${arms.flat.length} with no world sprite, ${arms.undressed.length} with `
+  + 'no paperdoll layer')
+check('and holding one puts another layer on the man',
+  !!arms.held && arms.layers > 1,
+  `he is holding a ${arms.held}, drawn out of ${arms.layers} pictures`)
+check('and the paperdoll is wearing it too',
+  arms.wearing.some((n) => n.includes('_weapon_')),
+  arms.wearing.join(', '))
+
 // 10e. A building's furniture belongs to the building.
 //
 // `npm run audit` counted 3,759 things standing inside the slice's buildings

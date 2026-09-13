@@ -26,7 +26,8 @@ import sys
 from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spawn_npcs import columns, rows, split, goods_of, BOUNDS, MAP  # noqa: E402
+from spawn_npcs import (columns, rows, split, goods_of, BOUNDS, MAP,  # noqa: E402
+                        WEAPON_CLASS, WEAPON_SUBCLASS)
 from slice import (LEVELS, CLASSES, REACH_OVER, CLASS_ID,  # noqa: E402
                    CLASS_MASK, RACE_MASK, allows)
 from player import outfit  # noqa: E402
@@ -322,6 +323,17 @@ def main(acore, client, out):
             buy // count, sell,
             1 if inv in TWO_HANDED else 0,
             stats,
+            # Which of the five drawn kinds it is, or nothing.
+            #
+            # This used to be guessed in `src/main.ts` — two-handed meant an
+            # axe, fast meant a dagger, everything else a sword — and a guess
+            # with three answers cannot reach five: `mace` and `staff` were
+            # pictures cut, packed, rendered and unreachable.  `subclass` is
+            # the column that says, `spawn_npcs.WEAPON_SUBCLASS` is already
+            # reading it for what an NPC carries, and one vocabulary for
+            # "what is that thing" is the whole point of importing it rather
+            # than writing the table out again.
+            WEAPON_SUBCLASS.get(sub, '') if cls == WEAPON_CLASS else '',
         ]
 
     # Vendor rows whose item is not in the baked set are rows nobody can buy.

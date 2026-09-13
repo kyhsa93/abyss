@@ -26,7 +26,7 @@ import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
-import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
+import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
@@ -172,6 +172,24 @@ type NpcArt = {
 type HeroArt = {
   cell: number; cols: number
   clips: Record<string, { first: number; count: number }>
+  /**
+   * What can be in his hand, as strips in `arms.png`.
+   *
+   * Front half and behind half for each of the five `bake_npcs.py` cuts for
+   * everybody else — 712 of the slice's people carry a weapon and the player
+   * was the only body in the world with nothing in his hands.
+   *
+   * Each half is trimmed to its own box, so they have ten different cell
+   * sizes and there is no grid they all belong to: `x` is always 0, `y` is
+   * where the strip starts, `w`/`h` are the cell, and `dx`/`dy` are where
+   * that box sat inside the body's 64-pixel cell.  Untrimmed they are 5.6 MiB
+   * decoded and trimmed they are 2.7, which is the difference between a
+   * dagger and forty pixels of nothing around a dagger.
+   */
+  arms?: Record<string, {
+    w: number; h: number; dx: number; dy: number
+    cols: number; dirs: number; y: number
+  }>
 }
 /**
  * `[x, y, kind, facing, level, role, topic]` — the first, fourth and sixth are
@@ -315,13 +333,16 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, who, shelf] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, armsImg, art, spawns, spellbook, things, who, shelf] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
     fetch('./art/hero.json').then((r) => r.json() as Promise<HeroArt>),
     load('./art/npcs.png'),
     fetch('./art/npcs.json').then((r) => r.json() as Promise<NpcArt>),
+    // What he is holding, which is its own sheet because its ten strips have
+    // ten different cell sizes — see `HeroArt.arms`.
+    load('./art/arms.png'),
     // Which picture goes with what — see `pipeline/bake_ui.py`.  One list,
     // written where the files are copied from, rather than a file list in the
     // bake and a drawing list here that quietly stop agreeing.
@@ -2850,6 +2871,38 @@ async function main() {
     art.goods[`${it[I_WORD]}|${it[I_SLOT] ?? ''}`] ?? ''
 
   /**
+   * Which of the five sheets an item is drawn as, or null for a bare hand.
+   *
+   * The pipeline already answers this for everybody else —
+   * `spawn_npcs.WEAPON_SUBCLASS` turns `item_template.subclass` into one of
+   * five words — and the same table has to be here because the player's
+   * weapon arrives as an item id rather than as a baked spawn row.  Read off
+   * the item's own word and slot, which is what `items.py` keeps of a
+   * subclass: everything in the `weapon` slot that is not a bow.
+   */
+  /**
+   * Which of the five drawn weapons something is held as.
+   *
+   * A column now, and it was a guess: two-handed meant an axe, fast meant a
+   * dagger, everything else a sword.  Three answers cannot reach five, so
+   * `mace` and `staff` were sheets that had been cut, packed and shipped and
+   * that nothing in this game could ever ask for — a hundred and thirty-eight
+   * of the slice's two hundred and twenty-one weapons drawn as the wrong
+   * thing.  `item_template.subclass` is what says, and `items.py` bakes it
+   * through the same `WEAPON_SUBCLASS` that decides what an NPC carries.
+   *
+   * Empty for the eight kinds nothing draws — a bow is carried across the
+   * back and there is no sheet for that — which comes back as an empty hand
+   * rather than as some other weapon.
+   */
+  const armFor = (id: number | undefined): string | null => {
+    if (id === undefined) return null
+    const it = itemOf(id)
+    if (!it) return null
+    return (it[I_ARM] as string) || null
+  }
+
+  /**
    * One icon as an element, painted in whatever colour is asked for.
    *
    * A mask rather than an `<img>`, because the archive is cut white on
@@ -4259,23 +4312,16 @@ async function main() {
     //
     // A 114-pixel canvas holds a 24 by 80 person somewhere in the middle of
     // it, and *where* depends on the layer sheets: guessing at fractions of
-    // the canvas put the window on empty air twice.  Thirteen thousand pixels
-    // read once, and only when what is worn changes.
-    const d = doll.getContext('2d')!.getImageData(0, 0, doll.width, doll.height).data
-    let x0 = doll.width, y0 = doll.height, x1 = -1, y1 = -1
-    for (let y = 0; y < doll.height; y++) {
-      for (let x = 0; x < doll.width; x++) {
-        if (d[(y * doll.width + x) * 4 + 3]! <= 20) continue
-        if (x < x0) x0 = x
-        if (x > x1) x1 = x
-        if (y < y0) y0 = y
-        if (y > y1) y1 = y
-      }
-    }
-    // Marked done only once there was something to draw.  Set before the
-    // measurement it cached the first blank frame — the layers load a moment
-    // after the first compose — and the portrait stayed empty for ever.
-    if (x1 < 0) return null
+    // the canvas put the window on empty air twice.  `paintDoll` takes that
+    // measurement while only the worn layers are down, because once he was
+    // given something to hold, the box of everything painted was a box round
+    // a man and a sword and the window came out on his shoulder.
+    //
+    // Marked done only once there was something to measure.  Set before it,
+    // the first blank frame was cached — the layers load a moment after the
+    // first compose — and the portrait stayed empty for ever.
+    if (!dollPerson) return null
+    const { x0, y0, x1, y1 } = dollPerson
     faceFrom = key
     // The head is the top quarter of a standing figure, and square: a
     // portrait is a face, not a bust.
@@ -4321,6 +4367,8 @@ async function main() {
   const dollCanvas = document.createElement('canvas')
   const dollLayers = new Map<string, HTMLImageElement>()
   let dollKey = ''
+  /** Where the man himself is inside `dollCanvas` — see `paintDoll`. */
+  let dollPerson: { x0: number; y0: number; x1: number; y1: number } | null = null
   /** Slots something is worn in that the layer sheets cannot draw. */
   const dollMissing = new Set<string>()
   const paintDoll = () => {
@@ -4339,7 +4387,8 @@ async function main() {
       const armour = slot === 'body' ? 0 : (from?.[I_ARMOUR] as number) ?? 0
       const name = slot === 'body' ? `${who}_body_bare`
         : slot === 'hair' ? `${who}_hair_1`
-          : from ? layerFor(dollArt, who, slot, armour) : null
+          : from ? layerFor(dollArt, who, slot, armour,
+            slot === 'weapon' ? armFor(gear[slot]) : null) : null
       // Something worn that the sheets cannot draw.  There is no `legs` layer
       // in the set at all — 32 files and not one of them is trousers — so the
       // starting outfit's are worn, counted and invisible.  Named rather than
@@ -4351,14 +4400,47 @@ async function main() {
     const key = want.join('|')
     if (key === dollKey && dollCanvas.width) return dollCanvas
     dollKey = key
-    const c = meta.cell, scale = 2
-    dollCanvas.width = c * scale
-    dollCanvas.height = c * scale
+    const scale = 2
+    // The canvas is what is actually being drawn, not the cell.
+    //
+    // `cell` is the box the *worn* layers fit in, because a man has to be
+    // framed by where the man is — `pack_paperdoll.py` says why, and it says
+    // it in the past tense: measured with a staff in the union it took that
+    // box from 57 pixels to 98 and moved every other layer's offset with it.
+    // So a held thing is allowed to hang outside the cell, its offsets go
+    // negative, and the canvas grows to cover whatever this particular
+    // outfit reaches.  Sized at the cell instead, a staff lost its lower
+    // third and a greatsword its point.
+    let lx = 0, ly = 0, rx = meta.cell, ry = meta.cell
+    for (const name of want) {
+      const b = meta.layers[name]
+      if (!b) continue
+      lx = Math.min(lx, b.dx); ly = Math.min(ly, b.dy)
+      rx = Math.max(rx, b.dx + b.w); ry = Math.max(ry, b.dy + b.h)
+    }
+    dollCanvas.width = (rx - lx) * scale
+    dollCanvas.height = (ry - ly) * scale
+    // And how big that is on the panel.  `#sheet .doll` gives the *cell* 56
+    // CSS pixels; the canvas is wider than the cell whenever he is holding
+    // something, so the sum has to be done where the cell is known.  Left to
+    // a fixed 56 square in the stylesheet, a sword made the canvas 156 by 150
+    // and the man was squashed sideways to fit beside it.
+    const on = 56 / meta.cell
+    dollCanvas.style.width = `${((rx - lx) * on).toFixed(1)}px`
+    dollCanvas.style.height = `${((ry - ly) * on).toFixed(1)}px`
+    // Pulled up by however far the canvas grew above the cell, so that the
+    // *man's* head stays where the panel puts it.  Without it a greatsword —
+    // whose box reaches eighteen pixels over the cell, because somewhere in
+    // the swing it is over his head — pushed him down on to the first two
+    // rows of his own character sheet.
+    dollCanvas.style.marginTop = `${(ly * on).toFixed(1)}px`
     const g = dollCanvas.getContext('2d')!
     g.imageSmoothingEnabled = false
     g.clearRect(0, 0, dollCanvas.width, dollCanvas.height)
     const frame = still(dollArt, who)
-    for (const name of want) {
+    /** Whether a layer is something he is carrying rather than wearing. */
+    const held = (name: string) => name.includes('_weapon_')
+    const put = (name: string) => {
       let img = dollLayers.get(name)
       if (!img) {
         img = new Image()
@@ -4369,20 +4451,49 @@ async function main() {
         img.src = `./art/doll/${name}.png`
         dollLayers.set(name, img)
       }
-      if (!img.complete || !img.naturalWidth) continue
+      if (!img.complete || !img.naturalWidth) return
       // Each layer is packed at *its own* size, not at the cell's: the body
       // sheet is 592 by 855, which is sixteen columns of 37 by 45, and `dx`
       // and `dy` say where that rectangle sits inside the 57-pixel cell.
       // Read as cell-sized frames the sheet is a tenth of a column out and
       // every layer draws somebody else's elbow.
       const box = meta.layers[name]
-      if (!box) continue
+      if (!box) return
       const sx = (frame % dollArt.cols) * box.w
       const sy = Math.floor(frame / dollArt.cols) * box.h
       g.drawImage(img, sx, sy, box.w, box.h,
-        box.dx * scale, box.dy * scale, box.w * scale, box.h * scale)
+        (box.dx - lx) * scale, (box.dy - ly) * scale,
+        box.w * scale, box.h * scale)
     }
+    // Worn first, then measured, then held — and the order is the whole point.
+    //
+    // `dollPerson` is where the *man* is, and the portrait is a window on to
+    // it.  Measured over everything drawn, a sword hanging at his side moved
+    // the middle of the box a third of a head to the left and the portrait
+    // came back nine per cent painted: a picture of his shoulder.  What he is
+    // carrying is not part of where he is, which is the same distinction
+    // `pack_paperdoll.py` makes one file away when it leaves the weapon out of
+    // the cell.
+    for (const name of want) if (!held(name)) put(name)
+    dollPerson = inkBox(g, dollCanvas.width, dollCanvas.height)
+    for (const name of want) if (held(name)) put(name)
     return dollCanvas
+  }
+
+  /** The box of everything painted on a canvas, or null if nothing is. */
+  const inkBox = (g: CanvasRenderingContext2D, w: number, h: number) => {
+    const d = g.getImageData(0, 0, w, h).data
+    let x0 = w, y0 = h, x1 = -1, y1 = -1
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (d[(y * w + x) * 4 + 3]! <= 20) continue
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+    }
+    return x1 < 0 ? null : { x0, y0, x1, y1 }
   }
 
   /** What a thing is, in our words: its sort, and where it goes. */
@@ -4988,6 +5099,15 @@ async function main() {
   })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
+  /**
+   * How many pictures the last frame put the hero together out of.
+   *
+   * One is a man with nothing in his hands.  Counted where the images are
+   * actually drawn rather than where they are chosen, because `drawArm`
+   * returns early on a name the atlas has never heard of — so this says a
+   * picture landed, which is the claim, and not merely that a branch ran.
+   */
+  let heroLayers = 0
   /**
    * What was painted inside a building's outline this frame, by tile name.
    *
@@ -5672,11 +5792,31 @@ async function main() {
       const c = heroMeta.cell
       const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
       const w = c * zoom
+      const X = Math.round(screenX(hero.ix, hero.iy) - w / 2)
+      const Y = Math.round(screenY(hero.ix, hero.iy) - w * 0.82)
       shadow(hero.ix, hero.iy, 0.34)
-      ctx.drawImage(heroImg, sxp, syp, c, c,
-        Math.round(screenX(hero.ix, hero.iy) - w / 2),
-        Math.round(screenY(hero.ix, hero.iy) - w * 0.82), Math.ceil(w), Math.ceil(w))
+      // What is in his hand, in two halves either side of him — the same
+      // arrangement everybody else in the world already had.  He is standing
+      // still on `idle`, and a weapon has no idle of its own, so it takes the
+      // pose LPC puts at frame 0 of the walk, which is the standing one.
+      const arm = armFor(gear['weapon'])
+      const armAt = hero.moving ? f : 0
+      heroLayers = 1
+      drawArm(arm && `${arm}.bg`, armAt, X, Y, w / c)
+      ctx.drawImage(heroImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+      drawArm(arm, armAt, X, Y, w / c)
       drawn++
+    }
+
+    /** One half of what he is holding, at the body's own scale. */
+    const drawArm = (name: string | null | undefined, f: number,
+      X: number, Y: number, k: number) => {
+      const a = name ? heroMeta.arms?.[name] : undefined
+      if (!a || !armsImg.complete || !armsImg.naturalWidth) return
+      ctx.drawImage(armsImg, (f % a.cols) * a.w, a.y + hero.dir * a.h, a.w, a.h,
+        Math.round(X + a.dx * k), Math.round(Y + a.dy * k),
+        Math.ceil(a.w * k), Math.ceil(a.h * k))
+      heroLayers++
     }
     /**
      * The dab of shade a body puts on the ground it stands on.
@@ -6956,6 +7096,40 @@ async function main() {
   /** How often the weapon slot came up empty — see `bordercheck`. */
   ;(window as unknown as { __barehanded: () => number }).__barehanded =
     () => barehanded
+  /**
+   * What can be held, what is drawn for it, and whether holding it shows.
+   *
+   * Three lists rather than a count, because a count is what let this go
+   * wrong in the first place: the hand was drawn empty for every weapon in
+   * the game while five strips of LPC and five renders of the kit sat there
+   * unasked for, and "five kinds, five pictures" would have passed.  What has
+   * to agree is the set of kinds **the items actually are** against the set
+   * the two sheets can draw, and either one being short is a failure.
+   *
+   * `flat` is the world sprite's gap and `undressed` the paperdoll's; they are
+   * separate because they are separate sheets cut from separate archives, and
+   * a kind can easily be in one and not the other.
+   */
+  ;(window as unknown as { __arms: () => unknown }).__arms = () => {
+    const kinds = new Set<string>()
+    for (const it of Object.values(shelf.items)) {
+      const word = it[I_ARM] as string
+      if (word) kinds.add(word)
+    }
+    const want = [...kinds].sort()
+    const doll = dollArt?.who['male']?.layers ?? {}
+    return {
+      kinds: want,
+      // Both halves, because a weapon is drawn in front of the body and
+      // behind it, and half a sword is worse than none.
+      flat: want.filter((k) => !heroMeta.arms?.[k] || !heroMeta.arms?.[`${k}.bg`]),
+      undressed: want.filter((k) => !doll[`male_weapon_${k}`]),
+      held: armFor(gear['weapon']),
+      layers: heroLayers,
+      wearing: dollKey.split('|').filter(Boolean),
+    }
+  }
+
   /** Which worn slots the paperdoll has no picture for. */
   ;(window as unknown as { __undrawn: () => string[] }).__undrawn =
     () => [...dollMissing]
