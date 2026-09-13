@@ -16,6 +16,7 @@
  *
  * Nothing here knows any rules.  It is handed numbers and it shows them.
  */
+import { layoutFor } from './touch.ts'
 
 /** What one frame shows. `null` hides it. */
 export type Unit = {
@@ -510,26 +511,162 @@ export function hud(layout?: Layout) {
    * the original was never laid out for one, so the stylesheet's own rules
    * stand there — which is the honest answer rather than a shrunken copy.
    */
-  /** Everything `place` touches, so that a phone can be handed it all back. */
+  /** Everything either layout touches, so the other one can start clean. */
   const placed = () => [units, foe.root, mapBox, logBox, bagPanel, sheet, deck,
     bar, micro, xpBar, swingBar, helpLine, track,
     document.getElementById('talk')].filter(Boolean) as HTMLElement[]
 
+  const loose = (node: HTMLElement) => {
+    for (const k of ['position', 'left', 'right', 'top', 'bottom',
+      'width', 'height', 'transform'] as const) node.style.removeProperty(k)
+  }
+
+  /** Pins one box by whichever sides are named, clearing the rest. */
+  const put = (node: HTMLElement, box: Partial<Record<
+    'left' | 'right' | 'top' | 'bottom' | 'width' | 'height', number>>) => {
+    loose(node)
+    node.style.position = 'fixed'
+    node.style.transform = 'none'
+    for (const k of ['left', 'right', 'top', 'bottom'] as const) {
+      node.style[k] = box[k] === undefined ? 'auto' : `${Math.round(box[k]!)}px`
+    }
+    for (const k of ['width', 'height'] as const) {
+      if (box[k] !== undefined) node.style[k] = `${Math.round(box[k]!)}px`
+    }
+  }
+
+  /**
+   * The phone, laid out on purpose.
+   *
+   * What stood here handed every panel back to the stylesheet and called that
+   * the honest answer.  It was not.  `#micro`, `#xp` and `#swing` have no
+   * `position` of their own, so with their pins removed they fell into normal
+   * flow inside a layer that covers the screen — and the menu came out as a
+   * 390-pixel column of full-width rows across the top half of the glass,
+   * with the experience bar floating above it and the minimap behind it.  The
+   * rules written for them in the stylesheet (`top: 152px`, `right: 8px`)
+   * never applied at all, because a static box has no sides to hold on to.
+   *
+   * So this is the old prototype's answer instead, which that game worked out
+   * on the same screen: **the four corners are the interface and the middle is
+   * the game.**  Top left is who you are, top right is where you are, the
+   * right edge carries what opens, and the bottom third belongs to two thumbs
+   * and to nothing else.
+   *
+   * The floor of that bottom third is not a guess.  It is `layoutFor` — the
+   * same function that draws the stick and the buttons onto the canvas — so
+   * the log stops where the ring starts and the menu stops where the cluster
+   * starts.  Nothing in CSS can ask where a thumb is, which is why the
+   * backpack used to open on top of the attack button.
+   */
+  const placePhone = () => {
+    const w = window.innerWidth, h = window.innerHeight
+    const l = layoutFor(w, h)
+    // The two numbers that say where the interface has to stop: the top of
+    // the stick's ring at rest, and the top of the button cluster.
+    const stickTop = l.home.y - l.base
+    const clusterTop = Math.min(...l.slots.map((s) => s.y)) - l.btnR
+    const floor = Math.min(stickTop, clusterTop)
+    // Held sideways a phone has width and no height, which is the opposite of
+    // the problem, so the interface spreads along the top instead of stacking
+    // down the right.  The old prototype's layout branched on exactly this.
+    const tall = h >= w
+
+    // Top left: who you are — and the two strips that belong to him.  They
+    // are the original's bottom-of-the-screen strips, and the bottom of this
+    // screen is a thumb.
+    const col = Math.min(190, Math.round(w * 0.5))
+    put(units, { left: 8, top: 8, width: col })
+    const under = 8 + units.offsetHeight + 4
+    // Twelve and not ten: the number written down the middle of it has a
+    // line box of its own, and a ten-pixel bar clipped the bottom off `0 / 400`.
+    put(xpBar, { left: 8, top: under, width: col, height: 12 })
+    put(swingBar, { left: 8, top: under + 14, width: col, height: 3 })
+
+    // Top right: where you are.  Smaller lying down, where the whole screen
+    // is 390 tall and a 150-pixel circle is most of it.
+    const dial = tall ? 98 : 78
+    const face = mapBox.querySelector('canvas') as HTMLElement | null
+    if (face) { face.style.width = `${dial}px`; face.style.height = `${dial}px` }
+    // Wider than the circle, because the plate under it carries a place name
+    // and the weather: sized to the dial alone, 노스샤이어 계곡 wrapped onto
+    // two lines in a box meant for one.
+    put(mapBox, { right: 8, top: 8, width: Math.max(dial + 6, 118) })
+    // The plates under the circle are part of the box, so whatever comes next
+    // clears all of it and not just the canvas.
+    const below = 8 + mapBox.offsetHeight + 6
+
+    // What opens.  Standing up it is a block two wide against the right edge,
+    // stopped short of the cluster; a column of five would have run into it,
+    // and five full-width rows — which is what there was — ran into
+    // everything.  Lying down there is a whole top edge free between the
+    // player's frame and the map, so it goes there as one row.
+    if (micro.parentElement === deck) ui.appendChild(micro)
+    // How it is shaped is a class and not an inline style.  Written inline it
+    // beat the stylesheet, and the rule that takes the menu away while
+    // somebody is talking — `body.touch.talking #micro` — never fired, so
+    // five buttons that answer a press floated over the answers.
+    // Written only when it changes: the observer at the end of this file
+    // watches this attribute and `toggle` rewrites it either way, so an
+    // unconditional write here made `place` call itself.
+    if (document.body.classList.contains('lying') === tall) {
+      document.body.classList.toggle('lying', !tall)
+    }
+    if (tall) put(micro, { right: 8, bottom: h - clusterTop + 10, width: 116 })
+    else put(micro, { left: col + 20, top: 8 })
+    // The deck is the bar plus the menu, and on a phone the bar is the two
+    // round buttons on the canvas and the menu has just left.
+    deck.style.display = 'none'
+
+    // What you are in the middle of, down the right edge under the map, and
+    // cut off rather than allowed to grow into whatever is under it.
+    const roof = tall ? micro.getBoundingClientRect().top : floor
+    put(track, { right: 8, top: below, width: 134,
+      height: Math.max(0, roof - below - 8) })
+    track.style.overflow = 'hidden'
+
+    // What just happened, above the stick rather than under it.
+    const room = stickTop - under - 24
+    put(logBox, { left: 8, bottom: h - stickTop + 8, width: 160,
+      height: Math.max(36, Math.min(88, room)) })
+
+    // How to play, under the player's own block — which is the one strip of
+    // either screen that is neither a corner nor a thumb.  A fixed width
+    // rather than a span, because an invisible box the width of the screen is
+    // still a box and everything else has to dodge it.
+    put(helpLine, { left: 8, top: under + 20, width: 200 })
+    helpLine.style.textAlign = 'center'
+
+    // The backpack is a sheet here, not a corner panel — the corner it took
+    // is the attack button — and the stylesheet centres it like the other
+    // two, so all this has to do is stop holding it in a corner.
+    loose(bagPanel)
+
+    // The numbers readout is a developer's and a phone has no corner spare
+    // for one, so it opens across the width under the top band — over the
+    // tracker, which is not a thing anybody reads while staring at frame
+    // times.  It is a panel you opened, like the other three.
+    const numbers = document.getElementById('hud')
+    if (numbers) put(numbers, { left: 8, top: below, width: w - 16 })
+
+    // And the ones the stylesheet already centres are left centred.
+    for (const node of [sheet, document.getElementById('talk')]) {
+      if (node) loose(node)
+    }
+  }
+
   const place = () => {
-    if (!layout) return
-    // A phone is 390 by 664 and the original was never laid out for one, so
-    // the stylesheet's own rules stand there.  Handing them back matters:
-    // `place` runs once at construction, *before* the scene has worked out
-    // that this is a phone, so the first run had already pinned the gossip
-    // window to the top of the screen and returning early left it there —
-    // over the person talking, which is the one thing the touch rules exist
-    // to avoid.
-    if (document.body.classList.contains('touch')) {
-      for (const node of placed()) {
-        for (const k of ['position', 'left', 'right', 'top', 'bottom',
-          'width', 'height', 'transform'] as const) node.style.removeProperty(k)
-      }
-      if (micro.parentElement === deck) ui.appendChild(micro)
+    if (document.body.classList.contains('touch')) return placePhone()
+    deck.style.removeProperty('display')
+    if (document.body.classList.contains('lying')) {
+      document.body.classList.remove('lying')
+    }
+    helpLine.style.removeProperty('text-align')
+    track.style.removeProperty('overflow')
+    const face = mapBox.querySelector('canvas') as HTMLElement | null
+    if (face) { face.style.removeProperty('width'); face.style.removeProperty('height') }
+    if (!layout) {
+      for (const node of placed()) loose(node)
       return
     }
     // The original is laid out against a 768-tall screen.  Smaller than that

@@ -191,6 +191,24 @@ check('the speaker is lifted clear of the panel',
   seen.hero.y < seen.top - 20, JSON.stringify(seen))
 check('and clear of the readout', seen.hero.y > hudBottom, JSON.stringify([seen.hero.y, hudBottom]))
 
+// And nothing else that takes a press is on top of it.  The pad hands the
+// screen over while somebody is talking, but the menu is DOM and knew nothing
+// about that: five buttons sat over the answers, and every one of them
+// answered a thumb.
+const onPanel = await p.evaluate(() => {
+  const r = document.getElementById('talk').getBoundingClientRect()
+  return [...document.querySelectorAll('#ui .slot, #ui #micro button, #ui #bag li')]
+    .filter((e) => {
+      const b = e.getBoundingClientRect()
+      return b.width > 0 && getComputedStyle(e).pointerEvents !== 'none'
+        && b.right > r.left && b.left < r.right
+        && b.bottom > r.top && b.top < r.bottom
+    })
+    .map((e) => `${e.parentElement.id || e.parentElement.className}:${e.textContent.trim()}`)
+})
+check('nothing but the answers takes a press while talking',
+  onPanel.length === 0, onPanel.join(' '))
+
 // The option rows are a finger tall.
 const rows = await p.evaluate(() =>
   [...document.querySelectorAll('#talk li')].map((li) => Math.round(li.getBoundingClientRect().height)))
@@ -234,7 +252,73 @@ await p.evaluate(() => window.__cam({ x: -9461.6, y: 16.19, zoom: 1.4 }))
 await p.waitForTimeout(200)
 await p.screenshot({ path: `${SP}/pad-landscape.png` })
 
-// 12. A keyboard puts it all away again.
+// 12. Nothing the interface draws may sit on a thumb, or on anything else.
+//
+// This is the check that was missing.  `#micro`, `#xp` and `#swing` have no
+// `position` of their own, and the phone branch of `place` used to remove
+// every pin and let the stylesheet stand — so all three fell into normal flow
+// inside a layer that covers the screen, and the menu came out as five
+// full-width rows across the top half of the glass, over the minimap and the
+// player's own frame.  Every behavioural check above passed the whole time,
+// because a finger can still press a button that is in the wrong place.
+//
+// Three rules, and they are the ones the old prototype laid its phone screen
+// out by: the corners are the interface, the middle is the game, and the
+// bottom third is two thumbs and nothing else.
+for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
+  ['small', 360, 640]]) {
+  await p.setViewportSize({ width: w, height: h })
+  await p.waitForTimeout(250)
+  const L2 = await pad()
+  const panels = await p.evaluate(() =>
+    [...document.querySelectorAll('#ui > *, #hud, #help')]
+      .filter((e) => !e.hidden && e.getBoundingClientRect().width > 0)
+      .map((e) => {
+        const r = e.getBoundingClientRect()
+        return { id: e.id || e.className, x: r.x, y: r.y, w: r.width, h: r.height }
+      })
+      // The chrome that is always there.  A panel you opened is allowed to
+      // cover things — that is what opening it is — so the modals are not in
+      // this, and they are hidden anyway while nobody has asked for them.
+      .filter((b) => !['ui', 'world', 'sheet', 'bag', 'tip', 'talk', 'hud']
+        .includes(b.id)))
+
+  // A box and a disc.  The stick's ring at rest and each button, at the
+  // radius a finger is actually caught at rather than the one drawn.
+  const onDisc = (b, cx, cy, r) =>
+    Math.hypot(Math.max(b.x, Math.min(cx, b.x + b.w)) - cx,
+      Math.max(b.y, Math.min(cy, b.y + b.h)) - cy) < r
+  const thumbs = [[L2.home.x, L2.home.y, L2.base],
+    ...L2.slots.slice(0, 2).map((sl) => [sl.x, sl.y, L2.hit])]
+  const sat = panels.filter((b) => thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
+  check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
+    sat.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
+      `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))
+
+  // And no two panels are in the same place.  A pair that overlaps is a pair
+  // where one of them is unreadable, which is how the menu covered the map.
+  const hits = []
+  for (let i = 0; i < panels.length; i++) {
+    for (let j = i + 1; j < panels.length; j++) {
+      const a = panels[i], c = panels[j]
+      const over = Math.min(a.x + a.w, c.x + c.w) - Math.max(a.x, c.x)
+      const down = Math.min(a.y + a.h, c.y + c.h) - Math.max(a.y, c.y)
+      if (over > 2 && down > 2) hits.push(`${a.id}/${c.id}`)
+    }
+  }
+  check(`${name}: no two panels share a place`, hits.length === 0, hits.join(' '))
+
+  // And all of it is on the glass.  A panel pinned off the right edge of a
+  // 360-wide phone is a panel nobody has.
+  const off = panels.filter((b) =>
+    b.x < -1 || b.y < -1 || b.x + b.w > w + 1 || b.y + b.h > h + 1)
+  check(`${name}: all of it is on the glass`, off.length === 0,
+    off.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
+      `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))
+  await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
+}
+
+// 13. A keyboard puts it all away again.
 await p.setViewportSize({ width: 390, height: 844 })
 await p.keyboard.press('w')
 await p.waitForTimeout(120)

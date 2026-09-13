@@ -361,41 +361,72 @@
         by a media query alone: a laptop with a touchscreen answers `pointer:
         coarse` and is still a keyboard until somebody touches it.
 
-        Three things move.  The readout is sixty monospace columns wide and a
-        390-pixel phone is not, so it shrinks.  The help line lives in the
-        bottom right corner, which on touch is where the buttons are — and the
-        top is the readout and the bottom left is the stick, so what is left is
-        the gap between the two thumbs, which is 160 pixels wide and wants two
-        short lines rather than one long one.  And an option in a conversation
-        is a 20-pixel line of text, which is half of what a finger can hit.
+        **Where things go on a phone is not here.**  It is `placePhone` in
+        `src/hud.ts`, because the two corners that matter are the stick and
+        the button cluster, and those are drawn on the canvas out of
+        `layoutFor` — a number no stylesheet can ask for.  Rules that tried
+        stood in this file for weeks and never applied: `#micro` has no
+        `position`, so `top: 152px` on it was decoration, and the menu came
+        out as five full-width rows across the top half of the screen.
+
+        What is left here is what a phone changes about *size and look*: a
+        readout sixty monospace columns wide does not fit in 390, a 46-pixel
+        portrait is a quarter of the width, and a conversation option is a
+        20-pixel line of text where a finger needs forty.
       */
       body.touch #hud { font-size: 9px; padding: 6px 8px; }
       /* A phone's bottom row is two thumbs, so the bar is not there — the
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
-      /* The bottom of a phone is two thumbs, so the two strips the original
-         puts down there come back up under the player's block. */
-      body.touch #ui #xp { position: static; width: auto; margin: 3px 0 0; height: 10px; }
-      body.touch #ui #swing { position: static; width: auto; height: 3px; border: 0; }
-      /* Under the map, not over it: the map box is a 96-pixel canvas plus two
-         lines of text, which is 156 and not 128. */
-      body.touch #micro { bottom: auto; top: 152px; right: 8px; flex-direction: column; }
-      body.touch #micro button { font-size: 10px; padding: 4px 6px; }
-      body.touch #bag { bottom: 170px; width: 150px; font-size: 11px; }
+      /* Smaller, and gathered: five of these share 116 pixels of the right
+         edge above the cluster, two to a row. */
+      /* Two wide against the right edge standing up, one row along the top
+         edge lying down — `placePhone` says which by putting `lying` on the
+         body, because an inline style would beat the rule below that takes
+         this away while somebody is talking. */
+      body.touch #micro {
+        display: grid; grid-template-columns: repeat(2, 1fr);
+        gap: 3px; padding-bottom: 0;
+      }
+      body.touch.lying #micro { display: flex; }
+      body.touch #micro button { font-size: 10px; padding: 5px 2px; }
+      /* On a phone the backpack is a sheet, like the character panel and the
+         map: the corner it used to take is the attack button. */
+      body.touch #bag {
+        left: 50%; top: 50%; right: auto; bottom: auto;
+        transform: translate(-50%, -50%);
+        width: min(260px, calc(100vw - 32px)); font-size: 11px;
+      }
+      /* A pinned width is a width.  Without this the strips under the player
+         came out two pixels wider than the frame above them, which on a
+         390-pixel screen is a visible step. */
+      body.touch #units, body.touch #log, body.touch #micro, body.touch #map,
+      body.touch #track, body.touch #ui #xp, body.touch #ui #swing {
+        box-sizing: border-box;
+      }
       body.touch #world canvas { height: auto; width: calc(100vw - 44px); }
-      /* A phone's corners are the stick, the buttons and the readout, so the
-         map shrinks and the log gets out of the stick's way. */
-      body.touch #map { width: 104px; right: 10px; top: 10px; }
-      body.touch #map canvas { width: 98px; height: 98px; border-width: 2px; }
-      body.touch #log { bottom: auto; top: 120px; width: 160px; font-size: 10px; }
+      body.touch #map canvas { border-width: 2px; margin: 0 auto; }
+      /* The plates take the whole box: inset by 14 on a 118-pixel one there
+         is no room left for a place name. */
+      body.touch #map .where, body.touch #map .clock { margin: 0; }
+      body.touch #log { font-size: 10px; }
+      body.touch #track { font-size: 10px; }
       body.touch #tip { display: none; }
-      body.touch #units { width: 176px; }
       body.touch .frame { grid-template-columns: 30px 1fr; padding: 4px; }
       body.touch .frame .face { width: 30px; height: 30px; }
+      body.touch .frame .top { font-size: 11px; }
+      body.touch .frame .bar, body.touch #ui #xp { height: 12px; }
+      body.touch .frame .num, body.touch #ui #xp .num { line-height: 12px; }
+      /* No plate: it sits over the grass between the map and the world, and a
+         box there reads as another panel rather than as a hint. */
       body.touch #help {
-        right: auto; left: 50%; transform: translateX(-50%);
-        bottom: 10px; text-align: center; font-size: 10px;
+        font-size: 10px; background: none; padding: 0;
+        text-shadow: 0 1px 3px #000, 0 0 4px #000;
       }
+      /* A conversation takes the phone.  Everything that takes a press and is
+         not an answer goes away for as long as it is open — see `setBusy` in
+         `src/touch.ts`, which does the same for the stick and the buttons. */
+      body.touch.talking #micro { display: none; }
       /* Nearly opaque: at .92 the panel covers half a phone and the world
          ghosts through all of it. */
       body.touch #talk { bottom: 16px; font-size: 15px; background: rgba(10,12,18,.975); }

@@ -107,6 +107,29 @@ as an iPhone, drives it with real touch input and writes the screenshots to
 readout seventy-two columns wide, a panel covering the person talking, and a
 help line printed on top of the buttons.
 
+**Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
+is the whole lesson of a round spent on it. The old branch removed every pin
+and let the base rules stand, which sounds like the honest answer — but
+`#micro`, `#xp` and `#swing` have no `position` of their own, so all three fell
+into normal flow inside a layer that covers the screen, and the menu came out
+as five full-width rows across the top half of the glass. Every rule written
+for them in `index.html` was decoration: `top: 152px` on a static box holds on
+to nothing. What the phone gets instead is the shape the prototype settled on —
+**the four corners are the interface and the middle is the game, and the bottom
+third is two thumbs** — laid out from `layoutFor`, the same function that draws
+the stick and the buttons onto the canvas. A stylesheet cannot ask where a
+thumb is, which is why the backpack used to open on top of the attack button.
+
+Two things guard it. `padcheck` now reads every visible panel at three sizes
+and asserts that none of them sits on a thumb, that no two share a place, and
+that all of it is on the glass — the behavioural checks above it all passed
+while the layout was wrong, because a finger can still press a button that is
+in the wrong place. And the class that says which shape to use is written
+**only when it changes**: `hud.ts` watches the body's class with a
+`MutationObserver`, `classList.toggle` rewrites the attribute either way, and
+an unconditional write once per frame re-laid the whole interface out sixty
+times a second — which took `padcheck` from nine seconds to past ten minutes.
+
 **The art decides the projection, and it took a round trip to believe it.**
 LPC's people are drawn facing up, down, left and right *on the screen*. For one
 round this was a quarter view, where none of the world's four directions was

@@ -2984,6 +2984,7 @@ async function main() {
     mapCtx.fillRect(mid - 1, mid - 1, 3, 3)
   }
   const help = document.getElementById('help') as HTMLDivElement
+  let talkingNow = false
   let helpFor: boolean | null = null
 
   // --- talking to people ------------------------------------------------
@@ -4135,6 +4136,21 @@ async function main() {
     // The help line and a conversation share the bottom of a phone, and the
     // line is about controls that are not there while somebody is talking.
     help.hidden = pad.on && chat !== null
+    // And the menu goes with it.  The pad hands the screen over while somebody
+    // is talking — `setBusy` — but `#micro` is DOM and knew nothing about it,
+    // so five buttons that take a press floated over the answers, and a thumb
+    // reaching for 뭘 가르치시오? hit 가방.
+    //
+    // Only on the edge, and this is not tidiness.  `hud.ts` watches the body's
+    // class with a `MutationObserver` to catch the moment the scene decides it
+    // is a phone, and `classList.toggle` rewrites the attribute whether or not
+    // the answer changed — so writing this every frame re-laid the whole
+    // interface out sixty times a second, and took `padcheck` from ninety
+    // seconds to past ten minutes.
+    if (talkingNow !== (chat !== null)) {
+      talkingNow = chat !== null
+      document.body.classList.toggle('talking', talkingNow)
+    }
     if (helpFor !== pad.on) {
       helpFor = pad.on
       document.body.classList.toggle('touch', pad.on)
@@ -4216,9 +4232,14 @@ async function main() {
     // never mentions the weather is a clock in a room with no windows.
     const overhead = SKY_WORD[skyAt(who?.weather?.[String(zone)]
       ?? who?.weather?.[String(inside(zone))], new Date())] ?? ''
+    // The plate under the minimap says where you are.  The coordinates on the
+    // end of it are a developer's number and the readout already carries them
+    // — `주인공 (x, y)` — and on a phone the plate is 118 pixels wide, which
+    // 노스샤이어 계곡 -8950, -132 wraps onto three lines of.  So the phone
+    // gets the place and the weather, which is what that game's plate says.
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
-      + `${overhead ? ` · ${overhead}` : ''}  `
-      + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
+      + `${overhead ? ` · ${overhead}` : ''}`
+      + (pad.on ? '' : `  ${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`),
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
     // Empty when there is nothing to swing at.  Full meant "ready", which on
