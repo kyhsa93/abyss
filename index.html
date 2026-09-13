@@ -120,7 +120,13 @@
          the id in front of them because `#ui *` is more specific than a bare
          selector and quietly won: the slots were set to `auto` and computed to
          `none`. */
-      #ui .slot, #ui #bag li, #ui #micro button, #ui .auras .aura {
+      /* `#shop li` and `#shop .page` because a shop is pressed, and `#map` on
+         a phone because that is where the five buttons come out of.  Every
+         child of `#ui` is inert by default — the interface is a layer over a
+         game and a click belongs to the game — so anything that answers a
+         press has to say so here. */
+      #ui .slot, #ui #bag li, #ui #micro button, #ui .auras .aura,
+      #ui #shop li, #ui #shop .page {
         pointer-events: auto; cursor: pointer;
       }
       /* Above the canvas, said out loud.  Both are painted in the positioned
@@ -550,6 +556,11 @@
          edge lying down — `placePhone` says which by putting `lying` on the
          body, because an inline style would beat the rule below that takes
          this away while somebody is talking. */
+      /* The map is a button on a phone: pressing it is what brings the five
+         out.  The original's own `MinimapCluster` carries buttons for the same
+         reason.  Not on a desktop, where the micro row lives on the action bar
+         and a click on the map belongs to the world behind it. */
+      body.touch #map { pointer-events: auto; cursor: pointer; }
       body.touch #micro {
         display: grid; grid-template-columns: repeat(2, 1fr);
         gap: 3px; padding-bottom: 0;

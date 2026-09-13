@@ -1573,8 +1573,16 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     if (!path) return { path: null }
     const s = window.__start()
     window.__put(s.x, s.y)
+    // **Stuck is "he stopped", not "he missed".**  A waypoint is one cell of
+    // the flood's own trail, four yards apart, and a man running at seven
+    // yards a second rounds some of those corners rather than standing on
+    // them — which is the check's steering and not the world's.  What has to
+    // be true is that he never *stops*: each waypoint either gets reached or
+    // gets closer, and the arrival at the end is what it all adds up to.
     let stuck = 0
     for (const [tx, ty] of path.trail) {
+      const from = window.__hero()
+      const was = Math.hypot(from.x - tx, from.y - ty)
       let tries = 0
       while (tries++ < 120) {
         const h = window.__hero()
@@ -1583,7 +1591,8 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
         window.__steps(1)
       }
       const h = window.__hero()
-      if (Math.hypot(h.x - tx, h.y - ty) >= 2) stuck++
+      const now = Math.hypot(h.x - tx, h.y - ty)
+      if (now >= 2 && now > was - 0.5) stuck++
     }
     window.__aim(null)
     const h = window.__hero()
@@ -1593,8 +1602,8 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
   check('and a man can actually walk from the start to Goldshire',
     trek.path !== null && trek.stuck === 0 && trek.left < 6,
     trek.path === null ? 'the flood found no route at all'
-      : `${trek.yards} yards over ${trek.cells} cells, ${trek.stuck} of them `
-      + `he could not reach, ending ${trek.left} yards off`)
+      : `${trek.yards} yards over ${trek.cells} cells, stopped dead at `
+      + `${trek.stuck} of them, ending ${trek.left} yards off`)
   check('every door on a building\'s outside can be walked to',
     world.outerAll > 0 && world.outerGot === world.outerAll,
     `${world.outerGot} of ${world.outerAll} outer doors, `

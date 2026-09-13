@@ -791,6 +791,22 @@ export function hud(layout?: Layout) {
    * starts.  Nothing in CSS can ask where a thumb is, which is why the
    * backpack used to open on top of the attack button.
    */
+  /**
+   * Whether the five buttons are showing, which on a phone is a question.
+   *
+   * They were always up, at (266, 459) on a 390 by 664 screen: over the world,
+   * out of a thumb's reach, and in a place the original has nothing at all.
+   * All five *open a panel* — none of them is a readout — so there is no
+   * reason for them to sit on the glass while nobody is opening anything.
+   *
+   * The minimap is where they come from, and the original says so: the
+   * `MinimapCluster` carries `MiniMapTrackingButton` and
+   * `MinimapZoneTextButton`, so pressing the edge of the map is already the
+   * place things open from.  Ours was 118 by 137 in the top right, in reach,
+   * and pressing it did nothing.
+   */
+  let microOpen = false
+
   const placePhone = () => {
     spell()
     const w = window.innerWidth, h = window.innerHeight
@@ -848,17 +864,21 @@ export function hud(layout?: Layout) {
     if (document.body.classList.contains('lying') === tall) {
       document.body.classList.toggle('lying', !tall)
     }
-    if (tall) put(micro, { right: 8, bottom: h - clusterTop + 10, width: 116 })
+    // Under the map it comes out of, and only while it is open.
+    micro.hidden = !microOpen
+    if (tall) put(micro, { right: 8, top: below, width: 116 })
     else put(micro, { left: col + 20, top: 8 })
     // The deck is the bar plus the menu, and on a phone the bar is the two
     // round buttons on the canvas and the menu has just left.
     deck.style.display = 'none'
 
     // What you are in the middle of, down the right edge under the map, and
-    // cut off rather than allowed to grow into whatever is under it.
-    const roof = tall ? micro.getBoundingClientRect().top : floor
-    put(track, { right: 8, top: below, width: 134,
-      height: Math.max(0, roof - below - 8) })
+    // cut off rather than allowed to grow into whatever is under it.  It
+    // starts under the five buttons when they are out, because two panels in
+    // one place is one panel nobody can read.
+    const top2 = tall && microOpen ? below + micro.offsetHeight + 6 : below
+    put(track, { right: 8, top: top2, width: 134,
+      height: Math.max(0, floor - top2 - 8) })
     track.style.overflow = 'hidden'
 
     // What just happened, above the stick rather than under it.
@@ -943,6 +963,23 @@ export function hud(layout?: Layout) {
   let opened = 0
   /** Panels the seating rule says have to go, for the scene to act on. */
   const evicted = new Set<string>()
+
+  // Pressing the map is what opens the five buttons, and pressing it again or
+  // pressing anywhere else is what shuts them.  Only on a phone: the original
+  // puts the micro row on the action bar and on a desktop that is where it
+  // belongs, which is where it stays.
+  mapBox.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('touch')) return
+    e.stopPropagation()
+    microOpen = !microOpen
+    place()
+  })
+  addEventListener('pointerdown', (e) => {
+    if (!microOpen || !document.body.classList.contains('touch')) return
+    if (micro.contains(e.target as Node)) return
+    microOpen = false
+    place()
+  })
 
   const seat = () => {
     const rule = layout?.panels
@@ -1086,6 +1123,7 @@ export function hud(layout?: Layout) {
     // tenth row fell past the bottom edge.
     shopBox.style.height =
       `${Math.round((f['shop']?.h ?? 512) * s)}px`
+    micro.hidden = false
     if (micro.parentElement !== deck) deck.appendChild(micro)
     pin(deck, f['bar'], s)
     // `max-content` and not `auto`: a fixed box anchored at `left: 50%` with

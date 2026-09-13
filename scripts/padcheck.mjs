@@ -408,6 +408,56 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
 }
 
+// 12a2. The five buttons come out of the map, and nothing that is always up
+// takes a press.
+//
+// They sat at (266, 459) on a 390 by 664 screen: over the world, out of a
+// thumb's reach, and in a place the original has nothing at all.  All five
+// *open a panel* — none of them is a readout — so there is no reason for them
+// to be on the glass while nobody is opening anything.  The original says
+// where they come from: `MinimapCluster` carries `MiniMapTrackingButton` and
+// `MinimapZoneTextButton`, so the edge of the map is already the place things
+// open from, and ours was in reach and answered nothing.
+await p.setViewportSize({ width: 390, height: 844 })
+await p.waitForTimeout(250)
+{
+  const shut = await p.evaluate(() => document.getElementById('micro').hidden)
+  check('the five buttons are not on the glass at rest', shut === true,
+    `micro hidden: ${shut}`)
+  const mapAt = await p.evaluate(() => {
+    const r = document.getElementById('map').getBoundingClientRect()
+    return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]
+  })
+  await p.touchscreen.tap(mapAt[0], mapAt[1])
+  await p.waitForTimeout(250)
+  const open = await p.evaluate(() => {
+    const m = document.getElementById('micro')
+    const r = m.getBoundingClientRect()
+    return { hidden: m.hidden, n: m.querySelectorAll('button').length,
+      box: [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)] }
+  })
+  check('pressing the map brings them out',
+    open.hidden === false && open.n === 5, JSON.stringify(open))
+  await p.touchscreen.tap(mapAt[0], mapAt[1])
+  await p.waitForTimeout(250)
+  check('and pressing it again puts them away',
+    (await p.evaluate(() => document.getElementById('micro').hidden)) === true)
+
+  // And what is left standing is a readout.  Not a list of ids — a rule: the
+  // things that are always up are the ones that *say* something, and a thing
+  // that says something takes no press.
+  const pressy = await p.evaluate(() =>
+    [...document.querySelectorAll('#ui > *, #hud, #help')]
+      .filter((e) => !e.hidden && e.getBoundingClientRect().width > 0)
+      .filter((e) => [e, ...e.querySelectorAll('*')].some((n) =>
+        (n.tagName === 'BUTTON' || n.onclick)
+        && getComputedStyle(n).pointerEvents !== 'none'
+        && n.getBoundingClientRect().width > 0))
+      .map((e) => e.id || e.className))
+  check('and everything left standing is a readout', pressy.length === 0,
+    pressy.join(' '))
+}
+
 // 12b. And the type is the client's own ladder, one rung up.
 //
 // The phone was 15px, which read back as 39 on the original's own 1024-wide
