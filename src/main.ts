@@ -4118,6 +4118,18 @@ async function main() {
             + (got.length ? `, ${got.join(', ')}` : '')
           ui.log(`완료 — ${said}`, 'gain')
           showErrands()
+          // And the next one, on the spot.  `RewardNextQuest` is not the same
+          // column as `PrevQuestID`: that one says "this unlocks that", this
+          // one says "hand this in and here is the next", and fourteen of the
+          // slice's thirty-one are handed rather than walked.  Without it the
+          // player finishes an errand, walks away, and has to work out for
+          // themselves that the same person now wants something else.
+          const next = q.leads ? log.all.get(q.leads) : undefined
+          if (next && !log.done.has(next.id) && !holding(log, next.id)
+            && you.level >= next.min) {
+            startTalk(n)
+            return [said, '그리고 다음 일거리를 내민다.']
+          }
           return [said, ...(got.length ? ['G를 눌러 입는다.'] : [])]
         }
         // One of several, and you cannot take it back.  Nine of this slice's

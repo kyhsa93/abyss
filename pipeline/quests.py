@@ -357,6 +357,24 @@ def main(acore, client_root, out):
             'xp': table[diff] if 0 <= diff < len(table) else 0,
             'coin': int(f[col['RewardMoney']]),
             'after': int(a[acol['PrevQuestID']]) if a else 0,
+            # The other three shapes a chain has, and the slice's count of
+            # each is in the report below.
+            #
+            #   `group` — a positive `ExclusiveGroup` means "one of these and
+            #     then no more of them".  Nought here, and the reason is the
+            #     two filters above: all twelve of the slice's belonged to
+            #     another class or sat outside these levels.  The rule ships
+            #     anyway, because a rule that arrives with the quest is a rule
+            #     that does not have to be remembered.
+            #   `leads` — `RewardNextQuest`, which is "hand this in and the
+            #     next one is offered on the spot" rather than "this one
+            #     unlocks that one".  It is the difference between a chain you
+            #     walk and a chain you are handed.
+            #   `instead` — `BreadcrumbForQuestId`, a signpost errand that
+            #     disappears once you have the thing it was pointing at.
+            'group': int(a[acol['ExclusiveGroup']]) if a else 0,
+            'leads': int(f[col['RewardNextQuest']]),
+            'instead': int(a[acol['BreadcrumbForQuestId']]) if a else 0,
             # Carried so the gate at the end of this file can be run against
             # what was shipped rather than against what was read — a filter
             # that checks its own input is a filter that cannot be caught
@@ -426,6 +444,17 @@ def main(acore, client_root, out):
           f'{sum(1 for q in quests if q["pick"])} let you choose one of '
           f'{max([len(q["pick"]) for q in quests] + [0])}, over '
           f'{len(pays)} distinct items')
+    shapes = Counter()
+    for q in quests:
+        if q['after']:
+            shapes['follow another'] += 1
+        if q['group'] > 0:
+            shapes['are one of an exclusive group'] += 1
+        if q['leads']:
+            shapes['hand you the next one on the spot'] += 1
+        if q['instead']:
+            shapes['are a signpost that vanishes'] += 1
+    print('  chains: ' + ', '.join(f'{v} {k}' for k, v in shapes.most_common()))
     rich = sorted(quests, key=lambda q: -q['coin'])[:1]
     print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "
           f"the fattest {rich[0]['coin'] if rich else 0}")

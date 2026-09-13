@@ -58,6 +58,25 @@ export type Errand = {
   pick: [number, number][]
   /** The quest this one follows, or 0. */
   after: number
+  /**
+   * A positive `ExclusiveGroup`: one of these, and then no more of them.
+   *
+   * Nought in this slice — all twelve belonged to another class or sat
+   * outside these levels — and the rule ships anyway, because a rule that
+   * arrives with the quest is a rule nobody has to remember to add later.
+   */
+  group: number
+  /**
+   * `RewardNextQuest`: hand this in and the next one is offered on the spot.
+   *
+   * Not the same thing as `after`, which is "that one unlocks this one".
+   * This is the difference between a chain you walk and a chain you are
+   * handed, and fourteen of the thirty-one are handed.
+   */
+  leads: number
+  /** `BreadcrumbForQuestId`: a signpost that vanishes once you have the thing
+   * it points at. */
+  instead: number
 }
 
 /** How far along one held quest is. */
@@ -129,9 +148,39 @@ export function offers(b: Book, entry: number, level: number): Errand[] {
     if (q.from !== entry || b.done.has(q.id) || holding(b, q.id)) continue
     if (level < q.min) continue
     if (q.after && !b.done.has(q.after)) continue
+    if (shut(b, q)) continue
+    if (spent(b, q)) continue
     out.push(q)
   }
   return out.sort((a, c) => a.min - c.min || a.id - c.id)
+}
+
+/**
+ * Whether a sibling of this one has already been chosen.
+ *
+ * `ExclusiveGroup` positive is the table saying "one of these".  Taking one
+ * shuts the rest, and *finishing* one shuts them for good — which is the
+ * difference between a decision and a menu, and it is the reason the rule is
+ * here rather than in the panel that draws it.
+ */
+export function shut(b: Book, q: Errand): boolean {
+  if (q.group <= 0) return false
+  for (const other of b.all.values()) {
+    if (other === q || other.group !== q.group) continue
+    if (b.done.has(other.id) || !!holding(b, other.id)) return true
+  }
+  return false
+}
+
+/**
+ * Whether a signpost has nothing left to point at.
+ *
+ * `BreadcrumbForQuestId` names the errand this one exists to send you towards.
+ * Once you have that errand — or have finished it — the signpost is somebody
+ * telling you about a place you are standing in.
+ */
+export function spent(b: Book, q: Errand): boolean {
+  return !!q.instead && (b.done.has(q.instead) || !!holding(b, q.instead))
 }
 
 /** What this creature will take off you, finished or not. */

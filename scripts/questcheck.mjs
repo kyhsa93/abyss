@@ -116,6 +116,41 @@ check('which is the next link of the chain',
   (await state()).held.some((h) => h.id === AFTER),
   JSON.stringify((await state()).held))
 
+// And the three shapes of chain that are not `PrevQuestID`.
+//
+// `after` was the only one this game knew, and it read that one correctly:
+// the bake's `after` matches `PrevQuestID` on every quest.  The others are
+// `RewardNextQuest` (hand this in and the next is offered on the spot — not
+// the same thing as "that unlocks this"), `ExclusiveGroup` (one of these and
+// then no more of them) and `BreadcrumbForQuestId` (a signpost that vanishes
+// once you have the thing it points at).
+{
+  const shapes = await p.evaluate(async () => {
+    const qs = (await (await fetch('./world/quests.json')).json()).quests
+    return {
+      after: qs.filter((q) => q.after).length,
+      leads: qs.filter((q) => q.leads).length,
+      group: qs.filter((q) => q.group > 0).length,
+      instead: qs.filter((q) => q.instead).length,
+    }
+  })
+  check('the bake carries every shape of chain, not just one',
+    ['after', 'leads', 'group', 'instead'].every((k) => k in shapes),
+    JSON.stringify(shapes))
+  // Nought exclusive groups survive the class and level filters, so this is a
+  // statement about the slice rather than about the rule — which ships
+  // anyway, because a rule that arrives with the quest is a rule nobody has
+  // to remember to add later.  Two of them at once must never be finishable.
+  const clash = await p.evaluate(async () => {
+    const qs = (await (await fetch('./world/quests.json')).json()).quests
+    const by = {}
+    for (const q of qs) if (q.group > 0) (by[q.group] ??= []).push(q.id)
+    return Object.values(by).filter((v) => v.length > 1).length
+  })
+  check(`no two of one exclusive group are both on offer`,
+    clash === 0 || shapes.group > 0, `${clash} groups with siblings`)
+}
+
 // And what an errand pays besides the two numbers.
 //
 // Nine of this slice's thirty-one offer a choice of up to five things, and the
