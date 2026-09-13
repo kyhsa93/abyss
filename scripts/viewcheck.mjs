@@ -240,7 +240,34 @@ check('and they do not all move alike',
 check('the swing reaches what the client says', rules.melee === 5,
   `${rules.melee} yards`)
 
-// 9. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// 9. A building is an outline, not a slab.
+//
+// Filling a record's box with stone buried the middle of Northshire: the
+// abbey's box is 91 yards square and its two gates are 160 long, so the
+// courtyard, the road through the gate, the graveyard and every cobble under
+// them came out as one grey field.  A box is the *extent* of a thing, not a
+// claim that the ground inside it is floor.
+const inside = await p.evaluate(() => {
+  // The middle of the biggest building in the slice, and what the ground
+  // under it is drawn as.
+  const big = window.__buildings().sort((a, b) => b.l * b.w - a.l * a.w)[0]
+  if (!big) return null
+  const at = (dx, dy) => window.__probe(big.x + dx, big.y + dy)
+  return {
+    size: [Math.round(big.l * 2), Math.round(big.w * 2)],
+    // Along the building's own long axis, because it is turned: sampling
+    // along world x lands in the middle of a diagonal one.
+    middle: at(0, 0).built,
+    edge: at(big.c * (big.l - 0.6), big.s * (big.l - 0.6)).built,
+  }
+})
+if (inside) {
+  check('the middle of a building is not paved over', inside.middle === false,
+    `${inside.size[0]}x${inside.size[1]} yards, middle drawn as ${inside.middle}`)
+  check('and its wall is', inside.edge === true, `edge drawn as ${inside.edge}`)
+}
+
+// 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
 // to end, and the water a step off the side of it is not, which is the half
@@ -275,7 +302,7 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
-// 10. The ground costs what it costs.  A second tint fill over every tile,
+// 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -286,7 +313,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 11. And at the widest the zoom will go, which is where the ground used to
+// 12. And at the widest the zoom will go, which is where the ground used to
 // stop running.  The tile count went as the square of how far out you were —
 // 66,676 tiles at twenty frames a second four steps below the old floor — so
 // the floor was 0.6 and the widest view was eighty-three yards of a valley six

@@ -673,21 +673,22 @@ async function main() {
       })
       continue
     }
-    // Anything drawn as its plan has no standing picture: a sprite in the
-    // middle of a ninety-yard abbey is a cottage in a courtyard.
-    if (!asPlan(d)) {
-      placed.push({
-        x: d.x, y: d.y, piece, s: size,
-        ...(stem ? { trunk: stem } : {}),
-      })
-    }
+    placed.push({
+      x: d.x, y: d.y, piece, s: size,
+      ...(stem ? { trunk: stem } : {}),
+    })
     if (k.solid === 'building') {
       if (asPlan(d)) {
-        // Drawn as its plan, so its walls are its edges rather than the
-        // bottom third of a picture of a cottage.
-        solids.push({
-          x0: d.x - d.bl!, x1: d.x + d.bl!, y0: d.y - d.bw!, y1: d.y + d.bw!,
-        })
+        // Its walls, and not its whole extent.  A solid 91-yard abbey is a
+        // hole in the valley you cannot walk into, and you walk into the
+        // abbey.  Four strips, one a side.
+        const L = d.bl!, W = d.bw!, t = 1.5
+        for (const r of [
+          { x0: d.x - L, x1: d.x + L, y0: d.y - W, y1: d.y - W + t },
+          { x0: d.x - L, x1: d.x + L, y0: d.y + W - t, y1: d.y + W },
+          { x0: d.x - L, x1: d.x - L + t, y0: d.y - W, y1: d.y + W },
+          { x0: d.x + L - t, x1: d.x + L, y0: d.y - W, y1: d.y + W },
+        ]) solids.push(r)
       } else {
         const halfY = (piece.w * size) / PPY / 2
         const deep = ((piece.h * size) / PPY) * 0.32
@@ -1136,8 +1137,15 @@ async function main() {
       const dx = wx - b.x, dy = wy - b.y
       const al = Math.abs(dx * b.c + dy * b.s), ac = Math.abs(-dx * b.s + dy * b.c)
       if (al > b.l || ac > b.w) continue
-      // A wall a yard and a half thick, which is what a wall is.
-      return { b, wall: al > b.l - 1.5 || ac > b.w - 1.5 }
+      // A wall a yard and a half thick, and **only** the wall.  Filling the
+      // box was a mistake that buried the middle of Northshire: the abbey's
+      // box is 91 yards square and the two gates are 160 long, so painting
+      // them as stone put a grey slab over the courtyard, the road through the
+      // gate, the graveyard and the cobbles — which is what "there are no
+      // roads in Northshire" was.  A record's box is the *extent* of a thing,
+      // not a statement that the ground inside it is floor.
+      const wall = al > b.l - 1.5 || ac > b.w - 1.5
+      return wall ? { b, wall } : null
     }
     return null
   }
@@ -2454,7 +2462,7 @@ async function main() {
         // mostly a floor with a line around it, and because a plan ninety
         // yards across is not a thing that can be a sprite.
         const built = span ? null : inBuilding(wx, wy)
-        const id = built ? (built.wall ? WALL_TILE : ROCK_TILE)
+        const id = built ? WALL_TILE
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
@@ -2871,6 +2879,7 @@ async function main() {
   ;(window as unknown as { __probe: (x: number, y: number) => unknown }).__probe = (x, y) => ({
     z: groundAt(x, y), slope: slopeAt(x, y), step: stepAt(x, y),
     area: areaOf(x, y), paint: paintAt(x, y),
+    built: !!inBuilding(x, y),
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
 
@@ -2936,6 +2945,10 @@ async function main() {
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   /** The errands, and how far along they are — for the check that walks one. */
+  /** The buildings, for the check that a box is not drawn as a floor. */
+  ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
+    buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
+      c: b.c, s: b.s }))
   /** What the world told us about movement, for the check that it is used. */
   ;(window as unknown as { __rules: () => unknown }).__rules = () => ({
     cliff: CLIFF, melee: MELEE, walkBase: WALK_BASE, runBase: RUN_BASE,
