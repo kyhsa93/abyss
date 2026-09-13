@@ -1598,6 +1598,93 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     at.join(' '))
 }
 
+// 22. Anybody the scene leaves out is under a roof.
+//
+// The test was `inRoom` — *inside whose outline* — and an outline is a
+// silhouette, so it said yes over a courtyard and over ground the eaves happen
+// to reach.  96 of the slice's people stand inside an outline and **only 88
+// have anything over their heads**; the other eight are in the abbey's yard,
+// and hiding them was hiding somebody standing in the open air.  It also made
+// anybody who wandered across the silhouette's edge blink.
+//
+// Read off the draw loop's own decision, not off a second copy of the
+// condition: a check that re-derives the rule is a check that agrees with
+// itself.
+for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
+  ['Goldshire', -9453, 12, 0.9]]) {
+  await p.evaluate(([a, b, z]) => window.__cam({ x: a, y: b, zoom: z }),
+    [x, y, zoom])
+  // Two frames, because `__hidden` is what the *last* draw decided and the
+  // first one after a jump is still deciding it against the old camera.
+  await p.waitForTimeout(700)
+  // Three reasons are allowed and they are not the same thing: a roof cut
+  // from the building's own triangles, a building with no plan — drawn as a
+  // picture, so its inside is not a place — and a mine, which is not a model.
+  // Only the first is checkable against a mask, and it is the one that was
+  // wrong.
+  const out = await p.evaluate(() => window.__hidden().filter((n) => {
+    if (n.why !== 'roof') return false
+    const q = window.__plotAt(n.x, n.y)
+    return !q || !q.roofed
+  }))
+  check(`at ${name}, everybody left out of the scene is under a roof`,
+    out.length === 0,
+    out.map((n) => `${n.kind} at ${Math.round(n.x)},${Math.round(n.y)}`).join(' | ')
+    || `${(await p.evaluate(() => window.__hidden().length))} left out, all of `
+      + 'them under a roof, in a sprite, or down a mine')
+}
+
+// 23. A screen has somebody on it.
+//
+// 1,556 people over 5.4 million square yards is the original's own spawn
+// density, so the world being empty was never a question of *how many*.  It
+// was **how much of it you can see**: `zoom = 1` is twenty-four pixels to the
+// yard whatever the screen is, so a nine-hundred-pixel desktop showed 37 yards
+// across and a phone showed **sixteen** — the same game, four times emptier in
+// the hand.
+//
+// The floor is the world's own number.  `creature_template.detection_range`
+// tops out at twenty yards in this slice, so a screen narrower than forty
+// across its short side is a screen things reach you from outside of, and
+// *you should be able to see whatever can see you* is a rule where "it looks
+// nicer" is a taste.
+{
+  const seen = await p.evaluate(() => {
+    window.__cam({ zoom: 0 })   // back to the fitted default
+    const s = window.__start()
+    const all = window.__all()
+    const i = window.__people()
+    const hw = i.yardsWide / 2, hh = i.yardsTall / 2
+    const spots = []
+    for (let r = 40; r <= 600 && spots.length < 300; r += 40) {
+      for (let a = 0; a < 24 && spots.length < 300; a++) {
+        const t = (a / 24) * Math.PI * 2
+        const x = s.x + Math.cos(t) * r, y = s.y + Math.sin(t) * r
+        if (window.__canWalk(x, y)) spots.push([x, y])
+      }
+    }
+    let total = 0
+    for (const [x, y] of spots) {
+      total += all.filter((m) => Math.abs(m.x - x) < hw
+        && Math.abs(m.y - y) < hh).length
+    }
+    return {
+      perScreen: total / Math.max(1, spots.length), spots: spots.length,
+      wide: i.yardsWide, tall: i.yardsTall,
+      atStart: all.filter((m) => Math.abs(m.x - s.x) < hw
+        && Math.abs(m.y - s.y) < hh).length,
+    }
+  })
+  check('a screen shows at least forty yards across its short side',
+    Math.min(seen.wide, seen.tall) >= 39.5,
+    `${seen.wide.toFixed(0)} x ${seen.tall.toFixed(0)} yards`)
+  check('and a walkable spot has somebody on screen on average',
+    seen.perScreen >= 1,
+    `${seen.perScreen.toFixed(2)} people over ${seen.spots} spots`)
+  check('and there is more than one person where a character starts',
+    seen.atStart >= 2, `${seen.atStart} at the start`)
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

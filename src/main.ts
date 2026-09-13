@@ -1920,6 +1920,26 @@ async function main() {
       }
     return { b: here, wall: stone > room, floor: room >= stone && room > 0 }
   }
+  /**
+   * Whose roof is over this spot, or null for the open sky.
+   *
+   * Not `inRoom`, which answers *inside whose outline* — and an outline is a
+   * silhouette, so it says yes over a courtyard and over the ground beside a
+   * building that its eaves happen to reach.  96 of the slice's people stand
+   * inside an outline and **only 88 of them have anything over their heads**;
+   * the other eight are in the abbey's yard, and hiding them from outside was
+   * hiding somebody standing in the open air.
+   *
+   * The mask is the one issue 160 baked for exactly this question.
+   */
+  const roofOver = (wx: number, wy: number) => {
+    const b = inRoom(wx, wy)
+    if (!b) return null
+    const p = b.plan
+    if (!p || !p.over.length) return b
+    return bitAt(p.over, planCell(p, b, wx, wy)) ? b : null
+  }
+
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
   /**
    * The crossings, in the same coarse grid the buildings use, and for the same
@@ -2578,6 +2598,13 @@ async function main() {
     hero.x = x; hero.y = y
     hero.was.x = x; hero.was.y = y
     hero.ix = x; hero.iy = y
+    // Being put down outside a building is leaving it.
+    //
+    // `indoors` is only ever cleared by walking back over the doorstep, which
+    // is right for walking and wrong for every other way of moving: a
+    // graveyard is not in the inn, and a teleport out of the abbey left the
+    // scene drawing the abbey's floor around a hero standing in a field.
+    if (indoors && inRoom(x, y) !== indoors) { indoors = null; storey = -1 }
   }
 
 
@@ -4593,6 +4620,27 @@ async function main() {
     if (n) startTalk(n)
   }
 
+  /**
+   * How much ground a screen shows, and why it is yards rather than a scale.
+   *
+   * `zoom = 1` means twenty-four pixels to the yard whatever the screen is, so
+   * the amount of *world* on the glass was whatever the window happened to be:
+   * 37 yards across a nine-hundred-pixel desktop and **sixteen across a
+   * phone**.  The same game is four times emptier in the hand than on the
+   * desk, and nothing said so — which is half of why the world reads as empty
+   * (issue 172).  Measured over 300 walkable spots near the start, a screen
+   * held 0.97 people.
+   *
+   * The number is the world's own.  `creature_template.detection_range` is how
+   * far a creature notices you and the slice's largest is **twenty yards**, so
+   * a screen narrower than forty across its short side is a screen things
+   * reach you from outside of.  *You should be able to see whatever can see
+   * you* is a rule, where "it looks nicer" is a taste.
+   *
+   * It is a floor and not a fixed value: a wide desktop shows more, because
+   * there is no reason to crop it, and a pinch still does what a pinch does.
+   */
+  const SEEN_YARDS = 40
   let zoom = 1
   /**
    * How far out you may pull, which is a frame-rate decision.
@@ -4606,13 +4654,26 @@ async function main() {
   const clampZoom = (z: number) => Math.max(0.12, Math.min(3, z))
   addEventListener('wheel', (e) => {
     zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
+    zoomIsMine = true
   }, { passive: true })
 
+
+  /**
+   * Whether the player has taken the zoom over, so a resize does not take it
+   * back.  A pinch or a wheel is a decision and a rotated phone is not.
+   */
+  let zoomIsMine = false
 
   function resize() {
     canvas.width = Math.floor(innerWidth)
     canvas.height = Math.floor(innerHeight)
     ctx.imageSmoothingEnabled = false
+    // Pull out far enough to see forty yards across the short side — see
+    // `SEEN_YARDS`.  Never *in*: a wide screen shows what it has room for.
+    if (!zoomIsMine) {
+      const fit = Math.min(canvas.width, canvas.height) / (PPY * SEEN_YARDS)
+      zoom = Math.min(1, clampZoom(fit))
+    }
   }
   addEventListener('resize', resize)
   resize()
@@ -4935,6 +4996,14 @@ async function main() {
    * hands it to the check.
    */
   const indoorPaint = new Map<string, number>()
+  /**
+   * Who the draw loop left out this frame, for the check that asks whether
+   * they deserved it.
+   *
+   * Read off the loop's own decision rather than re-derived: a check that
+   * re-derives the condition is a check that agrees with itself.
+   */
+  const hidden: { x: number; y: number; kind: string; why: string }[] = []
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
   let last = performance.now()
@@ -5191,7 +5260,11 @@ async function main() {
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
-    zoom = clampZoom(zoom * pad.pinch())
+    // A pinch takes the zoom over — the same as a wheel.  A `1` is nobody
+    // pinching, so a frame where nothing happened does not count as a
+    // decision and a rotated phone still gets its fit back.
+    const pinched = pad.pinch()
+    if (pinched !== 1) { zoom = clampZoom(zoom * pinched); zoomIsMine = true }
     // A tap on the world ends a conversation, which is how it ends anywhere.
     // Taps on the panel itself never reach the canvas, so answering an option
     // does not close the thing you are answering.
@@ -5714,6 +5787,7 @@ async function main() {
      * behind.
      */
     const actors: { x: number; y: number; draw: () => void }[] = []
+    hidden.length = 0
     for (const n of active) {
       const X = screenX(n.x, n.y), Y = screenY(n.x, n.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
@@ -5729,8 +5803,22 @@ async function main() {
       // `inRoom` cannot see it.  Without this the whole of Ant'hill stood on
       // the hillside above itself.
       const mine = n.cave !== undefined ? caves[n.cave]! : null
-      const roof = mine ?? inRoom(n.x, n.y)
-      if (indoors ? roof !== indoors : !!roof) continue
+      // Under somebody's **roof**, not merely inside somebody's outline — see
+      // `roofOver`.  Asked the outline's way this hid eight people standing in
+      // the abbey's yard under the open sky, and made anybody who wandered
+      // across the silhouette's edge blink.
+      const roof = mine ?? roofOver(n.x, n.y)
+      if (indoors ? roof !== indoors : !!roof) {
+        // Why, so the check can ask whether it was deserved.  Three reasons
+        // and they are not the same: a roof cut from the building's own
+        // triangles, a building with no plan at all — which is drawn as a
+        // picture, so its inside is not a place — and a mine, which is not a
+        // model and has no plan by construction.
+        hidden.push({ x: n.x, y: n.y, kind: n.kind,
+          why: indoors ? 'outside the room you are in'
+            : mine ? 'mine' : roof && !roof.plan ? 'sprite' : 'roof' })
+        continue
+      }
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
     }
     npcsDrawn = actors.length
@@ -6604,6 +6692,31 @@ async function main() {
     return { wall: got.wall, floor: got.floor, roofed }
   }
   /** What the readout says at a spot, for the check that indoors is a place. */
+  /**
+   * Why the world has the population it has, for the check that asks whether
+   * it looks empty.
+   *
+   * Four numbers and they mean different things: what the bake shipped, who
+   * stands in a place this game draws, who is waiting a turn in a shared slot,
+   * and how wide a screen actually is in yards.  The last one is the one
+   * nobody had written down.
+   */
+  ;(window as unknown as { __people: () => unknown }).__people = () => ({
+    shipped: spawns.npcs.length,
+    placed: npcs.length,
+    /** Standing right now: a shared slot stands up only so many at once. */
+    up: npcs.filter((n) => n.up).length,
+    waiting: npcs.filter((n) => !n.up).length,
+    inStormwind: elsewhere,
+    noPicture: unplaceable,
+    /** How much ground the glass covers, which decides how empty it looks. */
+    yardsWide: canvas.width / (PPY * zoom),
+    yardsTall: canvas.height / (PPY * zoom),
+    zoom,
+  })
+  /** Who was on screen and left out anyway, last frame. */
+  ;(window as unknown as { __hidden: () => unknown }).__hidden = () =>
+    hidden.map((n) => ({ x: n.x, y: n.y, kind: n.kind, why: n.why }))
   /** What a building's outline was painted with, last frame, by tile name. */
   ;(window as unknown as { __underRoof: () => Record<string, number> })
     .__underRoof = () => Object.fromEntries(indoorPaint)
@@ -7305,7 +7418,11 @@ async function main() {
       placeHero(o.x ?? hero.x, o.y ?? hero.y)
       camX = hero.x; camY = hero.y
     }
-    if (o.zoom !== undefined) zoom = o.zoom
+    // A zoom of nought means *put it back where the screen wants it*, which
+    // is the only way a check that has been pulling the camera about can ask
+    // what a player would actually see.
+    if (o.zoom === 0) { zoomIsMine = false; resize() }
+    else if (o.zoom !== undefined) { zoom = o.zoom; zoomIsMine = true }
     if (o.dir !== undefined) hero.dir = o.dir
   }
 }
