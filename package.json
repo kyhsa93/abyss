@@ -29,7 +29,9 @@
     "layout": "python3 pipeline/layout.py",
     "uicheck": "node scripts/uicheck.mjs",
     "quests": "python3 pipeline/quests.py",
-    "questcheck": "node scripts/questcheck.mjs"
+    "questcheck": "node scripts/questcheck.mjs",
+    "check:slow": "npm run viewcheck && npm run uicheck && npm run questcheck && npm run padcheck",
+    "check:client": "npm run audit && npm run layout"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

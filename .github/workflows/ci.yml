@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# No `paths:` filter, deliberately.  A filter makes "did not run" and "passed"
+# look the same from the outside, and a sibling project lost a broken image
+# build to exactly that.  When this gets slow the answer is to make it faster,
+# not to run it less often.
+#
+# Two of the eight checks cannot run here and that is a fact about them rather
+# than a gap in this file: `audit` and `layout` read the game client out of its
+# own MPQ archives, and the client is not in this repository and never will be.
+# They are the gate on the *pipeline*, and the pipeline runs where the client
+# is.  What this file can run is everything that only needs a browser and the
+# world that is committed — which is all four of the browser checks, because
+# `public/data` and `public/world` are both in the tree.
+jobs:
+  fast:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run promptcheck
+
+  browser:
+    name: check:slow
+    needs: fast
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      # The built page, served the way Pages serves it — under /abyss/, because
+      # that is what `vite.config.ts` sets when GITHUB_ACTIONS is on, and a
+      # check that runs against a different base is not checking the thing that
+      # ships.
+      - run: npx vite preview --port 4173 &
+      - run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:4173/abyss/ >/dev/null && exit 0
+            sleep 1
+          done
+          echo 'the preview server never came up' >&2
+          exit 1
+      - run: npm run check:slow
+        env:
+          ABYSS_URL: http://localhost:4173/abyss/
+
+  build:
+    needs: browser
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

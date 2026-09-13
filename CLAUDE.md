@@ -339,10 +339,16 @@ maze, and a maze can be solved. Being pushed cannot be.
 
 ## Finishing a change
 
-`npm run check` is `tsc` and it is fast. `npm run audit` and `npm run layout`
-compare the sources against what was read from them and need the client.
-`npm run viewcheck`, `npm run uicheck`, `npm run questcheck` and
-`npm run padcheck` need a browser and `npm run dev`.
+`npm run check` is `tsc` and it is fast. `npm run check:slow` is the four
+browser checks — `viewcheck`, `uicheck`, `questcheck`, `padcheck` — and needs a
+browser and something serving the page; `ABYSS_URL` points them at it, and
+`npm run dev` is what it points at here. `npm run check:client` is `audit` and
+`layout`, which read the game client out of its own archives.
+
+CI runs the first two and **cannot** run the third, which is a fact about those
+checks rather than a gap: the client is not in this repository and never will
+be. They are the gate on the pipeline, and the pipeline runs where the client
+is. Everything else runs on every push, against the world that is committed.
 
 ## Language
 
