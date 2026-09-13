@@ -1163,10 +1163,19 @@ async function main() {
 
   type Npc = {
     x: number; y: number; hx: number; hy: number
+    /**
+     * Where the server put its feet, which is the only thing that knows
+     * where the mines are — see `digCave`.  A height field has one z for an
+     * (x, y) and cannot hold a tunnel, so the cave's shape has to come from
+     * somewhere, and this is it.
+     */
+    z: number
     dir: number; t: number; art: string; alpha: number
     r: number; wander: number; swims: boolean
     vx: number; vy: number; until: number; moving: boolean
     kind: string; role: string; level: number; topic: Topic | null; seed: number
+    /** Which mine this one is down, if it is down one — see `digCave`. */
+    cave?: number
     /** Which creature this is in the world database, which is what a quest
      * names: all three of Northshire's kobolds are `kobold` and the chain
      * wants eight of each in turn. */
@@ -1241,6 +1250,7 @@ async function main() {
     const way = spawns.moves?.[row[10] ?? -1] ?? []
     npcs.push({
       x: row[0]!, y: row[1]!, hx: row[0]!, hy: row[1]!,
+      z: row[15] ?? 0,
       dir: row[3]!, t: hash(row[0]!, row[1]!) * 4, art,
       alpha: borrowed ? borrowed.alpha : 1,
       r: Math.max(0.3, yards * 0.28),
@@ -1518,6 +1528,121 @@ async function main() {
         }],
       }
     })
+  /**
+   * The mines, which are not buildings and cannot be.
+   *
+   * A building is a WMO: its own file, its own walls, its own doors, and this
+   * repository rasterises all three.  A mine is not.  Elwynn's are cut out of
+   * the `.adt` terrain itself and their mouths are bits in a chunk's `holes`
+   * field — and **a height field cannot hold a tunnel**, because one (x, y)
+   * has one z.  There is no inside to read.  `bake_terrain.py` knew it and
+   * said so: *a mine mouth and an animal den are holes in a hillside, not
+   * cottages, and there is no picture here for either.*
+   *
+   * But the server knows where its creatures stand, and that is the same
+   * structural fact the heights already lean on.  A hundred and fifty-one
+   * creatures in this slice stand six yards or more below the baked surface,
+   * and where they are is where the mine is.
+   *
+   * **The passages between them are ours, and that has to be said out loud.**
+   * The server states positions, not whether the rock between two kobolds is
+   * tunnel or stone.  So they are *derived* rather than drawn — a minimum
+   * spanning tree over the cloud, widened — which means the same world is
+   * always the same mine and there is nothing to store; and the readout says
+   * the cave is ours the same way it says the synthesised terrain is.
+   */
+  const DOWN = 6
+  const CAVE_WIDE = 3.2
+  /** How far a cave reaches around a creature standing in it. */
+  const CAVE_ROOM = 5.5
+  function digCave(area: number, mouth: [number, number]) {
+    const crew = npcs.filter((n) =>
+      areaOf(n.x, n.y) === area && n.z < groundAt(n.x, n.y) - DOWN)
+    if (crew.length < 6) return null
+    const pad = CAVE_ROOM + 3
+    // The mouth is part of the cave.  It has to be: the client's hole is on
+    // the hillside and the nearest kobold can be eighty yards in, so a mask
+    // drawn round the cloud alone left the way in outside the cave — and
+    // walking through it arrived in the dark with nothing drawn at all.
+    const xs = [...crew.map((n) => n.x), mouth[0]]
+    const ys = [...crew.map((n) => n.y), mouth[1]]
+    const lo = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad }
+    const hi = { x: Math.max(...xs) + pad, y: Math.max(...ys) + pad }
+    const cx = (lo.x + hi.x) / 2, cy = (lo.y + hi.y) / 2
+    const cell = 32 / 24
+    // Model space, with no turn in it: `planCell` reads lx from the world's
+    // -y and ly from its x, so the plan is laid out that way and the two
+    // agree by construction rather than by a fudge.
+    const w = Math.ceil((hi.y - lo.y) / cell), h = Math.ceil((hi.x - lo.x) / cell)
+    const x0 = -(hi.y - cy), y0 = lo.x - cx
+    const bits = new Uint8Array(Math.ceil((w * h) / 8))
+    const dig = (wx: number, wy: number, r: number) => {
+      const lx = -(wy - cy), ly = wx - cx
+      const i0 = Math.floor((lx - r - x0) / cell), i1 = Math.ceil((lx + r - x0) / cell)
+      const j0 = Math.floor((ly - r - y0) / cell), j1 = Math.ceil((ly + r - y0) / cell)
+      for (let i = Math.max(0, i0); i <= Math.min(w - 1, i1); i++) {
+        for (let j = Math.max(0, j0); j <= Math.min(h - 1, j1); j++) {
+          const px = x0 + (i + 0.5) * cell, py = y0 + (j + 0.5) * cell
+          if ((px - lx) ** 2 + (py - ly) ** 2 > r * r) continue
+          const n = i * h + j
+          bits[n >> 3]! |= 1 << (n & 7)
+        }
+      }
+    }
+    for (const n of crew) dig(n.x, n.y, CAVE_ROOM)
+    dig(mouth[0], mouth[1], CAVE_WIDE * 1.4)
+    // The adit: the tunnel from the mouth to the chamber nearest it.
+    {
+      let first = crew[0]!
+      let gap = Infinity
+      for (const n of crew) {
+        const d = (n.x - mouth[0]) ** 2 + (n.y - mouth[1]) ** 2
+        if (d < gap) { gap = d; first = n }
+      }
+      const far = Math.hypot(first.x - mouth[0], first.y - mouth[1]) || 1
+      for (let t = 0; t <= far; t += cell * 0.7) {
+        dig(mouth[0] + ((first.x - mouth[0]) * t) / far,
+          mouth[1] + ((first.y - mouth[1]) * t) / far, CAVE_WIDE)
+      }
+    }
+    // And the passages: a minimum spanning tree over the cloud, widened.  Not
+    // a maze and not a random walk — the shortest set of corridors that joins
+    // every chamber, which is a function of the positions alone.
+    const done = [0]
+    const left = crew.map((_, i) => i).slice(1)
+    while (left.length) {
+      let best = -1, from = 0, gap = Infinity
+      for (const a of done) {
+        for (let k = 0; k < left.length; k++) {
+          const b = left[k]!
+          const d = (crew[a]!.x - crew[b]!.x) ** 2 + (crew[a]!.y - crew[b]!.y) ** 2
+          if (d < gap) { gap = d; best = k; from = a }
+        }
+      }
+      const to = left.splice(best, 1)[0]!
+      done.push(to)
+      const a = crew[from]!, b = crew[to]!
+      const far = Math.hypot(a.x - b.x, a.y - b.y)
+      for (let t = 0; t <= far; t += cell * 0.7) {
+        dig(a.x + ((b.x - a.x) * t) / far, a.y + ((b.y - a.y) * t) / far, CAVE_WIDE)
+      }
+    }
+    return { crew, x: cx, y: cy, w, h, cell, x0, y0, bits }
+  }
+
+  /**
+   * The mines, as buildings whose plan is derived rather than read.
+   *
+   * Everything a room needs — an outline, a door, a floor — is the same
+   * whether the shape came out of a WMO's triangles or out of where the
+   * server stands its kobolds, so a cave *is* a building here and the whole
+   * door-and-room machinery works on it unchanged.  What is different is
+   * where the shape came from, and the readout says so.
+   *
+   * The mouth is the client's own: a chunk's `holes` bits, which the bake
+   * already carries, nearest the cloud.
+   */
+  const caves: typeof buildings = []
   type Built = (typeof buildings)[number]
   type Plan = NonNullable<Built['plan']>
   /**
@@ -2045,6 +2170,55 @@ async function main() {
     if (wetAt(n.x, n.y)) { n.swims = true; afloat++ }
     n.hx = n.x; n.hy = n.y
   }
+
+  // --- and the mines ----------------------------------------------------
+  //
+  // Dug after the spawns, because the spawns are the shape.  Only areas that
+  // have a cloud worth entering: six creatures under the surface is the bar,
+  // and in this slice three areas clear it.
+  for (const area of new Set(npcs.map((n) => areaOf(n.x, n.y)))) {
+    // The mouth first, because it is part of the cave: the client's own hole
+    // nearest a creature standing under this area.  Nearest to *a kobold* and
+    // not to the middle of the cloud — Ant'hill Mine is 186 yards across, so
+    // asking from its centre found no mouth at all.  Without one there is no
+    // way in, and a mine you cannot enter is not worth digging.
+    const deep = npcs.filter((n) =>
+      areaOf(n.x, n.y) === area && n.z < groundAt(n.x, n.y) - DOWN)
+    if (deep.length < 6) continue
+    let mouth: [number, number] | null = null
+    let near = 45 * 45
+    for (const [i, j] of meta.gaps ?? []) {
+      const mx = x0 - i * U, my = y0 - j * U
+      for (const n of deep) {
+        const d = (mx - n.x) ** 2 + (my - n.y) ** 2
+        if (d < near) { near = d; mouth = [mx, my] }
+      }
+    }
+    if (!mouth) continue
+    const dug = digCave(area, mouth)
+    if (!dug) continue
+    for (const n of dug.crew) n.cave = caves.length
+    caves.push({
+      x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2, w: (dug.w * dug.cell) / 2,
+      c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth],
+      plan: {
+        w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
+        bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
+        c: 1, sn: 0,
+      },
+      rooms: [{ x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2,
+        w: (dug.w * dug.cell) / 2, c: 1, s: 0 }],
+    })
+  }
+  const byArea: Record<number, number> = {}
+  for (const n of npcs) {
+    if (n.z < groundAt(n.x, n.y) - DOWN) {
+      const a = areaOf(n.x, n.y)
+      byArea[a] = (byArea[a] ?? 0) + 1
+    }
+  }
+  console.info(`${caves.length} mines dug; under the surface: `
+    + Object.entries(byArea).map(([a, n]) => a + ':' + n).join(' '))
 
   /**
    * And anybody the walls closed on.
@@ -3965,8 +4139,12 @@ async function main() {
         const cx = screenX(wx, wy), cy = screenY(wx, wy)
         if (cx < -wide || cx > canvas.width + wide
           || cy < -wide || cy > canvas.height + wide) continue
-        const id = isWall ? 'in_wall'
-          : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor')
+        // A mine is rock and a hall is flagstone.  One word decides it,
+        // because a cave is a building here in every way but where its shape
+        // came from.
+        const id = b.k === 'mine'
+          ? (isWall ? ROCK_TILE : (hash(i, j) > 0.7 ? 'stone' : 'rock_floor'))
+          : (isWall ? 'in_wall' : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor'))
         const at = ground.at[id]
         if (at === undefined) continue
         // Lit flat.  A room has no hillside and no sun in it, so the shading
@@ -4161,7 +4339,7 @@ async function main() {
     // check, and it is why walking at one entered nothing.
     let b: (typeof buildings)[number] | null = null
     let door: [number, number] | undefined
-    for (const x of buildings) {
+    for (const x of [...buildings, ...caves]) {
       if (!x.plan || !x.doors.length) continue
       const d = near(x)
       if (d) { b = x; door = d; break }
@@ -4679,7 +4857,11 @@ async function main() {
       // sight; outdoors it is the other way round.  Before, an outdoor scene
       // hid whoever was under a roof and an indoor one showed the whole
       // forest through the walls.
-      const roof = inRoom(n.x, n.y)
+      // A kobold in a mine is in the mine, and the mine is not a WMO so
+      // `inRoom` cannot see it.  Without this the whole of Ant'hill stood on
+      // the hillside above itself.
+      const mine = n.cave !== undefined ? caves[n.cave]! : null
+      const roof = mine ?? inRoom(n.x, n.y)
       if (indoors ? roof !== indoors : !!roof) continue
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
     }
@@ -5032,7 +5214,12 @@ async function main() {
     // — `주인공 (x, y)` — and on a phone the plate is 118 pixels wide, which
     // 노스샤이어 계곡 -8950, -132 wraps onto three lines of.  So the phone
     // gets the place and the weather, which is what that game's plate says.
+    // And a mine says it is ours.  The client drew the mouth; what is behind
+    // it — the chambers and the passages between them — is derived from where
+    // the server stands its creatures, and this repository lost a round once
+    // to drawing something without a client and not saying so.
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
+      + `${indoors?.k === 'mine' ? ' · 우리가 판 굴' : ''}`
       + `${overhead ? ` · ${overhead}` : ''}`
       + (pad.on ? '' : `  ${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`),
       // The same clock the sky reads.  This was `new Date()` and the sky was
@@ -5275,6 +5462,27 @@ async function main() {
   /** How much of the world the slice's own edge shut out. */
   /** How much of the last frame's ground was an edge rather than a fill. */
   /** Which room the player is in, and how the doors are placed. */
+  /** The mines, and where their mouths are. */
+  ;(window as unknown as { __caves: () => unknown }).__caves = () => ({
+    mines: caves.map((c) => ({
+      area: c.area, at: [Math.round(c.x), Math.round(c.y)],
+      mouth: c.doors[0]!.map(Math.round), cells: [c.plan!.w, c.plan!.h],
+      // How much of the box is actually dug, which is what says this is a
+      // warren of passages and not a rectangle with kobolds in it.
+      dug: (() => {
+        let n = 0
+        const bits = c.plan!.bits
+        for (let k = 0; k < c.plan!.w * c.plan!.h; k++) {
+          if ((bits[k >> 3]! >> (k & 7)) & 1) n++
+        }
+        return Math.round((100 * n) / (c.plan!.w * c.plan!.h))
+      })(),
+      crew: npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c).length,
+    })),
+    /** Creatures under the surface that ended up in no mine at all. */
+    lost: npcs.filter((n) => n.z < groundAt(n.x, n.y) - DOWN
+      && n.cave === undefined).length,
+  })
   ;(window as unknown as { __room: () => unknown }).__room = () => ({
     inside: indoors ? indoors.k : null,
     doors: indoors ? indoors.doors : (inRoom(hero.x, hero.y)?.doors ?? []),

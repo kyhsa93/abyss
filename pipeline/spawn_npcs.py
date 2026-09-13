@@ -902,6 +902,9 @@ def main(acore, out):
                 continue
             guid = int(f[C_GUID])
             x, y = float(f[C_X]), float(f[C_X + 1])
+            # And the height, which is the only thing in this repository that
+            # knows where the caves are — see the row this ends up in.
+            cz = float(f[C_X + 2])
             o = float(f[C_O])
         except (ValueError, IndexError):
             continue
@@ -922,7 +925,7 @@ def main(acore, out):
         spawns.append((int(f[C_ID]), x, y, o, guid, pool, limit.get(pool, 0),
                        packs.get(guid, 0),
                        int(float(g[C_RESPAWN])), float(g[C_WANDER]),
-                       int(g[C_MOVE])))
+                       int(g[C_MOVE]), cz))
 
     tpl = os.path.join(base, 'creature_template.sql')
     col = columns(tpl)
@@ -981,7 +984,8 @@ def main(acore, out):
     fights, fight_at = [], {}
     unknown = Counter()
     moves, move_at = [], {}
-    for entry, x, y, o, guid, pool, most, leader, respawn, wander, mtype in spawns:
+    for entry, x, y, o, guid, pool, most, leader, respawn, wander, mtype, z \
+            in spawns:
         if entry not in info:
             dropped['no template'] += 1
             continue
@@ -1041,10 +1045,17 @@ def main(acore, out):
         # `guid` and `leader` are the world's own identities, which is what a
         # pack and a shared slot are keyed on.  `pool` is which slot and `most`
         # how many of it stand at once.
+        # `z` comes last and it is not decoration: a creature standing six
+        # yards under the baked surface is standing in a cave, and that is the
+        # only thing in this repository that knows where the caves are.  A
+        # mine is a hole cut out of the terrain itself — the height field has
+        # one z for an (x, y) and cannot hold a tunnel — so the shape has to
+        # come from somewhere, and the server knowing where its creatures put
+        # their feet is the same structural fact the heights already lean on.
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
                          level, roles.index(r), topic_at.get(entry, -1), fi,
                          haul_at[haul], entry, move_at[way],
-                         guid, pool, most, leader])
+                         guid, pool, most, leader, round(z, 1)])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')

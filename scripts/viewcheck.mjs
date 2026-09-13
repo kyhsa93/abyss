@@ -1102,6 +1102,36 @@ check('and the ground outside almost every door can be walked to',
 console.log(`      (${inside.reachable.reduce((a, r) => a + r[2], 0)} doors on `
   + `${inside.reachable.length} buildings)`)
 
+// 10k. A mine is not a building, and the server knows where it is.
+//
+// Elwynn's mines are cut out of the `.adt` terrain itself and their mouths
+// are bits in a chunk's `holes` field.  **A height field cannot hold a
+// tunnel** — one (x, y) has one z — so there is no inside to read, which is
+// why the bake says in its own words that a mine mouth is a hole in a
+// hillside and not a cottage.
+//
+// But the server knows where its creatures stand, and that is the same
+// structural fact the heights already lean on: eighty-eight creatures in this
+// slice stand six yards or more below the baked surface.  The chambers are
+// where they are; the passages between them are a minimum spanning tree over
+// the cloud, widened.
+//
+// **The passages are ours and the screen says so.**  That is not tidiness —
+// this repository lost a round once to drawing something without a client and
+// not admitting it.
+const mines = await p.evaluate(() => window.__caves())
+check('the mines are dug from where the world stands its creatures',
+  mines.mines.length >= 3, `${mines.mines.length} of them`)
+check('and each is a warren rather than a box',
+  mines.mines.every((m) => m.dug > 5 && m.dug < 60),
+  mines.mines.map((m) => `${m.area}: ${m.dug}% dug, ${m.crew} down it`).join('; '))
+// Derived and not rolled, so the same world is always the same mine: asked
+// twice and compared, which is the only way to say it.
+const dug1 = await p.evaluate(() => JSON.stringify(window.__caves()))
+const dug2 = await p.evaluate(() => JSON.stringify(window.__caves()))
+check('and the same world digs the same mine', dug1 === dug2)
+console.log(`      (${mines.lost} creatures under the surface belong to no mine)`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
