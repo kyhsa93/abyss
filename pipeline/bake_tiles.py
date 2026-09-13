@@ -98,6 +98,10 @@ SHEETS = {
     'cabinets.png': 'base',
     'barrel.png': 'base',
     'waterfall.png': 'base',
+    'grass.png': 'base',
+    'dirt.png': 'base',
+    'cement.png': 'base',
+    'watergrass.png': 'base',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -106,6 +110,70 @@ SHEETS = {
 # object.  Ground tiles are not trimmed: their box *is* the tile, edges and all,
 # and trimming one would break the repeat.
 GROUND = [
+    # --- the edges between two grounds ---------------------------------
+    #
+    # The floor looked like 1.33-yard stairs and the tile size was never the
+    # reason: **eighteen of the eighteen ground pieces were fills**, so two
+    # grounds meeting had nothing to meet with and every boundary in the world
+    # — riverbank, roadside, the lip of a village's paving — was a staircase
+    # of squares.  `bake_tiles.py` even said so in a comment about the water:
+    # *the rows above it are shorelines*, and only the bottom row was cut.
+    #
+    # Each sheet is drawn for corner autotiling: a 3x3 outer ring, four inner
+    # corners, and fills.  Sixteen pieces for the sixteen ways four corners
+    # can be one material or the other — the sheet is built for the technique,
+    # which is why it is laid out this way.  See `RING` in `src/main.ts`.
+    #
+    # Named for the side the material *fades out* on, which is how the sheet
+    # is drawn: `n` is transparent along the top.
+    ('t_grass_nw',    'grass.png',         0,  64, 32, 32, 'sharm_base'),
+    ('t_grass_n',     'grass.png',        32,  64, 32, 32, 'sharm_base'),
+    ('t_grass_ne',    'grass.png',        64,  64, 32, 32, 'sharm_base'),
+    ('t_grass_w',     'grass.png',         0,  96, 32, 32, 'sharm_base'),
+    ('t_grass_e',     'grass.png',        64,  96, 32, 32, 'sharm_base'),
+    ('t_grass_sw',    'grass.png',         0, 128, 32, 32, 'sharm_base'),
+    ('t_grass_s',     'grass.png',        32, 128, 32, 32, 'sharm_base'),
+    ('t_grass_se',    'grass.png',        64, 128, 32, 32, 'sharm_base'),
+    ('t_grass_ise',   'grass.png',        32,   0, 32, 32, 'sharm_base'),
+    ('t_grass_isw',   'grass.png',        64,   0, 32, 32, 'sharm_base'),
+    ('t_grass_ine',   'grass.png',        32,  32, 32, 32, 'sharm_base'),
+    ('t_grass_inw',   'grass.png',        64,  32, 32, 32, 'sharm_base'),
+    ('t_road_nw',     'dirt.png',          0,  64, 32, 32, 'sharm_base'),
+    ('t_road_n',      'dirt.png',         32,  64, 32, 32, 'sharm_base'),
+    ('t_road_ne',     'dirt.png',         64,  64, 32, 32, 'sharm_base'),
+    ('t_road_w',      'dirt.png',          0,  96, 32, 32, 'sharm_base'),
+    ('t_road_e',      'dirt.png',         64,  96, 32, 32, 'sharm_base'),
+    ('t_road_sw',     'dirt.png',          0, 128, 32, 32, 'sharm_base'),
+    ('t_road_s',      'dirt.png',         32, 128, 32, 32, 'sharm_base'),
+    ('t_road_se',     'dirt.png',         64, 128, 32, 32, 'sharm_base'),
+    ('t_road_ise',    'dirt.png',         32,   0, 32, 32, 'sharm_base'),
+    ('t_road_isw',    'dirt.png',         64,   0, 32, 32, 'sharm_base'),
+    ('t_road_ine',    'dirt.png',         32,  32, 32, 32, 'sharm_base'),
+    ('t_road_inw',    'dirt.png',         64,  32, 32, 32, 'sharm_base'),
+    ('t_paved_nw',    'cement.png',        0,  64, 32, 32, 'sharm_base'),
+    ('t_paved_n',     'cement.png',       32,  64, 32, 32, 'sharm_base'),
+    ('t_paved_ne',    'cement.png',       64,  64, 32, 32, 'sharm_base'),
+    ('t_paved_w',     'cement.png',        0,  96, 32, 32, 'sharm_base'),
+    ('t_paved_e',     'cement.png',       64,  96, 32, 32, 'sharm_base'),
+    ('t_paved_sw',    'cement.png',        0, 128, 32, 32, 'sharm_base'),
+    ('t_paved_s',     'cement.png',       32, 128, 32, 32, 'sharm_base'),
+    ('t_paved_se',    'cement.png',       64, 128, 32, 32, 'sharm_base'),
+    ('t_paved_ise',   'cement.png',       32,   0, 32, 32, 'sharm_base'),
+    ('t_paved_isw',   'cement.png',       64,   0, 32, 32, 'sharm_base'),
+    ('t_paved_ine',   'cement.png',       32,  32, 32, 32, 'sharm_base'),
+    ('t_paved_inw',   'cement.png',       64,  32, 32, 32, 'sharm_base'),
+    ('t_shore_nw',    'watergrass.png',    0,  64, 32, 32, 'sharm_base'),
+    ('t_shore_n',     'watergrass.png',   32,  64, 32, 32, 'sharm_base'),
+    ('t_shore_ne',    'watergrass.png',   64,  64, 32, 32, 'sharm_base'),
+    ('t_shore_w',     'watergrass.png',    0,  96, 32, 32, 'sharm_base'),
+    ('t_shore_e',     'watergrass.png',   64,  96, 32, 32, 'sharm_base'),
+    ('t_shore_sw',    'watergrass.png',    0, 128, 32, 32, 'sharm_base'),
+    ('t_shore_s',     'watergrass.png',   32, 128, 32, 32, 'sharm_base'),
+    ('t_shore_se',    'watergrass.png',   64, 128, 32, 32, 'sharm_base'),
+    ('t_shore_ise',   'watergrass.png',   32,   0, 32, 32, 'sharm_base'),
+    ('t_shore_isw',   'watergrass.png',   64,   0, 32, 32, 'sharm_base'),
+    ('t_shore_ine',   'watergrass.png',   32,  32, 32, 32, 'sharm_base'),
+    ('t_shore_inw',   'watergrass.png',   64,  32, 32, 32, 'sharm_base'),
     ('grass',      'Terrain and Outside.png',   0, 352, 32, 32, 'sharm'),
     ('grass2',     'Terrain and Outside.png',  32, 352, 32, 32, 'sharm'),
     ('grass3',     'Terrain and Outside.png',  64, 352, 32, 32, 'sharm'),

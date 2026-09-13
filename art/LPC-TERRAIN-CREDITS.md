@@ -38,7 +38,7 @@ recorded cannot be complied with.
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
   <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  
-  `waterfall`, `shelf`, `shelf2`, `cabinet`, `cabinet2`, `keg2`, `keg3`, `keg`, `bridge`, `bridge_b`, `water`, `water2`, `water3`
+  `waterfall`, `shelf`, `shelf2`, `cabinet`, `cabinet2`, `keg2`, `keg3`, `keg`, `t_grass_nw`, `t_grass_n`, `t_grass_ne`, `t_grass_w`, `t_grass_e`, `t_grass_sw`, `t_grass_s`, `t_grass_se`, `t_grass_ise`, `t_grass_isw`, `t_grass_ine`, `t_grass_inw`, `t_road_nw`, `t_road_n`, `t_road_ne`, `t_road_w`, `t_road_e`, `t_road_sw`, `t_road_s`, `t_road_se`, `t_road_ise`, `t_road_isw`, `t_road_ine`, `t_road_inw`, `t_paved_nw`, `t_paved_n`, `t_paved_ne`, `t_paved_w`, `t_paved_e`, `t_paved_sw`, `t_paved_s`, `t_paved_se`, `t_paved_ise`, `t_paved_isw`, `t_paved_ine`, `t_paved_inw`, `t_shore_nw`, `t_shore_n`, `t_shore_ne`, `t_shore_w`, `t_shore_e`, `t_shore_sw`, `t_shore_s`, `t_shore_se`, `t_shore_ise`, `t_shore_isw`, `t_shore_ine`, `t_shore_inw`, `bridge`, `bridge_b`, `water`, `water2`, `water3`
 
 - **Skorpio** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/tiled-terrains>  

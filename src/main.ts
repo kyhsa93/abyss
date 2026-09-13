@@ -3733,15 +3733,83 @@ async function main() {
    * range the real values only ever reached four of the levels, and four flat
    * levels is not shading, it is faceting.
    */
+  /**
+   * The edge between two grounds, which eighteen fills could not draw.
+   *
+   * Every ground piece in this repository was a 32-pixel fill, so two grounds
+   * meeting had nothing to meet with: a riverbank, a roadside, the lip of a
+   * village's paving all came out as a staircase of 1.33-yard squares, and
+   * the tile size was blamed for it.  The tile size is not the reason.  There
+   * was no such thing as an edge.
+   *
+   * These sheets are drawn for corner autotiling — a 3x3 outer ring, four
+   * inner corners, fills — which is sixteen pieces for the sixteen ways four
+   * corners can be one ground or the other.  So the tile is chosen by its
+   * four **corners** rather than by its middle, and the boundary lands on
+   * half-tile lines without the paint mask gaining a single byte.
+   *
+   * Named for the side the material fades out on: `n` is transparent along
+   * the top, so it is the piece to use when the material is *below*.
+   */
+  const RING: Record<string, string> = {
+    grass: 't_grass', road: 't_road', paved: 't_paved',
+    // A ploughed field ends in bare earth, and so does a beach: both take
+    // the dirt set rather than going without one, because a ground with no
+    // set of its own cannot draw its own edge and neither can the grass
+    // beside it — grass ranks last on purpose.
+    crop: 't_road', sand: 't_road',
+  }
+  /**
+   * Which of two grounds draws the edge over the other.
+   *
+   * `GROUND_ORDER` is already the bake's answer to "two of them cover the
+   * same texel, which wins" — most deliberate first, because somebody laid a
+   * road and grass is what happens anyway.  The same order decides who owns
+   * the boundary, so one set per ground is enough: nine grounds want nine
+   * sets and not seventy-two pairs.
+   */
+  const rankOf = (mat: string) => {
+    const i = (meta.ground ?? []).indexOf(mat)
+    return i < 0 ? 99 : i
+  }
+  /**
+   * Which piece for which corners.
+   *
+   * The key is four bits — north-west, north-east, south-west, south-east —
+   * saying where the upper ground is.  `null` is "all four or none", which is
+   * a fill and not an edge.
+   */
+  const PIECE: (string | null)[] = [
+    null,   // 0000
+    'ne',   // 0001  SE only: fades out to the left and the top
+    'nw',   // 0010  SW only
+    'n',    // 0011  the south half: fades out along the top
+    'se',   // 0100  NE only
+    'e',    // 0101  the east half
+    null,   // 0110  two diagonal corners, which no single piece can say
+    'ine',  // 0111  everything but NW
+    'sw',   // 1000  NW only
+    null,   // 1001  the other diagonal
+    'w',    // 1010  the west half
+    'inw',  // 1011  everything but NE
+    's',    // 1100  the north half
+    'ise',  // 1101  everything but SW
+    'isw',  // 1110  everything but SE
+    null,   // 1111
+  ]
   const SHADES = 21
   let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
   function tintedGround() {
     const key = Math.round(zoom * 100)
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
+    const edges = [...Object.values(RING), 't_shore'].flatMap((pre) =>
+      ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'inw', 'ine', 'isw', 'ise']
+        .map((q) => `${pre}_${q}`))
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
       ...PAVED_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
-      ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone']
+      ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
+      ...edges]
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
     c.width = px * ids.length
@@ -3762,7 +3830,12 @@ async function main() {
           g.fillStyle = sl > 0
             ? `rgba(255,247,224,${(sl / SHADE_HI) * 0.34})`
             : `rgba(8,14,26,${(sl / SHADE_LO) * 0.46})`
+          // Only where the piece is.  A fill is a full square and it never
+          // mattered; an edge piece is mostly hole, and tinting the hole
+          // paints a grey square around every boundary in the world.
+          if (id.startsWith('t_')) g.globalCompositeOperation = 'source-atop'
           g.fillRect(i * px, j * px, px, px)
+          g.globalCompositeOperation = 'source-over'
         }
       }
     })
@@ -3784,6 +3857,8 @@ async function main() {
   })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
+  /** How many tiles this frame were an edge rather than a fill. */
+  let edged = 0
   let last = performance.now()
   let clock = 0
   const kindCount = new Set(npcs.map((n) => n.art)).size
@@ -4062,6 +4137,7 @@ async function main() {
     // Which building the player is standing in, asked once a frame.
     const under = inRoom(hero.x, hero.y)
     tilesDrawn = 0
+    edged = 0
     for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
         const wx = ti * T, wy = tj * T
@@ -4165,6 +4241,72 @@ async function main() {
         const wide = px * grain
         ctx.drawImage(ground.c, ground.at[id]!, step * px, px, px,
           Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+        // --- and the edge, if this tile is on one ---------------------
+        //
+        // The tile above is the tile's *middle*.  This asks its four corners,
+        // and where they do not agree it lays the higher ground's ring piece
+        // over the top.  That is the whole of the dual-grid trick: the
+        // boundary now falls on half-tile lines, out of a paint mask that has
+        // not gained a byte.
+        //
+        // Only outdoors, and only where the middle is plain ground: a roof, a
+        // wall, a bridge deck and a lake are each one thing all the way
+        // across, and asking a roof what its corners are painted is asking
+        // the wrong question.
+        // And only at the tile's own size.  Past that the ground is already
+        // drawing one square where four belong — `grain` — and an edge
+        // between two grounds at sixteen pixels is a detail nobody can see,
+        // which is the same argument the coarsening itself makes.  It is also
+        // what keeps the widest zoom above its floor: the edge pass is a
+        // second blit a tile, and at 1,134 tiles that is the difference
+        // between 60 frames and 46.
+        if (grain === 1 && !built && !span && !water
+          && ground.at[`${RING['grass']}_n`]) {
+          const half = T / 2
+          const q = [
+            paintAt(wx - half, wy - half), paintAt(wx + half, wy - half),
+            paintAt(wx - half, wy + half), paintAt(wx + half, wy + half),
+          ]
+          if (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3]) {
+            // The best-ranked of the four that has a set of its own, and the
+            // bits saying which corners are its.
+            let top = '', rank = 99
+            for (const m of q) {
+              const r = rankOf(m)
+              if (RING[m] && r < rank) { rank = r; top = m }
+            }
+            const bits = (q[0] === top ? 8 : 0) | (q[1] === top ? 4 : 0)
+              | (q[2] === top ? 2 : 0) | (q[3] === top ? 1 : 0)
+            const which = PIECE[bits]
+            const cut = top && which ? ground.at[`${RING[top]}_${which}`] : undefined
+            if (cut !== undefined) {
+              ctx.drawImage(ground.c, cut, step * px, px, px,
+                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+              edged++
+            }
+          }
+          // And the shore, which is the boundary this forest has most of and
+          // the one it drew worst: a flat square of `dirt2` wherever a tile
+          // touched water.  `watergrass.png` is a whole grass-to-water set,
+          // already composited, so it is laid down instead of the tile rather
+          // than over it — the same sixteen corners, asked of the water mask.
+          else if (ground.at['t_shore_n']) {
+            const lit = [
+              wetAt(wx - half, wy - half) ? 0 : 8,
+              wetAt(wx + half, wy - half) ? 0 : 4,
+              wetAt(wx - half, wy + half) ? 0 : 2,
+              wetAt(wx + half, wy + half) ? 0 : 1,
+            ]
+            const bits = lit[0]! | lit[1]! | lit[2]! | lit[3]!
+            const which = bits === 15 ? null : PIECE[bits]
+            const cut = which ? ground.at[`t_shore_${which}`] : undefined
+            if (cut !== undefined) {
+              ctx.drawImage(ground.c, cut, step * px, px, px,
+                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+              edged++
+            }
+          }
+        }
         tilesDrawn++
       }
     }
@@ -4568,7 +4710,7 @@ async function main() {
     // which is the point of reading it on the device it looks wrong on.
     const tail = (t: string) => (pad.on ? '' : t)
     readout([
-      ['지면', `${tilesDrawn.toLocaleString()}타일`],
+      ['지면', `${tilesDrawn.toLocaleString()}타일` + tail(`  (가장자리 ${edged})`)],
       ['지물', `그린 것 ${drawn.toLocaleString()} / ${placed.length.toLocaleString()}` +
         tail(`  (막는 것 ${solids.length})`)],
       ['주민', `그린 것 ${npcsDrawn} / ${npcs.length}, ${kindCount}종` +
@@ -4883,6 +5025,10 @@ async function main() {
    * bookshelf in the road.
    */
   /** How much of the world the slice's own edge shut out. */
+  /** How much of the last frame's ground was an edge rather than a fill. */
+  ;(window as unknown as { __edges: () => unknown }).__edges = () => ({
+    tiles: tilesDrawn, edged,
+  })
   ;(window as unknown as { __edge: () => unknown }).__edge = () => ({
     npcs: npcs.length, elsewhere, unplaceable, beyond, scenery: placed.length,
     /** Walkable ground that is not this slice's, which has to be none. */

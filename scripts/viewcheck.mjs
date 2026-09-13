@@ -1052,6 +1052,28 @@ check('and nobody is standing inside a wall',
 console.log(`      (${who.wet} in water, all of them ${who.lives.join(', ')}; `
   + `${who.settled} nudged out)`)
 
+// 10i. Two grounds meeting have something to meet with.
+//
+// The floor looked like a staircase of 1.33-yard squares and the tile size
+// was blamed for it.  The tile size is not the reason: **all eighteen ground
+// pieces were fills**, so a riverbank, a roadside and the lip of a village's
+// paving had no edge piece between them and could not have had one.
+// `bake_tiles.py` had even written down that the shorelines were there —
+// *the rows above it are shorelines* — and cut only the bottom row.
+//
+// The sheets are drawn for corner autotiling, so the tile is now chosen by
+// its four corners rather than by its middle: sixteen pieces for the sixteen
+// ways four corners can be one ground or the other, and the boundary lands on
+// half-tile lines **without the paint mask gaining a byte**.
+await p.evaluate(() => window.__cam({ x: -9100, y: -350, zoom: 0.8 }))
+await p.waitForTimeout(600)
+const seam = await p.evaluate(() => window.__edges())
+check('a boundary between two grounds is drawn as one',
+  seam.edged > seam.tiles * 0.05,
+  `${seam.edged} of ${seam.tiles} tiles are an edge piece`)
+console.log(`      (${(100 * seam.edged / seam.tiles).toFixed(0)}% of this view `
+  + 'is a boundary between two grounds)')
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
