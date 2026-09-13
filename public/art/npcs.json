@@ -138,68 +138,128 @@
    "frames": 5,
    "people": true
   },
-  "bear": {
+  "sword": {
    "first": 540,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "sword.bg": {
+   "first": 560,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "dagger": {
+   "first": 580,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "dagger.bg": {
+   "first": 600,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "axe": {
+   "first": 620,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "axe.bg": {
+   "first": 640,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "mace": {
+   "first": 660,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "mace.bg": {
+   "first": 680,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "staff": {
+   "first": 700,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "staff.bg": {
+   "first": 720,
+   "frames": 5,
+   "people": true,
+   "weapon": true
+  },
+  "bear": {
+   "first": 740,
    "frames": 5,
    "people": false,
    "yards": 2.4
   },
   "deer": {
-   "first": 560,
+   "first": 760,
    "frames": 4,
    "people": false,
    "yards": 2.0
   },
   "spider": {
-   "first": 576,
+   "first": 776,
    "frames": 6,
    "people": false,
    "yards": 1.4
   },
   "rabbit": {
-   "first": 600,
+   "first": 800,
    "frames": 4,
    "people": false,
    "yards": 0.6
   },
   "cat": {
-   "first": 616,
+   "first": 816,
    "frames": 3,
    "people": false,
    "yards": 0.9
   },
   "horse": {
-   "first": 628,
+   "first": 828,
    "frames": 4,
    "people": false,
    "yards": 2.6
   },
   "cow": {
-   "first": 644,
+   "first": 844,
    "frames": 4,
    "people": false,
    "yards": 2.4
   },
   "boar": {
-   "first": 660,
+   "first": 860,
    "frames": 4,
    "people": false,
    "yards": 1.6
   },
   "sheep": {
-   "first": 676,
+   "first": 876,
    "frames": 4,
    "people": false,
    "yards": 1.5
   },
   "chicken": {
-   "first": 692,
+   "first": 892,
    "frames": 4,
    "people": false,
    "yards": 0.7
   },
   "wolf": {
-   "first": 708,
+   "first": 908,
    "frames": 5,
    "people": false,
    "yards": 2.0

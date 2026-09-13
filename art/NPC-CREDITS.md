@@ -54,6 +54,13 @@ parts, recoloured with LPC's own body palettes.
 - `torso/clothes/sleeveless/sleeveless1/male` — bluecarrot16,ElizaWy,JaidynReiman,Stephen Challener (Redshrike) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
 - `torso/clothes/sleeveless/sleeveless2/female` — ElizaWy,JaidynReiman,Stephen Challener (Redshrike),Johannes Sjölund (wulax) (OGA-BY 3.0)
 - `torso/clothes/sleeveless/sleeveless2/male` — ElizaWy,JaidynReiman,Stephen Challener (Redshrike),Johannes Sjölund (wulax) (OGA-BY 3.0)
+- `weapon/blunt` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
+- `weapon/blunt/mace` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
+- `weapon/blunt/waraxe` — Benjamin K. Smith (BenCreating),bluecarrot16,Sander Frenken (castelonia) (CC-BY-SA 3.0,GPL 3.0)
+- `weapon/magic/gnarled` — bluecarrot16 (OGA-BY 3.0+,GPL 3.0,CC-BY 4.0)
+- `weapon/sword` — bluecarrot16,Johannes Sjölund (wulax),Matthew Krohn (makrohn) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `weapon/sword/dagger` — bluecarrot16,Johannes Sjölund (wulax),Matthew Krohn (makrohn) (OGA-BY 3.0,CC-BY-SA 3.0,GPL 3.0)
+- `weapon/sword/longsword` — Johannes Sjölund (wulax),bluecarrot16 (OGA-BY 3.0,CC-BY-SA 3.0)
 
 ## Animals
 

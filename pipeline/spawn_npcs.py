@@ -521,6 +521,104 @@ def loot_conditions(base):
     return {k: [v[g] for g in sorted(v)] for k, v in groups.items()}
 
 
+# `item_template.class` 2.  One number, named once, because three places ask.
+WEAPON_CLASS = 2
+
+# `item_template.subclass` inside class 2, weapons, mapped onto the five
+# sheets `bake_npcs.py` cuts.  The numbers are the client's own enum and the
+# words are ours, the same bargain as everywhere else.
+#
+# Not every one of them is drawn, and the ones that are not are declared
+# below rather than falling silently into an empty hand.
+WEAPON_SUBCLASS = {
+    0: 'axe', 1: 'axe',            # one hand and two
+    4: 'mace', 5: 'mace',
+    7: 'sword', 8: 'sword',
+    10: 'staff', 6: 'staff',       # a polearm is a pole, and four of them
+    15: 'dagger',
+}
+
+# What is carried and not drawn, counted.  A bow held at rest is a bow across
+# the back and there is no sheet for that; a wand and a fishing pole are four
+# spawns between them.
+WEAPON_NOT_DRAWN = {
+    2: 'bow', 3: 'gun', 16: 'thrown', 18: 'crossbow', 19: 'wand',
+    13: 'fist', 14: 'misc', 20: 'fishing pole',
+}
+
+
+def item_classes(base):
+    """`{entry: (class, subclass)}` for every item in the dump.
+
+    Twelve columns of forty-six thousand rows, read with `split_head` for the
+    same reason `loot_tables` does: the full split of `item_template` is a
+    hundred and thirty fields and none of the rest is wanted here.
+    """
+    out = {}
+    for line in rows(os.path.join(base, 'item_template.sql')):
+        f = split_head(line, 3)
+        try:
+            out[int(f[0])] = (int(f[1]), int(f[2]))
+        except (ValueError, IndexError):
+            continue
+    return out
+
+
+def equipment(base, entries, items_of):
+    """What each creature holds, out of `creature_equip_template`.
+
+    309 rows of it touch this slice and nothing read one, so a guard with a
+    broadsword, a kobold with a pickaxe and a farmer all stood with the same
+    empty hands.
+
+    Two things come out and the second one is the surprise.  The **main hand**
+    decides what is drawn.  The **off hand** decides whether this one swings
+    twice, and that is not a guess: `Creature::CanDualWield` (Creature.cpp:3356)
+    looks up whatever is in the off-hand slot and asks only whether its class
+    is a weapon.
+
+    What does **not** come out of here is the swing timer, and the issue that
+    asked for this expected it to.  `Creature::UpdateLevelDependantStats`
+    (Creature.cpp:617) sets both attack times from `cInfo->BaseAttackTime`;
+    the item is never consulted.  For a creature the equipped weapon is
+    cosmetic plus dual wield, and the slice says the same thing out loud —
+    87 spawns carry a weapon the template disagrees with by 500ms and using
+    the item would have made every one of them swing at a rate the server
+    never does.
+    """
+    path = os.path.join(base, 'creature_equip_template.sql')
+    if not os.path.exists(path):
+        return {}, Counter()
+    col = columns(path)
+    rowsof = {}
+    for line in rows(path):
+        f = split(line)
+        try:
+            cid, eid = int(f[col['CreatureID']]), int(f[col['ID']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        if cid in entries:
+            rowsof.setdefault(cid, {})[eid] = (
+                int(f[col['ItemID1']]), int(f[col['ItemID2']]))
+    out, left = {}, Counter()
+    for cid, byid in rowsof.items():
+        # `creature_template.equipment_id` is not in this dump's schema, so
+        # the set is the one the server falls back to: id 1, and failing that
+        # whichever single one the row has.
+        main, off = byid.get(1) or next(iter(byid.values()))
+        word = None
+        if main in items_of:
+            cls, sub = items_of[main]
+            if cls == WEAPON_CLASS:
+                word = WEAPON_SUBCLASS.get(sub)
+                if not word:
+                    left[WEAPON_NOT_DRAWN.get(sub, f'subclass {sub}')] += 1
+        dual = off in items_of and items_of[off][0] == WEAPON_CLASS
+        if word or dual:
+            out[cid] = (word, dual)
+    return out, left
+
+
 def loot_tables(base, kinds_by_entry):
     """What each creature carries: coins, and things by what sort they are.
 
@@ -1047,6 +1145,10 @@ def main(acore, out):
                        int(f[col['lootid']]),
                        (int(f[col['mingold']]), int(f[col['maxgold']])))
 
+    # What is in the hand.  `creature_equip_template` is 309 rows touching
+    # this slice and was read by nothing at all.
+    holds, not_held = equipment(base, wanted, item_classes(base))
+
     topics = talking(base, {e for e, *_ in spawns
                             if e in info and info[e][0]})
     topic_list, topic_at = [], {}
@@ -1056,7 +1158,7 @@ def main(acore, out):
 
     carried = loot_tables(base, None)
     goods, hauls, haul_at = [], [], {}
-    kinds, roles, out_rows = [], [], []
+    kinds, roles, out_rows, arms = [], [], [], []
     fights, fight_at = [], {}
     unknown = Counter()
     left_out, undeclared = Counter(), Counter()
@@ -1133,10 +1235,24 @@ def main(acore, out):
         # one z for an (x, y) and cannot hold a tunnel — so the shape has to
         # come from somewhere, and the server knowing where its creatures put
         # their feet is the same structural fact the heights already lean on.
+        # What this one is holding, as an index into `arms`, and whether it
+        # swings twice.  Only a person carries one, and the test is the data's
+        # rather than the art's: the weapon sheets are drawn for LPC's body,
+        # and `creature_equip_template` cheerfully hands a sword to a chicken
+        # and a mace to a bear — three rows of it in this slice do exactly
+        # that.  `PERSON_TYPES` is the same test `classify` already makes.
+        word, dual = holds.get(entry, (None, False))
+        if word and ctype in PERSON_TYPES:
+            if word not in arms:
+                arms.append(word)
+            weapon = arms.index(word)
+        else:
+            weapon = -1
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
                          level, roles.index(r), topic_at.get(entry, -1), fi,
                          haul_at[haul], entry, move_at[way],
-                         guid, pool, most, leader, round(z, 1)])
+                         guid, pool, most, leader, round(z, 1),
+                         weapon, 1 if dual else 0])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')
@@ -1167,6 +1283,9 @@ def main(acore, out):
         ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
                    'walk': walk,
+                   # What the people of this slice are holding, as words the
+                   # atlas has a sheet for.
+                   'arms': arms,
                    # Every patrol the server lays down in this slice, whole.
                    # It is the only authority on "can a body be here" that
                    # does not need a 2.2 GB navigation mesh built first — see
@@ -1200,6 +1319,15 @@ def main(acore, out):
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
+    armed = Counter(arms[r[16]] for r in out_rows if r[16] >= 0)
+    both = sum(1 for r in out_rows if r[17])
+    print(f'  in hand: {sum(armed.values()):,} of {len(out_rows):,} carry '
+          f'something drawn — '
+          + ', '.join(f'{k} {v}' for k, v in armed.most_common())
+          + f'; {both} swing twice'
+          + (('; carried and not drawn: '
+              + ', '.join(f'{k} {v}' for k, v in not_held.most_common()))
+             if not_held else ''))
     # What has no picture, and whether anybody said so.  The list used to be
     # one number — `unclassified 216` — which is a count with no decision
     # behind it, and the whole point of the gate is that leaving something out

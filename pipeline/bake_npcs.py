@@ -206,6 +206,53 @@ LOOKS = {**villagers(), **watch(), **OTHERS}
 # as walking, and the atlas is half the size for it.
 PEOPLE_FRAMES = [0, 1, 3, 5, 7]
 
+# ---------------------------------------------------------------- weapons
+
+# What is in the hand, which is a layer over the walk and nothing else.
+#
+# `creature_equip_template` has 309 rows touching this slice — 984 spawns hold
+# a weapon in the main hand — and nobody was reading it, so a guard with a
+# broadsword, a kobold with a pickaxe and a farmer stood in identical empty
+# hands.  A weapon is not part of a look: 984 spawns over five words is five
+# rows of the atlas, where baking it into the twenty-five looks would be a
+# hundred and twenty-five.
+#
+# Two things the old prototype's weapon atlas learned the hard way and this
+# bake does not have to learn again.  A weapon sheet is **576x256** — nine
+# frames by four directions, exactly the body's grid — so it composites frame
+# for frame with no arithmetic at all; and some of them come in halves,
+# `background` and `foreground`, because a staff's shaft passes **behind** the
+# body on two of the four facings.  The halves are baked as two kinds and the
+# scene draws one under the person and one over.  Drawn as a single layer on
+# top, a staff crosses its owner's face; measured, the background carries 4,379
+# of the staff's 6,338 opaque pixels, so it is the larger half that would be
+# wrong.
+WEAPON_ROOT = os.path.join(LPC, 'spritesheets/weapon')
+
+# Front half, then the half that goes behind the body.  Every one of the five
+# ships both and the set of folders they live in is not uniform — `behind`,
+# `universal_behind`, `universal/background` — which is the reason the paths
+# are written out here rather than derived from the weapon's name.
+#
+# Measured rather than assumed, because "does the behind sheet matter" has an
+# answer: over the four facings, the longsword's front sheet holds 1,325
+# opaque pixels and its behind sheet 5,730, they overlap in **nought**, and
+# facing away from the camera the front sheet is empty.  They are two halves
+# of one picture and not two versions of it.
+WEAPONS = {
+    'sword': ('sword/longsword/walk/longsword.png',
+              'sword/longsword/universal_behind/walk/longsword.png'),
+    'dagger': ('sword/dagger/walk/dagger.png',
+               'sword/dagger/behind/walk/dagger.png'),
+    'axe': ('blunt/waraxe/walk/waraxe.png',
+            'blunt/waraxe/behind/walk/waraxe.png'),
+    'mace': ('blunt/mace/walk/mace.png',
+             'blunt/mace/universal_behind/walk/mace.png'),
+    'staff': ('magic/gnarled/universal/walk/foreground.png',
+              'magic/gnarled/universal/walk/background.png'),
+}
+
+
 # ---------------------------------------------------------------- animals
 
 A = os.path.expanduser('~/src/lpc-animals/lpc animals 2022 v1.1/'
@@ -400,6 +447,27 @@ def main(out):
         if n < max(PEOPLE_FRAMES) + 1:
             sys.exit(f'{name} walk sheet has {n} frames, need {max(PEOPLE_FRAMES) + 1}')
 
+    # The weapons, on the people's own grid and at the people's own scale.
+    # Nothing is cropped or resized: a weapon sheet is drawn for the body it
+    # goes on, so any fitting done here would be fitting it to a body it does
+    # not belong to.
+    for name, (front, behind) in WEAPONS.items():
+        for kind, rel in ((name, front), (f'{name}.bg', behind)):
+            path = os.path.join(WEAPON_ROOT, rel)
+            if not os.path.exists(path):
+                sys.exit(f'missing {path} — a hand with a hole in it is a bug')
+            used.append(f'weapon/{rel}')
+            sheet = Image.open(path).convert('RGBA')
+            if sheet.width // CELL < max(PEOPLE_FRAMES) + 1:
+                sys.exit(f'{rel} is {sheet.size}, not a walk sheet')
+            first = len(frames)
+            for d in range(4):
+                for f in PEOPLE_FRAMES:
+                    frames.append(sheet.crop((f * CELL, d * CELL,
+                                              f * CELL + CELL, d * CELL + CELL)))
+            kinds[kind] = {'first': first, 'frames': len(PEOPLE_FRAMES),
+                           'people': True, 'weapon': True}
+
     for name, spec in ANIMALS.items():
         if not os.path.exists(spec['path']):
             sys.exit(f'missing {spec["path"]}')
@@ -433,6 +501,7 @@ def main(out):
           f'{os.path.getsize(os.path.join(out, "npcs.png")) / 1024:.0f} KiB on disk, '
           f'{px / 1048576:.1f} MiB decoded')
     print('  people:  ' + ', '.join(LOOKS))
+    print('  in hand: ' + ', '.join(WEAPONS) + '  (each in two halves)')
     print('  animals: ' + ', '.join(f'{k} {v["yards"]}yd' for k, v in
                                     sorted(ANIMALS.items(), key=lambda kv: -kv[1]['yards'])))
     contact(frames, kinds, out)
@@ -447,6 +516,19 @@ def credits(used):
         if not r:
             cand = [x for k, x in by_file.items() if k.startswith(os.path.dirname(u) + '/')]
             r = cand[0] if cand else None
+        # LPC's register does not spell a weapon's path the way LPC's own tree
+        # does: on disk a sheet is `<pose>/<variant>.png` and in the register
+        # it is `<variant>/<pose>.png`, so an exact lookup and a prefix lookup
+        # both miss every one of them.  Walking the path up is safe here for a
+        # reason that was checked rather than assumed: every row under a
+        # weapon's own folder — forty of them for the longsword — carries the
+        # same authors and the same licences, so which row answers does not
+        # change the credit.
+        while not r and '/' in u:
+            u = u.rsplit('/', 1)[0]
+            cand = [x for k, x in by_file.items() if k.startswith(u + '/')]
+            if len({(x['authors'], x['licenses']) for x in cand}) == 1:
+                r = cand[0]
         if not r:
             sys.exit(f'{u} has no row in CREDITS.csv — refusing to ship an unattributed part')
         seen[os.path.dirname(u)] = r

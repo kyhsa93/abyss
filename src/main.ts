@@ -128,9 +128,14 @@ type Meta = {
   doodads: Doodad[]
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
+/** One kind's block of cells in the NPC atlas. */
+type Frames = { first: number; frames: number; people: boolean; yards?: number
+  /** A layer that goes on a person rather than being one — see `WEAPONS`. */
+  weapon?: boolean }
+
 type NpcArt = {
   cell: number; cols: number; anchor: number
-  kinds: Record<string, { first: number; frames: number; people: boolean; yards?: number }>
+  kinds: Record<string, Frames>
 }
 /** The drawn player: four poses, clips by name, one sheet. */
 type HeroArt = {
@@ -166,6 +171,11 @@ type Spawns = {
    * seven are columns of `creature` or `creature_template`.
    */
   moves?: number[][]
+  /**
+   * What the people of the slice are holding, as words the atlas has a sheet
+   * for — `creature_equip_template`, which nothing read until now.
+   */
+  arms?: string[]
   /** Every patrol the server lays down in the slice, whole — see `__navcheck`. */
   patrols?: number[][][]
   npcs: number[][]
@@ -1240,6 +1250,10 @@ async function main() {
      * and so taunt has something to act on when it arrives.
      */
     threat: Record<string, number>
+    /** What is in the main hand, as an atlas kind, or null for nothing. */
+    arm: string | null
+    /** Whether the off hand also holds a weapon — `Creature::CanDualWield`. */
+    dual: boolean
   }
   const npcs: Npc[] = []
   let unplaceable = 0
@@ -1287,6 +1301,12 @@ async function main() {
       // `creature_template_movement.Swim`: 2,352 of the slice can be in
       // water and every one of them was being kept out of it.
       swims: !!way[MOVE_SWIM], vx: 0, vy: 0, until: 0, moving: false,
+      // What is in the hand, and whether there is one in each.  `arm` is a
+      // word the atlas has two sheets for; `dual` is `Creature::CanDualWield`
+      // (Creature.cpp:3356), which asks only whether the off-hand slot holds
+      // something of the weapon class.
+      arm: (row[16] ?? -1) >= 0 ? (spawns.arms?.[row[16]!] ?? null) : null,
+      dual: !!row[17],
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
       entry: row[9] ?? 0,
@@ -4980,8 +5000,29 @@ async function main() {
       // The dead lie there and thin out, and come back in half a minute.
       const fade = n.dead ? Math.max(0.15, 1 - (clock - n.dead) / 6) : 1
       if (n.alpha * fade < 1) ctx.globalAlpha = n.alpha * fade
-      ctx.drawImage(npcImg, sxp, syp, c, c, Math.round(screenX(n.ix, n.iy) - w / 2),
-        Math.round(screenY(n.ix, n.iy) - w * npcArt.anchor), Math.ceil(w), Math.ceil(w))
+      const X = Math.round(screenX(n.ix, n.iy) - w / 2)
+      const Y = Math.round(screenY(n.ix, n.iy) - w * npcArt.anchor)
+      // What is in the hand, in two halves either side of the body.
+      //
+      // `creature_equip_template` says 934 of this slice's spawns hold
+      // something and every one of them stood barehanded.  The weapon rides
+      // the person's own grid frame for frame — LPC draws it for the body it
+      // goes on — so the only arithmetic is which cell, and it is the same
+      // arithmetic twice.  The halves are not two versions of one picture:
+      // over the four facings the longsword's front sheet holds 1,325 opaque
+      // pixels and the behind sheet 5,730, they overlap in nought, and facing
+      // away from the camera the front sheet is empty.
+      const arm = n.arm ? npcArt.kinds[n.arm] : undefined
+      const armBg = n.arm ? npcArt.kinds[`${n.arm}.bg`] : undefined
+      const layer = (k: Frames | undefined) => {
+        if (!k) return
+        const i = k.first + n.dir * k.frames + f
+        ctx.drawImage(npcImg, (i % npcArt.cols) * c,
+          Math.floor(i / npcArt.cols) * c, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+      }
+      layer(armBg)
+      ctx.drawImage(npcImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+      layer(arm)
       if (n.alpha * fade < 1) ctx.globalAlpha = 1
       // A bar, only while it matters: something you are fighting, or something
       // that has been hit in the last few seconds.  A field of health bars over
@@ -5838,7 +5879,7 @@ async function main() {
   ;(window as unknown as { __all: () => unknown }).__all = () =>
     npcs.map((n) => ({
       x: n.x, y: n.y, hx: n.hx, hy: n.hy, art: n.art, r: n.r, wander: n.wander,
-      kind: n.kind, level: n.level,
+      kind: n.kind, level: n.level, arm: n.arm, dual: n.dual,
       stance: aggressive(n.fight) ? 'enemy'
         : fightable(n.fight) ? 'quarry' : 'friend',
     }))
