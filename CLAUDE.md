@@ -303,6 +303,24 @@ set the placement chose* and the group's `uniqueID` at `MOGP + 0x38`. The
 abbey's hillside is 86 and its nave is 24; read with name set 0 instead of the
 1 the record states, it is nothing at all.
 
+**A game object goes through the terrain's classifier, because it is the same
+kind of thing.** `gameobject` is 96,624 rows and the pipeline's only use for
+one had been as a *height sample*; 1,365 of them stand in this slice. The join
+that makes them ordinary is `GameObjectDisplayInfo.dbc` — the world database
+says what stands somewhere by an id and the client says what that id draws — so
+`pipeline/objects.py` classifies a model path through `bake_terrain.classify`
+and there is one classifier here, not two. A first attempt matched on the row's
+*name* and wanted a word list that grew every time the slice did.
+
+Two things are different from a creature. The **lock** decides what a thing is
+before its model does: silverleaf's model is `Bush_Silverleaf01`, which the
+classifier quite correctly calls a bush, and `Lock.dbc` says it is a herb node
+wanting a trade skill. And the **pool is the mechanic, not a filter**:
+`spawn_npcs.py` drops pooled creatures because a pooled creature is one of
+several sharing a slot, but a pooled *object* is a herb node — Elwynn has 36
+copper-vein spots with nine up at a time — and dropping them leaves the
+starting zone with nothing to gather, which is what the first run produced.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of
@@ -327,6 +345,7 @@ somebody else already filled in:
 | `tan(50°)` climbing limit, "roughly where a person stops" | the steepest of 3,954 patrol legs in `waypoint_data` — 0.90 |
 | melee reach 3.0, "two bodies and an arm" | `SpellRange.dbc` entry 2 — 5.0 |
 | a wall drawn as the outline of a box | `HumanMale.m2`'s collision box, 2.03 yards, against the building's own triangles |
+| nothing to gather | `Lock.dbc`'s own requirement per node, and `pool_template.max_limit` for how many stand at once |
 | a flat 30 second respawn | `creature.spawntimesecs` |
 | 7 yards of wander for anything that is not a shopkeeper | `creature.wander_distance` and `MovementType` |
 | one walking speed for everything | `creature_template.speed_walk` × 2.5, `speed_run` × 7.0 |

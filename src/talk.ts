@@ -67,7 +67,7 @@ const ANIMALS = new Set(['wolf', 'bear', 'boar', 'spider', 'deer', 'rabbit',
  */
 /** The word for a kind, for anything outside this file that needs one. */
 export function nameOf(kind: string): string {
-  return KIND[kind] ?? kind
+  return KIND[kind] ?? THING[kind] ?? kind
 }
 
 const KIND: Record<string, string> = {
@@ -76,6 +76,26 @@ const KIND: Record<string, string> = {
   gnoll: '놀', orc: '오크', troll: '트롤',
   spider: '거미', deer: '사슴', rabbit: '토끼', cow: '소', sheep: '양',
   chicken: '닭', cat: '고양이', horse: '말',
+}
+
+/**
+ * What is standing there that is not a person.
+ *
+ * `pipeline/objects.py`'s words for the world's objects, which are the
+ * terrain classifier's words plus the two the lock decides — a node the lock
+ * calls a herb is a herb whatever its model is named after.
+ */
+const THING: Record<string, string> = {
+  herb: '약초', vein: '광맥', crate: '상자', barrel: '통', campfire: '모닥불',
+  prop: '살림살이', post: '이정표', sign: '표지판', vine: '포도덩굴',
+  grave: '무덤', bush: '덤불', flower: '꽃', rock: '바위', hay: '건초',
+  crop: '작물', firewood: '장작', mailbox: '우편함', anvil: '모루',
+  forge: '용광로',
+}
+
+/** And the trades that open them, which `Lock.dbc` names by number. */
+export const TRADE_WORD: Record<string, string> = {
+  herbs: '약초 채집', mining: '채광',
 }
 
 /** Whoever is counted in 명 rather than in 마리. */

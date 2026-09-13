@@ -20,7 +20,7 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
+import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
 import {
@@ -142,6 +142,20 @@ const PPY = 24              // pixels to the yard at 1:1
 const TILE = 32             // ground tile, in pixels
 const YD_PER_TILE = TILE / PPY
 
+/**
+ * The world's objects, as `pipeline/objects.py` writes them.
+ *
+ * A row is `[x, y, kind, facing, trade, skill, respawn, haul, entry, pool]`.
+ * `trade` is the empty string for anything you can simply open, and the name
+ * of a trade for anything you cannot; `skill` is what `Lock.dbc` asks for.
+ */
+type Things = {
+  objects: (string | number)[][]
+  hauls: (string | number)[][][]
+  /** How many of a shared slot's members stand at once — `pool_template`. */
+  pools: Record<string, number>
+}
+
 const hud = document.getElementById('hud') as HTMLDivElement
 
 const load = (src: string) =>
@@ -226,7 +240,7 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -244,6 +258,12 @@ async function main() {
     fetch('./world/spells.json')
       .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number }>)
       .catch(() => ({ spells: [] as Spell[], melee: undefined })),
+    // What stands in the world that is not a person.  One file for both
+    // worlds and for the same reason the spawns are: where a copper vein
+    // stands is a row in `gameobject` whichever height grid it stands on.
+    fetch('./world/objects.json')
+      .then((r) => r.json() as Promise<Things>)
+      .catch(() => ({ objects: [], hauls: [], pools: {} } as Things)),
   ])
 
   const canvas = document.createElement('canvas')
@@ -611,6 +631,17 @@ async function main() {
     hall: { pieces: ['hall'], solid: 'building' },
     tower: { pieces: ['tower'], solid: 'building' },
     tent: { pieces: ['tent'], solid: 'building' },
+    // What the world database puts down, as opposed to the terrain: a herb is
+    // a small plant you can pull up and a vein is a rock with something in it.
+    // Both are `pipeline/objects.py`'s words and both are decided by the lock
+    // rather than by the model, because silverleaf's model *is* a bush.
+    herb: { pieces: ['sprout', 'sprout2', 'kit_flower', 'kit_flower2'], yards: 1 },
+    vein: { pieces: ['kit_rock', 'kit_rock2', 'kit_stones'], yards: 1.3 },
+    crate: { pieces: ['crate', 'basket', 'baskets'], solid: 0.4, yards: 1 },
+    firewood: { pieces: ['firewood', 'firewood2', 'woodpile'], yards: 0.8 },
+    mailbox: { pieces: ['crate'], yards: 1 },
+    anvil: { pieces: ['anvil'], solid: 0.4, yards: 1 },
+    forge: { pieces: ['anvil'], solid: 0.5, yards: 1.3 },
   }
 
   /**
@@ -653,6 +684,8 @@ async function main() {
     x: number; y: number; piece: Piece; s: number; trunk?: Piece
     /** Whose roof it is under, if anybody's — worked out once, not per frame. */
     in?: unknown
+    /** The object it draws, for the ones that are taken and come back. */
+    node?: { up: boolean }
   }
   const placed: Placed[] = []
 
@@ -1524,6 +1557,82 @@ async function main() {
    * glass was both axes at once.  Sorting once is enough: nothing here moves.
    */
   const depth = (o: { x: number; y: number }) => o.x
+  /**
+   * The world's objects: veins, herbs, chests, fires, signposts.
+   *
+   * `gameobject` is 96,624 rows and this pipeline used exactly one of them —
+   * as a *height sample*, in the synthesised world.  Not one was ever placed,
+   * so there was nothing in this world to open and nothing to gather, and the
+   * starting zone's 130 copper veins and 83 silverleaf were not there.
+   */
+  type Node = {
+    x: number; y: number; kind: string; face: number
+    /** The trade a lock asks for, or the empty string for anything openable. */
+    trade: string
+    /** And how much of it — `Lock.dbc`'s own number. */
+    skill: number
+    /** How long the world database says it takes to come back. */
+    back: number
+    haul: (string | number)[][]
+    /** Which shared slot it belongs to, or 0. */
+    pool: number
+    /** Standing right now, and when it is due back if it is not. */
+    up: boolean
+    due: number
+  }
+  const nodes: Node[] = (things.objects ?? []).map((r) => ({
+    x: r[0] as number, y: r[1] as number, kind: r[2] as string,
+    face: r[3] as number, trade: r[4] as string, skill: r[5] as number,
+    back: r[6] as number, haul: things.hauls?.[r[7] as number] ?? [],
+    pool: r[9] as number, up: true, due: 0,
+  }))
+  /**
+   * Which members of a shared slot are standing.
+   *
+   * This is how a herb node works and it is not a detail: Elwynn has 36
+   * copper-vein spots with nine up at a time, 34 silverleaf spots with nine.
+   * Take the pool away and the map has every node standing at once, which is
+   * not a forest you gather in, it is a shop.  Take the *members* away —
+   * which is what dropping pooled rows does, the way the creature spawns do —
+   * and there is nothing to gather at all.
+   *
+   * `pool_template.max_limit` says how many, and which ones is ours: the
+   * first `limit` in file order to begin with, and after that whichever free
+   * member comes up when one is taken.
+   */
+  const byPool = new Map<number, Node[]>()
+  for (const n of nodes) {
+    if (!n.pool) continue
+    const got = byPool.get(n.pool)
+    if (got) got.push(n)
+    else byPool.set(n.pool, [n])
+  }
+  for (const [pool, members] of byPool) {
+    const limit = things.pools?.[String(pool)] ?? members.length
+    members.forEach((m, i) => { m.up = i < limit })
+  }
+  /** Bring a taken slot back, somewhere else in the same pool. */
+  const restock = (n: Node) => {
+    const members = n.pool ? byPool.get(n.pool) : null
+    if (!members) { n.up = true; return }
+    const free = members.filter((m) => !m.up && m.due <= 0)
+    const pick = free.length ? free[Math.floor(Math.random() * free.length)]! : n
+    pick.up = true
+  }
+
+  // Drawn with the rest of the scenery, so a vein sorts behind the tree it is
+  // behind — which means they have to join the list *before* it is sorted.
+  // The picture is the kind's, the same table the doodads use.
+  for (const n of nodes) {
+    const k = KIND[n.kind]
+    if (!k || !k.pieces.length) continue
+    const pick = k.pieces[Math.floor(hash(n.x, n.y) * k.pieces.length)
+      % k.pieces.length]!
+    const piece = tilesMeta[pick]
+    if (!piece) continue
+    placed.push({ x: n.x, y: n.y, piece, node: n,
+      s: ((k.yards ?? 1) * PPY) / piece.h })
+  }
   placed.sort((a, b) => depth(b) - depth(a))
 
   /**
@@ -1571,6 +1680,7 @@ async function main() {
       }
   }
   if (walled) console.info(`${walled} spawns nudged out of a wall`)
+
   const buckets = new Map<number, Placed[]>()
   for (const o of placed) {
     const k = patchKey(o.x, o.y)
@@ -1616,6 +1726,22 @@ async function main() {
     purse: 0, kills: 0,
     /** word -> [how many, what the lot is worth in copper]. */
     bag: {} as Record<string, [number, number]>,
+    /**
+     * What he is good at picking up, by trade.
+     *
+     * `Lock.dbc` states what each node asks for: silverleaf and peacebloom
+     * want nothing, earthroot wants fifteen, truesilver wants two hundred and
+     * five.  So the *bar* is data, and what is not is the rate — one point a
+     * node, which is the smallest step there is.  The server's own curve for
+     * this lives in AzerothCore's C++ and that is not on this machine (see
+     * issue 101); when it is, it goes here and nothing else changes.
+     *
+     * Both trades start at one because there is nobody to learn them from
+     * yet — the trainers are standing in the slice and cannot teach (issue
+     * 80).  Starting at nought would make the number a lie rather than a
+     * placeholder: a node asking for nothing would still refuse.
+     */
+    trades: { herbs: 1, mining: 1 } as Record<string, number>,
   }
   /**
    * The four things a warrior can do by level five.
@@ -1792,6 +1918,23 @@ async function main() {
    * anybody, and asking 1,884 of them three times a second whether they are
    * would cost more than the fight does.
    */
+  /**
+   * What was taken comes back, somewhere in the same slot.
+   *
+   * `gameobject.spawntimesecs` is the world database's own figure and it is
+   * not a round number — a copper vein is back in a few minutes, a chest in
+   * rather longer.  Where it comes back is the pool's business: pull one of
+   * the nine standing copper veins and the tenth spot is as likely as the one
+   * you emptied, which is why the forest is not a shop with a fixed shelf.
+   */
+  function restocking() {
+    for (const n of nodes) {
+      if (n.up || !n.due || clock < n.due) continue
+      n.due = 0
+      restock(n)
+    }
+  }
+
   function fighting() {
     if (you.died) {
       // Dead is dead for a moment, and then you are back where you started.
@@ -1945,6 +2088,52 @@ async function main() {
       const had = you.bag[word] ?? [0, 0]
       you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
       got.push(`${goodsOf(word)} ${many}`)
+    }
+    return got.length ? got.join(', ') : '아무것도 없다'
+  }
+
+  /**
+   * The nearest thing you could open or gather, or nothing.
+   *
+   * Reach is the same as a conversation's, because it is the same gesture:
+   * one key for "deal with the thing in front of me".
+   */
+  const atHand = (): Node | null => {
+    let best: Node | null = null, bd = EARSHOT * EARSHOT
+    for (const n of nodes) {
+      if (!n.up || !n.haul.length) continue
+      const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
+      if (d < bd) { bd = d; best = n }
+    }
+    return best
+  }
+
+  /**
+   * Take what is in it, if you can.
+   *
+   * What "can" means is `Lock.dbc`'s: a lock with nothing in it opens to
+   * anybody, and one asking for a trade asks for a number.  Picking one up
+   * teaches you a point of that trade, which is what turns 130 copper veins
+   * from scenery into the reason to walk about — earthroot wants fifteen and
+   * you get there by pulling fifteen peacebloom.
+   */
+  const gather = (n: Node): string => {
+    if (n.trade && (you.trades[n.trade] ?? 0) < n.skill)
+      return `${TRADE_WORD[n.trade] ?? n.trade} ${n.skill} 필요`
+    n.up = false
+    n.due = clock + Math.max(5, n.back)
+    const got: string[] = []
+    for (const row of n.haul) {
+      const [word, chance, lo, hi, sell] = row as [string, number, number, number, number]
+      if (Math.random() * 100 >= chance) continue
+      const many = lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1))
+      const had = you.bag[word] ?? [0, 0]
+      you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
+      got.push(`${goodsOf(word)} ${many}`)
+    }
+    if (n.trade) {
+      you.trades[n.trade] = (you.trades[n.trade] ?? 0) + 1
+      got.push(`${TRADE_WORD[n.trade] ?? n.trade} ${you.trades[n.trade]}`)
     }
     return got.length ? got.join(', ') : '아무것도 없다'
   }
@@ -2368,6 +2557,14 @@ async function main() {
       ui.log(`${nameOf(body.kind)}에게서 ${got}`, 'gain')
       return
     }
+    // And whatever is growing or standing there, for the same reason.
+    const thing = atHand()
+    if (thing && !inReach()) {
+      const got = gather(thing)
+      say(thing.x, thing.y, got, true)
+      ui.log(`${nameOf(thing.kind)} — ${got}`, 'gain')
+      return
+    }
     const n = inReach()
     if (n) startTalk(n)
   }
@@ -2535,6 +2732,7 @@ async function main() {
     wander(dt, clock, chat && chat.npc)
     reindex()
     fighting()
+    restocking()
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
@@ -2913,7 +3111,11 @@ async function main() {
     for (let bi = bx0; bi <= bx1; bi++) {
       for (let bj = by0; bj <= by1; bj++) {
         const b = buckets.get(bi * 100000 + bj)
-        if (b) for (const o of b) if (!o.in || o.in === under) near.push(o)
+        if (b) for (const o of b) {
+          if (o.in && o.in !== under) continue
+          if (o.node && !o.node.up) continue
+          near.push(o)
+        }
       }
     }
     near.sort((a, b) => depth(b) - depth(a))
@@ -2959,6 +3161,25 @@ async function main() {
     // The height is `headOf`, measured off the atlas, and not a constant that
     // looked right over a townsman.
     // A body is prompted the same way, because the same key opens it.
+    // A thing you could open or gather gets the same prompt a person does,
+    // because it is the same key.  Only when nobody is talking to you: a
+    // person in earshot wins, since a conversation is the rarer thing.
+    const thing = listener || corpse() ? null : atHand()
+    if (thing) {
+      const w = Math.round(16 * Math.max(1, zoom))
+      const X = Math.round(screenX(thing.x, thing.y))
+      const Y = Math.round(screenY(thing.x, thing.y) - w * 1.6)
+      ctx.font = `bold ${Math.round(11 * Math.max(1, zoom))}px monospace`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle = 'rgba(12,14,20,.82)'
+      ctx.fillRect(X - w / 2, Y - w / 2, w, w)
+      ctx.strokeStyle = thing.trade
+        && (you.trades[thing.trade] ?? 0) < thing.skill ? '#7a6a52' : '#c9a86a'
+      ctx.strokeRect(X - w / 2 + 0.5, Y - w / 2 + 0.5, w - 1, w - 1)
+      ctx.fillStyle = ctx.strokeStyle
+      ctx.fillText('E', X, Y + 1)
+    }
     const here = listener ?? corpse()
     if (here) {
       const listener = here
@@ -3286,6 +3507,43 @@ async function main() {
       const a = (got?.floor && got.b.area) || areaOf(x, y)
       return zoneOf(a, inside(a))
     }
+  /**
+   * The world's objects and what it takes to open one, for the checks.
+   *
+   * `take` walks the player to the nearest standing one of a kind and presses
+   * the key, which is the only way to find out that gathering works.
+   */
+  ;(window as unknown as { __things: () => unknown }).__things = () => ({
+    total: nodes.length,
+    up: nodes.filter((n) => n.up).length,
+    gather: nodes.filter((n) => n.trade).length,
+    pools: byPool.size,
+    trades: { ...you.trades },
+    bag: { ...you.bag },
+  })
+  /** And the hardest one, which is what says a lock can refuse. */
+  ;(window as unknown as { __refused: (kind: string) => unknown })
+    .__refused = (kind) => {
+      const want = nodes.filter((n) => n.up && n.kind === kind && n.haul.length)
+        .sort((a, b) => b.skill - a.skill)
+      if (!want.length || !want[0]!.skill) return null
+      const n = want[0]!
+      return { skill: n.skill, got: gather(n), up: n.up }
+    }
+  ;(window as unknown as { __take: (kind: string) => unknown }).__take = (kind) => {
+    // The easiest standing one, which is the one a new player meets: the
+    // slice reaches into four zones and its hardest node wants 270 of a trade.
+    const want = nodes.filter((n) => n.up && n.kind === kind && n.haul.length)
+      .sort((a, b) => a.skill - b.skill)
+    if (!want.length) return null
+    const n = want[0]!
+    hero.x = n.x - 1; hero.y = n.y
+    camX = hero.x; camY = hero.y
+    const before = { ...you.trades }
+    const got = gather(n)
+    return { kind, trade: n.trade, skill: n.skill, got, before,
+      after: { ...you.trades }, up: n.up, due: n.due }
+  }
   /** Every area the slice has, with whose it is and what we call it. */
   ;(window as unknown as { __areas: () => unknown }).__areas = () =>
     AREA_IDS.map((a) => ({ id: a, inside: inside(a), name: zoneOf(a, inside(a)),

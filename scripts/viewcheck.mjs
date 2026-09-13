@@ -416,6 +416,33 @@ if (indoors.length) {
     indoors.map((x) => `${x.inside} ≠ ${x.outside}`).join(', '))
 }
 
+// 9e. Things that are not people.  `gameobject` is 96,624 rows and the only
+// use this pipeline had ever made of one was as a height sample; 1,365 of them
+// stand in the slice and 393 can be gathered.  A vein you cannot pull is a
+// rock, so the check walks up to one and pulls it.
+const things = await p.evaluate(() => window.__things())
+check('the world has things in it that are not people', things.total > 0,
+  `${things.total.toLocaleString()} objects, ${things.up.toLocaleString()} standing, `
+  + `${things.gather} of them worth gathering, in ${things.pools} shared slots`)
+check('and a shared slot stands up only as many as the world says',
+  things.up < things.total,
+  `${things.total - things.up} are waiting their turn`)
+for (const kind of ['herb', 'vein']) {
+  const took = await p.evaluate((k) => window.__take(k), kind)
+  if (!took) continue
+  check(`and ${kind === 'herb' ? 'a herb can be picked' : 'a vein can be mined'}`,
+    !took.up && took.got !== '아무것도 없다'
+      && took.after[took.trade] === took.before[took.trade] + 1,
+    `${took.got} — ${took.trade} ${took.before[took.trade]} → ${took.after[took.trade]}`)
+}
+// And the other half of a lock: the slice reaches four zones and its hardest
+// node wants 270 of a trade, which a man who has pulled one weed does not have.
+const refused = await p.evaluate(() => window.__refused('herb'))
+if (refused) {
+  check('and one out of your depth says so', refused.up === true,
+    `${refused.got} (it wants ${refused.skill})`)
+}
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

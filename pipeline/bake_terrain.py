@@ -716,6 +716,14 @@ KINDS = [
     # a bare one — and it was going through as an ordinary tree while ordinary
     # trees were coming out bare, because `deadtree` was one of the pictures
     # the word `tree` rotated through.  Both halves were wrong at once.
+    # The models the *game objects* stand on, which reach this list through
+    # `pipeline/objects.py` — a vein and a chest are placed by the world
+    # database rather than by the terrain, and they are the same kind of thing
+    # with the same kind of name, so they go through the same door.
+    ('MININGNODE', 'vein'), ('TRADESKILLNODE', 'herb'),
+    ('TREASURECHEST', 'crate'), ('FIREWOODPILE', 'campfire'),
+    ('FIREPIT', 'campfire'), ('BONFIRE', 'campfire'), ('FOUNDRYPIT', 'campfire'),
+    ('FORGE', 'prop'), ('SMELTING', 'prop'), ('BLACKSMITH', 'prop'),
     ('CANOPYLESS', 'deadtree'), ('DEADTREE', 'deadtree'),
     ('TREES\\', 'tree'), ('PINE', 'pine'), ('TREE', 'tree'),
     ('BUSH', 'bush'), ('SHRUB', 'bush'),
