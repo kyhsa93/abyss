@@ -1010,6 +1010,24 @@ check('and the fireflies come out at night and not before',
 await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 12, 0, 0)))
 await p.waitForTimeout(300)
 
+// 10g. The slice is a zone, not a box.
+//
+// `slice.json` says this game is area 12 and the bounds are the measured
+// bounding box of it — but Stormwind sits geographically *inside* Elwynn, so
+// the box catches the city whole, and the Burning Steppes and a beach of
+// Westfall with it.  A third of the walkable ground in this slice was
+// somewhere else, and the biggest piece was a city this repository
+// deliberately does not draw: `STORMWIND.WMO` is excluded because there is no
+// picture of a city here, and that decision was right and then left
+// half-finished.  What it left was a flat grey slab, a ruler-straight line
+// down the middle of the map, and thirty people standing on nothing.  From
+// the start you could walk to the middle of it: 158 of 200 steps open.
+const edge = await p.evaluate(() => window.__edge())
+check('no walkable ground belongs to another zone', edge.strayed.stray === 0,
+  `${edge.strayed.stray} of ${edge.strayed.open} open samples`)
+console.log(`      (${edge.elsewhere} spawns, ${edge.beyond} pieces of scenery `
+  + 'left outside)')
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

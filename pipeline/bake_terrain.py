@@ -25,7 +25,7 @@ import sys
 from mpyq import MPQArchive
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import BOUNDS, START  # noqa: E402
+from slice import BOUNDS, START, AREA as SLICE_AREA  # noqa: E402
 
 TILE = 533.33333          # SIZE_OF_GRIDS
 CHUNK = TILE / 16         # ADT_CELLS_PER_GRID
@@ -768,6 +768,17 @@ def zone_kinds(areamask, area_ids, wetmask, doodads, cw, ch,
         else:
             kinds[a] = 'open'
     return {str(a): kinds[a] for a in sorted(kinds) if a in area_ids}
+
+
+def in_area(a, root, parent, depth=8):
+    """Whether `a` is `root` or sits inside it, however many steps up."""
+    for _ in range(depth):
+        if a == root:
+            return True
+        a = parent.get(a, 0)
+        if not a:
+            return False
+    return False
 
 
 # Where the ground opens into something.  A mine, a den, a burrow: all three
@@ -1574,6 +1585,37 @@ def bake(client, bounds, out, acore=None):
     # reason: an index worked out two ways is an index that disagrees with
     # itself, which is how the first run of this came back with every place in
     # the slice classed as empty ground.
+    # --- and the edge of the slice ------------------------------------
+    #
+    # A box is not a zone.  `slice.json` says this game is area 12, and the
+    # bounding box of area 12 is measured — but Stormwind sits geographically
+    # *inside* Elwynn, so the box catches the city whole, and the Burning
+    # Steppes and a beach of Westfall with it.  Thirty per cent of the walkable
+    # ground in this slice is somewhere else, and the biggest piece of it is a
+    # city this repository deliberately does not draw: `STORMWIND.WMO` is
+    # excluded a few hundred lines up because there is no picture of a city
+    # here, and that decision was right and then left half-finished.  What it
+    # left was a flat grey slab, a ruler-straight line down the middle of the
+    # map, and thirty people standing on nothing.  You could walk into it.
+    #
+    # So the areas that are not this slice's are shut, using the same mechanism
+    # the client's own impassable chunks use.  The alternative — carrying the
+    # box and drawing a city — is the expensive one, and the alternative to
+    # both is a wall nobody can see.
+    tree = {a for a in area_ids if in_area(a, SLICE_AREA, area_parent)}
+    shut_out = 0
+    for i in range(cw):
+        for j in range(ch):
+            v = areamask[i * ch + j]
+            if v == 255 or v >= len(area_ids):
+                continue
+            if area_ids[v] not in tree:
+                closed.append([i, j])
+                shut_out += 1
+    print(f'{shut_out} chunks shut because they are not area {SLICE_AREA}: '
+          f'{len(area_ids) - len(tree)} of {len(area_ids)} areas, '
+          f'{100 * shut_out / max(1, cw * ch):.0f}% of the box')
+
     area_kind = zone_kinds(areamask, area_ids, wetmask, doodads,
                            cw, ch, w, h, ORIGIN - i_lo * UNIT,
                            ORIGIN - j_lo * UNIT, UNIT)
@@ -1613,6 +1655,12 @@ def bake(client, bounds, out, acore=None):
         # Blizzard's prose the same as everything else.
         'areaWidth': cw, 'areaHeight': ch, 'areaUnit': UNIT * 8,
         'areaIds': area_ids,
+        # Which of them are this slice — area 12 and everything inside it.
+        # The rest are shut (see the edge, above) and the scene draws them as
+        # the dark behind the world rather than as ground you may not walk on:
+        # an invisible wall across a field is the thing this repository keeps
+        # taking out, and the edge of a slice is not a wall, it is an end.
+        'areaSlice': sorted(tree),
         # And which area each of them sits inside, out of `AreaTable.dbc`.
         # `src/talk.ts` has our own word for seventeen of the thirty-five; the
         # rest say whose ground they are on and show their id, rather than

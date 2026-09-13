@@ -100,6 +100,8 @@ type Meta = {
     string, string, string]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
+  /** Which of them this slice actually is — see `areaSlice` in the bake. */
+  areaSlice?: number[]
   /** Which area each of them sits inside, from `AreaTable.dbc`. */
   areaParent?: Record<string, number>
   /** And what level it is meant for, which is the same table's own column. */
@@ -434,6 +436,27 @@ async function main() {
    */
   const cell = (i: number, j: number) => i * 100000 + j
   const shut = new Set((meta.closed ?? []).map(([i, j]) => cell(i, j)))
+  /**
+   * Whether a point is in the game at all.
+   *
+   * The slice's bounds are a box and a box is not a zone: Stormwind sits
+   * geographically inside Elwynn, so the measured box of area 12 catches the
+   * city whole, and the Burning Steppes and a beach of Westfall with it — a
+   * third of the walkable ground.  The bake shuts those chunks; this decides
+   * what they *look* like, and the answer is the dark behind the world.  An
+   * invisible wall across a field is the thing this repository keeps taking
+   * out, and the edge of a slice is not a wall.  It is an end.
+   */
+  const MINE = new Set(meta.areaSlice ?? [])
+  const outside = (wx: number, wy: number) => {
+    const a = areaOf(wx, wy)
+    // Nought is "the grid has no answer here", not "somewhere else".  Read
+    // the other way round this painted most of Elwynn as the end of the
+    // world: the zone grid is one id a 33-yard chunk and its edges are
+    // ragged, and an unmapped chunk in the middle of the forest is still the
+    // forest.
+    return a !== 0 && MINE.size > 0 && !MINE.has(a)
+  }
   const closedAt = (wx: number, wy: number) => {
     if (!shut.size) return false
     const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
@@ -840,10 +863,16 @@ async function main() {
    * nobody would have called art either.  So the client's own placements are
    * kept and the night pass lights them.
    */
+  /** Scenery standing outside the slice, which is not in this game either. */
+  let beyond = 0
   const motes: { x: number; y: number }[] = []
   /** How many sparks the last frame lit, which is what the check reads. */
   let sparks = 0
   for (const d of meta.doodads) {
+    // Not in the game.  A third of the box is somewhere else — Stormwind,
+    // the Burning Steppes, a beach of Westfall — and drawing its trees over
+    // the dark makes an end look like a bug.
+    if (outside(d.x, d.y)) { beyond++; continue }
     if (d.k === 'firefly') { motes.push({ x: d.x, y: d.y }); continue }
     const k = KIND[d.k]
     if (!k) continue
@@ -1176,7 +1205,19 @@ async function main() {
   }
   const npcs: Npc[] = []
   let unplaceable = 0
+  /**
+   * Spawns standing outside the slice, which are now nobody's.
+   *
+   * The box that measures area 12 catches Stormwind whole, because the city
+   * sits geographically inside Elwynn — so 439 of the world's own spawns are
+   * citizens of a place this repository deliberately does not draw, standing
+   * thirty-strong on a flat grey slab.  The bake shuts that ground; this is
+   * the other half of the same decision, because a guard patrolling a wall
+   * that is not there is worse than no guard.
+   */
+  let elsewhere = 0
   for (const row of spawns.npcs) {
+    if (closedAt(row[0]!, row[1]!)) { elsewhere++; continue }
     const kind = spawns.kinds[row[2]!]!
     const borrowed = BORROWED[kind]
     const art = faceOf(borrowed ? borrowed.art : kind, row[0]!, row[1]!)
@@ -1366,7 +1407,11 @@ async function main() {
     while (m < cap && wetAt(x + cx * m, y + cy * m)) m += 1
     return m
   }
+  // A crossing that leads out of the slice leads nowhere, so it is not there.
+  // Two of the five in the box land on Westfall's bank, and a bridge with one
+  // end in the dark is an invitation to walk into it.
   const spans = meta.doodads
+    .filter((d) => !outside(d.x, d.y))
     .filter((d) => (d.k === 'bridge' || d.k === 'bridge_stone')
       && !!d.bl && !!d.bw)
     .map((d) => {
@@ -1832,7 +1877,11 @@ async function main() {
     up: boolean
     due: number
   }
-  const nodes: Node[] = (things.objects ?? []).map((r) => ({
+  // The same edge the scenery and the spawns get: a chest in Stormwind is a
+  // chest in a city this game does not have.
+  const nodes: Node[] = (things.objects ?? [])
+    .filter((r) => !outside(r[0] as number, r[1] as number))
+    .map((r) => ({
     x: r[0] as number, y: r[1] as number, kind: r[2] as string,
     face: r[3] as number, trade: r[4] as string, skill: r[5] as number,
     back: r[6] as number, haul: things.hauls?.[r[7] as number] ?? [],
@@ -4007,7 +4056,7 @@ async function main() {
         // Asked at the tile's own width, which is the same question the
         // paint below asks a few lines down, so it is asked once.
         const covers = inBuilding(wx, wy, T)
-        if (openHole(wx, wy) && !covers) {
+        if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
           const wide = px * grain
           ctx.fillStyle = '#0a0a0f'
           ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
@@ -4493,7 +4542,8 @@ async function main() {
         tail(`  (막는 것 ${solids.length})`)],
       ['주민', `그린 것 ${npcsDrawn} / ${npcs.length}, ${kindCount}종` +
         tail(`  (${settled} 뭍으로, ${afloat} 물속)`) +
-        (unplaceable ? `  ${unplaceable} 그림 없음` : '')],
+        (unplaceable ? `  ${unplaceable} 그림 없음` : '')
+        + (elsewhere ? `  ${elsewhere} 슬라이스 밖` : '')],
       ['주인공', `(${hero.x.toFixed(0)}, ${hero.y.toFixed(0)})  지면 ${heroZ.toFixed(1)}야드` +
         (wetAt(hero.x, hero.y) ? '  [물속]'
           : solidAt(hero.x, hero.y) ? '  [안쪽]'
@@ -4801,6 +4851,22 @@ async function main() {
    * started mattering: a bookshelf that does not know it is in a house is a
    * bookshelf in the road.
    */
+  /** How much of the world the slice's own edge shut out. */
+  ;(window as unknown as { __edge: () => unknown }).__edge = () => ({
+    npcs: npcs.length, elsewhere, unplaceable, beyond, scenery: placed.length,
+    /** Walkable ground that is not this slice's, which has to be none. */
+    strayed: (() => {
+      let open = 0, stray = 0
+      for (let x = x0 - W * U; x <= x0; x += 24) {
+        for (let y = y0 - H * U; y <= y0; y += 24) {
+          if (blocked(x, y)) continue
+          open++
+          if (outside(x, y)) stray++
+        }
+      }
+      return { open, stray }
+    })(),
+  })
   ;(window as unknown as { __motes: () => unknown }).__motes = () => ({
     n: motes.length, lit: sparks,
   })
