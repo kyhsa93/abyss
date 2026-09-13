@@ -151,6 +151,39 @@ check('which is the next link of the chain',
     clash === 0 || shapes.group > 0, `${clash} groups with siblings`)
 }
 
+// And no chain dead-ends.
+//
+// `offers()` will not hand you a quest until whatever it comes `after` is
+// **done**, so a shipped quest whose prerequisite is not shipped can never be
+// offered at all — six of them were in the bake and nothing had noticed,
+// because a quest nobody is offered looks exactly like a quest for somebody
+// else.  Every link now points inside the game or nowhere.
+{
+  const links = await p.evaluate(async () => {
+    const qs = (await (await fetch('./world/quests.json')).json()).quests
+    const have = new Set(qs.map((q) => q.id))
+    return qs.filter((q) => ['after', 'leads', 'instead']
+      .some((k) => q[k] && !have.has(q[k]))).map((q) => q.id)
+  })
+  check('every link of every chain points inside this game',
+    links.length === 0, links.join(' '))
+  // And every one of them is reachable from a standing start: walk `after`
+  // back from each quest and it has to end at one that follows nothing.
+  const rootless = await p.evaluate(async () => {
+    const qs = (await (await fetch('./world/quests.json')).json()).quests
+    const by = new Map(qs.map((q) => [q.id, q]))
+    const bad = []
+    for (const q of qs) {
+      let at = q, hops = 0
+      while (at.after && hops++ < 64) at = by.get(at.after)
+      if (!at || at.after) bad.push(q.id)
+    }
+    return bad
+  })
+  check('and every chain walks back to a quest that follows nothing',
+    rootless.length === 0, rootless.join(' '))
+}
+
 // And what an errand pays besides the two numbers.
 //
 // Nine of this slice's thirty-one offer a choice of up to five things, and the

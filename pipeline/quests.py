@@ -419,6 +419,45 @@ def main(acore, client_root, out):
 
     check_objects(wants_object, out)
 
+    # A chain that starts outside this game cannot be walked, so it is not
+    # shipped.
+    #
+    # This is the wiki's open question — *cut the chains that leave, or widen
+    # the slice until they close* — and the answer is cut, because the
+    # measurement made it small.  Of the 224 quests somebody standing in this
+    # world hands out, **21** are ones this character could take and this game
+    # does not ship, and only **five** of those leak: sixteen have their taker
+    # standing inside the box already and were dropped for a different reason.
+    # The five that do leak end within a thousand yards of the edge.  Widening
+    # the slice until they close is the wiki's own warning about a slice that
+    # grows quietly, bought for five errands.
+    #
+    # What cutting leaves behind is the thing worth fixing, and nothing had
+    # noticed it: `offers()` will not hand you a quest until whatever it comes
+    # `after` is **done**, so a shipped quest whose prerequisite is not shipped
+    # can never be offered at all.  Six of them were in this file.  It is
+    # transitive — dropping one orphans the next — so this runs to a fixed
+    # point, and the alternative was worse: cutting the `after` link instead
+    # would ship a quest claiming to have no prerequisite, which is the sort of
+    # small lie this repository spends rounds finding.
+    while True:
+        have = {q['id'] for q in quests}
+        stranded = [q for q in quests if q['after'] and q['after'] not in have]
+        if not stranded:
+            break
+        for q in stranded:
+            dropped['starts from a quest this game does not have'] += 1
+        quests = [q for q in quests if q not in stranded]
+    # And a link forward that points out of the game is not a link.  Left in,
+    # the hand-in would look for an errand that is not there; taken out, it is
+    # simply the end of the chain, which is what it is.
+    have = {q['id'] for q in quests}
+    for q in quests:
+        for key in ('leads', 'instead'):
+            if q[key] and q[key] not in have:
+                q[key] = 0
+                dropped['a link forward that leaves this game'] += 1
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'quests.json')
     with open(path, 'w') as f:
@@ -429,6 +468,15 @@ def main(acore, client_root, out):
     # The line the economy page asked for, on this side of it: every quest
     # shipped is one a character of these levels could be handed, and the
     # money is the money.
+    # Every chain walks to its end.  A quest whose prerequisite is missing can
+    # never be offered and a link that points at nothing is not a link.
+    have = {q['id'] for q in quests}
+    stuck = [q['id'] for q in quests
+             if (q['after'] and q['after'] not in have)
+             or (q['leads'] and q['leads'] not in have)
+             or (q['instead'] and q['instead'] not in have)]
+    if stuck:
+        sys.exit('%d chains dead-end inside this game: %s' % (len(stuck), stuck[:8]))
     out_of = [q for q in quests
               if not in_range(q['level'], q['min'])
               or not allows(q['classes'], CLASS_MASK)
