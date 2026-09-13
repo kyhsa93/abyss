@@ -134,6 +134,75 @@ for (const [name, x, y, zoom, why] of SPOTS) {
     `${(share * 100).toFixed(1)}% of the picture moved — ${why}`)
 }
 
+// --- and is the ground a ground, or a chessboard? -------------------------
+//
+// The floor read as a chessboard and the cause was measured rather than
+// guessed.  On a patch of meadow at the human start: the horizontal
+// autocorrelation peaked at every multiple of 32 pixels and bottomed out
+// between (0.249 at one tile against 0.037 beside it, 6.8 times), **14% of
+// tiles were pixel-for-pixel identical to the one beside them**, and a
+// hundred and four tiles held twenty-eight distinct pictures.
+//
+// The hash that picks between the three grass pieces was the obvious suspect
+// and was innocent: counted over four hundred cells its periods run 31% to
+// 37% where three pictures at random would give 33%.  Three pictures on a
+// thirteen-wide screen is three pictures however well they are shuffled.
+await page.evaluate(() => {
+  window.__cam({ x: -8949, y: -132, zoom: 1 })
+  document.getElementById('ui')?.setAttribute('hidden', '')
+})
+await page.waitForTimeout(600)
+const flat = await page.evaluate(() => {
+  const c = document.querySelector('canvas')
+  const g = c.getContext('2d')
+  // A square of meadow away from the road and the fences.
+  const S = 320
+  const d = g.getImageData(c.width / 2 - S / 2, c.height / 2 - S / 2, S, S).data
+  const at = (x, y) => (y * S + x) * 4
+  // How alike a row is to itself `lag` pixels along, as plain correlation of
+  // the green channel about its own mean.
+  const corr = (lag) => {
+    let n = 0, sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x + lag < S; x++) {
+        const a = d[at(x, y) + 1], b = d[at(x + lag, y) + 1]
+        n++; sa += a; sb += b; saa += a * a; sbb += b * b; sab += a * b
+      }
+    }
+    const ca = saa / n - (sa / n) ** 2, cb = sbb / n - (sb / n) ** 2
+    return (sab / n - (sa / n) * (sb / n)) / Math.sqrt(Math.max(1e-9, ca * cb))
+  }
+  // And how many of the 32-pixel cells are identical to their neighbour.
+  const cells = []
+  for (let j = 0; j + 32 <= S; j += 32) {
+    for (let i = 0; i + 32 <= S; i += 32) {
+      let k = ''
+      for (let y = 0; y < 32; y += 2) for (let x = 0; x < 32; x += 2) k += d[at(i + x, j + y)]
+      cells.push(k)
+    }
+  }
+  const wide = Math.floor(S / 32)
+  let same = 0, pairs = 0
+  for (let j = 0; j < wide; j++) {
+    for (let i = 0; i + 1 < wide; i++) {
+      pairs++
+      if (cells[j * wide + i] === cells[j * wide + i + 1]) same++
+    }
+  }
+  return {
+    peak: corr(32), beside: (corr(24) + corr(40)) / 2,
+    twins: same / Math.max(1, pairs), kinds: new Set(cells).size, of: cells.length,
+  }
+})
+await page.evaluate(() => document.getElementById('ui')?.removeAttribute('hidden'))
+check('no picture repeats beside itself', flat.twins < 0.03,
+  `${(flat.twins * 100).toFixed(1)}% of neighbouring tiles are identical`)
+check('and the grid does not stand out at one tile',
+  flat.peak / Math.max(0.02, flat.beside) < 2.4,
+  `${(flat.peak / Math.max(0.02, flat.beside)).toFixed(1)}x the correlation of `
+  + 'its neighbouring lags')
+console.log(`      (${flat.kinds} distinct pictures in ${flat.of} tiles of meadow)`)
+
 await browser.close()
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

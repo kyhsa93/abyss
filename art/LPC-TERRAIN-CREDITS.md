@@ -10,7 +10,7 @@ recorded cannot be complied with.
 
 - **Casper Nilsson** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/tiled-terrains>  
-  `tent`, `cart`, `haycart`, `cart2`, `grave`, `stump`, `bloom`, `bloom2`, `bloom3`, `lily`, `lily2`, `grave2`, `lily3`
+  `tent`, `cart`, `haycart`, `cart2`, `grave`, `stump`, `bloom`, `bloom_r1`, `bloom_r2`, `bloom_r3`, `bloom_m`, `bloom_m1`, `bloom_m2`, `bloom_m3`, `bloom2`, `bloom2_r1`, `bloom2_r2`, `bloom2_r3`, `bloom2_m`, `bloom2_m1`, `bloom2_m2`, `bloom2_m3`, `bloom3`, `bloom3_r1`, `bloom3_r2`, `bloom3_r3`, `bloom3_m`, `bloom3_m1`, `bloom3_m2`, `bloom3_m3`, `lily`, `lily2`, `grave2`, `lily3`
 
 - **Daniel Eddeland** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/lpc-farming-tilesets-magic-animations-and-ui-elements>  
@@ -34,7 +34,7 @@ recorded cannot be complied with.
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0  
   <https://opengameart.org/content/tiled-terrains>  
-  `oak`, `oak2`, `pine2`, `shrub`, `shrub2`, `pine`, `trunk`, `barrels`, `menhir`, `barrel`, `grass`, `grass2`, `grass3`, `dirt`, `dirt2`, `rock_floor`, `stone`, `boulder`, `scatter`, `bush`, `bush2`, `barrel2`, `barrel3`, `trunk2`, `rubble`
+  `oak`, `oak2`, `pine2`, `shrub`, `shrub2`, `pine`, `trunk`, `barrels`, `menhir`, `barrel`, `grass`, `grass_r1`, `grass_r2`, `grass_r3`, `grass_m`, `grass_m1`, `grass_m2`, `grass_m3`, `grass2`, `grass2_r1`, `grass2_r2`, `grass2_r3`, `grass2_m`, `grass2_m1`, `grass2_m2`, `grass2_m3`, `grass3`, `grass3_r1`, `grass3_r2`, `grass3_r3`, `grass3_m`, `grass3_m1`, `grass3_m2`, `grass3_m3`, `dirt`, `dirt_m`, `dirt_m2`, `dirt_r2`, `dirt2`, `dirt2_m`, `dirt2_m2`, `dirt2_r2`, `rock_floor`, `rock_floor_m`, `rock_floor_m2`, `rock_floor_r2`, `stone`, `stone_m`, `stone_m2`, `stone_r2`, `boulder`, `scatter`, `bush`, `bush2`, `barrel2`, `barrel3`, `trunk2`, `rubble`
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0  
   <https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles>  

@@ -571,8 +571,28 @@ async function main() {
   const BARE = Math.tan(40 * Math.PI / 180)
 
   const WATER_TILES = ['water', 'water2', 'water3'].filter((k) => tilesMeta[k])
-  const GROUND_TILES = ['grass', 'grass2', 'grass3'].filter((k) => tilesMeta[k])
+  /**
+   * Every way a ground picture may be laid down.
+   *
+   * Three pictures on a thirteen-wide screen is three pictures however well
+   * the hash shuffles them, and the measurement said so: 14% of the tiles in
+   * a patch of meadow were pixel-for-pixel identical to the one beside them,
+   * and the autocorrelation peaked at every multiple of 32 pixels.  The hash
+   * was the obvious suspect and was innocent — checked for periodicity over
+   * four hundred cells and it has none.
+   *
+   * `bake_tiles.py` turns and mirrors them, which is lossless in pixel art
+   * and free at runtime, and whether a piece *may* be turned is decided by
+   * the ratio of its horizontal to its vertical contrast rather than by eye.
+   * Grass and bloom take all eight; water, cobble, bridge and roof take none.
+   */
+  const ways = (base: string[]) => base.flatMap((k) =>
+    [k, `${k}_r1`, `${k}_r2`, `${k}_r3`, `${k}_m`, `${k}_m1`, `${k}_m2`, `${k}_m3`]
+      .filter((q) => tilesMeta[q]))
+  const GROUND_TILES = ways(['grass', 'grass2', 'grass3'])
   const ROCK_TILE = tilesMeta['stone'] ? 'stone' : GROUND_TILES[0]
+  /** The earths, which take mirrors: their stones have a light on them. */
+  const DIRT_TILES = ways(['dirt', 'dirt2'])
   /**
    * A laid road, which is not a rock face.
    *
@@ -632,7 +652,7 @@ async function main() {
    * and .45, put flowers on a fifth of the whole slice, which is the rash
    * again at a larger grain.
    */
-  const BLOOM_TILES = ['bloom', 'bloom2', 'bloom3'].filter((k) => tilesMeta[k])
+  const BLOOM_TILES = ways(['bloom', 'bloom2', 'bloom3'])
   const MEADOW = 0.78
 
   /**
@@ -4172,7 +4192,7 @@ async function main() {
       ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se', 'inw', 'ine', 'isw', 'ise']
         .map((q) => `${pre}_${q}`))
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ...PAVED_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
+      ...PAVED_TILES, ...DIRT_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
       // Indoors, which is its own scene and its own set.
       'in_floor', 'in_floor2', 'in_rug', 'in_wall',
@@ -4715,8 +4735,25 @@ async function main() {
         // Bands on one continuous number, so bare ground follows the hillside
         // instead of speckling across it.
         const steep = slopeAt(wx, wy, T)
-        const meadow = BLOOM_TILES.length > 0
-          && hash(Math.floor(ti / 5) + 811, Math.floor(tj / 5) + 277) > MEADOW
+        // A meadow used to be a 5x5 block of tiles — 6.67 yards square, all
+        // of it flowers or none — and its edges were ruled with a straight
+        // edge.  The same coarse grid read *bilinearly* costs the same four
+        // lookups and gives a blotch.
+        // Four lookups where there was one, so only at the tile's own size:
+        // past that the ground is drawing one square where sixty-four belong
+        // and the edge of a meadow is not a thing anybody can see.  Without
+        // the guard the widest zoom went from 54 frames to 35.
+        const mu = ti / 5, mv = tj / 5
+        const mi = Math.floor(mu), mj = Math.floor(mv)
+        let blotch: number
+        if (grain === 1) {
+          const fx = mu - mi, fy = mv - mj
+          const n00 = hash(mi + 811, mj + 277), n10 = hash(mi + 812, mj + 277)
+          const n01 = hash(mi + 811, mj + 278), n11 = hash(mi + 812, mj + 278)
+          blotch = n00 * (1 - fx) * (1 - fy) + n10 * fx * (1 - fy)
+            + n01 * (1 - fx) * fy + n11 * fx * fy
+        } else blotch = hash(mi + 811, mj + 277)
+        const meadow = BLOOM_TILES.length > 0 && blotch > MEADOW
         const shore = !water && WATER_TILES.length > 0
           && (wetAt(wx + T, wy) || wetAt(wx - T, wy)
             || wetAt(wx, wy + T) || wetAt(wx, wy - T))
@@ -4756,18 +4793,27 @@ async function main() {
           : ink === 'paved' && PAVED_TILES.length > 0
             ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
           : ink === 'rock' || ink === 'paved' ? ROCK_TILE
-            : (ink === 'road' || ink === 'crop') && flat ? DIRT_TILE
+            : (ink === 'road' || ink === 'crop') && flat
+              ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
               : ink === 'sand' ? SHORE_TILE
                 : shore ? SHORE_TILE
                   : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
                     : ink === 'bloom' || (meadow && h > 0.55)
                       ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
-                      : steep > BARE ? DIRT_TILE
+                      : steep > BARE
+                        ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
                         : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
         // One straight blit of a square, centred on the tile's own point —
         // which is what `wx, wy` has always meant here.
+        // Twenty-one steps over a smooth hillside is a mosaic, and the line
+        // between step nine and step ten is dead straight because every tile
+        // takes its light from the one point at its middle.  Half a step of
+        // jitter from the tile's own hash turns that line into a zigzag: it
+        // costs nothing, it is stable frame to frame, and the hash was
+        // already measured to have no periodicity in it.
         const step = Math.max(0, Math.min(SHADES - 1, Math.round(
-          ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
+          ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
+          + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
         const wide = px * grain
         ctx.drawImage(ground.c, ground.at[id]!, step * px, px, px,
           Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)

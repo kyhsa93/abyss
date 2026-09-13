@@ -421,6 +421,49 @@ RENDERED = [
 RENDERS = 'public/art/kit'
 
 
+# Which ground pieces may be turned, and how far.
+#
+# The floor read as a chessboard and the cause was measured rather than
+# guessed: the autocorrelation of a patch of meadow peaks at every multiple of
+# 32 pixels and bottoms out between, **14% of tiles are pixel-for-pixel
+# identical to the one beside them**, and the hash that picks between the
+# three grass pieces was checked for periodicity and has none.  Three pictures
+# on a thirteen-wide screen is three pictures however well they are shuffled.
+#
+# Rotating and mirroring pixel art is lossless, so one picture can be eight
+# without an artist.  Whether it *may* be is not a matter of taste either: the
+# ratio of a tile's horizontal contrast to its vertical contrast says whether
+# it has a direction in it.  Measured over this sheet — water 3.47, roof 2.48,
+# bridge 1.64 to 2.10, cobble 1.74, the earths 1.44, grass 1.27 to 1.29, bloom
+# 1.06 to 1.14.
+#
+# So: grass and bloom take all eight.  Water, cobble, bridge and roof take
+# none — their grain runs one way and a turned one reads as a seam.  The four
+# in the middle were **looked at** and take mirrors only, which keeps the
+# lighting on their stones consistent; that is a decision and this is where it
+# is written down.
+FREE = ('grass', 'grass2', 'grass3', 'bloom', 'bloom2', 'bloom3')
+MIRROR = ('dirt', 'dirt2', 'stone', 'rock_floor')
+
+
+def turns(pid, im):
+    """The extra ways one ground picture may be laid down."""
+    from PIL import Image as I
+    if pid in FREE:
+        return [('_r1', im.transpose(I.ROTATE_90)),
+                ('_r2', im.transpose(I.ROTATE_180)),
+                ('_r3', im.transpose(I.ROTATE_270)),
+                ('_m', im.transpose(I.FLIP_LEFT_RIGHT)),
+                ('_m1', im.transpose(I.FLIP_LEFT_RIGHT).transpose(I.ROTATE_90)),
+                ('_m2', im.transpose(I.FLIP_TOP_BOTTOM)),
+                ('_m3', im.transpose(I.FLIP_LEFT_RIGHT).transpose(I.ROTATE_270))]
+    if pid in MIRROR:
+        return [('_m', im.transpose(I.FLIP_LEFT_RIGHT)),
+                ('_m2', im.transpose(I.FLIP_TOP_BOTTOM)),
+                ('_r2', im.transpose(I.ROTATE_180))]
+    return []
+
+
 def trim(im):
     box = im.getbbox()
     return im.crop(box) if box else im
@@ -445,6 +488,9 @@ def main(out):
             if do_trim:
                 im = trim(im)
             cut.append({'id': pid, 'kind': kind, 'by': by, 'im': im})
+            for suffix, turned in turns(pid, im):
+                cut.append({'id': pid + suffix, 'kind': kind, 'by': by,
+                            'im': turned})
     for pid, x, y, w, h in HOUSES:
         im = trim(sheets['roofs-preview.png'].crop((x, y, x + w, y + h)))
         cut.append({'id': pid, 'kind': 'object', 'by': 'roofs', 'im': im})
