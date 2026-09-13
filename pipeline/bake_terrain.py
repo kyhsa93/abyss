@@ -302,7 +302,7 @@ def steepness(t):
             min(az, bz, cz), max(az, bz, cz))
 
 
-def wmo_plan(client, path, only=None):
+def wmo_plan(client, path, only=None, nxt=None):
     """What a building is, from above: its outline, its walls and its floor.
 
     Three masks over the same grid, one square yard a cell, in the model's own
@@ -335,11 +335,11 @@ def wmo_plan(client, path, only=None):
 
     Returns `(outline, w, h, x0, y0, solid, floor, over)`, one byte a cell.
     """
-    if (path, only) in _PLANS:
-        return _PLANS[(path, only)]
+    if (path, only, nxt) in _PLANS:
+        return _PLANS[(path, only, nxt)]
     tris = wmo_triangles(client, path)
     if not tris:
-        _PLANS[(path, only)] = None
+        _PLANS[(path, only, nxt)] = None
         return None
     xs = [q[0] for tri in tris for q in tri]
     ys = [q[1] for tri in tris for q in tri]
@@ -348,7 +348,7 @@ def wmo_plan(client, path, only=None):
     w = int(math.ceil((max(xs) - x0) / S)) + 1
     h = int(math.ceil((max(ys) - y0) / S)) + 1
     if w * h > 400000:               # a city, not a building
-        _PLANS[(path, only)] = None
+        _PLANS[(path, only, nxt)] = None
         return None
 
     cells = bytearray(w * h)
@@ -385,6 +385,8 @@ def wmo_plan(client, path, only=None):
     over_head = bytearray(w * h)
     #: The silhouette of this storey alone — see `mine[n]` below.
     mine = bytearray(w * h)
+    #: And the way up: a walkable face between this floor and the next.
+    steps = bytearray(w * h)
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -402,6 +404,19 @@ def wmo_plan(client, path, only=None):
         # this is where the answer was being thrown away — the roof over a room
         # is a flat face and the sky over a courtyard is nothing at all.
         roof = not wall and zhi > high
+        # And whether it is a **step between this floor and the one above**.
+        #
+        # `steepness` already reads a stair tread as walkable — its own comment
+        # says *a stair is not a wall*, because read the other way the risers
+        # sealed the doors they lead to.  What throws the stairs away is the
+        # height filter: a tread halfway up is neither near this storey nor
+        # near the next, so `near` is false for every one of them and the two
+        # floors come out with nothing between them.
+        #
+        # A landing is a walkable face in the gap: above a man's head from this
+        # floor, and below head height on the next.
+        rung = (nxt is not None and not wall
+                and high < zhi < nxt - BODY + 0.01)
         for i in range(i0, i1 + 1):
             px = x0 + (i + 0.5) * S
             for j in range(j0, j1 + 1):
@@ -415,6 +430,8 @@ def wmo_plan(client, path, only=None):
                 cells[n] = 1
                 if roof:
                     over_head[n] = 1
+                if rung:
+                    steps[n] = 1
                 if not near:
                     continue
                 # And the outline *of this storey*, which is not the outline of
@@ -498,9 +515,10 @@ def wmo_plan(client, path, only=None):
         for n in range(w * h):
             cells[n] = 0 if seen[n] else 1
             if not cells[n]:
-                solid[n] = floor[n] = over_head[n] = 0
-    _PLANS[(path, only)] = (cells, w, h, x0, y0, solid, floor, over_head)
-    return _PLANS[(path, only)]
+                solid[n] = floor[n] = over_head[n] = steps[n] = 0
+    _PLANS[(path, only, nxt)] = (cells, w, h, x0, y0, solid, floor,
+                                 over_head, steps)
+    return _PLANS[(path, only, nxt)]
 
 
 def wmo_furniture(client, path, which=0):
@@ -589,7 +607,7 @@ def check_doors(client, path):
                         None if abs(floor - base) <= BODY else floor)
         if not plan:
             continue
-        _cells, w, h, x0, y0, solid, _floor, _over = plan
+        _cells, w, h, x0, y0, solid, _floor, _over, _steps = plan
         i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
         open_ = not (0 <= i < w and 0 <= j < h) or not solid[i * h + j]
         _DOORS.append(1 if open_ else 0)
@@ -634,8 +652,13 @@ def plan_key(client, path, key):
         check_doors(client, path)
         up = storeys(client, path)
         PLAN_FLOORS[key] = []
-        for sill in up[1:]:
-            plan = wmo_plan(client, path, sill)
+        # The ground floor's stairs point at the next sill, which is why the
+        # plan is rasterised a second time once the storeys are known.  A
+        # building with one floor has nowhere to go and keeps the first.
+        if len(up) > 1:
+            PLANS_BY_KEY[key] = wmo_plan(client, path, None, up[1])
+        for sill, over in zip(up[1:], list(up[2:]) + [None]):
+            plan = wmo_plan(client, path, sill, over)
             if not plan:
                 continue
             # Standing room, or it is not a floor anybody is on.  A twentieth
@@ -1990,7 +2013,7 @@ def crop(plan):
     nothing downstream — `planCell` reads `x0`, `y0`, `w` and `h` and does not
     care how big they are.
     """
-    cells, w, h, x0, y0, solid, floor, over = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan
     lo_i, hi_i, lo_j, hi_j = w, -1, h, -1
     for i in range(w):
         for j in range(h):
@@ -2009,11 +2032,12 @@ def crop(plan):
             out[i * nh:(i + 1) * nh] = src[base:base + nh]
         return out
     return (cut(cells), nw, nh, x0 + lo_i * PLAN_CELL, y0 + lo_j * PLAN_CELL,
-            cut(solid), cut(floor), cut(over))
+            cut(solid), cut(floor), cut(over), cut(steps))
 
 
 def plan_out(plan):
-    """One building's four masks: outline, walls, floor, and what is roofed.
+    """One storey's five masks: outline, walls, floor, what is roofed, and the
+    way up.
 
     The fourth is the one that tells a room from a courtyard.  Seen from above
     an outline is a silhouette, and 65% of the slice's outline cells are
@@ -2022,10 +2046,18 @@ def plan_out(plan):
     can walk in.  A roof over a room is a flat face above a man's head; the sky
     over a courtyard is nothing at all, and `wmo_plan` was throwing that face
     away as *not near this storey*.
+
+    The fifth is the stairs, and they were being thrown away by the same
+    filter.  `steepness` already reads a tread as walkable — its own comment
+    says *a stair is not a wall*, because read the other way the risers sealed
+    the doors they lead to — but a tread halfway up is near neither storey, so
+    every one of them fell out and the two floors came out with nothing
+    between them.
     """
-    cells, w, h, x0, y0, solid, floor, over = plan
+    cells, w, h, x0, y0, solid, floor, over, steps = plan
     return [w, h, PLAN_CELL, x0, y0,
-            packed(cells), packed(solid), packed(floor), packed(over)]
+            packed(cells), packed(solid), packed(floor), packed(over),
+            packed(steps)]
 
 
 def storeys(client, path):
@@ -2108,7 +2140,7 @@ def check_plans():
     for plan in PLANS_BY_KEY.values():
         if not plan:
             continue
-        cells, w, h, _x0, _y0, solid, floor, over = plan
+        cells, w, h, _x0, _y0, solid, floor, over, _steps = plan
         for n in range(w * h):
             if not cells[n]:
                 continue
@@ -2141,7 +2173,7 @@ def check_plans():
     for plan in PLANS_BY_KEY.values():
         if not plan:
             continue
-        _cells, w, h, _x0, _y0, solid, _floor, _over = plan
+        _cells, w, h, _x0, _y0, solid, _floor, _over, _steps = plan
         seen = bytearray(w * h)
         for start in range(w * h):
             if not solid[start] or seen[start]:

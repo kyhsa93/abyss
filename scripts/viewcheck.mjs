@@ -1505,7 +1505,9 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     // Every floor shipped has to belong to a building that has a ground plan,
     // and carry the same nine fields as one.
     const orphan = Object.keys(floors).filter((k) => !plans[k])
-    const shapes = Object.values(floors).flat().filter((f) => f.length !== 10)
+    // Eleven: a sill and the plan's own ten.  It was ten until the stairs
+    // became a fifth mask.
+    const shapes = Object.values(floors).flat().filter((f) => f.length !== 11)
     return {
       buildings: Object.keys(plans).length,
       withUpstairs: Object.keys(floors).length,
@@ -1521,6 +1523,59 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
   const seen = await p.evaluate(() =>
     window.__buildings().reduce((n, b) => n + (b.floors?.length ?? 0), 0))
   check('and the scene has them', seen > 0, `${seen} upper floors placed`)
+}
+
+// 20. And you can walk up them.
+//
+// `steepness` has always read a stair tread as walkable — its own comment says
+// *a stair is not a wall*, because read the other way the risers sealed the
+// doors they lead to.  What threw the stairs away is the height filter: a
+// tread halfway up is near neither storey, so `near` was false for every one
+// of them and the two floors came out with nothing between them.
+//
+// A landing is the same kind of seam as a doorstep: a place, and standing on
+// it is the act.  Walked rather than poked, because the latch that stops you
+// riding the stairs up and down once a frame is part of what is being tested.
+{
+  const tall = await p.evaluate(() =>
+    window.__buildings().map((b) => ({ k: b.k, floors: (b.floors ?? []).length,
+      door: (b.doors ?? [])[0] })).filter((b) => b.floors && b.door))
+  check('there are buildings with more than one floor and a way in',
+    tall.length > 0, `${tall.length} of them`)
+  let climbed = null
+  for (const h of tall) {
+    const got = await p.evaluate(([x, y]) => {
+      window.__put(x, y); return window.__seam()
+    }, h.door)
+    if (!got.inside) continue
+    const stairs = await p.evaluate(() => window.__stairs())
+    if (!stairs.length) continue
+    // Two yards short of a landing, then walk on to it.
+    const from = await p.evaluate(([sx, sy]) => {
+      window.__put(sx + 2, sy)
+      window.__seam()
+      return window.__hero()
+    }, stairs[0])
+    await p.keyboard.down('s'); await p.waitForTimeout(900)
+    await p.keyboard.up('s')
+    const up = await p.evaluate(() => window.__seam())
+    if (up.storey < 0) continue
+    // And back the way we came, which is the way down.
+    await p.keyboard.down('w'); await p.waitForTimeout(900)
+    await p.keyboard.up('w')
+    await p.keyboard.down('s'); await p.waitForTimeout(900)
+    await p.keyboard.up('s')
+    const down = await p.evaluate(() => window.__seam())
+    climbed = { k: h.k, floors: h.floors, up: up.storey, down: down.storey, from }
+    break
+  }
+  check('walking on to a landing puts you on the floor above',
+    !!climbed && climbed.up >= 0,
+    climbed ? `${climbed.k}: floor ${climbed.up} of ${climbed.floors}`
+      : 'nothing could be climbed')
+  check('and walking back off it brings you down',
+    !!climbed && climbed.down < climbed.up,
+    climbed ? `went to ${climbed.up}, came back to ${climbed.down}` : '')
 }
 
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)

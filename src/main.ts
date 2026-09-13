@@ -113,7 +113,7 @@ type Meta = {
    * **167,238 roofed and 25,433 open to the sky**.
    */
   plans?: Record<string, [number, number, number, number, number,
-    string, string, string, string]>
+    string, string, string, string, string]>
   /**
    * And the floors above the ground one, `[sill, …the same nine]` a storey.
    *
@@ -128,7 +128,7 @@ type Meta = {
    * than empty.
    */
   floors?: Record<string, [number, number, number, number, number, number,
-    string, string, string, string][]>
+    string, string, string, string, string][]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   /** Which of them this slice actually is — see `areaSlice` in the bake. */
@@ -1636,6 +1636,11 @@ async function main() {
         // all.  The bake was throwing that face away as "not near this
         // storey".
         over: bytesOf(raw[8] ?? ''),
+        // And the way up, which the height filter used to throw away with the
+        // stairs: `steepness` reads a tread as walkable, but a tread halfway
+        // between two floors is near neither, so both floors came out with
+        // nothing between them.
+        steps: bytesOf(raw[9] ?? ''),
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -1649,7 +1654,7 @@ async function main() {
           z: f[0],
           w: f[1], h: f[2], s: f[3], x0: f[4], y0: f[5],
           bits: bytesOf(f[6]), solid: bytesOf(f[7]), floor: bytesOf(f[8]),
-          over: bytesOf(f[9]),
+          over: bytesOf(f[9]), steps: bytesOf(f[10] ?? ''),
           c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
           sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
         }))
@@ -1970,10 +1975,17 @@ async function main() {
     // Indoors the world is the room, and nothing else is anywhere.  A wall is
     // the plan's own stone; off the plan is not a place.
     if (indoors) {
-      const p = indoors.plan
+      const p = planNow()
       if (!p) return false
       const n = planCell(p, indoors, wx, wy)
-      return !(bitAt(p.floor, n) || atDoor(indoors, wx, wy)) || npcAt(wx, wy, null)
+      // A stair is standing room too — it is the one part of a floor that is
+      // not flat, and refusing it is refusing the way up.  The floor below's
+      // is the way back down, and it is under your feet on this one.
+      const under = planUnder()
+      const climbable = bitAt(p.steps, n)
+        || (!!under && bitAt(under.steps, planCell(under, indoors, wx, wy)))
+      return !(bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy))
+        || npcAt(wx, wy, null)
     }
     // Outdoors a building is closed: a roof and a wall all the way round,
     // with the doors the client drew as the only way through.  It used to be
@@ -2439,8 +2451,8 @@ async function main() {
         w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
         // A cave is roofed everywhere it exists — that is what makes it a
-        // cave rather than a quarry.
-        over: dug.bits,
+        // cave rather than a quarry — and it has one floor, so no stairs.
+        over: dug.bits, steps: new Uint8Array(0),
         c: 1, sn: 0,
       },
       rooms: [{ x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2,
@@ -4500,6 +4512,44 @@ async function main() {
     drawTalk()
   }
 
+  /**
+   * The other seam, which is a staircase.
+   *
+   * The same shape as a door and for the same reason: a landing is a *place*,
+   * and standing on it is the act.  No prompt, no menu — the floor changes
+   * under you and the scene is the floor above.
+   *
+   * Each storey's `steps` mask marks the way *up* from it, so going down is
+   * the floor below's own mask read from the floor above — the stairs are
+   * under your feet either way and the mask does not have to be stored twice.
+   *
+   * `onRung` is the doorstep's latch: a landing is several cells across and a
+   * step is a third of a yard, so without it you would ride the stairs up and
+   * down once a frame.
+   */
+  let onRung = false
+  function upOrDown() {
+    if (!indoors) return
+    const here = planNow()
+    if (!here) return
+    const up = bitAt(here.steps, planCell(here, indoors, hero.x, hero.y))
+    const below = planUnder()
+    const down = !!below
+      && bitAt(below.steps, planCell(below, indoors, hero.x, hero.y))
+    if (!up && !down) { onRung = false; return }
+    if (onRung) return
+    onRung = true
+    // Up wins when a cell is both, which happens on a landing between two
+    // flights: the player pressed towards the stairs and the stairs go on.
+    if (up && storey + 1 < indoors.floors.length) {
+      storey += 1
+      ui.log('위층으로 올라갔다.', 'note')
+    } else if (down && storey >= 0) {
+      storey -= 1
+      ui.log('아래층으로 내려왔다.', 'note')
+    }
+  }
+
   function endTalk() { chat = null; drawTalk() }
 
   function toggleTalk() {
@@ -4676,6 +4726,20 @@ async function main() {
    */
   let indoors: (typeof buildings)[number] | null = null
   /**
+   * Which floor of it, as an index into `indoors.floors`, or -1 for the ground.
+   *
+   * A separate variable and not a field on `indoors`, because thirty-two
+   * places ask *which building* and two ask *which floor of it*.
+   */
+  let storey = -1
+  /** The plan of the floor being stood on, which is the ground one by default. */
+  const planNow = () =>
+    (storey >= 0 ? indoors?.floors[storey] : indoors?.plan) ?? null
+  /** And the one below it, whose stairs are the way back down. */
+  const planUnder = () =>
+    (storey > 0 ? indoors?.floors[storey - 1] : storey === 0
+      ? indoors?.plan : null) ?? null
+  /**
    * Whether the player is still standing in the doorway he arrived by.
    *
    * A door, not *the* door: the abbey has eight and two of them are five
@@ -4744,7 +4808,7 @@ async function main() {
    * read it that way.
    */
   function drawRoom(b: (typeof buildings)[number], ground: ReturnType<typeof tintedGround>, px: number) {
-    const p = b.plan
+    const p = planNow()
     if (!p) return
     const wide = px
     // The plan's own cells, walked in model space and put on the glass one at
@@ -4801,13 +4865,18 @@ async function main() {
         // and the meadow blotch that the outdoor pass spends its time on have
         // nothing to say about it.
         const roofed = !p.over.length || bitAt(p.over, n)
+        // The way up, drawn as what it is.  A landing is not flat floor and
+        // the one thing a player needs to see about it is that it is the seam.
+        const rung = bitAt(p.steps, n)
         // The wall is where the building stops and it is a wall whether the
         // sky is over the next cell or not.  A mine is rock and a hall is
         // flagstone: one word decides it, because a cave is a building here in
         // every way but where its shape came from.
-        const id = isWall
-          ? (b.k === 'mine' ? ROCK_TILE : 'in_wall')
-          : !roofed || b.k === 'tent'
+        const id = rung && !isWall
+          ? 'in_rug'
+          : isWall
+            ? (b.k === 'mine' ? ROCK_TILE : 'in_wall')
+            : !roofed || b.k === 'tent'
             ? (paintAt(wx, wy) === 'paved' && PAVED_TILES.length
               ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
               : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!)
@@ -4997,6 +5066,7 @@ async function main() {
       }
       hero.dir = facing(mx, my)
       throughTheDoor()
+      upOrDown()
     }
     hero.t += step
   }
@@ -5022,6 +5092,7 @@ async function main() {
       if (onStep) return
       step(indoors, door, 1)
       indoors = null
+      storey = -1
       ui.log('밖으로 나왔다.', 'note')
       return
     }
@@ -5039,6 +5110,9 @@ async function main() {
     }
     if (!b || !door) return
     indoors = b
+    // You come in on the ground floor, whatever floor you left on.
+    storey = -1
+    onRung = false
     onStep = true
     step(b, door, -1)
     ui.log(`${zoneOf(b.area || areaOf(hero.x, hero.y))} 안으로 들어갔다.`, 'note')
@@ -6584,6 +6658,42 @@ async function main() {
    */
   ;(window as unknown as { __put: (x: number, y: number) => unknown })
     .__put = (x, y) => { placeHero(x, y); return { x: hero.x, y: hero.y } }
+  /**
+   * The two seams, run on demand, and what floor the player is on.
+   *
+   * `__put` places him; it does not walk him, so neither seam fires.  A check
+   * that wants to know whether a staircase works has to be able to stand on
+   * one and then ask.
+   */
+  ;(window as unknown as { __seam: () => unknown }).__seam = () => {
+    throughTheDoor()
+    upOrDown()
+    return { inside: indoors ? indoors.k : null, storey,
+      floors: indoors?.floors.length ?? 0 }
+  }
+  /**
+   * Where the stairs of the floor the player is on come out in the world.
+   *
+   * The plan is in the model's own space and turned by the placement, so a
+   * check cannot work this out from the masks alone without a second copy of
+   * `planCell`'s inverse — which is the sort of second copy this repository
+   * spends its rounds deleting.
+   */
+  ;(window as unknown as { __stairs: () => number[][] }).__stairs = () => {
+    const b = indoors
+    const p = b ? (storey >= 0 ? b.floors[storey] : b.plan) : null
+    if (!b || !p) return []
+    const out: number[][] = []
+    for (let i = 0; i < p.w; i += 2) {
+      for (let j = 0; j < p.h; j += 2) {
+        if (!bitAt(p.steps, i * p.h + j)) continue
+        const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
+        const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
+        out.push([b.x + u, b.y - v])
+      }
+    }
+    return out
+  }
   /** The slice's own box, so a check can flood it without typing it out. */
   ;(window as unknown as { __bounds: () => number[] }).__bounds = () =>
     [...meta.bounds]
