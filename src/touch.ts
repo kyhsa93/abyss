@@ -29,6 +29,15 @@ export type Push = { x: number; y: number }
 export type Layout = {
   base: number; knob: number; home: Push
   btnR: number; hit: number; slots: Push[]
+  /**
+   * The autocast toggle, above the cluster and a little smaller.
+   *
+   * The old prototype had one and this rewrite left it out.  It is a thing
+   * you set once a fight rather than a thing you press, so it sits out of the
+   * path of a thumb going for its rotation — which is the whole reason it is
+   * above rather than among them.
+   */
+  autoAt: Push; autoR: number
 }
 
 /**
@@ -70,6 +79,8 @@ export function layoutFor(w: number, h: number): Layout {
       { x: btnX - gap * 0.5, y: bottom - row },
       { x: btnX - gap * 1.5, y: bottom - row },
     ],
+    autoAt: { x: btnX - gap, y: bottom - row * 2 - 4 },
+    autoR: btnR * 0.82,
   }
 }
 
@@ -82,7 +93,7 @@ function hasTouch(): boolean {
 }
 
 /** What one slot looks like this frame. */
-export type Slot = { label: string; ready: boolean }
+export type Slot = { label: string; ready: boolean; cooling?: number }
 
 export function touchpad(canvas: HTMLCanvasElement, count: number) {
   const slots = Math.min(count, MAX_SLOTS)
@@ -118,6 +129,8 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
   let pinchGap = 0
   let scale = 1
   let tap: Push | null = null
+  /** Whether the player has asked to keep swinging — see `autoAt`. */
+  let auto = false
 
   function layout(): Layout {
     return layoutFor(canvas.width, canvas.height)
@@ -174,6 +187,13 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
 
     if (busy) return
     const l = layout()
+    // Above the cluster and checked first: a thumb that lands on it wanted
+    // it, and the hit radius of the buttons below reaches up here.
+    if (Math.hypot(p.x - l.autoAt.x, p.y - l.autoAt.y) <= l.autoR * 1.3) {
+      e.preventDefault()
+      auto = !auto
+      return
+    }
     const slot = hit(p, l)
     if (slot !== null) {
       e.preventDefault()
@@ -283,6 +303,9 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       return { ...where(), held: stick !== null, fingers: free.size, busy }
     },
 
+    /** Whether autocast is on, which the scene reads every frame. */
+    get auto() { return auto },
+
     /** A tap and where it landed, consumed by the reading. */
     takeTap(): Push | null {
       const p = tap
@@ -307,6 +330,15 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     draw(ctx: CanvasRenderingContext2D, bar: Slot[]) {
       if (!on || busy) return
       const l = layout()
+      // The toggle, above the cluster.
+      ring(ctx, l.autoAt.x, l.autoAt.y, l.autoR,
+        auto ? 'rgba(90,150,80,.45)' : 'rgba(12,14,20,.62)',
+        auto ? '#7fc46a' : 'rgba(107,102,88,.7)', 2)
+      ctx.fillStyle = auto ? '#dff3d6' : 'rgba(232,228,216,.45)'
+      ctx.font = `bold ${Math.round(l.autoR * 0.5)}px ${face}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('자동', l.autoAt.x, l.autoAt.y + 1)
 
       const w = where()
       const dx = w.kx - w.ox, dy = w.ky - w.oy
@@ -323,8 +355,21 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
         ring(ctx, b.x, b.y, l.btnR,
           held ? 'rgba(201,168,106,.34)' : 'rgba(12,14,20,.62)',
           s.ready ? '#c9a86a' : 'rgba(107,102,88,.7)', s.ready ? 3 : 2)
+        // The wait, drawn as a shutter falling across the button rather than
+        // as a number — the same thing the desktop bar does with `sweep`, and
+        // the reason a global cooldown is visible on a phone at all.
+        if ((s.cooling ?? 0) > 0) {
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(b.x, b.y, l.btnR - 1, 0, Math.PI * 2)
+          ctx.clip()
+          ctx.fillStyle = 'rgba(0,0,0,.55)'
+          const up = Math.min(1, s.cooling!) * l.btnR * 2
+          ctx.fillRect(b.x - l.btnR, b.y - l.btnR, l.btnR * 2, up)
+          ctx.restore()
+        }
         ctx.fillStyle = s.ready ? '#e8e4d8' : 'rgba(232,228,216,.35)'
-        ctx.font = `bold ${Math.round(l.btnR * 0.44)}px ${face}`
+        ctx.font = `bold ${Math.round(l.btnR * 0.4)}px ${face}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
         ctx.fillText(s.label, b.x, b.y + 1)

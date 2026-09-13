@@ -252,6 +252,30 @@ await p.evaluate(() => window.__cam({ x: -9461.6, y: 16.19, zoom: 1.4 }))
 await p.waitForTimeout(200)
 await p.screenshot({ path: `${SP}/pad-landscape.png` })
 
+// 11b. A thumb can press what the character knows.
+//
+// `touch.ts` has laid out five slots since it was written — two offset rows,
+// the shape the old prototype settled on because a column up the right edge
+// is a shape a thumb travels rather than covers — and **two of them were
+// used, both hard-coded**: attack and talk.  A character who had bought
+// everything a trainer sells had ten abilities and could press none of them.
+//
+// There is no talk button now and there was not one in the original either.
+// You tap the person.
+await p.evaluate(() => {
+  window.__earn(100000)
+  for (const id of [78, 6673, 100, 772, 6343, 34428]) window.__learn(id)
+})
+await p.waitForTimeout(500)
+const full = await pad()
+const armed = await p.evaluate(() => window.__bar().spells.length)
+check('the thumb can reach the abilities', full.slots.length === 5,
+  `${full.slots.length} buttons for ${armed} abilities`)
+// And the autocast toggle, which the old prototype had and this one lost.
+check('and there is an autocast toggle above them',
+  full.autoAt && full.autoAt.y < Math.min(...full.slots.map((s) => s.y)),
+  JSON.stringify(full.autoAt))
+
 // 12. Nothing the interface draws may sit on a thumb, or on anything else.
 //
 // This is the check that was missing.  `#micro`, `#xp` and `#swing` have no
@@ -289,7 +313,8 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
     Math.hypot(Math.max(b.x, Math.min(cx, b.x + b.w)) - cx,
       Math.max(b.y, Math.min(cy, b.y + b.h)) - cy) < r
   const thumbs = [[L2.home.x, L2.home.y, L2.base],
-    ...L2.slots.slice(0, 2).map((sl) => [sl.x, sl.y, L2.hit])]
+    [L2.autoAt.x, L2.autoAt.y, L2.autoR * 1.3],
+    ...L2.slots.map((sl) => [sl.x, sl.y, L2.hit])]
   const sat = panels.filter((b) => thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
   check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
     sat.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +

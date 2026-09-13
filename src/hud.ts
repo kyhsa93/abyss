@@ -654,7 +654,10 @@ export function hud(layout?: Layout) {
     // The two numbers that say where the interface has to stop: the top of
     // the stick's ring at rest, and the top of the button cluster.
     const stickTop = l.home.y - l.base
-    const clusterTop = Math.min(...l.slots.map((s) => s.y)) - l.btnR
+    // The autocast toggle sits above the cluster, so the cluster's top is
+    // higher than its buttons: without it the menu landed on the toggle.
+    const clusterTop = Math.min(l.autoAt.y - l.autoR,
+      ...l.slots.map((s) => s.y - l.btnR))
     const floor = Math.min(stickTop, clusterTop)
     // Held sideways a phone has width and no height, which is the opposite of
     // the problem, so the interface spreads along the top instead of stacking

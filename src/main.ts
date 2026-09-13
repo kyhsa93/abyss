@@ -3280,8 +3280,26 @@ async function main() {
    * entry here and a case in the loop below.  An empty slot is not drawn: a
    * row of dead buttons tells a player the game is broken rather than early.
    */
-  const ACTIONS = ['attack', 'talk'] as const
-  const pad = touchpad(canvas, ACTIONS.length)
+  /**
+   * Five, which is what the cluster has always been drawn for.
+   *
+   * `touch.ts` lays out five slots in two offset rows — the shape the old
+   * prototype settled on, because a column up the right edge is a shape a
+   * thumb travels rather than covers — and two of them were used, both
+   * hard-coded.  A character who has bought everything a trainer sells has
+   * ten abilities and could press **none** of them with a thumb.
+   *
+   * Attack takes the corner, which is the easiest place on a phone to reach,
+   * and the four after it are the first four abilities in the order they were
+   * learned.  Ten will not fit in five and nobody should try: what is here is
+   * the opener, the heavy blow, the shout and the bleed, and the rest are a
+   * keyboard's.
+   *
+   * **There is no talk button**, and there was not one in the original
+   * either.  You tap the person.
+   */
+  const PHONE_SLOTS = 5
+  const pad = touchpad(canvas, PHONE_SLOTS)
   // The original's own frame places, read out of its `FrameXML` by
   // `pipeline/layout.py`.  Missing is fine: without it the stylesheet's
   // positions stand, which is what there was before there was a source.
@@ -4533,11 +4551,24 @@ async function main() {
       // townsman is how you look at one, not how you start on them.
       if (best && fightable(best.fight)) you.target = best
       else if (best) you.target = null
+      // And tapping somebody who will talk is how you talk to them, because
+      // there is no talk button any more: the original has none either, and a
+      // button that says 대화 is a button that has to be aimed at while the
+      // person it is about is somewhere else on the glass.
+      const near = inReach()
+      if (near && (!best || !fightable(best.fight))) toggleTalk()
     }
+    // Autocast, which the old prototype had and this one lost: the toggle
+    // says "keep swinging", so a thumb that has picked a target does not have
+    // to keep pressing the corner to stay in the fight.
+    if (pad.auto && !chat && !you.died && !you.target) you.target = inSwing()
     for (const slot of pad.taken()) {
-      if (ACTIONS[slot] === 'talk') toggleTalk()
-      else if (ACTIONS[slot] === 'attack' && !chat && !you.died)
-        you.target = you.target ?? inSwing()
+      if (chat || you.died) continue
+      if (slot === 0) you.target = you.target ?? inSwing()
+      else {
+        const sp = spells[slot - 1]
+        if (sp) cast(sp)
+      }
     }
 
     // Steering happens on the glass, both for the keys and for the thumb.
@@ -5207,7 +5238,13 @@ async function main() {
     // The pad last of all, over everything including the prompt.
     pad.draw(ctx, [
       { label: '공격', ready: you.target !== null || inSwing() !== null },
-      { label: '대화', ready: listener !== null },
+      ...spells.slice(0, PHONE_SLOTS - 1).map((sp) => ({
+        label: abilityOf(sp.id)?.[0] ?? '', ready: why(sp) === null,
+        // The shutter the desktop bar has, for whichever wait is longer.
+        cooling: Math.max(
+          sp.cool ? Math.max(0, ((you.cools[sp.id] ?? 0) - clock) / (sp.cool / 1000)) : 0,
+          sp.gcd ? Math.max(0, (you.gcd - clock) / (gcdOf(sp) / 1000)) : 0),
+      })),
     ])
 
     // The help line and a conversation share the bottom of a phone, and the
@@ -5233,7 +5270,7 @@ async function main() {
       document.body.classList.toggle('touch', pad.on)
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
-        ? '끌어서 이동\n오므려서 확대'
+        ? '끌어서 이동  ·  눌러서 고르기\n오므려서 확대'
         : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
     }
 
