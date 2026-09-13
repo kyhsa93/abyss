@@ -792,6 +792,29 @@ async function main() {
    */
   const ROOF_TILE = tilesMeta['roof'] ? 'roof' : WALL_TILE
   /**
+   * Which roof each kind of building wears.
+   *
+   * One picture covered all forty-three: 28 houses, 12 halls and 3 towers, so
+   * the abbey and a cottage were the same thing at two sizes.  The materials
+   * are cut in `bake_tiles.py` and named for what they are; **which kind wears
+   * which is a sentence about the art and it belongs here**, not in the bake.
+   *
+   * Slate shingle for a hall because a hall is the grand thing in this valley
+   * and the abbey is one; boards for a tower, which is the small roof; and the
+   * brick flat top stays on a house so that Goldshire looks like Goldshire.
+   *
+   * `tent` has no entry and that is declared rather than defaulted: there is
+   * no tent in this slice — `__buildings()` says house 28, hall 12, tower 3 —
+   * and there is no canvas in any sheet this repository has.  `viewcheck`
+   * fails on a kind that is *here* and has no roof, which is the half that
+   * matters; a kind that is not here has nothing to be wrong about.
+   */
+  const ROOF_OF: Record<string, string> = {
+    house: ROOF_TILE,
+    hall: tilesMeta['roof_shingle'] ? 'roof_shingle' : ROOF_TILE,
+    tower: tilesMeta['roof_plank'] ? 'roof_plank' : ROOF_TILE,
+  }
+  /**
    * And the floor a mine has, which is the one kind of building drawn out of
    * the outdoor set.
    *
@@ -5163,6 +5186,11 @@ async function main() {
         .map((q) => `${pre}_${q}`))
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
       ...PAVED_TILES, ...DIRT_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
+      // Every roof a kind can wear, out of the table rather than by name: a
+      // list here and a table there is two lists, and the day they parted the
+      // abbey came out as ninety yards of nothing at all — `drawImage` with an
+      // undefined source draws no pixels and reports no error.
+      ...Object.values(ROOF_OF),
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
       // Indoors, which is its own scene and its own set.
       'in_floor', 'in_floor2', 'in_rug', 'in_wall',
@@ -5313,6 +5341,15 @@ async function main() {
   })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
+  /**
+   * How many tiles of ground the buildings shadowed last frame, and how many
+   * sides of a tile were drawn as a building's edge.
+   *
+   * Counted where the drawing happens rather than worked out again, for the
+   * reason every other counter here exists: a check that recomputes what it is
+   * checking is checking its own copy.
+   */
+  let shaded = 0, outlined = 0
   /**
    * How many pictures the last frame put the hero together out of.
    *
@@ -5755,6 +5792,22 @@ async function main() {
     tilesDrawn = 0
     indoorPaint.clear()
     edged = 0
+    /**
+     * Which building covers each tile of the box, kept so the pass after this
+     * one can find the edges of them.
+     *
+     * A building had no boundary at all: ninety yards of one grey tile with
+     * nothing to say where it stopped.  Finding that edge needs the *four
+     * neighbours* of every roofed tile, and asking `inBuilding` four more
+     * times a tile is four times the work for a line — so the answer this
+     * loop already has is written down and read back.
+     */
+    const cw = xHi - xLo + 1
+    const under: ((typeof buildings)[number] | null)[] =
+      new Array(cw * (yHi - yLo + 1)).fill(null)
+    const roofOf = (ti: number, tj: number) =>
+      (ti < xLo || ti > xHi || tj < yLo || tj > yHi) ? null
+        : under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] ?? null
     if (indoors) { drawRoom(indoors, ground, px); }
     else for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
@@ -5781,6 +5834,10 @@ async function main() {
         // Asked at the tile's own width, which is the same question the
         // paint below asks a few lines down, so it is asked once.
         const covers = inBuilding(wx, wy, T)
+        // Written down before the tile is skipped for being off the glass,
+        // because the outline of a building that runs off the edge of the
+        // screen is not on the edge of the screen.
+        if (covers) under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] = covers.b
         if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
           const wide = px * grain
           ctx.fillStyle = '#0a0a0f'
@@ -5875,7 +5932,7 @@ async function main() {
         // what lands under an outline is 2,212 and 525 tiles of `roof` and
         // nothing else — which `viewcheck` now asserts, because the thing that
         // keeps this true is a check and not the shape of the expression.
-        const id = built ? ROOF_TILE
+        const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
@@ -5984,6 +6041,70 @@ async function main() {
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
 
+    // --- a building's shadow and its edge --------------------------------
+    //
+    // From above a building was ninety yards of one grey tile with nothing at
+    // all to say where it stopped or that it stood on the ground: no outline,
+    // no eaves, no shadow.  Both are drawn off the plan this pass wrote down,
+    // so neither costs a second reading of it.
+    //
+    // The shadow first, and only on ground: a tile is in shadow when the tile
+    // one step towards the light is roofed.  The light in this scene is
+    // north-west and above — `LIGHT`, which the hillside tint has always used
+    // — and north-west is up and to the left of the glass, so the shadow falls
+    // down and to the right.  Drawn on the ground rather than under the roof
+    // because this is a drop shadow: what it says is that the roof is *above*
+    // the ground beside it, which is the one thing a flat plan cannot say.
+    if (!indoors) {
+      const wide = px * grain
+      shaded = 0
+      outlined = 0
+      ctx.save()
+      ctx.fillStyle = 'rgba(8, 12, 16, 0.30)'
+      for (let ti = xLo; ti <= xHi; ti++) {
+        for (let tj = yLo; tj <= yHi; tj++) {
+          if (roofOf(ti, tj)) continue
+          if (!roofOf(ti + 1, tj + 1)) continue
+          const cx = screenX(ti * T, tj * T), cy = screenY(ti * T, tj * T)
+          if (cx < -wide || cx > canvas.width + wide
+            || cy < -wide || cy > canvas.height + wide) continue
+          ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
+            wide, wide)
+          shaded++
+        }
+      }
+      ctx.restore()
+      // And the edge: one line where a roofed tile meets something that is not
+      // the same building.  Not a stroke round the whole footprint — a plan is
+      // not a polygon and the abbey's is 80,746 cells — but the four sides of
+      // each tile that has a neighbour it does not belong with, which comes to
+      // the same line and is one comparison a side.
+      ctx.save()
+      ctx.strokeStyle = 'rgba(22, 18, 14, 0.85)'
+      ctx.lineWidth = Math.max(1, Math.round(zoom))
+      ctx.beginPath()
+      for (let ti = xLo; ti <= xHi; ti++) {
+        for (let tj = yLo; tj <= yHi; tj++) {
+          const b = roofOf(ti, tj)
+          if (!b) continue
+          const cx = screenX(ti * T, tj * T), cy = screenY(ti * T, tj * T)
+          if (cx < -wide || cx > canvas.width + wide
+            || cy < -wide || cy > canvas.height + wide) continue
+          const x0 = Math.round(cx - wide / 2), y0 = Math.round(cy - wide / 2)
+          const x1 = x0 + wide, y1 = y0 + wide
+          // `ti + 1` is one tile north, which is *up* the glass — see
+          // `screenY`.  Getting this pair the wrong way round draws the line
+          // on the far side of the building it belongs to.
+          if (roofOf(ti + 1, tj) !== b) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); outlined++ }
+          if (roofOf(ti - 1, tj) !== b) { ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); outlined++ }
+          if (roofOf(ti, tj + 1) !== b) { ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); outlined++ }
+          if (roofOf(ti, tj - 1) !== b) { ctx.moveTo(x1, y0); ctx.lineTo(x1, y1); outlined++ }
+        }
+      }
+      ctx.stroke()
+      ctx.restore()
+    }
+
     // --- the doors, on the roofs they are cut into ----------------------
     //
     // A closed building needs somewhere visible to go in, or it is a wall
@@ -5998,12 +6119,43 @@ async function main() {
           const X = screenX(dx, dy), Y = screenY(dx, dy)
           if (X < -40 || X > canvas.width + 40 || Y < -40 || Y > canvas.height + 40) continue
           const w = Math.max(6, 2.2 * PPY * zoom), h = Math.max(5, 1.6 * PPY * zoom)
-          ctx.fillStyle = '#1a140e'
-          ctx.fillRect(Math.round(X - w / 2), Math.round(Y - h / 2), Math.round(w), Math.round(h))
-          ctx.strokeStyle = '#c9a86a'
-          ctx.lineWidth = 1
-          ctx.strokeRect(Math.round(X - w / 2) + 0.5, Math.round(Y - h / 2) + 0.5,
-            Math.round(w) - 1, Math.round(h) - 1)
+          const x0 = Math.round(X - w / 2), y0 = Math.round(Y - h / 2)
+          const dw = Math.round(w), dh = Math.round(h)
+          /**
+           * A doorway is a **hole in a roof with the floor showing through
+           * it**, and that is what it is drawn as now.
+           *
+           * It was a dark rectangle with a gold line round it, which is within
+           * a shade of the one other thing this game paints as a dark
+           * rectangle: `openHole`, the mouth of a mine, at `#0a0a0f`.  Eight
+           * doorways on the abbey, all of them correctly placed by the client's
+           * own portals, and every one of them read as somewhere to fall into.
+           *
+           * The floor is the building's own — `in_floor`, the same tile
+           * `drawRoom` lays once you are inside — taken at the darkest shade,
+           * because what you are looking at through the gap is a room with a
+           * roof over it.  Nothing is drawn here that is not already cut: the
+           * doorway is the floor tile, the roof around it, and a line of the
+           * roof's own shadow for a lintel.
+           */
+          // The building's **own** floor, which is the one `drawRoom` lays
+          // once you have walked in: a doorway that shows a different floor
+          // from the room behind it is a doorway into somewhere else.
+          const inside = (INDOOR_FLOOR[b.k] ?? INDOOR_FLOOR['hall'])?.(0.5)
+          const floor = ground.at[inside ?? ''] ?? ground.at[FLOOR_TILE]
+          if (floor !== undefined) {
+            ctx.drawImage(ground.c, floor, 0, px, px, x0, y0, dw, dh)
+          } else {
+            ctx.fillStyle = '#2a2119'
+            ctx.fillRect(x0, y0, dw, dh)
+          }
+          // The jamb: the roof's own dark edge, thicker at the head than at
+          // the sides, which is what a doorway seen from above has.
+          ctx.strokeStyle = 'rgba(18, 14, 10, 0.9)'
+          ctx.lineWidth = Math.max(1, Math.round(zoom))
+          ctx.strokeRect(x0 + 0.5, y0 + 0.5, dw - 1, dh - 1)
+          ctx.fillStyle = 'rgba(18, 14, 10, 0.55)'
+          ctx.fillRect(x0, y0, dw, Math.max(1, Math.round(dh * 0.22)))
         }
       }
     }
@@ -7035,8 +7187,24 @@ async function main() {
     planned: buildings.filter((b) => b.plan).length,
   })
   ;(window as unknown as { __edges: () => unknown }).__edges = () => ({
-    tiles: tilesDrawn, edged,
+    tiles: tilesDrawn, edged, shaded, outlined,
   })
+  /**
+   * Which roof each kind of building here is wearing.
+   *
+   * Both halves: the kinds this world actually contains and the table that
+   * dresses them.  One picture covered all forty-three buildings, so the abbey
+   * and a cottage were the same thing at two sizes, and "how many roof tiles
+   * are there" would have said one and been quite right.
+   */
+  ;(window as unknown as { __roofs: () => unknown }).__roofs = () => {
+    const kinds = [...new Set(buildings.filter((b) => b.k !== 'mine')
+      .map((b) => b.k))].sort()
+    return {
+      kinds, wears: Object.fromEntries(kinds.map((k) => [k, ROOF_OF[k] ?? null])),
+      painted: [...indoorPaint.entries()],
+    }
+  }
   ;(window as unknown as { __edge: () => unknown }).__edge = () => ({
     npcs: npcs.length, elsewhere, unplaceable, beyond, scenery: placed.length,
     /** Walkable ground that is not this slice's, which has to be none. */

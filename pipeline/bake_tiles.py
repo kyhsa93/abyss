@@ -225,6 +225,15 @@ GROUND = [
     # is a slope in perspective, and a slope tiled over a footprint reads as a
     # hillside with bricks on it.
     ('roof',       'roofs-preview.png',       280, 110, 32, 32, 'roofs'),
+    # And two more materials, because every building in this world was the same
+    # grey brick: 28 houses, 12 halls and 3 towers under one picture, so the
+    # abbey and a cottage were the same thing at different sizes.  Both cut the
+    # same way as the one above — a piece of this sheet that is already drawn
+    # flat — and both are a **material** rather than a kind, which is why they
+    # are named for what they are: `src/main.ts` decides which kind wears
+    # which, and that is a sentence about the art and not about the data.
+    ('roof_shingle', 'roofs-preview.png',     784, 776, 32, 32, 'roofs'),
+    ('roof_plank',   'roofs-preview.png',     560, 720, 32, 32, 'roofs'),
     ('cobble',     'castlefloors_outside.png', 64,  32, 32, 32, 'hughspectrum'),
     ('cobble2',    'castlefloors_outside.png', 32,  64, 32, 32, 'hughspectrum'),
     # Two decks, because a bridge's planks run across the way you walk: the

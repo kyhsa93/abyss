@@ -1372,6 +1372,35 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     /grass|dirt|earth|sand|bloom|water|shore/i.test(k))
   check(`and no outdoor ground is drawn inside it`, outdoors.length === 0,
     outdoors.join(' '))
+  // And it is standing on the ground, with an edge.
+  //
+  // From above a building was ninety yards of one grey tile and nothing else:
+  // no outline to say where it stopped, and no shadow, which on a flat plan is
+  // the only thing that can say the roof is *above* the ground beside it.
+  // Counted where they are drawn rather than worked out again — a check that
+  // recomputes what it is checking is checking its own copy.
+  const edges = await p.evaluate(() => window.__edges())
+  check(`the ${name} has an edge and a shadow`,
+    edges.outlined > 0 && edges.shaded > 0,
+    `${edges.outlined} sides of a tile drawn as its edge, `
+    + `${edges.shaded} tiles of ground in its shadow`)
+}
+
+// 13b. And a hall is not a cottage.
+//
+// One roof picture covered all forty-three buildings — 28 houses, 12 halls and
+// 3 towers — so the abbey and a cottage were the same thing at two sizes, and
+// "how many roof tiles are there" would have answered one and been quite
+// right.  What has to be true is that every kind **this world contains** wears
+// its own, which is a different question from how many pictures exist.
+{
+  const roofs = await p.evaluate(() => window.__roofs())
+  const bare = roofs.kinds.filter((k) => !roofs.wears[k])
+  const worn = roofs.kinds.map((k) => roofs.wears[k])
+  check('every kind of building here has its own roof',
+    bare.length === 0 && new Set(worn).size === worn.length,
+    bare.length ? `${bare.join(', ')} has no roof picture`
+      : roofs.kinds.map((k) => `${k} ${roofs.wears[k]}`).join(', '))
 }
 
 // 14. And the outline is four states on the glass, not three.
