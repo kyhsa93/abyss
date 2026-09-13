@@ -78,6 +78,25 @@ export type Layout = {
   ref: [number, number]
   frames: Record<string, Box>
   /**
+   * The rest of the interface as numbers — see `spec` in `pipeline/layout.py`.
+   *
+   * The type scale, the border thicknesses, the insets and the bar colours,
+   * all of them literals out of `FrameXML`.  `index.html` had 229 hand-typed
+   * pixel values and 87 hand-picked colours, and some of those colours were
+   * in places where the client says what they are: our rage bar was
+   * `#a32d22` where it says (1, 0, 0), our experience bar `#5b3fa8` where it
+   * says (0.58, 0, 0.55).
+   */
+  spec?: {
+    edge: number[]
+    inset: number[][]
+    tile: number[]
+    font?: number[]
+    shadow?: number[][]
+    colour: Record<string, number[]>
+    unread: string[]
+  }
+  /**
    * Which windows share a place on the screen — `UIPanelWindows`, read by
    * `pipeline/layout.py`.  `area` is left / center / doublewide / full and
    * `push` is how far a window will slide to let another in: 0 means the one
@@ -761,6 +780,42 @@ export function hud(layout?: Layout) {
       }
     }
   }
+
+  /**
+   * The values the client states, written on to the page as variables.
+   *
+   * Not a theme and not a redesign: only the numbers `FrameXML` actually
+   * says, so that the ones left in the stylesheet are visibly *ours*.  What
+   * the client does not say — the gold of our borders, the alpha of the
+   * gossip panel, the phone layout — stays hand-written and is now the only
+   * hand-written thing, which is the point.
+   */
+  const spell = () => {
+    const sp = layout?.spec
+    if (!sp) return
+    const root = document.documentElement.style
+    const rgb = (c?: number[]) => c
+      ? `rgb(${c.map((v) => Math.round(v * 255)).join(',')})` : null
+    for (const [k, name] of [['rage', '--rage'], ['mana', '--mana'],
+      ['energy', '--energy'], ['xp', '--xp'], ['xpRested', '--xp-rested']] as const) {
+      const v = rgb(sp.colour[k])
+      if (v) root.setProperty(name, v)
+    }
+    // The type scale, smallest four of the thirteen: this interface is a
+    // readout and a label, not a book.
+    const f = (sp.font ?? []).filter((v) => v >= 10 && v <= 14)
+    ;['--font-tiny', '--font-small', '--font-med', '--font-large']
+      .forEach((n, i) => { if (f[i]) root.setProperty(n, `${f[i]}px`) })
+    // **Not the border.**  `edgeSize` is 12 or 16 and it is the width of a
+    // nine-slice *artwork* frame; ours is a one-pixel CSS line, and there is
+    // no scale that turns one into the other — applied, every panel in the
+    // game grew a three-pixel rim.  A number the client states is not
+    // automatically a number we can use, and saying which is which is the
+    // whole point of carrying the spec.
+    const sh = (sp.shadow ?? [])[0]
+    if (sh) root.setProperty('--shadow', `${sh[0]}px ${-sh[1]!}px 0 #000`)
+  }
+  spell()
 
   const place = () => {
     if (document.body.classList.contains('touch')) return placePhone()

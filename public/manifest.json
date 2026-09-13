@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-13T14:35:01Z",
+  "baked": "2026-09-13T14:42:19Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -39,7 +39,7 @@
   "synthesised": false,
   "files": {
     "public/world/items.json": "4ebf8aa5b982321d",
-    "public/world/layout.json": "2195c4e0190fe8b0",
+    "public/world/layout.json": "c4a6b6a16f4b8389",
     "public/world/npcs.json": "d6c41ee964564433",
     "public/world/objects.json": "0e4cf639e34259c8",
     "public/world/player.json": "0a1924051cf68ceb",

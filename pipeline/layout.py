@@ -246,6 +246,91 @@ def panels(client):
     return out
 
 
+def spec(client, found):
+    """The rest of the interface, as numbers.
+
+    `layout.py` opened with the right principle — *the screen was laid out
+    from memory, so it kept being wrong one piece at a time; a number tuned by
+    hand twice is a number that should be derived* — and then carried thirteen
+    boxes out of it.  The client states a great deal more, and all of it is
+    literals:
+
+      * `<Backdrop>` says how a panel's border is built: five `edgeSize`
+        values across sixty-nine of them, and forty-two combinations of inset.
+      * `<Font>` says the type scale: thirteen sizes, two shadow offsets, two
+        outlines.  The Korean client's own face is `Fonts\\2002.TTF`, which we
+        cannot ship and do not need — a scale is not a typeface.
+      * `UnitFrame.lua` and `MainMenuBar.lua` state the bar colours outright.
+        Ours were picked by eye: rage `#a32d22` where the client says
+        (1, 0, 0), the experience bar `#5b3fa8` where it says (0.58, 0, 0.55).
+
+    **What is deliberately not read, in one place** — the same idea as the
+    pipeline's `*_DEFAULT_OK`: texture file names, any string a player sees,
+    and `frameStrata`, which is a word rather than a number and would need our
+    own stacking model to mean anything.
+    """
+    out = {}
+    # Backdrops: how thick an edge is and how far the ground is inset.
+    #
+    # `edgeSize` is a child element and not an attribute — `<EdgeSize><AbsValue
+    # val="16"/></EdgeSize>` — which the first pass read as an attribute and
+    # came back with none of the sixty-nine.  Read off the whole of every file
+    # the toc opens rather than off the thirteen frames this file already
+    # walks, because a backdrop belongs to a panel and not to a frame we
+    # happen to want a box for.
+    edges, insets, tiles = set(), set(), set()
+    for name in FILES:
+        data, _src = client.read('Interface\\FrameXML\\' + name)
+        if not data:
+            continue
+        t = data.decode('utf-8', 'replace')
+        for block in re.findall(r'<Backdrop[\s\S]{0,600}?</Backdrop>', t):
+            m = re.search(r'<EdgeSize>\s*<AbsValue val="([\d.]+)"', block)
+            if m:
+                edges.add(int(float(m.group(1))))
+            m = re.search(r'<TileSize>\s*<AbsValue val="([\d.]+)"', block)
+            if m:
+                tiles.add(int(float(m.group(1))))
+            for ins in re.findall(
+                    r'<AbsInset left="(-?[\d.]+)" right="(-?[\d.]+)"'
+                    r' top="(-?[\d.]+)" bottom="(-?[\d.]+)"', block):
+                insets.add(tuple(int(float(v)) for v in ins))
+    out['edge'] = sorted(edges)
+    out['inset'] = sorted(insets)
+    out['tile'] = sorted(tiles)
+    # The type scale, out of `Fonts.xml`.
+    data, _src = client.read('Interface\\FrameXML\\Fonts.xml')
+    if data:
+        t = data.decode('utf-8', 'replace')
+        sizes = sorted({int(float(v)) for v in re.findall(r'<AbsValue val="([\d.]+)"', t)})
+        out['font'] = [v for v in sizes if 8 <= v <= 30]
+        off = re.findall(r'<Offset>\s*<AbsDimension x="(-?[\d.]+)" y="(-?[\d.]+)"', t)
+        out['shadow'] = sorted({(int(float(a)), int(float(b))) for a, b in off})
+    # And the colours, which are the ones we guessed.
+    cols = {}
+    data, _src = client.read('Interface\\FrameXML\\UnitFrame.lua')
+    if data:
+        t = data.decode('utf-8', 'replace')
+        for k, r, g, b in re.findall(
+                r'PowerBarColor\["(\w+)"\]\s*=\s*\{\s*r\s*=\s*([\d.]+),'
+                r'\s*g\s*=\s*([\d.]+),\s*b\s*=\s*([\d.]+)', t):
+            cols[k.lower()] = [round(float(r), 2), round(float(g), 2), round(float(b), 2)]
+    data, _src = client.read('Interface\\FrameXML\\MainMenuBar.lua')
+    if data:
+        t = data.decode('utf-8', 'replace')
+        bars = re.findall(r'SetStatusBarColor\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)', t)
+        # Two of them and the order is the file's: rested first, then normal.
+        for name, hit in zip(('xpRested', 'xp'), bars):
+            cols[name] = [round(float(v), 2) for v in hit]
+    out['colour'] = cols
+    # And what is left on purpose.
+    out['unread'] = ['texture file names', 'anything a player reads',
+                     'frameStrata (a word, and we have no stacking model)',
+                     'edgeSize as a CSS border — it is the width of a '
+                     'nine-slice artwork frame and ours is a one-pixel line']
+    return out
+
+
 def main(client_root, out):
     client = B.Client(client_root)
     B.CHAIN = CHAIN
@@ -347,8 +432,16 @@ def main(client_root, out):
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'layout.json')
     with open(path, 'w') as f:
-        json.dump({'ref': [REF_W, REF_H], 'frames': frames, 'panels': ours}, f)
-    print(f'{len(frames)} frames -> {path}   (screen {REF_W}x{REF_H})')
+        doc = {'ref': [REF_W, REF_H], 'frames': frames, 'panels': ours,
+               'spec': spec(client, found)}
+        json.dump(doc, f)
+    print(f'{len(frames)} frames -> {path}   (screen {REF_W}x{REF_H}, '
+          f'{os.path.getsize(path) // 1024} KiB)')
+    sp = doc['spec']
+    print('  spec: %d edge sizes, %d insets, %d font sizes, %d colours; '
+          'not read: %s' % (len(sp['edge']), len(sp['inset']),
+                            len(sp.get('font', [])), len(sp['colour']),
+                            '; '.join(sp['unread'])))
     for k, v in sorted(frames.items(), key=lambda kv: kv[1]['box'][1]):
         print('  %-8s %-11s %4d, %-4d  %4d x %-4d' % (k, v['at'], v['x'],
                                                       v['y'], v['w'], v['h']))

@@ -271,6 +271,49 @@ for (const [W, H] of SIZES) {
   await p.close()
 }
 
+// --- the numbers the client states, on the page --------------------------
+//
+// `layout.py` opened with the right principle — *a number tuned by hand twice
+// is a number that should be derived* — and then carried thirteen boxes out
+// of it, while `index.html` kept 229 hand-typed pixel values and 87
+// hand-picked colours.  Some of those colours were in places the client
+// states outright: the rage bar was `#a32d22` where `FrameXML` says (1, 0, 0)
+// and the experience bar `#5b3fa8` where it says (0.58, 0, 0.55).
+{
+  const p = await b.newPage({ viewport: { width: 1280, height: 800 } })
+  p.on('pageerror', (e) => errs.push(String(e)))
+  await p.goto(HOST)
+  await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+  const said = await p.evaluate(async () => {
+    const r = await fetch('./world/layout.json')
+    const L = r.ok ? await r.json() : {}
+    const css = getComputedStyle(document.documentElement)
+    return {
+      spec: L.spec ?? null,
+      rage: css.getPropertyValue('--rage').trim(),
+      xp: css.getPropertyValue('--xp').trim(),
+      tiny: css.getPropertyValue('--font-tiny').trim(),
+    }
+  })
+  check('the interface spec came out of the client', !!said.spec
+    && said.spec.font.length > 8 && Object.keys(said.spec.colour).length > 8,
+    said.spec ? `${said.spec.font.length} font sizes, `
+      + `${Object.keys(said.spec.colour).length} colours, `
+      + `${said.spec.edge.length} edge sizes` : 'no spec')
+  // And it reached the page.  A spec nothing reads is `lightAt`'s tint again.
+  check('and the page is using it', said.rage === 'rgb(255,0,0)'
+    && said.xp === 'rgb(148,0,140)' && said.tiny === '10px',
+    `rage ${said.rage}, xp ${said.xp}, tiny ${said.tiny}`)
+  // What is *not* taken is declared, the same as the pipeline's
+  // `*_DEFAULT_OK`: a number the client states is not automatically a number
+  // we can use, and `edgeSize` is the proof — it is the width of a nine-slice
+  // artwork frame and ours is a one-pixel CSS line.
+  check('and what it does not take is written down',
+    (said.spec?.unread ?? []).length >= 4,
+    (said.spec?.unread ?? []).join('; '))
+  await p.close()
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()
