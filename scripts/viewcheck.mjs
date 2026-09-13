@@ -1481,6 +1481,91 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     `${world.cells.toLocaleString()} cells of four yards from the start`)
   check('and Goldshire is in it', world.goldshire)
   check('and so is the abbey', world.abbey)
+
+  // 15b. And it is still a world by the strict yardstick, which is the one
+  // that was lying.
+  //
+  // There were two "you cannot go there" in this game and they disagreed by
+  // **thirteen times** — 322,935 cells against 24,765 — and nothing said why,
+  // so a round closed on whichever of the two happened to pass.  `#168` was
+  // closed on the loose one.  Three things were wrong and all three are the
+  // same mistake, which is asking a question about a *cell* when the thing
+  // being done is a *step*:
+  //
+  //   * the slope test was the worst step **out of** a cell in any of four
+  //     directions, so a road cut along a hillside read as a cliff for its
+  //     whole length — the bank beside it is a neighbour of every cell of it
+  //   * two doorless halls, 80 by 24 yards and 80 by 8, stood across the way
+  //     west; `shutOut` is "you have not come through the door" and a
+  //     building with no door can never be in any other state, so its whole
+  //     roofed footprint was a wall nothing in the client says is one
+  //   * the flood stepped four yards and asked once, so it hopped a wall two
+  //     yards thick: the mask was open and the legs could not walk it
+  //
+  // And the probe point for Goldshire, `-9461.6, 16.19`, is **inside one of
+  // its buildings** — shut to anybody who has not walked through its door, so
+  // the strict yardstick was being asked whether you can stand in somebody's
+  // front room.
+  const reach = {}
+  for (const rule of ['leg', 'blocked', 'footing', 'wall']) {
+    reach[rule] = await p.evaluate((r) => {
+      const got = window.__reach(r, 4)
+      const spots = { 'the Goldshire road': [-9440, 60],
+        'the Goldshire square': [-9470, -20], 'the abbey door': [-8930, -200] }
+      return { cells: got.cells, why: got.why,
+        spots: Object.fromEntries(Object.entries(spots)
+          .map(([k, q]) => [k, got.has(q[0], q[1])])) }
+    }, rule)
+  }
+  check('the strict yardstick reaches as much world as the loose one',
+    reach.leg.cells > 140000 && reach.blocked.cells > 200000,
+    `the step rule ${reach.leg.cells.toLocaleString()}, "a man cannot be `
+    + `here" ${reach.blocked.cells.toLocaleString()}, "not a slope" `
+    + `${reach.footing.cells.toLocaleString()}, stone alone `
+    + `${reach.wall.cells.toLocaleString()}`)
+  const disagree = Object.keys(reach.leg.spots).filter((k) =>
+    new Set(Object.values(reach).map((r) => r.spots[k])).size > 1
+    || !reach.leg.spots[k])
+  check('and every yardstick agrees you can get to the places that matter',
+    disagree.length === 0,
+    disagree.length ? `they differ about ${disagree.join(', ')}`
+      : Object.keys(reach.leg.spots).join(', '))
+
+  // 15c. The third yardstick, which is not a mask at all: walk it.
+  //
+  // A mask that is open and a pair of legs that cannot make the trip are two
+  // different claims, and until something walked the route there was nothing
+  // between them — the flood said three hundred thousand cells while a push
+  // from the start stopped at the first thing in the way.  This takes the
+  // route the flood itself found and walks every cell of it with the same
+  // `walk` a finger on the stick drives, `slide` and all.
+  const trek = await p.evaluate(async () => {
+    const path = window.__path(-9440, 60)
+    if (!path) return { path: null }
+    const s = window.__start()
+    window.__put(s.x, s.y)
+    let stuck = 0
+    for (const [tx, ty] of path.trail) {
+      let tries = 0
+      while (tries++ < 120) {
+        const h = window.__hero()
+        if (Math.hypot(h.x - tx, h.y - ty) < 2) break
+        window.__aim(tx, ty)
+        window.__steps(1)
+      }
+      const h = window.__hero()
+      if (Math.hypot(h.x - tx, h.y - ty) >= 2) stuck++
+    }
+    window.__aim(null)
+    const h = window.__hero()
+    return { yards: Math.round(path.yards), cells: path.trail.length, stuck,
+      left: Math.round(Math.hypot(h.x + 9440, h.y - 60)) }
+  })
+  check('and a man can actually walk from the start to Goldshire',
+    trek.path !== null && trek.stuck === 0 && trek.left < 6,
+    trek.path === null ? 'the flood found no route at all'
+      : `${trek.yards} yards over ${trek.cells} cells, ${trek.stuck} of them `
+      + `he could not reach, ending ${trek.left} yards off`)
   check('every door on a building\'s outside can be walked to',
     world.outerAll > 0 && world.outerGot === world.outerAll,
     `${world.outerGot} of ${world.outerAll} outer doors, `

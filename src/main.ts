@@ -518,6 +518,29 @@ async function main() {
    * grid.  Shading still uses the smooth gradient, because shading is about
    * which way the ground faces and not about whether you can stand on it.
    */
+  /**
+   * The same question `stepAt` asks, of the step actually being taken.
+   *
+   * `stepAt` is the worst step out of a cell **in any of four directions**,
+   * and that last part is what walled the starting valley in.  A man walking a
+   * road cut along a hillside does not take the step up the bank beside him —
+   * he takes the one along the road — but every cell of that road has the bank
+   * as a neighbour, so every cell of it reads as a cliff.  Flooded that way
+   * the world is 13,533 cells and Northshire is sealed; asked of the step, at
+   * the same limit, it is 159,377 and the road out is open.
+   *
+   * The limit was measured as legs and not as cells: 3,954 of them in
+   * `waypoint_data`, each one a walk from somewhere to somewhere.  So this is
+   * the shape of thing that number is about.  Still a one-sided difference,
+   * because the reason `stepAt` exists at all is that a central one smooths a
+   * four-yard cliff into a walkable ramp.
+   */
+  function climb(ax: number, ay: number, bx: number, by: number): number {
+    const far = Math.hypot(bx - ax, by - ay)
+    if (far < 1e-6) return 0
+    return Math.abs(groundAt(bx, by) - groundAt(ax, ay)) / far
+  }
+
   function stepAt(wx: number, wy: number, over = U): number {
     const s = over
     const z = groundAt(wx, wy)
@@ -2081,8 +2104,26 @@ async function main() {
    * the cliff limit, and checking the ground under a floor walled the crossing
    * off six yards from each bank.
    */
+  /**
+   * Where a man cannot **be**, which is not where he cannot go.
+   *
+   * The slope half of it used to be `stepAt` — the worst step out of the cell
+   * in any direction — and that is the wrong question twice over.  A man on a
+   * ledge beside a bank is standing perfectly well; what stops him is having
+   * to climb the bank, and he only has to do that if he is going that way.
+   * So a cell holds him if there is any direction he could have stepped on to
+   * it from, which is the gentlest of the four and not the worst.
+   *
+   * Whether he can get from here to there is `climb`, asked of the step.  One
+   * question each, and the two of them agree — which is the thing that was
+   * missing: `footing` and `blocked` disagreed by thirteen times and nothing
+   * said why, so a round closed on whichever of the two happened to pass.
+   */
   const blocked = (wx: number, wy: number) =>
-    (onSpan(wx, wy) ? false : stepAt(wx, wy) > CLIFF) || footing(wx, wy)
+    (onSpan(wx, wy) ? false : Math.min(
+      climb(wx, wy, wx + U, wy), climb(wx, wy, wx - U, wy),
+      climb(wx, wy, wx, wy + U), climb(wx, wy, wx, wy - U)) > CLIFF)
+    || footing(wx, wy)
   /**
    * Everything that stops you that is not a slope.
    *
@@ -2217,6 +2258,17 @@ async function main() {
     const p = b.plan
     if (p && p.over.length
       && !bitAt(p.over, planCell(p, b, wx, wy))) return wallAt(wx, wy)
+    // **A building nobody can go into cannot shut anybody out.**
+    //
+    // `shutOut` is "you have not come through the door", and a building with
+    // no door has no such state to be in: it is shut for ever, which makes its
+    // whole roofed footprint a wall that nothing in the client says is one.
+    // Two of them — 80 by 24 yards and 80 by 8, no portal in either — stand
+    // across the only way west out of Northshire, and a walk from the start
+    // stopped dead on one four-yard cell of the second.  Same argument as the
+    // courtyard two lines up: what stops you is what actually stands there,
+    // which is the stone.
+    if (!b.doors.length) return wallAt(wx, wy)
     return !atDoor(b, wx, wy)
   }
 
@@ -2253,11 +2305,19 @@ async function main() {
    * world's — the steepest leg the server walks a creature over.
    */
   function slide(dt: number) {
-    const over = stepAt(hero.x, hero.y) - CLIFF
-    if (over <= 0) return
     const [gx, gy] = gradient(hero.x, hero.y)
     const len = Math.hypot(gx, gy)
     if (len < 1e-4) return
+    // How far the ground falls away **the way he would go**, which is the one
+    // direction that matters here.  It was the worst step out of the cell in
+    // any of four, so a man standing on a level shelf with a bank beside him
+    // was pushed off his own shelf — and the road out of Northshire is exactly
+    // that shape for most of its length.  One-sided still, because a central
+    // difference smooths a four-yard cliff into a ramp.
+    const drop = (groundAt(hero.x, hero.y)
+      - groundAt(hero.x - (gx / len) * U, hero.y - (gy / len) * U)) / U
+    const over = drop - CLIFF
+    if (over <= 0) return
     // Downhill is against the gradient, at a speed that grows with how far
     // past standing the ground is and never beats a run.
     const push = Math.min(RUN_BASE, over * WALK_BASE * 2) * dt
@@ -2353,7 +2413,7 @@ async function main() {
         // to swim is not a reason to paddle about, and a field of wolves
         // treading water is what reading it that way looked like.  Chasing is
         // where `swims` is asked, below.
-        wetAt(x, y) || stepAt(x, y) > CLIFF
+        wetAt(x, y) || climb(n.x, n.y, x, y) > CLIFF
         || solidAt(x, y) || npcAt(x, y, n)
         // And a building, which this did not ask either.  A spawn standing
         // outside one may not wander into it and a spawn standing inside one
@@ -7279,6 +7339,173 @@ async function main() {
    */
   ;(window as unknown as { __canWalk: (x: number, y: number) => boolean })
     .__canWalk = (x, y) => !footing(x, y)
+  /**
+   * How much world there is, by whichever yardstick you name.
+   *
+   * There are two "you cannot go there" in this game and they disagree by
+   * thirteen times.  `footing` is what a *step* is held to — water, trees,
+   * buildings, people — and `blocked` is that plus anything steeper than the
+   * cliff limit, which is what the door checks, the creatures and the harness
+   * use.  A player is allowed on to steep ground and `slide` pushes him back
+   * down, so neither measure is wrong and neither is the whole answer: the
+   * mask is open and the legs cannot make the climb.
+   *
+   * Measured here rather than in the check because the classification is the
+   * point.  A flood that comes back with a number says the world shrank; a
+   * flood that says *what refused each step on its frontier* says where.
+   */
+  ;(window as unknown as {
+    __reach: (rule?: string, step?: number) => unknown
+  }).__reach = (rule = 'leg', S = 4, limit = CLIFF) => {
+    // The yardsticks, side by side, because comparing them is the point.
+    //
+    //   leg      the step question — how far the ground rises between here
+    //            and there.  What a walk is actually held to.
+    //   blocked  where a man cannot be: the gentlest step on to the cell
+    //   footing  everything that stops a step that is not a slope
+    //   wall     a building's stone and nothing else
+    //   cell     what `blocked` used to be — the worst step out of the cell
+    //            in any of four directions, which sealed the valley
+    const shut = rule === 'footing' ? footing
+      : rule === 'wall' ? (x: number, y: number) => wallAt(x, y)
+      : rule === 'cell' ? (x: number, y: number) =>
+        (onSpan(x, y) ? false : stepAt(x, y) > limit) || footing(x, y)
+      : blocked
+    const B = meta.bounds
+    const seen = new Set<string>()
+    const key = (x: number, y: number) =>
+      `${Math.round(x / S)},${Math.round(y / S)}`
+    const from = { x: START[0]!, y: START[1]! }
+    const stack: [number, number][] = [[from.x, from.y]]
+    seen.add(key(from.x, from.y))
+    // Why the frontier stopped, one tally a reason.  A cell can be refused by
+    // more than one thing and every reason it was refused by is counted: what
+    // this is for is "which rule is the wall", and a first-match tally answers
+    // the order the conditions happen to be written in instead.
+    const why: Record<string, number> = {}
+    let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity]
+    while (stack.length) {
+      const [x, y] = stack.pop()!
+      lo = [Math.min(lo[0]!, x), Math.min(lo[1]!, y)]
+      hi = [Math.max(hi[0]!, x), Math.max(hi[1]!, y)]
+      for (const [ax, ay] of [[S, 0], [-S, 0], [0, S], [0, -S]]) {
+        const px = x + ax!, py = y + ay!
+        if (px < B[0]! || px > B[1]! || py < B[2]! || py > B[3]!) continue
+        const k = key(px, py)
+        if (seen.has(k)) continue
+        seen.add(k)
+        // Tested **along** the step and not only at the end of it.  A flood
+        // that steps four yards and asks once hops a wall two yards thick:
+        // the way west out of Northshire came out open on the mask and the
+        // walk stopped dead on a four-yard hall it had jumped clean over.
+        // Sampled at the plan's own pitch, which is what a wall is drawn at.
+        let stop = false
+        const far = Math.hypot(px - x, py - y)
+        for (let t = YD_PER_TILE; t <= far && !stop; t += YD_PER_TILE) {
+          const mx = x + ((px - x) * t) / far, my = y + ((py - y) * t) / far
+          stop = rule === 'leg'
+            ? (footing(mx, my) || (!onSpan(mx, my) && climb(x, y, mx, my) > limit))
+            : shut(mx, my)
+        }
+        if (!stop) { stack.push([px, py]); continue }
+        const on = onSpan(px, py)
+        if (!on && climb(x, y, px, py) > limit) why['steep'] = (why['steep'] ?? 0) + 1
+        if (!on && closedAt(px, py)) why['off the slice'] = (why['off the slice'] ?? 0) + 1
+        if (!on && openHole(px, py)) why['a hole'] = (why['a hole'] ?? 0) + 1
+        if (solidAt(px, py)) why['scenery'] = (why['scenery'] ?? 0) + 1
+        if (shutOut(px, py)) why['a building'] = (why['a building'] ?? 0) + 1
+        if (npcAt(px, py, null)) why['somebody standing there'] = (why['somebody standing there'] ?? 0) + 1
+      }
+    }
+    return {
+      rule, step: S, cells: seen.size,
+      goldshire: seen.has(key(-9461.6, 16.19)),
+      abbey: seen.has(key(-8930, -200)),
+      box: [lo[0], hi[0], lo[1], hi[1]],
+      why,
+      has: (x: number, y: number) => seen.has(key(x, y)),
+    }
+  }
+
+  /**
+   * A way from the start to somewhere, over the step rule, as waypoints.
+   *
+   * The third yardstick this issue wanted, and the only one that is not a
+   * mask: a check can walk it.  A mask that is open and a pair of legs that
+   * cannot make the trip are two different claims, and until something walked
+   * the route there was nothing between them — the flood said the world was
+   * three hundred thousand cells while a straight push from the start stopped
+   * at a fence nine yards on.
+   *
+   * Thinned to the corners, because a check that steers at every four-yard
+   * cell is testing the check's own steering.
+   */
+  ;(window as unknown as {
+    __path: (x: number, y: number, step?: number) => unknown
+  }).__path = (tx, ty, S = 4) => {
+    const B = meta.bounds
+    const key = (x: number, y: number) =>
+      `${Math.round(x / S)},${Math.round(y / S)}`
+    const from = { x: START[0]!, y: START[1]! }
+    const came = new Map<string, [number, number] | null>()
+    came.set(key(from.x, from.y), null)
+    const queue: [number, number][] = [[from.x, from.y]]
+    const goal = key(tx, ty)
+    let head = 0
+    while (head < queue.length) {
+      const [x, y] = queue[head++]!
+      if (key(x, y) === goal) break
+      for (const [ax, ay] of [[S, 0], [-S, 0], [0, S], [0, -S]]) {
+        const px = x + ax!, py = y + ay!
+        if (px < B[0]! || px > B[1]! || py < B[2]! || py > B[3]!) continue
+        const k = key(px, py)
+        if (came.has(k)) continue
+        // Along the step, for the reason `__reach` gives: a four-yard hop
+        // over a two-yard wall is a route nothing can walk.
+        let stop = false
+        const far = Math.hypot(px - x, py - y)
+        for (let t = YD_PER_TILE; t <= far && !stop; t += YD_PER_TILE) {
+          const mx = x + ((px - x) * t) / far, my = y + ((py - y) * t) / far
+          stop = footing(mx, my)
+            || (!onSpan(mx, my) && climb(x, y, mx, my) > CLIFF)
+        }
+        if (stop) continue
+        came.set(k, [x, y])
+        queue.push([px, py])
+      }
+    }
+    if (!came.has(goal)) return null
+    // Walk the trail back, then keep only the turns.
+    const back: [number, number][] = []
+    let at: [number, number] | null =
+      queue.find((q) => key(q[0], q[1]) === goal) ?? null
+    while (at) { back.push(at); at = came.get(key(at[0], at[1])) ?? null }
+    back.reverse()
+    const turns: [number, number][] = []
+    for (let i = 1; i < back.length - 1; i++) {
+      const a = back[i - 1]!, b = back[i]!, c = back[i + 1]!
+      if ((b[0] - a[0]) !== (c[0] - b[0]) || (b[1] - a[1]) !== (c[1] - b[1])) {
+        turns.push(b)
+      }
+    }
+    if (back.length) turns.push(back[back.length - 1]!)
+    return { cells: back.length, yards: (back.length - 1) * S, turns, trail: back }
+  }
+
+  /** The height grid's own cell, which is what a step ought to be measured in. */
+  ;(window as unknown as { __grid: () => number }).__grid = () => U
+  /** Everything that has an opinion about one spot, for finding a wall. */
+  ;(window as unknown as { __why: (x: number, y: number) => unknown }).__why =
+    (x, y) => ({
+      z: Math.round(groundAt(x, y) * 10) / 10,
+      step: Math.round(stepAt(x, y) * 1000) / 1000, cliff: CLIFF,
+      steep: !onSpan(x, y) && stepAt(x, y) > CLIFF,
+      wet: wetAt(x, y), depth: depthAt(x, y),
+      solid: solidAt(x, y), closed: closedAt(x, y), hole: openHole(x, y),
+      shut: shutOut(x, y), span: onSpan(x, y),
+      footing: footing(x, y), blocked: blocked(x, y),
+    })
+
   /**
    * The water, and how much of it a man can get into and out of again.
    *
