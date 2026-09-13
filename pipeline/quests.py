@@ -137,6 +137,32 @@ def words(base, wanted):
     return out
 
 
+def check_objects(wants, out):
+    """An objective that names a game object has to be one you could finish.
+
+    `RequiredNpcOrGo` is negative for an object, and until there were objects
+    in this world that meant the quest was dropped.  There are 1,365 of them
+    now, so the question is a real one: does the thing the objective names
+    actually stand somewhere you can reach?
+
+    Not one of this slice's quests asks — the whole database has 180 such
+    objectives and every one belongs to a quest nobody in this forest gives
+    out.  That is the answer and it is worth printing rather than assuming,
+    because the day the slice widens it stops being the answer.
+    """
+    path = os.path.join(out, 'objects.json')
+    standing = set()
+    if os.path.exists(path):
+        with open(path) as f:
+            standing = {r[8] for r in json.load(f).get('objects', [])}
+    reachable = [(q, o) for q, o in wants if o in standing]
+    print(f'check: {len(wants)} objectives name a game object, '
+          f'{len(reachable)} of them one that stands in the slice')
+    assert len(reachable) == len(wants), (
+        'a quest asks for an object that is not in this world: '
+        + str([o for q, o in wants if o not in standing][:5]))
+
+
 def main(acore, client_root, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     client = B.Client(client_root)
@@ -179,6 +205,7 @@ def main(acore, client_root, out):
     word_of = words(base, asked)
 
     quests, dropped = [], Counter()
+    wants_object = []
     for q, f in sorted(raw.items()):
         giver, ender = starters.get(q), enders.get(q)
         if giver not in here:
@@ -193,9 +220,16 @@ def main(acore, client_root, out):
             who = int(f[col['RequiredNpcOrGo%d' % i]])
             n = int(f[col['RequiredNpcOrGoCount%d' % i]])
             if who <= 0 or not n:
-                # A negative id is a gameobject, and none of those are in the
-                # world yet — see `pipeline/audit.py`, which counts them.
-                unmet = unmet or who < 0
+                # A negative id is a gameobject.  There are 1,365 of those in
+                # the world now — `pipeline/objects.py` puts them there — so
+                # this is no longer "we cannot do those": it is a lookup, and
+                # `check_objects` does it.  Not one of the slice's 102 quests
+                # names one, which is worth stating rather than assuming: the
+                # whole database has 180 such objectives and every one of them
+                # belongs to a quest nobody in this forest gives out.
+                if who < 0:
+                    wants_object.append((int(f[col['ID']]), -who))
+                    unmet = True
                 continue
             if who not in here:
                 unmet = True
@@ -227,6 +261,8 @@ def main(acore, client_root, out):
             'coin': int(f[col['RewardMoney']]),
             'after': int(a[acol['PrevQuestID']]) if a else 0,
         })
+
+    check_objects(wants_object, out)
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'quests.json')
