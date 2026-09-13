@@ -510,6 +510,8 @@ async function main() {
    * out, and the edge of a slice is not a wall.  It is an end.
    */
   const MINE = new Set(meta.areaSlice ?? [])
+  /** Where this game is, out of `slice.json` by way of the bake. */
+  const EDGE = meta.bounds
   const outside = (wx: number, wy: number) => {
     const a = areaOf(wx, wy)
     // Nought is "the grid has no answer here", not "somewhere else".  Read
@@ -1986,6 +1988,21 @@ async function main() {
         || (!!under && bitAt(under.steps, planCell(under, indoors, wx, wy)))
       return !(bitAt(p.floor, n) || climbable || atDoor(indoors, wx, wy))
         || npcAt(wx, wy, null)
+    }
+    // The edge of the slice is the edge of the world, and it had no wall.
+    //
+    // `outside()` asks the area grid, which answers nought past the bake's own
+    // rectangle — and nought is "the grid has no answer here" rather than
+    // "somewhere else", quite rightly, because an unmapped chunk in the middle
+    // of the forest is still the forest.  So nothing at all stopped a walk out
+    // of the slice: forty yards past every one of its four sides was open
+    // ground, over terrain the bake never wrote.
+    //
+    // `slice.json`'s own four numbers are the answer.  They are where this
+    // game is, which is a statement the repository already makes in one place,
+    // and past them there is nothing to stand on because nothing was built.
+    if (wx < EDGE[0]! || wx > EDGE[1]! || wy < EDGE[2]! || wy > EDGE[3]!) {
+      return true
     }
     // Outdoors a building is closed: a roof and a wall all the way round,
     // with the doors the client drew as the only way through.  It used to be
@@ -6694,6 +6711,16 @@ async function main() {
     }
     return out
   }
+  /**
+   * Whether a step on to this spot is allowed at all — the whole question and
+   * not one of its halves.
+   *
+   * `__wallAt` is a building's stone and nothing else, which is the wrong
+   * probe for "how much world is there": it says nothing about water, a chunk
+   * the slice does not cover, or the mouth of a mine.
+   */
+  ;(window as unknown as { __canWalk: (x: number, y: number) => boolean })
+    .__canWalk = (x, y) => !footing(x, y)
   /** The slice's own box, so a check can flood it without typing it out. */
   ;(window as unknown as { __bounds: () => number[] }).__bounds = () =>
     [...meta.bounds]

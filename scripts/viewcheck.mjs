@@ -1578,6 +1578,26 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     climbed ? `went to ${climbed.up}, came back to ${climbed.down}` : '')
 }
 
+// 21. The edge of the slice is the edge of the world.
+//
+// `outside()` asks the area grid, which answers nought past the bake's own
+// rectangle — and nought is *the grid has no answer here* rather than
+// *somewhere else*, quite rightly, because an unmapped chunk in the middle of
+// the forest is still the forest.  So nothing stopped a walk out of the slice:
+// forty yards past every one of its four sides was open ground, over terrain
+// the bake never wrote.  It is the first line of the wiki's own second
+// completion criterion for a zone.
+{
+  const at = await p.evaluate(() => {
+    const B = window.__bounds()
+    const off = [['west', B[0] - 40, -300], ['east', B[1] + 40, -300],
+      ['south', -9200, B[2] - 40], ['north', -9200, B[3] + 40]]
+    return off.filter(([, x, y]) => window.__canWalk(x, y)).map((o) => o[0])
+  })
+  check('there is nowhere to walk outside the slice', at.length === 0,
+    at.join(' '))
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

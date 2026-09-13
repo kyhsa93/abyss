@@ -28,9 +28,41 @@ def load(path=PATH):
 
 
 _SLICE = load()
-_REGION = _SLICE['regions'][0]
+_REGIONS = _SLICE['regions']
+_REGION = _REGIONS[0]
 
-#: x lo, x hi, y lo, y hi — the box every stage filters on.
+#: Every rectangle this game is, as `(map, x lo, x hi, y lo, y hi)`.
+#:
+#: `regions` has been an array since this file was written and nothing had ever
+#: put a second entry in it — which is the requirement the wiki's vertical
+#: slice page set and nobody had tested.  Tested, it splits in two:
+#:
+#:   * the stages that use the box as a **filter** — is this creature, this
+#:     object, this item, this quest inside — take any number of rectangles,
+#:     and ask `within()`.
+#:   * the stages that use it as a **grid** — `synth_terrain` lays a height
+#:     field over it, `bake_terrain` walks the tiles it covers, `audit` walks
+#:     the same tiles — take one, because a span and an origin are one
+#:     rectangle's arithmetic and two rectangles are not a rectangle.
+#:
+#: So *widening* the slice is still an edit to `slice.json` and no code, which
+#: is what the requirement actually asked for.  *Adding* a second rectangle is
+#: three stages' arithmetic, and they are named here rather than discovered.
+REGIONS = tuple((r.get('map', 0), *r['bounds']) for r in _REGIONS)
+
+
+def within(x, y, map_id=None):
+    """Whether a point is in any of this game's rectangles."""
+    for m, x0, x1, y0, y1 in REGIONS:
+        if map_id is not None and m != map_id:
+            continue
+        if x0 <= x <= x1 and y0 <= y <= y1:
+            return True
+    return False
+
+
+#: x lo, x hi, y lo, y hi — the **first** rectangle, which is the one the
+#: terrain is rasterised over.  A filter should ask `within` instead.
 BOUNDS = tuple(_REGION['bounds'])
 #: Which map, which is Azeroth.
 MAP = _REGION['map']

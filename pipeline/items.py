@@ -55,7 +55,7 @@ STAT_OF = {3: 'agi', 4: 'str', 5: 'int', 6: 'spi', 7: 'sta'}
 
 def wanted(base, acore, object_loots, client):
     """Every item id the slice can reach, and how it reaches it."""
-    from slice import BOUNDS as B
+    from slice import within
     want = Counter()
 
     # What its vendors sell.  `npc_vendor` is keyed on the creature entry, and
@@ -72,7 +72,7 @@ def wanted(base, acore, object_loots, client):
             x, y = float(f[col['position_x']]), float(f[col['position_y']])
         except (ValueError, KeyError, IndexError):
             continue
-        if B[0] <= x <= B[1] and B[2] <= y <= B[3]:
+        if within(x, y, MAP):
             here.add(int(f[col['id1']]))
 
     vpath = os.path.join(base, 'npc_vendor.sql')

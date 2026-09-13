@@ -58,7 +58,7 @@ from collections import Counter
 # constant but three constants that happen to agree.  A creature is in the
 # slice if it is in the forest.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import BOUNDS, MAP  # noqa: E402,F401
+from slice import BOUNDS, MAP, within  # noqa: E402,F401
 
 # `creature` column order, from the dump's own CREATE TABLE.
 C_GUID, C_ID, C_MAP, C_X, C_O = 0, 1, 4, 10, 13
@@ -1095,7 +1095,7 @@ def patrols(base):
             x, y = float(f[col['position_x']]), float(f[col['position_y']])
         except (ValueError, IndexError, KeyError):
             continue
-        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+        if not within(x, y, MAP):
             continue
         paths.setdefault(pid, []).append((pt, x, y))
     out = []
@@ -1135,7 +1135,7 @@ def walkable(base):
             z = float(f[col['position_z']])
         except (ValueError, IndexError):
             continue
-        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+        if not within(x, y, MAP):
             continue
         paths.setdefault(pid, []).append((pt, x, y, z))
     worst = 0.0
@@ -1243,7 +1243,7 @@ def main(acore, out):
             o = float(f[C_O])
         except (ValueError, IndexError):
             continue
-        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+        if not within(x, y, MAP):
             continue
         if guid in seasonal:
             dropped['seasonal'] += 1

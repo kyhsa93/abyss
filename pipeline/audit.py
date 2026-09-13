@@ -41,7 +41,7 @@ import bake_terrain as B  # noqa: E402
 from spawn_npcs import columns  # noqa: E402
 
 # The forest, the same four numbers every other step uses.
-from slice import BOUNDS  # noqa: E402,F401  (see slice.json)
+from slice import BOUNDS, within  # noqa: E402,F401  (see slice.json)
 
 
 def tiles_over(bounds):
@@ -52,7 +52,7 @@ def tiles_over(bounds):
 
 
 def inside(x, y):
-    return BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]
+    return within(x, y)
 
 
 def walk(client):

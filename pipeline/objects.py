@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import (columns, rows, split, split_head, goods_of,  # noqa: E402
                          loot_rows, flatten, ITEM_FIELDS, I_FOOD_TYPE,
                          FOOD)
-from slice import BOUNDS, MAP  # noqa: E402
+from slice import BOUNDS, MAP, within  # noqa: E402,F401
 import bake_terrain as terrain  # noqa: E402
 
 # `gameobject_template.type`, which is the client's own enum.  Only the ones
@@ -274,7 +274,7 @@ def main(acore, client_root, out):
             back = int(f[gc['spawntimesecs']])
         except (ValueError, IndexError, KeyError):
             continue
-        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+        if not within(x, y, MAP):
             continue
         if guid in seasonal:
             dropped['seasonal'] += 1

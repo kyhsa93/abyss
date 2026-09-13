@@ -40,7 +40,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake_terrain as B  # noqa: E402
 from spawn_npcs import BOUNDS, MAP, columns, goods_of, rows, split  # noqa: E402
 from spells import CHAIN  # noqa: E402
-from slice import LEVELS, REACH_OVER, CLASS_MASK, RACE_MASK, allows  # noqa: E402
+from slice import (LEVELS, REACH_OVER, CLASS_MASK, RACE_MASK,  # noqa: E402
+                   allows, within)
 
 # How many of each objective a quest may carry, by the shape of the table.
 NPCS, ITEMS = 4, 6
@@ -102,7 +103,7 @@ def spawned(base, world):
             x, y = float(f[col['position_x']]), float(f[col['position_y']])
         except (ValueError, IndexError):
             continue
-        if BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]:
+        if within(x, y, MAP):
             here[int(f[col['id1']])] += 1
     return here, 'the slice rectangle, because npcs.json is not baked yet'
 
