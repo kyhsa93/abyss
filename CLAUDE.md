@@ -28,7 +28,8 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             The player is the exception to all of it: he wears gear, so he is
             rendered a slot at a time (`paperdoll_slots.py` under Blender 2.79,
             then `render_paperdoll.py` and `pack_paperdoll.py`) and composited
-            by `src/doll.ts`.  A generated sheet cannot do equipment — two
+            by `src/sim/doll.ts`, which the character sheet calls.  A generated sheet
+            cannot do equipment — two
             calls are two bodies, so the second call's shirt does not fit the
             first call's body
 pipeline/sources.py, fetch_assets.py, catalogue.py — where art is allowed to
@@ -323,7 +324,7 @@ starting zone with nothing to gather, which is what the first run produced.
 
 **The core's C++ is at `~/src/acore-src`**, sparse and blobless — eight
 megabytes of `src/server/game/Entities`, `Spells`, `Combat` and
-`Miscellaneous`. Everything in `src/stats.ts` cites the file and line it came
+`Miscellaneous`. Everything in `src/sim/stats.ts` cites the file and line it came
 from. Until it was there, the layer of this game that is *rules* had no source
 at all and the gap showed: every blow landed, there were no stats, and the
 player's starting weapon was a hand-transcribed `(1, 3, 1900)` that turned out
@@ -377,7 +378,7 @@ step being dragged back toward wherever he came from.
 from fifteen places and none of them could be reproduced, which is two problems:
 a save that does not carry the stream's position is a save you reload to
 re-roll a drop you did not like, and a distribution is only testable if you can
-run the same twenty thousand rolls twice. `src/roll.ts` is thirty-two bits of
+run the same twenty thousand rolls twice. `src/sim/roll.ts` is thirty-two bits of
 mulberry32 and `save.ts` writes it down.
 
 **Closing the tab is logging out, so it has to cost nothing.** IndexedDB with
@@ -484,16 +485,35 @@ hash of that list, so a new deploy drops the old one whole rather than serving
 half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
-`npm run check` is `tsc` and it is fast. `npm run check:slow` is the four
-browser checks — `viewcheck`, `uicheck`, `questcheck`, `padcheck` — and needs a
-browser and something serving the page; `ABYSS_URL` points them at it, and
-`npm run dev` is what it points at here. `npm run check:client` is `audit` and
-`layout`, which read the game client out of its own archives.
+`npm run check` needs nothing but Node — `tsc`, then `manifestcheck`,
+`bordercheck`, `simcheck` and `docscheck` — and it is the one to run while
+editing. `npm run check:slow` is the six that want a built page:
+`viewcheck`, `uicheck`, `questcheck`, `padcheck` and `shotcheck` drive a
+browser, `budgetcheck` weighs `dist`; `ABYSS_URL` points them at whatever is
+serving, and `npm run dev` is what it points at here. `pwacheck` is separate
+because it cuts the network, which the others would not survive.
+`npm run check:client` is `audit`, `layout` and `objects`, which read the game
+client out of its own archives.
 
-CI runs the first two and **cannot** run the third, which is a fact about those
-checks rather than a gap: the client is not in this repository and never will
-be. They are the gate on the pipeline, and the pipeline runs where the client
-is. Everything else runs on every push, against the world that is committed.
+CI runs the first two, plus `promptcheck` and `pwacheck`, and **cannot** run the
+third, which is a fact about those checks rather than a gap: the client is not
+in this repository and never will be. They are the gate on the pipeline, and the
+pipeline runs where the client is. Everything else runs on every push, against
+the world that is committed.
+
+**The documents get a gate too, and only for the half a machine can judge.**
+`docscheck` collects every file and every `npm run` a document names in
+backticks and asks whether it is there. That is narrow on purpose, and it earned
+itself twice over: it catches a path only the documents ever had — this file
+claimed one under `src/` for the paperdoll, and the wiki claimed an inherited one
+under `scripts/` — and it caught the four browser checks that had become six
+while the paragraph above still said four. (Naming those two paths in full here
+failed the check, which is the correct answer to writing a path that does not
+exist.) What it
+cannot catch is a sentence whose words all still resolve and whose claim has
+quietly stopped being true — `three.js` was named for weeks after the renderer
+was abandoned — so the wiki now carries dated banners where a page describes an
+era rather than the code, and that part stays a reading job.
 
 ## Language
 

@@ -19,13 +19,13 @@ concurrency:
 # build to exactly that.  When this gets slow the answer is to make it faster,
 # not to run it less often.
 #
-# Two of the eight checks cannot run here and that is a fact about them rather
-# than a gap in this file: `audit` and `layout` read the game client out of its
-# own MPQ archives, and the client is not in this repository and never will be.
-# They are the gate on the *pipeline*, and the pipeline runs where the client
-# is.  What this file can run is everything that only needs a browser and the
-# world that is committed — which is all four of the browser checks, because
-# `public/data` and `public/world` are both in the tree.
+# Twelve checks run here.  Three cannot, and that is a fact about them rather
+# than a gap in this file: `audit`, `layout` and `objects` read the game client
+# out of its own MPQ archives, and the client is not in this repository and
+# never will be.  They are the gate on the *pipeline*, and the pipeline runs
+# where the client is.  What this file can run is everything that only needs a
+# browser and the world that is committed — which is all six of the browser
+# checks, because `public/data` and `public/world` are both in the tree.
 jobs:
   fast:
     name: check
