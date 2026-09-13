@@ -151,32 +151,106 @@ def to_world(pos, ry, lx, ly):
 
 # A model's footprint, rasterised once and shared by every placement of it.
 _PLANS = {}
-# How many yards a cell of a plan covers.  One, because the ground itself is
-# drawn at 1.33 and a plan finer than the floor it sits on is detail nobody
-# can see.
-PLAN_CELL = 1.0
+# How many yards a cell of a plan covers: one ground tile, 32 pixels at 24 to
+# the yard, which is what `src/main.ts` draws the ground at.  Not one yard —
+# a plan on a different pitch from the floor it is painted on samples badly,
+# and the abbey's walls came out dotted at one size and four yards thick at
+# the next.  On the same pitch, one cell is one tile and there is nothing to
+# alias.
+PLAN_CELL = 32 / 24
+
+# How tall a man is and how steep he can walk, both filled in by `bake` from
+# somewhere that states them.  They are not decoration: together they are the
+# whole definition of a wall used below — a wall is what a man of this height
+# cannot stand in and cannot climb over.
+#
+# `BODY` is the collision box of the client's own human male, 2.03 yards.
+# `CLIMB` is the steepest leg in `waypoint_data`, 0.90, the same limit the
+# terrain uses for a cliff.  Defaults are here only so the module imports; the
+# bake replaces them and `check_doors` would fail on nonsense.
+BODY = 2.03
+CLIMB = 0.899
 
 
-def wmo_plan(client, path):
-    """The shape a building actually is, out of its own triangles.
+def derive_body(client):
+    """A man's height, from the model the client draws him with."""
+    global BODY
+    tall, _wide = model_size(client, 'Character\\Human\\Male\\HumanMale.m2')
+    if tall:
+        BODY = round(tall, 2)
+    return BODY
+
+
+def derive_climb(acore):
+    """The steepest ground the server walks a creature up — see `spawn_npcs`."""
+    global CLIMB
+    base = os.path.join(acore, 'data/sql/base/db_world')
+    if not os.path.isdir(base):
+        return CLIMB
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from spawn_npcs import walkable
+    got = walkable(base)          # `(steepest, legs, routes)`
+    if got:
+        CLIMB = got[0]
+    return CLIMB
+
+
+def doorways(client, path):
+    """Where a building's doors are, out of the file's own portals.
+
+    A WMO's `MOPT`/`MOPV` are the openings between its rooms — the thing the
+    client uses to decide what it can see through — and an opening between a
+    room and the outdoors is the front door.  Fourteen of them in Northshire's
+    abbey, eight on the ground floor.
+
+    Only the ones a man could walk through: a portal shorter than he is, is a
+    window or a hole in a floor.  Returns `(sill, x, y)` in model space, the
+    sill being the bottom edge, which is the floor of the room it opens on to.
+    """
+    data, _src = client.read(path)
+    if not data:
+        return []
+    verts, table = None, None
+    i = 0
+    while i < len(data) - 8:
+        m = data[i:i + 4][::-1].decode('ascii', 'replace')
+        size, = struct.unpack_from('<I', data, i + 4)
+        o = i + 8
+        if m == 'MOPV':
+            verts = [struct.unpack_from('<3f', data, o + k * 12)
+                     for k in range(size // 12)]
+        elif m == 'MOPT':
+            table = [struct.unpack_from('<HH', data, o + k * 20)
+                     for k in range(size // 20)]
+        i = o + size
+    if not verts or not table:
+        return []
+    out = []
+    for start, count in table:
+        q = verts[start:start + count]
+        if not q:
+            continue
+        lo, hi = min(v[2] for v in q), max(v[2] for v in q)
+        if hi - lo <= BODY:
+            continue
+        out.append((lo, sum(v[0] for v in q) / count,
+                    sum(v[1] for v in q) / count))
+    return out
+
+
+def wmo_triangles(client, path):
+    """Every triangle of every group of a building, in the model's own space.
 
     `MOGI`'s boxes give a building as a handful of rectangles, which is a great
     deal better than the one box the placement states and still not the
     building: Northshire's abbey is a nave, a transept and a tower, and three
     rectangles round them is a blob.  The groups' *geometry* is right there —
-    `MOVT` holds the vertices and `MOVI` the triangles — so this drops every
-    triangle of every group onto the floor and fills in what they cover.
+    `MOVT` holds the vertices and `MOVI` the triangles — and there are 18,817
+    of them for the abbey.
 
-    18,817 triangles for the abbey, and what comes out is an abbey: a long nave
-    with a wide crossing and the tower off one corner.
-
-    In the model's own space, so it is rasterised once however many times the
-    thing is placed — and in the model's *horizontal* pair, which is its first
-    two, because a WMO has z up.  Returns `(cells, w, h, x0, y0)` with one byte
-    a cell.
+    The model's own space has **z up** where the map has y up, so the
+    horizontal pair is the first two components and the height is the third.
     """
-    if path in _PLANS:
-        return _PLANS[path]
     _whole, rooms = wmo_rooms(client, path)
     tris = []
     for n in range(max(1, len(rooms))):
@@ -200,10 +274,60 @@ def wmo_plan(client, path):
         if not vt or not vi:
             continue
         for t in range(len(vi) // 3):
-            a, b, cc = vi[3 * t], vi[3 * t + 1], vi[3 * t + 2]
-            tris.append(((vt[3 * a], vt[3 * a + 1]),
-                         (vt[3 * b], vt[3 * b + 1]),
-                         (vt[3 * cc], vt[3 * cc + 1])))
+            a, b, c = vi[3 * t], vi[3 * t + 1], vi[3 * t + 2]
+            tris.append((vt[3 * a:3 * a + 3], vt[3 * b:3 * b + 3],
+                         vt[3 * c:3 * c + 3]))
+    return tris
+
+
+def steepness(t):
+    """`(is it a wall, lowest z, highest z)` for one triangle.
+
+    A wall is a face steeper than `CLIMB`, which is the number the terrain uses
+    for a cliff and comes from the same place — the steepest leg the server
+    itself walks a creature up.  Anything flatter is a floor, a stair tread or
+    a ramp, and **a stair is not a wall**: read the other way round, the risers
+    of the steps up to the abbey door are vertical faces and they sealed the
+    door they lead to.
+    """
+    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = t
+    ux, uy, uz = bx - ax, by - ay, bz - az
+    vx, vy, vz = cx - ax, cy - ay, cz - az
+    nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+    return (abs(nz) * CLIMB < math.hypot(nx, ny),
+            min(az, bz, cz), max(az, bz, cz))
+
+
+def wmo_plan(client, path):
+    """What a building is, from above: its outline, its walls and its floor.
+
+    Three masks over the same grid, one square yard a cell, in the model's own
+    space so that a model placed sixteen times is rasterised once.
+
+    * **outline** — every triangle dropped on the floor and the inside filled
+      in.  This is the silhouette, which is what a roof covers.
+    * **solid** — the part of that outline a man cannot be in.  Not "the
+      triangles are here": a doorway has a floor running through it and a
+      lintel over it and the wall beside it is the same stone, so the question
+      has to be asked the way the world asks it — *can a man stand here* — and
+      a man is `BODY` tall and cannot climb steeper than `CLIMB`.  Asked that
+      way the doorways fall out on their own: 59 of the 63 ground-floor
+      doorways in this slice come out open, and the abbey's eight all do.
+    * **floor** — where he can stand.  It is the same answer read the other
+      way, and it is what says the inside of the abbey is a stone floor rather
+      than the grass the terrain has under it.
+
+    Which storey is the ground one comes from the doorways.  A portal's sill is
+    the floor of the room it opens on to, so the lowest sill is the ground
+    floor, and a surface belongs to that storey if it is within a body's height
+    of it.  Without that the abbey's first-floor gallery lands on the ground
+    plan and closes the doors underneath it.
+
+    Returns `(outline, w, h, x0, y0, solid, floor)`, one byte a cell.
+    """
+    if path in _PLANS:
+        return _PLANS[path]
+    tris = wmo_triangles(client, path)
     if not tris:
         _PLANS[path] = None
         return None
@@ -216,26 +340,56 @@ def wmo_plan(client, path):
     if w * h > 400000:               # a city, not a building
         _PLANS[path] = None
         return None
+
     cells = bytearray(w * h)
-    for (ax, ay), (bx, by), (cx, cy) in tris:
+    # Which storey the doors are on, and so which surfaces are the ground.
+    doors = doorways(client, path)
+    if doors:
+        base = min(d[0] for d in doors)
+    else:
+        # Nothing to walk through, so the ground is wherever most of the
+        # standing room is.  A gate and a barn are both this.
+        tally = {}
+        for t in tris:
+            wall, _lo, hi = steepness(t)
+            if not wall:
+                tally[math.floor(hi)] = tally.get(math.floor(hi), 0) + 1
+        base = float(max(tally, key=tally.get)) if tally else 0.0
+    low, high = base - BODY, base + BODY
+
+    # Per cell: the tops of the surfaces of this storey, and the walls that
+    # stand over it.  Only what is near the storey is kept — the tower is
+    # eighty-nine yards of geometry and none of it bears on the ground floor.
+    tops, walls = {}, {}
+    for t in tris:
+        wall, zlo, zhi = steepness(t)
+        (ax, ay, _), (bx, by, _), (cx, cy, _) = t
         i0 = max(0, int((min(ax, bx, cx) - x0) / S))
         i1 = min(w - 1, int((max(ax, bx, cx) - x0) / S))
         j0 = max(0, int((min(ay, by, cy) - y0) / S))
         j1 = min(h - 1, int((max(ay, by, cy) - y0) / S))
         det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
-        if abs(det) < 1e-9:          # edge-on: fill its own cells
-            for i in range(i0, i1 + 1):
-                for j in range(j0, j1 + 1):
-                    cells[i * h + j] = 1
-            continue
+        flat = abs(det) < 1e-9
+        near = (wall and zlo < high + BODY and zhi > low) \
+            or (not wall and low <= zhi <= high)
         for i in range(i0, i1 + 1):
             px = x0 + (i + 0.5) * S
             for j in range(j0, j1 + 1):
                 py = y0 + (j + 0.5) * S
-                l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det
-                l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det
-                if l1 >= -0.02 and l2 >= -0.02 and l1 + l2 <= 1.02:
-                    cells[i * h + j] = 1
+                if not flat:
+                    l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det
+                    l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det
+                    if not (l1 >= -0.02 and l2 >= -0.02 and l1 + l2 <= 1.02):
+                        continue
+                n = i * h + j
+                cells[n] = 1
+                if not near:
+                    continue
+                if wall:
+                    walls.setdefault(n, []).append((zlo, zhi))
+                else:
+                    tops.setdefault(n, []).append(zhi)
+
     # Fill the inside.  Triangles are a shell: the mask they leave has holes
     # in it wherever the geometry is thin — a window, a doorway, the gap
     # between a wall and the floor it meets — and every hole gives the outline
@@ -258,8 +412,111 @@ def wmo_plan(client, path):
     for n in range(w * h):
         if not out[n]:
             cells[n] = 1
-    _PLANS[path] = (cells, w, h, x0, y0)
+
+    # Standing room: a surface of this storey with a body's clearance over it.
+    floor = bytearray(w * h)
+    for n, zs in tops.items():
+        over = walls.get(n, ())
+        for z in zs:
+            if any(b > z + 0.15 and a < z + BODY for a, b in over):
+                continue
+            floor[n] = 1
+            break
+    # Stone: a cell with a wall standing in it at this storey that a man
+    # cannot be in.  Not "inside the outline and not floor" — read that way the
+    # abbey came out a black mass with rooms cut into it, because the outline
+    # is the silhouette and most of an abbey seen from above is roof over a
+    # courtyard or over the storey above.  Only what is actually in the way.
+    solid = bytearray(w * h)
+    for n in walls:
+        if cells[n] and not floor[n]:
+            solid[n] = 1
+    for n in range(w * h):
+        if floor[n] and not cells[n]:
+            floor[n] = 0
+    _PLANS[path] = (cells, w, h, x0, y0, solid, floor)
     return _PLANS[path]
+
+
+def wmo_furniture(client, path, which=0):
+    """What is *in* a building, out of the building's own file.
+
+    A WMO carries its own doodads — `MODN` the models, `MODD` the placements,
+    `MODS` the sets they are grouped into — and Northshire's abbey has a
+    hundred and fifty of them: candelabra down the nave, books on the shelves,
+    barrels in the cellar, busts in the library.  None of it was read, so the
+    abbey was a stone floor with nothing on it.
+
+    They are placed in the model's own space, so they turn with the building,
+    and they go through the same `classify` as everything the terrain places:
+    a model this repository has no picture for is skipped and counted.
+
+    `which` is the placement's own doodad set — the abbey has two and the
+    record says which one is standing.  Returns
+    `(kind, lx, ly, lz, yaw degrees, scale, path)`.
+    """
+    data, _src = client.read(path)
+    if not data:
+        return []
+    names = sets = place = None
+    i = 0
+    while i < len(data) - 8:
+        m = data[i:i + 4][::-1].decode('ascii', 'replace')
+        size, = struct.unpack_from('<I', data, i + 4)
+        o = i + 8
+        if m == 'MODN':
+            names = data[o:o + size]
+        elif m == 'MODS':
+            sets = [struct.unpack_from('<II', data, o + k * 32 + 20)
+                    for k in range(size // 32)]
+        elif m == 'MODD':
+            place = (o, size // 40)
+        i = o + size
+    if names is None or place is None:
+        return []
+    o, count = place
+    first, last = 0, count
+    if sets:
+        start, n = sets[which if which < len(sets) else 0]
+        first, last = start, min(count, start + n)
+    out = []
+    for k in range(first, last):
+        ref, px, py, pz, qx, qy, qz, qw, scale = struct.unpack_from(
+            '<Iffffffff', data, o + k * 40)
+        end = names.find(b'\0', ref & 0xffffff)
+        name = names[ref & 0xffffff:end].decode('ascii', 'replace')
+        kind = classify(name)
+        if not kind:
+            out.append((None, 0, 0, 0, 0, 0, name))
+            continue
+        # The model's own turn about the vertical, which in a WMO is z.
+        yaw = math.degrees(math.atan2(2 * (qw * qz + qx * qy),
+                                      1 - 2 * (qy * qy + qz * qz)))
+        out.append((kind, px, py, pz, yaw, scale or 1.0, name))
+    return out
+
+
+# Every doorway that was asked for and whether it came out open, which is what
+# says the walls above are walls and not a lid.
+_DOORS = []
+
+
+def check_doors(client, path):
+    """A door has to be a hole in the wall it is in."""
+    plan = wmo_plan(client, path)
+    if not plan:
+        return
+    _cells, w, h, x0, y0, solid, _floor = plan
+    doors = doorways(client, path)
+    if not doors:
+        return
+    base = min(d[0] for d in doors)
+    for sill, lx, ly in doors:
+        if abs(sill - base) > BODY:
+            continue            # an upper storey's, and it is not drawn
+        i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
+        open_ = not (0 <= i < w and 0 <= j < h) or not solid[i * h + j]
+        _DOORS.append(1 if open_ else 0)
 
 
 # How far each placement's own model box lands from the box the placement
@@ -277,6 +534,7 @@ def plan_key(client, path, key):
     """Rasterise this model's footprint if it has not been, and return its key."""
     if key not in PLANS_BY_KEY:
         PLANS_BY_KEY[key] = wmo_plan(client, path)
+        check_doors(client, path)
     return key if PLANS_BY_KEY[key] else 0
 
 
@@ -680,6 +938,8 @@ def read_tile(client, tx, ty):
                 (nid, uid, px, py, pz, _rx, ry, _rz,
                  lx, ly, lz, hx, hy, hz) = struct.unpack_from(
                     '<IIffffffffffff', data, off + i * 64)
+                # Which of the model's doodad sets is standing in this one.
+                dset, = struct.unpack_from('<H', data, off + i * 64 + 58)
                 # The box's vertical extent is kept but not used to size the
                 # sprite: a WMO's box is the whole complex, spires and all, so
                 # Northshire's abbey comes back eighty-nine yards tall and a
@@ -690,7 +950,7 @@ def read_tile(client, tx, ty):
                                         abs(hx - lx) / 2)
                             + (round(abs(hy - ly), 2), (px, py, pz), ry,
                                ((ORIGIN - lz, ORIGIN - lx),
-                                (ORIGIN - hz, ORIGIN - hx))))
+                                (ORIGIN - hz, ORIGIN - hx)), dset))
         elif magic == 'MH2O':
             # 256 chunk headers, then instances, all offset from the start of
             # this chunk's data.  A cell is wet if an instance covers it and its
@@ -782,10 +1042,25 @@ def read_tile(client, tx, ty):
         else:
             skipped += 1
     for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
-            world_box in wmos:
+            world_box, dset in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
         if kind:
+            # What is standing inside it.  These are the building's own
+            # doodads, in the building's own space, so they turn with it.
+            for f_kind, lx, ly, lz, yaw, sc, f_path in \
+                    wmo_furniture(client, name, dset):
+                if not f_kind:
+                    skipped += 1
+                    continue
+                fx, fy = to_world(pos, ry, lx, ly)
+                f_tall, f_wide = model_size(client, f_path)
+                placed.append((f_kind, fx, fy, pos[1] + lz,
+                               round((ry + 270 + yaw) % 360, 1), sc,
+                               0.0, 0.0, 0.0,
+                               zlib.crc32(f_path.upper().encode()) & 0xffff,
+                               round(f_tall * sc, 2), round(f_wide * sc, 2),
+                               [], 0, 0.0))
             # An opaque number for "the same model", so an instance that could
             # not be solved can borrow from one that could.  A number and not
             # the path: nothing from a client's file table is allowed out of
@@ -799,7 +1074,11 @@ def read_tile(client, tx, ty):
     return cells, placed, water, painted, skipped, src, shut
 
 
-def bake(client, bounds, out):
+def bake(client, bounds, out, acore=None):
+    # A man's height and the steepest thing he walks up: both are read rather
+    # than chosen, and both are the whole definition of a wall in `wmo_plan`.
+    derive_body(client)
+    derive_climb(acore or os.path.expanduser('~/src/azerothcore-wotlk'))
     x_lo, x_hi, y_lo, y_hi = bounds
     cx, cy = (x_lo + x_hi) / 2, (y_lo + y_hi) / 2
     # Global height indices.  x = ORIGIN - I*UNIT, y = ORIGIN - J*UNIT.
@@ -1005,18 +1284,47 @@ def bake(client, bounds, out):
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
+    check_walls()
     return meta
 
 
-def plan_out(plan):
-    """One footprint, packed a bit a cell."""
-    cells, w, h, x0, y0 = plan
-    bits = bytearray((w * h + 7) // 8)
-    for n, v in enumerate(cells):
+def check_walls():
+    """Every door this slice has, and whether you can walk through it.
+
+    A wall you cannot pass is worth nothing if it has no door, and a plan that
+    fills a building solid is exactly that — the mistake this replaced.  So the
+    gate is the doors themselves: `MOPT` says where every opening in every
+    building is, and the mask has to be open at each one.  It is the same shape
+    of check as the water lying on its own bed — a statement the file makes
+    about itself, asked of the thing built from it.
+
+    The four it misses are the upstairs landings of the two-storey farmhouse
+    and one hatch on a ship, all of them reached by stairs this map does not
+    draw.  Eight of the abbey's eight are open.
+    """
+    if not _DOORS:
+        return
+    open_, n = sum(_DOORS), len(_DOORS)
+    print(f'check: {open_} of {n} ground-floor doorways come out open '
+          f'(a man {BODY} yards tall, climbing at most {CLIMB})')
+    assert open_ >= n * 0.9, (
+        f'only {open_} of {n} doorways are open — the buildings are sealed')
+
+
+def packed(mask):
+    """One mask, a bit a cell."""
+    bits = bytearray((len(mask) + 7) // 8)
+    for n, v in enumerate(mask):
         if v:
             bits[n >> 3] |= 1 << (n & 7)
+    return base64.b64encode(bytes(bits)).decode('ascii')
+
+
+def plan_out(plan):
+    """One building's three masks: its outline, its walls and its floor."""
+    cells, w, h, x0, y0, solid, floor = plan
     return [w, h, PLAN_CELL, x0, y0,
-            base64.b64encode(bytes(bits)).decode('ascii')]
+            packed(cells), packed(solid), packed(floor)]
 
 
 def check_rooms(doodads):
@@ -1107,5 +1415,7 @@ if __name__ == '__main__':
     c = Client(root)
     # The forest, not a disc inside it — the same four numbers the synthesised
     # world uses, measured by `pipeline/measure_zone.py`.
-    m = bake(c, (-9966.7, -8000.0, -1700.0, 1066.7), out)
+    acore = os.path.expanduser(sys.argv[3] if len(sys.argv) > 3
+                               else '~/src/azerothcore-wotlk')
+    m = bake(c, (-9966.7, -8000.0, -1700.0, 1066.7), out, acore)
     check(c, m, out)

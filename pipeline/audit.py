@@ -59,6 +59,7 @@ def walk(client):
     """Every placement and every ground layer in the slice, by name."""
     doodads = collections.Counter()
     wmos = collections.Counter()
+    indoors = collections.Counter()
     ground = collections.Counter()
     xs, ys = tiles_over(BOUNDS)
     for tx in xs:
@@ -94,7 +95,18 @@ def walk(client):
                             '<IIfff', data, off + i * 64)
                         if not inside(B.ORIGIN - pz, B.ORIGIN - px):
                             continue
-                        wmos[wnames[nid] if nid < len(wnames) else ''] += 1
+                        name = wnames[nid] if nid < len(wnames) else ''
+                        wmos[name] += 1
+                        # And what stands inside it.  A building carries its
+                        # own doodads and they go through the same classifier,
+                        # so they belong in the same audit — 150 in the abbey
+                        # alone, and unaudited they are exactly the blind spot
+                        # this script exists to close.
+                        if B.classify_wmo(name):
+                            dset, = struct.unpack_from(
+                                '<H', data, off + i * 64 + 58)
+                            for f in B.wmo_furniture(client, name, dset):
+                                indoors[f[6]] += 1
                 elif magic == 'MCNK':
                     for m, o, n in B.subchunks(data, off, size):
                         if m != 'MCLY':
@@ -102,7 +114,7 @@ def walk(client):
                         for i in range(n // 16):
                             tid, = struct.unpack_from('<I', data, o + i * 16)
                             ground[tnames[tid] if tid < len(tnames) else ''] += 1
-    return doodads, wmos, ground
+    return doodads, wmos, indoors, ground
 
 
 def split(names, rules, declared):
@@ -166,12 +178,15 @@ def fields(acore):
 
 def main(client_root, acore):
     client = B.Client(client_root)
-    doodads, wmos, ground = walk(client)
+    doodads, wmos, indoors, ground = walk(client)
     bad = 0
     hit, ok, miss = split(doodads, B.KINDS, B.DOODAD_DEFAULT_OK)
     bad += report('doodad models (MDDF)', hit, ok, miss, 'skip', silent=False)
     hit, ok, miss = split(wmos, B.WMO_KINDS, B.WMO_DEFAULT_OK)
     bad += report('buildings (MODF)', hit, ok, miss, 'house')
+    hit, ok, miss = split(indoors, B.KINDS, B.DOODAD_DEFAULT_OK)
+    bad += report('what stands inside them (MODD)', hit, ok, miss, 'skip',
+                  silent=False)
     hit, ok, miss = split(ground, B.GROUND_KINDS, B.GROUND_DEFAULT_OK)
     bad += report('ground textures (MCLY)', hit, ok, miss, 'grass')
     fields(acore)

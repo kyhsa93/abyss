@@ -64,7 +64,13 @@ type Meta = {
   x0: number; y0: number; centre: [number, number]; bounds: number[]
   variety?: Record<string, number>
   /** `[w, h, cell yards, model x0, y0, base64 bits]` per model. */
-  plans?: Record<string, [number, number, number, number, number, string]>
+  /**
+   * A building from above, three masks over one grid: its outline, the part
+   * of that outline a man cannot be in, and the part he can stand on.
+   * `[w, h, cell yards, model x0, y0, outline, solid, floor]`.
+   */
+  plans?: Record<string, [number, number, number, number, number,
+    string, string, string]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   closed?: [number, number][]
@@ -416,6 +422,15 @@ async function main() {
    * buried the courtyard, the road and the graveyard with it.
    */
   const ROOF_TILE = tilesMeta['roof'] ? 'roof' : WALL_TILE
+  /**
+   * And the floor you stand on once you are inside one.
+   *
+   * Flagstones, which is what the roads are paved with and what the inside of
+   * a building in this world is — the bake works out where a man can stand in
+   * the model's own geometry, and until it did, the abbey's nave was the
+   * grass the terrain happens to have under it.
+   */
+  const FLOOR_TILE = PAVED_TILES[0] ?? WALL_TILE
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
   /**
    * The land a lake touches.
@@ -598,7 +613,11 @@ async function main() {
   }
   const runs = fenceRuns(meta.doodads.filter((d) => d.k === 'fence'))
 
-  type Placed = { x: number; y: number; piece: Piece; s: number; trunk?: Piece }
+  type Placed = {
+    x: number; y: number; piece: Piece; s: number; trunk?: Piece
+    /** Whose roof it is under, if anybody's — worked out once, not per frame. */
+    in?: unknown
+  }
   const placed: Placed[] = []
 
   /**
@@ -1181,6 +1200,12 @@ async function main() {
       const plan = raw ? {
         w: raw[0], h: raw[1], s: raw[2], x0: raw[3], y0: raw[4],
         bits: bytesOf(raw[5]),
+        // The wall and the floor, asked of the same file the outline came
+        // from: a wall is where a man of the client's own height cannot
+        // stand, and the floor is where he can.  Which means the doorways
+        // are not marked anywhere — they simply are not wall, because a man
+        // fits in one.
+        solid: bytesOf(raw[6]), floor: bytesOf(raw[7]),
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -1199,6 +1224,25 @@ async function main() {
         }],
       }
     })
+  type Built = (typeof buildings)[number]
+  type Plan = NonNullable<Built['plan']>
+  /**
+   * Which cell of a building's plan a point on the map falls in, or -1.
+   *
+   * Back out of the map into the model's own space: `to_world` in the bake
+   * turns a local point by `ry + 270` and maps the client's axes on to ours,
+   * and this is that, inverted.
+   */
+  const planCell = (p: Plan, b: Built, wx: number, wy: number) => {
+    const u = wx - b.x, v = -(wy - b.y)
+    const lx = u * p.sn + v * p.c, ly = u * p.c - v * p.sn
+    const i = Math.floor((lx - p.x0) / p.s)
+    const j = Math.floor((ly - p.y0) / p.s)
+    if (i < 0 || i >= p.w || j < 0 || j >= p.h) return -1
+    return i * p.h + j
+  }
+  const bitAt = (bits: Uint8Array, n: number) =>
+    n >= 0 && ((bits[n >> 3]! >> (n & 7)) & 1) === 1
   /** Inside any one of a building's rooms, and which building. */
   const inRoom = (wx: number, wy: number) => {
     for (const b of buildings) {
@@ -1210,16 +1254,7 @@ async function main() {
       // The footprint if the model gave one, and its boxes if it did not.
       const p = b.plan
       if (p) {
-        // Back out of the map into the model's own space.  `to_world` in the
-        // bake turns a local point by `ry + 270` and maps the client's axes on
-        // to ours; this is that, inverted.
-        const u = wx - b.x, v = -(wy - b.y)
-        const lx = u * p.sn + v * p.c, ly = u * p.c - v * p.sn
-        const i = Math.floor((lx - p.x0) / p.s)
-        const j = Math.floor((ly - p.y0) / p.s)
-        if (i < 0 || i >= p.w || j < 0 || j >= p.h) continue
-        const n = i * p.h + j
-        if ((p.bits[n >> 3]! >> (n & 7)) & 1) return b
+        if (bitAt(p.bits, planCell(p, b, wx, wy))) return b
         continue
       }
       for (const r of b.rooms) {
@@ -1243,26 +1278,44 @@ async function main() {
   const inBuilding = (wx: number, wy: number, thick = 1.5) => {
     const here = inRoom(wx, wy)
     if (!here) return null
-    if (!here.plan) {
+    const p = here.plan
+    if (!p) {
       // No footprint, so only the edge of the box is claimed: filling a box is
       // the mistake that buried the middle of Northshire.
       const dx = wx - here.x, dy = wy - here.y
       const al = Math.abs(dx * here.c + dy * here.s)
       const ac = Math.abs(-dx * here.s + dy * here.c)
       return al > here.l - thick || ac > here.w - thick
-        ? { b: here, wall: true } : null
+        ? { b: here, wall: true, floor: false } : null
     }
-    // The outline of the **union** of the rooms: inside one, with open ground
-    // a wall's width away.  Testing each room's own edge draws the partitions
-    // between them too, and a building seen from above is its outside.
+    // The wall is not the outline any more, and it is not guessed from one
+    // either.  The bake asks the building's own triangles where a man of the
+    // client's own height can stand, and what is left over inside the outline
+    // is stone: walls, buttresses, the pillars down the nave.  A doorway is
+    // not marked as anything — a man fits in it, so it is simply not wall,
+    // and the abbey's eight ground-floor doors come out open on their own.
+    const n = planCell(p, here, wx, wy)
+    // A wall thinner than the tile that samples it falls between samples, and
+    // the abbey came out a dotted line of black squares the moment the ground
+    // was allowed to draw coarser than a plan cell.  So a tile asks over the
+    // cells it actually covers — `thick` wide, so `thick/2` either way — and
+    // at the size the plan is cut for, that is the one cell it already read.
     //
-    // Filling the whole thing was the mistake before this one — it buried the
-    // middle of Northshire under a grey slab, courtyard, road and graveyard
-    // together.  A record's box is the extent of a thing, not a statement that
-    // the ground inside it is floor.
-    const open = !inRoom(wx + thick, wy) || !inRoom(wx - thick, wy)
-      || !inRoom(wx, wy + thick) || !inRoom(wx, wy - thick)
-    return { b: here, wall: open }
+    // What it asks them is which there is more of, not whether there is any.
+    // A four-yard tile covers nine cells of an abbey and hits a pillar or a
+    // step in most of them, so "any" painted the whole nave as stone; the
+    // thing a tile that size is standing in for is the mass underneath it.
+    const reach = Math.floor(thick / 2 / p.s)
+    if (!reach) return { b: here, wall: bitAt(p.solid, n), floor: bitAt(p.floor, n) }
+    let stone = 0, room = 0
+    for (let di = -reach; di <= reach; di++)
+      for (let dj = -reach; dj <= reach; dj++) {
+        const m = n + di * p.h + dj
+        if (m < 0 || m >= p.w * p.h) continue
+        if (bitAt(p.solid, m)) stone++
+        else if (bitAt(p.floor, m)) room++
+      }
+    return { b: here, wall: stone > room, floor: room >= stone && room > 0 }
   }
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
   const onSpan = (wx: number, wy: number) => {
@@ -1301,7 +1354,25 @@ async function main() {
    */
   function footing(wx: number, wy: number) {
     return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy))
-      || solidAt(wx, wy) || npcAt(wx, wy, null)
+      || solidAt(wx, wy) || wallAt(wx, wy) || npcAt(wx, wy, null)
+  }
+
+  /**
+   * Somebody's wall.
+   *
+   * Until this there was none: the abbey was a picture of a building and you
+   * walked through the middle of it, and every attempt to put collision on the
+   * record's own box either stopped you three yards short of a wall that lies
+   * diagonally or sealed the doors.  The mask asks the building's own geometry
+   * instead, and a doorway is open because a man fits through it.
+   *
+   * Asked at the plan's own grain rather than the ground's, because this is
+   * where you are and not what is drawn: a wall widened to the size of a
+   * distant tile would stop you a tile away from it.
+   */
+  function wallAt(wx: number, wy: number) {
+    const got = inBuilding(wx, wy, 0)
+    return !!got && got.wall
   }
 
   /**
@@ -1430,6 +1501,38 @@ async function main() {
   const PATCH = 48
   const patchKey = (x: number, y: number) =>
     Math.floor(x / PATCH) * 100000 + Math.floor(y / PATCH)
+  // What is indoors, settled once.  A building's own doodads stand inside it —
+  // the abbey has a hundred and fifty — and drawn without this they stand on
+  // the roof instead: a candle-lit nave laid out across the tiles.
+  for (const o of placed) {
+    const b = inRoom(o.x, o.y)
+    if (b) o.in = b
+  }
+
+  /**
+   * And anybody the walls closed on.
+   *
+   * The same nudge the water gets, for the same reason and with the same
+   * limit: a spawn is the server's and it is a fact, but a wall is ours — a
+   * 1.33 yard mask cut out of the model's triangles — and a monk standing
+   * against the nave wall rounds into it.  Nine of the slice's 1,886 did.  A
+   * yard and a half at a time out to three, which is a rounding error's worth
+   * and not a relocation; past that he stays where the server put him.
+   */
+  let walled = 0
+  for (const n of npcs) {
+    if (!wallAt(n.x, n.y)) continue
+    for (let ring = 1.5; ring <= 3 && wallAt(n.x, n.y); ring += 1.5)
+      for (let a = 0; a < 12; a++) {
+        const t = (a / 12) * Math.PI * 2
+        const px = n.x + Math.cos(t) * ring, py = n.y + Math.sin(t) * ring
+        if (!wallAt(px, py) && !wetAt(px, py)) {
+          n.x = px; n.y = py; n.hx = px; n.hy = py; walled++
+          break
+        }
+      }
+  }
+  if (walled) console.info(`${walled} spawns nudged out of a wall`)
   const buckets = new Map<number, Placed[]>()
   for (const o of placed) {
     const k = patchKey(o.x, o.y)
@@ -2305,7 +2408,7 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ...PAVED_TILES, WALL_TILE, ROOF_TILE,
+      ...PAVED_TILES, WALL_TILE, ROOF_TILE, FLOOR_TILE,
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone']
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
@@ -2578,13 +2681,18 @@ async function main() {
         // for the wall.  In the ground pass because from above a building is
         // mostly a floor with a line around it, and because a plan ninety
         // yards across is not a thing that can be a sprite.
-        const built = span ? null : inBuilding(wx, wy, Math.max(1.5, T))
+        const built = span ? null : inBuilding(wx, wy, T)
         // The roof comes off the building you are standing in.  There are no
         // interiors here and the abbey holds the people who hand out the work,
         // so a roof drawn over them is a roof with a quest giver under it —
         // and the walls are what say where you are anyway.
-        const id = built && built.wall ? WALL_TILE
-          : built && built.b !== under ? ROOF_TILE
+        // From outside, a building is its roof and nothing else: the walls
+        // are what you see once you are in it.  Drawn the other way round the
+        // abbey was a roof with its own walls painted over the top, which
+        // reads as ribs on a tent rather than as a building.
+        const id = built && built.b !== under ? ROOF_TILE
+          : built && built.wall ? WALL_TILE
+          : built && built.floor ? FLOOR_TILE
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
@@ -2731,6 +2839,12 @@ async function main() {
     for (const n of active) {
       const X = screenX(n.x, n.y), Y = screenY(n.x, n.y)
       if (X < -margin || X > canvas.width + margin || Y < -margin || Y > canvas.height + margin) continue
+      // Under somebody else's roof.  The abbey has a dozen people in it and
+      // they were drawn on top of it — a row of monks standing on the tiles,
+      // which reads as a crowd on the roof rather than a crowd indoors.  The
+      // roof is drawn for the same reason: you are not in there.
+      const roof = inRoom(n.x, n.y)
+      if (roof && roof !== under) continue
       actors.push({ x: n.x, y: n.y, draw: () => drawNpc(n) })
     }
     npcsDrawn = actors.length
@@ -2748,7 +2862,7 @@ async function main() {
     for (let bi = bx0; bi <= bx1; bi++) {
       for (let bj = by0; bj <= by1; bj++) {
         const b = buckets.get(bi * 100000 + bj)
-        if (b) for (const o of b) near.push(o)
+        if (b) for (const o of b) if (!o.in || o.in === under) near.push(o)
       }
     }
     near.sort((a, b) => depth(b) - depth(a))
@@ -3088,12 +3202,31 @@ async function main() {
    */
   ;(window as unknown as { __roofAt: (x: number, y: number) => boolean })
     .__roofAt = (x, y) => {
-      const got = inBuilding(x, y)
-      return !!got && !got.wall && got.b !== inRoom(hero.x, hero.y)
+      // At the plan's own grain, like the probe beside it: a floor cell a yard
+      // from a wall is floor, and only the tile that draws it widens the wall
+      // to its own size.
+      const got = inBuilding(x, y, 0)
+      return !!got && got.b !== inRoom(hero.x, hero.y)
     }
   /** Inside a building's footprint, for the check that the plan is the plan. */
   ;(window as unknown as { __inside: (x: number, y: number) => boolean })
     .__inside = (x, y) => !!inRoom(x, y)
+  /**
+   * The three answers a building's plan gives about one spot, for the checks:
+   * is it in the outline at all, is it stone, and can you stand on it.
+   */
+  ;(window as unknown as {
+    __plotAt: (x: number, y: number) => { wall: boolean; floor: boolean } | null
+  }).__plotAt = (x, y) => {
+    const got = inBuilding(x, y, 0)
+    return got ? { wall: got.wall, floor: got.floor } : null
+  }
+  /** Whether a step on to this spot is refused, for the wall check. */
+  ;(window as unknown as { __wallAt: (x: number, y: number) => boolean })
+    .__wallAt = (x, y) => wallAt(x, y)
+  /** How many of the placed pieces stand inside a building. */
+  ;(window as unknown as { __indoors: () => number }).__indoors = () =>
+    placed.filter((o) => o.in).length
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,

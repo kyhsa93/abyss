@@ -253,6 +253,31 @@ seventy yards out, which is what two attempts did. The turn is `ry + 270`, and
 the guard is the measurement that found it: every model's box has to land on
 the box its own placement states, to a median of nought yards.
 
+**A wall is where a man cannot stand, and that is the whole definition.** The
+plan ships three masks over one grid — the outline, the stone, and the floor —
+and only the first is geometric. For the other two the bake asks the building's
+own triangles the question the world asks: is there a surface here, can he
+climb on to it, and is there room over it for a body. The body is `HumanMale.m2`'s
+collision box, 2.03 yards; the climb is `waypoint_data`'s steepest leg, the same
+0.90 the terrain uses for a cliff. Asked that way **the doorways fall out on
+their own** — nothing marks one, a man simply fits through it — and `MOPT`, the
+file's own list of its openings, is what checks it: 62 of the slice's 65
+ground-floor doorways come out open and all eight of the abbey's do. Read the
+other way round, two things break that are worth remembering: a stair riser is
+a vertical face, so "steep means wall" seals the door at the top of the steps;
+and "inside the outline and not floor" paints the abbey a black mass with rooms
+cut in it, because a silhouette is mostly roof. Which storey is the ground one
+also comes from the doorways — a portal's sill is the floor of the room it
+opens on to — and without that the first-floor gallery closes the doors beneath
+it. A plan cell is one ground tile, 1.33 yards, because a mask on a different
+pitch from the floor it is painted on dots at one size and quadruples at the
+next; a coarse tile takes the majority of the cells it covers, not any of them.
+
+A building also carries **what is inside it** — `MODS`/`MODN`/`MODD`, 150 pieces
+in the abbey — and they go through the same `classify` and the same audit as
+everything the terrain places. What stands under a roof is not drawn while you
+are outside it, people included: they were standing on the tiles.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of
@@ -276,6 +301,7 @@ somebody else already filled in:
 |---|---|
 | `tan(50°)` climbing limit, "roughly where a person stops" | the steepest of 3,954 patrol legs in `waypoint_data` — 0.90 |
 | melee reach 3.0, "two bodies and an arm" | `SpellRange.dbc` entry 2 — 5.0 |
+| a wall drawn as the outline of a box | `HumanMale.m2`'s collision box, 2.03 yards, against the building's own triangles |
 | a flat 30 second respawn | `creature.spawntimesecs` |
 | 7 yards of wander for anything that is not a shopkeeper | `creature.wander_distance` and `MovementType` |
 | one walking speed for everything | `creature_template.speed_walk` × 2.5, `speed_run` × 7.0 |

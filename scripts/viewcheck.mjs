@@ -276,11 +276,14 @@ const roof = await p.evaluate(async () => {
   const b = window.__buildings().sort((x, y) => y.l * y.w - x.l * x.w)[0]
   if (!b) return null
   // Find a cell well inside the footprint.
+  // A cell well inside the footprint and standable — the roof is drawn over
+  // the floor, and a wall paints as a wall from either side.
   let at = null
-  for (let a = 0; a < b.l && !at; a += 1) {
+  for (let a = -b.l; a < b.l && !at; a += 1) {
     for (const c of [0, 3, -3, 6, -6]) {
       const x = b.x + b.c * a - b.s * c, y = b.y + b.s * a + b.c * c
-      if (window.__inside(x, y) && window.__inside(x + 3, y)
+      const plot = window.__plotAt(x, y)
+      if (plot && plot.floor && !plot.wall && window.__inside(x + 3, y)
         && window.__inside(x - 3, y) && window.__inside(x, y + 3)
         && window.__inside(x, y - 3)) { at = [x, y]; break }
     }
@@ -301,6 +304,51 @@ if (roof) {
   check('and it comes off the one you walk into', roof.under === false,
     `standing inside, it still drew ${roof.under ? 'roof' : 'ground'}`)
 }
+
+// 9b. A building you can walk into, which is the whole of what a wall is for.
+// The bake decides it out of the model's own triangles — a wall is where a man
+// of the client's own height cannot stand — so the doorways are holes in it
+// without anything having said where a doorway is.
+const walls = await p.evaluate(() => {
+  let wall = 0, floor = 0, open = 0, shut = 0
+  for (const b of window.__buildings()) {
+    const R = Math.max(b.l, b.w) + 2
+    for (let a = -R; a <= R; a += 1)
+      for (let c = -R; c <= R; c += 1) {
+        const x = b.x + b.c * a - b.s * c, y = b.y + b.s * a + b.c * c
+        const plot = window.__plotAt(x, y)
+        if (!plot) continue
+        if (plot.wall) wall++
+        else if (plot.floor) floor++
+      }
+  }
+  // And a wall stops you where the floor beside it does not.
+  for (const b of window.__buildings()) {
+    const R = Math.max(b.l, b.w)
+    for (let a = -R; a <= R; a += 2)
+      for (let c = -R; c <= R; c += 2) {
+        const x = b.x + b.c * a - b.s * c, y = b.y + b.s * a + b.c * c
+        const plot = window.__plotAt(x, y)
+        if (!plot) continue
+        if (plot.wall && window.__wallAt(x, y)) shut++
+        if (plot.floor && !plot.wall && !window.__wallAt(x, y)) open++
+      }
+  }
+  return { wall, floor, open, shut, indoors: window.__indoors() }
+})
+check('a building has walls you cannot pass', walls.shut > 0 && walls.wall > 0,
+  `${walls.wall.toLocaleString()} square yards of stone, ${walls.shut.toLocaleString()} of it refuses a step`)
+check('and a floor you can stand on inside them', walls.floor > 0 && walls.open > 0,
+  `${walls.floor.toLocaleString()} square yards of floor, ${walls.open.toLocaleString()} of it lets you in`)
+check('and what it holds is drawn indoors', walls.indoors > 0,
+  `${walls.indoors.toLocaleString()} pieces stand under somebody's roof`)
+const inwall = await p.evaluate(() => {
+  const all = window.__all()
+  return { n: all.length, stuck: all.filter((x) => window.__wallAt(x.x, x.y)).length,
+    indoors: all.filter((x) => window.__inside(x.x, x.y)).length }
+})
+check('and nobody is standing inside one', inwall.stuck === 0,
+  `${inwall.stuck} of ${inwall.n.toLocaleString()} spawns in a wall, ${inwall.indoors} indoors`)
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
