@@ -52,7 +52,38 @@ const DEADZONE = 0.24
 /** Five, as before.  One action is one slot; the shape is there for the rest. */
 const MAX_SLOTS = 5
 
+/**
+ * How much of each edge the phone itself has taken.
+ *
+ * `env(safe-area-inset-*)` read through a probe element, because CSS can
+ * answer this and script cannot.  Worked out by hand for an iPhone 13 at 390
+ * by 844: the buttons are drawn down to y 818 and their hit circles to 831,
+ * and the home indicator's band starts at 810 — so both thumbs' resting
+ * places sat eight to twenty-one pixels inside it, and the first push upward
+ * from there is a system gesture rather than a step.
+ */
+let inset: { bottom: number; left: number; right: number } | null = null
+function safeArea() {
+  if (inset) return inset
+  inset = { bottom: 0, left: 0, right: 0 }
+  if (typeof document === 'undefined') return inset
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:fixed;visibility:hidden;'
+    + 'bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);'
+    + 'right:env(safe-area-inset-right)'
+  document.body.appendChild(probe)
+  const cs = getComputedStyle(probe)
+  inset = {
+    bottom: parseFloat(cs.bottom) || 0,
+    left: parseFloat(cs.left) || 0,
+    right: parseFloat(cs.right) || 0,
+  }
+  probe.remove()
+  return inset
+}
+
 export function layoutFor(w: number, h: number): Layout {
+  const safe = safeArea()
   const small = Math.min(w, h)
   // Bigger than the old game's, which had five buttons to fit on one screen
   // and a fixed logical canvas to fit them in.  These are real pixels on a
@@ -60,13 +91,13 @@ export function layoutFor(w: number, h: number): Layout {
   // aiming.
   const btnR = clamp(small * 0.075, 26, 40)
   const base = clamp(small * 0.14, 54, 92)
-  const btnX = w - btnR - 18
+  const btnX = w - btnR - 18 - safe.right
   const gap = btnR * 2.25
   const row = gap * 0.87
-  const bottom = h - btnR - 26
+  const bottom = h - btnR - 26 - safe.bottom
   return {
     base, knob: base * 0.42,
-    home: { x: base + 26, y: h - base - 26 },
+    home: { x: base + 26 + safe.left, y: h - base - 26 - safe.bottom },
     btnR, hit: btnR * 1.45,
     // Two offset rows gathered into the corner, the order they are pressed in,
     // so slot one is the corner itself — the easiest place on a phone to
@@ -123,6 +154,9 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
   const onButton = new Map<number, number>()
   const pressed = new Set<number>()
   const queued: number[] = []
+  /** The slot a finger has been resting on long enough to want an answer. */
+  let holding: { slot: number; at: Push; since: number } | null = null
+  let asked: number | null = null
 
   /** Fingers that landed on nothing: one of them steers, two of them pinch. */
   const free = new Map<number, Push>()
@@ -202,6 +236,7 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       // An edge, not a held state: one press fires one action however many
       // frames the finger stays down for.
       if (!pressed.has(slot)) { pressed.add(slot); queued.push(slot) }
+      holding = { slot, at: p, since: performance.now() }
       return
     }
 
@@ -238,6 +273,19 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
 
   /** How far a finger may travel and still be a tap. */
   const TAP_SLOP = 12
+  /**
+   * How long a finger has to stay on a button before it explains itself.
+   *
+   * `body.touch #tip { display: none }` was the right call and half a
+   * decision: a hover tooltip on a screen with no pointer appears *under* the
+   * finger asking for it.  What it left is a phone where the only thing an
+   * ability says about itself is one word on its face, while the desktop
+   * tooltip carries the rage cost, the cooldown, the global cooldown and the
+   * reason it cannot be used right now.
+   *
+   * Half a second, which is the shortest hold that is not a tap.
+   */
+  const HOLD = 500
 
   function up(e: PointerEvent) {
     // A tap is a press and a lift in the same place.  Anything that travelled
@@ -247,6 +295,7 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       if (Math.hypot(p.x - down.at.x, p.y - down.at.y) <= TAP_SLOP) tap = p
       down = null
     }
+    if (holding) { holding = null; asked = null }
     const slot = onButton.get(e.pointerId)
     if (slot !== undefined) {
       onButton.delete(e.pointerId)
@@ -302,6 +351,22 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     view() {
       return { ...where(), held: stick !== null, fingers: free.size, busy }
     },
+
+    /**
+     * Which button a finger is holding down and where, or null.
+     *
+     * Read every frame by the scene, which draws the same text the desktop
+     * tooltip carries — above the finger, because the point of the press is
+     * that the finger is in the way.
+     */
+    held(): { slot: number; at: Push } | null {
+      if (!holding) return null
+      if (performance.now() - holding.since < HOLD) return null
+      asked = holding.slot
+      return { slot: holding.slot, at: holding.at }
+    },
+    /** Whether the last press was long enough to be a question. */
+    get asking() { return asked !== null },
 
     /** Whether autocast is on, which the scene reads every frame. */
     get auto() { return auto },

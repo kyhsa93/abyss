@@ -276,6 +276,57 @@ check('and there is an autocast toggle above them',
   full.autoAt && full.autoAt.y < Math.min(...full.slots.map((s) => s.y)),
   JSON.stringify(full.autoAt))
 
+// 11c. An ability says what it is, and the thumbs stay off the system's band.
+//
+// `body.touch #tip { display: none }` was the right call and half a decision:
+// a hover tooltip on a screen with no pointer appears *under* the finger
+// asking for it.  What it left behind is a phone where the only thing an
+// ability says about itself is one word on its face, while the desktop
+// tooltip carries the rage cost, the cooldown, the global cooldown and the
+// reason it cannot be used right now.  A press and hold asks; the answer goes
+// above the finger.
+{
+  const b1 = full.slots[1]
+  await touch('touchStart', [[b1.x, b1.y]])
+  await p.waitForTimeout(700)
+  const held = await p.evaluate(() => window.__pad().held)
+  check('holding a button asks what it is', held !== null && held.slot === 1,
+    JSON.stringify(held))
+  await touch('touchEnd', [])
+  await p.waitForTimeout(100)
+  check('and letting go stops asking',
+    (await p.evaluate(() => window.__pad().held)) === null)
+}
+
+// 11d. And the thumbs rest where the phone will let them.
+//
+// Worked out by hand first: an iPhone 13 is 390 by 844, the buttons drew down
+// to y 818 and their hit circles to 831, and the home indicator's band starts
+// at 810.  Both thumbs' resting places sat eight to twenty-one pixels inside
+// it, and the first push upward from there is a system gesture and not a
+// step.  There was no `viewport-fit=cover` either, so `env(safe-area-inset-*)`
+// answered nought to anybody who asked.
+{
+  const L3 = await pad()
+  const { height: H3, width: W3 } = p.viewportSize()
+  const safe = await p.evaluate(() => {
+    const d = document.createElement('div')
+    d.style.cssText = 'position:fixed;visibility:hidden;'
+      + 'bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left)'
+    document.body.appendChild(d)
+    const cs = getComputedStyle(d)
+    const out = { bottom: parseFloat(cs.bottom) || 0, left: parseFloat(cs.left) || 0 }
+    d.remove()
+    return out
+  })
+  const low = Math.max(L3.home.y + L3.base,
+    ...L3.slots.map((s) => s.y + L3.hit))
+  check('the thumbs rest above whatever the phone has taken',
+    low <= H3 - safe.bottom + 1,
+    `lowest ${Math.round(low)} of ${H3} with ${safe.bottom} taken`)
+  void W3
+}
+
 // 12. Nothing the interface draws may sit on a thumb, or on anything else.
 //
 // This is the check that was missing.  `#micro`, `#xp` and `#swing` have no

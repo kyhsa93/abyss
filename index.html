@@ -2,7 +2,11 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` so `env(safe-area-inset-*)` reports anything at
+         all: without it the insets are zero and the thumbs rest on the home
+         indicator, where the first push upward is taken by the system. -->
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Abyss</title>
     <meta name="description" content="WoW 클라이언트에서 읽어낸 엘윈 숲을, 우리 것인 그림으로 그린다." />
     <meta name="theme-color" content="#93b6cf" />
@@ -38,7 +42,23 @@
         --shadow: 1px 1px 0 #000;
       }
       html, body { margin: 0; height: 100%; background: #0a0a0f; overflow: hidden; }
-      canvas { display: block; touch-action: none; }
+      /*
+        Pixels stay pixels.
+
+        The world canvas is sized in **CSS pixels** — `canvas.width =
+        floor(innerWidth)` — and that is a decision rather than an oversight:
+        a phone then draws 390 x 844 where a desktop draws 1280 x 800, a third
+        of the work, and a 32-pixel LPC tile stays 32 pixels instead of
+        shrinking to a third of a thumbnail.  The cost is that the browser
+        scales the result up by the device ratio to composite it, and *how* it
+        scales is this line.  Left at the default a phone at dpr 2 or 3 blurs
+        every tile in the game, and a desktop at dpr 1 shows nothing wrong
+        because there is no scaling to do.
+
+        `ctx.imageSmoothingEnabled = false` does not cover this: that governs
+        `drawImage` *inside* the canvas, not the composite outside it.
+      */
+      canvas { display: block; touch-action: none; image-rendering: pixelated; }
       html { overscroll-behavior: none; }
       /*
         The readout is a grid, not padded text: a Korean glyph is two columns

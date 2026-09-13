@@ -4564,6 +4564,8 @@ async function main() {
     if (pad.auto && !chat && !you.died && !you.target) you.target = inSwing()
     for (const slot of pad.taken()) {
       if (chat || you.died) continue
+      // A press that turned into a question is not a press.
+      if (pad.asking) continue
       if (slot === 0) you.target = you.target ?? inSwing()
       else {
         const sp = spells[slot - 1]
@@ -5247,6 +5249,33 @@ async function main() {
       })),
     ])
 
+    // What a held button says.  The same words the desktop tooltip carries,
+    // drawn above the finger — the whole reason the hover version had to go
+    // is that a finger is where the answer would have been.
+    const asked = pad.held()
+    if (asked) {
+      const sq = squares[asked.slot === 0 ? 0 : asked.slot + 1]
+      const lines = (sq?.tip ?? '').split('\n').filter(Boolean)
+      if (lines.length) {
+        ctx.font = `12px ${getComputedStyle(document.documentElement)
+          .getPropertyValue('--body').trim() || 'sans-serif'}`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        const wide = Math.max(...lines.map((t) => ctx.measureText(t).width)) + 20
+        const tall = lines.length * 17 + 12
+        const bx = Math.max(8, Math.min(canvas.width - wide - 8, asked.at.x - wide / 2))
+        const by = Math.max(8, asked.at.y - tall - 40)
+        ctx.fillStyle = 'rgba(10,9,12,.95)'
+        ctx.fillRect(bx, by, wide, tall)
+        ctx.strokeStyle = '#6d5a37'
+        ctx.lineWidth = 1
+        ctx.strokeRect(bx + 0.5, by + 0.5, wide - 1, tall - 1)
+        lines.forEach((t, i) => {
+          ctx.fillStyle = i === 0 ? '#c8aa6e' : '#e8e4d8'
+          ctx.fillText(t, bx + wide / 2, by + 6 + i * 17)
+        })
+      }
+    }
     // The help line and a conversation share the bottom of a phone, and the
     // line is about controls that are not there while somebody is talking.
     help.hidden = pad.on && chat !== null
@@ -5699,7 +5728,11 @@ async function main() {
 
   /** The pad's geometry and state, for the check that drives it with fingers. */
   ;(window as unknown as { __pad: () => unknown }).__pad = () => ({
-    on: pad.on, ...pad.view(), ...layoutFor(canvas.width, canvas.height),
+    on: pad.on, auto: pad.auto,
+    ...pad.view(), ...layoutFor(canvas.width, canvas.height),
+    // After the spread, because `view()` has a `held` of its own — whether a
+    // finger is on the stick — and the two mean different things.
+    held: pad.held(),
   })
 
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */

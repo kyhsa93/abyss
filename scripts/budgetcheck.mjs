@@ -96,6 +96,24 @@ const loaded = [...new Set(opened)].map((rel) => join(dist, rel))
   .filter((f) => { try { statSync(f); return true } catch { return false } })
 const pixels = loaded.reduce((n, f) => n + size(f), 0)
 const all = files.filter((f) => f.endsWith('.png'))
+// The phone's own column, which this budget did not have.
+//
+// Every figure above is a desktop's.  What a phone actually pays is a first
+// visit over cellular — the world, gzipped — and the decoded sheets, on a
+// device whose headroom is nowhere near 64 MB.  The canvas is the one place
+// it is *ahead*: 390 x 844 is a third of 1280 x 800, because the canvas is
+// sized in CSS pixels on purpose.
+//
+// Twenty-four rather than sixty-four, and the number is a ratchet rather than
+// a device limit — nobody here can measure what a given phone will spare, and
+// a bar invented to sound strict is a bar that gets raised the first time it
+// fires.  This one is the three sheets as they stand (17.0 MB) plus room for
+// one more, so what it actually guards is the atlas quietly doubling: a
+// transparent pixel is free in a PNG and full price in memory, and this
+// repository has already been caught by that once.
+check('and the sheets do not creep', pixels * 4 <= 24 * MB,
+  `${(pixels * 4 / MB).toFixed(1)} MB of 24 — a phone's headroom is not `
+  + `a desktop's, and the ratchet is what stops the atlas doubling`)
 check('the sheets fit in memory once decoded', pixels * 4 <= 64 * MB,
   `${((pixels * 4) / MB).toFixed(1)} MB of 64 over the ${loaded.length} the `
   + `scene opens (of ${all.length} shipped, `
