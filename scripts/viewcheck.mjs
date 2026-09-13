@@ -859,6 +859,69 @@ check('Goldshire has no pit in the middle of it',
   pit.dark / pit.of < 0.002,
   `${(100 * pit.dark / pit.of).toFixed(1)}% of the view is the hole colour`)
 
+// 10c. Night is on the screen, and so is rain.
+//
+// `lightAt` has returned `{ ground, tint }` since it was written and the scene
+// read only the first — which is the colour *behind* the world, and the tiles
+// cover the glass, so the dark fell on the one part of the screen nobody can
+// see.  Three in the morning and noon were the same picture to a tenth of a
+// per cent.  The pipeline has a gate against this exact shape — a field read
+// and then dropped — and it happened again on the other side of the wall.
+//
+// So: a check whose passing condition is that two screens **differ**.  There
+// was not one of those anywhere in this repository.
+await p.evaluate(() => window.__cam({ x: -9462, y: 16, zoom: 1 }))
+const meanAt = async (h) => {
+  await p.evaluate((hh) => window.__clock(new Date(2026, 5, 21, hh, 0, 0)), h)
+  await p.waitForTimeout(420)
+  return p.evaluate(() => {
+    const c = document.querySelector('canvas')
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let r = 0, g = 0, b = 0
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2] }
+    return [r, g, b].map((v) => v / (d.length / 4))
+  })
+}
+const dark = await meanAt(3)
+const noon = await meanAt(12)
+const dusk = await meanAt(20)
+const lift = (a, b) => (b[0] + b[1] + b[2] - a[0] - a[1] - a[2]) / 3
+check('noon is brighter than three in the morning', lift(dark, noon) > 20,
+  `${lift(dark, noon).toFixed(0)} levels between them`)
+// And it is an evening rather than a power cut: the blue outlives the red,
+// which is the difference between a dark picture and a black one.
+check('and night is blue rather than black', dark[2] > dark[0] && dark[2] > 60,
+  `rgb(${dark.map((v) => v.toFixed(0)).join(',')})`)
+check('and dusk is between the two',
+  lift(dark, dusk) > 10 && lift(dusk, noon) > 10,
+  `${lift(dark, dusk).toFixed(0)} up from night, ${lift(dusk, noon).toFixed(0)} to noon`)
+
+// Rain is on the glass too.  Forced rather than waited for: Elwynn is wet
+// about a sixth of the time and a check that waits for weather is a check
+// that fails one run in six.
+const wetLook = await p.evaluate(async () => {
+  const shot = () => {
+    const c = document.querySelector('canvas')
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data
+    let n = 0
+    for (let i = 0; i < d.length; i += 4) n += d[i] + d[i + 1] + d[i + 2]
+    return n / (d.length / 4)
+  }
+  window.__clock(new Date(2026, 5, 21, 12, 0, 0))
+  await new Promise((r) => setTimeout(r, 300))
+  const clear = shot()
+  const found = window.__weather?.(3)
+  await new Promise((r) => setTimeout(r, 300))
+  const storm = shot()
+  window.__weather?.(null)
+  return { clear, storm, found }
+})
+check('and a storm is something you can see',
+  wetLook.found && Math.abs(wetLook.storm - wetLook.clear) > 2,
+  `${wetLook.clear.toFixed(1)} clear vs ${wetLook.storm.toFixed(1)} in a storm`)
+await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 12, 0, 0)))
+await p.waitForTimeout(300)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

@@ -22,7 +22,7 @@
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './sim/stats.ts'
 import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
-import { lightAt, skyAt, SKY_WORD } from './sim/sky.ts'
+import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
@@ -2377,6 +2377,8 @@ async function main() {
   let youBleed: { until: number; next: number; each: number } | null = null
   /** A clock the render check can hold still — see `__clock`. */
   let frozen: Date | null = null
+  /** And a sky, for the same reason — see `__weather`. */
+  let forcedSky: number | null = null
 
   /**
    * Rest, which is what makes it matter where you close the tab.
@@ -3804,7 +3806,7 @@ async function main() {
     // land an expression.
     const today = frozen ?? new Date()
     const zoneHere = areaOf(hero.x, hero.y)
-    const sky = skyAt(who?.weather?.[String(zoneHere)]
+    const sky = forcedSky ?? skyAt(who?.weather?.[String(zoneHere)]
       ?? who?.weather?.[String(inside(zoneHere))], today)
     const light = lightAt(today, sky)
     ctx.fillStyle = light.ground
@@ -4142,6 +4144,56 @@ async function main() {
     }
     while (ai < actors.length) actors[ai++]!.draw()
 
+    // --- and the hour of the day, over all of it -------------------------
+    //
+    // `lightAt` has returned `{ ground, tint }` since it was written and
+    // nothing ever read the second one.  `ground` is the colour *behind* the
+    // world, and the tiles cover the glass edge to edge, so what the night
+    // used to darken was the one part of the screen nobody can see: three in
+    // the morning and noon came out pixel for pixel the same picture.  This
+    // repository built a gate in the pipeline — `*_DEFAULT_OK` — against
+    // exactly this shape of failure, a field that is read and then dropped,
+    // and it happened again on the other side of the wall.
+    //
+    // Multiplied rather than laid over, because a translucent grey sheet
+    // makes a bright day look foggy and a dark one look grey.  Multiplying by
+    // a blue keeps the greens green and takes the light out of them, which is
+    // what evening does.  Night is not black: nothing in this game happens
+    // after dark that you would want to be unable to see.
+    if (light.tint < 1) {
+      const k = 1 - light.tint
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.fillStyle = `rgb(${Math.round(255 - 150 * k)},`
+        + `${Math.round(255 - 135 * k)},${Math.round(255 - 60 * k)})`
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.globalCompositeOperation = 'source-over'
+    }
+    // And what is falling through it.  Derived from the same hour the sky is,
+    // so it neither flickers nor touches the stream of chance: the drops are
+    // a lattice sliding down the glass, which is what rain looks like at this
+    // distance and costs one path.
+    if (sky !== CLEAR) {
+      const hard = sky === STORM ? 1 : sky === SNOW ? 0.45 : 0.7
+      const t = clock * (sky === SNOW ? 40 : 900)
+      const gap = sky === SNOW ? 34 : 22
+      ctx.globalAlpha = 0.34 * hard
+      ctx.strokeStyle = sky === SNOW ? '#e8eef5' : '#b9cbdd'
+      ctx.lineWidth = sky === STORM ? 1.6 : 1
+      ctx.beginPath()
+      const lean = sky === SNOW ? 3 : 14
+      const fall = sky === SNOW ? 6 : 20
+      for (let x = -lean; x < canvas.width + gap; x += gap) {
+        for (let y = -fall; y < canvas.height + fall; y += gap * 1.7) {
+          const sx = x + ((t + y * 0.7) % gap)
+          const sy = (y + t) % (canvas.height + fall * 2) - fall
+          ctx.moveTo(sx, sy)
+          ctx.lineTo(sx + lean, sy + fall)
+        }
+      }
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+
     // Damage, floating off whoever took it.  Drawn over the scenery for the
     // same reason the talk prompt is: a number behind a tree is not a number.
     for (let i = marks.length - 1; i >= 0; i--) {
@@ -4309,8 +4361,12 @@ async function main() {
       || areaOf(hero.x, hero.y)
     // And what the sky is doing, because a readout with a clock in it that
     // never mentions the weather is a clock in a room with no windows.
-    const overhead = SKY_WORD[skyAt(who?.weather?.[String(zone)]
-      ?? who?.weather?.[String(inside(zone))], new Date())] ?? ''
+    // The same sky the glass is showing, and not a second sum over a third
+    // clock.  This asked `skyAt` again with `new Date()` while the scene asked
+    // it with `frozen ?? new Date()`, so the word and the weather were two
+    // different answers to one question — the same shape of bug as the bar
+    // drawing one key and the keyboard reading another.
+    const overhead = SKY_WORD[sky] ?? ''
     // The plate under the minimap says where you are.  The coordinates on the
     // end of it are a developer's number and the readout already carries them
     // — `주인공 (x, y)` — and on a phone the plate is 118 pixels wide, which
@@ -4319,7 +4375,11 @@ async function main() {
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
       + `${overhead ? ` · ${overhead}` : ''}`
       + (pad.on ? '' : `  ${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`),
-      new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
+      // The same clock the sky reads.  This was `new Date()` and the sky was
+      // `frozen ?? new Date()`, so the moment a check held the hour still the
+      // two disagreed — and the note in `shotcheck` about fixing the time to
+      // fix the light was only half true.
+      today.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
     // Empty when there is nothing to swing at.  Full meant "ready", which on
     // a gold bar reads as a bar that is full of something.
@@ -4825,6 +4885,15 @@ async function main() {
     frozen = at
   }
   /** What the sky is doing, and what it was doing hour by hour, for the check. */
+  /**
+   * Hold the weather still, the way `__clock` holds the hour.
+   *
+   * Elwynn is wet about a sixth of the time, so a check that waits for rain
+   * is a check that fails five runs in six.  `null` gives it back to the
+   * hour.
+   */
+  ;(window as unknown as { __weather: (s: number | null) => boolean })
+    .__weather = (s) => { forcedSky = s; return true }
   ;(window as unknown as { __sky: () => unknown }).__sky = () => {
     const zone = areaOf(hero.x, hero.y)
     const chances = who?.weather?.[String(zone)]
