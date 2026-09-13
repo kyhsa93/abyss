@@ -652,12 +652,15 @@ async function main() {
    */
   const ROOF_TILE = tilesMeta['roof'] ? 'roof' : WALL_TILE
   /**
-   * And the floor you stand on once you are inside one.
+   * And the floor a mine has, which is the one kind of building drawn out of
+   * the outdoor set.
    *
-   * Flagstones, which is what the roads are paved with and what the inside of
-   * a building in this world is — the bake works out where a man can stand in
-   * the model's own geometry, and until it did, the abbey's nave was the
-   * grass the terrain happens to have under it.
+   * It used to be the floor of *every* building — flagstones, the same picture
+   * the roads are paved with, which is what issue 163 was about.  A building
+   * has its own set now (`in_floor`, `in_floor2`, `in_wall`) and is drawn by
+   * `drawRoom` from the moment you are inside one, so the only thing left
+   * reaching for a road's cobbles indoors is the mine, which is rock either
+   * way.
    */
   const FLOOR_TILE = PAVED_TILES[0] ?? WALL_TILE
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
@@ -4629,6 +4632,14 @@ async function main() {
   })
 
   let fps = 0, frames = 0, acc = 0, drawn = 0, tilesDrawn = 0, npcsDrawn = 0
+  /**
+   * What was painted inside a building's outline this frame, by tile name.
+   *
+   * Counted off the real draw rather than re-derived, because re-deriving the
+   * paint chain is a second copy of it and a second copy drifts.  `__underRoof`
+   * hands it to the check.
+   */
+  const indoorPaint = new Map<string, number>()
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
   let last = performance.now()
@@ -4992,14 +5003,8 @@ async function main() {
 
     const ground = tintedGround()
     const px = ground.px
-    // Which building the player is standing in, asked once a frame.
-    //
-    // `indoors` is the room he has *walked into*, which is a different
-    // question and the one that decides which world is drawn.  A building is
-    // closed from outside now: it is a roof with a door in it, and the inside
-    // is its own scene.
-    const under = indoors
     tilesDrawn = 0
+    indoorPaint.clear()
     edged = 0
     if (indoors) { drawRoom(indoors, ground, px); }
     else for (let ti = xLo; ti <= xHi; ti++) {
@@ -5099,9 +5104,29 @@ async function main() {
         // are what you see once you are in it.  Drawn the other way round the
         // abbey was a roof with its own walls painted over the top, which
         // reads as ribs on a tent rather than as a building.
-        const id = built && built.b !== under ? ROOF_TILE
-          : built && built.wall ? WALL_TILE
-          : built && built.floor ? FLOOR_TILE
+        // A building, from outside, is its roof — **whatever the plan says is
+        // under it**, and that is the whole of it now.
+        //
+        // This used to be three branches: roof if it is not the building you
+        // are standing in, wall where the plan says stone, floor where it says
+        // room.  Two of them were unreachable and one of those unreachabilities
+        // was a bug that is now fixed somewhere else.  `inBuilding` makes
+        // *three* states and not two — `stone === 0 && room === 0` is false
+        // twice — and that third state had no branch, so it fell all the way
+        // down to the outdoor paint: the abbey had brown earth in it and the
+        // inn had grass in the hall.  It is 65% of the outline over all
+        // forty-six plans, 192,671 cells of 295,227, and one building is
+        // 80,746 cells of outline with 253 of floor.
+        //
+        // `327779e` closed the buildings, and a closed building is drawn by
+        // `drawRoom` off its own outline the moment you are inside one.  So
+        // `built.b === under` never reaches this loop, the wall and floor
+        // branches under it are dead, and the third state cannot fall through
+        // any more.  Measured from outside the abbey and outside Goldshire,
+        // what lands under an outline is 2,212 and 525 tiles of `roof` and
+        // nothing else — which `viewcheck` now asserts, because the thing that
+        // keeps this true is a check and not the shape of the expression.
+        const id = built ? ROOF_TILE
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
@@ -5117,6 +5142,14 @@ async function main() {
                       : steep > BARE
                         ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
                         : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+        // What a building's outline got painted with, tallied as it is drawn.
+        //
+        // The check this feeds could not be written any other way without a
+        // second copy of the chain above, and a second copy of a chain is a
+        // chain that drifts.  Counted off the real draw instead: whatever ends
+        // up under an outline this frame, by name.  A building may be drawn in
+        // a roof, a wall and a floor and nothing else.
+        if (built) indoorPaint.set(id, (indoorPaint.get(id) ?? 0) + 1)
         // One straight blit of a square, centred on the tile's own point —
         // which is what `wx, wy` has always meant here.
         // Twenty-one steps over a smooth hillside is a mosaic, and the line
@@ -6246,6 +6279,9 @@ async function main() {
     return got ? { wall: got.wall, floor: got.floor } : null
   }
   /** What the readout says at a spot, for the check that indoors is a place. */
+  /** What a building's outline was painted with, last frame, by tile name. */
+  ;(window as unknown as { __underRoof: () => Record<string, number> })
+    .__underRoof = () => Object.fromEntries(indoorPaint)
   ;(window as unknown as { __whereAt: (x: number, y: number) => string })
     .__whereAt = (x, y) => {
       const got = inBuilding(x, y, 0)

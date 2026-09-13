@@ -1197,6 +1197,39 @@ check('and the widest view takes in the valley',
   1200 / (24 * 0.12) > 400, 'the floor has to show a zone, not a field')
 console.log(`      (${wtiles} tiles, ${wfps} fps at the floor)`)
 
+// 13. A building's outline is painted like a building.
+//
+// `inBuilding` makes three states and the paint chain had branches for two.
+// `stone === 0 && room === 0` is false twice, so the answer fell all the way
+// through to the outdoor paint: **the abbey had brown earth in it and the inn
+// had grass growing in the hall**.  Over all forty-six plans that state is 65%
+// of the outline — 192,671 cells of 295,227 — and one building is 80,746 cells
+// of outline with 253 of floor.
+//
+// Read off what was actually drawn rather than off a second copy of the chain.
+// Seen from *outside*, which is where the tile chain runs: a building you
+// have walked into is drawn by `drawRoom` off its own plan and never touches
+// the outdoor paint at all.
+for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
+  ['goldshire', -9453, 12, 0.9]]) {
+  await p.evaluate(([a, b, z]) => window.__cam({ x: a, y: b, zoom: z }),
+    [x, y, zoom])
+  await p.waitForTimeout(600)
+  const paint = await p.evaluate(() => window.__underRoof())
+  const kinds = Object.keys(paint)
+  const total = Object.values(paint).reduce((a, b) => a + b, 0)
+  check(`the ${name} is painted like a building`,
+    total > 0 && kinds.length > 0 && kinds.length <= 3,
+    `${total} tiles under the outline in ${kinds.length} pictures: ${kinds.join(' ')}`)
+  console.log(`      (${JSON.stringify(paint)})`)
+  // And none of them is ground.  Named rather than counted, because the thing
+  // that went wrong was one specific picture arriving in one specific place.
+  const outdoors = kinds.filter((k) =>
+    /grass|dirt|earth|sand|bloom|water|shore/i.test(k))
+  check(`and no outdoor ground is drawn inside it`, outdoors.length === 0,
+    outdoors.join(' '))
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()
