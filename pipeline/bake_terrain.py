@@ -685,6 +685,91 @@ def area_tree(client, ids):
     return parent, level
 
 
+def zone_kinds(areamask, area_ids, wetmask, doodads, cw, ch,
+               w, h, x0, y0, unit):
+    """What kind of place each area is, out of our own baked world.
+
+    A name has two halves.  The word is ours and always will be — a place name
+    is Blizzard's prose the same as a quest's title — but **which place it is
+    is a fact**, and that half was being guessed off a map.  Ten of the
+    thirty-six came out wrong, and four of them wore a neighbour's name: the
+    abbey's own id is 24 and the hillside it stands on was called "the abbey",
+    the quarry's own id is 54 and a lake was called "the quarry".
+
+    The giveaway was in the water mask all along.  The three wettest places in
+    Elwynn were called a logging camp, a quarry and an abbey.  So the kind
+    comes from the world we baked — how much of it is water, what stands in
+    it, how big it is — and `src/talk.ts` states the kind it believes each of
+    its words describes.  Where the two disagree the bake says so, which is
+    the step that used to be a person squinting at a map.
+
+    The words are deliberately coarse.  This can tell a lake from a farm; it
+    cannot tell one farm from the farm next to it, and it does not pretend to.
+    """
+    kinds = {}
+    tally = {}
+    for i in range(cw):
+        for j in range(ch):
+            v = areamask[i * ch + j]
+            if v == 255 or v >= len(area_ids):
+                continue
+            a = area_ids[v]
+            d = tally.setdefault(a, {'n': 0, 'wet': 0, 'k': {}})
+            d['n'] += 1
+            # The middle of this 33-yard chunk, on the height grid the water
+            # mask is stored at.
+            wx = x0 - (i + 0.5) * unit * 8
+            wy = y0 - (j + 0.5) * unit * 8
+            i2 = int(round((x0 - wx) / unit))
+            j2 = int(round((y0 - wy) / unit))
+            if 0 <= i2 < w and 0 <= j2 < h and wetmask[i2 * h + j2]:
+                d['wet'] += 1
+    for dd in doodads:
+        i = int((x0 - dd[1]) // (unit * 8))
+        j = int((y0 - dd[2]) // (unit * 8))
+        if not (0 <= i < cw and 0 <= j < ch):
+            continue
+        v = areamask[i * ch + j]
+        if v == 255 or v >= len(area_ids):
+            continue
+        k = tally.setdefault(area_ids[v], {'n': 0, 'wet': 0, 'k': {}})['k']
+        k[dd[0]] = k.get(dd[0], 0) + 1
+
+    for a, d in tally.items():
+        if not d['n']:
+            continue
+        wet = d['wet'] / d['n']
+        # Per thousand chunks, not per place.  Counted outright, Elwynn itself
+        # came out a town — it is nineteen hundred chunks and three houses
+        # anywhere in it are three houses.  A density is the only form of this
+        # question that means the same thing at both ends of a slice whose
+        # places run from two chunks to seventeen hundred.
+        d3 = 1000.0 / d['n']
+        k = d['k']
+        got = lambda *w: sum(k.get(x, 0) for x in w) * d3
+        # In order, and the first line is the one that was missing.  A fifth
+        # of a place being water is not a detail of it, it is what it is —
+        # and the three wettest places in this forest were called a logging
+        # camp, a quarry and an abbey.
+        if wet >= 0.20:
+            kinds[a] = 'water'
+        elif got('grave', 'bones') >= 400:
+            kinds[a] = 'graves'
+        elif got('hay', 'crop') >= 150:
+            kinds[a] = 'farm'
+        elif got('hall', 'house') >= 35:
+            kinds[a] = 'town'
+        elif got('rock', 'deadtree') >= 800:
+            kinds[a] = 'rock'
+        elif got('barrel', 'prop', 'lamp', 'post', 'cart') >= 1500:
+            kinds[a] = 'camp'
+        elif got('tree', 'bush') >= 700:
+            kinds[a] = 'wood'
+        else:
+            kinds[a] = 'open'
+    return {str(a): kinds[a] for a in sorted(kinds) if a in area_ids}
+
+
 # Where the ground opens into something.  A mine, a den, a burrow: all three
 # are already in `WMO_KINDS` as "there is no picture here for a hole in a
 # hillside", and the *hole itself* is in the terrain — so their positions are
@@ -1399,6 +1484,14 @@ def bake(client, bounds, out, acore=None):
     # parent to fall back on when nobody has given it a word.
     area_parent, area_level = area_tree(client, area_ids + sorted(indoor_ids))
 
+    # The same arithmetic `areaOf` in `src/main.ts` uses, and for the same
+    # reason: an index worked out two ways is an index that disagrees with
+    # itself, which is how the first run of this came back with every place in
+    # the slice classed as empty ground.
+    area_kind = zone_kinds(areamask, area_ids, wetmask, doodads,
+                           cw, ch, w, h, ORIGIN - i_lo * UNIT,
+                           ORIGIN - j_lo * UNIT, UNIT)
+
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
     os.makedirs(out, exist_ok=True)
@@ -1439,6 +1532,10 @@ def bake(client, bounds, out, acore=None):
         # rest say whose ground they are on and show their id, rather than
         # quietly coming out as the forest.
         'areaParent': {str(k): v for k, v in area_parent.items()},
+        # What kind of place each of them is, derived rather than guessed.
+        # See `zone_kinds`: this is the half of a name that is a fact, and
+        # `src/talk.ts` carries the other half, which is a word of ours.
+        'areaKind': area_kind,
         'areaLevel': {str(k): v for k, v in area_level.items() if v},
         # The footprints, one per model rather than one per placement:
         # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.

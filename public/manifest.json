@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-13T09:05:45Z",
+  "baked": "2026-09-13T12:29:58Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -49,6 +49,6 @@
     "public/world/terrain.json": "221076833dd4b254",
     "public/data/objects.json": "1c179c3082d2191a",
     "public/data/terrain.bin": "8b45289107f40d80",
-    "public/data/terrain.json": "a046a598a562283e"
+    "public/data/terrain.json": "df18300c0fa0a4b4"
   }
 }

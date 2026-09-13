@@ -444,47 +444,83 @@ export function bearing(dx: number, dy: number): string {
  * keeps finding, in the one place a player can actually see it.  `zoneOf`
  * says whose ground it is and shows the id instead.
  */
-const ZONE: Record<number, string> = {
-  9: '노스샤이어 계곡',
-  59: '노스샤이어 포도밭',
-  86: '노스샤이어 수도원',
-  34: '노스샤이어 강',
-  12: '엘윈 숲',
-  87: '골드샤이어',
-  18: '이스트베일 벌목장',
-  54: '광부의 언덕',
-  62: '제리프의 농장',
-  63: '스톤필드 농장',
-  64: '브래크웰 채석장',
-  92: '파고데프 채석장',
-  61: '삼거리',
-  1519: '스톰윈드',
-  46: '불타는 평원',
-  40: '웨스트폴',
-  44: '레드리지 산맥',
-  10: '어둠의 숲',
-  // Named from what stands in them — see above.
-  2: '난파선 해안',           // a wrecked hull on Westfall's sand
-  56: '도적 숙영지',          // fourteen bandits and not one building
-  57: '코볼트 광산',          // a gold mine, forty-eight kobolds
-  60: '다리목 초소',          // the wide bridge and a guard tower
-  88: '벌목장 마을',          // a mill, three farms, a stable, twenty-one people
-  89: '성 밖 농장',           // one farm against the city wall
-  91: '마법사의 탑',          // a mage tower, alone on its hill
-  120: '서부 주둔지',         // a barracks and fourteen guards
-  253: '오크 주둔지',         // a troll burrow and an orc tower
-  797: '무법자 선착장',       // a dock, a farm, twelve bandits
-  798: '숲길 초소',           // a guard tower beside an animal den
-  799: '어둠의 숲 농가',      // a barn and a silo on Duskwood's edge
-  916: '웨스트폴 농가',       // a farmhouse on the western road
-  1002: '사자 다리',          // the stone crossing into Redridge
-  1617: '성벽 앞',            // Stormwind's wall and its gate
-  2421: '검은바위 산',        // the mountain itself
-  4411: '스톰윈드 항구',      // three dock sections, two ships, two towers
+/**
+ * A place, and the kind of place it claims to be.
+ *
+ * The word is ours and always will be.  **Which place it is, is a fact**, and
+ * that half was being guessed off a map: ten of the thirty-six came out
+ * wrong, and four of them were wearing a neighbour's name — the hillside the
+ * abbey stands on was called "the abbey" while the abbey's own id is 24, and
+ * a lake was called "the quarry" while the quarry's own id is 54.  Names had
+ * slid sideways onto the places next door.
+ *
+ * The giveaway was in our own water mask the whole time.  The three wettest
+ * places in Elwynn were called a logging camp, a quarry and an abbey.
+ *
+ * So each word now states the kind of place it believes it is describing, and
+ * `zone_kinds` in `pipeline/bake_terrain.py` derives that kind from the world
+ * we baked — how much of it is water, what stands in it, at what density.
+ * `bordercheck` puts the two side by side.  Where the ground cannot see what
+ * makes a place what it is — a mine is underground, a bandit camp is fourteen
+ * bandits and no buildings — the claim names the people instead, and the
+ * check counts them in `npcs.json`.  Nothing here is a guess any more; it is
+ * a claim with somewhere to check it.
+ */
+const ZONE: Record<number, [string, string]> = {
+  // Named, and the kind holds.
+  9: ['노스샤이어 계곡', 'wood'],
+  12: ['엘윈 숲', 'wood'],
+  62: ['제리프의 농장', 'farm'],
+  63: ['스톤필드 농장', 'farm'],
+  87: ['골드샤이어', 'town'],
+  88: ['벌목장 마을', 'town'],
+  916: ['웨스트폴 농가', 'farm'],
+  4411: ['스톰윈드 항구', 'town'],
+  120: ['서부 주둔지', 'camp'],
+  61: ['삼거리', 'wood'],
+  54: ['광부의 언덕', 'wood'],
+  2421: ['검은바위 산', 'open'],
+  // Named for who lives there, because the ground cannot see it.  A mine is a
+  // hole under the hill and a camp is people with no buildings, so the claim
+  // is the people and the check counts them.
+  56: ['도적 숙영지', 'wood:bandit'],
+  57: ['코볼트 광산', 'wood:kobold'],
+  60: ['다리목 초소', 'wood:guard'],
+  798: ['숲길 초소', 'wood:guard'],
+  797: ['무법자 숲', 'wood:bandit'],
+  // The zones in their own right, which reach into this box and are not
+  // places inside it.  Their names are not a guess about a corner of a
+  // forest; a sliver of Westfall is still Westfall, and what the box catches
+  // of it is beach.
+  40: ['웨스트폴', '*'],
+  46: ['불타는 평원', '*'],
+  10: ['어둠의 숲', '*'],
+  1519: ['스톰윈드', '*'],
+  // And the ones the derivation contradicted.  Our words, from the kind the
+  // world says they are and where they sit: this is the step that used to be
+  // a person squinting at a map.
+  18: ['서쪽 호수', 'water'],          // 25% water, called a logging camp
+  92: ['남쪽 호수', 'water'],          // 29% water, called a quarry
+  1617: ['성 앞 물길', 'water'],       // 28% water, called a wall
+  799: ['바위 여울', 'water'],         // 33% water and the rockiest ground here
+  86: ['동쪽 언덕', 'town'],           // the hill the abbey stands on; 24 is the abbey itself
+  64: ['서쪽 밭', 'farm'],             // hay and fences, called a quarry
+  89: ['성 밖 마을', 'town'],          // houses, called a farm
+  91: ['뼈 무덤가', 'graves'],         // bones outnumber everything, called a tower
+  34: ['북쪽 등성이', 'wood'],         // no water at all, called a river
+  59: ['노스샤이어 남쪽 숲', 'wood'],  // no crop, no fence, called a vineyard
+  2: ['서쪽 모래밭', 'open'],          // nothing stands on it, called a wreck
+  1002: ['남쪽 어귀', 'open'],         // six chunks, nothing in them, called a bridge
+  253: ['평원 어귀', 'open'],          // two chunks, called a barracks
   // Indoors, which the client keeps a separate table for: the hillside the
-  // abbey stands on is 86 and its nave is 24.
-  24: '수도원 안',
+  // abbey stands on is 86 and its nave is 24.  No kind — the derivation reads
+  // the terrain grid and there is no terrain in a nave.
+  24: ['수도원 안', '*'],
 }
+
+/** What each word claims the place is, for the check that it is true. */
+export const ZONE_CLAIMS: Record<number, string> =
+  Object.fromEntries(Object.entries(ZONE).map(([k, v]) => [k, v[1]]))
 
 /**
  * The word for an area, and what to say when there is not one.
@@ -498,10 +534,10 @@ const ZONE: Record<number, string> = {
  */
 export function zoneOf(area: number, inside = 0): string {
   const mine = ZONE[area]
-  if (mine) return mine
+  if (mine) return mine[0]
   if (!area) return '엘윈 숲'
   const over = ZONE[inside]
-  return over ? `${over} · 지역 ${area}` : `지역 ${area}`
+  return over ? `${over[0]} · 지역 ${area}` : `지역 ${area}`
 }
 
 /**
