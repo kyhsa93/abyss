@@ -85,11 +85,13 @@ function safeArea() {
 export function layoutFor(w: number, h: number): Layout {
   const safe = safeArea()
   const small = Math.min(w, h)
-  // Bigger than the old game's, which had five buttons to fit on one screen
-  // and a fixed logical canvas to fit them in.  These are real pixels on a
-  // real phone, and 58 across is about the smallest thing a thumb hits without
-  // aiming.
-  const btnR = clamp(small * 0.075, 26, 40)
+  // Half of what it was, by the owner's decision.  The cluster drawn at 58
+  // across took the bottom-right quarter of a phone, and what is under that
+  // corner is the thing you are fighting.  Everything about a button is a
+  // multiple of this one number — the hit circle, the gap between slots, the
+  // row offset, the autocast toggle — so halving it halves the cluster
+  // whole rather than leaving five small discs spread over the old area.
+  const btnR = clamp(small * 0.0375, 13, 20)
   const base = clamp(small * 0.14, 54, 92)
   const btnX = w - btnR - 18 - safe.right
   const gap = btnR * 2.25
@@ -434,13 +436,32 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
           ctx.restore()
         }
         ctx.fillStyle = s.ready ? '#e8e4d8' : 'rgba(232,228,216,.35)'
-        ctx.font = `bold ${Math.round(l.btnR * 0.4)}px ${face}`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(s.label, b.x, b.y + 1)
+        fit(ctx, s.label, b.x, b.y + 1, l.btnR * 1.7, l.btnR * 0.4, face)
       }
     },
   }
+}
+
+/**
+ * A label drawn no wider than the thing it is written on.
+ *
+ * The buttons were halved and the labels were not, because a font size taken
+ * off the radius shrinks the glyphs and not the word: `정신 집중` is four
+ * Hangul syllables and a space, and at a fifteen-pixel ring it hung a full
+ * ring's width out of either side of its own button.  Measuring is the only
+ * way to know — a Hangul syllable is twice the advance of a Latin letter in
+ * the same face, so a character count would fit the wrong words.
+ */
+function fit(ctx: CanvasRenderingContext2D, text: string, x: number, y: number,
+  room: number, size: number, face: string) {
+  let px = Math.round(size)
+  for (; px > 6; px--) {
+    ctx.font = `bold ${px}px ${face}`
+    if (ctx.measureText(text).width <= room) break
+  }
+  ctx.fillText(text, x, y)
 }
 
 function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number,
