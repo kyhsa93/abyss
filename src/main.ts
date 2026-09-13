@@ -1941,6 +1941,20 @@ async function main() {
   const shutOut = (wx: number, wy: number) => {
     const b = inRoom(wx, wy)
     if (!b) return wallAt(wx, wy)
+    // Open to the sky is not inside.
+    //
+    // A plan's outline is a silhouette, so "inside the outline" and "inside
+    // the building" are not the same thing — a courtyard is in the first and
+    // not the second, and the abbey has one.  Shutting the whole silhouette
+    // shut the yard as well, which is why 21 of the slice's buildings had no
+    // door anybody could reach: the doorstep was an island in a block of
+    // stone the size of the grounds.
+    //
+    // What stops you on an open cell is whatever actually stands there, which
+    // is the stone and nothing else.
+    const p = b.plan
+    if (p && p.over.length
+      && !bitAt(p.over, planCell(p, b, wx, wy))) return wallAt(wx, wy)
     return !atDoor(b, wx, wy)
   }
 
@@ -6385,13 +6399,29 @@ async function main() {
   /** Whether a step on to this spot is refused, for the wall check. */
   ;(window as unknown as { __wallAt: (x: number, y: number) => boolean })
     .__wallAt = (x, y) => wallAt(x, y)
+  /** And whether a building shuts it, which is a wider question than a wall. */
+  ;(window as unknown as { __shutOut: (x: number, y: number) => boolean })
+    .__shutOut = (x, y) => shutOut(x, y)
+  /** The slice's own box, so a check can flood it without typing it out. */
+  ;(window as unknown as { __bounds: () => number[] }).__bounds = () =>
+    [...meta.bounds]
+  /**
+   * And where a character starts, which is not the same as where the hero is.
+   *
+   * A check that has driven the camera about has moved him, and a flood that
+   * begins wherever it left him answers a different question every run — which
+   * is how the walkable-world check came out 7 of 7 one minute and 6 of 7 the
+   * next.
+   */
+  ;(window as unknown as { __start: () => { x: number; y: number } })
+    .__start = () => ({ x: START[0], y: START[1] })
   /** How many of the placed pieces stand inside a building. */
   ;(window as unknown as { __indoors: () => number }).__indoors = () =>
     placed.filter((o) => o.in).length
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
-      c: b.c, s: b.s, area: b.area }))
+      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house }))
   /**
    * Who the player is right now and what a thousand swings come out as.
    *

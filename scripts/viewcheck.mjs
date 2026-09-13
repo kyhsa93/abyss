@@ -1262,6 +1262,89 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     JSON.stringify(seen))
 }
 
+// 15. You can walk to the doors, and to the other end of the valley.
+//
+// `327779e` closed the buildings and took **86% of the walkable world** with
+// it: two abbey gatehouses, 160 yards apiece and no portal in either, stood
+// across the only way out of Northshire, and nothing noticed because no check
+// asked how much world there was.  This is that check.
+//
+// One flood from where a character starts, four yards a step, bounded by the
+// slice.  What it answers is three questions at once: how much of the world a
+// player can reach, whether the two places that matter are two of them, and
+// which of the baked doors anybody can walk to.
+{
+  const world = await p.evaluate(() => {
+    const S = 4
+    const B = window.__bounds()
+    const doors = window.__buildings().filter((b) => b.k !== 'mine')
+      .flatMap((b) => (b.doors ?? []).map((d) => ({ b, d })))
+    const seen = new Set()
+    const key = (x, y) => `${Math.round(x / S)},${Math.round(y / S)}`
+    const from = window.__start()
+    const stack = [[from.x, from.y]]
+    seen.add(key(from.x, from.y))
+    const got = new Set()
+    while (stack.length) {
+      const [x, y] = stack.pop()
+      for (let i = 0; i < doors.length; i++) {
+        const [dx, dy] = doors[i].d
+        if (Math.hypot(x - dx, y - dy) < 2.4) got.add(i)
+      }
+      for (const [ax, ay] of [[S, 0], [-S, 0], [0, S], [0, -S]]) {
+        const px = x + ax, py = y + ay
+        if (px < B[0] || px > B[1] || py < B[2] || py > B[3]) continue
+        const k = key(px, py)
+        if (seen.has(k)) continue
+        seen.add(k)
+        if (window.__wallAt(px, py)) continue
+        stack.push([px, py])
+      }
+    }
+    // A door on the building's outer edge is one you are meant to walk to.
+    // One with the silhouette all round it is an inner door or an upper
+    // storey's, and "walk to it from outside" is the wrong question for it.
+    const outer = (dx, dy) => {
+      for (let a = 0; a < 16; a++) {
+        const t = (a / 16) * Math.PI * 2
+        let clear = true
+        for (let r = 1; r <= 8; r += 1) {
+          if (window.__plotAt(dx + Math.cos(t) * r, dy + Math.sin(t) * r)) {
+            clear = false; break
+          }
+        }
+        if (clear) return true
+      }
+      return false
+    }
+    let outerAll = 0, outerGot = 0
+    doors.forEach((q, i) => {
+      if (!outer(q.d[0], q.d[1])) return
+      outerAll++
+      if (got.has(i)) outerGot++
+    })
+    return {
+      cells: seen.size, doors: doors.length, reached: got.size,
+      outerAll, outerGot,
+      goldshire: seen.has(key(-9461.6, 16.19)),
+      abbey: seen.has(key(-8930, -200)),
+    }
+  })
+  // The floor is the measurement with room under it, not the measurement.  A
+  // bake that shuffles a wall by a yard moves this by a few hundred cells; a
+  // bake that walls off a valley moves it by a quarter of a million.
+  check('the walkable world is still a world', world.cells > 300000,
+    `${world.cells.toLocaleString()} cells of four yards from the start`)
+  check('and Goldshire is in it', world.goldshire)
+  check('and so is the abbey', world.abbey)
+  check('every door on a building\'s outside can be walked to',
+    world.outerAll > 0 && world.outerGot === world.outerAll,
+    `${world.outerGot} of ${world.outerAll} outer doors, `
+    + `${world.reached} of ${world.doors} in all`)
+  console.log(`      (${world.cells.toLocaleString()} cells, `
+    + `${world.reached}/${world.doors} doors)`)
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

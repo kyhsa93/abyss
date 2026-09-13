@@ -1936,6 +1936,46 @@ def check_plans():
     assert opened and roofed, (
         'the ceiling mask is all one value, so it separates nothing')
 
+    # And a wall is a line, not a scatter of dots.
+    #
+    # `steepness` calls anything past `CLIMB` a wall, so a bench's side panel,
+    # an altar step, a stair riser and a table leg are all stone — and a
+    # 1.33-yard black square reads on screen as a hole rather than as a wall.
+    # The thing that tells them apart is in `walls` already: a wall runs from
+    # the floor to the ceiling and a bench is half a yard, which is what the
+    # head-clearance test asks.  This is the measurement that says whether it
+    # is working, in the shape the issue that found it asked for.
+    lumps, dots = 0, 0
+    for plan in PLANS_BY_KEY.values():
+        if not plan:
+            continue
+        _cells, w, h, _x0, _y0, solid, _floor, _over = plan
+        seen = bytearray(w * h)
+        for start in range(w * h):
+            if not solid[start] or seen[start]:
+                continue
+            stack, size = [start], 0
+            seen[start] = 1
+            while stack:
+                n = stack.pop()
+                size += 1
+                i, j = divmod(n, h)
+                for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    a, b = i + di, j + dj
+                    if 0 <= a < w and 0 <= b < h:
+                        m = a * h + b
+                        if solid[m] and not seen[m]:
+                            seen[m] = 1
+                            stack.append(m)
+            lumps += size
+            if size <= 4:
+                dots += size
+    share = dots / lumps if lumps else 0
+    print(f'check: {lumps:,} cells of stone, {dots:,} of them in lumps of '
+          f'four or fewer ({share:.1%}) — a wall is a line and not a scatter')
+    assert share < 0.20, (
+        'stone is %.0f%% specks, which is furniture drawn as wall' % (share * 100))
+
 
 def check_rooms(doodads):
     """A model's own box has to land on the box the placement states for it.
