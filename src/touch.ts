@@ -126,7 +126,36 @@ function hasTouch(): boolean {
 }
 
 /** What one slot looks like this frame. */
-export type Slot = { label: string; ready: boolean; cooling?: number }
+export type Slot = { label: string; ready: boolean; cooling?: number
+  /**
+   * The picture on its face, as a path under `public/art/ui/`.
+   *
+   * The word is what a square had when a square was 58 pixels across.  Halved,
+   * `정신 집중` fits inside a 29-pixel disc only at a six-pixel font, which is
+   * a word nobody can read pretending to be a label — and there is a picture
+   * for every ability now (issue 155).  So the face is the picture, the word
+   * is what a press and hold answers with, and `padcheck` was already testing
+   * that press.
+   */
+  icon?: string }
+
+/**
+ * The icons, decoded once and kept.
+ *
+ * An `<img>` a frame is a fetch a frame; drawn from a cache it is a blit.  A
+ * miss draws nothing rather than throwing, which is the same bargain the tile
+ * atlas makes: a button with no picture is a button, and a button that stops
+ * the frame is not.
+ */
+const faces = new Map<string, HTMLImageElement>()
+function faceOf(path: string): HTMLImageElement | null {
+  const got = faces.get(path)
+  if (got) return got.complete && got.naturalWidth ? got : null
+  const img = new Image()
+  img.src = `./art/ui/${path}`
+  faces.set(path, img)
+  return null
+}
 
 export function touchpad(canvas: HTMLCanvasElement, count: number) {
   const slots = Math.min(count, MAX_SLOTS)
@@ -435,10 +464,19 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
           ctx.fillRect(b.x - l.btnR, b.y - l.btnR, l.btnR * 2, up)
           ctx.restore()
         }
-        ctx.fillStyle = s.ready ? '#e8e4d8' : 'rgba(232,228,216,.35)'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        fit(ctx, s.label, b.x, b.y + 1, l.btnR * 1.7, l.btnR * 0.4, face)
+        // The picture, or the word if there is none.  See `Slot.icon`.
+        const pic = s.icon ? faceOf(s.icon) : null
+        if (pic) {
+          const wide = l.btnR * 1.15
+          ctx.globalAlpha = s.ready ? 1 : 0.4
+          ctx.drawImage(pic, b.x - wide / 2, b.y - wide / 2, wide, wide)
+          ctx.globalAlpha = 1
+        } else {
+          ctx.fillStyle = s.ready ? '#e8e4d8' : 'rgba(232,228,216,.35)'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          fit(ctx, s.label, b.x, b.y + 1, l.btnR * 1.7, l.btnR * 0.4, face)
+        }
       }
     },
   }

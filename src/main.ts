@@ -5969,9 +5969,11 @@ async function main() {
 
     // The pad last of all, over everything including the prompt.
     pad.draw(ctx, [
-      { label: '공격', ready: you.target !== null || inSwing() !== null },
+      { label: '공격', icon: art.chrome['attack'],
+        ready: you.target !== null || inSwing() !== null },
       ...spells.slice(0, PHONE_SLOTS - 1).map((sp) => ({
-        label: abilityOf(sp.id)?.[0] ?? '', ready: why(sp) === null,
+        label: abilityOf(sp.id)?.[0] ?? '', icon: iconOf(sp.id),
+        ready: why(sp) === null,
         // The shutter the desktop bar has, for whichever wait is longer.
         cooling: Math.max(
           sp.cool ? Math.max(0, ((you.cools[sp.id] ?? 0) - clock) / (sp.cool / 1000)) : 0,
