@@ -120,6 +120,80 @@ def known(base, upto):
     return out, free
 
 
+# The effect numbers that name another spell, so the closure knows to follow
+# them.  `TRIGGER_SPELL` and its two friends put a spell id in the effect's
+# own trigger field; an aura of `PERIODIC_TRIGGER_SPELL` does the same.
+F_TRIGGER = 110
+E_TRIGGER_SPELL, E_TRIGGER_MISSILE, E_PERSISTENT_AREA = 64, 32, 27
+A_PERIODIC_TRIGGER = 23
+
+
+def closure(start, spells, acore, depth=4):
+    """Everything reachable from a set of spells, and what the limit cut off.
+
+    The wiki's procedure, five widenings: an effect that triggers a spell names
+    one, an aura that triggers a spell names one, `spell_linked_spell` names
+    one, `spell_ranks` names the rest of a chain.  Summons are not followed —
+    that needs the creature table and lands in `spawn_npcs.py`'s half.
+
+    Returns `(reached, cut)`, and `cut` is the point: a reference the depth
+    limit stopped at is a reference this world does not have, and the one
+    thing worse than not having it is not knowing.
+    """
+    base = os.path.join(acore, 'data/sql/base/db_world')
+    linked, ranks = {}, {}
+    from spawn_npcs import columns as cols, rows as lines, split as cut_
+    path = os.path.join(base, 'spell_linked_spell.sql')
+    if os.path.exists(path):
+        col = cols(path)
+        for line in lines(path):
+            f = cut_(line)
+            try:
+                a, b = int(f[col['spell_trigger']]), int(f[col['spell_effect']])
+            except (ValueError, KeyError, IndexError):
+                continue
+            linked.setdefault(abs(a), set()).add(abs(b))
+    path = os.path.join(base, 'spell_ranks.sql')
+    if os.path.exists(path):
+        col = cols(path)
+        chain = {}
+        for line in lines(path):
+            f = cut_(line)
+            try:
+                first, sid = int(f[col['first_spell_id']]), int(f[col['spell_id']])
+            except (ValueError, KeyError, IndexError):
+                continue
+            chain.setdefault(first, set()).add(sid)
+        for first, all_ in chain.items():
+            for sid in all_:
+                ranks[sid] = all_
+
+    reached, edge, cut = set(start), set(start), {}
+    for step in range(depth):
+        nxt = set()
+        for sid in edge:
+            r = spells.get(sid)
+            if r is None:
+                continue
+            want = set(linked.get(sid, ())) | set(ranks.get(sid, ()))
+            for i in range(3):
+                if r[F_EFFECT + i] in (E_TRIGGER_SPELL, E_TRIGGER_MISSILE,
+                                       E_PERSISTENT_AREA):
+                    want.add(r[F_TRIGGER + i])
+                if r[F_AURA + i] == A_PERIODIC_TRIGGER:
+                    want.add(r[F_TRIGGER + i])
+            nxt |= {w for w in want if w and w not in reached}
+        if step == depth - 1 and nxt:
+            for w in nxt:
+                cut[w] = cut.get(w, 0) + 1
+            break
+        reached |= nxt
+        edge = nxt
+        if not edge:
+            break
+    return reached, cut
+
+
 def main(client_root, acore, out, upto=None):
     c = Client(client_root)
     import bake_terrain
@@ -248,6 +322,19 @@ def main(client_root, acore, out, upto=None):
                 if eff not in (2, 6, 3, 58):
                     unrun[eff] = unrun.get(eff, 0) + 1
 
+    # And the closure.  The wiki writes the procedure down and this script did
+    # the first half of the first step: it took a starting set and filtered it.
+    # Nothing was ever *expanded*, so "thirteen abilities" was a number that
+    # had been filtered rather than counted.
+    #
+    # Expanded now, with a depth limit, and **what the limit cut off is
+    # reported rather than dropped** — a closure that quietly stops is a
+    # closure that lies about being closed.
+    reached, stopped = closure(
+        {r['id'] for r in out_rows}
+        | {sp['id'] for v in foes.values() for sp in v},
+        spells, acore, depth=4)
+
     # How much attention each ability buys, out of `spell_threat` — a flat
     # amount, a multiplier, and a share of attack power.  106 rows, of which
     # the warrior's first ten levels use a handful: a heavier blow is worth
@@ -281,6 +368,9 @@ def main(client_root, acore, out, upto=None):
     print(f'  {len(foes)} kinds of creature carry '
           f'{sum(len(v) for v in foes.values())} abilities between them, '
           f'{runnable} of which this engine can run')
+    print(f'  the closure over them reaches {len(reached)} spells'
+          + (f', and stopped at {len(stopped)} more — {sorted(stopped)[:8]}'
+             if stopped else ' and closed'))
     if unrun:
         print('  effects it cannot run, by how often: '
               + ', '.join(f'{k} x{v}' for k, v in
