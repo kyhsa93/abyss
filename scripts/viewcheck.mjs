@@ -1052,6 +1052,53 @@ check('a flinch is over before the next blow can land',
   `${(clips.hurtSeconds * 1000).toFixed(0)}ms against the quickest weapon in `
   + `the slice at ${clips.fastest}ms`)
 
+// 10d5. The water is somewhere you can be.
+//
+// It was a wall, and that was a rule from before there was any terrain to say
+// how deep it was: 1,469 cells of water within twelve hundred yards of the
+// start and two of them could be entered.  Elwynn's streams are waded and its
+// lake is swum, and the island in the lake is only reachable that way.
+//
+// **Flooded rather than counted**, because "can be entered" and "can be
+// reached" are different claims and it is the second that matters — a lake
+// you can stand in but cannot swim to is still a wall.  Reaching it from dry
+// land answers getting out of it too, since a step crosses either way.
+const lake = await p.evaluate(() => window.__water())
+check('most of the water can be got to',
+  lake.reached > lake.total / 2,
+  `${lake.reached} of ${lake.total} cells within 1,200 yards of the start, `
+  + `flooded from where a character begins — ${lake.wade} of it shallow `
+  + `enough to stand in and ${lake.swim} deep enough to swim`)
+check('and the line between wading and swimming is the server\'s',
+  Math.abs(lake.swimDepth - 2.03 * 0.75) < 0.01,
+  `${lake.swimDepth} yards, which is three quarters of HumanMale's 2.03 `
+  + `collision box — Unit.cpp:4484 — and the swim itself is `
+  + `${lake.swimSpeed.toFixed(2)} yards a second against a run's 7`)
+// And walked, not just flooded: in off a shallow bank, out to dry ground.
+const swum = await p.evaluate((w) => {
+  window.__put(w.shore.x, w.shore.y)
+  window.__aim(w.deep.x, w.deep.y)
+  let deepest = 0, afloat = false
+  for (let i = 0; i < 240; i++) {
+    window.__steps(1)
+    const d = window.__depth()
+    if (d.depth > deepest) deepest = d.depth
+    if (d.swimming) afloat = true
+  }
+  window.__aim(w.shore.x, w.shore.y)
+  for (let i = 0; i < 400; i++) window.__steps(1)
+  const out = window.__depth()
+  window.__aim(null)
+  return { deepest, afloat, out }
+}, lake)
+check('a stream is waded and a lake is swum',
+  swum.afloat && swum.deepest > lake.swimDepth,
+  `walked in from ${lake.shore.d} yards of water and got out to `
+  + `${swum.deepest} yards deep`)
+check('and there is a way back out of it',
+  swum.out.depth === 0 && !swum.out.swimming,
+  `back on dry ground at ${swum.out.x.toFixed(0)}, ${swum.out.y.toFixed(0)}`)
+
 // 10e. A building's furniture belongs to the building.
 //
 // `npm run audit` counted 3,759 things standing inside the slice's buildings

@@ -43,7 +43,7 @@ UNIT = TILE / 128            # 4.1667 yards, the same grid the client's bake use
 # a client to use them, and the script that produced them is committed so they
 # can be taken again — `npm run measure -- --write` puts the new box back.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import BOUNDS, MAP  # noqa: E402,F401
+from slice import BOUNDS, DEPTH_UNIT, MAP  # noqa: E402,F401
 CENTRE = ((BOUNDS[0] + BOUNDS[1]) / 2, (BOUNDS[2] + BOUNDS[3]) / 2)
 SPAN = (BOUNDS[1] - BOUNDS[0], BOUNDS[3] - BOUNDS[2])
 
@@ -349,18 +349,29 @@ def main(acore, out):
     # zero is `paved`, and a world of cobblestone is not the fallback anybody
     # wants.
     blank = bytes([7]) * ((W * 2) * (H * 2))
+    # How deep the water is, a byte a cell in quarter yards.
+    #
+    # `waterLevel` has been in this file's output since it was written and
+    # nothing read it: water was a wall, so how far down the bed was could not
+    # matter.  It is the one number that tells wading from swimming — see
+    # `depthAt` in `src/main.ts` — and one byte at a quarter of a yard reaches
+    # sixty-three, which is deeper than anything in this valley.
+    deep = np.clip(np.where(wet, (level - grid) / DEPTH_UNIT, 0),
+                   0, 255).astype(np.uint8)
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         f.write(struct.pack(f'<{flat.size}f', *flat.tolist()))
         f.write(wet.astype(np.uint8).tobytes())   # one byte a cell, after the heights
         f.write(blank)                            # no ground paint: it is grass
         if mask is not None:
             f.write(mask.tobytes())               # and the zones, one a chunk
+        f.write(deep.astype(np.uint8).ravel().tobytes())   # and the depth, last
     meta = {
         'width': W, 'height': H, 'unit': UNIT,
         'x0': x0, 'y0': y0, 'centre': list(CENTRE), 'bounds': list(BOUNDS),
         'zMin': float(grid.min()), 'zMax': float(grid.max()),
         'source': 'azerothcore', 'samples': int(len(pts)),
         'hasWater': True, 'water': int(wet.sum()), 'waterLevel': round(level, 1),
+        'depthUnit': DEPTH_UNIT,
         # All grass, because a road exists in exactly one file and that file
         # stays in the archive.  Stated rather than left out, so the scene does
         # not have to guess whether the mask is there.

@@ -98,6 +98,8 @@ type Doodad = {
 }
 type Meta = {
   width: number; height: number; unit: number
+  /** Yards a step in the depth plane at the end of `terrain.bin`. */
+  depthUnit?: number
   x0: number; y0: number; centre: [number, number]; bounds: number[]
   variety?: Record<string, number>
   /** `[w, h, cell yards, model x0, y0, base64 bits]` per model. */
@@ -198,6 +200,15 @@ type HeroArt = {
   arms?: Record<string, ArmSheet>
   /** Which attack a man with nothing in his hands plays. */
   bare?: string
+  /**
+   * Where the man is inside his own 64-pixel cell, and where his chin is.
+   *
+   * `top` and `bottom` are rows of the sheet; `chin` is how far up him the
+   * head begins, as a share of his height.  All three measured, because none
+   * of them is what arithmetic would guess: he is 49 rows of a 64 cell, and
+   * LPC draws him with a head two fifths of his own height.
+   */
+  body?: { top: number; bottom: number; chin: number }
 }
 /** One strip of one half of one weapon in one clip. */
 type ArmStrip = {
@@ -323,6 +334,11 @@ async function main() {
   const heights = new Float32Array(bin, 0, cells)
   const wet = meta.hasWater ? new Uint8Array(bin, cells * 4, cells) : null
   /**
+   * How deep that water is, a byte a cell in `depthUnit` yards, at the end of
+   * the file so that adding it moved nothing that was already being read.
+   */
+  const DEPTH_UNIT = meta.depthUnit ?? 0.25
+  /**
    * The ground as the client painted it, which is the only place a road is.
    *
    * AzerothCore has no road table, the height grid does not bend for one, and
@@ -351,6 +367,9 @@ async function main() {
   const inside = (area: number) => meta.areaParent?.[String(area)] ?? 0
   const zones = AW && bin.byteLength >= cells * 5 + GW * GH + AW * AH
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
+  const deepAt = cells * 5 + GW * GH + AW * AH
+  const deep = bin.byteLength >= deepAt + cells
+    ? new Uint8Array(bin, deepAt, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
   const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, who, shelf] = await Promise.all([
@@ -640,6 +659,43 @@ async function main() {
     if (i < 0 || i >= W || j < 0 || j >= H) return false
     return wet[i * H + j] === 1
   }
+
+  /**
+   * How much water is over the ground here, in yards.  Nought on dry land.
+   *
+   * The bake has known this per cell since `MH2O` was first read and shipped
+   * none of it: `levels` went into one gate and nowhere else, which could not
+   * matter while water was a wall.  Water is not a wall any more, and this is
+   * the number that tells wading from swimming.
+   */
+  const depthAt = (wx: number, wy: number): number => {
+    if (!deep) return 0
+    const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
+    if (i < 0 || i >= W || j < 0 || j >= H) return 0
+    return deep[i * H + j]! * DEPTH_UNIT
+  }
+
+  /**
+   * Deep enough to swim in, which is the server's own line and not a guess.
+   *
+   * `Unit::UpdatePosition` (Unit.cpp:4484) compares the water over you against
+   * **three quarters of your collision height**, and it says in its own
+   * comment that it is mirroring the client.  The height is `HumanMale.m2`'s
+   * box, the same 2.03 yards `bake_terrain.py` asks whether a body fits
+   * through a doorway with — one measurement, two questions.
+   */
+  const BODY_YARDS = 2.03
+  const SWIM_DEPTH = BODY_YARDS * 0.75
+  /**
+   * And how fast he goes once he is off his feet.
+   *
+   * `baseMoveSpeed[MOVE_SWIM]` (Unit.cpp:85) is 4.722222 yards a second
+   * against `MOVE_RUN`'s 7.0, which is where the run speed in this file came
+   * from too.  Two thirds, and it is a column rather than a feel.
+   */
+  const SWIM_SPEED = 4.722222
+  /** Off his feet here — the line above, asked of a place. */
+  const swimAt = (wx: number, wy: number) => depthAt(wx, wy) >= SWIM_DEPTH
 
   /**
    * One number, used twice on purpose.
@@ -2075,8 +2131,13 @@ async function main() {
     // with the doors the client drew as the only way through.  It used to be
     // open wherever the wall mask happened not to be, which is how you walked
     // into the abbey by leaning on it.
-    return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
-      || openHole(wx, wy))
+    // Water is not a wall, and it was one for as long as there was no
+    // terrain to say how deep it was.  1,469 cells of water within twelve
+    // hundred yards of the start and two of them could be entered: Elwynn's
+    // streams are waded and its lake is swum, and the island in it is only
+    // reachable that way.  What closes a cell now is the ground under the
+    // water, not the water — see `depthAt`.
+    return (onSpan(wx, wy) ? false : closedAt(wx, wy) || openHole(wx, wy))
       || solidAt(wx, wy) || shutOut(wx, wy) || npcAt(wx, wy, null)
   }
   /**
@@ -2111,8 +2172,8 @@ async function main() {
    * teleport actually has to avoid is the world being solid where it lands.
    */
   const standable = (wx: number, wy: number) =>
-    !(onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
-      || openHole(wx, wy)) && !solidAt(wx, wy) && !wallAt(wx, wy)
+    !(onSpan(wx, wy) ? false : closedAt(wx, wy) || openHole(wx, wy))
+    && !solidAt(wx, wy) && !wallAt(wx, wy) && !swimAt(wx, wy)
 
   function wayOut(wx: number, wy: number,
     ok: (x: number, y: number) => boolean = (x, y) => !footing(x, y)):
@@ -2201,8 +2262,8 @@ async function main() {
     // past standing the ground is and never beats a run.
     const push = Math.min(RUN_BASE, over * WALK_BASE * 2) * dt
     const nx = hero.x - (gx / len) * push, ny = hero.y - (gy / len) * push
-    if (!solidAt(nx, hero.y) && !wetAt(nx, hero.y)) hero.x = nx
-    if (!solidAt(hero.x, ny) && !wetAt(hero.x, ny)) hero.y = ny
+    if (!solidAt(nx, hero.y)) hero.x = nx
+    if (!solidAt(hero.x, ny)) hero.y = ny
   }
 
   /**
@@ -2251,7 +2312,10 @@ async function main() {
           // it: a creature that walks through the corner is a creature there
           // is no getting away from.
           const shut = (x: number, y: number) =>
-            (!n.swims && wetAt(x, y)) || solidAt(x, y)
+            // Water only stops it where it would have to swim.  A wolf will
+            // follow you across a ford now and lose you in the lake, which is
+            // the difference between water as terrain and water as a wall.
+            (!n.swims && swimAt(x, y)) || solidAt(x, y)
             || closedAt(x, y) || openHole(x, y) || shutOut(x, y)
           if (!shut(nx, n.y)) n.x = nx
           if (!shut(n.x, ny)) n.y = ny
@@ -5340,9 +5404,22 @@ async function main() {
       // is what the client's collision radius is for.  Asked once, fifteen of
       // twenty steps out of the starting camp were refused outright.
       const each = 0.15
-      const pieces = Math.max(1, Math.ceil((SPEED * step) / each))
-      const dx = ((mx / len) * SPEED * step) / pieces
-      const dy = ((my / len) * SPEED * step) / pieces
+      /**
+       * And how fast, which water decides.
+       *
+       * Three states and one threshold, which is the server's: shallower than
+       * three quarters of a body he is standing in it and runs, deeper and he
+       * is off his feet at `MOVE_SWIM`'s 4.72 yards a second.  Wading between
+       * is the run slowed by how much of him is under — at the knee almost
+       * nothing, at the chest nearly the swim.  That last part is ours; the
+       * two ends are not.
+       */
+      const under = depthAt(hero.x, hero.y)
+      const pace = under >= SWIM_DEPTH ? SWIM_SPEED
+        : SPEED - (SPEED - SWIM_SPEED) * Math.min(1, under / SWIM_DEPTH)
+      const pieces = Math.max(1, Math.ceil((pace * step) / each))
+      const dx = ((mx / len) * pace * step) / pieces
+      const dy = ((my / len) * pace * step) / pieces
       for (let piece = 0; piece < pieces; piece++) {
         // Each axis is tested on its own, so walking into a shoreline at an
         // angle slides along it instead of stopping dead.  Tested together, a
@@ -5937,6 +6014,37 @@ async function main() {
         hero.iy + (off?.[1] ?? 0)) - w / 2)
       const Y = Math.round(screenY(hero.ix + (off?.[0] ?? 0),
         hero.iy + (off?.[1] ?? 0)) - w * 0.82)
+      /**
+       * How much of him the water covers, which is the whole swim animation.
+       *
+       * There is no swim clip and there will not be one: LPC has no swim sheet
+       * for the layers this body is built from, and the one thing that reads
+       * unmistakably as swimming is that only his top half is showing.  So the
+       * picture is cut at the waterline and the sprite below it is not drawn —
+       * geometry over the art there is, the same answer the flinch got in
+       * issue 175.
+       *
+       * **Both ends of the mapping are measured and neither is a fraction of
+       * the cell.**  The bottom is dry land.  The top is the swimming line —
+       * the server's three quarters of a collision box — drawn at his chin,
+       * because that is where a swimming man's waterline is.  And his chin is
+       * `bake_sprites.py`'s measurement of the art rather than a share of his
+       * height: LPC draws him chibi, head two fifths of him, so the depth read
+       * straight against a real body put the water over his mouth while he was
+       * still standing on the bed.  His feet and his chin are both rows of the
+       * sheet, counted once at bake time.
+       */
+      const shape = heroMeta.body
+      const chin = shape?.chin ?? 0.55
+      const under = Math.min(1, depthAt(hero.x, hero.y) / SWIM_DEPTH) * chin
+      if (under > 0 && shape) {
+        ctx.save()
+        const sole = Y + shape.bottom * zoom
+        const line = sole - under * (shape.bottom - shape.top) * zoom
+        ctx.beginPath()
+        ctx.rect(X - w, Y - w, w * 3, line - (Y - w))
+        ctx.clip()
+      }
       shadow(hero.ix, hero.iy, 0.34)
       // What is in his hand, in two halves either side of him — the same
       // arrangement everybody else in the world already had.  A weapon has no
@@ -5953,6 +6061,7 @@ async function main() {
       drawArm(arm, armClip, 'behind', armAt, X, Y, w / c)
       ctx.drawImage(heroImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
       drawArm(arm, armClip, 'front', armAt, X, Y, w / c)
+      if (under > 0 && shape) ctx.restore()
       drawn++
     }
 
@@ -7170,6 +7279,96 @@ async function main() {
    */
   ;(window as unknown as { __canWalk: (x: number, y: number) => boolean })
     .__canWalk = (x, y) => !footing(x, y)
+  /**
+   * The water, and how much of it a man can get into and out of again.
+   *
+   * Flooded from where a character starts rather than counted cell by cell,
+   * because "can be entered" and "can be reached" are different claims and it
+   * is the second one that matters: a lake you can stand in but not swim to
+   * is no better than a wall.  Reaching it from dry land also answers getting
+   * out, since the flood only connects cells a step can cross either way.
+   *
+   * 1,469 cells of water within twelve hundred yards of the start and two of
+   * them could be entered, which is what "water is a wall" looked like as a
+   * number.
+   */
+  ;(window as unknown as { __water: (yards?: number) => unknown }).__water =
+    (yards = 1200) => {
+      const sx = START[0]!, sy = START[1]!
+      const near = (i: number, j: number) => {
+        const wx = x0 - i * U, wy = y0 - j * U
+        return (wx - sx) ** 2 + (wy - sy) ** 2 <= yards * yards
+      }
+      let total = 0, swim = 0, wade = 0, deepest = 0
+      for (let i = 0; i < W; i++) {
+        for (let j = 0; j < H; j++) {
+          if (!near(i, j) || wet?.[i * H + j] !== 1) continue
+          total++
+          const d = depthAt(x0 - i * U, y0 - j * U)
+          if (d > deepest) deepest = d
+          if (d >= SWIM_DEPTH) swim++; else wade++
+        }
+      }
+      // The flood, over the same rule a step uses.
+      const seen = new Uint8Array(W * H)
+      const si = Math.round((x0 - sx) / U), sj = Math.round((y0 - sy) / U)
+      const queue = [si * H + sj]
+      seen[si * H + sj] = 1
+      let reached = 0, land = 0
+      // The deepest water a man can walk to, and the shallowest cell next to
+      // it he can stand in — which is where a check that wants to swim starts.
+      let deep = { x: 0, y: 0, d: -1 }
+      const shallows: { x: number; y: number; d: number }[] = []
+      while (queue.length) {
+        const at = queue.pop()!
+        const i = Math.floor(at / H), j = at % H
+        if (wet?.[at] === 1) {
+          if (near(i, j)) reached++
+          const wx = x0 - i * U, wy = y0 - j * U
+          const d = depthAt(wx, wy)
+          if (d > deep.d) deep = { x: wx, y: wy, d }
+          if (d > 0 && d < SWIM_DEPTH) shallows.push({ x: wx, y: wy, d })
+        } else land++
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const ni = i + di, nj = j + dj
+          if (ni < 0 || ni >= W || nj < 0 || nj >= H) continue
+          const k = ni * H + nj
+          if (seen[k]) continue
+          seen[k] = 1
+          if (footing(x0 - ni * U, y0 - nj * U)) continue
+          queue.push(k)
+        }
+      }
+      const shore = shallows.sort((a, b) =>
+        (a.x - deep.x) ** 2 + (a.y - deep.y) ** 2
+        - ((b.x - deep.x) ** 2 + (b.y - deep.y) ** 2))[0] ?? null
+      return { total, reached, swim, wade, land, deep, shore,
+        deepest: Math.round(deepest * 10) / 10,
+        swimDepth: Math.round(SWIM_DEPTH * 100) / 100, swimSpeed: SWIM_SPEED }
+    }
+  /**
+   * Walk towards somewhere, for a check that has to get to the water.
+   *
+   * The keys are read in screen space and so is this: it sets the same `want`
+   * a finger on the stick does, so what it exercises is the real walk with
+   * the real `footing` under it and not a teleport wearing its clothes.
+   */
+  ;(window as unknown as { __aim: (x: number | null, y?: number) => unknown })
+    .__aim = (x, y) => {
+      if (x === null) { want.x = 0; want.y = 0; return null }
+      const ax = screenX(hero.x, hero.y), ay = screenY(hero.x, hero.y)
+      const bx = screenX(x, y!), by = screenY(x, y!)
+      const d = Math.hypot(bx - ax, by - ay) || 1
+      want.x = (bx - ax) / d
+      want.y = (by - ay) / d
+      return { x: want.x, y: want.y }
+    }
+  /** How deep the water is where he is standing, and whether he is afloat. */
+  ;(window as unknown as { __depth: () => unknown }).__depth = () => ({
+    depth: Math.round(depthAt(hero.x, hero.y) * 100) / 100,
+    swimming: swimAt(hero.x, hero.y),
+    x: hero.x, y: hero.y,
+  })
   /** The slice's own box, so a check can flood it without typing it out. */
   ;(window as unknown as { __bounds: () => number[] }).__bounds = () =>
     [...meta.bounds]

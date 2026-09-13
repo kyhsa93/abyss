@@ -136,6 +136,7 @@ def main(root, out):
     used = []
     clips = {}
     frames = []
+    standing = None
     for clip, count in CLIPS:
         base = None
         for layer in LAYERS:
@@ -163,6 +164,8 @@ def main(root, out):
             base = Image.alpha_composite(base, im)
         if base is None:
             sys.exit(f'no sheets at all for {clip}')
+        if clip == 'walk':
+            standing = base
         w, h = base.size
         n = w // CELL
         clips[clip] = {'first': len(frames), 'count': n, 'dirs': h // CELL}
@@ -252,6 +255,34 @@ def main(root, out):
         meta['px'] = one.width * one.height * 4
         arms[name] = meta
 
+    # Where the man is inside his own cell, and where his chin is.
+    #
+    # Both are measured off the art because neither is what arithmetic would
+    # guess.  A cell is 64 pixels and the man is 52 of them, so a fraction of
+    # the cell is not a fraction of him; and LPC draws him **chibi**, with a
+    # head two fifths of his height, so a fraction of *him* is not a fraction
+    # of a person either.  The scene sinks him into water by depth against a
+    # body's height — the server's own line, three quarters of a collision box
+    # — and on a body drawn like this that put the waterline over his mouth
+    # while he was still standing on the bed.  `chin` is the deepest the water
+    # may come up him: below it and he is wading, at it he is swimming, and it
+    # is the bottom of the head layer's own ink.
+    # One cell, facing the camera, standing: `DOWN` is the row LPC draws
+    # front-on and frame 0 of the walk is the pose it stands in.  Measured on
+    # the cell and not on the sheet — `getbbox` over 576 by 256 pixels is the
+    # box round four directions and nine frames at once, which is the cell.
+    DOWN = 2
+    face = sheet(root, 'head/heads/human/male', 'walk')
+    body = None
+    if standing and face:
+        cell = (0, DOWN * CELL, CELL, DOWN * CELL + CELL)
+        whole = standing.crop(cell).getbbox()
+        hbox = face.crop(cell).getbbox()
+        if whole and hbox:
+            top, bottom, chin = whole[1], whole[3], hbox[3]
+            body = {'top': top, 'bottom': bottom,
+                    'chin': round((bottom - chin) / (bottom - top), 3)}
+
     cols = 16
     rows = (len(frames) + cols - 1) // cols
     atlas = Image.new('RGBA', (cols * CELL, rows * CELL))
@@ -262,7 +293,7 @@ def main(root, out):
 
     with open(os.path.join(out, 'hero.json'), 'w') as f:
         json.dump({'cell': CELL, 'cols': cols, 'clips': clips, 'arms': arms,
-                   'bare': BARE_SWING}, f, indent=1)
+                   'bare': BARE_SWING, 'body': body}, f, indent=1)
 
     # Credits, keyed by the files actually used.
     rows_csv = list(csv.DictReader(open(os.path.join(root, 'CREDITS.csv'))))
@@ -306,6 +337,9 @@ def main(root, out):
     print(f'{len(frames)} frames, atlas {atlas.width}x{atlas.height}, '
           f'{os.path.getsize(os.path.join(out, "hero.png")) / 1024:.0f} KiB on disk, '
           f'{px / 1048576:.1f} MiB decoded')
+    if body:
+        print(f'  body: rows {body["top"]}..{body["bottom"]} of {CELL}, '
+              f'chin {body["chin"]:.0%} up from his feet')
     print('  clips: ' + ', '.join(f'{k} x{v["count"]} in {v["dirs"]} dirs' for k, v in clips.items()))
     disk = sum(os.path.getsize(os.path.join(out, 'arms', k + '.png'))
                for k in arms)

@@ -81,6 +81,16 @@ LEVELS = tuple(_SLICE.get('levels', (1, 10)))
 #: weighed the purse over `LEVELS[1] + 2` and `quests.py` did not filter at
 #: all, which is two constants that did not agree.
 REACH_OVER = 2
+
+#: How finely the water's depth is shipped, in yards a step.
+#:
+#: One byte a cell, so a quarter of a yard reaches sixty-three and this
+#: valley's deepest water is nowhere near that.  It is here rather than in
+#: either bake because there are two worlds — `synth_terrain.py` builds one out
+#: of AzerothCore alone and `bake_terrain.py` reads a client's — and the scene
+#: reads whichever it is handed with one divisor.  Two copies of a divisor is
+#: how a lake comes out four times as deep as it is.
+DEPTH_UNIT = 0.25
 #: Where a new character stands, out of `playercreateinfo`.
 START = tuple(_SLICE.get('start', (0.0, 0.0)))
 RACES = _SLICE.get('races', [])

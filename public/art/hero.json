@@ -275,5 +275,10 @@
    "px": 971520
   }
  },
- "bare": "slash"
+ "bare": "slash",
+ "body": {
+  "top": 13,
+  "bottom": 62,
+  "chin": 0.531
+ }
 }

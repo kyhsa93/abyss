@@ -26,7 +26,8 @@ from collections import Counter
 from mpyq import MPQArchive
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from slice import BOUNDS, START, AREA as SLICE_AREA  # noqa: E402
+from slice import (BOUNDS, DEPTH_UNIT, START,  # noqa: E402
+                   AREA as SLICE_AREA)
 
 TILE = 533.33333          # SIZE_OF_GRIDS
 CHUNK = TILE / 16         # ADT_CELLS_PER_GRID
@@ -1813,6 +1814,21 @@ def bake(client, bounds, out, acore=None):
                            cw, ch, w, h, ORIGIN - i_lo * UNIT,
                            ORIGIN - j_lo * UNIT, UNIT)
 
+    # How deep the water is, a byte a cell in quarter yards.
+    #
+    # `levels` — the water's own surface, cell by cell — has been computed
+    # since `MH2O` was first parsed and read by **nothing but `check_water`**,
+    # which is this repository's most familiar bug: a field that is present and
+    # never consulted.  It could not matter while water was a wall.  It is the
+    # only thing that tells wading from swimming, and the difference between
+    # 1,469 cells of water with two ways into them and a lake you can cross.
+    depth = bytearray(len(grid))
+    for at, level in levels.items():
+        z = grid[at]
+        if z is None:
+            continue
+        depth[at] = max(0, min(255, int(round((level - z) / DEPTH_UNIT))))
+
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
     os.makedirs(out, exist_ok=True)
@@ -1821,6 +1837,7 @@ def bake(client, bounds, out, acore=None):
         f.write(bytes(wetmask))     # one byte a cell, after the heights
         f.write(bytes(groundmask))  # and the painted ground, at twice that
         f.write(bytes(areamask))    # and the zones, one byte a 33-yard chunk
+        f.write(bytes(depth))       # and how deep the water is, last
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -1835,6 +1852,7 @@ def bake(client, bounds, out, acore=None):
         'areas': areas,
         'hasWater': True,
         'water': sum(wetmask),
+        'depthUnit': DEPTH_UNIT,
         'ground': GROUND_ORDER,
         # How many distinct models the client actually placed for each of our
         # words.  The scene rotates through a list of pictures per word, and
