@@ -74,7 +74,17 @@ function frame(into: HTMLElement, id: string) {
 
 /** One frame's place, as `pipeline/layout.py` reads it out of the client. */
 export type Box = { at: string; x: number; y: number; w: number; h: number }
-export type Layout = { ref: [number, number]; frames: Record<string, Box> }
+export type Layout = {
+  ref: [number, number]
+  frames: Record<string, Box>
+  /**
+   * Which windows share a place on the screen — `UIPanelWindows`, read by
+   * `pipeline/layout.py`.  `area` is left / center / doublewide / full and
+   * `push` is how far a window will slide to let another in: 0 means the one
+   * already there closes.
+   */
+  panels?: Record<string, { area: string; push: number }>
+}
 
 /**
  * Put a panel where the original puts it.
@@ -310,7 +320,9 @@ export function hud(layout?: Layout) {
 
     /** Show or hide the world map, and say what is under the cursor. */
     setWorld(open: boolean, title: string, foot: string) {
+      const was = worldBox.hidden
       worldBox.hidden = !open
+      if (was !== worldBox.hidden) seat()
       if (!open) return
       if (worldTitle.textContent !== title) worldTitle.textContent = title
       if (worldFoot.textContent !== foot) worldFoot.textContent = foot
@@ -410,7 +422,9 @@ export function hud(layout?: Layout) {
 
     /** The character sheet, or nothing. */
     setSheet(open: boolean, rows: [string, string][], doll?: HTMLCanvasElement) {
+      const was = sheet.hidden
       sheet.hidden = !open
+      if (was !== sheet.hidden) seat()
       if (!open) return
       const want = rows.map(([k, v]) => `${k}\t${v}`).join('\n')
       if (sheet.dataset['now'] === want) return
@@ -674,6 +688,80 @@ export function hud(layout?: Layout) {
     }
   }
 
+  /**
+   * Which panels are up, in the order they went up.
+   *
+   * The original's own answer to two windows wanting one place, and the half
+   * of `FrameXML` this repository had not read.  `layout.py` took the anchors
+   * and left the rule behind, so the gossip window and the character sheet
+   * both came out at `TOPLEFT 0, 104` — 418 by 129, exactly on top of each
+   * other, with the shopkeeper's words showing through a panel at 88% alpha.
+   *
+   * It was never a misreading.  The client really does put them in the same
+   * place, **because they are never both up**: `UIPanelWindows` says the
+   * character frame is `left, pushable 3` and the gossip window is `left,
+   * pushable 0`, and the left place holds one at a time unless the newcomer
+   * is willing to slide over.
+   */
+  const upAt = new Map<string, number>()
+  let opened = 0
+  /** Panels the seating rule says have to go, for the scene to act on. */
+  const evicted = new Set<string>()
+
+  const seat = () => {
+    const rule = layout?.panels
+    if (!rule || document.body.classList.contains('touch')) return
+    const box = (name: string): HTMLElement | null =>
+      name === 'sheet' ? sheet
+        : name === 'talk' ? document.getElementById('talk')
+          : name === 'world' ? worldBox : null
+    // Who is up now, and since when.
+    for (const name of Object.keys(rule)) {
+      const el = box(name)
+      if (!el) continue
+      if (el.hidden) upAt.delete(name)
+      else if (!upAt.has(name)) upAt.set(name, ++opened)
+    }
+    // `full` is the whole screen.  A window that takes it takes everybody
+    // else's place too, which is why the world map leaving the gossip window
+    // up in the corner was wrong in the original's terms as well as in ours.
+    for (const [name, r] of Object.entries(rule)) {
+      if (r.area !== 'full' || !upAt.has(name)) continue
+      for (const other of [...upAt.keys()]) {
+        if (other !== name) { evicted.add(other); upAt.delete(other) }
+      }
+    }
+    for (const area of new Set(Object.values(rule).map((r) => r.area))) {
+      const here = [...upAt.keys()]
+        .filter((n) => rule[n]?.area === area)
+        .sort((a, b) => upAt.get(a)! - upAt.get(b)!)
+      let edge = 0
+      for (let i = 0; i < here.length; i++) {
+        const name = here[i]!, el = box(name)!
+        if (i === 0) { edge = el.offsetWidth; el.style.removeProperty('margin-left'); continue }
+        // A window that will not slide evicts whoever is sitting there.  That
+        // is `pushable = 0`, and it is why the two share an anchor at all.
+        if ((rule[name]?.push ?? 0) === 0) {
+          for (const gone of here.slice(0, i)) { evicted.add(gone); upAt.delete(gone) }
+          edge = 0
+          el.style.removeProperty('margin-left')
+          continue
+        }
+        // Otherwise it sits beside what is already there, which is what
+        // `pushable` counts: how many places along it is willing to go.
+        el.style.marginLeft = `${edge + 8}px`
+        edge += el.offsetWidth + 8
+      }
+      // And anything not up gets its offset back, so it opens where it
+      // belongs next time.
+      for (const name of Object.keys(rule)) {
+        if (rule[name]?.area === area && !upAt.has(name)) {
+          box(name)?.style.removeProperty('margin-left')
+        }
+      }
+    }
+  }
+
   const place = () => {
     if (document.body.classList.contains('touch')) return placePhone()
     deck.style.removeProperty('display')
@@ -782,5 +870,22 @@ export function hud(layout?: Layout) {
     new ResizeObserver(() => place()).observe(bar)
   }
 
-  return { ...this_, place }
+  return {
+    ...this_,
+    place,
+    /** Re-run the seating rule; the scene calls this when a window opens. */
+    seat,
+    /**
+     * Panels the seating rule has closed, taken once.
+     *
+     * Returned rather than acted on, because the scene owns whether a window
+     * is open — `sheetOpen` is a boolean in `main.ts` — and a panel the hud
+     * hid behind its back would spring open again on the next frame.
+     */
+    evicted(): string[] {
+      const out = [...evicted]
+      evicted.clear()
+      return out
+    },
+  }
 }

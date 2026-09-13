@@ -207,6 +207,45 @@ def from_lua(client):
     return out
 
 
+PANEL_FILES = ['UIParent.lua']
+# The `area` a window takes and how many may share it.  These names are the
+# original's, not ours; `WANT` translates.
+PANEL_RE = re.compile(
+    r'UIPanelWindows\["(\w+)"\]\s*=\s*\{([^}]*)\}')
+
+
+def panels(client):
+    """Which windows share a place on the screen, and what happens when two do.
+
+    `layout.py` read the anchors out of `FrameXML` and **not the rule that
+    governs them**, and the result was two windows sitting on exactly the same
+    418 by 129 rectangle with the shopkeeper's words showing through the
+    character sheet.  It was not a misreading: the client really does put the
+    gossip window and the character frame in the same place, because
+    `UIPanelWindows` says they are both `left` and the left place holds one.
+
+    Thirty-seven rows, four areas, and twenty-seven windows contending for
+    `left`.  `pushable` of 0 means the window already there closes; a positive
+    number means it slides aside and both stay up.
+
+    Same file format, same boundary, same argument as the four constants this
+    file already takes out of `ContainerFrame.lua`: numbers, so they may
+    leave.  No text of any kind is read.
+    """
+    data, _src = client.read('Interface\\FrameXML\\UIParent.lua')
+    if not data:
+        return {}
+    s = data.decode('utf-8', 'replace')
+    out = {}
+    for name, body in PANEL_RE.findall(s):
+        area = re.search(r'area\s*=\s*"(\w+)"', body)
+        push = re.search(r'pushable\s*=\s*(\d+)', body)
+        if area:
+            out[name] = {'area': area.group(1),
+                         'push': int(push.group(1)) if push else 0}
+    return out
+
+
 def main(client_root, out):
     client = B.Client(client_root)
     B.CHAIN = CHAIN
@@ -281,10 +320,34 @@ def main(client_root, out):
         sys.exit(f'the action bar came back as {bar}, which is not sitting on '
                  f'the bottom edge — the anchors are misread')
 
+    # And the rule that governs those anchors, which had never been read.
+    seats = panels(client)
+    ours = {}
+    for name, word in WANT.items():
+        # Whether or not the frame itself came back.  `WorldMapFrame` has no
+        # XML in this client and so no box, but it is in `UIPanelWindows` as
+        # `full` — a window that covers everything — and our own map panel is
+        # exactly that.  A missing box is a missing position, not a missing
+        # rule.
+        if name in seats:
+            ours[word] = seats[name]
+    # The gossip window is its own frame in the original and our talk panel is
+    # both a gossip window and a shop, so it takes the stricter of the two.
+    if 'talk' in ours and 'MerchantFrame' in seats:
+        ours['talk'] = {'area': 'left', 'push': 0}
+    if not ours.get('sheet') or ours['sheet']['area'] != 'left':
+        sys.exit('CharacterFrame came back as %s, and the whole point of '
+                 'reading this table is that it is left and pushable'
+                 % ours.get('sheet'))
+    print('  %d windows in UIPanelWindows, %d of them ours: %s'
+          % (len(seats), len(ours),
+             ', '.join('%s %s/%d' % (k, v['area'], v['push'])
+                       for k, v in sorted(ours.items()))))
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'layout.json')
     with open(path, 'w') as f:
-        json.dump({'ref': [REF_W, REF_H], 'frames': frames}, f)
+        json.dump({'ref': [REF_W, REF_H], 'frames': frames, 'panels': ours}, f)
     print(f'{len(frames)} frames -> {path}   (screen {REF_W}x{REF_H})')
     for k, v in sorted(frames.items(), key=lambda kv: kv[1]['box'][1]):
         print('  %-8s %-11s %4d, %-4d  %4d x %-4d' % (k, v['at'], v['x'],

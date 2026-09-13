@@ -57,6 +57,32 @@ const STATES = [
   }],
   ['the bag', async (p) => { await p.evaluate(() => window.__give()); await p.keyboard.press('b') }],
   ['the sheet', async (p) => { await p.keyboard.press('c') }],
+  // And the combinations, which is where the bug was.  All four states above
+  // open exactly one window, and every one of them starts with `Escape`, so
+  // "no panel covers another" was a true statement about a screen that never
+  // had two panels on it.  The gossip window and the character sheet had sat
+  // on the same 418 by 129 rectangle since the day both were written.
+  ['a conversation and the sheet', async (p) => {
+    await p.evaluate(() => window.__vendor())
+    await p.waitForTimeout(250)
+    await p.keyboard.press('e')
+    await p.waitForTimeout(250)
+    await p.keyboard.press('c')
+  }],
+  ['the sheet and the bag', async (p) => {
+    await p.evaluate(() => window.__give())
+    await p.keyboard.press('c')
+    await p.waitForTimeout(200)
+    await p.keyboard.press('b')
+  }],
+  ['a conversation and the bag', async (p) => {
+    await p.evaluate(() => window.__give())
+    await p.evaluate(() => window.__vendor())
+    await p.waitForTimeout(250)
+    await p.keyboard.press('e')
+    await p.waitForTimeout(200)
+    await p.keyboard.press('b')
+  }],
 ]
 
 let bad = 0
@@ -83,8 +109,20 @@ for (const [W, H] of SIZES) {
   await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
 
   for (const [name, open] of STATES) {
+    // Deterministically shut, and this is not housekeeping.  `Escape` closes
+    // a conversation and the map and **not** the character sheet or the bag,
+    // so each state inherited whatever the last one left open — and the
+    // states that open two windows were toggling one of them back off.  The
+    // first version of the combination check passed for exactly that reason,
+    // on a screen that had one panel on it after all.
     await p.keyboard.press('Escape')
     await p.waitForTimeout(150)
+    for (const [id, key] of [['sheet', 'c'], ['bag', 'b']]) {
+      if (await p.evaluate((x) => !document.getElementById(x)?.hidden, id)) {
+        await p.keyboard.press(key)
+        await p.waitForTimeout(120)
+      }
+    }
     await open(p)
     await p.waitForTimeout(400)
     const boxes = await p.evaluate((ids) => {

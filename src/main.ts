@@ -3169,9 +3169,11 @@ async function main() {
   }
 
   function drawTalk() {
-    if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; return }
+    if (!chat) { talkEl.hidden = true; talkEl.textContent = ''; ui.seat(); return }
     const { speech, open } = chat
+    const wasHidden = talkEl.hidden
     talkEl.hidden = false
+    if (wasHidden) ui.seat()
     talkEl.replaceChildren()
     const add = (cls: string, text: string) => {
       const d = document.createElement('div')
@@ -4459,6 +4461,15 @@ async function main() {
       ui.setPin(mx / H, my / W)
     } else {
       ui.setWorld(false, '', '')
+    }
+    // What the seating rule shut.  The original's `UIPanelWindows` says the
+    // gossip window will not share the left place with anybody, so opening a
+    // conversation closes the character sheet rather than printing itself
+    // through it — which is what it used to do, at 88% alpha.
+    for (const gone of ui.evicted()) {
+      if (gone === 'sheet') sheetOpen = false
+      if (gone === 'world') mapOpen = false
+      if (gone === 'talk') endTalk()
     }
     ui.setSheet(sheetOpen, [
       ['레벨', `${you.level}`],
