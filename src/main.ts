@@ -21,6 +21,7 @@
  */
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
+import { lightAt, skyAt, SKY_WORD } from './sky'
 import { parries, SLOT_WORD, STAT_WORD } from './talk'
 import { between, roll, seed, reseed } from './roll'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save'
@@ -3421,7 +3422,18 @@ async function main() {
     const listener = chat ? null : inReach()
 
     // --- ground ---
-    ctx.fillStyle = '#1b2410'
+    // What the sky is doing here, this hour.  `game_weather` gives the zone
+    // its own chances by season and the hour derives the roll, so it does not
+    // touch the stream of chance and does not flicker.  The ground colour and
+    // the tint over every tile come out of it: the art direction took the
+    // colour out of the terrain, and this is most of what is left to give the
+    // land an expression.
+    const today = new Date()
+    const zoneHere = areaOf(hero.x, hero.y)
+    const sky = skyAt(who?.weather?.[String(zoneHere)]
+      ?? who?.weather?.[String(inside(zoneHere))], today)
+    const light = lightAt(today, sky)
+    ctx.fillStyle = light.ground
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     // The glass is an upright rectangle of world again, so the corners put back
     // through the projection are the corners of the box — no slack.
@@ -3880,7 +3892,12 @@ async function main() {
     const roofed = inBuilding(hero.x, hero.y, 0)
     const zone = (roofed?.floor && roofed.b.area)
       || areaOf(hero.x, hero.y)
-    ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}  `
+    // And what the sky is doing, because a readout with a clock in it that
+    // never mentions the weather is a clock in a room with no windows.
+    const overhead = SKY_WORD[skyAt(who?.weather?.[String(zone)]
+      ?? who?.weather?.[String(inside(zone))], new Date())] ?? ''
+    ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}`
+      + `${overhead ? ` · ${overhead}` : ''}  `
       + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.
@@ -4378,6 +4395,27 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /** What the sky is doing, and what it was doing hour by hour, for the check. */
+  ;(window as unknown as { __sky: () => unknown }).__sky = () => {
+    const zone = areaOf(hero.x, hero.y)
+    const chances = who?.weather?.[String(zone)]
+      ?? who?.weather?.[String(inside(zone))]
+    const day: number[] = []
+    const base = new Date()
+    for (let h = 0; h < 24 * 30; h++) {
+      day.push(skyAt(chances, new Date(base.getTime() + h * 3_600_000)))
+    }
+    const noon = lightAt(new Date(2026, 5, 21, 12), 0)
+    const night = lightAt(new Date(2026, 5, 21, 2), 0)
+    return {
+      zones: Object.keys(who?.weather ?? {}).length,
+      chances, now: skyAt(chances, base),
+      wet: day.filter((s) => s > 0).length / day.length,
+      // Asked twice for the same hour: it is derived, not rolled.
+      steady: skyAt(chances, base) === skyAt(chances, base),
+      noon: noon.tint, night: night.tint,
+    }
   }
   /** The quests that finish by walking somewhere, and doing it. */
   ;(window as unknown as { __walkTo: () => unknown }).__walkTo = () => {

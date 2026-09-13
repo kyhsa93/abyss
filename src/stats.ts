@@ -28,6 +28,8 @@ export type Who = {
   kit: (string | number)[][]
   /** Which graveyards each zone sends a dead man to, `[x, y, z]` each. */
   graveyards?: Record<string, number[][]>
+  /** `{zone: [[rain, snow, storm] per season]}` — `game_weather`. */
+  weather?: Record<string, number[][]>
 }
 
 /**

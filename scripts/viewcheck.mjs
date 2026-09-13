@@ -658,6 +658,20 @@ if (walk.quests) {
     + `${walk.after}`)
 }
 
+// 9r. The sky.  The art direction gave up terrain textures — the ground is
+// grain with the colour taken out — so weather and light are most of what the
+// land has left to have an expression with, and there was neither.
+const sky = await p.evaluate(() => window.__sky())
+check('the sky has weather of its own here', !!sky.chances,
+  `${sky.zones} zones carry their own chances; this one rains `
+  + `${sky.chances?.[0]?.[0] ?? 0}% of the time in spring, and over thirty `
+  + `days it is wet ${(sky.wet * 100).toFixed(0)}% of the hours`)
+check('and it is derived rather than rolled', sky.steady === true,
+  'the same hour gives the same sky, so it does not touch the dice and does '
+  + 'not flicker')
+check('and the light knows what time it is', sky.noon > sky.night,
+  `noon ${sky.noon.toFixed(2)} against two in the morning ${sky.night.toFixed(2)}`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

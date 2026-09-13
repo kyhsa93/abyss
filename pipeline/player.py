@@ -181,6 +181,21 @@ def main(acore, client, out):
         if gid in yards:
             by_zone.setdefault(str(zone), []).append(yards[gid])
 
+    # What the sky does, by zone and by season.  `game_weather` is 35 rows —
+    # a chance of rain, of snow and of storm for each quarter of the year —
+    # and Elwynn is one of them at fifteen to twenty per cent rain and never
+    # any snow.  Small data, and it matters more here than it would elsewhere:
+    # the art direction gave up terrain textures, so the ground has almost no
+    # way to have an expression and weather is most of what is left.
+    sky = {}
+    for col, f in table(base, 'game_weather'):
+        zone = int(f[col['zone']])
+        sky[str(zone)] = [
+            [int(f[col['%s_rain_chance' % s]]),
+             int(f[col['%s_snow_chance' % s]]),
+             int(f[col['%s_storm_chance' % s]])]
+            for s in ('spring', 'summer', 'fall', 'winter')]
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'player.json')
     doc = {
@@ -196,6 +211,8 @@ def main(acore, client, out):
         'kit': kit,
         # Which graveyards each zone sends you to, `[x, y, z]` each.
         'graveyards': by_zone,
+        # `{zone: [[rain, snow, storm] per season]}` — `game_weather`.
+        'weather': sky,
     }
     with open(path, 'w') as f:
         json.dump(doc, f)
@@ -211,6 +228,7 @@ def main(acore, client, out):
                                 for k in kit))
     print(f'  {len(yards)} graveyards on this map, '
           f'{len(by_zone)} zones know where to send you')
+    print(f'  {len(sky)} zones have weather of their own')
 
 
 def check(doc):
