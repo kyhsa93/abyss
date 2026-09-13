@@ -2481,7 +2481,11 @@ async function main() {
     const copper = between(lo, hi)
     if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
     for (const row of items) {
-      const [idx, chance, clo, chi, sell] = row as number[]
+      const [idx, chance, clo, chi, sell, , need] = row as number[]
+      // What `conditions` says has to be true first.  A quest item that falls
+      // without the quest is the table's own first example of what goes wrong
+      // when nobody reads it — and it looks like generosity, not like a bug.
+      if (need && !log.held.some((h) => h.id === need)) continue
       if (roll() * 100 >= chance!) continue
       const word = GOODS[idx!] ?? 'oddment'
       const many = between(clo!, chi!)
@@ -4367,6 +4371,18 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /** What a drop needs before it drops, for the check that `conditions` bites. */
+  ;(window as unknown as { __gated: () => unknown }).__gated = () => {
+    const gated: { entry: number; item: number; quest: number }[] = []
+    for (const n of npcs) {
+      for (const row of n.haul?.[2] ?? []) {
+        const need = (row as number[])[6] ?? 0
+        if (need) gated.push({ entry: n.entry, item: (row as number[])[5]!, quest: need })
+      }
+    }
+    return { gated: gated.slice(0, 4), n: gated.length,
+      holding: log.held.map((h) => h.id) }
   }
   /** Where the inns are and what an hour of standing in one is worth. */
   ;(window as unknown as { __rest: () => unknown }).__rest = () => ({

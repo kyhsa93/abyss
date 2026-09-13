@@ -403,6 +403,55 @@ def goods_of(cls, sub):
     return GOODS.get((cls, sub)) or GOODS.get((cls, None)) or 'oddment'
 
 
+# `conditions.SourceTypeOrReferenceId` — only the one this world can act on so
+# far.  1 is "this row of a creature's loot table", keyed by the loot id in
+# `SourceGroup` and the item in `SourceEntry`.
+SRC_CREATURE_LOOT = 1
+# And the condition types.  9 is "has this quest in the log"; 6 is "is on this
+# side", which for a game with one race is always true and is read anyway so
+# that a row nobody can satisfy is visible rather than invisible.
+COND_QUEST_TAKEN, COND_TEAM = 9, 6
+TEAM_ALLIANCE = 469
+
+
+def loot_conditions(base):
+    """When a drop is allowed to drop, out of `conditions`.
+
+    14,630 rows, of which nine touch this slice: two say an item only falls
+    while you hold a particular quest, and seven say it only falls for one
+    side.  Small, and the wiki's first example of what goes wrong without the
+    table — **quest loot dropping without the quest** — which is the sort of
+    wrongness that looks exactly like generosity.
+
+    The convention is the trap: **rows in the same `ElseGroup` are ANDed and
+    different groups are ORed.**  Read the other way round the condition runs
+    backwards, and neither direction looks like an error from outside — things
+    are simply visible that should not be, or missing that should not be.
+
+    Returns `{(loot id, item): [[condition, ...], ...]}`, outer list ORed.
+    """
+    path = os.path.join(base, 'conditions.sql')
+    if not os.path.exists(path):
+        return {}
+    col = columns(path)
+    groups = {}
+    for line in rows(path):
+        f = split(line)
+        try:
+            if int(f[col['SourceTypeOrReferenceId']]) != SRC_CREATURE_LOOT:
+                continue
+            key = (int(f[col['SourceGroup']]), int(f[col['SourceEntry']]))
+            groups.setdefault(key, {}).setdefault(
+                int(f[col['ElseGroup']]), []).append([
+                    int(f[col['ConditionTypeOrReference']]),
+                    int(f[col['ConditionValue1']]),
+                    int(f[col['ConditionValue2']]),
+                    int(f[col['NegativeCondition']])])
+        except (ValueError, KeyError, IndexError):
+            continue
+    return {k: [v[g] for g in sorted(v)] for k, v in groups.items()}
+
+
 def loot_tables(base, kinds_by_entry):
     """What each creature carries: coins, and things by what sort they are.
 
@@ -411,6 +460,7 @@ def loot_tables(base, kinds_by_entry):
     come out negative for grouped drops — the sign is the group's business and
     not ours, so it is dropped.
     """
+    gated = loot_conditions(base)
     iclass, sells = {}, {}
     for line in rows(os.path.join(base, 'item_template.sql')):
         f = split_head(line, 12)
@@ -441,9 +491,17 @@ def loot_tables(base, kinds_by_entry):
         # it a sword arrives in the bag as the noun "weapon" and can never be
         # held — which is why there was no equipment: an item lost its
         # identity on the way in.
+        # What has to be true for it to fall.  A quest item that falls without
+        # the quest is the wiki's own first example of what goes missing with
+        # this table, and it looks like generosity rather than like a bug.
+        need = 0
+        for either in gated.get((lid, item), ()):
+            for kind, v1, _v2, negate in either:
+                if kind == COND_QUEST_TAKEN and not negate:
+                    need = v1
         by_loot.setdefault(lid, []).append(
             (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
-             max(0, sells.get(item, 0)), item))
+             max(0, sells.get(item, 0)), item, need))
     return by_loot
 
 
@@ -917,11 +975,11 @@ def main(acore, out):
         # And what it is carrying, deduplicated the same way: a kobold is a
         # kobold's pockets whichever kobold it is.
         items = []
-        for word, chance, clo, chi, sell, item in carried.get(lootid, [])[:8]:
+        for word, chance, clo, chi, sell, item, need in carried.get(lootid, [])[:8]:
             if word not in goods:
                 goods.append(word)
             items.append([goods.index(word), round(chance, 1), clo, chi, sell,
-                          item])
+                          item, need])
         haul = (purse[0], purse[1], tuple(map(tuple, items)))
         if haul not in haul_at:
             haul_at[haul] = len(hauls)

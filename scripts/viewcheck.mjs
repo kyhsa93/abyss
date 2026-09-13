@@ -634,6 +634,16 @@ check('and resting there is worth four times resting outside',
   `an hour inside banks ${inn.anHourInside.toFixed(2)} experience, outside `
   + `${inn.anHourOutside.toFixed(2)}, and the pool caps at ${inn.cap}`)
 
+// 9p. `conditions` is 14,630 rows and nothing read them.  Nine touch this
+// slice, and the two that matter say an item falls only while you hold a
+// particular quest — which is the table's own first example of what goes wrong
+// without it, and it looks like generosity rather than like a bug.
+const gated = await p.evaluate(() => window.__gated())
+check('a quest item does not fall without the quest', gated.n > 0,
+  `${gated.n} drops in the world wait on a quest — `
+  + gated.gated.map((g) => `${g.entry} drops ${g.item} only for quest ${g.quest}`)
+    .join(', '))
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
