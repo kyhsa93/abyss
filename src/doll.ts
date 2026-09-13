@@ -1,0 +1,73 @@
+/**
+ * The character, drawn wearing what he is wearing.
+ *
+ * `public/art/doll/` holds fifty-eight layer sheets — a bare body, and for
+ * every slot a light, medium and heavy version — and `public/art/doll.json`
+ * says how each one lines up.  All of it was committed, `CLAUDE.md` claimed a
+ * `src/doll.ts` composed them, and **that file did not exist**.  Nothing in
+ * `src/` had ever mentioned the word.
+ *
+ * What decides which layer: the item's own `armor` value against the slot's,
+ * because "is this leather or is it plate" is not a column — `subclass` says
+ * so for armour and says something else entirely for a weapon, and the layers
+ * are drawn as light, medium and heavy rather than by material.  So the
+ * heaviest thing in a slot gets the heaviest layer that exists for it, which
+ * is the honest reading of a set of pictures that only has three.
+ */
+
+export type DollMeta = {
+  cols: number
+  who: Record<string, {
+    cell: number
+    anchor: number
+    dirs: number
+    clips: Record<string, { first: number; count: number }>
+    layers: Record<string, { w: number; h: number; dx: number; dy: number }>
+  }>
+}
+
+/** The order the layers stack in, back to front. */
+export const ORDER = ['body', 'feet', 'legs', 'chest', 'hands', 'head',
+  'hair', 'helm'] as const
+
+/** Which of the three weights a piece of armour is drawn as. */
+export function weightOf(armour: number): string {
+  // Three pictures and one number.  A shirt is nothing, a leather jerkin is a
+  // handful, a mail hauberk is tens: the steps are where the pictures are, not
+  // where a table says.
+  if (armour <= 0) return 'bare'
+  if (armour < 20) return 'light'
+  if (armour < 60) return 'medium'
+  return 'heavy'
+}
+
+/**
+ * Which layer file to draw for a slot, given what is worn there.
+ *
+ * Falls back down the weights and then to bare, because the set is not
+ * complete: there are four light chests and one heavy, and asking for a
+ * medium helm that nobody drew should put a light one on rather than nothing.
+ */
+export function layerFor(meta: DollMeta, who: string, slot: string,
+  armour: number): string | null {
+  const have = meta.who[who]?.layers ?? {}
+  const want = weightOf(armour)
+  for (const weight of [want, 'medium', 'light', 'bare']) {
+    const name = `${who}_${slot}_${weight}`
+    if (have[name]) return name
+    // The numbered variants are the same weight drawn differently.
+    const numbered = Object.keys(have)
+      .find((k) => k.startsWith(`${who}_${slot}_${weight}_`))
+    if (numbered) return numbered
+  }
+  return null
+}
+
+/** Which cell of a layer sheet is the standing, facing-forward pose. */
+export function still(meta: DollMeta, who: string): number {
+  const clips = meta.who[who]?.clips ?? {}
+  // `stand` if there is one, and the first frame of walking if not — an
+  // animal sheet has no separate standing pose and a person's does.
+  const clip = clips['stand'] ?? clips['walk'] ?? clips['run']
+  return clip ? clip.first : 0
+}

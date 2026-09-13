@@ -145,8 +145,20 @@ check('the button does nothing with nobody there',
   await p.evaluate(() => document.getElementById('talk').hidden))
 
 // 8. Beside a trader: the button opens the conversation.
-await p.evaluate(() => window.__cam({ x: -9461.6, y: 16.19, zoom: 1.4 }))
-await p.waitForTimeout(250)
+//
+// Stood next to a *named* one rather than at a coordinate somebody once saw
+// one at: the shopkeepers wander now, so a fixed spot is a check that fails
+// one run in three for a reason that has nothing to do with the pad.
+await p.evaluate(() => {
+  // Somebody who stays put: `creature.wander_distance` is nought for anyone
+  // behind a counter, and a conversation with somebody who walks off ends
+  // itself halfway through the check.
+  const who = window.__all()
+    .filter((n) => n.kind === 'townsfolk' && !n.wander && n.r !== 'prey')
+  const near = who.find((n) => Math.hypot(n.x + 9461.6, n.y - 16.19) < 40) ?? who[0]
+  window.__cam({ x: near.x - 1.2, y: near.y, zoom: 1.4 })
+})
+await p.waitForTimeout(400)
 await p.screenshot({ path: `${SP}/pad-ready.png` })
 // A thumb landing beside the button still counts, up to the hit radius.
 await touch('touchStart', [[btn.x - L.hit * 0.9, btn.y]])

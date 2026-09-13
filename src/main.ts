@@ -21,6 +21,7 @@
  */
 
 import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
+import { layerFor, still, ORDER, type DollMeta } from './doll'
 import { lightAt, skyAt, SKY_WORD } from './sky'
 import { parries, SLOT_WORD, STAT_WORD } from './talk'
 import { between, roll, seed, reseed } from './roll'
@@ -2999,6 +3000,78 @@ async function main() {
     return said
   }
 
+  /**
+   * The character, drawn wearing what he is wearing.
+   *
+   * Fifty-eight layer sheets were committed to `public/art/doll/` and
+   * `CLAUDE.md` claimed a `src/doll.ts` composed them; nothing in `src/` had
+   * ever said the word.  Now something does.
+   *
+   * Drawn once when what is worn changes, not every frame: it is a still.
+   */
+  const dollArt = await Promise.all([
+    fetch('./art/doll.json').then((r) => r.json() as Promise<DollMeta>)
+      .catch(() => null),
+  ]).then(([m]) => m)
+  const dollCanvas = document.createElement('canvas')
+  const dollLayers = new Map<string, HTMLImageElement>()
+  let dollKey = ''
+  const paintDoll = () => {
+    if (!dollArt) return null
+    const who = 'male'
+    const meta = dollArt.who[who]
+    if (!meta) return null
+    // Which layer for each slot, from what is worn there — the item's own
+    // armour value decides light, medium or heavy, because "is this leather
+    // or plate" is not a column anywhere.
+    const want: string[] = []
+    for (const slot of ORDER) {
+      const from = slot === 'body' ? null
+        : slot === 'hair' ? null
+          : gear[slot] !== undefined ? itemOf(gear[slot]!) : null
+      const armour = slot === 'body' ? 0 : (from?.[I_ARMOUR] as number) ?? 0
+      const name = slot === 'body' ? `${who}_body_bare`
+        : slot === 'hair' ? `${who}_hair_1`
+          : from ? layerFor(dollArt, who, slot, armour) : null
+      if (name) want.push(name)
+    }
+    const key = want.join('|')
+    if (key === dollKey && dollCanvas.width) return dollCanvas
+    dollKey = key
+    const c = meta.cell, scale = 2
+    dollCanvas.width = c * scale
+    dollCanvas.height = c * scale
+    const g = dollCanvas.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    g.clearRect(0, 0, dollCanvas.width, dollCanvas.height)
+    const frame = still(dollArt, who)
+    for (const name of want) {
+      let img = dollLayers.get(name)
+      if (!img) {
+        img = new Image()
+        // A layer that arrives after the still was composed has to make the
+        // still be composed again, or the panel shows an empty square for
+        // ever — the first draw always runs before any of these have loaded.
+        img.onload = () => { dollKey = '' }
+        img.src = `./art/doll/${name}.png`
+        dollLayers.set(name, img)
+      }
+      if (!img.complete || !img.naturalWidth) continue
+      // Each layer is packed at *its own* size, not at the cell's: the body
+      // sheet is 592 by 855, which is sixteen columns of 37 by 45, and `dx`
+      // and `dy` say where that rectangle sits inside the 57-pixel cell.
+      // Read as cell-sized frames the sheet is a tenth of a column out and
+      // every layer draws somebody else's elbow.
+      const box = meta.layers[name]
+      if (!box) continue
+      const sx = (frame % dollArt.cols) * box.w
+      const sy = Math.floor(frame / dollArt.cols) * box.h
+      g.drawImage(img, sx, sy, box.w, box.h,
+        box.dx * scale, box.dy * scale, box.w * scale, box.h * scale)
+    }
+    return dollCanvas
+  }
+
   /** What a thing is, in our words: its sort, and where it goes. */
   const describe = (it: Item): string => {
     const slot = it[I_SLOT] as string
@@ -3943,7 +4016,7 @@ async function main() {
         : `없음  (가진 것 ${held.length}, G로 입는다)`],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
-    ])
+    ], paintDoll() ?? undefined)
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
       Object.entries(you.bag)
@@ -4455,6 +4528,17 @@ async function main() {
     }
     return { gated: gated.slice(0, 4), n: gated.length,
       holding: log.held.map((h) => h.id) }
+  }
+  /** What the paperdoll is made of right now, for the check. */
+  ;(window as unknown as { __doll: () => unknown }).__doll = () => {
+    const c = paintDoll()
+    if (!c) return null
+    const g = c.getContext('2d')!
+    const d = g.getImageData(0, 0, c.width, c.height).data
+    let ink = 0
+    for (let i = 3; i < d.length; i += 4) if (d[i]! > 8) ink++
+    return { w: c.width, h: c.height, ink, layers: dollKey.split('|'),
+      worn: Object.keys(gear) }
   }
   /** Where the inns are and what an hour of standing in one is worth. */
   ;(window as unknown as { __rest: () => unknown }).__rest = () => ({

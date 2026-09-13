@@ -334,6 +334,19 @@
            this. */
         max-height: min(58vh, 420px); overflow-y: auto;
       }
+      /* The paperdoll: a picture of the character wearing what he is
+         wearing, composed from the layer sheets in `public/art/doll/`. */
+      /* The panel is sized off `FrameXML`'s character frame, and a picture
+         added to it has to fit inside that rather than push it over the log.
+         Sixty-four pixels is the doll at its own scale and no more. */
+      #sheet { max-height: min(70vh, 420px); overflow-y: auto; }
+      /* Beside the title rather than above the rows: the panel's height is
+         `FrameXML`'s and a picture that pushes it taller pushes it over the
+         log underneath. */
+      #sheet .doll { position: absolute; top: 6px; right: 10px; }
+      #sheet .doll canvas { width: 56px; height: 56px; }
+      #sheet { position: fixed; }
+      #sheet .doll canvas { image-rendering: pixelated; }
       #talk .who { color: #c9a86a; font: 11px/1.5 var(--mono); letter-spacing: .02em; }
       #talk .say { margin: 6px 0 10px; }
       #talk ol { margin: 0; padding: 0; list-style: none; }

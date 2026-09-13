@@ -672,6 +672,32 @@ check('and it is derived rather than rolled', sky.steady === true,
 check('and the light knows what time it is', sky.noon > sky.night,
   `noon ${sky.noon.toFixed(2)} against two in the morning ${sky.night.toFixed(2)}`)
 
+// 9s. The paperdoll.  Fifty-eight layer sheets were committed to
+// `public/art/doll/`, `CLAUDE.md` said a `src/doll.ts` composed them, and that
+// file did not exist — nothing in `src/` had ever said the word.
+const bare = await p.evaluate(() => window.__doll())
+const dressed = await p.evaluate(async () => {
+  // Buy something that has a layer.  The shop check earlier bought a sword,
+  // and a sword is not a picture of a man wearing something.
+  const shelf = await (await fetch('./world/items.json')).json()
+  for (const slot of ['chest', 'feet', 'hands']) {
+    const pick = Object.entries(shelf.items)
+      .filter(([, v]) => v[1] === slot && v[4] <= 1)
+      .sort((a, b) => b[1][8] - a[1][8])[0]
+    if (pick) window.__buy(Number(pick[0]))
+  }
+  window.__dress()
+  return window.__doll()
+})
+if (bare) {
+  check('the character is drawn, not just tabulated', bare.ink > 200,
+    `${bare.w} by ${bare.h}, ${bare.ink} pixels of him, from `
+    + `${bare.layers.length} layers`)
+  check('and what he is wearing changes the picture',
+    dressed.layers.join('|') !== bare.layers.join('|'),
+    `${bare.layers.join(', ')} → ${dressed.layers.join(', ')}`)
+}
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

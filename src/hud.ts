@@ -398,7 +398,7 @@ export function hud(layout?: Layout) {
     },
 
     /** The character sheet, or nothing. */
-    setSheet(open: boolean, rows: [string, string][]) {
+    setSheet(open: boolean, rows: [string, string][], doll?: HTMLCanvasElement) {
       sheet.hidden = !open
       if (!open) return
       const want = rows.map(([k, v]) => `${k}\t${v}`).join('\n')
@@ -406,6 +406,13 @@ export function hud(layout?: Layout) {
       sheet.dataset['now'] = want
       sheet.textContent = ''
       el('div', 'title', sheet).textContent = '주인공'
+      // The paperdoll, if the scene has drawn one.  It goes at the top,
+      // because that is the one thing on this panel that is a picture of you
+      // rather than a number about you.
+      if (doll) {
+        const box = el('div', 'doll', sheet)
+        box.appendChild(doll)
+      }
       for (const [k, v] of rows) {
         const line = el('div', 'row', sheet)
         el('span', 'k', line).textContent = k
@@ -602,6 +609,16 @@ export function hud(layout?: Layout) {
   }
   place()
   window.addEventListener('resize', place)
+  // And whenever the scene works out that this is a phone.  `place` runs once
+  // at construction, *before* the first touch, so it has already pinned every
+  // panel to `FrameXML`'s coordinates by the time anybody knows there is a
+  // thumb involved — and the touch branch only hands those back the next time
+  // it runs.  Without this the gossip window stayed pinned to the top of a
+  // phone's screen, over the person talking, which is the one thing the touch
+  // rules exist to avoid.  It looked like flakiness because it depended on
+  // whether a resize happened to fire first.
+  new MutationObserver(place).observe(document.body,
+    { attributes: true, attributeFilter: ['class'] })
   // And again whenever the bar changes size, because the strips above it are
   // stacked off its height and the bar is empty until the scene fills it: the
   // first run measured nought and put the experience bar under the floor.

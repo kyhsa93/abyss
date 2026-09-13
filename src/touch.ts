@@ -93,6 +93,8 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     .getPropertyValue('--mono').trim() || 'monospace'
   let on = hasTouch()
   let busy = false
+  /** Where the current finger went down, for telling a tap from a drag. */
+  let down: { at: Push; id: number } | null = null
 
   /**
    * Where the stick is, and only while a finger is on it.
@@ -162,7 +164,13 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     if (e.pointerType === 'mouse' && !on) return
     if (e.pointerType === 'touch') on = true
     const p = at(e)
-    tap = p
+    // Where the finger went down, so the lift can tell a tap from a drag.
+    // `tap` used to be set *here* — on the way down, before anything knew
+    // whether it would move — so dragging the stick while a conversation was
+    // open counted as tapping the world and closed it.  A conversation that
+    // ends when you touch the stick is a conversation that ends at random,
+    // which is what it looked like from outside.
+    down = { at: p, id: e.pointerId }
 
     if (busy) return
     const l = layout()
@@ -208,7 +216,17 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     if (e.pointerId === stick) { kx = p.x; ky = p.y }
   })
 
+  /** How far a finger may travel and still be a tap. */
+  const TAP_SLOP = 12
+
   function up(e: PointerEvent) {
+    // A tap is a press and a lift in the same place.  Anything that travelled
+    // is a drag, and a drag on the world is not an answer to anything.
+    if (down && down.id === e.pointerId) {
+      const p = at(e)
+      if (Math.hypot(p.x - down.at.x, p.y - down.at.y) <= TAP_SLOP) tap = p
+      down = null
+    }
     const slot = onButton.get(e.pointerId)
     if (slot !== undefined) {
       onButton.delete(e.pointerId)
@@ -282,6 +300,7 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       busy = b
       onButton.clear(); pressed.clear(); free.clear(); pinchGap = 0
       queued.length = 0
+      down = null
       release()
     },
 
