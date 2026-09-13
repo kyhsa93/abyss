@@ -466,6 +466,32 @@ async function main() {
     const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
     return given.has(cell(i, j))
   }
+  /**
+   * A hole with nothing under it, which is the only kind worth drawing black.
+   *
+   * The two halves of this question were being asked separately in three
+   * places and one of them forgot the second half — the one that paints the
+   * ground.  So the middle of Goldshire was a thirty-yard black square with
+   * the inn's own people standing on it: the client cuts its terrain away
+   * wherever a building carries its own floor, and the Lion's Pride is one.
+   * Walking worked; the ground under your feet was space.
+   *
+   * Two things can be under a hole.  `given` is a whole chunk handed over —
+   * all sixteen bits gone, which in this slice is Stormwind — and that was
+   * the only one being asked about.  The Lion's Pride takes a few bits out of
+   * one chunk, so it was never in `given`, and the answer that covers both is
+   * the building's own floor.
+   *
+   * One function now, and the three callers agree by construction.
+   */
+  const openHole = (wx: number, wy: number) => {
+    if (!holeAt(wx, wy) || floored(wx, wy)) return false
+    // A *floor*, not merely a building's box.  A mine mouth sits inside the
+    // box of something that has no plan of its own, and asking "is anything
+    // here at all" closed every mouth in the forest — the opposite mistake,
+    // caught by the older check within the minute.
+    return !inBuilding(wx, wy)?.floor
+  }
 
   /** The client's own area id here, or 0 where the slice has none. */
   const areaOf = (wx: number, wy: number): number => {
@@ -1574,7 +1600,7 @@ async function main() {
    */
   function footing(wx: number, wy: number) {
     return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
-      || (holeAt(wx, wy) && !floored(wx, wy)))
+      || openHole(wx, wy))
       || solidAt(wx, wy) || wallAt(wx, wy) || npcAt(wx, wy, null)
   }
 
@@ -3830,7 +3856,17 @@ async function main() {
         // the world rather than skipped, because the sheet the frame is
         // cleared with is the colour of ground off the edge of the slice, and
         // a hole is not the edge of anything — it is a way in.
-        if (holeAt(wx, wy)) {
+        //
+        // Asked *after* the building, which it was not: the client cuts its
+        // terrain away wherever a building carries its own floor, and this
+        // painted that cut black without looking up.  The middle of Goldshire
+        // was a thirty-yard black square with the inn's own people standing
+        // on it.  A wall standing on a hole is a wall, and a floor over one is
+        // a floor; either way something else is painting here.
+        // Asked at the tile's own width, which is the same question the
+        // paint below asks a few lines down, so it is asked once.
+        const covers = inBuilding(wx, wy, T)
+        if (openHole(wx, wy) && !covers) {
           const wide = px * grain
           ctx.fillStyle = '#0a0a0f'
           ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
@@ -3876,7 +3912,7 @@ async function main() {
         // for the wall.  In the ground pass because from above a building is
         // mostly a floor with a line around it, and because a plan ninety
         // yards across is not a thing that can be a sprite.
-        const built = span ? null : inBuilding(wx, wy, T)
+        const built = span ? null : covers
         // The roof comes off the building you are standing in.  There are no
         // interiors here and the abbey holds the people who hand out the work,
         // so a roof drawn over them is a roof with a quest giver under it —
@@ -4484,6 +4520,11 @@ async function main() {
     z: groundAt(x, y), slope: slopeAt(x, y), step: stepAt(x, y),
     area: areaOf(x, y), paint: paintAt(x, y),
     built: !!inBuilding(x, y),
+    // What the ground loop would actually paint here, rather than the raw
+    // bit: a hole a building has floored over is not a hole on screen.
+    hole: openHole(x, y),
+    /** Whether a building lays its own floor here, which closes a hole. */
+    floor: !!inBuilding(x, y)?.floor,
     wet: wetAt(x, y), solid: solidAt(x, y), blocked: blocked(x, y), cliff: CLIFF,
   })
 
@@ -4828,7 +4869,7 @@ async function main() {
       if (stepAt(x, y) > CLIFF) return 'slope'
       if (wetAt(x, y)) return 'water'
       if (closedAt(x, y)) return 'closed'
-      if (holeAt(x, y) && !floored(x, y)) return 'hole'
+      if (openHole(x, y)) return 'hole'
       if (wallAt(x, y)) return 'wall'
       if (solidAt(x, y)) return 'scenery'
       if (npcAt(x, y, null)) return 'somebody'

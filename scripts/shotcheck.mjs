@@ -24,6 +24,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const HOST = process.env.ABYSS_URL ?? 'http://localhost:5173'
 const DIR = 'art/shots'
+/** Where the full-size pictures go when the references are retaken. */
+const SEEN = 'shots'
 const WRITE = process.argv.includes('--write')
 const W = 64, H = 40
 /** How much of the picture may differ before it is a different picture. */
@@ -54,6 +56,7 @@ await page.waitForFunction(() => window.__ready, null, { timeout: 60000 })
 await page.evaluate(() => { window.__clock?.(new Date(2026, 5, 21, 12, 0, 0)) })
 
 mkdirSync(DIR, { recursive: true })
+if (WRITE) mkdirSync(SEEN, { recursive: true })
 for (const [name, x, y, zoom, why] of SPOTS) {
   await page.evaluate((c) => window.__cam(c), { x, y, zoom })
   await page.waitForTimeout(400)
@@ -80,7 +83,21 @@ for (const [name, x, y, zoom, why] of SPOTS) {
   const path = `${DIR}/${name}.txt`
   if (WRITE || !existsSync(path)) {
     writeFileSync(path, `${why}\n${grid}\n`)
-    console.log(`wrote ${path}`)
+    // And a picture a person can look at, beside the grid.
+    //
+    // This exists because of the one that got away.  Goldshire's reference
+    // was taken while the middle of the town was a thirty-yard black pit, and
+    // for as long as it stood this check reported `0.0% of the picture moved`
+    // — truthfully.  A reference is a promise that the screen was right when
+    // it was taken, and nothing was checking that promise, because a 64x40
+    // grid of hex digits is not something anybody reads.
+    //
+    // Written to the scratch directory rather than committed: `art/shots` is
+    // 28 KB of text on purpose and six PNGs are not.  The path is printed so
+    // the person retaking them has somewhere to look.
+    const shot = `${SEEN}/${name}.png`
+    await page.screenshot({ path: shot })
+    console.log(`wrote ${path}  —  look at ${shot}`)
     continue
   }
   const want = readFileSync(path, 'utf8').split('\n')[1] ?? ''

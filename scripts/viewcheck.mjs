@@ -362,7 +362,14 @@ const gaps = await p.evaluate(() => {
     // brings its own floor — Stormwind, here — and the server walks its own
     // creatures over it.  Drawn as a hole, not refused.  `__holeAt` still says
     // yes there; `__probe` is what knows the difference.
-    if (window.__probe(x, y).blocked || window.__floored(x, y)) refused++
+    // Three ways a cut in the terrain is accounted for.  A step refused is
+    // the mine mouth; `__floored` is a whole chunk handed to a building that
+    // brings its own floor, which here is Stormwind; and a building's own
+    // floor laid over part of a chunk is the Lion's Pride, which you can walk
+    // into and stand in.  The third was missing, so the inn's floor read as
+    // an unaccounted hole the moment the ground stopped painting it black.
+    const q = window.__probe(x, y)
+    if (q.blocked || window.__floored(x, y) || q.floor) refused++
     // Floor again a few yards off, so the mask is a mouth and not a blanket
     // over the hillside.  Asked of the hole mask itself and not of whether a
     // step is refused: a good half of these are Stormwind's own ground and
@@ -818,6 +825,39 @@ check('and lands on both banks', spans.every((s) => !s.ends[0] && !s.ends[1]),
 check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
+
+// 10b. Goldshire has no pit in the middle of it.
+//
+// The client cuts its own terrain away wherever a building carries its own
+// floor, and the ground loop painted that cut black without asking whether
+// anything was standing in it — so the middle of Goldshire was a thirty-yard
+// black square with the inn's own people on top of it.  Two of the three
+// places that asked "is this a hole" already knew to ask the second half.
+//
+// Counted off the **canvas**, not out of the scene.  Every way of asking the
+// scene turns into a restatement of the rule that draws it, and the thing
+// that went wrong here is exactly what a restatement cannot see: `shotcheck`
+// had a Goldshire reference all along and reported 0.0% moved, because the
+// black square was in the reference.  A picture taken while the screen is
+// wrong guards the wrong screen.  Pixels of the hole colour, in a town with
+// no mine in it, is a number that is zero for a reason.
+await p.evaluate(() => window.__cam({ x: -9462, y: 16, zoom: 1 }))
+await p.waitForTimeout(700)
+const pit = await p.evaluate(() => {
+  const c = document.querySelector('canvas')
+  const g = c.getContext('2d')
+  const { data } = g.getImageData(0, 0, c.width, c.height)
+  let dark = 0
+  // `#0a0a0f`, which nothing else in this palette is: the ground sheet's
+  // darkest grass is far lighter and the panels are DOM, not canvas.
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] === 0x0a && data[i + 1] === 0x0a && data[i + 2] === 0x0f) dark++
+  }
+  return { dark, of: (c.width * c.height) }
+})
+check('Goldshire has no pit in the middle of it',
+  pit.dark / pit.of < 0.002,
+  `${(100 * pit.dark / pit.of).toFixed(1)}% of the view is the hole colour`)
 
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
