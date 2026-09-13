@@ -1345,6 +1345,151 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     + `${world.reached}/${world.doors} doors)`)
 }
 
+// 16. Getting out of a rock lets you out of the rock, and nowhere else.
+//
+// `stuck || …` allowed **every** direction once the cell you were on was one
+// nobody can stand in, which is how the rule that was meant to stop somebody
+// being trapped became the thing that let them walk through walls: three of
+// four directions out of a blocked cell ended on another blocked cell, so the
+// hatch never closed behind you.  Indoors it was wider still — `footing`
+// refuses every cell that is not floor, which is 41% of the abbey.
+{
+  const spot = await p.evaluate(() => {
+    const B = window.__bounds()
+    for (let x = B[0] + 200; x < B[1] - 200; x += 7) {
+      for (let y = B[2] + 200; y < B[3] - 200; y += 7) {
+        if (window.__wallAt(x, y)) return { x, y }
+      }
+    }
+    return null
+  })
+  check('there is somewhere in this world a man cannot stand', !!spot)
+  if (spot) {
+    const worst = []
+    for (const [name, k] of [['north', 'w'], ['south', 's'],
+      ['west', 'a'], ['east', 'd']]) {
+      await p.evaluate(([x, y]) => window.__cam({ x, y }), [spot.x, spot.y])
+      await p.waitForTimeout(150)
+      await p.keyboard.down(k)
+      let run = 0, worstRun = 0, last = null, ends = false
+      for (let i = 0; i < 20; i++) {
+        await p.waitForTimeout(100)
+        const at = await p.evaluate(() => {
+          const h = window.__hero()
+          return [h.x, h.y, window.__wallAt(h.x, h.y)]
+        })
+        if (at[2]) {
+          if (last) run += Math.hypot(at[0] - last[0], at[1] - last[1])
+          worstRun = Math.max(worstRun, run)
+        } else run = 0
+        last = [at[0], at[1]]
+        ends = at[2]
+      }
+      await p.keyboard.up(k)
+      worst.push({ name, worstRun, ends })
+    }
+    const far = worst.filter((w) => w.worstRun > 3)
+    check('walking out of it never crosses three yards of solid ground',
+      far.length === 0,
+      worst.map((w) => `${w.name} ${w.worstRun.toFixed(1)}yd`).join(' '))
+    check('and every way out of it ends somewhere you can stand',
+      worst.every((w) => !w.ends),
+      worst.filter((w) => w.ends).map((w) => w.name).join(' '))
+  }
+}
+
+// 17. No teleport puts a man inside anything.
+//
+// `placeHero` was four lines that asked nothing, and there are five callers:
+// charging, the graveyard, walking through a door, and two hooks the checks
+// drive.  Only `throughTheDoor` looked first.  Over every target in the world
+// from eight directions each, **131 of 12,353 charges — one in ninety-four —
+// land on ground nobody can stand on**, and a landing inside something is the
+// other half of the escape hatch above: once he is in a rock, the rules that
+// stop him being trapped are the rules that let him walk through walls.
+{
+  const landed = await p.evaluate(() => {
+    const MELEE = 5.0
+    let tried = 0, wouldSink = 0, sank = 0
+    for (const n of window.__all()) {
+      if (n.dead) continue
+      for (let a = 0; a < 8; a++) {
+        const t = (a / 8) * Math.PI * 2
+        const fx = n.x + Math.cos(t) * 25, fy = n.y + Math.sin(t) * 25
+        if (window.__wallAt(fx, fy)) continue
+        tried++
+        const d = Math.hypot(n.x - fx, n.y - fy) || 1
+        const lx = n.x - ((n.x - fx) / d) * (MELEE * 0.7)
+        const ly = n.y - ((n.y - fy) / d) * (MELEE * 0.7)
+        if (!window.__wallAt(lx, ly)) continue
+        wouldSink++
+        const at = window.__put(lx, ly)
+        if (window.__wallAt(at.x, at.y)) sank++
+      }
+    }
+    return { tried, wouldSink, sank }
+  })
+  check('a charge that would land inside something lands beside it instead',
+    landed.wouldSink > 0 && landed.sank === 0,
+    `${landed.sank} of ${landed.wouldSink} still inside, over `
+    + `${landed.tried.toLocaleString()} charges`)
+}
+
+// 18. And what chases you cannot go where you cannot.
+//
+// The chase rule asked `wetAt` and `solidAt` — water and trees — while the
+// player is also stopped by a closed chunk, a hole and **a building**.  So a
+// wolf came through the wall, and it is the half of "things walk through
+// walls" a player sees most: he is only occasionally somewhere he should not
+// be, and a beast chasing him is there the whole time.
+//
+// Read as straight lines from a target, which is the shape a chase has: it
+// goes at you, not round anything.
+{
+  // Driven rather than reasoned about: stand the player inside a building,
+  // anger something outside it, and watch.
+  const chase = await p.evaluate(() => {
+    const inside = window.__buildings()
+      .filter((b) => b.k !== 'mine' && (b.doors ?? []).length)
+      .map((b) => {
+        // Somewhere in it a body fits, found by walking out from the middle.
+        for (let r = 0; r < b.l; r += 2) {
+          for (let a = 0; a < 12; a++) {
+            const t = (a / 12) * Math.PI * 2
+            const x = b.x + Math.cos(t) * r, y = b.y + Math.sin(t) * r
+            const q = window.__plotAt(x, y)
+            if (q && q.floor && !q.wall) return { b, x, y }
+          }
+        }
+        return null
+      }).find(Boolean)
+    if (!inside) return null
+    // The nearest thing that would come at you, standing outside.
+    const foe = window.__all()
+      .filter((n) => !n.dead && n.stance === 'enemy'
+        && !window.__shutOut(n.x, n.y))
+      .sort((a, c) => Math.hypot(a.x - inside.x, a.y - inside.y)
+        - Math.hypot(c.x - inside.x, c.y - inside.y))[0]
+    if (!foe) return null
+    window.__put(inside.x, inside.y)
+    return { at: [inside.x, inside.y], foe: { x: foe.x, y: foe.y, kind: foe.kind } }
+  })
+  check('there is a building with a floor and something outside it', !!chase,
+    JSON.stringify(chase))
+  if (chase) {
+    await p.waitForTimeout(2500)
+    const got = await p.evaluate(([fx, fy]) => {
+      const n = window.__all()
+        .sort((a, c) => Math.hypot(a.x - fx, a.y - fy)
+          - Math.hypot(c.x - fx, c.y - fy))[0]
+      return { in: window.__shutOut(n.x, n.y), moved: Math.hypot(n.x - fx, n.y - fy) }
+    }, [chase.foe.x, chase.foe.y])
+    check('and it does not walk through the wall to get at you', !got.in,
+      `it moved ${got.moved.toFixed(1)} yards and ended `
+      + `${got.in ? 'inside' : 'outside'}`)
+  }
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

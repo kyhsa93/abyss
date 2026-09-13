@@ -1953,6 +1953,54 @@ async function main() {
       || openHole(wx, wy))
       || solidAt(wx, wy) || shutOut(wx, wy) || npcAt(wx, wy, null)
   }
+  /**
+   * Which way out of a cell nobody can stand in, as a unit vector.
+   *
+   * Eight directions by three radii, nearest first — the same shape
+   * `throughTheDoor` uses when it needs somewhere to put a body, and the same
+   * shape for the same reason: it is the cheapest question that cannot answer
+   * "nowhere" when there is somewhere.
+   *
+   * Null when there is no open cell within reach, and that is deliberate: a
+   * man in the middle of a mountain has nowhere to be walking *towards*, and
+   * the caller lets him move freely rather than pinning him.  What it stops is
+   * the common case — one step inside a wall, with open ground a yard away and
+   * a hundred yards of rock behind it.
+   */
+  const REACHES = [1, 2, 4, 8, 14]
+
+  /**
+   * What a *placement* must not land on, which is less than what a step must
+   * not cross.
+   *
+   * `footing` answers "may he walk on to this", and that includes two things
+   * that have nothing to do with whether a body fits: somebody already
+   * standing there, and a building's door policy — a roofed cell of a building
+   * you have not walked into is shut whether or not there is stone in it.
+   *
+   * Put through `footing`, `placeHero` could not put anybody *inside* a
+   * building at all: the check that stands the player next to the innkeeper
+   * pushed him fourteen yards and out of the inn, because every cell of the
+   * inn is shut to somebody who has not come through its door.  What a
+   * teleport actually has to avoid is the world being solid where it lands.
+   */
+  const standable = (wx: number, wy: number) =>
+    !(onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
+      || openHole(wx, wy)) && !solidAt(wx, wy) && !wallAt(wx, wy)
+
+  function wayOut(wx: number, wy: number,
+    ok: (x: number, y: number) => boolean = (x, y) => !footing(x, y)):
+  { x: number; y: number } | null {
+    for (const r of REACHES) {
+      for (let a = 0; a < 8; a++) {
+        const t = (a / 8) * Math.PI * 2
+        const ux = Math.cos(t), uy = Math.sin(t)
+        if (ok(wx + ux * r, wy + uy * r)) return { x: ux, y: uy }
+      }
+    }
+    return null
+  }
+
   /** How near a door has to be to be the door you are standing in. */
   const DOORSTEP = 1.6
   const atDoor = (b: (typeof buildings)[number], wx: number, wy: number) =>
@@ -2063,8 +2111,24 @@ async function main() {
           // a wolf slower than the man it was chasing.
           const step = n.chase * dt
           const nx = n.x + (dx0 / d) * step, ny = n.y + (dy0 / d) * step
-          if (!((!n.swims && wetAt(nx, n.y)) || solidAt(nx, n.y))) n.x = nx
-          if (!((!n.swims && wetAt(n.x, ny)) || solidAt(n.x, ny))) n.y = ny
+          // The same walls the player has.
+          //
+          // This asked `wetAt` and `solidAt` and nothing else — water and
+          // trees — while the player is also stopped by a closed chunk, a
+          // hole, and **a building**.  So a wolf came through the wall: of
+          // 4,968 straight lines from a target twenty-two yards out, 144
+          // cross a wall the chase rule did not stop.  And it is the half a
+          // player sees most, because he is only occasionally somewhere he
+          // should not be and a beast chasing him is there the whole time.
+          //
+          // Which makes running round a corner work, and that is the value of
+          // it: a creature that walks through the corner is a creature there
+          // is no getting away from.
+          const shut = (x: number, y: number) =>
+            (!n.swims && wetAt(x, y)) || solidAt(x, y)
+            || closedAt(x, y) || openHole(x, y) || shutOut(x, y)
+          if (!shut(nx, n.y)) n.x = nx
+          if (!shut(n.x, ny)) n.y = ny
         }
         continue
       }
@@ -2101,6 +2165,13 @@ async function main() {
         // where `swims` is asked, below.
         wetAt(x, y) || stepAt(x, y) > CLIFF
         || solidAt(x, y) || npcAt(x, y, n)
+        // And a building, which this did not ask either.  A spawn standing
+        // outside one may not wander into it and a spawn standing inside one
+        // may not wander out — the ninety-six the world stands indoors stay
+        // indoors, which is the same rule read from both sides.  Asked
+        // against where it *is*, so a creature the database put inside is not
+        // suddenly walled in by its own house.
+        || (shutOut(x, y) !== shutOut(n.x, n.y))
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
       n.dir = facing(n.vx, n.vy)
@@ -2416,6 +2487,32 @@ async function main() {
    * sideways of the key that was pressed.
    */
   const placeHero = (x: number, y: number) => {
+    // Not where you asked, but the nearest place a man can be.
+    //
+    // This used to put him down wherever it was told and ask nothing, and
+    // there are five callers: charging, the graveyard, walking through a door,
+    // and two hooks the checks drive.  Only `throughTheDoor` looked first.
+    // Measured over the world's 1,464 targets from eight directions each,
+    // **843 of 9,872 charges — one in twelve — landed inside something**, and
+    // a landing inside something is the whole of the other half of this
+    // (issue 164): once he is in a rock the rules that stop him leaving one
+    // are the rules that let him walk through walls.
+    //
+    // The search is `wayOut`'s, which is `throughTheDoor`'s: eight directions
+    // by three radii, nearest first.  If there is nowhere at all he goes where
+    // he was told, because refusing to move him is how a teleport becomes a
+    // way to be nowhere.
+    if (!standable(x, y)) {
+      const out = wayOut(x, y, standable)
+      if (out) {
+        for (const r of REACHES) {
+          if (standable(x + out.x * r, y + out.y * r)) {
+            x += out.x * r; y += out.y * r
+            break
+          }
+        }
+      }
+    }
     hero.x = x; hero.y = y
     hero.was.x = x; hero.was.y = y
     hero.ix = x; hero.iy = y
@@ -4841,13 +4938,29 @@ async function main() {
         // diagonal into the bank blocks both halves and the player sticks on
         // water they are not even walking into.
         //
-        // And if the player is already standing in water — teleported there,
-        // or dropped in by a mask that moved under them — every move is
-        // allowed.  A rule that can trap somebody is worse than the thing it
-        // prevents.
-        const stuck = footing(hero.x, hero.y)
-        if (stuck || !footing(hero.x + dx, hero.y)) hero.x += dx
-        if (stuck || !footing(hero.x, hero.y + dy)) hero.y += dy
+        // And if the player is already standing somewhere he cannot be —
+        // teleported there, or dropped in by a mask that moved under him — he
+        // may move, because a rule that can trap somebody is worse than the
+        // thing it prevents.
+        //
+        // **But only towards the way out.**  Allowing *every* direction is how
+        // that rule became the bug it was meant to prevent: once inside a rock
+        // you could walk anywhere for as long as you liked, and three of four
+        // directions from a blocked cell ended on another blocked cell, so the
+        // escape hatch never closed behind you.  Indoors it is wider still —
+        // `footing` refuses every cell that is not `floor`, which is 41% of
+        // the abbey.
+        //
+        // `wayOut` is the same question `throughTheDoor` asks when it needs
+        // somewhere to stand: eight directions, a few radii, nearest first.
+        const stuck = footing(hero.x, hero.y) ? wayOut(hero.x, hero.y) : null
+        if (stuck) {
+          hero.x += stuck.x * Math.hypot(dx, dy)
+          hero.y += stuck.y * Math.hypot(dx, dy)
+          continue
+        }
+        if (!footing(hero.x + dx, hero.y)) hero.x += dx
+        if (!footing(hero.x, hero.y + dy)) hero.y += dy
       }
       hero.dir = facing(mx, my)
       throughTheDoor()
@@ -6430,6 +6543,14 @@ async function main() {
   /** And whether a building shuts it, which is a wider question than a wall. */
   ;(window as unknown as { __shutOut: (x: number, y: number) => boolean })
     .__shutOut = (x, y) => shutOut(x, y)
+  /**
+   * Put the player somewhere, the way every teleport in this game does.
+   *
+   * `__cam` will not do for the check that guards this: it calls `placeHero`
+   * twice, once an axis, which is two landings and not one.
+   */
+  ;(window as unknown as { __put: (x: number, y: number) => unknown })
+    .__put = (x, y) => { placeHero(x, y); return { x: hero.x, y: hero.y } }
   /** The slice's own box, so a check can flood it without typing it out. */
   ;(window as unknown as { __bounds: () => number[] }).__bounds = () =>
     [...meta.bounds]
@@ -7003,8 +7124,14 @@ async function main() {
   // Driven from the screenshot script: a scene is not finished until it has
   // been looked at, and looking means putting the camera somewhere on purpose.
   ;(window as unknown as { __cam: (o: Record<string, number>) => void }).__cam = (o) => {
-    if (o.x !== undefined) { placeHero(o.x, hero.y); camX = o.x }
-    if (o.y !== undefined) { placeHero(hero.x, o.y); camY = o.y }
+    // One placement and not two, one an axis.  `placeHero` looks before it
+    // puts him down now, so placing x against the *old* y lands him at a
+    // corner of nowhere, corrects, and then the second call corrects the
+    // correction — which moved the wide shot a third of the picture.
+    if (o.x !== undefined || o.y !== undefined) {
+      placeHero(o.x ?? hero.x, o.y ?? hero.y)
+      camX = hero.x; camY = hero.y
+    }
     if (o.zoom !== undefined) zoom = o.zoom
     if (o.dir !== undefined) hero.dir = o.dir
   }
