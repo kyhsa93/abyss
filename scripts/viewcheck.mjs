@@ -622,6 +622,18 @@ if (pulled) {
 check('and a shared slot stands up only its share', packs.waiting > 0,
   `${packs.pooled} spawns share slots, ${packs.waiting} of them waiting a turn`)
 
+// 9o. Where you stop matters.  Rest accrues four times as fast in an inn —
+// `Player::LoadFromDB` (PlayerStorage.cpp:5523) — and in a browser closing the
+// tab *is* logging out, so this is the one rule from that game that fits this
+// medium better than it fit the original.
+const inn = await p.evaluate(() => { window.__toInn(); return window.__rest() })
+check('there is an inn and standing in it counts', inn.inns > 0 && inn.inside,
+  `${inn.innkeepers} innkeepers, ${inn.inns} of them with a roof over them`)
+check('and resting there is worth four times resting outside',
+  Math.abs(inn.anHourInside / inn.anHourOutside - 0.125 / 0.031) < 0.01,
+  `an hour inside banks ${inn.anHourInside.toFixed(2)} experience, outside `
+  + `${inn.anHourOutside.toFixed(2)}, and the pool caps at ${inn.cap}`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

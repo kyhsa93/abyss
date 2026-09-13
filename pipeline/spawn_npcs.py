@@ -73,8 +73,13 @@ C_RESPAWN, C_WANDER, C_MOVE = 14, 15, 19
 # has.  Nearly every townsperson is a GOSSIP, so GOSSIP is last.
 NPCFLAG = [
     ('trainer', 0x10 | 0x20 | 0x40),
-    ('vendor', 0x80 | 0x100 | 0x200 | 0x400 | 0x1000000),
+    # Before `vendor`, because an innkeeper is also a vendor and the vendor
+    # bit is the commoner one — tested the other way round the slice reported
+    # *no innkeepers at all*, which is not what a zone with a tavern in it
+    # looks like.  Resting is the only thing that distinguishes them and it
+    # needs to know which building is the inn.
     ('innkeeper', 0x10000),
+    ('vendor', 0x80 | 0x100 | 0x200 | 0x400 | 0x1000000),
     ('banker', 0x20000),
     ('stablemaster', 0x400000),
     ('flightmaster', 0x2000),

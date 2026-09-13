@@ -40,6 +40,9 @@ export type Save = {
     items: number[]
     gear: Record<string, number>
     taught: number[]
+    /** Banked experience, and whether the tab was closed in an inn. */
+    rest: number
+    restedIn: number
   }
   /** Where the stream of chance is, so loading cannot re-roll a drop. */
   seed: number

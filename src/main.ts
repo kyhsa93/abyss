@@ -1874,6 +1874,8 @@ async function main() {
      * placeholder: a node asking for nothing would still refuse.
      */
     trades: { herbs: 1, mining: 1 } as Record<string, number>,
+    /** Experience banked by stopping somewhere sensible — see `resting`. */
+    rest: 0,
   }
   /**
    * The four things a warrior can do by level five.
@@ -2075,7 +2077,11 @@ async function main() {
     // day it is not is exactly the sort that gets left out.
     const gain = Math.round(
       xpFor(you.level, foe.level, foe.role === 'elite') * foe.worth)
-    you.xp += gain
+    // Rested doubles a kill and never more than doubles it, and every point
+    // spent comes out of the pool — `Player::GetXPRestBonus`.
+    const bonus = Math.min(Math.floor(you.rest), gain)
+    you.rest -= bonus
+    you.xp += gain + bonus
     // And whatever anybody asked you to do about it.  The entry and not the
     // kind: all three of Northshire's kobolds are `kobold` and the chain wants
     // eight of each in turn.
@@ -2201,6 +2207,36 @@ async function main() {
 
   /** A wound of somebody else's, ticking on the player. */
   let youBleed: { until: number; next: number; each: number } | null = null
+
+  /**
+   * Rest, which is what makes it matter where you close the tab.
+   *
+   * `Player::LoadFromDB` (PlayerStorage.cpp:5523): rest accrues offline at
+   * `seconds × (nextLevelXP / 144000) × bubble`, where the bubble is 0.125 in
+   * an inn and 0.031 anywhere else — four times faster indoors, which is the
+   * whole of the rule.  The cap is `SetRestBonus`: three quarters of a level.
+   * Spending it is `GetXPRestBonus` (Player.cpp:9089): every kill is worth
+   * double until the pool runs out, never more.
+   *
+   * In a browser, closing the tab *is* logging out, so this is the one rule
+   * from that game that fits this medium better than it fit the original.
+   */
+  const REST_IN_INN = 0.125, REST_OUTSIDE = 0.031
+  /** Which buildings hold somebody who rents beds. */
+  const inns = new Set<unknown>()
+  for (const n of npcs) {
+    if (n.role !== 'innkeeper') continue
+    const b = inRoom(n.x, n.y)
+    if (b) inns.add(b)
+  }
+  const resting = () => {
+    const b = inRoom(hero.x, hero.y)
+    return !!b && inns.has(b)
+  }
+  const restCap = () => (LADDER[you.level - 1] ?? 0) * 0.75
+  const restFor = (seconds: number, inInn: boolean) =>
+    seconds * ((LADDER[you.level - 1] ?? 0) / 144000)
+    * (inInn ? REST_IN_INN : REST_OUTSIDE)
 
   function restocking() {
     for (const n of nodes) {
@@ -2628,6 +2664,7 @@ async function main() {
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
       items: held, gear, taught,
+      rest: you.rest, restedIn: resting() ? 1 : 0,
     },
     seed: seed(),
     quests: {
@@ -2649,6 +2686,7 @@ async function main() {
     held = save.you.items ?? []
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
+    you.rest = save.you.rest ?? 0
     // Everything downstream of what is worn, worked out again rather than
     // stored: maximum health is stamina and stamina is the level plus a
     // breastplate.
@@ -3968,7 +4006,19 @@ async function main() {
       await wipeSave().catch(() => {})
     } else {
       restore(fresh)
+      // What the time away was worth.  Four times as much if the tab was
+      // closed in an inn, which is the only reason it matters where you stop.
+      const away = Math.max(0, (Date.now() - (fresh.at ?? Date.now())) / 1000)
+      const banked = Math.min(restCap(),
+        you.rest + restFor(away, !!fresh.you.restedIn))
+      const gained = Math.round(banked - you.rest)
+      you.rest = banked
       ui.log(`${you.level}레벨로 이어서 시작한다.`, 'note')
+      if (gained > 0) {
+        ui.log(fresh.you.restedIn
+          ? `여관에서 쉬었다. 휴식 경험치 ${gained}`
+          : `쉬는 동안 휴식 경험치 ${gained}`, 'gain')
+      }
     }
   }
   let saved = 0
@@ -4317,6 +4367,26 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /** Where the inns are and what an hour of standing in one is worth. */
+  ;(window as unknown as { __rest: () => unknown }).__rest = () => ({
+    inns: inns.size,
+    innkeepers: npcs.filter((n) => n.role === 'innkeeper').length,
+    inside: resting(),
+    pool: you.rest, cap: restCap(),
+    anHourInside: restFor(3600, true),
+    anHourOutside: restFor(3600, false),
+  })
+  /** Stand in the first inn, for the check that it is a place. */
+  ;(window as unknown as { __toInn: () => unknown }).__toInn = () => {
+    // The one who is actually standing in his inn: the slice has two and one
+    // of them is outdoors, which is a fact about the world rather than a bug.
+    const keep = npcs.find((n) => n.role === 'innkeeper' && inns.has(inRoom(n.x, n.y)))
+      ?? npcs.find((n) => n.role === 'innkeeper')
+    if (!keep) return null
+    hero.x = keep.x; hero.y = keep.y
+    camX = hero.x; camY = hero.y
+    return { inside: resting(), where: [hero.x, hero.y] }
   }
   /** Who walks with whom, and who is waiting a turn in a shared slot. */
   ;(window as unknown as { __packs: () => unknown }).__packs = () => ({
