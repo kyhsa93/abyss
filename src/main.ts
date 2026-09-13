@@ -631,6 +631,17 @@ async function main() {
   const KIND: Record<string, {
     pieces: string[]
     yards?: number
+    /**
+     * A ceiling on how tall one may draw, whatever its model says.
+     *
+     * For everything else the client's own box is the better answer — it
+     * knows a sapling from a sixty-yard oak.  A waterfall is the exception:
+     * its box is the *cliff*, 19 to 97 yards for the same picture, and the
+     * client builds one fall out of sixteen placements in a fifty-yard
+     * cluster.  Each is a strand, and at its stated height one strand
+     * covered the glass.
+     */
+    cap?: number
     /** Drawn under the piece, for pieces that are a canopy and nothing else. */
     trunk?: string
     /** The pieces that are already a whole tree and want no trunk under them. */
@@ -686,6 +697,18 @@ async function main() {
     // that is the whole of the reason.
     mushroom: { pieces: ['sprout2', 'sprout'] },
     lily: { pieces: ['lily', 'lily2', 'lily3'] },
+    // Elwynn has thirty-eight of these and nothing was drawn for any of them,
+    // which in a forest whose one moving thing is water is a strange gap.
+    // Side-on, like a tree: this projection draws a tree as a picture of a
+    // tree standing up, and a fall is the same kind of object.
+    // Four yards, and the number is about how the client builds one: the
+    // biggest fall in the slice is sixteen placements in a fifty-yard cluster,
+    // so each one is a *strand* rather than the whole fall.  Sized off the
+    // model's own box — 19 to 97 yards, because what it measures is the cliff
+    // the fall is cut into — every strand was a wall of blue.
+    waterfall: { pieces: ['waterfall'], yards: 4, cap: 6 },
+    // Not drawn here at all: fireflies are light.  See the night pass.
+    firefly: { pieces: [] },
     barrel: { pieces: ['barrel', 'barrel2', 'barrel3', 'barrel4', 'barrels'], solid: 0.4 },
     // `prop` is the client's word for the furniture of a yard, and 301 of them
     // were one grey blob.  A yard has firewood, sacks, crates and a stall in
@@ -803,7 +826,25 @@ async function main() {
    */
   type Rect = { x0: number; x1: number; y0: number; y1: number }
   const solids: Rect[] = []
+  /**
+   * The fireflies, which are not scenery and not creatures.
+   *
+   * Fifty-one clusters of them stand in Elwynn and there is no picture for
+   * one: every asset pack on this machine was searched — LPC's tiles,
+   * animals and pets, Kenney's nature and forest sets, the Superpowers packs
+   * — and none has a top-down firefly, butterfly or bird.  Drawing one here
+   * is not allowed.
+   *
+   * But a firefly is barely a picture.  It is a point of light that comes and
+   * goes, and light is code: the same machinery that draws the rain, which
+   * nobody would have called art either.  So the client's own placements are
+   * kept and the night pass lights them.
+   */
+  const motes: { x: number; y: number }[] = []
+  /** How many sparks the last frame lit, which is what the check reads. */
+  let sparks = 0
   for (const d of meta.doodads) {
+    if (d.k === 'firefly') { motes.push({ x: d.x, y: d.y }); continue }
     const k = KIND[d.k]
     if (!k) continue
     const seed = k.run ? hash(Math.floor(d.x / 40), Math.floor(d.y / 40)) : hash(d.x, d.y)
@@ -839,7 +880,12 @@ async function main() {
     // the kind's figure only where there is no model to ask, which is the
     // buildings.  `d.s` is already inside `d.t`, so it multiplies only the
     // fallback.
-    const yards = d.t || (k.yards ? k.yards * d.s : 0)
+    // And a ceiling, for the one case where the model's box is not the object.
+    // A waterfall's box is the cliff it is cut into — 19 to 97 yards for the
+    // same picture — and the client builds one fall out of sixteen placements
+    // in a fifty-yard cluster, so each is a *strand*.  Drawn at its stated
+    // height the eastern falls were a wall of blue across the whole glass.
+    const yards = Math.min(d.t || (k.yards ? k.yards * d.s : 0), k.cap ?? 1e9)
     const size = yards ? (yards * PPY) / tall : d.s
     if (k.patch) {
       // A field, sown over the footprint the client's model declares rather
@@ -4261,6 +4307,56 @@ async function main() {
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.globalCompositeOperation = 'source-over'
     }
+    // Fireflies, which are the one thing in this forest that only exists
+    // after dark.
+    //
+    // Fifty-one clusters of them stand in Elwynn and there is no picture for
+    // one: every asset pack on this machine was searched and none has a
+    // top-down butterfly, bird or firefly, and drawing one here is not
+    // allowed.  But a firefly is not really a picture — it is a point of
+    // light that comes and goes — and light is code.  So the client's own
+    // placements are kept, and what they hold at night is a glow.
+    //
+    // They fade in as the light goes, which is why this lives inside the
+    // tint: `1 - tint` is exactly how dark it is.
+    if (light.tint >= 0.55) sparks = 0
+    if (light.tint < 0.55) {
+      const glow = Math.min(1, (0.55 - light.tint) / 0.35)
+      ctx.globalCompositeOperation = 'lighter'
+      sparks = 0
+      for (const o of motes) {
+        const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
+        if (X < -40 || X > canvas.width + 40 || Y < -40 || Y > canvas.height + 40) continue
+        // Eight to a cluster, each on its own slow circle, all of them from
+        // the cluster's own position — so they neither flicker in step nor
+        // take anything from the stream of chance.
+        for (let i = 0; i < 8; i++) {
+          const t = clock * (0.5 + (i % 3) * 0.17) + i * 2.1 + o.x * 0.07
+          // In yards, not in pixels: a cluster is a couple of yards of air
+          // and has to stay that whatever the camera is doing.
+          const r = (1.1 + (i % 4) * 0.55) * PPY * zoom
+          const bx = X + Math.cos(t) * r
+          const by = Y - PPY * 0.5 * zoom + Math.sin(t * 1.3) * r * 0.45
+          const lit = 0.45 + 0.55 * Math.sin(t * 2.7 + i)
+          if (lit <= 0) continue
+          const a = lit * glow
+          // A halo and a spark.  One flat dot at this size is a pixel of
+          // yellow and reads as a dead sub-pixel; what says *light* is that
+          // it spills.
+          ctx.fillStyle = `rgba(150,190,70,${(0.22 * a).toFixed(3)})`
+          ctx.beginPath()
+          ctx.arc(bx, by, Math.max(3, 5 * zoom), 0, Math.PI * 2)
+          ctx.fill()
+          ctx.fillStyle = `rgba(214,240,140,${(0.85 * a).toFixed(3)})`
+          ctx.beginPath()
+          ctx.arc(bx, by, Math.max(1, 1.7 * zoom), 0, Math.PI * 2)
+          ctx.fill()
+          sparks++
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over'
+    }
+
     // And what is falling through it.  Derived from the same hour the sky is,
     // so it neither flickers nor touches the stream of chance: the drops are
     // a lattice sliding down the glass, which is what rain looks like at this
@@ -4705,6 +4801,9 @@ async function main() {
    * started mattering: a bookshelf that does not know it is in a house is a
    * bookshelf in the road.
    */
+  ;(window as unknown as { __motes: () => unknown }).__motes = () => ({
+    n: motes.length, lit: sparks,
+  })
   ;(window as unknown as { __scenery: () => unknown }).__scenery = () => {
     const out: Record<string, [number, number]> = {}
     for (const o of placed) {
@@ -5354,8 +5453,12 @@ async function main() {
       return {
         kind, models, pieces: Math.min(have, models || have),
         // A deck is drawn by the ground pass, so it has no standing picture
-        // and wants none.
-        floor: !!tintedGround().at[kind === 'bridge_stone' ? 'stone' : kind],
+        // and wants none.  A firefly is drawn by the *night* pass and wants
+        // none either: it is a point of light rather than a sprite, which is
+        // the whole reason this repository has an answer for fireflies and
+        // none for butterflies.
+        floor: kind === 'firefly'
+          || !!tintedGround().at[kind === 'bridge_stone' ? 'stone' : kind],
       }
     })
   ;(window as unknown as { __pieces: (r: number) => unknown }).__pieces = (r) => {

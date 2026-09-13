@@ -827,6 +827,11 @@ KINDS = [
     ('WOODPOST', 'post'), ('FENCEPOST', 'post'), ('POST', 'post'),
     ('FENCE', 'fence'),
     ('CLIFFROCK', 'rock'), ('ROCK', 'rock'), ('BOULDER', 'rock'),
+    ('WATERFALL', 'waterfall'),
+    # Kept as a kind with no picture, because the answer to these is not a
+    # sprite.  See `firefly` in `src/main.ts`: they are light, and light is
+    # code rather than art.
+    ('FIREFLIES', 'firefly'),
     ('LILYPAD', 'lily'), ('SEAWEED', 'water_plant'), ('SWAMPPLANT', 'water_plant'),
     ('GRASS', 'grass'), ('PLANT', 'grass'), ('FLOWER', 'flower'), ('CABBAGE', 'crop'),
     ('MUSHROOM', 'mushroom'), ('STUMP', 'stump'), ('LOG', 'log'),
@@ -1006,11 +1011,35 @@ def ground_of(data, off, size, names, big):
     return out
 
 
+# Things this repository has looked for a picture of and not found one.
+#
+# Butterflies, birds and the fireflies are 255 of the 530 the outdoor pass
+# skips, and they are the ones that hurt: what they are is *motion*, and a
+# forest with nothing moving in it is the exact complaint the art direction
+# page raised about having no way to give the land an expression.  Every asset
+# pack on this machine was searched — `lpc-tiles`, `lpc-animals`, `lpc-pets`,
+# the Kenney nature and forest sets, the Superpowers packs — and none of them
+# has a top-down butterfly or bird.  Drawing one here is not allowed.
+#
+# So they are named rather than left in the unmatched pile.  The difference
+# matters: an unmatched model is something nobody has looked at, and these
+# have been looked at.  The fireflies get an answer of a different kind in
+# `src/main.ts` — they are light, and light is code.
+NO_PICTURE = ('BUTTERFLY', 'BIRD0', 'CRITTER')
+
+
 def classify(path):
     """Blizzard's file path in, one of our own words out — or nothing."""
     p = path.upper()
-    if 'CRITTER' in p:          # fireflies and birds are animation, not scenery
-        return None
+    # The fireflies live in the client's `CRITTER` folder, which the next
+    # line throws away wholesale — so they are asked for by name first.  They
+    # are the one critter this repository has an answer for, and the answer
+    # is not a picture.
+    if 'FIREFLIES' in p:
+        return 'firefly'
+    for needle in NO_PICTURE:
+        if needle in p:
+            return None
     for needle, kind in KINDS:
         if needle in p:
             return kind

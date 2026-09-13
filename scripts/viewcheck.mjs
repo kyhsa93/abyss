@@ -977,6 +977,39 @@ check('a building\'s furniture knows which building it is in',
   `${loose} of ${furniture} do not: ${homeless.map(([k, n]) => `${k} ${n}`).join(', ')}`)
 console.log(`      (${furniture} pieces of furniture, ${loose} of them loose)`)
 
+// 10f. The forest has waterfalls, and after dark it has fireflies.
+//
+// `npm run audit` counts 530 outdoor placements with no rule, and 293 of them
+// are the things that *move*: 158 butterflies, 51 clusters of fireflies, 46
+// birds, 38 waterfalls.  In a forest whose art direction gave up terrain
+// textures, motion is most of what is left to give the land an expression.
+//
+// The falls have a picture now.  Butterflies and birds do not and will not:
+// every asset pack on this machine was searched and none has a top-down one,
+// and drawing one here is not allowed — so they are *named* in the bake
+// rather than left unmatched, which is the difference between a thing nobody
+// has looked at and a thing somebody has.
+const wild = await p.evaluate(() => window.__scenery())
+check('the falls are drawn', (wild.waterfall ?? [0])[0] > 20,
+  `${(wild.waterfall ?? [0])[0]} of them`)
+
+// The fireflies are the exception, and the reason is worth stating: a firefly
+// is barely a picture — it is a point of light that comes and goes — and
+// light is code, the same as the rain.  So they exist only after dark, and a
+// check that says so is a check that two screens differ.
+await p.evaluate(() => window.__cam({ x: -8946, y: -1114, zoom: 1.1 }))
+await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 12, 0, 0)))
+await p.waitForTimeout(400)
+const byDay = await p.evaluate(() => window.__motes())
+await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 23, 0, 0)))
+await p.waitForTimeout(400)
+const byNight = await p.evaluate(() => window.__motes())
+check('and the fireflies come out at night and not before',
+  byDay.lit === 0 && byNight.lit > 0 && byNight.n > 40,
+  `${byNight.n} clusters, ${byDay.lit} lit at noon, ${byNight.lit} at eleven`)
+await p.evaluate(() => window.__clock(new Date(2026, 5, 21, 12, 0, 0)))
+await p.waitForTimeout(300)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

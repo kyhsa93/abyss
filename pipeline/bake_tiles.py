@@ -97,6 +97,7 @@ SHEETS = {
     'castlefloors_outside.png': 'base',
     'cabinets.png': 'base',
     'barrel.png': 'base',
+    'waterfall.png': 'base',
 }
 
 # (id, sheet, x, y, w, h, author, trim)
@@ -182,6 +183,12 @@ OBJECTS = [
     ('shelf2',   'cabinets.png',             64,   0, 32, 80, 'sharm_base'),
     ('cabinet',  'cabinets.png',              0,  96, 32, 72, 'sharm_base'),
     ('cabinet2', 'cabinets.png',            128,  96, 32, 72, 'sharm_base'),
+    # Elwynn has waterfalls — thirty-eight placements of two models — and
+    # nothing was drawn for them, which in a forest whose one moving thing is
+    # water is a strange omission.  Side-on, like the trees: this projection
+    # draws a tree as a picture of a tree standing up, and a fall is the same
+    # kind of object.
+    ('waterfall', 'waterfall.png',             0,   0, 96, 160, 'sharm_base'),
     ('keg',      'barrel.png',                0,   0, 32, 48, 'sharm_base'),
     ('keg2',     'barrel.png',               64,   0, 32, 48, 'sharm_base'),
     ('keg3',     'barrel.png',               96,   0, 32, 48, 'sharm_base'),
