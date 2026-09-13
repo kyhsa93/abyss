@@ -1230,6 +1230,38 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     outdoors.join(' '))
 }
 
+// 14. And the outline is four states on the glass, not three.
+//
+// A silhouette seen from above is not a room.  65% of the slice's outline is
+// neither stone nor standing room — 192,671 cells of 295,227 — and that one
+// state covers a room, the ground under an upper storey and an open yard.  The
+// thing that tells them apart is whether anything flat stands over a man's
+// head, and `wmo_plan` was dropping exactly that face as *not near this
+// storey*.  Baked, it splits **167,238 roofed and 25,433 open to the sky**.
+//
+// Asked through the scene's own transform, because the bake's own check
+// (`check_plans`) already holds the masks to a partition and what this adds is
+// that the fourth one arrives.
+{
+  const seen = await p.evaluate(() => {
+    const tally = { stone: 0, room: 0, roofed: 0, open: 0 }
+    for (const b of window.__buildings()) {
+      for (let dx = -b.l; dx <= b.l; dx += 2) {
+        for (let dy = -b.w; dy <= b.w; dy += 2) {
+          const q = window.__plotAt(b.x + dx, b.y + dy)
+          if (!q) continue
+          tally[q.wall ? 'stone' : q.floor ? 'room'
+            : q.roofed ? 'roofed' : 'open']++
+        }
+      }
+    }
+    return tally
+  })
+  check('a building is four states and not three',
+    seen.open > 0 && seen.roofed > 0 && seen.stone > 0 && seen.room > 0,
+    JSON.stringify(seen))
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

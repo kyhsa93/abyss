@@ -319,6 +319,12 @@ def wmo_plan(client, path):
     * **floor** — where he can stand.  It is the same answer read the other
       way, and it is what says the inside of the abbey is a stone floor rather
       than the grass the terrain has under it.
+    * **over** — whether anything flat stands above a man's head here, which
+      is the one thing that tells a room from a courtyard.  Sixty-five per cent
+      of the slice's outline is neither stone nor standing room — 192,671 cells
+      of 295,227 — and without this that 65% is one undifferentiated state
+      covering the ground under an upper storey, an open yard and a room too
+      cluttered to stand in.
 
     Which storey is the ground one comes from the doorways.  A portal's sill is
     the floor of the room it opens on to, so the lowest sill is the ground
@@ -326,7 +332,7 @@ def wmo_plan(client, path):
     of it.  Without that the abbey's first-floor gallery lands on the ground
     plan and closes the doors underneath it.
 
-    Returns `(outline, w, h, x0, y0, solid, floor)`, one byte a cell.
+    Returns `(outline, w, h, x0, y0, solid, floor, over)`, one byte a cell.
     """
     if path in _PLANS:
         return _PLANS[path]
@@ -364,6 +370,10 @@ def wmo_plan(client, path):
     # stand over it.  Only what is near the storey is kept — the tower is
     # eighty-nine yards of geometry and none of it bears on the ground floor.
     tops, walls = {}, {}
+    #: One bit a cell: is there anything flat over a man's head here.  See
+    #: `roof` below — it is what tells a room from a courtyard, and both of
+    #: them are "inside the outline and neither stone nor floor" without it.
+    over_head = bytearray(w * h)
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -375,6 +385,12 @@ def wmo_plan(client, path):
         flat = abs(det) < 1e-9
         near = (wall and zlo < high + BODY and zhi > low) \
             or (not wall and low <= zhi <= high)
+        # And whether it is a **ceiling** over this storey: a face that is not
+        # a wall, sitting above a man's head.  The thing the outline cannot
+        # tell you is which of its 65% is a room and which is a courtyard, and
+        # this is where the answer was being thrown away — the roof over a room
+        # is a flat face and the sky over a courtyard is nothing at all.
+        roof = not wall and zhi > high
         for i in range(i0, i1 + 1):
             px = x0 + (i + 0.5) * S
             for j in range(j0, j1 + 1):
@@ -386,6 +402,8 @@ def wmo_plan(client, path):
                         continue
                 n = i * h + j
                 cells[n] = 1
+                if roof:
+                    over_head[n] = 1
                 if not near:
                     continue
                 if wall:
@@ -437,7 +455,12 @@ def wmo_plan(client, path):
     for n in range(w * h):
         if floor[n] and not cells[n]:
             floor[n] = 0
-    _PLANS[path] = (cells, w, h, x0, y0, solid, floor)
+    # A ceiling outside the outline is not a ceiling over anything: the fill
+    # above is what decides where the building is.
+    for n in range(w * h):
+        if over_head[n] and not cells[n]:
+            over_head[n] = 0
+    _PLANS[path] = (cells, w, h, x0, y0, solid, floor, over_head)
     return _PLANS[path]
 
 
@@ -509,7 +532,7 @@ def check_doors(client, path):
     plan = wmo_plan(client, path)
     if not plan:
         return
-    _cells, w, h, x0, y0, solid, _floor = plan
+    _cells, w, h, x0, y0, solid, _floor, _over = plan
     doors = doorways(client, path)
     if not doors:
         return
@@ -1757,6 +1780,7 @@ def bake(client, bounds, out, acore=None):
     print('read from ' + ', '.join(sorted(set(sources.values()))))
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
+    check_plans()
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
     check_walls()
@@ -1859,10 +1883,58 @@ def packed(mask):
 
 
 def plan_out(plan):
-    """One building's three masks: its outline, its walls and its floor."""
-    cells, w, h, x0, y0, solid, floor = plan
+    """One building's four masks: outline, walls, floor, and what is roofed.
+
+    The fourth is the one that tells a room from a courtyard.  Seen from above
+    an outline is a silhouette, and 65% of the slice's outline cells are
+    neither stone nor standing room — 192,671 of 295,227 — which is as often
+    the ground under an upper storey or an open yard as it is a room nobody
+    can walk in.  A roof over a room is a flat face above a man's head; the sky
+    over a courtyard is nothing at all, and `wmo_plan` was throwing that face
+    away as *not near this storey*.
+    """
+    cells, w, h, x0, y0, solid, floor, over = plan
     return [w, h, PLAN_CELL, x0, y0,
-            packed(cells), packed(solid), packed(floor)]
+            packed(cells), packed(solid), packed(floor), packed(over)]
+
+
+def check_plans():
+    """The four masks partition the outline, and the fourth one earns its place.
+
+    `outline = solid + floor + roofed + open`, exactly.  A cell of the outline
+    is one of four things and nothing else, and before the ceiling was baked it
+    was one of *three* — of which the third was 65% and covered a room, a
+    courtyard and the ground under an upper storey all at once.
+
+    And the split has to be a split.  A mask that came out all ones or all
+    noughts would pass the partition and say nothing, which is how a bit that
+    is never read looks from the outside.
+    """
+    if not PLANS_BY_KEY:
+        return
+    out = solid_n = floor_n = roofed = opened = 0
+    for plan in PLANS_BY_KEY.values():
+        if not plan:
+            continue
+        cells, w, h, _x0, _y0, solid, floor, over = plan
+        for n in range(w * h):
+            if not cells[n]:
+                continue
+            out += 1
+            if solid[n]:
+                solid_n += 1
+            elif floor[n]:
+                floor_n += 1
+            elif over[n]:
+                roofed += 1
+            else:
+                opened += 1
+    print(f'check: {out:,} cells of outline = {solid_n:,} stone + '
+          f'{floor_n:,} standing room + {roofed:,} roofed + {opened:,} open '
+          f'to the sky')
+    assert out == solid_n + floor_n + roofed + opened
+    assert opened and roofed, (
+        'the ceiling mask is all one value, so it separates nothing')
 
 
 def check_rooms(doodads):

@@ -102,12 +102,18 @@ type Meta = {
   variety?: Record<string, number>
   /** `[w, h, cell yards, model x0, y0, base64 bits]` per model. */
   /**
-   * A building from above, three masks over one grid: its outline, the part
-   * of that outline a man cannot be in, and the part he can stand on.
-   * `[w, h, cell yards, model x0, y0, outline, solid, floor]`.
+   * A building from above, four masks over one grid: its outline, the part of
+   * that outline a man cannot be in, the part he can stand on, and the part
+   * with something over his head.
+   * `[w, h, cell yards, model x0, y0, outline, solid, floor, over]`.
+   *
+   * The fourth is what tells a room from a courtyard.  Seen from above an
+   * outline is a silhouette and 65% of the slice's is neither stone nor
+   * standing room — 192,671 cells of 295,227 — which split by ceiling is
+   * **167,238 roofed and 25,433 open to the sky**.
    */
   plans?: Record<string, [number, number, number, number, number,
-    string, string, string]>
+    string, string, string, string]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   /** Which of them this slice actually is — see `areaSlice` in the bake. */
@@ -1582,6 +1588,12 @@ async function main() {
         // are not marked anywhere — they simply are not wall, because a man
         // fits in one.
         solid: bytesOf(raw[6]), floor: bytesOf(raw[7]),
+        // And whether anything stands over a man's head, which is the one
+        // thing that says a courtyard is not a room: a roof over a room is a
+        // flat face above head height and the sky over a yard is nothing at
+        // all.  The bake was throwing that face away as "not near this
+        // storey".
+        over: bytesOf(raw[8] ?? ''),
         // The turn that takes the model's space to the map, in radians.
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
@@ -2281,6 +2293,9 @@ async function main() {
       plan: {
         w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
+        // A cave is roofed everywhere it exists — that is what makes it a
+        // cave rather than a quarry.
+        over: dug.bits,
         c: 1, sn: 0,
       },
       rooms: [{ x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2,
@@ -4599,12 +4614,34 @@ async function main() {
         const cx = screenX(wx, wy), cy = screenY(wx, wy)
         if (cx < -wide || cx > canvas.width + wide
           || cy < -wide || cy > canvas.height + wide) continue
-        // A mine is rock and a hall is flagstone.  One word decides it,
-        // because a cave is a building here in every way but where its shape
-        // came from.
-        const id = b.k === 'mine'
-          ? (isWall ? ROCK_TILE : (hash(i, j) > 0.7 ? 'stone' : 'rock_floor'))
-          : (isWall ? 'in_wall' : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor'))
+        // Open to the sky, which inside an outline is a courtyard.
+        //
+        // An outline is a silhouette, so "inside the building" and "in a room"
+        // are not the same thing — the abbey's yard is inside its outline and
+        // the sky is over it.  The bake was throwing away the one face that
+        // says which: a ceiling is a flat surface above a man's head and it
+        // was being dropped as "not near this storey".  Baked, the outline's
+        // 65% that is neither stone nor standing room splits **167,238 roofed
+        // and 25,433 open**.
+        //
+        // What an open cell gets is the ground the client painted there, asked
+        // the short way: this is a yard and not a hillside, so the slope bands
+        // and the meadow blotch that the outdoor pass spends its time on have
+        // nothing to say about it.
+        const roofed = !p.over.length || bitAt(p.over, n)
+        // The wall is where the building stops and it is a wall whether the
+        // sky is over the next cell or not.  A mine is rock and a hall is
+        // flagstone: one word decides it, because a cave is a building here in
+        // every way but where its shape came from.
+        const id = isWall
+          ? (b.k === 'mine' ? ROCK_TILE : 'in_wall')
+          : !roofed
+            ? (paintAt(wx, wy) === 'paved' && PAVED_TILES.length
+              ? PAVED_TILES[Math.floor(hash(i, j) * PAVED_TILES.length)]!
+              : GROUND_TILES[Math.floor(hash(i, j) * GROUND_TILES.length)]!)
+            : b.k === 'mine'
+              ? (hash(i, j) > 0.7 ? 'stone' : 'rock_floor')
+              : (hash(i, j) > 0.82 ? 'in_floor2' : 'in_floor')
         const at = ground.at[id]
         if (at === undefined) continue
         // Lit flat.  A room has no hillside and no sun in it, so the shading
@@ -6273,10 +6310,17 @@ async function main() {
    * is it in the outline at all, is it stone, and can you stand on it.
    */
   ;(window as unknown as {
-    __plotAt: (x: number, y: number) => { wall: boolean; floor: boolean } | null
+    __plotAt: (x: number, y: number) =>
+    { wall: boolean; floor: boolean; roofed: boolean } | null
   }).__plotAt = (x, y) => {
     const got = inBuilding(x, y, 0)
-    return got ? { wall: got.wall, floor: got.floor } : null
+    if (!got) return null
+    // And whether there is anything over your head, which is the one thing
+    // that tells a courtyard from a room — see the `over` mask.
+    const p = got.b.plan
+    const roofed = !p || !p.over.length
+      || bitAt(p.over, planCell(p, got.b, x, y))
+    return { wall: got.wall, floor: got.floor, roofed }
   }
   /** What the readout says at a spot, for the check that indoors is a place. */
   /** What a building's outline was painted with, last frame, by tile name. */
