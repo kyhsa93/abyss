@@ -143,11 +143,24 @@ item name in `spawn_npcs.py`. The field offsets are checked against a fact
 rather than trusted: spell 78 has to come back rage-powered at 15, because a
 layout that is off by one cannot produce that.
 
-**Nothing extracted from a WoW client enters this repository.** Not the bytes,
-not a re-encoding of the bytes, not Blizzard's file paths. `pipeline/` is
-committed; what it writes is in `.gitignore`, and the bake step throws away
-model paths and keeps only a kind (`tree`, `rock`, `fence`). The wiki page is
-**저작권과 배포 경계**.
+**Blizzard's words, paths and art do not enter this repository.** Not a
+creature name, not a quest's prose, not a model path, not a texture. The bake
+throws the path away and keeps a kind (`tree`, `rock`, `fence`); `spells.py`
+reads 49 MB of `Spell.dbc` and never touches its 2.7 MB string block.
+
+**The client's terrain does, as of 2026-09-13, by the owner's decision.**
+`public/data/` is committed and deployed, so the page a visitor sees is the one
+the pipeline builds from a client: a height grid, a water mask, a ground mask
+in our own words and doodad placements by our own kind names. That is geometry
+and it is Blizzard's geometry. It was in `.gitignore` until the day the
+deployed page and the local one had to match, and the wiki page **저작권과 배포
+경계** is the argument that was weighed against making them match.
+
+`synth_terrain.py` stays: it builds a world out of AzerothCore alone, it is
+what runs when there is no client bake, and the readout says which of the two
+you are in — `노스샤이어 계곡 · 합성` for the built one. A round of this
+project was spent on "there are no roads" against a page that had no road data
+in it, because nothing said.
 
 **Blizzard's sentences are not used either.** Creature names, quest text,
 gossip. The structure comes from AzerothCore; the words are ours.

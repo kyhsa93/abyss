@@ -7,8 +7,8 @@ __pycache__/
 /shots/
 *.tmp.mjs
 
-# Anything baked out of the client.  The extractor is committed; its output is
-# not, and the reason is the wiki page "저작권과 배포 경계": bytes that came out
-# of Blizzard's archives do not enter this repository whatever shape they are
-# in by the time they leave the pipeline.
-/public/data/
+# `public/data/` — the client-baked world — is committed, by the owner's
+# decision on 2026-09-13.  What it holds is a height grid, a water mask, a
+# ground mask in our own words and a list of doodad placements by our own kind
+# names: geometry, and no prose, no model paths and none of Blizzard's art.
+# The line that still holds is the one about words — see CLAUDE.md.
