@@ -160,6 +160,79 @@ for (const [W, H] of SIZES) {
   await p.close()
 }
 
+// --- the bar is the spellbook, and its letters are its keys -----------------
+//
+// Two bugs lived here at once and neither was visible from outside: the bar
+// was rebuilt only when its length changed, and the length never changed
+// (twelve squares, padded with empties), so eight abilities bought from a
+// trainer went into the spellbook and never onto the screen.  And the letter
+// drawn on a square was worked out separately from the key that fired it, so
+// every square was labelled one higher than its own key.
+//
+// `uicheck` had checked where the bar *is* since it was written.  Nothing
+// checked what is in it.
+{
+  const p = await b.newPage({ viewport: { width: 1280, height: 800 } })
+  p.on('pageerror', (e) => errs.push(String(e)))
+  await p.goto(HOST)
+  await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+
+  // Read off the *screen*, not out of the game.  The first version of this
+  // asked `__bar()` for what the scene had computed and passed while the bar
+  // was frozen, because the bug was never in the sum — it was that the DOM
+  // did not follow it.  A check that reads the same side as the bug is blind
+  // to it.
+  const onScreen = () => p.evaluate(() => ({
+    squares: [...document.querySelectorAll('#bar .slot')].map((el) => ({
+      key: el.querySelector('.key')?.textContent ?? '',
+      label: el.querySelector('.name')?.textContent ?? '',
+      filled: !el.classList.contains('bare'),
+    })),
+    spells: window.__bar().spells,
+  }))
+
+  const before = await onScreen()
+  const filled = (bar) => bar.squares.filter((sq) => sq.filled).length
+  check('the bar starts with what the character knows',
+    filled(before) === 2 + before.spells.length,
+    `${filled(before)} filled, ${before.spells.length} spells`)
+
+  // Learn everything a trainer in this slice teaches, at the level that can
+  // hold it, and look again.
+  await p.evaluate(async () => {
+    // Level ten, by earning it, so the abilities that need a level are held.
+    window.__earn(100000)
+    for (const id of [78, 6673, 100, 772, 6343, 34428, 284, 1715, 6546, 59752]) {
+      window.__learn(id)
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  })
+  const after = await onScreen()
+  check('and it grows when the character learns',
+    filled(after) === 2 + after.spells.length && after.spells.length > before.spells.length,
+    `${before.spells.length} -> ${after.spells.length} spells, ${filled(after)} filled`)
+
+  // And every square answers to the letter written on it.  Pressed for real
+  // through the keyboard, because the bug was in the handler and a check that
+  // calls the table would have passed while it was broken.
+  const wrong = []
+  for (let i = 2; i < after.squares.length; i++) {
+    const sq = after.squares[i]
+    if (!sq.filled) continue
+    // A filled square with no letter on it is the same bug seen from the
+    // other end: the keys ran out before the abilities did.
+    if (!sq.key) { wrong.push(`${sq.label} has no key`); continue }
+    await p.keyboard.press(sq.key)
+    const heard = await p.evaluate(() => window.__bar().asked)
+    if (heard !== after.spells[i - 2]) {
+      wrong.push(`${sq.key}=${sq.label} fired ${heard} not ${after.spells[i - 2]}`)
+    }
+  }
+  check('and every square answers to the letter on it', wrong.length === 0,
+    wrong.join('; ') || `${after.spells.length} squares pressed`)
+  await p.close()
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

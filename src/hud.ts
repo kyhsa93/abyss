@@ -235,6 +235,16 @@ export function hud(layout?: Layout) {
   let shown: Slot[] = []
   /** What the bar is showing right now, for the handlers to read. */
   let shownNow: Slot[] = []
+  /**
+   * What the bar was last *built* from — key, label and picture per square.
+   *
+   * It used to be the count, and the count never changed: the caller always
+   * sends twelve squares and pads the end with empties, so after the first
+   * frame the bar was frozen.  Eight things bought from a trainer went into
+   * the spellbook and none of them ever appeared, while the log kept saying
+   * there was something new to learn.
+   */
+  let builtFrom = ''
   let microNow: { key: string; label: string; on: boolean; use: () => void }[] = []
 
   const this_ = {
@@ -465,7 +475,10 @@ export function hud(layout?: Layout) {
      * two style writes rather than a new element.
      */
     setBar(next: Slot[]) {
-      if (next.length !== slots.length) {
+      const shape = next.map((s) => `${s.key}\u0000${s.label}\u0000${s.icon}`)
+        .join('\u0001')
+      if (shape !== builtFrom) {
+        builtFrom = shape
         bar.textContent = ''
         slots.length = 0
         next.forEach((s, i) => {
@@ -480,13 +493,19 @@ export function hud(layout?: Layout) {
           // The handlers read the *current* slot rather than the one this
           // closure was built with, because the bar is rebuilt only when its
           // length changes and everything else about a slot moves every frame.
+          // Attached to every square, empty ones included.  They used to be
+          // torn off when a square was built bare — `onclick = null` — and
+          // since the bar was never rebuilt, a square that filled up later was
+          // dead for the rest of the session.  An empty square answers by
+          // having nothing to say: `use` is undefined and `tip` is ''.
           root.onmouseenter = () => {
+            const tip = shownNow[i]?.tip ?? s.tip
+            if (!tip) return
             const box = root.getBoundingClientRect()
-            this_.setTip(shownNow[i]?.tip ?? s.tip, box.left + box.width / 2, box.top - 6)
+            this_.setTip(tip, box.left + box.width / 2, box.top - 6)
           }
           root.onmouseleave = () => this_.setTip(null, 0, 0)
           root.onclick = () => shownNow[i]?.use?.()
-          if (!s.icon) { root.onmouseenter = null; root.onclick = null }
           slots.push({ root, icon, sweep })
         })
         shown = []

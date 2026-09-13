@@ -32,7 +32,7 @@ import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
-import { hud as makeHud, type Layout } from './hud.ts'
+import { hud as makeHud, type Layout, type Slot } from './hud.ts'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
   short, take, walked, wants, type Errand,
@@ -2095,6 +2095,10 @@ async function main() {
   const gcdOf = (sp: Spell) =>
     sp.gcd ? Math.min(GCD_MAX, Math.max(GCD_MIN, sp.gcd)) : 0
   const cast = (sp: Spell) => {
+    // What it was asked for, set before the refusal: a check presses the key
+    // drawn on a square and asks which ability heard it, and whether there
+    // was rage for it is a different question.
+    asked = sp.id
     if (why(sp) !== null) return
     you.rage -= sp.rage
     if (sp.gcd) you.gcd = clock + gcdOf(sp) / 1000
@@ -2752,23 +2756,37 @@ async function main() {
   // plausible gesture asks for one.  The second ask is a no-op.
   for (const when of ['keydown', 'pointerdown', 'touchstart'] as const)
     addEventListener(when, () => wake(), { passive: true })
+  /**
+   * What each key on the bar does, filled from the bar itself every frame.
+   *
+   * The keyboard used to hold its own copy of the mapping, and a copy of a
+   * table is a table that drifts: this one was one square out from the day a
+   * second row of abilities became possible.
+   */
+  const pressable = new Map<string, () => void>()
+  /** The bar as it was last built, for the check that reads it. */
+  let squares: Slot[] = []
+  /** The last ability any key or square asked `cast` for. */
+  let asked: number | null = null
+
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase()
     keys.add(k)
     // One key, and it means "the nearest thing I can reach".  A click would
     // want a cursor and this game is played with a thumb as often as a mouse.
-    if (k === ' ' || k === 'spacebar' || k === '1') {
+    if (k === ' ' || k === 'spacebar') {
       e.preventDefault()
       if (!chat && !you.died) you.target = you.target ?? inSwing()
     }
     // The readout is a developer's and it starts out of the way.
     if (k === '`' || k === '~') hud.hidden = !hud.hidden
-    // 2 onwards are the abilities, in the order they are learned.
-    const slot = Number(k)
-    if (slot >= 2 && slot <= 9 && spells[slot - 2]) {
-      e.preventDefault()
-      if (!chat) cast(spells[slot - 2]!)
-    }
+    // The bar, out of the bar's own table.  Everything each square guards for
+    // itself — a spell checks `!chat`, attack checks `!chat && !you.died` —
+    // so pressing a key and clicking a square are the same act.  Not while a
+    // conversation is open and taking the number keys for its answers, which
+    // is what the branch at the bottom of this handler is for.
+    const act = !(chat && k >= '1' && k <= '9') ? pressable.get(k) : undefined
+    if (act) { e.preventDefault(); act() }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
     // Off and on.  Everything a sound says is also on screen — that is a rule
     // with a check behind it — so this costs nothing but the noise.
@@ -2794,8 +2812,7 @@ async function main() {
     if (k === 'escape' && mapOpen) mapOpen = false
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k))
       e.preventDefault()
-    if (k === 'e') { e.preventDefault(); toggleTalk() }
-    else if (k === 'escape') endTalk()
+    if (k === 'escape') endTalk()
     else if (chat && k >= '1' && k <= '9') {
       const i = Number(k) - 1
       if (i < chat.speech.options.length) choose(i)
@@ -4330,7 +4347,19 @@ async function main() {
     // a bar that moves under your thumb, and the two that do something are in
     // the same place they will always be.
     const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=']
-    ui.setBar([
+    // Twelve squares: attack takes the first key, talk takes `E` because it
+    // is a verb and not an ability, and the ten in between are the abilities
+    // in the order they are learned.  Ten is exactly what a warrior can hold
+    // by level ten, which is where this game ends.
+    const SPELL_KEYS = KEYS.slice(1, 11)
+    // One table, read twice: the letter drawn on a square and the key that
+    // presses it come out of the same place.  They used to be worked out
+    // separately — the bar drew `KEYS[i + 2]` and the keyboard did
+    // `spells[slot - 2]` — so every square was labelled one higher than the
+    // key that used it, `2` did nothing on the bar and everything on the
+    // keyboard, and the last thing learned had no key at all because the bar
+    // drew out to `=` and the handler stopped at `9`.
+    squares = [
       {
         key: '1', label: '공격', icon: 'lorc/broadsword.svg',
         tip: `공격  —  ${you.line[LO]}–${you.line[HI]} 피해\n`
@@ -4358,7 +4387,7 @@ async function main() {
         const stop = why(sp)
         const ready = you.cools[sp.id] ?? 0
         return {
-          key: KEYS[i + 2] ?? '', label: word,
+          key: SPELL_KEYS[i] ?? '', label: word,
           icon: ICON_OF[sp.id] ?? 'lorc/sword-slice.svg',
           tip: `${word}  —  분노 ${sp.rage}\n${what}`
             + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
@@ -4374,10 +4403,16 @@ async function main() {
           live: stop === null,
         }
       }),
-      ...KEYS.slice(2 + spells.length).map((key) => ({
+      ...SPELL_KEYS.slice(spells.length).map((key) => ({
         key, label: '', icon: '', tip: '', cooling: 0, live: false,
       })),
-    ])
+    ]
+    ui.setBar(squares)
+    // And the keyboard reads the same table.  Lower-cased because `E` is
+    // drawn on a square and typed in lower case, and only the squares that do
+    // something go in — an empty one has no `use`.
+    pressable.clear()
+    for (const sq of squares) if (sq.use) pressable.set(sq.key.toLowerCase(), sq.use)
     ui.setRage(you.rage, MAX_RAGE)
     ui.setAuras('me', you.shout && you.shout.until > clock
       ? [{ icon: 'lorc/shouting.svg', left: you.shout.until - clock,
@@ -4697,6 +4732,18 @@ async function main() {
     held.push(id)
     return { was, purse: you.purse, held: held.length }
   }
+  /**
+   * The bar, as the screen has it, plus what the last press asked for.
+   *
+   * Both halves are here on purpose: the bug this exists to catch was that
+   * the letter drawn on a square and the key that fired it came from two
+   * different sums, so reading either one alone said nothing.
+   */
+  ;(window as unknown as { __bar: () => unknown }).__bar = () => ({
+    squares: squares.map((sq) => ({ key: sq.key, label: sq.label, filled: !!sq.icon })),
+    spells: spells.map((sp) => sp.id),
+    asked,
+  })
   ;(window as unknown as { __learn: (id: number) => unknown }).__learn = (id) => {
     const had = spells.length
     taught.push(id)
