@@ -1490,6 +1490,39 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
   }
 }
 
+// 19. A building has as many floors as the client says it has.
+//
+// `wmo_plan` baked the lowest sill and `check_doors` threw away every portal
+// more than a body's height from it — **111 of this slice's 176**.  The abbey
+// is four storeys and came out as one; the inn's upstairs, where the innkeeper
+// is, came out as nothing.  Each sill the building names now has a plan of its
+// own, and the scene reads them.
+{
+  const up = await p.evaluate(async () => {
+    const t = await (await fetch('./data/terrain.json')).json()
+    const floors = t.floors ?? {}
+    const plans = t.plans ?? {}
+    // Every floor shipped has to belong to a building that has a ground plan,
+    // and carry the same nine fields as one.
+    const orphan = Object.keys(floors).filter((k) => !plans[k])
+    const shapes = Object.values(floors).flat().filter((f) => f.length !== 10)
+    return {
+      buildings: Object.keys(plans).length,
+      withUpstairs: Object.keys(floors).length,
+      storeys: Object.values(floors).reduce((n, v) => n + v.length, 0),
+      orphan: orphan.length, shapes: shapes.length,
+    }
+  })
+  check('buildings have the floors the client gives them',
+    up.storeys > 0 && up.orphan === 0 && up.shapes === 0,
+    `${up.storeys} upper floors over ${up.withUpstairs} of ${up.buildings} `
+    + `buildings, ${up.orphan} orphans, ${up.shapes} malformed`)
+  // And the scene has them in hand, which is what issue 170 joins to.
+  const seen = await p.evaluate(() =>
+    window.__buildings().reduce((n, b) => n + (b.floors?.length ?? 0), 0))
+  check('and the scene has them', seen > 0, `${seen} upper floors placed`)
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

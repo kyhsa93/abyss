@@ -21,6 +21,7 @@ import os
 import struct
 import zlib
 import sys
+from collections import Counter
 
 from mpyq import MPQArchive
 
@@ -301,7 +302,7 @@ def steepness(t):
             min(az, bz, cz), max(az, bz, cz))
 
 
-def wmo_plan(client, path):
+def wmo_plan(client, path, only=None):
     """What a building is, from above: its outline, its walls and its floor.
 
     Three masks over the same grid, one square yard a cell, in the model's own
@@ -334,11 +335,11 @@ def wmo_plan(client, path):
 
     Returns `(outline, w, h, x0, y0, solid, floor, over)`, one byte a cell.
     """
-    if path in _PLANS:
-        return _PLANS[path]
+    if (path, only) in _PLANS:
+        return _PLANS[(path, only)]
     tris = wmo_triangles(client, path)
     if not tris:
-        _PLANS[path] = None
+        _PLANS[(path, only)] = None
         return None
     xs = [q[0] for tri in tris for q in tri]
     ys = [q[1] for tri in tris for q in tri]
@@ -347,13 +348,21 @@ def wmo_plan(client, path):
     w = int(math.ceil((max(xs) - x0) / S)) + 1
     h = int(math.ceil((max(ys) - y0) / S)) + 1
     if w * h > 400000:               # a city, not a building
-        _PLANS[path] = None
+        _PLANS[(path, only)] = None
         return None
 
     cells = bytearray(w * h)
-    # Which storey the doors are on, and so which surfaces are the ground.
+    # Which storey to rasterise.
+    #
+    # `only` is a sill height and the caller gets it from `storeys()`, which
+    # reads the building's own portals.  Given none, this is the ground floor —
+    # which is what every caller asked for until a building was allowed to have
+    # more than one, and what 65% of this slice's portals were being thrown
+    # away against.
     doors = doorways(client, path)
-    if doors:
+    if only is not None:
+        base = only
+    elif doors:
         base = min(d[0] for d in doors)
     else:
         # Nothing to walk through, so the ground is wherever most of the
@@ -374,6 +383,8 @@ def wmo_plan(client, path):
     #: `roof` below — it is what tells a room from a courtyard, and both of
     #: them are "inside the outline and neither stone nor floor" without it.
     over_head = bytearray(w * h)
+    #: The silhouette of this storey alone — see `mine[n]` below.
+    mine = bytearray(w * h)
     for t in tris:
         wall, zlo, zhi = steepness(t)
         (ax, ay, _), (bx, by, _), (cx, cy, _) = t
@@ -406,6 +417,13 @@ def wmo_plan(client, path):
                     over_head[n] = 1
                 if not near:
                     continue
+                # And the outline *of this storey*, which is not the outline of
+                # the building.  `cells` is every triangle dropped on the floor
+                # — the silhouette, which is what a roof covers and what the
+                # ground floor is asked for.  An upper floor is a fraction of
+                # it, and rasterised on the silhouette the abbey's three upper
+                # floors were three quarters of a megabyte of noughts.
+                mine[n] = 1
                 if wall:
                     walls.setdefault(n, []).append((zlo, zhi))
                 else:
@@ -460,8 +478,29 @@ def wmo_plan(client, path):
     for n in range(w * h):
         if over_head[n] and not cells[n]:
             over_head[n] = 0
-    _PLANS[path] = (cells, w, h, x0, y0, solid, floor, over_head)
-    return _PLANS[path]
+    # An upper storey's outline is its own.  Filled the same way the building's
+    # was — what the outside cannot reach — so a room comes out solid rather
+    # than as the ring of its own walls.
+    if only is not None:
+        seen = bytearray(w * h)
+        edge = [(i, j) for i in range(w) for j in (0, h - 1) if not mine[i * h + j]]
+        edge += [(i, j) for j in range(h) for i in (0, w - 1) if not mine[i * h + j]]
+        for i, j in edge:
+            seen[i * h + j] = 1
+        while edge:
+            i, j = edge.pop()
+            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                a, b = i + di, j + dj
+                if 0 <= a < w and 0 <= b < h and not seen[a * h + b] \
+                        and not mine[a * h + b]:
+                    seen[a * h + b] = 1
+                    edge.append((a, b))
+        for n in range(w * h):
+            cells[n] = 0 if seen[n] else 1
+            if not cells[n]:
+                solid[n] = floor[n] = over_head[n] = 0
+    _PLANS[(path, only)] = (cells, w, h, x0, y0, solid, floor, over_head)
+    return _PLANS[(path, only)]
 
 
 def wmo_furniture(client, path, which=0):
@@ -528,18 +567,29 @@ _DOORS = []
 
 
 def check_doors(client, path):
-    """A door has to be a hole in the wall it is in."""
-    plan = wmo_plan(client, path)
-    if not plan:
-        return
-    _cells, w, h, x0, y0, solid, _floor, _over = plan
+    """A door has to be a hole in the wall it is in, on whatever floor it is on.
+
+    This asked only the ground floor and skipped the rest with a comment
+    saying *an upper storey's, and it is not drawn* — which was true and is the
+    thing issue 169 was about.  Now every sill the building names gets its own
+    plan, so every door can be asked the question, and `_DOORS` counts them all.
+    """
     doors = doorways(client, path)
     if not doors:
         return
-    base = min(d[0] for d in doors)
+    # Snapped to the storey list rather than asked at the door's own sill:
+    # two doors on one floor are two sills a few inches apart, and a plan
+    # cached on the raw number is a plan rasterised twice.  It took this bake
+    # from a minute and a half to a minute.
+    up = storeys(client, path)
+    base = up[0]
     for sill, lx, ly in doors:
-        if abs(sill - base) > BODY:
-            continue            # an upper storey's, and it is not drawn
+        floor = min(up, key=lambda z: abs(z - sill))
+        plan = wmo_plan(client, path,
+                        None if abs(floor - base) <= BODY else floor)
+        if not plan:
+            continue
+        _cells, w, h, x0, y0, solid, _floor, _over = plan
         i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
         open_ = not (0 <= i < w and 0 <= j < h) or not solid[i * h + j]
         _DOORS.append(1 if open_ else 0)
@@ -556,11 +606,46 @@ _PLACED = []
 PLANS_BY_KEY = {}
 
 
+#: Which model each plan key came from, so a later pass can ask the file
+#: again without walking the placements twice.
+PLAN_PATH = {}
+#: And the floors above the ground one, as `[(sill, plan), …]` a key.
+PLAN_FLOORS = {}
+#: The client the plans were read from, so the census below can ask it again.
+_CLIENT = [None]
+
+
 def plan_key(client, path, key):
-    """Rasterise this model's footprint if it has not been, and return its key."""
+    """Rasterise this model's floors if they have not been, and return its key.
+
+    **Floors, plural.**  It used to be one: `wmo_plan` took the lowest sill and
+    `check_doors` threw away every portal more than a body's height from it,
+    which over this slice is 111 of 176 — the abbey's four storeys came out as
+    one, and so did the inn's upstairs where the innkeeper is.
+
+    A storey is only kept if a man can stand somewhere on it.  The tower of a
+    keep is eighteen sills of stair landing and a ladder, and eighteen plans of
+    nothing is eighteen plans.
+    """
     if key not in PLANS_BY_KEY:
         PLANS_BY_KEY[key] = wmo_plan(client, path)
+        PLAN_PATH[key] = path
+        _CLIENT[0] = client
         check_doors(client, path)
+        up = storeys(client, path)
+        PLAN_FLOORS[key] = []
+        for sill in up[1:]:
+            plan = wmo_plan(client, path, sill)
+            if not plan:
+                continue
+            # Standing room, or it is not a floor anybody is on.  A twentieth
+            # of the ground floor's is the line, and it is a ratio rather than
+            # a count because the buildings here run from a tent to an abbey.
+            room = sum(plan[6])
+            if room and room * 20 >= sum(PLANS_BY_KEY[key][6]):
+                small = crop(plan)
+                if small:
+                    PLAN_FLOORS[key].append((round(sill, 2), small))
     return key if PLANS_BY_KEY[key] else 0
 
 
@@ -1715,6 +1800,12 @@ def bake(client, bounds, out, acore=None):
         # The footprints, one per model rather than one per placement:
         # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.
         'plans': {str(k): plan_out(v) for k, v in PLANS_BY_KEY.items() if v},
+        # The floors above the ground one, as `[sill, …masks]` a storey.  A
+        # separate table and not a fifth field on the plan, because a building
+        # with one floor is most of them and a key nobody reads is cheaper
+        # absent than empty.
+        'floors': {str(k): [[z] + plan_out(pl) for z, pl in v]
+                   for k, v in PLAN_FLOORS.items() if v},
         # The chunks the client marks impassable, as `[i, j]` on the same
         # 33-yard grid the zones use.
         'closed': closed,
@@ -1780,6 +1871,7 @@ def bake(client, bounds, out, acore=None):
     print('read from ' + ', '.join(sorted(set(sources.values()))))
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
+    check_storeys()
     check_plans()
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
@@ -1860,14 +1952,16 @@ def check_walls():
     of check as the water lying on its own bed — a statement the file makes
     about itself, asked of the thing built from it.
 
-    The four it misses are the upstairs landings of the two-storey farmhouse
-    and one hatch on a ship, all of them reached by stairs this map does not
-    draw.  Eight of the abbey's eight are open.
+    **Every floor, not only the ground one.**  This used to skip anything more
+    than a body's height above the lowest sill with a comment saying *an upper
+    storey's, and it is not drawn* — which was true, and 111 of this slice's
+    176 portals are up there.  Each sill now has a plan of its own, so each
+    door is asked the question on the floor it belongs to.
     """
     if not _DOORS:
         return
     open_, n = sum(_DOORS), len(_DOORS)
-    print(f'check: {open_} of {n} ground-floor doorways come out open '
+    print(f'check: {open_} of {n} doorways on every floor come out open '
           f'(a man {BODY} yards tall, climbing at most {CLIMB})')
     assert open_ >= n * 0.9, (
         f'only {open_} of {n} doorways are open — the buildings are sealed')
@@ -1880,6 +1974,42 @@ def packed(mask):
         if v:
             bits[n >> 3] |= 1 << (n & 7)
     return base64.b64encode(bytes(bits)).decode('ascii')
+
+
+def crop(plan):
+    """Trim a storey's masks to its own extent.
+
+    Every storey is rasterised on the whole model's grid, because that is the
+    grid the doodad's transform is written against — and an upper floor is a
+    fraction of the silhouette.  The abbey's is 750 by 393 cells, so its three
+    upper floors were three quarters of a megabyte of noughts: `terrain.json`
+    went from 1,771 KiB to 4,783 the moment the floors were baked, and 3,011
+    of that was empty bits.
+
+    The grid's origin is in the masks' own fields, so tightening it costs
+    nothing downstream — `planCell` reads `x0`, `y0`, `w` and `h` and does not
+    care how big they are.
+    """
+    cells, w, h, x0, y0, solid, floor, over = plan
+    lo_i, hi_i, lo_j, hi_j = w, -1, h, -1
+    for i in range(w):
+        for j in range(h):
+            if cells[i * h + j]:
+                lo_i = min(lo_i, i); hi_i = max(hi_i, i)
+                lo_j = min(lo_j, j); hi_j = max(hi_j, j)
+    if hi_i < 0:
+        return None
+    nw, nh = hi_i - lo_i + 1, hi_j - lo_j + 1
+    if nw * nh >= w * h:
+        return plan
+    def cut(src):
+        out = bytearray(nw * nh)
+        for i in range(nw):
+            base = (i + lo_i) * h + lo_j
+            out[i * nh:(i + 1) * nh] = src[base:base + nh]
+        return out
+    return (cut(cells), nw, nh, x0 + lo_i * PLAN_CELL, y0 + lo_j * PLAN_CELL,
+            cut(solid), cut(floor), cut(over))
 
 
 def plan_out(plan):
@@ -1896,6 +2026,68 @@ def plan_out(plan):
     cells, w, h, x0, y0, solid, floor, over = plan
     return [w, h, PLAN_CELL, x0, y0,
             packed(cells), packed(solid), packed(floor), packed(over)]
+
+
+def storeys(client, path):
+    """How many floors a building has, out of its own portal sills.
+
+    A portal's bottom edge is the floor of the room it opens on to, so the
+    sills of a building are its storeys — read as a list rather than as a
+    minimum.  `wmo_plan` takes `min(...)` and `check_doors` throws away
+    anything more than a body's height from it, which is where 65% of this
+    slice's portals go.
+
+    Grouped by `BODY`, because two doors on one floor are two sills a few
+    inches apart and a storey is a body's height.
+    """
+    got = sorted(d[0] for d in doorways(client, path))
+    if not got:
+        return []
+    out = [got[0]]
+    for z in got[1:]:
+        if z - out[-1] > BODY:
+            out.append(z)
+    return out
+
+
+def check_storeys():
+    """How many floors this slice has, and how many of them are drawn.
+
+    Counted rather than argued about, because the issue that asked for this
+    was written against a bake that had changed since and the numbers are the
+    whole question.
+    """
+    if not PLAN_PATH:
+        return
+    tall, ports, kept = 0, 0, 0
+    floors = Counter()
+    for key, path in PLAN_PATH.items():
+        if not PLANS_BY_KEY.get(key):
+            continue
+        up = storeys(_CLIENT[0], path)
+        floors[len(up)] += 1
+        if len(up) > 1:
+            tall += 1
+        doors = doorways(_CLIENT[0], path)
+        ports += len(doors)
+        base = min(d[0] for d in doors) if doors else 0
+        kept += sum(1 for d in doors if abs(d[0] - base) <= BODY)
+    baked = sum(len(v) for v in PLAN_FLOORS.values())
+    print(f'check: {sum(floors.values())} buildings, {tall} of them with more '
+          f'than one floor; {ports} portals, {kept} on the ground floor and '
+          f'{ports - kept} above it; {baked} upper floors baked '
+          + '(' + ', '.join(f'{n} sills x{c}' for n, c in sorted(floors.items()))
+          + ')')
+    # Every floor this slice draws has to be one the client states a sill for,
+    # and the ground floor is always one of them.  Read the other way round —
+    # baking a floor the portals do not name — is how a gallery lands on the
+    # ground plan and closes the doors underneath it.
+    for key, ups in PLAN_FLOORS.items():
+        want = storeys(_CLIENT[0], PLAN_PATH[key])
+        for z, _plan in ups:
+            assert any(abs(z - s) < 0.01 for s in want), (
+                'a floor was baked at %.2f and the building names no sill '
+                'there: %s' % (z, want))
 
 
 def check_plans():

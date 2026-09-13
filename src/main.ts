@@ -114,6 +114,21 @@ type Meta = {
    */
   plans?: Record<string, [number, number, number, number, number,
     string, string, string, string]>
+  /**
+   * And the floors above the ground one, `[sill, …the same nine]` a storey.
+   *
+   * A building's plan used to be its lowest sill and nothing else: `wmo_plan`
+   * took `min(...)` and `check_doors` threw away every portal more than a
+   * body's height from it — **111 of this slice's 176**.  The abbey's four
+   * storeys came out as one and so did the inn's upstairs, where the
+   * innkeeper is.
+   *
+   * A separate table and not a fifth field on the plan, because a building
+   * with one floor is most of them and a key nobody reads is cheaper absent
+   * than empty.
+   */
+  floors?: Record<string, [number, number, number, number, number, number,
+    string, string, string, string][]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   /** Which of them this slice actually is — see `areaSlice` in the bake. */
@@ -1625,6 +1640,19 @@ async function main() {
         c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
         sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
       } : null
+      // The floors above this one, in the same shape, so the scene has
+      // something to join to when it learns to climb (issue 170).  Read here
+      // rather than when somebody walks upstairs: it is four masks a storey
+      // and thirty-nine storeys in the whole world.
+      const floors = ((d.p ? (meta.floors ?? {})[String(d.p)] : undefined) ?? [])
+        .map((f) => ({
+          z: f[0],
+          w: f[1], h: f[2], s: f[3], x0: f[4], y0: f[5],
+          bits: bytesOf(f[6]), solid: bytesOf(f[7]), floor: bytesOf(f[8]),
+          over: bytesOf(f[9]),
+          c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
+          sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
+        }))
       const rooms = (d.rooms ?? []).map(([x, y, l, w, deg]) => {
         const t = (deg * Math.PI) / 180
         return { x, y, l, w, c: Math.cos(t), s: Math.sin(t) }
@@ -1637,6 +1665,8 @@ async function main() {
         house: d.h ?? 0,
         /** Where you go in — see `d` on the doodad. */
         doors: (d.d ?? []) as [number, number][],
+        /** And what is above it, ground floor first excluded. */
+        floors,
         plan,
         rooms: rooms.length ? rooms : [{
           x: d.x, y: d.y, l: d.bl!, w: d.bw!,
@@ -2402,6 +2432,9 @@ async function main() {
     caves.push({
       x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2, w: (dug.w * dug.cell) / 2,
       c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth],
+      // A cave has one floor by construction: it is cut out of the height
+      // grid, and the height grid has one z for an (x, y).
+      floors: [],
       plan: {
         w: dug.w, h: dug.h, s: dug.cell, x0: dug.x0, y0: dug.y0,
         bits: dug.bits, solid: new Uint8Array(dug.bits.length), floor: dug.bits,
@@ -6570,7 +6603,8 @@ async function main() {
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
-      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house }))
+      c: b.c, s: b.s, area: b.area, doors: b.doors, house: b.house,
+      floors: b.floors?.map((f) => f.z) ?? [] }))
   /**
    * Who the player is right now and what a thousand swings come out as.
    *
