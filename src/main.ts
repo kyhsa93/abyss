@@ -220,8 +220,8 @@ async function main() {
    * may pick the tile, because a slope that is steep is steep whichever way it
    * points, and a threshold on a signed number flips across every ridge.
    */
-  function gradient(wx: number, wy: number): [number, number] {
-    const s = YD_PER_TILE
+  function gradient(wx: number, wy: number, over = YD_PER_TILE): [number, number] {
+    const s = over
     return [
       (groundAt(wx + s, wy) - groundAt(wx - s, wy)) / (2 * s),
       (groundAt(wx, wy + s) - groundAt(wx, wy - s)) / (2 * s),
@@ -261,14 +261,14 @@ async function main() {
    * is zero on the level, positive towards the light and negative away, and
    * the extremes are the extremes of the terrain rather than of the formula.
    */
-  function shadeAt(wx: number, wy: number): number {
-    const [dx, dy] = gradient(wx, wy)
+  function shadeAt(wx: number, wy: number, over = YD_PER_TILE): number {
+    const [dx, dy] = gradient(wx, wy, over)
     const inv = 1 / Math.hypot(dx, dy, 1)
     return (-dx * inv) * LIGHT[0] + (-dy * inv) * LIGHT[1]
       + inv * LIGHT[2] - LIGHT[2]
   }
-  function slopeAt(wx: number, wy: number): number {
-    const [dx, dy] = gradient(wx, wy)
+  function slopeAt(wx: number, wy: number, over = YD_PER_TILE): number {
+    const [dx, dy] = gradient(wx, wy, over)
     return Math.hypot(dx, dy)
   }
   /**
@@ -350,6 +350,14 @@ async function main() {
    * the starting valley read as having no road at all.
    */
   const PAVED_TILES = ['cobble', 'cobble2'].filter((k) => tilesMeta[k])
+  /**
+   * What a building is made of, seen from above.
+   *
+   * Stone for the mass and the darker cut of the same rock for the wall.  Not
+   * the pale flagstones the roads are paved with: an abbey drawn in those is a
+   * plaza, and the thing that has to read at ninety yards is that it is solid.
+   */
+  const WALL_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : ROCK_TILE
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
   /**
    * The land a lake touches.
@@ -376,6 +384,19 @@ async function main() {
    */
   const BLOOM_TILES = ['bloom', 'bloom2', 'bloom3'].filter((k) => tilesMeta[k])
   const MEADOW = 0.78
+
+  /**
+   * Which buildings are drawn as their plan rather than as a picture.
+   *
+   * The cottage sprite is about thirteen yards of building.  Anything that
+   * size *is* the cottage; anything bigger has to be drawn as what it is, or
+   * Northshire's abbey is a cottage and so is a hundred and sixty yards of
+   * curtain wall beside it — which is exactly what the place looked like.
+   */
+  const BUILT = new Set(['house', 'hall', 'tower'])
+  const SPRITE_FITS = 9
+  const asPlan = (d: Doodad) =>
+    BUILT.has(d.k) && !!d.bl && !!d.bw && Math.max(d.bl, d.bw) > SPRITE_FITS
 
   // Doodad kinds come out of the bake; a kind picks a piece here.  The bake
   // never emits a model path, so this table is the only place that decides
@@ -619,14 +640,26 @@ async function main() {
       })
       continue
     }
-    placed.push({
-      x: d.x, y: d.y, piece, s: size,
-      ...(stem ? { trunk: stem } : {}),
-    })
+    // Anything drawn as its plan has no standing picture: a sprite in the
+    // middle of a ninety-yard abbey is a cottage in a courtyard.
+    if (!asPlan(d)) {
+      placed.push({
+        x: d.x, y: d.y, piece, s: size,
+        ...(stem ? { trunk: stem } : {}),
+      })
+    }
     if (k.solid === 'building') {
-      const halfY = (piece.w * size) / PPY / 2
-      const deep = ((piece.h * size) / PPY) * 0.32
-      solids.push({ x0: d.x - 0.8, x1: d.x + deep, y0: d.y - halfY, y1: d.y + halfY })
+      if (asPlan(d)) {
+        // Drawn as its plan, so its walls are its edges rather than the
+        // bottom third of a picture of a cottage.
+        solids.push({
+          x0: d.x - d.bl!, x1: d.x + d.bl!, y0: d.y - d.bw!, y1: d.y + d.bw!,
+        })
+      } else {
+        const halfY = (piece.w * size) / PPY / 2
+        const deep = ((piece.h * size) / PPY) * 0.32
+        solids.push({ x0: d.x - 0.8, x1: d.x + deep, y0: d.y - halfY, y1: d.y + halfY })
+      }
     } else if (typeof k.solid === 'number') {
       // The trunk of a tree twice the size is twice as wide, and a player who
       // can walk through the big ones is the visible form of forgetting that.
@@ -1002,6 +1035,41 @@ async function main() {
         z: d.z,
       }
     })
+  /**
+   * The buildings, at the size and the angle the client states.
+   *
+   * Northshire's abbey is ninety-one yards across and its two walls are a
+   * hundred and sixty, and all three were drawn as the same thirteen-yard
+   * cottage sprite — which is why the place did not look like itself.  The
+   * record has carried the footprint the whole time: it is the same box the
+   * crossings use, turned back into a rectangle by `footprint` in the bake.
+   *
+   * So a building is its plan.  There is no abbey in any tileset here and
+   * there never will be, but a stone floor of the right size at the right
+   * angle with a wall around it is the shape the place has from above, and the
+   * shape is the part that makes it recognisable.  The sprite stays for the
+   * ones small enough to *be* the sprite.
+   */
+  const buildings = meta.doodads
+    .filter((d) => BUILT.has(d.k) && !!d.bl && !!d.bw)
+    .map((d) => {
+      const a = ((d.ba ?? 0) * Math.PI) / 180
+      return {
+        x: d.x, y: d.y, l: d.bl!, w: d.bw!,
+        c: Math.cos(a), s: Math.sin(a), k: d.k,
+      }
+    })
+  /** Inside a building's plan, and whether this is its wall. */
+  const inBuilding = (wx: number, wy: number) => {
+    for (const b of buildings) {
+      const dx = wx - b.x, dy = wy - b.y
+      const al = Math.abs(dx * b.c + dy * b.s), ac = Math.abs(-dx * b.s + dy * b.c)
+      if (al > b.l || ac > b.w) continue
+      // A wall a yard and a half thick, which is what a wall is.
+      return { b, wall: al > b.l - 1.5 || ac > b.w - 1.5 }
+    }
+    return null
+  }
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
   const onSpan = (wx: number, wy: number) => {
     for (const b of spans) {
@@ -1924,7 +1992,7 @@ async function main() {
    * 60.  The old floor was 0.4 and the old world was a 600 yard disc, where
    * the whole of it fit in 2,000 tiles at any zoom.
    */
-  const clampZoom = (z: number) => Math.max(0.6, Math.min(3, z))
+  const clampZoom = (z: number) => Math.max(0.12, Math.min(3, z))
   addEventListener('wheel', (e) => {
     zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
   }, { passive: true })
@@ -1988,7 +2056,7 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ...PAVED_TILES,
+      ...PAVED_TILES, WALL_TILE,
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone']
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
@@ -2182,7 +2250,24 @@ async function main() {
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     // The glass is an upright rectangle of world again, so the corners put back
     // through the projection are the corners of the box — no slack.
-    const T = YD_PER_TILE
+    /**
+     * How much ground one tile covers, which is not always 1.33 yards.
+     *
+     * The ground was drawn at a fixed 1.33 yards a tile whatever the zoom, so
+     * the cost went as the square of how far out you were: 2,752 tiles at the
+     * old floor and 66,676 four steps below it, at twenty frames a second.
+     * That floor was the reason you could never see Northshire — the widest
+     * view was eighty-three yards across and the valley is six hundred, so the
+     * place could only ever be looked at two per cent at a time.
+     *
+     * A tile that is four pixels on the glass is not detail, it is cost.  So
+     * the world step doubles whenever a tile would fall under sixteen pixels,
+     * which holds the count near constant at every zoom and is invisible: at
+     * that size there is nothing in a 1.33 yard tile to see.
+     */
+    const grain = Math.max(1, 2 ** Math.ceil(Math.log2(
+      Math.max(1, 16 / (TILE * zoom)))))
+    const T = YD_PER_TILE * grain
     const seen = [worldAt(0, 0), worldAt(canvas.width, 0),
       worldAt(0, canvas.height), worldAt(canvas.width, canvas.height)]
     const xLo = Math.floor(Math.min(...seen.map((c) => c.x)) / T) - 1
@@ -2200,17 +2285,23 @@ async function main() {
         // it holds is off the glass: at 1,400 pixels across that was 2,025
         // tiles drawn where 550 are visible, and the frame rate said so.
         const cx = screenX(wx, wy), cy = screenY(wx, wy)
-        if (cx < -px || cx > canvas.width + px
-          || cy < -px || cy > canvas.height + px) continue
+        const edge = px * grain
+        if (cx < -edge || cx > canvas.width + edge
+          || cy < -edge || cy > canvas.height + edge) continue
         const h = hash(ti, tj)
         const water = WATER_TILES.length > 0 && wetAt(wx, wy)
         // Water is flat by definition, so it gets none of the hillside shading
         // — a lit slope on a lake surface is the giveaway that the water is
         // painted on the ground rather than standing on it.
-        const sl = water ? 0 : shadeAt(wx, wy)
+        // Measured over the tile's own width.  A five-yard tile that takes
+        // its light from a single point is a five-yard block of whatever that
+        // point happened to be, and at the darkest end of the range that is a
+        // black square: the hillsides came out with holes punched in them the
+        // moment the ground was allowed to draw coarser than 1.33 yards.
+        const sl = water ? 0 : shadeAt(wx, wy, T)
         // Bands on one continuous number, so bare ground follows the hillside
         // instead of speckling across it.
-        const steep = slopeAt(wx, wy)
+        const steep = slopeAt(wx, wy, T)
         const meadow = BLOOM_TILES.length > 0
           && hash(Math.floor(ti / 5) + 811, Math.floor(tj / 5) + 277) > MEADOW
         const shore = !water && WATER_TILES.length > 0
@@ -2231,7 +2322,13 @@ async function main() {
         // the trees, because a bridge is a floor: it is what you are standing
         // on rather than something standing beside you.
         const span = onSpan(wx, wy)
-        const id = span ? span.tile
+        // A building's plan, drawn on the ground: stone inside, darker stone
+        // for the wall.  In the ground pass because from above a building is
+        // mostly a floor with a line around it, and because a plan ninety
+        // yards across is not a thing that can be a sprite.
+        const built = span ? null : inBuilding(wx, wy)
+        const id = built ? (built.wall ? WALL_TILE : ROCK_TILE)
+          : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
             ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
@@ -2248,8 +2345,9 @@ async function main() {
         // which is what `wx, wy` has always meant here.
         const step = Math.max(0, Math.min(SHADES - 1, Math.round(
           ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
+        const wide = px * grain
         ctx.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-          Math.round(cx - px / 2), Math.round(cy - px / 2), px, px)
+          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
         tilesDrawn++
       }
     }

@@ -208,15 +208,21 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 9. And at the widest the zoom will go, which is where it stops running: the
-// tile count goes as the square of how far out you are, and the floor on the
-// zoom is set by this number and not by taste.
-await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])
+// 9. And at the widest the zoom will go, which is where the ground used to
+// stop running.  The tile count went as the square of how far out you were —
+// 66,676 tiles at twenty frames a second four steps below the old floor — so
+// the floor was 0.6 and the widest view was eighty-three yards of a valley six
+// hundred across.  The ground draws a coarser tile when a fine one would be
+// under sixteen pixels now, so the count is near flat and the floor is where
+// the map stops being a map.
+await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.12 }), [-8983, -316])
 await p.waitForTimeout(1500)
 const wide = await p.evaluate(() => document.getElementById('hud').textContent)
 const wfps = Number(wide.match(/초당 (\d+)/)[1])
 const wtiles = Number(wide.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
-check('and at the widest zoom too', wfps >= 55, `${wfps} fps over ${wtiles} tiles`)
+check('and at the widest zoom too', wfps >= 45, `${wfps} fps over ${wtiles} tiles`)
+check('and the widest view takes in the valley',
+  1200 / (24 * 0.12) > 400, 'the floor has to show a zone, not a field')
 console.log(`      (${wtiles} tiles, ${wfps} fps at the floor)`)
 
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
