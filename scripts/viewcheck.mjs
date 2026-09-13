@@ -723,6 +723,18 @@ check('and twenty steps go as far as twenty steps',
   Math.abs(twice.one - twice.many) < 0.01,
   `${twice.one.toFixed(2)} yards in one run, ${twice.many.toFixed(2)} in twenty`)
 
+// 9u. The end of it.  The growth page warned that level ten would be a number
+// that means nothing, and it was: the milestone said "start it and finish it"
+// and nothing in the game knew what finishing was.
+const ending = await p.evaluate(() => { window.__earn(40000); return window.__ending() })
+check('reaching the ceiling is an event and not a number',
+  ending.level === ending.ceiling && ending.finished,
+  `level ${ending.level} of ${ending.ceiling}, ${ending.quests} errands done, `
+  + `${ending.kills} killed`)
+check('and there is nothing left to be rested for', ending.restCap === 0,
+  'the server stops banking rest at the ceiling too — `SetRestBonus`, '
+  + 'Player.cpp:10374')
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

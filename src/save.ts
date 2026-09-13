@@ -43,6 +43,9 @@ export type Save = {
     /** Banked experience, and whether the tab was closed in an inn. */
     rest: number
     restedIn: number
+    /** When the ceiling was reached, and when the character was made. */
+    finished: number
+    born: number
   }
   /** Where the stream of chance is, so loading cannot re-roll a drop. */
   seed: number

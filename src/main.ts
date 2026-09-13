@@ -1915,6 +1915,10 @@ async function main() {
     trades: { herbs: 1, mining: 1 } as Record<string, number>,
     /** Experience banked by stopping somewhere sensible — see `resting`. */
     rest: 0,
+    /** When the ceiling was reached, which is where this slice ends. */
+    finished: 0,
+    /** When this character was made, so the ending can say how long it took. */
+    born: Date.now(),
   }
   /**
    * The four things a warrior can do by level five.
@@ -2153,6 +2157,14 @@ async function main() {
       you.line = lineFor(you.level)
       you.max = you.line[HP]!
       you.hp = you.max
+      // The end of the slice.  Level ten is where this game stops, and a
+      // number that stops nothing is a number nobody notices arriving — so it
+      // says what the run was.  What comes after it is talents, and talents
+      // are the next slice's first item.
+      if (you.level >= ceiling && !you.finished) {
+        you.finished = clock
+        ui.log('노스샤이어에서 할 일은 여기까지다.', 'gain')
+      }
       // And whatever the new level opened.  The list is a function of the
       // level now; before this it was decided once at load and never again.
       const had = spells.length
@@ -2274,7 +2286,11 @@ async function main() {
     const b = inRoom(hero.x, hero.y)
     return !!b && inns.has(b)
   }
-  const restCap = () => (LADDER[you.level - 1] ?? 0) * 0.75
+  // `SetRestBonus` (Player.cpp:10374) refuses to bank anything at the ceiling,
+  // which is the server saying the same thing this game says at ten: there is
+  // nothing left here to be rested for.
+  const restCap = () =>
+    you.level >= (who?.levels?.[1] ?? 10) ? 0 : (LADDER[you.level - 1] ?? 0) * 0.75
   const restFor = (seconds: number, inInn: boolean) =>
     seconds * ((LADDER[you.level - 1] ?? 0) / 144000)
     * (inInn ? REST_IN_INN : REST_OUTSIDE)
@@ -2710,6 +2726,7 @@ async function main() {
       bag: you.bag, trades: you.trades, cools: you.cools,
       items: held, gear, taught,
       rest: you.rest, restedIn: resting() ? 1 : 0,
+      finished: you.finished, born: you.born,
     },
     seed: seed(),
     quests: {
@@ -2732,6 +2749,8 @@ async function main() {
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
     you.rest = save.you.rest ?? 0
+    you.finished = save.you.finished ?? 0
+    you.born = save.you.born ?? Date.now()
     // Everything downstream of what is worn, worked out again rather than
     // stored: maximum health is stamina and stamina is the level plus a
     // breastplate.
@@ -4128,6 +4147,15 @@ async function main() {
         : `없음  (가진 것 ${held.length}, G로 입는다)`],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
+      // What the run was, once it is over.  A ceiling that says nothing when
+      // you reach it is a number nobody notices arriving — and the character
+      // growth page warned that level ten would be exactly that.
+      ...(you.finished ? [
+        ['—', '노스샤이어에서 할 일은 여기까지다'],
+        ['걸린 시간', `${Math.max(1, Math.round((Date.now() - you.born) / 60000))}분`],
+        ['마친 일거리', `${log.done.size}`],
+        ['다음', '특성. 다음 슬라이스의 첫 항목이다'],
+      ] as [string, string][] : []),
     ], paintDoll() ?? undefined)
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
@@ -4614,6 +4642,12 @@ async function main() {
       noon: noon.tint, night: night.tint,
     }
   }
+  /** Whether the slice is over, and what the run came to. */
+  ;(window as unknown as { __ending: () => unknown }).__ending = () => ({
+    level: you.level, ceiling: who?.levels?.[1] ?? 0,
+    finished: you.finished > 0, kills: you.kills, quests: log.done.size,
+    purse: you.purse, rest: you.rest, restCap: restCap(),
+  })
   /** The quests that finish by walking somewhere, and doing it. */
   ;(window as unknown as { __walkTo: () => unknown }).__walkTo = () => {
     const spots = [...log.all.values()].filter((q) => q.walk?.length)
