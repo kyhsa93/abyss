@@ -56,6 +56,14 @@ type Doodad = {
   rooms?: [number, number, number, number, number][]
   /** Which rasterised footprint, and how far the model is turned. */
   p?: number; mr?: number
+  /**
+   * Which area this building's *inside* is, out of `WMOAreaTable.dbc`.
+   *
+   * A building does not belong to the area the ground under it belongs to:
+   * the hillside Northshire's abbey stands on is 86 and its nave is 24, and
+   * the client keeps a second table to say so.
+   */
+  a?: number
   /** Set when the bearing is a coin toss — see the crossings below. */
   bq?: number
 }
@@ -1245,6 +1253,7 @@ async function main() {
       return {
         x: d.x, y: d.y, l: d.bl!, w: d.bw!,
         c: Math.cos(a), s: Math.sin(a), k: d.k,
+        area: d.a ?? 0,
         plan,
         rooms: rooms.length ? rooms : [{
           x: d.x, y: d.y, l: d.bl!, w: d.bw!,
@@ -3050,7 +3059,13 @@ async function main() {
     // on a page that has no road data in it and never could: the deployed
     // build has no client bake, so it serves the synthesised world, and the
     // ground paint a road lives in comes out of `.adt` alpha maps only.
-    const zone = areaOf(hero.x, hero.y)
+    // Indoors is its own place.  Standing on a building's own floor — not
+    // merely inside its outline, which would put its courtyard indoors — the
+    // area is the one `WMOAreaTable` gives the building, so walking through
+    // the abbey's door changes what this says.
+    const roofed = inBuilding(hero.x, hero.y, 0)
+    const zone = (roofed?.floor && roofed.b.area)
+      || areaOf(hero.x, hero.y)
     ui.setWhere(`${zoneOf(zone, inside(zone))}${MADE_UP ? ' · 합성' : ''}  `
       + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
@@ -3264,6 +3279,13 @@ async function main() {
     const got = inBuilding(x, y, 0)
     return got ? { wall: got.wall, floor: got.floor } : null
   }
+  /** What the readout says at a spot, for the check that indoors is a place. */
+  ;(window as unknown as { __whereAt: (x: number, y: number) => string })
+    .__whereAt = (x, y) => {
+      const got = inBuilding(x, y, 0)
+      const a = (got?.floor && got.b.area) || areaOf(x, y)
+      return zoneOf(a, inside(a))
+    }
   /** Every area the slice has, with whose it is and what we call it. */
   ;(window as unknown as { __areas: () => unknown }).__areas = () =>
     AREA_IDS.map((a) => ({ id: a, inside: inside(a), name: zoneOf(a, inside(a)),
@@ -3283,7 +3305,7 @@ async function main() {
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
-      c: b.c, s: b.s }))
+      c: b.c, s: b.s, area: b.area }))
   /** What the world told us about movement, for the check that it is used. */
   ;(window as unknown as { __rules: () => unknown }).__rules = () => ({
     cliff: CLIFF, melee: MELEE, walkBase: WALK_BASE, runBase: RUN_BASE,

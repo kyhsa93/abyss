@@ -297,7 +297,11 @@ used to fall through `?? '엘윈 숲'`, so the shore of Westfall and a corner of
 the Burning Steppes both said you were in the forest: the silent-default
 mistake, in the one place a player can see it. `AreaTable.dbc` states a parent
 for every area — an integer, not a name — so an unnamed one now says whose
-ground it is and shows its id.
+ground it is and shows its id. **Indoors is its own place**: `WMOAreaTable.dbc`
+gives a building's inside an area of its own, keyed on the building, the *name
+set the placement chose* and the group's `uniqueID` at `MOGP + 0x38`. The
+abbey's hillside is 86 and its nave is 24; read with name set 0 instead of the
+1 the record states, it is nothing at all.
 
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a

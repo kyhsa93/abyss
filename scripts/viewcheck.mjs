@@ -390,6 +390,32 @@ check('no corner of the map calls itself the wrong forest', misnamed.length === 
 check('and every one of them says something', areas.every((a) => a.name),
   areas.slice(0, 3).map((a) => a.name).join(' · ') + ' …')
 
+// And indoors is its own place.  `WMOAreaTable.dbc` gives a building's inside
+// an area of its own — the hillside the abbey stands on is 86, its nave is 24
+// — so walking through the door has to change what the frame says.
+const indoors = await p.evaluate(() => {
+  const out = []
+  for (const b of window.__buildings().filter((x) => x.area)) {
+    let spot = null
+    for (let r = 0; r < 60 && !spot; r += 1)
+      for (let a = 0; a < 24; a++) {
+        const t = (a / 24) * Math.PI * 2
+        const x = b.x + Math.cos(t) * r, y = b.y + Math.sin(t) * r
+        const pl = window.__plotAt(x, y)
+        if (pl && pl.floor && !pl.wall) { spot = [x, y]; break }
+      }
+    if (!spot) continue
+    out.push({ area: b.area, inside: window.__whereAt(spot[0], spot[1]),
+      outside: window.__whereAt(b.x + 70, b.y + 70) })
+  }
+  return out
+})
+if (indoors.length) {
+  check('and walking indoors is going somewhere else',
+    indoors.every((x) => x.inside !== x.outside),
+    indoors.map((x) => `${x.inside} ≠ ${x.outside}`).join(', '))
+}
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

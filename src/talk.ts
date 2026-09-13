@@ -428,6 +428,9 @@ const ZONE: Record<number, string> = {
   1617: '성벽 앞',            // Stormwind's wall and its gate
   2421: '검은바위 산',        // the mountain itself
   4411: '스톰윈드 항구',      // three dock sections, two ships, two towers
+  // Indoors, which the client keeps a separate table for: the hillside the
+  // abbey stands on is 86 and its nave is 24.
+  24: '수도원 안',
 }
 
 /**

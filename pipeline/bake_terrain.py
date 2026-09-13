@@ -574,6 +574,76 @@ def rooms_of(client, path, pos, ry, box=None):
     return out
 
 
+# Which area a building's inside belongs to, by (model, name set).
+_INDOORS = {}
+_WMO_AREAS = None
+
+
+def wmo_area(client, path, nameset):
+    """The area id a building's inside carries, or 0.
+
+    A WMO does not sit in the area the ground under it sits in: the client
+    keeps a second table, `WMOAreaTable.dbc`, keyed on the building, the name
+    set the placement chose and the group — and that is why walking into
+    Northshire's abbey changes what the frame at the top of the screen says.
+    Fourteen groups of the abbey all answer 24, where the hillside it stands
+    on is 86.
+
+    The join is by the group's own `uniqueID`, which is in the `MOGP` header at
+    0x38, and by the **name set the placement states** — the abbey is placed
+    with set 1 and set 0 gives nothing at all, so reading the record's field
+    is the difference between an answer and silence.  Seven of the slice's
+    models have one; the rest are a barn, and a barn is not a place.
+
+    Only integers are read.  `WMOAreaTable` carries a name per row and that is
+    Blizzard's prose the same as everything else; `src/talk.ts` has our word.
+    """
+    global _WMO_AREAS
+    if _WMO_AREAS is None:
+        _WMO_AREAS = {}
+        data = read_dbc(client, 'WMOAreaTable')
+        if data:
+            _n, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+            for i in range(n):
+                v = struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
+                if v[10]:
+                    _WMO_AREAS.setdefault((v[3], v[2]), v[10])
+    key = (path.upper(), nameset)
+    if key in _INDOORS:
+        return _INDOORS[key]
+    _whole, rooms = wmo_rooms(client, path)
+    tally = {}
+    for g in range(max(1, len(rooms))):
+        gd, _src = client.read(path[:-4] + '_%03d.wmo' % g)
+        if not gd:
+            continue
+        j = 0
+        while j < len(gd) - 8:
+            m = gd[j:j + 4][::-1].decode('ascii', 'replace')
+            size, = struct.unpack_from('<I', gd, j + 4)
+            if m == 'MOGP':
+                gid, = struct.unpack_from('<I', gd, j + 8 + 0x38)
+                a = _WMO_AREAS.get((gid, nameset), 0)
+                if a:
+                    tally[a] = tally.get(a, 0) + 1
+                break
+            j = j + 8 + size
+    got = max(tally, key=tally.get) if tally else 0
+    _INDOORS[key] = got
+    return got
+
+
+def read_dbc(client, name):
+    """One `.dbc`, out of the locale's own archives, which come first."""
+    global CHAIN
+    was = CHAIN
+    CHAIN = ['koKR/patch-koKR-3.MPQ', 'koKR/patch-koKR-2.MPQ',
+             'koKR/patch-koKR.MPQ', 'koKR/locale-koKR.MPQ'] + was
+    data, _src = client.read('DBFilesClient\\%s.dbc' % name)
+    CHAIN = was
+    return data if data and data[:4] == b'WDBC' else None
+
+
 def area_tree(client, ids):
     """Which area sits inside which, and what level it is meant for.
 
@@ -594,15 +664,8 @@ def area_tree(client, ids):
     inside nothing.  A layout off by one field gives a tree that is still a
     tree.
     """
-    global CHAIN
-    was = CHAIN
-    # `DBFilesClient` lives in the locale's own archives, ahead of everything
-    # the terrain is read from.
-    CHAIN = ['koKR/patch-koKR-3.MPQ', 'koKR/patch-koKR-2.MPQ',
-             'koKR/patch-koKR.MPQ', 'koKR/locale-koKR.MPQ'] + was
-    data, _src = client.read('DBFilesClient\\AreaTable.dbc')
-    CHAIN = was
-    if not data or data[:4] != b'WDBC':
+    data = read_dbc(client, 'AreaTable')
+    if not data:
         return {}, {}
     _m, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
     rows = {}
@@ -997,8 +1060,11 @@ def read_tile(client, tx, ty):
                 (nid, uid, px, py, pz, _rx, ry, _rz,
                  lx, ly, lz, hx, hy, hz) = struct.unpack_from(
                     '<IIffffffffffff', data, off + i * 64)
-                # Which of the model's doodad sets is standing in this one.
+                # Which of the model's doodad sets is standing in this one,
+                # and which of its name sets — the second is what
+                # `WMOAreaTable` is keyed on.
                 dset, = struct.unpack_from('<H', data, off + i * 64 + 58)
+                nset, = struct.unpack_from('<H', data, off + i * 64 + 60)
                 # The box's vertical extent is kept but not used to size the
                 # sprite: a WMO's box is the whole complex, spires and all, so
                 # Northshire's abbey comes back eighty-nine yards tall and a
@@ -1009,7 +1075,7 @@ def read_tile(client, tx, ty):
                                         abs(hx - lx) / 2)
                             + (round(abs(hy - ly), 2), (px, py, pz), ry,
                                ((ORIGIN - lz, ORIGIN - lx),
-                                (ORIGIN - hz, ORIGIN - hx)), dset))
+                                (ORIGIN - hz, ORIGIN - hx)), dset, nset))
         elif magic == 'MH2O':
             # 256 chunk headers, then instances, all offset from the start of
             # this chunk's data.  A cell is wet if an instance covers it and its
@@ -1114,11 +1180,12 @@ def read_tile(client, tx, ty):
             # and this is how much of it survives a word like `bush`.
             placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
                            zlib.crc32(path.upper().encode()) & 0xffff,
-                           round(tall * sc, 2), round(wide * sc, 2), [], 0, 0.0))
+                           round(tall * sc, 2), round(wide * sc, 2),
+                           [], 0, 0.0, 0))
         else:
             skipped += 1
     for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
-            world_box, dset in wmos:
+            world_box, dset, nset in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
         if not kind and is_mouth(name):
@@ -1138,7 +1205,7 @@ def read_tile(client, tx, ty):
                                0.0, 0.0, 0.0,
                                zlib.crc32(f_path.upper().encode()) & 0xffff,
                                round(f_tall * sc, 2), round(f_wide * sc, 2),
-                               [], 0, 0.0))
+                               [], 0, 0.0, 0))
             # An opaque number for "the same model", so an instance that could
             # not be solved can borrow from one that could.  A number and not
             # the path: nothing from a client's file table is allowed out of
@@ -1148,7 +1215,8 @@ def read_tile(client, tx, ty):
                            half_l, half_w, bear, key, 0.0,
                            round(max(half_l or 0.0, half_w or 0.0), 2),
                            rooms_of(client, name, pos, ry, world_box),
-                           plan_key(client, name, key), round(ry + 270, 1)))
+                           plan_key(client, name, key), round(ry + 270, 1),
+                           wmo_area(client, name, nset)))
     return cells, placed, water, painted, skipped, src, shut, gap, whole
 
 
@@ -1171,6 +1239,7 @@ def bake(client, bounds, out, acore=None):
     closed = []
     gaps = []
     wholly = []
+    indoor_ids = set()
     levels = {}
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
@@ -1222,7 +1291,7 @@ def bake(client, bounds, out, acore=None):
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
-                    tall, wide, rooms, plan, mr in dd:
+                    tall, wide, rooms, plan, mr, inside in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -1237,7 +1306,9 @@ def bake(client, bounds, out, acore=None):
                     shapes.setdefault(key, (bl, bw))
                 variety.setdefault(kind, set()).add(key)
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
-                                key, tall, wide, rooms, plan, mr])
+                                key, tall, wide, rooms, plan, mr, inside])
+                if inside:
+                    indoor_ids.add(inside)
             for (iy_, ix_, sx_, sy_), level in wet.items():
                 I = tx * 128 + iy_ * 8 + sx_
                 J = ty * 128 + ix_ * 8 + sy_
@@ -1298,7 +1369,9 @@ def bake(client, bounds, out, acore=None):
         print(f'{borrowed} diagonal footprints borrowed from another instance '
               f'of the same model')
 
-    area_parent, area_level = area_tree(client, area_ids)
+    # The indoor areas belong in the tree too, or the abbey's nave has no
+    # parent to fall back on when nobody has given it a word.
+    area_parent, area_level = area_tree(client, area_ids + sorted(indoor_ids))
 
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
@@ -1365,11 +1438,15 @@ def bake(client, bounds, out, acore=None):
                          # The model's own footprint, rasterised: `p` is which
                          # plan and `mr` how far it is turned.
                          **({'p': plan, 'mr': mr} if plan else {}),
+                         # Which area this building's *inside* is, out of
+                         # `WMOAreaTable.dbc` — the hillside the abbey stands
+                         # on is 86 and its nave is 24.
+                         **({'a': inside} if inside else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
                     for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide,
-                    rooms, plan, mr in doodads],
+                    rooms, plan, mr, inside in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)
