@@ -138,6 +138,16 @@ async function main() {
   // the failure: asking the network is a 404 in the console of every visitor to
   // a page where the file is *meant* to be absent.
   const from = __HAS_CLIENT_WORLD__ ? 'data' : 'world'
+  /**
+   * Whether the ground under you was invented rather than read.
+   *
+   * `synth_terrain.py` builds a world out of AzerothCore alone, because what
+   * `bake_terrain.py` reads out of a client cannot be committed and a visitor
+   * without one has to get *something*.  It has the shape of Elwynn and none
+   * of its surface: no ground paint, so no roads, because a road exists in
+   * exactly one file and that file stays in the archive.
+   */
+  const MADE_UP = !__HAS_CLIENT_WORLD__
   const head = await fetch(`./${from}/terrain.json`)
   if (!head.ok || !(head.headers.get('content-type') ?? '').includes('json')) {
     // The one screen a developer reads and a player never does, so the command
@@ -2741,8 +2751,14 @@ async function main() {
           (you.target ? tail(`  [${nameOf(you.target.kind)} ${you.target.hp}]`)
             : tail(inSwing() ? '  [스페이스로 공격]' : ''))],
       ['시야', `${(canvas.width / (PPY * zoom)).toFixed(0)}야드  배율 ${zoom.toFixed(2)}`],
-      ['지형', from === 'data' ? '클라이언트의 것'
-        : tail('AzerothCore 스폰에서 보간') || '보간'],
+      // Which of the two worlds this is.  There was a line here already and
+      // it said "보간", which is true and told nobody anything: a whole round
+      // went on "the roads are missing" from a page that has no road data in
+      // it and cannot have any.  The zone line says it too, where it is always
+      // on screen.
+      ['지형', MADE_UP
+        ? '합성 — 아제로스코어 스폰에서 보간, 지면 페인트·구역 없음'
+        : '클라이언트 .adt — 높이·지면·구역'],
       ['프레임', `초당 ${fps.toFixed(0)}`],
     ])
     // --- the interface ---
@@ -2759,7 +2775,14 @@ async function main() {
       foe: fightable(foe.fight),
     } : null)
     if (clock - mapAt > 0.25) { mapAt = clock; paintMap() }
-    ui.setWhere(`${zoneOf(areaOf(hero.x, hero.y))}  `
+    // Which world this is, said out loud.  There are two — the client's own
+    // terrain, which cannot be committed, and the one `synth_terrain.py`
+    // builds out of AzerothCore alone — and nothing on the screen said which
+    // you were looking at.  A whole round of "the roads are missing" was spent
+    // on a page that has no road data in it and never could: the deployed
+    // build has no client bake, so it serves the synthesised world, and the
+    // ground paint a road lives in comes out of `.adt` alpha maps only.
+    ui.setWhere(`${zoneOf(areaOf(hero.x, hero.y))}${MADE_UP ? ' · 합성' : ''}  `
       + `${hero.x.toFixed(0)}, ${hero.y.toFixed(0)}`,
       new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     // The swing, as the only timer in the game.  Full when it is ready.

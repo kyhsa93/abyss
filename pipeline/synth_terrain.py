@@ -85,6 +85,56 @@ def samples(acore):
     return np.array(out, dtype=np.float64)
 
 
+def zones(acore, x0, y0, W, H):
+    """A zone map, out of the only statement of one AzerothCore makes.
+
+    The client's `.adt` files label every 33-yard chunk with an area and
+    `bake_terrain.py` reads it straight off.  There is no such table here — but
+    a spawn row carries the zone and area it stands in, and 934 of the slice's
+    rows fill them in.  Nearest labelled point, therefore: coarse, because 934
+    points over two thousand yards by two thousand eight hundred is coarse, and
+    honest about it.  It is the difference between a readout that names the
+    valley you are standing in and one that says "Elwynn Forest" everywhere.
+    """
+    base = os.path.join(acore, 'data/sql/base/db_world')
+    pts, ids = [], []
+    for name, mi, xi, zi, ai in (('creature.sql', 4, 10, 2, 3),
+                                 ('gameobject.sql', 2, 7, 3, 4)):
+        p = os.path.join(base, name)
+        if not os.path.exists(p):
+            continue
+        for f in rows(p):
+            try:
+                if int(f[mi]) != MAP:
+                    continue
+                x, y = float(f[xi]), float(f[xi + 1])
+                area, zone = int(f[ai]), int(f[zi])
+            except (ValueError, IndexError):
+                continue
+            if not (area or zone) or not inside(x, y, 210):
+                continue
+            pts.append((x, y))
+            ids.append(area or zone)
+    if len(pts) < 20:
+        return None, []
+    pts = np.array(pts)
+    order = sorted(set(ids))
+    at = {a: i for i, a in enumerate(order)}
+    lab = np.array([at[a] for a in ids], dtype=np.uint8)
+    # One id a 33-yard chunk, the same grid and the same origin the client bake
+    # uses, so the scene reads both the same way.
+    AU = UNIT * 8
+    cw, ch = int(np.ceil(W / 8)), int(np.ceil(H / 8))
+    gx = x0 - (np.arange(cw) + 0.5) * AU
+    gy = y0 - (np.arange(ch) + 0.5) * AU
+    mask = np.empty(cw * ch, dtype=np.uint8)
+    for i in range(cw):
+        d = (pts[:, 0] - gx[i]) ** 2
+        for j in range(ch):
+            mask[i * ch + j] = lab[np.argmin(d + (pts[:, 1] - gy[j]) ** 2)]
+    return (mask, order, cw, ch, AU)
+
+
 def field(pts, gx, gy, power=2.6, k=24):
     """Inverse distance weighting, on a coarse grid and then stretched.
 
@@ -291,15 +341,33 @@ def main(acore, out):
 
     os.makedirs(out, exist_ok=True)
     flat = grid.astype(np.float32).ravel()
+    got = zones(acore, x0, y0, W, H)
+    mask, order, cw, ch, AU = got if got and got[0] is not None else (None, [], 0, 0, 0)
+    # The scene reads the masks in one order — heights, water, ground, zones —
+    # so a world with no ground paint still has to leave the room for one.
+    # Grass is the last word in `GROUND_ORDER`, so the blank is 7 and not 0 —
+    # zero is `paved`, and a world of cobblestone is not the fallback anybody
+    # wants.
+    blank = bytes([7]) * ((W * 2) * (H * 2))
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
         f.write(struct.pack(f'<{flat.size}f', *flat.tolist()))
         f.write(wet.astype(np.uint8).tobytes())   # one byte a cell, after the heights
+        f.write(blank)                            # no ground paint: it is grass
+        if mask is not None:
+            f.write(mask.tobytes())               # and the zones, one a chunk
     meta = {
         'width': W, 'height': H, 'unit': UNIT,
         'x0': x0, 'y0': y0, 'centre': list(CENTRE), 'bounds': list(BOUNDS),
         'zMin': float(grid.min()), 'zMax': float(grid.max()),
         'source': 'azerothcore', 'samples': int(len(pts)),
         'hasWater': True, 'water': int(wet.sum()), 'waterLevel': round(level, 1),
+        # All grass, because a road exists in exactly one file and that file
+        # stays in the archive.  Stated rather than left out, so the scene does
+        # not have to guess whether the mask is there.
+        'ground': ['paved', 'road', 'crop', 'sand', 'snow', 'rock', 'bloom', 'grass'],
+        'groundWidth': W * 2, 'groundHeight': H * 2, 'groundUnit': UNIT / 2,
+        'areaWidth': cw, 'areaHeight': ch, 'areaUnit': AU,
+        'areaIds': order,
         'doodads': doodads,
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
