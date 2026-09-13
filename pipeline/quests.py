@@ -137,6 +137,35 @@ def words(base, wanted):
     return out
 
 
+def triggers(client_root):
+    """Where each of the client's area triggers is, and how big.
+
+    `AreaTrigger.dbc` is a position, a radius, and a box for the square ones —
+    ten integers a row and not one word of prose, which is the whole reason
+    this is readable at all.
+
+    Turned into *our* coordinates on the way out: the client's x and y are the
+    game's y and x, which is the same flip the terrain makes.
+    """
+    if not client_root or not os.path.isdir(client_root):
+        return {}
+    data = B.read_dbc(B.Client(client_root), 'AreaTrigger')
+    if not data:
+        return {}
+    _m, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+    out = {}
+    for i in range(n):
+        v = struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
+        f = struct.unpack('<%df' % fields, struct.pack('<%di' % fields, *v))
+        if v[1] != MAP:
+            continue
+        # `[x, y, radius]`, and a box counts as its own half-diagonal so that
+        # standing in a square one still works with a circle test.
+        wide = f[5] or max(f[6], f[7]) or 5.0
+        out[v[0]] = [round(f[2], 1), round(f[3], 1), round(wide, 1)]
+    return out
+
+
 def check_objects(wants, out):
     """An objective that names a game object has to be one you could finish.
 
@@ -261,6 +290,29 @@ def main(acore, client_root, out):
             'coin': int(f[col['RewardMoney']]),
             'after': int(a[acol['PrevQuestID']]) if a else 0,
         })
+
+    # Walking somewhere, which is a fifth kind of objective and the only one
+    # of the missing three this slice actually uses.  `areatrigger_involvedrelation`
+    # says which trigger finishes which quest and the client's `AreaTrigger.dbc`
+    # says where it is and how big — a radius, or a box for the square ones.
+    reach = {}
+    path = os.path.join(acore, 'data/sql/base/db_world/'
+                        'areatrigger_involvedrelation.sql')
+    spots = triggers(client_root)
+    if os.path.exists(path) and spots:
+        col2 = columns(path)
+        kept = {q['id'] for q in quests}
+        for line in rows(path):
+            f2 = split(line)
+            try:
+                q, t = int(f2[col2['quest']]), int(f2[col2['id']])
+            except (ValueError, KeyError, IndexError):
+                continue
+            if q in kept and t in spots:
+                reach.setdefault(str(q), []).append(spots[t])
+    for q in quests:
+        if str(q['id']) in reach:
+            q['walk'] = reach[str(q['id'])]
 
     check_objects(wants_object, out)
 

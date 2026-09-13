@@ -31,7 +31,7 @@ import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
 import {
   book, done as errandDone, type Held, hand, holding, killed, mark, offers,
-  short, take, wants, type Errand,
+  short, take, walked, wants, type Errand,
 } from './quest'
 import {
   mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE,
@@ -3312,6 +3312,13 @@ async function main() {
     // Every fifteen seconds, which is cheap and means a crash costs a walk
     // rather than an afternoon.
     if (clock - saved > 15) { saved = clock; keep() }
+    // Somewhere a quest wanted you to stand.  Five of the slice's hundred and
+    // two finish this way rather than by killing or carrying, and without it
+    // they can be taken and never finished.
+    for (const q of walked(log, hero.x, hero.y)) {
+      ui.log(`${q.id}번 일거리 — 그곳에 닿았다.`, 'gain')
+      showErrands()
+    }
 
     // --- the thumbs, before the keys, because they answer the same question
     pad.setBusy(chat !== null)
@@ -4371,6 +4378,21 @@ async function main() {
     restore(raw)
     return { level: you.level, xp: you.xp, purse: you.purse,
       x: hero.x, y: hero.y, seed: seed() }
+  }
+  /** The quests that finish by walking somewhere, and doing it. */
+  ;(window as unknown as { __walkTo: () => unknown }).__walkTo = () => {
+    const spots = [...log.all.values()].filter((q) => q.walk?.length)
+    if (!spots.length) return { quests: 0 }
+    const q = spots[0]!
+    take(log, q)
+    const before = short(log, log.held.find((h) => h.id === q.id)!)
+    const [x, y] = q.walk![0] as number[]
+    hero.x = x!; hero.y = y!
+    camX = x!; camY = y!
+    const reached = walked(log, hero.x, hero.y).length
+    return { quests: spots.length, id: q.id, places: q.walk!.length,
+      before, reached,
+      after: short(log, log.held.find((h) => h.id === q.id)!) }
   }
   /** What a drop needs before it drops, for the check that `conditions` bites. */
   ;(window as unknown as { __gated: () => unknown }).__gated = () => {

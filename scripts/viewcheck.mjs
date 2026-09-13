@@ -644,6 +644,20 @@ check('a quest item does not fall without the quest', gated.n > 0,
   + gated.gated.map((g) => `${g.entry} drops ${g.item} only for quest ${g.quest}`)
     .join(', '))
 
+// 9q. The fifth kind of objective.  `Errand` held `kill` and `fetch` and the
+// quest page counts five; of the three that were missing, this slice uses
+// exactly one — five of its hundred and two quests finish by walking
+// somewhere, out of `areatrigger_involvedrelation` and the client's own
+// `AreaTrigger.dbc`.  Without it they can be taken and never finished.
+const walk = await p.evaluate(() => window.__walkTo())
+if (walk.quests) {
+  check('a quest can be finished by walking somewhere',
+    walk.reached > 0 && walk.after < walk.before,
+    `${walk.quests} of them do; quest ${walk.id} wants ${walk.places} `
+    + `place(s), and standing in one took it from ${walk.before} short to `
+    + `${walk.after}`)
+}
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

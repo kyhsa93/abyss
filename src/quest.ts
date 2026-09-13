@@ -33,6 +33,15 @@ export type Errand = {
   kill: [number, number][]
   /** `[item, how many, our word for it, [[dropped by, per cent]]]`. */
   fetch: [number, number, string, [number, number][]][]
+  /**
+   * Places it wants you to stand in: `[x, y, how wide]`, from
+   * `areatrigger_involvedrelation` and the client's `AreaTrigger.dbc`.
+   *
+   * The fifth kind of objective, and the only one of the three that were
+   * missing that this slice actually uses — five of its hundred and two
+   * quests finish by walking somewhere rather than by killing or carrying.
+   */
+  walk?: number[][]
   xp: number
   coin: number
   /** The quest this one follows, or 0. */
@@ -40,7 +49,9 @@ export type Errand = {
 }
 
 /** How far along one held quest is. */
-export type Held = { id: number; kill: number[]; fetch: number[] }
+export type Held = { id: number; kill: number[]; fetch: number[]
+  /** Which of the quest's places have been stood in. */
+  walk?: number[] }
 
 export type Book = {
   all: Map<number, Errand>
@@ -59,7 +70,34 @@ export function short(b: Book, h: Held): number {
   let n = 0
   q.kill.forEach(([, want], i) => { n += Math.max(0, want - (h.kill[i] ?? 0)) })
   q.fetch.forEach(([, want], i) => { n += Math.max(0, want - (h.fetch[i] ?? 0)) })
+  ;(q.walk ?? []).forEach((_, i) => { n += (h.walk?.[i] ? 0 : 1) })
   return n
+}
+
+/**
+ * Standing somewhere a quest wanted you to stand.
+ *
+ * Called with where you are; marks off every place, on every held quest, that
+ * you are now inside.  Returns the ones that were newly reached, so the log
+ * can say so — a quest that finishes with no line about it is a quest that
+ * looks broken.
+ */
+export function walked(b: Book, x: number, y: number): Errand[] {
+  const news: Errand[] = []
+  for (const h of b.held) {
+    const q = b.all.get(h.id)
+    if (!q?.walk?.length) continue
+    h.walk ??= q.walk.map(() => 0)
+    q.walk.forEach((spot, i) => {
+      if (h.walk![i]) return
+      const [sx, sy, wide] = spot as number[]
+      if ((sx! - x) ** 2 + (sy! - y) ** 2 <= wide! * wide!) {
+        h.walk![i] = 1
+        news.push(q)
+      }
+    })
+  }
+  return news
 }
 
 export const done = (b: Book, h: Held) => short(b, h) === 0
