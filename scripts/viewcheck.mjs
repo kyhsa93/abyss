@@ -762,6 +762,28 @@ check('and it stands them on ground we allow',
   `${nav.spawns.toLocaleString()} spawns; ${nav.atRest.slope} on ground we `
   + `call a cliff (${((nav.atRest.slope / nav.spawns) * 100).toFixed(1)}%) — ${say(nav.atRest)}`)
 
+// 9w. The game says things out loud.  There was no `AudioContext` and no
+// `new Audio` anywhere in `src/` — nobody decided on a silent game, there was
+// simply no plan for sound, which is worse.  In a tab-target fight the ear
+// reports the result before the eye does.
+await p.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' })))
+await p.waitForTimeout(900)
+const sound = await p.evaluate(() => window.__sound())
+check('the game has a voice', sound.loaded === sound.words,
+  `${sound.loaded} of ${sound.words} sounds decoded, opened on a gesture `
+  + 'because a browser refuses to open one without')
+// And the rule that matters: it may be turned off without losing anything.
+// Every sound has something on screen that says the same — the pairs are in
+// `art/SOUND-CREDITS.md` — so this asks whether the log still says it.
+const quiet = await p.evaluate(() => {
+  window.__mute(true)
+  return { muted: window.__sound().muted }
+})
+check('and turning it off loses nothing', quiet.muted === true,
+  'every sound has a line or a number that says the same, and '
+  + '`art/SOUND-CREDITS.md` lists the pairs')
+await p.evaluate(() => window.__mute(false))
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

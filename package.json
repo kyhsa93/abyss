@@ -43,7 +43,8 @@
     "budgetcheck": "node scripts/budgetcheck.mjs",
     "pwacheck": "node scripts/pwacheck.mjs",
     "shotcheck": "node scripts/shotcheck.mjs",
-    "simcheck": "node --experimental-strip-types scripts/simcheck.mjs"
+    "simcheck": "node --experimental-strip-types scripts/simcheck.mjs",
+    "sounds": "python3 pipeline/bake_sounds.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

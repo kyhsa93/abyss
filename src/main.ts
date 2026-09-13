@@ -27,6 +27,7 @@ import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
 import { canWear, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_NEED, I_SLOT, I_WORD, type Item, type Shelf } from './sim/gear.ts'
+import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk.ts'
@@ -2087,6 +2088,7 @@ async function main() {
     if (why(sp) !== null) return
     you.rage -= sp.rage
     if (sp.gcd) you.gcd = clock + gcdOf(sp) / 1000
+    play('cast', 0.95 + roll() * 0.1)
     if (sp.cool) you.cools[sp.id] = clock + sp.cool / 1000
     const t = you.target
     // What pressing it buys in attention, out of `spell_threat`.  A heavier
@@ -2231,6 +2233,7 @@ async function main() {
       you.line = lineFor(you.level)
       you.max = you.line[HP]!
       you.hp = you.max
+      play('level')
       // The end of the slice.  Level ten is where this game stops, and a
       // number that stops nothing is a number nobody notices arriving — so it
       // says what the run was.  What comes after it is talents, and talents
@@ -2529,12 +2532,14 @@ async function main() {
       // Taking a blow pays too, at a third of what landing one does.
       you.rage = Math.min(MAX_RAGE,
         you.rage + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
+      play(hit > 0 ? 'hurt' : 'miss', 0.9 + roll() * 0.2)
       say(hero.x, hero.y, fate === HIT ? `-${hit}` : (OUTCOME_WORD[fate] ?? ''), false)
       ui.log(fate === HIT || fate === CRIT
         ? `${nameOf(n.kind)}에게 ${hit} 맞았다.${fate === CRIT ? ' (치명타)' : ''}`
         : `${nameOf(n.kind)}의 공격을 ${OUTCOME_WORD[fate]}`, fate === MISS || hit === 0 ? 'note' : 'hurt')
       if (you.hp <= 0) {
         you.hp = 0; you.died = clock; you.target = null; you.calm = 0
+        play('die')
         ui.log('쓰러졌다.', 'note')
       }
     }
@@ -2597,6 +2602,7 @@ async function main() {
     foe.hp -= hit
     foe.hurt = clock
     if (hit > 0) { foe.angry = true; rouse(foe) }
+    play(fate === CRIT ? 'crit' : hit > 0 ? 'hit' : 'miss', 0.92 + roll() * 0.16)
     say(foe.x, foe.y, fate === HIT ? `${hit}` : (OUTCOME_WORD[fate] ?? `${hit}`), true)
     ui.log(fate === HIT || fate === CRIT || fate === GLANCING
       ? `${josa(nameOf(foe.kind), '을', '를')} ${hit} 때렸다.`
@@ -2695,6 +2701,7 @@ async function main() {
       you.trades[n.trade] = (you.trades[n.trade] ?? 0) + 1
       got.push(`${TRADE_WORD[n.trade] ?? n.trade} ${you.trades[n.trade]}`)
     }
+    if (got.length) play('loot')
     return got.length ? got.join(', ') : '아무것도 없다'
   }
 
@@ -2731,6 +2738,10 @@ async function main() {
   const SPEED = 7.0          // yards a second, which is WoW's run speed
 
   const keys = new Set<string>()
+  // A browser will not start an audio context without a gesture, so every
+  // plausible gesture asks for one.  The second ask is a no-op.
+  for (const when of ['keydown', 'pointerdown', 'touchstart'] as const)
+    addEventListener(when, () => wake(), { passive: true })
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase()
     keys.add(k)
@@ -2749,6 +2760,13 @@ async function main() {
       if (!chat) cast(spells[slot - 2]!)
     }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
+    // Off and on.  Everything a sound says is also on screen — that is a rule
+    // with a check behind it — so this costs nothing but the noise.
+    if (k === 'n') {
+      e.preventDefault()
+      mute(!muteIsOn())
+      ui.log(muteIsOn() ? '소리를 껐다.' : '소리를 켰다.', 'note')
+    }
     // Put on the best of what is in the bag.  One key, because everything you
     // own that fits an empty slot is better than the nothing in it.
     if (k === 'g') {
@@ -4123,7 +4141,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동\n오므려서 확대'
-        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  G: 장비  C: 정보  M: 지도  `: 수치'
+        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
     }
 
     acc += dt; frames++
@@ -4212,6 +4230,7 @@ async function main() {
     ui.setMicro([
       { key: 'C', label: '정보', on: sheetOpen, use: () => { sheetOpen = !sheetOpen } },
       { key: 'B', label: '가방', on: bagOpen, use: () => { bagOpen = !bagOpen } },
+      { key: 'N', label: '소리', on: !muteIsOn(), use: () => mute(!muteIsOn()) },
       { key: 'M', label: '지도', on: mapOpen, use: () => {
         mapOpen = !mapOpen
         if (mapOpen && !mapDrawn) { paintWorld(); mapDrawn = true }
@@ -4780,6 +4799,13 @@ async function main() {
     return { gated: gated.slice(0, 4), n: gated.length,
       holding: log.held.map((h) => h.id) }
   }
+  /** What the game can say out loud, and whether anything is lost with it off. */
+  ;(window as unknown as { __sound: () => unknown }).__sound = () => ({
+    loaded: soundReady(), muted: muteIsOn(), words: SOUNDS.length,
+  })
+  /** Silence it, for the check that silence costs nothing. */
+  ;(window as unknown as { __mute: (on: boolean) => void }).__mute =
+    (on) => mute(on)
   /** Hold a direction down without a keyboard, for the step check. */
   ;(window as unknown as { __hold: (k: string | null) => void }).__hold = (k) => {
     keys.clear()
