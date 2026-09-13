@@ -20,6 +20,7 @@ sort of thing it is, and its numbers.
 """
 import json
 import os
+import re
 import struct
 import sys
 from collections import Counter
@@ -124,19 +125,26 @@ def wanted(base, acore, object_loots, client):
             want[item] += 1
 
     # What its quests pay.
+    #
+    # The slots are counted rather than typed: there are four fixed rewards
+    # and **six** to choose between, and this loop said `range(1, 5)` for
+    # both.  So a choice in slot five or six was an item this world never
+    # baked — item 1159, a staff of level five, offered by the errand a level
+    # four warrior is sent on.  A loop that has to agree with a table is a
+    # loop that stops agreeing.
     qpath = os.path.join(base, 'quest_template.sql')
     qcol = columns(qpath)
+    pays = [k for k in qcol
+            if re.fullmatch(r'RewardItem\d+|RewardChoiceItemID\d+', k)]
     for line in rows(qpath):
         f = split(line)
-        for i in range(1, 5):
-            for key in ('RewardItem%d' % i, 'RewardChoiceItemID%d' % i):
-                if key in qcol:
-                    try:
-                        v = int(f[qcol[key]])
-                    except (ValueError, IndexError):
-                        continue
-                    if v:
-                        want[v] += 1
+        for key in pays:
+            try:
+                v = int(f[qcol[key]])
+            except (ValueError, IndexError):
+                continue
+            if v:
+                want[v] += 1
     # And what a new character is created holding.  `CharStartOutfit.dbc` names
     # five items and not one of them was baked, because the slice's filter asks
     # what a vendor sells, what a creature drops and what an errand pays — and
@@ -244,7 +252,7 @@ def main(acore, client, out):
 
     ipath = os.path.join(base, 'item_template.sql')
     col = columns(ipath)
-    items, skipped = {}, 0
+    items, skipped, gated = {}, 0, 0
     for line in rows(ipath):
         f = split(line)
         try:
@@ -281,6 +289,15 @@ def main(acore, client, out):
         # a level 60 breastplate in a shop is a row nobody can buy and a
         # kilobyte of a world nobody can reach.
         if need > LEVELS[1] or ilvl > LEVELS[1] + 10:
+            continue
+        # And nothing that asks for a standing, because this game has no
+        # standings.  Twelve of them are on the slice's own shelves —
+        # `PlayerStorage.cpp:2344` is where the server refuses one — so
+        # leaving them there is a shop with twelve rows in it that cannot be
+        # bought, which is the same shape of hole `check()` below exists to
+        # catch on the other side.
+        if int(f[col['RequiredReputationFaction']]):
+            gated += 1
             continue
         stats = []
         for i in range(1, 11):
@@ -319,11 +336,15 @@ def main(acore, client, out):
 
     check(doc)
     check_lessons(doc, out)
+    check_rewards(doc, out)
     purse(out, doc)
     worn = sum(1 for v in items.values() if v[1])
     print(f'{len(items):,} items ({worn} wearable) -> {path}')
     print(f'  {len(stock)} vendors stocking '
           f'{sum(len(v) for v in stock.values())} rows')
+    if gated:
+        print(f'  {gated} left out for asking a standing this game has no '
+              f'way to earn — see the reputation note in issue 152')
     print(f'  {len(teach)} trainers teaching '
           f'{sum(len(t["teaches"]) for t in teach.values())} things')
     by = Counter(v[1] for v in items.values() if v[1])
@@ -415,6 +436,27 @@ def check(doc):
     print(f'check: {sum(len(v) for v in stock.values())} things for sale, '
           f'{len(missing)} of them not in this world')
     assert not missing, f'a vendor sells what was never baked: {missing[:5]}'
+
+
+def check_rewards(doc, out):
+    """And every item an errand pays has to be one this world knows about.
+
+    The wiki asked for this by name and it would have failed the day it was
+    written: item 1159, a staff of level five, is the fifth of the five things
+    the errand a level four warrior is sent on lets you choose between — and
+    `wanted()` walked four choice slots because somebody typed a four next to a
+    table that has six.
+    """
+    made = os.path.join(out, 'quests.json')
+    if not os.path.exists(made):
+        return
+    with open(made) as f:
+        quests = json.load(f).get('quests', [])
+    pays = {it for q in quests for it, _n in q.get('gives', []) + q.get('pick', [])}
+    missing = sorted(it for it in pays if str(it) not in doc['items'])
+    print(f'check: {len(pays)} things an errand can pay, '
+          f'{len(missing)} of them not in this world')
+    assert not missing, f'an errand pays what was never baked: {missing[:5]}'
 
 
 def check_lessons(doc, out):

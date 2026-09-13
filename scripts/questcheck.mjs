@@ -116,6 +116,28 @@ check('which is the next link of the chain',
   (await state()).held.some((h) => h.id === AFTER),
   JSON.stringify((await state()).held))
 
+// And what an errand pays besides the two numbers.
+//
+// Nine of this slice's thirty-one offer a choice of up to five things, and the
+// game was taking none of them: `hand()` returned experience and coin and the
+// three reward columns were read by nobody.  At these levels an errand is
+// where most equipment comes from — the only other ways in are the shirt you
+// were made in and a shopkeeper, and both of those cost money.
+{
+  const paying = await p.evaluate(async () => {
+    const qs = (await (await fetch('./world/quests.json')).json()).quests
+    return {
+      gives: qs.filter((q) => q.gives.length).length,
+      pick: qs.filter((q) => q.pick.length).length,
+      widest: Math.max(0, ...qs.map((q) => q.pick.length)),
+    }
+  })
+  check('errands pay in things as well as in numbers',
+    paying.gives > 0 && paying.pick > 0, JSON.stringify(paying))
+  check('and one of them is a choice of several', paying.widest >= 2,
+    `widest is ${paying.widest}`)
+}
+
 // And the third gathering trade, which is the one you take off a body.
 //
 // 49 rows of `skinning_loot_template` touch this slice and there was no

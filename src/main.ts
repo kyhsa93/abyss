@@ -4095,14 +4095,48 @@ async function main() {
         lines: ready ? [] : errand(shapeOf(q)),
       } as Option
       if (ready) {
-        say2.act = () => {
-          const paid = hand(log, h)
+        /**
+         * Handing it in, and what it pays.
+         *
+         * `chose` is an index into the quest's `pick` and -1 when there is
+         * nothing to choose.  An errand's reward is where most equipment
+         * comes from at these levels — the only other ways in are the shirt
+         * you were made in and a shopkeeper, and both of those cost money.
+         */
+        const payOut = (chose: number) => {
+          const paid = hand(log, h, chose)
           you.xp += paid.xp
           you.purse += paid.coin
+          const got: string[] = []
+          for (const [id, many] of paid.items) {
+            for (let k = 0; k < many; k++) held.push(id)
+            const it = itemOf(id)
+            got.push(it ? describe(it) : `물건 ${id}`)
+          }
           levelUp()
-          ui.log(`완료 — ${payFor(paid.xp, paid.coin)}`, 'gain')
+          const said = payFor(paid.xp, paid.coin)
+            + (got.length ? `, ${got.join(', ')}` : '')
+          ui.log(`완료 — ${said}`, 'gain')
           showErrands()
-          return [payFor(paid.xp, paid.coin)]
+          return [said, ...(got.length ? ['G를 눌러 입는다.'] : [])]
+        }
+        // One of several, and you cannot take it back.  Nine of this slice's
+        // thirty-one errands offer a choice of up to five and the game was
+        // taking none of them — which is the shape of decision the wiki went
+        // looking for and could not find in this stretch.
+        if (q.pick.length) {
+          say2.lines = ['고를 것이 있다.']
+          speech.options.unshift(...q.pick.map(([id, many], i) => {
+            const it = itemOf(id)
+            return {
+              label: `마치고 받기 — ${it ? describe(it) : `물건 ${id}`}`
+                + (many > 1 ? ` x${many}` : ''),
+              lines: it ? [detail(it)] : [],
+              act: () => payOut(i),
+            } as Option
+          }))
+        } else {
+          say2.act = () => payOut(-1)
         }
       }
       speech.options.unshift(say2)

@@ -44,6 +44,18 @@ export type Errand = {
   walk?: number[][]
   xp: number
   coin: number
+  /**
+   * What handing it in pays besides the two above: `[item, how many]`.
+   *
+   * `gives` is unconditional and `pick` is one of several.  The second is the
+   * more interesting half — nine of this slice's thirty-one errands offer a
+   * choice of up to five, and choosing one of five things you cannot take
+   * back is the shape of decision this game was short of.  At these levels an
+   * errand's reward is also where most equipment comes from: the only other
+   * ways in are the shirt you were made in and a shopkeeper.
+   */
+  gives: [number, number][]
+  pick: [number, number][]
   /** The quest this one follows, or 0. */
   after: number
 }
@@ -163,11 +175,22 @@ export function killed(b: Book, entry: number, roll: () => number): string[] {
 }
 
 /** Hand one in.  Returns what it paid. */
-export function hand(b: Book, h: Held): { xp: number; coin: number } {
+/**
+ * Handing one in.
+ *
+ * `chose` is an index into the quest's `pick`, and -1 when there is nothing to
+ * choose or nothing was chosen.  What comes back is everything the hand-in
+ * pays, so the caller has one list to put in a bag rather than two rules.
+ */
+export function hand(b: Book, h: Held, chose = -1):
+{ xp: number; coin: number; items: [number, number][] } {
   const q = b.all.get(h.id)
   b.held = b.held.filter((x) => x !== h)
   b.done.add(h.id)
-  return { xp: q?.xp ?? 0, coin: q?.coin ?? 0 }
+  const items: [number, number][] = [...(q?.gives ?? [])]
+  const one = q?.pick?.[chose]
+  if (one) items.push(one)
+  return { xp: q?.xp ?? 0, coin: q?.coin ?? 0, items }
 }
 
 /**

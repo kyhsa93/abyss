@@ -31,6 +31,7 @@ picture.
 """
 import json
 import os
+import re
 import struct
 import sys
 from collections import Counter, defaultdict
@@ -278,6 +279,13 @@ def main(acore, client_root, out):
     from_beast = drops(base, asked)
     word_of = words(base, asked)
 
+    # The reward slots, counted off the table.  See `gives` and `pick` below.
+    fixed_slots = sorted((k for k in col if re.fullmatch(r'RewardItem\d+', k)),
+                         key=lambda k: int(k[len('RewardItem'):]))
+    choice_slots = sorted(
+        (k for k in col if re.fullmatch(r'RewardChoiceItemID\d+', k)),
+        key=lambda k: int(k[len('RewardChoiceItemID'):]))
+
     quests, dropped = [], Counter()
     wants_object = []
     for q, f in sorted(raw.items()):
@@ -355,6 +363,17 @@ def main(acore, client_root, out):
             # forgetting to run.
             'classes': int(a[acol['AllowableClasses']]) if a else 0,
             'races': int(f[col['AllowableRaces']]),
+            # What handing it in pays, beyond the experience and the coin.
+            # Four fixed slots and **six** to choose between — the count is
+            # taken off the columns rather than typed, because a loop that has
+            # to agree with a table stops agreeing: `items.py` said four for
+            # both and a staff offered in slot five was an item this world
+            # never baked.
+            'gives': [[int(f[col[k]]), int(f[col[k.replace('Item', 'Amount')]])]
+                      for k in fixed_slots if int(f[col[k]])],
+            'pick': [[int(f[col[k]]),
+                      int(f[col[k.replace('ID', 'Quantity')]])]
+                     for k in choice_slots if int(f[col[k]])],
         })
 
     # Walking somewhere, which is a fifth kind of objective and the only one
@@ -399,6 +418,14 @@ def main(acore, client_root, out):
     if out_of:
         sys.exit('%d quests came through that this character cannot take: %s'
                  % (len(out_of), [q['id'] for q in out_of][:8]))
+    # What they pay besides experience and coin.  The closure that has to hold
+    # — every reward item baked — is checked in `items.py`, which runs after
+    # this and is the file that knows what was baked.
+    pays = {it for q in quests for it, _n in q['gives'] + q['pick']}
+    print(f'  {sum(1 for q in quests if q["gives"])} pay an item, '
+          f'{sum(1 for q in quests if q["pick"])} let you choose one of '
+          f'{max([len(q["pick"]) for q in quests] + [0])}, over '
+          f'{len(pays)} distinct items')
     rich = sorted(quests, key=lambda q: -q['coin'])[:1]
     print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "
           f"the fattest {rich[0]['coin'] if rich else 0}")
