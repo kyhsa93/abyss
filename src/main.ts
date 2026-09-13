@@ -45,6 +45,8 @@ type Doodad = {
    * sixty-yard oak.
    */
   t?: number; w?: number
+  /** Which of the kind's pictures, decided by the model and not the place. */
+  v?: number
   /**
    * A building's own footprint: half along, half across, and the bearing of
    * the long side in degrees.  Only the ones a bridge is drawn from carry it.
@@ -56,6 +58,7 @@ type Doodad = {
 type Meta = {
   width: number; height: number; unit: number
   x0: number; y0: number; centre: [number, number]; bounds: number[]
+  variety?: Record<string, number>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   zMin: number; zMax: number
@@ -400,8 +403,8 @@ async function main() {
     // is a whole tree, trunk and all, and putting one under it drew two trees
     // standing in the same spot with their trunks side by side.
     tree: {
-      pieces: ['oak', 'oak2', 'oak', 'oak2', 'deadtree'], trunk: 'trunk',
-      whole: ['deadtree'], yards: 8, solid: 0.5,
+      pieces: ['oak', 'oak2'], trunk: 'trunk',
+      yards: 8, solid: 0.5,
     },
     // Drawn front-on, whatever the client says the rotation is.  These are
     // pixel art with no side view, and turning a pixel sprite by an arbitrary
@@ -412,6 +415,13 @@ async function main() {
     fence: { pieces: ['fence', 'fence2'], run: true, solid: 'span' },
     sign: { pieces: ['fence_post'] },
     pine: { pieces: ['pine', 'pine2'], yards: 9, solid: 0.5 },
+    // A bare tree, and only where the client put a bare one.  It used to be
+    // one of the five pictures `tree` rotated through, so a fifth of Elwynn's
+    // living wood was drawn dead.
+    deadtree: { pieces: ['deadtree'], yards: 9, solid: 0.5 },
+    // One post, which is what the client placed: the fence beside it is its
+    // own doodad.
+    post: { pieces: ['fence_post'], solid: 0.3 },
     // Four sizes of the same two shrubs.  One shrub repeated 1,220 times is
     // the texture the field had, and it reads as wallpaper however good the
     // sprite is.
@@ -526,7 +536,19 @@ async function main() {
     const k = KIND[d.k]
     if (!k) continue
     const seed = k.run ? hash(Math.floor(d.x / 40), Math.floor(d.y / 40)) : hash(d.x, d.y)
-    const pick = k.pieces[Math.floor(seed * k.pieces.length) % k.pieces.length]!
+    // Which picture: the model's, not the spot's.  `v` is a number the bake
+    // makes out of the model path, so every ELWYNNBUSH09 in the forest is the
+    // same bush and a different model is a different one.  Keyed on the spot,
+    // the same bush changed shape every time the client put one down.
+    //
+    // And no more pictures than the client has models.  Five pictures of a
+    // crop where the slice holds one crop model is four fields of vegetables
+    // this world does not grow; the cap comes from the bake's own count, so a
+    // wider slice with more models gets more pictures without anybody editing
+    // a list.
+    const many = Math.max(1, Math.min(k.pieces.length,
+      (meta.variety ?? {})[d.k] ?? k.pieces.length))
+    const pick = k.pieces[(d.v ?? Math.floor(seed * 64)) % many]!
     const piece = tilesMeta[pick]
     if (!piece) continue
     // How big this one is.  `yards` says how tall the kind should stand and
@@ -2765,6 +2787,42 @@ async function main() {
       raw[d.k] = (raw[d.k] ?? 0) + 1
     }
     return { placed: got, doodads: raw, total: placed.length }
+  }
+  /**
+   * Every piece drawn near you, with the ground it actually covers.
+   *
+   * For the check that holds the scenery against the client's own placements:
+   * a doodad is right when it is in the right place at the right size, and
+   * neither of those is visible in a still picture of a wood.
+   */
+  /**
+   * How many pictures each word has against how many models it covers.
+   *
+   * More pictures than models is variety this world does not have: the same
+   * bush drawn three ways, and two of the client's own bushes drawn alike.
+   */
+  ;(window as unknown as { __variety: () => unknown }).__variety = () =>
+    Object.entries(meta.variety ?? {}).map(([kind, models]) => {
+      const have = (KIND[kind]?.pieces ?? []).filter((q) => tilesMeta[q]).length
+      return {
+        kind, models, pieces: Math.min(have, models || have),
+        // A deck is drawn by the ground pass, so it has no standing picture
+        // and wants none.
+        floor: !!tintedGround().at[kind === 'bridge_stone' ? 'stone' : kind],
+      }
+    })
+  ;(window as unknown as { __pieces: (r: number) => unknown }).__pieces = (r) => {
+    const out: unknown[] = []
+    for (const o of placed) {
+      if (Math.hypot(o.x - hero.x, o.y - hero.y) > r) continue
+      const k = Object.entries(tilesMeta).find(([, p]) => p === o.piece)?.[0] ?? '?'
+      out.push({
+        piece: k, x: +o.x.toFixed(2), y: +o.y.toFixed(2),
+        wide: +((o.piece.w * o.s) / PPY).toFixed(2),
+        tall: +((o.piece.h * o.s) / PPY).toFixed(2),
+      })
+    }
+    return out
   }
   ;(window as unknown as { __spans: () => unknown }).__spans = () => ({
     n: spans.length, list: spans.slice(0, 4),

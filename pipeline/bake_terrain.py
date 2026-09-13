@@ -101,9 +101,24 @@ def classify_wmo(path):
 # their own rivers.  A doodad nobody can draw is better left out than drawn as
 # something else, and the bake now says how many it left out.
 KINDS = [
+    # `CANOPYLESSTREE` is the client's word for a tree with no canopy on it —
+    # a bare one — and it was going through as an ordinary tree while ordinary
+    # trees were coming out bare, because `deadtree` was one of the pictures
+    # the word `tree` rotated through.  Both halves were wrong at once.
+    ('CANOPYLESS', 'deadtree'), ('DEADTREE', 'deadtree'),
     ('TREES\\', 'tree'), ('PINE', 'pine'), ('TREE', 'tree'),
     ('BUSH', 'bush'), ('SHRUB', 'bush'),
-    ('FENCE', 'fence'), ('WOODPOST', 'fence'), ('POST', 'fence'),
+    # `LAMPPOST` has to come before `POST` or a lamp is a fence, and it did:
+    # every lamp in the forest was drawn as four yards of railing.  A rule
+    # ordered after a rule that also matches it never runs.
+    ('LAMPPOST', 'lamp'),
+    # A single post is not a fence section.  Reading one as a fence ran the
+    # span logic over it, so each of the six posts around the abbey became four
+    # yards of railing standing on its own.  Before `FENCE` and not after it:
+    # these live in the client's `FENCES` folder, so the *directory* matched
+    # first and the file name never got a say.
+    ('WOODPOST', 'post'), ('FENCEPOST', 'post'), ('POST', 'post'),
+    ('FENCE', 'fence'),
     ('CLIFFROCK', 'rock'), ('ROCK', 'rock'), ('BOULDER', 'rock'),
     ('LILYPAD', 'lily'), ('SEAWEED', 'water_plant'), ('SWAMPPLANT', 'water_plant'),
     ('GRASS', 'grass'), ('PLANT', 'grass'), ('FLOWER', 'flower'), ('CABBAGE', 'crop'),
@@ -511,7 +526,14 @@ def read_tile(client, tx, ty):
             # The model's own size, times the placement's own scale.  Both were
             # in the file all along; only the second one was read.
             tall, wide = model_size(client, path)
-            placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0, 0,
+            # And which of the pictures this kind has should be used, keyed on
+            # the *model* rather than on the spot.  It was the spot: the same
+            # bush was a different bush every time the client put one down, and
+            # two of the client's own bushes standing side by side could come
+            # out identical.  The world's variety is the variety of its models,
+            # and this is how much of it survives a word like `bush`.
+            placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
+                           zlib.crc32(path.upper().encode()) & 0xffff,
                            round(tall * sc, 2), round(wide * sc, 2)))
         else:
             skipped += 1
@@ -541,6 +563,7 @@ def bake(client, bounds, out):
     dropped = 0
     solid_seen = set()
     shapes = {}
+    variety = {}
     levels = {}
     wetmask = bytearray(w * h)
     # The painted ground is kept at twice the height grid's resolution — see
@@ -589,6 +612,7 @@ def bake(client, bounds, out):
                     solid_seen.add((kind, round(wx, 2), round(wy, 2)))
                 if bl is not None and key:
                     shapes.setdefault(key, (bl, bw))
+                variety.setdefault(kind, set()).add(key)
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
                                 key, tall, wide])
             for (iy_, ix_, sx_, sy_), level in wet.items():
@@ -669,6 +693,12 @@ def bake(client, bounds, out):
         'hasWater': True,
         'water': sum(wetmask),
         'ground': GROUND_ORDER,
+        # How many distinct models the client actually placed for each of our
+        # words.  The scene rotates through a list of pictures per word, and
+        # with more pictures than models it invents variety the world does not
+        # have: the same bush came out as three different bushes and two of the
+        # client's own bushes came out identical.
+        'variety': {k: len(v) for k, v in sorted(variety.items())},
         'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / 2,
         # The zone map, and the ids it indexes.  `areaOf` in `src/main.ts`
         # reads it; the names are ours, in `talk.ts`, because an area name is
@@ -685,10 +715,14 @@ def bake(client, bounds, out):
                          # placement's scale.
                          **({'t': tall} if tall else {}),
                          **({'w': wide} if wide else {}),
+                         # Which picture, keyed on the model rather than the
+                         # spot.  Dropped for the buildings, whose key is a
+                         # whole different number.
+                         **({'v': key % 64} if tall else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
-                    for k, x, y, z, rot, s, bl, bw, ba, _key, tall, wide
+                    for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide
                     in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:

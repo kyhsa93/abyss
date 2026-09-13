@@ -139,7 +139,30 @@ check('and most of what lives there can be fought',
   JSON.stringify(roster))
 console.log(`      (Northshire: ${roster.enemy} start fights, ${roster.quarry} finish them, ${roster.friend} do not)`)
 
-// 6. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// 6. The scenery is the client's scenery.
+//
+// Two ways a wood can be wrong that a screenshot will not show.  A word here
+// stands for many of the client's models — `tree` is thirty-one of them — and
+// the scene rotates through a list of pictures for it.  With more pictures
+// than models it invents variety the world has not got, and with the picture
+// chosen by the *spot* rather than the model the same bush changes shape every
+// time the client puts one down.  Both were true: a fifth of Elwynn's living
+// trees were drawn as dead ones, because `deadtree` was in the rotation.
+const variety = await p.evaluate(() => window.__variety())
+const invented = variety.filter((v) => v.models && v.pieces > v.models)
+check('no word draws more pictures than the client has models',
+  invented.length === 0,
+  invented.map((v) => `${v.kind}: ${v.pieces} pictures for ${v.models} models`).join('; '))
+const unbacked = variety.filter((v) => !v.models)
+console.log(`      (${variety.length} words, ${unbacked.length} with nothing in the slice)`)
+// And every word the bake emits has a picture here.  A kind missing from the
+// table is skipped without a word, which is how two campfires stood in the
+// world and were drawn as nothing at all.
+const orphan = variety.filter((v) => v.models && !v.pieces && !v.floor)
+check('and every word the bake emits can be drawn', orphan.length === 0,
+  orphan.map((v) => v.kind).join(', '))
+
+// 7. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
 // to end, and the water a step off the side of it is not, which is the half
@@ -174,7 +197,7 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
-// 7. The ground costs what it costs.  A second tint fill over every tile,
+// 8. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -185,7 +208,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 8. And at the widest the zoom will go, which is where it stops running: the
+// 9. And at the widest the zoom will go, which is where it stops running: the
 // tile count goes as the square of how far out you are, and the floor on the
 // zoom is set by this number and not by taste.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.6 }), [-8983, -316])
