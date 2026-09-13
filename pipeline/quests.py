@@ -108,8 +108,8 @@ def spawned(base, world):
     return here, 'the slice rectangle, because npcs.json is not baked yet'
 
 
-def in_range(level, minimum):
-    """Whether a quest belongs to the levels this game covers.
+def taken_at(level, minimum):
+    """The level this game hands a quest out at, or `None` if it never does.
 
     Two columns and they answer different questions.  `MinLevel` is what the
     server checks and it is a floor: a quest asking for more than this game
@@ -117,18 +117,57 @@ def in_range(level, minimum):
     a **-1 there means it is whatever level you are** — the wiki's own named
     trap, and the reason 58 of the slice's quests have no level at all.
 
-    A scaling quest is dropped rather than measured by its `MinLevel`, and the
-    money is why: `RewardMoney` on one of those is the figure for the level it
-    was written for, and four of them in this slice pay 74,000 copper to a
-    character who has 2,110 copper of training to buy.  Keeping them and
-    trusting the column would be shipping a number already known to be wrong;
-    keeping them and rewriting the column would be inventing one.
+    A scaling quest used to be dropped outright, and that took **half the
+    zone's quests with it**: 53 of the 53 this slice can offer.  The reason
+    given was the money — `RewardMoney` on one of those is a figure written for
+    the level it was designed around, and four of them pay tens of thousands of
+    copper to a character with 2,110 copper of training to buy.  That reason
+    was right about the money and wrong about what to do with it: **the thing
+    to fix was the reward, not the quest.**
+
+    The level is the server's own and there is nothing to invent.
+    `Quest::XPValue` reads a -1 as the player's level, and its difficulty
+    factor is `2 * (quest level - player level) + 20` — with those two the same
+    number that is 20, clamped to 10, so the multiplier is exactly one and a
+    scaling quest pays `QuestXP[your level][difficulty]`.  So the level to bake
+    it at is the level the player will be, and the earliest that can be is the
+    floor the server checks: `MinLevel`.
+
+    `MinLevel` and not the giver's level, and that was measured rather than
+    assumed.  A giver's level is what the *creature* is — Marshal McBride is
+    level 10 and hands out the first errand in the game — so taking it would
+    pay a level 1 player a level 10 quest's experience for killing kobolds.
+    `MinLevel` is the only column that says when this quest becomes takeable,
+    which is the question being asked.
     """
     if minimum > LEVELS[1]:
-        return False
-    if level <= 0:
-        return False
-    return LEVELS[0] <= level <= LEVELS[1] + REACH_OVER
+        return None
+    if level > 0:
+        return level if LEVELS[0] <= level <= LEVELS[1] + REACH_OVER else None
+    return max(LEVELS[0], min(minimum, LEVELS[1]))
+
+
+def in_chests(world):
+    """Every item a chest standing in this slice can hold.
+
+    Out of the baked `objects.json` for the same reason `spawned` reads
+    `npcs.json`: one script decides what stands here, and the file already
+    carries what each of them holds.  `pipeline/bake.py` runs the objects
+    before the quests for that reason.
+
+    It is six of this zone's errands.  "No creature in the slice drops item
+    841" is true and irrelevant — Furlbrow's deed is in a chest, and a chest is
+    not a creature.  Without this the pipeline dropped the quest for wanting
+    something that is standing forty yards from the man who asks for it.
+    """
+    path = os.path.join(world, 'objects.json')
+    if not os.path.exists(path):
+        return set(), 'no objects.json yet, so nothing is in a chest'
+    with open(path) as f:
+        doc = json.load(f)
+    held = {row[5] for haul in doc.get('hauls', []) for row in haul
+            if len(row) > 5}
+    return held, 'objects.json, which is what the slice actually stands'
 
 
 def relation(base, name):
@@ -244,6 +283,7 @@ def main(acore, client_root, out):
     client = B.Client(client_root)
     xp_for = quest_xp(client)
     here, whose = spawned(base, out)
+    in_chest, chests_from = in_chests(out)
     starters = relation(base, 'creature_queststarter.sql')
     enders = relation(base, 'creature_questender.sql')
 
@@ -288,15 +328,43 @@ def main(acore, client_root, out):
         key=lambda k: int(k[len('RewardChoiceItemID'):]))
 
     quests, dropped = [], Counter()
+    # And which ones, not just how many.  A tally says a door is shut; the ids
+    # say which door — and the difference between "18 ask for something not in
+    # the slice" and knowing that fourteen of them want one wolf that stands
+    # two hundred yards outside the box is the difference between a number and
+    # a thing to do.
+    missed = {}
+    # And how many of each bucket are the scaling ones, because that was the
+    # question: `QuestLevel = -1` used to be a bucket of its own and the claim
+    # was that it held half the zone.  It does not — most of them never reach
+    # the level test at all — and a tally that says so is worth more than the
+    # argument.
+    scaled = Counter()
+    # And why each one went, by id, so a chain that breaks can say where.
+    # "8 orphaned by a missing prerequisite" is a number; "q107 waits on q111,
+    # which waits on q106, which nobody in the slice gives" is a thing to do.
+    why_gone = {}
+    elsewhere = []
+    offerable = 0
+    orphans = []
     wants_object = []
     for q, f in sorted(raw.items()):
         giver, ender = starters.get(q), enders.get(q)
         if giver not in here:
             dropped['nobody in the slice gives it'] += 1
+            scaled['nobody in the slice gives it'] += int(f[col['QuestLevel']]) <= 0
+            why_gone[q] = 'nobody in the slice gives it'
             continue
-        if ender not in here:
-            dropped['nobody in the slice takes it'] += 1
-            continue
+        # The order of what follows is the shape of the answer.
+        #
+        # *Who may take it* and *is it these levels* come before *can it be
+        # finished here*, because the first two say the quest is not this
+        # game's and the third says the **slice** is too small for it.  The
+        # denominator the check wants is the one after those two: every errand
+        # a human warrior of these levels would be offered by somebody standing
+        # in this world.  Asked in the old order the tally could not say it —
+        # a quest for a druid that also ends in Westfall landed in whichever
+        # bucket happened to be tested first.
         # Who may take it at all.  The class mask is on the addon and the
         # race mask on the template, and this game has one of each — which is
         # the same filter `trainer.Requirement` got in `5ae46c5` and the
@@ -305,16 +373,33 @@ def main(acore, client_root, out):
         a = addon.get(q)
         if not allows(int(a[acol['AllowableClasses']]) if a else 0, CLASS_MASK):
             dropped['for a class this game does not have'] += 1
+            scaled['for a class this game does not have'] += int(f[col['QuestLevel']]) <= 0
+            why_gone[q] = 'for a class this game does not have'
             continue
         if not allows(int(f[col['AllowableRaces']]), RACE_MASK):
             dropped['for a race this game does not have'] += 1
+            scaled['for a race this game does not have'] += int(f[col['QuestLevel']]) <= 0
+            why_gone[q] = 'for a race this game does not have'
             continue
-        level = int(f[col['QuestLevel']])
-        if not in_range(level, int(f[col['MinLevel']])):
-            dropped['outside the levels this game covers' if level > 0
-                     else 'levels with the player, so its reward is not ours'] += 1
+        stated = int(f[col['QuestLevel']])
+        level = taken_at(stated, int(f[col['MinLevel']]))
+        if level is None:
+            dropped['outside the levels this game covers'] += 1
+            scaled['outside the levels this game covers'] += int(f[col['QuestLevel']]) <= 0
+            why_gone[q] = 'outside the levels this game covers'
             continue
-        kill, fetch, unmet = [], [], False
+        scales = stated <= 0
+        # **The denominator.**  Everything past this point is a quest a human
+        # warrior of these levels would be offered by somebody standing in this
+        # world, which is what "the quests the original has here" means.
+        offerable += 1
+        if ender not in here:
+            dropped['nobody in the slice takes it'] += 1
+            scaled['nobody in the slice takes it'] += scales
+            why_gone[q] = 'nobody in the slice takes it'
+            elsewhere.append((q, ender))
+            continue
+        kill, fetch, unmet, want, carried = [], [], False, [], 0
         for i in range(1, NPCS + 1):
             who = int(f[col['RequiredNpcOrGo%d' % i]])
             n = int(f[col['RequiredNpcOrGoCount%d' % i]])
@@ -329,29 +414,50 @@ def main(acore, client_root, out):
                 if who < 0:
                     wants_object.append((int(f[col['ID']]), -who))
                     unmet = True
+                    want.append('object %d' % -who)
                 continue
             if who not in here:
                 unmet = True
+                want.append('creature %d' % who)
                 continue
             kill.append([who, n])
+        # What the quest hands you when you take it.
+        #
+        # **A delivery is not a fetch and it was being dropped as one.**  The
+        # first errand in this game is Marshal McBride's documents: `StartItem`
+        # 745 and `RequiredItemId1` 745, the same number twice, which means the
+        # giver puts it in your hand and asks you to carry it somewhere.
+        # Nothing drops it because nothing is supposed to — and "no creature in
+        # the slice drops item 745" threw out **eighteen quests**, every one of
+        # them a courier's errand, which is a third of everything missing from
+        # this game's quest list.
+        starts_with = int(f[col['StartItem']]) if 'StartItem' in col else 0
         for i in range(1, ITEMS + 1):
             k = 'RequiredItemId%d' % i
             if k not in col or f[col[k]] in ('0', 'NULL'):
                 continue
             item = int(f[col[k]])
             n = int(f[col['RequiredItemCount%d' % i]])
+            if item == starts_with:
+                carried += 1
+                continue
             got = [d for d in from_beast.get(item, []) if d[0] in here]
-            if not got:
+            if not got and item not in in_chest:
                 unmet = True
+                want.append('item %d%s' % (item, '' if from_beast.get(item)
+                                           else ' (nothing drops it)'))
                 continue
             fetch.append([item, n, word_of.get(item, 'errand'), got])
         if unmet:
             dropped['asks for something not in the slice'] += 1
+            scaled['asks for something not in the slice'] += int(f[col['QuestLevel']]) <= 0
+            why_gone[q] = 'asks for something not in the slice'
+            missed[q] = want
             continue
         diff = int(f[col['RewardXPDifficulty']])
-        table = xp_for.get(level if level > 0 else 1, [0] * 10)
+        table = xp_for.get(level, [0] * 10)
         quests.append({
-            'id': q, 'level': level,
+            'id': q, 'level': level, 'scales': 1 if scales else 0,
             'min': int(f[col['MinLevel']]),
             'from': giver, 'to': ender,
             'kill': kill, 'fetch': fetch,
@@ -448,6 +554,9 @@ def main(acore, client_root, out):
             break
         for q in stranded:
             dropped['starts from a quest this game does not have'] += 1
+            scaled['starts from a quest this game does not have'] += q['scales']
+            orphans.append((q['id'], q['after']))
+            why_gone[q['id']] = 'starts from a quest this game does not have'
         quests = [q for q in quests if q not in stranded]
     # And a link forward that points out of the game is not a link.  Left in,
     # the hand-in would look for an errand that is not there; taken out, it is
@@ -458,6 +567,7 @@ def main(acore, client_root, out):
             if q[key] and q[key] not in have:
                 q[key] = 0
                 dropped['a link forward that leaves this game'] += 1
+                scaled['a link forward that leaves this game'] += q['scales']
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'quests.json')
@@ -465,7 +575,22 @@ def main(acore, client_root, out):
         json.dump({'quests': quests}, f)
     print(f'{len(quests)} quests -> {path}   who is here, out of {whose}')
     for why, n in dropped.most_common():
-        print(f'  {n:>4} left out: {why}')
+        print(f'  {n:>4} left out: {why}  (%d of them scale with the player)'
+              % scaled[why])
+    if elsewhere:
+        print('  handed in by somebody who is not here: %s'
+              % ', '.join('q%d to %s' % (a, b if b else 'nobody at all')
+                          for a, b in sorted(elsewhere)))
+    if orphans:
+        print('  orphaned by a prerequisite this game has not got: %s'
+              % ', '.join('q%d after q%d (%s)'
+                          % (a, b, why_gone.get(b, 'nobody starts it — '
+                                              'an item or an object does'))
+                          for a, b in sorted(orphans)))
+    if missed:
+        print('  what the %d unmet ones wanted: %s' % (len(missed),
+              '; '.join('q%d %s' % (q, ', '.join(w))
+                        for q, w in sorted(missed.items())[:12])))
     # The line the economy page asked for, on this side of it: every quest
     # shipped is one a character of these levels could be handed, and the
     # money is the money.
@@ -479,12 +604,43 @@ def main(acore, client_root, out):
     if stuck:
         sys.exit('%d chains dead-end inside this game: %s' % (len(stuck), stuck[:8]))
     out_of = [q for q in quests
-              if not in_range(q['level'], q['min'])
+              if taken_at(q['level'], q['min']) is None
               or not allows(q['classes'], CLASS_MASK)
               or not allows(q['races'], RACE_MASK)]
     if out_of:
         sys.exit('%d quests came through that this character cannot take: %s'
                  % (len(out_of), [q['id'] for q in out_of][:8]))
+    # How much of this zone's list this game actually has, and against what.
+    #
+    # **Two denominators, because they answer two questions.**  `offerable` is
+    # every errand a human warrior of these levels would be handed by somebody
+    # standing in this world — that is what "the quests the original has here"
+    # means, and what it is short of is the size of the slice.  `runnable` is
+    # the part of it this slice can carry end to end: take away the ones handed
+    # in somewhere else and the ones that want something that is not here, and
+    # what is left is ours to get right.
+    #
+    # The check is on the second.  The first is printed because it is the
+    # number that says *widen the box* — and it is not a failure, it is a
+    # decision that lives in `slice.json`.
+    away = dropped['nobody in the slice takes it']
+    outside = dropped['asks for something not in the slice']
+    chained = dropped['starts from a quest this game does not have']
+    runnable = offerable - away - outside
+    if len(quests) + chained != runnable:
+        sys.exit('the quest tally does not add up: %d shipped + %d waiting on '
+                 'a chain != %d runnable of %d offerable'
+                 % (len(quests), chained, runnable, offerable))
+    print('check: %d of the %d this slice can run end to end (%.0f%%), and %d '
+          'of the %d a warrior would be offered here (%.0f%%) — the %d between '
+          'them are handed in or found outside the box'
+          % (len(quests), runnable, 100 * len(quests) / runnable,
+             len(quests), offerable, 100 * len(quests) / offerable,
+             away + outside))
+    if len(quests) < runnable * 0.8:
+        sys.exit('%d of %d runnable quests is under four in five — something '
+                 'is eating them quietly again' % (len(quests), runnable))
+
     # What they pay besides experience and coin.  The closure that has to hold
     # — every reward item baked — is checked in `items.py`, which runs after
     # this and is the file that knows what was baked.

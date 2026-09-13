@@ -47,6 +47,23 @@ async function talkTo(entry) {
   return there
 }
 const answer = async (n) => { await p.keyboard.press(String(n)); await p.waitForTimeout(250) }
+/**
+ * Take one named errand rather than whatever is at the top of the list.
+ *
+ * `answer(1)` was fine while every giver had one thing to offer.  The moment
+ * the scaling quests came back Marshal McBride had several, and a check that
+ * presses `1` and hopes was taking whichever the panel happened to list first
+ * — it failed saying quest 3100 was not quest 15, which was true and was not
+ * the bug.  `__quests().offering` is the panel's own list in the panel's own
+ * order, so this presses the number of the quest it means.
+ */
+const takeQuest = async (id) => {
+  const list = (await state()).offering
+  const at = list.indexOf(id)
+  if (at < 0) return false
+  await answer(at + 1)
+  return true
+}
 
 const start = await state()
 // Against the file rather than against a number typed here.  This said
@@ -80,9 +97,9 @@ check('handing it in pays what the table says', paid.xp === 40,
 check('and it goes in the finished pile', paid.done.includes(CARRY))
 
 await talkTo(MCBRIDE)
-check('which unlocks the next one', (await labels()).some((l) => l.includes('일거리')),
-  (await labels()).join(' | '))
-await answer(1)
+check('which unlocks the next one', (await state()).offering.includes(CAMP),
+  JSON.stringify((await state()).offering))
+await takeQuest(CAMP)
 const held = (await state()).held.find((h) => h.id === CAMP)
 check('the kill errand is taken and empty', !!held && held.short === 8,
   JSON.stringify(held))
@@ -109,9 +126,9 @@ check('and its money', after.purse - was.purse === 25,
   `${after.purse - was.purse} copper, wanted 25`)
 await talkTo(MCBRIDE)
 check('and the one after it is now on offer',
-  (await state()).known > 0 && (await labels()).some((l) => l.includes('일거리')),
-  (await labels()).join(' | '))
-await answer(1)
+  (await state()).offering.includes(AFTER),
+  JSON.stringify((await state()).offering))
+await takeQuest(AFTER)
 check('which is the next link of the chain',
   (await state()).held.some((h) => h.id === AFTER),
   JSON.stringify((await state()).held))

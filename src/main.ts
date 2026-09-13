@@ -8259,6 +8259,22 @@ async function main() {
       short: short(log, h), done: errandDone(log, h),
     })),
     done: [...log.done],
+    /**
+     * Which errand each option of the open talk panel would take, in the
+     * order the panel lists them.
+     *
+     * A check that presses `1` and hopes is a check that breaks the day a
+     * giver has two things to offer — which is what happened the moment the
+     * scaling quests came back and Marshal McBride went from one to several.
+     * The panel is built from `offers()` and this is the same list **in the
+     * panel's order**, which is not `offers()`'s: each one is `unshift`ed so
+     * that work sits above everything else a person has to say, and unshifting
+     * a list in order reverses it.  Reported the way the screen reads, because
+     * the whole point of this is to press the right number.
+     */
+    offering: chat
+      ? offers(log, chat.npc.entry, you.level).map((q) => q.id).reverse()
+      : [],
     marks: npcs.filter((n) => mark(log, n.entry, you.level))
       .map((n) => [n.entry, mark(log, n.entry, you.level)]),
     xp: you.xp, level: you.level, purse: you.purse,

@@ -55,10 +55,15 @@ STAGES = [
      'who lives there'),
     ('player', 'player.py', True, 'public/world',
      'who the player is at each level'),
-    ('quests', 'quests.py', True, 'public/world',
-     'what they want doing'),
+    # Objects before quests, and that order is load-bearing: eighteen of this
+    # zone's errands hand you a thing and ask you to carry it, and six more
+    # want something that comes out of a chest.  `quests.py` asks the baked
+    # `objects.json` what the slice's chests hold, the same way it asks
+    # `npcs.json` who lives here, so the file has to exist first.
     ('objects', 'objects.py', True, 'public/world',
      'what stands there that is not a person'),
+    ('quests', 'quests.py', True, 'public/world',
+     'what they want doing'),
     ('items', 'items.py', False, 'public/world',
      'what can be held, bought and taught'),
     ('spells', 'spells.py', True, 'public/world',
