@@ -122,6 +122,12 @@ GROUND = [
     # it gives a cliff.  The road through the starting valley was therefore
     # indistinguishable from the mountain beside it.  Flagstones, out of the
     # castle floors — the only paving in any sheet here whose author is named.
+    # A roof, for the buildings drawn as their own plan.  Cut from the flat top
+    # of one of the roofs pack's own houses, which is the one piece of that
+    # sheet already drawn as a roof *seen from above* — everything else on it
+    # is a slope in perspective, and a slope tiled over a footprint reads as a
+    # hillside with bricks on it.
+    ('roof',       'roofs-preview.png',       280, 110, 32, 32, 'roofs'),
     ('cobble',     'castlefloors_outside.png', 64,  32, 32, 32, 'hughspectrum'),
     ('cobble2',    'castlefloors_outside.png', 32,  64, 32, 32, 'hughspectrum'),
     # Two decks, because a bridge's planks run across the way you walk: the

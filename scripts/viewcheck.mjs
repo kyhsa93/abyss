@@ -268,53 +268,38 @@ if (shaped) {
     `${shaped.size[0]}x${shaped.size[1]} yards, ${shaped.fill}% of the box is building`)
 }
 
-const inside = await p.evaluate(() => {
-  // The middle of the biggest building in the slice, and what the ground
-  // under it is drawn as.
-  const big = window.__buildings().sort((a, b) => b.l * b.w - a.l * a.w)[0]
-  if (!big) return null
-  const at = (dx, dy) => window.__probe(big.x + dx, big.y + dy)
-  return {
-    size: [Math.round(big.l * 2), Math.round(big.w * 2)],
-    // Along the building's own long axis, because it is turned: sampling
-    // along world x lands in the middle of a diagonal one.
-    // The wall is where the footprint ends, and the footprint is the model's
-    // own outline now rather than its box — so the edge has to be walked to,
-    // not assumed at the corner of a rectangle.
-    middle: at(0, 0).built,
-    edge: (() => {
-      for (let d = 0; d < big.l * 2 + 20; d += 0.5) {
-        const p2 = at(big.c * d, big.s * d)
-        if (p2.built) return true       // the first drawn cell going out is wall
-        if (d > 2 && !window.__inside(big.x + big.c * d, big.y + big.s * d)
-          && !window.__inside(big.x + big.c * (d - 0.5), big.y + big.s * (d - 0.5))
-          && d > big.l) return false
-      }
-      return false
-    })(),
-    // Across the whole building along its own axis: every blocked step has to
-    // be blocked by something else — water, a trunk, a cliff — and not by the
-    // plan.
-    free: (() => {
-      for (let d = -big.l - 8; d <= big.l + 8; d += 1) {
-        const q = at(big.c * d, big.s * d)
-        if (q.blocked && !q.wet && !q.solid && q.step <= q.cliff) return false
-      }
-      return true
-    })(),
+// The footprint is filled — that is the building, and the record supports it
+// — and the roof comes off the one you are standing in, because there are no
+// interiors here and the abbey holds the people who hand out the work.  A roof
+// drawn over them is a roof with a quest giver under it.
+const roof = await p.evaluate(async () => {
+  const b = window.__buildings().sort((x, y) => y.l * y.w - x.l * x.w)[0]
+  if (!b) return null
+  // Find a cell well inside the footprint.
+  let at = null
+  for (let a = 0; a < b.l && !at; a += 1) {
+    for (const c of [0, 3, -3, 6, -6]) {
+      const x = b.x + b.c * a - b.s * c, y = b.y + b.s * a + b.c * c
+      if (window.__inside(x, y) && window.__inside(x + 3, y)
+        && window.__inside(x - 3, y) && window.__inside(x, y + 3)
+        && window.__inside(x, y - 3)) { at = [x, y]; break }
+    }
   }
+  if (!at) return null
+  // Standing well away from it, then standing in it.
+  window.__cam({ x: b.x + b.c * (b.l + 40), y: b.y + b.s * (b.l + 40) })
+  await new Promise((r) => setTimeout(r, 350))
+  const away = window.__roofAt(at[0], at[1])
+  window.__cam({ x: at[0], y: at[1] })
+  await new Promise((r) => setTimeout(r, 350))
+  const under = window.__roofAt(at[0], at[1])
+  return { away, under }
 })
-if (inside) {
-  check('the middle of a building is not paved over', inside.middle === false,
-    `${inside.size[0]}x${inside.size[1]} yards, middle drawn as ${inside.middle}`)
-  check('and its wall is', inside.edge === true, `edge drawn as ${inside.edge}`)
-  // And nothing stops you at a wall you cannot see.  The collision used to be
-  // four axis-aligned strips while the wall was drawn as a turned rectangle,
-  // so at the abbey — turned 158 degrees — you were halted three yards short
-  // of stone you could see.  A plan is not solid at all now: the record gives
-  // an extent and an angle and says nothing about where the door is.
-  check('and nothing invisible stops you at it', inside.free === true,
-    'something blocks the wall line that is not drawn there')
+if (roof) {
+  check('a building has a roof on it', roof.away === true,
+    `the middle of the biggest building drew ${roof.away ? 'roof' : 'ground'} from outside`)
+  check('and it comes off the one you walk into', roof.under === false,
+    `standing inside, it still drew ${roof.under ? 'roof' : 'ground'}`)
 }
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no

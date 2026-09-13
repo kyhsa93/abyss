@@ -30,7 +30,7 @@ recorded cannot be complied with.
 
 - **bluecarrot16, Lanea Zimmerman (Sharm), Michele Bucelli (Buch), Casper Nilsson, Xenodora, keith karnage, NaRNeRZz, Talon (Talosaurus)** — CC-BY-SA 3.0 / GPL 3.0  
   <https://opengameart.org/content/lpc-roofs>  
-  `tower`, `house_c`, `hall`, `house_d`, `house_a`, `house_b`, `house_e`, `house_f`
+  `tower`, `house_c`, `hall`, `house_d`, `house_a`, `house_b`, `house_e`, `house_f`, `roof`
 
 - **Lanea Zimmerman (AKA Sharm)** — CC-BY 3.0 / GPL 3.0 / GPL 2.0 / OGA-BY 3.0  
   <https://opengameart.org/content/tiled-terrains>  

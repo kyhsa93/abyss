@@ -407,6 +407,15 @@ async function main() {
    * plaza, and the thing that has to read at ninety yards is that it is solid.
    */
   const WALL_TILE = tilesMeta['rock_floor'] ? 'rock_floor' : ROCK_TILE
+  /**
+   * And what is under the roof, which from above is the roof.
+   *
+   * The footprint is the building's own outline now — a little over half its
+   * bounding box — so filling it is a statement the record supports: *this* is
+   * where the building is.  Filling the box was the earlier mistake and it
+   * buried the courtyard, the road and the graveyard with it.
+   */
+  const ROOF_TILE = tilesMeta['roof'] ? 'roof' : WALL_TILE
   const DIRT_TILE = tilesMeta['dirt'] ? 'dirt' : GROUND_TILES[0]
   /**
    * The land a lake touches.
@@ -689,10 +698,16 @@ async function main() {
       })
       continue
     }
-    placed.push({
-      x: d.x, y: d.y, piece, s: size,
-      ...(stem ? { trunk: stem } : {}),
-    })
+    // A building drawn as its own plan has no standing picture.  A thirteen
+    // yard cottage in the middle of a ninety yard abbey is a cottage in a
+    // courtyard, and the plan is the better statement of both where the abbey
+    // is and how big.
+    if (!(asPlan(d) && (d.rooms?.length || d.p))) {
+      placed.push({
+        x: d.x, y: d.y, piece, s: size,
+        ...(stem ? { trunk: stem } : {}),
+      })
+    }
     if (k.solid === 'building') {
       if (asPlan(d)) {
         // Nothing.  A building drawn as its plan is **not solid**, and that is
@@ -1228,6 +1243,15 @@ async function main() {
   const inBuilding = (wx: number, wy: number, thick = 1.5) => {
     const here = inRoom(wx, wy)
     if (!here) return null
+    if (!here.plan) {
+      // No footprint, so only the edge of the box is claimed: filling a box is
+      // the mistake that buried the middle of Northshire.
+      const dx = wx - here.x, dy = wy - here.y
+      const al = Math.abs(dx * here.c + dy * here.s)
+      const ac = Math.abs(-dx * here.s + dy * here.c)
+      return al > here.l - thick || ac > here.w - thick
+        ? { b: here, wall: true } : null
+    }
     // The outline of the **union** of the rooms: inside one, with open ground
     // a wall's width away.  Testing each room's own edge draws the partitions
     // between them too, and a building seen from above is its outside.
@@ -1238,7 +1262,7 @@ async function main() {
     // the ground inside it is floor.
     const open = !inRoom(wx + thick, wy) || !inRoom(wx - thick, wy)
       || !inRoom(wx, wy + thick) || !inRoom(wx, wy - thick)
-    return open ? { b: here, wall: true } : null
+    return { b: here, wall: open }
   }
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
   const onSpan = (wx: number, wy: number) => {
@@ -2281,7 +2305,7 @@ async function main() {
     if (baked && baked.key === key) return baked
     const px = Math.ceil(TILE * zoom) + 1
     const ids = [...new Set([...GROUND_TILES, ...BLOOM_TILES, ...WATER_TILES,
-      ...PAVED_TILES, WALL_TILE,
+      ...PAVED_TILES, WALL_TILE, ROOF_TILE,
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone']
       .filter((k) => k && tilesMeta[k]) as string[])]
     const c = document.createElement('canvas')
@@ -2503,6 +2527,8 @@ async function main() {
 
     const ground = tintedGround()
     const px = ground.px
+    // Which building the player is standing in, asked once a frame.
+    const under = inRoom(hero.x, hero.y)
     tilesDrawn = 0
     for (let ti = xLo; ti <= xHi; ti++) {
       for (let tj = yLo; tj <= yHi; tj++) {
@@ -2553,7 +2579,12 @@ async function main() {
         // mostly a floor with a line around it, and because a plan ninety
         // yards across is not a thing that can be a sprite.
         const built = span ? null : inBuilding(wx, wy, Math.max(1.5, T))
-        const id = built ? WALL_TILE
+        // The roof comes off the building you are standing in.  There are no
+        // interiors here and the abbey holds the people who hand out the work,
+        // so a roof drawn over them is a roof with a quest giver under it —
+        // and the walls are what say where you are anyway.
+        const id = built && built.wall ? WALL_TILE
+          : built && built.b !== under ? ROOF_TILE
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : ink === 'paved' && PAVED_TILES.length > 0
@@ -3049,6 +3080,17 @@ async function main() {
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   /** The errands, and how far along they are — for the check that walks one. */
+  /**
+   * Whether a roof is drawn at this point, for the check on the cutaway.
+   *
+   * Not `inBuilding` alone: the answer depends on where the player is, which
+   * is the whole point of it.
+   */
+  ;(window as unknown as { __roofAt: (x: number, y: number) => boolean })
+    .__roofAt = (x, y) => {
+      const got = inBuilding(x, y)
+      return !!got && !got.wall && got.b !== inRoom(hero.x, hero.y)
+    }
   /** Inside a building's footprint, for the check that the plan is the plan. */
   ;(window as unknown as { __inside: (x: number, y: number) => boolean })
     .__inside = (x, y) => !!inRoom(x, y)
