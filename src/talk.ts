@@ -58,6 +58,15 @@ const ANIMALS = new Set(['wolf', 'bear', 'boar', 'spider', 'deer', 'rabbit',
   'cow', 'sheep', 'chicken', 'cat', 'horse'])
 
 /**
+ * Whether a thing has hands, which is the only reason the fight cares.
+ *
+ * `Unit::GetUnitParryChance` (Unit.cpp:3812) gives a creature five per cent to
+ * parry **only if it is a humanoid**.  A wolf cannot parry and a kobold can,
+ * and with the hit table in it that is the difference between two fights.
+ */
+export const parries = (kind: string): boolean => !ANIMALS.has(kind)
+
+/**
  * The kinds, in Korean.
  *
  * Two of these are deliberately not the words a Korean client would use.

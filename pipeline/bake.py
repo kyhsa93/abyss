@@ -53,6 +53,8 @@ STAGES = [
      'a world from the server database alone'),
     ('spawns', 'spawn_npcs.py', False, 'public/world',
      'who lives there'),
+    ('player', 'player.py', True, 'public/world',
+     'who the player is at each level'),
     ('quests', 'quests.py', True, 'public/world',
      'what they want doing'),
     ('objects', 'objects.py', True, 'public/world',
@@ -188,7 +190,7 @@ def main():
         argv = ([args.client, where] if script == 'layout.py'
                 else [args.client, args.acore, where] if script == 'spells.py'
                 else [args.client, where, args.acore] if script == 'bake_terrain.py'
-                else [args.acore, args.client, where] if script == 'objects.py'
+                else [args.acore, args.client, where] if script in ('objects.py', 'player.py')
                 else [args.acore, args.client, where] if script == 'quests.py'
                 else [args.acore, where])
         ok, took, line, got = run(script, argv, where)
@@ -245,7 +247,7 @@ def again(args):
             argv = ([args.client, into] if script == 'layout.py'
                     else [args.client, args.acore, into] if script == 'spells.py'
                     else [args.client, into, args.acore] if script == 'bake_terrain.py'
-                    else [args.acore, args.client, into] if script in ('objects.py', 'quests.py')
+                    else [args.acore, args.client, into] if script in ('objects.py', 'quests.py', 'player.py')
                     else [args.acore, into])
             run(script, argv, into)
         second = {}

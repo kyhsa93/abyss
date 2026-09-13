@@ -443,6 +443,51 @@ if (refused) {
     `${refused.got} (it wants ${refused.skill})`)
 }
 
+// 9f. Who the player is.  There were no stats at all: health and armour came
+// out of the same table a wolf's do, so nothing he could ever wear or train
+// would matter, and critical chance had nowhere to come from.  Now health is
+// stamina through the server's own curve, armour is agility, damage is his
+// weapon plus attack power, and crit is the client's interpolation table.
+const me = await p.evaluate(() => window.__me())
+check('the player starts where a character starts', me.level === 1,
+  `level ${me.level} of ${me.ceiling}, ${me.hp} health, ${me.armour} armour, `
+  + `${me.damage[0]}-${me.damage[1]} on ${(me.swing / 1000).toFixed(1)}s`)
+check('and he is made of the numbers the server makes him of',
+  me.hp === 60 && me.armour === 42 && Math.abs(me.crit - 8.4) < 0.2,
+  `str ${me.stats[0]} agi ${me.stats[1]} sta ${me.stats[2]} → `
+  + `${me.hp} health, ${me.armour} armour, ${me.crit.toFixed(1)}% crit, `
+  + `${me.dodge.toFixed(1)}% dodge`)
+
+// The hit table.  One roll and seven cumulative bands, so the outcomes take
+// probability from each other — which is the whole reason it cannot be built
+// as a sequence of independent rolls.
+const swings = await p.evaluate(() => window.__swings(1, 20000))
+const total = Object.values(swings).reduce((a, b) => a + b, 0)
+const pct = (k) => ((swings[k] ?? 0) / total) * 100
+check('a swing can miss, and be dodged, parried and blocked',
+  pct('빗나감') > 3 && pct('피함') > 3 && pct('막아냄') > 3 && pct('막음') > 3,
+  Object.entries(swings).map(([k, v]) => `${k} ${((v / total) * 100).toFixed(1)}%`)
+    .join('  '))
+check('and the bands add to one', Math.abs(total - 20000) < 1,
+  `${total} rolls`)
+// Something four levels up eats most of your swings as glancing blows, which
+// is the rule that makes level difference feel like something.
+const high = await p.evaluate(() => window.__swings(6, 20000))
+const glance = ((high['빗맞음'] ?? 0) / 20000) * 100
+check('and swinging above your weight is mostly glancing blows', glance > 20,
+  `against a level 6: ${Object.entries(high).map(([k, v]) => `${k} ${((v / 20000) * 100).toFixed(1)}%`).join('  ')}`)
+
+// 9g. Levelling opens things.  The list used to be decided once at load, so
+// nothing new ever appeared — and starting at level one that meant an empty
+// bar for the whole game.
+const before = await p.evaluate(() => window.__me())
+const after = await p.evaluate(() => window.__earn(30000))
+check('levelling up opens new things to press',
+  after.level > before.level && after.spells > before.spells.length,
+  `level ${before.level} → ${after.level}, `
+  + `${before.spells.length} abilities → ${after.spells}, `
+  + `${before.hp} health → ${after.hp}`)
+
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end

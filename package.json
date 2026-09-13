@@ -35,7 +35,8 @@
     "objects": "python3 pipeline/objects.py",
     "bake:terrain": "python3 pipeline/bake_terrain.py",
     "measure": "python3 pipeline/measure_zone.py",
-    "manifestcheck": "python3 scripts/manifestcheck.py"
+    "manifestcheck": "python3 scripts/manifestcheck.py",
+    "player": "python3 pipeline/player.py"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

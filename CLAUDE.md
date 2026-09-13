@@ -321,6 +321,34 @@ several sharing a slot, but a pooled *object* is a herb node — Elwynn has 36
 copper-vein spots with nine up at a time — and dropping them leaves the
 starting zone with nothing to gather, which is what the first run produced.
 
+**The core's C++ is at `~/src/acore-src`**, sparse and blobless — eight
+megabytes of `src/server/game/Entities`, `Spells`, `Combat` and
+`Miscellaneous`. Everything in `src/stats.ts` cites the file and line it came
+from. Until it was there, the layer of this game that is *rules* had no source
+at all and the gap showed: every blow landed, there were no stats, and the
+player's starting weapon was a hand-transcribed `(1, 3, 1900)` that turned out
+to be the wrong sword — a rogue's shortsword, where a warrior starts with a
+greatsword at 3 to 5 on 2.9 seconds.
+
+**The hit table is one roll.** `Unit::RollMeleeOutcomeAgainst` (Unit.cpp:2972)
+takes a number between nought and ten thousand *once* and lays miss, dodge,
+parry, block, glancing, crushing and critical end to end as cumulative bands;
+the first band it falls in wins. So the outcomes take probability from each
+other — a target that dodges more is a target you crit less — and built as a
+sequence of independent rolls every number comes out slightly wrong in a way
+nothing on screen would show. At level one against a level one that is 5% miss,
+5% dodge, 5% parry, 5% block, 8.4% crit; against a level six, 35% of swings are
+glancing blows, which is what makes level difference feel like something.
+
+**The player is derived, not tabulated.** `player_class_stats` and
+`player_race_stats` give strength, agility, stamina; health is the stamina
+curve (`GetHealthBonusFromStamina`, StatSystem.cpp:293 — the first twenty
+points are worth one each and the rest ten, which is why a level one warrior
+has sixty and not forty-two), armour is agility doubled, damage is the weapon
+plus attack power over its swing, and critical chance is the client's own
+`gtChanceToMeleeCrit` interpolation. He was statted as *a creature of his own
+level* before this, which meant nothing he wore or trained could ever matter.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of

@@ -20,6 +20,8 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
+import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './stats'
+import { parries } from './talk'
 import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
 import { hud as makeHud, type Layout } from './hud'
@@ -240,7 +242,7 @@ async function main() {
     ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, spawns, spellbook, things, who] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -264,6 +266,12 @@ async function main() {
     fetch('./world/objects.json')
       .then((r) => r.json() as Promise<Things>)
       .catch(() => ({ objects: [], hauls: [], pools: {} } as Things)),
+    // Who the player is, level by level, out of `player_class_stats`,
+    // `player_race_stats` and the client's own crit tables.  Without it there
+    // are no stats at all and the hit table has nothing to stand on.
+    fetch('./world/player.json')
+      .then((r) => r.json() as Promise<Who>)
+      .catch(() => null),
   ])
 
   const canvas = document.createElement('canvas')
@@ -1700,13 +1708,18 @@ async function main() {
 
   // --- the fight --------------------------------------------------------
   /**
-   * Level five, which is the forest's own median.
+   * Level one, because that is where a character starts.
    *
-   * Elwynn's wolves sit at five, its kobolds at three and its bandits at five,
-   * so a hero at five is a hero the zone was built for.  There is no
-   * experience yet; when there is, this is what it moves.
+   * It was five, with a comment saying Elwynn's wolves are five and there was
+   * no experience yet so nothing would move it.  There is experience now, and
+   * starting at five threw away the half of the zone the quest chain actually
+   * begins in — Northshire, levels one to five, which is the only stretch of
+   * this game where the errands run one into the next.
    */
-  const HERO_LEVEL = 5
+  const HERO_LEVEL = who?.levels?.[0] ?? 1
+  /** What he is made of at each level — `pipeline/player.py`. */
+  const statsAt = (lv: number): Stats =>
+    who?.stats?.[String(Math.max(1, lv))] ?? [23, 20, 22, 20, 20, 20]
   /**
    * How far a fight can travel before it stops being one.
    *
@@ -1715,8 +1728,36 @@ async function main() {
    */
   const LEASH = 40
   const LADDER = spawns.ladder ?? []
-  const lineFor = (lv: number): Fight =>
-    spawns.player?.[Math.min(lv, spawns.player.length) - 1] ?? [100, 3, 5, 1900, 100, 0]
+  /**
+   * What a swing is worth and what it takes to kill him, per level.
+   *
+   * The damage line still comes from the creature arithmetic in
+   * `spawn_npcs.py` — a hero is statted as a creature of his level would be,
+   * plus his weapon — but **health and armour are derived now**: health from
+   * stamina through the server's own curve, armour from agility.  Those two
+   * used to come out of the same creature table, which meant a player had no
+   * stamina and no agility and nothing he could ever wear would matter.
+   */
+  /** What he is holding and wearing, out of the client's starting outfit. */
+  const weapon = (who?.kit ?? []).find((k) => (k[1] as number) > 0)
+  const worn = (who?.kit ?? []).reduce((n, k) => n + (k[4] as number), 0)
+  const lineFor = (lv: number): Fight => {
+    const row = spawns.player?.[Math.min(lv, spawns.player.length) - 1]
+      ?? [100, 3, 5, 1900, 100, 0]
+    if (!who || !weapon) return row
+    const s = statsAt(lv)
+    // `Player::CalculateMinMaxDamage`: the weapon's own damage plus attack
+    // power spread over its swing, which is the line the shout already used.
+    // This replaces a hero statted as *a creature of his level* — the comment
+    // in `spawn_npcs.py` says so — and with it strength finally does
+    // something, which was the whole complaint.
+    const secs = (weapon[3] as number) / 1000
+    const ap = (attackPower(lv, s) / 14) * secs
+    return [maxHealth(s),
+      Math.max(1, Math.round((weapon[1] as number) + ap)),
+      Math.max(2, Math.round((weapon[2] as number) + ap)),
+      weapon[3] as number, armourOf(s, worn), row[5] ?? 0]
+  }
   const you = {
     level: HERO_LEVEL, line: lineFor(HERO_LEVEL),
     hp: lineFor(HERO_LEVEL)[HP]!, max: lineFor(HERO_LEVEL)[HP]!,
@@ -1765,10 +1806,20 @@ async function main() {
   // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
   // comment here that said "two bodies and an arm".
   if (spellbook.melee) setMelee(spellbook.melee)
-  const spells = (spellbook.spells ?? [])
-    .filter((sp) => sp.level <= HERO_LEVEL && abilityOf(sp.id)
+  /**
+   * Everything a warrior of this level can do.
+   *
+   * Filtered **per call** and not once at load.  It used to be once, against
+   * the starting level, so levelling up changed your health and your damage
+   * and never gave you anything new to press — and starting at level one, as
+   * this now does, meant starting with nothing and finishing with nothing.
+   * `spells.json` has carried the level on every row all along.
+   */
+  const known = (level: number) => (spellbook.spells ?? [])
+    .filter((sp) => sp.level <= level && abilityOf(sp.id)
       && sp.does.some((d) => CAN_DO.has(d[0]!)))
     .sort((a, b) => a.level - b.level || a.id - b.id)
+  let spells = known(HERO_LEVEL)
   const ICON_OF: Record<number, string> = {
     78: 'lorc/sword-slice.svg', 6673: 'lorc/shouting.svg',
     100: 'delapouite/charging-bull.svg', 772: 'lorc/bleeding-wound.svg',
@@ -1897,14 +1948,23 @@ async function main() {
   }
   /** Spend the experience bar as many times as it will go. */
   function levelUp() {
+    const ceiling = who?.levels?.[1] ?? (spawns.player?.length ?? 1)
     while (LADDER[you.level - 1] && you.xp >= LADDER[you.level - 1]!
-      && you.level < (spawns.player?.length ?? 1)) {
+      && you.level < ceiling) {
       you.xp -= LADDER[you.level - 1]!
       you.level += 1
       you.line = lineFor(you.level)
       you.max = you.line[HP]!
       you.hp = you.max
+      // And whatever the new level opened.  The list is a function of the
+      // level now; before this it was decided once at load and never again.
+      const had = spells.length
+      spells = known(you.level)
       say(hero.x, hero.y, `${you.level}레벨`, true)
+      // The bar is built from `spells` every frame, so there is nothing to
+      // rebuild — only something to say.
+      if (spells.length > had)
+        ui.log(`배울 수 있는 것이 생겼다. (${spells.length - had}가지)`, 'gain')
     }
   }
   /** A number that floats off somebody and fades. */
@@ -2007,13 +2067,26 @@ async function main() {
       if (d2 > reach2) continue
       if (clock * 1000 < n.next) continue
       n.next = clock * 1000 + n.fight[SWING]!
-      const hit = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
+      // What happens when it swings, by the server's own table: one roll, and
+      // miss, dodge, parry, block, crushing and critical laid end to end.  A
+      // creature attacking a player is checked against *his* dodge and parry,
+      // which come out of agility and out of holding a weapon.
+      const mine = statsAt(you.level)
+      const fate = rollMelee(
+        { level: n.level, crit: CREATURE_CRIT },
+        { level: you.level, dodge: dodgeChance(you.level, mine, who!),
+          parry: PARRY_WITH_WEAPON, block: 0, player: true },
+        Math.random() * 10000)
+      const raw = swing(n.fight, n.level, you.line[ARMOUR]!, Math.random())
+      const hit = damageAfter(fate, raw, n.level - you.level)
       you.hp -= hit
       // Taking a blow pays too, at a third of what landing one does.
       you.rage = Math.min(MAX_RAGE,
         you.rage + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
-      say(hero.x, hero.y, `-${hit}`, false)
-      ui.log(`${nameOf(n.kind)}에게 ${hit} 맞았다.`, 'hurt')
+      say(hero.x, hero.y, fate === HIT ? `-${hit}` : (OUTCOME_WORD[fate] ?? ''), false)
+      ui.log(fate === HIT || fate === CRIT
+        ? `${nameOf(n.kind)}에게 ${hit} 맞았다.${fate === CRIT ? ' (치명타)' : ''}`
+        : `${nameOf(n.kind)}의 공격을 ${OUTCOME_WORD[fate]}`, fate === MISS || hit === 0 ? 'note' : 'hurt')
       if (you.hp <= 0) {
         you.hp = 0; you.died = clock; you.target = null; you.calm = 0
         ui.log('쓰러졌다.', 'note')
@@ -2042,16 +2115,31 @@ async function main() {
     const secs = you.line[SWING]! / 1000
     const shout = (you.shout && you.shout.until > clock)
       ? (you.shout.ap / 14) * secs : 0
-    const hit = Math.round(
+    // And your own, through the same table.  A creature dodges and blocks five
+    // per cent of the time and parries another five if it is a humanoid — a
+    // wolf does not parry, a kobold does — so the starting valley is not one
+    // fight repeated at two speeds.
+    const mine = statsAt(you.level)
+    const fate = rollMelee(
+      { level: you.level, crit: critChance(you.level, mine, who!), humanoid: true },
+      { level: foe.level, dodge: CREATURE_DODGE, block: CREATURE_BLOCK,
+        parry: parries(foe.kind) ? CREATURE_PARRY_HUMANOID : 0 },
+      Math.random() * 10000)
+    const raw = Math.round(
       swing(you.line, foe.level, foe.fight[ARMOUR]!, Math.random())
       + shout + you.extra)
+    const hit = damageAfter(fate, raw, foe.level - you.level)
     you.extra = 0
     you.rage = Math.min(MAX_RAGE, you.rage + rageFrom(hit, you.level, secs, true))
     foe.hp -= hit
     foe.hurt = clock
-    foe.angry = true
-    say(foe.x, foe.y, `${hit}`, true)
-    ui.log(`${josa(nameOf(foe.kind), '을', '를')} ${hit} 때렸다.`, 'hit')
+    if (hit > 0) foe.angry = true
+    say(foe.x, foe.y, fate === HIT ? `${hit}` : (OUTCOME_WORD[fate] ?? `${hit}`), true)
+    ui.log(fate === HIT || fate === CRIT || fate === GLANCING
+      ? `${josa(nameOf(foe.kind), '을', '를')} ${hit} 때렸다.`
+        + (fate === CRIT ? ' (치명타)' : fate === GLANCING ? ' (빗맞음)' : '')
+      : `${josa(nameOf(foe.kind), '이', '가')} ${OUTCOME_WORD[fate]}`,
+      hit > 0 ? 'hit' : 'note')
     if (foe.hp <= 0) {
       foe.hp = 0
       foe.dead = clock
@@ -3576,6 +3664,46 @@ async function main() {
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
       c: b.c, s: b.s, area: b.area }))
+  /**
+   * Who the player is right now and what a thousand swings come out as.
+   *
+   * The hit table is the one thing in this game that cannot be checked by
+   * looking: a roll is a roll.  So the check rolls it a great many times and
+   * asks whether the shape is the shape — some misses, some dodges, some
+   * crits, and a total that adds to one.
+   */
+  ;(window as unknown as { __me: () => unknown }).__me = () => ({
+    level: you.level, hp: you.max, armour: you.line[ARMOUR],
+    damage: [you.line[LO], you.line[HI]], swing: you.line[SWING],
+    stats: statsAt(you.level),
+    crit: who ? critChance(you.level, statsAt(you.level), who) : 0,
+    dodge: who ? dodgeChance(you.level, statsAt(you.level), who) : 0,
+    spells: spells.map((sp) => ({ id: sp.id, level: sp.level })),
+    ceiling: who?.levels?.[1] ?? 0,
+  })
+  ;(window as unknown as {
+    __swings: (against: number, n: number) => Record<string, number>
+  }).__swings = (against, n) => {
+    const out: Record<string, number> = {}
+    const mine = statsAt(you.level)
+    for (let i = 0; i < n; i++) {
+      const fate = rollMelee(
+        { level: you.level, crit: who ? critChance(you.level, mine, who) : 5,
+          humanoid: true },
+        { level: against, dodge: CREATURE_DODGE, parry: CREATURE_PARRY_HUMANOID,
+          block: CREATURE_BLOCK },
+        Math.random() * 10000)
+      const word = OUTCOME_WORD[fate] ?? 'hit'
+      out[word] = (out[word] ?? 0) + 1
+    }
+    return out
+  }
+  /** Push the bar along, so the check can watch a level actually arrive. */
+  ;(window as unknown as { __earn: (xp: number) => unknown }).__earn = (xp) => {
+    you.xp += xp
+    levelUp()
+    return { level: you.level, hp: you.max, spells: spells.length }
+  }
   /** What the world told us about movement, for the check that it is used. */
   ;(window as unknown as { __rules: () => unknown }).__rules = () => ({
     cliff: CLIFF, melee: MELEE, walkBase: WALK_BASE, runBase: RUN_BASE,
