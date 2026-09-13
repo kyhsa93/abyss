@@ -31,7 +31,7 @@ import {
   mitigate, noticeAt, rageFrom, swing, xpFor,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
   E_AURA, E_ENERGIZE, E_WEAPON_ADD,
-  ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING,
+  ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING, setMelee,
   aggressive, fightable, type Fight, type Spell,
 } from './fight'
 
@@ -101,6 +101,13 @@ type Spawns = {
    * `waypoint_data`.  The climbing limit, measured rather than chosen.
    */
   walk?: number
+  /**
+   * How each kind of spawn moves, deduplicated: `[walk multiplier, run
+   * multiplier, notice yards, experience multiplier, respawn seconds, wander
+   * yards, movement type]`.  All seven were constants in this file and all
+   * seven are columns of `creature` or `creature_template`.
+   */
+  moves?: number[][]
   npcs: number[][]
 }
 
@@ -196,8 +203,9 @@ async function main() {
     // What a warrior can do, out of the client's own `Spell.dbc` by way of
     // `pipeline/spells.py`.  Missing is fine: without it the bar is the two
     // things that need no table.
-    fetch('./world/spells.json').then((r) => r.json() as Promise<{ spells: Spell[] }>)
-      .catch(() => ({ spells: [] as Spell[] })),
+    fetch('./world/spells.json')
+      .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number }>)
+      .catch(() => ({ spells: [] as Spell[], melee: undefined })),
   ])
 
   const canvas = document.createElement('canvas')
@@ -815,8 +823,24 @@ async function main() {
   }
 
   /** Somebody standing behind a counter does not wander off mid-sentence. */
-  const STAYS = new Set(['vendor', 'trainer', 'questgiver', 'innkeeper', 'banker',
-    'stablemaster', 'flightmaster', 'spirithealer', 'talker'])
+  // `STAYS` used to be here: a list of the roles that do not wander, because
+  // nothing said which spawns wander.  `creature.MovementType` says, for every
+  // one of the 1,886, and it disagrees — a third of the slice is type 0 and
+  // stands still, and plenty of them are not shopkeepers.
+
+  /** Where each number sits in a `moves` row. */
+  const MOVE_WALK = 0, MOVE_RUN = 1, MOVE_NOTICE = 2, MOVE_XP = 3
+  const MOVE_BACK = 4, MOVE_WANDER = 5, MOVE_TYPE = 6, MOVE_SWIM = 7
+  /**
+   * The game's own two speeds, which the table gives multipliers of.
+   *
+   * 2.5 yards a second walking and 7.0 running are the figures every
+   * `speed_walk` and `speed_run` in the database is a multiple of — a creature
+   * at 1.14 is 8 yards a second — so they are the one pair of numbers here
+   * that has to be stated rather than read, and stating them is what makes the
+   * six hundred that *are* read mean anything.
+   */
+  const WALK_BASE = 2.5, RUN_BASE = 7.0
 
   /**
    * Who has a model, and which of them.
@@ -839,6 +863,16 @@ async function main() {
      * names: all three of Northshire's kobolds are `kobold` and the chain
      * wants eight of each in turn. */
     entry: number
+    /** Out of `creature_template.speed_walk`, times the game's own 2.5. */
+    pace: number
+    /** `creature_template.detection_range`, which was a flat twenty. */
+    notice: number
+    /** `creature_template.speed_run`, times the game's 7.0. */
+    chase: number
+    /** `creature.spawntimesecs`, which was a flat thirty. */
+    back: number
+    /** `creature_template.ExperienceModifier`. */
+    worth: number
     /** Nothing below this line exists until somebody swings. */
     fight: Fight | null
     hp: number; max: number
@@ -868,13 +902,25 @@ async function main() {
     // How much room a body takes, from the length the bake drew it at. People
     // have no `yards` — they are drawn at LPC's own scale, like the player.
     const yards = a.yards ?? 1.2
+    const way = spawns.moves?.[row[10] ?? -1] ?? []
     npcs.push({
       x: row[0]!, y: row[1]!, hx: row[0]!, hy: row[1]!,
       dir: row[3]!, t: hash(row[0]!, row[1]!) * 4, art,
       alpha: borrowed ? borrowed.alpha : 1,
       r: Math.max(0.3, yards * 0.28),
-      wander: STAYS.has(role) ? 0 : 7,
-      swims: false, vx: 0, vy: 0, until: 0, moving: false,
+      // How far it strays and whether it strays at all, from `creature`
+      // rather than from a rule about shopkeepers.  `MovementType` 0 is a
+      // creature that stands still, 1 wanders inside `wander_distance`, 2
+      // walks a path; a third of the slice is type 0 and was wandering.
+      wander: way[MOVE_TYPE] === 1 ? way[MOVE_WANDER]! : 0,
+      pace: WALK_BASE * (way[MOVE_WALK] ?? 1),
+      chase: RUN_BASE * (way[MOVE_RUN] ?? 1),
+      worth: way[MOVE_XP] ?? 1,
+      notice: way[MOVE_NOTICE] ?? 20,
+      back: way[MOVE_BACK] ?? 30,
+      // `creature_template_movement.Swim`: 2,352 of the slice can be in
+      // water and every one of them was being kept out of it.
+      swims: !!way[MOVE_SWIM], vx: 0, vy: 0, until: 0, moving: false,
       kind, role, level: row[4]!, seed: row[0]! * 31 + row[1]!,
       topic: row[6]! >= 0 ? spawns.topics[row[6]!]! : null,
       entry: row[9] ?? 0,
@@ -1116,10 +1162,52 @@ async function main() {
    * off six yards from each bank.
    */
   const blocked = (wx: number, wy: number) =>
-    (onSpan(wx, wy)
-      ? false
-      : wetAt(wx, wy) || stepAt(wx, wy) > CLIFF || closedAt(wx, wy))
-    || solidAt(wx, wy) || npcAt(wx, wy, null)
+    (onSpan(wx, wy) ? false : stepAt(wx, wy) > CLIFF) || footing(wx, wy)
+  /**
+   * Everything that stops you that is not a slope.
+   *
+   * The player is held to this one and not to `blocked`, because refusing to
+   * let somebody step on to steep ground is not what that game does — and
+   * refusing is exactly what made the mountains climbable.  Refusing costs
+   * nothing, so a wall of steep cells with a gentle one between them is a
+   * maze, and a maze can be solved.  `slide` puts you back down instead, which
+   * cannot be solved: every wrong step gives ground back.
+   *
+   * The client's own impassable chunks stay in it.  Those are not a slope,
+   * they are the world saying no.
+   */
+  function footing(wx: number, wy: number) {
+    return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy))
+      || solidAt(wx, wy) || npcAt(wx, wy, null)
+  }
+
+  /**
+   * Ground too steep to stand on does not stop you, it puts you back down.
+   *
+   * Refusing to step on to it is not what that game does and it is why the
+   * mountains were climbable: refusing costs nothing, so a wall of steep cells
+   * with a gentle one between them is a maze, and a maze can be solved.  A
+   * player who is *pushed* cannot solve it — every wrong step gives ground
+   * back, and a hundred-yard switchback at the limit never finishes.
+   *
+   * Which way is downhill comes from the height grid, and how hard from how
+   * far past the limit the ground is: at the limit nothing, and at twice it
+   * about a walking pace.  The one number in it is the limit, and that is the
+   * world's — the steepest leg the server walks a creature over.
+   */
+  function slide(dt: number) {
+    const over = stepAt(hero.x, hero.y) - CLIFF
+    if (over <= 0) return
+    const [gx, gy] = gradient(hero.x, hero.y)
+    const len = Math.hypot(gx, gy)
+    if (len < 1e-4) return
+    // Downhill is against the gradient, at a speed that grows with how far
+    // past standing the ground is and never beats a run.
+    const push = Math.min(RUN_BASE, over * WALK_BASE * 2) * dt
+    const nx = hero.x - (gx / len) * push, ny = hero.y - (gy / len) * push
+    if (!solidAt(nx, hero.y) && !wetAt(nx, hero.y)) hero.x = nx
+    if (!solidAt(hero.x, ny) && !wetAt(hero.x, ny)) hero.y = ny
+  }
 
   /**
    * Wandering, and the reason it is not random.
@@ -1130,7 +1218,6 @@ async function main() {
    * screenshot taken twice.  `Math.random` would have made every check of this
    * scene a different scene.
    */
-  const NPC_SPEED = 2.2        // yards a second, near enough WoW's walk
   function wander(dt: number, time: number, busy: Npc | null) {
     const tick = Math.floor(time * 0.4)
     for (let i = 0; i < active.length; i++) {
@@ -1148,7 +1235,10 @@ async function main() {
         n.dir = facing(dx0, dy0)
         if (n.moving) {
           n.t += dt
-          const step = NPC_SPEED * 1.4 * dt
+          // Charging, so its running speed: `creature_template.speed_run`
+          // times the game's 7.0.  It was the walk rate times 1.4, which made
+          // a wolf slower than the man it was chasing.
+          const step = n.chase * dt
           const nx = n.x + (dx0 / d) * step, ny = n.y + (dy0 / d) * step
           if (!((!n.swims && wetAt(nx, n.y)) || solidAt(nx, n.y))) n.x = nx
           if (!((!n.swims && wetAt(n.x, ny)) || solidAt(n.x, ny))) n.y = ny
@@ -1166,7 +1256,7 @@ async function main() {
       n.moving = n.vx !== 0 || n.vy !== 0
       if (!n.moving) continue
       n.t += dt
-      const dx = n.vx * NPC_SPEED * dt, dy = n.vy * NPC_SPEED * dt
+      const dx = n.vx * n.pace * dt, dy = n.vy * n.pace * dt
       // Nobody leaves the spot the database put them on for good.
       if ((n.x + dx - n.hx) ** 2 + (n.y + dy - n.hy) ** 2 > n.wander ** 2) {
         n.vx = -n.vx; n.vy = -n.vy
@@ -1182,7 +1272,11 @@ async function main() {
       // is unplayable, but a cow walking out through a barn is worse than a
       // cow standing in one.
       const wall = (x: number, y: number) =>
-        (!n.swims && wetAt(x, y)) || stepAt(x, y) > CLIFF
+        // Wandering keeps out of water whatever the thing can do: being able
+        // to swim is not a reason to paddle about, and a field of wolves
+        // treading water is what reading it that way looked like.  Chasing is
+        // where `swims` is asked, below.
+        wetAt(x, y) || stepAt(x, y) > CLIFF
         || solidAt(x, y) || npcAt(x, y, n)
       if (!wall(n.x + dx, n.y)) n.x += dx
       if (!wall(n.x, n.y + dy)) n.y += dy
@@ -1273,6 +1367,9 @@ async function main() {
    * offered, which is more honest than a button that does nothing.
    */
   const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA])
+  // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
+  // comment here that said "two bodies and an arm".
+  if (spellbook.melee) setMelee(spellbook.melee)
   const spells = (spellbook.spells ?? [])
     .filter((sp) => sp.level <= HERO_LEVEL && abilityOf(sp.id)
       && sp.does.some((d) => CAN_DO.has(d[0]!)))
@@ -1375,7 +1472,11 @@ async function main() {
    * slow in the original for the same arithmetic.
    */
   const reward = (foe: Npc): number => {
-    const gain = xpFor(you.level, foe.level, foe.role === 'elite')
+    // `creature_template.ExperienceModifier`, which is one for everything in
+    // this forest and is read anyway: a number that is always one until the
+    // day it is not is exactly the sort that gets left out.
+    const gain = Math.round(
+      xpFor(you.level, foe.level, foe.role === 'elite') * foe.worth)
     you.xp += gain
     // And whatever anybody asked you to do about it.  The entry and not the
     // kind: all three of Northshire's kobolds are `kobold` and the chain wants
@@ -1464,7 +1565,7 @@ async function main() {
       }
       if (n.dead) {
         // Back on its feet after a while, where it stood.
-        if (clock - n.dead > 30) {
+        if (clock - n.dead > n.back) {
           n.dead = 0; n.hp = n.max; n.angry = false; n.alpha = 1
           n.looted = false
           n.x = n.hx; n.y = n.hy
@@ -1477,7 +1578,7 @@ async function main() {
       // Only the ones that start fights: a neutral creature is attackable
       // and will fight back, but it does not come at you across a field.
       if (!n.angry && aggressive(n.fight) && !chat) {
-        const far = noticeAt(you.level, n.level)
+        const far = noticeAt(you.level, n.level, n.notice)
         if (d2 < far * far) n.angry = true
       }
       // And gives up.  Without this the forest arrives one at a time and never
@@ -2236,14 +2337,15 @@ async function main() {
       // And if the player is already standing in water — teleported there, or
       // dropped in by a mask that moved under them — every move is allowed.
       // A rule that can trap somebody is worse than the thing it prevents.
-      const stuck = blocked(hero.x, hero.y)
-      if (stuck || !blocked(hero.x + dx, hero.y)) hero.x += dx
-      if (stuck || !blocked(hero.x, hero.y + dy)) hero.y += dy
+      const stuck = footing(hero.x, hero.y)
+      if (stuck || !footing(hero.x + dx, hero.y)) hero.x += dx
+      if (stuck || !footing(hero.x, hero.y + dy)) hero.y += dy
       hero.dir = facing(mx, my)
       hero.t += dt
     } else {
       hero.t += dt
     }
+    slide(dt)
     // On a phone the panel takes the bottom two thirds of the screen and the
     // person talking stands behind it, which is the one thing a conversation
     // cannot afford.  So the camera follows a point above the hero by exactly
@@ -2834,6 +2936,16 @@ async function main() {
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   /** The errands, and how far along they are — for the check that walks one. */
+  /** What the world told us about movement, for the check that it is used. */
+  ;(window as unknown as { __rules: () => unknown }).__rules = () => ({
+    cliff: CLIFF, melee: MELEE, walkBase: WALK_BASE, runBase: RUN_BASE,
+    moves: spawns.moves?.length ?? 0,
+    npcs: npcs.slice(0, 400).map((n) => ({
+      entry: n.entry, wander: n.wander, pace: +n.pace.toFixed(2),
+      chase: +n.chase.toFixed(2), notice: n.notice, back: n.back,
+      swims: n.swims,
+    })),
+  })
   ;(window as unknown as { __quests: () => unknown }).__quests = () => ({
     known: log.all.size,
     held: log.held.map((h) => ({

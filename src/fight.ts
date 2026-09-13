@@ -62,17 +62,27 @@ export function swing(f: Fight, level: number, armour: number, roll: number): nu
 /**
  * How far a hostile notices you from.
  *
- * The server's is a level difference plus a base, which is why a level 1 rat
- * ignores a grown adventurer walking past.  Kept to the same shape: twenty
- * yards at parity, shrinking by a yard a level in either direction, and never
- * outside five to twenty-five.
+ * The server's is the creature's own sight, moved by the level difference,
+ * which is why a level 1 rat ignores a grown adventurer walking past.  The
+ * base was a flat twenty here and it is a column —
+ * `creature_template.detection_range`, eighteen for most of this forest and
+ * twenty for the rest — so it is passed in.  The rest of the shape is the
+ * core's: a yard a level either way, and never under five.
  */
-export function noticeAt(mine: number, theirs: number): number {
-  return Math.max(5, Math.min(25, 20 - (mine - theirs)))
+export function noticeAt(mine: number, theirs: number, sight: number): number {
+  return Math.max(5, Math.min(sight + 5, sight - (mine - theirs)))
 }
 
-/** Melee reach, in yards. Two bodies and an arm. */
-export const MELEE = 3.0
+/**
+ * Melee reach, in yards.
+ *
+ * It was 3.0 with a comment saying "two bodies and an arm", which is a guess.
+ * `SpellRange.dbc` states it: entry 2 is the game's own combat range and it is
+ * five.  `pipeline/spells.py` reads it and `main.ts` passes it in; this is the
+ * fallback for a world baked without a client.
+ */
+export let MELEE = 5.0
+export function setMelee(yards: number) { MELEE = yards }
 
 /**
  * The level at which something stops being worth killing.

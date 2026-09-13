@@ -61,6 +61,11 @@ MAP = 0
 
 # `creature` column order, from the dump's own CREATE TABLE.
 C_GUID, C_ID, C_MAP, C_X, C_O = 0, 1, 4, 10, 13
+# And the four columns of `creature` that say how a spawn behaves, which were
+# not read at all: how long it takes to come back, how far it strays from its
+# post, and whether it strays.  Every one of them was a constant here instead —
+# thirty seconds, seven yards, and "anything that is not a shopkeeper wanders".
+C_RESPAWN, C_WANDER, C_MOVE = 14, 15, 19
 
 # UNIT_NPC_FLAG bits, in the order we want them tested: the first that matches
 # names the role, so the specific ones come before the ones almost everybody
@@ -705,6 +710,39 @@ def walkable(base):
     return (round(worst, 3), legs, len(paths)) if legs else None
 
 
+def moving(base):
+    """How each creature gets about, from `creature_template_movement`.
+
+    Two of its columns were never read and both are behaviour: `Swim` says
+    whether a thing can be in water at all, and `Rooted` says it cannot move,
+    which 193 of them cannot.
+
+    **The table holds the exceptions, not the rule.**  Only 101 of the 657
+    creatures in this slice have a row at all; the rest take the core's own
+    defaults, which are swim yes and rooted no.  Read the other way round —
+    absent means cannot — every wolf in Elwynn would be unable to cross a
+    stream, and 90 of the 101 rows that *are* there say exactly that, which is
+    what makes them worth having.
+    """
+    p = os.path.join(base, 'creature_template_movement.sql')
+    if not os.path.exists(p):
+        return {}
+    col = columns(p)
+    out = {}
+    for line in rows(p):
+        f = split(line)
+        try:
+            e = int(f[col['CreatureId']])
+        except (ValueError, IndexError):
+            continue
+
+        def bit(name):
+            v = f[col[name]]
+            return 1 if v not in ('0', 'NULL', '') else 0
+        out[e] = (bit('Swim'), bit('Rooted'))
+    return out
+
+
 def main(acore, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     for name in ('creature.sql', 'creature_template.sql',
@@ -740,15 +778,22 @@ def main(acore, out):
         if guid in pooled:
             dropped['pooled'] += 1
             continue
-        spawns.append((int(f[C_ID]), x, y, o))
+        # The three columns after the orientation, which the fast split does
+        # not reach: `line[1:].split(',', C_O + 1)` stops at it.
+        g = split(line)
+        spawns.append((int(f[C_ID]), x, y, o,
+                       int(float(g[C_RESPAWN])), float(g[C_WANDER]),
+                       int(g[C_MOVE])))
 
     tpl = os.path.join(base, 'creature_template.sql')
     col = columns(tpl)
     stats, factions = fight_tables(base)
+    swims = moving(base)
     got = walkable(base)
     walk = got[0] if got else 0.0
-    wanted = {e for e, _, _, _ in spawns}
+    wanted = {e for e, *_ in spawns}
     info = {}
+    ways = {}
     for line in rows(tpl):
         f = split(line)
         try:
@@ -759,6 +804,14 @@ def main(acore, out):
             continue
         name = f[col['name']].strip("'").replace("\\'", "'")
         ctype = int(f[col['type']])
+        # How it moves and how far it sees, from the template rather than from
+        # a constant here.  `speed_walk` and `speed_run` are multipliers of the
+        # game's own 2.5 and 7.0 yards a second; `detection_range` is the
+        # aggro radius, which was a flat twenty.
+        ways[entry] = (round(float(f[col['speed_walk']]), 2),
+                       round(float(f[col['speed_run']]), 2),
+                       round(float(f[col['detection_range']]), 1),
+                       round(float(f[col['ExperienceModifier']]), 2))
         info[entry] = (classify(name, ctype,
                                 stance(factions, int(f[col['faction']]))
                                 != FRIEND), ctype,
@@ -772,7 +825,8 @@ def main(acore, out):
                        int(f[col['lootid']]),
                        (int(f[col['mingold']]), int(f[col['maxgold']])))
 
-    topics = talking(base, {e for e, _, _, _ in spawns if e in info and info[e][0]})
+    topics = talking(base, {e for e, *_ in spawns
+                            if e in info and info[e][0]})
     topic_list, topic_at = [], {}
     for e, t in topics.items():
         topic_at[e] = len(topic_list)
@@ -783,7 +837,8 @@ def main(acore, out):
     kinds, roles, out_rows = [], [], []
     fights, fight_at = [], {}
     unknown = Counter()
-    for entry, x, y, o in spawns:
+    moves, move_at = [], {}
+    for entry, x, y, o, respawn, wander, mtype in spawns:
         if entry not in info:
             dropped['no template'] += 1
             continue
@@ -828,9 +883,20 @@ def main(acore, out):
         # names the creature that gives it and the creature you kill eight of,
         # and a kind — `kobold` for all three of Northshire's — cannot tell
         # those apart.  It is a number and not a name, so it may leave.
+        # How this one moves, deduplicated: 1,886 spawns come to a few dozen
+        # distinct answers, because everything of one kind on one post behaves
+        # the same.
+        w, run, notice, xpmod = ways.get(entry, (1.0, 1.14, 20.0, 1.0))
+        swim, rooted = swims.get(entry, (1, 0))
+        way = (w, run, notice, xpmod, respawn,
+               round(wander, 1) if mtype == 1 and not rooted else 0.0,
+               0 if rooted else mtype, swim)
+        if way not in move_at:
+            move_at[way] = len(moves)
+            moves.append(list(way))
         out_rows.append([round(x, 2), round(y, 2), kinds.index(kind), facing,
                          level, roles.index(r), topic_at.get(entry, -1), fi,
-                         haul_at[haul], entry])
+                         haul_at[haul], entry, move_at[way]])
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'npcs.json')
@@ -861,6 +927,9 @@ def main(acore, out):
         ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
                    'walk': walk,
+                   # `[walk mult, run mult, notice yards, xp mult, respawn
+                   # seconds, wander yards, movement type, swims]`, per row.
+                   'moves': moves,
                    'fights': fights, 'player': player, 'ladder': ladder,
                    'goods': goods, 'hauls': hauls, 'npcs': out_rows}, f)
 

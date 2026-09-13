@@ -243,6 +243,24 @@ carry one: all three of Northshire's kobolds are `kobold` and the chain wants
 eight of each in turn. `npm run questcheck` walks that chain end to end against
 the table's own numbers.
 
+**A constant in this repository is a bug that has not been found yet.** Every
+one of these was a number chosen here, and every one of them is a column
+somebody else already filled in:
+
+| was | is |
+|---|---|
+| `tan(50°)` climbing limit, "roughly where a person stops" | the steepest of 3,954 patrol legs in `waypoint_data` — 0.90 |
+| melee reach 3.0, "two bodies and an arm" | `SpellRange.dbc` entry 2 — 5.0 |
+| a flat 30 second respawn | `creature.spawntimesecs` |
+| 7 yards of wander for anything that is not a shopkeeper | `creature.wander_distance` and `MovementType` |
+| one walking speed for everything | `creature_template.speed_walk` × 2.5, `speed_run` × 7.0 |
+| a flat 20 yard aggro radius | `creature_template.detection_range` |
+| nothing swims | `creature_template_movement.Swim`, whose **default is yes** — the table holds the exceptions |
+
+Steep ground puts you back down rather than refusing your step, because
+refusing is free: a wall of steep cells with a gentle one between them is a
+maze, and a maze can be solved. Being pushed cannot be.
+
 ## Finishing a change
 
 `npm run check` is `tsc` and it is fast. `npm run audit` and `npm run layout`

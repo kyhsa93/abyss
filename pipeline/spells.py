@@ -139,11 +139,19 @@ def main(client_root, acore, out, upto=10):
     if not check or check['rage'] != 15:
         sys.exit('Spell.dbc field offsets are wrong: 78 came back as %s' % check)
 
+    # How far a swing reaches, which was a constant in `fight.ts` — three
+    # yards, "two bodies and an arm".  `SpellRange.dbc` states it: index 2 is
+    # the game's own combat range and it is five.  Index 1 is (0, 0), which is
+    # what an auto attack points at, so the table has to be asked for the
+    # *combat* row rather than the attack's own.
+    melee = ranges.get(2, (0.0, 5.0))[1]
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')
     with open(path, 'w') as f:
-        json.dump({'spells': out_rows}, f)
-    print(f'{len(out_rows)} abilities to level {upto} -> {path}')
+        json.dump({'spells': out_rows, 'melee': melee}, f)
+    print(f'{len(out_rows)} abilities to level {upto} -> {path}'
+          f'   combat range {melee} yards')
     for r in out_rows:
         print('  %-6d level %-3d %2d rage  %5dms  reach %s  %s'
               % (r['id'], r['level'], r['rage'], r['cool'], r['reach'], r['does']))

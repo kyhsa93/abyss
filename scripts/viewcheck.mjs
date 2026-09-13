@@ -202,7 +202,45 @@ if (shut) {
   console.log('      (no impassable chunks in this world — the synthesised one)')
 }
 
-// 8. A crossing crosses.  A bridge that cannot be walked over is worse than no
+// 8. Steep ground puts you back down, and the numbers behind it are the
+// world's.
+//
+// Refusing to step on to steep ground is not what that game does, and refusing
+// is what made the mountains climbable: refusing costs nothing, so a wall of
+// steep cells with a gentle one between them is a maze, and a maze can be
+// solved.  Being pushed cannot be solved.
+const slid = await p.evaluate(async () => {
+  let spot = null, worst = 0
+  for (let x = -9200; x < -8500; x += 5)
+    for (let y = -600; y < 200; y += 5) {
+      const q = window.__probe(x, y)
+      if (!q.wet && !q.solid && q.step > worst && q.step < 4) { worst = q.step; spot = [x, y] }
+    }
+  const z0 = window.__probe(spot[0], spot[1]).z
+  window.__cam({ x: spot[0], y: spot[1] })
+  await new Promise((r) => setTimeout(r, 2000))
+  const n = window.__hero()
+  return { worst: +worst.toFixed(2), dropped: +(z0 - window.__probe(n.x, n.y).z).toFixed(1),
+    moved: +Math.hypot(n.x - spot[0], n.y - spot[1]).toFixed(1) }
+})
+check('ground too steep to stand on puts you back down', slid.dropped > 4,
+  `on a ${slid.worst} slope, slid ${slid.moved} yards and dropped ${slid.dropped}`)
+
+// And the numbers that decide how anything moves come out of the tables.  All
+// seven of these were constants in the scene: a flat 30 second respawn, 7
+// yards of wander for everything that was not a shopkeeper, one walking speed,
+// one aggro radius.
+const rules = await p.evaluate(() => window.__rules())
+check('every spawn moves by its own row', rules.moves > 20,
+  `${rules.moves} distinct movement rows out of the database`)
+const vary = (k) => new Set(rules.npcs.map((n) => n[k])).size
+check('and they do not all move alike',
+  vary('wander') > 2 && vary('notice') > 1 && vary('back') > 2,
+  `wander ${vary('wander')} kinds, sight ${vary('notice')}, respawn ${vary('back')}`)
+check('the swing reaches what the client says', rules.melee === 5,
+  `${rules.melee} yards`)
+
+// 9. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it
 // should not be.  So: every yard of the deck's own centre line is walkable end
 // to end, and the water a step off the side of it is not, which is the half
@@ -237,7 +275,7 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
-// 9. The ground costs what it costs.  A second tint fill over every tile,
+// 10. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.
 await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 1.2 }), [-9462, 16])
@@ -248,7 +286,7 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 10. And at the widest the zoom will go, which is where the ground used to
+// 11. And at the widest the zoom will go, which is where the ground used to
 // stop running.  The tile count went as the square of how far out you were —
 // 66,676 tiles at twenty frames a second four steps below the old floor — so
 // the floor was 0.6 and the widest view was eighty-three yards of a valley six
