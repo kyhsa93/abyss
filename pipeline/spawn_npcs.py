@@ -731,6 +731,36 @@ def talking(base, entries):
     return topics
 
 
+def patrols(base):
+    """Every leg of every patrol in the slice, as `(x, y)` pairs.
+
+    The same 187 routes `walkable` measures the steepest of, handed back whole
+    so the terrain can be asked a harder question than "how steep does it get":
+    **is every point the server walks a creature over a point we would let
+    anybody stand on?**
+    """
+    path = os.path.join(base, 'waypoint_data.sql')
+    if not os.path.exists(path):
+        return []
+    col = columns(path)
+    paths = {}
+    for line in rows(path):
+        f = split(line)
+        try:
+            pid, pt = int(f[col['id']]), int(f[col['point']])
+            x, y = float(f[col['position_x']]), float(f[col['position_y']])
+        except (ValueError, IndexError, KeyError):
+            continue
+        if not (BOUNDS[0] <= x <= BOUNDS[1] and BOUNDS[2] <= y <= BOUNDS[3]):
+            continue
+        paths.setdefault(pid, []).append((pt, x, y))
+    out = []
+    for pts in paths.values():
+        pts.sort()
+        out.append([[round(x, 2), round(y, 2)] for _pt, x, y in pts])
+    return out
+
+
 def walkable(base):
     """The steepest ground the server itself walks a creature over.
 
@@ -1036,6 +1066,11 @@ def main(acore, out):
         ladder = [need.get(lv, 0) for lv in range(1, 21)]
         json.dump({'kinds': kinds, 'roles': roles, 'topics': topic_list,
                    'walk': walk,
+                   # Every patrol the server lays down in this slice, whole.
+                   # It is the only authority on "can a body be here" that
+                   # does not need a 2.2 GB navigation mesh built first — see
+                   # issue 93 — and `viewcheck` walks all of it.
+                   'patrols': patrols(base),
                    # `[walk mult, run mult, notice yards, xp mult, respawn
                    # seconds, wander yards, movement type, swims]`, per row.
                    'moves': moves,

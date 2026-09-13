@@ -358,7 +358,11 @@ const gaps = await p.evaluate(() => {
   if (!g.length) return { n: 0 }
   let refused = 0, beside = 0
   for (const [x, y] of g) {
-    if (window.__probe(x, y).blocked) refused++
+    // A chunk that loses all sixteen bits is ground handed to a building that
+    // brings its own floor — Stormwind, here — and the server walks its own
+    // creatures over it.  Drawn as a hole, not refused.  `__holeAt` still says
+    // yes there; `__probe` is what knows the difference.
+    if (window.__probe(x, y).blocked || window.__floored(x, y)) refused++
     // Floor again a few yards off, so the mask is a mouth and not a blanket
     // over the hillside.  Asked of the hole mask itself and not of whether a
     // step is refused: a good half of these are Stormwind's own ground and
@@ -370,8 +374,8 @@ const gaps = await p.evaluate(() => {
 })
 if (gaps.n) {
   check('the mouth of a mine is a hole and not ground', gaps.refused === gaps.n,
-    `${gaps.n} cells with no floor, ${gaps.refused} refuse a step, `
-    + `${gaps.beside} have floor again within twelve yards`)
+    `${gaps.n} cells with no floor; ${gaps.beside} have floor again within `
+    + `twelve yards, and the rest are the city standing on its own`)
 }
 check('and nobody is standing inside one', inwall.stuck === 0,
   `${inwall.stuck} of ${inwall.n.toLocaleString()} spawns in a wall, ${inwall.indoors} indoors`)
@@ -734,6 +738,25 @@ check('reaching the ceiling is an event and not a number',
 check('and there is nothing left to be rested for', ending.restCap === 0,
   'the server stops banking rest at the ceiling too — `SetRestBonus`, '
   + 'Player.cpp:10374')
+
+// 9v. Where the server itself walks things.  The climbing limit is a
+// measurement — the steepest of `waypoint_data`'s 3,954 legs — but reading
+// walkability off a height field is still *reading it off a picture*, and the
+// honest cross-check needs the navigation mesh the server actually uses, which
+// is 2.2 GB of Recast nobody has built (issue 93).  This is the cheap half and
+// it is not nothing: every patrol point and every spawn in the slice, asked
+// whether we would let a body stand there.  The server put them all there, so
+// every refusal is ours to explain.
+const nav = await p.evaluate(() => window.__navcheck())
+const say = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ')
+check('the server walks its creatures over ground we allow',
+  nav.onRoute.slope / nav.legs < 0.06,
+  `${nav.legs.toLocaleString()} patrol points over ${nav.routes} routes; `
+  + `${nav.onRoute.slope} too steep for us (${((nav.onRoute.slope / nav.legs) * 100).toFixed(1)}%) — ${say(nav.onRoute)}`)
+check('and it stands them on ground we allow',
+  nav.atRest.slope / nav.spawns < 0.06,
+  `${nav.spawns.toLocaleString()} spawns; ${nav.atRest.slope} on ground we `
+  + `call a cliff (${((nav.atRest.slope / nav.spawns) * 100).toFixed(1)}%) — ${say(nav.atRest)}`)
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no
 // bridge at all — the river is impassable either way and now it looks as if it

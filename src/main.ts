@@ -96,6 +96,8 @@ type Meta = {
   closed?: [number, number][]
   /** Where the client takes the floor out — a cave mouth — on the height grid. */
   gaps?: [number, number][]
+  /** And the chunks it hands whole to a building, on the zone grid. */
+  given?: [number, number][]
   zMin: number; zMax: number
   hasWater?: boolean
   /** What the client painted the ground with, at twice the height grid. */
@@ -142,6 +144,8 @@ type Spawns = {
    * seven are columns of `creature` or `creature_template`.
    */
   moves?: number[][]
+  /** Every patrol the server lays down in the slice, whole — see `__navcheck`. */
+  patrols?: number[][][]
   npcs: number[][]
 }
 
@@ -427,10 +431,26 @@ async function main() {
    * there is the one thing it certainly should not do.
    */
   const holes = new Set((meta.gaps ?? []).map(([i, j]) => `${i},${j}`))
+  /**
+   * The chunks where the floor is gone because a *building* owns it.
+   *
+   * All sixteen bits out of one chunk is not a cave mouth — it is ground
+   * handed to something that brings its own floor, which in this slice is
+   * Stormwind.  There is none of ours there, so it is still drawn as a hole;
+   * but the server walks its own creatures across it, and refusing a step
+   * there put 86 patrol points and 42 spawns on ground we call impassable.
+   */
+  const given = new Set((meta.given ?? []).map(([i, j]) => `${i},${j}`))
   const holeAt = (wx: number, wy: number) => {
     if (!holes.size) return false
     const i = Math.round((x0 - wx) / U), j = Math.round((y0 - wy) / U)
     return holes.has(`${i},${j}`)
+  }
+  /** A hole you may walk over, because somebody else's floor is under it. */
+  const floored = (wx: number, wy: number) => {
+    if (!given.size) return false
+    const i = Math.floor((x0 - wx) / AU), j = Math.floor((y0 - wy) / AU)
+    return given.has(`${i},${j}`)
   }
 
   /** The client's own area id here, or 0 where the slice has none. */
@@ -1499,7 +1519,7 @@ async function main() {
    */
   function footing(wx: number, wy: number) {
     return (onSpan(wx, wy) ? false : wetAt(wx, wy) || closedAt(wx, wy)
-      || holeAt(wx, wy))
+      || (holeAt(wx, wy) && !floored(wx, wy)))
       || solidAt(wx, wy) || wallAt(wx, wy) || npcAt(wx, wy, null)
   }
 
@@ -4430,6 +4450,9 @@ async function main() {
   /** Where the client took the floor out, for the check that you cannot walk in. */
   ;(window as unknown as { __gaps: () => [number, number][] }).__gaps = () =>
     (meta.gaps ?? []).map(([i, j]) => [x0 - i * U, y0 - j * U])
+  /** Whether a hole here is a building's floor rather than a way down. */
+  ;(window as unknown as { __floored: (x: number, y: number) => boolean })
+    .__floored = (x, y) => floored(x, y)
   /** And whether this spot is one of them. */
   ;(window as unknown as { __holeAt: (x: number, y: number) => boolean })
     .__holeAt = (x, y) => holeAt(x, y)
@@ -4640,6 +4663,62 @@ async function main() {
       // Asked twice for the same hour: it is derived, not rolled.
       steady: skyAt(chances, base) === skyAt(chances, base),
       noon: noon.tint, night: night.tint,
+    }
+  }
+  /**
+   * Where the server itself walks things, against where we say a body can be.
+   *
+   * The climbing limit is a measurement rather than a guess — the steepest of
+   * `waypoint_data`'s 3,954 legs — but that is still *reading walkability off
+   * a picture*, which is the mistake this repository keeps finding.  The
+   * honest cross-check needs the navigation mesh the server actually uses, and
+   * building it is 2.2 GB of Recast (issue 93).
+   *
+   * This is the cheap half and it is not nothing: every point of every patrol
+   * in the slice, and every spawn, asked whether *we* would let a body stand
+   * there.  The server put them all there, so every refusal is ours.
+   */
+  ;(window as unknown as { __navcheck: () => unknown }).__navcheck = () => {
+    const routes = spawns.patrols ?? []
+    // Why each refusal, because "a quarter of the server's own spawns are on
+    // ground we refuse" is a number and not a diagnosis.  Somebody standing
+    // beside somebody else is refused by `npcAt`, which is a rule about
+    // walking through a person and not a claim about the ground.
+    const why = (x: number, y: number) => {
+      if (onSpan(x, y)) return ''
+      if (stepAt(x, y) > CLIFF) return 'slope'
+      if (wetAt(x, y)) return 'water'
+      if (closedAt(x, y)) return 'closed'
+      if (holeAt(x, y) && !floored(x, y)) return 'hole'
+      if (wallAt(x, y)) return 'wall'
+      if (solidAt(x, y)) return 'scenery'
+      if (npcAt(x, y, null)) return 'somebody'
+      return ''
+    }
+    const tally = (out: Record<string, number>, k: string) => {
+      if (k) out[k] = (out[k] ?? 0) + 1
+      return out
+    }
+    let legs = 0
+    const onRoute: Record<string, number> = {}
+    for (const route of routes) {
+      for (const [x, y] of route) { legs++; tally(onRoute, why(x!, y!)) }
+    }
+    const standing = npcs.filter((n) => !n.dead)
+    const atRest: Record<string, number> = {}
+    for (const n of standing) tally(atRest, why(n.x, n.y))
+    const count = (o: Record<string, number>) =>
+      Object.values(o).reduce((a, b) => a + b, 0)
+    // The ground's own verdict, with the two rules that are about bodies
+    // rather than about ground taken out.
+    const groundOnly = (o: Record<string, number>) =>
+      count(o) - (o['somebody'] ?? 0) - (o['wall'] ?? 0)
+    return {
+      routes: routes.length, legs, onRoute, refusedOnRoute: count(onRoute),
+      groundOnRoute: groundOnly(onRoute),
+      spawns: standing.length, atRest, refusedAtRest: count(atRest),
+      groundAtRest: groundOnly(atRest),
+      cliff: CLIFF,
     }
   }
   /** Whether the slice is over, and what the run came to. */

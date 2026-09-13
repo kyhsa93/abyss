@@ -1251,6 +1251,7 @@ def bake(client, bounds, out, acore=None):
     seams = []
     gaps = []
     wholly = []
+    wholly_at = []
     indoor_ids = set()
     levels = {}
     wetmask = bytearray(w * h)
@@ -1291,6 +1292,8 @@ def bake(client, bounds, out, acore=None):
                 if ci_lo <= CI <= ci_hi and cj_lo <= CJ <= cj_hi:
                     closed.append([CI - ci_lo, CJ - cj_lo])
             wholly += whole
+            for (ix_, iy_) in whole:
+                wholly_at.append((tx * 16 + iy_, ty * 16 + ix_))
             for (di, dj) in gap:
                 # On the height grid, so the scene indexes it the same way it
                 # indexes water.  Each bit is two units square, so it is four
@@ -1446,6 +1449,14 @@ def bake(client, bounds, out, acore=None):
         # And the floor it takes out — a cave mouth — as `[i, j]` on the
         # height grid, the same one the water is on.
         'gaps': gaps,
+        # The chunks that lose *all sixteen* bits, on the zone grid.  Those are
+        # not mouths: they are ground handed to a building that brings its own
+        # floor, which here is Stormwind.  Drawn as holes, because there is no
+        # floor of ours there — but **not impassable**, because the server
+        # walks its own creatures across them, and 86 patrol points and 42
+        # spawns sit on them.
+        'given': [[i - ci_lo, j - cj_lo] for i, j in wholly_at
+                  if ci_lo <= i <= ci_hi and cj_lo <= j <= cj_hi],
         # `bl`/`bw` are half a footprint, along and across, and `ba` is which
         # way the long side points — a rectangle that can lie diagonally,
         # because half these bridges do.
