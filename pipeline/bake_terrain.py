@@ -155,6 +155,9 @@ def to_world(pos, ry, lx, ly):
 
 # A model's footprint, rasterised once and shared by every placement of it.
 _PLANS = {}
+#: How many door cells had stone in them that the portal overruled — see
+#: `wmo_plan`.  A number that climbs is a wall mask drifting from its file.
+_DOORS_CLEARED = []
 # How many yards a cell of a plan covers: one ground tile, 32 pixels at 24 to
 # the yard, which is what `src/main.ts` draws the ground at.  Not one yard —
 # a plan on a different pitch from the floor it is painted on samples badly,
@@ -478,6 +481,30 @@ def wmo_plan(client, path, only=None, nxt=None):
                 continue
             floor[n] = 1
             break
+    # A door is a hole in a wall, and the file says where every one of them is.
+    #
+    # 11 of this slice's 176 portals came out with stone in them: the wall mask
+    # is triangles asked "can a man be here" and a doorway carries a lintel
+    # over it and a threshold under it, so a cell can answer no at a place the
+    # building itself states is an opening.  `MOPT` is the more direct
+    # statement of the two — it is the file saying *this is a way through* —
+    # so where they disagree the portal wins and the stone is taken out.
+    #
+    # Counted, not silent: `_DOORS_CLEARED` is how many needed it, and a number
+    # that climbs is a wall mask drifting away from the file it came from.
+    doorstep = set()
+    for sill, lx, ly in doors:
+        if only is None:
+            if abs(sill - base) > BODY:
+                continue
+        elif abs(sill - base) > BODY:
+            continue
+        i, j = int((lx - x0) / S), int((ly - y0) / S)
+        for a in range(i - 1, i + 2):
+            for b in range(j - 1, j + 2):
+                if 0 <= a < w and 0 <= b < h:
+                    doorstep.add(a * h + b)
+
     # Stone: a cell with a wall standing in it at this storey that a man
     # cannot be in.  Not "inside the outline and not floor" — read that way the
     # abbey came out a black mass with rooms cut into it, because the outline
@@ -487,6 +514,10 @@ def wmo_plan(client, path, only=None, nxt=None):
     for n in walls:
         if cells[n] and not floor[n]:
             solid[n] = 1
+    for n in doorstep:
+        if solid[n]:
+            solid[n] = 0
+            _DOORS_CLEARED.append(1)
     for n in range(w * h):
         if floor[n] and not cells[n]:
             floor[n] = 0
@@ -582,6 +613,8 @@ def wmo_furniture(client, path, which=0):
 # Every doorway that was asked for and whether it came out open, which is what
 # says the walls above are walls and not a lid.
 _DOORS = []
+#: And whether there is standing room just inside each one.
+_DOORS_INSIDE = []
 
 
 def check_doors(client, path):
@@ -611,6 +644,17 @@ def check_doors(client, path):
         i, j = int((lx - x0) / PLAN_CELL), int((ly - y0) / PLAN_CELL)
         open_ = not (0 <= i < w and 0 <= j < h) or not solid[i * h + j]
         _DOORS.append(1 if open_ else 0)
+        # And whether there is anywhere to stand once you are through it.  A
+        # door that opens on to nothing is a door that is not looking at a
+        # room — counted rather than asserted, because a doorway on to a
+        # staircase or a balcony is a real thing and this slice has both.
+        room = False
+        floor_ = plan[6]
+        for a in range(i - 2, i + 3):
+            for b in range(j - 2, j + 3):
+                if 0 <= a < w and 0 <= b < h and floor_[a * h + b]:
+                    room = True
+        _DOORS_INSIDE.append(1 if room else 0)
 
 
 # How far each placement's own model box lands from the box the placement
@@ -1984,10 +2028,19 @@ def check_walls():
     if not _DOORS:
         return
     open_, n = sum(_DOORS), len(_DOORS)
+    inside = sum(_DOORS_INSIDE)
     print(f'check: {open_} of {n} doorways on every floor come out open '
-          f'(a man {BODY} yards tall, climbing at most {CLIMB})')
-    assert open_ >= n * 0.9, (
-        f'only {open_} of {n} doorways are open — the buildings are sealed')
+          f'(a man {BODY} yards tall, climbing at most {CLIMB}); '
+          f'{len(_DOORS_CLEARED)} door cells had stone the portal overruled; '
+          f'{inside} of {len(_DOORS_INSIDE)} open on to somewhere to stand')
+    # **Every** one, not nine in ten.  A portal is the file saying *this is a
+    # way through*, so a door with stone in it is the wall mask disagreeing
+    # with the building's own statement about itself — and `wmo_plan` now
+    # settles that in the portal's favour, which makes this exact rather than
+    # a proportion.
+    assert open_ == n, (
+        f'{n - open_} of {n} doorways have stone in them — the wall mask and '
+        'the file disagree about where the openings are')
 
 
 def packed(mask):
@@ -2114,12 +2167,26 @@ def check_storeys():
     # and the ground floor is always one of them.  Read the other way round —
     # baking a floor the portals do not name — is how a gallery lands on the
     # ground plan and closes the doors underneath it.
+    stray = 0
     for key, ups in PLAN_FLOORS.items():
         want = storeys(_CLIENT[0], PLAN_PATH[key])
         for z, _plan in ups:
             assert any(abs(z - s) < 0.01 for s in want), (
                 'a floor was baked at %.2f and the building names no sill '
                 'there: %s' % (z, want))
+    # And the other direction: every portal the client states falls within a
+    # body's height of a storey this bake knows about.  One direction on its
+    # own is half a check — a bake that drew one floor and threw away 111
+    # portals passed the first and failed this.
+    for key, path in PLAN_PATH.items():
+        if not PLANS_BY_KEY.get(key):
+            continue
+        up = storeys(_CLIENT[0], path)
+        for sill, _lx, _ly in doorways(_CLIENT[0], path):
+            if not any(abs(sill - z) <= BODY for z in up):
+                stray += 1
+    assert stray == 0, (
+        '%d portals sit on no storey this bake names' % stray)
 
 
 def check_plans():
