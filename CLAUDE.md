@@ -241,6 +241,18 @@ and every frame in it states a size and an anchor in plain numbers, so
 `npm run layout` reads them and `npm run uicheck` is the gate. Only the
 numbers leave; the art on our frames is ours.
 
+**A building is drawn from its own triangles.** A placement record gives one
+box, and for Northshire's abbey that box is 91 yards square — the grounds, not
+the abbey. The model says more at every level: `MOGI` gives each of its groups
+a box, and the group files give the geometry itself. `bake_terrain.py` drops
+all 18,817 of the abbey's triangles onto the floor, fills what they enclose,
+and ships one bit a square yard; the scene reads that bitmap and draws its
+outline. **A WMO has z up where the map has y up**, so the horizontal pair is
+the model's first two components — read it the other way and the plan lands
+seventy yards out, which is what two attempts did. The turn is `ry + 270`, and
+the guard is the measurement that found it: every model's box has to land on
+the box its own placement states, to a median of nought yards.
+
 **A quest is three facts and this repository can carry all three**: who gives
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of

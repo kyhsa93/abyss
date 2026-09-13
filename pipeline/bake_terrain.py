@@ -14,6 +14,7 @@ this is the one wall where the tool decides the language.
 
 Run:  python3 pipeline/bake_terrain.py <client dir> <out dir>
 """
+import base64
 import json
 import math
 import os
@@ -148,10 +149,135 @@ def to_world(pos, ry, lx, ly):
     return ORIGIN - pz, ORIGIN - px
 
 
+# A model's footprint, rasterised once and shared by every placement of it.
+_PLANS = {}
+# How many yards a cell of a plan covers.  One, because the ground itself is
+# drawn at 1.33 and a plan finer than the floor it sits on is detail nobody
+# can see.
+PLAN_CELL = 1.0
+
+
+def wmo_plan(client, path):
+    """The shape a building actually is, out of its own triangles.
+
+    `MOGI`'s boxes give a building as a handful of rectangles, which is a great
+    deal better than the one box the placement states and still not the
+    building: Northshire's abbey is a nave, a transept and a tower, and three
+    rectangles round them is a blob.  The groups' *geometry* is right there —
+    `MOVT` holds the vertices and `MOVI` the triangles — so this drops every
+    triangle of every group onto the floor and fills in what they cover.
+
+    18,817 triangles for the abbey, and what comes out is an abbey: a long nave
+    with a wide crossing and the tower off one corner.
+
+    In the model's own space, so it is rasterised once however many times the
+    thing is placed — and in the model's *horizontal* pair, which is its first
+    two, because a WMO has z up.  Returns `(cells, w, h, x0, y0)` with one byte
+    a cell.
+    """
+    if path in _PLANS:
+        return _PLANS[path]
+    _whole, rooms = wmo_rooms(client, path)
+    tris = []
+    for n in range(max(1, len(rooms))):
+        data, _src = client.read(path[:-4] + '_%03d.wmo' % n)
+        if not data:
+            continue
+        vt = vi = None
+        i = 0
+        while i < len(data) - 8:
+            m = data[i:i + 4][::-1].decode('ascii', 'replace')
+            size, = struct.unpack_from('<I', data, i + 4)
+            o = i + 8
+            if m == 'MOGP':          # wraps the rest; its own header is 68
+                i = o + 68
+                continue
+            if m == 'MOVT':
+                vt = struct.unpack_from('<%df' % (size // 4), data, o)
+            elif m == 'MOVI':
+                vi = struct.unpack_from('<%dH' % (size // 2), data, o)
+            i = o + size
+        if not vt or not vi:
+            continue
+        for t in range(len(vi) // 3):
+            a, b, cc = vi[3 * t], vi[3 * t + 1], vi[3 * t + 2]
+            tris.append(((vt[3 * a], vt[3 * a + 1]),
+                         (vt[3 * b], vt[3 * b + 1]),
+                         (vt[3 * cc], vt[3 * cc + 1])))
+    if not tris:
+        _PLANS[path] = None
+        return None
+    xs = [q[0] for tri in tris for q in tri]
+    ys = [q[1] for tri in tris for q in tri]
+    S = PLAN_CELL
+    x0, y0 = math.floor(min(xs)), math.floor(min(ys))
+    w = int(math.ceil((max(xs) - x0) / S)) + 1
+    h = int(math.ceil((max(ys) - y0) / S)) + 1
+    if w * h > 400000:               # a city, not a building
+        _PLANS[path] = None
+        return None
+    cells = bytearray(w * h)
+    for (ax, ay), (bx, by), (cx, cy) in tris:
+        i0 = max(0, int((min(ax, bx, cx) - x0) / S))
+        i1 = min(w - 1, int((max(ax, bx, cx) - x0) / S))
+        j0 = max(0, int((min(ay, by, cy) - y0) / S))
+        j1 = min(h - 1, int((max(ay, by, cy) - y0) / S))
+        det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if abs(det) < 1e-9:          # edge-on: fill its own cells
+            for i in range(i0, i1 + 1):
+                for j in range(j0, j1 + 1):
+                    cells[i * h + j] = 1
+            continue
+        for i in range(i0, i1 + 1):
+            px = x0 + (i + 0.5) * S
+            for j in range(j0, j1 + 1):
+                py = y0 + (j + 0.5) * S
+                l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det
+                l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det
+                if l1 >= -0.02 and l2 >= -0.02 and l1 + l2 <= 1.02:
+                    cells[i * h + j] = 1
+    # Fill the inside.  Triangles are a shell: the mask they leave has holes
+    # in it wherever the geometry is thin — a window, a doorway, the gap
+    # between a wall and the floor it meets — and every hole gives the outline
+    # an edge, so the abbey came out as a line drawing with speckle through it.
+    # What is inside is what the outside cannot reach: flood from the border,
+    # and anything the flood did not touch is the building.
+    out = bytearray(w * h)
+    stack = [(i, j) for i in range(w) for j in (0, h - 1) if not cells[i * h + j]]
+    stack += [(i, j) for j in range(h) for i in (0, w - 1) if not cells[i * h + j]]
+    for i, j in stack:
+        out[i * h + j] = 1
+    while stack:
+        i, j = stack.pop()
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if 0 <= a < w and 0 <= b < h and not out[a * h + b] \
+                    and not cells[a * h + b]:
+                out[a * h + b] = 1
+                stack.append((a, b))
+    for n in range(w * h):
+        if not out[n]:
+            cells[n] = 1
+    _PLANS[path] = (cells, w, h, x0, y0)
+    return _PLANS[path]
+
+
 # How far each placement's own model box lands from the box the placement
 # states, once turned.  This is the measurement the transform was solved by,
 # so it is the one that guards it.
 _PLACED = []
+
+
+# Every model whose footprint has been rasterised, by the key the doodads
+# carry, so a plan is stored once however many times its model is placed.
+PLANS_BY_KEY = {}
+
+
+def plan_key(client, path, key):
+    """Rasterise this model's footprint if it has not been, and return its key."""
+    if key not in PLANS_BY_KEY:
+        PLANS_BY_KEY[key] = wmo_plan(client, path)
+    return key if PLANS_BY_KEY[key] else 0
 
 
 def rooms_of(client, path, pos, ry, box=None):
@@ -652,7 +778,7 @@ def read_tile(client, tx, ty):
             # and this is how much of it survives a word like `bush`.
             placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
                            zlib.crc32(path.upper().encode()) & 0xffff,
-                           round(tall * sc, 2), round(wide * sc, 2), []))
+                           round(tall * sc, 2), round(wide * sc, 2), [], 0, 0.0))
         else:
             skipped += 1
     for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
@@ -668,7 +794,8 @@ def read_tile(client, tx, ty):
             placed.append((kind, wx, wy, wz, bear, 1.0,
                            half_l, half_w, bear, key, 0.0,
                            round(max(half_l or 0.0, half_w or 0.0), 2),
-                           rooms_of(client, name, pos, ry, world_box)))
+                           rooms_of(client, name, pos, ry, world_box),
+                           plan_key(client, name, key), round(ry + 270, 1)))
     return cells, placed, water, painted, skipped, src, shut
 
 
@@ -726,7 +853,7 @@ def bake(client, bounds, out):
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
-                    tall, wide, rooms in dd:
+                    tall, wide, rooms, plan, mr in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -741,7 +868,7 @@ def bake(client, bounds, out):
                     shapes.setdefault(key, (bl, bw))
                 variety.setdefault(kind, set()).add(key)
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
-                                key, tall, wide, rooms])
+                                key, tall, wide, rooms, plan, mr])
             for (iy_, ix_, sx_, sy_), level in wet.items():
                 I = tx * 128 + iy_ * 8 + sx_
                 J = ty * 128 + ix_ * 8 + sy_
@@ -832,6 +959,9 @@ def bake(client, bounds, out):
         # Blizzard's prose the same as everything else.
         'areaWidth': cw, 'areaHeight': ch, 'areaUnit': UNIT * 8,
         'areaIds': area_ids,
+        # The footprints, one per model rather than one per placement:
+        # `[width, height, cell yards, model x0, y0, base64 of one bit a cell]`.
+        'plans': {str(k): plan_out(v) for k, v in PLANS_BY_KEY.items() if v},
         # The chunks the client marks impassable, as `[i, j]` on the same
         # 33-yard grid the zones use.
         'closed': closed,
@@ -852,11 +982,14 @@ def bake(client, bounds, out):
                          # The rooms the model is made of, each a rectangle
                          # on the map — see `rooms_of`.
                          **({'rooms': rooms} if rooms else {}),
+                         # The model's own footprint, rasterised: `p` is which
+                         # plan and `mr` how far it is turned.
+                         **({'p': plan, 'mr': mr} if plan else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
-                    for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide, rooms
-                    in doodads],
+                    for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide,
+                    rooms, plan, mr in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
         json.dump(meta, f)
@@ -873,6 +1006,17 @@ def bake(client, bounds, out):
     check_rooms(doodads)
     check_water(grid, wetmask, levels)
     return meta
+
+
+def plan_out(plan):
+    """One footprint, packed a bit a cell."""
+    cells, w, h, x0, y0 = plan
+    bits = bytearray((w * h + 7) // 8)
+    for n, v in enumerate(cells):
+        if v:
+            bits[n >> 3] |= 1 << (n & 7)
+    return [w, h, PLAN_CELL, x0, y0,
+            base64.b64encode(bytes(bits)).decode('ascii')]
 
 
 def check_rooms(doodads):

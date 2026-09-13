@@ -240,13 +240,34 @@ check('and they do not all move alike',
 check('the swing reaches what the client says', rules.melee === 5,
   `${rules.melee} yards`)
 
-// 9. A building is an outline, not a slab.
+// 9. A building is its own shape, and an outline rather than a slab.
 //
 // Filling a record's box with stone buried the middle of Northshire: the
 // abbey's box is 91 yards square and its two gates are 160 long, so the
 // courtyard, the road through the gate, the graveyard and every cobble under
 // them came out as one grey field.  A box is the *extent* of a thing, not a
 // claim that the ground inside it is floor.
+// And the shape is the model's, not a rectangle: the footprint is rasterised
+// from the building's own triangles, so a plan that has collapsed back to its
+// bounding box shows up as one that fills it.
+const shaped = await p.evaluate(() => {
+  const b = window.__buildings().sort((a, c) => c.l * c.w - a.l * a.w)[0]
+  if (!b) return null
+  let inN = 0, all = 0
+  for (let a = -b.l; a <= b.l; a += 1.5) {
+    for (let c = -b.w; c <= b.w; c += 1.5) {
+      all++
+      if (window.__inside(b.x + b.c * a - b.s * c, b.y + b.s * a + b.c * c)) inN++
+    }
+  }
+  return { fill: Math.round((100 * inN) / all), size: [Math.round(b.l * 2), Math.round(b.w * 2)] }
+})
+if (shaped) {
+  check('a building is a shape and not its bounding box',
+    shaped.fill > 15 && shaped.fill < 85,
+    `${shaped.size[0]}x${shaped.size[1]} yards, ${shaped.fill}% of the box is building`)
+}
+
 const inside = await p.evaluate(() => {
   // The middle of the biggest building in the slice, and what the ground
   // under it is drawn as.
@@ -257,8 +278,20 @@ const inside = await p.evaluate(() => {
     size: [Math.round(big.l * 2), Math.round(big.w * 2)],
     // Along the building's own long axis, because it is turned: sampling
     // along world x lands in the middle of a diagonal one.
+    // The wall is where the footprint ends, and the footprint is the model's
+    // own outline now rather than its box — so the edge has to be walked to,
+    // not assumed at the corner of a rectangle.
     middle: at(0, 0).built,
-    edge: at(big.c * (big.l - 0.6), big.s * (big.l - 0.6)).built,
+    edge: (() => {
+      for (let d = 0; d < big.l * 2 + 20; d += 0.5) {
+        const p2 = at(big.c * d, big.s * d)
+        if (p2.built) return true       // the first drawn cell going out is wall
+        if (d > 2 && !window.__inside(big.x + big.c * d, big.y + big.s * d)
+          && !window.__inside(big.x + big.c * (d - 0.5), big.y + big.s * (d - 0.5))
+          && d > big.l) return false
+      }
+      return false
+    })(),
     // Across the whole building along its own axis: every blocked step has to
     // be blocked by something else — water, a trunk, a cliff — and not by the
     // plan.

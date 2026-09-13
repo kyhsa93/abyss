@@ -54,6 +54,8 @@ type Doodad = {
   bl?: number; bw?: number; ba?: number
   /** `[centre x, centre y, half along, half across, bearing]` per room. */
   rooms?: [number, number, number, number, number][]
+  /** Which rasterised footprint, and how far the model is turned. */
+  p?: number; mr?: number
   /** Set when the bearing is a coin toss — see the crossings below. */
   bq?: number
 }
@@ -61,6 +63,8 @@ type Meta = {
   width: number; height: number; unit: number
   x0: number; y0: number; centre: [number, number]; bounds: number[]
   variety?: Record<string, number>
+  /** `[w, h, cell yards, model x0, y0, base64 bits]` per model. */
+  plans?: Record<string, [number, number, number, number, number, string]>
   areaWidth?: number; areaHeight?: number; areaUnit?: number
   areaIds?: number[]
   closed?: [number, number][]
@@ -1134,6 +1138,13 @@ async function main() {
    * shape is the part that makes it recognisable.  The sprite stays for the
    * ones small enough to *be* the sprite.
    */
+  /** Base64 to bytes, for the packed footprints. */
+  const bytesOf = (b64: string) => {
+    const bin = atob(b64)
+    const out = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+    return out
+  }
   const buildings = meta.doodads
     .filter((d) => BUILT.has(d.k) && !!d.bl && !!d.bw)
     .map((d) => {
@@ -1145,6 +1156,20 @@ async function main() {
       // those is a cross where the single box is a square.  Anything with no
       // groups falls back to its box, which is what a one-group gate is
       // anyway.
+      // The model's own footprint, rasterised by the bake out of its own
+      // triangles — 18,817 of them for the abbey — one bit a square yard in
+      // the model's own space.  A plan made of the group boxes is a handful of
+      // rectangles, which is better than the single box the placement states
+      // and still not a building: the abbey is a nave, a crossing and a tower,
+      // and three rectangles round them is a blob.
+      const raw = d.p ? (meta.plans ?? {})[String(d.p)] : undefined
+      const plan = raw ? {
+        w: raw[0], h: raw[1], s: raw[2], x0: raw[3], y0: raw[4],
+        bits: bytesOf(raw[5]),
+        // The turn that takes the model's space to the map, in radians.
+        c: Math.cos(((d.mr ?? 0) * Math.PI) / 180),
+        sn: Math.sin(((d.mr ?? 0) * Math.PI) / 180),
+      } : null
       const rooms = (d.rooms ?? []).map(([x, y, l, w, deg]) => {
         const t = (deg * Math.PI) / 180
         return { x, y, l, w, c: Math.cos(t), s: Math.sin(t) }
@@ -1152,6 +1177,7 @@ async function main() {
       return {
         x: d.x, y: d.y, l: d.bl!, w: d.bw!,
         c: Math.cos(a), s: Math.sin(a), k: d.k,
+        plan,
         rooms: rooms.length ? rooms : [{
           x: d.x, y: d.y, l: d.bl!, w: d.bw!,
           c: Math.cos(a), s: Math.sin(a),
@@ -1166,6 +1192,21 @@ async function main() {
       const dx = wx - b.x, dy = wy - b.y
       if (Math.abs(dx * b.c + dy * b.s) > b.l + 2) continue
       if (Math.abs(-dx * b.s + dy * b.c) > b.w + 2) continue
+      // The footprint if the model gave one, and its boxes if it did not.
+      const p = b.plan
+      if (p) {
+        // Back out of the map into the model's own space.  `to_world` in the
+        // bake turns a local point by `ry + 270` and maps the client's axes on
+        // to ours; this is that, inverted.
+        const u = wx - b.x, v = -(wy - b.y)
+        const lx = u * p.sn + v * p.c, ly = u * p.c - v * p.sn
+        const i = Math.floor((lx - p.x0) / p.s)
+        const j = Math.floor((ly - p.y0) / p.s)
+        if (i < 0 || i >= p.w || j < 0 || j >= p.h) continue
+        const n = i * p.h + j
+        if ((p.bits[n >> 3]! >> (n & 7)) & 1) return b
+        continue
+      }
       for (const r of b.rooms) {
         const ex = wx - r.x, ey = wy - r.y
         if (Math.abs(ex * r.c + ey * r.s) <= r.l
@@ -3008,6 +3049,9 @@ async function main() {
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
   /** The errands, and how far along they are — for the check that walks one. */
+  /** Inside a building's footprint, for the check that the plan is the plan. */
+  ;(window as unknown as { __inside: (x: number, y: number) => boolean })
+    .__inside = (x, y) => !!inRoom(x, y)
   /** The buildings, for the check that a box is not drawn as a floor. */
   ;(window as unknown as { __buildings: () => unknown }).__buildings = () =>
     buildings.map((b) => ({ x: b.x, y: b.y, l: b.l, w: b.w, k: b.k,
