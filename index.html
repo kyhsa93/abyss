@@ -34,8 +34,11 @@
       }
       #hud .k { color: #8aa8bb; }
       #hud.plain { display: block; }
+      /* The keys.  The original has no such line — it teaches with tooltips —
+         so this one has no place to copy and takes the corner nothing else
+         wants: left of the action bar, under the chat log. */
       #help {
-        position: fixed; right: 8px; bottom: 8px; color: #9ab; font: 11px/1.6 var(--mono);
+        position: fixed; left: 10px; bottom: 8px; color: #9ab; font: 11px/1.6 var(--mono);
         background: rgba(0,0,0,.55); padding: 6px 8px; white-space: pre; pointer-events: none;
       }
       /*
@@ -97,17 +100,17 @@
         background: #000; border: 1px solid var(--gold-dark);
         border-radius: 2px; padding: 0 4px;
       }
-      .frame .bar, #ui .xp, #ui .rage {
+      .frame .bar, #ui #xp, #ui .rage {
         position: relative; height: 14px; margin-top: 4px;
         background: #000; border: 1px solid #2a2520; border-radius: 2px;
         overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.9);
       }
-      .frame .fill, #ui .xp .fill, #ui .rage .fill {
+      .frame .fill, #ui #xp .fill, #ui .rage .fill {
         position: absolute; inset: 0 auto 0 0; width: 0;
         transition: width .12s linear;
         box-shadow: inset 0 5px 6px rgba(255,255,255,.16);
       }
-      .frame .num, #ui .xp .num, #ui .rage .num {
+      .frame .num, #ui #xp .num, #ui .rage .num {
         position: relative; display: block; text-align: center;
         font: 10px/14px var(--mono); color: #fff;
         text-shadow: 0 1px 2px #000, 0 0 2px #000;
@@ -115,16 +118,22 @@
       #ui .rage { height: 10px; }
       #ui .rage .fill { background: #a32d22; }
       #ui .rage .num { font-size: 9px; line-height: 10px; color: #ffd9d0; }
-      #ui .xp { height: 10px; margin: 3px 0 0; }
-      #ui .xp .fill { background: #5b3fa8; }
-      #ui .xp .num { font-size: 9px; line-height: 10px; color: #ded4f2; }
+      /* The experience bar goes across the bottom, on the action bar's top
+         edge, because that is where `MainMenuExpBar` is: 1024 by 13 anchored
+         to `MainMenuBar`'s TOP.  `pipeline/layout.py` supplies the anchor and
+         the size; what is here is only how it looks. */
+      #ui #xp { height: 13px; margin: 0; z-index: 3; }
+      #ui #xp .fill { background: #5b3fa8; }
+      #ui #xp .num { font-size: 9px; line-height: 13px; color: #ded4f2; }
 
-      /* The swing, which is the only timer there is. */
-      #ui .swing {
-        height: 3px; margin: 2px 0 0; background: #000;
-        border-radius: 2px; overflow: hidden;
+      /* The swing, which is the only timer there is — and the original's cast
+         bar is 195 by 13 sitting 55 above the bottom edge, which is where the
+         layout puts this. */
+      #ui #swing {
+        height: 13px; background: #000; border: 1px solid #2a2520;
+        border-radius: 2px; overflow: hidden; z-index: 3;
       }
-      #ui .swing .fill { height: 100%; width: 0; background: var(--gold); }
+      #ui #swing .fill { height: 100%; width: 0; background: var(--gold); }
 
       #ui .auras { display: flex; gap: 3px; margin: 4px 0 0; }
       #ui .auras .aura {
@@ -241,10 +250,11 @@
       /* Twelve, always, and most of them empty. */
       /* High enough that the labels under the squares clear the help line,
          which lives on the floor of the same corner. */
-      #bar {
-        position: absolute; left: 50%; bottom: 32px; transform: translateX(-50%);
-        display: flex; gap: 4px;
-      }
+      /* One assembly at the bottom, buttons then bags, the way the original's
+         single bar frame holds both. */
+      #deck { position: fixed; display: flex; align-items: flex-end; gap: 8px; }
+      #deck > * { flex: none; }
+      #bar { display: flex; gap: 4px; }
       .slot {
         position: relative; width: 44px; height: 44px; border-radius: 3px;
         background: linear-gradient(#2a2622, #14120f);
@@ -277,9 +287,7 @@
       }
 
       /* What opens, as opposed to what you do. */
-      #micro {
-        position: absolute; right: 12px; bottom: 36px; display: flex; gap: 4px;
-      }
+      #micro { display: flex; gap: 4px; padding-bottom: 9px; }
       #micro button {
         font: 11px var(--body); color: #9aa6ae;
         background: linear-gradient(#2a2622, #14120f);
@@ -328,6 +336,10 @@
       /* A phone's bottom row is two thumbs, so the bar is not there — the
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
+      /* The bottom of a phone is two thumbs, so the two strips the original
+         puts down there come back up under the player's block. */
+      body.touch #ui #xp { position: static; width: auto; margin: 3px 0 0; height: 10px; }
+      body.touch #ui #swing { position: static; width: auto; height: 3px; border: 0; }
       /* Under the map, not over it: the map box is a 96-pixel canvas plus two
          lines of text, which is 156 and not 128. */
       body.touch #micro { bottom: auto; top: 152px; right: 8px; flex-direction: column; }

@@ -220,11 +220,20 @@ its name is **declared** in `*_DEFAULT_OK` next to the rules. Anything else
 fails the gate. Adding a rule now means saying out loud which names you are
 leaving to the fallback, which is the thing nobody was saying.
 
+The interface was the last thing here with no source at all, and it drifted
+for exactly the same reason: the screen was laid out from memory, so it kept
+being wrong one piece at a time and the only thing measuring it was somebody
+looking at it. The original ships its whole interface as XML — `FrameXML` —
+and every frame in it states a size and an anchor in plain numbers, so
+`npm run layout` reads them and `npm run uicheck` is the gate. Only the
+numbers leave; the art on our frames is ours.
+
 ## Finishing a change
 
-`npm run check` is `tsc` and it is fast. `npm run audit` compares the sources
-against what was read from them and needs the client. `npm run viewcheck` and
-`npm run padcheck` need a browser and `npm run dev`.
+`npm run check` is `tsc` and it is fast. `npm run audit` and `npm run layout`
+compare the sources against what was read from them and need the client.
+`npm run viewcheck`, `npm run uicheck` and `npm run padcheck` need a browser
+and `npm run dev`.
 
 ## Language
 

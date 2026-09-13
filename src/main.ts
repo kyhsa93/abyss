@@ -22,7 +22,7 @@
 
 import { abilityOf, bearing, coin, goodsOf, josa, nameOf, speak, zoneOf, type Direction, type Speech, type Topic } from './talk'
 import { layoutFor, touchpad } from './touch'
-import { hud as makeHud } from './hud'
+import { hud as makeHud, type Layout } from './hud'
 import {
   mitigate, noticeAt, rageFrom, swing, xpFor,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
@@ -1484,7 +1484,13 @@ async function main() {
    */
   const ACTIONS = ['attack', 'talk'] as const
   const pad = touchpad(canvas, ACTIONS.length)
-  const ui = makeHud()
+  // The original's own frame places, read out of its `FrameXML` by
+  // `pipeline/layout.py`.  Missing is fine: without it the stylesheet's
+  // positions stand, which is what there was before there was a source.
+  const layout = await fetch('./world/layout.json')
+    .then((r) => (r.ok ? r.json() as Promise<Layout> : null))
+    .catch(() => null)
+  const ui = makeHud(layout ?? undefined)
   let bagOpen = false
   let sheetOpen = false
   let mapOpen = false

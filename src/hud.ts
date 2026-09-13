@@ -71,7 +71,58 @@ function frame(into: HTMLElement, id: string) {
   return { root, icon: icon as HTMLImageElement, name, level, fill, text }
 }
 
-export function hud() {
+/** One frame's place, as `pipeline/layout.py` reads it out of the client. */
+export type Box = { at: string; x: number; y: number; w: number; h: number }
+export type Layout = { ref: [number, number]; frames: Record<string, Box> }
+
+/**
+ * Put a panel where the original puts it.
+ *
+ * The interface was the last thing here with no source: the terrain comes out
+ * of `.adt` files and the abilities out of `Spell.dbc`, and the screen was
+ * laid out from memory.  So it kept being wrong one piece at a time — the
+ * gossip window was a strip across the bottom sitting on top of the action
+ * bar, when the original pins it 384 wide against the **left** edge.
+ *
+ * `pipeline/layout.py` reads `FrameXML` and writes the anchor and the size.
+ * What is applied here is that anchor, not a box on a 1024 by 768 screen: a
+ * box would drift towards the middle of a wider monitor, and an anchor is what
+ * the original actually holds on to.
+ */
+function pin(node: HTMLElement, b: Box | undefined, s: number) {
+  if (!b) return
+  const at = b.at
+  node.style.position = 'fixed'
+  node.style.width = `${Math.round(b.w * s)}px`
+  // Height is left to the content for anything that grows: a gossip window
+  // with three lines in it should be three lines tall, and the original's 512
+  // is the parchment's, which we do not have.
+  // Every side is set, and the ones this anchor does not use are set to
+  // `auto` rather than removed.  Removing only clears the inline value: the
+  // stylesheet's own `right: 12px` survived it, so a panel pinned by its left
+  // edge stayed stretched to the right edge as well and came out three times
+  // the width it asked for.
+  node.style.transform = 'none'
+  node.style.left = node.style.right = 'auto'
+  node.style.top = node.style.bottom = 'auto'
+  // Never off the glass.  The original's player frame is at -19 because its
+  // portrait art carries nineteen pixels of transparent margin on that side;
+  // ours has no such margin, so the negative offset is an inset into art that
+  // does not exist here and it hung the frame over the edge.
+  if (at.includes('LEFT')) node.style.left = `${Math.round(Math.max(0, b.x) * s)}px`
+  else if (at.includes('RIGHT')) node.style.right = `${Math.round(Math.max(0, b.x) * s)}px`
+  else {
+    node.style.left = '50%'
+    node.style.transform = `translateX(calc(-50% + ${Math.round(b.x * s)}px))`
+  }
+  if (at.includes('TOP')) node.style.top = `${Math.round(b.y * s)}px`
+  else if (at.includes('BOTTOM')) node.style.bottom = `${Math.round(b.y * s)}px`
+  else node.style.top = `${Math.round((384 + b.y) * s)}px`
+}
+
+export function hud(layout?: Layout) {
+  const helpLine = document.getElementById('help') as HTMLElement
+      ?? document.createElement('div')
   const ui = el('div')
   ui.id = 'ui'
   document.body.appendChild(ui)
@@ -84,9 +135,12 @@ export function hud() {
   const rageBar = el('div', 'rage', me.root.parentElement!)
   const rageFill = el('div', 'fill', rageBar)
   const rageText = el('span', 'num', rageBar)
-  // The swing, as a bar under the player rather than as a number.  It is the
-  // only timer in the game and it is the one thing a player is waiting on.
-  const swingBar = el('div', 'swing', me.root.parentElement!)
+  // The swing, as a bar. The original's cast bar is 195 by 13 sitting 55 above
+  // the bottom edge — just over the action bar — and this is the same timer in
+  // the same place.  It used to be a strip under the player's health, which is
+  // where nothing in that game puts one.
+  const swingBar = el('div', '', ui)
+  swingBar.id = 'swing'
   const swingFill = el('div', 'fill', swingBar)
   // What is on you goes under you, and what is on the target goes under the
   // target.  Both were appended at the end, which put them under the
@@ -100,9 +154,12 @@ export function hud() {
   const foeFoe = el('div', 'oftarget', units)
   foeFoe.hidden = true
 
-  // The experience bar sits under the player rather than across the bottom of
-  // the screen, because the bottom of the screen on a phone is two thumbs.
-  const xpBar = el('div', 'xp', me.root.parentElement!)
+  // The experience bar goes across the bottom of the screen, on the top edge
+  // of the action bar, which is where the original has it — `MainMenuExpBar`,
+  // 1024 by 13, anchored to the bar's top.  On a phone the bottom of the
+  // screen is two thumbs, so `body.touch` puts it back under the player.
+  const xpBar = el('div', '', ui)
+  xpBar.id = 'xp'
   const xpFill = el('div', 'fill', xpBar)
   const xpText = el('span', 'num', xpBar)
 
@@ -155,8 +212,15 @@ export function hud() {
   // The buttons that are always there: what opens, rather than what you do.
   const micro = el('div', '', ui)
   micro.id = 'micro'
+  // Into the deck, to the right of the buttons, where the original's bags are.
 
-  const bar = el('div', '', ui)
+  // The bottom of the screen is one assembly, as it is in the original: a
+  // single `MainMenuBar` holds the action buttons *and* the bag and menu
+  // buttons, and the whole thing is centred.  Ours were two panels centred
+  // independently, so on a narrow window they walked into each other.
+  const deck = el('div', '', ui)
+  deck.id = 'deck'
+  const bar = el('div', '', deck)
   bar.id = 'bar'
   const slots: { root: HTMLElement; icon: HTMLImageElement; sweep: HTMLElement }[] = []
 
@@ -403,5 +467,104 @@ export function hud() {
       shown = next.map((s) => ({ ...s }))
     },
   }
-  return this_
+  /**
+   * Everything that has a place in the original, put there.
+   *
+   * Re-run on resize, because an anchor is only an anchor if it follows the
+   * edge it is anchored to.  `body.touch` opts out: a phone is 390 by 664 and
+   * the original was never laid out for one, so the stylesheet's own rules
+   * stand there — which is the honest answer rather than a shrunken copy.
+   */
+  /** Everything `place` touches, so that a phone can be handed it all back. */
+  const placed = () => [units, foe.root, mapBox, logBox, bagPanel, sheet, deck,
+    bar, micro, xpBar, swingBar, helpLine,
+    document.getElementById('talk')].filter(Boolean) as HTMLElement[]
+
+  const place = () => {
+    if (!layout) return
+    // A phone is 390 by 664 and the original was never laid out for one, so
+    // the stylesheet's own rules stand there.  Handing them back matters:
+    // `place` runs once at construction, *before* the scene has worked out
+    // that this is a phone, so the first run had already pinned the gossip
+    // window to the top of the screen and returning early left it there —
+    // over the person talking, which is the one thing the touch rules exist
+    // to avoid.
+    if (document.body.classList.contains('touch')) {
+      for (const node of placed()) {
+        for (const k of ['position', 'left', 'right', 'top', 'bottom',
+          'width', 'height', 'transform'] as const) node.style.removeProperty(k)
+      }
+      if (micro.parentElement === deck) ui.appendChild(micro)
+      return
+    }
+    // The original is laid out against a 768-tall screen.  Smaller than that
+    // and everything has to come in together or the panels overlap; larger and
+    // it stays at its own size, which is what that game does too.
+    const s = Math.max(0.62, Math.min(1, window.innerHeight / layout.ref[1]))
+    const f = layout.frames
+    pin(units, f['units'], s)
+    pin(foe.root.parentElement === units ? foe.root : foe.root, f['target'], s)
+    pin(mapBox, f['map'], s)
+    pin(logBox, f['log'], s)
+    pin(bagPanel, f['bag'], s)
+    pin(sheet, f['sheet'], s)
+    if (micro.parentElement !== deck) deck.appendChild(micro)
+    pin(deck, f['bar'], s)
+    // `max-content` and not `auto`: a fixed box anchored at `left: 50%` with
+    // no right gets a shrink-to-fit width capped at half the window, so the
+    // twelve buttons and the menu row were squeezed into each other and the
+    // last four slots came out underneath the buttons.
+    deck.style.width = 'max-content'
+    bar.style.position = 'static'
+    micro.style.position = 'static'
+    micro.style.removeProperty('right')
+    micro.style.removeProperty('bottom')
+    pin(xpBar, f['xp'], s)
+    pin(swingBar, f['cast'], s)
+    // The strips above the deck stack the way the original stacks them, off
+    // our own deck rather than off its absolute offsets.  In the original the
+    // action buttons sit 4 up from the bar's bottom and are 36 tall, ending at
+    // 40 — which is exactly where the experience bar starts, and the cast bar
+    // clears that by two.  Those numbers are inside a 53-pixel art frame we do
+    // not have; the *relationship* is what transfers.
+    const tall = deck.offsetHeight
+    xpBar.style.bottom = `${Math.round(tall)}px`
+    // Measured and not computed: the strip's own border makes it fifteen where
+    // the source says thirteen, and two scaled pixels of gap round to nothing
+    // on a small window, so the two touched.
+    swingBar.style.bottom = `${Math.round(tall + xpBar.offsetHeight) + 2}px`
+    // The backpack clears the whole deck.  The original's 70 clears its own
+    // 53 plus 13 of experience bar with four to spare, and that is the rule.
+    const floor = tall + xpBar.offsetHeight + 4
+    bagPanel.style.bottom =
+      `${Math.round(Math.max((f['bag']?.y ?? 70) * s, floor))}px`
+    // The key hints sit above the chat log.  The original has no such line —
+    // it teaches with tooltips — so there is nothing to copy and it takes the
+    // one corner nothing else wants.
+    helpLine.style.position = 'fixed'
+    helpLine.style.left = `${Math.round((f['log']?.x ?? 32) * s)}px`
+    helpLine.style.right = 'auto'
+    helpLine.style.top = 'auto'
+    helpLine.style.bottom =
+      `${Math.round((f['log']?.y ?? 95) * s) + logBox.offsetHeight + 6}px`
+    const talk = document.getElementById('talk')
+    if (talk) pin(talk, f['talk'], s)
+    // The bar is the original's full width and ours is twelve buttons; what
+    // matters is that it sits on the bottom edge, so the width goes back to
+    // the content and only the anchor is kept.
+    bar.style.width = 'auto'
+    sheet.style.height = 'auto'
+    if (talk) talk.style.height = 'auto'
+    bagPanel.style.height = 'auto'
+  }
+  place()
+  window.addEventListener('resize', place)
+  // And again whenever the bar changes size, because the strips above it are
+  // stacked off its height and the bar is empty until the scene fills it: the
+  // first run measured nought and put the experience bar under the floor.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => place()).observe(bar)
+  }
+
+  return { ...this_, place }
 }
