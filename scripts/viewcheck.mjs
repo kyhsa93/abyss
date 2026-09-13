@@ -713,6 +713,40 @@ if (bare) {
     `${bare.layers.join(', ')} → ${dressed.layers.join(', ')}`)
 }
 
+// 9s2. And it is not on the character sheet, by the owner's decision.
+//
+// It was 56 by 56 of a 384 by 512 panel — two per cent of it — and nine per
+// cent of that was opaque.  What carried the information was the thirteen
+// squares under it, and the doll showed **one of the four things that were
+// on**: a bare body with boots and hair, because there is no `legs` layer in
+// the set and `weapon` was not in the slot list at all.
+//
+// The composition stays, because the portrait in the corner is a window on to
+// it (issue 137) — what goes is the picture on the panel.
+{
+  // Opened with the key a player uses, because the panel is only built while
+  // it is up — read with it hidden it is an empty box, which is the answer to
+  // a different question.
+  await p.keyboard.press('c')
+  await p.waitForTimeout(300)
+  const sheetNow = await p.evaluate(() => {
+    const el = document.getElementById('sheet')
+    return { hidden: el.hidden,
+      dolls: el.querySelectorAll('.doll, canvas').length,
+      squares: el.querySelectorAll('.worn .square').length,
+      filled: [...el.querySelectorAll('.worn .square')]
+        .filter((s) => !s.classList.contains('bare')).length }
+  })
+  await p.keyboard.press('c')
+  await p.waitForTimeout(200)
+  check('the character sheet has no paperdoll on it',
+    sheetNow.hidden === false && sheetNow.dolls === 0,
+    `${sheetNow.dolls} canvases in the panel`)
+  check('and shows every slot as a square instead',
+    sheetNow.squares === 13,
+    `${sheetNow.squares} squares, ${sheetNow.filled} of them full`)
+}
+
 // 9t. The frame rate does not change the game.  `requestAnimationFrame`'s own
 // delta went straight into the simulation, so a slow machine played a
 // different game — and what cannot be reproduced cannot be checked, which is

@@ -7028,7 +7028,20 @@ async function main() {
         ['마친 일거리', `${log.done.size}`],
         ['다음', '특성. 다음 슬라이스의 첫 항목이다'],
       ] as [string, string][] : []),
-    ], paintDoll() ?? undefined,
+    /**
+     * **No paperdoll on the sheet, by the owner's decision (issue 184).**
+     *
+     * It was 56 by 56 of a 384 by 512 panel — two per cent of it — and nine
+     * per cent of that was opaque.  What carried the information was the
+     * thirteen squares below it, and the doll showed one of the four things
+     * that were on: a bare body with boots and hair.
+     *
+     * `paintDoll` is still called, because the portrait in the corner is a
+     * window on to it and that is how issue 137 solved a portrait.  Where the
+     * portrait comes from if the layers go too is the second half of 184, and
+     * it is written down in the wiki rather than decided here.
+     */
+    ], undefined,
     // And the thirteen squares, empty ones included.  What is worn rather
     // than which squares are full, which is what this said before — and with
     // no item names in this game a word could never have said the difference.
