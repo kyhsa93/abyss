@@ -656,6 +656,15 @@ def talking(base, entries):
         f = num.findall(line)
         vendor.setdefault(int(f[0]), []).append(int(f[2]))
 
+    # `creature_template_movement.Swim` is **not** the column for "lives in
+    # water", and it is worth writing down that it was tried.  Measured over
+    # this slice it says every wolf, boar, rabbit and chicken swims and not
+    # one murloc does — 233 wolves to 0 murlocs.  What it means is whether the
+    # server may move the creature through water at all, which for a land
+    # animal chasing you into a lake is yes and for a murloc that never leaves
+    # its own pond is no.  The question here is the other one, and the answer
+    # to it is in `src/main.ts`, derived from where the kind actually stands.
+
     # Trainers.  `Type` says class / mount / trade / beast, and for a class
     # trainer `Requirement` is the class id.
     tid = {}

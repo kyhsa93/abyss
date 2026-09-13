@@ -1293,40 +1293,6 @@ async function main() {
   }
 
   /**
-   * Nudge anybody our water mask swallowed, and only by a little.
-   *
-   * A creature's position is the server's and it is a fact: something stood
-   * there.  The water is ours — the client's `MH2O` in one world, the lowest
-   * five per cent of an interpolated height field in the other — and it is
-   * sampled on a 4.17 yard grid, so a cat two yards up the beach rounds into
-   * the lake.  That is the case worth fixing, and the measurement says it is
-   * most of them: of the seventy-nine spawns inside the mask, thirty-one are
-   * within two yards of dry ground and the worst is twenty-eight.
-   *
-   * So the search stops at six yards.  Past that the creature is not a
-   * rounding error, it is a murloc, and moving it thirty yards inland to keep
-   * our own guess about where the shore is would be the tail wagging the dog.
-   * Those keep their place and are allowed to move in it.
-   */
-  let settled = 0, afloat = 0
-  const taken = (x: number, y: number) => wetAt(x, y) || solidAt(x, y)
-  const REACH = 6
-  for (const n of npcs) {
-    if (!taken(n.x, n.y)) continue
-    for (let ring = 1.5; ring <= REACH && taken(n.x, n.y); ring += 1.5)
-      for (let a = 0; a < 12; a++) {
-        const t = (a / 12) * Math.PI * 2
-        const px = n.hx + Math.cos(t) * ring, py = n.hy + Math.sin(t) * ring
-        if (!taken(px, py)) { n.x = px; n.y = py; settled++; break }
-      }
-    // Whoever is still standing in it belongs in it, and their own movement
-    // test stops asking about water. Wherever they ended up is now home, or
-    // they would walk straight back to the lake.
-    if (wetAt(n.x, n.y)) { n.swims = true; afloat++ }
-    n.hx = n.x; n.hy = n.y
-  }
-
-  /**
    * The same bucket trick as the scenery, rebuilt every frame.
    *
    * The scenery's grid is built once because nothing in it moves; these do, so
@@ -1978,19 +1944,84 @@ async function main() {
   }
 
   /**
+   * Nudge anybody our water mask swallowed, and only by a little.
+   *
+   * A creature's position is the server's and it is a fact: something stood
+   * there.  The water is ours — the client's `MH2O` in one world, the lowest
+   * five per cent of an interpolated height field in the other — and it is
+   * sampled on a 4.17 yard grid, so a cat two yards up the beach rounds into
+   * the lake.  That is the case worth fixing, and the measurement says it is
+   * most of them: of the seventy-nine spawns inside the mask, thirty-one are
+   * within two yards of dry ground and the worst is twenty-eight.
+   *
+   * So the search stops at six yards.  Past that the creature is not a
+   * rounding error, it is a murloc, and moving it thirty yards inland to keep
+   * our own guess about where the shore is would be the tail wagging the dog.
+   * Those keep their place and are allowed to move in it.
+   */
+  let settled = 0, afloat = 0
+  const taken = (x: number, y: number) => wetAt(x, y) || solidAt(x, y)
+  const REACH = 6
+  /**
+   * Which kinds live in water, asked of the kind and not of the individual.
+   *
+   * The rule used to be "whoever is still in the lake after the search
+   * belongs in it", which is a guess wearing the clothes of a fact: it made a
+   * cat that rounded into a pond amphibious and it left a townsman standing
+   * in one.  A kind is the right unit — the whole point of a murloc is that
+   * murlocs live in water — and our own spawn table states it: 162 murlocs
+   * and most of them wet, 383 townsfolk and one.
+   *
+   * **Not `creature_template_movement.Swim`**, which was tried first.  Over
+   * this slice that column says all 233 wolves swim and not one of the 162
+   * murlocs does.  It answers a different question — may the server move this
+   * creature through water at all — and for a wolf chasing you into a lake
+   * the answer is yes.
+   */
+  const wetOf: Record<string, [number, number]> = {}
+  for (const n of npcs) {
+    const row = wetOf[n.art] ?? (wetOf[n.art] = [0, 0])
+    row[0]++
+    if (wetAt(n.x, n.y)) row[1]++
+  }
+  const lives = new Set(Object.entries(wetOf)
+    .filter(([, [all, wet]]) => wet >= 3 && wet / all >= 0.25)
+    .map(([art]) => art))
+  for (const n of npcs) {
+    if (!taken(n.x, n.y)) continue
+    // A kind that lives on land gets a wider search before it is given up on:
+    // six yards is the size of a rounding error in our own water mask, and
+    // past that a townsman in a lake is not a rounding error, he is wrong.
+    const far = lives.has(n.art) ? REACH : 24
+    for (let ring = 1.5; ring <= far && taken(n.x, n.y); ring += 1.5)
+      for (let a = 0; a < 12; a++) {
+        const t = (a / 12) * Math.PI * 2
+        const px = n.hx + Math.cos(t) * ring, py = n.hy + Math.sin(t) * ring
+        if (!taken(px, py)) { n.x = px; n.y = py; settled++; break }
+      }
+    // Whoever is still standing in it belongs in it, and their own movement
+    // test stops asking about water. Wherever they ended up is now home, or
+    // they would walk straight back to the lake.
+    if (wetAt(n.x, n.y)) { n.swims = true; afloat++ }
+    n.hx = n.x; n.hy = n.y
+  }
+
+  /**
    * And anybody the walls closed on.
    *
    * The same nudge the water gets, for the same reason and with the same
    * limit: a spawn is the server's and it is a fact, but a wall is ours — a
    * 1.33 yard mask cut out of the model's triangles — and a monk standing
    * against the nave wall rounds into it.  Nine of the slice's 1,886 did.  A
-   * yard and a half at a time out to three, which is a rounding error's worth
-   * and not a relocation; past that he stays where the server put him.
+   * yard and a half at a time out to six, which is the same reach the water
+   * gets and for the same reason — six yards is how wrong a mask sampled at
+   * 1.33 can be about a wall two cells thick.  Past that he stays where the
+   * server put him, and the count says how many that is.
    */
   let walled = 0
   for (const n of npcs) {
     if (!wallAt(n.x, n.y)) continue
-    for (let ring = 1.5; ring <= 3 && wallAt(n.x, n.y); ring += 1.5)
+    for (let ring = 1.5; ring <= 6 && wallAt(n.x, n.y); ring += 1.5)
       for (let a = 0; a < 12; a++) {
         const t = (a / 12) * Math.PI * 2
         const px = n.x + Math.cos(t) * ring, py = n.y + Math.sin(t) * ring
@@ -4918,13 +4949,30 @@ async function main() {
         const d = Math.hypot(n.x - x, n.y - y)
         if (!near || d < near.d) near = { art: n.art, d, x: n.x, y: n.y }
       }
-    // `wet` and `inside` are how a settle that did not take shows up: both
-    // should be zero, and a cat standing on a lake is the visible form of a
-    // number that is not.
+    // How a settle that did not take shows up.
+    //
+    // `wet` was written as "should be zero" and it never should have been:
+    // eighteen of them are murlocs and a murloc lives in a lake.  What has to
+    // be zero is a creature in water whose *kind* does not live there — see
+    // `lives` below, which is derived from where each kind actually stands.
+    //
+    // `inside` is the same correction.  It counts anybody inside a building's
+    // footprint, which was a fault when buildings were closed boxes and is
+    // ordinary now that you can walk into one: a shopkeeper stands in a shop.
+    // The number that has to be zero is `walled` — somebody inside the *wall*
+    // itself, which is a 1.33-yard mask rounding a man into stone.
     return {
       total: npcs.length, unplaceable, settled, afloat, kinds, near,
       wet: npcs.filter((n) => wetAt(n.x, n.y)).length,
       inside: npcs.filter((n) => solidAt(n.x, n.y)).length,
+      /** Water dwellers, derived from where the kind stands — see above. */
+      lives: [...lives],
+      /** And the ones in water that are not: this has to be zero. */
+      adrift: npcs.filter((n) => wetAt(n.x, n.y) && !lives.has(n.art))
+        .map((n) => `${n.art} (${Math.round(n.x)}, ${Math.round(n.y)})`),
+      /** And anybody the wall mask closed on, which has to be zero. */
+      walled: npcs.filter((n) => wallAt(n.x, n.y))
+        .map((n) => `${n.art} (${Math.round(n.x)}, ${Math.round(n.y)})`),
     }
   }
 

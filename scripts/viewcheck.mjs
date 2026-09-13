@@ -1028,6 +1028,30 @@ check('no walkable ground belongs to another zone', edge.strayed.stray === 0,
 console.log(`      (${edge.elsewhere} spawns, ${edge.beyond} pieces of scenery `
   + 'left outside)')
 
+// 10h. Nobody stands where their kind cannot.
+//
+// The probe beside `__npcs` had set its own bar — *"`wet` and `inside` should
+// both be zero"* — and `wet` was 24.  Both halves of that sentence were
+// wrong, which is why it never got fixed: eighteen of the twenty-four are
+// murlocs, and a murloc lives in a lake.
+//
+// So the question is not who is in water, it is who is in water that should
+// not be, and the unit is the *kind*: the whole point of a murloc is that
+// murlocs live in water.  Our own spawn table says which — 162 murlocs and
+// most of them wet against 383 townsfolk and one.
+//
+// `creature_template_movement.Swim` was tried first and is not the answer.
+// Over this slice it says all 233 wolves swim and not one of the 162 murlocs
+// does: it means "may the server move this through water", which for a wolf
+// chasing you into a lake is yes.
+const who = await p.evaluate(() => window.__npcs())
+check('nobody is in water whose kind does not live there',
+  who.adrift.length === 0, who.adrift.join('; '))
+check('and nobody is standing inside a wall',
+  who.walled.length === 0, who.walled.join('; '))
+console.log(`      (${who.wet} in water, all of them ${who.lives.join(', ')}; `
+  + `${who.settled} nudged out)`)
+
 // 11. The ground costs what it costs.  A second tint fill over every tile,
 // instead of one baked into the cache, was 934 tiles at 47 frames a second on
 // this very view.

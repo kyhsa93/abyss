@@ -10,13 +10,58 @@
  * **cut the network** and load it again.  A manifest that parses proves
  * nothing about whether the game opens on a train.
  */
+import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
-const HOST = process.env.ABYSS_URL ?? 'http://localhost:4173/abyss/'
+/**
+ * Where to look, and it starts its own server if nobody says.
+ *
+ * The default used to be `http://localhost:4173/abyss/`, which is the address
+ * **only CI serves**: `vite.config.ts` sets the base to `/abyss/` when
+ * `GITHUB_ACTIONS` is on and to `/` otherwise, so a local preview answers
+ * `/abyss/` with the SPA fallback — `index.html` for the page, `index.html`
+ * for the manifest, and a JSON parser reporting `Unexpected token '<'`.  So
+ * the one check in this repository about whether the game opens on a train
+ * could not be run at the desk where the game is written, and a check that
+ * does not run is not a check.
+ *
+ * So it serves itself.  `ABYSS_URL` is gone from this one — it was the whole
+ * cause — and the base is read out of `dist/index.html` rather than guessed,
+ * because the build has already decided it and written it down.  This check
+ * needs a build and nothing else, which is why it can now live in
+ * `check:slow` beside the others: every one of them needs a server and this
+ * one brings its own.
+ */
+const base = (() => {
+  const page = 'dist/index.html'
+  if (!existsSync(page)) return '/'
+  const m = /(?:src|href)="(\/[^"]*?)assets\//.exec(readFileSync(page, 'utf8'))
+  return m ? m[1] : '/'
+})()
+
+if (!existsSync('dist/index.html')) {
+  console.log('FAIL  there is a build to check   -> run `npm run build` first')
+  process.exit(1)
+}
+const PORT = 4173
+const server = spawn('npx', ['vite', 'preview', '--port', String(PORT)],
+  { stdio: 'ignore' })
+const HOST = `http://localhost:${PORT}${base}`
+process.on('exit', () => server.kill())
 let bad = 0
 const check = (what, ok, detail = '') => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${what}${detail ? `   -> ${detail}` : ''}`)
   if (!ok) bad++
+}
+
+// And wait for it to answer.
+for (let i = 0; i < 60; i++) {
+  try {
+    const r = await fetch(HOST)
+    if (r.ok) break
+  } catch { /* not up yet */ }
+  await new Promise((r) => setTimeout(r, 500))
 }
 
 const browser = await chromium.launch()

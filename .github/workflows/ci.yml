@@ -70,13 +70,12 @@ jobs:
           done
           echo 'the preview server never came up' >&2
           exit 1
+      # Installable, and the second visit opens with the network cut, is in
+      # `check:slow` now — `pwacheck` serves its own preview, because the one
+      # check in this repository about whether the game opens on a train could
+      # not be run at the desk where the game is written.  Its default address
+      # was `/abyss/`, which only CI serves.
       - run: npm run check:slow
-        env:
-          ABYSS_URL: http://localhost:4173/abyss/
-      # Installable, and the second visit opens with the network cut.  The
-      # save lives in IndexedDB and the world is a handful of files, so there
-      # is nothing about this game that needs to be online twice.
-      - run: npm run pwacheck
         env:
           ABYSS_URL: http://localhost:4173/abyss/
 

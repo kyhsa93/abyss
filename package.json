@@ -30,7 +30,7 @@
     "uicheck": "node scripts/uicheck.mjs",
     "quests": "python3 pipeline/quests.py",
     "questcheck": "node scripts/questcheck.mjs",
-    "check:slow": "npm run viewcheck && npm run uicheck && npm run questcheck && npm run padcheck && npm run shotcheck && npm run budgetcheck",
+    "check:slow": "npm run viewcheck && npm run uicheck && npm run questcheck && npm run padcheck && npm run shotcheck && npm run budgetcheck && npm run pwacheck",
     "check:client": "npm run audit && npm run layout && npm run objects",
     "objects": "python3 pipeline/objects.py",
     "bake:terrain": "python3 pipeline/bake_terrain.py",

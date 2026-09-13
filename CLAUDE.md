@@ -512,13 +512,22 @@ world it was made in.
 `bordercheck`, `simcheck` and `docscheck` — and it is the one to run while
 editing. `npm run check:slow` is the six that want a built page:
 `viewcheck`, `uicheck`, `questcheck`, `padcheck` and `shotcheck` drive a
-browser, `budgetcheck` weighs `dist`; `ABYSS_URL` points them at whatever is
-serving, and `npm run dev` is what it points at here. `pwacheck` is separate
-because it cuts the network, which the others would not survive.
+browser, `budgetcheck` weighs `dist`, and `pwacheck` cuts the network;
+`ABYSS_URL` points them at whatever is serving, and `npm run dev` is what it
+points at here.
+
+**`pwacheck` serves its own preview**, and that is worth a sentence. Its
+default address used to be `http://localhost:4173/abyss/`, which is the base
+`vite.config.ts` sets **only when `GITHUB_ACTIONS` is on** — so a local
+preview answered `/abyss/` with the SPA fallback and the manifest arrived as
+`index.html`. The one check in this repository about whether the game opens on
+a train could not be run at the desk where the game is written, and a check
+that does not run is not a check. It reads the base out of `dist/index.html`
+now, starts its own server and stops it, and takes no address at all.
 `npm run check:client` is `audit`, `layout` and `objects`, which read the game
 client out of its own archives.
 
-CI runs the first two, plus `promptcheck` and `pwacheck`, and **cannot** run the
+CI runs the first two, plus `promptcheck`, and **cannot** run the
 third, which is a fact about those checks rather than a gap: the client is not
 in this repository and never will be. They are the gate on the pipeline, and the
 pipeline runs where the client is. Everything else runs on every push, against
