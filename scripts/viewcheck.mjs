@@ -259,12 +259,29 @@ const inside = await p.evaluate(() => {
     // along world x lands in the middle of a diagonal one.
     middle: at(0, 0).built,
     edge: at(big.c * (big.l - 0.6), big.s * (big.l - 0.6)).built,
+    // Across the whole building along its own axis: every blocked step has to
+    // be blocked by something else — water, a trunk, a cliff — and not by the
+    // plan.
+    free: (() => {
+      for (let d = -big.l - 8; d <= big.l + 8; d += 1) {
+        const q = at(big.c * d, big.s * d)
+        if (q.blocked && !q.wet && !q.solid && q.step <= q.cliff) return false
+      }
+      return true
+    })(),
   }
 })
 if (inside) {
   check('the middle of a building is not paved over', inside.middle === false,
     `${inside.size[0]}x${inside.size[1]} yards, middle drawn as ${inside.middle}`)
   check('and its wall is', inside.edge === true, `edge drawn as ${inside.edge}`)
+  // And nothing stops you at a wall you cannot see.  The collision used to be
+  // four axis-aligned strips while the wall was drawn as a turned rectangle,
+  // so at the abbey — turned 158 degrees — you were halted three yards short
+  // of stone you could see.  A plan is not solid at all now: the record gives
+  // an extent and an angle and says nothing about where the door is.
+  check('and nothing invisible stops you at it', inside.free === true,
+    'something blocks the wall line that is not drawn there')
 }
 
 // 10. A crossing crosses.  A bridge that cannot be walked over is worse than no

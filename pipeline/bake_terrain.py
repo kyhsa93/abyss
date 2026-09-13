@@ -55,6 +55,12 @@ WMO_KINDS = [
     # that — the same bargain `tree` and `pine` make.  The lion bridge is
     # thirty-three yards wide, so planking it laid a wooden plaza over the
     # river; it is a stone causeway and it is drawn as one.
+    # A city is not a building.  `STORMWIND.WMO` is one record a thousand
+    # yards across and the `house` fallback took it, so a cottage sprite stood
+    # for the capital and — once buildings were drawn at their real size — a
+    # ring of wall a thousand yards wide was laid across the map.  There is no
+    # picture here for a city, so it is left out and counted.
+    ('STORMWIND.WMO', None), ('IRONFORGE', None), ('ORGRIMMAR', None),
     ('LIONBRIDGE', 'bridge_stone'), ('BRIDGE', 'bridge'), ('DOCK', 'bridge'),
     ('GATE', None), ('WALL', None), ('SEWER', None),
 ]
@@ -74,7 +80,6 @@ WMO_DEFAULT_OK = [
     # smithy and a two-storey townhouse are all buildings this repository draws
     # as a building.
     'STABLE', 'BARRACKS', 'TWOSTORY', 'BLACKSMITH', 'KENNEL', 'HANGAR',
-    'STORMWIND.WMO',        # the city itself, drawn as one of its own houses
 ]
 GROUND_DEFAULT_OK = [
     # Ground the `grass` fallback is honest about.  Six of Elwynn's own, plus

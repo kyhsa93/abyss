@@ -689,16 +689,16 @@ async function main() {
     })
     if (k.solid === 'building') {
       if (asPlan(d)) {
-        // Its walls, and not its whole extent.  A solid 91-yard abbey is a
-        // hole in the valley you cannot walk into, and you walk into the
-        // abbey.  Four strips, one a side.
-        const L = d.bl!, W = d.bw!, t = 1.5
-        for (const r of [
-          { x0: d.x - L, x1: d.x + L, y0: d.y - W, y1: d.y - W + t },
-          { x0: d.x - L, x1: d.x + L, y0: d.y + W - t, y1: d.y + W },
-          { x0: d.x - L, x1: d.x - L + t, y0: d.y - W, y1: d.y + W },
-          { x0: d.x + L - t, x1: d.x + L, y0: d.y - W, y1: d.y + W },
-        ]) solids.push(r)
+        // Nothing.  A building drawn as its plan is **not solid**, and that is
+        // deliberate: the record gives an extent and an angle and says nothing
+        // about where the door is, so a wall we cannot put a door in is a wall
+        // that seals people out of the abbey — or in.
+        //
+        // It was four axis-aligned strips for a day, and the abbey is turned
+        // 158 degrees, so the strips did not sit under the stone that was
+        // drawn: you were stopped three yards short of a wall you could see,
+        // which is the definition of an invisible one.  Better nothing than
+        // nearly.
       } else {
         const halfY = (piece.w * size) / PPY / 2
         const deep = ((piece.h * size) / PPY) * 0.32
@@ -1141,8 +1141,17 @@ async function main() {
         c: Math.cos(a), s: Math.sin(a), k: d.k,
       }
     })
-  /** Inside a building's plan, and whether this is its wall. */
-  const inBuilding = (wx: number, wy: number) => {
+  /**
+   * Inside a building's plan, and whether this is its wall.
+   *
+   * `thick` is how wide the wall is *for this sample*, and it is the ground's
+   * own step rather than a fixed yard and a half.  The ground draws a coarser
+   * tile the further out you are — up to five yards — and a wall thinner than
+   * the tile that samples it comes out as a dotted line of black squares
+   * instead of a wall, which is what the abbey looked like from far enough
+   * away to see all of it.
+   */
+  const inBuilding = (wx: number, wy: number, thick = 1.5) => {
     for (const b of buildings) {
       const dx = wx - b.x, dy = wy - b.y
       const al = Math.abs(dx * b.c + dy * b.s), ac = Math.abs(-dx * b.s + dy * b.c)
@@ -1154,7 +1163,7 @@ async function main() {
       // gate, the graveyard and the cobbles — which is what "there are no
       // roads in Northshire" was.  A record's box is the *extent* of a thing,
       // not a statement that the ground inside it is floor.
-      const wall = al > b.l - 1.5 || ac > b.w - 1.5
+      const wall = al > b.l - thick || ac > b.w - thick
       return wall ? { b, wall } : null
     }
     return null
@@ -2471,7 +2480,7 @@ async function main() {
         // for the wall.  In the ground pass because from above a building is
         // mostly a floor with a line around it, and because a plan ninety
         // yards across is not a thing that can be a sprite.
-        const built = span ? null : inBuilding(wx, wy)
+        const built = span ? null : inBuilding(wx, wy, Math.max(1.5, T))
         const id = built ? WALL_TILE
           : span ? span.tile
           : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
