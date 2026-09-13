@@ -619,13 +619,88 @@ def equipment(base, entries, items_of):
     return out, left
 
 
-def loot_tables(base, kinds_by_entry):
+#: How far a loot table may point at another one before this gives up.
+#
+#: Measured rather than chosen: the deepest chain this slice can reach is two,
+#: so three cuts nothing here and the report below says so out loud if a wider
+#: slice ever reaches further.  A limit is needed whatever the number, because
+#: the table can point at itself — the shape the wiki warned about.
+REF_DEPTH = 3
+
+
+def loot_rows(base, name):
+    """One loot table file as `{entry: [(item, reference, chance, group, lo, hi)]}`.
+
+    `Chance` comes out negative for grouped drops and the sign is the group's
+    business, not ours.  A chance of **nought inside a group** is not "never":
+    it is the table's way of saying every row of that group is equally likely,
+    which is why the zero has to survive this far rather than being dropped
+    here.
+    """
+    path = os.path.join(base, name)
+    col = columns(path)
+    out = {}
+    for line in rows(path):
+        f = split(line)
+        try:
+            out.setdefault(int(f[col['Entry']]), []).append(
+                (int(f[col['Item']]), int(f[col['Reference']]),
+                 abs(float(f[col['Chance']])), int(f[col['GroupId']]),
+                 int(f[col['MinCount']]), int(f[col['MaxCount']])))
+        except (ValueError, IndexError, KeyError):
+            continue
+    return out
+
+
+def flatten(table, refs, cut, seen=(), depth=0):
+    """A loot table with its references resolved, as `[(item, chance, lo, hi)]`.
+
+    `Reference` is one of ten columns of a loot row and **nothing in this
+    repository read it**: 153 of the 691 loot rows this slice can reach point
+    at another table rather than at an item, over 50 distinct reference tables,
+    and every one of them was being thrown away where the item lookup failed.
+    It did not look like a bug — a creature that drops less than it should
+    looks like a stingy creature.
+
+    Three rules the table states about itself and this honours:
+
+      * a reference can point at a reference, and does — 25 of the slice's 50
+        are one deep and 7 are two.  So this recurses, with `REF_DEPTH` and a
+        cycle guard, and **anything it refuses is counted rather than
+        dropped**, which is the half of this the wiki asked for by name.
+      * a chance of nought inside a group means the group is equally likely,
+        so it becomes one over the size of the group rather than never.
+      * entering a reference is itself a roll, so what comes out of it is
+        scaled by the chance of the row that pointed there.  A 30% reference
+        holding a 16% item is not a 16% item.
+    """
+    out = []
+    # The size of each group, for the rows that state no chance of their own.
+    sizes = Counter(g for _i, _r, _c, g, _lo, _hi in table if g)
+    for item, ref, chance, group, lo, hi in table:
+        if not chance and group:
+            chance = 100.0 / max(1, sizes[group])
+        if chance <= 0:
+            continue
+        if not ref:
+            out.append((item, chance, lo, hi))
+            continue
+        if depth >= REF_DEPTH or ref in seen or ref not in refs:
+            cut['too deep' if depth >= REF_DEPTH
+                else 'points at itself' if ref in seen
+                else 'no such reference table'] += 1
+            continue
+        for i, c, a, b in flatten(refs[ref], refs, cut, seen + (ref,), depth + 1):
+            out.append((i, c * chance / 100.0, a, b))
+    return out
+
+
+def loot_tables(base, kinds_by_entry, cut=None):
     """What each creature carries: coins, and things by what sort they are.
 
     `creature_loot_template` keyed through `creature_template.lootid`, which is
-    the same path the quest objectives already take through this file.  Chances
-    come out negative for grouped drops — the sign is the group's business and
-    not ours, so it is dropped.
+    the same path the quest objectives already take through this file, with
+    `reference_loot_template` resolved into it by `flatten`.
     """
     gated = loot_conditions(base)
     iclass, sells = {}, {}
@@ -637,38 +712,43 @@ def loot_tables(base, kinds_by_entry):
         except (ValueError, IndexError):
             continue
 
+    cut = Counter() if cut is None else cut
+    refs = loot_rows(base, 'reference_loot_template.sql')
     by_loot = {}
-    lc = columns(os.path.join(base, 'creature_loot_template.sql'))
-    for line in rows(os.path.join(base, 'creature_loot_template.sql')):
-        f = split(line)
-        try:
-            lid, item = int(f[lc['Entry']]), int(f[lc['Item']])
-            chance = abs(float(f[lc['Chance']]))
-            lo, hi = int(f[lc['MinCount']]), int(f[lc['MaxCount']])
-        except (ValueError, IndexError, KeyError):
-            continue
-        if item not in iclass or chance <= 0:
-            continue
-        # The price is this item's, carried with the drop.  Taken as a median
-        # over everything the word covers it came out at 1.7 gold for a
-        # "weapon" — which is a real price, of a real sword, dropped by
-        # something on the far side of the zone at level seventy.  A level 5
-        # bandit's weapon is worth what *his* weapon is worth.
-        # The id travels with the drop as well as our word for it.  Without
-        # it a sword arrives in the bag as the noun "weapon" and can never be
-        # held — which is why there was no equipment: an item lost its
-        # identity on the way in.
-        # What has to be true for it to fall.  A quest item that falls without
-        # the quest is the wiki's own first example of what goes missing with
-        # this table, and it looks like generosity rather than like a bug.
-        need = 0
-        for either in gated.get((lid, item), ()):
-            for kind, v1, _v2, negate in either:
-                if kind == COND_QUEST_TAKEN and not negate:
-                    need = v1
-        by_loot.setdefault(lid, []).append(
-            (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
-             max(0, sells.get(item, 0)), item, need))
+    for lid, table in loot_rows(base, 'creature_loot_template.sql').items():
+        for item, chance, lo, hi in flatten(table, refs, cut):
+            if item not in iclass:
+                cut['no such item'] += 1
+                continue
+            # The price is this item's, carried with the drop.  Taken as a
+            # median over everything the word covers it came out at 1.7 gold
+            # for a "weapon" — which is a real price, of a real sword, dropped
+            # by something on the far side of the zone at level seventy.  A
+            # level 5 bandit's weapon is worth what *his* weapon is worth.
+            # The id travels with the drop as well as our word for it.
+            # Without it a sword arrives in the bag as the noun "weapon" and
+            # can never be held — which is why there was no equipment: an item
+            # lost its identity on the way in.
+            # What has to be true for it to fall.  A quest item that falls
+            # without the quest is the wiki's own first example of what goes
+            # missing with this table, and it looks like generosity rather
+            # than like a bug.  The condition is keyed on the table the row
+            # was *written* in, so a referenced row carries the reference's
+            # conditions and not the creature's — which is right: the
+            # reference is where somebody wrote the rule down.
+            need = 0
+            for either in gated.get((lid, item), ()):
+                for kind, v1, _v2, negate in either:
+                    if kind == COND_QUEST_TAKEN and not negate:
+                        need = v1
+            by_loot.setdefault(lid, []).append(
+                (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
+                 max(0, sells.get(item, 0)), item, need))
+    # Best first, so the eight this ships per creature are the eight worth
+    # shipping.  Before references were resolved the order was the table's and
+    # eight was never a squeeze; a resolved table can be forty rows long.
+    for lid in by_loot:
+        by_loot[lid].sort(key=lambda r: -r[1])
     return by_loot
 
 
@@ -1156,7 +1236,8 @@ def main(acore, out):
         topic_at[e] = len(topic_list)
         topic_list.append(t)
 
-    carried = loot_tables(base, None)
+    lost = Counter()
+    carried = loot_tables(base, None, lost)
     goods, hauls, haul_at = [], [], {}
     kinds, roles, out_rows, arms = [], [], [], []
     fights, fight_at = [], {}
@@ -1311,6 +1392,25 @@ def main(acore, out):
           + ', '.join(f'{k} {v}' for k, v in what.most_common()))
     print(f'  fights: {len(fights)} distinct; {enemies:,} start one, '
           f'{quarry:,} only finish one')
+    # What the references could not reach, said out loud.  The wiki asked for
+    # this by name — "a report of what is left over", not a silent cut — and
+    # it is the only thing standing between "this creature drops little" and
+    # "this creature's drops were thrown away".
+    if lost:
+        print('  loot references not followed: '
+              + ', '.join(f'{k} {v}' for k, v in lost.most_common()))
+    # And the check the wiki asked for: a creature the database gives a loot
+    # table to has to drop something.  A table whose every row was a reference
+    # used to come out empty, and an empty pocket reads as a stingy creature
+    # rather than as a column nobody read.
+    barren = Counter()
+    for r in out_rows:
+        if info[r[9]][9] and not hauls[r[8]][2]:
+            barren[kinds[r[2]]] += 1
+    if barren:
+        print('  ! carry a loot table and drop nothing: '
+              + ', '.join(f'{k} {v}' for k, v in barren.most_common()))
+        sys.exit(1)
     carry = sum(1 for r in out_rows if hauls[r[8]][2])
     print(f'  loot: {len(hauls)} distinct, {carry:,} spawns carry something')
     sold = [i[4] for h in hauls for i in h[2] if i[4]]

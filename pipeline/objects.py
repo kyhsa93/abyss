@@ -41,7 +41,8 @@ import sys
 from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from spawn_npcs import columns, rows, split, split_head, goods_of  # noqa: E402
+from spawn_npcs import (columns, rows, split, split_head, goods_of,  # noqa: E402
+                         loot_rows, flatten)
 from slice import BOUNDS, MAP  # noqa: E402
 import bake_terrain as terrain  # noqa: E402
 
@@ -151,11 +152,13 @@ def lock_table(client):
     return out
 
 
-def loot_tables(base, table):
+def loot_tables(base, table, cut):
     """What comes out of one of these, by what sort of thing it is.
 
-    The same path `creature_loot_template` takes in `spawn_npcs.py` and the
-    same words at the end of it: an item's class and subclass, not its name.
+    The same path `creature_loot_template` takes in `spawn_npcs.py`, the same
+    words at the end of it — an item's class and subclass, not its name — and
+    the same `flatten`, because `Reference` is a column of *every* loot table
+    and a chest that points at one is as silent as a creature that does.
     """
     iclass, sells = {}, {}
     for line in rows(os.path.join(base, 'item_template.sql')):
@@ -165,22 +168,18 @@ def loot_tables(base, table):
             sells[int(f[0])] = int(f[11])
         except (ValueError, IndexError):
             continue
+    refs = loot_rows(base, 'reference_loot_template.sql')
     by_loot = {}
-    path = os.path.join(base, table)
-    lc = columns(path)
-    for line in rows(path):
-        f = split(line)
-        try:
-            lid, item = int(f[lc['Entry']]), int(f[lc['Item']])
-            chance = abs(float(f[lc['Chance']]))
-            lo, hi = int(f[lc['MinCount']]), int(f[lc['MaxCount']])
-        except (ValueError, IndexError, KeyError):
-            continue
-        if item not in iclass or chance <= 0:
-            continue
-        by_loot.setdefault(lid, []).append(
-            (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
-             max(0, sells.get(item, 0)), item))
+    for lid, spec in loot_rows(base, table).items():
+        for item, chance, lo, hi in flatten(spec, refs, cut):
+            if item not in iclass:
+                cut['no such item'] += 1
+                continue
+            by_loot.setdefault(lid, []).append(
+                (goods_of(*iclass[item]), min(100.0, chance), lo, hi,
+                 max(0, sells.get(item, 0)), item))
+    for lid in by_loot:
+        by_loot[lid].sort(key=lambda r: -r[1])
     return by_loot
 
 
@@ -214,7 +213,8 @@ def main(acore, client_root, out):
     client = terrain.Client(client_root)
     locks = lock_table(client)
     models = display_models(client)
-    carried = loot_tables(base, 'gameobject_loot_template.sql')
+    lost = Counter()
+    carried = loot_tables(base, 'gameobject_loot_template.sql', lost)
 
     tpath = os.path.join(base, 'gameobject_template.sql')
     tc = columns(tpath)
@@ -330,6 +330,9 @@ def main(acore, client_root, out):
     print(f'  {len(hauls)} distinct loot tables, {len(pools)} slots sharing '
           f'{sum(1 for r in out_rows if r[9]):,} of them, '
           f'{sum(pools.values())} standing at a time')
+    if lost:
+        print('  loot references not followed: '
+              + ', '.join(f'{k} {v}' for k, v in lost.most_common()))
     # What was left out, said out loud rather than only counted.
     #
     # The gate below has been here since this script was written and it is
