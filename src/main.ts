@@ -4333,7 +4333,19 @@ async function main() {
    * inside the render loop — and neither of them changes while somebody is
    * standing still talking to you, which is the only time they are used.
    */
-  let panelH = 0, hudH = 0
+  let hudH = 0
+  /**
+   * And how far across the panel reaches, which on a phone is what matters.
+   *
+   * The panel used to sit along the bottom of the glass, so the camera lifted
+   * the pair of you *up* out from behind it.  It sits down the left now — the
+   * corner `GossipFrame` takes, and the one a thumb does not — so what it
+   * hides is a strip of the left of the screen and the camera pushes the pair
+   * of you *right* instead.  The axis is the whole difference, and getting it
+   * wrong slides the person you are talking to behind the panel you opened to
+   * talk to them.
+   */
+  let panelR = 0
 
   /**
    * Open one option, and do it if it does anything.
@@ -4413,7 +4425,7 @@ async function main() {
     } else {
       add('foot', pad.on ? '바깥을 눌러 나가기' : 'E나 Esc로 나가기')
     }
-    panelH = talkEl.offsetHeight
+    panelR = talkEl.getBoundingClientRect().right
     hudH = hud.offsetHeight
   }
 
@@ -5097,6 +5109,8 @@ async function main() {
   let camX = hero.x, camY = hero.y
   /** How far above the hero the camera sits, in yards.  See the frame loop. */
   let lift = 0
+  /** And the same, across — see `panelR`. */
+  let slide_ = 0
   /**
    * World to screen, in quarter view.
    *
@@ -5792,19 +5806,26 @@ async function main() {
     // enough to centre the pair of you in the gap the panel leaves, and slides
     // back when it closes.  The lift is in yards because the camera is: at a
     // fixed pixel offset, zooming out would walk the pair back down the glass.
-    // The band of screen left over: under the readout, over the panel.  The
-    // first version centred the pair in everything above the panel and put
+    // The band of screen left over: under the readout, and right of the panel.
+    // The first version centred the pair in everything above the panel and put
     // them behind the readout instead, which is the same bug one corner along.
     const top = chat && pad.on ? hudH + 16 : 0
-    const bottom = chat && pad.on ? canvas.height - panelH - 32 : canvas.height
-    const wantY = (top + Math.max(top, bottom)) / 2
+    const wantY = (top + canvas.height) / 2
     // Up the glass is world x and only world x, so the lift is along it alone.
     // In quarter view it had to move along both axes together or the pair of
     // you slid sideways as the panel opened.
     const lifted = (canvas.height / 2 - wantY) / k()
     lift += (lifted - lift) * Math.min(1, dt * 6)
     camX += ((hero.ix - lift) - camX) * Math.min(1, dt * 8)
-    camY += (hero.iy - camY) * Math.min(1, dt * 8)
+    // And across, which is the axis the panel now takes.  Screen-right is
+    // *down* world y — see `screenX` — so pushing the pair of you right of the
+    // panel means walking the camera's y up.
+    const wantX = chat && pad.on
+      ? (Math.min(panelR + 24, canvas.width) + canvas.width) / 2
+      : canvas.width / 2
+    const shove = (wantX - canvas.width / 2) / k()
+    slide_ += (shove - slide_) * Math.min(1, dt * 6)
+    camY += ((hero.iy + slide_) - camY) * Math.min(1, dt * 8)
 
     // Walking away ends it, which is how it ends anywhere.  The threshold is
     // wider than the one that starts it so that shuffling on the spot does not

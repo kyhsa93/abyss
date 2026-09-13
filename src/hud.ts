@@ -792,6 +792,7 @@ export function hud(layout?: Layout) {
    * backpack used to open on top of the attack button.
    */
   const placePhone = () => {
+    spell()
     const w = window.innerWidth, h = window.innerHeight
     const l = layoutFor(w, h)
     // The two numbers that say where the interface has to stop: the top of
@@ -884,10 +885,43 @@ export function hud(layout?: Layout) {
     const numbers = document.getElementById('hud')
     if (numbers) put(numbers, { left: 8, top: below, width: w - 16 })
 
-    // And the ones the stylesheet already centres are left centred.
+    // Talking, and buying, where the original puts them: **down the left**.
+    //
+    // The stylesheet centred them at the bottom of the glass, which is the one
+    // part of a phone that is not the interface's to take — measured on an
+    // iPhone 13 the panel's top edge was 494 and the stick's was 528, so it
+    // covered the stick, all five ability buttons and the autocast toggle.
+    // During a conversation you could neither walk nor swing.
+    //
+    // The original's `GossipFrame` is 384 by 512 against the **left** edge at
+    // `TOPLEFT 0, -104`, and that shape is the right one here for the reason
+    // it is the right one there: it leaves the bottom corners free, and on a
+    // phone the bottom corners are two thumbs.
+    //
+    // **The width breaks the ratio and that is stated.**  384 of 1024 is 37.5%
+    // of the glass, which on a 390-wide phone is 146 pixels — two Korean words
+    // to a line with a 26-pixel indent under each one.  So it takes half the
+    // width standing up, and the rule the interface spec asks for is this
+    // sentence: the proportion is the original's everywhere it can be read,
+    // and where it cannot it is named.
+    const panelW = tall ? Math.min(300, Math.round(w * 0.62))
+      : Math.min(360, Math.round(w * 0.4))
+    const panelH = Math.max(80, floor - below - 10)
     for (const node of [sheet, document.getElementById('talk')]) {
-      if (node) loose(node)
+      if (!node) continue
+      // Tall enough for what is in it and no taller, stopped at the thumbs.
+      // A fixed height here is a panel with a hand's width of nothing under
+      // two lines of speech.
+      put(node, { left: 8, top: below, width: panelW })
+      node.style.maxHeight = `${panelH}px`
+      node.style.overflowY = 'auto'
     }
+    // The shop is the exception and the original is why: a merchant window has
+    // ten places in it whether they are full or not, which is what makes its
+    // page buttons sit still instead of walking up the glass as the stock
+    // changes.
+    put(shopBox, { left: 8, top: below, width: panelW, height: panelH })
+    shopBox.style.maxHeight = ''
   }
 
   /**
@@ -985,9 +1019,19 @@ export function hud(layout?: Layout) {
       const v = rgb(sp.colour[k])
       if (v) root.setProperty(name, v)
     }
-    // The type scale, smallest four of the thirteen: this interface is a
-    // readout and a label, not a book.
-    const f = (sp.font ?? []).filter((v) => v >= 10 && v <= 14)
+    // The type scale, four steps of the client's own thirteen: this interface
+    // is a readout and a label, not a book.
+    //
+    // **A phone takes the next four up, and that is the whole of the phone
+    // type rule.**  Scaled by width the original's body text — 12 on a 1024
+    // screen — comes to 4.6 pixels on a 390-wide phone, which nobody can read;
+    // scaled by nothing it was 15, which read back as 39 on the original's own
+    // screen, over three times its body text.  Neither is a rule.  The ladder
+    // is the client's and a phone stands one rung up it, which keeps every
+    // size a number the client states and puts the floor at 11 — clear of the
+    // 9 the wiki measured Hangul falling back to a substitute face below.
+    const phone = document.body.classList.contains('touch')
+    const f = (sp.font ?? []).filter((v) => v >= (phone ? 11 : 10) && v <= 15)
     ;['--font-tiny', '--font-small', '--font-med', '--font-large']
       .forEach((n, i) => { if (f[i]) root.setProperty(n, `${f[i]}px`) })
     // **Not the border.**  `edgeSize` is 12 or 16 and it is the width of a
@@ -1030,6 +1074,8 @@ export function hud(layout?: Layout) {
     // was there and the key hints were printed straight through it.
     logBox.style.height = `${Math.round((f['log']?.h ?? 120) * s)}px`
     pin(bagPanel, f['bag'], s)
+    sheet.style.removeProperty('max-height')
+    document.getElementById('talk')?.style.removeProperty('max-height')
     pin(sheet, f['sheet'], s)
     pin(shopBox, f['shop'] ?? f['sheet'], s)
     // And the shop keeps the height the original gives it, the same as the

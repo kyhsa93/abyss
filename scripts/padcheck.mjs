@@ -179,16 +179,22 @@ check('the stick is inert while talking',
   JSON.stringify([talking, await hero()]))
 await touch('touchEnd', [])
 
-// The one you are talking to is above the panel, not behind it.
+// The one you are talking to is beside the panel, not behind it.
+//
+// **Beside and no longer above**, which is the axis changing with the panel:
+// it used to lie along the bottom of the glass and the camera lifted the pair
+// of you up out from behind it.  It stands down the left now — the corner
+// `GossipFrame` takes and the one a thumb does not — so what it hides is a
+// strip of the left, and the camera pushes the pair of you right.
 await p.waitForTimeout(700)
 const seen = await p.evaluate(() => {
   const r = document.getElementById('talk').getBoundingClientRect()
-  return { top: r.top, hero: window.__heroScreen() }
+  return { right: r.right, top: r.top, hero: window.__heroScreen() }
 })
 const hudBottom = await p.evaluate(() =>
   document.getElementById('hud').getBoundingClientRect().bottom)
-check('the speaker is lifted clear of the panel',
-  seen.hero.y < seen.top - 20, JSON.stringify(seen))
+check('the speaker is pushed clear of the panel',
+  seen.hero.x > seen.right + 10, JSON.stringify(seen))
 check('and clear of the readout', seen.hero.y > hudBottom, JSON.stringify([seen.hero.y, hudBottom]))
 
 // And nothing else that takes a press is on top of it.  The pad hands the
@@ -355,7 +361,15 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       // The chrome that is always there.  A panel you opened is allowed to
       // cover things — that is what opening it is — so the modals are not in
       // this, and they are hidden anyway while nobody has asked for them.
-      .filter((b) => !['ui', 'world', 'sheet', 'bag', 'tip', 'talk', 'hud']
+      //
+      // **`talk` and `shop` are not modals here and used to be excused as
+      // ones.**  A conversation is something you have while standing in the
+      // world, and on a phone the panel sat at the bottom of the glass with
+      // its top edge at 494 against the stick's 528 — over the stick, all five
+      // ability buttons and the autocast toggle.  You could neither walk nor
+      // swing while somebody was talking to you, and this check said nothing
+      // because the one panel that had to be in it was the one taken out.
+      .filter((b) => !['ui', 'world', 'sheet', 'bag', 'tip', 'hud']
         .includes(b.id)))
 
   // A box and a disc.  The stick's ring at rest and each button, at the
@@ -392,6 +406,37 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
     off.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
       `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))
   await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
+}
+
+// 12b. And the type is the client's own ladder, one rung up.
+//
+// The phone was 15px, which read back as 39 on the original's own 1024-wide
+// screen — over three times its body text.  Scaled the other way, by width,
+// the original's 12 comes to 4.6 pixels on a 390-wide phone, which nobody can
+// read.  Neither is a rule.  The ladder is the client's (`spec.font`) and a
+// phone stands one rung up it, which keeps every size a number the client
+// states and puts the floor at 11 — clear of the 9 the wiki measured Hangul
+// falling back to a substitute face below.
+await p.setViewportSize({ width: 390, height: 844 })
+await p.touchscreen.tap(200, 300)
+await p.waitForTimeout(300)
+{
+  const type = await p.evaluate(async () => {
+    const r = await fetch('./world/layout.json')
+    const spec = r.ok ? (await r.json()).spec : null
+    const cs = getComputedStyle(document.documentElement)
+    const px = (n) => parseFloat(cs.getPropertyValue(n))
+    return { ladder: spec?.font ?? [],
+      sizes: ['--font-tiny', '--font-small', '--font-med', '--font-large'].map(px),
+      talk: parseFloat(getComputedStyle(document.getElementById('talk')).fontSize) }
+  })
+  const onLadder = type.sizes.every((v) => type.ladder.includes(v))
+  check('the phone type is the client\'s own ladder', onLadder,
+    `${type.sizes.join(', ')} out of ${type.ladder.join(' ')}`)
+  check('and its floor is above where Hangul falls back',
+    Math.min(...type.sizes) >= 11,
+    `smallest ${Math.min(...type.sizes)}px, and the wiki measured the fallback `
+    + 'starting below 9')
 }
 
 // 13. A keyboard puts it all away again.

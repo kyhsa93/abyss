@@ -595,9 +595,13 @@
       body.touch.talking #micro { display: none; }
       /* Nearly opaque: at .92 the panel covers half a phone and the world
          ghosts through all of it. */
-      body.touch #talk { bottom: 16px; font-size: 15px; background: rgba(10,12,18,.975); }
+      /* The size comes from the ladder now — see `spell` — and the place from
+         `placePhone`, which puts it down the left the way `GossipFrame` is.
+         What is left here is the one thing the client does not say: how opaque
+         a panel with a game behind it should be. */
+      body.touch #talk { font-size: var(--font-med); background: rgba(10,12,18,.975); }
       body.touch #talk li { padding: 11px 0; }
-      body.touch #talk li b { font-size: var(--font-large); }
+      body.touch #talk li b { font-size: var(--font-med); }
       body.touch #talk .lines { padding: 0 0 10px 26px; }
     </style>
     <!-- Installable, because closing the tab is how a session ends here: the
