@@ -52,6 +52,8 @@ type Doodad = {
    * the long side in degrees.  Only the ones a bridge is drawn from carry it.
    */
   bl?: number; bw?: number; ba?: number
+  /** `[centre x, centre y, half along, half across, bearing]` per room. */
+  rooms?: [number, number, number, number, number][]
   /** Set when the bearing is a coin toss — see the crossings below. */
   bq?: number
 }
@@ -1136,11 +1138,42 @@ async function main() {
     .filter((d) => BUILT.has(d.k) && !!d.bl && !!d.bw)
     .map((d) => {
       const a = ((d.ba ?? 0) * Math.PI) / 180
+      // The rooms the model is made of, placed where the model says.  A
+      // placement record gives one box for a whole building, and for the abbey
+      // that box is 91 yards square — the grounds, not the abbey.  `MOGI`
+      // gives every group its own, fourteen for the abbey, and the union of
+      // those is a cross where the single box is a square.  Anything with no
+      // groups falls back to its box, which is what a one-group gate is
+      // anyway.
+      const rooms = (d.rooms ?? []).map(([x, y, l, w, deg]) => {
+        const t = (deg * Math.PI) / 180
+        return { x, y, l, w, c: Math.cos(t), s: Math.sin(t) }
+      })
       return {
         x: d.x, y: d.y, l: d.bl!, w: d.bw!,
         c: Math.cos(a), s: Math.sin(a), k: d.k,
+        rooms: rooms.length ? rooms : [{
+          x: d.x, y: d.y, l: d.bl!, w: d.bw!,
+          c: Math.cos(a), s: Math.sin(a),
+        }],
       }
     })
+  /** Inside any one of a building's rooms, and which building. */
+  const inRoom = (wx: number, wy: number) => {
+    for (const b of buildings) {
+      // The whole box first, so a point outside costs one test and not
+      // fourteen.
+      const dx = wx - b.x, dy = wy - b.y
+      if (Math.abs(dx * b.c + dy * b.s) > b.l + 2) continue
+      if (Math.abs(-dx * b.s + dy * b.c) > b.w + 2) continue
+      for (const r of b.rooms) {
+        const ex = wx - r.x, ey = wy - r.y
+        if (Math.abs(ex * r.c + ey * r.s) <= r.l
+          && Math.abs(-ex * r.s + ey * r.c) <= r.w) return b
+      }
+    }
+    return null
+  }
   /**
    * Inside a building's plan, and whether this is its wall.
    *
@@ -1152,21 +1185,19 @@ async function main() {
    * away to see all of it.
    */
   const inBuilding = (wx: number, wy: number, thick = 1.5) => {
-    for (const b of buildings) {
-      const dx = wx - b.x, dy = wy - b.y
-      const al = Math.abs(dx * b.c + dy * b.s), ac = Math.abs(-dx * b.s + dy * b.c)
-      if (al > b.l || ac > b.w) continue
-      // A wall a yard and a half thick, and **only** the wall.  Filling the
-      // box was a mistake that buried the middle of Northshire: the abbey's
-      // box is 91 yards square and the two gates are 160 long, so painting
-      // them as stone put a grey slab over the courtyard, the road through the
-      // gate, the graveyard and the cobbles — which is what "there are no
-      // roads in Northshire" was.  A record's box is the *extent* of a thing,
-      // not a statement that the ground inside it is floor.
-      const wall = al > b.l - thick || ac > b.w - thick
-      return wall ? { b, wall } : null
-    }
-    return null
+    const here = inRoom(wx, wy)
+    if (!here) return null
+    // The outline of the **union** of the rooms: inside one, with open ground
+    // a wall's width away.  Testing each room's own edge draws the partitions
+    // between them too, and a building seen from above is its outside.
+    //
+    // Filling the whole thing was the mistake before this one — it buried the
+    // middle of Northshire under a grey slab, courtyard, road and graveyard
+    // together.  A record's box is the extent of a thing, not a statement that
+    // the ground inside it is floor.
+    const open = !inRoom(wx + thick, wy) || !inRoom(wx - thick, wy)
+      || !inRoom(wx, wy + thick) || !inRoom(wx, wy - thick)
+    return open ? { b: here, wall: true } : null
   }
   /** Planks underfoot: inside a crossing's own rectangle, turned as it is. */
   const onSpan = (wx: number, wy: number) => {

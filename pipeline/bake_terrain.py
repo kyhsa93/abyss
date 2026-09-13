@@ -88,6 +88,108 @@ GROUND_DEFAULT_OK = [
 ]
 
 
+# A WMO's own rooms, cached: one read per model rather than one per placement.
+_ROOMS = {}
+
+
+def wmo_rooms(client, path):
+    """The boxes a building is actually made of, in its own model space.
+
+    A placement record gives one box for a whole building, and for Northshire's
+    abbey that box is 91 yards square — the grounds, not the abbey.  The model
+    says more: `MOHD` counts its groups and `MOGI` gives each one's own box,
+    which for the abbey is fourteen of them, the nave and the tower and the
+    wings.  Drawn from those it is a building; drawn from the one box it is a
+    field with a wall round it.
+
+    **The model's own space has z up**, which is the thing that took two
+    attempts.  A WMO is (x, y, z) with z the height and the ADT is (x, y, z)
+    with *y* the height, so the horizontal pair is the model's first two and
+    not its first and third.  Read the other way the union of the groups came
+    out seventy yards from the box the same file states for the whole model,
+    and no rotation could close that.
+
+    Returns `(whole model box, [group boxes])`, each `(lo, hi)` in model space.
+    """
+    if path in _ROOMS:
+        return _ROOMS[path]
+    data, _src = client.read(path)
+    whole, rooms = None, []
+    if data:
+        i = 0
+        while i < len(data) - 8:
+            m = data[i:i + 4][::-1].decode('ascii', 'replace')
+            size, = struct.unpack_from('<I', data, i + 4)
+            o = i + 8
+            if m == 'MOHD':
+                v = struct.unpack_from('<9I6f', data, o)
+                whole = (v[9:12], v[12:15])
+            elif m == 'MOGI':
+                for k in range(size // 32):
+                    g = struct.unpack_from('<I6fi', data, o + k * 32)
+                    rooms.append((g[0], g[1:4], g[4:7]))
+            i = o + size
+    _ROOMS[path] = (whole, rooms)
+    return _ROOMS[path]
+
+
+def to_world(pos, ry, lx, ly):
+    """One point of a WMO's model space, as a point on the map.
+
+    Turned by `ry + 270` degrees, which is the offset every renderer of these
+    files uses and which was found here by solving it: over the 58 placements
+    in the tiles around Northshire the corners of each model's own box land on
+    the corners the placement record states, to a median of nought yards.
+    """
+    t = math.radians(ry + 270)
+    ca, sa = math.cos(t), math.sin(t)
+    px = pos[0] + lx * ca - ly * sa
+    pz = pos[2] - (lx * sa + ly * ca)
+    return ORIGIN - pz, ORIGIN - px
+
+
+# How far each placement's own model box lands from the box the placement
+# states, once turned.  This is the measurement the transform was solved by,
+# so it is the one that guards it.
+_PLACED = []
+
+
+def rooms_of(client, path, pos, ry, box=None):
+    """A building's rooms, as rectangles on the map.
+
+    One per `MOGI` group, turned the way the placement turns the model.  They
+    overlap — a WMO's outdoor shells sit over its indoor rooms — and that is
+    wanted: the union of them is the building's plan, and the plan is a cross
+    or an L where the placement record's single box is a square.
+    """
+    whole, rooms = wmo_rooms(client, path)
+    if whole and box:
+        # The model's own box, turned, against the box the ADT states for it.
+        xs, ys = [], []
+        for a in (0, 1):
+            for b in (0, 1):
+                wx, wy = to_world(pos, ry, whole[a][0], whole[b][1])
+                xs.append(wx)
+                ys.append(wy)
+        lo, hi = box
+        _PLACED.append(max(abs(min(xs) - min(lo[0], hi[0])),
+                           abs(max(xs) - max(lo[0], hi[0])),
+                           abs(min(ys) - min(lo[1], hi[1])),
+                           abs(max(ys) - max(lo[1], hi[1]))))
+    if not rooms:
+        return []
+    out = []
+    for _flags, lo, hi in rooms:
+        cx, cy = (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2
+        wx, wy = to_world(pos, ry, cx, cy)
+        ax, ay = to_world(pos, ry, cx + 1, cy)
+        bear = math.degrees(math.atan2(ay - wy, ax - wx))
+        out.append([round(wx, 2), round(wy, 2),
+                    round((hi[0] - lo[0]) / 2, 2), round((hi[1] - lo[1]) / 2, 2),
+                    round(bear, 1)])
+    return out
+
+
 def classify_wmo(path):
     p = path.upper()
     for needle, kind in WMO_KINDS:
@@ -460,7 +562,9 @@ def read_tile(client, tx, ty):
                 wmos.append((nid, uid, ORIGIN - pz, ORIGIN - px, py, ry)
                             + footprint(ry, abs(hz - lz) / 2,
                                         abs(hx - lx) / 2)
-                            + (round(abs(hy - ly), 2),))
+                            + (round(abs(hy - ly), 2), (px, py, pz), ry,
+                               ((ORIGIN - lz, ORIGIN - lx),
+                                (ORIGIN - hz, ORIGIN - hx))))
         elif magic == 'MH2O':
             # 256 chunk headers, then instances, all offset from the start of
             # this chunk's data.  A cell is wet if an instance covers it and its
@@ -548,10 +652,11 @@ def read_tile(client, tx, ty):
             # and this is how much of it survives a word like `bush`.
             placed.append((kind, wx, wy, wz, rot, sc, 0.0, 0.0, 0.0,
                            zlib.crc32(path.upper().encode()) & 0xffff,
-                           round(tall * sc, 2), round(wide * sc, 2)))
+                           round(tall * sc, 2), round(wide * sc, 2), []))
         else:
             skipped += 1
-    for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall in wmos:
+    for nid, _uid, wx, wy, wz, rot, half_l, half_w, bear, tall, pos, ry, \
+            world_box in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
         if kind:
@@ -562,7 +667,8 @@ def read_tile(client, tx, ty):
             key = zlib.crc32(name.upper().encode()) if name else 0
             placed.append((kind, wx, wy, wz, bear, 1.0,
                            half_l, half_w, bear, key, 0.0,
-                           round(max(half_l or 0.0, half_w or 0.0), 2)))
+                           round(max(half_l or 0.0, half_w or 0.0), 2),
+                           rooms_of(client, name, pos, ry, world_box)))
     return cells, placed, water, painted, skipped, src, shut
 
 
@@ -620,7 +726,7 @@ def bake(client, bounds, out):
             dropped += skipped
             sources[f'{ty}_{tx}'] = src
             for kind, wx, wy, wz, rot, sc, bl, bw, bear, key, \
-                    tall, wide in dd:
+                    tall, wide, rooms in dd:
                 if not (x_lo <= wx <= x_hi and y_lo <= wy <= y_hi):
                     continue
                 # A building that straddles a tile border is listed by both
@@ -635,7 +741,7 @@ def bake(client, bounds, out):
                     shapes.setdefault(key, (bl, bw))
                 variety.setdefault(kind, set()).add(key)
                 doodads.append([kind, wx, wy, wz, rot, sc, bl, bw, bear,
-                                key, tall, wide])
+                                key, tall, wide, rooms])
             for (iy_, ix_, sx_, sy_), level in wet.items():
                 I = tx * 128 + iy_ * 8 + sx_
                 J = ty * 128 + ix_ * 8 + sy_
@@ -743,10 +849,13 @@ def bake(client, bounds, out):
                          # spot.  Dropped for the buildings, whose key is a
                          # whole different number.
                          **({'v': key % 64} if tall else {}),
+                         # The rooms the model is made of, each a rectangle
+                         # on the map — see `rooms_of`.
+                         **({'rooms': rooms} if rooms else {}),
                          **({'bl': round(bl, 1), 'bw': round(bw, 1),
                              'ba': round(abs(ba), 1)}
                             | ({'bq': 1} if ba < 0 else {}) if bl else {}))
-                    for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide
+                    for k, x, y, z, rot, s, bl, bw, ba, key, tall, wide, rooms
                     in doodads],
     }
     with open(os.path.join(out, 'terrain.json'), 'w') as f:
@@ -761,8 +870,35 @@ def bake(client, bounds, out):
     print(f'areas {sorted(areas)}')
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '
           f'terrain.json {os.path.getsize(os.path.join(out, "terrain.json"))/1024:.0f} KiB')
+    check_rooms(doodads)
     check_water(grid, wetmask, levels)
     return meta
+
+
+def check_rooms(doodads):
+    """A model's own box has to land on the box the placement states for it.
+
+    The transform from a WMO's space to the map was solved rather than read, so
+    it is guarded by the measurement that solved it: every placement's model
+    box, turned, against the box the `.adt` states for that placement.  They
+    are the same object seen two ways.
+
+    A WMO has **z up** where the map has y up, so the horizontal pair is the
+    model's first two and not its first and third — read the wrong way the
+    abbey's rooms land seventy yards out, and the first attempt did exactly
+    that.  A median of nought is what right looks like.
+    """
+    if not _PLACED:
+        return
+    v = sorted(_PLACED)
+    mid = v[len(v) // 2]
+    rooms = sum(len(d[12]) for d in doodads if d[12])
+    print(f'check: {len(v)} buildings placed, model box lands a median '
+          f'{mid:.2f} yd from the record\'s, worst {v[-1]:.1f}  '
+          f'({rooms:,} rooms)')
+    assert mid < 1.0, (
+        f'a model box lands a median {mid:.1f} yards from the box its own '
+        f'placement states — the WMO transform is wrong')
 
 
 def check_water(grid, wetmask, levels):
