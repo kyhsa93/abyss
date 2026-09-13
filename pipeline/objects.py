@@ -330,6 +330,27 @@ def main(acore, client_root, out):
     print(f'  {len(hauls)} distinct loot tables, {len(pools)} slots sharing '
           f'{sum(1 for r in out_rows if r[9]):,} of them, '
           f'{sum(pools.values())} standing at a time')
+    # What was left out, said out loud rather than only counted.
+    #
+    # The gate below has been here since this script was written and it is
+    # silent when it passes, which made `no picture 93` a number with no list
+    # behind it — the same one line `spawn_npcs.py` printed for 216 creatures
+    # nobody had looked at.  Passing a gate and being able to see what it
+    # passed are two different things.
+    by_type = Counter()
+    for (n, t), c in no_word.items():
+        if t in TYPES_OK:
+            by_type[f'type {t} — the whole type is declared'] += c
+        else:
+            for w in DEFAULT_OK:
+                if (w and w in n.upper()) or n == w:
+                    by_type[f'{w or "no model at all"}'] += c
+                    break
+    if by_type:
+        print(f'  {sum(by_type.values())} left out for want of a picture, '
+              f'declared:')
+        for what, c in by_type.most_common():
+            print(f'      {c:5d}  {what}')
     # The words nobody has a picture for, loudest first, which is the list to
     # work down when there is art for another one of them.
     bad = [(n, t, c) for (n, t), c in no_word.most_common()

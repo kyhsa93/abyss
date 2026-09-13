@@ -103,7 +103,8 @@ KINDS = [
     ('sheep', ('sheep', 'ram', 'lamb')),
     ('chicken', ('chicken', 'rooster', 'hen')),
     ('cat', ('cat', 'kitten')),
-    ('horse', ('horse', 'stallion', 'mare', 'palomino', 'steed', 'pony')),
+    ('horse', ('horse', 'stallion', 'mare', 'palomino', 'steed', 'pony',
+              'pinto')),
     ('kobold', ('kobold',)),
     # The three that were coming through as villagers.  Riverpaw gnolls are
     # sixty-seven of the slice's spawns and were drawn in a linen shirt; the
@@ -120,15 +121,60 @@ KINDS = [
     ('guard', ('guard', 'sentry', 'sentinel', 'watchman', 'marshal')),
 ]
 
+# `creature_template.family` — `CreatureFamily.dbc`, which is the game's own
+# answer to "what animal is this".  A column that was present and never read,
+# which is the shape of mistake this repository keeps meeting: 101 of the
+# slice's 216 unclassified creatures are wolves, boars and spiders there is
+# already art for, and nothing but the name was ever asked.  Only the families
+# with a sheet are named here; the rest are declared below.
+#
+# It is asked **before** the name, and the reason is a bug it found: `orc` is a
+# substring of `Porcine Entourage`, so two pigs were walking around the slice
+# in an orc's skin.  A family is a number somebody filled in on purpose and a
+# name is prose that happens to contain a word.
+FAMILY = {1: 'wolf', 2: 'cat', 3: 'spider', 4: 'bear', 5: 'boar'}
+
 # Anything that is a person and is not one of the above dresses as a townsman.
 # Stated rather than defaulted: it is a decision about what the slice looks
 # like, and it should be visible in the count the script prints.
 PERSON_TYPES = {7, 6, 3, 10, 12}
 
-# Type 9 is mechanical, and in this slice that is nine training dummies in the
-# Stormwind practice yard.  They are equipment somebody set up, not somebody
-# living here, and there is no sprite that would make one read as a creature.
-SKIP_TYPES = {9}
+# What is left out for want of a picture, said out loud.
+#
+# `objects.py` has had this gate since it was written and the creatures never
+# did: 216 spawns a run went into a line that read `unclassified 216` and
+# nothing had to be looked at.  The rule is the one `*_DEFAULT_OK` states for
+# the terrain — leaving something out is fine, leaving something out that
+# nobody has looked at is not — so anything that classifies to nothing and is
+# not named here exits non-zero.
+#
+# Whole creature types first, because the judgment was made a type at a time.
+# `creature_template.type` is the client's own enum.
+TYPE_NOT_DRAWN = {
+    2: 'dragonkin — 28 spawns, every one of them Burning Steppes drakes and '
+       'wyrmkin that the slice rectangle clips a corner of',
+    4: 'elemental — 8 spawns, the same corner of the Burning Steppes',
+    8: 'critter — 42 rats, squirrels, beetles and crabs.  A critter has no '
+       'loot, no fight and no reason to be swung at; it is ambience, and '
+       'ambience drawn as the nearest sprite we own would be a rabbit '
+       'pretending to be a rat',
+    9: 'mechanical — 20 spawns, seventeen of them training dummies in the '
+       'Stormwind practice yard.  Equipment somebody set up, not somebody '
+       'living here',
+}
+
+# Then beast families with no sheet.  Named by the number rather than by the
+# creature, so a wider slice does not grow this list one animal at a time.
+FAMILY_NOT_DRAWN = {
+    6: 'crocolisk — 6 spawns', 7: 'carrion bird — 2 spawns',
+    20: 'bat — 7 spawns, and every one of them is filed under it by a '
+        'database that files a scorpid as a bat',
+}
+
+# And the two the family column has nothing to say about.
+NAME_NOT_DRAWN = {
+    'fizzles': 'a named toad, one of it',
+}
 
 
 # `item_template.class`.  Our words for a number, the same bargain the doodad
@@ -198,24 +244,47 @@ def split(line):
     return out
 
 
-def classify(name, ctype, foe=False):
-    """Blizzard's name in, one of our own words out.
+def classify(name, ctype, foe=False, family=0):
+    """What the game says it is in, one of our own words out.
 
-    The fallback for a person used to be `townsfolk` whatever else was true of
+    Three axes in the order of how much each one is worth.  The **family** is
+    a number somebody filled in saying which animal this is, so it goes first
+    — see `FAMILY` for the two pigs that taught it.  The **name** is prose and
+    it catches everything the family column is nought for, which is every
+    person in the world.  And the **type** is the fallback's fallback: the
+    fallback for a person used to be `townsfolk` whatever else was true of
     them, and eleven thousand creatures in this database are hostile humanoids
     whose names match none of the words above — so a gnoll, an orc and a
     succubus all arrived in a linen shirt.  Something that will swing at you is
     not a villager, and if nothing more specific fits it dresses as a robber.
     """
-    if ctype in SKIP_TYPES:
-        return None
+    if family in FAMILY:
+        return FAMILY[family]
     low = name.lower()
     for kind, words in KINDS:
         if any(w in low for w in words):
             return kind
-    if ctype not in PERSON_TYPES:
+    if ctype in TYPE_NOT_DRAWN or ctype not in PERSON_TYPES:
         return None
     return 'bandit' if foe else 'townsfolk'
+
+
+def not_drawn(name, ctype, family=0):
+    """Why this one is left out, or `None` if nobody has said.
+
+    The second half of the gate.  `classify` returning nothing is a decision
+    either way; this is the line that says which of the two it was, and the
+    caller exits non-zero when it comes back empty.
+    """
+    if ctype in TYPE_NOT_DRAWN:
+        return TYPE_NOT_DRAWN[ctype]
+    if family in FAMILY_NOT_DRAWN:
+        return FAMILY_NOT_DRAWN[family]
+    low = name.lower()
+    for word, why in NAME_NOT_DRAWN.items():
+        if word in low:
+            return why
+    return None
 
 
 def role(flags, ctype, rank):
@@ -595,7 +664,8 @@ def talking(base, entries):
             e = int(f[0])
         except ValueError:
             continue
-        k = classify(f[col['name']].strip("'").replace("\\'", "'"), int(f[col['type']]))
+        k = classify(f[col['name']].strip("'").replace("\\'", "'"),
+                     int(f[col['type']]), family=int(f[col['family']]))
         if k:
             kind_by_entry[e] = k
         li = int(f[col['lootid']])
@@ -939,6 +1009,7 @@ def main(acore, out):
     walk = climb[0] if climb else 0.0
     wanted = {e for e, *_ in spawns}
     info = {}
+    why = {}
     ways = {}
     for line in rows(tpl):
         f = split(line)
@@ -958,9 +1029,14 @@ def main(acore, out):
                        round(float(f[col['speed_run']]), 2),
                        round(float(f[col['detection_range']]), 1),
                        round(float(f[col['ExperienceModifier']]), 2))
+        family = int(f[col['family']])
+        # Kept beside the tuple rather than in it: the only thing that ever
+        # asks is the gate below, and it asks about the ones that did not
+        # classify.
+        why[entry] = (not_drawn(name, ctype, family), ctype, family)
         info[entry] = (classify(name, ctype,
                                 stance(factions, int(f[col['faction']]))
-                                != FRIEND), ctype,
+                                != FRIEND, family), ctype,
                        int(f[col['minlevel']]), int(f[col['maxlevel']]),
                        int(f[col['npcflag']]), int(f[col['rank']]),
                        int(f[col['unit_class']]), int(f[col['faction']]),
@@ -983,6 +1059,7 @@ def main(acore, out):
     kinds, roles, out_rows = [], [], []
     fights, fight_at = [], {}
     unknown = Counter()
+    left_out, undeclared = Counter(), Counter()
     moves, move_at = [], {}
     for entry, x, y, o, guid, pool, most, leader, respawn, wander, mtype, z \
             in spawns:
@@ -991,8 +1068,12 @@ def main(acore, out):
             continue
         kind, ctype, lo, hi, flags, rank, cls, faction, mods, lootid, purse = info[entry]
         if kind is None:
+            reason, ct, fam = why[entry]
+            # Declared or not, it is counted the same way; the difference is
+            # whether the run survives the end of this function.
+            (left_out if reason else undeclared)[reason or (ct, fam)] += 1
             unknown[ctype] += 1
-            dropped['unclassified'] += 1
+            dropped['no picture'] += 1
             continue
         r = role(flags, ctype, rank)
         if kind not in kinds:
@@ -1119,8 +1200,24 @@ def main(acore, out):
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
-    if unknown:
-        print('  ! unclassified types: ' + ', '.join(f'{k} x{v}' for k, v in unknown.items()))
+    # What has no picture, and whether anybody said so.  The list used to be
+    # one number — `unclassified 216` — which is a count with no decision
+    # behind it, and the whole point of the gate is that leaving something out
+    # has to be a sentence somebody wrote.
+    if left_out:
+        print(f'  {sum(left_out.values())} left out for want of a picture, '
+              f'declared:')
+        for reason, n in left_out.most_common():
+            print(f'      {n:5d}  {reason}')
+    if undeclared:
+        print(f'  {sum(undeclared.values())} left out that nobody has looked '
+              f'at:')
+        for (ct, fam), n in undeclared.most_common(14):
+            print(f'      {n:5d}  type {ct} family {fam}')
+        # The same gate `objects.py` has had since it was written and this
+        # script never did.  Skipping is fine; skipping something nobody has
+        # looked at is not.
+        sys.exit(1)
     check(out_rows, kinds, climb)
 
 
