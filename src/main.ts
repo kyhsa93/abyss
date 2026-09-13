@@ -1797,6 +1797,16 @@ async function main() {
    * pieces only have to be merged rather than sorted again.
    */
   const PATCH = 48
+  /**
+   * How tall a piece of scenery has to draw before it is worth its own call.
+   *
+   * Eight pixels, and the number is bounded on both sides by something real.
+   * Below it a tree is a dab of colour and half of them are redundant.  Above
+   * it is where the pictures the checks hold live: `shotcheck`'s widest spot
+   * is zoom 0.3, where the scenery draws ten pixels and up, so nothing it
+   * guards is thinned — the rule only engages past the zoom anybody plays at.
+   */
+  const SPECK = 8
   const patchKey = (x: number, y: number) =>
     Math.floor(x / PATCH) * 100000 + Math.floor(y / PATCH)
   // What is indoors, settled once.  A building's own doodads stand inside it —
@@ -4041,6 +4051,22 @@ async function main() {
           const X = screenX(o.x, o.y), Y = screenY(o.x, o.y)
           if (X < -margin || X > canvas.width + margin
             || Y < -margin || Y > canvas.height + margin) continue
+          // And whether it is still a thing rather than a speck.
+          //
+          // The ground has had this rule from the start — it draws a coarser
+          // tile once a fine one would be under sixteen pixels, which is why
+          // its count is flat at every zoom — and the scenery never got one.
+          // Profiling the widest zoom says why that matters: 71% of the time
+          // is inside `drawImage`, four thousand calls a frame to cover 2.4
+          // megapixels.  The cost is the calls, not the pixels, and the only
+          // cure for calls is fewer of them.
+          //
+          // Under eight pixels a tree is not a tree, it is a dab of the
+          // forest's colour; half of them say the same thing the other half
+          // says.  Which half is decided by where the piece stands, not by
+          // chance, so the same trees are kept every frame and the forest
+          // does not boil when the camera moves.
+          if (o.piece.h * zoom * o.s < SPECK && ((o.x * 7 + o.y * 13) & 2)) continue
           near.push(o)
         }
       }
