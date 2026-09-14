@@ -2210,6 +2210,32 @@ if (refused) {
     `${refused.got} (it wants ${refused.skill})`)
 }
 
+// 25. Standing still heals you, in lumps, at the rate the server heals you.
+//
+// It used to be five per cent of maximum a second after three seconds of
+// quiet, both of them numbers written into `main.ts` — issue 202.  The server
+// settles health on a two-second tick out of `Player::RegenerateAll`, and what
+// it settles is a spirit curve, so the two things a player can see are that it
+// arrives in *steps* and that a level one man heals half his bar in one.
+{
+  const before = await p.evaluate(() => window.__hurt(1))
+  const trace = await p.evaluate(async () => {
+    const out = []
+    for (let i = 0; i < 14; i++) {
+      window.__steps(30)
+      out.push(window.__you().hp)
+    }
+    return out
+  })
+  const steps = trace.filter((v, i) => i > 0 && v > trace[i - 1]).length
+  check('standing still heals you',
+    trace.at(-1) > before.hp,
+    `${before.hp} -> ${trace.at(-1)} of ${before.max}`)
+  check('and it arrives in steps rather than creeping',
+    steps > 0 && steps < trace.length - 1,
+    `${steps} steps over ${trace.length} half-seconds: ${trace.join(' ')}`)
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

@@ -15,7 +15,8 @@
 import { readFileSync } from 'node:fs'
 import { duel } from '../src/sim/duel.ts'
 import { reseed } from '../src/sim/roll.ts'
-import { armourOf, attackPower, maxHealth } from '../src/sim/stats.ts'
+import { armourOf, attackPower, healPerTick, maxHealth, MAX_RAGE, RAGE_LOST_PER_TICK, REGEN_TICK, SPIRIT_BAND } from '../src/sim/stats.ts'
+import { rageFrom, RAGE_PER_SECOND_OF_SWING } from '../src/sim/fight.ts'
 import { withGear, K_LO, K_HI, K_DELAY, K_ARMOUR } from '../src/sim/gear.ts'
 
 let bad = 0
@@ -384,6 +385,60 @@ check('and the same seed gives the same fight',
     standAfter(sides.cap, 10000, sides) === sides.cap
     && standAfter(-42000, -10000, sides) === -42000,
     `${sides.cap} and -42000`)
+}
+
+// Standing still, which is the other half of every fight.
+{
+  const roster = world('player')
+  const warrior = roster.classes['1']
+  const lo = roster.levels[0], hi = roster.levels[1]
+  check('every class knows what a point of spirit is worth in health',
+    Object.values(roster.classes).every((c) => c.mend
+      && Object.keys(c.mend).length >= hi - lo + 1),
+    `${Object.keys(warrior.mend).length} levels a class`)
+
+  // A level one warrior heals a real share of his bar on one tick, and the
+  // share falls as the bar grows — which is the shape the original has and
+  // the flat five per cent a second did not.
+  const share = (lv) => {
+    const st = warrior.stats[String(lv)]
+    const hp = st[5] + Math.min(st[2], 20) + Math.max(0, st[2] - 20) * 10
+    const s = [st[0], st[1], st[2], st[3], st[4]]
+    return healPerTick(lv, s, warrior.mend[String(lv)]) / hp
+  }
+  check('a hurt warrior heals faster at one than at ten',
+    share(lo) > share(hi) && share(lo) > 0.4 && share(hi) > 0.05,
+    `${(share(lo) * 100).toFixed(0)}% of the bar a tick at ${lo}, `
+    + `${(share(hi) * 100).toFixed(0)}% at ${hi}`)
+  check('and sitting down is worth a third again',
+    Math.abs(healPerTick(lo, [0, 0, 0, 0, 20], warrior.mend[String(lo)], true)
+      / healPerTick(lo, [0, 0, 0, 0, 20], warrior.mend[String(lo)]) - 1.33) < 1e-6,
+    '1.33')
+  // And nobody in this game reaches the second ratio, which is why it is here
+  // rather than in the game: the rule arrives with the data.
+  const over = Object.values(roster.classes).some((c) =>
+    Object.keys(c.stats).some((lv) => c.stats[lv][4] > SPIRIT_BAND))
+  check('and no one here has enough spirit to reach the second ratio',
+    over === false,
+    `the band is ${SPIRIT_BAND} and the most anybody has is `
+    + Math.max(...Object.values(roster.classes)
+      .flatMap((c) => Object.values(c.stats).map((r) => r[4]))))
+
+  // Rage, which is the number the old abyss learned you cannot check by
+  // damage a second.
+  const RAGE_SWING = 2.9
+  check('a swing that crits is worth more rage than the same damage cold',
+    rageFrom(20, 5, RAGE_SWING, true, true) > rageFrom(20, 5, RAGE_SWING, true),
+    `${rageFrom(20, 5, RAGE_SWING, true).toFixed(2)} vs `
+    + `${rageFrom(20, 5, RAGE_SWING, true, true).toFixed(2)}`)
+  check('and the speed half of it is a whole number of rage',
+    Number.isInteger(rageFrom(0, 5, RAGE_SWING, true) * 2),
+    `a ${RAGE_SWING}s weapon contributes `
+    + `${Math.floor(RAGE_SWING * RAGE_PER_SECOND_OF_SWING)}, not `
+    + `${(RAGE_SWING * RAGE_PER_SECOND_OF_SWING).toFixed(2)}`)
+  check('and a warrior who stops fighting empties in a hundred seconds',
+    MAX_RAGE / RAGE_LOST_PER_TICK * REGEN_TICK === 100,
+    `${MAX_RAGE} at ${RAGE_LOST_PER_TICK} every ${REGEN_TICK}s`)
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

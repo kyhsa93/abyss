@@ -20,7 +20,7 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, maxMana, manaPerSecond, rollMelee, BASE_MANA, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, ENERGY_PER_SECOND, FIVE_SECOND_RULE, GLANCING, HIT, MAX_ENERGY, MAX_RAGE, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Roster, type Stats, type Who } from './sim/stats.ts'
+import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, maxMana, manaPerSecond, rollMelee, BASE_MANA, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, ENERGY_PER_SECOND, FIVE_SECOND_RULE, GLANCING, HIT, healPerTick, MAX_ENERGY, MAX_RAGE, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, RAGE_LOST_PER_TICK, REGEN_TICK, type Roster, type Stats, type Who } from './sim/stats.ts'
 import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
 import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
@@ -3665,8 +3665,23 @@ async function main() {
    * derived from a number that was not in the code.
    */
   const GCD_MIN = 1000, GCD_MAX = 1500
+  /**
+   * And the clamp only bites on a spell that was already inside it.
+   *
+   * `Spell::TriggerGlobalCooldown` (Spell.cpp:8988) tests
+   * `StartRecoveryTime >= MIN_GCD && <= MAX_GCD` *before* touching the value,
+   * with a comment saying why: the handful of spells outside that range are
+   * not cast directly by a player and are not modified.  Clamping first —
+   * which this did — turns a 500ms ability into a 1,000ms one.
+   *
+   * Nothing in this game is outside it today (68 abilities, all 1,000 or
+   * 1,500), so this is the rule arriving before the case does rather than a
+   * bug being fixed.  That is the point: the next slice's rogue has one.
+   */
   const gcdOf = (sp: Spell) =>
-    sp.gcd ? Math.min(GCD_MAX, Math.max(GCD_MIN, sp.gcd)) : 0
+    !sp.gcd ? 0
+      : sp.gcd < GCD_MIN || sp.gcd > GCD_MAX ? sp.gcd
+        : Math.min(GCD_MAX, Math.max(GCD_MIN, sp.gcd))
   /**
    * Press one, which for five of the six classes is not the same as using it.
    *
@@ -4391,10 +4406,37 @@ async function main() {
         you.level, statsAt(you.level), ratio,
         clock - you.spent < FIVE_SECOND_RULE) * STEP)
     }
+    // Out of combat, on the server's own two-second tick rather than smeared
+    // across the frame.  Both numbers that used to be here were written by
+    // hand — five per cent of maximum a second, after three seconds — and both
+    // are in the core: see `healPerTick` and `RAGE_LOST_PER_TICK`.
+    //
+    // The three seconds went with them.  The server has no such delay; it has
+    // a *state*, and `quiet` is this game's name for it.  A number invented to
+    // stand in for a state is the shape this repository keeps deleting.
     if (quiet) {
-      if (you.powerWord === 'rage') you.power = Math.max(0, you.power - 2.5 / 60)
-      you.calm += 1 / 60
-      if (you.calm > 3) you.hp = Math.min(you.max, you.hp + you.max * 0.05 / 60)
+      you.calm += STEP
+      if (you.calm >= REGEN_TICK) {
+        you.calm -= REGEN_TICK
+        if (you.powerWord === 'rage') {
+          you.power = Math.max(0, you.power - RAGE_LOST_PER_TICK)
+        }
+        if (you.hp < you.max) {
+          const ratios = who?.mend?.[String(you.level)] as
+            [number, number] | undefined
+          if (ratios) {
+            // **Not sitting**, and that is a deliberate `false` rather than
+            // an omission.  The server's 1.33 is `!IsStandState()`, and this
+            // game has no sit — mapping it on to `resting()`, which is
+            // standing in an inn, would be exactly the invented number issue
+            // 202 exists to delete.  The rule travels with the formula and
+            // fires the day somebody can sit down.
+            you.hp = Math.min(you.max,
+              you.hp + healPerTick(you.level, statsAt(you.level), ratios,
+                false))
+          }
+        }
+      }
     } else {
       you.calm = 0
     }
@@ -4434,7 +4476,7 @@ async function main() {
     you.extraPct = 100
     if (you.powerWord === 'rage') {
       you.power = Math.min(MAX_RAGE,
-        you.power + rageFrom(hit, you.level, secs, true))
+        you.power + rageFrom(hit, you.level, secs, true, fate === CRIT))
     }
     // Attention, before the damage, because a blow that is blocked to nothing
     // still annoys whatever you hit.
@@ -9248,8 +9290,20 @@ async function main() {
    * The bits of the player a check reads back: rage, the stance he is
    * standing in, and what the stance is worth.
    */
+  /**
+   * Hurt him, so the check that he heals has something to heal.
+   *
+   * A setter and not a second regen loop: everything after this goes through
+   * the frame the player's does.
+   */
+  ;(window as unknown as { __hurt: (to: number) => unknown }).__hurt = (to) => {
+    you.hp = Math.max(1, Math.min(you.max, to))
+    you.calm = 0
+    return { hp: you.hp, max: you.max, calm: you.calm }
+  }
   ;(window as unknown as { __you: () => unknown }).__you = () => ({
-    level: you.level, hp: you.hp, rage: Math.round(you.power),
+    level: you.level, hp: you.hp, max: you.max, calm: +you.calm.toFixed(2),
+    rage: Math.round(you.power),
     power: Math.round(you.power), powerWord: you.powerWord,
     powerMax: Math.round(powerMax()), combo: you.combo,
     casting: you.casting?.sp.id ?? null,

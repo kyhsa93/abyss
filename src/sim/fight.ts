@@ -144,13 +144,32 @@ export function xpFor(mine: number, theirs: number, elite: boolean): number {
  * fifteen-rage blow is every third swing.  That is the shape the game has.
  */
 export function rageFrom(damage: number, level: number,
-  swingSeconds: number, dealing: boolean): number {
+  swingSeconds: number, dealing: boolean, crit = false): number {
   const convert = 0.0091107836 * level * level + 3.225598133 * level + 4.2652911
-  if (!dealing) return (damage / convert) * 2.5
-  const fromDamage = (damage / convert) * 7.5
-  const fromSpeed = swingSeconds * 3.5
+  if (!dealing) return (damage / convert) * RAGE_TAKEN
+  const fromDamage = (damage / convert) * RAGE_DEALT
+  // **A whole number, and doubled on a critical.**  `weaponSpeedHitFactor` is
+  // a `uint32` in `Unit::DealDamage` (Unit.cpp:1106) and comes out of
+  // `Unit::GetRageWeaponSpeedHitFactor` (Unit.h:921), which is
+  // `GetAttackTime()/1000 * 3.5` — so a 2.9 second weapon contributes **10**
+  // and not 10.15, and a critical contributes twenty.  The doubling is the
+  // half of this that a player would notice: it is why a crit is worth more
+  // than its damage.
+  const fromSpeed = Math.floor(swingSeconds * RAGE_PER_SECOND_OF_SWING)
+    * (crit ? 2 : 1)
   return Math.min((fromDamage + fromSpeed) / 2, fromDamage * 2)
 }
+
+/**
+ * The three numbers in the line above, named where the source names them.
+ *
+ * `Unit::RewardRage` (Unit.cpp:16071) for the first two — 7.5 when you deal
+ * it and 2.5 when you take it — and `Unit::GetRageWeaponSpeedHitFactor`
+ * (Unit.h:923) for the third, which is 3.5 for the main hand and 1.75 for the
+ * off-hand this game has not got.  `npm run corecheck` reads all three back
+ * out of the server's own files.
+ */
+export const RAGE_DEALT = 7.5, RAGE_TAKEN = 2.5, RAGE_PER_SECOND_OF_SWING = 3.5
 
 
 /**

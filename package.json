@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "bake": "python3 pipeline/bake.py",
-    "check": "tsc && python3 scripts/manifestcheck.py && npm run bordercheck && npm run simcheck && npm run classcheck && npm run wikicheck && npm run docscheck",
+    "check": "tsc && python3 scripts/manifestcheck.py && npm run bordercheck && npm run simcheck && npm run corecheck && npm run classcheck && npm run wikicheck && npm run docscheck",
     "tiles": "python3 pipeline/bake_tiles.py",
     "sprites": "python3 pipeline/bake_sprites.py",
     "synth": "python3 pipeline/synth_terrain.py",
@@ -47,7 +47,8 @@
     "simcheck": "node --experimental-strip-types scripts/simcheck.mjs",
     "sounds": "python3 pipeline/bake_sounds.py",
     "classcheck": "node scripts/classcheck.mjs",
-    "wikicheck": "node scripts/wikicheck.mjs"
+    "wikicheck": "node scripts/wikicheck.mjs",
+    "corecheck": "node scripts/corecheck.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

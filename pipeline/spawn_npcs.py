@@ -1519,7 +1519,15 @@ def main(acore, out):
             roles.append(r)
         # Orientation is radians about +x, and +x is up the screen, so the four
         # LPC rows fall out of it directly: 0 up, pi/2 left, pi down, 3pi/2
-        # right.  That agreement is luck, and it is checked below.
+        # right.
+        #
+        # **That used to be a community document and now it is the server's.**
+        # `Position::GetAbsoluteAngle` (Position.h:191) is
+        # `atan2(y - myY, x - myX)`, so an orientation of nought points along
+        # +x and a quarter turn points along +y — which is exactly the
+        # assignment below, and `npm run corecheck` reads that line back out of
+        # the source.  It matters more than it looks: get it wrong and every
+        # NPC in the world faces ninety degrees off and nothing says so.
         facing = int(round(o / (math.pi / 2))) % 4
         level = (lo + hi) // 2
         # What a fight with this one costs, deduplicated: 1,884 spawns come to

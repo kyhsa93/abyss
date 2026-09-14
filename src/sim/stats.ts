@@ -39,6 +39,14 @@ export type Who = {
    * nought and shipping it would be a number that means nothing.
    */
   spirit?: Record<string, number>
+  /**
+   * What a point of spirit is worth in health on one two-second tick, per
+   * level, as `[the first fifty points, everything over fifty]`.
+   *
+   * Everybody has this one — `spirit` above is only for the classes that cast
+   * — because everybody bleeds.  See `healPerTick`.
+   */
+  mend?: Record<string, [number, number]>
 }
 
 /**
@@ -150,6 +158,62 @@ export function manaPerSecond(level: number, s: Stats,
 
 /** How long spending mana holds the regeneration off — `Unit::IsUnderLastManaUseEffect`. */
 export const FIVE_SECOND_RULE = 5
+
+/**
+ * How often health and rage are settled — `Player::RegenerateAll`,
+ * Player.cpp:1833.
+ *
+ * Energy and mana are settled every update and these two are not: they wait
+ * for `m_regenTimerCount` to reach two thousand.  Which is why health comes
+ * back in *lumps* out of combat rather than creeping, and why a warrior's bar
+ * drains in steps of two.  This game smeared both across the frame, which is
+ * a smoothing nobody asked for over a rhythm the original has.
+ */
+export const REGEN_TICK = 2
+
+/**
+ * Health back on one of those ticks — `Player::OCTRegenHPPerSpirit`,
+ * Player.cpp:5377, and `Player::RegenerateHealth`, Player.cpp:2026.
+ *
+ * **This game healed five per cent of maximum a second after three seconds of
+ * quiet, and both of those numbers were written by hand.**  The real one is
+ * two ratios out of `gtOCTRegenHP` and `gtRegenHPPerSpt`: the first fifty
+ * points of spirit are worth the one, everything over fifty the other, and
+ * the sum is doubled.  Nobody in this game has fifty spirit, so the second
+ * ratio is here because the rule is, not because it fires.
+ *
+ * Then the same low-level boost the mana line takes, for the same reason:
+ * every level this game has is under fifteen.  It is not a detail — at level
+ * one it is the difference between healing a tenth of the bar in two seconds
+ * and healing half of it, which is what the original actually does.
+ *
+ * `sitting` is the server's 1.33, and it is the one part of this that is a
+ * *decision*: standing still to eat is faster than walking it off.
+ */
+export function healPerTick(level: number, s: Stats,
+  ratios: [number, number], sitting = false): number {
+  const [under, over] = ratios
+  const spirit = s[SPI]!
+  const base = Math.min(spirit, SPIRIT_BAND) * under
+    + Math.max(0, spirit - SPIRIT_BAND) * over
+  const boost = level < 15 ? 2.066 - level * 0.066 : 1
+  return base * 2 * boost * (sitting ? 1.33 : 1)
+}
+
+/** Where the first ratio stops applying — `OCTRegenHPPerSpirit`'s own 50. */
+export const SPIRIT_BAND = 50
+
+/**
+ * Rage lost on one of those ticks, out of combat — `Player::Regenerate`,
+ * Player.cpp:1935.
+ *
+ * `addvalue += -20 * rate`, and rage is held ten to the point, so it is **two
+ * a tick — one a second**.  This game took two and a half a second, which is
+ * two and a half times too fast: a warrior who stopped fighting for four
+ * seconds arrived at the next one empty instead of half full, and the whole
+ * rhythm of the class is how much of the last fight you carry into the next.
+ */
+export const RAGE_LOST_PER_TICK = 2
 
 /**
  * Attack power — `Player::UpdateAttackPowerAndDamage`, StatSystem.cpp:398.

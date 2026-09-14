@@ -154,13 +154,24 @@ def main(acore, client, out):
     # multiplies *that* by the square root of intellect.  One row per class and
     # level, the same shape as the critical hit table beside it.
     mp_ratio = gt(base, 'gtregenmpperspt_dbc')
+    # And the same for health, which this game did not have at all: it healed
+    # **five per cent of maximum a second after three seconds of quiet**, and
+    # both of those numbers were written here.  `Player::OCTRegenHPPerSpirit`
+    # (Player.cpp:5377) is the real one, and it is two ratios rather than one —
+    # the first fifty points of spirit are worth `gtOCTRegenHP` each and
+    # everything over fifty is worth `gtRegenHPPerSpt`, and the sum is doubled.
+    # Nobody in this game has fifty spirit, so the second ratio does nothing
+    # here and travels anyway: a rule that arrives with the data is a rule that
+    # does not have to be remembered.
+    hp_base = gt(base, 'gtoctregenhp_dbc')
+    hp_over = gt(base, 'gtregenhpperspt_dbc')
 
     def per_class(cls):
         at = lambda tab: {                                   # noqa: E731
             str(lv): tab[(cls - 1) * GT_MAX_LEVEL + lv - 1]
             for lv in stats[cls]
             if (cls - 1) * GT_MAX_LEVEL + lv - 1 < len(tab)}
-        return at(crit_ratio), at(mp_ratio)
+        return at(crit_ratio), at(mp_ratio), at(hp_base), at(hp_over)
 
     # What he is handed on the way out of the door.  The class is our word for
     # it, the numbers are the item's own: a weapon's damage and swing, a piece
@@ -256,7 +267,7 @@ def main(acore, client, out):
     per = {}
     for word in CLASSES:
         cls = CLASS_ID[word]
-        ratio, spirit = per_class(cls)
+        ratio, spirit, mend_lo, mend_hi = per_class(cls)
         power = POWER_WORD.get(powers.get(cls, 0), 'mana')
         # Keyed on the class id, for the reason `spells.py` gives: the id is
         # the game's number and the word is ours.
@@ -276,6 +287,11 @@ def main(acore, client, out):
             # second at each level.  Shipped only where it means something:
             # the table has a row for a warrior and the row is nought.
             **({'spirit': spirit} if power == 'mana' else {}),
+            # And what a point of spirit is worth in health on the server's
+            # own two-second tick — `[first fifty, over fifty]` a level.
+            # Everybody has this one, because everybody bleeds.
+            'mend': {lv: [mend_lo[lv], mend_hi.get(lv, 0.0)]
+                     for lv in sorted(mend_lo, key=int)},
         }
     doc = {
         'start': [round(start[0], 3), round(start[1], 3), round(start[2], 3)],

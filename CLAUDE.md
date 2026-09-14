@@ -733,6 +733,40 @@ they belong to are ones nobody can hold a standing with at all
 `Faction.dbc` has a Korean column and this game does not read it: the eight
 rank words and the five side words are in `talk.ts`, ours, keyed on the number.
 
+**A constant with a source in the comment and no check behind it is a
+comment.** `npm run corecheck` goes and reads the server's own line back and
+fails when the copy here has drifted from it — the `derive_body` /
+`derive_climb` shape, one level up, for the numbers that are C++ literals
+rather than table rows. It needs a checkout at `~/src/acore-src` (or
+`$ABYSS_CORE`) and says so and passes without one, the bargain `wikicheck`
+makes with the wiki. The four issue 202 went looking for:
+
+| | where it turned out to be |
+|---|---|
+| the rage curve and its three shares | `Unit::RewardRage`, Unit.cpp:16071, and `Unit::GetRageWeaponSpeedHitFactor`, Unit.h:923 |
+| the global cooldown, 1,000 to 1,500 | `Spell::TriggerGlobalCooldown`, Spell.cpp:8988 |
+| healing out of combat | `Player::OCTRegenHPPerSpirit`, Player.cpp:5377, on the two-second tick at Player.cpp:1833 |
+| which way an orientation of nought points | `Position::GetAbsoluteAngle`, Position.h:191 — `atan2(dy, dx)`, so nought is +x |
+
+Three of them had drifted. **The speed half of rage is a whole number** — the
+server's `weaponSpeedHitFactor` is a `uint32`, so a 2.9 second weapon
+contributes 10 and not 10.15 — **and a critical doubles it**, which is why a
+crit is worth more than its damage. **The global cooldown's clamp only bites
+on a spell already inside the range**; clamping first turns a 500ms ability
+into a 1,000ms one. And **rage drains at one a second, not two and a half**:
+`addvalue += -20 * rate` on a two-second tick, ten to the point.
+
+**Health came back at five per cent of maximum a second, three seconds after
+the last blow, and neither number existed anywhere in the server.** The real
+one is a spirit curve out of `gtOCTRegenHP` and `gtRegenHPPerSpt` settled on
+the same two-second tick as rage, with the low-level boost the mana line
+already took — at level one that is half the bar in one tick rather than a
+tenth. The three seconds went with it: the server has a *state*, not a delay,
+and a number invented to stand in for a state is the shape this repository
+keeps deleting. The server's 1.33 for sitting is carried and never fires,
+because this game has no sit — mapping it on to "standing in an inn" would
+have been the same invention again.
+
 ## Finishing a change
 
 **Where this game is, is one file.** `slice.json` at the top of the tree: the
