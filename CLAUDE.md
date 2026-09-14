@@ -28,7 +28,7 @@ src/        the scene (`main.ts`, canvas 2D, no simulation yet), what the
             The player is the exception to all of it: he wears gear, so he is
             rendered a slot at a time (`paperdoll_slots.py` under Blender 2.79,
             then `render_paperdoll.py` and `pack_paperdoll.py`) and composited
-            by `src/sim/doll.ts`, which the character sheet calls.  A generated sheet
+            by `src/sim/doll.ts` for the portrait in his frame.  A generated sheet
             cannot do equipment — two
             calls are two bodies, so the second call's shirt does not fit the
             first call's body
@@ -1260,8 +1260,11 @@ which is the shape this stretch of the game actually has.
 it, what it asks for, and what it pays. Those are numbers — a creature id, a
 count, an experience figure — so `pipeline/quests.py` reads them out of
 `quest_template`, its addon, the two relation tables and the client's own
-`QuestXP.dbc`, and `src/talk.ts` writes the sentence from the shape. Not a word
-of the title or the description is read. The experience is in the client and
+`QuestXP.dbc`, and `src/talk.ts` writes the sentence from the shape when there
+is no prose for it. The title and the description are the translation in
+`prose/quests.ko.json` (issue 190, below) — this paragraph said until 2026-09-15
+that not a word of either is read, which stopped being true the day the prose
+shipped. The experience is in the client and
 not the database, the same as the faction standings: `questxp_dbc` in
 AzerothCore's dump is a schema with no rows because the core reads that table
 out of `QuestXP.dbc` at run time.
@@ -1556,8 +1559,11 @@ is one decision rather than two and is held.
 
 **Music is out, and one number decides it.** The same collection ships 41
 themes and one medieval track is **1.5 MB** — against a first visit that costs
-1.57 MB altogether, and a worker that precaches what ships. A single loop very
-nearly doubles the cost of opening this game and of installing it. It goes in
+3.37 MB altogether (`docs/budget.md`), and a worker that precaches what ships. A
+single loop adds nearly half again to the cost of opening this game and of
+installing it. This sentence said *very nearly doubles* against 1.57 MB, the
+first visit before the ground blend was shipped, and went on being quoted after
+that number had doubled. It goes in
 when there is more than one place to be, streamed and out of the precache, and
 not before; the line is in `budgetcheck` next to the 2 MB sound ceiling.
 

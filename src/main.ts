@@ -3775,7 +3775,7 @@ async function main() {
     // Bare hands, and it is a real answer rather than a stand-in for the
     // outfit: one second, one damage, which is what the server gives a player
     // with an empty weapon slot.  Reaching for the starting kit here was what
-    // let the character sheet disagree with itself, and `bordercheck` now
+    // let the character sheet disagree with itself, and `viewcheck` now
     // counts how often this line is taken.
     barehanded++
     return ['weapon', 1, 1, 2000, 0, 0]

@@ -117,9 +117,11 @@ check('and the whole deploy fits in what a Pages site may be',
 //
 // The ceiling is where the **music** decision lives, and that decision is the
 // reason there is room to spare: the Superpowers collection ships 41 themes
-// and one medieval one is **1.5 MB**, against a first visit that costs 1.57 MB
-// altogether.  A single loop very nearly doubles what it costs to open this
-// game, and the worker precaches what it ships — so an offline install would
+// and one medieval one is **1.5 MB**, against a first visit that costs 3.37 MB
+// altogether (the row above, as written to `docs/budget.md`; this comment said
+// 1.57 until the ground blend doubled it).  A single loop adds nearly half again
+// to what it costs to open this game, and the worker precaches what it ships —
+// so an offline install would
 // pay for it too.  Music goes in when this game has more than one place to be,
 // streamed and out of the precache, and not before.  See `art/SOUND-CREDITS.md`
 // for the eight and the wiki page 소리 for the argument.
