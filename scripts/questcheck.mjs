@@ -283,6 +283,71 @@ check('which is the next link of the chain',
   }
 }
 
+// --- the words, which this game refused to carry until issue 190 ----------
+//
+// Two promises and they pull in opposite directions.  **Every baked quest has
+// a title and a body**, or the screen is showing a number where a sentence
+// should be.  And **a quest with no words still says something**, because the
+// sentence built from the shape is what every quest had before there was any
+// prose and what eight of them will always have: the database has no
+// `QuestCompletionLog` for those at all.
+{
+  const said = await p.evaluate(async () =>
+    (await (await fetch('./world/prose.json')).json()).quests ?? {})
+  const jobs = await p.evaluate(async () =>
+    (await (await fetch('./world/quests.json')).json()).quests ?? [])
+  // A title for every one of them, which the original always writes.  A
+  // **body** is checked on the other side of the bake instead: one of this
+  // slice's quests has no `QuestDescription` in the database at all, so
+  // asserting one here would be asking for prose nobody wrote — `quests.py`
+  // exits if a translation is missing a field the English has, which is the
+  // question that can actually be answered.
+  const bare = jobs.filter((q) => !(said[String(q.id)]?.title))
+  const bodies = jobs.filter((q) => said[String(q.id)]?.body).length
+  check('every baked quest has its own title',
+    bare.length === 0,
+    bare.length
+      ? bare.slice(0, 6).map((q) => `q${q.id}`).join(', ')
+      : `${jobs.length} quests, ${bodies} with a body the original wrote, `
+        + `${Object.values(said).reduce((n, one) =>
+          n + Object.values(one).reduce((m, v) => m + v.length, 0), 0)
+          .toLocaleString()} characters of Korean`)
+  // And the one with no body still says what the job is, which is the half of
+  // this that must not regress: the sentence built from the shape is what
+  // every quest had before there was prose.
+  const shapeOnly = jobs.find((q) => !said[String(q.id)]?.body)
+  check('and one with no body in the original still has its shape',
+    !!shapeOnly, shapeOnly ? `q${shapeOnly.id} falls back` : 'all have bodies')
+  // Nothing English left in it, which is the other way a translation goes
+  // wrong: a field copied rather than written reads perfectly until somebody
+  // opens it.
+  const english = Object.entries(said).filter(([, one]) =>
+    Object.values(one).some((v) => /[A-Za-z]{4,}/.test(v)))
+  check('and none of it is still in English', english.length === 0,
+    english.slice(0, 4).map(([id]) => `q${id}`).join(', ')
+    || `${Object.keys(said).length} translated`)
+  // And the markers are filled in rather than printed.  `$N`, `$C` and `$B`
+  // are the client's own, and a screen showing `$B` is a screen showing the
+  // inside of a database.
+  await p.keyboard.press('Escape')
+  await talkTo(WILLEM)
+  // Opened, because the body only unfolds when the option is pressed — a
+  // check that reads the collapsed list is reading the labels and calling it
+  // the prose.
+  await p.keyboard.press('1')
+  await p.waitForTimeout(250)
+  const shown = await p.evaluate(() =>
+    document.getElementById('talk')?.innerText ?? '')
+  check('and what reaches the screen has no markers left in it',
+    !/\$[A-Za-z]/.test(shown) && shown.length > 120,
+    shown.split('\n').slice(0, 4).join(' / '))
+  // The title is the original's, on the option itself.
+  const titles = Object.values(said).map((one) => one.title).filter(Boolean)
+  check('and the option carries the quest\'s own name',
+    titles.some((t) => shown.includes(t)),
+    shown.split('\n').find((l) => l.includes('레벨')) ?? '(nothing)')
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.slice(0, 3).join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

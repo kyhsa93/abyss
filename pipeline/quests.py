@@ -574,6 +574,36 @@ def main(acore, client_root, out):
     with open(path, 'w') as f:
         json.dump({'quests': quests}, f)
     print(f'{len(quests)} quests -> {path}   who is here, out of {whose}')
+
+    # And the words, which this script refused to carry until issue 190.
+    #
+    # **Not these tables' words.**  What is shipped is `prose/quests.ko.json`,
+    # which is written rather than copied: `quest_template_locale` has seven
+    # languages in it and koKR is not one of them, because in this expansion a
+    # quest's text is sent by the server and is in no archive the client ships.
+    # So "use the original's wording, lightly edited" is a translation, and
+    # `pipeline/prose.py` is where the rules for one live.
+    import prose
+    said, short_of = prose.shipped(base, {q['id'] for q in quests})
+    with open(os.path.join(out, 'prose.json'), 'w') as f:
+        json.dump({'quests': said}, f, ensure_ascii=False)
+    print(f'  {len(said)} of them have their words, '
+          f'{sum(len(v) for one in said.values() for v in one.values()):,} '
+          'characters of Korean')
+    if short_of['missing']:
+        print('    no translation yet — these fall back to the shape: %s'
+              % ', '.join('q%d' % i for i in short_of['missing']))
+    if short_of['stale']:
+        print('    the English moved under these, so they fall back too: %s'
+              % ', '.join('q%d' % i for i in short_of['stale']))
+    # A translation with a hole in it, or with a paragraph the original never
+    # wrote, fails the bake rather than reaching a screen.  The second half is
+    # the one worth the gate: a field nobody wrote in English is prose this
+    # repository invented and is calling a translation.
+    if short_of['thin']:
+        sys.exit('the Korean does not match the English it claims to be: %s'
+                 % '; '.join('q%d %s' % (i, v) for i, v in
+                             sorted(short_of['thin'].items())))
     for why, n in dropped.most_common():
         print(f'  {n:>4} left out: {why}  (%d of them scale with the player)'
               % scaled[why])

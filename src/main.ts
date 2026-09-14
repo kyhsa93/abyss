@@ -30,7 +30,7 @@ import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, 
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
-import { abilityOf, bearing, coin, errand, goodsOf, josa, nameOf, reward as payFor, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Speech, type Topic } from './talk.ts'
+import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
 import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
 import {
@@ -383,7 +383,7 @@ async function main() {
     ? new Uint8Array(bin, deepAt, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf, said] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -437,6 +437,13 @@ async function main() {
     fetch('./world/items.json')
       .then((r) => r.json() as Promise<Shelf>)
       .catch(() => ({ items: {}, stock: {}, trainers: {} } as Shelf)),
+    // And the words of the quests, which are the one thing in this game that
+    // is a translation rather than something written here — see issue 190 and
+    // `pipeline/prose.py`.  Missing is fine and was the state of the world
+    // for a year: `talk.ts` builds the sentence from the shape instead.
+    fetch('./world/prose.json')
+      .then((r) => r.json() as Promise<{ quests: Record<string, unknown> }>)
+      .catch(() => ({ quests: {} })),
   ])
 
   const canvas = document.createElement('canvas')
@@ -3191,6 +3198,10 @@ async function main() {
   // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
   // comment here that said "two bodies and an arm".
   if (spellbook.melee) setMelee(spellbook.melee)
+  // And the words of the quests, handed to the file that owns every other
+  // word a player reads.  `talk.ts` keeps them rather than `main.ts` for the
+  // reason it keeps the rest: one place decides what a sentence is.
+  setProse((said?.quests ?? {}) as Record<string, never>)
   /**
    * Everything a warrior of this level can do.
    *
@@ -4796,6 +4807,35 @@ async function main() {
    * screen said the number was ours to decide, and it is not — the same as
    * every other number in this interface.
    */
+  /**
+   * Who is reading a quest, for the markers its text carries.
+   *
+   * The original writes each quest once and lets the client fill in the
+   * reader — `$N`, `$C`, `$R`, `$Ghe:she;` — and so does the translation, for
+   * the same reason: resolving them at bake time would be one copy of every
+   * quest per class per sex.
+   */
+  const reader = (): Reader => ({
+    name: me?.name ?? '주인공',
+    cls: layout?.who?.classes?.[String(myClass)] ?? '',
+    race: layout?.who?.races?.[String(me?.race ?? 1)] ?? '',
+    sex: me?.sex ?? 0,
+  })
+  /**
+   * What an errand says, with the shape underneath it.
+   *
+   * `told` is the original's own paragraph where there is a translation of it;
+   * `errand(shapeOf(q))` is the line this game has always built out of the
+   * numbers, and it stays under the prose rather than instead of it — a
+   * paragraph says why and the shape says how many, and the second is the one
+   * a player checks against the counter in the corner.
+   */
+  const told = (id: number, which: keyof NonNullable<ReturnType<typeof proseOf>>)
+  : string[] => {
+    const got = proseOf(id)?.[which]
+    return got ? fill(got, reader()) : []
+  }
+
   const roomFor = () => (layout?.spec?.pick?.['slots'] as number) ?? 10
   let cards: Card[] = []
   let mySlot = 1
@@ -5610,7 +5650,11 @@ async function main() {
       const ready = errandDone(log, h)
       const say2 = {
         label: ready ? '마쳤습니다' : `아직입니다 (${short(log, h)} 남음)`,
-        lines: ready ? [] : errand(shapeOf(q)),
+        // What he says when you come back: the original's line for having
+        // finished, or for not having, with the shape under the second so the
+        // counter and the sentence agree.
+        lines: ready ? told(q.id, 'reward')
+          : [...told(q.id, 'waiting'), ...errand(shapeOf(q))],
       } as Option
       if (ready) {
         /**
@@ -5676,12 +5720,14 @@ async function main() {
     // filter.  The bake keeps a quest whose mask names any of this game's six
     // classes; the log only shows one whose mask names *this* one.
     for (const q of offers(log, n.entry, you.level, myClass)) {
+      const name = told(q.id, 'title')[0]
       speech.options.unshift({
-        label: `일거리 (${q.level}레벨)`,
-        lines: [...errand(shapeOf(q)), `사례: ${payFor(q.xp, q.coin)}`],
+        label: name ? `${name} (${q.level}레벨)` : `일거리 (${q.level}레벨)`,
+        lines: [...told(q.id, 'body'), ...errand(shapeOf(q)),
+          `사례: ${payFor(q.xp, q.coin)}`],
         act: () => {
           take(log, q)
-          ui.log(`맡음 — ${errand(shapeOf(q)).join(', ')}`, 'note')
+          ui.log(`맡음 — ${name || errand(shapeOf(q)).join(', ')}`, 'note')
           showErrands()
           return ['맡았습니다.']
         },

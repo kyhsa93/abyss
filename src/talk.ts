@@ -648,13 +648,64 @@ export function zoneOf(area: number, inside = 0): string {
 }
 
 /**
+ * The words of a quest, where there are any — `pipeline/prose.py`.
+ *
+ * **This is the one thing in this file that is not ours.**  For a year the
+ * rule was that the database's sentences do not leave it and what a player
+ * reads is written here from the shape; issue 190 records the owner's
+ * decision to bring the original's wording over and edit it, and the wiki page
+ * 저작권과 배포 경계 is where that is argued.  What actually ships is a
+ * Korean translation — `quest_template_locale` has seven languages and koKR is
+ * not one of them, because in this expansion a quest's text is sent by the
+ * server rather than shipped in the client.
+ *
+ * A quest with no entry here still gets its sentence built from the shape,
+ * which is what every quest got until now.  That is not a stopgap: eight of
+ * this slice's quests have no `QuestCompletionLog` in the database at all.
+ */
+export type Prose = {
+  title?: string; short?: string; body?: string
+  doing?: string; reward?: string; waiting?: string
+}
+let PROSE: Record<string, Prose> = {}
+export const setProse = (got: Record<string, Prose>) => { PROSE = got }
+export const proseOf = (id: number): Prose | null => PROSE[String(id)] ?? null
+
+/**
+ * Who is reading it, for the markers the text carries.
+ *
+ * The original writes a quest once and lets the client fill in the reader:
+ * `$N` is the name, `$C` the class, `$R` the race, `$B` a line break, and
+ * `$Ghe:she;` picks by sex.  They are in the translation too, because a
+ * translation that resolved them would be one quest per class per sex.
+ */
+export type Reader = { name: string; cls: string; race: string; sex: number }
+
+/**
+ * Fill a quest's text in for whoever is reading it, and split it into lines.
+ *
+ * Case matters to nothing here: the database has `$B` and `$b`, `$C` and `$c`,
+ * sometimes in the same sentence, and reading only one of them leaves the
+ * other on the screen as two literal characters.
+ */
+export function fill(text: string, who: Reader): string[] {
+  const out = text
+    .replace(/\$[Gg]\s*([^:;]*):([^;]*);/g, (_m, a, b) => (who.sex ? b : a))
+    .replace(/\$[Bb]/g, '\n')
+    .replace(/\$[Nn]/g, who.name)
+    .replace(/\$[Cc]/g, who.cls)
+    .replace(/\$[Rr]/g, who.race)
+  return out.split('\n').map((line) => line.trim()).filter((line) => line)
+}
+
+/**
  * An errand, in words.
  *
- * The database has a title and a description for every one of these and both
- * are Blizzard's, so neither is read.  What is read is the shape — kill eight
- * of creature 6, fetch eight of item 752 — and the shape is enough to say what
- * the job is, because the job *is* the shape.  The creature's kind comes from
- * the spawn table and the item's word from its class, both already ours.
+ * This is what a quest with no prose gets, and what every quest got before
+ * there was any.  What is read is the shape — kill eight of creature 6, fetch
+ * eight of item 752 — and the shape is enough to say what the job is, because
+ * the job *is* the shape.  The creature's kind comes from the spawn table and
+ * the item's word from its class, both already ours.
  */
 export function errand(
   job: { kill: [string, number][]; fetch: [string, number][] },

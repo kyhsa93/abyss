@@ -131,8 +131,17 @@ def upstream(acore, client):
 
 # What must never appear in a baked file.  The boundary in the wiki is a
 # paragraph and a habit; this is the same boundary as a grep, because a habit
-# is what fails quietly.  A model path, an archive name, a table of Blizzard's
-# prose: none of them has any business in `public/`.
+# is what fails quietly.  A model path, an archive name, the name of one of
+# the client's own tables: none of them has any business in `public/`.
+#
+# **This grep never looked for prose and does not now**, which is worth saying
+# out loud rather than leaving as an accident.  Until issue 190 no file in
+# `public/` had a sentence of Blizzard's in any form, so the line this prints
+# — "0 carrying anything of Blizzard's" — was true of the whole output rather
+# than of the twelve strings below.  `public/world/prose.json` is a Korean
+# translation of quest text, shipped by the owner's decision, and the wiki
+# page 저작권과 배포 경계 is where it is argued.  So the sentence below says
+# what it actually checked.
 FORBIDDEN = [
     '.mdx', '.m2\"', '.wmo', '.blp', '.adt', '.dbc', '.mpq',
     'world\\', 'character\\', 'dbfilesclient', 'interface\\',
@@ -165,7 +174,7 @@ def verify(made):
                 bad.append(f'{rel} contains {needle!r}')
     size = sum(os.path.getsize(os.path.join(ROOT, p)) for p in made) / 1048576
     print(f'check: {len(made)} files, {size:.1f} MiB of a {BUDGET_MIB:.0f} MiB '
-          f'budget, {len(bad)} carrying anything of Blizzard\'s')
+          f'budget, {len(bad)} carrying a path, an archive or a table name')
     if bad:
         sys.exit('the copyright boundary is broken:\n  ' + '\n  '.join(bad))
     if size > BUDGET_MIB:

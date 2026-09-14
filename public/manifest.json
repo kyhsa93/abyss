@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-14T01:44:33Z",
+  "baked": "2026-09-14T02:13:10Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -48,6 +48,7 @@
     "public/world/npcs.json": "43435cabd669436f",
     "public/world/objects.json": "f0417c2c696b711c",
     "public/world/player.json": "3655ca202e9aa5bb",
+    "public/world/prose.json": "d37c9c85c70d64c3",
     "public/world/quests.json": "7c98fbdc1cee770e",
     "public/world/spells.json": "75f5b198f325e7fd",
     "public/world/terrain.bin": "18c59ace42d25785",

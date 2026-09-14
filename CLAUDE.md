@@ -196,8 +196,31 @@ you are in — `노스샤이어 계곡 · 합성` for the built one. A round of 
 project was spent on "there are no roads" against a page that had no road data
 in it, because nothing said.
 
-**Blizzard's sentences are not used either.** Creature names, quest text,
-gossip. The structure comes from AzerothCore; the words are ours.
+**Blizzard's sentences are not used either — with one exception, and it is the
+owner's.** Creature names and gossip are ours: the structure comes from
+AzerothCore and the words from `talk.ts`. **Quest text is not, as of
+2026-09-14**, by the decision recorded in issue 190 — *"퀘스트는 문구를 조금씩
+수정해서 사용하는 방향으로 가면 됨"*. What ships is a **translation**, in
+`prose/quests.ko.json`, and that word is doing work: `quest_template_locale`
+has seven languages in it and koKR is not one of them, because in this
+expansion a quest's text is sent by the server rather than shipped in the
+client. So "use the original's wording" is a Korean paragraph somebody wrote,
+not a column somebody copied.
+
+Three rules hold it, each of them a mistake made elsewhere in this repository:
+the **English is never committed and never shipped**, because a translation
+that keeps its original beside it is two copies of somebody else's prose; each
+entry carries the **hash of the English it was made from**, so the day
+AzerothCore edits a quest this says which lines have gone stale instead of
+shipping a Korean paragraph for an English one that no longer exists; and a
+quest with no prose **falls back to the sentence built from its shape**, which
+is what every quest had until now and what one of them will always have,
+because the database has no `QuestDescription` for it.
+
+`pipeline/bake.py`'s copyright grep never looked for prose and still does not.
+Its line says what it checked — a path, an archive, a table name — rather than
+"nothing of Blizzard's", which stopped being true of the whole output the day
+`prose.json` was first baked.
 
 **Three kits do not agree about colour, and the drawn art owns the palette.**
 `pipeline/grade_kit.py` runs after `render_kit.py` and pulls the renders' greens
