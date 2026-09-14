@@ -11544,8 +11544,17 @@ async function main() {
       }
       return by
     })(),
-    /** Creatures under the surface that ended up in no mine at all. */
-    lost: npcs.filter((n) => n.z < groundAt(n.x, n.y) - DOWN
+    /**
+     * Creatures under the surface that ended up in no mine at all.
+     *
+     * Asked at **home**, the same as `under` above.  This one used to ask the
+     * ground under where the creature happened to be standing, while `under`
+     * asked the ground under its spawn — so one that had wandered on to a
+     * different height was below the surface for one count and not for the
+     * other, and CI reported 86 in a mine and 4 lost out of 89 underground.
+     * The two numbers have to add up, so they have to be asked the same way.
+     */
+    lost: npcs.filter((n) => n.z < groundAt(n.hx, n.hy) - DOWN
       && n.cave === undefined).length,
   })
   ;(window as unknown as { __room: () => unknown }).__room = () => ({

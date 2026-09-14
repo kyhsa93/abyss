@@ -1314,6 +1314,15 @@ console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.op
 const deckEdge = await p.evaluate(async () => {
   const b = window.__spans().list.find((s) => Math.abs(s.c) > 0.3 && Math.abs(s.s) > 0.3)
   if (!b) return null
+  // **At noon and in clear weather.**  Planks and water are told apart by
+  // colour, and the sky tints the whole picture: CI runs in UTC, where the
+  // commit that added this check landed at half past eleven at night, and it
+  // failed there on 38 of 45 while passing at a Seoul morning.  Run here with
+  // `TZ=UTC` it failed the same way, on 39.  The question is the deck's shape,
+  // not the light, so the light is held still — the bargain `shotcheck` makes —
+  // and given back afterwards.
+  window.__clock(new Date(2026, 5, 21, 12))
+  window.__weather(0)
   window.__cam({ x: b.x, y: b.y, zoom: 1 })
   await new Promise((r) => setTimeout(r, 1500))
   const g = document.querySelector('canvas').getContext('2d')
@@ -1338,7 +1347,10 @@ const deckEdge = await p.evaluate(async () => {
       if (wood(colour(...at(b.w - 0.4))) && water(colour(...at(b.w + 0.4)))) straight++
     }
   }
-  return { tried, straight, decks: window.__edges().decks }
+  const decks = window.__edges().decks
+  window.__clock(null)
+  window.__weather(null)
+  return { tried, straight, decks }
 })
 check('a deck is drawn in one piece the way it lies, not a tile at a time',
   !!deckEdge && deckEdge.decks > 0 && deckEdge.tried > 20
@@ -2035,8 +2047,34 @@ await p.waitForTimeout(1200)
 const hud = await p.evaluate(() => document.getElementById('hud').textContent)
 const fps = Number(hud.match(/초당 (\d+)/)[1])
 const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
-check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
-console.log(`      (${tiles} tiles, ${fps} fps)`)
+// **Frames against the refresh, not a count against fifty-five.**  The readout
+// is frames over the last half second, and read 1.2 seconds after a jump that
+// half second can still hold the jump — and on a busy machine the count is
+// noise: it read 46 to 54 here while the median frame came every 16.7 ms, and
+// CI failed this line on 52 at a commit whose frames cost what the one before
+// it cost.  So it asks what "at the refresh rate" means: the median frame
+// arrives within a tenth of the page's own refresh, taken as the shortest
+// tenth of the intervals.  A pass that costs more than a refresh pushes the
+// median to two intervals and fails; the runner being slow for everything does
+// not, unless even the fastest frames are slower than fifty a second.
+const beat = await p.evaluate(() => new Promise((done) => {
+  const gaps = []
+  let last = 0
+  const tick = (now) => {
+    if (last) gaps.push(now - last)
+    last = now
+    if (gaps.length < 90) requestAnimationFrame(tick)
+    else done(gaps.sort((a, b) => a - b))
+  }
+  requestAnimationFrame(tick)
+}))
+const refresh = beat[Math.floor(beat.length * 0.1)]
+const median = beat[beat.length >> 1]
+check('the ground still runs at the refresh rate',
+  median <= refresh * 1.1 && refresh <= 20,
+  `median frame ${median.toFixed(1)} ms against a refresh of ${refresh.toFixed(1)} ms `
+  + `(readout ${fps} fps over ${tiles} tiles)`)
+console.log(`      (${tiles} tiles, median ${median.toFixed(1)} ms, readout ${fps} fps)`)
 
 // 12. And at every zoom, not only the one it opens on.
 //
