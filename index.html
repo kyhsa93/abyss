@@ -796,6 +796,25 @@
       body.touch .frame .top { font-size: var(--font-small); }
       body.touch .frame .bar, body.touch #ui #xp { height: 12px; }
       body.touch .frame .num, body.touch #ui #xp .num { line-height: 12px; }
+      /* The old game's own frame, which had no portrait in it: a name, a life
+         bar, a resource bar and its marks.  116 by 40 is three lines of type
+         and a face in it leaves no room for the first of them, and the face is
+         not lost — the character sheet composites the whole paperdoll two
+         panels away.  `placePhone` sets the class and the size; what a frame
+         is *made of* is a shape and belongs here. */
+      #units.lean .frame {
+        grid-template-columns: 1fr; gap: 0; padding: 3px 4px;
+        /* The height `placePhone` sets is the frame, not the frame plus its
+           padding and its rim: without this the 2.9 : 1 it asks for comes out
+           2.4 and reads as a different frame. */
+        box-sizing: border-box; margin-bottom: 4px; align-content: center;
+      }
+      #units.lean .frame .face { display: none; }
+      #units.lean .frame .top { font-size: var(--font-tiny); line-height: 1.15; }
+      #units.lean .frame .bar { height: 8px; margin-top: 2px; }
+      #units.lean .frame .num { font-size: 8px; line-height: 8px; }
+      #units.lean .rage { height: 5px; margin-top: 2px; }
+      #units.lean .rage .num { display: none; }
       /* No plate: it sits over the grass between the map and the world, and a
          box there reads as another panel rather than as a hint. */
       body.touch #help {

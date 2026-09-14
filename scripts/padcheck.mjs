@@ -503,6 +503,24 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       .filter((b) => !['ui', 'world', 'sheet', 'bag', 'tip', 'hud']
         .includes(b.id)))
 
+  // The player's own frame is the old game's, at the old game's size and in
+  // the old game's place: 2.9 : 1, never under fourteen pixels tall, at
+  // `(6, topBand + 8)`.  Every number in it is a function of the glass — the
+  // old `theme.ts` derived them and so does this — so the check is the ratio
+  // and the floor rather than a pair of pixel counts that would only be true
+  // on one phone.
+  {
+    const me = await p.evaluate(() => {
+      const r = document.getElementById('me')?.getBoundingClientRect()
+      return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null
+    })
+    check(`${name}: the player's frame is the old game's shape`,
+      !!me && Math.abs(me.w / me.h - 2.9) < 0.12 && me.h >= 14,
+      me ? `${Math.round(me.w)} x ${Math.round(me.h)} at `
+        + `${Math.round(me.x)},${Math.round(me.y)} — `
+        + `${(me.w / me.h).toFixed(2)} : 1` : 'no frame')
+  }
+
   // A box and a disc.  The stick's ring at rest and each button, at the
   // radius a finger is actually caught at rather than the one drawn.
   const onDisc = (b, cx, cy, r) =>

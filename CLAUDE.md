@@ -119,6 +119,25 @@ happy. It presses through the pointer now, and on a different row than the one
 already chosen: pressing what is already selected passes whether the press
 arrived or not.
 
+**The player's frame on a phone is the old game's, and what came over is the
+arithmetic and not the pixels.** the tag `icc-final` derives every
+number from the glass — `ui = min(w, h) / 760` held between 0.62 and 1.15, a
+`topBand` of `54 * ui`, a frame 2.9 : 1 whose height is the smallest of half
+the screen, the width budget over the ratio, and forty, never under fourteen —
+and at phone size that comes out **116 x 40 at (6, 41)**, a third of the area
+the frame here had grown to. Copying the six numbers instead would have been
+right on one phone.
+
+Three things were decided rather than transcribed. The **33-pixel band** above
+it held a boss's name there and this game has no boss, so it is not a thing to
+fill — it is the spacing that keeps the frame where the old game put it, and
+the request was the old shape, size *and place*. The **portrait is out**: the
+old frame has none, forty pixels of face in a forty-pixel frame leaves no room
+for the name, and the paperdoll portrait is still two panels away in the
+character sheet. And the **ratio is set rather than left to the content**,
+which came out 116 x 37 — 3.1 : 1 reads as a different frame — so the height is
+pinned and `box-sizing: border-box` puts the rim and the padding inside it.
+
 **The experience bar is back on the bottom edge, and the rule it breaks is
 written down.** It is where the original has it — `layout.json` reads `xp
 BOTTOM (0, 40) 1024 x 13`, the full width — and it had been moved to the top
@@ -1212,9 +1231,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty-six lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty-seven lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and forty-one are; the rest are waiting on a feature nobody has built,
+A hundred and forty-two are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1222,7 +1241,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 439 check labels in the harness, 92 were promised and **347 were written
+of 440 check labels in the harness, 92 were promised and **348 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1232,7 +1251,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone four: 166. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone five: 167. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

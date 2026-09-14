@@ -203,6 +203,12 @@ keeps it honest.
 | **바에 놓은 자리가 다시 켜도 그대로다** | `scripts/uicheck.mjs: "and the arrangement comes back out of the save"` |
 | 전화기와 데스크톱에서 같은 자동 시전이 돈다 | `src/touch.ts: setAuto` |
 
+## [옛-아비스에서-계승할-것](https://github.com/kyhsa93/abyss/wiki/옛-아비스에서-계승할-것)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 상태창이 2.9 : 1 이고 14픽셀 아래로 안 내려간다 | `scripts/padcheck.mjs: "the player's frame is the old game's shape"` |
+
 ## [전화기](https://github.com/kyhsa93/abyss/wiki/전화기)
 
 | 약속 | 지키는 검사 |

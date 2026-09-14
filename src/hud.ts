@@ -1386,9 +1386,40 @@ export function hud(layout?: Layout) {
     // Top left: who you are — and the two strips that belong to him.  They
     // are the original's bottom-of-the-screen strips, and the bottom of this
     // screen is a thumb.
-    const col = Math.min(190, Math.round(w * 0.5))
-    put(units, { left: 8, top: 8, width: col })
-    const under = 8 + units.offsetHeight + 4
+    // **The old game's own frame, at its own size and in its own place.**
+    //
+    // `icc-final`'s `theme.ts` and `hud.ts`, copied as arithmetic rather than
+    // as numbers: nothing here is a pixel somebody chose, it is all a function
+    // of the glass.  At 390 across that comes out 116 x 40 at (6, 41), which
+    // is a third of the area the frame had grown to.
+    //
+    //   ui        = min(w, h) / 760, held between 0.62 and 1.15
+    //   topBand   = 54 * ui        — 33 px at phone size
+    //   the frame = 2.9 : 1, its height the smallest of half the screen, the
+    //               width budget over the ratio, and 40; never under 14
+    //
+    // **The band above it is empty on purpose.**  In the old game it held a
+    // boss's name and this game has no boss — so it is not a thing to fill,
+    // it is the spacing that keeps the frame where the old game put it.  The
+    // request was the old shape, size *and place*; moving it up to 8 would be
+    // two of the three.  Nothing is drawn there, and that is written down
+    // rather than quietly filled with something else.
+    const uiK = Math.max(0.62, Math.min(1.15, Math.min(w, h) / 760))
+    const topBand = Math.round(54 * uiK)
+    const ASPECT = 2.9
+    const deep = Math.max(14, Math.min(40, h * 0.5,
+      (w * (tall ? 0.44 : 0.34)) / ASPECT))
+    const col = Math.round(deep * ASPECT)
+    // What a frame is made of is a shape, so it is a class: no portrait,
+    // smaller type, thinner bars — the old frame was a name and two bars.
+    units.classList.add('lean')
+    // The ratio is the shape, so it is set rather than left to the content:
+    // the old frame is 2.9 : 1 at every size and the type inside it shrinks
+    // with it (`k = min(1, h / 44)` there).  Left to the content it came out
+    // 116 x 37, which is 3.1 and reads as a different frame.
+    me.root.style.height = `${Math.round(deep)}px`
+    put(units, { left: 6, top: topBand + 8, width: col })
+    const under = topBand + 8 + units.offsetHeight + 4
     // **The experience bar goes back to the bottom edge**, which is where the
     // original has it — `layout.json` reads `xp BOTTOM (0, 40) 1024 x 13`, the
     // full width of the screen — and where it was moved from because *the
@@ -1689,6 +1720,10 @@ export function hud(layout?: Layout) {
 
   const place = () => {
     if (document.body.classList.contains('touch')) return placePhone()
+    // Off on the desktop: the frame there follows the original's own
+    // `PlayerFrame TOPLEFT (-19, 4) 232 x 100`, portrait and all.
+    units.classList.remove('lean')
+    me.root.style.removeProperty('height')
     deck.style.removeProperty('display')
     if (document.body.classList.contains('lying')) {
       document.body.classList.remove('lying')
