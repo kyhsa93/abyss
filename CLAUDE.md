@@ -588,8 +588,22 @@ hash of that list, so a new deploy drops the old one whole rather than serving
 half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
+**A promise is a thing that can be computed and never read too.** The wiki's
+pages end in a 붙일 검사 table — a hundred and two lines of "we should check
+this" — and for a year nothing counted how many of them were attached. Eighty
+are; the twenty-two that are not are all waiting on a feature nobody has
+built, and `docs/promised-checks.md` says which, line by line.
+`npm run promisecheck` is the gate and it has two reaches, because the wiki is
+a second git repository and CI has no more of it than it has of the client:
+without the wiki it asserts that every check the table names still **exists**,
+and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
+wiki name the same set of promises, so a new line there fails until somebody
+writes down what keeps it. The number that came out sideways is worth knowing:
+of 297 check labels in the harness, 52 were promised and **245 were written
+because something broke**.
+
 `npm run check` needs nothing but Node — `tsc`, then `manifestcheck`,
-`bordercheck`, `simcheck`, `classcheck` and `docscheck` — and it is the one to run while
+`bordercheck`, `simcheck`, `classcheck`, `promisecheck` and `docscheck` — and it is the one to run while
 editing. `npm run check:slow` is the six that want a built page:
 `viewcheck`, `uicheck`, `questcheck`, `padcheck` and `shotcheck` drive a
 browser, `budgetcheck` weighs `dist`, and `pwacheck` cuts the network;
