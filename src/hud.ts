@@ -98,6 +98,15 @@ export type MakeScreen = {
   beards: Choice[]; beard: number; pickBeard: (id: number) => void
   name: string; rename: (s: string) => void
   say: string; ready: boolean; done: () => void; dice: () => void
+  /**
+   * Back to the screen that chooses, when there is one to go back to.
+   *
+   * `CharCreateBackButton` is in the original and it was not here, because
+   * with one save there was nowhere behind this screen.  Absent rather than
+   * disabled when there is still nobody: a button that goes back to an empty
+   * list is a button that does nothing.
+   */
+  back?: () => void
   /** The client's own sizes — see `CREATE` in `pipeline/layout.py`. */
   size: Record<string, [number, number]>
   /** The sprite that will walk out, painted by the scene — see `paintMe`. */
@@ -105,6 +114,32 @@ export type MakeScreen = {
   list: [number, number]
   racePitch: [number, number]
   classPitch: [number, number]
+}
+
+/**
+ * One character on the screen that chooses one — three lines and a slot.
+ *
+ * `what` is level, race and class on one line, which is what
+ * `$parentInfo` holds in the original's template; `where` is the area he
+ * stopped in, worked out from his coordinates when the list is drawn rather
+ * than stored beside them.
+ */
+export type PickRow = {
+  slot: number; name: string; what: string; where: string
+  can: boolean; why?: string
+}
+export type PickScreen = {
+  rows: PickRow[]
+  chosen: number
+  choose: (slot: number) => void
+  enter: (slot: number) => void
+  erase: (slot: number) => void
+  make: () => void
+  /** Whether there is a free slot — `MAX_CHARACTERS_PER_REALM` of them. */
+  room: boolean
+  say: string
+  /** The client's own sizes — see `PICK` in `pipeline/layout.py`. */
+  size: Record<string, [number, number]>
 }
 
 /**
@@ -144,6 +179,15 @@ export type Layout = {
     shop?: { page?: number; buyback?: number; row?: [number, number] }
     /** The sizes of the character-creation screen — see `CREATE`. */
     create?: Record<string, number[]>
+    /**
+     * And of the screen that chooses one — see `PICK`.
+     *
+     * `slots` and `shown` are numbers rather than sizes:
+     * `MAX_CHARACTERS_PER_REALM` and `MAX_CHARACTERS_DISPLAYED` out of
+     * `CharacterSelect.lua`, which is why this is a looser record than
+     * `create` above.
+     */
+    pick?: Record<string, number | number[]>
     unread: string[]
   }
   /** Which races and classes there are, and which pairs are legal. */
@@ -329,8 +373,39 @@ export function hud(layout?: Layout) {
   createName.maxLength = 12
   const createFoot = el('div', 'foot', createBox)
   const createSay = el('div', 'say', createFoot)
+  const createBack = el('button', 'dice', createFoot) as HTMLButtonElement
   const createOk = el('button', 'ok', createFoot) as HTMLButtonElement
   const createDice = el('button', 'dice', createFoot) as HTMLButtonElement
+
+  /**
+   * The screen that chooses one, which comes before the screen that makes one.
+   *
+   * `CharacterSelect.xml` states its sizes the way `CharacterCreate.xml`
+   * states the other screen's: a row is 256 by 70 with a 217-wide line in it,
+   * the button into the world is 200 by 60, and **how many rows there may be
+   * is in the Lua beside it** — `MAX_CHARACTERS_PER_REALM`, ten, which
+   * `layout.py` reads the same way it reads `MERCHANT_ITEMS_PER_PAGE`.
+   *
+   * Three lines a row, which is what the original's template holds: the name,
+   * then level and race and class, then where he is standing.  Everything in
+   * all three is something this game already knows.
+   *
+   * There is no turntable.  `CharacterSelectRotateLeft` and its twin spin a 3D
+   * model and this game has no 3D — see issue 184 — and the honest
+   * replacement, an eight-direction sprite, is not something the player's
+   * sheets have: `hero.png` is four.  So it is left out rather than faked.
+   */
+  const pick = el('div', '', ui)
+  pick.id = 'pick'
+  pick.hidden = true
+  const pickBox = el('div', 'stage', pick)
+  const pickTitle = el('div', 'title', pickBox)
+  const pickList = el('div', 'list', pickBox)
+  const pickFoot = el('div', 'foot', pickBox)
+  const pickSay = el('div', 'say', pickFoot)
+  const pickErase = el('button', 'erase', pickFoot) as HTMLButtonElement
+  const pickNew = el('button', 'dice', pickFoot) as HTMLButtonElement
+  const pickEnter = el('button', 'ok', pickFoot) as HTMLButtonElement
 
   // The shop.
   //
@@ -617,7 +692,70 @@ export function hud(layout?: Layout) {
       createDice.style.width = `${sz.dice[0]}px`
       createDice.style.height = `${sz.dice[1]}px`
       createDice.onclick = made.dice
+      createBack.hidden = !made.back
+      createBack.textContent = '돌아가기'
+      createBack.style.width = `${sz.back[0]}px`
+      createBack.style.height = `${sz.back[1]}px`
+      createBack.onclick = () => made.back?.()
     },
+
+    /**
+     * Draw the screen that chooses a character.
+     *
+     * `rows` is in slot order and carries its own reason for being unplayable
+     * — a save from a world that has since been re-baked is the only one
+     * there is — because **a character that cannot be entered is still
+     * somebody's hours**: listed and refused is honest where quietly deleted
+     * is not.  Deleting is the player's to do, and the button says so.
+     */
+    setPick(open: boolean, screen: PickScreen) {
+      const was = pick.hidden
+      pick.hidden = !open
+      if (was !== pick.hidden) seat()
+      if (!open) return
+      pickTitle.textContent = '캐릭터를 고른다'
+      pickList.style.width = `${screen.size.row[0]}px`
+      pickList.style.maxHeight = `${screen.size.list[1]}px`
+      pickList.textContent = ''
+      for (const row of screen.rows) {
+        const b = el('button', 'card', pickList) as HTMLButtonElement
+        b.style.height = `${screen.size.row[1]}px`
+        if (row.slot === screen.chosen) b.classList.add('on')
+        if (!row.can) b.classList.add('off')
+        el('span', 'who', b).textContent = row.name
+        el('span', 'what', b).textContent = row.what
+        el('span', 'where', b).textContent = row.can ? row.where : row.why ?? ''
+        b.onclick = () => screen.choose(row.slot)
+        b.ondblclick = () => { if (row.can) screen.enter(row.slot) }
+      }
+      if (!screen.rows.length) {
+        el('div', 'empty', pickList).textContent = '아직 아무도 없다'
+      }
+      const one = screen.rows.find((r) => r.slot === screen.chosen)
+      pickSay.textContent = screen.say
+      pickEnter.textContent = '세상으로'
+      pickEnter.style.width = `${screen.size.enter[0]}px`
+      pickEnter.style.height = `${screen.size.enter[1]}px`
+      pickEnter.disabled = !one?.can
+      pickEnter.onclick = () => screen.enter(screen.chosen)
+      pickNew.textContent = '새로 만들기'
+      pickNew.style.height = `${screen.size.back[1]}px`
+      pickNew.disabled = !screen.room
+      pickNew.onclick = screen.make
+      pickErase.textContent = '지우기'
+      pickErase.style.height = `${screen.size.back[1]}px`
+      pickErase.disabled = !one
+      pickErase.onclick = () => screen.erase(screen.chosen)
+    },
+
+    /**
+     * Whether the screen that makes a character is the one that is up.
+     *
+     * Asked because "nobody has been made yet" stopped meaning "the maker is
+     * open" the day a screen that chooses came before it: a look sheet
+     * finishing its download redrew the maker *behind* the list.
+     */
+    making: () => !create.hidden,
 
     /** What the character is called — set once, when one is made. */
     setName(name: string) {

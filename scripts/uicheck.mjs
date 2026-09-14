@@ -247,14 +247,31 @@ for (const [W, H] of SIZES) {
     // a second picture of a character, because a second picture is a picture
     // that drifts — so the thing to check is the other end: the sprite in the
     // world is wearing what the screen was asked for.
-    const looked = await p.evaluate(() => {
-      const rows = document.querySelectorAll('#create .looks')
-      const hair = rows[0]?.querySelectorAll('.pick') ?? []
-      const beard = rows[1]?.querySelectorAll('.pick') ?? []
-      hair[hair.length - 1]?.click()
-      beard[beard.length - 1]?.click()
-      return { hairs: hair.length, beards: beard.length }
-    })
+    //
+    // **Clicked for real** — through the pointer, with hit testing — and not
+    // with `element.click()` from script.  The difference is the whole of a
+    // bug this check sat next to for three rounds: every control on this
+    // screen computed `pointer-events: none`, because `#ui *` turns the
+    // interface inert and nothing had said that a screen which replaces the
+    // game is not the interface.  A script click does no hit testing, so the
+    // check passed and the screen could not be used by a finger or a mouse.
+    // *A check that reads the same side as the bug is blind to it.*
+    const hairs = p.locator('#create .looks').nth(0).locator('.pick')
+    const beards = p.locator('#create .looks').nth(1).locator('.pick')
+    const looked = { hairs: await hairs.count(), beards: await beards.count() }
+    await hairs.nth(looked.hairs - 1).click()
+    await beards.nth(looked.beards - 1).click()
+    // And the class row, which is the one that changes what walks out.
+    // A *different* row, because pressing the one that is already chosen is a
+    // check that passes whether or not the press arrived — which is the same
+    // shape of blindness as clicking from script.
+    const classes = p.locator('#create .classes .pick')
+    const before = await p.evaluate(() => window.__make().cls)
+    await classes.nth(1).click()
+    const heard = await p.evaluate(() => window.__make().cls)
+    check('the screen answers a real press', heard !== before && heard > 0,
+      `class ${before} -> ${heard} after pressing the second row`)
+    await classes.nth(0).click()
     check('there are appearances to choose from',
       looked.hairs >= 8 && looked.beards >= 3,
       `${looked.hairs} hairstyles, ${looked.beards} beards including none`)
@@ -282,6 +299,102 @@ for (const [W, H] of SIZES) {
       false, 'it was not')
   }
   await p.close()
+}
+
+// --- several characters, and the screen that chooses between them ----------
+//
+// Issue 189's four conditions, and the last two are the ones that need a
+// browser: a character that is made has to be in the list afterwards, and two
+// slots must not mix.  One context for the whole block, because that is what
+// makes the store survive a reload — `browser.newPage()` gives each page a
+// context of its own, which is the right default for every other check here
+// and exactly wrong for this one.
+{
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } })
+  const p = await ctx.newPage()
+  p.on('pageerror', (e) => errs.push(String(e)))
+  const boot = async () => {
+    await p.goto(HOST)
+    await p.waitForFunction(() => window.__picks !== undefined)
+    await p.waitForTimeout(700)
+  }
+  await boot()
+  const empty = await p.evaluate(() => window.__picks())
+  check('a browser with nobody in it goes straight to the maker',
+    empty.rows.length === 0 && empty.up === false,
+    `${empty.rows.length} characters, ${empty.slots} slots`)
+  // **How many slots is the client's number**, the same as how many rows a
+  // shop shows: `MAX_CHARACTERS_PER_REALM` in `CharacterSelect.lua`.
+  check('and as many slots as the client says there are', empty.slots === 10,
+    `${empty.slots}`)
+
+  await p.evaluate(() => window.__makeOne('첫째', 1))
+  await p.waitForTimeout(400)
+  // The condition in the issue's own words: made, saved, and in the list.
+  await boot()
+  const one = await p.evaluate(() => window.__picks())
+  check('a character that was made is there when you come back',
+    one.rows.length === 1 && one.rows[0].name === '첫째' && one.mine === 1,
+    JSON.stringify(one.rows))
+  // One is not a list.  The original selects an account's only character
+  // rather than asking which of the one you meant.
+  check('and one character does not need choosing', one.up === false,
+    `the list is ${one.up ? 'up' : 'not up'}`)
+
+  await p.evaluate(() => window.__pickNew())
+  await p.waitForTimeout(300)
+  await p.evaluate(() => window.__makeOne('둘째', 5))
+  await p.waitForTimeout(400)
+  await boot()
+  const two = await p.evaluate(() => window.__picks())
+  check('two characters make a list, and it is up',
+    two.rows.length === 2 && two.up === true,
+    two.rows.map((r) => `${r.slot}:${r.name}`).join(', '))
+  // Three lines a row, which is what `CharSelectCharacterButtonTemplate`
+  // holds: the name, level and race and class, and where he is standing.
+  const lines = await p.evaluate(() => [...document.querySelectorAll('#pick .card')]
+    .map((el) => [el.querySelector('.who')?.textContent ?? '',
+      el.querySelector('.what')?.textContent ?? '',
+      el.querySelector('.where')?.textContent ?? '']))
+  check('and each row is a name, a level with a race and a class, and a place',
+    lines.length === 2 && lines.every(([who, what, where]) =>
+      who && /레벨/.test(what) && where.length > 1),
+    lines.map((l) => l.join(' | ')).join('  //  '))
+
+  // **The slots do not mix**, which is the check that would catch the whole
+  // class of bug this screen introduces: one store, several characters, and a
+  // save written to the wrong key is a character overwritten by another.
+  // Pressed for real through the screen's own buttons, because clicking from
+  // script does no hit testing and the whole subtree was `pointer-events:
+  // none` until this round.
+  await p.locator('#pick .card').nth(1).click()
+  await p.locator('#pick .ok').click()
+  await p.waitForTimeout(600)
+  const went = await p.evaluate(() => ({ ...window.__picks(), cls: window.__you().cls }))
+  check('choosing the second one enters the second one',
+    went.mine === 2 && went.cls === 5 && went.up === false,
+    `slot ${went.mine}, class ${went.cls}`)
+  // Play it a little, save, and look at the other one.
+  await p.evaluate(() => { window.__earn(6000); window.__keep() })
+  await p.waitForTimeout(400)
+  await boot()
+  const after = await p.evaluate(() => window.__picks())
+  const first = after.rows.find((r) => r.slot === 1)
+  const second = after.rows.find((r) => r.slot === 2)
+  check('and playing one leaves the other alone',
+    first?.level === 1 && first?.cls === 1 && (second?.level ?? 0) > 1
+    && second?.cls === 5,
+    after.rows.map((r) => `${r.slot}:${r.name} ${r.level}레벨 직업${r.cls}`).join(', '))
+
+  // And deleting removes one and only one.
+  await p.evaluate(() => window.__pickErase(1))
+  await p.waitForTimeout(300)
+  await boot()
+  const left = await p.evaluate(() => window.__picks())
+  check('deleting takes one away and leaves the rest',
+    left.rows.length === 1 && left.rows[0].slot === 2,
+    left.rows.map((r) => `${r.slot}:${r.name}`).join(', ') || 'nobody')
+  await ctx.close()
 }
 
 // --- six classes, each one actually played ---------------------------------

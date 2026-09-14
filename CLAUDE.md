@@ -107,6 +107,16 @@ as an iPhone, drives it with real touch input and writes the screenshots to
 readout seventy-two columns wide, a panel covering the person talking, and a
 help line printed on top of the buttons.
 
+**A click from script is not a click.** `element.click()` does no hit testing,
+so a check that presses a button that way passes whether or not a finger
+could. Every control on the screen that makes a character computed
+`pointer-events: none` for three rounds — `#ui *` turns the interface inert,
+and nothing had said that a screen which *replaces* the game is not the
+interface — and the check that covered that screen clicked from script and was
+happy. It presses through the pointer now, and on a different row than the one
+already chosen: pressing what is already selected passes whether the press
+arrived or not.
+
 **Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
 is the whole lesson of a round spent on it. The old branch removed every pin
 and let the base rules stand, which sounds like the honest answer — but
@@ -429,6 +439,17 @@ a save that does not carry the stream's position is a save you reload to
 re-roll a drop you did not like, and a distribution is only testable if you can
 run the same twenty thousand rolls twice. `src/sim/roll.ts` is thirty-two bits of
 mulberry32 and `save.ts` writes it down.
+
+**There are ten characters, and the ten is the client's.**
+`MAX_CHARACTERS_PER_REALM` sits in `CharacterSelect.lua` next to
+`MAX_CHARACTERS_DISPLAYED`, so how many saves there may be is a number this
+game reads rather than one it picks — the same as how many rows a shop shows
+at once. The store is keyed on the slot; a save from a world that has since
+been re-baked is **listed and refused rather than deleted**, because with one
+slot "throw it away" was a line in a log the player was watching and with ten
+it is three names quietly gone after a deploy. One character goes straight
+into the world, because a list of one is a click on the way to somewhere you
+were already going.
 
 **Closing the tab is logging out, so it has to cost nothing.** IndexedDB with
 every access wrapped — some browsers throw on the *access* in a private window,

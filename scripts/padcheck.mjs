@@ -510,6 +510,61 @@ const shown = await p.evaluate(() => [
 check('the readout and the help line are Korean',
   !/[A-Za-z]{4,}/.test(shown.replace('AzerothCore', '').replace('WASD', '')), shown)
 
+// 14. And the screen that chooses a character, on a phone.
+//
+// It is one of only two full-screen layers in this game and the other one
+// already caught this class of mistake twice: a `display: flex` that beat the
+// `hidden` attribute made every touch land on an invisible layer, and every
+// control on it computed `pointer-events: none` so nothing could be pressed
+// at all.  Both were invisible to a check that clicked from script.
+{
+  await p.setViewportSize({ width: 390, height: 844 })
+  await p.evaluate(() => window.__pickNew())
+  await p.waitForTimeout(200)
+  await p.evaluate(() => window.__makeOne('둘째', 5))
+  await p.waitForTimeout(300)
+  await p.reload()
+  await p.waitForFunction(() => window.__picks !== undefined, null, { timeout: 60000 })
+  await p.waitForTimeout(800)
+  const list = await p.evaluate(() => window.__picks())
+  check('two characters bring the list up on a phone',
+    list.up === true && list.rows.length >= 2,
+    `${list.rows.length} characters, list ${list.up ? 'up' : 'down'}`)
+  // On the glass, which is the promise every other panel here makes.
+  const box = await p.locator('#pick .stage').boundingBox()
+  const { width: W4, height: H4 } = p.viewportSize()
+  check('and the whole of it is on the glass',
+    !!box && box.x >= 0 && box.y >= 0
+    && box.x + box.width <= W4 + 1 && box.y + box.height <= H4 + 1,
+    box ? `${Math.round(box.x)},${Math.round(box.y)} `
+      + `${Math.round(box.width)}x${Math.round(box.height)} in ${W4}x${H4}`
+      : 'no box')
+  // And a real finger works it.  `Input.dispatchTouchEvent` goes through hit
+  // testing, which is the whole point: a layer that is inert to a pointer
+  // looks perfectly fine in a screenshot.
+  const card = await p.locator('#pick .card').nth(1).boundingBox()
+  await touch('touchStart', [[card.x + card.width / 2, card.y + card.height / 2]])
+  await touch('touchEnd', [])
+  const enter = await p.locator('#pick .ok').boundingBox()
+  await touch('touchStart', [[enter.x + enter.width / 2, enter.y + enter.height / 2]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(500)
+  const went = await p.evaluate(() => window.__picks())
+  check('and a finger picks one and goes in',
+    went.up === false && went.mine === 2, `slot ${went.mine}, `
+    + `list ${went.up ? 'still up' : 'gone'}`)
+  // And the layer is out of the way afterwards, which is the bug the other
+  // screen had: `display: flex` beats `hidden`, so it stayed over the game.
+  const overlay = await p.evaluate(() => {
+    const el = document.getElementById('pick')
+    const css = getComputedStyle(el)
+    return { hidden: el.hidden, display: css.display }
+  })
+  check('and it is gone rather than merely invisible',
+    overlay.hidden === true && overlay.display === 'none',
+    JSON.stringify(overlay))
+}
+
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)
 console.log(bad === 0 ? 'all checks passed' : `${bad} FAILED`)
 await b.close()

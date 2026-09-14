@@ -25,7 +25,7 @@ import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
 import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
-import { migrate, read as readSave, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Save } from './save.ts'
+import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
@@ -3361,7 +3361,13 @@ async function main() {
       // painted again, or the screen that makes a character shows a bald man
       // until something else happens to redraw it — the first paint always
       // runs before any of these have loaded.
-      img.onload = () => { if (!me) drawCreate() }
+      //
+      // **Only while that screen is the one that is up.**  `!me` was standing
+      // in for "the maker is open", and it stopped meaning that the day a
+      // screen that *chooses* came before it: nobody is made while the list
+      // is up either, so a hair sheet finishing its download opened the maker
+      // behind the list — a full-screen layer under the one being read.
+      img.onload = () => { if (!me && ui.making()) drawCreate() }
       img.src = `./art/look/${key}.png`
       lookSheets.set(key, img)
     }
@@ -4742,6 +4748,12 @@ async function main() {
         + `${table.classes[String(makeClass)] ?? ''}`
         + ` · ${SEXES.find(([i]) => i === makeSex)?.[1] ?? ''}`,
       ready: makeName.trim().length > 0,
+      // Back to the list, but only when there is a list: with nobody made
+      // yet this screen is the whole game and there is nowhere behind it.
+      ...(cards.length ? { back: () => {
+        ui.setCreate(false, {} as never)
+        drawPick()
+      } } : {}),
       done: () => {
         const born: Me = { name: makeName.trim(), race: makeRace,
           sex: makeSex, cls: makeClass, hair: makeHair, beard: makeBeard }
@@ -4754,7 +4766,14 @@ async function main() {
         ui.setName(born.name)
         ui.setCreate(false, {} as never)
         ui.log(`${born.name}. 노스샤이어 계곡에서 시작한다.`, 'gain')
-        writeSave(snapshot()).catch(() => {})
+        // Into a slot of his own, chosen before the screen opened.  Written
+        // at once rather than at the next fifteen-second tick, because a
+        // character who is not in the list is a character the screen that
+        // chooses cannot show.
+        writeSave(snapshot(), mySlot).catch(() => {})
+        cards = cards.filter((c) => c.slot !== mySlot)
+          .concat([{ slot: mySlot, save: snapshot() }])
+          .sort((a, c) => a.slot - c.slot)
       },
       // The one in the original that is not a choice at all.  Ours can only
       // roll the name, because every other row has exactly one thing in it
@@ -4765,6 +4784,91 @@ async function main() {
       list: (size['list'] ?? [220, 220]) as [number, number],
       racePitch: (size['racePitch'] ?? [0, 21]) as [number, number],
       classPitch: (size['classPitch'] ?? [6, 0]) as [number, number],
+    })
+  }
+
+  /**
+   * The characters there are, and which slot this one is in.
+   *
+   * **Ten slots, and the ten is the client's**: `MAX_CHARACTERS_PER_REALM` in
+   * `CharacterSelect.lua`, which `pipeline/layout.py` reads the same way it
+   * reads how many rows a shop shows at once.  The issue that asked for this
+   * screen said the number was ours to decide, and it is not — the same as
+   * every other number in this interface.
+   */
+  const roomFor = () => (layout?.spec?.pick?.['slots'] as number) ?? 10
+  let cards: Card[] = []
+  let mySlot = 1
+  /**
+   * Put a chosen character in the world.
+   *
+   * Filled in at the bottom of this file, where the save is read, because
+   * that is where the rest bonus is worked out and `drawPick` is written
+   * above it.  A forward reference rather than moving one of the two: the
+   * screen is drawn from four places and the boot happens once.
+   */
+  let intoWorld: (card: Card) => void = () => {}
+
+  /**
+   * Draw the screen that chooses a character.
+   *
+   * A save from another bake is **listed and refused**, not deleted.  With one
+   * slot the rule was "a world that has been re-baked throws the save away",
+   * which was fine when the save was the only one and the message was on the
+   * screen the moment it happened.  With ten, deleting on sight means a
+   * player opens the game after a deploy and three names are simply gone with
+   * one line in a log — so the names stay, the row says why it cannot be
+   * entered, and the button that removes it is the player's.
+   */
+  let chosen = 0
+  const drawPick = () => {
+    const size = (layout?.spec?.pick ?? {}) as Record<string, number[]>
+    const rows = cards.map((c) => {
+      const w = c.save.you.who
+      const table = layout?.who
+      const race = table?.races?.[String(w?.race ?? 1)] ?? ''
+      const kind = table?.classes?.[String(w?.cls ?? 1)] ?? ''
+      const ok = !worldHash || !c.save.world || c.save.world === worldHash
+      return {
+        slot: c.slot,
+        name: w?.name || '주인공',
+        what: `${c.save.you.level}레벨 · ${race} ${kind}`.trim(),
+        // Worked out from where he stopped rather than stored beside it: the
+        // area a coordinate is in is a fact about the world, and a word kept
+        // next to the numbers it came from is a word that can disagree.
+        where: zoneOf(areaOf(c.save.hero.x, c.save.hero.y),
+          inside(areaOf(c.save.hero.x, c.save.hero.y))),
+        can: ok,
+        ...(ok ? {} : { why: '다른 세계에서 만든 캐릭터다' }),
+      }
+    })
+    if (!rows.some((r) => r.slot === chosen)) {
+      chosen = rows.find((r) => r.can)?.slot ?? rows[0]?.slot ?? 0
+    }
+    ui.setPick(true, {
+      rows,
+      chosen,
+      choose: (slot) => { chosen = slot; drawPick() },
+      enter: (slot) => {
+        const card = cards.find((c) => c.slot === slot)
+        if (card) intoWorld(card)
+      },
+      erase: (slot) => {
+        cards = cards.filter((c) => c.slot !== slot)
+        wipeSave(slot).catch(() => {})
+        if (cards.length) drawPick()
+        else { ui.setPick(false, {} as never); mySlot = 1; drawCreate() }
+      },
+      make: () => {
+        const free = freeSlot(cards, roomFor())
+        if (free === null) return
+        mySlot = free
+        ui.setPick(false, {} as never)
+        drawCreate()
+      },
+      room: freeSlot(cards, roomFor()) !== null,
+      say: `${cards.length} / ${roomFor()}`,
+      size: size as Record<string, [number, number]>,
     })
   }
 
@@ -7874,51 +7978,72 @@ async function main() {
    * than `beforeunload`, because on a phone the tab is very often not closed
    * so much as left.
    */
-  const loaded = await readSave().catch(() => null)
-  if (loaded) {
-    const fresh = migrate(loaded)
-    if (!fresh) {
-      ui.log('예전 저장을 읽을 수 없다. 처음부터 시작한다.', 'note')
-      await wipeSave().catch(() => {})
-    } else if (fresh.world && worldHash && fresh.world !== worldHash) {
-      // A different bake: the ids in the save may point at other things now.
-      ui.log('세계가 다시 구워졌다. 저장을 버리고 처음부터 시작한다.', 'note')
-      await wipeSave().catch(() => {})
-    } else {
-      restore(fresh)
-      // What the time away was worth.  Four times as much if the tab was
-      // closed in an inn, which is the only reason it matters where you stop.
-      const away = Math.max(0, (Date.now() - (fresh.at ?? Date.now())) / 1000)
-      const banked = Math.min(restCap(),
-        you.rest + restFor(away, !!fresh.you.restedIn))
-      const gained = Math.round(banked - you.rest)
-      you.rest = banked
-      ui.log(`${you.level}레벨로 이어서 시작한다.`, 'note')
-      if (gained > 0) {
-        ui.log(fresh.you.restedIn
-          ? `여관에서 쉬었다. 휴식 경험치 ${gained}`
-          : `쉬는 동안 휴식 경험치 ${gained}`, 'gain')
-      }
+  cards = await listSaves(roomFor()).catch(() => [])
+  /**
+   * Put one of them in the world.
+   *
+   * The rest bonus is worked out here rather than where the save is read,
+   * because it is a fact about *this* character's time away and there are now
+   * several characters with several different ones.
+   */
+  const enterWorld = (card: Card) => {
+    mySlot = card.slot
+    restore(card.save)
+    // What the time away was worth.  Four times as much if the tab was
+    // closed in an inn, which is the only reason it matters where you stop.
+    const away = Math.max(0, (Date.now() - (card.save.at ?? Date.now())) / 1000)
+    const banked = Math.min(restCap(),
+      you.rest + restFor(away, !!card.save.you.restedIn))
+    const gained = Math.round(banked - you.rest)
+    you.rest = banked
+    ui.setPick(false, {} as never)
+    ui.log(`${you.level}레벨로 이어서 시작한다.`, 'note')
+    if (gained > 0) {
+      ui.log(card.save.you.restedIn
+        ? `여관에서 쉬었다. 휴식 경험치 ${gained}`
+        : `쉬는 동안 휴식 경험치 ${gained}`, 'gain')
     }
   }
   /**
-   * And if nobody has been made yet, make one.
+   * And one of three screens: the list, the maker, or neither.
    *
-   * After the save is read, because a save carries a character and the screen
-   * is what fills that in when there is not one.  A save from before there
-   * was a screen comes through `migrate` with the character this game used to
-   * be — one human warrior called 주인공 — so nobody is asked to make again
-   * what they have already played.
+   * **One character goes straight in.**  A list of one is a click somebody
+   * has to make every time to get where they were already going, and the
+   * original does not show a character-select screen to an account with one
+   * character either — it selects it.  Two or more, or one that cannot be
+   * played, and the list is the screen.
    */
-  // Read through a local, because the compiler has only ever seen `me`
-  // assigned `null` here — `restore` and the screen's own button are the two
-  // places that fill it and neither is in this function's flow.
-  const made = me as Me | null
-  if (!made) drawCreate()
-  else ui.setName(made.name)
+  intoWorld = enterWorld
+  const playable = cards.filter((c) => !c.save.world || !worldHash
+    || c.save.world === worldHash)
+  if (!cards.length) {
+    mySlot = 1
+    drawCreate()
+  } else if (cards.length === 1 && playable.length === 1) {
+    enterWorld(playable[0]!)
+  } else {
+    drawPick()
+  }
 
   let saved = 0
-  const keep = () => { writeSave(snapshot()).catch(() => {}) }
+  const keep = () => {
+    // Only once there is somebody to save.  The screens that choose and make
+    // a character are both up *before* one exists, and writing then would put
+    // a nameless level-one warrior into whichever slot was next — which is
+    // the slot the player was about to make somebody in.
+    if (!me) return
+    writeSave(snapshot(), mySlot).catch(() => {})
+    const now = snapshot()
+    cards = cards.filter((c) => c.slot !== mySlot)
+      .concat([{ slot: mySlot, save: now }]).sort((a, c) => a.slot - c.slot)
+  }
+  // And on demand, for the check that asks whether two slots mix: the answer
+  // only means anything after a write, and waiting fifteen seconds for one is
+  // a check nobody runs.
+  ;(window as unknown as { __keep: () => unknown }).__keep = () => {
+    keep()
+    return { slot: mySlot, level: you.level }
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') keep()
   })
@@ -8530,6 +8655,50 @@ async function main() {
     }
   }
   /** Make one, so a check can get into the world without typing. */
+  /**
+   * The characters there are, and which one is being played.
+   *
+   * What a check needs to say that two slots do not mix: the list is the
+   * store's, the names are the players' own, and `mine` is the slot the
+   * character on screen is actually being written to.
+   */
+  ;(window as unknown as { __picks: () => unknown }).__picks = () => ({
+    slots: roomFor(),
+    mine: me ? mySlot : 0,
+    up: !document.getElementById('pick')?.hidden,
+    rows: cards.map((c) => ({
+      slot: c.slot,
+      name: c.save.you.who?.name ?? '',
+      cls: c.save.you.who?.cls ?? 0,
+      level: c.save.you.level,
+    })),
+  })
+  /** Choose and enter a slot, the way the screen's own button does. */
+  ;(window as unknown as { __pickOne: (slot: number) => unknown })
+    .__pickOne = (slot) => {
+      const card = cards.find((c) => c.slot === slot)
+      if (!card) return null
+      intoWorld(card)
+      return { slot, name: me?.name ?? '' }
+    }
+  /** And make room for another, which is what the list's own button does. */
+  ;(window as unknown as { __pickNew: () => unknown }).__pickNew = () => {
+    const free = freeSlot(cards, roomFor())
+    if (free === null) return null
+    mySlot = free
+    ui.setPick(false, {} as never)
+    drawCreate()
+    return { slot: free }
+  }
+  /** And remove one. */
+  ;(window as unknown as { __pickErase: (slot: number) => unknown })
+    .__pickErase = (slot) => {
+      cards = cards.filter((c) => c.slot !== slot)
+      wipeSave(slot).catch(() => {})
+      drawPick()
+      return { left: cards.length }
+    }
+
   ;(window as unknown as { __makeOne: (name: string, cls?: number) => unknown })
     .__makeOne = (name, cls) => {
       makeName = name

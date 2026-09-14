@@ -129,6 +129,19 @@
       #ui #shop li, #ui #shop .page {
         pointer-events: auto; cursor: pointer;
       }
+      /* And the two screens that come **instead of** the game rather than
+         over it.  Everything on them is a control — there is no world
+         underneath to answer a click — so the whole subtree takes one.
+         Without this every button on the screen that makes a character
+         computed `pointer-events: none` and could not be pressed by a finger
+         or a mouse at all, for as long as that screen has existed. The check
+         that was supposed to cover it called `.click()` from script, which
+         does no hit testing: *a check that reads the same side as the bug is
+         blind to it*, which is this repository's own line. It clicks for real
+         now. */
+      #ui #create, #ui #create *, #ui #pick, #ui #pick * {
+        pointer-events: auto;
+      }
       /* Above the canvas, said out loud.  Both are painted in the positioned
          layer and the canvas is the later sibling, so without this the
          controls that take a click were behind the world. */
@@ -554,6 +567,73 @@
       body.touch #create .cols { flex-direction: column; gap: 10px; }
       body.touch #create .stage { width: calc(100vw - 20px); }
       body.touch #create .races { flex-direction: row; flex-wrap: wrap; }
+
+      /* The screen that chooses one.  Its sizes are the client's — a row is
+         256 by 70 and the list is 260 wide — so what is here is only what a
+         row is made of: three lines, which is what the original's own
+         template holds. */
+      #pick {
+        position: fixed; inset: 0; z-index: 21; pointer-events: auto;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(6, 7, 10, .88);
+        font: var(--font-med)/1.6 var(--body); color: var(--ink);
+      }
+      /* The same rule `#create` needs and for the same reason: `display:flex`
+         beats the `hidden` attribute, and a full-screen layer with
+         `pointer-events: auto` over the game eats every touch. */
+      #pick[hidden] { display: none; }
+      #pick .stage {
+        background: var(--panel); border: 1px solid var(--gold-dark);
+        border-radius: 5px; padding: 14px 18px 12px;
+        box-shadow: inset 0 0 0 1px #000, 0 6px 24px rgba(0,0,0,.7);
+        max-height: calc(100vh - 24px); overflow-y: auto;
+      }
+      #pick .title {
+        color: var(--gold); font: var(--font-small)/1.8 var(--mono);
+        letter-spacing: .04em; text-align: center;
+        border-bottom: 1px solid var(--gold-dark);
+        padding-bottom: 5px; margin-bottom: 10px;
+      }
+      #pick .list {
+        display: flex; flex-direction: column; gap: 6px;
+        overflow-y: auto; max-width: calc(100vw - 60px);
+      }
+      #pick .card {
+        display: flex; flex-direction: column; justify-content: center;
+        background: rgba(201,168,106,.08); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit;
+        padding: 0 10px; cursor: pointer; text-align: left;
+        flex: 0 0 auto;
+      }
+      #pick .card:hover { background: rgba(201,168,106,.18); }
+      #pick .card.on {
+        border-color: var(--gold); background: rgba(201,168,106,.22);
+      }
+      #pick .card.off { opacity: .45; }
+      #pick .card .who { color: var(--gold); font: var(--font-med)/1.4 var(--body); }
+      #pick .card .what,
+      #pick .card .where {
+        font: var(--font-tiny)/1.3 var(--mono); color: #9aa;
+      }
+      #pick .card.off .where { color: #c98; }
+      #pick .empty { color: #8a8f9e; font: var(--font-small)/2 var(--mono); }
+      #pick .foot {
+        display: flex; align-items: center; gap: 10px;
+        margin-top: 12px; padding-top: 8px;
+        border-top: 1px solid var(--gold-dark);
+      }
+      #pick .say { flex: 1; color: #9aa; font: var(--font-small)/1.5 var(--mono); }
+      #pick .ok, #pick .dice, #pick .erase {
+        background: rgba(201,168,106,.12); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit; cursor: pointer;
+        padding: 0 10px;
+      }
+      #pick .ok:disabled, #pick .dice:disabled, #pick .erase:disabled {
+        opacity: .35; cursor: default;
+      }
+      #pick .ok:hover:enabled, #pick .dice:hover:enabled,
+      #pick .erase:hover:enabled { background: rgba(201,168,106,.24); }
+      body.touch #pick .stage { width: calc(100vw - 20px); }
 
       /* The shop.  Its box comes from `MerchantFrame` — 384 by 512 in the
          gossip window's corner — so what is written here is only what a row

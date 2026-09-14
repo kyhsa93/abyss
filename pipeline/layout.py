@@ -101,6 +101,22 @@ CREATE = {
     'list': 'CharacterCreateRaceScrollFrame',
 }
 
+# The screen that **chooses** one, which is the same bargain as `CREATE`:
+# sizes, not places.  A character row is 256 by 70 with a 217-wide line inside
+# it, and the three buttons under the list say how big a button is here.
+#
+# `CharacterSelectDeleteButton` is in the list because deleting is half of
+# what this screen is for — the original ships a confirmation dialog for it,
+# which is the client saying out loud that it is not a small button.
+PICK = {
+    'row': 'CharSelectCharacterButtonTemplate',
+    'enter': 'CharSelectEnterWorldButton',
+    'back': 'CharacterSelectBackButton',
+    'new': 'CharSelectCreateCharacterButton',
+    'erase': 'CharacterSelectDeleteButton',
+    'list': 'CharacterSelectCharacterFrame',
+}
+
 #: Which field of `ChrRaces.dbc` and `ChrClasses.dbc` holds the name in this
 #: client's own language.  Found rather than looked up in a layout table: the
 #: only field of either whose every value is an offset into the string block
@@ -507,6 +523,31 @@ def spec(client, found):
                          abs(int(float(an.get('y') or 0)))]
     if made:
         out['create'] = made
+    # And the screen that chooses one.  **How many there may be is a number
+    # the client states**, which is the difference between reading a rule and
+    # picking one: `MAX_CHARACTERS_PER_REALM` is ten in `CharacterSelect.lua`
+    # and `MAX_CHARACTERS_DISPLAYED` is ten beside it, so ten is how many
+    # slots there are and ten is how many fit on the screen at once.  The
+    # issue that asked for this said the number was ours to decide; it is not,
+    # any more than `MERCHANT_ITEMS_PER_PAGE` was.
+    chose = {}
+    for key, name in PICK.items():
+        node = found.get(name)
+        if node is None:
+            continue
+        got = size_of(found, node)
+        if got:
+            chose[key] = [got[0], got[1]]
+    lua, _src = client.read('Interface\\GlueXML\\CharacterSelect.lua')
+    if lua:
+        t = lua.decode('utf-8', 'replace')
+        for key, name in (('slots', 'MAX_CHARACTERS_PER_REALM'),
+                          ('shown', 'MAX_CHARACTERS_DISPLAYED')):
+            m = re.search(r'\b%s\s*=\s*(\d+)' % name, t)
+            if m:
+                chose[key] = int(m.group(1))
+    if chose:
+        out['pick'] = chose
     # And what is left on purpose.
     out['unread'] = ['texture file names', 'anything a player reads',
                      'frameStrata (a word, and we have no stacking model)',

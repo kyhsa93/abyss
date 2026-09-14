@@ -74,7 +74,37 @@ export type Save = {
   quests: unknown
 }
 
-const DB = 'abyss', STORE = 'save', KEY = 'current'
+const DB = 'abyss', STORE = 'save'
+
+/**
+ * Where the one save used to live.
+ *
+ * One key, because there was one character.  A screen that *chooses* between
+ * characters cannot be built on one key, so the store is keyed on a slot now
+ * and this is the key the first of them came out of — `list` moves it into
+ * slot one and deletes it, once, and after that nothing here mentions it
+ * again.  A migration in the store rather than in `migrate`: that walks a
+ * save's *version* forward and this moves a save's *address*, and running the
+ * two through one function is how a save ends up in two places.
+ */
+const WAS = 'current'
+
+/** How a slot is addressed in the store.  Slots count from one. */
+const keyOf = (slot: number) => `slot${slot}`
+
+/**
+ * One line of the screen that chooses, which is what that screen is made of.
+ *
+ * `where` is not stored: it is worked out from `hero` when the list is drawn,
+ * because it is a fact about the world rather than about the save, and a word
+ * kept beside the coordinates it came from is a word that can disagree with
+ * them.  `world` is stored, and a card whose world is not the one that is
+ * loaded is shown and refused rather than deleted — see `playable`.
+ */
+export type Card = {
+  slot: number
+  save: Save
+}
 
 /** Open the store, or nothing at all if this browser will not have it. */
 function open(): Promise<IDBDatabase | null> {
@@ -98,13 +128,13 @@ function open(): Promise<IDBDatabase | null> {
   })
 }
 
-export async function write(save: Save): Promise<boolean> {
+export async function write(save: Save, slot: number): Promise<boolean> {
   const db = await open()
   if (!db) return false
   return new Promise((done) => {
     try {
       const tx = db.transaction(STORE, 'readwrite')
-      tx.objectStore(STORE).put(save, KEY)
+      tx.objectStore(STORE).put(save, keyOf(slot))
       tx.oncomplete = () => done(true)
       tx.onerror = () => done(false)
     } catch {
@@ -113,13 +143,13 @@ export async function write(save: Save): Promise<boolean> {
   })
 }
 
-export async function read(): Promise<Save | null> {
+export async function read(slot: number): Promise<Save | null> {
   const db = await open()
   if (!db) return null
   return new Promise((done) => {
     try {
       const tx = db.transaction(STORE, 'readonly')
-      const got = tx.objectStore(STORE).get(KEY)
+      const got = tx.objectStore(STORE).get(keyOf(slot))
       got.onsuccess = () => done((got.result as Save) ?? null)
       got.onerror = () => done(null)
     } catch {
@@ -128,12 +158,72 @@ export async function read(): Promise<Save | null> {
   })
 }
 
-export async function wipe(): Promise<void> {
+export async function wipe(slot: number): Promise<void> {
   const db = await open()
   if (!db) return
   try {
-    db.transaction(STORE, 'readwrite').objectStore(STORE).delete(KEY)
+    db.transaction(STORE, 'readwrite').objectStore(STORE).delete(keyOf(slot))
   } catch { /* nothing to delete */ }
+}
+
+/**
+ * Every character there is, in slot order.
+ *
+ * One pass over the store rather than `slots` reads, because a browser that
+ * is slow about opening the database is slow about it ten times.  A save that
+ * will not come forward through `migrate` is **left in the store and left out
+ * of the list**: it belongs to somebody, and a list that quietly loses a name
+ * is worse than one that is short.
+ *
+ * The legacy key is moved on the way past, once.
+ */
+export async function list(slots: number): Promise<Card[]> {
+  const db = await open()
+  if (!db) return []
+  const at = (key: string): Promise<Save | null> => new Promise((done) => {
+    try {
+      const tx = db.transaction(STORE, 'readonly')
+      const got = tx.objectStore(STORE).get(key)
+      got.onsuccess = () => done((got.result as Save) ?? null)
+      got.onerror = () => done(null)
+    } catch { done(null) }
+  })
+  const out: Card[] = []
+  const old = await at(WAS)
+  for (let slot = 1; slot <= slots; slot++) {
+    let save = await at(keyOf(slot))
+    if (!save && slot === 1 && old) {
+      // The one character this game used to have, moved rather than asked
+      // for again.  Written before the delete, so a browser that dies between
+      // the two has the save twice rather than not at all.
+      save = old
+      await write(old, 1)
+      await wipe(0).catch(() => {})
+      try {
+        const db2 = await open()
+        db2?.transaction(STORE, 'readwrite').objectStore(STORE).delete(WAS)
+      } catch { /* it will be moved again, harmlessly */ }
+    }
+    if (!save) continue
+    const fresh = migrate(save)
+    if (fresh) out.push({ slot, save: fresh })
+  }
+  return out
+}
+
+/**
+ * The first slot nobody is in, or nothing when they are all full.
+ *
+ * Ten is the client's number — `MAX_CHARACTERS_PER_REALM` in
+ * `CharacterSelect.lua`, which `pipeline/layout.py` reads — so "how many
+ * characters may there be" is a question this game does not answer for
+ * itself, the same as how many rows a shop shows at once.
+ */
+export const freeSlot = (cards: Card[], slots: number): number | null => {
+  for (let slot = 1; slot <= slots; slot++) {
+    if (!cards.some((c) => c.slot === slot)) return slot
+  }
+  return null
 }
 
 /**
