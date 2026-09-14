@@ -2995,6 +2995,15 @@ async function main() {
   let gear: Record<string, number> = {}
   let taught: number[] = []
   /**
+   * What has been bought off a limited shelf, as `"<vendor>:<item>" -> [turn,
+   * how many]`.
+   *
+   * The turn is what makes this small: a count from an older turn of the
+   * shelf's own clock is a count of nothing, so nothing has to be cleared and
+   * nothing has to tick.  See `stockLeft`.
+   */
+  let bought: Record<string, [number, number]> = {}
+  /**
    * A blessing, a fortitude, a frost armour: one stat or the armour raised
    * for a while.
    *
@@ -5061,7 +5070,7 @@ async function main() {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
-      items: held, gear, taught,
+      items: held, gear, taught, bought,
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
       ...(me ? { who: { ...me } } : {}),
@@ -5095,6 +5104,7 @@ async function main() {
     held = save.you.items ?? []
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
+    bought = save.you.bought ?? {}
     you.rest = save.you.rest ?? 0
     you.finished = save.you.finished ?? 0
     you.born = save.you.born ?? Date.now()
@@ -5410,37 +5420,90 @@ async function main() {
    * twelve do not, which is why the original has page buttons and why this
    * does.
    */
+  /**
+   * What is left of a limited row, and when it comes back.
+   *
+   * `npc_vendor.maxcount` and `incrtime` are the two columns that make a shelf
+   * a decision rather than a list: 82 of this slice's 1,679 vendor rows hold
+   * one, two or three of something and put another out every two, two and a
+   * half or twenty-four hours.  Both were baked and neither was read.
+   *
+   * **The clock does the remembering, not the save.**  The wiki's objection to
+   * this was that *"저장이 복잡해진다"*, and the shape issue 193 found for the
+   * spawn pools answers it: a restock is a turn of a cycle, so all a save has
+   * to carry is how many were bought **and which turn it was** — a count from
+   * an older turn is a count of nothing.  One pair of numbers a row.
+   */
+  const stockLeft = (entry: number, row: number[]): number | null => {
+    const most = row[1] ?? 0
+    if (!most) return null
+    const back = row[2] ?? 0
+    const turn = cycleOf(back, Date.now() / 1000)
+    const had = bought[`${entry}:${row[0]}`]
+    return Math.max(0, most - (had && had[0] === turn ? had[1] : 0))
+  }
+  const takeStock = (entry: number, row: number[]) => {
+    if (!(row[1] ?? 0)) return
+    const turn = cycleOf(row[2] ?? 0, Date.now() / 1000)
+    const key = `${entry}:${row[0]}`
+    const had = bought[key]
+    bought[key] = [turn, (had && had[0] === turn ? had[1] : 0) + 1]
+  }
+  /**
+   * Buy one thing from one shopkeeper.
+   *
+   * One function, called by the window's own row and by `__buy`.  It was two:
+   * the hook added the money and pushed the item itself, so a check that
+   * bought something out of a limited shelf bought it through a path that had
+   * never heard of a limited shelf and watched the count stay at one.  *A
+   * check that reads the same side as the bug is blind to it* — this is that
+   * again, one layer in.
+   */
+  const buyFrom = (entry: number, id: number): string | null => {
+    const it = itemOf(id)
+    if (!it) return null
+    const row = (shelf.stock?.[String(entry)] ?? []).find((r) => r[0] === id)
+    if (row && stockLeft(entry, row) === 0) return '그건 다 나갔소. 얼마 뒤에 다시 들어오오.'
+    const price = it[I_BUY] as number
+    if (you.purse < price) return '돈이 모자라다.'
+    you.purse -= price
+    held.push(id)
+    if (row) takeStock(entry, row)
+    return null
+  }
   const openShop = (n: Npc) => { shopAt = n; shopPage = 0; drawShop() }
   const shutShop = () => { shopAt = null; drawShop() }
   const drawShop = () => {
     if (!shopAt) { ui.setShop(false, '', '', 0, 0, [], () => {}, () => {}); return }
-    const stock = (shelf.stock?.[String(shopAt.entry)] ?? [])
-      .map((row) => row[0]!)
-      .filter((id) => !!itemOf(id))
+    const at = shopAt.entry
+    const stock = (shelf.stock?.[String(at)] ?? [])
+      .filter((row) => !!itemOf(row[0]!))
     const per = SHOP_PER_PAGE()
     const pages = Math.max(1, Math.ceil(stock.length / per))
     shopPage = Math.max(0, Math.min(shopPage, pages - 1))
     const rows = stock.slice(shopPage * per, shopPage * per + per)
-      .map((id) => {
+      .map((row) => {
+        const id = row[0]!
         const it = itemOf(id)!
         const price = it[I_BUY] as number
+        const left = stockLeft(at, row)
         // `coin(0)` is 없음, which on a purse means "you have none" and on a
         // price means nothing at all.  A few of the slice's stacked goods —
         // arrows, bullets — come to under a copper each once `items.py` has
         // divided the stack's price by its count, and a shop row saying
         // *nothing* where the price goes is worse than saying it is free.
-        return [id, describe(it), price ? coin(price) : '거저', iconFor(it),
-          tintOf(it), detail(it), you.purse >= price] as ShopRow
+        return [id, describe(it) + (left === null ? '' : ` (남은 ${left})`),
+          price ? coin(price) : '거저', iconFor(it),
+          tintOf(it), detail(it),
+          you.purse >= price && left !== 0] as ShopRow
       })
     ui.setShop(true, nameOf(shopAt.kind), coin(you.purse), shopPage, pages, rows,
       (id) => {
         const it = itemOf(id)
         if (!it) return
-        const price = it[I_BUY] as number
-        if (you.purse < price) { ui.log('돈이 모자라다.', 'note'); return }
-        you.purse -= price
-        held.push(id)
-        ui.log(`${describe(it)}을(를) 샀다. ${coin(price)}`, 'note')
+        const no = buyFrom(at, id)
+        if (no) { ui.log(no, 'note'); return }
+        ui.log(`${describe(it)}을(를) 샀다. ${coin(it[I_BUY] as number)}`, 'note')
         drawShop()
       },
       (to) => { shopPage = to; drawShop() })
@@ -9194,8 +9257,13 @@ async function main() {
   /** What is for sale and what is taught nearby, and buying and learning it. */
   ;(window as unknown as { __shop: (entry: number) => unknown }).__shop =
     (entry) => ({
-      stock: (shelf.stock?.[String(entry)] ?? []).map(([id]) => ({
-        id, price: itemOf(id!)?.[I_BUY], slot: itemOf(id!)?.[I_SLOT],
+      stock: (shelf.stock?.[String(entry)] ?? []).map((row) => ({
+        id: row[0], price: itemOf(row[0]!)?.[I_BUY],
+        slot: itemOf(row[0]!)?.[I_SLOT],
+        // What a limited shelf has left, and nothing for an unlimited one.
+        // `npc_vendor.maxcount` and `incrtime`, which were baked and unread.
+        most: row[1] || null, back: row[2] || null,
+        left: stockLeft(entry, row),
       })),
       teaches: (shelf.trainers?.[String(entry)]?.teaches ?? [])
         .map(([id, cost, need]) => ({ id, cost, need })),
@@ -9261,15 +9329,18 @@ async function main() {
       twins,
     }
   }
-  ;(window as unknown as { __buy: (id: number) => unknown }).__buy = (id) => {
-    const it = itemOf(id)
-    if (!it) return null
-    you.purse += it[I_BUY] as number
-    const was = { purse: you.purse, held: held.length }
-    you.purse -= it[I_BUY] as number
-    held.push(id)
-    return { was, purse: you.purse, held: held.length }
-  }
+  ;(window as unknown as { __buy: (id: number, from?: number) => unknown })
+    .__buy = (id, from) => {
+      const it = itemOf(id)
+      if (!it) return null
+      you.purse += it[I_BUY] as number
+      const was = { purse: you.purse, held: held.length }
+      // Through the window's own buying, so a shelf that can run out runs out.
+      const entry = from ?? Number(Object.entries(shelf.stock ?? {})
+        .find(([, rows]) => rows.some((r) => r[0] === id))?.[0] ?? 0)
+      const no = buyFrom(entry, id)
+      return { was, purse: you.purse, held: held.length, refused: no }
+    }
   /**
    * The bar, as the screen has it, plus what the last press asked for.
    *

@@ -601,6 +601,24 @@ writer normalises it first: `0`, `-1` and all fifteen bits are three spellings
 of "anybody" in the dump, and shipping all three made one trade good look like
 two different rows of the same shop.
 
+**A drop is not a shelf.** 54 of the 154 items this slice's loot tables point
+at had no row behind them — a drop with no row has no word, no price and no
+picture, and the bag says `물건 766`. Two causes and both are one script doing
+another's job: `items.py` walked the loot tables itself and did not follow
+`Reference` where `spawn_npcs.py` does (fifteen items), and it refused
+anything over the slice's level ceiling, **which is a rule about shelves**
+(thirty-nine). A level fourteen sword off a level eight bandit is the
+original's own behaviour and you sell it. It reads the baked hauls now, the
+way `quests.py` asks `npcs.json` who lives here.
+
+**A shelf that runs out is a decision, and the clock does the remembering.**
+`npc_vendor.maxcount` and `incrtime` — 82 of this slice's 1,679 vendor rows
+hold one, two or three of something and put another out every few hours — were
+baked and unread, and the objection to reading them was that a save would get
+complicated. It does not: a restock is a turn of a cycle, so a save carries
+*how many were bought* and *which turn it was*, and a count from an older turn
+is a count of nothing. Nothing to clear and nothing to tick.
+
 **Money is a decision, and the check says so.** The zone pays about 14,800
 copper at these levels — 1,457 from errands and the rest off what dies — against
 2,310 for every lesson the dearest of the six classes is sold and 35,089 for

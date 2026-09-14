@@ -600,6 +600,35 @@ for (const [W, H] of SIZES) {
   check('a shop is the original\'s window', shops.per === 10,
     `${shops.per} to a page, ${shops.vendors} vendors, the longest stock `
     + `${shops.longest} rows, ${shops.paged} of them needing more than a page`)
+  // A shelf that runs out is a decision, which is the whole of why
+  // `npc_vendor.maxcount` is worth reading: 82 of this slice's 1,679 vendor
+  // rows hold one, two or three of something and put another out on a clock.
+  // Both columns were baked and neither was read.
+  {
+    const limited = await p.evaluate(async () => {
+      const doc = await (await fetch('./world/items.json')).json()
+      for (const [entry, rows] of Object.entries(doc.stock)) {
+        const row = rows.find((r) => r[1] > 0 && window.__shop(Number(entry))
+          .stock.some((s) => s.id === r[0] && s.left !== null))
+        if (row) return { entry: Number(entry), id: row[0], most: row[1] }
+      }
+      return null
+    })
+    check('a shop can run out of something', !!limited,
+      limited ? `vendor ${limited.entry} holds ${limited.most} of ${limited.id}`
+        : 'no limited row reaches the shop')
+    if (limited) {
+      const after = await p.evaluate((w) => {
+        window.__earn?.(100000)
+        const before = window.__shop(w.entry).stock.find((s) => s.id === w.id)
+        for (let i = 0; i < w.most + 2; i++) window.__buy(w.id)
+        const now = window.__shop(w.entry).stock.find((s) => s.id === w.id)
+        return { was: before.left, left: now.left, held: window.__bag?.() ?? null }
+      }, limited)
+      check('and buying it out leaves none', after.left === 0,
+        `${after.was} -> ${after.left}`)
+    }
+  }
   check('and no two lines of one look the same',
     shops.muddled.length === 0,
     shops.muddled.length

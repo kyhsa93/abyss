@@ -77,7 +77,7 @@ def only_some(mask):
     return 0 if every else mask
 
 
-def wanted(base, acore, object_loots, client):
+def wanted(base, acore, object_loots, client, here_out=None):
     """Every item id the slice can reach, and how it reaches it."""
     from slice import within
     want = Counter()
@@ -114,39 +114,35 @@ def wanted(base, acore, object_loots, client):
         want[item] += 1
         stock.setdefault(str(e), []).append([item, most, back])
 
-    # What its creatures and its chests drop — and only theirs.  A loot id has
-    # to be chased back through `creature_template.lootid`, because taking the
-    # loot tables whole is nine and a half thousand items, which is most of a
-    # megabyte of a world nobody in this forest can reach.
-    loots = set()
-    tpath = os.path.join(base, 'creature_template.sql')
-    tcol = columns(tpath)
-    for line in rows(tpath):
-        f = split(line)
-        try:
-            if int(f[tcol['entry']]) in here:
-                for key in ('lootid', 'pickpocketloot', 'skinloot'):
-                    if key in tcol and int(f[tcol[key]]):
-                        loots.add(int(f[tcol[key]]))
-        except (ValueError, KeyError, IndexError):
+    # What its creatures and its chests drop, **out of the baked world**.
+    #
+    # This used to walk `creature_loot_template` itself, and that is the shape
+    # this repository keeps paying for: two scripts deciding the same thing.
+    # `spawn_npcs.py` follows the `Reference` column — 127 of the rows this
+    # slice reaches point at another table rather than at an item, which is
+    # what issue 146 was — and this walk did not, so **fifteen items could
+    # drop that were never baked**.  A drop with no row behind it has no word,
+    # no price and no picture: the bag says `물건 766`.
+    #
+    # One script decides what falls off a wolf, the same way `quests.py` asks
+    # `npcs.json` who lives here rather than reading `creature` a second time.
+    drops = set()
+    for made in ('npcs.json', 'objects.json'):
+        path = os.path.join(here_out, made) if here_out else None
+        if not path or not os.path.exists(path):
             continue
-    for table, keep in (('creature_loot_template', loots),
-                        ('gameobject_loot_template', None)):
-        path = os.path.join(base, table + '.sql')
-        if not os.path.exists(path):
-            continue
-        lc = columns(path)
-        for line in rows(path):
-            f = split(line)
-            try:
-                lid, item = int(f[lc['Entry']]), int(f[lc['Item']])
-            except (ValueError, KeyError, IndexError):
-                continue
-            if keep is not None and lid not in keep:
-                continue
-            if keep is None and lid not in object_loots:
-                continue
-            want[item] += 1
+        with open(path) as f:
+            doc = json.load(f)
+        for haul in doc.get('hauls', []):
+            # The two files write a haul differently and both are right for
+            # what they are: a creature's is `[copper low, copper high, rows]`
+            # because a body has money on it, and a chest's is the rows alone.
+            got = haul[2] if (haul and isinstance(haul[0], (int, float))) else haul
+            for row in got or []:
+                if len(row) > 5:
+                    drops.add(int(row[5]))
+    for item in drops:
+        want[item] += 1
 
     # What its quests pay.
     #
@@ -175,7 +171,7 @@ def wanted(base, acore, object_loots, client):
     # nobody sells you the shirt you were made in.
     for e in outfit(client):
         want[e] += 1
-    return want, stock, here
+    return want, stock, here, drops
 
 
 # And what the other kinds of trainer are.  A trade is learned here by doing
@@ -288,7 +284,7 @@ def main(acore, client, out):
         with open(made) as f:
             for row in json.load(f).get('objects', []):
                 object_loots.add(row[8])
-    want, stock, here = wanted(base, acore, object_loots, client)
+    want, stock, here, drops = wanted(base, acore, object_loots, client, out)
 
     ipath = os.path.join(base, 'item_template.sql')
     col = columns(ipath)
@@ -340,7 +336,13 @@ def main(acore, client, out):
         # Nothing this game could ever use.  The ceiling is the slice's own —
         # a level 60 breastplate in a shop is a row nobody can buy and a
         # kilobyte of a world nobody can reach.
-        if need > LEVELS[1] or ilvl > LEVELS[1] + 10:
+        #
+        # **Except what actually falls off something here.**  A ceiling is a
+        # rule about shelves, and a drop is not a shelf: a level fourteen
+        # sword off a level eight bandit is the original's own behaviour and
+        # the player sells it.  Thirty-nine items were dropping with no row
+        # behind them because this line did not know the difference.
+        if (need > LEVELS[1] or ilvl > LEVELS[1] + 10) and e not in drops:
             continue
         # And nothing that asks for a standing, because this game has no
         # standings.  Twelve of them are on the slice's own shelves —
@@ -402,6 +404,7 @@ def main(acore, client, out):
     check(doc)
     check_lessons(doc, out)
     check_rewards(doc, out)
+    check_loot(doc, out)
     purse(out, doc)
     worn = sum(1 for v in items.values() if v[1])
     print(f'{len(items):,} items ({worn} wearable) -> {path}')
@@ -476,25 +479,46 @@ def purse(out, doc):
         bill = sum(cost for _id, cost, *_ in t['teaches'])
         if bill > lessons:
             lessons, dearest = bill, t.get('for')
-    # And the best one of each slot he could wear, which is the other end.
+    # And the best one of each slot he could **buy**, which is the other end.
+    #
+    # Off the shelves and not out of the whole catalogue.  The catalogue now
+    # holds everything that can drop, including a level fourteen sword off a
+    # level eight bandit — and counting those as the thing to save up for put
+    # the far end of this at 150,180 copper, which is not a shop, it is a
+    # wishlist.  The question is whether the zone's money can buy out its
+    # shops, so the sum is what its shops sell.
     best = {}
-    for it in doc['items'].values():
-        slot = it[1]
-        if not slot:
-            continue
-        if it[3] > best.get(slot, (0, 0))[0]:
-            best[slot] = (it[3], it[9])
+    for rows_ in doc['stock'].values():
+        for row in rows_:
+            it = doc['items'].get(str(row[0]))
+            if not it or not it[1]:
+                continue
+            if it[3] > best.get(it[1], (0, 0))[0]:
+                best[it[1]] = (it[3], it[9])
     kit = sum(price for _lvl, price in best.values())
     earn = coin + drops
     print(f'check: the slice pays about {earn:,.0f} copper — {coin:,} from '
           f'errands and {drops:,.0f} off what dies and what is skinned — '
           f'against {lessons:,} for every lesson the dearest class '
-          f'(id {dearest}) is sold and {kit:,} for the best of every slot')
+          f'(id {dearest}) is sold and {kit:,} for the best of every slot '
+          f'its shops sell')
     assert earn >= lessons, (
         'the zone cannot pay for its own trainer: %d against %d'
         % (earn, lessons))
-    assert earn < lessons + kit, (
-        'the zone pays for everything, so spending it is not a decision')
+    # **Gear costs more than training**, which is the decision this stretch of
+    # the game has: the trainer is a fixed bill and the shelves are a choice.
+    #
+    # This line used to read `earn < lessons + kit` — *the zone must not pay
+    # for everything* — and it passed on a number that meant nothing.  `kit`
+    # was the dearest item **in the catalogue** for each slot, which includes
+    # things no shop stocks and things only a quest pays; measured off the
+    # shelves instead it is 5,852 rather than 34,700, and the old claim is
+    # simply false: the money in this zone does buy out its shops.  That is a
+    # fact about the economy and belongs on the wiki page rather than in an
+    # assertion propped up by the wrong denominator.  See issue 199.
+    assert kit > lessons, (
+        'the shops are cheaper than the trainer, so there is nothing to '
+        'choose between: %d against %d' % (kit, lessons))
 
 
 def check(doc):
@@ -531,6 +555,39 @@ def check_rewards(doc, out):
     print(f'check: {len(pays)} things an errand can pay, '
           f'{len(missing)} of them not in this world')
     assert not missing, f'an errand pays what was never baked: {missing[:5]}'
+
+
+def check_loot(doc, out):
+    """Everything that can fall off something here has a row behind it.
+
+    The closure issue 199 asked to close, and it was open: **54 of the 154
+    items this slice's loot tables point at were not baked.**  A drop with no
+    row has no word, no price and no picture — the bag says `물건 766` — and
+    nothing anywhere said so, because the two halves were computed by two
+    scripts.  `spawn_npcs.py` follows `Reference` and this did not (fifteen
+    items), and this refused anything over the slice's level ceiling, which is
+    a rule about *shelves* (thirty-nine).
+
+    Checked against the baked spawns and objects rather than against the
+    tables, for the same reason the gathering does: one script decides what
+    falls off a wolf.
+    """
+    want = set()
+    for made in ('npcs.json', 'objects.json'):
+        path = os.path.join(out, made)
+        if not os.path.exists(path):
+            continue
+        with open(path) as f:
+            doc2 = json.load(f)
+        for haul in doc2.get('hauls', []):
+            got = haul[2] if (haul and isinstance(haul[0], (int, float))) else haul
+            for row in got or []:
+                if len(row) > 5:
+                    want.add(int(row[5]))
+    stray = sorted(i for i in want if str(i) not in doc['items'])
+    print(f'check: {len(want)} things can fall off something here, '
+          f'{len(stray)} of them with no row behind them')
+    assert not stray, f'loot points at items nobody baked: {stray[:8]}'
 
 
 def check_lessons(doc, out):

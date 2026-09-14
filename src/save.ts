@@ -50,6 +50,16 @@ export type Save = {
     items: number[]
     gear: Record<string, number>
     taught: number[]
+    /**
+     * What has been bought off a limited shelf — `"<vendor>:<item>"` to
+     * `[which turn of that shelf's clock, how many]`.
+     *
+     * `npc_vendor.maxcount` and `incrtime` say a shopkeeper holds three of
+     * something and puts another out every two hours.  The turn is stored
+     * beside the count so nothing has to be cleared and nothing has to tick:
+     * a count from an older turn is a count of nothing.
+     */
+    bought?: Record<string, [number, number]>
     /** Banked experience, and whether the tab was closed in an inn. */
     rest: number
     restedIn: number

@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-14T03:45:46Z",
+  "baked": "2026-09-14T04:00:33Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -43,7 +43,7 @@
   },
   "synthesised": false,
   "files": {
-    "public/world/items.json": "cb61165ee2ad5792",
+    "public/world/items.json": "38e02b288ad95d68",
     "public/world/layout.json": "4710bdb96a5cfcab",
     "public/world/npcs.json": "2e88a6fbd377412a",
     "public/world/objects.json": "f0417c2c696b711c",
