@@ -1198,12 +1198,22 @@ def main(acore, out):
         if not os.path.exists(os.path.join(base, name)):
             sys.exit(f'missing {os.path.join(base, name)}')
 
+    # What only stands during a holiday, and **which** holiday.
+    #
+    # A positive event id is a spawn that exists only while that event is
+    # running; a negative one is the opposite, present normally and taken away
+    # during it, so those stay.  This game does not do holidays — the decision
+    # and its reasons are on the wiki page 데이터: 세계의 변화 — and the point
+    # of keeping the event id rather than a boolean is that *"why is this not
+    # here"* then has an answer with a number in it.  Half the spawns in this
+    # slice are behind one.
     num = re.compile(r'-?\d+')
-    seasonal = set()
+    seasonal = {}
     for line in rows(os.path.join(base, 'game_event_creature.sql')):
         event, guid = num.findall(line)[:2]
         if int(event) > 0:
-            seasonal.add(int(guid))
+            seasonal[int(guid)] = int(event)
+    by_event = Counter()
     pooled, limit = {}, {}
     ppath = os.path.join(base, 'pool_creature.sql')
     pcol = columns(ppath)
@@ -1254,6 +1264,7 @@ def main(acore, out):
             continue
         if guid in seasonal:
             dropped['seasonal'] += 1
+            by_event[seasonal[guid]] += 1
             continue
         # A pooled creature shares a slot with others.  Kept, rather than
         # dropped: `pool_template.max_limit` says how many of a slot stand at
@@ -1537,6 +1548,16 @@ def main(acore, out):
     print(f'  worth: {len(goods)} words, {len(sold)} priced drops, '
           f'median {sorted(sold)[len(sold) // 2] if sold else 0}동')
     print('  dropped: ' + ', '.join(f'{k} {v}' for k, v in dropped.most_common()))
+    if by_event:
+        # **Named rather than merely counted.**  "Seasonal 1,975" says a
+        # number is missing; the event ids say *which* holidays, which is the
+        # difference between a hole and a decision — this repository's own
+        # rule about showing what is absent against what was decided against.
+        print('     of which seasonal, by event: '
+              + ', '.join(f'event {k} x{v}'
+                          for k, v in by_event.most_common(6))
+              + (f', and {len(by_event) - 6} more events'
+                 if len(by_event) > 6 else ''))
     print('  kinds: ' + ', '.join(f'{k} {v}' for k, v in by_kind.most_common()))
     print('  roles: ' + ', '.join(f'{k} {v}' for k, v in by_role.most_common()))
     skinnable = sum(1 for r in out_rows if r[18] >= 0)

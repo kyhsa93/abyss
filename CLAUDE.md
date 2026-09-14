@@ -346,6 +346,19 @@ against 24 and as much as 56 the other — and that measurement is now the
 bake's check. A chunk that loses all sixteen bits is not a mouth: it is ground
 handed to a building that brings its own floor, which here is Stormwind.
 
+**Holidays are not in this game, and that is a decision rather than a gap.**
+`game_event_creature` and `game_event_gameobject` hold the spawns that only
+stand during a festival, and they are **half the world**: 1,975 creature spawns
+against the 2,005 that stay, 1,902 objects against 1,366, and 1,406 of the
+creatures are one event's turkeys. The vertical slice asks whether levels one
+to ten can be played end to end; a festival is a different axis bolted across
+that one, and whether it is running is a function of a real-world calendar
+this game does not have. The wiki page 데이터: 세계의 변화 carries the argument.
+What matters here is the shape of the refusal: the bake prints **which events**
+it dropped and how many of each, not just a total, because a number says
+something is missing and an id says *what* — the same rule the interface keeps
+when it greys a race out and writes the reason next to it.
+
 **A place we have not named must not look like a place we have.** The slice has
 35 areas and `talk.ts` has our own word for eighteen of them, every one of them
 a description of what actually stands there — a mage's tower alone on its hill,

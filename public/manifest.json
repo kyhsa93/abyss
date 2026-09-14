@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-14T02:13:10Z",
+  "baked": "2026-09-14T02:47:48Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -53,7 +53,7 @@
     "public/world/spells.json": "75f5b198f325e7fd",
     "public/world/terrain.bin": "18c59ace42d25785",
     "public/world/terrain.json": "9581733c53937196",
-    "public/data/objects.json": "a23e0d05672315c6",
+    "public/data/objects.json": "f0417c2c696b711c",
     "public/data/terrain.bin": "6f8044075e16ed30",
     "public/data/terrain.json": "b52458c87c989788"
   }

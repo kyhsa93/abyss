@@ -237,12 +237,22 @@ def main(acore, client_root, out):
         except (ValueError, IndexError, KeyError):
             continue
 
+    # What only stands during a holiday, and **which** holiday.
+    #
+    # A positive event id is a spawn that exists only while that event is
+    # running; a negative one is the opposite, present normally and taken away
+    # during it, so those stay.  This game does not do holidays — the decision
+    # and its reasons are on the wiki page 데이터: 세계의 변화 — and the point
+    # of keeping the event id rather than a boolean is that *"why is this not
+    # here"* then has an answer with a number in it.  Half the objects in this
+    # slice are behind one.
     num = re.compile(r'-?\d+')
-    seasonal = set()
+    seasonal = {}
     for line in rows(os.path.join(base, 'game_event_gameobject.sql')):
         event, guid = num.findall(line)[:2]
         if int(event) > 0:
-            seasonal.add(int(guid))
+            seasonal[int(guid)] = int(event)
+    by_event = Counter()
     # Which slot each object shares, and how many of a slot's members stand at
     # once.  This is how a herb node works and dropping it leaves the starting
     # zone with nothing to gather.
@@ -278,6 +288,7 @@ def main(acore, client_root, out):
             continue
         if guid in seasonal:
             dropped['seasonal'] += 1
+            by_event[seasonal[guid]] += 1
             continue
         got = tmpl.get(entry)
         if not got:
@@ -332,6 +343,13 @@ def main(acore, client_root, out):
     print(f'{len(out_rows):,} objects -> {path}')
     print('  ' + '  '.join(f'{k} {v}' for k, v in tally.most_common()))
     print('  dropped: ' + '  '.join(f'{k} {v}' for k, v in dropped.most_common()))
+    if by_event:
+        # See `spawn_npcs.py`: which holiday, not just how many.
+        print('     of which seasonal, by event: '
+              + ', '.join(f'event {k} x{v}'
+                          for k, v in by_event.most_common(6))
+              + (f', and {len(by_event) - 6} more events'
+                 if len(by_event) > 6 else ''))
     gather = [r for r in out_rows if r[4]]
     print(f'  {len(gather):,} can be gathered: '
           + '  '.join(f'{k} {v}' for k, v in
