@@ -461,6 +461,50 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**A mine was a hole the scene dug for itself, and the client had drawn
+eighteen.** `classify_wmo` answered `None` for every `MD_*`, `TROLLBURROW` and
+`ANIMALDEN` — *a hole in a hillside, not a cottage, and there is no picture
+here for either* — which was true about the picture and wrong about everything
+else. `None` means the placement is dropped, so no plan was ever rasterised,
+and `digCave` cut a round chamber out of the height grid around each cluster of
+creatures standing underground. The gold mine is a hundred and ninety yards of
+winding gallery with side rooms and dead ends in it; what the game had instead
+was a blob 98 by 118 cells at 13% dug, beside it.
+
+They are `mine` now and go through the same placement path as every other WMO,
+which is nearly all it took. `BUILT` does not contain `mine`, so nothing draws
+a roof over a gallery under a hill. `digCave` is **not deleted** — a warren
+with no model anywhere near it is still a mine — only demoted: a plan somebody
+drew beats a plan we derived, and which model is decided by *which footprint
+holds the most of this warren*, because a mine is bent and "nearest the middle"
+picks the wrong one.
+
+Three things in the bake had the same shape and all three had to be said out
+loud. **`classify_wmo` has two ways of saying no** and only one was visible: a
+name with no rule falls through to `house` and `audit.py` fails on it, and a
+name with a rule that answers `None` was dropped in silence — so the bake now
+prints the declined placements by name, the same bargain the holiday events
+keep. **A mine is a ramp, not a stack of storeys**: `wmo_plan` keeps only
+surfaces within a body's height of the floor it is cutting, which is exactly
+right for a tower and throws away a gallery that descends twenty-five yards —
+measured, 14% of the gold mine came out as standing room and the other 86% as a
+roofed nothing, so `step` could find nowhere to put a man and he stood for ever
+in the doorway. The window is the whole model for one of these, and the
+clearance test needed no change because it already asks per surface. And **what
+is over a gallery is the hill**, so `over` is its own outline rather than a
+test that has nothing left to test against.
+
+Two smaller things fell out of that and both are the same sentence. `up[0]` in
+`check_doors` was a promise the storey list could not keep once a model was
+allowed to have none, and the sill filter that keeps an upper floor's doors out
+of the ground floor's wall mask has nothing to keep out on a ramp — filtered
+anyway, one of the gold mine's landings kept stone in it and the bake's own
+doorway check said so.
+
+The old check block opened with *a height field cannot hold a tunnel, so there
+is no inside to read*. The mouths are still holes in a chunk's `holes` field.
+The galleries never were.
+
 **A roof has a ridge on it now, and the picture was found rather than drawn.**
 The flat fill says *there is a roof here* and nothing else. The roofs pack this
 repository already credits ships a **kit** for the rest — ten colours, each a

@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **184 promises across 22 pages, 161 of them kept.**
+Counted: **186 promises across 22 pages, 163 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -58,7 +58,9 @@ keeps it honest.
 | **평면도가 없는 설명서는 세계가 아무 데도 안 세운 모델이다** | `scripts/bordercheck.mjs: "and a brief with no plan is a model the world placed nowhere"` |
 | 파이프라인의 어떤 줄도 `.blp` 를 열지 않는다 | `scripts/bordercheck.mjs: "and nothing in the pipeline opens one of the client's textures"` |
 | 보이는 건물 스프라이트가 예산 안이다 | — 건물 스프라이트가 아직 없다 (#218 이 값을 재 두었다) |
-| **굴이 지어낸 것이 아니라 모델에서 온다** | `scripts/viewcheck.mjs: "the mines are dug from where the world stands its creatures"` |
+| **굴이 지어낸 것이 아니라 모델에서 온다** | `scripts/viewcheck.mjs: "the mines are the client's and not this scene's"` |
+| **모델이 있는 굴의 평면이 `digCave` 의 것과 다르다** | `scripts/viewcheck.mjs: "and a mine with a model is not the one this scene would have dug"` |
+| **이름을 못 알아본 WMO 를 세어 출력한다** | `pipeline/bake_terrain.py: "placements declined by name"` |
 | 굴의 입구가 지형 구멍(`gaps` 674칸)과 맞는다 | `scripts/viewcheck.mjs: "the mouth of a mine is a hole and not ground"` |
 
 ## [남은-일](https://github.com/kyhsa93/abyss/wiki/남은-일)

@@ -1943,9 +1943,16 @@ async function main() {
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
     return out
   }
-  const buildings = meta.doodads
-    .filter((d) => BUILT.has(d.k) && !!d.bl && !!d.bw)
-    .map((d) => {
+  type Doodad0 = (typeof meta.doodads)[number]
+  /**
+   * One placement, turned into the thing the scene walks around in.
+   *
+   * A function rather than the body of one `map`, because **a mine goes
+   * through it too** since issue 219 and a second copy of ninety lines is a
+   * second copy that drifts.  What a mine is not is in `BUILT`: nothing draws
+   * a roof over a gallery that is under a hill.
+   */
+  const builtFrom = (d: Doodad0) => {
       const a = ((d.ba ?? 0) * Math.PI) / 180
       // The rooms the model is made of, placed where the model says.  A
       // placement record gives one box for a whole building, and for the abbey
@@ -2018,7 +2025,28 @@ async function main() {
           c: Math.cos(a), s: Math.sin(a),
         }],
       }
-    })
+  }
+  const buildings = meta.doodads
+    .filter((d) => BUILT.has(d.k) && !!d.bl && !!d.bw)
+    .map(builtFrom)
+  /**
+   * **And the mines the client actually drew**, which is issue 219.
+   *
+   * `classify_wmo` answered `None` for every one of them — *a hole in a
+   * hillside, not a cottage* — and `None` means the placement is dropped, so
+   * no plan was ever rasterised and the scene made its own.  Fourteen of them
+   * stand in the slice with winding galleries, side rooms, dead ends and pit
+   * props, and the game was digging circles beside them.
+   *
+   * They come through the same path as a building because they *are* one in
+   * every way that matters here: a WMO with its own triangles, its own floor
+   * and its own walls.  The one thing that is different is which way its faces
+   * point — a mine's up-facing triangles are its **floor**, which is why the
+   * plan comes out as the gallery and why `BUILT` does not contain `mine`.
+   */
+  const quarried = meta.doodads
+    .filter((d) => d.k === 'mine' && !!d.p && !!d.bl && !!d.bw)
+    .map(builtFrom)
   /**
    * The mines, which are not buildings and cannot be.
    *
@@ -2170,7 +2198,14 @@ async function main() {
    * The mouth is the client's own: a chunk's `holes` bits, which the bake
    * already carries, nearest the cloud.
    */
-  const caves: typeof buildings = []
+  /**
+   * The mines.  `fromModel` says which of them the client drew and which this
+   * scene derived — issue 219 asked for that to be visible rather than
+   * guessable, because the two are the same shape once they are in the list.
+   */
+  const caves: (Built & { fromModel: boolean })[] = []
+  /** What `digCave` would have made of a warren the client had a model for. */
+  const wouldDig = new Map<number, { cells: number[]; dug: number }>()
   type Built = (typeof buildings)[number]
   type Plan = NonNullable<Built['plan']>
   /**
@@ -3202,6 +3237,54 @@ async function main() {
       }
     }
     if (!mouth) continue
+    /**
+     * **The client's own gallery first, and ours only if there is none.**
+     *
+     * Issue 219.  `digCave` is not deleted and must not be — fourteen of the
+     * slice's mines are modelled and the rest of the world's holes are not,
+     * and a warren of kobolds under a hillside with no WMO anywhere near it is
+     * still a mine.  What changed is the *order*: a plan that somebody drew
+     * beats a plan we derived, every time.
+     *
+     * Which model, decided by counting rather than by distance: the one whose
+     * own footprint holds the most of this warren.  A mine is a hundred and
+     * eighty yards long and bent, so "nearest to the middle" picks the wrong
+     * one — the same mistake the mouth search already had to unlearn.
+     */
+    let model: (typeof quarried)[number] | null = null
+    let held = 0
+    for (const q of quarried) {
+      const p = q.plan
+      if (!p) continue
+      let in_ = 0
+      for (const n of crew) if (bitAt(p.bits, planCell(p, q, n.x, n.y))) in_++
+      if (in_ > held) { held = in_; model = q }
+    }
+    if (model) {
+      for (const n of crew) n.cave = caves.length
+      // **And what we would have dug here**, kept so the difference can be
+      // asserted rather than asserted about.  Issue 219's own wording: *the
+      // plan of a mine that has a model differs from `digCave`'s*.  Computing
+      // it is the only honest way to say so — a check that compares the model
+      // against nothing is a check that would pass if the model were ignored.
+      const alt = digCave(crew, mouth)
+      if (alt) {
+        let n = 0
+        for (let k = 0; k < alt.w * alt.h; k++) {
+          if ((alt.bits[k >> 3]! >> (k & 7)) & 1) n++
+        }
+        wouldDig.set(caves.length, {
+          cells: [alt.w, alt.h], dug: Math.round((100 * n) / (alt.w * alt.h)),
+        })
+      }
+      // The mouth is the terrain's, not the model's.  **None of the fourteen
+      // has a portal**: a mine's way in is a hole the client cut out of its
+      // own ground (`gaps`), which is the same thing `digCave` has always
+      // looked for and the reason issue 210 had to find it in the first place.
+      mouths.push(mouth)
+      caves.push({ ...model, k: 'mine', area, doors: [mouth], fromModel: true })
+      continue
+    }
     const dug = digCave(crew, mouth)
     if (!dug) continue
     for (const n of dug.crew) n.cave = caves.length
@@ -3222,7 +3305,55 @@ async function main() {
       },
       rooms: [{ x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2,
         w: (dug.w * dug.cell) / 2, c: 1, s: 0 }],
+      fromModel: false,
     })
+  }
+  /**
+   * **And the mines nobody is standing in**, which are most of them.
+   *
+   * The loop above digs a mine where a *warren* is, because before issue 219
+   * a cluster of creatures was the only evidence a mine existed.  It is not
+   * any more: fourteen of them are in the client, and eleven hold fewer than
+   * `CREW` creatures — an animal den with two wolves in it, a burrow with
+   * none.  A gallery the client drew is a gallery whether or not anybody
+   * lives down there, and leaving those out would be keeping the old rule
+   * after its reason had gone.
+   *
+   * The mouth is the same terrain hole the warrens use, and a mine with none
+   * is left out: there is no way in, and a room with no door is a room nobody
+   * can find out about.
+   */
+  for (const q of quarried) {
+    if (caves.some((c) => c.plan === q.plan && c.x === q.x && c.y === q.y)) continue
+    const p = q.plan
+    if (!p) continue
+    const reach = Math.max(q.l, q.w) + MOUTH
+    let mouth: [number, number] | null = null
+    let near = reach * reach
+    for (const [i, j] of meta.gaps ?? []) {
+      const hx = x0 - i * U, hy = y0 - j * U
+      const d = (hx - q.x) ** 2 + (hy - q.y) ** 2
+      if (d < near) { near = d; mouth = [hx, hy] }
+    }
+    if (!mouth) continue
+    mouths.push(mouth)
+    caves.push({ ...q, k: 'mine', doors: [mouth], fromModel: true })
+  }
+  /**
+   * And who is in which, asked of the plans rather than of the clustering.
+   *
+   * The warren loop hands a creature its mine as a side effect of the tree it
+   * builds, which only reaches the ones it clustered.  Everything else that
+   * stands under the surface is asked the plain question — *is it inside one
+   * of these footprints* — so a wolf alone in a den is in the den.
+   */
+  for (const n of npcs) {
+    if (n.cave !== undefined) continue
+    if (n.z >= groundAt(n.x, n.y) - DOWN) continue
+    for (let i = 0; i < caves.length; i++) {
+      const p = caves[i]!.plan
+      if (p && bitAt(p.bits, planCell(p, caves[i]!, n.x, n.y))) { n.cave = i; break }
+    }
   }
   const byArea: Record<number, number> = {}
   for (const n of npcs) {
@@ -10585,12 +10716,51 @@ async function main() {
   /** Which room the player is in, and how the doors are placed. */
   /** The mines, and where their mouths are. */
   ;(window as unknown as { __caves: () => unknown }).__caves = () => ({
+    /**
+     * How many of this world's mines the *client* drew and how many this
+     * scene derived, which issue 219 asked for out loud: the two are the same
+     * shape once they are in the list, and that is exactly why the answer had
+     * to be carried rather than guessed.
+     */
+    fromModel: caves.filter((c) => c.fromModel).length,
+    derived: caves.filter((c) => !c.fromModel).length,
+    /** And how many the client has that nobody is standing in. */
+    modelled: quarried.length,
     mines: caves.map((c) => ({
       area: c.area, at: [Math.round(c.x), Math.round(c.y)],
+      fromModel: c.fromModel,
       // Not rounded: a check that asks which cells are a mouth has to ask it
       // of the same point the walkability does, and half a yard of rounding
       // put seven cells on the wrong side of the answer.
       mouth: c.doors[0], cells: [c.plan!.w, c.plan!.h],
+      /** And what this scene would have dug here if the client had nothing. */
+      wouldDig: wouldDig.get(caves.indexOf(c)) ?? null,
+      /**
+       * Whether the mouth is on the gallery's own floor, and how far from it.
+       *
+       * A derived mine was cut *around* its mouth, so this was true by
+       * construction and nobody had to ask.  A modelled one is not: the
+       * mouth is a hole the client took out of the terrain and the gallery is
+       * a separate file, so the two have to be checked to meet.
+       */
+      onFloor: bitAt(c.plan!.bits, planCell(c.plan!, c, c.doors[0]![0],
+        c.doors[0]![1])),
+      floorPct: (() => {
+        let n = 0, f = 0
+        const p = c.plan!
+        for (let k = 0; k < p.w * p.h; k++) {
+          if ((p.bits[k >> 3]! >> (k & 7)) & 1) n++
+          if ((p.floor[k >> 3]! >> (k & 7)) & 1) f++
+        }
+        let so = 0, ov = 0
+        for (let k = 0; k < p.w * p.h; k++) {
+          if ((p.solid[k >> 3]! >> (k & 7)) & 1) so++
+          if (p.over.length && ((p.over[k >> 3]! >> (k & 7)) & 1)) ov++
+        }
+        return [Math.round((100 * f) / Math.max(1, n)),
+          Math.round((100 * so) / Math.max(1, n)),
+          Math.round((100 * ov) / Math.max(1, n))]
+      })(),
       // How much of the box is actually dug, which is what says this is a
       // warren of passages and not a rectangle with kobolds in it.
       dug: (() => {
@@ -10613,6 +10783,11 @@ async function main() {
         // world digs the same mine compares two answers.  The mine is dug
         // from the spawn points, so the spawn points are what it reports.
         const crew = npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c)
+        // A mine with nobody in it is a mine — eleven of the client's
+        // fourteen hold fewer than `CREW`, and one of those is an empty
+        // burrow.  It was `crew[0]!` and that `!` was a promise this list
+        // could not keep the day the mines stopped being made out of crowds.
+        if (!crew.length) return null
         let best = crew[0]!
         let gap = Infinity
         for (const n of crew) {
@@ -10630,6 +10805,7 @@ async function main() {
       wander: (() => {
         const w = npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c)
           .map((n) => n.wander).sort((a, z) => a - z)
+        if (!w.length) return null
         return [w[0], w[w.length >> 1], w[w.length - 1]]
       })(),
     })),
@@ -12709,7 +12885,11 @@ async function main() {
         // none either: it is a point of light rather than a sprite, which is
         // the whole reason this repository has an answer for fireflies and
         // none for butterflies.
-        floor: kind === 'firefly'
+        // A mine is drawn from *inside* — `drawRoom`, off the plan the client's
+        // own triangles gave it — so it has no standing picture and wants
+        // none, the same as a bridge deck.  Before issue 219 it had no word
+        // here at all, because the bake dropped every one of them.
+        floor: kind === 'firefly' || kind === 'mine'
           || !!tintedGround().at[kind === 'bridge_stone' ? 'stone' : kind],
       }
     })

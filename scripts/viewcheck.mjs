@@ -1683,28 +1683,46 @@ check('and the ground outside almost every door can be walked to',
 console.log(`      (${inside.reachable.reduce((a, r) => a + r[2], 0)} doors on `
   + `${inside.reachable.length} buildings)`)
 
-// 10k. A mine is not a building, and the server knows where it is.
+// 10k. A mine comes from a model, and the ones that do not say so.
 //
-// Elwynn's mines are cut out of the `.adt` terrain itself and their mouths
-// are bits in a chunk's `holes` field.  **A height field cannot hold a
-// tunnel** — one (x, y) has one z — so there is no inside to read, which is
-// why the bake says in its own words that a mine mouth is a hole in a
-// hillside and not a cottage.
+// **This block used to open with a sentence that is no longer true**, and it
+// is worth keeping what it said: *Elwynn's mines are cut out of the `.adt`
+// terrain itself... a height field cannot hold a tunnel, so there is no inside
+// to read.*  The mouths are indeed holes in a chunk's `holes` field.  The
+// galleries are not: fourteen `.wmo` models stand in this slice — gold mines,
+// spider mines, troll burrows, animal dens — with winding passages, side rooms
+// and dead ends in them, and `classify_wmo` answered `None` for every one.
+// `None` means the placement is dropped, so no plan was ever rasterised, and
+// the scene **made its own**: `digCave` cut a round chamber out of the height
+// grid around each cluster of creatures standing underground.  Issue 219.
 //
-// But the server knows where its creatures stand, and that is the same
-// structural fact the heights already lean on: eighty-eight creatures in this
-// slice stand six yards or more below the baked surface.  The chambers are
-// where they are; the passages between them are a minimum spanning tree over
-// the cloud, widened.
-//
-// **The passages are ours and the screen says so.**  That is not tidiness —
-// this repository lost a round once to drawing something without a client and
-// not admitting it.
+// So the question this block asks has changed.  It was *are the passages ours,
+// and does the screen admit it*.  It is now *whose passages are these* — and
+// the answer has to be carried rather than guessed, because a derived mine and
+// a modelled one are the same shape once they are in the list.
 const mines = await p.evaluate(() => window.__caves())
-check('the mines are dug from where the world stands its creatures',
-  mines.mines.length >= 3, `${mines.mines.length} of them`)
-check('and each is a warren rather than a box',
-  mines.mines.every((m) => m.dug > 5 && m.dug < 60),
+check('the mines are the client\'s and not this scene\'s',
+  mines.fromModel >= 3 && mines.derived === 0,
+  `${mines.fromModel} of ${mines.mines.length} out of a model, `
+  + `${mines.derived} derived, of ${mines.modelled} the client stands here`)
+// And the difference is measured rather than asserted.  `digCave` is still
+// there — it is what a warren of kobolds under a hillside with no model
+// anywhere near it still gets — so for every mine that has both, the two
+// plans are compared.  A check that compares a model against nothing would
+// pass just as happily if the model were being ignored.
+const both = mines.mines.filter((m) => m.wouldDig)
+check('and a mine with a model is not the one this scene would have dug',
+  both.length > 0 && both.every((m) =>
+    m.cells[0] !== m.wouldDig.cells[0] || m.cells[1] !== m.wouldDig.cells[1]),
+  both.map((m) => `${m.area}: ${m.cells.join('x')} at ${m.dug}% against `
+    + `${m.wouldDig.cells.join('x')} at ${m.wouldDig.dug}%`).join('; '))
+// And neither of them is a rectangle with creatures in it.  The bar is wider
+// than it was because the shape is the client's now: a hundred-and-eighty-yard
+// gold mine is 40% dug and an eight-yard animal den is 70%, and both of those
+// are what the model says.  What must not happen is a *box* — a plan that is
+// its own bounding rectangle is a plan nobody read.
+check('and each is a dug shape rather than a box',
+  mines.mines.every((m) => m.dug > 5 && m.dug < 95),
   mines.mines.map((m) => `${m.area}: ${m.dug}% dug, ${m.crew} down it`).join('; '))
 // Derived and not rolled, so the same world is always the same mine: asked
 // twice and compared, which is the only way to say it.
@@ -1731,9 +1749,13 @@ check('and a mouth is the width of the hole the client took out',
 // A chamber is its creature's own leash, which is a column rather than a
 // choice — so the ones that do not move get a body's width and the ones on a
 // seven-yard rope get seven.
+// Only of the ones this scene dug, because a chamber is `digCave`'s idea: a
+// modelled gallery is whatever the client cut, and eleven of the fourteen have
+// nobody in them at all.
 check('and a chamber is the creature\'s own wander distance',
-  mines.mines.every((m) => m.wander[2] >= m.wander[0]),
-  mines.mines.map((m) => `${m.area}: ${m.wander[0]}..${m.wander[2]} yd`).join('; '))
+  mines.mines.every((m) => !m.wander || m.wander[2] >= m.wander[0]),
+  mines.mines.filter((m) => m.wander)
+    .map((m) => `${m.area}: ${m.wander[0]}..${m.wander[2]} yd`).join('; '))
 
 // Which warren a creature is in is a cluster and not an area, and the cut is
 // the data's own break rather than a threshold: the longest passage inside a

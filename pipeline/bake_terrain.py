@@ -51,9 +51,30 @@ WMO_KINDS = [
     ('ABBEY', 'hall'), ('CATHEDRAL', 'hall'), ('KEEP', 'hall'), ('CASTLE', 'hall'),
     ('TOWER', 'tower'), ('INN', 'house'), ('HOUSE', 'house'), ('HUT', 'house'),
     ('COTTAGE', 'house'), ('FARM', 'house'), ('BARN', 'house'), ('MILL', 'house'),
-    # Also found by the audit: a mine mouth and an animal den are holes in a
-    # hillside, not cottages, and there is no picture here for either.
-    ('MINE', None), ('DEN', None), ('BURROW', None),
+    # **A mine is a building, and for a long time it was nothing at all.**
+    #
+    # These read `None` — *a hole in a hillside, not a cottage, and there is no
+    # picture here for either* — which was true about the picture and wrong
+    # about everything else.  `None` means the placement is dropped, so no plan
+    # was rasterised for any of them, and the scene **made its own**: `digCave`
+    # cut a round chamber out of the height grid around each cluster of
+    # creatures standing underground.  Eighteen of these models stand in the
+    # slice with winding galleries, side rooms, dead ends and pit props in
+    # them, and the game was digging circles next to them.
+    #
+    # They classify as `mine` now and go through the same placement path as
+    # every other WMO, which is all it took: the pipeline has rasterised plans
+    # from a model's own triangles since issue 168.  A mine's up-facing
+    # triangles are its **floor** rather than its roof, which is the one thing
+    # that is different about it and is why `BUILT` in `src/main.ts` does not
+    # contain it — nothing draws a roof over a gallery that is under a hill.
+    #
+    # `CAVE` and `CRYPT` are here for a reason the issue did not expect: they
+    # were falling through to the **`house` fallback**, so three cave models
+    # were being baked as buildings.  All three are outside the slice today,
+    # which is why nothing had noticed.
+    ('MINE', 'mine'), ('DEN', 'mine'), ('BURROW', 'mine'),
+    ('CAVE', 'mine'), ('CRYPT', 'mine'),
     # A bridge was thrown away for four rounds, which is why six of Elwynn's
     # crossings were open water with a fence beside them.  It is a floor, and a
     # floor is something this repository can draw.
@@ -378,6 +399,24 @@ def wmo_plan(client, path, only=None, nxt=None):
                 tally[math.floor(hi)] = tally.get(math.floor(hi), 0) + 1
         base = float(max(tally, key=tally.get)) if tally else 0.0
     low, high = base - BODY, base + BODY
+    # **A mine is a ramp, not a stack of storeys**, and the storey window is
+    # what made one look empty.
+    #
+    # `near` keeps a surface only if it is within a body's height of the floor
+    # this plan is being cut for, which is exactly right for a building: the
+    # abbey's tower is eighty-nine yards of geometry and none of it bears on
+    # the ground floor.  A gallery descends *continuously* — the gold mine
+    # drops twenty-five yards from its mouth — so measured against one sill,
+    # **fourteen per cent of it came out as standing room** and the other
+    # eighty-six were a roofed nothing.  `step` then could not find a square of
+    # floor to put a man on and he stood for ever in the doorway.
+    #
+    # There is no storey to pick, so the window is the whole model.  Nothing
+    # else has to change: the clearance test below already asks its question
+    # per surface — *is there a wall over this z within a body's height* — so
+    # a ledge twenty yards up does not roof a passage twenty yards down.
+    if is_mouth(path):
+        low, high = -1e9, 1e9
 
     # Per cell: the tops of the surfaces of this storey, and the walls that
     # stand over it.  Only what is near the storey is kept — the tower is
@@ -473,6 +512,15 @@ def wmo_plan(client, path, only=None, nxt=None):
         if not out[n]:
             cells[n] = 1
 
+    # And what is over a gallery is the hill.
+    #
+    # `over` is *a flat face above a man's head*, which is what tells a room
+    # from a courtyard — and with the window opened to the whole model there is
+    # no "above" left to test against, because every face is near.  A mine does
+    # not need the test: it is under a hillside by construction, which is the
+    # same answer `digCave` has always given its own masks.
+    if is_mouth(path):
+        over_head = bytearray(cells)
     # Standing room: a surface of this storey with a body's clearance over it.
     floor = bytearray(w * h)
     for n, zs in tops.items():
@@ -495,10 +543,13 @@ def wmo_plan(client, path, only=None, nxt=None):
     # that climbs is a wall mask drifting away from the file it came from.
     doorstep = set()
     for sill, lx, ly in doors:
-        if only is None:
-            if abs(sill - base) > BODY:
-                continue
-        elif abs(sill - base) > BODY:
+        # A mine has one plan and every portal in it belongs to that plan —
+        # they are landings on a ramp, not floors — so the sill filter, which
+        # exists to keep an upper storey's doors out of the ground floor's
+        # wall mask, has nothing to keep out here.  Filtered anyway, one of the
+        # gold mine's landings kept stone in it and the bake's own doorway
+        # check said so.
+        if not is_mouth(path) and abs(sill - base) > BODY:
             continue
         i, j = int((lx - x0) / S), int((ly - y0) / S)
         for a in range(i - 1, i + 2):
@@ -634,6 +685,12 @@ def check_doors(client, path):
     # cached on the raw number is a plan rasterised twice.  It took this bake
     # from a minute and a half to a minute.
     up = storeys(client, path)
+    # A mine has no storeys at all — see `storeys` — so there is one plan and
+    # every portal in it is asked against that.  It was `up[0]`, which is a
+    # promise the list could not keep the day a model was allowed to have no
+    # floors.
+    if not up:
+        up = [min(d[0] for d in doors)]
     base = up[0]
     for sill, lx, ly in doors:
         floor = min(up, key=lambda z: abs(z - sill))
@@ -862,7 +919,7 @@ def area_tree(client, ids):
 
 
 def zone_kinds(areamask, area_ids, wetmask, doodads, cw, ch,
-               w, h, x0, y0, unit):
+               w, h, x0, y0, unit, ground_at):
     """What kind of place each area is, out of our own baked world.
 
     A name has two halves.  The word is ours and always will be — a place name
@@ -901,6 +958,20 @@ def zone_kinds(areamask, area_ids, wetmask, doodads, cw, ch,
             if 0 <= i2 < w and 0 <= j2 < h and wetmask[i2 * h + j2]:
                 d['wet'] += 1
     for dd in doodads:
+        # **Only what stands on the surface.**  What a place looks like is what
+        # you can see standing in it, and a mine's pit props are forty yards
+        # under it: the day the mines came in (issue 219) their props, lamps
+        # and barrels pushed two places over the `camp` line and
+        # `bordercheck` said so — *34 북쪽 등성이 claims wood, world says
+        # camp*.
+        #
+        # **A depth and not "is it indoors"**, which was the first attempt and
+        # broke nine places at once: a house's barrels are behind a door too,
+        # and dropping them took Goldshire from a town to a camp and three
+        # farms to woodland.  A building's contents are part of the place it
+        # stands in.  What is under the hill is not.
+        if dd[3] < ground_at(dd[1], dd[2]) - BODY * 3:
+            continue
         i = int((x0 - dd[1]) // (unit * 8))
         j = int((y0 - dd[2]) // (unit * 8))
         if not (0 <= i < cw and 0 <= j < ch):
@@ -962,6 +1033,19 @@ def in_area(a, root, parent, depth=8):
 # hillside", and the *hole itself* is in the terrain — so their positions are
 # kept, and `check_holes` matches the client's own hole bits against them.
 MOUTHS = []
+
+#: The buildings this bake **declines**, by name, with how many of each stand
+#: in the slice.
+#:
+#: `classify_wmo` has two ways of saying no and only one of them was ever
+#: visible.  A name it has no rule for falls through to `house`, and `audit.py`
+#: fails on that unless the name is declared in `WMO_DEFAULT_OK` — which is the
+#: gate this pipeline is built around.  A name it has a rule for that answers
+#: `None` is dropped *silently*, and for a year the eighteen mines standing in
+#: this slice were in that second bucket: a rule said they were not buildings,
+#: nothing said how many of them there were, and the scene went off and
+#: invented its own.  Issue 219.
+DROPPED = {}
 
 
 def is_mouth(path):
@@ -1617,8 +1701,16 @@ def read_tile(client, tx, ty):
             world_box, dset, nset in wmos:
         name = wmo_names[nid] if nid < len(wmo_names) else ''
         kind = classify_wmo(name)
-        if not kind and is_mouth(name):
+        # Whether or not it is kept — and it is kept now — where its mouth
+        # stands is what `check_holes` matches the client's own hole bits
+        # against.  This used to read `if not kind`, which was the same
+        # sentence as "it is dropped" until the day a mine stopped being
+        # dropped, and then it silently stopped recording any of them.
+        if is_mouth(name):
             MOUTHS.append((wx, wy))
+        if not kind:
+            leaf = name.split('\\')[-1]
+            DROPPED[leaf] = DROPPED.get(leaf, 0) + 1
         if kind:
             # Which indoor area this building *is*, worked out before its
             # furniture rather than after.
@@ -1909,9 +2001,15 @@ def bake(client, bounds, out, acore=None):
           f'{len(area_ids) - len(tree)} of {len(area_ids)} areas, '
           f'{100 * shut_out / max(1, cw * ch):.0f}% of the box')
 
+    def ground_at(wx, wy):
+        i = int(round((ORIGIN - i_lo * UNIT - wx) / UNIT))
+        j = int(round((ORIGIN - j_lo * UNIT - wy) / UNIT))
+        if 0 <= i < w and 0 <= j < h and grid[i * h + j] is not None:
+            return grid[i * h + j]
+        return -1e9
     area_kind = zone_kinds(areamask, area_ids, wetmask, doodads,
                            cw, ch, w, h, ORIGIN - i_lo * UNIT,
-                           ORIGIN - j_lo * UNIT, UNIT)
+                           ORIGIN - j_lo * UNIT, UNIT, ground_at)
 
     # How deep the water is, a byte a cell in quarter yards.
     #
@@ -2284,6 +2382,13 @@ def storeys(client, path):
     Grouped by `BODY`, because two doors on one floor are two sills a few
     inches apart and a storey is a body's height.
     """
+    # **A mine has no storeys**, whatever its portals say.  A gallery descends
+    # rather than stacking, so its sills are landings on one continuous ramp
+    # and treating them as floors cuts the same gallery up four times over.
+    # `wmo_plan` says the same thing from the other side: for one of these the
+    # storey window is the whole model.
+    if is_mouth(path):
+        return []
     got = sorted(d[0] for d in doorways(client, path))
     if not got:
         return []
@@ -2337,8 +2442,21 @@ def check_storeys():
     # body's height of a storey this bake knows about.  One direction on its
     # own is half a check — a bake that drew one floor and threw away 111
     # portals passed the first and failed this.
+    ramped = 0
     for key, path in PLAN_PATH.items():
         if not PLANS_BY_KEY.get(key):
+            continue
+        # **A mine is exempt, and it is counted rather than skipped.**
+        #
+        # `storeys` returns nothing for one on purpose: a gallery descends
+        # continuously, so its portals are landings on one ramp and not floors.
+        # This check asks the opposite question — *does every portal sit on a
+        # storey* — and for a ramp the honest answer is that there are no
+        # storeys to sit on.  Left unstated that is 79 portals quietly
+        # unaccounted for, which is the shape this file spends its rounds
+        # deleting, so the number is printed.
+        if is_mouth(path):
+            ramped += len(doorways(_CLIENT[0], path))
             continue
         up = storeys(_CLIENT[0], path)
         for sill, _lx, _ly in doorways(_CLIENT[0], path):
@@ -2346,6 +2464,8 @@ def check_storeys():
                 stray += 1
     assert stray == 0, (
         '%d portals sit on no storey this bake names' % stray)
+    print('check: %d portals are landings on a ramp rather than storeys — the '
+          'mines, which have no floors to stack' % ramped)
 
 
 def check_plans():
@@ -2451,6 +2571,17 @@ def check_rooms(doodads):
     assert mid < 1.0, (
         f'a model box lands a median {mid:.1f} yards from the box its own '
         f'placement states — the WMO transform is wrong')
+    # And the ones this bake declined, **by name**.  A number says something is
+    # missing; a name says what.  The same rule the dropped holiday events
+    # already keep, and the thing that was not being kept for the buildings:
+    # `classify_wmo` answering `None` was a silent drop, and for a year that
+    # silence held eighteen mines.
+    if DROPPED:
+        print('check: %d placements declined by name — %s'
+              % (sum(DROPPED.values()),
+                 ', '.join('%s x%d' % (k, n)
+                           for k, n in sorted(DROPPED.items(),
+                                              key=lambda kv: -kv[1]))))
 
 
 def check_water(grid, wetmask, levels):
