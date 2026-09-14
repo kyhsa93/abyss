@@ -770,6 +770,62 @@ for (const [W, H] of SIZES) {
           return `target ${window.__you().target}, auto ${d.auto}, `
             + `usable ${d.usable} of bar ${d.bar.filter(Boolean)}`
         }))
+
+      // 226.  **And it aims.**  Every check above this one calls
+      // `__aimAtNearest()` first, so all of them were asking whether an
+      // *aimed* character casts — and the line that took a target when the
+      // toggle was on had been deleted.  Eleven places read `auto` and not
+      // one of them aimed; `autoCast` returned on `!you.target`; the game did
+      // nothing while the harness stayed green, because the harness was
+      // putting the target in its hand.
+      //
+      // Both ways round, on the **same** creature and one that is not already
+      // angry: `takeAim` takes whatever is angry at you whether the toggle is
+      // on or not — that is the case where aiming is not a decision — so a
+      // rabbit that has just been hit proves nothing about the toggle.
+      // What is asked is the **aiming** and nothing else: that the bar then
+      // fires is the check above, and asking for both at once put the weather
+      // back in — a target taken and a global cooldown still running reads as
+      // a failure of the aiming.
+      const calm = await p.evaluate(async () => {
+        const angryNow = () => new Set(window.__all()
+          .filter((n) => n.angry && !n.dead).map((n) => n.kind))
+        const h = window.__hero()
+        const q = window.__all()
+          .filter((n) => !n.dead && !n.angry && n.stance === 'quarry')
+          .map((n) => ({ n, d: Math.hypot(n.x - h.x, n.y - h.y) }))
+          .sort((a2, b2) => a2.d - b2.d)[0]
+        if (!q) return null
+        window.__setAuto(false)
+        window.__put(q.n.x - 1.2, q.n.y)
+        window.__unaim()
+        await new Promise((r) => setTimeout(r, 1200))
+        const off = window.__you().target
+        // Whatever it took with the hand off has to be something already angry
+        // — that is `takeAim`, and it runs whether the toggle is on or not.
+        const offAngry = off === null || angryNow().has(off)
+        window.__setAuto(true)
+        let on = null
+        for (let i = 0; i < 60 && !on; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+          on = window.__you().target
+        }
+        // Put the world back the way it was found.  Leaving the automatic hand
+        // on and a fight running changed the rage and the stance under the
+        // check after this one, which is about which *square* fires and has
+        // nothing to do with either.
+        window.__setAuto(false)
+        window.__unaim()
+        return { kind: q.n.kind, off, offAngry, on }
+      })
+      check('and with it off it aims at nothing that is not already angry',
+        !!calm && calm.offAngry,
+        calm ? `a calm ${calm.kind} in reach and the target is `
+          + `${calm.off ?? 'nobody'}` : 'nothing calm to stand next to')
+      check('and it finds something to aim at without being handed one',
+        !!calm && !!calm.on,
+        calm ? `aimed at ${calm.on ?? 'nothing'} with nobody calling __aimAtNearest`
+          : '')
       // And it is the leftmost thing it can use, which is the rule that makes
       // the arrangement the fighting order.
       // **Arranged rather than raced.**

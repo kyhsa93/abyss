@@ -193,7 +193,9 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | **자동 공격이 바의 칸을 차지하지 않는다** | `scripts/uicheck.mjs: "no square on the bar is the attack"` |
-| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | `scripts/uicheck.mjs: "and something already angry is aimed at without being asked"` |
+| 대상이 없고 닿는 곳에 적이 있으면 저절로 대상이 잡힌다 | `scripts/uicheck.mjs: "and it finds something to aim at without being handed one"` |
+| 자동이 꺼져 있으면 화 안 난 것은 안 겨눈다 | `scripts/uicheck.mjs: "and with it off it aims at nothing that is not already angry"` |
+| 전화기의 자동 단추를 손가락으로 켜고 끌 수 있다 | `scripts/padcheck.mjs: "and a finger turns it on and off again"` |
 | **자동 시전이 켜져 있으면 바에 올린 것이 실제로 시전된다** | `scripts/uicheck.mjs: "and with it on, the bar casts itself"` |
 | 자동 시전이 쓸 수 없는 것을 안 쓴다 (`why(sp) !== null`) | `scripts/uicheck.mjs: "and it is the leftmost square it can use"` |
 | 자동 시전을 켠 쪽이 끈 쪽보다 많이 이긴다 (화면이 아니라 시뮬에서 — 브라우저는 400판을 못 돌린다) | `scripts/simcheck.mjs: "and pressing something beats pressing nothing"` |

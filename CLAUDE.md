@@ -1087,6 +1087,35 @@ was a thousand times too generous to catch anything; it is 4 KB a save and 40
 KB for ten slots now, four times the measured worst case. A save that started
 keeping rows would break that line first.
 
+**The toggle called autocast cast nothing, then it cast nothing again for a
+different reason.** `autoCast` opened `if (!you.auto || chat || you.died ||
+!you.target) return` — **a target had to be there already** — and of the eleven
+places that read `auto`, not one took one. The line that used to do it lived in
+the phone's own loop and was deleted when the work moved here. So the toggle
+was on, the character stood next to something that would fight back, and
+nothing happened.
+
+The reason it took a bug report is that **all four screen checks called
+`__aimAtNearest()` first**: every one of them was asking whether an *aimed*
+character casts, which is a narrower promise than the one they read like. The
+harness was putting the target in the game's hand.
+
+The fix is a line, but which line matters. `takeAim` — the thing that happens
+whether you asked or not — takes only what is **already angry at you**, and
+that is right: none of the 934 spawns with a fight row here is `ENEMY`, so
+aiming at anything fightable would kill every chicken you walked past. **A
+toggle is different.** Turning the automatic hand on is the player saying
+*fight what I can fight*, so there, and only there, the reach is `inSwing`'s.
+Both halves were needed and only one was in.
+
+The new checks stand the character next to something **calm** and ask both ways
+round, because a creature that has just been hit proves nothing about a toggle:
+`takeAim` would take it either way. Two more weather lessons came with them —
+asking for the aiming and the casting in one check fails when the global
+cooldown happens to be running, and leaving the automatic hand on left a fight
+running that changed the rage and the stance under the *next* check, which is
+about which square fires and has nothing to do with either.
+
 **A check that waits on the weather fails for reasons that are not the rule.**
 Four of the screen checks for this did: the nearest thing to click was a rabbit
 that died before it could be angry at anybody; the screen point was worked out
@@ -1169,9 +1198,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty-two lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and thirty-seven are; the rest are waiting on a feature nobody has built,
+A hundred and thirty-nine are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1179,7 +1208,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 434 check labels in the harness, 88 were promised and **346 were written
+of 437 check labels in the harness, 90 were promised and **347 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1189,7 +1218,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four and the plates three: 160. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three and the aiming two: 162. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
@@ -1244,6 +1273,7 @@ small:
 | night | no check anywhere required two screens to **differ** |
 | a place's name | the answer lived outside the code, in `AreaTable.dbc` |
 | what a trainer sells | the data checks had nine lines and not that one |
+| whether the automatic hand *aims* | `uicheck` called `__aimAtNearest()` first every time |
 
 The third row is the expensive one and it generalises. `shotcheck` reported
 `0.0% of the picture moved` for as long as the pit was in the reference, which

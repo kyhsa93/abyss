@@ -5158,7 +5158,22 @@ async function main() {
    * has taken the game over.
    */
   const autoCast = () => {
-    if (!you.auto || chat || you.died || !you.target) return
+    if (!you.auto || chat || you.died) return
+    // **And it aims, which is the whole difference between a toggle that is on
+    // and a toggle that does nothing.**
+    //
+    // `takeAim` above takes only what is *already angry at you*, and that is
+    // right for the thing that happens whether you asked or not: of the 934
+    // spawns with a fight row here none is `ENEMY`, so aiming at anything
+    // fightable would kill every chicken you walked past.
+    //
+    // A toggle is different.  Turning this on is the player saying *fight what
+    // I can fight*, so here — and only here — the reach is `inSwing`'s, which
+    // is what the line that used to live in the phone's own loop did before it
+    // was deleted.  Without it `autoCast` returned on `!you.target` and nothing
+    // anywhere took one: eleven places read `auto` and not one of them aimed.
+    if (!you.target) you.target = inSwing()
+    if (!you.target) return
     if (you.casting || you.gcd > clock) return
     for (const id of bar) {
       if (id === null) continue
@@ -10103,14 +10118,19 @@ async function main() {
        * from either side of the doorstep without walking the whole warren.
        */
       near: (() => {
+        // **Where it was put, not where it is standing.**  Everything in this
+        // world wanders, so a hook built out of live positions answers
+        // differently every time it is asked — and the check that the same
+        // world digs the same mine compares two answers.  The mine is dug
+        // from the spawn points, so the spawn points are what it reports.
         const crew = npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c)
         let best = crew[0]!
         let gap = Infinity
         for (const n of crew) {
-          const d = (n.x - c.doors[0]![0]) ** 2 + (n.y - c.doors[0]![1]) ** 2
+          const d = (n.hx - c.doors[0]![0]) ** 2 + (n.hy - c.doors[0]![1]) ** 2
           if (d < gap) { gap = d; best = n }
         }
-        return [Math.round(best.x), Math.round(best.y),
+        return [Math.round(best.hx), Math.round(best.hy),
           Math.round(Math.sqrt(gap))]
       })(),
       /**
@@ -10154,14 +10174,16 @@ async function main() {
         deep: number; toMouth: number; reach: number; lumps: number[] }> = {}
       const where: Record<string, [number, number, number][]> = {}
       for (const n of npcs) {
-        const g = groundAt(n.x, n.y)
+        // Home rather than here, for the same reason `near` is: a census taken
+        // off live positions is a census that answers differently every time.
+        const g = groundAt(n.hx, n.hy)
         if (n.z >= g - DOWN) continue
-        const a = String(areaOf(n.x, n.y))
+        const a = String(areaOf(n.hx, n.hy))
         by[a] ??= { n: 0, mine: 0, spread: 0, deep: 0, toMouth: -1, reach: 0,
           lumps: [] }
         by[a]!.n++
         if (n.cave !== undefined) by[a]!.mine++
-        ;(where[a] ??= []).push([n.x, n.y, g - n.z])
+        ;(where[a] ??= []).push([n.hx, n.hy, g - n.z])
       }
       for (const [a, pts] of Object.entries(where)) {
         // The median nearest neighbour, which says cloud or scatter without

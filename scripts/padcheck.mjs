@@ -379,6 +379,26 @@ check('the thumb can reach the abilities', full.slots.length === 5,
 check('and there is an autocast toggle above them',
   full.autoAt && full.autoAt.y < Math.min(...full.slots.map((s) => s.y)),
   JSON.stringify(full.autoAt))
+// And a finger works it, which nothing asked.  Issue 226 reported tapping it
+// and nothing happening, and could not tell whether the button was broken or
+// the coordinate was — so this presses it through the pointer, twice, and
+// watches the state it is supposed to carry.  A toggle that only a keyboard
+// can reach is a toggle a phone has not got.
+if (full.autoAt) {
+  const was = (await pad()).auto
+  await touch('touchStart', [[Math.round(full.autoAt.x), Math.round(full.autoAt.y)]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(250)
+  const flipped = (await pad()).auto
+  await touch('touchStart', [[Math.round(full.autoAt.x), Math.round(full.autoAt.y)]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(250)
+  const back = (await pad()).auto
+  check('and a finger turns it on and off again',
+    flipped === !was && back === was,
+    `${was} -> ${flipped} -> ${back} at `
+    + `${Math.round(full.autoAt.x)},${Math.round(full.autoAt.y)}`)
+}
 
 // 11c. An ability says what it is, and the thumbs stay off the system's band.
 //
