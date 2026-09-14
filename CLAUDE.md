@@ -461,6 +461,65 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**A roof has a ridge on it now, and the picture was found rather than drawn.**
+The flat fill says *there is a roof here* and nothing else. The roofs pack this
+repository already credits ships a **kit** for the rest — ten colours, each a
+five by six block laid out as one gabled roof — and `roofs.png` had never been
+opened: only the pack's preview had, for the one flat square cut out of it. The
+comment beside that cut said the rest of the sheet "is a slope in perspective,
+and a slope tiled over a footprint reads as a hillside with bricks on it",
+which was true while a roof was stamped on the *world* grid. A roof seen from
+above at an angle **is** a slope in perspective; what was missing was the ridge.
+
+**Three columns of the five and two rows of the six**, and what is dropped is
+the lesson. The block is one house at one size, not a nine-slice — only the
+middle columns and rows honestly tile. The outer column is a *corner*, a dark
+diagonal with roof below it, and laid down a fourteen-cell edge it chains into
+a staircase across the roof; row 0 is a gable with a **dormer** either side of
+the ridge, and laid along the same edge it puts six dormers in a row. Both were
+drawn and looked at before they were dropped.
+
+It is laid **per part**, out of the boxes the model's own `MOGI` groups state,
+because a roof is a thing with a ridge and a footprint is not: the abbey is a
+nave, two transepts and a tower, and one ridge over all four is a tent. A box
+over sixty yards is skipped — that is a compound and not a roof, and Goldshire
+has one of 132 by 151 — and so is one the footprint does not mostly contain,
+which is issue 218's finding made into a filter.
+
+Three costs had to be measured rather than assumed, and all three were the same
+mistake in different clothes: **doing per frame what could be done once.**
+Deciding which boxes to roof samples the plan mask, and asked every frame that
+was a quarter of Goldshire's. Laying the kit cell by cell under a turned
+transform was **fifteen frames a second** — a rotated `drawImage` costs its
+destination area, so it is composed once into a canvas keyed on the *shape* and
+the thirteen farms are one canvas. And filling the whole outline with a
+repeating picture under a turned transform cost fourteen frames on its own,
+which bought a texture nobody sees because the roof is drawn over it: a
+building the kit covers gets **one flat colour** underneath instead.
+
+What is left is bounded rather than trusted: **a frame may turn one screenful
+of roof and no more**, spent nearest first, and the budget is the glass itself
+rather than a number. What loses its kit is the building furthest away, and it
+keeps the flat fill — which is what every building had the day before.
+
+Two things were chosen the wrong way round first and the screen said so. The
+flat colour was picked before the budget was spent, so a building at the wrong
+end of it came out as one flat colour with nothing on it — thirty yards of
+featureless mauve in the middle of Goldshire. And the three flat roof squares
+were three coordinates picked by eye out of the preview sheet, which **did not
+match their own kits**: `roof_shingle` was mauve and its kit is grey slate, so
+a building that lost its kit changed colour. Each word's flat square is its own
+kit's plain slope now, which is a derivation rather than three constants.
+
+**And a check's premise can stop holding because the scene got better.**
+`viewcheck` asked whether the mean colour of a Goldshire view at three in the
+morning is more blue than red — a statement about the light, measured as a
+statement about what happens to be on screen. It held while that view was a
+green field with a blue wash. The moment the buildings got brown tiles, brown
+is red twice over, and a perfectly good night screen read as a failure. What
+the sentence actually claims is that blue survives the fall better than red, so
+that is what it measures now: each channel at three against itself at noon.
+
 **And that answered how much a building may cost, which was about to be a
 sprite budget.** Nineteen per-model bitmaps at the ground's own 24 pixels a
 yard is **145 MB**, the abbey 19.3 of it and a gate 17.9, and three ways of

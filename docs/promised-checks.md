@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **182 promises across 22 pages, 159 of them kept.**
+Counted: **184 promises across 22 pages, 161 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -46,6 +46,8 @@ keeps it honest.
 | 그린 그림의 문 자리가 구운 문 좌표와 맞는다 | — 건물 스프라이트가 아직 없다 (#216) |
 | 건물마다 그림이 있고, 없으면 세어 출력한다 | `pipeline/facade.py: "sheets cover half the placements"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
+| **종류마다 쓰는 지붕에 서른 조각이 다 있다** | `scripts/viewcheck.mjs: "every roof a kind wears has its whole kit"` |
+| **대부분의 건물에 키트로 얹은 지붕이 있다** | `scripts/viewcheck.mjs: "and most buildings have a roof laid out of it"` |
 | **보이는 건물의 디코드 합계가 예산 안이다** | `scripts/budgetcheck.mjs: "a building is a mask and a tileset, not a picture of itself"` |
 | **세계가 세운 건물이 전부 한 장으로 그려진다** | `scripts/viewcheck.mjs: "every building the world stands is drawn in one piece"` |
 | **대부분이 타일 격자가 못 담는 각도로 선다** | `scripts/viewcheck.mjs: "and most of them stand at an angle the world grid cannot hold"` |

@@ -2210,6 +2210,90 @@ async function main() {
    * Traced once a model and kept on the plan, which is shared by every
    * placement of it: thirteen farms are one trace.
    */
+  /**
+   * Which of a building's own part boxes get a roof laid over them.
+   *
+   * One function and not two, because the check and the drawing are asking
+   * the same question and a second copy of a rule is a rule that drifts — the
+   * shape this file has paid for more than once.
+   *
+   * Two things disqualify a box.  It has to be **big enough for the kit**: the
+   * roof block is five tiles across and six along, so anything under that has
+   * no ridge to run and keeps the flat fill.  And it has to be **mostly inside
+   * the footprint**, which is issue 218's finding made into a filter: `MOGI`
+   * groups include the grounds and the yard walls, so the abbey's own list has
+   * boxes that are ninety yards of field, and a roof over one of those roofs
+   * the garden.
+   */
+  const roofedCache = new WeakMap<Built, { boxes: { r: Built['rooms'][number];
+    n: number; m: number; swap: boolean }[]; covered: number }>()
+  const roofedBoxes = (b: Built, p: Plan) => {
+    // **Worked out once a building and kept.**  It was asked every frame, and
+    // it samples the plan mask over the box — a forty-five yard box is three
+    // hundred `planCell` lookups — so at Goldshire, where the glass is mostly
+    // buildings, forty-three of them came to a quarter of the frame.  Nothing
+    // in it moves: the box, the plan and the turn are all the placement's.
+    const had = roofedCache.get(b)
+    if (had) return had
+    const out: { r: Built['rooms'][number]; n: number; m: number;
+      swap: boolean }[] = []
+    for (const r of b.rooms) {
+      const n = Math.round((2 * r.l) / YD_PER_TILE)
+      const m = Math.round((2 * r.w) / YD_PER_TILE)
+      const swap = r.l > r.w
+      if ((swap ? m : n) < 5 || (swap ? n : m) < 6) continue
+      // **And a compound is not a roof.**  `MOGI` gives a group a box, and
+      // some of those groups are the whole site: Goldshire's inn has one of
+      // 132 by 151 yards, which is the village.  A gabled roof laid over that
+      // is a single ridge a hundred and fifty yards long, and what it looks
+      // like is a tent over a town.  Sixty yards is the longest thing in this
+      // world that is actually one roof — the abbey's nave is fifty-two — and
+      // anything above it keeps the flat fill, which says *there is a
+      // building here* and claims nothing about its shape.
+      if (Math.max(2 * r.l, 2 * r.w) > 60) continue
+      let on = 0, of = 0
+      for (let i = 0; i < n; i += 2) {
+        for (let j = 0; j < m; j += 2) {
+          const a = -r.l + (i + 0.5) * YD_PER_TILE
+          const q = -r.w + (j + 0.5) * YD_PER_TILE
+          of++
+          if (bitAt(p.bits, planCell(p, b,
+            r.x + a * r.c - q * r.s, r.y + a * r.s + q * r.c))) on++
+        }
+      }
+      if (on >= of * 0.6) out.push({ r, n, m, swap })
+    }
+    /**
+     * And **how much of the footprint those boxes actually reach**, which
+     * decides what goes underneath them.
+     *
+     * A building the kit covers gets one flat colour under it, because the
+     * roof is drawn over the whole of it; one it does not gets the repeating
+     * picture, because there the fill *is* the roof.  Chosen the other way
+     * round first, and the middle of Goldshire came out as thirty yards of
+     * featureless mauve — the boxes covered a third of that footprint and the
+     * other two thirds had one colour and nothing on it.
+     */
+    let inside = 0, reached = 0
+    for (let i = 0; i < p.w; i += 2) {
+      for (let j = 0; j < p.h; j += 2) {
+        if (!bitAt(p.bits, i * p.h + j)) continue
+        inside++
+        const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
+        const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
+        const wx = b.x + u, wy = b.y - v
+        for (const { r } of out) {
+          const ex = wx - r.x, ey = wy - r.y
+          if (Math.abs(ex * r.c + ey * r.s) <= r.l
+            && Math.abs(-ex * r.s + ey * r.c) <= r.w) { reached++; break }
+        }
+      }
+    }
+    const got = { boxes: out, covered: inside ? reached / inside : 0 }
+    roofedCache.set(b, got)
+    return got
+  }
+
   const planPaths = new Map<Plan, { path: Path2D; cells: number; runs: number }>()
   const planPath = (p: Plan) => {
     let got = planPaths.get(p)
@@ -7831,7 +7915,28 @@ async function main() {
   let platesDrawn = 0
   /** Thrown away when the zoom changes, because the tinted strip is. */
   /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
+  /**
+   * The roof kit's own cell names — `_k<column><row>` over a five by six
+   * block.  Written once because three places need them: the atlas that has
+   * to tint them, the draw that blits them, and the check that asks whether
+   * they all arrived.
+   */
+  const KIT_COLS = 5, KIT_ROWS = 6
+  const KIT_CELLS = Array.from({ length: KIT_COLS * KIT_ROWS }, (_, n) =>
+    `_k${n % KIT_COLS}${Math.floor(n / KIT_COLS)}`)
   const patterns = new Map<string, CanvasPattern | null>()
+  /**
+   * A whole roof, composed once and kept — see the kit pass.
+   *
+   * Keyed on the **shape** and not on the placement, so the thirteen farms in
+   * this world are one canvas.  Thrown away with the plates, because both are
+   * cut from the tinted atlas and the atlas is rebuilt whenever the zoom
+   * changes.
+   */
+  const sheets = new Map<string, HTMLCanvasElement>()
+  let sheetBytes = 0
+  /** One flat colour a roof word, for the fringe the kit does not reach. */
+  const inks = new Map<string, string>()
   const forgetPlates = () => {
     plates.clear()
     plateBytes = 0
@@ -7839,6 +7944,9 @@ async function main() {
     // it: a pattern is a *copy*, and a copy of an atlas that no longer exists
     // is a roof drawn at the last zoom's size.
     patterns.clear()
+    inks.clear()
+    sheets.clear()
+    sheetBytes = 0
   }
   let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
   function tintedGround() {
@@ -7855,6 +7963,13 @@ async function main() {
       // abbey came out as ninety yards of nothing at all — `drawImage` with an
       // undefined source draws no pixels and reports no error.
       ...Object.values(ROOF_OF),
+      // And the kit each of them comes with — five across and six along,
+      // taken from the same table for the same reason.  Derived and not
+      // listed: the day a kind gets a new roof word its thirty pieces come
+      // with it, and `drawImage` with an undefined source draws no pixels and
+      // reports no error, which is how the abbey once came out as ninety
+      // yards of nothing at all.
+      ...Object.values(ROOF_OF).flatMap((w) => KIT_CELLS.map((k) => `${w}${k}`)),
       ROCK_TILE, DIRT_TILE, SHORE_TILE, 'bridge', 'bridge_b', 'stone',
       // Indoors, which is its own scene and its own set.
       'in_floor', 'in_floor2', 'in_rug', 'in_wall',
@@ -7906,9 +8021,78 @@ async function main() {
    * picture to a 1.33 yard square exactly as the tile pass laid it, and turns
    * with the building instead of with the world.
    */
+  /**
+   * A whole roof for one box shape, composed out of the kit and kept.
+   *
+   * The roofs pack ships ten colours, each a **five by six block laid out as
+   * one gabled roof** — and `roofs.png` had never been opened here: only the
+   * pack's preview had, for the one flat square cut out of it.  The comment
+   * beside that cut said the rest of the sheet "is a slope in perspective, and
+   * a slope tiled over a footprint reads as a hillside with bricks on it",
+   * which was true while a roof was stamped on the *world* grid with no
+   * structure in it.  A roof seen from above at an angle **is** a slope in
+   * perspective; what was missing was the ridge.
+   *
+   * **Three columns of the five and two rows of the six**, and what is dropped
+   * is the whole lesson.  The block is one house at one size, not a nine-slice
+   * — only the middle columns and rows honestly tile.  The outer column is a
+   * *corner*, a dark diagonal with roof below it, and laid down a fourteen-cell
+   * edge it chains into a staircase across the roof; row 0 is a gable with a
+   * **dormer** either side of the ridge, and laid along the same edge it puts
+   * six dormers in a row.  Both of those were drawn and looked at before they
+   * were dropped.  What is left is the part that tiles: the light slope, the
+   * ridge, the dark slope, and the two caps that close the ridge at its ends.
+   * The silhouette is not this kit's job — the outline and its own dark stroke
+   * already say where the building stops, to the yard, at whatever angle.
+   *
+   * The ridge runs along the box's longer side, which is what `swap` picks.
+   */
+  const roofSheet = (id: string, step: number, px: number,
+    n: number, m: number, swap: boolean) => {
+    const key = `${id}:${step}:${px}:${n}x${m}:${swap ? 1 : 0}`
+    const got = sheets.get(key)
+    if (got) return got
+    const bytes = n * px * m * px * 4
+    // A roof bigger than this is a compound rather than a building — see
+    // `roofedBoxes`, which already refuses one over sixty yards — and the cap
+    // is here as well so a widened slice cannot quietly spend the budget.
+    if (bytes > 8 * 1048576) return null
+    while (sheetBytes + bytes > 16 * 1048576 && sheets.size) {
+      const oldest = sheets.keys().next().value as string
+      const c = sheets.get(oldest)!
+      sheetBytes -= c.width * c.height * 4
+      sheets.delete(oldest)
+    }
+    const ground = tintedGround()
+    const c = document.createElement('canvas')
+    c.width = n * px; c.height = m * px
+    const g = c.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    const across = swap ? m : n
+    const along = swap ? n : m
+    const mid = Math.floor((across - 1) / 2)
+    const col = (i: number) => i === mid ? 2 : i < mid ? 1 : 3
+    const row = (j: number, i: number) => i !== mid ? 3
+      : j === 0 ? 1 : j === along - 1 ? 4 : 3
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < m; j++) {
+        const ci = swap ? col(j) : col(i)
+        const cj = swap ? row(i, j) : row(j, i)
+        const at = ground.at[`${id}${KIT_CELLS[ci + cj * KIT_COLS]}`]
+        if (at === undefined) continue
+        g.drawImage(ground.c, at, step * px, px, px, i * px, j * px, px, px)
+      }
+    }
+    sheets.set(key, c)
+    sheetBytes += bytes
+    return c
+  }
+
+  /** Which row of the tinted atlas a light value lands on. */
+  const shadeRow = (sl: number) => Math.max(0, Math.min(SHADES - 1, Math.round(
+    ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
   const roofPattern = (id: string, sl: number, px: number) => {
-    const step = Math.max(0, Math.min(SHADES - 1, Math.round(
-      ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))))
+    const step = shadeRow(sl)
     const key = `${id}:${step}:${px}`
     const got = patterns.get(key)
     if (got !== undefined) return got
@@ -7923,9 +8107,30 @@ async function main() {
       g.drawImage(ground.c, at, step * px, px, px, 0, 0, px, px)
       pat = ctx.createPattern(c, 'repeat')
       pat?.setTransform(new DOMMatrix().scaleSelf(1 / px))
+      // And the same square as one colour, for the parts of a footprint the
+      // kit does not reach.  **A pattern fill over a whole outline is not
+      // free**: sampling a repeating source under a turned transform took
+      // Goldshire from sixty frames to thirty-nine, and what it buys there is
+      // a texture nobody sees, because the roof itself is drawn over the top
+      // of it a moment later.  A flat fill under the roof says *there is
+      // building here* for the yard or two of fringe that shows.
+      const d = g.getImageData(0, 0, px, px).data
+      let r = 0, gr = 0, bl = 0, n = 0
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 128) continue
+        r += d[i]; gr += d[i + 1]; bl += d[i + 2]; n++
+      }
+      if (n) {
+        inks.set(key, `rgb(${Math.round(r / n)},${Math.round(gr / n)},`
+          + `${Math.round(bl / n)})`)
+      }
     }
     patterns.set(key, pat)
     return pat
+  }
+  const roofInk = (id: string, sl: number, px: number) => {
+    roofPattern(id, sl, px)
+    return inks.get(`${id}:${shadeRow(sl)}:${px}`)
   }
 
   /**
@@ -9117,7 +9322,26 @@ async function main() {
       ctx.save()
       const kk = k()
       const wide = px * grain
-      for (const b of standing) {
+      /**
+       * **A frame may turn one screenful of roof and no more.**
+       *
+       * A turned `drawImage` costs its *destination* area, and at Goldshire —
+       * the one view in this world that is nine parts roof — fifteen of them
+       * came to sixty frames a second becoming forty-six.  The budget is the
+       * glass itself rather than a number: one screenful is what a frame can
+       * afford to turn, it follows the viewport instead of being typed, and
+       * what it means is *no view may pay for more roof than it can show*.
+       *
+       * Spent nearest first, so what loses the kit is the building furthest
+       * away — which at any zoom is the one whose courses of shingle are
+       * smallest on the glass.  It keeps the flat fill, which is what every
+       * building had a day ago.
+       */
+      let turnable = canvas.width * canvas.height
+      const near = [...standing].sort((u, v) =>
+        ((u.x - camX) ** 2 + (u.y - camY) ** 2)
+        - ((v.x - camX) ** 2 + (v.y - camY) ** 2))
+      for (const b of near) {
         const p = b.plan!
         const { path, cells } = planPath(p)
         const Ox = screenX(b.x, b.y), Oy = screenY(b.x, b.y)
@@ -9136,10 +9360,72 @@ async function main() {
         shaded++
         ctx.setTransform(a, bb, c, d, e, f)
         const id = ROOF_OF[b.k] ?? ROOF_TILE
-        const pat = roofPattern(id, shadeAt(b.x, b.y), px)
+        const step0 = shadeRow(shadeAt(b.x, b.y))
+        // **Which boxes this frame can afford to turn, decided before the
+        // fill under them is chosen.**  A building whose roof is drawn gets a
+        // flat colour under it, because the roof covers it; one whose roof is
+        // not — three of this world's forty-three have no part box the kit
+        // fits, and any of them can lose it to the frame's budget — keeps the
+        // repeating picture, because there the fill *is* the roof.  Choosing
+        // the fill first left a building at the wrong end of the budget as one
+        // flat colour with nothing on it.
+        const kit = roofedBoxes(b, p)
+        const boxes = []
+        for (const box of kit.boxes) {
+          const cost = box.n * box.m * (YD_PER_TILE * kk) ** 2
+          if (cost > turnable) continue
+          turnable -= cost
+          boxes.push(box)
+        }
+        const pat = boxes.length && kit.covered > 0.8
+          ? roofInk(id, shadeAt(b.x, b.y), px)
+          : roofPattern(id, shadeAt(b.x, b.y), px)
         if (pat) {
           ctx.fillStyle = pat
           ctx.fill(path)
+          /**
+           * And the roof's own shape over the top of it — issue 217.
+           *
+           * The flat fill says *there is a roof here* and nothing else: no
+           * ridge, no eaves, nothing that says which way the slope runs.  The
+           * roofs pack this repository already credits ships a **kit** for
+           * that — ten colours, each a five by six block laid out as one
+           * gabled roof, whose middle column-pair and middle row-pair tile —
+           * and `roofs.png` had never been opened here.  Only the pack's
+           * preview had, for the one flat square.
+           *
+           * It is laid **per part**, out of the boxes the model's own `MOGI`
+           * groups state, because a roof is a thing with a ridge and a
+           * footprint is not: the abbey is a nave, two transepts and a tower,
+           * and one ridge over all four is a tent.  Each box gets the kit
+           * nine-sliced over it in *its* axes, with the ridge along its longer
+           * side, and the whole lot is clipped to the outline so a box that
+           * overhangs the footprint does not roof the garden.
+           *
+           * Boxes that are not mostly inside the outline are skipped, and the
+           * reason is issue 218's finding: `MOGI` groups include the grounds
+           * and the yard walls, so the abbey's own list has boxes that are
+           * ninety yards of field.
+           */
+          ctx.save()
+          ctx.clip(path)
+          for (const { r, n, m, swap } of boxes) {
+            const sheet = roofSheet(id, step0, px, n, m, swap)
+            if (!sheet) continue
+            // **One turned blit and not `n * m` of them.**  A rotated
+            // `drawImage` is several times the cost of a straight one, and the
+            // first version of this laid the kit cell by cell under the box's
+            // transform: **fifteen frames a second** at Goldshire, where the
+            // whole point of drawing a building in one piece was that it got
+            // cheaper.  The roof is composed once into its own canvas — keyed
+            // on the *shape* rather than the placement, so the thirteen farms
+            // in this world are one canvas — and the frame turns that.
+            const Ox = screenX(r.x, r.y), Oy = screenY(r.x, r.y)
+            ctx.setTransform(-kk * r.s, -kk * r.c, -kk * r.c, kk * r.s, Ox, Oy)
+            ctx.drawImage(sheet, -r.l, -r.w, n * YD_PER_TILE, m * YD_PER_TILE)
+          }
+          ctx.restore()
+          ctx.setTransform(a, bb, c, d, e, f)
           // What a building's outline got painted with, which `viewcheck`
           // reads.  One fill and not two thousand blits, so it is counted as
           // the cells it covers — the same number the tile pass used to
@@ -10554,6 +10840,9 @@ async function main() {
         kind: b.k, turn: Math.round(Math.atan2(p?.sn ?? 0, p?.c ?? 1) * 180 / Math.PI),
         plan: !!p, cells: path?.cells ?? 0, runs: path?.runs ?? 0,
         doors: b.doors.length, inside, deepest: +deepest.toFixed(1),
+        boxes: b.rooms.map((r) => [Math.round(2 * r.l), Math.round(2 * r.w)]),
+        roofed: p ? roofedBoxes(b, p).boxes.length : 0,
+        covered: p ? +roofedBoxes(b, p).covered.toFixed(2) : 0,
       }
     })
     let art = 0
@@ -10587,6 +10876,18 @@ async function main() {
       inside: rows.reduce((a, r) => a + r.inside, 0),
       /** The deepest any door sits inside its own roof, in yards. */
       deepest: Math.max(0, ...rows.map((r) => r.deepest)),
+      /**
+       * How many buildings have a roof laid out of the kit, how many keep the
+       * flat fill, and why — which is issue 217's *"count the ones with no
+       * picture and print them"* said in the only terms that can be checked.
+       */
+      kitted: rows.filter((r) => r.roofed > 0).length,
+      flat: rows.filter((r) => r.roofed === 0).length,
+      /** And whether every roof word actually has all thirty of its pieces. */
+      kit: Object.fromEntries(Object.values(ROOF_OF).map((w) =>
+        [w, KIT_CELLS.filter((c) => tintedGround().at[`${w}${c}`] !== undefined)
+          .length])),
+      kitCells: KIT_CELLS.length,
       turned: rows.filter((r) => r.plan && r.turn % 90 !== 0).length,
       rows,
     }

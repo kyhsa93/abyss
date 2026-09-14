@@ -1304,8 +1304,24 @@ check('noon is brighter than three in the morning', lift(dark, noon) > 20,
   `${lift(dark, noon).toFixed(0)} levels between them`)
 // And it is an evening rather than a power cut: the blue outlives the red,
 // which is the difference between a dark picture and a black one.
-check('and night is blue rather than black', dark[2] > dark[0] && dark[2] > 60,
-  `rgb(${dark.map((v) => v.toFixed(0)).join(',')})`)
+//
+// **Asked as a shift and not as a colour**, and the day it had to change is
+// worth keeping.  It was `dark[2] > dark[0]` — the mean of the frame is more
+// blue than red — and that is a statement about *what is on screen* dressed up
+// as a statement about the light.  It held for as long as this view was a
+// green field with a blue wash over it.  The moment the buildings got their
+// own roofs (issue 217) the same view became mostly brown tile, brown is red
+// twice over, and a perfectly good night screen read as a failure.
+//
+// What the sentence actually claims is that **blue survives the fall better
+// than red does**, so that is what is measured: each channel at three in the
+// morning against itself at noon.  It is true of any subject.
+const keeps = (i) => dark[i] / Math.max(1, noon[i])
+check('and night is blue rather than black',
+  keeps(2) > keeps(0) && lift(dark, noon) > 20,
+  `blue keeps ${(100 * keeps(2)).toFixed(0)}% of noon, red `
+  + `${(100 * keeps(0)).toFixed(0)}% — rgb(${dark.map((v) => v.toFixed(0)).join(',')}) `
+  + `against rgb(${noon.map((v) => v.toFixed(0)).join(',')})`)
 check('and dusk is between the two',
   lift(dark, dusk) > 10 && lift(dusk, noon) > 10,
   `${lift(dark, dusk).toFixed(0)} up from night, ${lift(dusk, noon).toFixed(0)} to noon`)
@@ -2050,6 +2066,40 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     built.inside === built.doors && built.doors > 20,
     `${built.inside} of ${built.doors} doors, the deepest ${built.deepest} yd `
     + 'inside its own roof')
+
+  // **And a roof has a ridge on it** — issue 217.
+  //
+  // The flat fill says *there is a roof here* and nothing else.  The roofs
+  // pack this repository already credits ships a kit for the rest of it — ten
+  // colours, each a five by six block laid out as one gabled roof — and
+  // `roofs.png` had never been opened: only the pack's preview had, for the
+  // one flat square cut out of it.
+  //
+  // The comment beside that cut said the rest of the sheet "is a slope in
+  // perspective, and a slope tiled over a footprint reads as a hillside with
+  // bricks on it", which was true while a roof was stamped on the *world* grid
+  // with no structure in it.  A roof seen from above at an angle **is** a
+  // slope in perspective; what was missing was the ridge.
+  console.log(`      (${built.kitted} of ${built.all} buildings have a roof out `
+    + `of the kit, ${built.flat} keep the flat fill; `
+    + Object.entries(built.kit).map(([w, n]) => `${w} ${n}/${built.kitCells}`)
+      .join(', ') + ')')
+  // Every word a kind can wear has to have **all** of its pieces, because
+  // `drawImage` with an undefined source draws no pixels and reports no error
+  // — which is how the abbey once came out as ninety yards of nothing at all.
+  const missing = Object.entries(built.kit)
+    .filter(([, n]) => n !== built.kitCells)
+  check('every roof a kind wears has its whole kit', missing.length === 0,
+    missing.length ? missing.map(([w, n]) => `${w} has ${n}`).join(', ')
+      : `${Object.keys(built.kit).length} words, `
+      + `${built.kitCells} pieces each, all present`)
+  // And the ones that keep the flat fill are counted out loud rather than
+  // quietly looking like the rest, which is what issue 217 asked for by name.
+  check('and most buildings have a roof laid out of it',
+    built.kitted > built.all * 0.8,
+    `${built.kitted} of ${built.all}; the other ${built.flat} have no part box `
+    + 'the kit fits — under five tiles across, or over sixty yards, which is a '
+    + 'compound and not a roof')
 
   // **What a building costs to hold**, which is issue 218's question and not
   // the answer it expected.

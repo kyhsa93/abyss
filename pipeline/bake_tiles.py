@@ -108,6 +108,7 @@ SHEETS = {
     'water.png': 'base',
     'bridges.png': 'base',
     'roofs-preview.png': 'roofs',
+    'roofs.png': 'roofs',
     'castlefloors_outside.png': 'base',
     'cabinets.png': 'base',
     'barrel.png': 'base',
@@ -119,6 +120,39 @@ SHEETS = {
     'castlefloors.png': 'base',
     'castlewalls.png': 'base',
 }
+
+# --- and the roof as a kit rather than as one flat square ----------------
+#
+# **The sentence above this is what changed.**  It said everything on the roofs
+# sheet but the one flat square "is a slope in perspective, and a slope tiled
+# over a footprint reads as a hillside with bricks on it", and that was true
+# while a roof was stamped on the *world* grid with no structure in it.  Since
+# issue 216 a building is drawn in its own axes, and a roof seen from above at
+# an angle **is** a slope in perspective: what was missing was not flatness, it
+# was the ridge and the eaves that say which way the slope runs.
+#
+# `roofs.png` is that kit and it had never been opened — only the pack's
+# preview had.  Ten colours, each a 5 by 6 block of 32-pixel tiles laid out as
+# one gabled roof: the ridge down the middle column, the light slope left of
+# it, the dark slope right, the eaves and the gable walls round the edge.  The
+# middle column-pair and the middle row-pair tile, so a block is a nine-slice
+# and a roof of any size comes out of it.
+#
+# Three of the ten are cut, one for each roof word the scene already had, and
+# which kind wears which is `src/main.ts`'s sentence about the art rather than
+# anything in the data — the same split `roof_shingle` and `roof_plank` are
+# already on the other side of.
+ROOF_KIT_COLS, ROOF_KIT_ROWS = 5, 6
+ROOF_KITS = [
+    # (word, the block's own left edge in `roofs.png`, what it looks like)
+    ('roof', 800, 'brown tile — the farms and the cottages'),
+    ('roof_shingle', 160, 'grey slate — the halls, the abbey among them'),
+    ('roof_plank', 1120, 'dark grey — the towers'),
+]
+ROOF_PIECES = [(f'{word}_k{i}{j}', 'roofs.png', bx + i * 32, j * 32, 32, 32,
+                'roofs')
+               for word, bx, _why in ROOF_KITS
+               for i in range(ROOF_KIT_COLS) for j in range(ROOF_KIT_ROWS)]
 
 # (id, sheet, x, y, w, h, author, trim)
 #
@@ -238,21 +272,24 @@ GROUND = [
     # it gives a cliff.  The road through the starting valley was therefore
     # indistinguishable from the mountain beside it.  Flagstones, out of the
     # castle floors — the only paving in any sheet here whose author is named.
-    # A roof, for the buildings drawn as their own plan.  Cut from the flat top
-    # of one of the roofs pack's own houses, which is the one piece of that
-    # sheet already drawn as a roof *seen from above* — everything else on it
-    # is a slope in perspective, and a slope tiled over a footprint reads as a
-    # hillside with bricks on it.
-    ('roof',       'roofs-preview.png',       280, 110, 32, 32, 'roofs'),
-    # And two more materials, because every building in this world was the same
-    # grey brick: 28 houses, 12 halls and 3 towers under one picture, so the
-    # abbey and a cottage were the same thing at different sizes.  Both cut the
-    # same way as the one above — a piece of this sheet that is already drawn
-    # flat — and both are a **material** rather than a kind, which is why they
-    # are named for what they are: `src/main.ts` decides which kind wears
-    # which, and that is a sentence about the art and not about the data.
-    ('roof_shingle', 'roofs-preview.png',     784, 776, 32, 32, 'roofs'),
-    ('roof_plank',   'roofs-preview.png',     560, 720, 32, 32, 'roofs'),
+    # The three roof materials, **each the plain slope of its own kit block**.
+    #
+    # They used to be three flat squares picked by eye out of the pack's
+    # preview sheet, one per material, because everything else on it "is a
+    # slope in perspective".  Two things were wrong with that once the kit went
+    # in.  The obvious one is that a flat square and a kit are two pictures of
+    # the same roof and **they did not match**: `roof_shingle` was a mauve
+    # square and its kit is grey slate, so a building that lost its kit — a
+    # footprint the kit does not fit, or one at the wrong end of the frame's
+    # turning budget — changed colour.  The quieter one is that three
+    # coordinates chosen by eye are three constants; the kit's own plain slope
+    # is a *derivation*, and it is the same picture the roof beside it is made
+    # of.
+    #
+    # Which kind wears which is still `src/main.ts`'s sentence about the art
+    # rather than anything in the data.
+    *[(word, 'roofs.png', bx + 32, 3 * 32, 32, 32, 'roofs')
+      for word, bx, _why in ROOF_KITS],
     # Sand, which was the water's own shoreline piece — `watergrass`, a grass
     # fading into water — used for a beach with no water in it.  Westfall's
     # three sand textures are 1.7% of the slice.
@@ -282,6 +319,7 @@ GROUND = [
     ('water',      'water.png',   0, 160, 32, 32, 'sharm_base'),
     ('water2',     'water.png',  32, 160, 32, 32, 'sharm_base'),
     ('water3',     'water.png',  64, 160, 32, 32, 'sharm_base'),
+    *ROOF_PIECES,
 ]
 
 # Houses, cut whole out of the roofs pack's own preview sheet.
