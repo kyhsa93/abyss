@@ -82,7 +82,11 @@ keeps it honest.
 | 약속 | 지키는 검사 |
 | --- | --- |
 | **땅에 한 타일 주기의 되풀이가 없다** | `scripts/shotcheck.mjs: "and the grid does not stand out at one tile"` |
-| 구운 덮개가 클라이언트의 알파와 어긋나지 않는다 | — 덮개를 낱말로 누르고 있다 (#211) |
+| 구운 덮개가 클라이언트의 알파와 어긋나지 않는다 | `pipeline/bake_terrain.py: "away from what the "` |
+| 페인트 칸이 낱말 둘과 두 번째의 몫을 들고 있다 | `scripts/viewcheck.mjs: "a paint cell carries two grounds and how much of the second"` |
+| 섞임이 클라이언트가 가진 정밀도로 유지된다 | `scripts/viewcheck.mjs: "and the mix is kept at the precision the client has, not more"` |
+| 숲의 상당 부분이 실제로 두 번째 바닥을 들고 있다 | `scripts/viewcheck.mjs: "and a good share of the forest actually carries one"` |
+| 땅을 그릴 때 두 번째 것이 실제로 깔린다 | `scripts/viewcheck.mjs: "and the ground pass lays the second one down"` |
 | 보이는 청크 캐시가 예산 안이다 | — 청크 비트맵이 아직 없다 (#212) |
 | 그리는 횟수가 지금보다 적다 | — 청크 비트맵이 아직 없다 (#212) |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |

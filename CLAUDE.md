@@ -358,6 +358,50 @@ in the abbey — and they go through the same `classify` and the same audit as
 everything the terrain places. What stands under a roof is not drawn while you
 are outside it, people included: they were standing on the tiles.
 
+**The client blends and this stepped it, and a third of the paint was going in
+the bin.** `ground_of` handed back one word a paint cell: up to four texture
+layers, each with its own 64 x 64 alpha map, and whichever layer's mean passed
+170 took the whole block. Counted over the slice, **20,044,208 of the client's
+62,152,704 overlay texels are part-covered** — every road verge, every skirt of
+gravel round a rock, every field edge — and measured against those texels one
+word a cell was **15.5% wrong**. What ships now is the two words that cover a
+cell most and how much of it the second has, at 32 samples a chunk: **6.5%**.
+
+Every number in that is measured rather than picked. **Two words** because a
+cell is covered by one word 45% of the time and by two 46%, and keeping only
+the top two loses 1.09% — a third word costs another byte a cell to recover a
+hundredth of that. **A nibble** for the mix because the client's own alpha is a
+nibble (`MCAL` is two texels a byte in this expansion, low nibble first), and
+eight bits is storing precision the source has not got: measured, the two are
+indistinguishable — 6.46% either way at 32 a chunk, and at 16 the nibble is
+*better* by four hundredths, which is the rounding going the other way. It
+halves what ships. **32 a chunk** because 64 is the client's own and does not
+fit — about six megabytes gzipped against a four megabyte budget — and 32 is
+1.80 MB and halves the error 16 leaves. A first visit went 1.57 MB to 3.20 of
+the 4.
+
+On screen it takes the ring pieces' place rather than adding to them, so the
+frame budget is where it was: one extra blit a tile either way, 726 tiles at 60
+and 1,134 at 47. The rings still run where the paint says one word and the
+corners disagree anyway, which is the coarse grid disagreeing with itself
+rather than anything the alpha can answer.
+
+**And the plane offsets inside `terrain.bin` were written down in three
+places.** The bake, the scene and `bordercheck` each added up the planes before
+the one they wanted, so putting the mix between the paint and the zones left
+`bordercheck` reading the zones out of the middle of the paint — and failing
+with *"five places in the forest are not the kind of place their name claims"*,
+a sentence about neither planes nor paint. `terrain.json`'s `bin` says where
+each plane starts and how long it is, and all three read it.
+
+**The weighing moved, too.** `bake.py` had a 16 MiB bar on the baked world and
+it measured the wrong thing twice: raw bytes on disk rather than what goes over
+the wire, and *both* worlds rather than the one a visit opens. `budgetcheck`
+measures what a visitor downloads, gzipped, against a budget with a document
+behind it — so the size is printed in the bake and gated there, because two
+bars that mean different things and disagree is what issue 207 spent a round
+deleting.
+
 **A hole in the ground is a field that was read and then used by nothing.** A
 chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
 it is how the client makes the mouth of a mine: 674 cells of it in this slice.
@@ -1052,9 +1096,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and fifty-three lines of "we should
+pages end in a 붙일 검사 table — a hundred and fifty-seven lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and twenty-seven are; the rest are waiting on a feature nobody has built,
+A hundred and thirty-two are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1062,7 +1106,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 426 check labels in the harness, 80 were promised and **346 were written
+of 430 check labels in the harness, 84 were promised and **346 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1072,7 +1116,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, and the mines five: 153. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five and the paint four: 157. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

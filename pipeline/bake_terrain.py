@@ -1153,19 +1153,68 @@ def alpha_map(blob, flags, big):
     return out
 
 
-# How finely the painted ground is kept: sixteen samples across a chunk, which
-# is 2.08 yards.  The height grid and the water are eight, and a road eight
-# yards wide came out as a two-cell staircase at that.
-GSUB = 16
+# How finely the painted ground is kept: thirty-two samples across a chunk,
+# which is 1.04 yards.  The height grid and the water are eight.
+#
+# It was sixteen, and the reason for moving is measured rather than felt.  The
+# client's own answer is 64 a chunk, and how wrong each of ours is against
+# those 29,360,128 texels is this:
+#
+#   | | one word wins | two words and a mix |
+#   |---|---|---|
+#   | 16 a chunk | 16.42% | 8.45% |
+#   | **32 a chunk** | 15.52% | **6.46%** |
+#   | 64 a chunk | 13.45% | 0.57% |
+#
+# Sixty-four is 0.57% and does not fit: it is about six megabytes gzipped
+# against a four megabyte budget for everything a first visit downloads.
+# Thirty-two costs 1.80 MB and leaves seven hundred kilobytes of headroom.
+GSUB = 32
+
+# How many levels the second word's share is kept in.
+#
+# **Four bits, because the client's own alpha is four bits.**  The common
+# `MCAL` encoding is two texels a byte, low nibble first, and `alpha_map`
+# multiplies by seventeen to get back to a byte — so eight bits here would be
+# storing precision the source has not got.  Measured against the client's own
+# texels the two are indistinguishable: 6.46% wrong either way at 32 a chunk,
+# and at 16 the nibble is *better* by four hundredths of a point, which is the
+# rounding going the other way.  It halves what ships.
+MIX_LEVELS = 15
+
+#: How far the two words and the nibble land from what the layers actually say,
+#: summed over every paint cell the bake writes.  The issue that asked for this
+#: asked for a check that the baked coverage does not disagree with the
+#: client's alpha, and this is that check's arithmetic: it is free, because
+#: `ground_of` has the true shares in its hand at the moment it throws the
+#: third word away.
+#:
+#: It measures the *encoding* and not the resolution.  How much a 1.04-yard
+#: cell can say about a 0.52-yard texel is a separate number and it is in
+#: `CLAUDE.md`: 6.46% against the client's own 29 million texels, where one
+#: word a cell was 15.52%.
+PAINT_LOSS = [0.0, 0]
 
 
 def ground_of(data, off, size, names, big):
-    """A chunk's ground, as `GSUB` x `GSUB` of our own words.
+    """A chunk's ground, as `GSUB` x `GSUB` of `(word, word, mix)`.
 
-    The layers paint over each other in order, so the last one that covers a
-    texel is the one you see; a texel nothing covers is the base layer.  Taken
-    as a mean over each block rather than a single sample, because a road edge
-    is dithered and one sample in sixteen lands wherever it lands.
+    **The client blends and this used to step.**  Up to four layers paint over
+    each other, each with a 64 x 64 alpha map, and what came out of here was
+    one word a block: whichever layer's mean passed 170.  Counted over the
+    slice, **a third of the overlay texels are part-covered** — 20,044,208 of
+    62,152,704 sit between 1 and 254 — and every one of them is a road verge,
+    the ground around a rock, or the edge of a field.  Stepping them threw
+    15.5% of the paint away.
+
+    So what comes out now is the two words that cover a block most and how
+    much of it the second one has.  Two rather than all eight because it was
+    measured: a block is covered by one word 45% of the time and by two 46%,
+    and keeping only the top two loses **1.09%** of the coverage — the third
+    word would cost another byte a cell to recover a hundredth of that.
+
+    A mean over the block rather than one sample, as before, because a road
+    edge is dithered and one sample in sixteen lands wherever it lands.
     """
     lay, mcal = [], b''
     for m, o, n in subchunks(data, off, size):
@@ -1178,23 +1227,47 @@ def ground_of(data, off, size, names, big):
     kinds = [classify_ground(names[l[0]]) if l[0] < len(names) else 'grass' for l in lay]
     cover = [alpha_map(mcal[l[2]:], l[1], big) for l in lay[1:]]
     step = 64 // GSUB
+    n = step * step
     out = []
     for by in range(GSUB):
         for bx in range(GSUB):
-            # A layer has to dominate the texel, not merely be present: the
-            # client blends, so a road at alpha 96 is 38% of a road and the
-            # rest of it is the grass underneath.  Taking anything over 96
-            # painted a quarter of Elwynn brown.
-            best, kind = 170, kinds[0]
+            # How much of this block each of our words has.  Several layers
+            # can fold on to one word — 51 of the client's textures come down
+            # to eight of ours — so they add rather than compete.
+            share = {}
+            used = 0.0
             for li, a in enumerate(cover, 1):
                 tot = 0
                 for y in range(by * step, by * step + step):
                     row = y * 64 + bx * step
                     tot += sum(a[row:row + step])
-                mean = tot / (step * step)
-                if mean >= best:
-                    best, kind = mean, kinds[li]
-            out.append(kind)
+                m_ = tot / (n * 255.0)
+                if m_ <= 0:
+                    continue
+                share[kinds[li]] = share.get(kinds[li], 0.0) + m_
+                used += m_
+            # Whatever nothing covers is the base layer, which is the whole
+            # meaning of a base layer and the reason it carries no alpha map.
+            if used < 1:
+                share[kinds[0]] = share.get(kinds[0], 0.0) + (1 - used)
+            tot = sum(share.values()) or 1.0
+            best = sorted(share.items(), key=lambda kv: -kv[1])
+            a_word = best[0][0]
+            b_word = best[1][0] if len(best) > 1 else a_word
+            mix = best[1][1] / tot if len(best) > 1 else 0.0
+            nib = int(round(mix * MIX_LEVELS))
+            # What the two words and the nibble fail to say.  Half the L1
+            # distance, which for two distributions that both sum to one is
+            # the share of the ground that ends up the wrong word.
+            got = {a_word: 1 - nib / MIX_LEVELS}
+            if b_word != a_word:
+                got[b_word] = nib / MIX_LEVELS
+            wrong = 0.0
+            for k in set(share) | set(got):
+                wrong += abs(share.get(k, 0.0) / tot - got.get(k, 0.0))
+            PAINT_LOSS[0] += wrong / 2
+            PAINT_LOSS[1] += 1
+            out.append((a_word, b_word, nib))
     return out
 
 
@@ -1627,12 +1700,20 @@ def bake(client, bounds, out, acore=None):
     indoor_ids = set()
     levels = {}
     wetmask = bytearray(w * h)
-    # The painted ground is kept at twice the height grid's resolution — see
-    # `GSUB` — so it gets its own array and its own indices.
-    w2, h2 = w * 2, h * 2
-    i2_lo, j2_lo = i_lo * 2, j_lo * 2
+    # The painted ground is kept finer than the height grid — see `GSUB` — so
+    # it gets its own array and its own indices.  `GSUB` is a chunk's width in
+    # paint cells and a chunk is eight height cells, so the ratio is that.
+    GRAIN = GSUB // 8
+    w2, h2 = w * GRAIN, h * GRAIN
+    i2_lo, j2_lo = i_lo * GRAIN, j_lo * GRAIN
     i2_hi, j2_hi = i2_lo + w2 - 1, j2_lo + h2 - 1
+    # Two planes, not one byte a cell.  The first holds the two words — three
+    # bits each, since there are eight — and the second the mix, a nibble a
+    # cell and so two cells a byte.  Kept apart rather than interleaved
+    # because the words plane is nearly constant over most of a forest and
+    # gzip finds that; interleaved it costs half a megabyte more.
     groundmask = bytearray(w2 * h2)
+    groundmix = bytearray((w2 * h2 + 1) // 2)
     # And the zones, one byte a chunk.  Sixteen chunks to a tile, so the index
     # is the height index divided by eight.
     ci_lo, ci_hi = i_lo // 8, i_hi // 8
@@ -1708,15 +1789,21 @@ def bake(client, bounds, out, acore=None):
                     levels[(I - i_lo) * h + (J - j_lo)] = level
             for (ix, iy), got in painted.items():
                 for by in range(GSUB):
-                    I = tx * 128 * 2 + iy * GSUB + by
+                    I = tx * 16 * GSUB + iy * GSUB + by
                     if not (i2_lo <= I <= i2_hi):
                         continue
                     for bx in range(GSUB):
-                        J = ty * 128 * 2 + ix * GSUB + bx
+                        J = ty * 16 * GSUB + ix * GSUB + bx
                         if not (j2_lo <= J <= j2_hi):
                             continue
-                        groundmask[(I - i2_lo) * h2 + (J - j2_lo)] = \
-                            GROUND_ORDER.index(got[by * GSUB + bx])
+                        a_word, b_word, mix = got[by * GSUB + bx]
+                        at = (I - i2_lo) * h2 + (J - j2_lo)
+                        groundmask[at] = (GROUND_ORDER.index(a_word)
+                                          | (GROUND_ORDER.index(b_word) << 3))
+                        if at & 1:
+                            groundmix[at >> 1] |= mix << 4
+                        else:
+                            groundmix[at >> 1] |= mix
             for (ix, iy), (ccx, ccy, ccz, area, holes, hv) in cells.items():
                 base_i = tx * 128 + iy * 8
                 base_j = ty * 128 + ix * 8
@@ -1832,12 +1919,29 @@ def bake(client, bounds, out, acore=None):
     missing = sum(1 for v in grid if v is None)
     filled = [v for v in grid if v is not None]
     os.makedirs(out, exist_ok=True)
+    #
+    # **The layout says where each plane is rather than leaving it to be
+    # worked out.**  It was worked out, in three places — here, `src/main.ts`
+    # and `scripts/bordercheck.mjs` — and the day a plane was added between
+    # two of them the check read the zones out of the middle of the paint and
+    # reported that five places in the forest were not the kind of place their
+    # name claims.  Three copies of an arithmetic is three copies that drift.
+    planes = [
+        ('heights', bytes(struct.pack(
+            f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))),
+        ('wet', bytes(wetmask)),        # one byte a cell, after the heights
+        ('ground', bytes(groundmask)),  # the painted ground, two words a cell
+        ('mix', bytes(groundmix)),      # how much of the second, a nibble each
+        ('zones', bytes(areamask)),     # one byte a 33-yard chunk
+        ('depth', bytes(depth)),        # how deep the water is
+    ]
+    layout, at = {}, 0
+    for name, blob in planes:
+        layout[name] = [at, len(blob)]
+        at += len(blob)
     with open(os.path.join(out, 'terrain.bin'), 'wb') as f:
-        f.write(struct.pack(f'<{len(grid)}f', *[v if v is not None else 0.0 for v in grid]))
-        f.write(bytes(wetmask))     # one byte a cell, after the heights
-        f.write(bytes(groundmask))  # and the painted ground, at twice that
-        f.write(bytes(areamask))    # and the zones, one byte a 33-yard chunk
-        f.write(bytes(depth))       # and how deep the water is, last
+        for _name, blob in planes:
+            f.write(blob)
     meta = {
         'width': w, 'height': h, 'unit': UNIT,
         'x0': ORIGIN - i_lo * UNIT, 'y0': ORIGIN - j_lo * UNIT,
@@ -1860,7 +1964,14 @@ def bake(client, bounds, out, acore=None):
         # have: the same bush came out as three different bushes and two of the
         # client's own bushes came out identical.
         'variety': {k: len(v) for k, v in sorted(variety.items())},
-        'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / 2,
+        'groundWidth': w2, 'groundHeight': h2, 'groundUnit': UNIT / GRAIN,
+        # How many levels the second word's share is kept in, so the scene
+        # divides by the same number the bake multiplied by rather than by a
+        # copy of it.
+        'groundMix': MIX_LEVELS,
+        # Where every plane of `terrain.bin` starts and how long it is, so
+        # nothing downstream has to add up the ones before it.
+        'bin': layout,
         # The zone map, and the ids it indexes.  `areaOf` in `src/main.ts`
         # reads it; the names are ours, in `talk.ts`, because an area name is
         # Blizzard's prose the same as everything else.
@@ -1950,8 +2061,26 @@ def bake(client, bounds, out, acore=None):
     print(f'height {min(filled):.1f} .. {max(filled):.1f}   holes in grid: {missing}')
     print(f'doodads {len(doodads):,} ({dropped:,} with no picture, skipped)'
           f'   water cells {sum(wetmask):,}')
-    tally = {k: groundmask.count(i) for i, k in enumerate(GROUND_ORDER)}
+    tally = {}
+    blended = 0
+    for at, v in enumerate(groundmask):
+        k = GROUND_ORDER[v & 7]
+        tally[k] = tally.get(k, 0) + 1
+        nib = (groundmix[at >> 1] >> 4) if at & 1 else (groundmix[at >> 1] & 15)
+        if nib:
+            blended += 1
     print('ground ' + '  '.join(f'{k} {v:,}' for k, v in tally.items() if v))
+    print(f'check: {blended:,} of {len(groundmask):,} paint cells '
+          f'({100 * blended / max(1, len(groundmask)):.0f}%) carry a second '
+          f'word — the ones a single word used to step over')
+    off_by = 100 * PAINT_LOSS[0] / max(1, PAINT_LOSS[1])
+    print(f'check: the baked paint is {off_by:.2f}% away from what the '
+          f"client's own layers say, over {PAINT_LOSS[1]:,} blocks")
+    # Two words and a nibble, measured: 1.09% goes on the third word and the
+    # rest on the quantising.  Three is the bar because it is comfortably past
+    # both and nowhere near the 15.5% one word a cell was throwing away — the
+    # day this fails somebody has changed the encoding, not the world.
+    assert off_by < 3.0, f'the baked paint has drifted from the client: {off_by:.2f}%'
     print(f'areas {sorted(areas)}')
     print('read from ' + ', '.join(sorted(set(sources.values()))))
     print(f'terrain.bin {os.path.getsize(os.path.join(out, "terrain.bin"))/1024:.0f} KiB, '

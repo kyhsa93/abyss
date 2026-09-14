@@ -408,6 +408,51 @@ const inwall = await p.evaluate(() => {
   return { n: all.length, stuck: all.filter((x) => window.__wallAt(x.x, x.y)).length,
     indoors: all.filter((x) => window.__inside(x.x, x.y)).length }
 })
+// 9b2. The paint is the client's blend and not a step of it.
+//
+// `ground_of` used to hand back one word a cell: whichever layer's mean passed
+// 170 took the whole block.  Counted over the slice, **a third of the client's
+// overlay texels are part-covered** — 20,044,208 of 62,152,704 between 1 and
+// 254 — and every one of them is a road verge, the gravel round a rock, the
+// edge of a field.  Measured against the client's own 29 million texels that
+// was 15.5% of the paint thrown away; two words and a nibble is 6.5%.
+const paint = await p.evaluate(() => window.__paint())
+check('a paint cell carries two grounds and how much of the second',
+  paint.cells > 0 && paint.bytes === paint.cells + Math.ceil(paint.cells / 2),
+  `${paint.cells.toLocaleString()} cells at ${paint.yards.toFixed(2)} yd, `
+  + `${paint.bytes.toLocaleString()} bytes — two words in one and the mix in `
+  + 'half of another')
+// The mix is a nibble because the client's own alpha is a nibble: `MCAL` is
+// two texels a byte in this expansion, low nibble first.  Storing eight bits
+// would be storing precision the source has not got, and it was measured —
+// the two are indistinguishable at 6.46% against the client's texels.
+check('and the mix is kept at the precision the client has, not more',
+  paint.levels === 15, `${paint.levels + 1} levels, the client's own nibble`)
+// And it is used.  A number that is shipped and never read is the shape this
+// repository keeps finding, and the whole point of the round was that the
+// forest is blended rather than stepped.
+check('and a good share of the forest actually carries one',
+  paint.mixed > paint.cells * 0.2 && paint.mixed < paint.cells,
+  `${paint.mixed.toLocaleString()} of ${paint.cells.toLocaleString()} cells `
+  + `(${Math.round((100 * paint.mixed) / paint.cells)}%) have a second ground`)
+{
+  // Drawn, not merely stored: the ground pass lays the second word over the
+  // first at the alpha the client painted, in place of the ring pieces.
+  //
+  // Stood somewhere first, and at the tile's own size.  `__edges` reports the
+  // *last frame*, and the frame before this happened to be a wide view, where
+  // the ground is already drawing one square where four belong and the edge
+  // pass is deliberately off — so the check read nought and meant nothing.
+  await p.evaluate(() => {
+    window.__put(-9055, -298)
+    window.__cam({ x: -9055, y: -298, zoom: 1 })
+  })
+  await p.waitForTimeout(700)
+  const drew = await p.evaluate(() => window.__edges())
+  check('and the ground pass lays the second one down', drew.edged > 0,
+    `${drew.edged} of ${drew.tiles} tiles blended or edged last frame`)
+}
+
 // 9c. The floor the client takes out of its own ground.  `holes` is sixteen
 // bits a chunk and it makes the mouth of every mine and den in the forest; it
 // was read into the tile and used by nothing, so the ground was laid over each

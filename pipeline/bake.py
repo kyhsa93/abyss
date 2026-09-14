@@ -167,9 +167,15 @@ FORBIDDEN = [
     'creature\\', 'item\\', 'spells\\', 'tileset',
 ]
 
-# What the wiki's performance budget allows the world to weigh.  Not a guess:
-# it is what a phone on a slow connection will sit through.
-BUDGET_MIB = 16.0
+# **The weighing moved and this is where it went.**
+#
+# There was a 16 MiB bar here, described as what a phone on a slow connection
+# will sit through — and it measured the wrong thing twice over: the raw bytes
+# on disk rather than what goes over the wire, and *both* worlds rather than
+# the one a visit opens.  `npm run budgetcheck` measures what a visitor
+# actually downloads, gzipped, against a budget with a document behind it, and
+# two bars that mean different things and disagree is exactly the shape issue
+# 207 spent a round deleting.  So the size is printed here and gated there.
 
 
 def verify(made):
@@ -192,12 +198,11 @@ def verify(made):
             if needle.encode() in blob:
                 bad.append(f'{rel} contains {needle!r}')
     size = sum(os.path.getsize(os.path.join(ROOT, p)) for p in made) / 1048576
-    print(f'check: {len(made)} files, {size:.1f} MiB of a {BUDGET_MIB:.0f} MiB '
-          f'budget, {len(bad)} carrying a path, an archive or a table name')
+    print(f'check: {len(made)} files, {size:.1f} MiB on disk (both worlds; what '
+          f'a visit downloads is `npm run budgetcheck`), {len(bad)} carrying a '
+          'path, an archive or a table name')
     if bad:
         sys.exit('the copyright boundary is broken:\n  ' + '\n  '.join(bad))
-    if size > BUDGET_MIB:
-        sys.exit(f'the world weighs {size:.1f} MiB, over the {BUDGET_MIB} budget')
 
 
 def main():

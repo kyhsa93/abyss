@@ -113,7 +113,13 @@ check('and they run in Node with no browser at all',
   const { areaWidth: AW, areaHeight: AH, areaUnit: AU, areaIds: IDS,
     width: W, height: H, groundWidth: GW, groundHeight: GH, x0, y0 } = terrain
   const bin = readFileSync(join('public', 'data', 'terrain.bin'))
-  const zones = bin.subarray(W * H * 5 + GW * GH, W * H * 5 + GW * GH + AW * AH)
+  // Asked of the bake, not added up here.  This was the third copy of the
+  // arithmetic and the day a plane went in between the paint and the zones it
+  // read the zones out of the middle of the paint — and reported that five
+  // places in the forest are not the kind of place their name claims, which is
+  // a sentence about neither planes nor paint.
+  const [ZAT, ZLEN] = terrain.bin?.zones ?? [W * H * 5 + GW * GH, AW * AH]
+  const zones = bin.subarray(ZAT, ZAT + ZLEN)
   const lives = {}
   for (const r of people.npcs) {
     const i = Math.floor((x0 - r[0]) / AU), j = Math.floor((y0 - r[1]) / AU)

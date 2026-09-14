@@ -152,9 +152,16 @@ type Meta = {
   given?: [number, number][]
   zMin: number; zMax: number
   hasWater?: boolean
-  /** What the client painted the ground with, at twice the height grid. */
+  /**
+   * The words the client's paint comes down to, in the order the two three-bit
+   * fields of a paint cell index.
+   */
   ground?: string[]
   groundWidth?: number; groundHeight?: number; groundUnit?: number
+  /** How many levels the second word's share is kept in — the bake's number. */
+  groundMix?: number
+  /** Where each plane of `terrain.bin` starts and how long it is. */
+  bin?: Record<string, [number, number]>
   doodads: Doodad[]
 }
 type Piece = { x: number; y: number; w: number; h: number; kind: string }
@@ -374,8 +381,38 @@ async function main() {
    */
   const GW = meta.groundWidth ?? 0, GH = meta.groundHeight ?? 0
   const GU = meta.groundUnit ?? 1
-  const paint = GW && bin.byteLength >= cells * 5 + GW * GH
-    ? new Uint8Array(bin, cells * 5, GW * GH) : null
+  /**
+   * Two words a cell, three bits each, and the mix beside it a nibble a cell.
+   *
+   * The bake used to send one word: whichever layer's mean passed 170 won the
+   * whole block.  A third of the client's overlay texels are part-covered —
+   * every road verge, every skirt of gravel round a rock — so that was 15.5%
+   * of the paint thrown away, and the way it showed was a staircase where the
+   * client has a gradient.
+   */
+  const PAINT_CELLS = GW * GH
+  const MIX_BYTES = (PAINT_CELLS + 1) >> 1
+  /**
+   * Where a plane of `terrain.bin` is, asked of the bake rather than added up.
+   *
+   * The offsets were worked out here, in the bake and in `bordercheck`, and
+   * adding the mix plane between the paint and the zones left the third one
+   * reading the zones out of the middle of the paint — five places in the
+   * forest came back as the wrong kind of place, from a check that is about
+   * neither planes nor paint.  The fallback is the old arithmetic, for a
+   * world baked before the layout was written down.
+   */
+  const plane = (name: string, fallback: number, length: number) => {
+    const said = meta.bin?.[name]
+    const at = said ? said[0] : fallback
+    const n = said ? said[1] : length
+    return bin.byteLength >= at + n ? new Uint8Array(bin, at, n) : null
+  }
+  const paint = GW ? plane('ground', cells * 5, PAINT_CELLS) : null
+  const paintMix = paint
+    ? plane('mix', cells * 5 + PAINT_CELLS, MIX_BYTES) : null
+  /** How many levels the bake kept the mix in — its number, not a copy. */
+  const MIX_LEVELS = meta.groundMix ?? 15
   const PAINT = meta.ground ?? []
   /**
    * Which zone a point is in, at the resolution the client states it.
@@ -390,11 +427,9 @@ async function main() {
   const AREA_IDS = meta.areaIds ?? []
   /** Which area an area sits inside, so an unnamed one can say whose it is. */
   const inside = (area: number) => meta.areaParent?.[String(area)] ?? 0
-  const zones = AW && bin.byteLength >= cells * 5 + GW * GH + AW * AH
-    ? new Uint8Array(bin, cells * 5 + GW * GH, AW * AH) : null
-  const deepAt = cells * 5 + GW * GH + AW * AH
-  const deep = bin.byteLength >= deepAt + cells
-    ? new Uint8Array(bin, deepAt, cells) : null
+  const ZONES_AT = cells * 5 + PAINT_CELLS + MIX_BYTES
+  const zones = AW ? plane('zones', ZONES_AT, AW * AH) : null
+  const deep = plane('depth', ZONES_AT + AW * AH, cells)
   const { width: W, height: H, unit: U, x0, y0 } = meta
   /**
    * Half the client's own hole, which is two by two height cells — 8.33 yards
@@ -616,11 +651,38 @@ async function main() {
     return n - Math.floor(n)
   }
 
-  const paintAt = (wx: number, wy: number): string => {
-    if (!paint) return 'grass'
+  /** Which paint cell a point falls in, or -1 off the grid. */
+  const paintCell = (wx: number, wy: number) => {
+    if (!paint) return -1
     const i = Math.round((x0 - wx) / GU), j = Math.round((y0 - wy) / GU)
-    if (i < 0 || i >= GW || j < 0 || j >= GH) return 'grass'
-    return PAINT[paint[i * GH + j]!] ?? 'grass'
+    if (i < 0 || i >= GW || j < 0 || j >= GH) return -1
+    return i * GH + j
+  }
+  /**
+   * The word that has most of this cell.
+   *
+   * Still one word, because most of what asks is asking a question a word
+   * answers — is this a road, is this paved, what colour is the minimap here.
+   * The **convenience on top**, as the issue that brought the mix put it; the
+   * blend is `blendAt` and only the ground pass wants it.
+   */
+  const paintAt = (wx: number, wy: number): string => {
+    const n = paintCell(wx, wy)
+    if (n < 0) return 'grass'
+    return PAINT[paint![n]! & 7] ?? 'grass'
+  }
+  /**
+   * The second word here and how much of the cell it has, or null.
+   *
+   * Nought where the client painted one thing, which is 45% of the forest.
+   */
+  const blendAt = (wx: number, wy: number): [string, number] | null => {
+    const n = paintCell(wx, wy)
+    if (n < 0 || !paintMix) return null
+    const nib = n & 1 ? paintMix[n >> 1]! >> 4 : paintMix[n >> 1]! & 15
+    if (!nib) return null
+    const word = PAINT[(paint![n]! >> 3) & 7]
+    return word ? [word, nib / MIX_LEVELS] : null
   }
   /**
    * The chunks the client marks impassable, as a set of `i,j` keys.
@@ -8397,22 +8459,30 @@ async function main() {
         // what lands under an outline is 2,212 and 525 tiles of `roof` and
         // nothing else — which `viewcheck` now asserts, because the thing that
         // keeps this true is a check and not the shape of the expression.
-        const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
-          : span ? span.tile
-          : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
-          : ink === 'paved' && PAVED_TILES.length > 0
-            ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
-          : ink === 'rock' || ink === 'paved' ? ROCK_TILE
-            : (ink === 'road' || ink === 'crop') && flat
+        /**
+         * Which picture a word gets here.
+         *
+         * A function rather than one expression because the paint now says
+         * *two* words and how much of each, so the chain is walked twice —
+         * and a second copy of a chain is a chain that drifts.
+         */
+        const tileFor = (word: string) => word === 'paved' && PAVED_TILES.length > 0
+          ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
+          : word === 'rock' || word === 'paved' ? ROCK_TILE
+            : (word === 'road' || word === 'crop') && flat
               ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
-              : ink === 'sand' ? SHORE_TILE
+              : word === 'sand' ? SHORE_TILE
                 : shore ? SHORE_TILE
                   : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
-                    : ink === 'bloom' || (meadow && h > 0.55)
+                    : word === 'bloom' || (meadow && h > 0.55)
                       ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                       : steep > BARE
                         ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
                         : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+        const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
+          : span ? span.tile
+          : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
+            : tileFor(ink)
         // What a building's outline got painted with, tallied as it is drawn.
         //
         // The check this feeds could not be written any other way without a
@@ -8454,7 +8524,36 @@ async function main() {
         // what keeps the widest zoom above its floor: the edge pass is a
         // second blit a tile, and at 1,134 tiles that is the difference
         // between 60 frames and 46.
-        if (grain === 1 && !built && !span && !water
+        //
+        // **And the client's own blend comes first, where there is one.**  A
+        // paint cell now says two words and what share the second has, so an
+        // edge that the ring pieces can only put on a half-tile line is laid
+        // down as the thing it actually is: the second ground, at the alpha
+        // the client painted.  46% of the forest's paint cells carry one.
+        //
+        // It takes the ring pass's place rather than adding to it — the same
+        // one extra blit a tile, so the frame budget is where it was — and
+        // the ring pieces still run where the paint says one word and the
+        // corners disagree anyway, which is the coarse grid disagreeing with
+        // itself.
+        let blended = false
+        if (grain === 1 && !built && !span && !water) {
+          const mix = blendAt(wx, wy)
+          // A nibble's worth is the floor: below one level in fifteen there
+          // is nothing to see and the blit is wasted.
+          if (mix && mix[1] > 1 / MIX_LEVELS) {
+            const other = tileFor(mix[0])
+            if (other !== id) {
+              ctx.globalAlpha = Math.min(1, mix[1])
+              ctx.drawImage(ground.c, ground.at[other]!, step * px, px, px,
+                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+              ctx.globalAlpha = 1
+              blended = true
+              edged++
+            }
+          }
+        }
+        if (!blended && grain === 1 && !built && !span && !water
           && ground.at[`${RING['grass']}_n`]) {
           const half = T / 2
           const q = [
@@ -9893,6 +9992,30 @@ async function main() {
   ;(window as unknown as { __edges: () => unknown }).__edges = () => ({
     tiles: tilesDrawn, edged, shaded, outlined,
   })
+  /**
+   * What the client painted, as the scene actually has it.
+   *
+   * `mixed` is the number the issue that brought this asked for: how much of
+   * the forest carries a second ground, which is the paint a single word a
+   * cell used to step over.  `off` is what the bake measured itself at.
+   */
+  ;(window as unknown as { __paint: (x?: number, y?: number) => unknown })
+    .__paint = (x, y) => {
+    let mixed = 0
+    if (paintMix) {
+      for (let n = 0; n < PAINT_CELLS; n++) {
+        if (n & 1 ? paintMix[n >> 1]! >> 4 : paintMix[n >> 1]! & 15) mixed++
+      }
+    }
+    return {
+      cells: PAINT_CELLS, wide: GW, tall: GH, yards: GU, levels: MIX_LEVELS,
+      words: PAINT.length, mixed,
+      /** Two words a cell and a nibble beside it, which is what ships. */
+      bytes: PAINT_CELLS + MIX_BYTES,
+      here: x === undefined || y === undefined ? null
+        : { word: paintAt(x, y), second: blendAt(x, y) },
+    }
+  }
   /**
    * Which roof each kind of building here is wearing.
    *
