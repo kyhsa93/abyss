@@ -2529,10 +2529,46 @@ async function main() {
     up: boolean
     due: number
   }
-  // The same edge the scenery and the spawns get: a chest in Stormwind is a
-  // chest in a city this game does not have.
+  /**
+   * Why a baked object is not standing in the world, by name.
+   *
+   * The spawns have had this since they were written — `elsewhere`,
+   * `unplaceable`, `beyond` — and the objects never did, so 731 of 1,366 went
+   * somewhere with nothing to say where.  That is the gate this pipeline keeps
+   * on itself everywhere else: **a thing left out is a thing with a name on
+   * it**, and a count that does not add up is the only way to notice that a
+   * filter has started eating something it was not meant to.
+   *
+   * `elsewhere` is the big one and it is not a bug: `objects.py` filters by
+   * the slice's **rectangle** and the scene filters by the **area** under the
+   * point, and the rectangle takes in corners of Westfall, Stormwind and the
+   * Burning Steppes.  The two are not the same question — one is where this
+   * game is baked and the other is where this game is — and the rectangle is
+   * the looser of them on purpose, because a box is what a bake can walk.
+   */
+  const lostThings: Record<string, number> = {
+    elsewhere: 0, unpictured: 0, unsized: 0,
+  }
+  /**
+   * And *which* elsewhere, by the game's own word for the place.
+   *
+   * "731 elsewhere" says a number is missing; "615 of them are in Stormwind"
+   * says what is missing, and the difference is whether somebody reading it
+   * can tell a decision from a hole.  The same distinction the bake makes when
+   * it names the holiday it dropped a spawn for rather than counting seasons.
+   */
+  const lostZone: Record<string, number> = {}
   const nodes: Node[] = (things.objects ?? [])
-    .filter((r) => !outside(r[0] as number, r[1] as number))
+    .filter((r) => {
+      if (outside(r[0] as number, r[1] as number)) {
+        lostThings['elsewhere'] = (lostThings['elsewhere'] ?? 0) + 1
+        const a = areaOf(r[0] as number, r[1] as number)
+        const where = zoneOf(a, inside(a))
+        lostZone[where] = (lostZone[where] ?? 0) + 1
+        return false
+      }
+      return true
+    })
     .map((r) => ({
     x: r[0] as number, y: r[1] as number, kind: r[2] as string,
     face: r[3] as number, trade: r[4] as string, skill: r[5] as number,
@@ -2601,11 +2637,19 @@ async function main() {
   // The picture is the kind's, the same table the doodads use.
   for (const n of nodes) {
     const k = KIND[n.kind]
-    if (!k || !k.pieces.length) continue
+    if (!k || !k.pieces.length) {
+      // Our own word for it exists — the bake would have dropped it
+      // otherwise — but nothing was cut for that word at this size.
+      lostThings['unpictured'] = (lostThings['unpictured'] ?? 0) + 1
+      continue
+    }
     const pick = k.pieces[Math.floor(hash(n.x, n.y) * k.pieces.length)
       % k.pieces.length]!
     const piece = tilesMeta[pick]
-    if (!piece) continue
+    if (!piece) {
+      lostThings['unsized'] = (lostThings['unsized'] ?? 0) + 1
+      continue
+    }
     placed.push({ x: n.x, y: n.y, piece, node: n, kind: n.kind,
       s: ((k.yards ?? 1) * PPY) / piece.h })
   }
@@ -8537,6 +8581,33 @@ async function main() {
         })),
       }
     }
+  /**
+   * Every baked object, and where each one went.
+   *
+   * The sum has to be the whole: `drawn + the reasons = baked`.  A remainder
+   * is a filter nobody wrote down, which is the thing this exists to catch —
+   * and it is not hypothetical, it is how 731 objects went missing with
+   * nothing to say so.
+   */
+  ;(window as unknown as { __lost: () => unknown }).__lost = () => {
+    const baked = (things.objects ?? []).length
+    const drawn = placed.filter((q) => q.node).length
+    const named = Object.values(lostThings).reduce((a, b) => a + b, 0)
+    return {
+      baked, drawn, standing: nodes.filter((n) => n.up).length,
+      why: { ...lostThings },
+      // And where the elsewhere ones are, biggest first.
+      where: Object.fromEntries(Object.entries(lostZone)
+        .sort((a, b) => b[1] - a[1])),
+      // The gathering slots, which is the half of this the issue asked about:
+      // fifty are baked and the ones that stand are the ones in this game.
+      pools: { baked: Object.keys(things.pools ?? {}).length,
+        standing: byPool.size },
+      // What nothing accounted for.  Zero, or somebody has added a filter and
+      // not a name for it.
+      unaccounted: baked - drawn - named,
+    }
+  }
   ;(window as unknown as { __things: () => unknown }).__things = () => ({
     total: nodes.length,
     up: nodes.filter((n) => n.up).length,

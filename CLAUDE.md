@@ -359,6 +359,18 @@ it dropped and how many of each, not just a total, because a number says
 something is missing and an id says *what* — the same rule the interface keeps
 when it greys a race out and writes the reason next to it.
 
+**A thing left out is a thing with a name on it, and the objects had no
+names.** The spawns have had counters since they were written — `elsewhere`,
+`unplaceable`, `beyond` — and 731 of the 1,366 baked objects went somewhere
+with nothing to say where. They are all one thing: **the bake filters by the
+slice's rectangle and the scene filters by the area under the point**, and the
+rectangle takes in Stormwind. 615 of the 731 are in that city. The two filters
+ask different questions on purpose — a box is what a bake can walk, and a zone
+is where this game is — so the fix is not to move the filter, it is to make
+the gap say its own name: `__lost()` returns the count per reason *and the
+zone*, and `viewcheck` asserts the sum is the whole. A remainder means somebody
+has added a filter and not a name for it.
+
 **A creature's script is 383 rows here and fourteen per cent of it runs, which
 is the honest number.** `smart_scripts` is 52,768 rows; the four triggers this
 reads are *every so often while fighting*, *the moment it turns on you*, *when

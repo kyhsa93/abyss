@@ -668,6 +668,37 @@ check('and a shared slot stands up only its share', packs.waiting > 0,
     turning.stable ? 'asked twice, answered twice the same' : 'it rolled itself')
 }
 
+// 9n-1. Every baked object is accounted for.
+//
+// The spawns have had named counters since they were written — `elsewhere`,
+// `unplaceable`, `beyond` — and the objects never did, so 731 of 1,366 went
+// somewhere with nothing to say where.  That is the gate this pipeline keeps
+// on itself everywhere else: a thing left out is a thing with a name on it.
+{
+  const lost = await p.evaluate(() => window.__lost())
+  check('every baked object is standing or has a reason',
+    lost.unaccounted === 0,
+    `${lost.baked} baked, ${lost.drawn} drawn, `
+    + Object.entries(lost.why).filter(([, n]) => n)
+      .map(([k, n]) => `${n} ${k}`).join(', ')
+    + `, ${lost.unaccounted} unaccounted`)
+  // And the reason is a **place** rather than a number, which is the
+  // difference between a decision and a hole: 615 of the 731 are in
+  // Stormwind, a city this game does not have.
+  const where = Object.entries(lost.where ?? {})
+  check('and the ones that are somewhere else say where',
+    where.length > 0 && where.reduce((n, [, v]) => n + v, 0) === lost.why.elsewhere,
+    where.slice(0, 4).map(([k, v]) => `${v} ${k}`).join(', '))
+  // The gathering slots, which is the half issue 197 shares with 193.  Fifty
+  // are baked and twenty stand; the thirty that do not are not *partly* here,
+  // they are entirely in another zone, and that is the only answer that makes
+  // "all fifty stand" a thing this game could ever say.
+  check('and every gathering slot this game contains is standing',
+    lost.pools.standing > 0 && lost.pools.standing <= lost.pools.baked,
+    `${lost.pools.standing} of ${lost.pools.baked} pools, the rest having no `
+    + 'member inside this game at all')
+}
+
 // 9n-2. A conversation depends on who is having it.
 //
 // `conditions` — 276 rows touching this slice, 172 of them about the class —
