@@ -201,21 +201,21 @@ export const STAT_WORD: Record<string, string> = {
   str: '힘', agi: '민첩', sta: '체력', int: '지능', spi: '정신력',
 }
 
-/** And the trades that open them, which `Lock.dbc` names by number. */
-export const TRADE_WORD: Record<string, string> = {
-  herbs: '약초 채집', mining: '채광', skinning: '무두질',
-}
-
 /**
- * The same three by the `SkillLine` id the world database uses.
+ * The trades, by the `SkillLine` id the whole game speaks.
  *
- * `conditions` asks *skill 182 at 1* and this game carries `herbs: 1`, so
- * somebody has to know that 182 is herbalism.  Here rather than in the
- * pipeline because the word is ours and the number is the game's — the same
- * seam every other id in this file sits on.
+ * There used to be two of these — a word list keyed on `herbs`/`mining`/
+ * `skinning` and a second table joining those three words to 182, 186 and 393
+ * — because a node carried our word and `conditions` asked for the number.
+ * The node carries the number now (`pipeline/objects.py`), so the join is
+ * gone and this is the one seam left: the number is the game's and the word
+ * is ours.
  */
-export const TRADE_SKILL: Record<string, number> = {
-  herbs: 182, mining: 186, skinning: 393,
+export const TRADE_WORD: Record<number, string> = {
+  129: '응급치료', 164: '대장기술', 165: '가죽세공', 171: '연금술',
+  182: '약초 채집', 185: '요리', 186: '채광', 197: '재봉',
+  202: '기계공학', 333: '마법부여', 356: '낚시', 393: '무두질',
+  755: '보석세공', 773: '주문각인',
 }
 
 /** Whoever is counted in 명 rather than in 마리. */

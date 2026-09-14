@@ -27,11 +27,12 @@ import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
 import { between, roll, seed, reseed } from './sim/roll.ts'
 import { cycleOf, standing } from './sim/pools.ts'
 import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE_VERSION, type Card, type Save } from './save.ts'
-import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
+import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
+import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
-import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_SKILL, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
+import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
 import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
 import {
@@ -395,7 +396,7 @@ async function main() {
     ? new Uint8Array(bin, deepAt, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf, said] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf, said, craft] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -456,6 +457,12 @@ async function main() {
     fetch('./world/prose.json')
       .then((r) => r.json() as Promise<{ quests: Record<string, unknown> }>)
       .catch(() => ({ quests: {} })),
+    // What can be learned to be made: `pipeline/trades.py`.  Missing is fine
+    // and is what a machine with no game client bakes — a recipe lives in
+    // `SkillLineAbility.dbc` and nowhere else.
+    fetch('./world/trades.json')
+      .then((r) => r.json() as Promise<Trades>)
+      .catch(() => ({ trades: {}, recipes: [], unused: {} } as Trades)),
   ])
 
   const canvas = document.createElement('canvas')
@@ -2549,8 +2556,8 @@ async function main() {
    */
   type Node = {
     x: number; y: number; kind: string; face: number
-    /** The trade a lock asks for, or the empty string for anything openable. */
-    trade: string
+    /** The `SkillLine` a lock asks for, or nought for anything openable. */
+    trade: number
     /** And how much of it — `Lock.dbc`'s own number. */
     skill: number
     /** How long the world database says it takes to come back. */
@@ -2604,7 +2611,7 @@ async function main() {
     })
     .map((r) => ({
     x: r[0] as number, y: r[1] as number, kind: r[2] as string,
-    face: r[3] as number, trade: r[4] as string, skill: r[5] as number,
+    face: r[3] as number, trade: r[4] as number, skill: r[5] as number,
     back: r[6] as number, haul: things.hauls?.[r[7] as number] ?? [],
     pool: r[9] as number, up: true, due: 0,
   }))
@@ -3004,6 +3011,15 @@ async function main() {
    */
   let bought: Record<string, [number, number]> = {}
   /**
+   * The recipes he knows, by the spell id that makes the thing.
+   *
+   * A separate list from `taught` and not the same one, because the two are
+   * bought from different people for different reasons and only one of them
+   * goes on the bar: a warrior's rend is an ability and a cook's roast is a
+   * row in a window.  Merging them would put roast boar in the spellbook.
+   */
+  let recipes: number[] = []
+  /**
    * A blessing, a fortitude, a frost armour: one stat or the armour raised
    * for a while.
    *
@@ -3234,6 +3250,21 @@ async function main() {
     extraPct: 100,
     /** A renew, ticking — the heal's mirror of a bleed. */
     mend: null as { until: number; next: number; each: number } | null,
+    /**
+     * A bandage tied, a meal eaten, a drink drunk.
+     *
+     * Separate from `mend` although both add health a tick, because the two
+     * break on different things: a renew is a spell somebody cast on you and
+     * survives being hit, and a bandage does not.  One field holding both
+     * would have to carry a flag saying which it was, which is the same as two
+     * fields with one fewer thing to get wrong.
+     *
+     * `word` is only for the log line, so being interrupted can say what was
+     * interrupted.
+     */
+    using: null as {
+      until: number; next: number; each: number; power: boolean; word: string
+    } | null,
     /** When each thing with a cooldown is ready again. */
     cools: {} as Record<number, number>,
     /** And when the global one is — see `cast`. */
@@ -3241,27 +3272,45 @@ async function main() {
     /** The shout, while it lasts. */
     shout: null as { until: number; ap: number } | null,
     purse: 0, kills: 0,
-    /** word -> [how many, what the lot is worth in copper]. */
-    bag: {} as Record<string, [number, number]>,
+    /**
+     * What is loose in the bag: **item id -> how many.**
+     *
+     * It was `word -> [how many, what it is worth]`, and the word was the
+     * thing's *class* — `cloth`, `meat`, `ore` — so a bag could say eleven
+     * cloth and could never say two linen and nine wool.  That is fine for a
+     * shopkeeper who pays by the pile and impossible for a recipe, which asks
+     * for two linen and nothing else will do.
+     *
+     * The id was already on every row of every haul in the world; only this
+     * tally threw it away.  With it the worth stops being carried here at all
+     * — `I_SELL` on the item row is the same number from the same column, and
+     * two copies of one fact is the drift this repository keeps paying for.
+     */
+    bag: {} as Record<string, number>,
 
     /**
-     * What he is good at picking up, by trade.
+     * Which trades he has taken up: **`SkillLine` id -> [where he is, how far
+     * it goes].**
      *
-     * `Lock.dbc` states what each node asks for: silverleaf and peacebloom
-     * want nothing, earthroot wants fifteen, truesilver wants two hundred and
-     * five.  So the *bar* is data, and what is not is the rate — one point a
-     * node, which is the smallest step there is.  The server's own curve for
-     * this lives in AzerothCore's C++ and that is not on this machine (see
-     * issue 101); when it is, it goes here and nothing else changes.
+     * Empty to begin with, and that is the change issue 200 made.  It used to
+     * be `{ herbs: 1, mining: 1, skinning: 1 }` — three trades nobody chose,
+     * because the bake left the slice's trade trainers out as people with
+     * nothing to sell, and a trade you cannot be taught has to be a trade you
+     * were born with or no trade at all.  Thirteen of them teach now, so the
+     * first point of herbalism is a decision and costs ten copper.
      *
-     * Both trades start at one because in this game a trade is learned by
-     * doing it and not from a person.  The twenty-seven trade trainers the
-     * slice contains are no longer baked as trainers at all — they have
-     * nothing to sell anybody here — and `pipeline/items.py` counts them out
-     * loud.  Starting at nought would make the number a lie rather than a
-     * placeholder: a node asking for nothing would still refuse.
+     * The ceiling is the second number because it is not a property of the
+     * trade: `Spell::EffectLearnSkill` sets it from the rank spell you bought,
+     * so apprentice is 75 and journeyman 150, and the difference is a purse
+     * and a level.
+     *
+     * What is still not derived is the *rate* — one point a node, which is the
+     * smallest step there is.  The server's curve for a gathering skill needs
+     * `SkillChance.Green` and `.Yellow`, and those are config rather than code
+     * and are not on this machine; crafting needs neither (see
+     * `riseChance` in `sim/trades.ts`) and so crafting has the real one.
      */
-    trades: { herbs: 1, mining: 1, skinning: 1 } as Record<string, number>,
+    trades: {} as Record<string, [number, number]>,
     /**
      * Which stance he is standing in — the client's own form number, 17
      * Battle or 18 Defensive, or nought before he has been given one.
@@ -4212,6 +4261,7 @@ async function main() {
               * (1 - mitigate(you.line[ARMOUR]!, n.level))))
             const got = takeHit(bolt)
             you.hp -= got
+            breakUse()
             breakCast('맞았다')
             say(hero.x, hero.y, `-${got}`, false)
             ui.log(`${nameOf(n.kind)}의 주문에 ${bolt} 맞았다.`, 'hurt')
@@ -4241,6 +4291,7 @@ async function main() {
       const hit = takeHit(Math.max(0, Math.round(
         damageAfter(fate, raw, n.level - you.level) * stanceOf().take)))
       you.hp -= hit
+      breakUse()
       n.swung = clock
       struck(you, hit, you.max, n.x, n.y, hero.x, hero.y)
       // Taking a blow pays too, at a third of what landing one does — for
@@ -4271,6 +4322,7 @@ async function main() {
       else if (clock >= youBleed.next) {
         youBleed.next = clock + 3
         you.hp -= youBleed.each
+        breakUse()
         say(hero.x, hero.y, `-${youBleed.each}`, false)
         if (you.hp <= 0) {
           you.hp = 0; you.died = clock; you.target = null; you.calm = 0
@@ -4284,6 +4336,17 @@ async function main() {
       you.line = lineFor(you.level)
       you.max = you.line[HP]!
       you.hp = Math.min(you.hp, you.max)
+    }
+    // A bandage or a meal, which stops the moment anything lands.
+    if (you.using) {
+      if (clock > you.using.until) you.using = null
+      else if (clock >= you.using.next) {
+        const on = you.using
+        on.next = clock + 1
+        if (on.power) you.power = Math.min(powerMax(), you.power + on.each)
+        else you.hp = Math.min(you.max, you.hp + on.each)
+        say(hero.x, hero.y, `+${on.each}`, false)
+      }
     }
     // A renew, which is a bleed with the sign turned round.
     if (you.mend) {
@@ -4421,6 +4484,122 @@ async function main() {
     return out
   }
 
+  /**
+   * Skinning's own `SkillLine` id, which nothing else in the world states.
+   *
+   * A herb and a vein carry their trade on the row because `Lock.dbc` gave it
+   * to them.  A carcass has no lock at all — it is `Spell::EffectSkinning`
+   * that decides, and the spell knows which skill because it is filed under
+   * one.  So this is the one trade this file has to name, and it is named once.
+   */
+  const SKINNING = 393
+
+  /** Has he taken this trade up at all? */
+  const can = (skill: number): boolean => !!you.trades[String(skill)]
+
+  /** Where he is in it, or nought. */
+  const rankIn = (skill: number): number => you.trades[String(skill)]?.[0] ?? 0
+
+  /**
+   * A point of a trade for having used it, and what to say about it.
+   *
+   * One point a node and one a hide, which is the smallest step there is, and
+   * the ceiling is the one the rank he bought set.  A trade already at its
+   * ceiling says nothing rather than saying the same number again.
+   */
+  const rise = (skill: number): string[] => {
+    const at = you.trades[String(skill)]
+    if (!at || at[0] >= at[1]) return []
+    at[0] += 1
+    return [`${TRADE_WORD[skill] ?? skill} ${at[0]}`]
+  }
+
+  /**
+   * Put `many` of an item into the bag, and say what went in.
+   *
+   * `word` is the haul row's own word and is the fallback only: the item's
+   * row is the better answer because it is the row the shop, the bag and the
+   * recipe all read.  They agree everywhere in this world — `check_loot` and
+   * `check_recipes` are what make that true — and when they ever do not, the
+   * bag says something rather than `물건 766`.
+   */
+  const intoBag = (item: number, many: number, word: string): string => {
+    const key = String(item)
+    you.bag[key] = (you.bag[key] ?? 0) + many
+    const it = itemOf(item)
+    return `${goodsOf(it ? (it[I_WORD] as string) : word)} ${many}`
+  }
+
+  /** "66 회복, 6초" — what pressing a thing in the bag would do. */
+  const useWord = (use: [string, number, number]): string => {
+    const [word, total, seconds] = use
+    const what = word === 'drink' ? '기력' : '회복'
+    return seconds ? `${total} ${what}, ${Math.round(seconds)}초`
+      : `${total} ${what}`
+  }
+
+  /**
+   * A bandage or a meal stops the moment anything lands on you.
+   *
+   * The original's rule and the reason a first aider is not simply a second
+   * healer: mending only works where nothing is hitting you, so it is what you
+   * do *between* fights.
+   */
+  const breakUse = () => {
+    if (!you.using) return
+    ui.log(`${you.using.word}이(가) 끊겼다.`, 'note')
+    you.using = null
+  }
+
+  /**
+   * Use one of something out of the bag.
+   *
+   * `I_USE` is `[word, how much altogether, over how many seconds]` and comes
+   * off the item's own on-use spell — see `use_of` in `pipeline/trades.py`.
+   * Five shapes cover everything this world makes and sells, and the two that
+   * take time are the two that need a reason to stand still.
+   */
+  const useItem = (id: number): string => {
+    const it = itemOf(id)
+    const use = it?.[I_USE] as [string, number, number] | 0 | undefined
+    if (!it || !use) return '쓸 수 없다'
+    if ((you.bag[String(id)] ?? 0) < 1) return '가진 것이 없다'
+    const [word, total, seconds] = use
+    const fighting = !!you.target && !you.target.dead
+    // Eating and drinking are out-of-combat things in the original and here,
+    // and a bandage is not: it is the one thing you can do while something is
+    // still swinging at you, and it breaks the moment it connects.
+    if ((word === 'feed' || word === 'drink') && fighting)
+      return '싸우면서 먹을 수는 없다'
+    if (word === 'mend' && you.using) return '이미 싸매는 중이다'
+    const key = String(id)
+    const left = (you.bag[key] ?? 0) - 1
+    if (left > 0) you.bag[key] = left; else delete you.bag[key]
+    if (word === 'heal') {
+      const was = you.hp
+      you.hp = Math.min(you.max, you.hp + total)
+      say(hero.x, hero.y, `+${you.hp - was}`, false)
+      play('loot')
+      return `${you.hp - was} 회복했다.`
+    }
+    if (word === 'power') {
+      const was = you.power
+      you.power = Math.min(powerMax(), you.power + total)
+      play('loot')
+      return `${Math.round(you.power - was)} 회복했다.`
+    }
+    // And over time, a point a second, which is the tick the aura itself uses
+    // (`AuraEffect::CalculatePeriodic` floors a broken period at 1000ms).
+    const ticks = Math.max(1, Math.round(seconds))
+    you.using = {
+      until: clock + ticks, next: clock + 1,
+      each: Math.max(1, Math.round(total / ticks)),
+      power: word === 'drink', word: describe(it),
+    }
+    play('loot')
+    return `${describe(it)}. ${ticks}초.`
+  }
+
   /** What is left of a creature's armour once it has been sundered. */
   const armourNow = (n: Npc): number => {
     const base = n.fight?.[ARMOUR] ?? 0
@@ -4449,33 +4628,29 @@ async function main() {
    */
   const loot = (n: Npc): string => {
     if (n.looted && n.hide && !n.skinned) {
-      // **And nothing is asked for it**, which took an attempt at the
-      // opposite to settle.  A herb and a vein state their own requirement —
-      // `Lock.dbc` gives a number per node — and a carcass states none:
-      // neither `skinning_loot_template` nor `creature_template` has a
-      // column for it, because the server works it out from the victim's
-      // level.  The scale this game uses for a skill against a level is in
-      // the core (`Unit.cpp:3334` takes a weapon skill as `GetLevel() * 5`),
-      // and applying it here is where it fell over: a level five wolf then
-      // wants twenty-five, the trade starts at one, and **the only thing
-      // that teaches skinning is skinning**.  A gate nobody can open is
-      // worse than no gate, and inventing a different number to unjam one is
-      // exactly the constant this repository keeps deleting.
+      // **And what it asks for was found in the end.**  A herb and a vein
+      // state their own requirement — `Lock.dbc` gives a number per node —
+      // and a carcass states none, because the server works it out from the
+      // victim's level.  Which line of the server does it was the whole
+      // question, and the first answer was the wrong one: `Unit.cpp:3334`
+      // makes a *weapon* skill level times five, so a level five wolf wanted
+      // twenty-five, nothing could open the gate, and the gate came out.
+      //
+      // `Spell::EffectSkinning` (SpellEffects.cpp:4914) is the line that
+      // actually decides it and it asks **nothing below level ten**, then
+      // climbs in tens.  So the gate is openable after all — see `skinAsks`.
+      if (!can(SKINNING)) return `${TRADE_WORD[SKINNING]}을(를) 배워야 한다`
+      const asks = skinAsks(n.level)
+      if (rankIn(SKINNING) < asks)
+        return `${TRADE_WORD[SKINNING]} ${asks} 필요`
       n.skinned = true
       const off: string[] = []
       for (const row of n.hide[2]) {
-        const [idx, chance, clo, chi, sell] = row as number[]
+        const [idx, chance, clo, chi, , item] = row as number[]
         if (roll() * 100 >= chance!) continue
-        const word = GOODS[idx!] ?? 'oddment'
-        const many = between(clo!, chi!)
-        const had = you.bag[word] ?? [0, 0]
-        you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
-        off.push(`${goodsOf(word)} ${many}`)
+        off.push(intoBag(item!, between(clo!, chi!), GOODS[idx!] ?? 'oddment'))
       }
-      // Teaching by doing, the same bargain the herb and the vein make: there
-      // is no trainer in this game and the trade has to come from somewhere.
-      you.trades['skinning'] = (you.trades['skinning'] ?? 0) + 1
-      off.push(`${TRADE_WORD['skinning']} ${you.trades['skinning']}`)
+      off.push(...rise(SKINNING))
       if (off.length) play('loot')
       return off.join(', ')
     }
@@ -4486,20 +4661,17 @@ async function main() {
     const copper = between(lo, hi)
     if (copper > 0) { you.purse += copper; got.push(coin(copper)) }
     for (const row of items) {
-      const [idx, chance, clo, chi, sell, , need] = row as number[]
+      const [idx, chance, clo, chi, , item, need] = row as number[]
       // What `conditions` says has to be true first.  A quest item that falls
       // without the quest is the table's own first example of what goes wrong
       // when nobody reads it — and it looks like generosity, not like a bug.
       if (need && !log.held.some((h) => h.id === need)) continue
       if (roll() * 100 >= chance!) continue
-      const word = GOODS[idx!] ?? 'oddment'
-      const many = between(clo!, chi!)
-      // The price travels with the thing.  A bag that held only counts could
-      // not be sold: `weapon` is worth what that creature's weapon was worth,
-      // and the word on its own says nothing about that.
-      const had = you.bag[word] ?? [0, 0]
-      you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
-      got.push(`${goodsOf(word)} ${many}`)
+      // The id travels and the price no longer has to: `I_SELL` on the item
+      // row is the same column this used to copy, and one fact in one place
+      // is the difference between a bag that can be sold and a bag that can
+      // also be cooked.
+      got.push(intoBag(item!, between(clo!, chi!), GOODS[idx!] ?? 'oddment'))
     }
     return got.length ? got.join(', ') : '아무것도 없다'
   }
@@ -4530,23 +4702,20 @@ async function main() {
    * you get there by pulling fifteen peacebloom.
    */
   const gather = (n: Node): string => {
-    if (n.trade && (you.trades[n.trade] ?? 0) < n.skill)
+    if (n.trade && !can(n.trade))
+      return `${TRADE_WORD[n.trade] ?? n.trade}을(를) 배워야 한다`
+    if (n.trade && rankIn(n.trade) < n.skill)
       return `${TRADE_WORD[n.trade] ?? n.trade} ${n.skill} 필요`
     n.up = false
     n.due = clock + Math.max(5, n.back)
     const got: string[] = []
     for (const row of n.haul) {
-      const [word, chance, lo, hi, sell] = row as [string, number, number, number, number]
+      const [word, chance, lo, hi, , item] =
+        row as [string, number, number, number, number, number]
       if (roll() * 100 >= chance) continue
-      const many = between(lo, hi)
-      const had = you.bag[word] ?? [0, 0]
-      you.bag[word] = [had[0] + many, had[1] + many * (sell ?? 0)]
-      got.push(`${goodsOf(word)} ${many}`)
+      got.push(intoBag(item, between(lo, hi), word))
     }
-    if (n.trade) {
-      you.trades[n.trade] = (you.trades[n.trade] ?? 0) + 1
-      got.push(`${TRADE_WORD[n.trade] ?? n.trade} ${you.trades[n.trade]}`)
-    }
+    if (n.trade) got.push(...rise(n.trade))
     if (got.length) play('loot')
     return got.length ? got.join(', ') : '아무것도 없다'
   }
@@ -4648,6 +4817,15 @@ async function main() {
     // list of abilities is a binding that leaves when the list is rearranged.
     if (k === 'e') { e.preventDefault(); toggleTalk() }
     if (k === 'b') { e.preventDefault(); bagOpen = !bagOpen }
+    // The workbench.  One key, and pressing it again with two trades open
+    // turns the page rather than shutting it — a person with cooking and
+    // first aid wants both lists off one finger.
+    if (k === 't') {
+      e.preventDefault()
+      const many = Object.keys(you.trades).filter((x) => craft.trades[x]).length
+      if (craftOpen && craftAt + 1 < many) { craftAt += 1; craftPage = 0; drawCraft() }
+      else showCraft(!craftOpen)
+    }
     // Off and on.  Everything a sound says is also on screen — that is a rule
     // with a check behind it — so this costs nothing but the noise.
     if (k === 'n') {
@@ -5070,7 +5248,7 @@ async function main() {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
-      items: held, gear, taught, bought,
+      items: held, gear, taught, bought, recipes,
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
       ...(me ? { who: { ...me } } : {}),
@@ -5104,6 +5282,7 @@ async function main() {
     held = save.you.items ?? []
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
+    recipes = save.you.recipes ?? []
     bought = save.you.bought ?? {}
     you.rest = save.you.rest ?? 0
     you.finished = save.you.finished ?? 0
@@ -5396,6 +5575,23 @@ async function main() {
    * shopkeeper: walk away and come back and you are at the front of his stock
    * again, which is what the original does.
    */
+  /**
+   * The colour a crafting row carries, which is the only thing on it that is
+   * about the *player* rather than about the recipe.
+   *
+   * Orange, yellow, green, grey are the original's four and they are what the
+   * skill-up curve actually looks like — see `heatOf`.  A grey row still works
+   * and teaches nothing, which is why it is drawn dimmer rather than removed.
+   */
+  const HEAT_TINT: Record<string, string> = {
+    orange: '#d98032', yellow: '#d9c04a', green: '#6fbf5a', grey: '#8a8a8a',
+  }
+
+  /** Whether the crafting window is up, and which trade's page it shows. */
+  let craftOpen = false
+  let craftAt = 0
+  let craftPage = 0
+
   let shopAt: Npc | null = null
   let shopPage = 0
   /**
@@ -5471,10 +5667,24 @@ async function main() {
     if (row) takeStock(entry, row)
     return null
   }
-  const openShop = (n: Npc) => { shopAt = n; shopPage = 0; drawShop() }
+  // One window, so opening either closes the other.  A workbench that shares
+  // a shopkeeper's list has to share his box too, and two things drawing into
+  // one box in the same frame is the last one winning.
+  const openShop = (n: Npc) => {
+    shopAt = n; shopPage = 0; craftOpen = false; drawShop()
+  }
   const shutShop = () => { shopAt = null; drawShop() }
+  const showCraft = (on: boolean) => {
+    craftOpen = on
+    if (on) { shopAt = null; craftPage = 0 }
+    if (on) drawCraft(); else drawShop()
+  }
   const drawShop = () => {
-    if (!shopAt) { ui.setShop(false, '', '', 0, 0, [], () => {}, () => {}); return }
+    if (!shopAt) {
+      if (craftOpen) { drawCraft(); return }
+      ui.setShop(false, '', '', 0, 0, [], () => {}, () => {})
+      return
+    }
     const at = shopAt.entry
     const stock = (shelf.stock?.[String(at)] ?? [])
       .filter((row) => !!itemOf(row[0]!))
@@ -5509,6 +5719,152 @@ async function main() {
       (to) => { shopPage = to; drawShop() })
   }
 
+  /**
+   * What the skill rules hand over the moment a trade is taken up or raised.
+   *
+   * `Player::LearnSkillRewardedSpells` (Player.cpp:12256) is the rule and the
+   * bake has already applied it: a recipe whose `R_HOW` is `GIVEN` is one of
+   * these, and its rank is the rank it arrives at.  Called on learning and
+   * again on every point, because half of them arrive later — a smith is given
+   * the copper chain belt at one and the runed copper breastplate at fifty.
+   */
+  const learnFree = (skill: number) => {
+    const at = you.trades[String(skill)]
+    if (!at) return
+    for (const r of craft.recipes) {
+      if (r[R_SKILL] !== skill || r[R_HOW] !== GIVEN) continue
+      if (r[R_RANK] > at[0] || recipes.includes(r[R_SPELL])) continue
+      recipes.push(r[R_SPELL])
+    }
+  }
+
+  /**
+   * Pay for a rank of a trade and take it up.
+   *
+   * One implementation, called by the conversation and by the test hook.  The
+   * shop learned this the hard way: `__buy` was a *second* way to buy a thing
+   * that skipped the limited shelf, so the check that a shop could run out was
+   * watching a path that had never heard of shelves.
+   */
+  const takeUp = (skill: number, step: Rank): string | null => {
+    const cost = step[1]
+    if (you.purse < cost) return '돈이 모자라오.'
+    you.purse -= cost
+    // The floor is one and not nought, and that is the server's:
+    // `Spell::EffectLearnSkill` keeps what you had or starts you at one, never
+    // at nothing.  A trade at nought would refuse a node that asks for nothing.
+    const at = you.trades[String(skill)]
+    you.trades[String(skill)] = [Math.max(1, at?.[0] ?? 0), step[4]]
+    learnFree(skill)
+    ui.log(`${TRADE_WORD[skill] ?? ''}을(를) 배웠다. ${coin(cost)}`, 'gain')
+    return null
+  }
+
+  /** "리넨 천 2, 굵은 실 1" — what a recipe asks for, in Korean. */
+  const needsLine = (r: Recipe): string =>
+    r[R_NEEDS].map(([item, many]) => {
+      const it = itemOf(item)
+      return `${it ? describe(it) : `물건 ${item}`} ${many}`
+    }).join(', ')
+
+  /**
+   * Make one, if the bag can pay for it.
+   *
+   * The skill-up is the server's own roll: `Player::UpdateCraftSkill` asks
+   * `CraftSkillGainChance` with the ability's two thresholds and raises the
+   * skill by one if it lands.  Which means the orange rows are where a trade
+   * moves and the grey ones are where it stops — and that, rather than a
+   * number on a screen, is the decision the crafting list is made of.
+   */
+  const makeOne = (r: Recipe): string => {
+    const at = you.trades[String(r[R_SKILL])]
+    if (!at) return '배우지 않은 기술이다'
+    if (at[0] < r[R_RANK])
+      return `${TRADE_WORD[r[R_SKILL]] ?? ''} ${r[R_RANK]} 필요`
+    const missing = lacking(r[R_NEEDS], you.bag)
+    if (missing.length) {
+      const it = itemOf(missing[0]![0])
+      return `${it ? describe(it) : `물건 ${missing[0]![0]}`} ${missing[0]![1]} 모자란다`
+    }
+    for (const [item, many] of r[R_NEEDS]) {
+      const key = String(item)
+      const left = (you.bag[key] ?? 0) - many
+      if (left > 0) you.bag[key] = left
+      else delete you.bag[key]
+    }
+    const made = itemOf(r[R_MAKES])
+    const got = intoBag(r[R_MAKES], r[R_COUNT], made
+      ? (made[I_WORD] as string) : 'oddment')
+    const said = [got]
+    if (at[0] < at[1]
+      && roll() * 1000 < riseChance(at[0], r[R_YELLOW], r[R_GREY])) {
+      at[0] += 1
+      said.push(`${TRADE_WORD[r[R_SKILL]] ?? ''} ${at[0]}`)
+    }
+    play('loot')
+    return said.join(', ')
+  }
+
+  /**
+   * Draw the crafting window.
+   *
+   * The shop's own window, because it is the shop's own shape: a picture, our
+   * word for the thing, what it costs and whether you can afford it.  What a
+   * recipe costs is a list of things rather than a number of coins, and that
+   * is the only difference — writing a second list widget to say the same
+   * four things in the same four places is how two lists start to drift.
+   */
+  const drawCraft = () => {
+    if (!craftOpen) {
+      ui.setShop(false, '', '', 0, 0, [], () => {}, () => {})
+      return
+    }
+    const mine = Object.keys(you.trades)
+      .filter((k) => craft.trades[k])
+      .sort((a, b) => Number(a) - Number(b))
+    if (!mine.length) {
+      ui.setShop(true, '제작', '배운 기술이 없다', 0, 0, [], () => {}, () => {},
+        '기술을 가르치는 사람을 찾아보시오')
+      return
+    }
+    craftAt = Math.max(0, Math.min(craftAt, mine.length - 1))
+    const skill = mine[craftAt]!
+    const trade = craft.trades[skill]!
+    const at = you.trades[skill]!
+    const rows_ = craft.recipes
+      .filter((r) => r[R_SKILL] === Number(skill) && recipes.includes(r[R_SPELL]))
+      .sort((a, b) => a[R_RANK] - b[R_RANK])
+    const per = SHOP_PER_PAGE()
+    const pages = Math.max(1, Math.ceil(rows_.length / per))
+    craftPage = Math.max(0, Math.min(craftPage, pages - 1))
+    const rows = rows_.slice(craftPage * per, craftPage * per + per)
+      .map((r) => {
+        const made = itemOf(r[R_MAKES])
+        const heat = heatOf(at[0], r[R_YELLOW], r[R_GREY])
+        return [r[R_SPELL],
+          (made ? describe(made) : `물건 ${r[R_MAKES]}`)
+          + (r[R_COUNT] > 1 ? ` x${r[R_COUNT]}` : ''),
+          needsLine(r), made ? iconFor(made) : '',
+          HEAT_TINT[heat]!, made ? detail(made) : '',
+          !lacking(r[R_NEEDS], you.bag).length] as ShopRow
+      })
+    // The title is the trade and where he is in it, which is the one number
+    // the whole window is about; the purse's place says how many trades he has
+    // and which of them this is, because that is what the key cycles.
+    ui.setShop(true,
+      `${TRADE_WORD[Number(skill)] ?? trade.word} ${at[0]} / ${at[1]}`,
+      mine.length > 1 ? `T — ${craftAt + 1} / ${mine.length}` : '',
+      craftPage, pages, rows,
+      (id) => {
+        const r = craft.recipes.find((x) => x[R_SPELL] === id)
+        if (!r) return
+        ui.log(makeOne(r), 'gain')
+        drawCraft()
+      },
+      (to) => { craftPage = to; drawCraft() },
+      '만들 줄 아는 것이 없다')
+  }
+
   const sellAll = (): string[] => {
     const rows = Object.entries(you.bag)
     // And the things he is carrying but not wearing, which had no way out at
@@ -5523,9 +5879,15 @@ async function main() {
     if (rows.length === 0 && spare.length === 0) return ['팔 것이 없소.']
     let paid = 0
     const said: string[] = []
-    for (const [word, [many, worth]] of rows) {
+    for (const [id, many] of rows) {
+      const it = itemOf(Number(id))
+      // The price comes off the item row now and not out of the bag, which is
+      // what letting the id travel bought: one column, read by the shop, the
+      // bag and the shopkeeper alike.
+      const worth = ((it?.[I_SELL] as number) ?? 0) * many
       paid += worth
-      said.push(`${goodsOf(word)} ${many} — ${worth > 0 ? coin(worth) : '값이 없다'}`)
+      said.push(`${it ? describe(it) : `물건 ${id}`} ${many} — `
+        + `${worth > 0 ? coin(worth) : '값이 없다'}`)
     }
     for (const id of spare) {
       const it = itemOf(id)!
@@ -5834,6 +6196,15 @@ async function main() {
     if (it[I_ARMOUR]) bits.push(`방어도 ${it[I_ARMOUR]}`)
     for (const [word, amount] of (it[12] as (string | number)[][]) ?? [])
       bits.push(`${STAT_WORD[word as string] ?? word} +${amount}`)
+    // What using it does, which is the one thing a shop row never said.
+    //
+    // Two waters on one shelf — 159 and 46784 — carry the same word, the same
+    // price, the same picture and the same level, and the only difference
+    // between them is what happens when you drink one.  The row had no place
+    // to say that, so the shop printed the same line twice; `I_USE` is the
+    // place, and it arrived with issue 200 because a bandage needed it.
+    const use = it[I_USE] as [string, number, number] | 0 | undefined
+    if (use) bits.push(useWord(use))
     if (it[I_NEED]) bits.push(`${it[I_NEED]}레벨 필요`)
     // And if it does nothing at all, what it is worth being — `ItemLevel`, the
     // world's own one-number answer to "is this better", which `dressUp`
@@ -5871,10 +6242,12 @@ async function main() {
     cls: myClass,
     race: me?.race ?? 1,
     level: you.level,
-    // A trade is a `SkillLine` id in the table and a word here; the two meet
-    // in `TRADE_SKILL`, which is the only place that mapping exists.
+    // A trade is a `SkillLine` id in the table and in this game too, now that
+    // the trades are learned from the people the table files under the same
+    // number.  There used to be a third table here joining our three words to
+    // their ids; the ids arrive from the bake and the join is gone.
     skills: Object.fromEntries(Object.entries(you.trades)
-      .map(([word, at]) => [TRADE_SKILL[word] ?? 0, at])),
+      .map(([skill, at]) => [Number(skill), at[0]])),
     quest: (id: number) => log.done.has(id) ? 'done'
       : holding(log, id)
         ? (errandDone(log, holding(log, id)!) ? 'ready' : 'doing')
@@ -6025,6 +6398,69 @@ async function main() {
             spells = known(you.level)
             ui.log(`${word[0]}을(를) 배웠다. ${coin(cost!)}`, 'gain')
             return [`${word[0]}. ${coin(you.purse)} 남았소.`]
+          },
+        })
+      }
+    }
+    // And a trade trainer teaches a trade.
+    //
+    // Thirteen of them stand in this slice and until now not one of them was
+    // anybody: `items.py` counted them out of the trainer list because they
+    // sold nothing this game could learn, which was true and was a
+    // description of a hole rather than of a decision.  What they sell is
+    // two things — the *rank*, which raises the ceiling, and the recipes
+    // above the first, which are ordinary rows with a skill instead of a
+    // level on them.
+    for (const [skill, trade] of Object.entries(craft.trades)) {
+      if (!trade.at.includes(n.entry)) continue
+      const at = you.trades[skill]
+      const step = nextRank(trade, at?.[0] ?? 0, at?.[1] ?? 0, you.level)
+      const word = TRADE_WORD[Number(skill)] ?? trade.word
+      if (step) {
+        const cost = step[1]
+        speech.options.push({
+          label: at ? `${word} 더 배우기 (${step[4]}까지) — ${coin(cost)}`
+            : `${word} 배우기 — ${coin(cost)}`,
+          lines: [],
+          act: () => {
+            const no = takeUp(Number(skill), step)
+            if (no) return [no]
+            return [`${word}. ${coin(you.purse)} 남았소.`]
+          },
+        })
+      } else if (at) {
+        const far = afterThis(trade, at[1])
+        if (far) {
+          speech.options.push({
+            label: `${word} 더 배우기`, lines: [
+              far[2] > at[0] ? `${word}이(가) ${far[2]}은 되어야 하오.`
+                : `${far[3]}레벨은 되어야 하오.`],
+            act: () => [],
+          })
+        }
+      }
+      // The recipes this one sells that he could take now.  Only the ones his
+      // skill already reaches, sorted by what they ask for, and a handful —
+      // a conversation is not a spreadsheet, which is the class trainer's
+      // rule and the same one here.
+      if (!at) continue
+      const shelf_ = craft.recipes
+        .filter((r) => r[R_SKILL] === Number(skill) && r[R_HOW] === SOLD
+          && !recipes.includes(r[R_SPELL]) && r[R_RANK] <= at[0])
+        .sort((a, b) => a[R_RANK] - b[R_RANK])
+        .slice(0, 4)
+      for (const r of shelf_) {
+        const made = itemOf(r[R_MAKES])
+        const label = made ? describe(made) : `물건 ${r[R_MAKES]}`
+        speech.options.push({
+          label: `${label} 만드는 법 — ${coin(r[R_COST])}`,
+          lines: [needsLine(r)],
+          act: () => {
+            if (you.purse < r[R_COST]) return ['돈이 모자라오.']
+            you.purse -= r[R_COST]
+            recipes.push(r[R_SPELL])
+            ui.log(`${label} 만드는 법을 배웠다. ${coin(r[R_COST])}`, 'gain')
+            return [`${label}. ${coin(you.purse)} 남았소.`]
           },
         })
       }
@@ -7866,7 +8302,8 @@ async function main() {
       ctx.fillStyle = 'rgba(12,14,20,.82)'
       ctx.fillRect(X - w / 2, Y - w / 2, w, w)
       ctx.strokeStyle = thing.trade
-        && (you.trades[thing.trade] ?? 0) < thing.skill ? '#7a6a52' : '#c9a86a'
+        && (!can(thing.trade) || rankIn(thing.trade) < thing.skill)
+        ? '#7a6a52' : '#c9a86a'
       ctx.strokeRect(X - w / 2 + 0.5, Y - w / 2 + 0.5, w - 1, w - 1)
       ctx.fillStyle = ctx.strokeStyle
       ctx.fillText('E', X, Y + 1)
@@ -7957,7 +8394,7 @@ async function main() {
       // Nothing about the button: it is round, lit and says Talk on it.
       help.textContent = pad.on
         ? '끌어서 이동  ·  눌러서 고르기\n오므려서 확대'
-        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
+        : 'WASD: 이동  1: 공격  E: 대화·줍기  B: 가방  T: 제작  G: 장비  N: 소리  C: 정보  M: 지도  `: 수치'
     }
 
     acc += dt; frames++
@@ -8066,6 +8503,7 @@ async function main() {
     ui.setMicro([
       { key: 'C', label: '정보', on: sheetOpen, use: () => { sheetOpen = !sheetOpen } },
       { key: 'B', label: '가방', on: bagOpen, use: () => { bagOpen = !bagOpen } },
+      { key: 'T', label: '제작', on: craftOpen, use: () => showCraft(!craftOpen) },
       { key: 'N', label: '소리', on: !muteIsOn(), use: () => mute(!muteIsOn()) },
       { key: 'M', label: '지도', on: mapOpen, use: () => {
         mapOpen = !mapOpen
@@ -8152,14 +8590,22 @@ async function main() {
     ui.setXp(you.xp, LADDER[you.level - 1] ?? 0, you.level)
     ui.setBag(bagOpen, coin(you.purse),
       Object.entries(you.bag)
-        .map(([w, [n, worth]]) =>
+        .map(([id, n]) => {
           // The word on its own is what this game has instead of a name, so
           // a bag of eleven words is eleven lines of Korean.  The picture is
           // keyed on `(word, slot)` and a stack has no slot — everything that
           // does goes in `held` and is worn rather than counted.
-          [goodsOf(w), n, coin(worth), art.goods[`${w}|`] ?? ''] as
-            [string, number, string, string])
-        .sort((a, b) => b[1] - a[1]))
+          const it = itemOf(Number(id))
+          const word = it ? (it[I_WORD] as string) : 'oddment'
+          const use = it?.[I_USE] as [string, number, number] | 0 | undefined
+          return [goodsOf(word), n,
+            coin(((it?.[I_SELL] as number) ?? 0) * n),
+            art.goods[`${word}|`] ?? '',
+            use ? useWord(use) : '', Number(id)] as
+            [string, number, string, string, string, number]
+        })
+        .sort((a, b) => b[1] - a[1]),
+      (id) => ui.log(useItem(id), 'gain'))
     // Sixteen squares, and the number is not a taste.
     //
     // It was twelve — the original's bar — with attack on the first, talk on
@@ -8566,8 +9012,63 @@ async function main() {
         : fightable(n.fight) ? 'quarry' : 'friend',
     }))
   ;(window as unknown as { __hero: () => unknown }).__hero = () => ({ x: hero.x, y: hero.y })
+  /**
+   * A copy of the trades that will not change under a check.
+   *
+   * `{ ...you.trades }` is a *shallow* copy and every value is the live
+   * `[rank, ceiling]` pair, so a before-and-after around one node showed the
+   * same number twice and the check that gathering teaches you something
+   * failed while gathering was teaching perfectly well.
+   */
+  const tradesNow = (): Record<string, [number, number]> =>
+    Object.fromEntries(Object.entries(you.trades)
+      .map(([k, v]) => [k, [v[0], v[1]] as [number, number]]))
   /** The trades and how far along they are — for the check that skins one. */
-  ;(window as unknown as { __trades: () => unknown }).__trades = () => ({ ...you.trades })
+  ;(window as unknown as { __trades: () => unknown }).__trades = () => ({
+    mine: tradesNow(), know: [...recipes],
+    can: Object.keys(craft.trades).map(Number),
+  })
+  /**
+   * Take up a trade the way the trainer's own option does.
+   *
+   * `takeUp` and not a second copy of it: the purse is filled first because a
+   * check standing in a field is not standing in front of a trainer, and
+   * everything after the money is the real path.
+   */
+  ;(window as unknown as { __takeUp: (skill: number) => unknown })
+    .__takeUp = (skill) => {
+      const trade = craft.trades[String(skill)]
+      if (!trade) return null
+      const at = you.trades[String(skill)]
+      const step = nextRank(trade, at?.[0] ?? 0, at?.[1] ?? 0, you.level)
+      if (!step) return { at: tradesNow()[String(skill)] ?? null, step: null }
+      you.purse += step[1]
+      const no = takeUp(skill, step)
+      return { no, at: tradesNow()[String(skill)] ?? null, know: recipes.length }
+    }
+  /** What the workbench would show for a trade, and making one of a row. */
+  ;(window as unknown as {
+    __craft: (skill: number, spell?: number) => unknown
+  }).__craft = (skill, spell) => {
+    const rows = craft.recipes.filter((r) => r[R_SKILL] === skill
+      && recipes.includes(r[R_SPELL]))
+    if (spell === undefined) {
+      return rows.map((r) => ({
+        spell: r[R_SPELL], rank: r[R_RANK], makes: r[R_MAKES],
+        needs: r[R_NEEDS], can: !lacking(r[R_NEEDS], you.bag).length,
+      }))
+    }
+    const r = rows.find((x) => x[R_SPELL] === spell)
+    if (!r) return { said: '모르는 조리법' }
+    const before = { ...you.bag }
+    return { said: makeOne(r), before, after: { ...you.bag },
+             at: tradesNow()[String(skill)] ?? null }
+  }
+  /** What is in the bag, by item id, and what using one of them does. */
+  ;(window as unknown as { __bag: (id?: number) => unknown }).__bag = (id) =>
+    id === undefined ? { ...you.bag }
+      : { said: useItem(id), hp: you.hp, max: you.max,
+          using: you.using ? { ...you.using } : null, bag: { ...you.bag } }
   /**
    * The bits of the player a check reads back: rage, the stance he is
    * standing in, and what the stance is worth.
@@ -8737,10 +9238,10 @@ async function main() {
     const n = want[0]!
     placeHero(n.x - 1, n.y)
     camX = hero.x; camY = hero.y
-    const before = { ...you.trades }
+    const before = tradesNow()
     const got = gather(n)
     return { kind, trade: n.trade, skill: n.skill, got, before,
-      after: { ...you.trades }, up: n.up, due: n.due }
+      after: tradesNow(), up: n.up, due: n.due }
   }
   /** Every area the slice has, with whose it is and what we call it. */
   ;(window as unknown as { __areas: () => unknown }).__areas = () =>
@@ -9858,11 +10359,15 @@ async function main() {
     haveTiles: [!!tilesMeta['bridge'], !!tilesMeta['bridge_b']],
     baked: Object.keys(tintedGround().at),
   })
-  ;(window as unknown as { __give: () => unknown }).__give = () => {
-    you.bag['cloth'] = [11, 143]
-    you.bag['meat'] = [3, 75]
-    return Object.keys(you.bag)
-  }
+  ;(window as unknown as { __give: (what?: Record<string, number>) => unknown })
+    .__give = (what) => {
+      // Linen cloth and stringy wolf meat by id, which is what the bag holds
+      // now — the two a first aider and a cook start with.
+      for (const [id, n] of Object.entries(what ?? { 2589: 11, 2672: 3 })) {
+        you.bag[id] = (you.bag[id] ?? 0) + n
+      }
+      return Object.keys(you.bag)
+    }
   ;(window as unknown as { __vendor: () => unknown }).__vendor = () => {
     const v = npcs.find((n) => n.role === 'vendor')
     if (!v) return null

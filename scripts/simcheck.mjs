@@ -26,6 +26,7 @@ const check = (what, ok, detail = '') => {
 
 import { standing } from '../src/sim/pools.ts'
 import { speak } from '../src/talk.ts'
+import { riseChance, short as lacking, skinAsks, R_GREY, R_MAKES, R_NEEDS, R_YELLOW } from '../src/sim/trades.ts'
 
 const world = (name) =>
   JSON.parse(readFileSync(`public/world/${name}.json`, 'utf8'))
@@ -257,6 +258,66 @@ check('and the same seed gives the same fight',
     varies.length === says.length && fixed,
     `${varies.length} of ${says.length} vary, and the ones the original gives `
     + `one line to ${fixed ? 'do not' : 'vary anyway, which is ours and not theirs'}`)
+}
+
+// Trades, which are arithmetic before they are a window.
+{
+  const craft = world('trades')
+  const items = world('items').items
+  const trades = Object.entries(craft.trades)
+  check('every trade this game teaches has somebody here to teach it',
+    trades.length > 0 && trades.every(([, t]) => t.at.length > 0),
+    trades.map(([id, t]) => `${t.word} ${t.at.length}`).join(', '))
+  check('and a ceiling it can actually be taken to',
+    trades.every(([, t]) => t.cap >= 75 && t.ranks.length > 0),
+    trades.map(([, t]) => `${t.word} ${t.cap}`).join(', '))
+  // Every recipe's two ends have a row, which `items.py` asserts on the other
+  // side of the bake — here off the two shipped files rather than off the
+  // script that wrote them, so it is two derivations agreeing.
+  const loose = craft.recipes.filter((r) =>
+    !items[String(r[R_MAKES])]
+    || r[R_NEEDS].some(([e]) => !items[String(e)]))
+  check('and every recipe names things this world has rows for',
+    loose.length === 0,
+    `${craft.recipes.length} recipes, ${loose.length} loose`)
+
+  // The skill-up curve, which is `Player::CraftSkillGainChance` and has to
+  // come out at its own two ends.
+  const r = craft.recipes.find((x) => x[R_GREY] > x[R_YELLOW])
+  check('a recipe at its yellow rank always might teach you something',
+    riseChance(r[R_YELLOW], r[R_YELLOW], r[R_GREY]) === 1000,
+    `rank ${r[R_YELLOW]} of ${r[R_GREY]} -> 100.0%`)
+  check('and one at its grey rank never does',
+    riseChance(r[R_GREY], r[R_YELLOW], r[R_GREY]) === 0
+    && riseChance(r[R_GREY] + 40, r[R_YELLOW], r[R_GREY]) === 0,
+    `rank ${r[R_GREY]} of ${r[R_GREY]} -> 0.0%`)
+  const mid = Math.round((r[R_YELLOW] + r[R_GREY]) / 2)
+  check('and the green rank in between is the half-way house',
+    Math.abs(riseChance(mid, r[R_YELLOW], r[R_GREY]) - 500) <= 20,
+    `rank ${mid} -> ${(riseChance(mid, r[R_YELLOW], r[R_GREY]) / 10).toFixed(1)}%`)
+  check('and the chance never rises with the skill',
+    [...Array(60).keys()].every((i) =>
+      riseChance(r[R_YELLOW] + i, r[R_YELLOW], r[R_GREY])
+      >= riseChance(r[R_YELLOW] + i + 1, r[R_YELLOW], r[R_GREY])),
+    'monotone from yellow to grey')
+
+  // And the gate on a corpse, which this game read off the wrong line of the
+  // server for a year — see `skinAsks`.
+  check('skinning asks nothing of a corpse this game can reach',
+    [1, 5, 9].every((l) => skinAsks(l) === 0) && skinAsks(10) === 0
+    && skinAsks(15) === 50 && skinAsks(25) === 125,
+    'levels 1-10 ask 0, 15 asks 50, 25 asks 125')
+  check('and the trade opens the gate it asks for',
+    skinAsks(12) <= (craft.trades['393']?.cap ?? 0),
+    `a level 12 corpse asks ${skinAsks(12)}, skinning reaches `
+    + `${craft.trades['393']?.cap ?? 0}`)
+
+  // What the bag has to be able to say, which is the whole reason it stopped
+  // holding words.
+  check('a recipe knows what the bag is short of',
+    lacking([[2589, 2], [2592, 1]], { 2589: 1 }).length === 2
+    && lacking([[2589, 2]], { 2589: 5 }).length === 0,
+    'two linen against one, and two against five')
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

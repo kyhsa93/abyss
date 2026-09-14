@@ -493,21 +493,6 @@ check('the world has things in it that are not people', things.total > 0,
 check('and a shared slot stands up only as many as the world says',
   things.up < things.total,
   `${things.total - things.up} are waiting their turn`)
-for (const kind of ['herb', 'vein']) {
-  const took = await p.evaluate((k) => window.__take(k), kind)
-  if (!took) continue
-  check(`and ${kind === 'herb' ? 'a herb can be picked' : 'a vein can be mined'}`,
-    !took.up && took.got !== '아무것도 없다'
-      && took.after[took.trade] === took.before[took.trade] + 1,
-    `${took.got} — ${took.trade} ${took.before[took.trade]} → ${took.after[took.trade]}`)
-}
-// And the other half of a lock: the slice reaches four zones and its hardest
-// node wants 270 of a trade, which a man who has pulled one weed does not have.
-const refused = await p.evaluate(() => window.__refused('herb'))
-if (refused) {
-  check('and one out of your depth says so', refused.up === true,
-    `${refused.got} (it wants ${refused.skill})`)
-}
 
 // 9f. Who the player is.  There were no stats at all: health and armour came
 // out of the same table a wolf's do, so nothing he could ever wear or train
@@ -2163,6 +2148,66 @@ for (const [name, x, y, zoom] of [['the abbey', -8930, -170, 0.7],
     `${seen.perScreen.toFixed(2)} people over ${seen.spots} spots`)
   check('and there is more than one person where a character starts',
     seen.atStart >= 2, `${seen.atStart} at the start`)
+}
+
+// 24. Trades, which is the one section that has to come last.
+//
+// Mining and herbalism ask for level five, so taking them up means earning
+// four levels first — and a hero who is level five is not the hero every
+// check above is about.  Four of them read what a character is made of at
+// level one and went red the day this block was written higher up the file.
+// And the trade has to be learned first, which is issue 200: a node asks for
+// a `SkillLine` and a person who has never paid a trainer has none of it.  The
+// trainer's own path, through `takeUp` — a check that learns a trade some other
+// way is a check that does not know whether learning works.
+const learnt = await p.evaluate(() => {
+  // Mining and herbalism ask for level five and this hero is one, which is
+  // the trainer row's own `ReqLevel` and not a rule of ours — so the check
+  // earns the levels first rather than reaching past the gate.
+  for (let i = 0; i < 6 && window.__earn(2000).level < 5; i++) { /* climb */ }
+  return [182, 186, 393].map((s) => window.__takeUp(s))
+})
+check('a trade can be taken up from a trainer',
+  learnt.every((x) => x && x.at && x.at[0] >= 1 && x.at[1] >= 75),
+  learnt.map((x) => x && x.at ? `${x.at[0]} / ${x.at[1]}` : 'none').join(', '))
+for (const kind of ['herb', 'vein']) {
+  const took = await p.evaluate((k) => window.__take(k), kind)
+  if (!took) continue
+  check(`and ${kind === 'herb' ? 'a herb can be picked' : 'a vein can be mined'}`,
+    !took.up && took.got !== '아무것도 없다'
+      && took.after[took.trade][0] === took.before[took.trade][0] + 1,
+    `${took.got} — ${took.trade} ${took.before[took.trade]?.[0]} → `
+    + `${took.after[took.trade]?.[0]}`)
+}
+// And what the digging is for.  A material that goes into a bag and comes out
+// of nothing is the shape this repository keeps finding, so the check follows
+// one all the way through: learn first aid, take the linen the world drops,
+// tie a bandage, use it.
+const made = await p.evaluate(async () => {
+  window.__takeUp(129)
+  window.__give({ 2589: 4 })
+  const rows = window.__craft(129)
+  const row = rows.find((r) => r.can)
+  if (!row) return { rows: rows.length, row: null }
+  const out = window.__craft(129, row.spell)
+  return { rows: rows.length, row, out, made: window.__bag()[String(row.makes)] }
+})
+check('a trade can make something out of what the world yields',
+  !!made.row && made.made > 0,
+  made.row ? `${made.rows} recipes, made ${made.made} of ${made.row.makes} `
+    + `out of ${JSON.stringify(made.row.needs)}` : `${made.rows} recipes, none makeable`)
+if (made.row) {
+  const used = await p.evaluate((id) => window.__bag(id), made.row.makes)
+  check('and what it made can be used',
+    used.using !== null && used.using.each > 0,
+    `${used.said} — ${used.using ? `${used.using.each} a tick` : 'nothing happened'}`)
+}
+// And the other half of a lock: the slice reaches four zones and its hardest
+// node wants 270 of a trade, which a man who has pulled one weed does not have.
+const refused = await p.evaluate(() => window.__refused('herb'))
+if (refused) {
+  check('and one out of your depth says so', refused.up === true,
+    `${refused.got} (it wants ${refused.skill})`)
 }
 
 console.log(`\nconsole errors: ${errs.length ? errs.join(' | ') : 'none'}`)

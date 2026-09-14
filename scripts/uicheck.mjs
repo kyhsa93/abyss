@@ -636,6 +636,48 @@ for (const [W, H] of SIZES) {
         + v.same.join(' / ')).join(' | ')
       : `${shops.twins} pairs are the same item twice — identical in every `
       + 'column this game ships, which is where the no-names rule lands')
+
+  // The workbench, which is the shop's own window with a different list in it.
+  // Pressed for real, through the DOM, because a check that calls `makeOne`
+  // straight is a check that has never opened the window — and the window is
+  // where three rounds of this game's bugs have been.
+  {
+    const set = await p.evaluate(() => {
+      window.__takeUp(129)
+      window.__give({ 2589: 8 })
+      return { rows: window.__craft(129).length,
+               bag: window.__bag()['2589'] ?? 0 }
+    })
+    check('a person who has learned a trade has something to make',
+      set.rows > 0, `${set.rows} recipes, ${set.bag} linen in the bag`)
+    await p.keyboard.press('t')
+    await p.waitForTimeout(120)
+    const open_ = await p.evaluate(() => {
+      const box = document.querySelector('#shop')
+      const rows = [...document.querySelectorAll('#shop li')]
+      return { up: box && !box.hidden, rows: rows.length,
+               title: document.querySelector('#shop h3, #shop .title')?.textContent
+                 ?? '', first: rows[0]?.textContent ?? '' }
+    })
+    check('and pressing T opens the workbench on it',
+      open_.up === true && open_.rows > 0,
+      `${open_.rows} rows — ${open_.first}`)
+    if (open_.rows) {
+      const made = await p.evaluate(() => {
+        const before = { ...window.__bag() }
+        const li = document.querySelector('#shop li')
+        li.click()
+        return { before, after: { ...window.__bag() } }
+      })
+      const grew = Object.keys(made.after)
+        .filter((k) => (made.after[k] ?? 0) > (made.before[k] ?? 0))
+      const shrank = Object.keys(made.before)
+        .filter((k) => (made.after[k] ?? 0) < (made.before[k] ?? 0))
+      check('and pressing a row makes one out of what the bag held',
+        grew.length === 1 && shrank.length >= 1,
+        `${shrank.join(', ')} -> ${grew.join(', ')}`)
+    }
+  }
   await p.close()
 }
 

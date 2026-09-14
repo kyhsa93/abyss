@@ -273,13 +273,19 @@ check('which is the next link of the chain',
     check('one press empties its pockets', once?.looted === true,
       JSON.stringify(once))
     check('and the skin is still on it', once?.skinned === false)
+    // And the skin needs the trade, which is issue 200: a corpse asks for a
+    // `SkillLine` and a person who has never paid a trainer has none of it.
+    // Taken up the trainer's own way — see `takeUp`.
+    const took = await p.evaluate(() => window.__takeUp(393))
+    check('and skinning can be learned', !!took?.at,
+      took?.at ? `${took.at[0]} / ${took.at[1]}` : 'no trainer teaches it')
     await p.keyboard.press('e')
     await p.waitForTimeout(300)
     const twice = await state()
     check('the next press takes the skin', twice?.skinned === true,
       JSON.stringify(twice))
     check('and skinning it taught the trade', await p.evaluate(() =>
-      (window.__trades()?.skinning ?? 0) > 1))
+      (window.__trades()?.mine?.['393']?.[0] ?? 0) > 1))
   }
 }
 

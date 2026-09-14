@@ -196,6 +196,9 @@ GOODS = {
     ('cloth', ''): ('delapouite', 'rolled-cloth'),
     ('leather', ''): ('delapouite', 'animal-hide'),
     ('ore', ''): ('faithtoken', 'ore'),
+    # And the one word this game had no picture for until it could make one:
+    # ten bandages are on shelves in this slice and a first aider ties more.
+    ('bandage', ''): ('lorc', 'bandage-roll'),
 }
 
 # The empty squares of the character sheet.  A slot with nothing in it used to

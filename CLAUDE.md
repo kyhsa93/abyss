@@ -662,6 +662,51 @@ Steep ground puts you back down rather than refusing your step, because
 refusing is free: a wall of steep cells with a gentle one between them is a
 maze, and a maze can be solved. Being pushed cannot be.
 
+**A trade is learned from a person and taken as far as a rank spell allows.**
+Thirteen trade trainers stand in this slice and for a long time none of them
+was anybody: `items.py` counted them out of the trainer list because they sold
+nothing this game could learn, which was true and was a description of a hole.
+`pipeline/trades.py` is the other half. Which trades are here is
+`trainer.Type == 2` for a creature inside the bounds; what a trade can make is
+`SkillLineAbility.dbc` filed under the skill, kept where the spell has
+`SPELL_EFFECT_CREATE_ITEM`; how far it can go is the rank chain, because
+`Spell::EffectLearnSkill` sets the ceiling to the rank spell's own value times
+75. So first aid stops at 225 in this game and alchemy at 150, and neither
+number is written down anywhere here — they fall out of `ReqSkillRank` and
+`ReqLevel` against `slice.json`'s levels.
+
+**The reagent sift runs to a fixed point.** A copper bar is on no shelf and
+falls off nothing: it is smelted. Asking "can this world yield every reagent"
+once, against what the world yields before anybody makes anything, threw away
+every recipe whose reagent was itself a recipe — 82 of the 169. The answer has
+to grow: admit what the world already holds, add what those recipes make, go
+round again.
+
+**The bag holds ids and not words.** It was `word -> [how many, what the lot is
+worth]`, and the word was the item's *class*, so a bag could say eleven cloth
+and could never say two linen and nine wool. A shopkeeper who pays by the pile
+does not care; a recipe that asks for two linen cannot work at all. The id was
+already on every row of every haul in the world and only the tally threw it
+away, and with it the worth stopped being carried twice — `I_SELL` is the same
+column. **There is no way back**: the v3 → v4 save step sells the old bag for
+what its own second number said it was worth, because guessing an id per word
+would put linen in a bag that held wool.
+
+**What a thing does when you use it is a column.** `I_USE` is
+`[word, how much altogether, over how many seconds]` off the item's own on-use
+spell, and five shapes cover everything this world makes and sells: `heal`,
+`power`, `mend`, `feed`, `drink`. A bandage that mends nobody is the shape this
+repository keeps finding — a thing computed, shipped and never read — and the
+column also settled an older complaint: two waters on one shelf carried the
+same word, price, picture and level, and what happens when you drink one was
+the only difference there was nowhere to say.
+
+**A number taken from the wrong line of the core is worse than no number.**
+Skinning had no gate for a year because the level-times-five in `Unit.cpp:3334`
+is a *weapon* skill, so a level five wolf appeared to want twenty-five and
+nothing could open it. `Spell::EffectSkinning` (SpellEffects.cpp:4914) is the
+line that decides and it asks **nothing below level ten**.
+
 ## Finishing a change
 
 **Where this game is, is one file.** `slice.json` at the top of the tree: the

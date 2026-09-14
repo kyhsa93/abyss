@@ -21,8 +21,8 @@
  *     than quietly loaded.
  */
 
-/** Bumped whenever the shape below changes; `migrate` walks v1 → v2 → v3. */
-export const SAVE_VERSION = 3
+/** Bumped whenever the shape below changes; `migrate` walks v1 → v2 → v3 → v4. */
+export const SAVE_VERSION = 4
 
 export type Save = {
   version: number
@@ -43,13 +43,24 @@ export type Save = {
      */
     power: number
     kills: number
-    bag: Record<string, [number, number]>
-    trades: Record<string, number>
+    /** Item id -> how many.  Was word -> [how many, worth]; see STEPS. */
+    bag: Record<string, number>
+    /** `SkillLine` id -> [where he is, how far it goes]. */
+    trades: Record<string, [number, number]>
     cools: Record<number, number>
     /** Held by id, worn by slot, and what a trainer has taught. */
     items: number[]
     gear: Record<string, number>
     taught: number[]
+    /**
+     * The recipes he knows, by the spell that makes the thing.
+     *
+     * Separate from `taught` because they are bought from different people for
+     * different reasons and only one of them goes on the bar — see the note on
+     * `recipes` in `main.ts`.  Optional, because every save made before issue
+     * 200 has none and "none" is the right answer for all of them.
+     */
+    recipes?: number[]
     /**
      * What has been bought off a limited shelf — `"<vendor>:<item>"` to
      * `[which turn of that shelf's clock, how many]`.
@@ -283,5 +294,49 @@ const STEPS: Record<number, (s: Save) => Save> = {
     const you = { ...s.you, power: was.rage ?? 0 }
     delete (you as unknown as { rage?: number }).rage
     return { ...s, version: 3, you }
+  },
+  /**
+   * 3 → 4: the bag learned what it was carrying, and a trade got a ceiling.
+   *
+   * The bag was `word -> [how many, what the lot is worth]`, and the word was
+   * the item's *class* — a tally of eleven `cloth` that cannot say how much of
+   * it is linen.  A recipe asks for linen, so the tally had to start holding
+   * ids, and **there is no way back from a word to an id**: eleven cloth was
+   * eleven of several things and the save does not say which.
+   *
+   * So the old bag is sold rather than converted.  Its second number is
+   * exactly what a shopkeeper would have paid for the lot — it was put there
+   * for that and nothing else read it — so the purse is the honest landing
+   * place, and the alternative, guessing an id per word, would put linen in a
+   * bag that held wool.
+   *
+   * The trades convert cleanly and keep what they had: the three a character
+   * used to be born with become three learned trades at apprentice, which is
+   * the ceiling their old unbounded number never had.  182 herbalism, 186
+   * mining, 393 skinning are the `SkillLine` ids the world database files them
+   * under and the ids everything speaks now.
+   */
+  3: (s) => {
+    const was = s.you as unknown as {
+      bag?: Record<string, [number, number] | number>
+      trades?: Record<string, number | [number, number]>
+    }
+    let paid = 0
+    for (const v of Object.values(was.bag ?? {})) {
+      if (Array.isArray(v)) paid += v[1] ?? 0
+    }
+    const WAS_CALLED: Record<string, number> = {
+      herbs: 182, mining: 186, skinning: 393,
+    }
+    const APPRENTICE = 75
+    const trades: Record<string, [number, number]> = {}
+    for (const [k, v] of Object.entries(was.trades ?? {})) {
+      const id = WAS_CALLED[k] ?? Number(k)
+      if (!id) continue
+      const rank = Array.isArray(v) ? v[0] : v
+      trades[String(id)] = [Math.max(1, rank), APPRENTICE]
+    }
+    return { ...s, version: 4, you: { ...s.you, bag: {}, trades,
+                                      purse: s.you.purse + paid } }
   },
 }

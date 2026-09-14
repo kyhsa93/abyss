@@ -64,7 +64,16 @@ LOCK_BY_SKILL = 2
 # a herb and nothing else is needed to tell them apart.  `check_trades` holds
 # it to that.
 ORE, HERB = 3, 2
-TRADES = {ORE: 'mining', HERB: 'herbs'}
+
+# And the trade is shipped as the `SkillLine` id rather than as a word.
+#
+# It was a word, and there were two vocabularies: a node said `herbs` and
+# `conditions` and every trainer in the game said 182, so `src/talk.ts` carried
+# a third table to join them up.  Issue 200 put trainers in the game and that
+# third table would have had to grow to eleven rows to say the same thing the
+# number already says.  The id is the game's own name for the trade; ours is
+# the Korean, and it hangs off the id in one place.
+TRADES = {ORE: 186, HERB: 182}
 
 # Whole types this world has nothing to do with, declared rather than silently
 # swallowed.  A chair you cannot sit in, a sign you cannot read, a door that
@@ -329,7 +338,7 @@ def main(acore, client_root, out):
             haul_at[key] = len(hauls)
             hauls.append(items)
         out_rows.append([round(x, 2), round(y, 2), kind, round(face, 3),
-                         TRADES.get(trade, ''), level, back,
+                         TRADES.get(trade, 0), level, back,
                          haul_at[key], entry, pool])
 
     check_trades(nodes)

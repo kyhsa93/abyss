@@ -71,12 +71,31 @@ STAGES = [
     # cannot cast, was reading last bake's spellbook while it ran first.
     ('spells', 'spells.py', True, 'public/world',
      'what each class can do'),
+    # And trades before items, for the third turn of the same reason.  A
+    # recipe names two items that need not be on any shelf and fall off
+    # nothing — the copper bar it is made of and the belt it makes — so the
+    # list of what exists here cannot be settled until the list of what can be
+    # made is.  `items.py` reads `trades.json` the way it reads the hauls.
+    ('trades', 'trades.py', True, 'public/world',
+     'what can be learned to be made'),
     ('items', 'items.py', False, 'public/world',
      'what can be held, bought and taught'),
     ('layout', 'layout.py', True, 'public/world',
      "where the original puts every frame of its interface"),
     ('terrain', 'bake_terrain.py', True, 'public/data',
      "the client's own height grid, ground paint and buildings"),
+    # And the interface's pictures last, because two of its checks are about
+    # what the stages above just decided: every ability in the spellbook has a
+    # picture, and every `(word, slot)` an item can be has one.
+    #
+    # It was not in this list and both checks were therefore run by hand.  The
+    # recipes issue 200 shipped brought a word into `items.json` that had never
+    # been there — `bandage`, because before this nobody could make one — and
+    # the bag drew a blank square for it through a full bake and a green suite.
+    # A check that only runs when somebody remembers is a check that is not
+    # part of the bake.
+    ('icons', 'bake_ui.py', False, 'public/art',
+     'the interface pictures, and that everything shipped has one'),
 ]
 
 
@@ -208,10 +227,11 @@ def main():
             skipped.append((name, what))
             print(f'  --   {name:<9} skipped, needs the client   ({what})')
             continue
-        argv = ([args.client, where] if script == 'layout.py'
+        argv = ([where] if script == 'bake_ui.py'
+                else [args.client, where] if script == 'layout.py'
                 else [args.client, args.acore, where] if script == 'spells.py'
                 else [args.client, where, args.acore] if script == 'bake_terrain.py'
-                else [args.acore, args.client, where] if script in ('objects.py', 'player.py', 'items.py')
+                else [args.acore, args.client, where] if script in ('objects.py', 'player.py', 'items.py', 'trades.py')
                 else [args.acore, args.client, where] if script == 'quests.py'
                 else [args.acore, where])
         ok, took, line, got = run(script, argv, where)

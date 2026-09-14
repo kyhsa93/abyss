@@ -533,12 +533,21 @@ export function hud(layout?: Layout) {
      * a word on its own is what this game has instead of a name — so eleven
      * kinds of thing read as eleven lines of Korean and nothing else.
      */
+    /**
+     * `use` is what happens when a row is pressed, and `does` is the fifth
+     * thing a row now carries: what pressing it would do.
+     *
+     * Both are empty on a row that does nothing, which is most of them — an
+     * ore is an ore.  A bandage and a loaf are not, and a thing you made that
+     * cannot be used is the shape of bug this repository keeps finding.
+     */
     setBag(open: boolean, purse: string,
-      items: [string, number, string, string][]) {
+      items: [string, number, string, string, string, number][],
+      use: (id: number) => void) {
       bagPanel.hidden = !open
       if (!open) return
       bagTitle.textContent = `가방  —  ${purse}`
-      const want = items.map(([w, n, t, p]) => `${w} ${n} ${t} ${p}`).join('\n')
+      const want = items.map((r) => r.join('|')).join('\n')
       if (bagList.dataset['now'] === want) return
       bagList.dataset['now'] = want
       bagList.textContent = ''
@@ -546,8 +555,8 @@ export function hud(layout?: Layout) {
         el('li', 'empty', bagList).textContent = '비어 있다'
         return
       }
-      for (const [word, many, worth, icon] of items) {
-        const li = el('li', '', bagList)
+      for (const [word, many, worth, icon, does, id] of items) {
+        const li = el('li', does ? 'usable' : '', bagList)
         const what = el('span', 'what', li)
         if (icon) {
           const p = el('span', 'pic', what)
@@ -555,9 +564,11 @@ export function hud(layout?: Layout) {
         }
         what.append(document.createTextNode(word))
         el('span', 'many', li).textContent = `${many}`
+        if (does) li.onclick = () => use(id)
         li.onmouseenter = () => {
           const box = li.getBoundingClientRect()
-          this_.setTip(`${word} ${many}\n팔면 ${worth}`, box.left + box.width / 2, box.top - 4)
+          this_.setTip(`${word} ${many}\n${does ? does + '\n' : ''}팔면 ${worth}`,
+            box.left + box.width / 2, box.top - 4)
         }
         li.onmouseleave = () => this_.setTip(null, 0, 0)
       }
@@ -576,9 +587,16 @@ export function hud(layout?: Layout) {
      * nothing in them, which is the same failure as the four identical lines
      * it replaces.
      */
+    /**
+     * `empty` is what to say when there are no rows, and it exists because
+     * this window is two windows: a shop and a workbench.  Everything else
+     * about them is the same four things in the same four places — a picture,
+     * our word, what it costs and whether you can have it — and a second list
+     * widget saying that twice is how two lists start to drift.
+     */
     setShop(open: boolean, who: string, purse: string, page: number,
       pages: number, rows: ShopRow[], buy: (id: number) => void,
-      turn: (to: number) => void) {
+      turn: (to: number) => void, empty = '팔 것이 없소') {
       const was = shopBox.hidden
       shopBox.hidden = !open
       if (was !== shopBox.hidden) seat()
@@ -592,12 +610,13 @@ export function hud(layout?: Layout) {
       shopNext.disabled = page >= pages - 1
       shopPrev.onclick = () => turn(page - 1)
       shopNext.onclick = () => turn(page + 1)
-      const want = rows.map((r) => r.join('|')).join('\n') + `|${purse}|${page}`
+      const want = rows.map((r) => r.join('|')).join('\n')
+        + `|${who}|${purse}|${page}|${empty}`
       if (shopList.dataset['now'] === want) return
       shopList.dataset['now'] = want
       shopList.textContent = ''
       if (!rows.length) {
-        el('li', 'empty', shopList).textContent = '팔 것이 없소'
+        el('li', 'empty', shopList).textContent = empty
         return
       }
       for (const [id, word, price, icon, tint, tip, afford] of rows) {

@@ -77,8 +77,15 @@ def only_some(mask):
     return 0 if every else mask
 
 
-def wanted(base, acore, object_loots, client, here_out=None):
-    """Every item id the slice can reach, and how it reaches it."""
+def wanted(base, acore, object_loots, client, here_out=None, made=True):
+    """Every item id the slice can reach, and how it reaches it.
+
+    `made` is off when `trades.py` calls this, and that is not a nicety: the
+    trades stage runs *before* this one and asks this question to decide which
+    recipes the world can supply, so leaving it on would have it reading the
+    last bake's answer to the question it is in the middle of answering.  The
+    same trap the spellbook fell into, named this time.
+    """
     from slice import within
     want = Counter()
 
@@ -143,6 +150,21 @@ def wanted(base, acore, object_loots, client, here_out=None):
                     drops.add(int(row[5]))
     for item in drops:
         want[item] += 1
+
+    # And what can be made here, and what it is made of.  `trades.py` has
+    # already settled both — it runs first for exactly this reason — and the
+    # two lists it names are the same kind of thing a drop is: a copper bar is
+    # on no shelf and falls off nothing, and a person still ends up holding
+    # one.  Read rather than re-derived, the same bargain as the hauls above.
+    path = os.path.join(here_out, 'trades.json') if here_out and made else None
+    if path and os.path.exists(path):
+        with open(path) as f:
+            for row in json.load(f).get('recipes', []):
+                drops.add(int(row[5]))
+                for e, _n in row[7]:
+                    drops.add(int(e))
+        for item in drops:
+            want[item] += 1
 
     # What its quests pay.
     #
@@ -273,6 +295,46 @@ def trainers(base, here, classes, here_out=None):
     return out
 
 
+#: `item_template.spelltrigger_N`.  Nought is "when the player uses it"; the
+#: rest are on equip, on hit and on pickup, and none of those is a button.
+ON_USE = 0
+
+
+def on_use(base, spells, durations):
+    """`{item: [word, total, seconds]}` for everything with a use button.
+
+    The trigger column is read rather than assumed, because an item carries
+    five spell slots and only some of them are a button: a sword's on-hit
+    proc and a robe's on-equip bonus sit in the same five slots as a
+    bandage's mend.
+    """
+    import trades as craft
+    out = {}
+    path = os.path.join(base, 'item_template.sql')
+    col = columns(path)
+    for line in rows(path):
+        f = split(line)
+        try:
+            entry = int(f[col['entry']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        for i in range(1, 6):
+            key, trig = 'spellid_%d' % i, 'spelltrigger_%d' % i
+            if key not in col or trig not in col:
+                break
+            try:
+                spell, when = int(f[col[key]]), int(f[col[trig]])
+            except (ValueError, IndexError):
+                break
+            if not spell or when != ON_USE:
+                continue
+            got = craft.use_of(spells, durations, spell)
+            if got:
+                out[entry] = got
+                break
+    return out
+
+
 def main(acore, client, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     # Which chests' loot tables this world actually stands — `objects.py` has
@@ -285,6 +347,17 @@ def main(acore, client, out):
             for row in json.load(f).get('objects', []):
                 object_loots.add(row[8])
     want, stock, here, drops = wanted(base, acore, object_loots, client, out)
+
+    # What each item does when it is used, out of the client.  A machine with
+    # no client bakes a world where nothing is drinkable, which is the same
+    # bargain every other client-fed column makes.
+    uses = {}
+    if client and os.path.isdir(client):
+        import trades as craft
+        spells = {r[0]: r for r in craft.dbc(client, 'Spell')}
+        durations = {r[0]: r[1] for r in craft.dbc(client, 'SpellDuration')}
+        if spells:
+            uses = on_use(base, spells, durations)
 
     ipath = os.path.join(base, 'item_template.sql')
     col = columns(ipath)
@@ -337,11 +410,13 @@ def main(acore, client, out):
         # a level 60 breastplate in a shop is a row nobody can buy and a
         # kilobyte of a world nobody can reach.
         #
-        # **Except what actually falls off something here.**  A ceiling is a
-        # rule about shelves, and a drop is not a shelf: a level fourteen
-        # sword off a level eight bandit is the original's own behaviour and
-        # the player sells it.  Thirty-nine items were dropping with no row
-        # behind them because this line did not know the difference.
+        # **Except what actually falls off something here** — or comes off a
+        # workbench.  A ceiling is a rule about shelves, and neither a drop nor
+        # a thing you made yourself is a shelf: a level fourteen sword off a
+        # level eight bandit is the original's own behaviour and the player
+        # sells it, and a copper chain belt is level fourteen and the point of
+        # learning to smith.  Thirty-nine items were dropping with no row
+        # behind them because this line did not know the first difference.
         if (need > LEVELS[1] or ilvl > LEVELS[1] + 10) and e not in drops:
             continue
         # And nothing that asks for a standing, because this game has no
@@ -385,6 +460,11 @@ def main(acore, client, out):
             WEAPON_SUBCLASS.get(sub, '') if cls == WEAPON_CLASS else '',
             # Which classes may hold it at all, normalised — see `only_some`.
             only_some(allow_c),
+            # And what pressing it does, or nothing.  A bandage that mends
+            # nobody is the shape this repository keeps finding: a thing
+            # computed, shipped and never read.  Issue 200 put a first aid
+            # trainer in the game, so the bandage it teaches has to work.
+            uses.get(e) or 0,
         ]
 
     # Vendor rows whose item is not in the baked set are rows nobody can buy.
@@ -405,6 +485,7 @@ def main(acore, client, out):
     check_lessons(doc, out)
     check_rewards(doc, out)
     check_loot(doc, out)
+    check_recipes(doc, out)
     purse(out, doc)
     worn = sum(1 for v in items.values() if v[1])
     print(f'{len(items):,} items ({worn} wearable) -> {path}')
@@ -588,6 +669,32 @@ def check_loot(doc, out):
     print(f'check: {len(want)} things can fall off something here, '
           f'{len(stray)} of them with no row behind them')
     assert not stray, f'loot points at items nobody baked: {stray[:8]}'
+
+
+def check_recipes(doc, out):
+    """And the same closure one turn further out, for what is made here.
+
+    A recipe names two kinds of item that need be on no shelf and fall off
+    nothing — what it takes and what it makes — and both of them end up in a
+    bag with a word, a price and a picture, or they end up as `물건 2840`.
+    `trades.py` decided the recipes and this is the other side of the same
+    promise, read off the two shipped files.
+    """
+    path = os.path.join(out, 'trades.json')
+    if not os.path.exists(path):
+        print('check: no trades baked yet, so no recipes checked')
+        return
+    with open(path) as f:
+        made = json.load(f).get('recipes', [])
+    want = set()
+    for row in made:
+        want.add(int(row[5]))
+        for e, _n in row[7]:
+            want.add(int(e))
+    stray = sorted(i for i in want if str(i) not in doc['items'])
+    print(f'check: {len(made)} recipes name {len(want)} things, '
+          f'{len(stray)} of them with no row behind them')
+    assert not stray, f'a recipe points at items nobody baked: {stray[:8]}'
 
 
 def check_lessons(doc, out):

@@ -27,7 +27,7 @@ import { AGI, INT, SPI, STA, STR, type Stats } from './stats.ts'
 export type Item = (string | number | (string | number)[][])[]
 export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
   I_LO = 5, I_HI = 6, I_DELAY = 7, I_ARMOUR = 8, I_BUY = 9, I_SELL = 10,
-  I_BOTH_HANDS = 11, I_STATS = 12, I_ARM = 13, I_CLASSES = 14
+  I_BOTH_HANDS = 11, I_STATS = 12, I_ARM = 13, I_CLASSES = 14, I_USE = 15
 
 /**
  * What quality looks like.
