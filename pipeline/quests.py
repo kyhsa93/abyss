@@ -6,9 +6,18 @@
 A quest is three facts and this repository can carry all three: **who gives it,
 what it asks for, and what it pays**.  All of those are numbers — a creature
 id, a count, an experience figure — which is why they may leave a database
-whose every sentence is Blizzard's.  Nothing of the prose comes out: not the
-title, not the description, not a word of the dialogue.  `src/talk.ts` writes
-what the player reads, from the shape.
+whose every sentence is Blizzard's.  **This file still takes none of the
+prose**: not the title, not the description, not a line of the dialogue; what
+comes out of here is a shape, and `src/talk.ts` builds a sentence from it.
+
+**The words are a separate file now, and that is a reversal.**  Until
+2026-09-14 this docstring said the prose never left the database at all, and
+issue 190 records the owner's decision that overturned it — *"퀘스트는 문구를
+조금씩 수정해서 사용하는 방향으로 가면 됨"*.  What ships is a **translation**,
+in `prose/quests.ko.json`, and `pipeline/prose.py` is where its three rules
+live and where the argument is.  The split is deliberate: this stage reads
+AzerothCore and writes numbers, that one reads the sentences, and a quest with
+no Korean still falls back to the shape this file gives it.
 
     q7   level 2   from 197 to 197   kill 8 of creature 6     170 xp, 25 copper
     q15  level 3   from 197 to 197   kill 8 of creature 257   after q7

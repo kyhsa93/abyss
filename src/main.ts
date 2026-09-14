@@ -7294,22 +7294,28 @@ async function main() {
   /** And the same, across — see `panelR`. */
   let slide_ = 0
   /**
-   * World to screen, in quarter view.
+   * World to screen, flat.
    *
-   * North is the world's +x and west is its +y, and neither of them is a
-   * screen axis any more: north leaves towards the top right of the glass and
-   * west towards the top left, which is what makes a square of ground a
-   * diamond and a quarter view a quarter view.
+   * **The quarter view is gone**, and this docstring described it for weeks
+   * after the code stopped doing it — a wrong explanation directly over the
+   * function it explains, in the one place `CLAUDE.md` says is allowed to know
+   * how the camera works.  What it used to say: north left towards the top
+   * right of the glass and west towards the top left, a square of ground came
+   * out a diamond, and the vertical was halved to the 2:1 every isometric
+   * tileset is drawn to.
    *
-   * The half on the vertical is the 2:1 every isometric tileset is drawn to.
-   * The horizontal is left at one rather than at the cosine that would keep a
-   * yard exactly a yard, and that is a performance decision as much as a
-   * stylistic one: a diamond of side `T` covers half the glass a square of
-   * side `T` does, so scaling the world down to fit the old measurements
-   * doubles the number of ground tiles on screen — 1,836 of them where 550
-   * used to be, at 39 frames a second.  At one, a tile covers the same area it
-   * always did, and the world is the 12% larger that every isometric tileset
-   * is drawn to be.
+   * What it does: the world's **+x is north and goes straight up the glass**,
+   * its **+y is west and goes straight left**, and a yard is `PPY` pixels
+   * either way round.  Each screen axis therefore depends on exactly one world
+   * axis, which is why the parameters the other one takes are unused — they
+   * are kept so that every caller passes a whole position and nobody has to
+   * remember which half of it matters here.
+   *
+   * The art decided it.  LPC's people are drawn facing up, down, left and
+   * right *on the screen*, so in a quarter view none of the world's four
+   * directions was any of theirs and `facing()` had to guess from screen-space
+   * velocity and be forty-five degrees out half the time.  Flat, `facing()`
+   * takes the world velocity straight.
    */
   const k = () => PPY * zoom
   const screenX = (_wx: number, wy: number) =>

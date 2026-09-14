@@ -1,5 +1,11 @@
 /**
- * What the quarter view promises about geometry.
+ * What the flat view promises about geometry.
+ *
+ * **The quarter view is gone** — it said "quarter view" here for weeks after
+ * the projection went flat, which is a check describing a camera the game does
+ * not have.  North goes straight up the glass, west straight left, and a yard
+ * is `PPY` pixels either way round; the first three checks below are that one
+ * sentence and everything after them is a consequence of it.
  *
  * Every one of these was wrong at some point in the change that introduced it,
  * and none of them is visible in a still: a stick that walks you north when

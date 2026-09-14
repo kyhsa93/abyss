@@ -1,5 +1,26 @@
 # Prompts for generating the art
 
+> **This document describes an era, not the code (banner added 2026-09-14).**
+> Two decisions have gone past it and neither has been folded back in, so read
+> it as history with two holes rather than as instructions.
+>
+> **The quarter view is gone.** The camera paragraph below says `src/main.ts`
+> projects with `x - y` on the horizontal, and it does not: the view went flat
+> on 2026-09-12 — north straight up the glass, west straight left, a yard the
+> same number of pixels either way. Art drawn to the paragraph below will not
+> sit on this ground. `pipeline/make_prompt.py` still writes 2:1 아이소메트릭
+> into every block and the files in `prompts/` still carry it.
+>
+> **And art is found here now, not made.** `pipeline/sources.py` is the
+> register of where a piece may come from and `fetch_assets.py` acquires it;
+> the renders this document was written for are on the shelf, for the same
+> reason — they were framed for a camera this game no longer has.
+>
+> Left standing rather than rewritten because what replaces it is an
+> art-direction decision and not a documentation one. `docscheck` knows about
+> both reversals and will not let either sentence be repeated anywhere that
+> does not say this.
+
 What to ask a generator for, how the asks are filed, and — the part worth
 keeping rather than pasting into a chat window — why each line of a prompt is
 in it. Every constraint below is there because getting it wrong cost this

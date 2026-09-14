@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """Print a finished prompt, ready to paste.
 
+**The quarter view is gone and this file has not caught up.**  `BLOCK` asks
+for 정확한 2:1 아이소메트릭 and `src/main.ts` went flat on 2026-09-12 — north
+straight up the glass, west straight left — so a sheet drawn to this text does
+not sit on this ground.  It is left standing rather than rewritten because
+what replaces it is an art-direction decision: this repository **finds** art
+now rather than making it (`pipeline/sources.py`), and the renders these
+prompts were written for are on the shelf for the same reason.  The banner at
+the top of `docs/art-prompts.md` is the long version.  `promptcheck` still
+compares `prompts/` to this file, because two copies of a text that is wrong
+are worse than one.
+
 `docs/art-prompts.md` says how the asks are filed and why every constraint is
 in them.  This holds the text, because a prompt assembled by hand is a prompt
 that drifts: the block is what keeps twenty-one sheets looking like one world,

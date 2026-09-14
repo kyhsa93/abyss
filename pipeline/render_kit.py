@@ -8,7 +8,15 @@ of its own cell, so a quarter turn about z is the whole of what picks which
 face of a building it is.  That regularity is why a house can be written down
 as a list of (piece, cell, turn) rather than modelled.
 
-**The camera is not a style choice.**  `src/main.ts` projects with `x - y` on
+**The quarter view is gone and this script is on the shelf with it.**  The
+paragraph below was true when it was written and is not now: `src/main.ts`
+went flat on 2026-09-12 and projects north straight up the glass and west
+straight left, so a sheet photographed at the camera here does **not** sit on
+this ground.  Nothing loads what it writes.  It stays because the arithmetic
+is right and because the scale below is derived rather than nudged, which is
+worth keeping either way.  `CLAUDE.md`, "The rendered art is on the shelf".
+
+**The camera was not a style choice.**  `src/main.ts` projected with `x - y` on
 the horizontal and `(x + y)` halved on the vertical; that is a 2:1 diamond, and
 a 2:1 diamond is an orthographic camera at an elevation of `atan(0.5)` looking
 along the 45 degree diagonal.  Any other elevation is a different game's

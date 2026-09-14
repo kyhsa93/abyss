@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Photograph a rigged character from the eight directions the projection has.
+"""Photograph a rigged character from the eight directions the old projection had.
+
+**The quarter view is gone and this script is on the shelf with it.**  The
+scene went flat on 2026-09-12 — north straight up the glass, west straight
+left — so `facing()` takes the world velocity straight and four poses are
+enough; eight directions is a problem this game no longer has, and nothing
+rendered at the camera below sits on this ground.  Kept because the arithmetic
+in it is right and the day this repository wants an eight-direction anything
+it is what does it.  `CLAUDE.md`, "The rendered art is on the shelf".
 
 This is the thing the quarter view cost and code could not pay back.  LPC's
 people are drawn facing up, down, left and right *on the screen*, and in

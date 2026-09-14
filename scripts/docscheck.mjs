@@ -15,6 +15,19 @@
  * The reverse — code with nothing written about it — is real drift too, but it
  * cannot be checked without a judgement about what deserves a paragraph, so it
  * stays a human job.
+ *
+ * **And there is a third kind, which issue 209 asked for: a decision that was
+ * reversed, and a paragraph somewhere still keeping the old one.**  That reads
+ * exactly like a rule — a confident sentence, every path in it resolving — and
+ * the next person to open the file obeys a rule nobody holds any more.  It
+ * cannot be checked in general; a sentence's meaning is not a string.  What
+ * can be checked is narrower and is the whole of `REVERSED` below: **a
+ * repository may declare that a particular sentence has stopped being true,
+ * and then no file may say it without saying so.**  Same bargain as
+ * `audit.py`'s `*_DEFAULT_OK` — the declaration is what makes the silence
+ * mean something — and it caught four on the day it was written, in
+ * `quests.py`, in this file's own neighbour `viewcheck.mjs`, in `CLAUDE.md`'s
+ * own directory listing, and in the prompts.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 
@@ -31,6 +44,53 @@ const check = (what, ok, detail = '') => {
  */
 const ELSEWHERE = ['src/server/']
 
+/**
+ * Decisions that were reversed, and the sentence each one left behind.
+ *
+ * `gone` is matched as written against every file this repository owns.  A
+ * file may still carry the phrase — history is worth keeping, and half of
+ * these paragraphs exist to say what changed — but only if it also carries
+ * `mark`, which is the distinctive phrase that says the thing is over.  So the
+ * rule reads: **say it and say it is finished, or do not say it.**
+ *
+ * Adding a row here is the cheap half.  The dear half is that somebody has to
+ * notice a decision was reversed at all, which is what issue 209 was: the
+ * owner decided on 2026-09-14 that quest prose would be translated and
+ * shipped, three documents were updated, and `quests.py`'s own docstring went
+ * on saying the opposite for a day.
+ */
+const REVERSED = [
+  {
+    when: '2026-09-14',
+    what: "quest prose is translated and shipped — issue 190, the owner's",
+    gone: ['Nothing of the prose comes out', 'not a word of the dialogue'],
+    mark: 'issue 190',
+  },
+  {
+    when: '2026-09-13',
+    what: "the client's terrain is committed and deployed — the owner's",
+    gone: ['public/data is not'],
+    mark: '2026-09-13',
+  },
+  {
+    when: '2026-09-12',
+    what: 'the view is flat: north up the glass, west left, a yard a yard',
+    gone: ['quarter view', '2:1 diamond', '2:1 아이소메트릭'],
+    mark: 'The quarter view is gone',
+  },
+]
+
+/**
+ * What the ban is read against.  Everything this repository writes by hand.
+ *
+ * `prompts/` is out, and the reason is the interesting one: those 53 files are
+ * **generated** by `make_prompt.py` and `promptcheck` already holds them to
+ * it, so the place to mark an abandoned sentence is the generator.  Banning it
+ * in the output would fail 53 files for one cause and tell you nothing about
+ * which one to edit.
+ */
+const OWNED = ['CLAUDE.md', 'README.md', 'docs', 'pipeline', 'src', 'scripts']
+
 /** Every path a document claims, in backticks, shaped like one of ours. */
 const CLAIM = /`((?:src|pipeline|scripts|public|art)\/[\w./-]+)`/g
 /** And every command it tells the reader to run. */
@@ -43,7 +103,11 @@ const RUN = /`npm run ([\w:]+)`/g
  */
 const BARE = /`([a-z][\w]*\.(?:py|ts|mjs))`/g
 
-const docs = readdirSync('.').filter((f) => f.endsWith('.md'))
+// Root and `docs/`.  It read the root alone for a while, which meant the two
+// documents that carry the most paths — `promised-checks.md` and `budget.md` —
+// were the two nothing checked.
+const docs = [...readdirSync('.').filter((f) => f.endsWith('.md')),
+  ...readdirSync('docs').filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`)]
 const text = docs.map((d) => [d, readFileSync(d, 'utf8')])
 
 const missing = []
@@ -93,6 +157,48 @@ for (const [doc, body] of text) {
 check('every command they tell you to run exists', unrunnable.length === 0,
   unrunnable.length ? unrunnable.join(', ')
     : `${named.size} of ${scripts.size} scripts are written down`)
+
+// --- and no file keeps a decision that was reversed -----------------------
+const mine = []
+const gather = (path) => {
+  for (const e of readdirSync(path, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === '.git') continue
+    const full = `${path}/${e.name}`
+    if (e.isDirectory()) gather(full)
+    else if (/\.(md|py|ts|mjs)$/.test(e.name)) mine.push(full.replace(/^\.\//, ''))
+  }
+}
+for (const p of OWNED) {
+  if (!existsSync(p)) continue
+  if (p.endsWith('.md')) mine.push(p)
+  else gather(p)
+}
+
+/**
+ * Everything here is hard-wrapped at about eighty columns, so a phrase is as
+ * likely to be split across two lines as not — `**The\n * quarter view is
+ * gone**` is the marker and does not contain it.  Whitespace runs, and the
+ * comment furniture that sits in them, collapse to one space before matching;
+ * the first version of this check reported `CLAUDE.md` for saying the very
+ * sentence that clears it.
+ */
+const flat = (s) => s.replace(/\s*(?:\n\s*(?:\*|\/\/|#|>)?)\s*/g, ' ')
+  .replace(/\s+/g, ' ')
+
+const unmarked = []
+for (const rev of REVERSED) {
+  const mark = flat(rev.mark).toLowerCase()
+  for (const file of mine) {
+    const body = flat(readFileSync(file, 'utf8'))
+    const said = rev.gone.filter((g) => body.includes(flat(g)))
+    if (!said.length || body.toLowerCase().includes(mark)) continue
+    unmarked.push(`${file}: "${said[0]}" (${rev.when}: ${rev.what})`)
+  }
+}
+check('and nothing still states a decision that was reversed',
+  unmarked.length === 0,
+  unmarked.length ? unmarked.join(' | ')
+    : `${REVERSED.length} reversals declared, ${mine.length} files read`)
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')
 process.exit(bad ? 1 : 0)

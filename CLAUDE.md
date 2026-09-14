@@ -62,8 +62,10 @@ scripts/    checks that need a browser.  `padcheck.mjs` drives the touch
             controls with Chromium's own touch input over CDP; `viewcheck.mjs`
             asserts what the flat view promises about geometry
 public/art  the baked art (committed), including `kit/` — the renders, which
-            are art this repository made rather than cut.  public/data is not
-            (see below)
+            are art this repository made rather than cut.  **public/data is
+            committed too**, since 2026-09-13 and by the owner's decision —
+            this line said the opposite for a day after the decision, which is
+            the drift `docscheck` now looks for.  See below for the argument
 ```
 
 The ICC raid prototype that used to be here is gone. It is not lost: tag
@@ -152,7 +154,11 @@ medieval, layered, and there are hundreds of them.
 
 So it is flat again. North is up the glass, west is left, a yard is `PPY`
 pixels either way round, and a square of ground is a square. `facing()` takes
-the world velocity, straight, and there is no compromise left in it.
+the world velocity, straight, and there is no compromise left in it. **The
+quarter view is gone** — that phrase is a marker rather than a flourish:
+`docscheck` will not let any file here say "quarter view" without it, because
+four of them went on describing that camera for weeks after the code stopped
+using it, `screenX`'s own docstring among them.
 
 Everything else the projection touches is derived from two functions,
 `screenX`/`screenY` and the inverse `worldAt`, and nothing else is allowed to
@@ -1008,9 +1014,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and forty-three lines of "we should
+pages end in a 붙일 검사 table — a hundred and forty-eight lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and eighteen are; the rest are waiting on a feature nobody has built,
+A hundred and twenty-two are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1018,7 +1024,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 417 check labels in the harness, 73 were promised and **344 were written
+of 418 check labels in the harness, 75 were promised and **343 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1028,7 +1034,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, which is the 143 above. The same shape as `padcheck`'s `#ui > *`
+six more on top, and the boundary round five more: 148. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
@@ -1093,6 +1099,34 @@ there is something a person can look at — and every run asks whether each
 reference is a picture of somewhere at all, by the share of it that is the
 darkest two levels of sixteen. The six honest references run 0.0% to 2.0%.
 The one that was guarding the pit reads **35.5%**.
+
+**A decision that was reversed leaves a sentence behind, and that sentence
+reads exactly like a rule.** The owner decided on 2026-09-14 that quest prose
+would be translated and shipped; three documents were rewritten and
+`pipeline/quests.py`'s own docstring went on saying *"Nothing of the prose
+comes out: not the title, not the description, not a word of the dialogue"* —
+a confident paragraph with every path in it resolving, and the next person to
+open that file obeys a rule nobody holds. Meaning is not a string and this
+cannot be checked in general. What can be checked is narrower and is the whole
+of `REVERSED` in `docscheck`: **the repository declares that a particular
+sentence has stopped being true, and then no file may say it without also
+saying it is finished.** Same bargain as `audit.py`'s `*_DEFAULT_OK` — the
+declaration is what makes the silence mean something.
+
+It caught eight files the day it was written and four of them were saying
+something that is false now: the docstring directly above `screenX` explained
+the quarter view over code that is flat, `viewcheck.mjs` opened with "What the
+quarter view promises about geometry", `render_kit.py`'s header said
+`src/main.ts` projects with `x - y` on the horizontal, and this file's own
+directory listing said `public/data` is not committed a day after the owner
+committed it. The other four were shelved work not saying it was shelved —
+and `make_prompt.py`, which writes 정확한 2:1 아이소메트릭 into all 53 prompts. The prompts are left standing with
+a dated banner, because what replaces that text is an art-direction decision
+and not a documentation one. Two details worth keeping: everything here is
+hard-wrapped, so the matcher collapses whitespace — the first version reported
+`CLAUDE.md` for saying the very sentence that clears it, split across a line —
+and `prompts/` is exempt because it is *generated*, so the place to mark an
+abandoned sentence is the generator and not its 53 outputs.
 
 **The documents get a gate too, and only for the half a machine can judge.**
 `docscheck` collects every file and every `npm run` a document names in

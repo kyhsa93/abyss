@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **143 promises across 20 pages, 118 of them kept.**
+Counted: **148 promises across 21 pages, 122 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -62,6 +62,7 @@ keeps it honest.
 | 예산 문서의 숫자가 실측이다 | `scripts/budgetcheck.mjs: "and the budget document says what was just measured"` |
 | 소리 여덟 개가 서로 1 dB 안에 있다 | `scripts/soundcheck.mjs: "and no sound is louder than another"` |
 | 소리가 나야 할 자리 중 조용한 것마다 이유가 있다 | `scripts/soundcheck.mjs: "and every silent place on it carries the reason it is silent"` |
+| 뒤집힌 결정을 아직 적고 있는 파일이 없다 | `scripts/docscheck.mjs: "and nothing still states a decision that was reversed"` |
 
 ## [문과-층](https://github.com/kyhsa93/abyss/wiki/문과-층)
 
@@ -281,3 +282,12 @@ keeps it honest.
 | 엄격한 잣대가 느슨한 잣대만큼의 세계를 잰다 (걸음 14만 칸·있을 수 있나 20만 칸 아래로 내려가면 실패) | `scripts/viewcheck.mjs: "the strict yardstick reaches as much world as the loose one"` |
 | **네 잣대 전부가 중요한 곳들에 대해 같은 답을 한다** — 이것이 없던 것이다 | `scripts/viewcheck.mjs: "and every yardstick agrees you can get to the places that matter"` |
 | 시작 지점에서 골드샤이어까지 **실제로 걸어서 간다** (물 붓기가 찾은 길을 칸마다, 스틱을 미는 것과 같은 `walk` 으로, `slide` 까지 걸어서) | `scripts/viewcheck.mjs: "and a man can actually walk from the start to Goldshire"` |
+
+## [저작권과-배포-경계](https://github.com/kyhsa93/abyss/wiki/저작권과-배포-경계)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 뒤집힌 결정을 아직 적고 있는 파일이 없다 | `scripts/docscheck.mjs: "and nothing still states a decision that was reversed"` |
+| 구운 파일에 모델 경로·아카이브·테이블 이름이 없다 | `pipeline/bake.py: verify` |
+| 번역마다 원문의 해시가 있고 낡은 것을 말한다 | `pipeline/prose.py: "the English moved under these"` |
+| 커밋된 것 중 영어 퀘스트 원문이 없다 | — `prose.py` 가 영어를 안 쓰는 것은 규칙이지 검사가 아니다. 커밋된 파일에 영어 원문이 없는지 세는 곳이 없다 |

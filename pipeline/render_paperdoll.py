@@ -41,7 +41,11 @@ from arms import (PERSON_YARDS, WEAPON_BONE,  # noqa: E402
                   WEAPON_ROOT, WEAPONS)
 
 PPY = 24                # pixels to the yard at zoom 1, as in main.ts
-TILT = math.atan(0.5)   # the quarter view's elevation, 26.57 degrees
+# The quarter view is gone — the scene went flat on 2026-09-12 and nothing
+# rendered at this camera sits on that ground.  Kept because the arithmetic
+# is right and this is still the only thing here that composites a body out
+# of slots; see CLAUDE.md, "The rendered art is on the shelf".
+TILT = math.atan(0.5)   # the old quarter view's elevation, 26.57 degrees
 CELL = 128
 DIRS = 8
 
