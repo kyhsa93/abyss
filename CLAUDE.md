@@ -960,6 +960,24 @@ painted there and pushed towards its ends: where it painted mostly flowers there
 are flowers, where it painted a trace there are none, because a flower at a
 uniform probability is the rash the meadow comment already warns about.
 
+**Water was the last thing still laid a tile at a time, and it was laid every
+frame.** A plate held the ground under the water and the water went on top in
+the pass after it — 1,256 tiles of it at half zoom by the river, each one
+square, with a grass-to-water piece round the edge that can only sit on the tile
+grid. So a river was a staircase of four-yard steps however the ground beside it
+blended. It is a share in the plate now like any ground: the wet plane read
+*between* its cell centres rather than at the nearest, cut at a half with a
+fade, laid last so its alpha is its share, with a band of wet bank where the
+plane is rising towards that half and no hillside light on it — a lit slope on
+a lake is the giveaway that it is painted on. The depth the bake has shipped a
+byte a cell since water stopped being a wall is drawn at last, darker with
+depth on a ramp to twelve yards: over the slice's 19,953 wet cells the depth is
+nought at the tenth percentile, 2.5 yards at the median and 8.5 at the
+ninetieth. Standing at the river no water tile is laid in a frame, and 99.6% of
+the tiles on the water's edge change inside the tile. The bridge decks are
+still tiles, because a deck is a structure standing on the water rather than
+the water.
+
 **A hole in the ground is a field that was read and then used by nothing.** A
 chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
 it is how the client makes the mouth of a mine: 674 cells of it in this slice.
@@ -1706,7 +1724,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one and the blend one: 173. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one, the blend one and the water two: 175. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

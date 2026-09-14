@@ -826,6 +826,26 @@ async function main() {
     if (i < 0 || i >= W || j < 0 || j >= H) return 0
     return deep[i * H + j]! * DEPTH_UNIT
   }
+  /**
+   * The same two planes read *between* cell centres rather than at the
+   * nearest one — nought to one for the water, yards for its depth.
+   *
+   * The cells are 4.17 yards and a river is a few of them across, so asked by
+   * the nearest centre a shoreline is a staircase of four-yard steps.  Read
+   * bilinearly and cut at a half, it is the line the cell centres imply.
+   */
+  const bilinear = (plane: Uint8Array | null, wx: number, wy: number) => {
+    if (!plane) return 0
+    const fi = (x0 - wx) / U, fj = (y0 - wy) / U
+    const i = Math.floor(fi), j = Math.floor(fj)
+    const u = fi - i, v = fj - j
+    const at = (ii: number, jj: number) =>
+      ii < 0 || ii >= W || jj < 0 || jj >= H ? 0 : plane[ii * H + jj]!
+    return at(i, j) * (1 - u) * (1 - v) + at(i + 1, j) * u * (1 - v)
+      + at(i, j + 1) * (1 - u) * v + at(i + 1, j + 1) * u * v
+  }
+  const wetShare = (wx: number, wy: number) => bilinear(wet, wx, wy)
+  const depthShare = (wx: number, wy: number) => bilinear(deep, wx, wy) * DEPTH_UNIT
 
   /**
    * Deep enough to swim in, which is the server's own line and not a guess.
@@ -8162,7 +8182,7 @@ async function main() {
    * layer's own pixels.  Only while a check asks — reading a plate back is a
    * `getImageData` of a quarter of a million pixels a ground.
    */
-  const splatProbe = { on: false, edges: 0, within: 0 }
+  const splatProbe = { on: false, edges: 0, within: 0, shore: 0, shoreWithin: 0 }
   /**
    * The order a plate lays its grounds in — the same everywhere.
    *
@@ -8172,7 +8192,19 @@ async function main() {
    * one had, the hills came out as rectangles a plate wide with a straight
    * line between them.
    */
-  const LAYING = ['rock', 'ash', 'sand', 'grass', 'crop', 'road', 'paved']
+  const LAYING = ['rock', 'ash', 'sand', 'grass', 'crop', 'road', 'paved', 'shore', 'water']
+  /**
+   * How deep water has to be to look its deepest, in yards.
+   *
+   * Over the slice's 19,953 wet cells the depth runs nought at the tenth
+   * percentile, 2.5 at the median, 8.5 at the ninetieth and 34 at the most, so
+   * twelve puts nearly all the forest's water on the ramp and lets the lake be
+   * the lake.
+   */
+  const DEEP_YARDS = 12
+  /** Water tiles laid loose in the last frame, and tiles of water composed into plates ever. */
+  let waterTilesDrawn = 0
+  let wateredEver = 0
   /** Thrown away when the zoom changes, because the tinted strip is. */
   /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
   /**
@@ -9031,6 +9063,7 @@ async function main() {
     }
     platesDrawn = 0
     tilesDrawn = 0
+    waterTilesDrawn = 0
     tilesInView = 0
     indoorPaint.clear()
     indoorProps.length = 0
@@ -9079,7 +9112,7 @@ async function main() {
      */
     const paintGround = (g: CanvasRenderingContext2D, ti: number, tj: number,
       cx: number, cy: number, covers: ReturnType<typeof inBuilding>,
-      mode: 'all' | 'plain' | 'over' | 'shore',
+      mode: 'all' | 'plain' | 'over',
       /**
        * This tile is under a building that is drawn **as one piece**, so the
        * ground under it is ordinary ground and the roof is somebody else's
@@ -9115,7 +9148,7 @@ async function main() {
       // on it.  A wall standing on a hole is a wall, and a floor over one is
       // a floor; either way something else is painting here.
       if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
-        if (mode === 'plain' || mode === 'shore') return 0
+        if (mode === 'plain') return 0
         const wide = px * grain
         g.fillStyle = '#0a0a0f'
         g.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
@@ -9123,7 +9156,9 @@ async function main() {
         return 1
       }
       const h = hash(ti, tj)
-      const water = mode !== 'plain'
+      // Only a tile drawn loose is a tile of water.  In a plate water is a
+      // share like any ground, and over a plate there is none left to lay.
+      const water = mode === 'all'
         && WATER_TILES.length > 0 && wetAt(wx, wy)
       // Water is flat by definition, so it gets none of the hillside shading
       // — a lit slope on a lake surface is the giveaway that the water is
@@ -9270,7 +9305,9 @@ async function main() {
         : kind === 'crop' ? CROP_TILE
         : kind === 'road' ? pick(DIRT_WAYS)
         : kind === 'sand' ? SAND_TILE
-        : shore ? SHORE_TILE
+        : kind === 'shore' ? SHORE_TILE
+        : kind === 'water' && WATER_TILES.length > 0
+          ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
         : (meadow && h > 0.55) || flowered()
           ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
         : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
@@ -9300,32 +9337,30 @@ async function main() {
       // which is why there is a jitter in the other branch — half a step of
       // noise to turn that line into a zigzag.  A plate does not need either:
       // it is a bitmap, so the light can be interpolated across it.
-      const step = mode === 'plain' || mode === 'shore' ? FLAT_ROW
+      const step = mode === 'plain' ? FLAT_ROW
         : Math.max(0, Math.min(SHADES - 1, Math.round(
           ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
           + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
       const wide = px * grain
-      // A plate already holds the plain ground under this tile, so what is
-      // left is whatever a plate cannot hold: water, a bridge deck, a
-      // building.
+      // A plate already holds the plain ground under this tile, and its
+      // water, so what is left is whatever a plate cannot hold: a bridge
+      // deck, a building.
       if (mode === 'over' && !built && !span && !water) return 0
-      if (mode !== 'shore') {
+      if (water) waterTilesDrawn++
+      g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+        Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+      // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
+      // inside the grass sheet's plain border — over the same picture laid
+      // straight, so the strip it uncovers is never empty.  Only in a plate:
+      // a loose tile is gone in a few frames.
+      if (mode === 'plain' && NUDGED.has(id)) {
+        const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
+        const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
         g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-        // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
-        // inside the grass sheet's plain border — over the same picture laid
-        // straight, so the strip it uncovers is never empty.  Only in a plate:
-        // a loose tile is gone in a few frames.
-        if (mode === 'plain' && NUDGED.has(id)) {
-          const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
-          const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
-          g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-            Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
-        }
+          Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
       }
       // A plate blends its grounds itself, across the tile rather than a tile
-      // at a time, so everything below is for a tile drawn loose — and, for
-      // `shore`, the one boundary a plate still takes from a piece.
+      // at a time, so everything below is for a tile drawn loose.
       if (mode === 'plain') return 1
       // --- and the edge, if this tile is on one ---------------------
       //
@@ -9359,7 +9394,7 @@ async function main() {
       // corners disagree anyway, which is the coarse grid disagreeing with
       // itself.
       let blended = false
-      if (mode !== 'shore' && grain === 1 && !built && !span && !water) {
+      if (grain === 1 && !built && !span && !water) {
         const mix = blendAt(wx, wy)
         // A nibble's worth is the floor: below one level in fifteen there
         // is nothing to see and the blit is wasted.
@@ -9386,7 +9421,7 @@ async function main() {
           paintAt(wx - half, wy - half), paintAt(wx + half, wy - half),
           paintAt(wx - half, wy + half), paintAt(wx + half, wy + half),
         ]
-        if (mode !== 'shore' && (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3])) {
+        if (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3]) {
           // The best-ranked of the four that has a set of its own, and the
           // bits saying which corners are its.
           let top = '', rank = 99
@@ -9488,14 +9523,13 @@ async function main() {
        * above and below a correct middle.
        */
       const lay = (into: CanvasRenderingContext2D, word: string | undefined,
-        family: number | undefined, mode: 'plain' | 'shore',
-        only?: (a: number, d: number) => boolean) => {
+        family: number | undefined, only?: (a: number, d: number) => boolean) => {
         let n = 0
         for (let a = 0; a < PLATE; a++) {
           for (let d = 0; d < PLATE; d++) {
             if (only && !only(a, d)) continue
             n += paintGround(into, ox + a, oy + d, (PLATE - 1 - d) * tpx + half,
-              (PLATE - 1 - a) * tpx + half, null, mode, false, word, family)
+              (PLATE - 1 - a) * tpx + half, null, 'plain', false, word, family)
           }
         }
         return n
@@ -9519,6 +9553,11 @@ async function main() {
       // out as a weighted mix rather than as whichever went last.
       const N = PLATE + 2
       const sample = (a: number, d: number) => (PLATE - a) * N + (PLATE - d)
+      const smooth01 = (t: number) => {
+        const c01 = Math.max(0, Math.min(1, t))
+        return c01 * c01 * (3 - 2 * c01)
+      }
+      const depths = new Float32Array(N * N)
       const shares = new Map<string,
         { word: string; family: number | undefined; got: Float32Array }>()
       const put = (word: string, family: number | undefined, k: number, v: number) => {
@@ -9582,15 +9621,30 @@ async function main() {
           const tone = toneAt(wx, wy)
           const bare = ramp(slopeAt(wx, wy, T), BARE)
           const cliff = ramp(stepAt(wx, wy, T), CLIFF)
-          kindsOf(paintAt(wx, wy), bare, cliff, sample(a, d), 1 - m, tone)
-          if (mix) kindsOf(mix[0], bare, cliff, sample(a, d), m, tone)
+          // **Water first, and what it leaves is the ground's.**  Water was a
+          // tile laid over the plate every frame, a square a cell, with a
+          // grass-to-water piece round the edge that can only sit on the tile
+          // grid — so a river was a staircase however the ground beside it
+          // blended.  Here it is a share like any other: the wet plane read
+          // between its centres and cut at a half with a fade, and a band of
+          // wet bank where it is rising towards that half.
+          const w = WATER_TILES.length ? wetShare(wx, wy) : 0
+          const lake = smooth01((w - 0.35) / 0.3)
+          const bank = (1 - lake) * smooth01((w - 0.02) / 0.3)
+          const dry = 1 - lake - bank
+          depths[sample(a, d)] = lake > 0 ? depthShare(wx, wy) : 0
+          if (lake > 0) give('water', sample(a, d), lake, tone)
+          if (bank > 0) give('shore', sample(a, d), bank, tone)
+          if (lake > 0.5 && a >= 0 && a < PLATE && d >= 0 && d < PLATE) wateredEver++
+          kindsOf(paintAt(wx, wy), bare, cliff, sample(a, d), (1 - m) * dry, tone)
+          if (mix) kindsOf(mix[0], bare, cliff, sample(a, d), m * dry, tone)
         }
       }
       const order = [...shares.values()]
         .sort((x, y) => LAYING.indexOf(x.word) - LAYING.indexOf(y.word)
           || (x.family ?? 0) - (y.family ?? 0))
       if (order.length) {
-        platedEver += lay(g, order[0]!.word, order[0]!.family, 'plain')
+        platedEver += lay(g, order[0]!.word, order[0]!.family)
       }
       yield
       if (order.length > 1) {
@@ -9663,7 +9717,7 @@ async function main() {
           lg.rect(bx, by, bw, bh)
           lg.clip()
           lg.clearRect(bx, by, bw, bh)
-          lay(lg, word, family, 'plain', (a, d) => reach[a * PLATE + d] === 1)
+          lay(lg, word, family, (a, d) => reach[a * PLATE + d] === 1)
           sg.putImageData(share, 0, 0)
           // Sample centres land on tile centres: pixel `u` of the share is
           // stretched to `tpx` wide and starts a whole tile off the plate,
@@ -9671,6 +9725,22 @@ async function main() {
           lg.globalCompositeOperation = 'destination-in'
           lg.imageSmoothingEnabled = true
           lg.drawImage(splatShare, -tpx, -tpx, N * tpx, N * tpx)
+          // Deeper is darker, laid only on the water that is there.  The
+          // depth has been baked a byte a cell since water stopped being a
+          // wall and was drawn by nothing: the ford and the lake were the
+          // same blue.
+          if (word === 'water') {
+            const dark = sg.createImageData(N, N)
+            for (let i = 0; i < N * N; i++) {
+              dark.data[i * 4] = 6
+              dark.data[i * 4 + 1] = 30
+              dark.data[i * 4 + 2] = 62
+              dark.data[i * 4 + 3] = Math.round(255 * 0.55 * smooth01(depths[i]! / DEEP_YARDS))
+            }
+            sg.putImageData(dark, 0, 0)
+            lg.globalCompositeOperation = 'source-atop'
+            lg.drawImage(splatShare, -tpx, -tpx, N * tpx, N * tpx)
+          }
           lg.restore()
           const seen = splatProbe.on
             ? lg.getImageData(0, 0, splatLayer.width, splatLayer.height).data : null
@@ -9693,23 +9763,18 @@ async function main() {
               const q = [0.25, 0.75].flatMap((u) => [0.25, 0.75].map((v) =>
                 seen[(Math.floor(y0 + v * tpx) * splatLayer.width
                   + Math.floor(x0 + u * tpx)) * 4 + 3]!))
+              const varies = Math.max(...q) - Math.min(...q) >= 4
               splatProbe.edges++
-              if (Math.max(...q) - Math.min(...q) >= 4) splatProbe.within++
+              if (varies) splatProbe.within++
+              if (word === 'water') {
+                splatProbe.shore++
+                if (varies) splatProbe.shoreWithin++
+              }
             }
           }
           g.drawImage(splatLayer, bx, by, bw, bh, bx, by, bw, bh)
           yield
         }
-      }
-      // And the shore, which is a boundary against the water mask rather than
-      // between two paints, so it is still a piece — on the tiles that touch
-      // water and are not in it.
-      if (WATER_TILES.length) {
-        lay(g, undefined, undefined, 'shore', (a, d) => {
-          const wx = (ox + a) * T, wy = (oy + d) * T, h2 = T / 2
-          return wetAt(wx - h2, wy - h2) || wetAt(wx + h2, wy - h2)
-            || wetAt(wx - h2, wy + h2) || wetAt(wx + h2, wy + h2)
-        })
       }
       // --- and the light, once, across the whole plate -------------------
       //
@@ -9738,7 +9803,11 @@ async function main() {
           for (let d = 0; d <= PLATE; d++) {
             // The sample is a tile *corner*, half a tile off the centres the
             // tiles are drawn on, which is what makes the upscale line up.
-            const sl = shadeAt((ox + a - 0.5) * T, (oy + d - 0.5) * T, T)
+            // Water is flat by definition, so it takes no hillside light —
+            // a lit slope on a lake is the giveaway that it is painted on.
+            const cxw = (ox + a - 0.5) * T, cyw = (oy + d - 0.5) * T
+            const sl = shadeAt(cxw, cyw, T)
+              * (1 - (WATER_TILES.length ? smooth01((wetShare(cxw, cyw) - 0.35) / 0.3) : 0))
             const at = ((PLATE - a) * (PLATE + 1) + (PLATE - d)) * 4
             const up = sl > 0
             lit.data[at] = up ? 255 : 8
@@ -11463,6 +11532,7 @@ async function main() {
     tiles: tilesDrawn, inView: tilesInView, edged, shaded, outlined,
     plates: platesDrawn,
     blended: blendedEver, plated: platedEver,
+    waterTiles: waterTilesDrawn, watered: wateredEver,
   })
   /**
    * What the plain ground is costing, in kept pixels.
@@ -11589,7 +11659,12 @@ async function main() {
   ;(window as unknown as { __splat: (on?: boolean) => unknown }).__splat = (on) => {
     if (on !== undefined) {
       splatProbe.on = on
-      if (on) { splatProbe.edges = 0; splatProbe.within = 0 }
+      if (on) {
+        splatProbe.edges = 0
+        splatProbe.within = 0
+        splatProbe.shore = 0
+        splatProbe.shoreWithin = 0
+      }
     }
     return { ...splatProbe }
   }

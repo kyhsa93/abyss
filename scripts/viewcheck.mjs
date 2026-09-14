@@ -513,6 +513,31 @@ check('and a good share of the forest actually carries one',
     `${laid.tile.toFixed(2)} px a tile in the plate against ${laid.world.toFixed(2)} `
     + `on the glass, with a picture ${laid.picture} px wide`)
 
+  // 9b5. And the water is a share in the plate, not a tile laid over it.
+  //
+  // Water was drawn a tile at a time over the plates, every frame — 1,256
+  // tiles of it at half zoom by the river — with a grass-to-water piece round
+  // the edge that can only sit on the tile grid, so a river was a staircase of
+  // four-yard steps however the ground beside it blended.  It is composed into
+  // the plate now like any ground, so standing at the river once the plates
+  // are down, no tile of water is laid at all.
+  await p.evaluate(() => {
+    window.__splat(true)
+    window.__cam({ x: -8986, y: -300, zoom: 0.85 })
+  })
+  await p.waitForTimeout(2500)
+  const river = await p.evaluate(() => ({ e: window.__edges(), s: window.__splat(false) }))
+  check('the water is composed into the plate, not laid a tile at a time',
+    river.e.plates > 0 && river.e.watered > 0 && river.e.waterTiles === 0,
+    `${river.e.watered.toLocaleString()} tiles of water composed into plates, `
+    + `${river.e.waterTiles} tiles of it laid last frame`)
+  // And its edge is a line, not a staircase: the same reading of the pixels as
+  // the grounds', asked of the water's own layer.
+  check('and a shoreline changes across a tile rather than a tile at a time',
+    river.s.shore > 20 && river.s.shoreWithin >= river.s.shore * 0.9,
+    `${river.s.shoreWithin.toLocaleString()} of ${river.s.shore.toLocaleString()} `
+    + 'tiles on the water\'s edge change inside the tile')
+
   // 9b4. And the hillside's light is a gradient rather than twenty-one steps.
   //
   // The light is the only thing in this scene that carries height — the

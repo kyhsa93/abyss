@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **193 promises across 22 pages, 170 of them kept.**
+Counted: **195 promises across 22 pages, 172 of them kept.**
 
 It was 114 across 15 for a while, and the missing twenty-three are the more
 useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
@@ -113,6 +113,8 @@ keeps it honest.
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
 | **섞임이 타일 한 장에 알파 하나가 아니라 타일 안에서 변한다** | `scripts/viewcheck.mjs: "and a blend changes across a tile rather than a tile at a time"` |
 | 판이 그림의 폭이 아니라 세계의 타일 폭으로 합성된다 | `scripts/viewcheck.mjs: "and a plate is composed at the width of a tile of the world, not of its picture"` |
+| **물이 타일로 깔리지 않고 판에 합성된다** | `scripts/viewcheck.mjs: "the water is composed into the plate, not laid a tile at a time"` |
+| 물가가 타일 한 장 단위가 아니라 타일 안에서 변한다 | `scripts/viewcheck.mjs: "and a shoreline changes across a tile rather than a tile at a time"` |
 
 ## [세계가-비어-보인다](https://github.com/kyhsa93/abyss/wiki/세계가-비어-보인다)
 
