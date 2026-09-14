@@ -94,6 +94,15 @@ export type Shelf = {
     for?: number
     teaches: number[][]
   }>
+  /**
+   * Whose side each shopkeeper and trainer is on: `{creature: faction}`.
+   *
+   * Reputation changes a price and *whose* price it changes is the person
+   * behind the counter — `Player::GetReputationPriceDiscount` reads the
+   * creature's faction.  Two hops in the bake, because `creature_template`
+   * holds a faction *template* and `FactionTemplate.dbc` holds the faction.
+   */
+  of?: Record<string, number>
 }
 
 /** The slots a paperdoll has a layer for, in the order they are drawn. */

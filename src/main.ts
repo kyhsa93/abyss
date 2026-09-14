@@ -30,9 +30,10 @@ import { freeSlot, list as listSaves, wipe as wipeSave, write as writeSave, SAVE
 import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, I_HI, I_ILVL, I_LO, I_ARM, I_NEED, I_SELL, I_SLOT, I_USE, I_WORD, K_ARMOUR, K_ID, SLOTS, type Item, type Shelf } from './sim/gear.ts'
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { afterThis, heatOf, nextRank, riseChance, short as lacking, skinAsks, GIVEN, SOLD, R_COST, R_COUNT, R_GREY, R_HOW, R_MAKES, R_NEEDS, R_RANK, R_SKILL, R_SPELL, R_YELLOW, type Rank, type Recipe, type Trades } from './sim/trades.ts'
+import { discountOf, paidBy, rankFloor, rankOf as standingRank, standAfter, EXALTED, NEUTRAL } from './sim/rep.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
-import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
+import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, RANK_WORD, SIDE_WORD, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
 import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
 import {
@@ -3020,6 +3021,15 @@ async function main() {
    */
   let recipes: number[] = []
   /**
+   * Where he stands with everybody, by faction id.
+   *
+   * Seeded from `player.json` rather than empty, because a human is not
+   * neutral with Stormwind on the day he is made — `Faction.dbc` starts him at
+   * 4,000, which is already 우호 and already five per cent off every price in
+   * the valley.  Starting at nought would be a number this game invented.
+   */
+  let stands: Record<string, number> = {}
+  /**
    * A blessing, a fortitude, a frost armour: one stat or the armour raised
    * for a while.
    *
@@ -4530,6 +4540,106 @@ async function main() {
     return `${goodsOf(it ? (it[I_WORD] as string) : word)} ${many}`
   }
 
+  /**
+   * Everything about where he stands, in one place.
+   *
+   * `sides` is what the bake shipped; a world baked without a client has none,
+   * and then every rank is neutral and every price is the price on the row —
+   * which is exactly where this game was before issue 201.
+   */
+  const sides = roster?.factions ?? null
+
+  /** Where he stands with one side, out of what he has earned or was born to. */
+  const standWith = (faction: number): number =>
+    stands[String(faction)] ?? sides?.start[String(faction)] ?? 0
+
+  /** Which of the eight that is. */
+  const rankWith = (faction: number): number =>
+    sides ? standingRank(standWith(faction), sides) : NEUTRAL
+
+  /**
+   * What a shopkeeper or a trainer charges, rounded the way a price rounds.
+   *
+   * `items.json`'s `of` says whose side the person behind the counter is on
+   * and `discountOf` says what that is worth.  Somebody of a side nobody can
+   * hold a standing with — three of the six the slice's shopkeepers belong to
+   * — is not in that map at all, and charges the price on the row.
+   */
+  const priceAt = (entry: number, price: number): number => {
+    const side = shelf.of?.[String(entry)]
+    if (!side || !sides) return price
+    return Math.ceil(price * discountOf(rankWith(side)))
+  }
+
+  /**
+   * Handing in an errand, as far as the sides are concerned.
+   *
+   * Returns the lines to say, because the crossing is the whole point: the
+   * number moving is not news and **우호에서 존경으로** is.
+   */
+  const payStanding = (rep: [number, number][]): string[] => {
+    if (!sides || !rep.length) return []
+    const said: string[] = []
+    for (const [faction, amount] of paidBy(rep, stands, sides)) {
+      const key = String(faction)
+      const was = standWith(faction)
+      const now = standAfter(was, amount, sides)
+      stands[key] = now
+      const word = SIDE_WORD[faction]
+      if (!word) continue
+      const step = standingRank(now, sides) - standingRank(was, sides)
+      said.push(step > 0
+        ? `${word} — ${RANK_WORD[standingRank(now, sides)]}`
+        : `${word} +${now - was}`)
+    }
+    return said
+  }
+
+  /**
+   * The sides worth a line on the sheet, as `[word, where he stands]`.
+   *
+   * Which sides those are is *derived* rather than listed: a side this game
+   * can move is one an errand here pays, plus wherever that spills to.  So
+   * the sheet grows by itself if the slice ever widens, and shows nothing at
+   * all in a world baked without a client.
+   */
+  const sideLines = (): [string, string][] => {
+    if (!sides) return []
+    // **Ordered by how much this game is worth to them**, which puts the one
+    // side that can actually cross a rank at the top and the four that only
+    // catch a quarter of it underneath.  Sorting by the faction id put
+    // Stormwind fourth of five, which is the number sorting itself rather
+    // than the player being told anything.
+    const moves = new Map<number, number>()
+    for (const q of log.all.values()) {
+      for (const [faction, amount] of q.rep ?? []) {
+        moves.set(faction, (moves.get(faction) ?? 0) + amount)
+        for (const [into, share] of sides.spills[String(faction)] ?? []) {
+          moves.set(into, (moves.get(into) ?? 0) + Math.floor(amount * share))
+        }
+      }
+    }
+    return [...moves.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .map(([f]) => f)
+      .filter((f) => SIDE_WORD[f])
+      .map((f) => {
+        const at = standWith(f)
+        const rank = standingRank(at, sides)
+        const floor = rankFloor(rank, sides)
+        const next = rankFloor(rank + 1, sides)
+        return [SIDE_WORD[f]!, rank >= EXALTED
+          ? `${RANK_WORD[rank]}`
+          : `${RANK_WORD[rank]}  ${at - floor} / ${next - floor}`] as
+          [string, string]
+      })
+  }
+
+  /** ", 스톰윈드 +250" — what an errand is worth to a side, or nothing. */
+  const repLine = (rep?: [number, number][]): string =>
+    (rep ?? []).filter(([f]) => SIDE_WORD[f])
+      .map(([f, n]) => `, ${SIDE_WORD[f]} +${n}`).join('')
+
   /** "66 회복, 6초" — what pressing a thing in the bag would do. */
   const useWord = (use: [string, number, number]): string => {
     const [word, total, seconds] = use
@@ -5248,7 +5358,7 @@ async function main() {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
-      items: held, gear, taught, bought, recipes,
+      items: held, gear, taught, bought, recipes, stands,
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
       ...(me ? { who: { ...me } } : {}),
@@ -5283,6 +5393,7 @@ async function main() {
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
     recipes = save.you.recipes ?? []
+    stands = save.you.stands ?? {}
     bought = save.you.bought ?? {}
     you.rest = save.you.rest ?? 0
     you.finished = save.you.finished ?? 0
@@ -5660,7 +5771,10 @@ async function main() {
     if (!it) return null
     const row = (shelf.stock?.[String(entry)] ?? []).find((r) => r[0] === id)
     if (row && stockLeft(entry, row) === 0) return '그건 다 나갔소. 얼마 뒤에 다시 들어오오.'
-    const price = it[I_BUY] as number
+    // **The price is his and not the row's.**  Standing is money off, and
+    // where the money comes off is here — one place, for the same reason
+    // buying has one place at all.
+    const price = priceAt(entry, it[I_BUY] as number)
     if (you.purse < price) return '돈이 모자라다.'
     you.purse -= price
     held.push(id)
@@ -5695,7 +5809,7 @@ async function main() {
       .map((row) => {
         const id = row[0]!
         const it = itemOf(id)!
-        const price = it[I_BUY] as number
+        const price = priceAt(at, it[I_BUY] as number)
         const left = stockLeft(at, row)
         // `coin(0)` is 없음, which on a purse means "you have none" and on a
         // price means nothing at all.  A few of the slice's stacked goods —
@@ -5707,13 +5821,23 @@ async function main() {
           tintOf(it), detail(it),
           you.purse >= price && left !== 0] as ShopRow
       })
-    ui.setShop(true, nameOf(shopAt.kind), coin(you.purse), shopPage, pages, rows,
+    // The title says whose shop it is and, when standing is doing something,
+    // that it is doing it.  A price five per cent off with nothing on screen
+    // saying why is a number that looks like a mistake.
+    const side = shelf.of?.[String(at)]
+    const off = side && sides ? 1 - discountOf(rankWith(side)) : 0
+    ui.setShop(true, nameOf(shopAt.kind)
+      + (off > 0 && SIDE_WORD[side!]
+        ? `  ·  ${SIDE_WORD[side!]} ${RANK_WORD[rankWith(side!)]} −${Math.round(off * 100)}%`
+        : ''),
+      coin(you.purse), shopPage, pages, rows,
       (id) => {
         const it = itemOf(id)
         if (!it) return
         const no = buyFrom(at, id)
         if (no) { ui.log(no, 'note'); return }
-        ui.log(`${describe(it)}을(를) 샀다. ${coin(it[I_BUY] as number)}`, 'note')
+        ui.log(`${describe(it)}을(를) 샀다. ${coin(priceAt(at, it[I_BUY] as number))}`,
+          'note')
         drawShop()
       },
       (to) => { shopPage = to; drawShop() })
@@ -5746,8 +5870,7 @@ async function main() {
    * that skipped the limited shelf, so the check that a shop could run out was
    * watching a path that had never heard of shelves.
    */
-  const takeUp = (skill: number, step: Rank): string | null => {
-    const cost = step[1]
+  const takeUp = (skill: number, step: Rank, cost = step[1]): string | null => {
     if (you.purse < cost) return '돈이 모자라오.'
     you.purse -= cost
     // The floor is one and not nought, and that is the server's:
@@ -6293,8 +6416,14 @@ async function main() {
             got.push(it ? describe(it) : `물건 ${id}`)
           }
           levelUp()
+          // And what it is worth to a side.  Thirty-seven of this game's
+          // fifty-one errands pay Stormwind and every one of them paid
+          // nothing at all until issue 201, because the column is an index
+          // and this read it as an amount.
+          const stood = payStanding(paid.rep)
           const said = payFor(paid.xp, paid.coin)
             + (got.length ? `, ${got.join(', ')}` : '')
+            + (stood.length ? `, ${stood.join(', ')}` : '')
           ui.log(`완료 — ${said}`, 'gain')
           showErrands()
           // And the next one, on the spot.  `RewardNextQuest` is not the same
@@ -6341,7 +6470,12 @@ async function main() {
       speech.options.unshift({
         label: name ? `${name} (${q.level}레벨)` : `일거리 (${q.level}레벨)`,
         lines: [...told(q.id, 'body'), ...errand(shapeOf(q)),
-          `사례: ${payFor(q.xp, q.coin)}`],
+          // And what it is worth to a side, where it is worth anything.
+          // Thirty-seven of this game's fifty-one errands pay Stormwind and
+          // the offer said nothing about it — the original puts it in the
+          // reward pane, and a reward you are not told about is not one you
+          // can choose on.
+          `사례: ${payFor(q.xp, q.coin)}${repLine(q.rep)}`],
         act: () => {
           take(log, q)
           ui.log(`맡음 — ${name || errand(shapeOf(q)).join(', ')}`, 'note')
@@ -6387,16 +6521,20 @@ async function main() {
         .slice(0, 4)
       for (const [id, cost, need] of ready) {
         const word = abilityOf(id!)!
+        // A lesson costs what *he* charges, which is the shop's rule and not
+        // a second one: `Player::GetReputationPriceDiscount` is asked about
+        // the creature, and a trainer is a creature.
+        const price = priceAt(n.entry, cost!)
         speech.options.push({
-          label: `${word[0]} 배우기 (${need}레벨) — ${coin(cost!)}`,
+          label: `${word[0]} 배우기 (${need}레벨) — ${coin(price)}`,
           lines: [word[1]],
           act: () => {
             if (you.level < need!) return [`${need}레벨이 되거든 오시오.`]
-            if (you.purse < cost!) return ['돈이 모자라오.']
-            you.purse -= cost!
+            if (you.purse < price) return ['돈이 모자라오.']
+            you.purse -= price
             taught.push(id!)
             spells = known(you.level)
-            ui.log(`${word[0]}을(를) 배웠다. ${coin(cost!)}`, 'gain')
+            ui.log(`${word[0]}을(를) 배웠다. ${coin(price)}`, 'gain')
             return [`${word[0]}. ${coin(you.purse)} 남았소.`]
           },
         })
@@ -6417,13 +6555,13 @@ async function main() {
       const step = nextRank(trade, at?.[0] ?? 0, at?.[1] ?? 0, you.level)
       const word = TRADE_WORD[Number(skill)] ?? trade.word
       if (step) {
-        const cost = step[1]
+        const cost = priceAt(n.entry, step[1])
         speech.options.push({
           label: at ? `${word} 더 배우기 (${step[4]}까지) — ${coin(cost)}`
             : `${word} 배우기 — ${coin(cost)}`,
           lines: [],
           act: () => {
-            const no = takeUp(Number(skill), step)
+            const no = takeUp(Number(skill), step, cost)
             if (no) return [no]
             return [`${word}. ${coin(you.purse)} 남았소.`]
           },
@@ -6452,14 +6590,15 @@ async function main() {
       for (const r of shelf_) {
         const made = itemOf(r[R_MAKES])
         const label = made ? describe(made) : `물건 ${r[R_MAKES]}`
+        const price = priceAt(n.entry, r[R_COST])
         speech.options.push({
-          label: `${label} 만드는 법 — ${coin(r[R_COST])}`,
+          label: `${label} 만드는 법 — ${coin(price)}`,
           lines: [needsLine(r)],
           act: () => {
-            if (you.purse < r[R_COST]) return ['돈이 모자라오.']
-            you.purse -= r[R_COST]
+            if (you.purse < price) return ['돈이 모자라오.']
+            you.purse -= price
             recipes.push(r[R_SPELL])
-            ui.log(`${label} 만드는 법을 배웠다. ${coin(r[R_COST])}`, 'gain')
+            ui.log(`${label} 만드는 법을 배웠다. ${coin(price)}`, 'gain')
             return [`${label}. ${coin(you.purse)} 남았소.`]
           },
         })
@@ -8552,6 +8691,17 @@ async function main() {
         + (held.length ? `  (가진 것 ${held.length}, G로 입는다)` : '')],
       ['지갑', coin(you.purse)],
       ['처치', `${you.kills}`],
+      // Where he stands, and only with the sides this game can move.  A
+      // hundred and five factions have a starting number for a human and a
+      // hundred of them will hold that number for ever, so listing them all
+      // would be a page of a screen saying nothing.
+      ...sideLines(),
+      // And the trades, for the same reason: what he chose to learn.
+      ...Object.entries(you.trades)
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([skill, at]) =>
+          [TRADE_WORD[Number(skill)] ?? skill, `${at[0]} / ${at[1]}`] as
+            [string, string]),
       // What the run was, once it is over.  A ceiling that says nothing when
       // you reach it is a number nobody notices arriving — and the character
       // growth page warned that level ten would be exactly that.
@@ -9064,6 +9214,31 @@ async function main() {
     return { said: makeOne(r), before, after: { ...you.bag },
              at: tradesNow()[String(skill)] ?? null }
   }
+  /**
+   * Where he stands, what a shop charges him, and what an errand would pay.
+   *
+   * The price comes back through `priceAt` rather than being worked out here,
+   * for the reason `__buy` learned the hard way: a check that reads a second
+   * implementation is reading something the player never touches.
+   */
+  ;(window as unknown as { __stands: (entry?: number) => unknown })
+    .__stands = (entry) => {
+      const out: Record<string, unknown> = {}
+      for (const [word, faction] of Object.entries(SIDE_WORD)
+        .map(([f, w]) => [w, Number(f)] as [string, number])) {
+        out[word] = { faction, at: standWith(faction), rank: rankWith(faction) }
+      }
+      return {
+        sides: !!sides, stands: { ...stands }, words: out,
+        ...(entry === undefined ? {} : {
+          entry, of: shelf.of?.[String(entry)] ?? 0,
+          price: priceAt(entry, 1000),
+        }),
+      }
+    }
+  /** Hand a standing over the way an errand does, for the check that it lands. */
+  ;(window as unknown as { __pay: (rep: [number, number][]) => unknown })
+    .__pay = (rep) => ({ said: payStanding(rep), stands: { ...stands } })
   /** What is in the bag, by item id, and what using one of them does. */
   ;(window as unknown as { __bag: (id?: number) => unknown }).__bag = (id) =>
     id === undefined ? { ...you.bag }
@@ -9758,8 +9933,15 @@ async function main() {
   /** What is for sale and what is taught nearby, and buying and learning it. */
   ;(window as unknown as { __shop: (entry: number) => unknown }).__shop =
     (entry) => ({
+      side: shelf.of?.[String(entry)] ?? 0,
       stock: (shelf.stock?.[String(entry)] ?? []).map((row) => ({
-        id: row[0], price: itemOf(row[0]!)?.[I_BUY],
+        id: row[0],
+        // **What he charges**, not what the catalogue says.  The row, the
+        // purchase and this all go through `priceAt`, because a check reading
+        // its own copy of a price agrees with itself and with nothing else —
+        // which is how `__buy` once bought past a limited shelf.
+        price: priceAt(entry, (itemOf(row[0]!)?.[I_BUY] as number) ?? 0),
+        list: itemOf(row[0]!)?.[I_BUY],
         slot: itemOf(row[0]!)?.[I_SLOT],
         // What a limited shelf has left, and nothing for an unlimited one.
         // `npc_vendor.maxcount` and `incrtime`, which were baked and unread.
@@ -9767,7 +9949,7 @@ async function main() {
         left: stockLeft(entry, row),
       })),
       teaches: (shelf.trainers?.[String(entry)]?.teaches ?? [])
-        .map(([id, cost, need]) => ({ id, cost, need })),
+        .map(([id, cost, need]) => ({ id, cost: priceAt(entry, cost!), need })),
     })
   /**
    * Every shop in the world, as the window would draw it.

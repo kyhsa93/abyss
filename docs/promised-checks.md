@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **102 promises across 14 pages, 80 of them kept.**
+Counted: **103 promises across 14 pages, 81 of them kept.**
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -201,5 +201,6 @@ keeps it honest.
 | **레벨 1~10에 벌 수 있는 퀘스트 돈 < 훈련비 + 최고 장비** | `pipeline/items.py: purse` |
 | 보상 아이템이 전부 `items.json` 안에 있다 | `pipeline/items.py: check_rewards` |
 | `ExclusiveGroup` 이 같은 것 중 하나만 할 수 있다 | `scripts/questcheck.mjs: "no two of one exclusive group are both on offer"` |
+| **이 지역의 일거리를 다 하면 평판이 한 등급을 넘는다** | `pipeline/quests.py: check_standing` |
 | 사슬을 끝까지 걸었을 때 밖으로 나가지 않는다 | `scripts/questcheck.mjs: "every link of every chain points inside this game"` |
 

@@ -27,6 +27,7 @@ const check = (what, ok, detail = '') => {
 import { standing } from '../src/sim/pools.ts'
 import { speak } from '../src/talk.ts'
 import { riseChance, short as lacking, skinAsks, R_GREY, R_MAKES, R_NEEDS, R_YELLOW } from '../src/sim/trades.ts'
+import { discountOf, paidBy, rankFloor, rankOf, standAfter, EXALTED, FRIENDLY, NEUTRAL, UNFRIENDLY } from '../src/sim/rep.ts'
 
 const world = (name) =>
   JSON.parse(readFileSync(`public/world/${name}.json`, 'utf8'))
@@ -318,6 +319,71 @@ check('and the same seed gives the same fight',
     lacking([[2589, 2], [2592, 1]], { 2589: 1 }).length === 2
     && lacking([[2589, 2]], { 2589: 5 }).length === 0,
     'two linen against one, and two against five')
+}
+
+// Standing, which is arithmetic before it is a line on a sheet.
+{
+  const sides = world('player').factions
+  const quests = world('quests').quests
+  check('the world says where a character begins with everybody',
+    !!sides && Object.keys(sides.start).length > 0,
+    `${Object.keys(sides?.start ?? {}).length} sides have a starting number`)
+
+  // The eight spans have to come out at the boundaries the server's own
+  // `ReputationRankToStanding` would give, and the bottom has to be the
+  // bottom — 42,999 less every span is exactly -42,000.
+  check('the eight ranks tile the whole range with no gap',
+    rankFloor(0, sides) === -42000
+    && rankFloor(EXALTED, sides) === 42000
+    && [...Array(8).keys()].every((i) =>
+      rankOf(rankFloor(i, sides), sides) === i
+      && (i === 0 || rankOf(rankFloor(i, sides) - 1, sides) === i - 1)),
+    `hated begins at ${rankFloor(0, sides)}, exalted at ${rankFloor(EXALTED, sides)}`)
+  check('and standing buys nothing until it is above neutral',
+    discountOf(NEUTRAL) === 1 && discountOf(UNFRIENDLY) === 1
+    && Math.abs(discountOf(FRIENDLY) - 0.95) < 1e-9
+    && Math.abs(discountOf(EXALTED) - 0.8) < 1e-9,
+    '중립 0%, 우호 5%, 숭배 20%')
+
+  // And the thing the whole feature is for: the errands of this slice, run
+  // end to end, move a human across one rank.  The same claim `quests.py`
+  // asserts, read here off the two shipped files instead of off the script
+  // that wrote them.
+  const paid = {}
+  for (const q of quests) for (const [f, n] of q.rep ?? []) paid[f] = (paid[f] ?? 0) + n
+  const [main] = Object.entries(paid).sort((a, b) => b[1] - a[1])
+  const start = sides.start[main[0]] ?? 0
+  check('every errand here together crosses one standing',
+    rankOf(start + main[1], sides) > rankOf(start, sides),
+    `faction ${main[0]}: ${start} + ${main[1]} — rank `
+    + `${rankOf(start, sides)} -> ${rankOf(start + main[1], sides)}`)
+  check('and crossing it takes five per cent off every price of that side',
+    Math.abs(discountOf(rankOf(start, sides))
+      - discountOf(rankOf(start + main[1], sides)) - 0.05) < 1e-9,
+    `${discountOf(rankOf(start, sides))} -> `
+    + `${discountOf(rankOf(start + main[1], sides))}`)
+
+  // The spill is a quarter and it stops at a rank rather than at a number.
+  const spilt = paidBy([[Number(main[0]), 1000]], {}, sides)
+  check('what is paid to one side spills into the sides it is allied with',
+    spilt.length === 1 + (sides.spills[main[0]] ?? []).length
+    && spilt.slice(1).every(([, n]) => n === 250),
+    spilt.map(([f, n]) => `${f}:${n}`).join(' '))
+  // And it changes no rank here, which is worth knowing rather than hiding:
+  // a quarter of 5,445 on top of 3,100 is still 우호.
+  const over = (sides.spills[main[0]] ?? []).map(([into]) => {
+    const was = sides.start[String(into)] ?? 0
+    return [into, rankOf(was, sides), rankOf(was + Math.floor(main[1] * 0.25), sides)]
+  })
+  check('and the spill is counted even where it changes nothing',
+    over.length > 0,
+    over.map(([f, a, b]) => `${f} ${a}->${b}`).join(', '))
+
+  // A standing cannot run off either end.
+  check('a standing stops at both ends',
+    standAfter(sides.cap, 10000, sides) === sides.cap
+    && standAfter(-42000, -10000, sides) === -42000,
+    `${sides.cap} and -42000`)
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

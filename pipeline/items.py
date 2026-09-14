@@ -335,6 +335,43 @@ def on_use(base, spells, durations):
     return out
 
 
+def sides(base, client, who):
+    """`{creature entry: faction}` for everybody who sells or teaches here.
+
+    Reputation changes a price, and *whose* price it changes is the shopkeeper's
+    own side: `Player::GetReputationPriceDiscount` (Player.cpp:12589) takes the
+    creature's faction template and looks up the standing with the faction
+    behind it.  Seventy of this slice's ninety shopkeepers stand for Stormwind
+    and the rest for four sides nobody can hold a standing with at all.
+
+    Two hops and both of them are the game's: `creature_template.faction` is a
+    *template* id, and `FactionTemplate.dbc` says which faction that template
+    belongs to.  Reading the first as the second is a mistake this would make
+    silently — template 12 and faction 12 are different things.
+    """
+    if not client or not os.path.isdir(client):
+        return {}
+    import trades as craft
+    behind = {r[0]: r[1] for r in craft.dbc(client, 'FactionTemplate')}
+    if not behind:
+        return {}
+    out = {}
+    path = os.path.join(base, 'creature_template.sql')
+    col = columns(path)
+    for line in rows(path):
+        f = split(line)
+        try:
+            entry = int(f[col['entry']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        if str(entry) not in who:
+            continue
+        side = behind.get(int(f[col['faction']]))
+        if side:
+            out[str(entry)] = side
+    return out
+
+
 def main(acore, client, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     # Which chests' loot tables this world actually stands — `objects.py` has
@@ -361,7 +398,7 @@ def main(acore, client, out):
 
     ipath = os.path.join(base, 'item_template.sql')
     col = columns(ipath)
-    items, skipped, gated = {}, 0, 0
+    items, skipped, gated = {}, 0, Counter()
     for line in rows(ipath):
         f = split(line)
         try:
@@ -419,14 +456,17 @@ def main(acore, client, out):
         # behind them because this line did not know the first difference.
         if (need > LEVELS[1] or ilvl > LEVELS[1] + 10) and e not in drops:
             continue
-        # And nothing that asks for a standing, because this game has no
-        # standings.  Twelve of them are on the slice's own shelves —
-        # `PlayerStorage.cpp:2344` is where the server refuses one — so
-        # leaving them there is a shop with twelve rows in it that cannot be
-        # bought, which is the same shape of hole `check()` below exists to
-        # catch on the other side.
-        if int(f[col['RequiredReputationFaction']]):
-            gated += 1
+        # And nothing that asks for a standing this game cannot reach.
+        #
+        # It has standings now (issue 201) and these twelve are still out,
+        # which is the point of counting them *by what they ask for* rather
+        # than counting them at all: every one of them wants **rank 7,
+        # 숭배**, with a side no errand in this slice pays a copper of.
+        # `PlayerStorage.cpp:2344` is where the server refuses one, so leaving
+        # them on the shelf is twelve rows nobody can buy.
+        want_side = int(f[col['RequiredReputationFaction']])
+        if want_side:
+            gated[(want_side, int(f[col['RequiredReputationRank']]))] += 1
             continue
         stats = []
         for i in range(1, 11):
@@ -477,7 +517,8 @@ def main(acore, client, out):
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'items.json')
-    doc = {'items': items, 'stock': stock, 'trainers': teach}
+    doc = {'items': items, 'stock': stock, 'trainers': teach,
+           'of': sides(base, client, set(stock) | set(teach))}
     with open(path, 'w') as f:
         json.dump(doc, f)
 
@@ -492,8 +533,11 @@ def main(acore, client, out):
     print(f'  {len(stock)} vendors stocking '
           f'{sum(len(v) for v in stock.values())} rows')
     if gated:
-        print(f'  {gated} left out for asking a standing this game has no '
-              f'way to earn — see the reputation note in issue 152')
+        ranks = sorted({r for _f, r in gated})
+        print(f'  {sum(gated.values())} left out for asking a standing nothing '
+              f'here pays — {len({f for f, _r in gated})} sides, '
+              f'rank{"s" if len(ranks) > 1 else ""} '
+              f'{", ".join(str(r) for r in ranks)} of 7')
     print(f'  {len(teach)} trainers teaching '
           f'{sum(len(t["teaches"]) for t in teach.values())} things')
     by = Counter(v[1] for v in items.values() if v[1])

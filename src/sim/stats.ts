@@ -49,6 +49,8 @@ export type Who = {
  * this game had one class the two were the same eight keys in one object,
  * which reads as a game whose stats belong to the world.
  */
+import type { Sides } from './rep.ts'
+
 export type Roster = {
   start: number[]
   levels: [number, number]
@@ -58,6 +60,13 @@ export type Roster = {
   /** `{zone: [[rain, snow, storm] per season]}` — `game_weather`. */
   weather?: Record<string, number[][]>
   classes: Record<string, Who>
+  /**
+   * Where a new character stands with everybody, and what a rank is worth.
+   *
+   * Optional because a machine with no game client bakes a world with no
+   * `Faction.dbc` in it — the same bargain every other client-fed fact makes.
+   */
+  factions?: Sides
 }
 
 /**

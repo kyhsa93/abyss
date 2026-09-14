@@ -69,6 +69,62 @@ def quest_xp(client):
     return out
 
 
+def faction_reward(client):
+    """`QuestFactionReward.dbc`, as `[ten amounts]` for a gain and for a loss.
+
+    The other table `questfactionreward_dbc.sql` is a schema with no rows —
+    the same as `questxp_dbc`, and for the same reason: the core reads this
+    one out of the client at run time.  The quest's own column is an *index*
+    into these ten and not an amount, which is why 37 of this game's errands
+    looked like they paid nothing at all.
+    """
+    B.CHAIN = CHAIN
+    data, _src = client.read('DBFilesClient\\QuestFactionReward.dbc')
+    if data is None:
+        sys.exit('QuestFactionReward.dbc is not in this client')
+    magic, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+    if magic != b'WDBC':
+        sys.exit('QuestFactionReward.dbc is not a dbc')
+    out = {}
+    for i in range(n):
+        r = struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
+        out[r[0]] = list(r[1:11])
+    # Two rows, one the negative of the other, and the core picks between them
+    # by the sign of the quest's index.  Checked rather than assumed.
+    if sorted(out) != [1, 2] or any(a != -b for a, b in zip(out[1], out[2])):
+        sys.exit('QuestFactionReward.dbc is not the two rows this reads it as')
+    return out
+
+
+def standings_paid(f, col, table):
+    """`[[faction, how much], …]` for one quest row.
+
+    `Player::RewardReputation` (Player.cpp): an override is a hundredth of
+    what it says, and otherwise the value column is an index into the row of
+    ten above — positive indices into the gains, negative into the losses.
+    """
+    out = []
+    for i in range(1, 6):
+        key = 'RewardFactionID%d' % i
+        if key not in col:
+            break
+        fid = int(f[col[key]])
+        if not fid:
+            continue
+        over = int(f[col['RewardFactionOverride%d' % i]])
+        if over:
+            out.append([fid, over // 100])
+            continue
+        value = int(f[col['RewardFactionValue%d' % i]])
+        row = table[1 if value >= 0 else 2]
+        if abs(value) >= len(row):
+            continue
+        amount = row[abs(value)]
+        if amount:
+            out.append([fid, amount])
+    return out
+
+
 def spawned(base, world):
     """Every creature that actually stands in the slice, by entry.
 
@@ -252,6 +308,60 @@ def triggers(client_root):
     return out
 
 
+def check_standing(quests, out):
+    """What the errands here are worth to a side, and whether it changes a rank.
+
+    This is issue 201's whole question asked as arithmetic instead of as an
+    opinion.  The case for leaving reputation out was that *neither of the two
+    things it does happens by level ten* — and one of them does, exactly once,
+    at the far end: the slice's errands are worth 5,445 to Stormwind, a human
+    starts at 4,000, and 9,000 is 존경.  So a person who runs the whole zone
+    crosses, and everything Stormwind sells goes from five per cent off to ten.
+
+    Asserted rather than printed, because the crossing is the reason the
+    feature is in the game at all.  If a wider slice or a better read of the
+    column ever made the errands worth less than the gap, the answer to
+    "should this be here" would have changed and nobody would have noticed.
+    """
+    made = os.path.join(out, 'player.json')
+    if not os.path.exists(made):
+        return
+    with open(made) as f:
+        sides = json.load(f).get('factions')
+    if not sides:
+        return
+    paid = Counter()
+    for q in quests:
+        for fid, amount in q.get('rep', ()):
+            paid[fid] += amount
+    if not paid:
+        print('check: no errand here pays a side, so no standing can move')
+        return
+
+    def rank_of(standing):
+        limit = sides['cap'] + 1
+        for i in range(len(sides['points']) - 1, -1, -1):
+            limit -= sides['points'][i]
+            if standing >= limit:
+                return i
+        return 0
+
+    moved = []
+    for fid, amount in sorted(paid.items(), key=lambda kv: -kv[1]):
+        start = sides['start'].get(str(fid), 0)
+        was, now = rank_of(start), rank_of(start + amount)
+        moved.append((fid, amount, start, was, now))
+    best = max(moved, key=lambda r: r[4] - r[3])
+    print('check: %d errands pay %d side(s) %s; the biggest is faction %d, '
+          'which every errand here takes from rank %d to rank %d'
+          % (sum(1 for q in quests if q.get('rep')), len(paid),
+             ', '.join('%d to %d' % (v, k) for k, v in paid.items()),
+             best[0], best[3], best[4]))
+    assert best[4] > best[3], \
+        'every errand in this slice put together does not cross one rank, ' \
+        'so standing buys nothing here and should not be in the game'
+
+
 def check_objects(wants, out):
     """An objective that names a game object has to be one you could finish.
 
@@ -282,6 +392,7 @@ def main(acore, client_root, out):
     base = os.path.join(acore, 'data/sql/base/db_world')
     client = B.Client(client_root)
     xp_for = quest_xp(client)
+    rep_for = faction_reward(client)
     here, whose = spawned(base, out)
     in_chest, chests_from = in_chests(out)
     starters = relation(base, 'creature_queststarter.sql')
@@ -499,6 +610,9 @@ def main(acore, client_root, out):
             'pick': [[int(f[col[k]]),
                       int(f[col[k.replace('ID', 'Quantity')]])]
                      for k in choice_slots if int(f[col[k]])],
+            # And what handing it in is worth to somebody.  Five slots, and
+            # every one this game uses names Stormwind — see `standings_paid`.
+            'rep': standings_paid(f, col, rep_for),
         })
 
     # Walking somewhere, which is a fifth kind of objective and the only one
@@ -697,6 +811,7 @@ def main(acore, client_root, out):
         if q['instead']:
             shapes['are a signpost that vanishes'] += 1
     print('  chains: ' + ', '.join(f'{v} {k}' for k, v in shapes.most_common()))
+    check_standing(quests, out)
     rich = sorted(quests, key=lambda q: -q['coin'])[:1]
     print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "
           f"the fattest {rich[0]['coin'] if rich else 0}")

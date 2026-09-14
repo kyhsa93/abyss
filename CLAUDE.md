@@ -707,6 +707,32 @@ is a *weapon* skill, so a level five wolf appeared to want twenty-five and
 nothing could open it. `Spell::EffectSkinning` (SpellEffects.cpp:4914) is the
 line that decides and it asks **nothing below level ten**.
 
+**A standing is in this game because the arithmetic said so.** The case for
+leaving reputation out was that neither of the two things it does happens by
+level ten, and one of them does: the slice's errands are worth 5,445 to
+Stormwind, a human starts at 4,000 out of `Faction.dbc`, and 9,000 is 존경 — so
+running the whole zone crosses one rank and takes everything Stormwind sells
+from five per cent off to ten. `quests.py` asserts the crossing, because the
+day it stops being true the feature should come out.
+
+**A quest's `RewardFactionValue` is an index and not an amount.** Thirty-seven
+of the slice's fifty-one errands pay a side and for a long time every one of
+them looked like it paid nothing, because the column is a subscript into
+`QuestFactionReward.dbc` — which, like `QuestXP.dbc` and `Faction.dbc`, is a
+schema with no rows in AzerothCore's dump and lives in the client.
+
+**Whose price a standing changes is the shopkeeper's own side.**
+`creature_template.faction` is a faction *template* and `FactionTemplate.dbc`
+says which faction is behind it; reading the first as the second is a mistake
+nothing would catch, because template 12 and faction 12 both exist. Seventy of
+this slice's ninety shopkeepers stand for Stormwind and three of the six sides
+they belong to are ones nobody can hold a standing with at all
+(`Faction.ReputationIndex` is -1).
+
+**A faction's name is Blizzard's prose**, the same as a zone's or a quest's.
+`Faction.dbc` has a Korean column and this game does not read it: the eight
+rank words and the five side words are in `talk.ts`, ours, keyed on the number.
+
 ## Finishing a change
 
 **Where this game is, is one file.** `slice.json` at the top of the tree: the

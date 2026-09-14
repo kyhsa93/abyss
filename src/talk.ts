@@ -218,6 +218,28 @@ export const TRADE_WORD: Record<number, string> = {
   755: '보석세공', 773: '주문각인',
 }
 
+/**
+ * The eight standings, and the sides this game can hold one with.
+ *
+ * Ours, both of them, for the reason a zone's name is ours: `Faction.dbc`
+ * carries a Korean column and what is in it is Blizzard's prose, the same as a
+ * quest's title.  The number is the game's and the word is this repository's —
+ * the seam every other id in this file sits on.
+ *
+ * Five sides and not a hundred and five, because five is what this game can
+ * move: every errand in the slice pays Stormwind, and one row of
+ * `reputation_spillover_template` sends a quarter of that to the other four.
+ */
+export const RANK_WORD: Record<number, string> = {
+  0: '증오', 1: '적대', 2: '비우호', 3: '중립',
+  4: '우호', 5: '존경', 6: '경의', 7: '숭배',
+}
+
+export const SIDE_WORD: Record<number, string> = {
+  47: '아이언포지', 54: '노움리건', 69: '다르나서스',
+  72: '스톰윈드', 930: '엑소다르',
+}
+
 /** Whoever is counted in 명 rather than in 마리. */
 // Who speaks like a person.  A gnoll, an orc and a troll are people in the
 // database's sense — they are humanoids — and none of them is going to answer

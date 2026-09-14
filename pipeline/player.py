@@ -289,6 +289,17 @@ def main(acore, client, out):
         # It was six flat keys here when there was one class, which reads as a
         # game whose stats are the game's rather than the character's.
         'classes': per,
+        # And where a character stands with everybody before he has done
+        # anything.  See `standings`; the spans and the cap are the server's
+        # own line and the spillover is the world database's own row.
+        'factions': {
+            'points': POINTS_IN_RANK,
+            'cap': REPUTATION_CAP,
+            'start': {str(k): v for k, v in sorted(
+                standings(client, HUMAN,
+                          [CLASS_ID[w] for w in CLASSES]).items())},
+            'spills': spillover(base),
+        },
     }
     with open(path, 'w') as f:
         json.dump(doc, f)
@@ -314,6 +325,94 @@ def main(acore, client, out):
     print(f'  {len(yards)} graveyards on this map, '
           f'{len(by_zone)} zones know where to send you')
     print(f'  {len(sky)} zones have weather of their own')
+
+
+#: `ReputationMgr::PointsInRank` (ReputationMgr.cpp:28) and its cap.
+#:
+#: Eight spans rather than eight thresholds, which is how the server holds it:
+#: `ReputationToRank` walks down from the cap taking one span off at a time.
+#: Written here rather than derived because it is *code* in the server and not
+#: a table anywhere — and it is the server's own line, checked into the same
+#: repository the rest of this pipeline reads, rather than a number chosen
+#: here.  The eight words for the eight ranks are ours and live in `talk.ts`,
+#: for the same reason a zone's name does: `Faction.dbc` has them and they are
+#: Blizzard's prose.
+POINTS_IN_RANK = [36000, 3000, 3000, 3000, 6000, 12000, 21000, 1000]
+REPUTATION_CAP = 42999
+
+#: `Faction.dbc`.  Field 1 is the index a character actually tracks — **minus
+#: one means the faction is not one anybody holds a standing with**, which is
+#: three of the six the slice's shopkeepers belong to.
+F_INDEX, F_RACE_MASK, F_CLASS_MASK, F_BASE = 1, 2, 6, 10
+
+
+def standings(client, race, cls_ids):
+    """`{faction: what a new character of this race starts at}`.
+
+    `ReputationMgr::GetBaseReputation` takes the **first** of the four
+    race/class slots whose masks fit, and a mask of nought fits anybody — so
+    the order matters and the loop stops.  A faction whose `ReputationIndex`
+    is -1 is left out: nobody holds a standing with it, which is the data's
+    own way of saying "this is a side, not a reputation".
+    """
+    out = {}
+    for row in dbc_rows(client, 'Faction'):
+        if row[F_INDEX] < 0:
+            continue
+        for i in range(4):
+            rmask, cmask = row[F_RACE_MASK + i], row[F_CLASS_MASK + i]
+            if rmask and not rmask & (1 << (race - 1)):
+                continue
+            if cmask and not any(cmask & (1 << (c - 1)) for c in cls_ids):
+                continue
+            out[row[0]] = row[F_BASE + i]
+            break
+    return out
+
+
+def spillover(base):
+    """`{faction: [[into, share, ceiling], …]}` — `reputation_spillover_template`.
+
+    One row of the twenty-six touches this game and it is Stormwind's: a
+    quarter of what you earn there is also earned with Ironforge, Gnomeregan,
+    Darnassus and the Exodar.  Read rather than ignored because leaving it out
+    would make the sheet lie about *why* a number moved.
+    """
+    out = {}
+    path = os.path.join(base, 'reputation_spillover_template.sql')
+    col = columns(path)
+    for line in rows(path):
+        f = split(line)
+        try:
+            who = int(f[col['faction']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        into = []
+        for i in range(1, 6):
+            key = 'faction%d' % i
+            if key not in col:
+                break
+            fid = int(f[col[key]])
+            if not fid:
+                continue
+            into.append([fid, float(f[col['rate_%d' % i]]),
+                         int(f[col['rank_%d' % i]])])
+        if into:
+            out[str(who)] = into
+    return out
+
+
+def dbc_rows(client_root, name):
+    """A `.dbc` as int tuples, or nothing when there is no client."""
+    import struct
+    if not client_root or not os.path.isdir(client_root):
+        return []
+    data = bake_client(client_root).read('DBFilesClient\\%s.dbc' % name)[0]
+    if not data or data[:4] != b'WDBC':
+        return []
+    _m, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
+    return [struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
+            for i in range(n)]
 
 
 def bake_client(root):

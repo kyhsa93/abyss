@@ -678,6 +678,45 @@ for (const [W, H] of SIZES) {
         `${shrank.join(', ')} -> ${grew.join(', ')}`)
     }
   }
+  // Standing, at the counter, where the only thing it does can be seen.
+  //
+  // Pressed through `priceAt` — which is what the row, the purchase and the
+  // trainer all read — rather than worked out here.  A check with its own
+  // copy of the formula agrees with itself and with nothing else.
+  {
+    const at = await p.evaluate(() => {
+      const doc = window.__stands()
+      return { sides: doc.sides, stormwind: doc.words['스톰윈드'] }
+    })
+    check('a character begins already standing somewhere',
+      at.sides === true && at.stormwind.at > 0 && at.stormwind.rank === 4,
+      `스톰윈드 ${at.stormwind?.at} — rank ${at.stormwind?.rank}`)
+    const vendor = await p.evaluate(async () => {
+      const doc = await (await fetch('./world/items.json')).json()
+      const of = doc.of ?? {}
+      const entry = Object.keys(doc.stock).find((e) => of[e] === 72)
+      return entry ? Number(entry) : null
+    })
+    check('and a shopkeeper of that side is standing here',
+      vendor !== null, `vendor ${vendor}`)
+    if (vendor !== null) {
+      const moved = await p.evaluate((v) => {
+        const before = window.__stands(v)
+        // What every errand in the slice is worth, handed over at once
+        // through the same call the hand-in makes.
+        window.__pay([[72, 5445]])
+        const after = window.__stands(v)
+        return { before, after }
+      }, vendor)
+      check('a price is already five per cent off at 우호',
+        moved.before.price === 950, `1000 -> ${moved.before.price}`)
+      check('and ten at 존경',
+        moved.after.words['스톰윈드'].rank === 5 && moved.after.price === 900,
+        `rank ${moved.before.words['스톰윈드'].rank} -> `
+        + `${moved.after.words['스톰윈드'].rank}, `
+        + `${moved.before.price} -> ${moved.after.price}`)
+    }
+  }
   await p.close()
 }
 

@@ -55,6 +55,15 @@ export type Errand = {
   xp: number
   coin: number
   /**
+   * What handing it in is worth to a side: `[faction, how much]`.
+   *
+   * The quest's own column is an *index* into `QuestFactionReward.dbc` rather
+   * than an amount, which is why 37 of this game's 51 errands looked for a
+   * long time as though they paid nothing at all — see `standings_paid` in
+   * `pipeline/quests.py`.
+   */
+  rep?: [number, number][]
+  /**
    * What handing it in pays besides the two above: `[item, how many]`.
    *
    * `gives` is unconditional and `pick` is one of several.  The second is the
@@ -244,14 +253,15 @@ export function killed(b: Book, entry: number, roll: () => number): string[] {
  * pays, so the caller has one list to put in a bag rather than two rules.
  */
 export function hand(b: Book, h: Held, chose = -1):
-{ xp: number; coin: number; items: [number, number][] } {
+{ xp: number; coin: number; items: [number, number][];
+  rep: [number, number][] } {
   const q = b.all.get(h.id)
   b.held = b.held.filter((x) => x !== h)
   b.done.add(h.id)
   const items: [number, number][] = [...(q?.gives ?? [])]
   const one = q?.pick?.[chose]
   if (one) items.push(one)
-  return { xp: q?.xp ?? 0, coin: q?.coin ?? 0, items }
+  return { xp: q?.xp ?? 0, coin: q?.coin ?? 0, items, rep: q?.rep ?? [] }
 }
 
 /**

@@ -62,6 +62,15 @@ export type Save = {
      */
     recipes?: number[]
     /**
+     * Where he stands with each side, by faction id.
+     *
+     * Only what he has *earned* — where a character begins is a fact about his
+     * race and lives in `player.json`, and saving it would be a second copy
+     * that stops agreeing the day the bake reads the column better.  Optional,
+     * because every save made before issue 201 has none.
+     */
+    stands?: Record<string, number>
+    /**
      * What has been bought off a limited shelf — `"<vendor>:<item>"` to
      * `[which turn of that shelf's clock, how many]`.
      *
