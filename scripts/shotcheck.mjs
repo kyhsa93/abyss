@@ -41,7 +41,12 @@ const SPOTS = [
   // check doing its job on a change that was meant.
   ['abbey', -8889, -196, 0.5, 'Northshire abbey from the path, roof and door'],
   ['goldshire', -9453, 12, 1, 'Goldshire, which is roads and roofs'],
-  ['river', -9100, -350, 0.8, 'water, a crossing and a bank'],
+  // Moved on to an actual crossing.  It was at (-9100, -350) and described as
+  // *water, a crossing and a bank*; what stands there is a cornfield, and a
+  // reference that has drifted from its own description is the failure this
+  // whole file exists to stop — a comparison can only ever say the screen is
+  // what it was, so the description is the only thing that says it was right.
+  ['river', -8986, -300, 0.8, 'water, a crossing and a bank'],
   ['wide', -8983, -316, 0.3, 'the valley from far enough to see its shape'],
   ['hills', -8700, -900, 0.7, 'bare rock, where the slope decides the ground'],
 ]

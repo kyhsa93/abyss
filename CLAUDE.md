@@ -386,6 +386,47 @@ and 1,134 at 47. The rings still run where the paint says one word and the
 corners disagree anyway, which is the coarse grid disagreeing with itself
 rather than anything the alpha can answer.
 
+**The plain ground is composed a plate at a time and kept, and the number that
+asked for it was from a different year.** The issue quoted 68,910 stamps a
+frame; the grain doubling had already taken that to under four thousand at
+every zoom. What was actually wrong is narrower and worse, and it took
+measuring each zoom to see: **at half zoom the grain has not doubled yet and
+the blend pass is still on, so the ground was 3,900 tiles and 1,392 blends
+every frame at thirty frames a second**, against sixty either side of it. Take
+the blits out and leave the loop and it runs at fifty-nine — it is the
+blitting, not the arithmetic. A **plate** is a square of tiles composed once
+into its own canvas and blitted whole, and every zoom is at 58 to 60 now.
+
+Three things about a plate are not arbitrary. It is keyed on the **tile grid
+and not the client's chunks**, so it doubles with the grain instead of drifting
+out of step with it. It is sized in **pixels and not tiles** — sixteen tiles is
+528 pixels at 1:1 and 1,040 at 2:1, which is four megabytes each, two of which
+fill the budget and make the cache thrash: the closest zoom went 60 to 38 until
+a plate became *about five hundred pixels* whatever the zoom. And **at most two
+are composed in a frame**, because a camera that jumps finds them all missing
+at once: composing a dozen is three thousand tile draws in one frame, which
+took sixty frames to fifteen — the cost had not gone, it had moved into a
+hitch. Tiles a plate has not reached yet are drawn the old way meanwhile, so
+nothing is ever missing from the screen.
+
+**A cold jump costs one frame and a half**, measured: 24 to 31 ms for the worst
+frame and settled within five, and walking holds 60 with a 27 ms worst frame as
+each new plate appears. That is the number that says pre-baking the ground is
+not worth doing.
+
+Two of the mistakes are worth keeping. `screenX` falls as world y rises and
+`screenY` falls as world x rises, so **both** indices count backwards inside a
+plate; with one of them reversed the plate landed upside down and left a black
+band above and below a correct middle. And the cache **refused** new plates
+when full instead of evicting the oldest — so once a camera had roamed, the
+budget was full of ground nobody was standing on and no plate was ever made
+again: `viewcheck` came back to 1,040 loose tiles and not one plate.
+
+**And the checks were reading one frame.** The plain ground is composed once
+and then kept, so a frame in which the camera is standing still draws no ground
+at all; the boundary check and the blend check both read nought the day plates
+went in. They count over a **fresh composition** now, or cumulatively.
+
 **And the plane offsets inside `terrain.bin` were written down in three
 places.** The bake, the scene and `bordercheck` each added up the planes before
 the one they wanted, so putting the mix between the paint and the zones left
@@ -1096,9 +1137,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and fifty-seven lines of "we should
+pages end in a 붙일 검사 table — a hundred and fifty-eight lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and thirty-two are; the rest are waiting on a feature nobody has built,
+A hundred and thirty-five are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1106,7 +1147,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 430 check labels in the harness, 84 were promised and **346 were written
+of 432 check labels in the harness, 86 were promised and **346 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1116,7 +1157,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five and the paint four: 157. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four and the plates one: 158. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

@@ -7685,6 +7685,33 @@ async function main() {
   let onStep = false
 
   const SHADES = 21
+  /**
+   * How many tiles square a plate of plain ground is, and what the whole cache
+   * may weigh.
+   *
+   * About five hundred pixels a side, **whatever the zoom**, and that is the
+   * whole of why it is a number of pixels rather than a number of tiles.  A
+   * plate of sixteen tiles is 528 pixels at 1:1 and 1,040 at 2:1, which is
+   * four megabytes each — two of those fill the budget, the cache thrashes,
+   * and the closest zoom went from sixty frames to thirty-eight.  Held near a
+   * constant size the count follows the glass instead of the zoom.
+   *
+   * Twelve megabytes because that is a little over twice a 1200 x 760 screen's
+   * own pixels, which is what a cache of exactly what is on the glass comes to
+   * — and the issue that asked for this budgeted 8.7.  `viewcheck` holds it.
+   */
+  const PLATE_PX = 512
+  const PLATE_BUDGET = 12 * 1024 * 1024
+  const plates = new Map<string,
+    { c: HTMLCanvasElement; used: number; bytes: number; fresh: boolean }>()
+  let plateBytes = 0
+  let plateKey = ''
+  let platesDrawn = 0
+  /** Thrown away when the zoom changes, because the tinted strip is. */
+  const forgetPlates = () => {
+    plates.clear()
+    plateBytes = 0
+  }
   let baked: { key: number; px: number; c: HTMLCanvasElement; at: Record<string, number> } | null = null
   function tintedGround() {
     const key = Math.round(zoom * 100)
@@ -7899,6 +7926,12 @@ async function main() {
   const hidden: { x: number; y: number; kind: string; why: string }[] = []
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
+  /** How many tiles the ground loop looked at, against how many it drew. */
+  let tilesInView = 0
+  /** Every blend ever laid down, which a plate's one-off composition needs. */
+  let blendedEver = 0
+  /** And every tile ever composed into a plate, so the two can be a share. */
+  let platedEver = 0
   let last = performance.now()
   const kindCount = new Set(npcs.map((n) => n.art)).size
   const talkers = npcs.filter((n) => n.topic).length
@@ -8316,7 +8349,29 @@ async function main() {
 
     const ground = tintedGround()
     const px = ground.px
+    // A plate is composed at the size the tinted strip is cut to, so the two
+    // are thrown away together.  Nothing else moves the plain ground: its
+    // light is the hillside's own and the sky is a wash over the top.
+    // How many tiles a plate holds here, so that a plate is about `PLATE_PX`
+    // across at any zoom.  A power of two so the grid lines up with itself
+    // when the grain doubles.
+    // Sixteen at most, and that is a *composition* cost rather than a memory
+    // one: a plate is composed one tile at a time, so thirty-two tiles square
+    // is a thousand draws in the frame it appears — which at the widest zoom
+    // put the check that watches the frame rate on a knife edge, 43 to 46.
+    const PLATE = Math.max(2, Math.min(16,
+      2 ** Math.round(Math.log2(Math.max(1, PLATE_PX / (px * grain))))))
+    const pkey = `${px}|${grain}|${PLATE}`
+    if (pkey !== plateKey) { forgetPlates(); plateKey = pkey }
+    // And the ones nobody has looked at for a while, once there is pressure.
+    if (plateBytes > PLATE_BUDGET / 2) {
+      for (const [k, v] of plates) {
+        if (frames - v.used > 240) { plates.delete(k); plateBytes -= v.bytes }
+      }
+    }
+    platesDrawn = 0
     tilesDrawn = 0
+    tilesInView = 0
     indoorPaint.clear()
     edged = 0
     /**
@@ -8335,272 +8390,405 @@ async function main() {
     const roofOf = (ti: number, tj: number) =>
       (ti < xLo || ti > xHi || tj < yLo || tj > yHi) ? null
         : under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] ?? null
-    if (indoors) { drawRoom(indoors, ground, px); }
-    else for (let ti = xLo; ti <= xHi; ti++) {
-      for (let tj = yLo; tj <= yHi; tj++) {
-        const wx = ti * T, wy = tj * T
-        // The bounding box of a diamond is twice the diamond, so half of what
-        // it holds is off the glass: at 1,400 pixels across that was 2,025
-        // tiles drawn where 550 are visible, and the frame rate said so.
-        const cx = screenX(wx, wy), cy = screenY(wx, wy)
-        const edge = px * grain
-        if (cx < -edge || cx > canvas.width + edge
-          || cy < -edge || cy > canvas.height + edge) continue
-        // No floor here at all: the client took this square out of its own
-        // ground to make the mouth of something.  Painted as the dark behind
-        // the world rather than skipped, because the sheet the frame is
-        // cleared with is the colour of ground off the edge of the slice, and
-        // a hole is not the edge of anything — it is a way in.
-        //
-        // Asked *after* the building, which it was not: the client cuts its
-        // terrain away wherever a building carries its own floor, and this
-        // painted that cut black without looking up.  The middle of Goldshire
-        // was a thirty-yard black square with the inn's own people standing
-        // on it.  A wall standing on a hole is a wall, and a floor over one is
-        // a floor; either way something else is painting here.
-        // Asked at the tile's own width, which is the same question the
-        // paint below asks a few lines down, so it is asked once.
-        const covers = inBuilding(wx, wy, T)
-        // Written down before the tile is skipped for being off the glass,
-        // because the outline of a building that runs off the edge of the
-        // screen is not on the edge of the screen.
-        if (covers) under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] = covers.b
-        if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
-          const wide = px * grain
-          ctx.fillStyle = '#0a0a0f'
-          ctx.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
-            wide, wide)
-          tilesDrawn++
-          continue
-        }
-        const h = hash(ti, tj)
-        const water = WATER_TILES.length > 0 && wetAt(wx, wy)
-        // Water is flat by definition, so it gets none of the hillside shading
-        // — a lit slope on a lake surface is the giveaway that the water is
-        // painted on the ground rather than standing on it.
-        // Measured over the tile's own width.  A five-yard tile that takes
-        // its light from a single point is a five-yard block of whatever that
-        // point happened to be, and at the darkest end of the range that is a
-        // black square: the hillsides came out with holes punched in them the
-        // moment the ground was allowed to draw coarser than 1.33 yards.
-        const sl = water ? 0 : shadeAt(wx, wy, T)
-        // Bands on one continuous number, so bare ground follows the hillside
-        // instead of speckling across it.
-        const steep = slopeAt(wx, wy, T)
-        // A meadow used to be a 5x5 block of tiles — 6.67 yards square, all
-        // of it flowers or none — and its edges were ruled with a straight
-        // edge.  The same coarse grid read *bilinearly* costs the same four
-        // lookups and gives a blotch.
-        // Four lookups where there was one, so only at the tile's own size:
-        // past that the ground is drawing one square where sixty-four belong
-        // and the edge of a meadow is not a thing anybody can see.  Without
-        // the guard the widest zoom went from 54 frames to 35.
-        const mu = ti / 5, mv = tj / 5
-        const mi = Math.floor(mu), mj = Math.floor(mv)
-        let blotch: number
-        if (grain === 1) {
-          const fx = mu - mi, fy = mv - mj
-          const n00 = hash(mi + 811, mj + 277), n10 = hash(mi + 812, mj + 277)
-          const n01 = hash(mi + 811, mj + 278), n11 = hash(mi + 812, mj + 278)
-          blotch = n00 * (1 - fx) * (1 - fy) + n10 * fx * (1 - fy)
-            + n01 * (1 - fx) * fy + n11 * fx * fy
-        } else blotch = hash(mi + 811, mj + 277)
-        const meadow = BLOOM_TILES.length > 0 && blotch > MEADOW
-        const shore = !water && WATER_TILES.length > 0
-          && (wetAt(wx + T, wy) || wetAt(wx - T, wy)
-            || wetAt(wx, wy + T) || wetAt(wx, wy - T))
-        // What the client painted here beats what the slope guesses, because
-        // one of them is a decision somebody made and the other is arithmetic
-        // over a height field.  Where the paint says grass — or where there is
-        // none at all, which is the synthesised world — the arithmetic gets
-        // its old say.
-        const ink = paintAt(wx, wy)
-        // A road is dirt on ground you could walk a cart over.  The client
-        // paints the same dirt on the scree of every mountainside, so taking
-        // it at face value ran roads up cliffs — the mask is a road network
-        // and a great deal of loose rock, and only the slope tells them apart.
-        const flat = steep <= BARE
-        // A deck where a crossing stands.  In the ground pass and not among
-        // the trees, because a bridge is a floor: it is what you are standing
-        // on rather than something standing beside you.
-        const span = onSpan(wx, wy)
-        // A building's plan, drawn on the ground: stone inside, darker stone
-        // for the wall.  In the ground pass because from above a building is
-        // mostly a floor with a line around it, and because a plan ninety
-        // yards across is not a thing that can be a sprite.
-        const built = span ? null : covers
-        // The roof comes off the building you are standing in.  There are no
-        // interiors here and the abbey holds the people who hand out the work,
-        // so a roof drawn over them is a roof with a quest giver under it —
-        // and the walls are what say where you are anyway.
-        // From outside, a building is its roof and nothing else: the walls
-        // are what you see once you are in it.  Drawn the other way round the
-        // abbey was a roof with its own walls painted over the top, which
-        // reads as ribs on a tent rather than as a building.
-        // A building, from outside, is its roof — **whatever the plan says is
-        // under it**, and that is the whole of it now.
-        //
-        // This used to be three branches: roof if it is not the building you
-        // are standing in, wall where the plan says stone, floor where it says
-        // room.  Two of them were unreachable and one of those unreachabilities
-        // was a bug that is now fixed somewhere else.  `inBuilding` makes
-        // *three* states and not two — `stone === 0 && room === 0` is false
-        // twice — and that third state had no branch, so it fell all the way
-        // down to the outdoor paint: the abbey had brown earth in it and the
-        // inn had grass in the hall.  It is 65% of the outline over all
-        // forty-six plans, 192,671 cells of 295,227, and one building is
-        // 80,746 cells of outline with 253 of floor.
-        //
-        // `327779e` closed the buildings, and a closed building is drawn by
-        // `drawRoom` off its own outline the moment you are inside one.  So
-        // `built.b === under` never reaches this loop, the wall and floor
-        // branches under it are dead, and the third state cannot fall through
-        // any more.  Measured from outside the abbey and outside Goldshire,
-        // what lands under an outline is 2,212 and 525 tiles of `roof` and
-        // nothing else — which `viewcheck` now asserts, because the thing that
-        // keeps this true is a check and not the shape of the expression.
-        /**
-         * Which picture a word gets here.
-         *
-         * A function rather than one expression because the paint now says
-         * *two* words and how much of each, so the chain is walked twice —
-         * and a second copy of a chain is a chain that drifts.
-         */
-        const tileFor = (word: string) => word === 'paved' && PAVED_TILES.length > 0
-          ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
-          : word === 'rock' || word === 'paved' ? ROCK_TILE
-            : (word === 'road' || word === 'crop') && flat
-              ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
-              : word === 'sand' ? SHORE_TILE
-                : shore ? SHORE_TILE
-                  : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
-                    : word === 'bloom' || (meadow && h > 0.55)
-                      ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
-                      : steep > BARE
-                        ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
-                        : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
-        const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
-          : span ? span.tile
-          : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
-            : tileFor(ink)
-        // What a building's outline got painted with, tallied as it is drawn.
-        //
-        // The check this feeds could not be written any other way without a
-        // second copy of the chain above, and a second copy of a chain is a
-        // chain that drifts.  Counted off the real draw instead: whatever ends
-        // up under an outline this frame, by name.  A building may be drawn in
-        // a roof, a wall and a floor and nothing else.
-        if (built) indoorPaint.set(id, (indoorPaint.get(id) ?? 0) + 1)
-        // One straight blit of a square, centred on the tile's own point —
-        // which is what `wx, wy` has always meant here.
-        // Twenty-one steps over a smooth hillside is a mosaic, and the line
-        // between step nine and step ten is dead straight because every tile
-        // takes its light from the one point at its middle.  Half a step of
-        // jitter from the tile's own hash turns that line into a zigzag: it
-        // costs nothing, it is stable frame to frame, and the hash was
-        // already measured to have no periodicity in it.
-        const step = Math.max(0, Math.min(SHADES - 1, Math.round(
-          ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
-          + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
+    /**
+     * One tile of the outdoor ground, drawn into `g`.
+     *
+     * Three modes, because the plain ground is now composed once into a
+     * **plate** and kept:
+     *
+     *   * `all`   — everything, which is what a tile with no plate behind it
+     *     gets and what this pass always did
+     *   * `plain` — the terrain and nothing else, for composing a plate: no
+     *     building, no bridge deck, no water, and a hole left to the frame
+     *   * `over`  — only what a plate cannot hold, for a tile whose plate is
+     *     already down
+     *
+     * One function and not three: the chain that turns a paint word into a
+     * picture is sixty lines long, and a second copy of a chain is a chain
+     * that drifts — which this file has paid for twice.
+     */
+    const paintGround = (g: CanvasRenderingContext2D, ti: number, tj: number,
+      cx: number, cy: number, covers: ReturnType<typeof inBuilding>,
+      mode: 'all' | 'plain' | 'over'): number => {
+      const wx = ti * T, wy = tj * T
+      // No floor here at all: the client took this square out of its own
+      // ground to make the mouth of something.  Painted as the dark behind
+      // the world rather than skipped, because the sheet the frame is
+      // cleared with is the colour of ground off the edge of the slice, and
+      // a hole is not the edge of anything — it is a way in.
+      //
+      // Asked *after* the building, which it was not: the client cuts its
+      // terrain away wherever a building carries its own floor, and this
+      // painted that cut black without looking up.  The middle of Goldshire
+      // was a thirty-yard black square with the inn's own people standing
+      // on it.  A wall standing on a hole is a wall, and a floor over one is
+      // a floor; either way something else is painting here.
+      if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
+        if (mode === 'plain') return 0
         const wide = px * grain
-        ctx.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-        // --- and the edge, if this tile is on one ---------------------
-        //
-        // The tile above is the tile's *middle*.  This asks its four corners,
-        // and where they do not agree it lays the higher ground's ring piece
-        // over the top.  That is the whole of the dual-grid trick: the
-        // boundary now falls on half-tile lines, out of a paint mask that has
-        // not gained a byte.
-        //
-        // Only outdoors, and only where the middle is plain ground: a roof, a
-        // wall, a bridge deck and a lake are each one thing all the way
-        // across, and asking a roof what its corners are painted is asking
-        // the wrong question.
-        // And only at the tile's own size.  Past that the ground is already
-        // drawing one square where four belong — `grain` — and an edge
-        // between two grounds at sixteen pixels is a detail nobody can see,
-        // which is the same argument the coarsening itself makes.  It is also
-        // what keeps the widest zoom above its floor: the edge pass is a
-        // second blit a tile, and at 1,134 tiles that is the difference
-        // between 60 frames and 46.
-        //
-        // **And the client's own blend comes first, where there is one.**  A
-        // paint cell now says two words and what share the second has, so an
-        // edge that the ring pieces can only put on a half-tile line is laid
-        // down as the thing it actually is: the second ground, at the alpha
-        // the client painted.  46% of the forest's paint cells carry one.
-        //
-        // It takes the ring pass's place rather than adding to it — the same
-        // one extra blit a tile, so the frame budget is where it was — and
-        // the ring pieces still run where the paint says one word and the
-        // corners disagree anyway, which is the coarse grid disagreeing with
-        // itself.
-        let blended = false
-        if (grain === 1 && !built && !span && !water) {
-          const mix = blendAt(wx, wy)
-          // A nibble's worth is the floor: below one level in fifteen there
-          // is nothing to see and the blit is wasted.
-          if (mix && mix[1] > 1 / MIX_LEVELS) {
-            const other = tileFor(mix[0])
-            if (other !== id) {
-              ctx.globalAlpha = Math.min(1, mix[1])
-              ctx.drawImage(ground.c, ground.at[other]!, step * px, px, px,
-                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-              ctx.globalAlpha = 1
-              blended = true
-              edged++
-            }
+        g.fillStyle = '#0a0a0f'
+        g.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
+          wide, wide)
+        return 1
+      }
+      const h = hash(ti, tj)
+      const water = mode !== 'plain'
+        && WATER_TILES.length > 0 && wetAt(wx, wy)
+      // Water is flat by definition, so it gets none of the hillside shading
+      // — a lit slope on a lake surface is the giveaway that the water is
+      // painted on the ground rather than standing on it.
+      // Measured over the tile's own width.  A five-yard tile that takes
+      // its light from a single point is a five-yard block of whatever that
+      // point happened to be, and at the darkest end of the range that is a
+      // black square: the hillsides came out with holes punched in them the
+      // moment the ground was allowed to draw coarser than 1.33 yards.
+      const sl = water ? 0 : shadeAt(wx, wy, T)
+      // Bands on one continuous number, so bare ground follows the hillside
+      // instead of speckling across it.
+      const steep = slopeAt(wx, wy, T)
+      // A meadow used to be a 5x5 block of tiles — 6.67 yards square, all
+      // of it flowers or none — and its edges were ruled with a straight
+      // edge.  The same coarse grid read *bilinearly* costs the same four
+      // lookups and gives a blotch.
+      // Four lookups where there was one, so only at the tile's own size:
+      // past that the ground is drawing one square where sixty-four belong
+      // and the edge of a meadow is not a thing anybody can see.  Without
+      // the guard the widest zoom went from 54 frames to 35.
+      const mu = ti / 5, mv = tj / 5
+      const mi = Math.floor(mu), mj = Math.floor(mv)
+      let blotch: number
+      if (grain === 1) {
+        const fx = mu - mi, fy = mv - mj
+        const n00 = hash(mi + 811, mj + 277), n10 = hash(mi + 812, mj + 277)
+        const n01 = hash(mi + 811, mj + 278), n11 = hash(mi + 812, mj + 278)
+        blotch = n00 * (1 - fx) * (1 - fy) + n10 * fx * (1 - fy)
+          + n01 * (1 - fx) * fy + n11 * fx * fy
+      } else blotch = hash(mi + 811, mj + 277)
+      const meadow = BLOOM_TILES.length > 0 && blotch > MEADOW
+      const shore = !water && WATER_TILES.length > 0
+        && (wetAt(wx + T, wy) || wetAt(wx - T, wy)
+          || wetAt(wx, wy + T) || wetAt(wx, wy - T))
+      // What the client painted here beats what the slope guesses, because
+      // one of them is a decision somebody made and the other is arithmetic
+      // over a height field.  Where the paint says grass — or where there is
+      // none at all, which is the synthesised world — the arithmetic gets
+      // its old say.
+      const ink = paintAt(wx, wy)
+      // A road is dirt on ground you could walk a cart over.  The client
+      // paints the same dirt on the scree of every mountainside, so taking
+      // it at face value ran roads up cliffs — the mask is a road network
+      // and a great deal of loose rock, and only the slope tells them apart.
+      const flat = steep <= BARE
+      // A deck where a crossing stands.  In the ground pass and not among
+      // the trees, because a bridge is a floor: it is what you are standing
+      // on rather than something standing beside you.
+      const span = mode === 'plain' ? null : onSpan(wx, wy)
+      // A building's plan, drawn on the ground: stone inside, darker stone
+      // for the wall.  In the ground pass because from above a building is
+      // mostly a floor with a line around it, and because a plan ninety
+      // yards across is not a thing that can be a sprite.
+      const built = span ? null : covers
+      // The roof comes off the building you are standing in.  There are no
+      // interiors here and the abbey holds the people who hand out the work,
+      // so a roof drawn over them is a roof with a quest giver under it —
+      // and the walls are what say where you are anyway.
+      // From outside, a building is its roof and nothing else: the walls
+      // are what you see once you are in it.  Drawn the other way round the
+      // abbey was a roof with its own walls painted over the top, which
+      // reads as ribs on a tent rather than as a building.
+      // A building, from outside, is its roof — **whatever the plan says is
+      // under it**, and that is the whole of it now.
+      //
+      // This used to be three branches: roof if it is not the building you
+      // are standing in, wall where the plan says stone, floor where it says
+      // room.  Two of them were unreachable and one of those unreachabilities
+      // was a bug that is now fixed somewhere else.  `inBuilding` makes
+      // *three* states and not two — `stone === 0 && room === 0` is false
+      // twice — and that third state had no branch, so it fell all the way
+      // down to the outdoor paint: the abbey had brown earth in it and the
+      // inn had grass in the hall.  It is 65% of the outline over all
+      // forty-six plans, 192,671 cells of 295,227, and one building is
+      // 80,746 cells of outline with 253 of floor.
+      //
+      // `327779e` closed the buildings, and a closed building is drawn by
+      // `drawRoom` off its own outline the moment you are inside one.  So
+      // `built.b === under` never reaches this loop, the wall and floor
+      // branches under it are dead, and the third state cannot fall through
+      // any more.  Measured from outside the abbey and outside Goldshire,
+      // what lands under an outline is 2,212 and 525 tiles of `roof` and
+      // nothing else — which `viewcheck` now asserts, because the thing that
+      // keeps this true is a check and not the shape of the expression.
+      /**
+       * Which picture a word gets here.
+       *
+       * A function rather than one expression because the paint now says
+       * *two* words and how much of each, so the chain is walked twice —
+       * and a second copy of a chain is a chain that drifts.
+       */
+      const tileFor = (word: string) => word === 'paved' && PAVED_TILES.length > 0
+        ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
+        : word === 'rock' || word === 'paved' ? ROCK_TILE
+          : (word === 'road' || word === 'crop') && flat
+            ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
+            : word === 'sand' ? SHORE_TILE
+              : shore ? SHORE_TILE
+                : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
+                  : word === 'bloom' || (meadow && h > 0.55)
+                    ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
+                    : steep > BARE
+                      ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
+                      : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+      const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
+        : span ? span.tile
+        : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
+          : tileFor(ink)
+      // What a building's outline got painted with, tallied as it is drawn.
+      //
+      // The check this feeds could not be written any other way without a
+      // second copy of the chain above, and a second copy of a chain is a
+      // chain that drifts.  Counted off the real draw instead: whatever ends
+      // up under an outline this frame, by name.  A building may be drawn in
+      // a roof, a wall and a floor and nothing else.
+      if (built) indoorPaint.set(id, (indoorPaint.get(id) ?? 0) + 1)
+      // One straight blit of a square, centred on the tile's own point —
+      // which is what `wx, wy` has always meant here.
+      // Twenty-one steps over a smooth hillside is a mosaic, and the line
+      // between step nine and step ten is dead straight because every tile
+      // takes its light from the one point at its middle.  Half a step of
+      // jitter from the tile's own hash turns that line into a zigzag: it
+      // costs nothing, it is stable frame to frame, and the hash was
+      // already measured to have no periodicity in it.
+      const step = Math.max(0, Math.min(SHADES - 1, Math.round(
+        ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
+        + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
+      const wide = px * grain
+      // A plate already holds the plain ground under this tile, so what is
+      // left is whatever a plate cannot hold: water, a bridge deck, a
+      // building.
+      if (mode === 'over' && !built && !span && !water) return 0
+      g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+        Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+      // --- and the edge, if this tile is on one ---------------------
+      //
+      // The tile above is the tile's *middle*.  This asks its four corners,
+      // and where they do not agree it lays the higher ground's ring piece
+      // over the top.  That is the whole of the dual-grid trick: the
+      // boundary now falls on half-tile lines, out of a paint mask that has
+      // not gained a byte.
+      //
+      // Only outdoors, and only where the middle is plain ground: a roof, a
+      // wall, a bridge deck and a lake are each one thing all the way
+      // across, and asking a roof what its corners are painted is asking
+      // the wrong question.
+      // And only at the tile's own size.  Past that the ground is already
+      // drawing one square where four belong — `grain` — and an edge
+      // between two grounds at sixteen pixels is a detail nobody can see,
+      // which is the same argument the coarsening itself makes.  It is also
+      // what keeps the widest zoom above its floor: the edge pass is a
+      // second blit a tile, and at 1,134 tiles that is the difference
+      // between 60 frames and 46.
+      //
+      // **And the client's own blend comes first, where there is one.**  A
+      // paint cell now says two words and what share the second has, so an
+      // edge that the ring pieces can only put on a half-tile line is laid
+      // down as the thing it actually is: the second ground, at the alpha
+      // the client painted.  46% of the forest's paint cells carry one.
+      //
+      // It takes the ring pass's place rather than adding to it — the same
+      // one extra blit a tile, so the frame budget is where it was — and
+      // the ring pieces still run where the paint says one word and the
+      // corners disagree anyway, which is the coarse grid disagreeing with
+      // itself.
+      let blended = false
+      if (grain === 1 && !built && !span && !water) {
+        const mix = blendAt(wx, wy)
+        // A nibble's worth is the floor: below one level in fifteen there
+        // is nothing to see and the blit is wasted.
+        if (mix && mix[1] > 1 / MIX_LEVELS) {
+          const other = tileFor(mix[0])
+          if (other !== id) {
+            g.globalAlpha = Math.min(1, mix[1])
+            g.drawImage(ground.c, ground.at[other]!, step * px, px, px,
+              Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+            g.globalAlpha = 1
+            blended = true
+            edged++
+            // Never reset, because a plate is composed once and a check
+            // standing still a second later would see a frame in which no
+            // ground was drawn at all.
+            blendedEver++
           }
         }
-        if (!blended && grain === 1 && !built && !span && !water
-          && ground.at[`${RING['grass']}_n`]) {
-          const half = T / 2
-          const q = [
-            paintAt(wx - half, wy - half), paintAt(wx + half, wy - half),
-            paintAt(wx - half, wy + half), paintAt(wx + half, wy + half),
+      }
+      if (!blended && grain === 1 && !built && !span && !water
+        && ground.at[`${RING['grass']}_n`]) {
+        const half = T / 2
+        const q = [
+          paintAt(wx - half, wy - half), paintAt(wx + half, wy - half),
+          paintAt(wx - half, wy + half), paintAt(wx + half, wy + half),
+        ]
+        if (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3]) {
+          // The best-ranked of the four that has a set of its own, and the
+          // bits saying which corners are its.
+          let top = '', rank = 99
+          for (const m of q) {
+            const r = rankOf(m)
+            if (RING[m] && r < rank) { rank = r; top = m }
+          }
+          const bits = (q[0] === top ? 8 : 0) | (q[1] === top ? 4 : 0)
+            | (q[2] === top ? 2 : 0) | (q[3] === top ? 1 : 0)
+          const which = PIECE[bits]
+          const cut = top && which ? ground.at[`${RING[top]}_${which}`] : undefined
+          if (cut !== undefined) {
+            g.drawImage(ground.c, cut, step * px, px, px,
+              Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+            edged++
+            blendedEver++
+          }
+        }
+        // And the shore, which is the boundary this forest has most of and
+        // the one it drew worst: a flat square of `dirt2` wherever a tile
+        // touched water.  `watergrass.png` is a whole grass-to-water set,
+        // already composited, so it is laid down instead of the tile rather
+        // than over it — the same sixteen corners, asked of the water mask.
+        else if (ground.at['t_shore_n']) {
+          const lit = [
+            wetAt(wx - half, wy - half) ? 0 : 8,
+            wetAt(wx + half, wy - half) ? 0 : 4,
+            wetAt(wx - half, wy + half) ? 0 : 2,
+            wetAt(wx + half, wy + half) ? 0 : 1,
           ]
-          if (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3]) {
-            // The best-ranked of the four that has a set of its own, and the
-            // bits saying which corners are its.
-            let top = '', rank = 99
-            for (const m of q) {
-              const r = rankOf(m)
-              if (RING[m] && r < rank) { rank = r; top = m }
-            }
-            const bits = (q[0] === top ? 8 : 0) | (q[1] === top ? 4 : 0)
-              | (q[2] === top ? 2 : 0) | (q[3] === top ? 1 : 0)
-            const which = PIECE[bits]
-            const cut = top && which ? ground.at[`${RING[top]}_${which}`] : undefined
-            if (cut !== undefined) {
-              ctx.drawImage(ground.c, cut, step * px, px, px,
-                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-              edged++
-            }
-          }
-          // And the shore, which is the boundary this forest has most of and
-          // the one it drew worst: a flat square of `dirt2` wherever a tile
-          // touched water.  `watergrass.png` is a whole grass-to-water set,
-          // already composited, so it is laid down instead of the tile rather
-          // than over it — the same sixteen corners, asked of the water mask.
-          else if (ground.at['t_shore_n']) {
-            const lit = [
-              wetAt(wx - half, wy - half) ? 0 : 8,
-              wetAt(wx + half, wy - half) ? 0 : 4,
-              wetAt(wx - half, wy + half) ? 0 : 2,
-              wetAt(wx + half, wy + half) ? 0 : 1,
-            ]
-            const bits = lit[0]! | lit[1]! | lit[2]! | lit[3]!
-            const which = bits === 15 ? null : PIECE[bits]
-            const cut = which ? ground.at[`t_shore_${which}`] : undefined
-            if (cut !== undefined) {
-              ctx.drawImage(ground.c, cut, step * px, px, px,
-                Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-              edged++
-            }
+          const bits = lit[0]! | lit[1]! | lit[2]! | lit[3]!
+          const which = bits === 15 ? null : PIECE[bits]
+          const cut = which ? ground.at[`t_shore_${which}`] : undefined
+          if (cut !== undefined) {
+            g.drawImage(ground.c, cut, step * px, px, px,
+              Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+            edged++
+            blendedEver++
           }
         }
-        tilesDrawn++
+      }
+      return 1
+    }
+
+    /**
+     * The plain ground, composed a plate at a time and kept.
+     *
+     * **The count was never 68,910.**  The issue that asked for this took its
+     * numbers from before the grain doubling, which already holds the tile
+     * count near four thousand at every zoom.  Measured, what is actually
+     * wrong is narrower and worse: at half zoom the grain has not doubled yet
+     * and the blend pass is still on, so the ground is **3,900 tiles and 1,392
+     * blends every frame — thirty frames a second**, against sixty either side
+     * of it.  Taking the blits out and leaving the loop runs at fifty-nine, so
+     * it is the blitting and not the arithmetic.
+     *
+     * A plate is `PLATE` tiles square, composed once and blitted whole.  It is
+     * keyed on the tile grid rather than on the client's chunks so that it
+     * lines up at every grain, and on the zoom because the tinted strip is.
+     * Nothing else invalidates it: the ground's light is the hillside's own
+     * and does not move with the hour — the sky is a wash over the top.
+     */
+    const plateOf = (pi: number, pj: number, mayMake: boolean) => {
+      const key = `${pi},${pj}`
+      const had = plates.get(key)
+      if (had) { had.used = frames; return had }
+      if (!mayMake) return null
+      const side = PLATE * px * grain
+      const want = Math.ceil(side) ** 2 * 4
+      if (side < 1 || want > PLATE_BUDGET) return null
+      // Least recently looked at goes first.  Refusing instead — which is what
+      // this did at first — means that once a camera has roamed the budget is
+      // full of ground nobody is standing on and **no new plate is ever made
+      // again**: `viewcheck` teleports around the forest and arrived back at
+      // 1,040 loose tiles and not one plate.
+      while (plateBytes + want > PLATE_BUDGET && plates.size) {
+        let old = ''
+        let when = Infinity
+        for (const [k, v] of plates) if (v.used < when) { when = v.used; old = k }
+        const gone = plates.get(old)!
+        plates.delete(old)
+        plateBytes -= gone.bytes
+      }
+      const c = document.createElement('canvas')
+      c.width = c.height = Math.ceil(side)
+      const g = c.getContext('2d')!
+      g.imageSmoothingEnabled = false
+      // The plate's own corner in world space, and the screen offset that
+      // puts a tile's centre where the tile pass would put it.
+      const ox = pi * PLATE, oy = pj * PLATE
+      const half = (px * grain) / 2
+      for (let a = 0; a < PLATE; a++) {
+        for (let d = 0; d < PLATE; d++) {
+          // `screenX` falls as world y rises and `screenY` falls as world x
+          // rises — north is up the glass and west is left — so **both**
+          // indices count backwards inside a plate.  With only one of them
+          // reversed the plate lands upside down and the rows that should
+          // have been under it stay black, which is what the first screenshot
+          // showed: a band of nothing above and below a correct middle.
+          const sx = (PLATE - 1 - d) * px * grain + half
+          const sy = (PLATE - 1 - a) * px * grain + half
+          platedEver += paintGround(g, ox + a, oy + d, sx, sy, null, 'plain')
+        }
+      }
+      const made = { c, used: frames, bytes: c.width * c.height * 4, fresh: true }
+      plateBytes += made.bytes
+      plates.set(key, made)
+      return made
+    }
+    if (indoors) { drawRoom(indoors, ground, px); }
+    else {
+      // Plates first, whole, and then the tile pass over them.
+      // At every grain, not only the finest: a plate is keyed on the tile grid
+      // so it doubles with it.  Restricted to grain one at first, which left
+      // the quarter zoom exactly where it was — 3,850 tiles at 37 frames.
+      const usePlates = PLATE * px > 8
+      // **How many may be composed in one frame.**  A camera that jumps finds
+      // every plate missing at once, and composing a dozen of them is three
+      // thousand tile draws in a single frame: measured, that took the ground
+      // from sixty frames to fifteen — the cost did not go away, it moved into
+      // a hitch.  Two a frame spreads it, and the tiles a plate has not
+      // reached yet are drawn the old way in the meantime, so nothing is ever
+      // missing from the screen.
+      let budget = 2
+      const done = new Set<string>()
+      if (usePlates) {
+        for (let pi = Math.floor(xLo / PLATE); pi <= Math.floor(xHi / PLATE); pi++) {
+          for (let pj = Math.floor(yLo / PLATE); pj <= Math.floor(yHi / PLATE); pj++) {
+            const plate = plateOf(pi, pj, budget > 0)
+            if (!plate) continue
+            if (plate.fresh) { budget--; plate.fresh = false }
+            // The plate's top-left on the glass, which is its *largest* tile
+            // index both ways round, less half a tile.
+            const cx = screenX(0, (pj * PLATE + PLATE - 1) * T)
+            const cy = screenY((pi * PLATE + PLATE - 1) * T, 0)
+            ctx.drawImage(plate.c, Math.round(cx - (px * grain) / 2),
+              Math.round(cy - (px * grain) / 2))
+            done.add(`${pi},${pj}`)
+            platesDrawn++
+          }
+        }
+      }
+      for (let ti = xLo; ti <= xHi; ti++) {
+        for (let tj = yLo; tj <= yHi; tj++) {
+          const wx = ti * T, wy = tj * T
+          const cx = screenX(wx, wy), cy = screenY(wx, wy)
+          const edge = px * grain
+          if (cx < -edge || cx > canvas.width + edge
+            || cy < -edge || cy > canvas.height + edge) continue
+          // Asked at the tile's own width, which is the same question the
+          // paint asks, so it is asked once.
+          const covers = inBuilding(wx, wy, T)
+          // Written down before the tile can be skipped, because the outline
+          // of a building that runs off the edge of the screen is not on the
+          // edge of the screen.
+          if (covers) under[(ti - xLo) * (yHi - yLo + 1) + (tj - yLo)] = covers.b
+          tilesInView++
+          const on = done.has(`${Math.floor(ti / PLATE)},${Math.floor(tj / PLATE)}`)
+          tilesDrawn += paintGround(ctx, ti, tj, cx, cy, covers,
+            on ? 'over' : 'all')
+        }
       }
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
@@ -9990,7 +10178,19 @@ async function main() {
     planned: buildings.filter((b) => b.plan).length,
   })
   ;(window as unknown as { __edges: () => unknown }).__edges = () => ({
-    tiles: tilesDrawn, edged, shaded, outlined,
+    tiles: tilesDrawn, inView: tilesInView, edged, shaded, outlined,
+    plates: platesDrawn,
+    blended: blendedEver, plated: platedEver,
+  })
+  /**
+   * What the plain ground is costing, in kept pixels.
+   *
+   * The issue that asked for plates asked for this in the same breath: a cache
+   * is a budget, and one that nothing weighs is a leak with a good name.
+   */
+  ;(window as unknown as { __plates: () => unknown }).__plates = () => ({
+    kept: plates.size, bytes: plateBytes, budget: PLATE_BUDGET,
+    side: PLATE_PX, drawn: platesDrawn,
   })
   /**
    * What the client painted, as the scene actually has it.

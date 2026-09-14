@@ -449,8 +449,32 @@ check('and a good share of the forest actually carries one',
   })
   await p.waitForTimeout(700)
   const drew = await p.evaluate(() => window.__edges())
-  check('and the ground pass lays the second one down', drew.edged > 0,
-    `${drew.edged} of ${drew.tiles} tiles blended or edged last frame`)
+  // Counted since the page opened rather than off the last frame: the plain
+  // ground is composed into plates now, once each, so a check that stands
+  // still for a second sees a frame in which nothing was composed at all.
+  check('and the ground pass lays the second one down', drew.blended > 0,
+    `${drew.blended.toLocaleString()} blends laid down so far, `
+    + `${drew.plates} plates and ${drew.tiles} loose tiles last frame`)
+
+  // 9b3. And the ground is drawn a plate at a time rather than a tile at a
+  // time.  The issue that asked for this quoted 68,910 stamps a frame and that
+  // number is from before the grain doubling; what was actually wrong is
+  // narrower and worse — at half zoom the grain has not doubled yet and the
+  // blend pass is still on, so the ground was 3,900 tiles and 1,392 blends
+  // every frame at **thirty frames a second**, against sixty either side.
+  await p.evaluate(() => window.__cam({ x: -9055, y: -298, zoom: 0.5 }))
+  await p.waitForTimeout(1400)
+  const wide = await p.evaluate(() => window.__edges())
+  check('and the plain ground is drawn a plate at a time, not a tile at a time',
+    wide.plates > 0 && wide.plates + wide.tiles < wide.inView / 4,
+    `${wide.plates} plates and ${wide.tiles} loose tiles for `
+    + `${wide.inView.toLocaleString()} tiles of view`)
+  // A cache is a budget, and one nothing weighs is a leak with a good name.
+  const kept = await p.evaluate(() => window.__plates())
+  check('and what it keeps to do that is inside its budget',
+    kept.bytes <= kept.budget,
+    `${(kept.bytes / 1048576).toFixed(1)} MB over ${kept.kept} plates of a `
+    + `${(kept.budget / 1048576).toFixed(0)} MB budget`)
 }
 
 // 9c. The floor the client takes out of its own ground.  `holes` is sixteen
@@ -1566,13 +1590,20 @@ console.log(`      (${who.wet} in water, all of them ${who.lives.join(', ')}; `
 // its four corners rather than by its middle: sixteen pieces for the sixteen
 // ways four corners can be one ground or the other, and the boundary lands on
 // half-tile lines **without the paint mask gaining a byte**.
+//
+// Counted over a **fresh** composition rather than off a frame.  The plain
+// ground is composed into plates once each and then kept, so a frame in which
+// the camera is standing still draws no ground at all and both numbers are
+// nought — which is what this check read the day plates went in.
+const was = await p.evaluate(() => window.__edges())
 await p.evaluate(() => window.__cam({ x: -9100, y: -350, zoom: 0.8 }))
-await p.waitForTimeout(600)
-const seam = await p.evaluate(() => window.__edges())
+await p.waitForTimeout(900)
+const now = await p.evaluate(() => window.__edges())
+const seam = { edged: now.blended - was.blended, tiles: now.plated - was.plated }
 check('a boundary between two grounds is drawn as one',
-  seam.edged > seam.tiles * 0.05,
-  `${seam.edged} of ${seam.tiles} tiles are an edge piece`)
-console.log(`      (${(100 * seam.edged / seam.tiles).toFixed(0)}% of this view `
+  seam.tiles > 0 && seam.edged > seam.tiles * 0.05,
+  `${seam.edged} of ${seam.tiles} newly composed tiles are an edge or a blend`)
+console.log(`      (${(100 * seam.edged / Math.max(1, seam.tiles)).toFixed(0)}% of this view `
   + 'is a boundary between two grounds)')
 
 // 10j. A building is closed, and a door is how you get in.

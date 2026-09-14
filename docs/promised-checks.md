@@ -87,8 +87,9 @@ keeps it honest.
 | 섞임이 클라이언트가 가진 정밀도로 유지된다 | `scripts/viewcheck.mjs: "and the mix is kept at the precision the client has, not more"` |
 | 숲의 상당 부분이 실제로 두 번째 바닥을 들고 있다 | `scripts/viewcheck.mjs: "and a good share of the forest actually carries one"` |
 | 땅을 그릴 때 두 번째 것이 실제로 깔린다 | `scripts/viewcheck.mjs: "and the ground pass lays the second one down"` |
-| 보이는 청크 캐시가 예산 안이다 | — 청크 비트맵이 아직 없다 (#212) |
-| 그리는 횟수가 지금보다 적다 | — 청크 비트맵이 아직 없다 (#212) |
+| 보이는 청크 캐시가 예산 안이다 | `scripts/viewcheck.mjs: "and what it keeps to do that is inside its budget"` |
+| 그리는 횟수가 지금보다 적다 | `scripts/viewcheck.mjs: "and the plain ground is drawn a plate at a time, not a tile at a time"` |
+| 땅이 타일 하나씩이 아니라 판 하나씩 그려진다 | `scripts/viewcheck.mjs: "and the plain ground is drawn a plate at a time, not a tile at a time"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
 
 ## [세계가-비어-보인다](https://github.com/kyhsa93/abyss/wiki/세계가-비어-보인다)
