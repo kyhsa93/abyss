@@ -256,22 +256,35 @@ for (const [W, H] of SIZES) {
     // game is not the interface.  A script click does no hit testing, so the
     // check passed and the screen could not be used by a finger or a mouse.
     // *A check that reads the same side as the bug is blind to it.*
-    const hairs = p.locator('#create .looks').nth(0).locator('.pick')
-    const beards = p.locator('#create .looks').nth(1).locator('.pick')
-    const looked = { hairs: await hairs.count(), beards: await beards.count() }
-    await hairs.nth(looked.hairs - 1).click()
-    await beards.nth(looked.beards - 1).click()
+    //
+    // The choices are drop-downs now, and the open list is the browser's own
+    // window, which a page cannot click into.  So the pointer goes as far as
+    // it can — a trial click, which runs the same hit test a real one does and
+    // fails on a control under `pointer-events: none` — and the row is then
+    // chosen the way the list would choose it.
+    const choose = async (sel, index) => {
+      await sel.click({ trial: true })
+      await sel.selectOption({ index })
+    }
+    const hairs = p.locator('#create .looks').nth(0).locator('select')
+    const beards = p.locator('#create .looks').nth(1).locator('select')
+    const looked = {
+      hairs: await hairs.locator('option').count(),
+      beards: await beards.locator('option').count(),
+    }
+    await choose(hairs, looked.hairs - 1)
+    await choose(beards, looked.beards - 1)
     // And the class row, which is the one that changes what walks out.
     // A *different* row, because pressing the one that is already chosen is a
     // check that passes whether or not the press arrived — which is the same
     // shape of blindness as clicking from script.
-    const classes = p.locator('#create .classes .pick')
+    const classes = p.locator('#create .classes select')
     const before = await p.evaluate(() => window.__make().cls)
-    await classes.nth(1).click()
+    await choose(classes, 1)
     const heard = await p.evaluate(() => window.__make().cls)
     check('the screen answers a real press', heard !== before && heard > 0,
-      `class ${before} -> ${heard} after pressing the second row`)
-    await classes.nth(0).click()
+      `class ${before} -> ${heard} after choosing the second row`)
+    await choose(classes, 0)
     check('there are appearances to choose from',
       looked.hairs >= 8 && looked.beards >= 3,
       `${looked.hairs} hairstyles, ${looked.beards} beards including none`)

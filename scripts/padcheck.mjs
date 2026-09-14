@@ -64,7 +64,7 @@ for (const [name, w, h] of [['standing', 390, 844], ['lying down', 844, 390]]) {
   await p.waitForTimeout(400)
   const made = await p.evaluate(() => {
     const all = [...document.querySelectorAll(
-      '#create .pick, #create .ok, #create .dice, #create .name')]
+      '#create .pick, #create .drop, #create .ok, #create .dice, #create .name')]
       // A control with no box is a control nobody can miss: the way back is
       // hidden on the first screen because there is nowhere to go back to.
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 })

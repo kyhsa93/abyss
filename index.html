@@ -540,12 +540,32 @@
       }
       #create .seen canvas { image-rendering: pixelated; }
       #create .right { display: flex; flex-direction: column; gap: 10px; }
-      #create .group { display: flex; }
-      /* The races go down a list the client sizes at 220 by 220 and scrolls —
-         that is what a `<ScrollFrame>` is.  Ten of them at 38 with a 21 gap do
-         not fit in 220, in the original either. */
-      #create .races { flex-direction: column; overflow-y: auto; }
-      #create .sexes, #create .classes, #create .looks { flex-wrap: wrap; }
+      /* A group is its name and then its control.  The name is new: a row of
+         twelve hairstyles says what it is by being twelve hairstyles, and a
+         closed drop-down showing 보통 says nothing about which choice it is. */
+      #create .group { display: flex; align-items: center; gap: 10px; }
+      #create .cap {
+        flex: 0 0 3em; color: var(--gold);
+        font: var(--font-small)/1.2 var(--mono);
+      }
+      #create .buttons { display: flex; flex-wrap: wrap; }
+      /* `appearance: none` so a Windows desktop and a phone draw the same box;
+         the arrow is the only part of the native one worth keeping, so it is
+         put back as a picture. */
+      #create .drop {
+        appearance: none; -webkit-appearance: none;
+        background: rgba(0,0,0,.4) no-repeat right 9px center / 10px 6px
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23c8aa6e'/%3E%3C/svg%3E");
+        border: 1px solid var(--gold-dark); border-radius: 3px;
+        color: var(--gold); font: inherit; padding: 0 28px 0 8px;
+        box-sizing: border-box; cursor: pointer;
+      }
+      #create .drop:hover { border-color: var(--gold); }
+      #create .drop:focus-visible { outline: 1px solid var(--gold); outline-offset: 1px; }
+      /* The open list is drawn by the browser, and without these it is white
+         on a dark screen. */
+      #create .drop option { background: #14110e; color: var(--ink); }
+      #create .drop option:disabled { color: #6f7280; }
       #create .pick {
         display: flex; flex-direction: column; justify-content: center;
         background: rgba(201,168,106,.08); border: 1px solid var(--gold-dark);
@@ -590,10 +610,13 @@
       body.touch #create .pick,
       body.touch #create .ok,
       body.touch #create .dice,
-      body.touch #create .name { min-height: 44px; }
+      body.touch #create .name,
+      body.touch #create .drop { min-height: 44px; }
+      /* The width of the glass rather than the client's 230, which `drop`
+         leaves off on a phone. */
+      body.touch #create .drop { flex: 1 1 0; min-width: 0; }
       body.touch #create .cols { flex-direction: column; gap: 10px; }
       body.touch #create .stage { width: calc(100vw - 20px); }
-      body.touch #create .races { flex-direction: row; flex-wrap: wrap; }
       /* **The preview does not scroll away.**  It is 410 pixels of the top of
          a 844-pixel screen and it went up with everything else, so by the time
          you were choosing a beard you could not see what a beard did. */
@@ -633,7 +656,6 @@
       /* The two groups that were siblings of the preview become one scrolling
          pane beside it.  `display: contents` cannot be used — the pane has to
          be a box for the scrolling to happen in. */
-      body.touch.lying #create .races,
       body.touch.lying #create .right { max-height: none; }
       body.touch.lying #create .pane {
         flex: 1; min-width: 0; overflow-y: auto;

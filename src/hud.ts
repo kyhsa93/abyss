@@ -439,13 +439,17 @@ export function hud(layout?: Layout) {
    * on a 844 x 390 screen instead of three.
    */
   const createPane = el('div', 'pane', createCols)
-  const createRaces = el('div', 'group races', createPane)
   const createRight = el('div', 'right', createPane)
+  // The race is one drop-down among the others now, so it sits in the same
+  // column as them rather than in a list box of its own beside it.
+  const createRaces = el('div', 'group races', createRight)
   const createSexes = el('div', 'group sexes', createRight)
   const createClasses = el('div', 'group classes', createRight)
   const createLooks = el('div', 'group looks', createRight)
   const createBeards = el('div', 'group looks', createRight)
-  const createName = el('input', 'name', createRight) as HTMLInputElement
+  const createNamed = el('div', 'group named', createRight)
+  el('span', 'cap', createNamed).textContent = '이름'
+  const createName = el('input', 'name', createNamed) as HTMLInputElement
   createName.maxLength = 12
   const createFoot = el('div', 'foot', createBox)
   const createSay = el('div', 'say', createFoot)
@@ -1868,10 +1872,9 @@ export function hud(layout?: Layout) {
   /**
    * Draw the screen that makes a character.
    *
-   * Lifted out of `setCreate` so that opening the folded races can draw it
-   * again: a fold that cannot redraw is a fold that opens once and stays shut.
+   * Lifted out of `setCreate` so that `place()` can draw it again when a phone
+   * is recognised or turned.
    */
-  let openRaces = false
   /** The last thing drawn, so turning the phone can draw it again. */
   let lastMade: MakeScreen | null = null
   const drawCreate = (made: MakeScreen) => {
@@ -1886,36 +1889,19 @@ export function hud(layout?: Layout) {
   }
   const sz = made.size
   /**
-   * How small a thing a finger may be asked to hit.
+   * A row of buttons, for a choice that is short enough to see whole.
    *
-   * The sizes in this screen are the client's own, out of
-   * `CharacterCreate.xml`, and on a phone they come out **38 pixels —
-   * all thirty-nine of them**.  Forty-four is the number both phone
-   * platforms publish and it is the same floor `padcheck` already holds
-   * the game's own controls to; this screen was never asked because it
-   * happens before the game starts.  A number the client states is not
-   * automatically a number a thumb can use.
+   * Only the sex is still one: two words side by side say more than a
+   * drop-down that has to be opened to find out there was a second.
    */
-  /** Whether the races that cannot be picked are folded away. */
-  const row = (into: HTMLElement, list: Choice[], now: number,
-    pick: (id: number) => void, w: number, h: number, gap: number,
-    fold = false) => {
+  const row = (into: HTMLElement, caption: string, list: Choice[], now: number,
+    pick: (id: number) => void, w: number, h: number, gap: number) => {
     into.textContent = ''
-    into.style.gap = `${gap}px`
-    // **What cannot be chosen was taking the screen.**  Nine of the ten
-    // races are outside this slice and each one carries a second line
-    // saying so — 220 pixels standing up, half of the first screenful, to
-    // say nothing you can act on.  Saying *what is not here and why* is a
-    // rule this repository keeps (issue 185), and it can be kept in one
-    // line: they fold, and a tap opens them.
-    // Asked when it runs and not once at the top: this screen is drawn before
-    // `place()` has decided the page is a phone, so a snapshot taken up there
-    // is `false` and stays false until something redraws.
-    const phone = document.body.classList.contains('touch')
-    const shut = phone && fold && !openRaces
-    const shown = shut ? list.filter((c) => c.can) : list
-    for (const c of shown) {
-      const b = el('button', 'pick', into) as HTMLButtonElement
+    el('span', 'cap', into).textContent = caption
+    const buttons = el('div', 'buttons', into)
+    buttons.style.gap = `${gap}px`
+    for (const c of list) {
+      const b = el('button', 'pick', buttons) as HTMLButtonElement
       b.style.minWidth = `${w}px`
       // The height is the client's own number; the floor a finger needs is a
       // `min-height` in the stylesheet, which clamps it without a second
@@ -1927,39 +1913,68 @@ export function hud(layout?: Layout) {
       if (c.why) el('span', 'why', b).textContent = c.why
       b.onclick = () => pick(c.id)
     }
-    if (phone && fold && list.length > shown.length) {
-      const more = el('button', 'pick more', into) as HTMLButtonElement
-      more.style.minWidth = `${w}px`
-      more.style.height = `${h}px`
-      el('span', 'word', more).textContent =
-        `이 상자 밖 ${list.length - shown.length}가지`
-      more.onclick = () => { openRaces = true; drawCreate(made) }
+  }
+  /**
+   * One of many, as a drop-down.
+   *
+   * **Thirty-nine buttons was the screen, and seventeen of them were hair.**
+   * Twelve hairstyles and five beards wrapped to three rows on a desktop and
+   * seven on a phone, the race list was a 220-pixel box that clipped its own
+   * words, and on a phone standing up the beards were under the foot.  One
+   * control a group puts every group on the glass at once, and a race that
+   * cannot be picked is still in the list, greyed, with its reason on the same
+   * line — which is the rule the fold was keeping, without the fold.
+   *
+   * Built once and then only updated: the scene redraws this screen on every
+   * key typed into the name, and a `<select>` rebuilt under an open list or a
+   * keyboard focus closes it and drops the focus.
+   */
+  const drop = (into: HTMLElement, caption: string, list: Choice[],
+    now: number, pick: (id: number) => void, w: number, h: number) => {
+    let sel = into.querySelector('select')
+    if (!sel) {
+      into.textContent = ''
+      const cap = el('label', 'cap', into)
+      cap.textContent = caption
+      sel = el('select', 'drop', into) as HTMLSelectElement
+      sel.setAttribute('aria-label', caption)
     }
+    const key = list.map((c) => `${c.id} ${c.word} ${c.can} ${c.why ?? ''}`)
+      .join('|')
+    if (sel.dataset.key !== key) {
+      sel.dataset.key = key
+      sel.textContent = ''
+      for (const c of list) {
+        const o = el('option', '', sel) as HTMLOptionElement
+        o.value = String(c.id)
+        o.dataset.word = c.word
+        if (c.why) o.dataset.why = c.why
+        o.textContent = c.why ? `${c.word} — ${c.why}` : c.word
+        o.disabled = !c.can
+      }
+    }
+    sel.value = String(now)
+    // The client's width on a screen shaped like the client's; on a phone the
+    // row is the width of the glass and the stylesheet says so.
+    if (document.body.classList.contains('touch')) sel.style.removeProperty('width')
+    else sel.style.width = `${w}px`
+    sel.style.height = `${h}px`
+    const it = sel
+    it.onchange = () => pick(Number(it.value))
   }
-  // The client's own list box — 220 by 220 with a scrollbar of its own — only
-  // on a screen shaped like the client's.  On a phone the races are a wrapped
-  // row, and a 220-pixel box with a scroller inside a scroller is two
-  // scrollbars fighting: lying down the list scrolled itself out from under
-  // the title.
-  if (document.body.classList.contains('touch')) {
-    createRaces.style.removeProperty('max-height')
-    createRaces.style.removeProperty('width')
-  } else {
-    createRaces.style.maxHeight = `${made.list[1]}px`
-    createRaces.style.width = `${made.list[0]}px`
-  }
-  row(createRaces, made.races, made.race, made.pickRace,
-    made.list[0] - 20, sz.race[1], made.racePitch[1], true)
-  row(createSexes, made.sexes, made.sex, made.pickSex,
+  // Appearance is the original's `CharacterCustomizationFrameTemplate`, 230 by
+  // 32, and every drop-down takes that width so the four line up.
+  const wide = sz.look[0]
+  drop(createRaces, '종족', made.races, made.race, made.pickRace,
+    wide, sz.race[1])
+  row(createSexes, '성별', made.sexes, made.sex, made.pickSex,
     sz.sex[0] * 2, sz.sex[1], made.classPitch[0])
-  row(createClasses, made.classes, made.cls, made.pickClass,
-    sz.class[0] * 2, sz.class[1], made.classPitch[0])
-  // Appearance, at the size the original gives one of its five rows —
-  // `CharacterCustomizationFrameTemplate`, 230 by 32.
-  row(createLooks, made.hairs, made.hair, made.pickHair,
-    sz.look[0] / 2, sz.look[1], made.classPitch[0])
-  row(createBeards, made.beards, made.beard, made.pickBeard,
-    sz.look[0] / 2, sz.look[1], made.classPitch[0])
+  drop(createClasses, '직업', made.classes, made.cls, made.pickClass,
+    wide, sz.class[1])
+  drop(createLooks, '머리', made.hairs, made.hair, made.pickHair,
+    wide, sz.look[1])
+  drop(createBeards, '수염', made.beards, made.beard, made.pickBeard,
+    wide, sz.look[1])
   createName.style.width = `${sz.name[0]}px`
   createName.style.height = `${sz.name[1]}px`
   createName.placeholder = '이름'

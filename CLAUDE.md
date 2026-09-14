@@ -144,6 +144,20 @@ row, and the two fought. And **a wrapped row inside a column flex shrinks to
 nothing** — the whole race row simply was not there until it was told not to,
 which is the trap `#create .pick` already carried a note about.
 
+**Then the fold and the list box went, because four of the groups became
+drop-downs.** Race, class, hairstyle and beard are one `<select>` each; only the
+sex is still two buttons, because two words side by side say more than a
+control you have to open to learn there was a second. Seventeen of the
+thirty-nine buttons had been hair, the race box clipped its own words on a
+desktop, and standing up the beards were under the foot. A row that cannot be
+picked stays in the list, greyed, with its reason on the same line — the rule
+the fold was keeping, without the fold. Two things about it are not obvious.
+The `<select>` is **built once and updated**, because the scene redraws this
+screen on every key typed into the name and a rebuilt one closes under the
+finger. And the open list is the browser's own window, which a page cannot
+click into, so `uicheck` runs a **trial click** — the same hit test a real one
+does — before it chooses the row.
+
 **The player's frame on a phone is the old game's, and what came over is the
 arithmetic and not the pixels.** the tag `icc-final` derives every
 number from the glass — `ui = min(w, h) / 760` held between 0.62 and 1.15, a

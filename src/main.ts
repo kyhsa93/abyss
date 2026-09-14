@@ -12066,12 +12066,25 @@ async function main() {
         w: Math.round((e as HTMLElement).getBoundingClientRect().width),
         h: Math.round((e as HTMLElement).getBoundingClientRect().height),
       }))
+    // A drop-down's rows have no box of their own while it is shut, so each
+    // one reports the size of the control it is chosen through.
+    const drop = (sel: string) => {
+      const s = box?.querySelector(sel) as HTMLSelectElement | null
+      const r = s?.getBoundingClientRect()
+      return Array.from(s?.options ?? []).map((o) => ({
+        word: o.dataset.word ?? '',
+        can: !o.disabled,
+        why: o.dataset.why ?? '',
+        w: Math.round(r?.width ?? 0),
+        h: Math.round(r?.height ?? 0),
+      }))
+    }
     return {
       up: box ? !box.hidden : false,
       made: me ? { ...me } : null,
       race: makeRace, cls: makeClass, sex: makeSex,
-      races: pick('.races .pick'),
-      classes: pick('.classes .pick'),
+      races: drop('.races select'),
+      classes: drop('.classes select'),
       sexes: pick('.sexes .pick'),
       // The table the screen is supposed to be made of.
       pairs: layout?.who?.pairs ?? [],
