@@ -1083,19 +1083,31 @@ GROUND_KINDS = [
     ('COBBLE', 'paved'), ('BRICK', 'paved'), ('PAVE', 'paved'),
     ('ROAD', 'road'), ('DIRT', 'road'), ('TRAIL', 'road'), ('PATH', 'road'),
     ('CROP', 'crop'), ('FARM', 'crop'), ('FIELD', 'crop'),
-    ('ROCK', 'rock'), ('CLIFF', 'rock'),
-    # Found by the audit: eight thousand layers were taking the `grass`
-    # fallback and a fifth of them were the Burning Steppes — ash, charcoal and
-    # lava drawn as a green lawn, because nothing named them.
-    ('ASH', 'rock'), ('CHARCOAL', 'rock'), ('LAVA', 'rock'),
-    ('RUBBLE', 'rock'), ('BLACK', 'rock'),
+    # **Ash is not stone**, and it was.  Found by the audit first: eight
+    # thousand layers were taking the `grass` fallback and a fifth of them were
+    # the Burning Steppes, so they were named — and named `rock`, which put
+    # grey granite over the whole burnt quarter of the slice.  Counted, the
+    # five ash and charcoal textures cover **8.7%** of it, second only to the
+    # forest's own grass and its rock.  A word of its own, and the picture is
+    # a burnt earth rather than a cliff face.
+    ('ASH', 'ash'), ('CHARCOAL', 'ash'), ('LAVA', 'ash'),
+    ('BLACK', 'ash'),
+    ('ROCK', 'rock'), ('CLIFF', 'rock'), ('RUBBLE', 'rock'),
     ('STRAW', 'crop'),
     ('FLOWER', 'bloom'),
     ('SNOW', 'snow'), ('SAND', 'sand'),
 ]
 # The order the scene should prefer when two of them cover the same texel, most
 # deliberate first: somebody laid a road, and grass is what happens anyway.
-GROUND_ORDER = ['paved', 'road', 'crop', 'sand', 'snow', 'rock', 'bloom', 'grass']
+#
+# **Four bits a word and not three.**  A paint cell packs two of these into one
+# byte, and at three bits apiece the list could never have more than eight
+# entries — so the day `ash` earned a word of its own the format was the thing
+# in the way.  Four and four is the same byte and sixteen words, which is more
+# than the client's fifty-one textures fold to by any reading of them.
+GROUND_ORDER = ['paved', 'road', 'crop', 'sand', 'snow', 'ash', 'rock',
+                'bloom', 'grass']
+assert len(GROUND_ORDER) <= 16, 'a paint cell holds two of these in one byte'
 
 
 def classify_ground(path):
@@ -1799,7 +1811,7 @@ def bake(client, bounds, out, acore=None):
                         a_word, b_word, mix = got[by * GSUB + bx]
                         at = (I - i2_lo) * h2 + (J - j2_lo)
                         groundmask[at] = (GROUND_ORDER.index(a_word)
-                                          | (GROUND_ORDER.index(b_word) << 3))
+                                          | (GROUND_ORDER.index(b_word) << 4))
                         if at & 1:
                             groundmix[at >> 1] |= mix << 4
                         else:
@@ -2064,7 +2076,7 @@ def bake(client, bounds, out, acore=None):
     tally = {}
     blended = 0
     for at, v in enumerate(groundmask):
-        k = GROUND_ORDER[v & 7]
+        k = GROUND_ORDER[v & 15]
         tally[k] = tally.get(k, 0) + 1
         nib = (groundmix[at >> 1] >> 4) if at & 1 else (groundmix[at >> 1] & 15)
         if nib:

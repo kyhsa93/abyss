@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-14T11:16:36Z",
+  "baked": "2026-09-14T13:31:57Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -55,7 +55,7 @@
     "public/world/terrain.json": "9581733c53937196",
     "public/world/trades.json": "fa4ba16b7a639b07",
     "public/data/objects.json": "910c35e6c4f2938b",
-    "public/data/terrain.bin": "1e6e483a57d8dec8",
-    "public/data/terrain.json": "6c8a7bb9e467dd18"
+    "public/data/terrain.bin": "e0a982e1f00c233c",
+    "public/data/terrain.json": "55187b78bc49c32c"
   }
 }

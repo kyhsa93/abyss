@@ -157,6 +157,42 @@ check('and they run in Node with no browser at all',
   check('every place is the kind of place its name claims', wrong.length === 0,
     wrong.join('; '))
 
+  // **Nothing in the pipeline may open one of the client's textures.**
+  //
+  // The dangerous discovery of issue 214 is that they open: a `.blp` is 43 KB
+  // of 256 by 256 RGB and PIL reads all fifty-one of them without being asked
+  // twice.  So it is easy, and the boundary says no — Blizzard's art stays in
+  // the archive and what leaves is numbers.
+  //
+  // A grep over the *output* cannot say this.  A texture decoded and re-cut
+  // into a tile carries no path and no archive name with it; it would go
+  // straight through the bake's own boundary grep, which looks for strings.
+  // What can be said, and is the whole invariant, is that **no code here
+  // reads one** — the pipeline handles the client's texture names as words to
+  // classify and never as files to open.
+  //
+  // Two kinds of line are looked for: a read whose path ends in `.blp`, and a
+  // decoder — nothing here should know what a BLP header looks like.  Naming
+  // one in a string, which `classify_ground` does fifty-one times a chunk, is
+  // the thing this is *for* and is not a read.
+  const opens = []
+  for (const f of readdirSync('pipeline').filter((n) => n.endsWith('.py'))) {
+    const src = readFileSync(join('pipeline', f), 'utf8')
+    for (const [i, line] of src.split('\n').entries()) {
+      const bare = line.replace(/#.*$/, '')
+      if (/(read|open|load|decode)\s*\([^)]*\.blp/i.test(bare)
+        || /BLP[12]/.test(bare) || /blp_?(read|decode|open|to_)/i.test(bare)) {
+        opens.push(`${f}:${i + 1}`)
+      }
+    }
+  }
+  check("and nothing in the pipeline opens one of the client's textures",
+    opens.length === 0,
+    opens.length ? opens.join(', ')
+      : `${readdirSync('pipeline').filter((n) => n.endsWith('.py')).length} `
+      + 'files, and the only thing any of them does with a texture is read its '
+      + 'name and answer with a word of ours')
+
   // The two the issue asked for by name, stated as rules rather than as a
   // list of ten corrections — a correction is good once and a rule is good
   // every time the world is rebaked.

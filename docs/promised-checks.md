@@ -46,6 +46,7 @@ keeps it honest.
 | 그린 그림의 문 자리가 구운 문 좌표와 맞는다 | — 건물 스프라이트가 아직 없다 (#216) |
 | 건물마다 그림이 있고, 없으면 세어 출력한다 | `pipeline/facade.py: "sheets cover half the placements"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
+| 파이프라인의 어떤 줄도 `.blp` 를 열지 않는다 | `scripts/bordercheck.mjs: "and nothing in the pipeline opens one of the client's textures"` |
 | 보이는 건물 스프라이트가 예산 안이다 | — 건물 스프라이트가 아직 없다 (#218 이 값을 재 두었다) |
 | **굴이 지어낸 것이 아니라 모델에서 온다** | `scripts/viewcheck.mjs: "the mines are dug from where the world stands its creatures"` |
 | 굴의 입구가 지형 구멍(`gaps` 674칸)과 맞는다 | `scripts/viewcheck.mjs: "the mouth of a mine is a hole and not ground"` |

@@ -843,6 +843,12 @@ for (const [W, H] of SIZES) {
       const both = await p.evaluate(async () => {
         const cast = async (first, second) => {
           window.__setAuto(false)
+          // Both runs start with the bar full.  Without this the first run
+          // spends the rage the second one needs, and the second fires its
+          // right-hand square for a reason that is true — it cannot use the
+          // left one — which reads here as the rule being broken.  It failed
+          // about one run in three and the failure was the weather.
+          window.__fuel()
           // Everything off the bar but these two, so nothing else can fire.
           for (let i = 0; i < 16; i++) window.__place(i, null)
           window.__place(0, first)
@@ -855,6 +861,7 @@ for (const [W, H] of SIZES) {
             await new Promise((r) => setTimeout(r, 50))
           }
           const was = window.__bar().asked
+          window.__fuel()
           window.__setAuto(true)
           for (let i = 0; i < 200; i++) {
             await new Promise((r) => setTimeout(r, 50))

@@ -32,6 +32,14 @@ AUTHORS = {
         'url': ('https://opengameart.org/content/'
                 'lpc-farming-tilesets-magic-animations-and-ui-elements'),
     },
+    # Named in the sheet's attribution document without a licence of his own —
+    # *sand (near the wheat)*, which is the one this bake cuts — so what
+    # applies is the licence the document opens with for the whole sheet.
+    'thompsonj': {
+        'name': 'William Thompsonj',
+        'licences': 'CC-BY-SA 3.0 / GPL 3.0',
+        'url': 'https://opengameart.org/content/lpc-sandrock-alt-colors',
+    },
     'sharm_base': {
         'name': 'Lanea Zimmerman (AKA Sharm)',
         'licences': 'CC-BY-SA 3.0 / CC-BY 3.0 / GPL 3.0 / OGA-BY 3.0',
@@ -217,6 +225,11 @@ GROUND = [
     # came out at (25, 31, 38) — the ranges around the forest read as holes in
     # the map rather than as rock.  `stone` is the same rock lit, at (83, 75,
     # 80), and `rock_floor` stays for anything that wants a cave floor.
+    # Burnt earth, for the Burning Steppes' ash and charcoal — 8.7% of the
+    # slice, which was being drawn as grey granite because `ash` was folded
+    # into `rock`.  Sharm's own black dirt, the fill under the lava on the
+    # same sheet everything else here is cut from.
+    ('ash',        'Terrain and Outside.png', 608, 160, 32, 32, 'sharm'),
     ('rock_floor', 'Terrain and Outside.png', 320,  96, 32, 32, 'sharm'),
     ('stone',      'Terrain and Outside.png', 416,  96, 32, 32, 'sharm'),
     # A laid road, which is a different thing from a rock face and was drawn as
@@ -240,6 +253,14 @@ GROUND = [
     # which, and that is a sentence about the art and not about the data.
     ('roof_shingle', 'roofs-preview.png',     784, 776, 32, 32, 'roofs'),
     ('roof_plank',   'roofs-preview.png',     560, 720, 32, 32, 'roofs'),
+    # Sand, which was the water's own shoreline piece — `watergrass`, a grass
+    # fading into water — used for a beach with no water in it.  Westfall's
+    # three sand textures are 1.7% of the slice.
+    ('sand',       'Terrain and Outside.png', 608, 352, 32, 32, 'thompsonj'),
+    # And a field, which was drawn as bare dirt.  Elwynn and Westfall's crop
+    # textures are only 0.4%, but a farm drawn as a ploughed nothing is the
+    # sort of thing a player walks past and reads as unfinished.
+    ('crop',       'Terrain and Outside.png', 512, 288, 32, 32, 'eddeland'),
     ('cobble',     'castlefloors_outside.png', 64,  32, 32, 32, 'hughspectrum'),
     ('cobble2',    'castlefloors_outside.png', 32,  64, 32, 32, 'hughspectrum'),
     # Two decks, because a bridge's planks run across the way you walk: the

@@ -467,6 +467,51 @@ took sixty frames to fifteen — the cost had not gone, it had moved into a
 hitch. Tiles a plate has not reached yet are drawn the old way meanwhile, so
 nothing is ever missing from the screen.
 
+**Fifty-one of the client's textures fold to nine words, and `ash` was the one
+worth adding.** Counted by the texels they actually cover rather than by how
+often the name appears, the five ash and charcoal textures are **8.6% of the
+slice's box** — and all five were folded into `rock`, so the burnt quarter of
+it came out grey granite. That fold was itself a fix once: the audit found
+eight thousand layers taking the `grass` fallback and named them, and `rock`
+was the wrong name. Two more words were shipped by the bake and had no picture
+in the scene, so they fell through to something else: `sand` was drawn with the
+grass-into-water piece on beaches with no water in them, and `crop` as ploughed
+dirt.
+
+**Three bits was the ceiling on the list and nobody had written that down.** A
+paint cell packs two words into one byte, and at three bits apiece the list
+could never hold more than eight — so the day `ash` earned a word the format
+was what stood in the way. Four and four is the same byte and sixteen words,
+which is more than the client's fifty-one fold to by any reading. There is an
+assertion on it now.
+
+**And what is *drawn* is not what is in the box.** The scene paints only the
+areas this game's zones cover — 71% of the rectangle — and measured against
+that, ash is 1.5% and **sand is nought**: Westfall's beaches are all outside.
+The pictures ship anyway, because the box is what widens when `slice.json`
+does, but a word that draws nowhere today is a thing to say rather than to
+leave looking useful.
+
+**The folds that stay, stay with their numbers.** Aerie Peaks' scrub brush is
+4.3% and keeps `grass`, because there is no dry-brush green on the sheet — the
+duller ones are teal, not olive. Five `DIRT` textures are 12% and keep `road`,
+because the client paints the same dirt on a cart track and on a mountainside
+and only the slope tells them apart, which the scene already does. Granite and
+sandstone keep one `rock`: the names do not carry it, and deriving it from
+which zone a texture belongs to is a word list that grows every time the slice
+does.
+
+**And the one thing that cannot be checked by grepping the output is the one
+that matters.** A `.blp` opens in PIL without being asked twice — all fifty-one
+of them — so the boundary is easy to cross by accident. But a texture decoded
+and re-cut into a tile carries no path and no archive name with it: it would go
+straight through the bake's own boundary grep, which looks for strings. What
+*can* be said is that **no line in the pipeline opens one**, and `bordercheck`
+says it: a read whose path ends in `.blp`, or a decoder — nothing here should
+know what a BLP header looks like. Naming one in a string is what
+`classify_ground` does fifty-one times a chunk and is the thing the check is
+for, not a breach of it.
+
 **The hillside's light is a gradient now, and it cost the atlas nothing.** The
 light is the only thing in this scene that carries height — the projection is
 flat and a tile does not move for a slope — and it was being delivered in
@@ -1256,9 +1301,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty-eight lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty-nine lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and forty-five are; the rest are waiting on a feature nobody has built,
+A hundred and forty-six are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1266,7 +1311,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 443 check labels in the harness, 95 were promised and **348 were written
+of 444 check labels in the harness, 96 were promised and **348 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1276,7 +1321,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone six: 168. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone six and the paint one: 169. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

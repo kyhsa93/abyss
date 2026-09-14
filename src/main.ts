@@ -382,7 +382,7 @@ async function main() {
   const GW = meta.groundWidth ?? 0, GH = meta.groundHeight ?? 0
   const GU = meta.groundUnit ?? 1
   /**
-   * Two words a cell, three bits each, and the mix beside it a nibble a cell.
+   * Two words a cell, **four bits each**, and the mix beside it a nibble.
    *
    * The bake used to send one word: whichever layer's mean passed 170 won the
    * whole block.  A third of the client's overlay texels are part-covered —
@@ -669,7 +669,7 @@ async function main() {
   const paintAt = (wx: number, wy: number): string => {
     const n = paintCell(wx, wy)
     if (n < 0) return 'grass'
-    return PAINT[paint![n]! & 7] ?? 'grass'
+    return PAINT[paint![n]! & 15] ?? 'grass'
   }
   /**
    * The second word here and how much of the cell it has, or null.
@@ -681,7 +681,7 @@ async function main() {
     if (n < 0 || !paintMix) return null
     const nib = n & 1 ? paintMix[n >> 1]! >> 4 : paintMix[n >> 1]! & 15
     if (!nib) return null
-    const word = PAINT[(paint![n]! >> 3) & 7]
+    const word = PAINT[(paint![n]! >> 4) & 15]
     return word ? [word, nib / MIX_LEVELS] : null
   }
   /**
@@ -892,6 +892,19 @@ async function main() {
       .filter((q) => tilesMeta[q]))
   const GROUND_TILES = ways(['grass', 'grass2', 'grass3'])
   const ROCK_TILE = tilesMeta['stone'] ? 'stone' : GROUND_TILES[0]
+  /**
+   * Burnt earth, sand and a field, which used to be stone, a shoreline and
+   * bare dirt.
+   *
+   * Each of the three is a word the bake has always shipped and the scene had
+   * no picture for, so it fell through to something else: the Burning Steppes'
+   * ash — **8.7% of the slice, its second-largest ground** — came out grey
+   * granite, Westfall's beaches came out as the grass-into-water piece with no
+   * water in them, and a farm came out as ploughed dirt.
+   */
+  const ASH_TILE = tilesMeta['ash'] ? 'ash' : ROCK_TILE
+  const SAND_TILE = tilesMeta['sand'] ? 'sand' : GROUND_TILES[0]
+  const CROP_TILE = tilesMeta['crop'] ? 'crop' : GROUND_TILES[0]
   /** The earths, which take mirrors: their stones have a light on them. */
   const DIRT_TILES = ways(['dirt', 'dirt2'])
   /**
@@ -8560,10 +8573,12 @@ async function main() {
        */
       const tileFor = (word: string) => word === 'paved' && PAVED_TILES.length > 0
         ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
+        : word === 'ash' ? ASH_TILE
         : word === 'rock' || word === 'paved' ? ROCK_TILE
-          : (word === 'road' || word === 'crop') && flat
+          : word === 'crop' && flat ? CROP_TILE
+          : word === 'road' && flat
             ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
-            : word === 'sand' ? SHORE_TILE
+            : word === 'sand' ? SAND_TILE
               : shore ? SHORE_TILE
                 : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
                   : word === 'bloom' || (meadow && h > 0.55)
@@ -10636,6 +10651,22 @@ async function main() {
     you.hp = Math.max(1, Math.min(you.max, to))
     you.calm = 0
     return { hp: you.hp, max: you.max, calm: you.calm }
+  }
+  /**
+   * Fill the bar the class fights on, for the checks that compare two
+   * arrangements.
+   *
+   * A comparison has to start both runs from the same state, and the one that
+   * matters here is the resource: the check that asserts *the leftmost square
+   * it can use* fires two abilities in both orders, and the first run spends
+   * the rage the second one needs.  One run would then fire the right-hand
+   * square for a reason that is true — it could not use the left one — and the
+   * check would read it as the rule being broken.
+   */
+  ;(window as unknown as { __fuel: () => unknown }).__fuel = () => {
+    you.power = powerMax()
+    you.spent = 0
+    return { power: Math.round(you.power), of: Math.round(powerMax()) }
   }
   ;(window as unknown as { __you: () => unknown }).__you = () => ({
     level: you.level, hp: you.hp, max: you.max, calm: +you.calm.toFixed(2),
