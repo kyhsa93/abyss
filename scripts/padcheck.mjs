@@ -515,7 +515,38 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
     // never heard of.
     [L2.pageAt.x, L2.pageAt.y, L2.pageR * 1.3],
     ...L2.slots.map((sl) => [sl.x, sl.y, L2.hit])]
-  const sat = panels.filter((b) => thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
+  // **One exception, written down rather than quietly allowed.**
+  //
+  // The experience bar sits on the bottom edge, which is where the original
+  // has it — `xp BOTTOM (0, 40) 1024 x 13` out of `FrameXML` — and the rule
+  // above says the bottom third is two thumbs and nothing else.  It is
+  // allowed because it is **reading and not pressing**: nobody taps it, so it
+  // does not take a thumb's place.  What is checked instead is that it stays
+  // that: a thin strip, *below* everything a thumb touches, and inside the
+  // safe area rather than under the home indicator.
+  //
+  // A rule loosened in silence is the same accident as a check that promised
+  // less than it looked like — which this repository had again in issue 226.
+  const READ_ONLY = ['xp']
+  const sat = panels.filter((b) => !READ_ONLY.includes(b.id)
+    && thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
+  for (const b of panels.filter((b2) => READ_ONLY.includes(b2.id))) {
+    const lowest = Math.max(...thumbs.map((t) => t[1] + t[2]))
+    check(`${name}: the strip that is read and not pressed is under the thumbs`,
+      b.h <= 14 && b.y >= lowest - 1,
+      `${b.id} ${Math.round(b.h)} px tall at ${Math.round(b.y)}, `
+      + `the lowest thumb ending at ${Math.round(lowest)}`)
+    // And it is pinned to the *safe* bottom rather than the physical one.
+    // `viewport-fit=cover` puts the physical bottom inside the home
+    // indicator's band on a modern phone, and a headless browser reports that
+    // inset as nought — so this reads the rule rather than the pixels, which
+    // is the only place the difference is visible from here.
+    const pinned = await p.evaluate((id) =>
+      document.getElementById(id)?.style.bottom ?? '', b.id)
+    check(`${name}: and it is pinned above the home indicator`,
+      pinned.includes('safe-area-inset-bottom'),
+      `#${b.id} bottom: ${pinned || '(unset)'}`)
+  }
   check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
     sat.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
       `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))

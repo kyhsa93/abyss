@@ -215,8 +215,10 @@ keeps it honest.
 | hover 없이도 능력의 비용과 대기가 화면에 있다 | `scripts/padcheck.mjs: "holding a button asks what it is"` |
 | 세계를 탭하면 겨눠지고, 스틱·버튼을 방해하지 않는다 | `scripts/padcheck.mjs: "and a tap on something that fights back aims at it"` |
 | 스틱과 버튼이 안전영역 밖이다 | `scripts/padcheck.mjs: "the thumbs rest above whatever the phone has taken"` |
+| 경험치바가 엄지와 안 겹치고 아래 변에 붙어 있다 | `scripts/padcheck.mjs: "the strip that is read and not pressed is under the thumbs"` |
+| 경험치바가 홈 인디케이터 위에 꽂혀 있다 | `scripts/padcheck.mjs: "and it is pinned above the home indicator"` |
 | 세계 캔버스가 `pixelated` 다 | — 캔버스의 CSS 를 읽는 것이 없다 |
-| 예산표에 전화기 열이 있고 넘긴 것이 없다 | — 예산 문서에 실측이 없다 (#207) |
+| 예산표에 전화기 열이 있고 넘긴 것이 없다 | — `docs/budget.md` 는 실측이지만 전화기 열이 따로 없다 |
 | **두 마리가 붙었을 때의 사망률을 전화기에서도 잰다** | — 전화기에서 싸움을 재는 것이 없다 |
 
 ## [처음-만드는-화면](https://github.com/kyhsa93/abyss/wiki/처음-만드는-화면)
@@ -231,6 +233,8 @@ keeps it honest.
 | **외모를 고른 대로 세계의 스프라이트가 바뀐다** | `scripts/uicheck.mjs: "and the world draws what was chosen"` |
 | 만든 캐릭터가 저장되고 목록에 나온다 | `scripts/uicheck.mjs: "a character that was made is there when you come back"` |
 | 전화기에서도 만들고 고를 수 있다 | `scripts/padcheck.mjs: "and a finger picks one and goes in"` |
+| **가로에서도 한 화면에 든다** | — 눕힌 전화기에서 39개 중 3개만 보인다 (#227) |
+| 누를 것이 전부 44픽셀 이상이다 | — 39개 전부 38픽셀이다 (#227) |
 
 ## [퀘스트를-원본과-대-보다](https://github.com/kyhsa93/abyss/wiki/퀘스트를-원본과-대-보다)
 

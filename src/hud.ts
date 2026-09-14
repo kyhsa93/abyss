@@ -1389,10 +1389,41 @@ export function hud(layout?: Layout) {
     const col = Math.min(190, Math.round(w * 0.5))
     put(units, { left: 8, top: 8, width: col })
     const under = 8 + units.offsetHeight + 4
-    // Twelve and not ten: the number written down the middle of it has a
-    // line box of its own, and a ten-pixel bar clipped the bottom off `0 / 400`.
-    put(xpBar, { left: 8, top: under, width: col, height: 12 })
-    put(swingBar, { left: 8, top: under + 14, width: col, height: 3 })
+    // **The experience bar goes back to the bottom edge**, which is where the
+    // original has it — `layout.json` reads `xp BOTTOM (0, 40) 1024 x 13`, the
+    // full width of the screen — and where it was moved from because *the
+    // bottom of this screen is a thumb*.
+    //
+    // Measured, it is not: the lowest thing a thumb touches — the stick's ring
+    // and the ability squares — ends **nineteen pixels** above the bottom at
+    // all three sizes this game lays out for, standing, lying down and on the
+    // short screen.  Twelve of those nineteen is a bar.
+    //
+    // And it is the one thing down there **nobody presses**: it is reading,
+    // not pressing, so it does not take a thumb's place.  `padcheck`'s rule —
+    // *the bottom third is two thumbs and nothing else* — has that written
+    // into it as an exception rather than quietly widened, because a rule
+    // loosened in silence is the same accident as a check that promised less
+    // than it looked like.
+    //
+    // Above the home indicator and not under it: `viewport-fit=cover` means
+    // the physical bottom is inside that band on a modern phone, and
+    // `env(safe-area-inset-bottom)` is where the safe bottom actually is.
+    loose(xpBar)
+    xpBar.style.position = 'fixed'
+    xpBar.style.transform = 'none'
+    xpBar.style.left = '0px'
+    xpBar.style.right = '0px'
+    xpBar.style.top = 'auto'
+    xpBar.style.bottom = 'env(safe-area-inset-bottom, 0px)'
+    xpBar.style.width = ''
+    xpBar.style.height = '12px'
+    // The swing bar stays where it is, under the player's own frame.  The
+    // request was the experience bar and the two are not the same thing: one
+    // is how far through the level you are and the other is what is happening
+    // this second, and what is happening this second belongs beside the person
+    // it is happening to.
+    put(swingBar, { left: 8, top: under, width: col, height: 3 })
 
     // Top right: where you are.  Smaller lying down, where the whole screen
     // is 390 tall and a 150-pixel circle is most of it.

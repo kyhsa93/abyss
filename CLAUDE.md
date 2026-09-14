@@ -119,6 +119,20 @@ happy. It presses through the pointer now, and on a different row than the one
 already chosen: pressing what is already selected passes whether the press
 arrived or not.
 
+**The experience bar is back on the bottom edge, and the rule it breaks is
+written down.** It is where the original has it — `layout.json` reads `xp
+BOTTOM (0, 40) 1024 x 13`, the full width — and it had been moved to the top
+left because *the bottom of this screen is a thumb*. Measured, it is not: the
+lowest thing a thumb touches ends **nineteen pixels** above the bottom at all
+three sizes this game lays out for, and the bar is twelve. It is also the one
+thing down there **nobody presses** — reading, not pressing — so it does not
+take a thumb's place. `padcheck`'s *the bottom third is two thumbs and nothing
+else* carries that as a **named exception** with its own assertions (thin,
+below every thumb, and pinned to `env(safe-area-inset-bottom)` rather than the
+physical bottom, which `viewport-fit=cover` puts inside the home indicator's
+band). A rule loosened in silence is the same accident as a check that promised
+less than it looked like.
+
 **Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
 is the whole lesson of a round spent on it. The old branch removed every pin
 and let the base rules stand, which sounds like the honest answer — but
@@ -1198,9 +1212,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty-two lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty-six lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and thirty-nine are; the rest are waiting on a feature nobody has built,
+A hundred and forty-one are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1208,7 +1222,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 437 check labels in the harness, 90 were promised and **347 were written
+of 439 check labels in the harness, 92 were promised and **347 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1218,7 +1232,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three and the aiming two: 162. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone four: 166. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
