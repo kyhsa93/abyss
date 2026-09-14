@@ -2827,12 +2827,25 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
     .filter((b) => (b.floors ?? []).length >= 2)
     .map((b) => ({ k: b.k, floors: b.floors.length, door: b.doors[0] })))
   const seen = []
+  // **Wait on the camera, not on the clock.**  `__shown` is what the last
+  // frame put through the filter, and the filter only walks the buckets the
+  // *view* covers — and after `__put` the camera eases towards the player at
+  // `dt * 8` a frame.  So the first storey read after a jump counted whatever
+  // the camera had slid over by then: the house's ground floor measured 0, 8,
+  // 114 and 334 on the way in, and CI's slower frames failed this line on 0
+  // while the same commit passed locally.  `__cam` places him the same way
+  // and puts the camera on him, and the read waits for the storey to be the
+  // one asked for and for two frames to have been drawn with it.  Run at one,
+  // four and six times CPU throttling, three rounds each, it read 67/21/5/22
+  // and 334/16/76/41 every time.
   for (const h of tall) {
-    await p.evaluate(([x, y]) => { window.__put(x, y); window.__seam() }, h.door)
+    await p.evaluate(([x, y]) => { window.__cam({ x, y }); window.__seam() }, h.door)
     const rows = []
     for (let s = -1; s < h.floors; s++) {
       await p.evaluate((n) => window.__floor(n), s)
-      await p.waitForTimeout(220)
+      await p.waitForFunction((n) => window.__shown().storey === n, s)
+      await p.evaluate(() => new Promise((r) =>
+        requestAnimationFrame(() => requestAnimationFrame(r))))
       const g = await p.evaluate(() => window.__shown())
       rows.push({
         storey: g.storey,
