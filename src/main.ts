@@ -1021,6 +1021,17 @@ async function main() {
    */
   const BLOOM_TILES = ways(['bloom', 'bloom2', 'bloom3'])
   const MEADOW = 0.78
+  /**
+   * The pictures whose detail sits in the middle of the tile with plain ground
+   * round the edge — the grasses and the flowers.
+   *
+   * Laid on an exact grid their tufts are a lattice one tile apart, and that
+   * was hidden for as long as a plate was a pixel too wide a tile: the drift
+   * smeared it.  With the plate the width of the world, `shotcheck`'s gauge
+   * read 4.0 on the grass alone.  These may be nudged inside their tile, as
+   * far as their plain border allows, and the lattice goes.
+   */
+  const NUDGED = new Set([...GROUND_TILES, ...BLOOM_TILES])
 
   /**
    * Which buildings are drawn as their plan rather than as a picture.
@@ -8080,7 +8091,9 @@ async function main() {
   const PLATE_PX = 512
   const PLATE_BUDGET = 12 * 1024 * 1024
   const plates = new Map<string,
-    { c: HTMLCanvasElement; used: number; bytes: number; fresh: boolean }>()
+    { c: HTMLCanvasElement; used: number; bytes: number; fresh: boolean; tile: number }>()
+  /** A tile's width in the last plate composed, and the world's at that zoom. */
+  const plateLaid = { tile: 0, world: 0, picture: 0 }
   let plateBytes = 0
   let plateKey = ''
   let platesDrawn = 0
@@ -8920,7 +8933,18 @@ async function main() {
     // put the check that watches the frame rate on a knife edge, 43 to 46.
     const PLATE = Math.max(2, Math.min(16,
       2 ** Math.round(Math.log2(Math.max(1, PLATE_PX / (px * grain))))))
-    const pkey = `${px}|${grain}|${PLATE}`
+    // **A tile of a plate is as wide as a tile of the world, not as its
+    // picture.**  The strip cuts a picture a pixel wider than the tile and
+    // rounds it up — 24 pixels at zoom 0.7, where a tile is 22.4 apart — so
+    // that loose tiles overlap instead of cracking.  A plate composed at the
+    // picture's width was a sixteenth too wide *per tile*: 25 pixels a plate,
+    // which the next plate then drew over.  While every tile was a square of
+    // its own nobody could see it; with the grounds blended across the tiles
+    // every seam was a straight line through the hills.  Keyed on the zoom the
+    // strip is keyed on, and laid on the glass at the exact size.
+    const zkey = Math.round(zoom * 100)
+    const UNIT = TILE * (zkey / 100) * grain
+    const pkey = `${px}|${grain}|${PLATE}|${zkey}`
     if (pkey !== plateKey) { forgetPlates(); plateKey = pkey }
     // And the ones nobody has looked at for a while, once there is pressure.
     if (plateBytes > PLATE_BUDGET / 2) {
@@ -9159,6 +9183,16 @@ async function main() {
       if (mode === 'over' && !built && !span && !water) return 0
       g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
         Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+      // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
+      // inside the grass sheet's plain border — over the same picture laid
+      // straight, so the strip it uncovers is never empty.  Only in a plate:
+      // a loose tile is gone in a few frames.
+      if (mode === 'plain' && NUDGED.has(id)) {
+        const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
+        const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
+        g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+          Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
+      }
       // --- and the edge, if this tile is on one ---------------------
       //
       // The tile above is the tile's *middle*.  This asks its four corners,
@@ -9286,7 +9320,7 @@ async function main() {
       const had = plates.get(key)
       if (had) { had.used = frames; return had }
       if (!mayMake) return null
-      const side = PLATE * px * grain
+      const side = PLATE * UNIT
       const want = Math.ceil(side) ** 2 * 4
       if (side < 1 || want > PLATE_BUDGET) return null
       // Least recently looked at goes first.  Refusing instead — which is what
@@ -9309,7 +9343,8 @@ async function main() {
       // The plate's own corner in world space, and the screen offset that
       // puts a tile's centre where the tile pass would put it.
       const ox = pi * PLATE, oy = pj * PLATE
-      const half = (px * grain) / 2
+      const tpx = UNIT
+      const half = tpx / 2
       for (let a = 0; a < PLATE; a++) {
         for (let d = 0; d < PLATE; d++) {
           // `screenX` falls as world y rises and `screenY` falls as world x
@@ -9318,8 +9353,8 @@ async function main() {
           // reversed the plate lands upside down and the rows that should
           // have been under it stay black, which is what the first screenshot
           // showed: a band of nothing above and below a correct middle.
-          const sx = (PLATE - 1 - d) * px * grain + half
-          const sy = (PLATE - 1 - a) * px * grain + half
+          const sx = (PLATE - 1 - d) * tpx + half
+          const sy = (PLATE - 1 - a) * tpx + half
           platedEver += paintGround(g, ox + a, oy + d, sx, sy, null, 'plain')
         }
       }
@@ -9368,11 +9403,13 @@ async function main() {
         // for is the holes — the cells a plate leaves empty — and those are
         // painted over by the tile pass a moment later anyway.
         g.imageSmoothingEnabled = true
-        g.drawImage(lm, -0.5 * (c.width / PLATE), -0.5 * (c.height / PLATE),
-          c.width * ((PLATE + 1) / PLATE), c.height * ((PLATE + 1) / PLATE))
+        g.drawImage(lm, -0.5 * tpx, -0.5 * tpx, (PLATE + 1) * tpx, (PLATE + 1) * tpx)
         g.imageSmoothingEnabled = false
       }
-      const made = { c, used: frames, bytes: c.width * c.height * 4, fresh: true }
+      const made = { c, used: frames, bytes: c.width * c.height * 4, fresh: true, tile: tpx }
+      plateLaid.tile = tpx
+      plateLaid.world = TILE * zoom * grain
+      plateLaid.picture = px * grain
       plateBytes += made.bytes
       plates.set(key, made)
       return made
@@ -9408,10 +9445,19 @@ async function main() {
             if (plate.fresh) { budget--; plate.fresh = false }
             // The plate's top-left on the glass, which is its *largest* tile
             // index both ways round, less half a tile.
-            const cx = screenX(0, (pj * PLATE + PLATE - 1) * T)
-            const cy = screenY((pi * PLATE + PLATE - 1) * T, 0)
-            ctx.drawImage(plate.c, Math.round(cx - (px * grain) / 2),
-              Math.round(cy - (px * grain) / 2))
+            // and its far edge the same way, so a plate is as wide on the glass
+            // as sixteen tiles of the world and the next one starts where it
+            // ends.  Stretched by the difference between this zoom and the
+            // one it was composed at, which is under a pixel in a hundred.
+            const unit = TILE * zoom * grain
+            const left = screenX(0, (pj * PLATE + PLATE - 1) * T) - unit / 2
+            const top = screenY((pi * PLATE + PLATE - 1) * T, 0) - unit / 2
+            const dx = Math.round(left), dy = Math.round(top)
+            const dw = Math.round(left + PLATE * unit) - dx
+            const dh = Math.round(top + PLATE * unit) - dy
+            const sw = Math.round(PLATE * UNIT)
+            if (dw === sw && dh === sw) ctx.drawImage(plate.c, dx, dy)
+            else ctx.drawImage(plate.c, 0, 0, sw, sw, dx, dy, dw, dh)
             done.add(`${pi},${pj}`)
             platesDrawn++
           }
@@ -11144,7 +11190,7 @@ async function main() {
   }
   ;(window as unknown as { __plates: () => unknown }).__plates = () => ({
     kept: plates.size, bytes: plateBytes, budget: PLATE_BUDGET,
-    side: PLATE_PX, drawn: platesDrawn,
+    side: PLATE_PX, drawn: platesDrawn, ...plateLaid,
   })
   /**
    * Where the zoom may go, and where each end of it came from.

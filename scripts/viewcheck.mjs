@@ -475,6 +475,20 @@ check('and a good share of the forest actually carries one',
     kept.bytes <= kept.budget,
     `${(kept.bytes / 1048576).toFixed(1)} MB over ${kept.kept} plates of a `
     + `${(kept.budget / 1048576).toFixed(0)} MB budget`)
+  // And a plate is as wide as the ground it holds.  The strip cuts a tile's
+  // picture a pixel wide and rounds it up so loose tiles overlap rather than
+  // crack, and a plate composed at the *picture's* width was 25 pixels too
+  // wide at zoom 0.7 — which the next plate drew over.  Invisible while every
+  // tile was a square of its own; a straight line through every hillside once
+  // the grounds were blended across the tiles.  Asked at a zoom where a tile
+  // is not a whole number of pixels, because at 0.5 and 1 the two agree.
+  await p.evaluate(() => window.__cam({ x: -9055, y: -298, zoom: 0.7 }))
+  await p.waitForTimeout(1400)
+  const laid = await p.evaluate(() => window.__plates())
+  check('and a plate is composed at the width of a tile of the world, not of its picture',
+    laid.tile > 0 && Math.abs(laid.tile - laid.world) / laid.world < 0.01,
+    `${laid.tile.toFixed(2)} px a tile in the plate against ${laid.world.toFixed(2)} `
+    + `on the glass, with a picture ${laid.picture} px wide`)
 
   // 9b4. And the hillside's light is a gradient rather than twenty-one steps.
   //

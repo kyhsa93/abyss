@@ -886,6 +886,30 @@ behind it — so the size is printed in the bake and gated there, because two
 bars that mean different things and disagree is what issue 207 spent a round
 deleting.
 
+**A plate was a sixteenth too wide a tile, and nobody could see it until the
+ground stopped being squares.** The strip cuts a tile's picture a pixel wider
+than the tile and rounds it up, so loose tiles overlap instead of cracking —
+24 pixels at zoom 0.7, where a tile is 22.4 apart. A plate was composed at the
+*picture's* width, so a plate of sixteen was 25 pixels wider than the ground it
+stood for and the next plate drew over the difference. Every tile was a square
+of its own then, and a square shifted by a pixel reads as a square; with the
+grounds blended across the tiles, every seam was a straight line through the
+hills. A plate is composed at the width of a tile of the world now and laid on
+the glass at its exact size, and `viewcheck` asks at 0.7 — at 0.5 and 1 the two
+widths agree and the check would pass on the bug.
+
+**And the drift had been hiding the grass sheet's own lattice.** `shotcheck`'s
+chessboard gauge — the correlation one tile along against the lags either side
+— read 2.1 when #142 set its bar at 2.4, and it read 4.0 the moment plates
+stopped drifting, with nothing else changed. The grass and flower pictures
+carry their tufts in the middle and plain ground round the edge, so on an exact
+32-pixel grid the tufts are a lattice, and a plate a pixel too wide a tile had
+been smearing it. Those pictures are nudged inside their tile now, by up to a
+tenth of it — inside their plain border, over the same picture laid straight so
+the strip it uncovers is never empty — and the gauge reads 1.0. The bar stays
+where it was: it had been calibrated on the bug, and the answer was to make the
+ground pass it rather than to move it.
+
 **A hole in the ground is a field that was read and then used by nothing.** A
 chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
 it is how the client makes the mouth of a mine: 674 cells of it in this slice.
@@ -1632,7 +1656,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight and the paint one: 171. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one and the seam one: 172. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
