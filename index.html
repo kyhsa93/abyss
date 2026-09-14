@@ -490,13 +490,18 @@
         padding-bottom: 5px; margin-bottom: 10px;
       }
       #create .cols { display: flex; gap: 18px; align-items: flex-start; }
+      #create .seen {
+        border: 1px solid var(--gold-dark); border-radius: 3px;
+        background: rgba(0,0,0,.35); padding: 6px; line-height: 0;
+      }
+      #create .seen canvas { image-rendering: pixelated; }
       #create .right { display: flex; flex-direction: column; gap: 10px; }
       #create .group { display: flex; }
       /* The races go down a list the client sizes at 220 by 220 and scrolls —
          that is what a `<ScrollFrame>` is.  Ten of them at 38 with a 21 gap do
          not fit in 220, in the original either. */
       #create .races { flex-direction: column; overflow-y: auto; }
-      #create .sexes, #create .classes { flex-wrap: wrap; }
+      #create .sexes, #create .classes, #create .looks { flex-wrap: wrap; }
       #create .pick {
         display: flex; flex-direction: column; justify-content: center;
         background: rgba(201,168,106,.08); border: 1px solid var(--gold-dark);

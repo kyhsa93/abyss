@@ -33,8 +33,33 @@ LAYERS = [
     'feet/boots/basic/male',
     'torso/armour/plate/male',
     'arms/armour/plate/male',
-    'hair/plain/adult',
+    # **No hair here any more.**  It is a layer of its own, because a character
+    # you make is a character whose hair you chose — see `LOOKS`.
 ]
+
+# What a player may choose to look like, cut the way a weapon is: one sheet
+# each, loaded when it is picked.
+#
+# **Twelve of sixty-three, and the twelve are chosen rather than sampled.**
+# LPC has 63 hairstyles with all four of this game's clips and every one of
+# them costs about 0.3 MiB decoded, so all of them is nineteen megabytes
+# against a twenty-four megabyte budget for the whole game.  The twelve are the
+# ones that are a different *shape* at sixty-four pixels — length, volume and
+# silhouette — because two styles that differ in a way nobody can see at this
+# size are one style listed twice, which is the same mistake the shop's
+# identical rows were.
+#
+# The rest are not gone, they are unlisted: adding one is a line here and a
+# re-bake, and the check that the atlas stays inside the budget is what says
+# how many lines there is room for.
+HAIR = ['buzzcut', 'high_and_tight', 'flat_top_fade', 'balding', 'parted',
+        'page', 'plain', 'cornrows', 'bob', 'mop', 'spiked', 'long_messy']
+# And the face.  Four, which is what LPC draws that reads as a beard at this
+# size: nothing, stubble, trimmed and full.  The eight moustaches are a
+# different sheet and all eight are three pixels apart from each other.
+BEARDS = ['5oclock_shadow', 'trimmed', 'medium', 'basic']
+LOOKS = ([('hair', n, 'hair/%s/adult' % n) for n in HAIR]
+         + [('beard', n, 'beards/beard/%s' % n) for n in BEARDS])
 
 # Animations to take, and how many frames each sheet holds.
 CLIPS = [('walk', 9), ('idle', 2), ('slash', 6), ('thrust', 8)]
@@ -276,24 +301,109 @@ def main(root, out):
     body = None
     if standing and face:
         cell = (0, DOWN * CELL, CELL, DOWN * CELL + CELL)
-        whole = standing.crop(cell).getbbox()
         hbox = face.crop(cell).getbbox()
-        if whole and hbox:
-            top, bottom, chin = whole[1], whole[3], hbox[3]
+        # **Over every frame and not over the standing one.**  The box is what
+        # the atlas is cropped to, so a raised arm in the middle of a swing has
+        # to be inside it — measured on the stand, the thrust's top four rows
+        # came off.  `chin` still comes from the standing cell, because that is
+        # a fact about where a face is and not about how far he reaches.
+        top, bottom = CELL, 0
+        for fr in frames:
+            got = fr.getbbox()
+            if not got:
+                continue
+            top = min(top, got[1])
+            bottom = max(bottom, got[3])
+        if hbox and bottom > top:
             body = {'top': top, 'bottom': bottom,
-                    'chin': round((bottom - chin) / (bottom - top), 3)}
+                    'chin': round((bottom - hbox[3]) / (bottom - top), 3)}
 
+    # What a player may choose to look like, one sheet each — the same shape
+    # as a weapon, and for the same reason: he wears one hair at a time.
+    looks = {}
+    for kind, name, rel in LOOKS:
+        strips, meta = [], {'kind': kind, 'clips': {}}
+        for clip, count in CLIPS:
+            im = sheet(root, rel, clip)
+            if im is None:
+                sys.exit('%s has no %s — an appearance with a hole in it is a '
+                         'bug' % (rel, clip))
+            cols_, dirs = im.width // CELL, im.height // CELL
+            if cols_ < count or dirs != DIRECTIONS:
+                sys.exit('%s/%s is %dx%d cells, not the body\'s %dx%d'
+                         % (rel, clip, cols_, dirs, count, DIRECTIONS))
+            box = trim(im, count, dirs)
+            if not box:
+                continue
+            bx, by, bw, bh = box
+            strip = Image.new('RGBA', (count * bw, dirs * bh))
+            for d in range(dirs):
+                for f in range(count):
+                    strip.paste(im.crop((f * CELL + bx, d * CELL + by,
+                                         f * CELL + bx + bw, d * CELL + by + bh)),
+                                (f * bw, d * bh))
+            meta['clips'][clip] = {'w': bw, 'h': bh, 'dx': bx, 'dy': by,
+                                   'cols': count, 'dirs': dirs}
+            strips.append((clip, strip))
+            used.append('%s/%s.png' % (rel, clip))
+        if not strips:
+            continue
+        # Shelved, not stacked — the same packing the weapons get and for the
+        # same reason: four clips of one hairstyle are four different widths,
+        # and a sheet as wide as the widest is a third air.
+        wide = max(st.width for _c, st in strips)
+        shelves = []
+        for item in sorted(strips, key=lambda t: -t[1].height):
+            for sh in shelves:
+                if sh['x'] + item[1].width <= wide:
+                    sh['put'].append(item); sh['x'] += item[1].width
+                    break
+            else:
+                shelves.append({'x': item[1].width, 'put': [item],
+                                'h': item[1].height})
+        one = Image.new('RGBA', (wide, sum(sh['h'] for sh in shelves)))
+        y = 0
+        for sh in shelves:
+            x = 0
+            for clip, strip in sh['put']:
+                one.paste(strip, (x, y))
+                meta['clips'][clip]['x'] = x
+                meta['clips'][clip]['y'] = y
+                x += strip.width
+            y += sh['h']
+        os.makedirs(os.path.join(out, 'look'), exist_ok=True)
+        one.save(os.path.join(out, 'look', '%s-%s.png' % (kind, name)),
+                 optimize=True)
+        meta['px'] = one.width * one.height * 4
+        looks['%s-%s' % (kind, name)] = meta
+
+    # The atlas, **trimmed to the man**.
+    #
+    # A cell is 64 pixels and he is rows 13 to 62 of it — fourteen rows of
+    # nothing over his head and two under his feet, on every one of a hundred
+    # frames.  A transparent pixel is free in the file and full price in
+    # memory, which is this repository's own line about atlases, and it was
+    # costing 0.41 MiB of a 24 MiB budget for air.  One box for the whole sheet
+    # and not one a frame: `body.top` is the offset back, the scene adds it
+    # once, and every other number here stays against the 64 cell.
+    cut = body['top'] if body else 0
+    tall = (body['bottom'] - body['top']) if body else CELL
     cols = 16
     rows = (len(frames) + cols - 1) // cols
-    atlas = Image.new('RGBA', (cols * CELL, rows * CELL))
+    atlas = Image.new('RGBA', (cols * CELL, rows * tall))
     for i, fr in enumerate(frames):
-        atlas.paste(fr, ((i % cols) * CELL, (i // cols) * CELL))
+        atlas.paste(fr.crop((0, cut, CELL, cut + tall)),
+                    ((i % cols) * CELL, (i // cols) * tall))
     os.makedirs(out, exist_ok=True)
     atlas.save(os.path.join(out, 'hero.png'), optimize=True)
 
     with open(os.path.join(out, 'hero.json'), 'w') as f:
         json.dump({'cell': CELL, 'cols': cols, 'clips': clips, 'arms': arms,
-                   'bare': BARE_SWING, 'body': body}, f, indent=1)
+                   'bare': BARE_SWING, 'body': body, 'looks': looks,
+                   # How tall a cell of the atlas actually is, which is not
+                   # `cell`: the sheet is cropped to the man and `cell` is
+                   # still the grid every offset in this file is measured in.
+                   'row': tall}, f, indent=1)
 
     # Credits, keyed by the files actually used.
     rows_csv = list(csv.DictReader(open(os.path.join(root, 'CREDITS.csv'))))
@@ -341,6 +451,11 @@ def main(root, out):
         print(f'  body: rows {body["top"]}..{body["bottom"]} of {CELL}, '
               f'chin {body["chin"]:.0%} up from his feet')
     print('  clips: ' + ', '.join(f'{k} x{v["count"]} in {v["dirs"]} dirs' for k, v in clips.items()))
+    if looks:
+        worst_look = max(looks, key=lambda k: looks[k]['px'])
+        print('  looks: %d, one worn at a time, the heaviest %s at %.2f MiB '
+              'decoded' % (len(looks), worst_look,
+                           looks[worst_look]['px'] / 1048576))
     disk = sum(os.path.getsize(os.path.join(out, 'arms', k + '.png'))
                for k in arms)
     worst = max(arms, key=lambda k: arms[k]['px'])

@@ -93,10 +93,15 @@ export type MakeScreen = {
   races: Choice[]; race: number; pickRace: (id: number) => void
   sexes: Choice[]; sex: number; pickSex: (id: number) => void
   classes: Choice[]; cls: number; pickClass: (id: number) => void
+  /** What he looks like, which is `CharacterCustomizationButtonFrame1..5`. */
+  hairs: Choice[]; hair: number; pickHair: (id: number) => void
+  beards: Choice[]; beard: number; pickBeard: (id: number) => void
   name: string; rename: (s: string) => void
   say: string; ready: boolean; done: () => void; dice: () => void
   /** The client's own sizes — see `CREATE` in `pipeline/layout.py`. */
   size: Record<string, [number, number]>
+  /** The sprite that will walk out, painted by the scene — see `paintMe`. */
+  face?: HTMLCanvasElement
   list: [number, number]
   racePitch: [number, number]
   classPitch: [number, number]
@@ -302,10 +307,13 @@ export function hud(layout?: Layout) {
   const createBox = el('div', 'stage', create)
   const createTitle = el('div', 'title', createBox)
   const createCols = el('div', 'cols', createBox)
+  const createSeen = el('div', 'seen', createCols)
   const createRaces = el('div', 'group races', createCols)
   const createRight = el('div', 'right', createCols)
   const createSexes = el('div', 'group sexes', createRight)
   const createClasses = el('div', 'group classes', createRight)
+  const createLooks = el('div', 'group looks', createRight)
+  const createBeards = el('div', 'group looks', createRight)
   const createName = el('input', 'name', createRight) as HTMLInputElement
   createName.maxLength = 12
   const createFoot = el('div', 'foot', createBox)
@@ -546,6 +554,13 @@ export function hud(layout?: Layout) {
       create.hidden = !open
       if (!open) return
       createTitle.textContent = '캐릭터를 만든다'
+      // The preview is the sprite that walks out, not a second picture of it:
+      // the scene paints the same sheets into this canvas, so what you chose
+      // and what you get cannot be two different people.
+      if (made.face && made.face.parentElement !== createSeen) {
+        createSeen.textContent = ''
+        createSeen.appendChild(made.face)
+      }
       const sz = made.size
       const row = (into: HTMLElement, list: Choice[], now: number,
         pick: (id: number) => void, w: number, h: number, gap: number) => {
@@ -570,6 +585,12 @@ export function hud(layout?: Layout) {
         sz.sex[0] * 2, sz.sex[1], made.classPitch[0])
       row(createClasses, made.classes, made.cls, made.pickClass,
         sz.class[0] * 2, sz.class[1], made.classPitch[0])
+      // Appearance, at the size the original gives one of its five rows —
+      // `CharacterCustomizationFrameTemplate`, 230 by 32.
+      row(createLooks, made.hairs, made.hair, made.pickHair,
+        sz.look[0] / 2, sz.look[1], made.classPitch[0])
+      row(createBeards, made.beards, made.beard, made.pickBeard,
+        sz.look[0] / 2, sz.look[1], made.classPitch[0])
       createName.style.width = `${sz.name[0]}px`
       createName.style.height = `${sz.name[1]}px`
       createName.placeholder = '이름'

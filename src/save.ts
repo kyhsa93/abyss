@@ -54,7 +54,9 @@ export type Save = {
      * numbers its two buttons.  A save from before there was a screen has
      * none of this and `migrate` fills it with what the game used to be.
      */
-    who?: { name: string; race: number; sex: number; cls: number }
+    who?: { name: string; race: number; sex: number; cls: number
+      /** What he chose to look like — `hair/<style>` and `beards/beard/<n>`. */
+      hair?: string; beard?: string }
   }
   /** Where the stream of chance is, so loading cannot re-roll a drop. */
   seed: number
@@ -153,6 +155,8 @@ const STEPS: Record<number, (s: Save) => Save> = {
   1: (s) => ({
     ...s,
     version: 2,
-    you: { ...s.you, who: { name: '주인공', race: 1, sex: 0, cls: 1 } },
+    you: { ...s.you,
+           who: { name: '주인공', race: 1, sex: 0, cls: 1,
+                  hair: 'plain', beard: '' } },
   }),
 }

@@ -241,6 +241,23 @@ for (const [W, H] of SIZES) {
       `race ${made.races[0].h} of ${sz.race[1]}, `
       + `class ${made.classes[0].h} of ${sz.class[1]}, `
       + `sex ${made.sexes[0].h} of ${sz.sex[1]}`)
+    // And what he is made to look like is what walks out.
+    //
+    // The preview is the world's own sheets painted into a canvas rather than
+    // a second picture of a character, because a second picture is a picture
+    // that drifts — so the thing to check is the other end: the sprite in the
+    // world is wearing what the screen was asked for.
+    const looked = await p.evaluate(() => {
+      const rows = document.querySelectorAll('#create .looks')
+      const hair = rows[0]?.querySelectorAll('.pick') ?? []
+      const beard = rows[1]?.querySelectorAll('.pick') ?? []
+      hair[hair.length - 1]?.click()
+      beard[beard.length - 1]?.click()
+      return { hairs: hair.length, beards: beard.length }
+    })
+    check('there are appearances to choose from',
+      looked.hairs >= 8 && looked.beards >= 3,
+      `${looked.hairs} hairstyles, ${looked.beards} beards including none`)
     // And it makes one.
     const born = await p.evaluate(() => window.__makeOne('가온'))
     check('making one puts you in the world',
@@ -252,6 +269,14 @@ for (const [W, H] of SIZES) {
       name: document.querySelector('#units .name')?.textContent ?? '',
     }))
     check('and the screen goes away', gone.up === false, JSON.stringify(gone))
+    // Drawn, not just remembered: `heroLayers` counts where the pictures
+    // actually land, so this says the hair and the beard reached the glass.
+    await p.waitForTimeout(500)
+    const drawn = await p.evaluate(() => window.__arms())
+    check('and the world draws what was chosen',
+      born.made?.hair && born.made?.beard && drawn.layers >= 4,
+      `${born.made?.hair} and ${born.made?.beard}, `
+      + `drawn out of ${drawn.layers} pictures`)
   } else {
     check('the screen that makes a character is up on a fresh start',
       false, 'it was not')

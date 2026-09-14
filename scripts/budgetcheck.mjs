@@ -105,13 +105,27 @@ const loaded = [...new Set(opened)].map((rel) => join(dist, rel))
  * sum is the bake's and not a second measurement of the same PNG.
  */
 let inHand = 0, inHandName = ''
+/**
+ * And what he chose to look like, which is the same shape again.
+ *
+ * Twelve hairstyles and four beards under `art/look/`, one of each worn, so
+ * what this pays is the heaviest of each kind.  All sixty-three of LPC's
+ * styles would be nineteen megabytes against a budget of twenty-four for the
+ * whole game, which is why there are twelve.
+ */
+const worn = {}
 try {
   const meta = JSON.parse(readFileSync(join(dist, 'art/hero.json'), 'utf8'))
   for (const [word, sheet] of Object.entries(meta.arms ?? {})) {
     if (sheet.px > inHand) { inHand = sheet.px; inHandName = word }
   }
+  for (const [key, look] of Object.entries(meta.looks ?? {})) {
+    const kind = look.kind ?? 'look'
+    if (!worn[kind] || look.px > worn[kind].px) worn[kind] = { key, px: look.px }
+  }
 } catch { /* a bake without a hero sheet has no hand to fill */ }
-const pixels = loaded.reduce((n, f) => n + size(f), 0) + inHand / 4
+const onHim = Object.values(worn).reduce((n, v) => n + v.px, 0)
+const pixels = loaded.reduce((n, f) => n + size(f), 0) + (inHand + onHim) / 4
 const all = files.filter((f) => f.endsWith('.png'))
 // The phone's own column, which this budget did not have.
 //
@@ -132,7 +146,11 @@ check('and the sheets do not creep', pixels * 4 <= 24 * MB,
   `${(pixels * 4 / MB).toFixed(1)} MB of 24 — a phone's headroom is not `
   + `a desktop's, and the ratchet is what stops the atlas doubling`)
 console.log(`      (of which ${(inHand / MB).toFixed(2)} MB is whatever is in `
-  + `his hand — five sheets, one held, the heaviest being ${inHandName})`)
+  + `his hand — five sheets, one held, the heaviest being ${inHandName}; and `
+  + `${(onHim / MB).toFixed(2)} MB is what he looks like — `
+  + Object.entries(worn).map(([k, v]) =>
+    `${k} ${v.key.replace(k + '-', '')} ${(v.px / MB).toFixed(2)}`).join(', ')
+  + ')')
 check('the sheets fit in memory once decoded', pixels * 4 <= 64 * MB,
   `${((pixels * 4) / MB).toFixed(1)} MB of 64 over the ${loaded.length} the `
   + `scene opens (of ${all.length} shipped, `

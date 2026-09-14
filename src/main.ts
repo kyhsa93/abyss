@@ -174,6 +174,8 @@ type NpcArt = {
 type HeroArt = {
   cell: number; cols: number
   clips: Record<string, { first: number; count: number }>
+  /** How tall a row of the atlas is, which is not `cell` — see `drawHero`. */
+  row?: number
   /**
    * What can be in his hand — one sheet a weapon, under `art/arms/`.
    *
@@ -198,6 +200,12 @@ type HeroArt = {
    * fit a walking man's square.
    */
   arms?: Record<string, ArmSheet>
+  /**
+   * What a player may choose to look like — twelve hairstyles and four
+   * beards, one sheet each under `art/look/`, loaded when it is chosen.
+   */
+  looks?: Record<string, { kind: string; px: number
+    clips: Record<string, ArmStrip> }>
   /** Which attack a man with nothing in his hands plays. */
   bare?: string
   /**
@@ -3118,6 +3126,30 @@ async function main() {
    * reference is the browser's business; what would be a bug is holding all
    * five, and a `Map` keyed on what he is carrying cannot.
    */
+  /**
+   * And the same for what he looks like.
+   *
+   * Twelve hairstyles and four beards, one sheet each and one worn at a time,
+   * for the reason the weapons are: all sixty-three of LPC's styles at three
+   * tenths of a megabyte decoded is nineteen megabytes against a budget of
+   * twenty-four for the whole game.
+   */
+  const lookSheets = new Map<string, HTMLImageElement>()
+  const lookSheet = (key: string): HTMLImageElement => {
+    let img = lookSheets.get(key)
+    if (!img) {
+      img = new Image()
+      // A sheet that arrives after the preview was painted has to make it be
+      // painted again, or the screen that makes a character shows a bald man
+      // until something else happens to redraw it — the first paint always
+      // runs before any of these have loaded.
+      img.onload = () => { if (!me) drawCreate() }
+      img.src = `./art/look/${key}.png`
+      lookSheets.set(key, img)
+    }
+    return img
+  }
+
   const armSheets = new Map<string, HTMLImageElement>()
   const armSheet = (word: string): HTMLImageElement => {
     let img = armSheets.get(word)
@@ -4130,7 +4162,9 @@ async function main() {
    * screen makes one or a save brings one back, and that emptiness is what
    * puts the screen up.
    */
-  let me: { name: string; race: number; sex: number; cls: number } | null = null
+  type Me = { name: string; race: number; sex: number; cls: number
+    hair: string; beard: string }
+  let me: Me | null = null
 
   /**
    * The screen that makes one, and the three rules behind it.
@@ -4161,6 +4195,7 @@ async function main() {
   /** Which class this game has a spellbook for — see issue 188. */
   const PLAYABLE = new Set([1])
   let makeRace = HUMAN, makeSex = 0, makeClass = 1, makeName = ''
+  let makeHair = 'plain', makeBeard = ''
   /**
    * Names to roll, because the original's dice rolls one too.
    *
@@ -4169,8 +4204,63 @@ async function main() {
    * Korean given names, which is the same bargain every other word in this
    * game makes.
    */
+  /**
+   * Our word for each thing he can look like.
+   *
+   * The sheet names are LPC's folder names and they are English; a player
+   * reads Korean here for the same reason every other word in this game is
+   * ours.  A style with no entry shows its folder name, which is how you find
+   * one that needs a word.
+   */
+  const LOOK_WORD: Record<string, string> = {
+    buzzcut: '삭발', high_and_tight: '짧게 친 머리', flat_top_fade: '각진 머리',
+    balding: '벗어진 머리', parted: '가르마', page: '단발', plain: '보통',
+    cornrows: '땋아 붙인 머리', bob: '단정한 단발', mop: '덥수룩한 머리',
+    spiked: '세운 머리', long_messy: '긴 머리',
+    '5oclock_shadow': '거뭇한 수염', trimmed: '다듬은 수염',
+    medium: '기른 수염', basic: '덥수룩한 수염',
+  }
   const NAMES = ['가온', '노을', '단우', '라온', '미르', '바다', '사름',
     '아름', '자람', '차온', '하늘', '해든', '이레', '온새']
+
+  /**
+   * The sprite that will walk out, painted for the screen that makes it.
+   *
+   * The same sheets the world draws from, so what is chosen and what is got
+   * cannot be two different people — which is what a second picture of a
+   * character always becomes.  Standing still, facing the camera, at three
+   * times the size because a 64-pixel man is a thumbnail.
+   */
+  const meCanvas = document.createElement('canvas')
+  const paintMe = () => {
+    const c = heroMeta.cell, rowH = heroMeta.row ?? c, lid = heroMeta.body?.top ?? 0
+    const k = 3
+    meCanvas.width = c * k
+    meCanvas.height = c * k
+    const g = meCanvas.getContext('2d')!
+    g.imageSmoothingEnabled = false
+    g.clearRect(0, 0, meCanvas.width, meCanvas.height)
+    const clip = heroMeta.clips['idle'] ?? heroMeta.clips['walk']
+    if (!clip) return meCanvas
+    // Facing the camera, which is LPC's third row, and the first frame of it.
+    const idx = clip.first + 2 * clip.count
+    const sx = (idx % heroMeta.cols) * c
+    const sy = Math.floor(idx / heroMeta.cols) * rowH
+    const put = (key: string | null) => {
+      if (!key) return
+      const a = heroMeta.looks?.[key]?.clips['idle']
+      const img = lookSheet(key)
+      if (!a || !img.complete || !img.naturalWidth) return
+      g.drawImage(img, (a.x ?? 0), a.y + 2 * a.h, a.w, a.h,
+        a.dx * k, a.dy * k, a.w * k, a.h * k)
+    }
+    if (heroImg.complete && heroImg.naturalWidth) {
+      g.drawImage(heroImg, sx, sy, c, rowH, 0, lid * k, c * k, rowH * k)
+    }
+    put(makeBeard ? `beard-${makeBeard}` : null)
+    put(`hair-${makeHair}`)
+    return meCanvas
+  }
 
   const drawCreate = () => {
     const table = layout?.who
@@ -4202,7 +4292,24 @@ async function main() {
       id, word, can: id === 0,
       ...(id === 0 ? {} : { why: '여자 몸을 아직 안 구웠다' }),
     }))
+    // What he looks like, out of what was baked.  The keys are the sheet
+    // names, so the row is the bake's own list and cannot fall behind it —
+    // twelve hairstyles and four beards plus a fifth row that is none.
+    const looks = heroMeta.looks ?? {}
+    const of = (kind: string) => Object.keys(looks)
+      .filter((k) => looks[k]?.kind === kind)
+      .map((k) => k.slice(kind.length + 1))
+    const hairs = of('hair').map((n, i) => ({ id: i, word: LOOK_WORD[n] ?? n,
+      can: true }))
+    const beards = ['', ...of('beard')].map((n, i) => ({ id: i,
+      word: n ? (LOOK_WORD[n] ?? n) : '없음', can: true }))
+    const hairList = of('hair')
+    const beardList = ['', ...of('beard')]
     ui.setCreate(true, {
+      hairs, hair: Math.max(0, hairList.indexOf(makeHair)),
+      pickHair: (i: number) => { makeHair = hairList[i] ?? 'plain'; drawCreate() },
+      beards, beard: Math.max(0, beardList.indexOf(makeBeard)),
+      pickBeard: (i: number) => { makeBeard = beardList[i] ?? ''; drawCreate() },
       races, race: makeRace, pickRace: (id) => { makeRace = id; drawCreate() },
       sexes, sex: makeSex, pickSex: (id) => { makeSex = id; drawCreate() },
       classes, cls: makeClass,
@@ -4213,17 +4320,19 @@ async function main() {
         + ` · ${SEXES.find(([i]) => i === makeSex)?.[1] ?? ''}`,
       ready: makeName.trim().length > 0,
       done: () => {
-        me = { name: makeName.trim(), race: makeRace, sex: makeSex,
-               cls: makeClass }
-        ui.setName(me.name)
+        const born: Me = { name: makeName.trim(), race: makeRace,
+          sex: makeSex, cls: makeClass, hair: makeHair, beard: makeBeard }
+        me = born
+        ui.setName(born.name)
         ui.setCreate(false, {} as never)
-        ui.log(`${me.name}. 노스샤이어 계곡에서 시작한다.`, 'gain')
+        ui.log(`${born.name}. 노스샤이어 계곡에서 시작한다.`, 'gain')
         writeSave(snapshot()).catch(() => {})
       },
       // The one in the original that is not a choice at all.  Ours can only
       // roll the name, because every other row has exactly one thing in it
       // that can be picked — which is the honest shape of this slice.
       dice: () => { makeName = NAMES[Math.floor(roll() * NAMES.length)]!; drawCreate() },
+      face: paintMe(),
       size: size as Record<string, [number, number]>,
       list: (size['list'] ?? [220, 220]) as [number, number],
       racePitch: (size['racePitch'] ?? [0, 21]) as [number, number],
@@ -4251,7 +4360,11 @@ async function main() {
   const restore = (save: Save) => {
     placeHero(save.hero.x, save.hero.y); hero.dir = save.hero.dir
     camX = hero.x; camY = hero.y
-    if (save.you.who) { me = { ...save.you.who }; ui.setName(me.name) }
+    if (save.you.who) {
+      const was = save.you.who
+      me = { hair: 'plain', beard: '', ...was }
+      ui.setName(was.name)
+    }
     you.level = Math.max(1, save.you.level)
     you.line = lineFor(you.level)
     you.max = you.line[HP]!
@@ -6413,7 +6526,15 @@ async function main() {
             ((clock * 1000 - you.swung) / you.line[SWING]!) * n))
       const idx = clip.first + hero.dir * n + f
       const c = heroMeta.cell
-      const sxp = (idx % heroMeta.cols) * c, syp = Math.floor(idx / heroMeta.cols) * c
+      // A row of the atlas is not a cell.  The sheet is cropped to the man —
+      // fourteen rows of nothing over his head on every one of a hundred
+      // frames was 0.33 MiB of a 24 MiB budget — and `body.top` is the offset
+      // back.  Every other number in this file stays against the 64 cell,
+      // which is what `cell` still is.
+      const rowH = heroMeta.row ?? c
+      const lid = heroMeta.body?.top ?? 0
+      const sxp = (idx % heroMeta.cols) * c
+      const syp = Math.floor(idx / heroMeta.cols) * rowH
       const w = c * zoom
       // Shoved out of his own square by whatever last hit him, and not far
       // enough to move where he *is*: the shadow stays put under the square
@@ -6469,24 +6590,47 @@ async function main() {
       }
       heroLayers = 1
       drawArm(arm, armClip, 'behind', armAt, X, Y, w / c)
-      ctx.drawImage(heroImg, sxp, syp, c, c, X, Y, Math.ceil(w), Math.ceil(w))
+      ctx.drawImage(heroImg, sxp, syp, c, rowH,
+        X, Math.round(Y + lid * zoom), Math.ceil(w), Math.ceil(rowH * zoom))
+      // What he chose to look like, over the body and under what he is
+      // holding: a beard is on the face and hair is over the head, and a
+      // sword swings in front of both.
+      drawLook(me?.beard ? `beard-${me.beard}` : null, armClip, armAt, X, Y, w / c)
+      drawLook(`hair-${me?.hair ?? 'plain'}`, armClip, armAt, X, Y, w / c)
       drawArm(arm, armClip, 'front', armAt, X, Y, w / c)
       if (under > 0 && shape) ctx.restore()
       drawn++
     }
 
-    /** One half of what he is holding, at the body's own scale. */
-    const drawArm = (word: string | null, clip: string, half: string,
+    /**
+     * One strip laid over the body, at the body's own scale.
+     *
+     * A weapon half and a hairstyle are the same thing to this function: a
+     * box trimmed out of a 64-pixel cell, carrying the offset back to it.  It
+     * was two functions for one frame and the second was a copy of the first.
+     */
+    const drawStrip = (img: HTMLImageElement | null,
+      a: { w: number; h: number; dx: number; dy: number; cols: number
+           x?: number; y: number } | undefined,
       f: number, X: number, Y: number, k: number) => {
-      const a = word ? heroMeta.arms?.[word]?.clips[clip]?.[half] : undefined
-      const img = word ? armSheet(word) : null
       if (!a || !img || !img.complete || !img.naturalWidth) return
-      ctx.drawImage(img, a.x + (f % a.cols) * a.w, a.y + hero.dir * a.h,
+      ctx.drawImage(img, (a.x ?? 0) + (f % a.cols) * a.w, a.y + hero.dir * a.h,
         a.w, a.h,
         Math.round(X + a.dx * k), Math.round(Y + a.dy * k),
         Math.ceil(a.w * k), Math.ceil(a.h * k))
       heroLayers++
     }
+    /** One half of what he is holding. */
+    const drawArm = (word: string | null, clip: string, half: string,
+      f: number, X: number, Y: number, k: number) =>
+      drawStrip(word ? armSheet(word) : null,
+        word ? heroMeta.arms?.[word]?.clips[clip]?.[half] : undefined,
+        f, X, Y, k)
+    /** And one of the things he chose to look like — see `LOOKS`. */
+    const drawLook = (key: string | null, clip: string,
+      f: number, X: number, Y: number, k: number) =>
+      drawStrip(key ? lookSheet(key) : null,
+        key ? heroMeta.looks?.[key]?.clips[clip] : undefined, f, X, Y, k)
     /**
      * How far a body is shoved out of its own square by a blow, in yards.
      *
@@ -7315,7 +7459,7 @@ async function main() {
   // Read through a local, because the compiler has only ever seen `me`
   // assigned `null` here — `restore` and the screen's own button are the two
   // places that fill it and neither is in this function's flow.
-  const made = me as { name: string } | null
+  const made = me as Me | null
   if (!made) drawCreate()
   else ui.setName(made.name)
 
