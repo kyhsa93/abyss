@@ -463,6 +463,78 @@
          to make room for it. */
       #sheet { position: fixed; }
       #sheet .doll canvas { image-rendering: pixelated; }
+      /* The screen that makes a character.  Every size in it is the client's
+         — see `CREATE` in `pipeline/layout.py` — and what is written here is
+         only how the groups sit, which that file's anchors cannot say. */
+      #create {
+        position: fixed; inset: 0; z-index: 20; pointer-events: auto;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(6, 7, 10, .88);
+        font: var(--font-med)/1.6 var(--body); color: var(--ink);
+      }
+      /* `display: flex` above beats the `hidden` attribute's UA rule, so
+         without this the screen stayed a full-screen layer with
+         `pointer-events: auto` over the whole game after it was closed —
+         every touch went to it and the stick never moved. */
+      #create[hidden] { display: none; }
+      #create .stage {
+        background: var(--panel); border: 1px solid var(--gold-dark);
+        border-radius: 5px; padding: 14px 18px 12px;
+        box-shadow: inset 0 0 0 1px #000, 0 6px 24px rgba(0,0,0,.7);
+        max-height: calc(100vh - 24px); overflow-y: auto;
+      }
+      #create .title {
+        color: var(--gold); font: var(--font-small)/1.8 var(--mono);
+        letter-spacing: .04em; text-align: center;
+        border-bottom: 1px solid var(--gold-dark);
+        padding-bottom: 5px; margin-bottom: 10px;
+      }
+      #create .cols { display: flex; gap: 18px; align-items: flex-start; }
+      #create .right { display: flex; flex-direction: column; gap: 10px; }
+      #create .group { display: flex; }
+      /* The races go down a list the client sizes at 220 by 220 and scrolls —
+         that is what a `<ScrollFrame>` is.  Ten of them at 38 with a 21 gap do
+         not fit in 220, in the original either. */
+      #create .races { flex-direction: column; overflow-y: auto; }
+      #create .sexes, #create .classes { flex-wrap: wrap; }
+      #create .pick {
+        display: flex; flex-direction: column; justify-content: center;
+        background: rgba(201,168,106,.08); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit;
+        padding: 0 8px; cursor: pointer; text-align: left;
+        /* A flex item shrinks by default, and these are in a column under a
+           `max-height`: left to shrink, a 38-pixel race button came out 21. */
+        flex: 0 0 auto;
+      }
+      #create .pick:hover { background: rgba(201,168,106,.18); }
+      #create .pick.on { border-color: var(--gold); color: var(--gold); }
+      #create .pick.off { opacity: .38; cursor: default; }
+      #create .pick .why {
+        font: var(--font-tiny)/1.2 var(--mono); color: #8a8f9e;
+      }
+      #create .name {
+        background: rgba(0,0,0,.4); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit; padding: 0 8px;
+        box-sizing: border-box;
+      }
+      #create .foot {
+        display: flex; align-items: center; gap: 10px;
+        margin-top: 12px; padding-top: 8px;
+        border-top: 1px solid var(--gold-dark);
+      }
+      #create .say { flex: 1; color: #9aa; font: var(--font-small)/1.5 var(--mono); }
+      #create .ok, #create .dice {
+        background: rgba(201,168,106,.12); border: 1px solid var(--gold-dark);
+        border-radius: 3px; color: var(--ink); font: inherit; cursor: pointer;
+      }
+      #create .ok:disabled { opacity: .35; cursor: default; }
+      #create .ok:hover:enabled, #create .dice:hover {
+        background: rgba(201,168,106,.24);
+      }
+      body.touch #create .cols { flex-direction: column; gap: 10px; }
+      body.touch #create .stage { width: calc(100vw - 20px); }
+      body.touch #create .races { flex-direction: row; flex-wrap: wrap; }
+
       /* The shop.  Its box comes from `MerchantFrame` — 384 by 512 in the
          gossip window's corner — so what is written here is only what a row
          is made of.  Ten rows to a page, which is `MERCHANT_ITEMS_PER_PAGE`,

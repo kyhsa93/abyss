@@ -56,6 +56,10 @@ const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 960, height: 600 } })
 await page.goto(HOST, { waitUntil: 'networkidle' })
 await page.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+// A character first: the game opens on the screen that makes one, and it
+// covers the glass.
+await page.evaluate(() => window.__makeOne?.('가온'))
+await page.waitForTimeout(150)
 // A fixed hour, so the light is the same every run: the sky is derived from
 // the clock and a check that changes at dusk is a check nobody trusts.
 await page.evaluate(() => { window.__clock?.(new Date(2026, 5, 21, 12, 0, 0)) })

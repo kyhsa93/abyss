@@ -33,6 +33,9 @@ p.on('pageerror', (e) => errs.push(String(e)))
 p.on('console', (m) => m.type() === 'error' && errs.push(m.text()))
 await p.goto(HOST)
 await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+// A character first: the game opens on the screen that makes one.
+await p.evaluate(() => window.__makeOne?.('가온'))
+await p.waitForTimeout(150)
 
 const state = () => p.evaluate(() => window.__quests())
 const labels = () => p.evaluate(() =>

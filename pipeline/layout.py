@@ -71,20 +71,35 @@ WANT = {
     # like: *"lines 4 and 5 have the same words and the same price."*
     'MerchantFrame': 'shop',
     # And making a character, which happens before any of the above exists.
-    'CharacterCreateRaceButton1': 'create.race',
-    'CharacterCreateClassButton1': 'create.class',
-    'CharacterCreateGenderButtonMale': 'create.sex',
-    'CharacterCustomizationButtonFrame1': 'create.look',
-    'CharacterCreateNameEdit': 'create.name',
-    'CharCreateOkayButton': 'create.ok',
-    'CharCreateBackButton': 'create.back',
-    'CharCreateRandomizeButton': 'create.dice',
     'CharacterSelectCharacterFrame': 'pick',
 }
 
 # And the screens that come before the world.  `GlueXML` is its own directory
 # and this pipeline had never opened it — see `tree`.
 GLUE = ['CharacterCreate.xml', 'CharacterSelect.xml']
+
+# The screen that makes a character, which is **sizes and not places**.
+#
+# `GlueXML` anchors its controls through templates and a scroll frame — a race
+# button hangs off the one above it inside `CharacterCreateRaceScrollChild`,
+# which is the `<ScrollChild>` of a `<ScrollFrame>` inside a backdrop frame
+# inside `CharacterCreateFrame` — and this reader resolves a chain four deep
+# against the screen, so every one of them came back at the same point or off
+# the bottom edge.  What is read instead is what each control **is**, which the
+# file states outright, plus the pitch of the stacks out of the second button's
+# own offset.  Where they go is ours, and this comment is the declaration of
+# that — the same kind of statement `spec.unread` makes.
+CREATE = {
+    'race': 'CharacterCreateRaceButtonTemplate',
+    'class': 'CharacterCreateClassButtonTemplate',
+    'sex': 'CharacterCreateGenderButtonTemplate',
+    'look': 'CharacterCustomizationFrameTemplate',
+    'name': 'CharacterCreateNameEdit',
+    'ok': 'CharCreateOkayButton',
+    'back': 'CharCreateBackButton',
+    'dice': 'CharCreateRandomizeButton',
+    'list': 'CharacterCreateRaceScrollFrame',
+}
 
 #: Which field of `ChrRaces.dbc` and `ChrClasses.dbc` holds the name in this
 #: client's own language.  Found rather than looked up in a layout table: the
@@ -464,6 +479,34 @@ def spec(client, found):
         got = size_of(found, row)
         if got:
             out.setdefault('shop', {})['row'] = [got[0], got[1]]
+    # The character-creation screen: what each control is, and how far apart
+    # two of them stand.  See `CREATE`.
+    made = {}
+    for key, name in CREATE.items():
+        node = found.get(name)
+        if node is None:
+            continue
+        got = size_of(found, node)
+        if got:
+            made[key] = [got[0], got[1]]
+    # And the pitch, off the second button's own anchor: `CharacterCreateRace
+    # Button2` hangs from button 1's `BOTTOMLEFT` at `y = -21`, so 21 is the
+    # gap and 38 + 21 is how far apart two of them stand.  A grid cannot be
+    # made out of one box.
+    for key, name in (('racePitch', 'CharacterCreateRaceButton2'),
+                      ('classPitch', 'CharacterCreateClassButton2')):
+        node = found.get(name)
+        if node is None:
+            continue
+        for an in node.findall('./Anchors/Anchor'):
+            # Both, because the two stacks do not run the same way: the races
+            # go down the scroll frame off `BOTTOMLEFT` and the classes go
+            # across off `TOPRIGHT`.  One number would have made a column of
+            # the classes, which is not what that screen does.
+            made[key] = [abs(int(float(an.get('x') or 0))),
+                         abs(int(float(an.get('y') or 0)))]
+    if made:
+        out['create'] = made
     # And what is left on purpose.
     out['unread'] = ['texture file names', 'anything a player reads',
                      'frameStrata (a word, and we have no stacking model)',

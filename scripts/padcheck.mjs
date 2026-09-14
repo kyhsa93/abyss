@@ -48,6 +48,11 @@ const pad = () => p.evaluate(() => window.__pad())
 
 await p.goto(HOST)
 await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+// A character first.  The game opens on the screen that makes one now, and
+// that screen covers the glass on purpose — so every check below it would be
+// driving a stick nobody can reach.
+await p.evaluate(() => window.__makeOne?.('가온'))
+await p.waitForTimeout(200)
 const L = await pad()
 console.log(`viewport ${p.viewportSize().width}x${p.viewportSize().height}  ` +
   `stick r=${L.base.toFixed(0)} button r=${L.btnR.toFixed(0)} hit=${L.hit.toFixed(0)}`)

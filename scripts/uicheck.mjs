@@ -195,6 +195,67 @@ for (const [W, H] of SIZES) {
     check(`${W}x${H}: the layout came out of the client`, false,
       'public/world/layout.json is missing — run `npm run layout`')
   }
+  // The screen that makes a character.
+  //
+  // There was none: the game opened with one human warrior standing in a
+  // field, because `slice.json` names one race and one class.  Two of those
+  // are the slice's shape — every other race's first step is outside this box
+  // — and the class was not: `CharBaseInfo.dbc` says a human may be seven
+  // things.
+  //
+  // **The pairs are the assertion and the table is 62 rows of them.**  A check
+  // that only read the screen would agree with whatever the screen happened to
+  // say; what has to be true is that the classes offered for the chosen race
+  // are exactly the ones that table allows, and that a human hunter — which is
+  // the pair it does *not* allow, and the one a hand-written list would get
+  // wrong — is not among them.
+  const made = await p.evaluate(() => window.__make())
+  if (made.up) {
+    const legal = made.pairs.filter(([r]) => r === made.race)
+      .map(([, c]) => c).sort((a, b) => a - b)
+    const shown = made.classes.map((c) => c.word).sort()
+    const want = legal.map((c) => made.names[String(c)]).sort()
+    check('the screen offers exactly what CharBaseInfo allows',
+      shown.length === want.length && shown.every((w, i) => w === want[i]),
+      `${shown.join(', ')} against ${want.join(', ')}`)
+    check('and a human is not offered a hunter',
+      !made.classes.some((c) => c.word === made.names['3']),
+      `class 3 is ${made.names['3']}`)
+    // And the reasons are two, because they are two: nine races start outside
+    // this box, five classes have no spellbook yet, and a death knight begins
+    // at 55 on another map.  *Show the difference between what is not here and
+    // what was decided against* is the icons page's own rule.
+    const reasons = new Set([...made.races, ...made.classes, ...made.sexes]
+      .filter((c) => !c.can).map((c) => c.why))
+    check('and each thing that cannot be picked says why',
+      reasons.size >= 3 && !reasons.has(''),
+      [...reasons].join(' | '))
+    // Sizes out of `GlueXML`.  Where they go is ours and `CREATE` says so;
+    // what they *are* is the client's, and this is the half that can be
+    // checked.
+    const sz = made.size
+    const near = (got, want) => Math.abs(got - want) <= 1
+    check('and every control is the size the client states',
+      near(made.races[0].h, sz.race[1]) && near(made.classes[0].h, sz.class[1])
+      && near(made.sexes[0].h, sz.sex[1]),
+      `race ${made.races[0].h} of ${sz.race[1]}, `
+      + `class ${made.classes[0].h} of ${sz.class[1]}, `
+      + `sex ${made.sexes[0].h} of ${sz.sex[1]}`)
+    // And it makes one.
+    const born = await p.evaluate(() => window.__makeOne('가온'))
+    check('making one puts you in the world',
+      born.made?.name === '가온' && born.made?.race === 1
+      && born.made?.cls === 1,
+      JSON.stringify(born.made))
+    const gone = await p.evaluate(() => ({
+      up: !document.getElementById('create').hidden,
+      name: document.querySelector('#units .name')?.textContent ?? '',
+    }))
+    check('and the screen goes away', gone.up === false, JSON.stringify(gone))
+  } else {
+    check('the screen that makes a character is up on a fresh start',
+      false, 'it was not')
+  }
   await p.close()
 }
 

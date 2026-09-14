@@ -87,6 +87,21 @@ function frame(into: HTMLElement, id: string) {
   return { root, face, icon: icon as HTMLImageElement, name, level, fill, text }
 }
 
+/** One thing on the screen that makes a character, and why it may not be. */
+export type Choice = { id: number; word: string; can: boolean; why?: string }
+export type MakeScreen = {
+  races: Choice[]; race: number; pickRace: (id: number) => void
+  sexes: Choice[]; sex: number; pickSex: (id: number) => void
+  classes: Choice[]; cls: number; pickClass: (id: number) => void
+  name: string; rename: (s: string) => void
+  say: string; ready: boolean; done: () => void; dice: () => void
+  /** The client's own sizes — see `CREATE` in `pipeline/layout.py`. */
+  size: Record<string, [number, number]>
+  list: [number, number]
+  racePitch: [number, number]
+  classPitch: [number, number]
+}
+
 /**
  * One row of a shop: what it is, what it costs, and whether you can pay.
  *
@@ -122,7 +137,15 @@ export type Layout = {
      * of it is, out of `MerchantItemTemplate`'s own `<Size>`.
      */
     shop?: { page?: number; buyback?: number; row?: [number, number] }
+    /** The sizes of the character-creation screen — see `CREATE`. */
+    create?: Record<string, number[]>
     unread: string[]
+  }
+  /** Which races and classes there are, and which pairs are legal. */
+  who?: {
+    races: Record<string, string>
+    classes: Record<string, string>
+    pairs: [number, number][]
   }
   /**
    * Which windows share a place on the screen — `UIPanelWindows`, read by
@@ -255,6 +278,40 @@ export function hud(layout?: Layout) {
   const worldCv = el('canvas', '', worldBox) as HTMLCanvasElement
   const worldFoot = el('div', 'foot', worldBox)
   const worldPin = el('div', 'pin', worldBox)
+
+  /**
+   * The screen that makes a character.
+   *
+   * There was none: the game opened with one human warrior standing in a
+   * field, because `slice.json` names one race and one class and `player.json`
+   * one starting point.  Two of those three are the slice's shape and one is
+   * not — `CharBaseInfo.dbc` says a human may be seven things and six of them
+   * start on the same square of ground this game already uses.
+   *
+   * **Sizes from the client, places ours, and the split is declared.**  Every
+   * control here is the size `GlueXML` states — a race button is 38 by 38, a
+   * row of appearance 230 by 32, the name box 156 by 40, the two buttons 160
+   * by 35 and 120 by 30 — and the two stacks keep the client's own pitch: the
+   * races go down at 21 and the classes across at 6.  Where the groups sit is
+   * ours, because that file anchors them through templates and a scroll frame
+   * four deep and `layout.py` says so in `CREATE`.
+   */
+  const create = el('div', '', ui)
+  create.id = 'create'
+  create.hidden = true
+  const createBox = el('div', 'stage', create)
+  const createTitle = el('div', 'title', createBox)
+  const createCols = el('div', 'cols', createBox)
+  const createRaces = el('div', 'group races', createCols)
+  const createRight = el('div', 'right', createCols)
+  const createSexes = el('div', 'group sexes', createRight)
+  const createClasses = el('div', 'group classes', createRight)
+  const createName = el('input', 'name', createRight) as HTMLInputElement
+  createName.maxLength = 12
+  const createFoot = el('div', 'foot', createBox)
+  const createSay = el('div', 'say', createFoot)
+  const createOk = el('button', 'ok', createFoot) as HTMLButtonElement
+  const createDice = el('button', 'dice', createFoot) as HTMLButtonElement
 
   // The shop.
   //
@@ -475,6 +532,67 @@ export function hud(layout?: Layout) {
       }
     },
 
+    /**
+     * Draw the screen that makes a character.
+     *
+     * `picked` is what is chosen now and `pick` is what to call when it
+     * changes; a row that cannot be chosen carries **why**, because *"show the
+     * difference between what is not here and what was decided against"* is
+     * the icons page's own rule and the two reasons here are different ones:
+     * nine races start outside this slice's box, five classes have no
+     * spellbook yet, and a death knight begins at level 55 on another map.
+     */
+    setCreate(open: boolean, made: MakeScreen) {
+      create.hidden = !open
+      if (!open) return
+      createTitle.textContent = '캐릭터를 만든다'
+      const sz = made.size
+      const row = (into: HTMLElement, list: Choice[], now: number,
+        pick: (id: number) => void, w: number, h: number, gap: number) => {
+        into.textContent = ''
+        into.style.gap = `${gap}px`
+        for (const c of list) {
+          const b = el('button', 'pick', into) as HTMLButtonElement
+          b.style.minWidth = `${w}px`
+          b.style.height = `${h}px`
+          if (c.id === now) b.classList.add('on')
+          if (!c.can) { b.classList.add('off'); b.disabled = true }
+          el('span', 'word', b).textContent = c.word
+          if (c.why) el('span', 'why', b).textContent = c.why
+          b.onclick = () => pick(c.id)
+        }
+      }
+      createRaces.style.maxHeight = `${made.list[1]}px`
+      createRaces.style.width = `${made.list[0]}px`
+      row(createRaces, made.races, made.race, made.pickRace,
+        made.list[0] - 20, sz.race[1], made.racePitch[1])
+      row(createSexes, made.sexes, made.sex, made.pickSex,
+        sz.sex[0] * 2, sz.sex[1], made.classPitch[0])
+      row(createClasses, made.classes, made.cls, made.pickClass,
+        sz.class[0] * 2, sz.class[1], made.classPitch[0])
+      createName.style.width = `${sz.name[0]}px`
+      createName.style.height = `${sz.name[1]}px`
+      createName.placeholder = '이름'
+      if (createName.value !== made.name) createName.value = made.name
+      createName.oninput = () => made.rename(createName.value)
+      createSay.textContent = made.say
+      createOk.textContent = '세상으로'
+      createOk.style.width = `${sz.ok[0]}px`
+      createOk.style.height = `${sz.ok[1]}px`
+      createOk.disabled = !made.ready
+      createOk.onclick = made.done
+      createDice.textContent = '아무렇게나'
+      createDice.style.width = `${sz.dice[0]}px`
+      createDice.style.height = `${sz.dice[1]}px`
+      createDice.onclick = made.dice
+    },
+
+    /** What the character is called — set once, when one is made. */
+    setName(name: string) {
+      whoAmI = name || '주인공'
+      sheet.dataset['now'] = ''
+    },
+
     /** The minimap's own canvas, for the scene to paint into. */
     map: mapCv,
     /** And the world map's, which the scene paints once. */
@@ -618,7 +736,7 @@ export function hud(layout?: Layout) {
       if (sheet.dataset['now'] === want) return
       sheet.dataset['now'] = want
       sheet.textContent = ''
-      el('div', 'title', sheet).textContent = '주인공'
+      el('div', 'title', sheet).textContent = whoAmI
       // The paperdoll, if the scene has drawn one.  It goes at the top,
       // because that is the one thing on this panel that is a picture of you
       // rather than a number about you.
@@ -806,6 +924,8 @@ export function hud(layout?: Layout) {
    * and pressing it did nothing.
    */
   let microOpen = false
+  /** What the character is called, which the sheet's title and the frame use. */
+  let whoAmI = '주인공'
 
   const placePhone = () => {
     spell()

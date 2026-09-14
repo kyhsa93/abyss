@@ -4122,6 +4122,115 @@ async function main() {
     .then((r) => (r.ok ? r.json() as Promise<{ files?: Record<string, string> }> : null))
     .then((m) => m?.files?.['public/world/npcs.json'] ?? '')
     .catch(() => '')
+  /**
+   * Who the character is, which used to be a sentence in `slice.json`.
+   *
+   * `race` and `cls` are the client's own ids and `sex` is 0 male, 1 female —
+   * the order `CharacterCreate.xml` puts its two buttons in.  Empty until the
+   * screen makes one or a save brings one back, and that emptiness is what
+   * puts the screen up.
+   */
+  let me: { name: string; race: number; sex: number; cls: number } | null = null
+
+  /**
+   * The screen that makes one, and the three rules behind it.
+   *
+   * **Race.**  One, and it is the slice's shape rather than a decision:
+   * `playercreateinfo` puts every other race's first step outside this box —
+   * dwarves and gnomes in Dun Morogh, night elves in Teldrassil, draenei on
+   * Azuremyst.  So the other nine are drawn and said *why*, because the icons
+   * page's rule is to show the difference between what is not here and what
+   * was decided against.
+   *
+   * **Class.**  `CharBaseInfo.dbc` says a human may be seven things and that
+   * table is the whole rule — there is nothing to reimplement.  Six of them
+   * start on the square this game already begins on; the seventh is a death
+   * knight, who begins at level 55 on another map, and that is a different
+   * reason from the other five, which simply have no spellbook yet (issue
+   * 188).  Both reasons are printed.
+   *
+   * **Sex.**  Two buttons and one of them is off, because `bake_sprites.py`
+   * composites `body/bodies/male` and there is no female body in `hero.png`.
+   * A choice that changes nothing is worse than a choice that is greyed with
+   * a reason.
+   */
+  const SEXES = [[0, '남자'], [1, '여자']] as const
+  const HUMAN = 1
+  /** A death knight starts at 55 on another map, which is not this slice. */
+  const DEATH_KNIGHT = 6
+  /** Which class this game has a spellbook for — see issue 188. */
+  const PLAYABLE = new Set([1])
+  let makeRace = HUMAN, makeSex = 0, makeClass = 1, makeName = ''
+  /**
+   * Names to roll, because the original's dice rolls one too.
+   *
+   * Ours and not the client's: `CharacterCreate.lua` calls a server for a
+   * name, and the lists the client ships are Blizzard's.  Fourteen plain
+   * Korean given names, which is the same bargain every other word in this
+   * game makes.
+   */
+  const NAMES = ['가온', '노을', '단우', '라온', '미르', '바다', '사름',
+    '아름', '자람', '차온', '하늘', '해든', '이레', '온새']
+
+  const drawCreate = () => {
+    const table = layout?.who
+    if (!table) { ui.setCreate(false, {} as never); return }
+    const size = (layout?.spec?.create ?? {}) as Record<string, number[]>
+    const legal = new Set((table.pairs ?? [])
+      .filter(([r]) => r === makeRace).map(([, c]) => c))
+    // **The ten the original shows, and `CharBaseInfo` is what says which.**
+    // `ChrRaces.dbc` has twenty-one rows and eleven of them are nobody's
+    // choice — a naga, a fel orc, the unused ones — so listing the table
+    // straight put 타락한 오크 on the screen beside 인간.  A race a player may
+    // be is a race that appears in the 62 pairs, which is the same table the
+    // class list comes out of.
+    const playable = new Set((table.pairs ?? []).map(([r]) => r))
+    const races = [...playable].sort((a, b) => a - b)
+      .map((id) => ({
+        id, word: table.races[String(id)] ?? String(id),
+        can: id === HUMAN,
+        ...(id === HUMAN ? {} : { why: '이 상자 밖에서 시작한다' }),
+      }))
+    const classes = [...legal].sort((a, b) => a - b).map((id) => ({
+      id, word: table.classes[String(id)] ?? String(id),
+      can: PLAYABLE.has(id),
+      ...(PLAYABLE.has(id) ? {}
+        : id === DEATH_KNIGHT ? { why: '55레벨, 다른 지도' }
+          : { why: '주문서가 아직 없다' }),
+    }))
+    const sexes = SEXES.map(([id, word]) => ({
+      id, word, can: id === 0,
+      ...(id === 0 ? {} : { why: '여자 몸을 아직 안 구웠다' }),
+    }))
+    ui.setCreate(true, {
+      races, race: makeRace, pickRace: (id) => { makeRace = id; drawCreate() },
+      sexes, sex: makeSex, pickSex: (id) => { makeSex = id; drawCreate() },
+      classes, cls: makeClass,
+      pickClass: (id) => { makeClass = id; drawCreate() },
+      name: makeName, rename: (v) => { makeName = v; drawCreate() },
+      say: `${table.races[String(makeRace)] ?? ''} `
+        + `${table.classes[String(makeClass)] ?? ''}`
+        + ` · ${SEXES.find(([i]) => i === makeSex)?.[1] ?? ''}`,
+      ready: makeName.trim().length > 0,
+      done: () => {
+        me = { name: makeName.trim(), race: makeRace, sex: makeSex,
+               cls: makeClass }
+        ui.setName(me.name)
+        ui.setCreate(false, {} as never)
+        ui.log(`${me.name}. 노스샤이어 계곡에서 시작한다.`, 'gain')
+        writeSave(snapshot()).catch(() => {})
+      },
+      // The one in the original that is not a choice at all.  Ours can only
+      // roll the name, because every other row has exactly one thing in it
+      // that can be picked — which is the honest shape of this slice.
+      dice: () => { makeName = NAMES[Math.floor(roll() * NAMES.length)]!; drawCreate() },
+      size: size as Record<string, [number, number]>,
+      list: (size['list'] ?? [220, 220]) as [number, number],
+      racePitch: (size['racePitch'] ?? [0, 21]) as [number, number],
+      classPitch: (size['classPitch'] ?? [6, 0]) as [number, number],
+    })
+  }
+
   const snapshot = (): Save => ({
     version: SAVE_VERSION, world: worldHash, at: Date.now(),
     hero: { x: hero.x, y: hero.y, dir: hero.dir },
@@ -4132,6 +4241,7 @@ async function main() {
       items: held, gear, taught,
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
+      ...(me ? { who: { ...me } } : {}),
     },
     seed: seed(),
     quests: {
@@ -4141,6 +4251,7 @@ async function main() {
   const restore = (save: Save) => {
     placeHero(save.hero.x, save.hero.y); hero.dir = save.hero.dir
     camX = hero.x; camY = hero.y
+    if (save.you.who) { me = { ...save.you.who }; ui.setName(me.name) }
     you.level = Math.max(1, save.you.level)
     you.line = lineFor(you.level)
     you.max = you.line[HP]!
@@ -6909,7 +7020,7 @@ async function main() {
     // --- the interface ---
     const foe = you.target
     ui.setMe({
-      name: '주인공', level: you.level, hp: you.hp, max: you.max,
+      name: me?.name || '주인공', level: you.level, hp: you.hp, max: you.max,
       icon: art.chrome['health'] ?? '', face: paintFace(), foe: false,
     })
     ui.setFoe(foe ? {
@@ -7192,6 +7303,22 @@ async function main() {
       }
     }
   }
+  /**
+   * And if nobody has been made yet, make one.
+   *
+   * After the save is read, because a save carries a character and the screen
+   * is what fills that in when there is not one.  A save from before there
+   * was a screen comes through `migrate` with the character this game used to
+   * be — one human warrior called 주인공 — so nobody is asked to make again
+   * what they have already played.
+   */
+  // Read through a local, because the compiler has only ever seen `me`
+  // assigned `null` here — `restore` and the screen's own button are the two
+  // places that fill it and neither is in this function's flow.
+  const made = me as { name: string } | null
+  if (!made) drawCreate()
+  else ui.setName(made.name)
+
   let saved = 0
   const keep = () => { writeSave(snapshot()).catch(() => {}) }
   document.addEventListener('visibilitychange', () => {
@@ -7768,6 +7895,48 @@ async function main() {
 
   /** The height grid's own cell, which is what a step ought to be measured in. */
   ;(window as unknown as { __grid: () => number }).__grid = () => U
+  /**
+   * The screen that makes a character, as it stands, and what made it.
+   *
+   * Both halves on purpose: what the screen offers *and* the table it is
+   * supposed to have come from.  A check that only reads the screen is a check
+   * that agrees with whatever the screen happens to say — the pairs are the
+   * assertion, and `CharBaseInfo.dbc` is 62 rows of them.
+   */
+  ;(window as unknown as { __make: () => unknown }).__make = () => {
+    const box = document.getElementById('create')
+    const pick = (sel: string) =>
+      Array.from(box?.querySelectorAll(sel) ?? [])
+      .map((e) => ({
+        word: (e.querySelector('.word') as HTMLElement)?.textContent ?? '',
+        can: !e.classList.contains('off'),
+        why: (e.querySelector('.why') as HTMLElement)?.textContent ?? '',
+        w: Math.round((e as HTMLElement).getBoundingClientRect().width),
+        h: Math.round((e as HTMLElement).getBoundingClientRect().height),
+      }))
+    return {
+      up: box ? !box.hidden : false,
+      made: me ? { ...me } : null,
+      race: makeRace, cls: makeClass, sex: makeSex,
+      races: pick('.races .pick'),
+      classes: pick('.classes .pick'),
+      sexes: pick('.sexes .pick'),
+      // The table the screen is supposed to be made of.
+      pairs: layout?.who?.pairs ?? [],
+      names: layout?.who?.classes ?? {},
+      size: layout?.spec?.create ?? {},
+    }
+  }
+  /** Make one, so a check can get into the world without typing. */
+  ;(window as unknown as { __makeOne: (name: string) => unknown })
+    .__makeOne = (name) => {
+      makeName = name
+      drawCreate()
+      const ok = document.querySelector('#create .ok') as HTMLButtonElement
+      ok?.click()
+      return { made: me ? { ...me } : null }
+    }
+
   /** Everything that has an opinion about one spot, for finding a wall. */
   ;(window as unknown as { __why: (x: number, y: number) => unknown }).__why =
     (x, y) => ({

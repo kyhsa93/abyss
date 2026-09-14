@@ -22,7 +22,7 @@
  */
 
 /** Bumped whenever the shape below changes; `migrate` walks v1 → v2 → v3. */
-export const SAVE_VERSION = 1
+export const SAVE_VERSION = 2
 
 export type Save = {
   version: number
@@ -46,6 +46,15 @@ export type Save = {
     /** When the ceiling was reached, and when the character was made. */
     finished: number
     born: number
+    /**
+     * Who he is, as the screen that made him left it.
+     *
+     * `race` and `cls` are the client's own ids — `ChrRaces` and `ChrClasses`
+     * — and `sex` is 0 male, 1 female, which is how `CharacterCreate.xml`
+     * numbers its two buttons.  A save from before there was a screen has
+     * none of this and `migrate` fills it with what the game used to be.
+     */
+    who?: { name: string; race: number; sex: number; cls: number }
   }
   /** Where the stream of chance is, so loading cannot re-roll a drop. */
   seed: number
@@ -119,8 +128,8 @@ export async function wipe(): Promise<void> {
  * Bring an older save forward, one version at a time.
  *
  * A chain and never a jump: `v1 → v2 → v3`, so a save two versions behind goes
- * through the same steps the one version behind it did.  There is one version
- * so far and the chain is empty, which is the right time to write the loop.
+ * through the same steps the one version behind it did.  The loop was written
+ * while the chain was empty, which is the right time to write one.
  */
 export function migrate(save: Save): Save | null {
   let now = save
@@ -132,4 +141,18 @@ export function migrate(save: Save): Save | null {
   return now.version === SAVE_VERSION ? now : null
 }
 
-const STEPS: Record<number, (s: Save) => Save> = {}
+const STEPS: Record<number, (s: Save) => Save> = {
+  /**
+   * 1 → 2: before there was a screen, every character was the same one.
+   *
+   * A human warrior called 주인공, which is what the game was: one race in
+   * `slice.json`, one class, one starting point.  Filled in rather than
+   * thrown away — a save is somebody's hours, and the thing it is missing is
+   * the thing it never had a way to be different about.
+   */
+  1: (s) => ({
+    ...s,
+    version: 2,
+    you: { ...s.you, who: { name: '주인공', race: 1, sex: 0, cls: 1 } },
+  }),
+}
