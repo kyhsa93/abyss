@@ -8204,6 +8204,8 @@ async function main() {
   const DEEP_YARDS = 12
   /** Water tiles laid loose in the last frame, and tiles of water composed into plates ever. */
   let waterTilesDrawn = 0
+  /** Crossings laid on the glass in the last frame, each one piece. */
+  let decksDrawn = 0
   let wateredEver = 0
   /** Thrown away when the zoom changes, because the tinted strip is. */
   /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
@@ -9205,15 +9207,11 @@ async function main() {
       // it at face value ran roads up cliffs — the mask is a road network
       // and a great deal of loose rock, and only the slope tells them apart.
       const flat = steep <= BARE
-      // A deck where a crossing stands.  In the ground pass and not among
-      // the trees, because a bridge is a floor: it is what you are standing
-      // on rather than something standing beside you.
-      const span = mode === 'plain' ? null : onSpan(wx, wy)
       // A building's plan, drawn on the ground: stone inside, darker stone
       // for the wall.  In the ground pass because from above a building is
       // mostly a floor with a line around it, and because a plan ninety
       // yards across is not a thing that can be a sprite.
-      const built = span || roofless ? null : covers
+      const built = roofless ? null : covers
       // The roof comes off the building you are standing in.  There are no
       // interiors here and the abbey holds the people who hand out the work,
       // so a roof drawn over them is a roof with a quest giver under it —
@@ -9312,7 +9310,6 @@ async function main() {
           ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
         : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
       const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
-        : span ? span.tile
         : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
           : layer !== undefined ? pictureOf(layer) : tileFor(ink)
       // What a building's outline got painted with, tallied as it is drawn.
@@ -9343,9 +9340,10 @@ async function main() {
           + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
       const wide = px * grain
       // A plate already holds the plain ground under this tile, and its
-      // water, so what is left is whatever a plate cannot hold: a bridge
-      // deck, a building.
-      if (mode === 'over' && !built && !span && !water) return 0
+      // water, so what is left is whatever a plate cannot hold: a building.
+      // A bridge deck is not a tile at all — it is laid after this pass, in
+      // the axes it lies in.
+      if (mode === 'over' && !built && !water) return 0
       if (water) waterTilesDrawn++
       g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
         Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
@@ -9394,7 +9392,7 @@ async function main() {
       // corners disagree anyway, which is the coarse grid disagreeing with
       // itself.
       let blended = false
-      if (grain === 1 && !built && !span && !water) {
+      if (grain === 1 && !built && !water) {
         const mix = blendAt(wx, wy)
         // A nibble's worth is the floor: below one level in fifteen there
         // is nothing to see and the blit is wasted.
@@ -9414,7 +9412,7 @@ async function main() {
           }
         }
       }
-      if (!blended && grain === 1 && !built && !span && !water
+      if (!blended && grain === 1 && !built && !water
         && ground.at[`${RING['grass']}_n`]) {
         const half = T / 2
         const q = [
@@ -9979,6 +9977,60 @@ async function main() {
       }
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+    // --- a crossing, drawn once, in the axes it lies in -------------------
+    //
+    // A deck was a tile laid on every 1.33 yard square of the world its
+    // rectangle covered, which is the building's mistake over again: the
+    // Northshire crossing lies at 45 degrees, so both of its long sides came
+    // out as staircases of planks with water in every notch, and the two
+    // that lie nearly north-south were ragged at the ends.  The rectangle has
+    // been the bake's since the boxes were turned back — `lo` and `hi` along
+    // it, `w` either side, `c` and `s` the way it lies — so it is drawn as
+    // that rectangle, under the same transform the roofs use, filled with the
+    // planks one picture a tile and running along it.
+    //
+    // Three things from the one rectangle, as a building has: a shadow on the
+    // glass rather than in the deck's axes, because the sun does not turn
+    // with the bridge; the planks; and a dark rail down each long side, which
+    // is what says where the edge of something you can fall off is.
+    decksDrawn = 0
+    if (!indoors) {
+      const kk = k()
+      const tile = YD_PER_TILE
+      const lift = Math.max(1, Math.round(px * grain * 0.35))
+      for (const b of spans) {
+        const Ox = screenX(b.x, b.y), Oy = screenY(b.x, b.y)
+        const reach = (Math.max(-b.lo, b.hi) + b.w) * kk
+        if (Ox < -reach || Ox > canvas.width + reach
+          || Oy < -reach || Oy > canvas.height + reach) continue
+        // In tile units along and across the deck.  `screenX` falls as world
+        // y rises and `screenY` as world x rises, which is the same pair of
+        // flips the roofs carry, so this is their matrix at a tile's scale.
+        const a = -kk * b.s * tile, bb = -kk * b.c * tile
+        const c = -kk * b.c * tile, d = kk * b.s * tile
+        const x0 = b.lo / tile, y0 = -b.w / tile
+        const along = (b.hi - b.lo) / tile, across = (2 * b.w) / tile
+        ctx.setTransform(a, bb, c, d, Ox + lift, Oy + lift)
+        ctx.fillStyle = 'rgba(8, 12, 16, 0.30)'
+        ctx.fillRect(x0, y0, along, across)
+        ctx.setTransform(a, bb, c, d, Ox, Oy)
+        // One picture for a wooden deck, with its planks along the pattern's
+        // own x, which is along the deck: the second picture only existed to
+        // turn the planks for a deck lying north-south on the world's grid.
+        const pat = roofPattern(b.tile === 'stone' ? 'stone' : 'bridge', 0, px)
+        if (pat) {
+          ctx.fillStyle = pat
+          ctx.fillRect(x0, y0, along, across)
+        }
+        ctx.fillStyle = 'rgba(40, 24, 12, 0.9)'
+        const rail = 0.12
+        ctx.fillRect(x0, y0, along, rail)
+        ctx.fillRect(x0, y0 + across - rail, along, rail)
+        decksDrawn++
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+    }
 
     // --- a building, drawn once, in the axes it was built in --------------
     //
@@ -11532,7 +11584,7 @@ async function main() {
     tiles: tilesDrawn, inView: tilesInView, edged, shaded, outlined,
     plates: platesDrawn,
     blended: blendedEver, plated: platedEver,
-    waterTiles: waterTilesDrawn, watered: wateredEver,
+    waterTiles: waterTilesDrawn, watered: wateredEver, decks: decksDrawn,
   })
   /**
    * What the plain ground is costing, in kept pixels.

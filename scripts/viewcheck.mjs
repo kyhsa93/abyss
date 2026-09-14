@@ -1302,6 +1302,50 @@ check('and each one has water beside it', spans.every((s) => s.wet > 0),
   JSON.stringify(spans.map((s) => [s.at, s.wet])))
 console.log(`      (${spans.length} crossings, ${spans.reduce((a, s) => a + s.open, 0)} yards of open deck)`)
 
+// 10a. And a deck is one piece, lying the way the crossing does.
+//
+// A deck was a tile on every 1.33 yard square of the world its rectangle
+// covered, so the crossing that lies at 45 degrees had a staircase for each
+// long side, with water in every notch.  Walkability never saw it — the checks
+// above ask the rectangle, which was always straight — so this asks the glass.
+// Along the diagonal deck, wherever a stride off the side is water, a point
+// just inside the edge must be planks and a point just outside must not be.
+// A staircase fails that on every other step.
+const deckEdge = await p.evaluate(async () => {
+  const b = window.__spans().list.find((s) => Math.abs(s.c) > 0.3 && Math.abs(s.s) > 0.3)
+  if (!b) return null
+  window.__cam({ x: b.x, y: b.y, zoom: 1 })
+  await new Promise((r) => setTimeout(r, 1500))
+  const g = document.querySelector('canvas').getContext('2d')
+  const colour = (x, y) => {
+    const [sx, sy] = window.__screenAt(x, y)
+    return g.getImageData(Math.round(sx), Math.round(sy), 1, 1).data
+  }
+  // Planks and the dark rail are at least as red as they are blue; water and
+  // the deck's shadow on it are plainly bluer.  Asked first as `red over blue
+  // by twenty`, the rail (38, 25, 27) read as not-a-deck six times in eight.
+  const wood = (d) => d[0] >= d[2]
+  const water = (d) => d[2] > d[0] + 20
+  let tried = 0, straight = 0
+  for (let i = 2; i < 38; i++) {
+    const a = b.lo + ((b.hi - b.lo) * i) / 40
+    for (const side of [-1, 1]) {
+      const at = (off) => [b.x + b.c * a - b.s * off * side, b.y + b.s * a + b.c * off * side]
+      // The point just outside has to be water itself, not only the one a
+      // stride off: a bank reaches in under the ends of a deck.
+      if (!window.__probe(...at(b.w + 0.4)).wet || !window.__probe(...at(b.w + 1.5)).wet) continue
+      tried++
+      if (wood(colour(...at(b.w - 0.4))) && water(colour(...at(b.w + 0.4)))) straight++
+    }
+  }
+  return { tried, straight, decks: window.__edges().decks }
+})
+check('a deck is drawn in one piece the way it lies, not a tile at a time',
+  !!deckEdge && deckEdge.decks > 0 && deckEdge.tried > 20
+    && deckEdge.straight >= deckEdge.tried * 0.9,
+  deckEdge ? `${deckEdge.straight} of ${deckEdge.tried} points along the diagonal deck's edge `
+    + `are planks inside and not outside, ${deckEdge.decks} decks on the glass` : 'no diagonal deck')
+
 // 10b. Goldshire has no pit in the middle of it.
 //
 // The client cuts its own terrain away wherever a building carries its own
@@ -2065,10 +2109,16 @@ check('no zoom drops the ground below the floor', worst.fps >= 45,
 // What the doubling actually buys is the far end, and it is worth asserting
 // precisely because it is counter-intuitive: **the widest view on the glass
 // draws fewer tiles than the zoom above it**.
+// **Nought against nought is the claim holding.**  The tiles this view still
+// drew were the bridge deck's — 10 at zoom 3 and 42 at the floor once the ground
+// and the water had gone into plates — and a deck is one piece now, so at this
+// spot the tile pass draws nothing at any zoom.  What is asserted is the part
+// that stays true: never more at the floor than at the busiest zoom, and
+// strictly fewer whenever that zoom draws any.
 const most = sweep.reduce((a, b) => (b.tiles > a.tiles ? b : a))
 const far = sweep[sweep.length - 1]
 check('and pulling out past the coarser grain costs less, not more',
-  far.tiles < most.tiles,
+  most.tiles === 0 ? far.tiles === 0 : far.tiles < most.tiles,
   `${far.tiles} tiles at the ${far.zoom.toFixed(3)} floor against `
   + `${most.tiles} at ${most.zoom.toFixed(2)}`)
 

@@ -978,6 +978,22 @@ the tiles on the water's edge change inside the tile. The bridge decks are
 still tiles, because a deck is a structure standing on the water rather than
 the water.
 
+**And then the decks, which were the building's mistake again.** A deck was a
+tile on every 1.33 yard square of the world its rectangle covered, so the
+Northshire crossing — lying at 45 degrees — had a staircase down each long side
+with water in every notch, and the two that lie nearly north-south were ragged
+at the ends. The rectangle itself had been straight since the bake turned the
+boxes back, and every walking check asks the rectangle, which is why nothing
+failed: only the picture was on the grid. A deck is laid after the tile pass
+now, in the axes it lies in, under the roofs' transform at a tile's scale — the
+planks one picture a tile running along it, a shadow on the glass rather than
+in the deck's axes, and a dark rail down each long side, because that is what
+says where the edge of something you can fall off is. `bridge_b` goes unused:
+it only existed to turn the planks for a deck lying north-south on the world's
+grid. `viewcheck` asks the glass rather than the rectangle: along the diagonal
+deck, wherever a stride off the side is water, just inside the edge must be
+planks and just outside must not be, which a staircase fails every other step.
+
 **A hole in the ground is a field that was read and then used by nothing.** A
 chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
 it is how the client makes the mouth of a mine: 674 cells of it in this slice.
@@ -1730,7 +1746,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one, the blend one and the water two: 175. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one, the blend one, the water two and the bridge one: 176. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
