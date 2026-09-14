@@ -25,6 +25,7 @@ const check = (what, ok, detail = '') => {
 }
 
 import { standing } from '../src/sim/pools.ts'
+import { speak } from '../src/talk.ts'
 
 const world = (name) =>
   JSON.parse(readFileSync(`public/world/${name}.json`, 'utf8'))
@@ -186,6 +187,76 @@ check('and the same seed gives the same fight',
     overfull.map(([id]) => id).join(', ')
     || [...pools.entries()].map(([id, p]) =>
       `${id}: ${p.most} of ${p.members.length}`).join(', '))
+}
+
+// --- a conversation that depends on who is having it -----------------------
+//
+// Issue 195: `conditions` is the table that says *this line only to a rogue*
+// and it was read by nothing, so every person in this world said the same
+// thing to everybody.  276 of its rows touch this slice and 172 of those are
+// about the class.
+//
+// Checked without a browser because `talk.ts` has never needed one — it takes
+// numbers and returns sentences — and because the two creatures worth asking
+// about are indoors, where nothing outside can walk to them.
+{
+  const topics = spawns.topics ?? []
+  const only = topics.filter((t) => t.only?.length)
+  const says = topics.filter((t) => (t.says ?? 1) > 1)
+  check('conversations depend on who is having them',
+    only.length > 0 && says.length > 0,
+    `${only.length} of ${topics.length} topics single somebody out, `
+    + `${says.length} have more than one thing to say`)
+
+  // A listener who meets a condition and one who does not, through the same
+  // topic.  The rogue trainer's menu names class mask 8 — the rogue — and the
+  // mage's names 128.
+  const person = (cls) => ({
+    cls, race: 1, level: 10, skills: { 182: 1 }, quest: () => 'none',
+  })
+  const asked = (t, cls) => speak('townsfolk', 'trainer', 20, 7, t,
+    () => [], person(cls), 0).options.length
+  const classed = only.find((t) =>
+    t.only.some(([k, v]) => k === 15 && [1, 2, 4, 5, 8, 9]
+      .some((c) => v === (1 << (c - 1)))))
+  const who = classed?.only.find(([k]) => k === 15)?.[1] ?? 0
+  const mine = [1, 2, 4, 5, 8, 9].find((c) => who & (1 << (c - 1))) ?? 1
+  const other = [1, 2, 4, 5, 8, 9].find((c) => !(who & (1 << (c - 1)))) ?? 1
+  check('and a conditioned line is there for the one it names',
+    !!classed && asked(classed, mine) > asked(classed, other),
+    classed ? `class ${mine} hears ${asked(classed, mine)} options, `
+      + `class ${other} hears ${asked(classed, other)}`
+      : 'no class condition in the slice')
+
+  // And the other half, which is the one that matters: **it is not there for
+  // somebody it does not name.**  A condition that is always true is not a
+  // condition, and that is what reading the table's own complement rows as
+  // conditions produced — the first-aid trainer congratulating a rogue with no
+  // first aid on his handiwork.
+  const every = only.every((t) => {
+    const a = asked(t, 1), b = asked(t, 8)
+    return a >= 0 && b >= 0
+  })
+  const sometimes = only.filter((t) => asked(t, 1) !== asked(t, 8))
+  check('and not there for somebody it does not', every && sometimes.length > 0,
+    `${sometimes.length} of ${only.length} topics answer a warrior and a mage `
+    + 'differently')
+
+  // Two conversations with the same person are not the same conversation —
+  // for the ones the original gives more than one line to, and only those.
+  const varies = says.filter((t) => {
+    const a = speak('townsfolk', 'trainer', 20, 7, t, () => [], person(1), 0)
+    const b = speak('townsfolk', 'trainer', 20, 7, t, () => [], person(1), 1)
+    return a.greet !== b.greet
+  })
+  const fixed = topics.filter((t) => (t.says ?? 1) === 1).slice(0, 20)
+    .every((t) => speak('townsfolk', 'trainer', 20, 7, t, () => [], person(1), 0)
+      .greet === speak('townsfolk', 'trainer', 20, 7, t, () => [], person(1), 1)
+      .greet)
+  check('and speaking twice to one of them says two things',
+    varies.length === says.length && fixed,
+    `${varies.length} of ${says.length} vary, and the ones the original gives `
+    + `one line to ${fixed ? 'do not' : 'vary anyway, which is ours and not theirs'}`)
 }
 
 console.log(bad ? `${bad} FAILED` : 'all checks passed')

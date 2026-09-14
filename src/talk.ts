@@ -34,6 +34,82 @@ export type Topic = {
   shop?: [string, number, number, number][]
   train?: { of: string; who: string | null; n: number; lo: number; hi: number }
   directs?: number
+  /**
+   * How many things this one has to say — `npc_text`'s own line count.
+   *
+   * **Not a probability table**, and that is a measurement rather than a
+   * simplification.  `npc_text` holds up to eight lines with a weight each and
+   * the wiki hoped the weights would buy variety cheaply; of the 151 texts
+   * this slice reaches, 135 have exactly one line, eight have two or three,
+   * and every weight on those is 100.  An equal split is not a distribution.
+   * So what comes over is the count, which is a real fact about thirty-two of
+   * this slice's creatures, and the words are ours as they always were.
+   */
+  says?: number
+  /**
+   * Who this one treats differently — `conditions`, as `[kind, a, b, not]`.
+   *
+   * 276 rows of that table touch this slice and the commonest kind by a long
+   * way is the class: 172 of them.  Only the kinds this game can answer come
+   * over — class, race, level, a trade, and the four quest states — and
+   * `spawn_npcs.py` counts the rest out loud rather than shipping a rule that
+   * is always false.
+   */
+  only?: number[][]
+}
+
+/**
+ * The conditions this game can answer, by the numbers `conditions` uses.
+ *
+ * Kept as the table's own numbers rather than as words, for the reason every
+ * other id in this pipeline is: the number is the game's and the word is
+ * ours.  What each one asks of the player is `meets` below.
+ */
+export const C_SKILL = 7, C_DONE = 8, C_DOING = 9, C_UNTAKEN = 14,
+  C_CLASS = 15, C_RACE = 16, C_LEVEL = 27, C_READY = 28
+
+/** What a conversation needs to know about whoever is having it. */
+export type Listener = {
+  cls: number
+  race: number
+  level: number
+  /** Which trades he has, by `SkillLine` id, and how far. */
+  skills: Record<number, number>
+  /** What his quest book says about one errand. */
+  quest: (id: number) => 'none' | 'doing' | 'ready' | 'done'
+}
+
+/**
+ * Whether one condition holds for this listener.
+ *
+ * `not` inverts it, which is the table's own `NegativeCondition` and is how
+ * half of these are written: a pair of rows, one for the class and one for
+ * everybody else.  A kind nobody here can answer never reaches this — the
+ * bake drops it and says how many — so an unknown number is a bug rather than
+ * a shrug, and it answers false.
+ */
+export function meets(one: number[], you: Listener): boolean {
+  const [kind, a, b, not] = one as [number, number, number, number]
+  let yes = false
+  switch (kind) {
+    case C_CLASS: yes = !!(a & (1 << (you.cls - 1))); break
+    case C_RACE: yes = !!(a & (1 << (you.race - 1))); break
+    case C_LEVEL:
+      // `ConditionValue2` is the comparison: 0 equal, 1 higher, 2 lower, and
+      // 3 and 4 the two "or the same".  Written out because reading it as a
+      // plain "at least" makes every one of them true from level one.
+      yes = b === 1 ? you.level > a : b === 2 ? you.level < a
+        : b === 3 ? you.level >= a : b === 4 ? you.level <= a
+          : you.level === a
+      break
+    case C_SKILL: yes = (you.skills[a] ?? 0) >= Math.max(1, b); break
+    case C_DOING: yes = you.quest(a) === 'doing' || you.quest(a) === 'ready'; break
+    case C_READY: yes = you.quest(a) === 'ready'; break
+    case C_DONE: yes = you.quest(a) === 'done'; break
+    case C_UNTAKEN: yes = you.quest(a) === 'none'; break
+    default: yes = false
+  }
+  return not ? !yes : yes
 }
 
 export type Option = {
@@ -128,6 +204,18 @@ export const STAT_WORD: Record<string, string> = {
 /** And the trades that open them, which `Lock.dbc` names by number. */
 export const TRADE_WORD: Record<string, string> = {
   herbs: '약초 채집', mining: '채광', skinning: '무두질',
+}
+
+/**
+ * The same three by the `SkillLine` id the world database uses.
+ *
+ * `conditions` asks *skill 182 at 1* and this game carries `herbs: 1`, so
+ * somebody has to know that 182 is herbalism.  Here rather than in the
+ * pipeline because the word is ours and the number is the game's — the same
+ * seam every other id in this file sits on.
+ */
+export const TRADE_SKILL: Record<string, number> = {
+  herbs: 182, mining: 186, skinning: 393,
 }
 
 /** Whoever is counted in 명 rather than in 마리. */
@@ -308,6 +396,20 @@ const CLASS: Record<string, string> = {
 }
 
 /**
+ * The same words by the id the game uses, for the one place that has a number.
+ *
+ * `conditions` says *class mask 8* and not *rogues*, so the remark somebody
+ * keeps for a rogue is looked up by the id the character is carrying.  The
+ * screen that makes a character reads these names out of `ChrClasses.dbc`
+ * instead — that is the client's own Korean and this is ours, and the two
+ * differ on purpose: this one is in a sentence.
+ */
+const CLASS_WORD: Record<number, string> = {
+  1: '전사', 2: '성기사', 3: '사냥꾼', 4: '도적', 5: '사제',
+  6: '죽음의 기사', 7: '주술사', 8: '마법사', 9: '흑마법사', 11: '드루이드',
+}
+
+/**
  * Native numerals in the form that stands in front of a counter.
  *
  * 스물 becomes 스무 there and 열둘 becomes 열두, which is why this is a table
@@ -430,10 +532,64 @@ const GREET: Record<string, string[]> = {
 const BEAST_GREET = ['쳐다보고는 눈을 떼지 않는다.', '자꾸 따라붙는다.',
   '한 걸음 따라오다 멈춰 선다.']
 
-function greeting(kind: string, role: string, seed: number): string {
-  if (ANIMALS.has(kind)) return pick(BEAST_GREET, seed)
-  const bank = GREET[role] ?? (kind === 'guard' ? GREET['guard']! : GREET['idle']!)
-  return pick(bank, seed)
+/**
+ * What this one says when you walk up, and how many ways it can go.
+ *
+ * `says` is `npc_text`'s own line count for this creature's menu — one for
+ * most of them, two or three for thirty-two of this slice's — and `turn` is
+ * how many times you have spoken to *this* one.  So a person the original
+ * gives three things to say has three here and says them in turn, and a person
+ * the original gives one to has one.  **The variety is the data's and the
+ * words are ours**, which is the same bargain every other sentence in this
+ * file makes.
+ *
+ * In turn rather than at random, because at random says the same thing twice
+ * a third of the time and the thing being shown is that there is more than
+ * one thing.
+ */
+function greeting(kind: string, role: string, seed: number,
+  says = 1, turn = 0): string {
+  const bank = ANIMALS.has(kind) ? BEAST_GREET
+    : GREET[role] ?? (kind === 'guard' ? GREET['guard']! : GREET['idle']!)
+  const first = bank.indexOf(pick(bank, seed))
+  const many = Math.max(1, Math.min(says, bank.length))
+  return bank[(first + (turn % many) * 1) % bank.length]!
+}
+
+/**
+ * The remark somebody keeps for a particular sort of person.
+ *
+ * One per kind of condition, because that is what survives the boundary: the
+ * original's sentence is its own and the *reason* it was gated is a number.
+ * A row whose kind has no word here adds nothing rather than adding a blank —
+ * which is the same rule the ability bar keeps.
+ */
+function asideFor(one: number[], you: Listener): [string, string] | null {
+  const [kind] = one as [number]
+  switch (kind) {
+    case C_CLASS:
+      return ['잠깐, 당신 같은 사람에게만 하는 말이오.',
+        `${CLASS_WORD[you.cls] ?? '그 길'}을 걷는 이라면 알아 둘 것이 있소.`]
+    case C_RACE:
+      return ['고향 사람에게만 하는 말이오.',
+        '같은 데서 온 사람끼리는 말이 빨라서 좋소.']
+    case C_LEVEL:
+      return ['이제는 말해도 되겠군.',
+        '처음 왔을 때였다면 말하지 않았을 거요.']
+    case C_SKILL:
+      return ['손을 쓸 줄 아는 사람이군.',
+        '그 일을 아는 사람에게만 팔 물건이 따로 있소.']
+    case C_DOING: case C_READY:
+      return ['맡은 일은 잘 되어 가오?',
+        '그 일을 맡았다고 들었소. 조심하시오.']
+    case C_DONE:
+      return ['그 일, 고맙게 생각하고 있소.',
+        '당신이 한 일을 여기 사람들이 다 아오.']
+    case C_UNTAKEN:
+      return null
+    default:
+      return null
+  }
 }
 
 /**
@@ -448,6 +604,7 @@ function greeting(kind: string, role: string, seed: number): string {
 export function speak(
   kind: string, role: string, level: number, seed: number,
   topic: Topic | null, nearby: () => Direction[],
+  you?: Listener, turn = 0,
 ): Speech {
   const who = ANIMALS.has(kind)
     ? `${kindOf(kind)}, ${level}레벨`
@@ -512,7 +669,23 @@ export function speak(
     })
   }
 
-  return { who, greet: greeting(kind, role, seed), options }
+  // And what this one only says to some people.
+  //
+  // `conditions` is where the original keeps *this line only to a rogue*, and
+  // 172 of the 276 rows touching this slice are exactly that.  The words are
+  // ours and keyed on the **kind** of condition rather than on the text it
+  // gated, because the text is Blizzard's and the kind is a number: somebody
+  // who treats a rogue differently has a remark for a rogue, whatever it was.
+  if (topic.only && you) {
+    for (const one of topic.only) {
+      if (!meets(one, you)) continue
+      const line = asideFor(one, you)
+      if (line) options.push({ label: line[0], lines: [line[1]] })
+    }
+  }
+  return {
+    who, greet: greeting(kind, role, seed, topic.says ?? 1, turn), options,
+  }
 }
 
 /**

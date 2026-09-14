@@ -31,7 +31,7 @@ import { canWear, tintOf, wear, withGear, wornArmour, I_ARMOUR, I_BUY, I_DELAY, 
 import { mute, muteIsOn, play, ready as soundReady, wake, SOUNDS } from './sound.ts'
 import { duel } from './sim/duel.ts'
 import { threatFrom } from './sim/fight.ts'
-import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_WORD, zoneOf, type Direction, type Option, type Reader, type Speech, type Topic } from './talk.ts'
+import { abilityOf, bearing, coin, errand, fill, goodsOf, josa, nameOf, proseOf, reward as payFor, setProse, speak, tally, TRADE_SKILL, TRADE_WORD, zoneOf, type Direction, type Listener, type Option, type Reader, type Speech, type Topic } from './talk.ts'
 import { layoutFor, touchpad } from './touch.ts'
 import { hud as makeHud, type Layout, type ShopRow, type Slot } from './hud.ts'
 import {
@@ -5695,9 +5695,44 @@ async function main() {
     return bits.join(', ') || '쓸모는 파는 값뿐이다'
   }
 
+  /**
+   * How many times this one has been spoken to.
+   *
+   * Kept on the spawn rather than saved, because it is about a conversation
+   * and not about the character: somebody the original gives three things to
+   * say says them in turn while you stand there, and a new session starts the
+   * turn over the way walking away and coming back would.
+   */
+  const spoken = new Map<number, number>()
+
+  /**
+   * What a conversation needs to know about whoever is having it.
+   *
+   * `conditions` is 276 rows touching this slice — *this line only to a
+   * rogue*, *this option only once that errand is done* — and it was read by
+   * nothing.  These five facts are what the table actually asks for, and the
+   * kinds it asks that this game cannot answer are counted by the bake rather
+   * than shipped as a rule that is always false.
+   */
+  const listener = (): Listener => ({
+    cls: myClass,
+    race: me?.race ?? 1,
+    level: you.level,
+    // A trade is a `SkillLine` id in the table and a word here; the two meet
+    // in `TRADE_SKILL`, which is the only place that mapping exists.
+    skills: Object.fromEntries(Object.entries(you.trades)
+      .map(([word, at]) => [TRADE_SKILL[word] ?? 0, at])),
+    quest: (id: number) => log.done.has(id) ? 'done'
+      : holding(log, id)
+        ? (errandDone(log, holding(log, id)!) ? 'ready' : 'doing')
+        : 'none',
+  })
+
   function startTalk(n: Npc) {
+    const turn = (spoken.get(n.entry) ?? 0)
+    spoken.set(n.entry, turn + 1)
     const speech = speak(n.kind, n.role, n.level, n.seed, n.topic,
-      () => directionsFrom(n))
+      () => directionsFrom(n), listener(), turn)
     // What this one is finished with, first, and then what they are asking
     // for.  Handing in before taking on is the order the original puts them
     // in and the order that reads right: you came back for a reason.

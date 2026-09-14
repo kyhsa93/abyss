@@ -1041,9 +1041,88 @@ def talking(base, entries):
         if e in entries:
             menu_of[e] = int(f[col['gossip_menu_id']])
 
+    # --- what a conversation depends on, and how many ways it goes ---------
+    #
+    # `conditions` is the table that says *this line only to a rogue*, *this
+    # option only to somebody who has that errand*.  276 of its rows touch
+    # this slice and the biggest single kind is the class, by a long way: 172
+    # of the 276.  None of it was read.
+    #
+    # **Only the kinds this game can evaluate come out**, and the rest are
+    # counted by number rather than dropped in silence — the same bargain the
+    # terrain's classifiers make with `*_DEFAULT_OK`.  A condition about a
+    # reputation, an achievement, a phase or a battleground team is a
+    # condition about a thing this game has not got, and shipping it would be
+    # a rule that is always false wearing the clothes of one that is not.
+    can, cannot = {}, Counter()
+    cpath = os.path.join(base, 'conditions.sql')
+    ccol = columns(cpath)
+    text_menu = {}
+    gpath = os.path.join(base, 'gossip_menu.sql')
+    gcol = columns(gpath)
+    for line in rows(gpath):
+        f = split(line)
+        try:
+            text_menu.setdefault(int(f[gcol['MenuID']]), []).append(
+                int(f[gcol['TextID']]))
+        except (ValueError, KeyError, IndexError):
+            continue
+    want_menu = {menu_of[e] for e in entries if menu_of.get(e)}
+    for line in rows(cpath):
+        f = split(line)
+        try:
+            st = int(f[ccol['SourceTypeOrReferenceId']])
+            sg = int(f[ccol['SourceGroup']])
+            ct = int(f[ccol['ConditionTypeOrReference']])
+            v1 = int(f[ccol['ConditionValue1']])
+            v2 = int(f[ccol['ConditionValue2']])
+            neg = int(f[ccol['NegativeCondition']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        # Source type 14 is the menu's own text and 15 is one of its options.
+        # Both say the same thing for our purposes: *this creature has
+        # something it only says to somebody like that.*
+        if st not in (SRC_MENU, SRC_OPTION) or sg not in want_menu:
+            continue
+        if ct not in CONDITION_WORD:
+            cannot[ct] += 1
+            continue
+        can.setdefault(sg, []).append([ct, v1, v2, neg])
+
+    # And how many things a creature has to say at all.
+    #
+    # `npc_text` holds up to eight lines with a weight each, and the wiki hoped
+    # the weights would buy variety cheaply.  **Measured, they do not**: of the
+    # 151 texts this slice reaches, 135 have exactly one line, eight have two
+    # or three, and every weight on those is 100 — an equal split rather than a
+    # distribution.  So what travels is the *count*, which is a real fact about
+    # thirty-two of this slice's creatures, and not a probability table that
+    # turns out to be flat.
+    says = {}
+    npath = os.path.join(base, 'npc_text.sql')
+    ncol = columns(npath)
+    lines_of = {}
+    for line in rows(npath):
+        f = split(line)
+        try:
+            i = int(f[ncol['ID']])
+        except (ValueError, KeyError, IndexError):
+            continue
+        lines_of[i] = sum(
+            1 for k in range(8)
+            if float(f[ncol['Probability%d' % k]] or 0) > 0)
+
     topics = {}
     for e in entries:
         t = {}
+        menu = menu_of.get(e, 0)
+        if menu:
+            most = max((lines_of.get(i, 0) for i in text_menu.get(menu, ())),
+                       default=0)
+            if most > 1:
+                t['says'] = most
+            if can.get(menu):
+                t['only'] = narrow(can[menu])
         # Errands used to be *described* here — a line saying what somebody
         # wanted, with nothing behind it.  `pipeline/quests.py` writes the real
         # ones now and `src/quest.ts` hands them over, counts them and pays
@@ -1079,7 +1158,70 @@ def talking(base, entries):
             t['directs'] = submenus[menu_of[e]]
         if t:
             topics[e] = t
+    if cannot:
+        # Said out loud rather than dropped: a condition kind this game has no
+        # way to answer is a fact about this game, and the number is how much
+        # of the original's conversation it costs.
+        print('  conditions this game cannot answer, by kind: '
+              + ', '.join(f'{k} x{v}' for k, v in cannot.most_common(8)))
     return topics
+
+
+#: Which condition kinds are a **mask** over classes or races.
+#:
+#: It matters because of how the table writes a pair: menu 4004 has one text
+#: for class mask 128 and another for 1407, and 1407 is every other class.
+#: Both rows are positive, so read naively *everybody* meets one of them and
+#: the condition is not a condition at all — it is two greetings.  The one
+#: that is a remark is the **narrower** of the two, and which one that is is
+#: arithmetic rather than a threshold: count the bits.
+MASK_KINDS = (15, 16)
+
+
+def narrow(rows_):
+    """The conditions of a menu that actually single somebody out.
+
+    Deduped, and for the mask kinds reduced to the narrowest of each kind.  A
+    class condition naming nine classes is the *other* half of a pair naming
+    one, and shipping both makes a remark that everybody hears — which is a
+    remark nobody notices is conditional.
+    """
+    # A negated row is the "everybody else" branch by construction — the table
+    # writes a pair, one for the people it names and one for the rest — so it
+    # names nobody in particular and there is no remark to make.  Read the
+    # other way round, the first-aid trainer congratulated a rogue with no
+    # first aid on his handiwork.
+    seen = {tuple(c) for c in rows_ if not c[3]}
+    out = []
+    for kind in {c[0] for c in seen}:
+        mine = [c for c in seen if c[0] == kind]
+        if kind in MASK_KINDS:
+            mine = [min(mine, key=lambda c: bin(c[1] & 0xffffffff).count('1'))]
+        out.extend(mine)
+    return sorted(list(c) for c in out)
+
+
+#: `conditions.SourceTypeOrReferenceId` — the menu's own text, and its options.
+SRC_MENU, SRC_OPTION = 14, 15
+
+#: The condition kinds this game can answer, and our word for each.
+#:
+#: Every one of these is something the scene already knows: which class and
+#: race the character is, what level, what he has been taught, and what his
+#: quest book says.  The rest of the enum is about a game this one is not —
+#: a reputation, an achievement, a phase, a battleground team, a map — and a
+#: condition that is always false is worse than an absent one, because it
+#: looks like a rule.
+CONDITION_WORD = {
+    7: 'skill',
+    8: 'done',        # CONDITION_QUESTREWARDED
+    9: 'doing',       # CONDITION_QUESTTAKEN
+    14: 'untaken',    # CONDITION_QUEST_NONE
+    15: 'class',
+    16: 'race',
+    27: 'level',
+    28: 'ready',      # CONDITION_QUEST_COMPLETE
+}
 
 
 def patrols(base):

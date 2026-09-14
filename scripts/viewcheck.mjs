@@ -668,6 +668,53 @@ check('and a shared slot stands up only its share', packs.waiting > 0,
     turning.stable ? 'asked twice, answered twice the same' : 'it rolled itself')
 }
 
+// 9n-2. A conversation depends on who is having it.
+//
+// `conditions` — 276 rows touching this slice, 172 of them about the class —
+// was read by nothing, so everybody in this world said the same thing to
+// everybody.  `simcheck` tests the rule without a browser; this asks whether
+// the scene actually passes the character in, because a rule nothing calls is
+// the other half of the same bug.
+{
+  const said = await p.evaluate(async () => {
+    const doc = await (await fetch('./world/npcs.json')).json()
+    // A trainer whose menu names one class, standing where we can reach it.
+    for (const r of doc.npcs) {
+      const t = r[6] >= 0 ? doc.topics[r[6]] : null
+      const mask = t?.only?.find(([k]) => k === 15)?.[1]
+      if (!mask || !window.__goto(r[9])) continue
+      const cls = [1, 2, 4, 5, 8, 9].find((c) => mask & (1 << (c - 1)))
+      if (cls) return { entry: r[9], mask, cls }
+    }
+    return null
+  })
+  if (said) {
+    const options = async () => {
+      await p.keyboard.press('Escape')
+      await p.waitForTimeout(100)
+      await p.evaluate((e) => window.__goto(e), said.entry)
+      await p.waitForTimeout(120)
+      await p.keyboard.press('e')
+      await p.waitForTimeout(200)
+      return p.evaluate(() =>
+        [...document.querySelectorAll('#talk li')].map((e) => e.textContent.trim()))
+    }
+    const mine = await p.evaluate(() => window.__you().cls)
+    const heard = await options()
+    check('a conversation knows who is having it',
+      heard.length > 0,
+      `class ${mine} hears ${heard.length} options from ${said.entry}, `
+      + `whose menu names class ${said.cls}`)
+    // The half that matters: the line is **not** there for somebody it does
+    // not name.  A condition that is always true is not a condition.
+    const aside = heard.some((l) => l.includes('당신 같은 사람에게만'))
+    check('and a line kept for one sort of person stays kept',
+      aside === (mine === said.cls),
+      aside ? `class ${mine} heard the remark meant for class ${said.cls}`
+        : `class ${mine} did not hear the remark meant for class ${said.cls}`)
+  }
+}
+
 // 9o. Where you stop matters.  Rest accrues four times as fast in an inn —
 // `Player::LoadFromDB` (PlayerStorage.cpp:5523) — and in a browser closing the
 // tab *is* logging out, so this is the one rule from that game that fits this

@@ -359,6 +359,30 @@ it dropped and how many of each, not just a total, because a number says
 something is missing and an id says *what* — the same rule the interface keeps
 when it greys a race out and writes the reason next to it.
 
+**A conversation depends on who is having it, and 62% of that is the class.**
+`conditions` is where the original keeps *this line only to a rogue*: 276 of
+its rows touch this slice, 172 of them are a class mask, and it was read by
+nothing. Eight kinds come over — class, race, level, a trade, and the four
+quest states — and the rest are counted by the bake and dropped, because a
+condition about a reputation this game has no way to earn is a rule that is
+always false wearing the clothes of one that is not.
+
+**The table writes conditions in pairs and reading them naively makes them
+vanish.** Menu 4004 puts one text behind class mask 128 and another behind
+1407, which is every other class; both rows are positive, so everybody meets
+one and the condition is not a condition at all — it is two greetings. Two
+rules sort it, and both are arithmetic rather than a threshold: **the narrower
+mask is the remark** (count the bits), and **a negated row is the complement**
+and names nobody. Read without the second, the first-aid trainer congratulated
+a rogue with no first aid on his handiwork.
+
+**And the probabilities are not there.** `npc_text` holds eight lines with a
+weight each and the wiki expected variety cheaply from them; measured, 135 of
+the 151 texts this slice reaches have exactly one line, eight have two or
+three, every weight on those is 100, and there are four emotes in the whole
+slice. So what travels is the line *count* — a real fact about thirty-two
+creatures — and the words stay ours.
+
 **A place we have not named must not look like a place we have.** The slice has
 35 areas and `talk.ts` has our own word for eighteen of them, every one of them
 a description of what actually stands there — a mage's tower alone on its hill,
