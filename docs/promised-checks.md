@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **114 promises across 15 pages, 93 of them kept.**
+Counted: **114 promises across 15 pages, 95 of them kept.**
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -150,8 +150,8 @@ keeps it honest.
 | 화면의 글씨 크기가 전부 `spec.font` 에서 나온 값이다 | `scripts/padcheck.mjs: "the phone type is the client's own ladder"` |
 | **정보창에 3D 모델이 없다** | `scripts/viewcheck.mjs: "the character sheet does not claim to show what you are wearing"` |
 | 정보창이 입은 것 전부를 보여 준다 | `scripts/viewcheck.mjs: "and shows every slot as a square instead"` |
-| **실내에서 미니맵이 바깥 지형을 안 그린다** | — 실내 미니맵이 아직 없다 (#205) |
-| 실내 미니맵이 지금 층만 그린다 | — 실내 미니맵이 아직 없다 (#205) |
+| **실내에서 미니맵이 바깥 지형을 안 그린다** | `scripts/viewcheck.mjs: "and indoors it is a map of the building"` |
+| 실내 미니맵이 지금 층만 그린다 | `scripts/viewcheck.mjs: "and a map of the storey you are standing on"` |
 
 ## [인터페이스의-명세](https://github.com/kyhsa93/abyss/wiki/인터페이스의-명세)
 

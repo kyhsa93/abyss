@@ -482,6 +482,71 @@ if (indoors.length) {
     indoors.map((x) => `${x.inside} ≠ ${x.outside}`).join(', '))
 }
 
+// 9d2. And the circle in the corner is a map of where you are.
+//
+// It was not.  `paintMap` asked three questions a cell — is it wet, is it too
+// steep, what is the ground painted — and **all three are about the ground
+// outside**, with no line anywhere asking whether you are in a building.
+// Since the inside became a scene of its own (issue 130) the screen and the
+// minimap have been showing two different worlds: a room on one and the forest
+// on the other, through the wall.
+//
+// Read off the canvas and counted by ink, because the failure is a picture:
+// asking `paintMap` what it decided would agree with whatever it decided.  The
+// two palettes are disjoint on purpose so the count can tell them apart — the
+// courtyard's green is not the meadow's green for exactly this reason.
+{
+  const outside = await p.evaluate(() => window.__minimap())
+  check('outside, the minimap is a map of the ground',
+    outside.inside === null && outside.ground > 0 && outside.plan === 0,
+    `${outside.ground} pixels of ground ink, ${outside.plan} of plan`)
+  const went = await p.evaluate(() => window.__enter())
+  if (went) {
+    const inside2 = await p.evaluate(() => window.__minimap())
+    check('and indoors it is a map of the building',
+      inside2.inside !== null && inside2.ground === 0 && inside2.plan > 0,
+      `in a ${inside2.k ?? went.k}: ${inside2.ground} pixels of ground ink, `
+      + `${inside2.plan} of plan over ${inside2.span.toFixed(0)} yards`)
+    // And it spans the building rather than a fixed hundred and twenty yards,
+    // which on a ten-yard cottage is a map of eight pixels of cottage.
+    check('and it spans the building it is a map of',
+      inside2.span <= outside.span
+      && inside2.span >= 2 * Math.max(went.l, went.w),
+      `${inside2.span.toFixed(0)} yards for a building `
+      + `${(2 * Math.max(went.l, went.w)).toFixed(0)} across`)
+  }
+  // And of the storey you are standing on, not of the ground floor for ever:
+  // the abbey is four.
+  const tall = await p.evaluate(() => window.__enter(null, 2))
+  if (tall) {
+    const seen = []
+    for (const f of [-1, 0, 1]) {
+      seen.push(await p.evaluate((n) => {
+        window.__floor(n)
+        const m = window.__minimap()
+        return { storey: n, ground: m.ground, plan: m.plan,
+          shape: m.inks.map((i) => i.join(':')).join(' ') }
+      }, f))
+    }
+    const shapes = new Set(seen.map((s2) => s2.shape))
+    check('and a map of the storey you are standing on',
+      tall.floors >= 2 && shapes.size === seen.length
+      && seen.every((s2) => s2.ground === 0),
+      `${tall.floors} floors over the ground one, `
+      + `${shapes.size} of ${seen.length} storeys drawn differently`)
+  }
+  // **Back outside.**  Everything after this walks, dies and looks at the
+  // ground, and a hero left standing on the abbey's third floor makes the next
+  // twenty checks measure a building.  `placeHero` clears `indoors` the moment
+  // he is not in the room any more, which is the game's own rule.
+  await p.evaluate(() => {
+    window.__floor(-1)
+    const s2 = window.__start()
+    window.__put(s2.x, s2.y)
+  })
+  await p.waitForTimeout(300)
+}
+
 // 9e. Things that are not people.  `gameobject` is 96,624 rows and the only
 // use this pipeline had ever made of one was as a height sample; 1,365 of them
 // stand in the slice and 393 can be gathered.  A vein you cannot pull is a

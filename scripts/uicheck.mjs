@@ -772,43 +772,41 @@ for (const [W, H] of SIZES) {
         }))
       // And it is the leftmost thing it can use, which is the rule that makes
       // the arrangement the fighting order.
-      // **Read before the cast, not after.**  A moment later the global
-      // cooldown is running and nothing is usable, so "the leftmost usable" is
-      // undefined and the comparison passes without meaning anything.
+      // **Sampled while it happens, not before it.**
+      //
+      // Two earlier shapes of this check were racing the clock.  Reading the
+      // list *after* the cast answers `undefined` — the global cooldown is
+      // running and nothing is usable.  Reading it *before* and then waiting
+      // answers for a bar that has changed twice since, and half of it needs a
+      // target which the fight keeps taking away.
+      //
+      // So both are watched together at fifty milliseconds: the last moment
+      // the bar had something usable is kept, and that is what the cast is
+      // compared against.
       const which = await p.evaluate(async () => {
-        window.__setAuto(false)
-        // Wait until there is something usable that is *not* a stance, so
-        // "the leftmost usable" is a thing the automatic hand would pick.
         const pickable = () => {
-          const d2 = window.__bar()
-          return d2.bar.find((id) => id !== null && d2.usable.includes(id)
-            && !d2.stances.includes(id))
+          const d = window.__bar()
+          return d.bar.find((id) => id !== null && d.usable.includes(id)
+            && !d.stances.includes(id))
         }
-        for (let i = 0; i < 80; i++) {
-          await new Promise((r) => setTimeout(r, 100))
-          if (pickable() !== undefined) break
+        window.__setAuto(true)
+        const was = window.__bar().asked
+        let want
+        for (let i = 0; i < 400; i++) {
+          await new Promise((r) => setTimeout(r, 50))
+          // Kept aimed at something, because half the bar needs a target to be
+          // usable at all — and walked to one only now and then, since `__foe`
+          // moves the hero and the list of who is nearby is a frame behind it.
+          if (window.__you().target === null && i % 20 === 0) window.__foe(3)
+          window.__aimAtNearest()
+          const now = pickable()
+          if (now !== undefined) want = now
+          if (window.__bar().asked !== was && want !== undefined) break
         }
         const d = window.__bar()
-        // A stance is usable and is never cast by the automatic hand — it is
-        // a decision, and one that would flip back and forth for ever.
-        const want = d.bar.find((id) => id !== null && d.usable.includes(id)
-          && !d.stances.includes(id))
-        const was = d.asked
-        window.__setAuto(true)
-        window.__aimAtNearest()
-        for (let i = 0; i < 60; i++) {
-          await new Promise((r) => setTimeout(r, 100))
-          if (window.__bar().asked !== was) break
-        }
-        const d2 = window.__bar()
-        return { fired: d2.asked, want, usable: d.usable.length,
-          order: d2.bar.slice() }
+        return { fired: d.asked, want, usable: d.usable.length,
+          order: d.bar.slice() }
       })
-      // **At or before**, and not "exactly": the list is sampled a moment
-      // before the cast and a cooldown can come back in between, so a square
-      // further *left* becoming usable is the rule working rather than
-      // breaking.  Further right is the failure this is for.
-      const place = (id) => which.order.indexOf(id)
       check('and it is the leftmost square it can use',
         which.want !== undefined && which.fired !== null
         && place(which.fired) >= 0 && place(which.fired) <= place(which.want),

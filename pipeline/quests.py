@@ -308,6 +308,44 @@ def triggers(client_root):
     return out
 
 
+def count_poi(base, quests):
+    """What is deliberately not shipped: the arrows that say where to go.
+
+    `quest_poi` is a WotLK table — 1.12 had no map markers at all — and **every
+    one of this game's errands has a row in it**.  Shipping them would put a
+    ring on the map for all fifty-one, which is the difference between a game
+    you read and a game you follow.
+
+    Left out, and counted rather than silently skipped, because the two
+    errands where "where" *is* the whole task already say where **in words**:
+    *"골드샤이어에서 거의 정남쪽, 스톤필드 농장과 매클루어 농장 사이"*.  That is
+    how 1.12 answered it, and this game has those words (issue 190).
+    """
+    here = {q['id'] for q in quests}
+    rows_, points = 0, 0
+    for name, into in (('quest_poi', 'rows_'), ('quest_poi_points', 'points')):
+        path = os.path.join(base, name + '.sql')
+        if not os.path.exists(path):
+            continue
+        col = columns(path)
+        n = 0
+        for line in rows(path):
+            f = split(line)
+            try:
+                if int(f[col['QuestID']]) in here:
+                    n += 1
+            except (ValueError, KeyError, IndexError):
+                continue
+        if into == 'rows_':
+            rows_ = n
+        else:
+            points = n
+    walkers = sum(1 for q in quests if q.get('walk'))
+    print(f'  {rows_} map markers over {points} points left out on purpose — '
+          f'every one of the {len(here)} errands has one, and 1.12 had none; '
+          f'{walkers} of them are a place and say where in words')
+
+
 def check_standing(quests, out):
     """What the errands here are worth to a side, and whether it changes a rank.
 
@@ -812,6 +850,7 @@ def main(acore, client_root, out):
             shapes['are a signpost that vanishes'] += 1
     print('  chains: ' + ', '.join(f'{v} {k}' for k, v in shapes.most_common()))
     check_standing(quests, out)
+    count_poi(base, quests)
     rich = sorted(quests, key=lambda q: -q['coin'])[:1]
     print(f"  they pay {sum(q['coin'] for q in quests):,} copper between them, "
           f"the fattest {rich[0]['coin'] if rich else 0}")

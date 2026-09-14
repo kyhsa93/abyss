@@ -5827,27 +5827,110 @@ async function main() {
     grass: '#3f7a3a', bloom: '#5a8a3e', road: '#8a6a44', crop: '#9a8244',
     rock: '#6f6b66', paved: '#8f8a84', sand: '#b8a478', snow: '#dde6ee',
   }
-  function paintMap() {
-    const n = ui.map.width
-    const step = 2
-    const yd = MAP_YARDS / n
-    const img = mapCtx.createImageData(n, n)
-    const px = img.data
+  /**
+   * The plan, on the minimap, when the plan is where you are.
+   *
+   * Indoors the circle used to show the forest — `paintMap` asked three
+   * questions a cell and all three were about the ground outside, with no line
+   * anywhere asking *whether you are in a building*.  Since the inside became
+   * a scene of its own (issue 130) the screen and the minimap have been
+   * showing two different worlds.
+   *
+   * **The original does not do this either**, and that is worth saying rather
+   * than hiding: 3.3.5a draws terrain indoors too and what you see is the
+   * roof.  It has no plan to draw — `DungeonMap.dbc` has 55 rows and not one
+   * of them is a building in Elwynn.  We have one, per storey, so this is
+   * doing better than the original rather than copying it.
+   *
+   * Three cells' worth of information a pixel, and all of it already baked:
+   * `bits` is the outline, `solid` the walls, `floor` where a man can stand,
+   * `over` whether there is anything above his head — which is the only thing
+   * that tells a courtyard from a room — and `steps` the way up.
+   */
+  const PLAN_INK = {
+    /** Outside the outline: the same slate the panels are drawn on. */
+    off: '#14161f',
+    /** Stone. */
+    wall: '#4a463c',
+    /** Where a man can stand, under a roof. */
+    floor: '#9a8f78',
+    /**
+     * And where he can stand under the sky, which is a yard and not a room.
+     *
+     * Not the meadow's own green, which it was: the two palettes have to be
+     * **disjoint** or the check that asks "is this circle ground or plan"
+     * cannot tell a courtyard from a field, and that is exactly the question
+     * it exists to answer.
+     */
+    yard: '#4a7a44',
+    /** The way up, which is the one thing on this map you can act on. */
+    steps: '#c9a86a',
+    /** Inside the outline and none of the above: fill, cellar, thickness. */
+    dark: '#25272e',
+  }
+
+  function paintPlan(b: Built, p: Plan, n: number, yd: number,
+    px: Uint8ClampedArray, step: number) {
     for (let j = 0; j < n; j += step) {
       for (let i = 0; i < n; i += step) {
-        // North up, west left — the same map the screen is.
         const wx = hero.x + (n / 2 - j) * yd
         const wy = hero.y + (n / 2 - i) * yd
-        let hex = wetAt(wx, wy) ? '#2d5f86'
-          : stepAt(wx, wy) > CLIFF ? INK['rock']!
-            : INK[paintAt(wx, wy)] ?? INK['grass']!
+        const cell = planCell(p, b, wx, wy)
+        const hex = cell < 0 || !bitAt(p.bits, cell) ? PLAN_INK.off
+          : bitAt(p.steps, cell) ? PLAN_INK.steps
+            : bitAt(p.floor, cell)
+              ? (!p.over.length || bitAt(p.over, cell)
+                ? PLAN_INK.floor : PLAN_INK.yard)
+              : bitAt(p.solid, cell) ? PLAN_INK.wall : PLAN_INK.dark
         const r = parseInt(hex.slice(1, 3), 16)
         const g = parseInt(hex.slice(3, 5), 16)
-        const b = parseInt(hex.slice(5, 7), 16)
+        const bl = parseInt(hex.slice(5, 7), 16)
         for (let dy = 0; dy < step; dy++) {
           for (let dx = 0; dx < step; dx++) {
             const o = ((j + dy) * n + (i + dx)) * 4
-            px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255
+            px[o] = r; px[o + 1] = g; px[o + 2] = bl; px[o + 3] = 255
+          }
+        }
+      }
+    }
+  }
+
+  function paintMap() {
+    const n = ui.map.width
+    const step = 2
+    const inside = indoors
+    const plan = inside ? planNow() : null
+    // **The building's own size, not a fixed number.**  Outdoors the circle is
+    // a hundred and twenty yards because that is a useful distance to see; a
+    // cottage is ten across and the abbey ninety-one, and a map of a room that
+    // shows a hundred and twenty yards of it is a map of eight pixels of room.
+    // What an indoor map is for is the whole building, so that is what it
+    // spans — capped at the outdoor number, because more than that is not a
+    // minimap any more.
+    const span = inside
+      ? Math.min(MAP_YARDS, 2 * Math.max(inside.l, inside.w) + 6)
+      : MAP_YARDS
+    const yd = span / n
+    const img = mapCtx.createImageData(n, n)
+    const px = img.data
+    if (inside && plan) paintPlan(inside, plan, n, yd, px, step)
+    else {
+      for (let j = 0; j < n; j += step) {
+        for (let i = 0; i < n; i += step) {
+          // North up, west left — the same map the screen is.
+          const wx = hero.x + (n / 2 - j) * yd
+          const wy = hero.y + (n / 2 - i) * yd
+          const hex = wetAt(wx, wy) ? '#2d5f86'
+            : stepAt(wx, wy) > CLIFF ? INK['rock']!
+              : INK[paintAt(wx, wy)] ?? INK['grass']!
+          const r = parseInt(hex.slice(1, 3), 16)
+          const g = parseInt(hex.slice(3, 5), 16)
+          const b = parseInt(hex.slice(5, 7), 16)
+          for (let dy = 0; dy < step; dy++) {
+            for (let dx = 0; dx < step; dx++) {
+              const o = ((j + dy) * n + (i + dx)) * 4
+              px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255
+            }
           }
         }
       }
@@ -5856,9 +5939,15 @@ async function main() {
     // Everybody awake, as a dot: red if it would fight you, green if it would
     // not.  Only the awake, which is the same couple of hundred the scene is
     // already thinking about.
+    //
+    // **And only the ones under this roof**, which is the same question the
+    // scene asks before it draws anybody: a dot on the plan for somebody
+    // standing in the meadow outside is the forest coming back in through the
+    // other door.
     const mid = n / 2
     for (const m of active) {
       if (m.dead) continue
+      if (inside && roofOver(m.x, m.y) !== inside) continue
       const i = mid - (m.y - hero.y) / yd
       const j = mid - (m.x - hero.x) / yd
       if (i < 1 || i > n - 1 || j < 1 || j > n - 1) continue
@@ -9482,6 +9571,77 @@ async function main() {
     onPage: onPhonePage().map((sp) => sp.id),
     knows: spells.map((sp) => sp.id),
   })
+
+  /**
+   * Walk in through a named building's own door, the way a player does.
+   *
+   * `__put` places him and `indoors` is only ever set by crossing a doorstep,
+   * so a check that teleports into a room is a check standing in a room the
+   * game does not think it is in.  This puts him on the step and lets
+   * `throughTheDoor` do the rest.
+   */
+  ;(window as unknown as { __enter: (k?: string, least?: number) => unknown })
+    .__enter = (k, least = 0) => {
+      for (const b of buildings) {
+        if (!b.plan || !b.doors.length) continue
+        if (k && b.k !== k) continue
+        if ((b.floors?.length ?? 0) < least) continue
+        const door = b.doors[0]!
+        placeHero(door[0], door[1])
+        throughTheDoor()
+        if (indoors) {
+          return { k: b.k, storey, l: b.l, w: b.w,
+            floors: b.floors?.length ?? 0 }
+        }
+      }
+      return null
+    }
+
+  /**
+   * Stand on another storey.
+   *
+   * A setter, and it says so: climbing is a landing and a step, and a check
+   * that walked the abbey's four floors would be measuring the staircase.
+   * What is being checked is that the *map* follows the storey — which is a
+   * rule about what `planNow` hands the painter — so the state is put there
+   * and the rule is measured.
+   */
+  ;(window as unknown as { __floor: (n: number) => unknown })
+    .__floor = (n) => {
+      if (!indoors) return null
+      storey = Math.max(-1, Math.min(n, (indoors.floors?.length ?? 0) - 1))
+      return { storey, floors: indoors.floors?.length ?? 0 }
+    }
+
+  /**
+   * The minimap as pixels, and what it is a map *of*.
+   *
+   * Read off the canvas and not off the code that drew it: the failure this is
+   * for is a circle showing the forest while the screen shows a room, and a
+   * check that asked `paintMap` what it had decided would have agreed with it.
+   */
+  ;(window as unknown as { __minimap: () => unknown }).__minimap = () => {
+    paintMap()
+    const n = ui.map.width
+    const px = mapCtx.getImageData(0, 0, n, n).data
+    const seen: Record<string, number> = {}
+    for (let i = 0; i < px.length; i += 4) {
+      const hex = '#' + [px[i]!, px[i + 1]!, px[i + 2]!]
+        .map((v) => v.toString(16).padStart(2, '0')).join('')
+      seen[hex] = (seen[hex] ?? 0) + 1
+    }
+    const b = indoors
+    return {
+      inside: b ? b.k : null, storey,
+      span: b ? Math.min(MAP_YARDS, 2 * Math.max(b.l, b.w) + 6) : MAP_YARDS,
+      // Which of the two palettes the circle is painted out of, counted.
+      ground: Object.entries(INK)
+        .reduce((n2, [, hex]) => n2 + (seen[hex] ?? 0), 0),
+      plan: Object.values(PLAN_INK)
+        .reduce((n2, hex) => n2 + (seen[hex] ?? 0), 0),
+      inks: Object.entries(seen).sort((a, c) => c[1] - a[1]).slice(0, 6),
+    }
+  }
 
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */
   ;(window as unknown as { __heads: () => unknown }).__heads = () => headOf

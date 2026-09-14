@@ -811,6 +811,30 @@ square with it. It skips stances, because a stance is a decision and because a
 free always-usable ability would be flipped for ever. The flag moved from
 `touch.ts` on to `you`, where a keyboard can reach it.
 
+**Indoors the minimap was a map of the forest.** `paintMap` asked three
+questions a cell — wet, too steep, what the ground is painted — and all three
+are about the ground outside, with no line anywhere asking whether you are in
+a building; since the inside became its own scene the screen and the circle
+have shown two different worlds. **The original does not do this either** and
+that is worth saying rather than hiding: 3.3.5a draws terrain indoors too, and
+what you see is the roof. It has no plan to draw — `DungeonMap.dbc` has 55
+rows and not one is a building in Elwynn. We have one per storey, so this is
+doing better than the original rather than copying it. The span is the
+building's own size and not the outdoor 120 yards, because a ten-yard cottage
+drawn at 120 is eight pixels of cottage; the dots are only who is under this
+roof, the same question the scene asks before it draws anybody; and the
+courtyard's green is **not** the meadow's green, because the check counts ink
+to tell one palette from the other and that is the question it exists to
+answer.
+
+**`quest_poi` stays out, and the count is why.** All 51 of this game's errands
+have a row in it — shipping them puts a marker on every one, which is the
+difference between a game you read and a game you follow. It is a WotLK table;
+1.12 had none. And for the two errands where *where* is the whole task, the
+prose already says it: *"골드샤이어에서 거의 정남쪽, 스톤필드 농장과 매클루어 농장
+사이"*. `quests.py` prints what it leaves out every bake, because a thing
+dropped in silence is a thing nobody can weigh later.
+
 **A check that waits on the weather fails for reasons that are not the rule.**
 Four of the screen checks for this did: the nearest thing to click was a rabbit
 that died before it could be angry at anybody; the screen point was worked out
