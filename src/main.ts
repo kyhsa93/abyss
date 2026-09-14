@@ -5704,9 +5704,16 @@ async function main() {
     you: {
       level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
-      bag: you.bag, trades: you.trades, cools: you.cools,
+      bag: you.bag, trades: you.trades,
+      // **What is left, not when it ends.**  `clock` starts at nought every
+      // load, so a cooldown stored as a moment on it is a cooldown that comes
+      // back with the whole session still to run.
+      cools: Object.fromEntries(Object.entries(you.cools)
+        .map(([id, at]) => [id, Math.max(0, at - clock)])
+        .filter(([, left]) => (left as number) > 0)),
       items: held, gear, taught, bought, recipes, stands, bar,
       auto: you.auto ? 1 : 0,
+      auras: stillOn(),
       rest: you.rest, restedIn: resting() ? 1 : 0,
       finished: you.finished, born: you.born,
       ...(me ? { who: { ...me } } : {}),
@@ -5716,6 +5723,67 @@ async function main() {
       held: log.held, done: [...log.done],
     },
   })
+  /**
+   * What is still on him, with the seconds each has left.
+   *
+   * Everything here is stored against `clock`, which starts at nought on every
+   * load — so the save carries the *remainder* and `restore` puts it back on
+   * whatever clock it finds.  A time saved against a clock that restarts is
+   * not a time.
+   */
+  const stillOn = (): NonNullable<Save['you']['auras']> => {
+    const left = (until: number) => Math.max(0, until - clock)
+    const out: NonNullable<Save['you']['auras']> = {}
+    if (you.mend && you.mend.until > clock) {
+      out.mend = [left(you.mend.until), left(you.mend.next), you.mend.each]
+    }
+    if (you.using && you.using.until > clock) {
+      out.using = [left(you.using.until), left(you.using.next),
+        you.using.each, you.using.power ? 1 : 0, you.using.word]
+    }
+    if (youBleed && youBleed.until > clock) {
+      out.bleed = [left(youBleed.until), left(youBleed.next), youBleed.each]
+    }
+    if (you.shout && you.shout.until > clock) {
+      out.shout = [left(you.shout.until), you.shout.ap]
+    }
+    if (blessed && blessed.until > clock) {
+      out.blessed = [left(blessed.until), blessed.stat, blessed.amount]
+    }
+    if (you.absorb > 0) out.absorb = you.absorb
+    if (you.stance) out.stance = you.stance
+    return out
+  }
+
+  /** And back on to this session's clock. */
+  const putBackOn = (a: Save['you']['auras']) => {
+    you.mend = null; you.using = null; youBleed = null
+    you.shout = null; blessed = null; you.absorb = 0
+    // A cast in flight is interrupted by closing the tab, the way the server
+    // interrupts one; combo points belong to a target that is not here.
+    you.casting = null; you.combo = 0; you.comboOn = null; you.gcd = 0
+    if (!a) return
+    if (a.mend) {
+      you.mend = { until: clock + a.mend[0], next: clock + a.mend[1],
+        each: a.mend[2] }
+    }
+    if (a.using) {
+      you.using = { until: clock + a.using[0], next: clock + a.using[1],
+        each: a.using[2], power: !!a.using[3], word: a.using[4] }
+    }
+    if (a.bleed) {
+      youBleed = { until: clock + a.bleed[0], next: clock + a.bleed[1],
+        each: a.bleed[2] }
+    }
+    if (a.shout) you.shout = { until: clock + a.shout[0], ap: a.shout[1] }
+    if (a.blessed) {
+      blessed = { until: clock + a.blessed[0], stat: a.blessed[1],
+        amount: a.blessed[2] }
+    }
+    you.absorb = a.absorb ?? 0
+    you.stance = a.stance ?? 0
+  }
+
   const restore = (save: Save) => {
     placeHero(save.hero.x, save.hero.y); hero.dir = save.hero.dir
     camX = hero.x; camY = hero.y
@@ -5736,7 +5804,10 @@ async function main() {
     you.purse = save.you.purse; you.kills = save.you.kills
     you.bag = save.you.bag ?? {}
     you.trades = save.you.trades ?? you.trades
-    you.cools = save.you.cools ?? {}
+    // Back on to this session's clock — see the note on `cools` in `save.ts`.
+    you.cools = Object.fromEntries(Object.entries(save.you.cools ?? {})
+      .map(([id, leftover]) => [id, clock + leftover]))
+    putBackOn(save.you.auras)
     held = save.you.items ?? []
     gear = save.you.gear ?? {}
     taught = save.you.taught ?? []
@@ -10851,6 +10922,45 @@ async function main() {
   ;(window as unknown as { __unaim: () => unknown }).__unaim = () => {
     you.target = null
     return null
+  }
+  /**
+   * Everything still on him, as the check reads it back.
+   *
+   * The seconds are rounded, because the point is *whether the three seconds
+   * of bleeding came back* and not whether the frame that measured them fell
+   * on the same millisecond.
+   */
+  ;(window as unknown as { __standing: () => unknown }).__standing = () => ({
+    mend: you.mend ? Math.round(you.mend.until - clock) : 0,
+    using: you.using ? Math.round(you.using.until - clock) : 0,
+    bleed: youBleed ? Math.round(youBleed.until - clock) : 0,
+    shout: you.shout ? Math.round(you.shout.until - clock) : 0,
+    blessed: blessed ? Math.round(blessed.until - clock) : 0,
+    absorb: Math.round(you.absorb),
+    stance: you.stance,
+    cools: Object.fromEntries(Object.entries(you.cools)
+      .map(([id, at]) => [id, Math.round(Math.max(0, at - clock))])
+      .filter(([, left]) => (left as number) > 0)),
+  })
+  /**
+   * Put something on him, the way a spell would, for the check that a reload
+   * does not wash it off.
+   *
+   * A setter and it says so: what is being checked is that the *save* carries
+   * these, and getting to them by casting means finding a caster, a target and
+   * a rage bar — which is the weather again.
+   */
+  ;(window as unknown as { __afflict: () => unknown }).__afflict = () => {
+    you.mend = { until: clock + 12, next: clock + 3, each: 4 }
+    you.using = { until: clock + 6, next: clock + 1, each: 11, power: false,
+      word: '붕대' }
+    youBleed = { until: clock + 9, next: clock + 3, each: 5 }
+    you.shout = { until: clock + 100, ap: 30 }
+    blessed = { until: clock + 200, stat: 'str', amount: 46 }
+    you.absorb = 48
+    you.stance = 18
+    you.cools[78] = clock + 7
+    return (window as unknown as { __standing: () => unknown }).__standing()
   }
   /** The save, round-tripped, for the check that closing the tab costs nothing. */
   ;(window as unknown as { __save: () => unknown }).__save = () => snapshot()

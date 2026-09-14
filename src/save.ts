@@ -47,7 +47,45 @@ export type Save = {
     bag: Record<string, number>
     /** `SkillLine` id -> [where he is, how far it goes]. */
     trades: Record<string, [number, number]>
+    /**
+     * How long each cooldown has **left**, in seconds — not when it ends.
+     *
+     * It was when it ends, against `clock`, and `clock` starts at nought every
+     * time the page loads.  A character saved five minutes into a session came
+     * back with every ability he had used on cooldown for another five
+     * minutes; one saved an hour in was unable to press anything at all.  A
+     * time saved against a clock that restarts is not a time.
+     */
     cools: Record<number, number>
+    /**
+     * What is still on him: the buffs and the wounds, with the seconds they
+     * have left.
+     *
+     * Thrown away, until issue 206 asked what that means.  **A debuff that a
+     * reload clears is not a rule, it is the shape of a bug** — and the way a
+     * player finds that out is by using it.  Saving them is the honest half:
+     * come back and the three seconds of bleeding are still three seconds of
+     * bleeding.
+     *
+     * Three are deliberately not in here.  A **cast in flight** is interrupted
+     * by closing the tab, which is what the server does too.  **Combo points**
+     * belong to a target that is not there when you come back.  And the
+     * **global cooldown** is shorter than the load.
+     */
+    auras?: {
+      /** `[left, every, each]` — a renew, a bandage, a meal, a wound. */
+      mend?: [number, number, number]
+      using?: [number, number, number, number, string]
+      bleed?: [number, number, number]
+      /** `[left, attack power]` — a shout. */
+      shout?: [number, number]
+      /** `[left, which stat, how much]`. */
+      blessed?: [number, string, number]
+      /** What is left of a shield, which has no clock on it. */
+      absorb?: number
+      /** Which stance he is standing in — a state, and it was not saved. */
+      stance?: number
+    }
     /** Held by id, worn by slot, and what a trainer has taught. */
     items: number[]
     gear: Record<string, number>

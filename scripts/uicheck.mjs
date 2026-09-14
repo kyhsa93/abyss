@@ -772,48 +772,56 @@ for (const [W, H] of SIZES) {
         }))
       // And it is the leftmost thing it can use, which is the rule that makes
       // the arrangement the fighting order.
-      // **Sampled while it happens, not before it.**
+      // **Arranged rather than raced.**
       //
-      // Two earlier shapes of this check were racing the clock.  Reading the
-      // list *after* the cast answers `undefined` — the global cooldown is
-      // running and nothing is usable.  Reading it *before* and then waiting
-      // answers for a bar that has changed twice since, and half of it needs a
-      // target which the fight keeps taking away.
+      // Three earlier shapes of this check were racing the clock: reading the
+      // usable list after the cast answers `undefined` because the global
+      // cooldown is running, reading it before answers for a bar that has
+      // changed since, and half of it needs a target the fight keeps taking
+      // away.
       //
-      // So both are watched together at fifty milliseconds: the last moment
-      // the bar had something usable is kept, and that is what the cast is
-      // compared against.
-      const which = await p.evaluate(async () => {
-        const pickable = () => {
-          const d = window.__bar()
-          return d.bar.find((id) => id !== null && d.usable.includes(id)
-            && !d.stances.includes(id))
+      // The promise is not "it picked the leftmost of whatever list I happened
+      // to sample" — it is **the arrangement is the fighting order**.  So the
+      // arrangement is set twice, with the same two abilities the other way
+      // round, and what fires has to follow it.
+      const both = await p.evaluate(async () => {
+        const cast = async (first, second) => {
+          window.__setAuto(false)
+          // Everything off the bar but these two, so nothing else can fire.
+          for (let i = 0; i < 16; i++) window.__place(i, null)
+          window.__place(0, first)
+          window.__place(4, second)
+          // Aimed at something, because both of these need a target.
+          for (let i = 0; i < 60; i++) {
+            if (window.__you().target !== null) break
+            if (i % 20 === 0) window.__foe(3)
+            window.__aimAtNearest()
+            await new Promise((r) => setTimeout(r, 50))
+          }
+          const was = window.__bar().asked
+          window.__setAuto(true)
+          for (let i = 0; i < 200; i++) {
+            await new Promise((r) => setTimeout(r, 50))
+            window.__aimAtNearest()
+            if (window.__bar().asked !== was) break
+          }
+          window.__setAuto(false)
+          return window.__bar().asked
         }
-        window.__setAuto(true)
-        const was = window.__bar().asked
-        let want
-        for (let i = 0; i < 400; i++) {
-          await new Promise((r) => setTimeout(r, 50))
-          // Kept aimed at something, because half the bar needs a target to be
-          // usable at all — and walked to one only now and then, since `__foe`
-          // moves the hero and the list of who is nearby is a frame behind it.
-          if (window.__you().target === null && i % 20 === 0) window.__foe(3)
-          window.__aimAtNearest()
-          const now = pickable()
-          if (now !== undefined) want = now
-          if (window.__bar().asked !== was && want !== undefined) break
-        }
+        // Two the character has that are not stances: one costs rage and one
+        // does not, and both want a target.
         const d = window.__bar()
-        return { fired: d.asked, want, usable: d.usable.length,
-          order: d.bar.slice() }
+        const pair = d.spells.filter((id) => !d.stances.includes(id)).slice(0, 2)
+        if (pair.length < 2) return null
+        const one = await cast(pair[0], pair[1])
+        const two = await cast(pair[1], pair[0])
+        return { pair, one, two }
       })
       check('and it is the leftmost square it can use',
-        which.want !== undefined && which.fired !== null
-        && place(which.fired) >= 0 && place(which.fired) <= place(which.want),
-        `fired ${which.fired} at square ${place(which.fired) + 1}, and the `
-        + `leftmost it could use was ${which.want} at ${place(which.want) + 1}`
-        + ` — bar ${which.order.filter((x) => x !== null)}, `
-        + `${which.usable} usable`)
+        !!both && both.one === both.pair[0] && both.two === both.pair[1],
+        both ? `${both.pair} in that order fired ${both.one}, `
+          + `the other way round fired ${both.two}`
+          : 'this character has fewer than two abilities that are not stances')
       await p.evaluate(() => window.__setAuto(false))
     }
   }
@@ -1070,6 +1078,70 @@ for (const [W, H] of SIZES) {
     check('and the line that says a thing just fell does',
       !!fell && fell.tinted > 0 && logTints.length >= fell.tinted,
       `${logTints.join(' ')} — ${JSON.stringify(fell)}`)
+  }
+  // --- what a save is, and what it costs ------------------------------------
+  //
+  // Issue 206.  The save threw away everything that was still on the
+  // character, which is not a rule — **a debuff a reload clears is the shape
+  // of a bug**, and the way a player finds that out is by using it.  And the
+  // cooldowns it did keep were stored as moments on a clock that starts at
+  // nought every load, so a character saved an hour in came back unable to
+  // press anything for an hour.
+  {
+    const put = await p.evaluate(() => window.__afflict())
+    const back = await p.evaluate(() => {
+      const raw = JSON.parse(JSON.stringify(window.__save()))
+      // Washed off first, so restoring cannot pass by leaving things alone.
+      window.__standing()
+      window.__load(JSON.parse(JSON.stringify({ ...raw,
+        you: { ...raw.you, auras: {}, cools: {} } })))
+      const wiped = window.__standing()
+      window.__load(raw)
+      return { wiped, now: window.__standing(), saved: raw.you.auras,
+        cools: raw.you.cools }
+    })
+    check('a reload does not wash off what is still on you',
+      JSON.stringify(put) === JSON.stringify(back.now)
+      && JSON.stringify(back.wiped) !== JSON.stringify(put),
+      `${JSON.stringify(put)} -> ${JSON.stringify(back.now)}`)
+    // And the times in the file are what is **left**, not when they end: the
+    // save has to survive a clock that restarts.
+    check('and the times in it are what is left rather than when it ends',
+      (back.saved?.shout?.[0] ?? 0) > 0 && (back.saved?.shout?.[0] ?? 0) <= 101
+      && Object.values(back.cools).every((v) => v > 0 && v <= 8),
+      `shout ${back.saved?.shout?.[0]}s left, cools `
+      + `${JSON.stringify(back.cools)}`)
+    // What a cast in flight and a target's combo points do is nothing, on
+    // purpose: closing the tab interrupts one and the other belongs to
+    // somebody who is not there.
+    check('and a cast in flight is not carried over',
+      (await p.evaluate(() => window.__you().casting)) === null,
+      'closing the tab interrupts a cast, which is what the server does')
+
+    // The size, which the performance budget had no line for.
+    const size = await p.evaluate(async () => {
+      const one = JSON.stringify(window.__save())
+      const qd = await (await fetch('./world/quests.json')).json()
+      // The biggest a save gets: every errand in the world finished, which the
+      // log keeps for ever.
+      const big = JSON.parse(one)
+      big.quests = { held: [], done: qd.quests.map((q) => q.id) }
+      return { now: one.length, most: JSON.stringify(big).length,
+        slots: window.__picks().slots }
+    })
+    // **A save grows with the character and not with the world**, which is
+    // the rule the number follows from — everything in it is an id, a count or
+    // a position, and the rows behind those ids are the bake's.  A thousand
+    // bytes for a finished character in a world of 1,624 items and 51 errands
+    // is that rule holding; a save that had started keeping rows would be the
+    // first thing to break this line.
+    check('a save fits in four kilobytes', size.most <= 4 * 1024,
+      `${size.now} bytes now, ${size.most} with every errand in the world `
+      + 'finished, of 4,096')
+    check('and every slot of them in forty',
+      size.most * size.slots <= 40 * 1024,
+      `${size.slots} slots x ${size.most} = ${size.most * size.slots} of 40,960`)
+
   }
   await p.close()
 }

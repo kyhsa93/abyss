@@ -835,6 +835,29 @@ prose already says it: *"골드샤이어에서 거의 정남쪽, 스톤필드 �
 사이"*. `quests.py` prints what it leaves out every bake, because a thing
 dropped in silence is a thing nobody can weigh later.
 
+**A time saved against a clock that restarts is not a time.** Cooldowns were
+stored as moments on `clock`, and `clock` starts at nought on every load — so a
+character saved five minutes in came back with every ability he had used on
+cooldown for another five minutes, and one saved an hour in could press nothing
+at all. Everything in a save that is a duration is now the **remainder**, and
+`restore` puts it back on whatever clock it finds.
+
+**A debuff a reload clears is not a rule, it is the shape of a bug**, and the
+way a player finds that out is by using it. So the save carries what is still
+on him — the renew, the bandage, the bleed, the shout, the blessing, the shield
+and the stance, which was never saved at all. Three are deliberately left out:
+a **cast in flight** is interrupted by closing the tab, which is what the
+server does; **combo points** belong to a target that is not there when you
+come back; and the **global cooldown** is shorter than the load.
+
+**A save grows with the character and not with the world.** A finished
+character with every errand in this world done is 1,060 bytes, in a world of
+1,624 items and 51 quests — everything in it is an id, a count or a position,
+and the rows behind those ids are the bake's. The budget draft said 1 MB, which
+was a thousand times too generous to catch anything; it is 4 KB a save and 40
+KB for ten slots now, four times the measured worst case. A save that started
+keeping rows would break that line first.
+
 **A check that waits on the weather fails for reasons that are not the rule.**
 Four of the screen checks for this did: the nearest thing to click was a rabbit
 that died before it could be angry at anybody; the screen point was worked out
