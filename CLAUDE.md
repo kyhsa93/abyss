@@ -565,6 +565,41 @@ frame and settled within five, and walking holds 60 with a 27 ms worst frame as
 each new plate appears. That is the number that says pre-baking the ground is
 not worth doing.
 
+**And how far you may pull back stopped being a frame-rate decision, which the
+comment defending it had not noticed.** `clampZoom`'s floor was the constant
+0.12 under a paragraph about a cliff — *0.4 is 7,784 tiles at 37 frames* — and
+the cliff had gone with the plates: every zoom from 3 to 0.12 runs at 58 to 60.
+It was also three times further out than the number the paragraph was
+defending, so nobody was standing on the cliff even when it was there.
+
+So the far limit is not about frames and the client states what it is about.
+The near one has been derived since `SEEN_YARDS` — forty yards is
+`creature_template.detection_range`'s own maximum, *what can see you, you must
+be able to see*. The far one is **`cameraDistanceMaxFactor` in
+`InterfaceOptionsPanels.lua`**, a slider from 1 to **2**: you may pull back to
+twice the default distance, and twice the distance is half the zoom. The floor
+is the **opening framing halved**, so a phone and a desktop get different ones
+without either being typed — 0.406 → 0.203 on a 390-wide phone, 0.375 → 0.188
+at `MIN_SCREEN`, 0.8 → 0.4 on a 1024 x 768 desktop. `layout.py` reads the
+slider the same way it reads a frame's anchor; only the number leaves.
+
+Two things guard it, and neither restates the arithmetic. `viewcheck` walks
+**seven zooms** rather than the one it used to read — the old check typed
+`__cam({ zoom: 0.12 })`, which after this is a screen no player can reach, so
+`__cam` clamps now and the sweep asks `__zooms()` where the ends are. And what
+the widest zoom leaves of a person is held against **the smallest type on the
+same screen**: 13 pixels of sprite on a phone against a type floor of 11, 12 at
+`MIN_SCREEN`, and **eight at the old 0.12**. A screen you cannot read is not
+saved by running at sixty.
+
+The sweep also corrected a sentence in `main.ts` that had been flat for a
+round. The grain doubles when a tile would fall under sixteen pixels, and a
+tile is 32 pixels at 1:1 — so **it cannot engage until the zoom is under 0.5**,
+and above that the count is the square law untouched: 86 tiles at zoom 3
+against 1,256 at 0.5. What it actually buys is the far end, 422 tiles at the
+0.396 floor, and that — *pulling out past the doubling costs less, not more* —
+is what the check asserts, because it is the part that is true.
+
 Two of the mistakes are worth keeping. `screenX` falls as world y rises and
 `screenY` falls as world x rises, so **both** indices count backwards inside a
 plate; with one of them reversed the plate landed upside down and left a black

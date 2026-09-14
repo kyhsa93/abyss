@@ -7520,15 +7520,52 @@ async function main() {
   const SEEN_YARDS = 40
   let zoom = 1
   /**
-   * How far out you may pull, which is a frame-rate decision.
+   * How far out you may pull, which **used to be a frame-rate decision and is
+   * not one any more**.
    *
-   * A diamond of ground is a blit and the count goes as the square of how far
-   * out you are: at 0.4 the view is 146 yards across and 7,784 tiles, which
-   * this machine draws at 37 frames a second.  0.6 is 3,400 tiles and holds
-   * 60.  The old floor was 0.4 and the old world was a 600 yard disc, where
-   * the whole of it fit in 2,000 tiles at any zoom.
+   * What stood here said a diamond of ground is a blit and the count goes as
+   * the square of how far out you are — 0.4 was 146 yards, 7,784 tiles and 37
+   * frames a second; 0.6 was 3,400 and held 60.  That was true and the floor
+   * was 0.12 anyway, three times further out than the number the comment was
+   * defending, so the comment was guarding a cliff nobody was standing on.
+   *
+   * And the cliff is gone: the plain ground is composed into plates now and
+   * kept, so the tile count no longer follows the zoom.  Measured on a phone
+   * viewport at six zooms from 0.5 to 0.12, **every one of them is 60 frames a
+   * second**, the tile count never passes 140, and the heap and the canvas
+   * cache do not move.
+   *
+   * **So the far limit is not about frames, and the client states what it is
+   * about.**  The near limit has been derived since `SEEN_YARDS`: forty yards
+   * is `creature_template.detection_range`'s own maximum, because a screen
+   * narrower than that is a screen you cannot see what is coming on.  The far
+   * one is `cameraDistanceMaxFactor` in the original's own options —
+   * `layout.json`'s `camera.follow`, a slider from 1 to **2**: *you may pull
+   * back to twice the default distance*.  A camera at twice the distance sees
+   * twice the ground, and twice the ground is half the zoom.
+   *
+   * So the floor is **the opening framing halved**, and because the opening
+   * framing is itself a function of the glass, a phone and a desktop get
+   * different floors without either being typed.  Measured at every size the
+   * harness lays out:
+   *
+   * | glass | opens | widest | across | a person |
+   * |---|---|---|---|---|
+   * | 390 x 844 phone | 0.406 | 0.203 | 80 yd | 13 px |
+   * | 844 x 390 phone | 0.406 | 0.203 | 173 yd | 13 px |
+   * | 360 x 640, `MIN_SCREEN` | 0.375 | 0.188 | 80 yd | 12 px |
+   * | 1024 x 768 desktop | 0.8 | 0.4 | 107 yd | 26 px |
+   *
+   * Twelve pixels is the tightest of those and it is still above the type
+   * floor on the same screen — 11, the client's own ladder one rung up — which
+   * is what `viewcheck` and `padcheck` assert rather than a number chosen
+   * here.  At the old 0.12 a person is **eight** pixels on a 293-yard screen,
+   * which is a game you cannot read long before it is a game that stutters.
    */
-  const clampZoom = (z: number) => Math.max(0.12, Math.min(3, z))
+  const MAX_FOLLOW = (layout?.camera?.follow as number | undefined) ?? 2
+  const fitZoom = () => Math.min(canvas.width, canvas.height) / (PPY * SEEN_YARDS)
+  const clampZoom = (z: number) =>
+    Math.max(Math.min(1, fitZoom()) / MAX_FOLLOW, Math.min(3, z))
   addEventListener('wheel', (e) => {
     zoom = clampZoom(zoom * (1 - Math.sign(e.deltaY) * 0.12))
     zoomIsMine = true
@@ -7548,8 +7585,7 @@ async function main() {
     // Pull out far enough to see forty yards across the short side — see
     // `SEEN_YARDS`.  Never *in*: a wide screen shows what it has room for.
     if (!zoomIsMine) {
-      const fit = Math.min(canvas.width, canvas.height) / (PPY * SEEN_YARDS)
-      zoom = Math.min(1, clampZoom(fit))
+      zoom = Math.min(1, clampZoom(fitZoom()))
     }
   }
   addEventListener('resize', resize)
@@ -8380,8 +8416,16 @@ async function main() {
      *
      * A tile that is four pixels on the glass is not detail, it is cost.  So
      * the world step doubles whenever a tile would fall under sixteen pixels,
-     * which holds the count near constant at every zoom and is invisible: at
-     * that size there is nothing in a 1.33 yard tile to see.
+     * and at that size there is nothing in a 1.33 yard tile to see.
+     *
+     * **It caps the far end; it does not flatten the range**, and the comment
+     * here said flat for a round.  A tile is 32 pixels at 1:1, so the doubling
+     * cannot engage until the zoom is under 0.5 — above that the count is the
+     * square law, undisturbed.  Measured over the sweep `viewcheck` now walks:
+     * 86 tiles at zoom 3, 520 at 1, **1,256 at 0.5 — and 422 at the 0.396
+     * floor**, which is the whole of what this buys.  Pulling out past the
+     * doubling costs *less* than the zoom just above it, and that is the
+     * property the check asserts, because it is the one that is true.
      */
     const grain = Math.max(1, 2 ** Math.ceil(Math.log2(
       Math.max(1, 16 / (TILE * zoom)))))
@@ -10327,6 +10371,22 @@ async function main() {
     side: PLATE_PX, drawn: platesDrawn,
   })
   /**
+   * Where the zoom may go, and where each end of it came from.
+   *
+   * Both limits are derived and the check reads them rather than repeating
+   * them: a harness that types `0.12` is a harness testing a screen no player
+   * can reach, which is what the widest-zoom check was doing for a round after
+   * the floor stopped being a constant.  `cell` is how many pixels of person
+   * the floor leaves, because that — not the tile count — is what decides how
+   * far out is too far now.
+   */
+  ;(window as unknown as { __zooms: () => unknown }).__zooms = () => ({
+    zoom, fit: fitZoom(), follow: MAX_FOLLOW, floor: clampZoom(0),
+    ceiling: clampZoom(99), seen: SEEN_YARDS,
+    cell: heroMeta.cell * clampZoom(0),
+    across: canvas.width / (PPY * clampZoom(0)),
+  })
+  /**
    * What the client painted, as the scene actually has it.
    *
    * `mixed` is the number the issue that brought this asked for: how much of
@@ -12208,7 +12268,11 @@ async function main() {
     // is the only way a check that has been pulling the camera about can ask
     // what a player would actually see.
     if (o.zoom === 0) { zoomIsMine = false; resize() }
-    else if (o.zoom !== undefined) { zoom = o.zoom; zoomIsMine = true }
+    // **Clamped, like a wheel and a pinch.**  It was set straight, so a check
+    // that asked for the widest view got a zoom no player can reach — and the
+    // one check watching the frame rate out there was watching a screen that
+    // does not exist.
+    else if (o.zoom !== undefined) { zoom = clampZoom(o.zoom); zoomIsMine = true }
     if (o.dir !== undefined) hero.dir = o.dir
   }
 }

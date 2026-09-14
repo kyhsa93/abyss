@@ -1894,22 +1894,83 @@ const tiles = Number(hud.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
 check('the ground still runs at the refresh rate', fps >= 55, `${fps} fps over ${tiles} tiles`)
 console.log(`      (${tiles} tiles, ${fps} fps)`)
 
-// 12. And at the widest the zoom will go, which is where the ground used to
-// stop running.  The tile count went as the square of how far out you were —
-// 66,676 tiles at twenty frames a second four steps below the old floor — so
-// the floor was 0.6 and the widest view was eighty-three yards of a valley six
-// hundred across.  The ground draws a coarser tile when a fine one would be
-// under sixteen pixels now, so the count is near flat and the floor is where
-// the map stops being a map.
-await p.evaluate(([x, y]) => window.__cam({ x, y, zoom: 0.12 }), [-8983, -316])
-await p.waitForTimeout(1500)
-const wide = await p.evaluate(() => document.getElementById('hud').textContent)
-const wfps = Number(wide.match(/초당 (\d+)/)[1])
-const wtiles = Number(wide.match(/([\d,]+)타일/)[1].replace(/,/g, ''))
-check('and at the widest zoom too', wfps >= 45, `${wfps} fps over ${wtiles} tiles`)
-check('and the widest view takes in the valley',
-  1200 / (24 * 0.12) > 400, 'the floor has to show a zone, not a field')
-console.log(`      (${wtiles} tiles, ${wfps} fps at the floor)`)
+// 12. And at every zoom, not only the one it opens on.
+//
+// This used to ask a single number — `__cam({ zoom: 0.12 })` — and 0.12 was a
+// constant in `main.ts` that has since been derived, so a harness that types
+// it is driving a screen no player can reach.  `__cam` clamps now, and the
+// sweep asks the limits rather than restating them.
+//
+// The history is why the sweep is here at all.  The tile count used to go as
+// the square of how far out you were — 66,676 tiles at twenty frames a second
+// four steps below the old floor — so the floor was 0.6 and the widest view
+// was eighty-three yards of a valley six hundred across.  The ground draws a
+// coarser tile under sixteen pixels now and the plain ground is composed into
+// plates, so the count is near flat; but "near flat" is a claim about the
+// whole range and the check was reading one point of it.
+const zooms = await p.evaluate(() => window.__zooms())
+console.log(`      (zoom ${zooms.floor.toFixed(3)} to ${zooms.ceiling.toFixed(2)},`
+  + ` fit ${zooms.fit.toFixed(3)}, follow ${zooms.follow})`)
+
+// The floor is the opening framing halved, and both halves of that are
+// derived: `SEEN_YARDS` from `creature_template.detection_range`, the halving
+// from `cameraDistanceMaxFactor`'s own `maxValue` in the client's options.
+// Written out here because a derivation nothing checks is a derivation that
+// gets replaced by a number the next time somebody is in a hurry.
+check('the zoom floor is the opening framing over the camera slider',
+  Math.abs(zooms.floor - Math.min(1, zooms.fit) / zooms.follow) < 1e-9,
+  `${zooms.floor.toFixed(4)} = min(1, ${zooms.fit.toFixed(4)}) / ${zooms.follow}`)
+
+// And what that floor leaves of a person.  Eight pixels was the old floor's
+// answer, and it is why the old one was wrong for a reason that has nothing to
+// do with frames: a screen you cannot read is not saved by running at sixty.
+// The bar is the **smallest type on the same screen**, read off the page — a
+// number that is already the client's own ladder one rung up, so nothing here
+// is picked.  `padcheck` asks the same question at the four phone sizes.
+const smallType = await p.evaluate(() => parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue('--font-tiny')))
+check('and a person is no smaller at the widest zoom than the type beside him',
+  zooms.cell >= smallType,
+  `${zooms.cell.toFixed(1)} pixels of sprite against ${smallType}px of type, `
+  + `across ${zooms.across.toFixed(0)} yards`)
+
+const sweep = []
+// The floor last, and only the steps above it: 0.35 is a real step on a phone
+// (floor 0.203) and clamps on to the floor at this viewport, which would
+// measure the same screen twice and call it two zooms.
+for (const z of [3, 2, 1.2, 1, 0.7, 0.5, 0.35]
+  .filter((z) => z > zooms.floor + 1e-6).concat(zooms.floor)) {
+  await p.evaluate(([x, y, zoom]) => window.__cam({ x, y, zoom }), [-8983, -316, z])
+  // Long enough for the plates this view wants to be composed — one a frame,
+  // so a cold jump is a second of them — and then read.  A frame rate taken
+  // while the cache is filling is the cost of arriving, not of being there.
+  await p.waitForTimeout(1500)
+  const hud2 = await p.evaluate(() => document.getElementById('hud').textContent)
+  sweep.push({
+    zoom: await p.evaluate(() => window.__zooms().zoom),
+    fps: Number(hud2.match(/초당 (\d+)/)[1]),
+    tiles: Number(hud2.match(/([\d,]+)타일/)[1].replace(/,/g, '')),
+  })
+}
+for (const s of sweep) {
+  console.log(`      (zoom ${s.zoom.toFixed(3)}: ${s.tiles} tiles, ${s.fps} fps)`)
+}
+const worst = sweep.reduce((a, b) => (b.fps < a.fps ? b : a))
+check('no zoom drops the ground below the floor', worst.fps >= 45,
+  `worst is ${worst.fps} fps at zoom ${worst.zoom.toFixed(3)}`)
+// And what stops it following the zoom, which is not what the comment in
+// `main.ts` claimed for a round.  A tile is 32 pixels at 1:1, so the grain
+// cannot double until the zoom is under 0.5 — above that the count is the
+// square law and nothing has touched it: 86 tiles at 3 against 1,256 at 0.5.
+// What the doubling actually buys is the far end, and it is worth asserting
+// precisely because it is counter-intuitive: **the widest view on the glass
+// draws fewer tiles than the zoom above it**.
+const most = sweep.reduce((a, b) => (b.tiles > a.tiles ? b : a))
+const far = sweep[sweep.length - 1]
+check('and pulling out past the coarser grain costs less, not more',
+  far.tiles < most.tiles,
+  `${far.tiles} tiles at the ${far.zoom.toFixed(3)} floor against `
+  + `${most.tiles} at ${most.zoom.toFixed(2)}`)
 
 // 13. A building's outline is painted like a building.
 //

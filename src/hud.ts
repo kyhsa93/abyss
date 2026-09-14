@@ -183,6 +183,15 @@ export type Layout = {
   ref: [number, number]
   frames: Record<string, Box>
   /**
+   * How far the original lets the camera pull back, as a factor.
+   *
+   * `cameraDistanceMaxFactor` out of `InterfaceOptionsPanels.lua` — a slider
+   * from 1 to 2, which is the original saying *you may pull back to twice the
+   * default distance*.  It is what `clampZoom` derives its far limit from,
+   * and it is `undefined` when the bake had no client.
+   */
+  camera?: { follow: number; from?: string } | null
+  /**
    * The rest of the interface as numbers — see `spec` in `pipeline/layout.py`.
    *
    * The type scale, the border thicknesses, the insets and the bar colours,

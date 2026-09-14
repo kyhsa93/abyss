@@ -47,7 +47,21 @@ const SPOTS = [
   // whole file exists to stop — a comparison can only ever say the screen is
   // what it was, so the description is the only thing that says it was right.
   ['river', -8986, -300, 0.8, 'water, a crossing and a bank'],
-  ['wide', -8983, -316, 0.3, 'the valley from far enough to see its shape'],
+  // **`'widest'` rather than a number**, and that is issue 231's lesson landing
+  // here.  This said `0.3`, which was a screen a player could reach while the
+  // zoom floor was the constant 0.12; the floor is derived now — the opening
+  // framing over `cameraDistanceMaxFactor` — so 0.3 clamps, and a reference
+  // taken at a zoom the camera refuses is a reference of nothing.  Asked this
+  // way it also follows the viewport: the same word means 0.203 on a phone.
+  //
+  // **Its description changed with it, and that is the honest part.**  It said
+  // *the valley from far enough to see its shape*, and at the derived floor it
+  // is 107 yards of river and bridge — the valley is 600 across and no longer
+  // fits, because the ceiling is now the client's camera slider rather than a
+  // number picked to make this picture work.  A reference that has drifted
+  // from its own description is the failure this whole file exists to stop.
+  ['wide', -8983, -316, 'widest',
+    'the widest the camera goes — the opening framing halved'],
   ['hills', -8700, -900, 0.7, 'bare rock, where the slope decides the ground'],
 ]
 
@@ -72,7 +86,9 @@ await page.evaluate(() => { window.__clock?.(new Date(2026, 5, 21, 12, 0, 0)) })
 mkdirSync(DIR, { recursive: true })
 if (WRITE) mkdirSync(SEEN, { recursive: true })
 for (const [name, x, y, zoom, why] of SPOTS) {
-  await page.evaluate((c) => window.__cam(c), { x, y, zoom })
+  const z = zoom === 'widest'
+    ? await page.evaluate(() => window.__zooms().floor) : zoom
+  await page.evaluate((c) => window.__cam(c), { x, y, zoom: z })
   await page.waitForTimeout(400)
   // The canvas only: the overlays are `uicheck`'s business and they carry
   // fonts, which are the one thing that really does differ between machines.

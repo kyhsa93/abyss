@@ -665,6 +665,39 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   check(`${name}: all of it is on the glass`, off.length === 0,
     off.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
       `${Math.round(b.w)}x${Math.round(b.h)}`).join(' | '))
+  // **How far this screen may pull back, and what it leaves of a person.**
+  //
+  // The far limit used to be the constant 0.12 with a comment defending a
+  // frame-rate cliff that plates had already removed.  It is the opening
+  // framing halved now — halved by `cameraDistanceMaxFactor`'s own `maxValue`
+  // in the client's options, which is a slider from 1 to 2 — and because the
+  // opening framing is a function of the glass, **a phone and a desktop get
+  // different floors without either being typed**.  That is the good property
+  // and it is also the risk: nobody ever sees the phone's number, so it is
+  // asserted at every size this file lays out rather than written in a
+  // paragraph.  On a 390-wide phone it is 0.406 down to 0.203, which leaves 13
+  // pixels of sprite; `viewcheck` holds the desktop's 0.8 down to 0.4.
+  //
+  // How small a person may get is the **smallest type on the same screen**,
+  // read off the page rather than typed: that number is already the client's
+  // own ladder one rung up, and a person you cannot make out is the same
+  // failure as a word you cannot read.  It is not slack — at `MIN_SCREEN` the
+  // sprite comes to 12 pixels against a type floor of 11.
+  const zs = await p.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement)
+    return { ...window.__zooms(),
+      type: parseFloat(cs.getPropertyValue('--font-tiny')) }
+  })
+  check(`${name}: the zoom floor is the opening framing over the camera slider`,
+    Math.abs(zs.floor - Math.min(1, zs.fit) / zs.follow) < 1e-9,
+    `${zs.fit.toFixed(3)} open, ${zs.floor.toFixed(3)} at the widest, `
+    + `${zs.across.toFixed(0)} yards across`)
+  check(`${name}: and a person is no smaller there than the type beside him`,
+    zs.cell >= zs.type,
+    `${zs.cell.toFixed(1)} pixels of sprite against ${zs.type}px of type`)
+  console.log(`      (${name}: ${zs.fit.toFixed(3)} open, `
+    + `${zs.floor.toFixed(3)} widest, ${zs.across.toFixed(0)} yards, `
+    + `${zs.cell.toFixed(1)}px sprite)`)
   await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
 }
 

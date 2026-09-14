@@ -698,6 +698,35 @@ def spec(client, found):
     return out
 
 
+def camera(client):
+    """How far the original lets the camera pull back, as a factor.
+
+    The near limit of this game's zoom is already derived — `SEEN_YARDS` is
+    `creature_template.detection_range`'s own maximum, because a screen
+    narrower than that is a screen you cannot see what is coming on.  The far
+    limit was a constant, and the comment above it defended a frame-rate cliff
+    that stopped existing the day the ground was composed into plates.
+
+    The client states the far limit and states it as a **ratio**, which is
+    exactly what a zoom is: `cameraDistanceMaxFactor` in
+    `InterfaceOptionsPanels.lua` is a slider from 1 to 2 — *you may pull back
+    to twice the default distance*.  A camera at twice the distance sees twice
+    the ground, so twice the distance is half the zoom.
+
+    Not a frame in `FrameXML` and not XML, so it is read on its own and
+    reported as absent rather than guessed.
+    """
+    data, src = client.read('Interface\\FrameXML\\InterfaceOptionsPanels.lua')
+    if data is None:
+        return None
+    text = data.decode('latin-1')
+    got = re.search(r'cameraDistanceMaxFactor\s*=\s*\{[^}]*?maxValue\s*=\s*'
+                    r'([0-9.]+)', text)
+    if not got:
+        return None
+    return {'follow': float(got.group(1)), 'from': src and 'the interface'}
+
+
 def main(client_root, out):
     client = B.Client(client_root)
     B.CHAIN = CHAIN
@@ -801,6 +830,7 @@ def main(client_root, out):
     with open(path, 'w') as f:
         doc = {'ref': [REF_W, REF_H], 'frames': frames, 'panels': ours,
                'spec': spec(client, found),
+               'camera': camera(client),
                'who': who(client)}
         json.dump(doc, f)
     print(f'{len(frames)} frames -> {path}   (screen {REF_W}x{REF_H}, '
