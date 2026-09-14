@@ -461,6 +461,41 @@ away where a building brings a floor and a hole with nothing over it is painted
 black. That is the bug that made the middle of Goldshire a thirty-yard black
 square, and passing `null` for the cover would have brought it back.
 
+**The stairs went all the way up the whole time; the check stopped at the
+first landing.** Issue 220 was written as *there is no check, so nobody knows*,
+and that was the right shape: nothing in the game was broken and three things
+in the harness were.
+
+`__stairs()` returned **this floor's `steps` alone**, and `upOrDown` reads two
+masks — this floor's, which lead up, and the floor below's, which lead down —
+so at the top of a building it answered nothing while the way down was under
+the player's feet: the abbey's second floor has 1,253 cells that lead down and
+none that lead up. It also walked the grid `i += 2, j += 2`, so three cells in
+four were never named, and a check that walks two yards on to "a stair" and
+lands between the ones it was told about reports a staircase nobody can use.
+It returns every cell of both masks now, each marked `1` up, `-1` down, `0`
+both — because they are not interchangeable and a caller that cannot tell them
+apart walks in circles: the inn's ground floor is 420 cells down against 115
+up, so three tries in four went the wrong way and the next try started from the
+wrong floor.
+
+**The spot you start from must not itself be a stair.** A flight is wide — the
+abbey's ground floor names 190 cells that lead up — so standing two yards short
+of one lands on another, `__seam` latches `onRung` there, and the step that was
+supposed to be the act does nothing.
+
+**And a `steps` cell is not somewhere a man can stand.** It is *a walkable face
+between this floor and the next*, and between the gallery at 17.6 yards and the
+crossing tower at 33.1 that is fifteen yards of the tower's insides — 1,164
+cells, of which **19 in 130 are standable**. Sampling the mask and hoping is
+why the abbey reached its gallery and stopped there, run after run; filtering
+to what `__canWalk` allows made it the tower every time.
+
+Both buildings with an upstairs now go 0 → 1 → 2 and come back to the ground,
+and the check reads *every* one of them rather than the first that answers —
+the inn is the reason, because its innkeeper is on the first floor and only one
+of its four doors can be reached from outside.
+
 **A mine was a hole the scene dug for itself, and the client had drawn
 eighteen.** `classify_wmo` answered `None` for every `MD_*`, `TROLLBURROW` and
 `ANIMALDEN` — *a hole in a hillside, not a cottage, and there is no picture

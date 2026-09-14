@@ -2589,40 +2589,158 @@ for (const [name, x, y, zoom] of [['abbey', -8889, -196, 0.5],
       door: (b.doors ?? [])[0] })).filter((b) => b.floors && b.door))
   check('there are buildings with more than one floor and a way in',
     tall.length > 0, `${tall.length} of them`)
+  /**
+   * **To the top and back down, not one flight and stop.**
+   *
+   * This used to `break` at the first storey it reached, so the abbey's
+   * gallery and its tower had never been stood on and neither had the inn's
+   * upstairs, where the innkeeper is.  Issue 220's own wording: it was not
+   * *this is broken*, it was *there is no check, so nobody knows*.
+   *
+   * Walked rather than placed, because the latch that stops you riding a
+   * staircase up and down once a frame is part of what is being tested — but
+   * tried from four sides and over every cell the floor names, because the
+   * first version of this walked two yards at one cell in four and a miss
+   * looked exactly like a staircase that does not work.
+   */
+  //
+  // **And the spot you start from must not itself be a stair.**  A flight is
+  // wide — the abbey's ground floor names 190 cells that lead up — so standing
+  // two yards short of one lands on another, `__seam` latches `onRung` there,
+  // and the step that was supposed to be the act does nothing.  Measured, that
+  // is the whole of why the first version of this check reported *1 flight of
+  // 3*: it was never off the stairs to begin with.
+  const WAYS = [[3, 0, 's'], [-3, 0, 'w'], [0, 3, 'd'], [0, -3, 'a'],
+    [2, 0, 's'], [-2, 0, 'w'], [0, 2, 'd'], [0, -2, 'a']]
+  const ride = async (want) => {
+    const start = (await p.evaluate(() => window.__seam())).storey
+    const all = await p.evaluate(() => window.__stairs())
+    const rungs = new Set(all.map((c) => `${Math.round(c[0])},${Math.round(c[1])}`))
+    // **The ones that go the way we are going.**  `__stairs` says which since
+    // issue 220: a landing that is both takes the up, so it is only good for
+    // climbing.  Picked at random instead, the inn's ground floor is 420 cells
+    // down against 115 up — three tries in four go the wrong way, and the next
+    // try starts from the wrong floor.
+    const wanted = all.filter((c) => (want > 0 ? c[2] >= 0 : c[2] === -1))
+    // **And the ones a man can actually stand on**, which is a sixth of them
+    // on the abbey's first floor: 19 of 130 sampled.  A `steps` cell is *a
+    // walkable face between this floor and the next*, and between the gallery
+    // at 17.6 yards and the crossing tower at 33.1 that is fifteen yards of
+    // the tower's insides — 1,164 cells, most of which are nowhere a man on
+    // the gallery can put his foot.  Sampling the mask and hoping is how this
+    // check reached the gallery and stopped there, run after run.
+    const stairs = await p.evaluate((cs) =>
+      cs.filter((c) => window.__canWalk(c[0], c[1])), wanted)
+    if (!stairs.length) return null
+    // Thinned rather than truncated: a staircase's cells are contiguous, so
+    // the first twenty of twelve hundred are all one corner of one flight.
+    const step = Math.max(1, Math.floor(stairs.length / 30))
+    let tries = 0
+    for (let i = 0; i < stairs.length && tries < 48; i += step) {
+      const s = stairs[i]
+      // **Every bearing of every cell, not the first that is standable.**  A
+      // spiral stair is two thirds slope — the abbey's tower is 64% of it —
+      // and the side you can stand on is the building's business, not ours.
+      // Returning at the first walkable approach and moving on to the next
+      // cell was how this reached the abbey's gallery and stopped there.
+      for (const [ax, ay, key] of WAYS) {
+        if (tries >= 48) break
+        if (rungs.has(`${Math.round(s[0] + ax)},${Math.round(s[1] + ay)}`)) continue
+        const ok = await p.evaluate(([sx, sy, dx, dy]) => {
+          if (!window.__canWalk(sx + dx, sy + dy)) return false
+          window.__put(sx + dx, sy + dy)
+          window.__seam()
+          return true
+        }, [s[0], s[1], ax, ay])
+        if (!ok) continue
+        tries++
+        await p.keyboard.down(key)
+        await p.waitForTimeout(450)
+        await p.keyboard.up(key)
+        const now = await p.evaluate(() => window.__seam())
+        // **Still in the building.**  Walking out of a door also takes
+        // `storey` to -1, and counted as a descent that is a check which
+        // passes by leaving: an early version reported the abbey going from
+        // its tower to the ground in one move, and what it had actually done
+        // was step outside.
+        if (!now.inside) continue
+        if (want > 0 ? now.storey > start : now.storey < start) return now.storey
+      }
+    }
+    return null
+  }
   let climbed = null
+  const everyone = []
   for (const h of tall) {
+    if (h.floors < 2) continue
     const got = await p.evaluate(([x, y]) => {
       window.__put(x, y); return window.__seam()
     }, h.door)
     if (!got.inside) continue
-    const stairs = await p.evaluate(() => window.__stairs())
-    if (!stairs.length) continue
-    // Two yards short of a landing, then walk on to it.
-    const from = await p.evaluate(([sx, sy]) => {
-      window.__put(sx + 2, sy)
-      window.__seam()
-      return window.__hero()
-    }, stairs[0])
-    await p.keyboard.down('s'); await p.waitForTimeout(900)
-    await p.keyboard.up('s')
-    const up = await p.evaluate(() => window.__seam())
-    if (up.storey < 0) continue
-    // And back the way we came, which is the way down.
-    await p.keyboard.down('w'); await p.waitForTimeout(900)
-    await p.keyboard.up('w')
-    await p.keyboard.down('s'); await p.waitForTimeout(900)
-    await p.keyboard.up('s')
-    const down = await p.evaluate(() => window.__seam())
-    climbed = { k: h.k, floors: h.floors, up: up.storey, down: down.storey, from }
-    break
+    const up = []
+    for (let guard = 0; guard < h.floors + 1; guard++) {
+      const now = await ride(1)
+      if (now === null) break
+      up.push(now)
+    }
+    if (!up.length) continue
+    const down = []
+    for (let guard = 0; guard < h.floors + 2; guard++) {
+      const now = await ride(-1)
+      if (now === null) break
+      down.push(now)
+    }
+    const walked = { k: h.k, floors: h.floors, up, down }
+    everyone.push(walked)
+    // The tallest that worked is what the three checks below read; the rest
+    // are kept so *every* building with an upstairs is walked rather than the
+    // first one that happens to answer.  The inn is the reason: its innkeeper
+    // is on the first floor and only one of its four doors can be reached from
+    // outside, so until now nobody had stood up there.
+    if (!climbed
+      || (up[up.length - 1] ?? -99) > (climbed.up[climbed.up.length - 1] ?? -99)) {
+      climbed = walked
+    }
+  }
+  for (const e of everyone) {
+    console.log(`      (${e.k}, ${e.floors} upper floors: up `
+      + `${e.up.join(' ') || 'nowhere'} and down ${e.down.join(' ') || 'nowhere'})`)
   }
   check('walking on to a landing puts you on the floor above',
-    !!climbed && climbed.up >= 0,
-    climbed ? `${climbed.k}: floor ${climbed.up} of ${climbed.floors}`
+    !!climbed && climbed.up.length > 0,
+    climbed ? `${climbed.k}: ${climbed.up.join(' -> ')} of ${climbed.floors}`
       : 'nothing could be climbed')
+  // **All the way up**, which is the whole of issue 220.  The abbey has three
+  // upper floors — a gallery at 9.2 yards, another at 17.6 and the crossing
+  // tower at 33.1 — and the old check stopped at the first.
+  //
+  // **The top, not a count of flights.**  One walk can cross two landings, so
+  // *as many rides as there are floors* is the wrong question — the abbey's
+  // 0 -> 1 -> 2 and the inn's 0 -> 2 both arrive.  What has to be true is
+  // where it stopped.
+  const top = (e) => (e.up.length ? e.up[e.up.length - 1] : -99)
+  check('and it keeps going to the top of the building',
+    !!climbed && top(climbed) === climbed.floors - 1,
+    climbed ? `${climbed.up.join(' -> ')} of ${climbed.floors} floors` : '')
+  // And **every** building with an upstairs, not the one that answered first.
+  check('and every building with an upstairs can be walked to the top of it',
+    everyone.length > 1
+    && everyone.every((e) => top(e) === e.floors - 1
+      && e.down[e.down.length - 1] === -1),
+    everyone.map((e) => `${e.k} reached ${top(e)} of ${e.floors - 1}, back to `
+      + `${e.down[e.down.length - 1] ?? 'nowhere'}`).join('; '))
   check('and walking back off it brings you down',
-    !!climbed && climbed.down < climbed.up,
-    climbed ? `went to ${climbed.up}, came back to ${climbed.down}` : '')
+    !!climbed && climbed.down.length > 0
+    && climbed.down[climbed.down.length - 1] < climbed.up[climbed.up.length - 1],
+    climbed ? `went up ${climbed.up.join(' -> ')}, came back `
+      + `${climbed.down.join(' -> ')}` : '')
+  // And to the ground, which needs the *floor below's* stairs — the ones the
+  // player is standing on rather than the ones ahead of him.  `__stairs` named
+  // only this floor's until issue 220, so at the top of a building it answered
+  // nothing while the way down was under his feet.
+  check('and all the way to the ground',
+    !!climbed && climbed.down[climbed.down.length - 1] === -1,
+    climbed ? `ended on floor ${climbed.down[climbed.down.length - 1]}` : '')
 }
 
 // 21. The edge of the slice is the edge of the world.

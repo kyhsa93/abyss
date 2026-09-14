@@ -11718,17 +11718,89 @@ async function main() {
    * `planCell`'s inverse — which is the sort of second copy this repository
    * spends its rounds deleting.
    */
+  /**
+   * What the stairs of the floor you are on can do, cell by cell.
+   *
+   * `upOrDown` reads two masks — this floor's `steps`, which lead up, and the
+   * floor below's, which lead down — and where a cell is in both it takes the
+   * up.  Whether that ever happens, and how often, was never measured; issue
+   * 220 could not tell a latch that would not release from a staircase that
+   * only ever points one way.
+   */
+  ;(window as unknown as { __rungs: () => unknown }).__rungs = () => {
+    const b = indoors
+    const here = planNow()
+    if (!b || !here) return null
+    const below = planUnder()
+    let up = 0, down = 0, both = 0
+    for (let i = 0; i < here.w; i++) {
+      for (let j = 0; j < here.h; j++) {
+        const n = i * here.h + j
+        const u = bitAt(here.steps, n)
+        // The floor below is a different grid; ask it through the world, the
+        // way `upOrDown` does, rather than by index.
+        const lx = here.x0 + (i + 0.5) * here.s
+        const ly = here.y0 + (j + 0.5) * here.s
+        const uu = lx * here.sn + ly * here.c, vv = lx * here.c - ly * here.sn
+        const d = !!below
+          && bitAt(below.steps, planCell(below, b, b.x + uu, b.y - vv))
+        if (u && d) both++
+        else if (u) up++
+        else if (d) down++
+      }
+    }
+    return { storey, floors: b.floors.length, up, down, both, k: b.k }
+  }
   ;(window as unknown as { __stairs: () => number[][] }).__stairs = () => {
     const b = indoors
-    const p = b ? (storey >= 0 ? b.floors[storey] : b.plan) : null
-    if (!b || !p) return []
+    if (!b) return []
+    /**
+     * **Both masks, and every cell of them** — which is two corrections to
+     * what this used to return, and issue 220 could not tell them apart from a
+     * latch that would not release.
+     *
+     * It returned this floor's `steps` alone.  `upOrDown` reads *two* masks —
+     * this floor's, which lead up, and the floor below's, which lead down — so
+     * at the top of a building this answered nothing at all while the way down
+     * was under the player's feet: the abbey's second floor has 1,253 cells
+     * that lead down and none that lead up.  A check built on it could climb
+     * and never descend.
+     *
+     * And it walked the grid `i += 2, j += 2`, so three cells in four were
+     * never named.  A check that walks two yards on to "a stair" and lands
+     * between the ones it was told about is a check that reports a staircase
+     * nobody can use.
+     */
+    const here = storey >= 0 ? b.floors[storey] : b.plan
+    const below = storey > 0 ? b.floors[storey - 1] : (storey === 0 ? b.plan : null)
+    /**
+     * And **which way each one goes**, because they are not interchangeable
+     * and a caller that cannot tell them apart walks in circles.  The
+     * building with three floors that this check could only climb one of has
+     * 420 cells that lead down on its ground floor against 115 that lead up:
+     * picked at random, three tries in four take you the wrong way, and the
+     * next try starts from the wrong floor.
+     *
+     * `1` leads up, `-1` leads down, `0` is both — a landing between two
+     * flights, where `upOrDown` takes the up.
+     */
     const out: number[][] = []
-    for (let i = 0; i < p.w; i += 2) {
-      for (let j = 0; j < p.h; j += 2) {
-        if (!bitAt(p.steps, i * p.h + j)) continue
-        const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
-        const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
-        out.push([b.x + u, b.y - v])
+    const mark = new Map<string, number[]>()
+    for (const [way, p] of [[1, here], [-1, below]] as [number, Plan][]) {
+      if (!p) continue
+      for (let i = 0; i < p.w; i++) {
+        for (let j = 0; j < p.h; j++) {
+          if (!bitAt(p.steps, i * p.h + j)) continue
+          const lx = p.x0 + (i + 0.5) * p.s, ly = p.y0 + (j + 0.5) * p.s
+          const u = lx * p.sn + ly * p.c, v = lx * p.c - ly * p.sn
+          const x = b.x + u, y = b.y - v
+          const key = `${x.toFixed(2)},${y.toFixed(2)}`
+          const had = mark.get(key)
+          if (had) { had[2] = 0; continue }
+          const row = [x, y, way]
+          mark.set(key, row)
+          out.push(row)
+        }
       }
     }
     return out
