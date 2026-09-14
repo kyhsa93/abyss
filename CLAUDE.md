@@ -593,7 +593,7 @@ pages end in a 붙일 검사 table — a hundred and two lines of "we should che
 this" — and for a year nothing counted how many of them were attached. Eighty
 are; the twenty-two that are not are all waiting on a feature nobody has
 built, and `docs/promised-checks.md` says which, line by line.
-`npm run promisecheck` is the gate and it has two reaches, because the wiki is
+`npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
 without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
@@ -602,8 +602,17 @@ writes down what keeps it. The number that came out sideways is worth knowing:
 of 297 check labels in the harness, 52 were promised and **245 were written
 because something broke**.
 
+**The same page has a second list with the same disease.** Every wiki page ends
+in 아직 답이 없는 것 — what we do not know yet — which is a good section that
+nobody deletes from: 165 questions had accumulated with the live ones mixed
+in, and a list like that is not a map. The rule is now that **a question
+carries an answer or an issue number**, and `wikicheck` counts the ones that
+carry neither. It does **not** fail on that count: not knowing something is
+allowed, and the point is to see the number of things that stopped being
+unknown and stayed on the page anyway. One sweep took it from 154 to 47.
+
 `npm run check` needs nothing but Node — `tsc`, then `manifestcheck`,
-`bordercheck`, `simcheck`, `classcheck`, `promisecheck` and `docscheck` — and it is the one to run while
+`bordercheck`, `simcheck`, `classcheck`, `wikicheck` and `docscheck` — and it is the one to run while
 editing. `npm run check:slow` is the six that want a built page:
 `viewcheck`, `uicheck`, `questcheck`, `padcheck` and `shotcheck` drive a
 browser, `budgetcheck` weighs `dist`, and `pwacheck` cuts the network;

@@ -8,7 +8,7 @@ computed and never read, a thing promised and never attached.**
 
 Counted: **102 promises across 14 pages, 80 of them kept.**
 
-`npm run promisecheck` is the gate, and it is deliberately two checks with
+`npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
 
   * **Without the wiki** — which is what CI has — it reads this table and
@@ -47,7 +47,7 @@ keeps it honest.
 
 | 약속 | 지키는 검사 |
 | --- | --- |
-| **위키가 "붙일 검사"로 적은 줄이 전부 하니스에 있다** | `scripts/promisecheck.mjs: "every promise the wiki makes is in this table"` |
+| **위키가 "붙일 검사"로 적은 줄이 전부 하니스에 있다** | `scripts/wikicheck.mjs: "every promise the wiki makes is in this table"` |
 | 층이 둘 이상인 건물에서 위층에 올라갈 수 있다 | `scripts/viewcheck.mjs: "walking on to a landing puts you on the floor above"` |
 | 구운 오브젝트 중 화면에 안 서는 것마다 이유가 붙어 있다 | — 세는 계수기가 없다 (#197) |
 | 낱말마다 그림 수가 모델 수의 절반 이상이다 | `scripts/viewcheck.mjs: "no word draws more pictures than the client has models"` |

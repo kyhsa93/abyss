@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 /**
- * The wiki's promises, against the harness that is supposed to keep them.
+ * The wiki's own bookkeeping, checked.
  *
- *   npm run promisecheck                       # what CI can do
- *   ABYSS_WIKI=~/src/abyss.wiki npm run promisecheck   # the whole of it
+ *   npm run wikicheck                              # what CI can do
+ *   ABYSS_WIKI=~/src/abyss.wiki npm run wikicheck   # the whole of it
+ *
+ * Two sections of that wiki are lists that only work if somebody maintains
+ * them, and issues 191 and 192 are the same complaint about the two: **붙일
+ * 검사** is a promise that nobody counted, and **아직 답이 없는 것** is a
+ * question nobody deletes once it is answered.  A hundred and two of the
+ * first and a hundred and sixty-five of the second.
  *
  * Issue 191 opened with a number that looked like health and was not: *309
  * checks, 0 failures*, next to a list of things built recently with **no
@@ -144,6 +150,53 @@ if (!existsSync(WIKI)) {
     [...missing.slice(0, 3).map((p) => `new: ${p}`),
       ...stale.slice(0, 3).map((p) => `gone: ${p}`)].join(' | ')
     || `${said.length} lines in the wiki, ${rows.length} rows here`)
+
+  // --- and the other list nobody maintains ---------------------------------
+  //
+  // Issue 192: every page ends in **아직 답이 없는 것**, which is a good
+  // section — writing down what you do not know is the point of it — and
+  // nobody deletes a line once it is answered.  A hundred and sixty-five
+  // questions accumulated that way, with the real ones mixed in, which makes
+  // the list unusable as a map.
+  //
+  // **This does not fail.**  Not knowing something is allowed; the issue said
+  // so outright. The rule it asks for is narrower and is about bookkeeping
+  // rather than knowledge: *a question carries an answer or an issue number*.
+  // One with neither is the thing that piles up, and the only thing that
+  // stops it piling up again is a number somebody sees every time they run
+  // the checks.
+  const open = { answered: 0, issued: 0, bare: 0 }
+  const bare = []
+  for (const f of readdirSync(WIKI).filter((n) => n.endsWith('.md'))) {
+    let inside = false
+    // **A question is a bullet and everything wrapped under it**, which is how
+    // a person reads one: the answer to a two-line question is usually on its
+    // second line.  Counting line by line called every one of those unanswered
+    // and every wrapped line a question of its own.
+    const asked = []
+    for (const line of readFileSync(join(WIKI, f), 'utf8').split('\n')) {
+      if (/^#{2,4} .*아직 답이 없는 것/.test(line)) { inside = true; continue }
+      if (inside && /^#{1,4} /.test(line)) inside = false
+      if (!inside) continue
+      if (/^\s*[-*] /.test(line)) asked.push(line.trim().slice(2))
+      else if (asked.length && line.trim()) asked[asked.length - 1] += ' ' + line.trim()
+    }
+    for (const q of asked) {
+      if (/#\d{1,4}/.test(q)) open.issued++
+      else if (q.includes('→') || q.includes('**답') || q.startsWith('~~')) {
+        open.answered++
+      } else { open.bare++; bare.push(`${f.slice(0, -3)}: ${q.slice(0, 40)}`) }
+    }
+  }
+  const asked = open.answered + open.issued + open.bare
+  console.log(`      (${asked} open questions in the wiki: ${open.answered} `
+    + `carry an answer, ${open.issued} carry an issue number, and `
+    + `**${open.bare} carry neither** — that last number is the one that piles `
+    + 'up, and nothing here fails on it)')
+  if (open.bare) {
+    console.log('       ' + bare.slice(0, 3).join(' | ')
+      + (bare.length > 3 ? ` | …${bare.length - 3} more` : ''))
+  }
 }
 
 console.log(bad === 0 ? '\nall checks passed' : `\n${bad} failed`)
