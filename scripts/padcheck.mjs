@@ -14,7 +14,8 @@
  */
 import { mkdirSync } from 'node:fs'
 import { chromium, devices } from 'playwright'
-import { MIN_SCREEN } from '../src/touch.ts'
+import { MIN_SCREEN, PER_PAGE } from '../src/touch.ts'
+import { abilityOf } from '../src/talk.ts'
 
 const SP = process.argv[2] ?? 'shots'
 mkdirSync(SP, { recursive: true })
@@ -184,23 +185,54 @@ await p.waitForTimeout(400)
 check('no stick left running after a pinch', JSON.stringify(await hero()) === JSON.stringify(after),
   JSON.stringify([after, await hero()]))
 
-// 7. The button is dark with nobody in earshot and lit with somebody in it.
+// 7. There is no talk button, and nothing happens on empty ground.
+//
+// These two checks were written for the corner square when it said 대화 —
+// *dark with nobody in earshot, lit with somebody in it* — and issue 143 took
+// that button away: the original has none, you press the person.  They went on
+// pressing the corner and passing, because **a press on a square also lifted
+// as a tap on the world**, and a tap anywhere with a shopkeeper in earshot
+// opened him.  So the sentences were true and about nothing, and the thing
+// issue 143 asked to have checked — that there is no such button — was not.
 await p.evaluate(() => window.__cam({ x: -9200, y: -600, zoom: 1 }))
 await p.waitForTimeout(200)
 await p.screenshot({ path: `${SP}/pad-idle.png` })
 const btn = L.slots[0]
-await touch('touchStart', [[btn.x, btn.y]])
+{
+  // Both halves of the screen that could carry one.  Every square the cluster
+  // draws is an ability out of the spellbook — the pad draws from the same
+  // list it fires from, so that is the whole of the canvas — and nothing on
+  // the page that takes a press says it either.
+  const talky = await p.evaluate(() => {
+    const pad = window.__pad()
+    return {
+      notAbilities: pad.onPage.filter((id) => !pad.knows.includes(id)),
+      squares: window.__bar().squares.filter((s) => s.label.includes('대화'))
+        .map((s) => s.key),
+      pressable: [...document.querySelectorAll('button, [role=button], .slot')]
+        .filter((e) => e.getBoundingClientRect().width > 0
+          && e.textContent.includes('대화'))
+        .map((e) => `${e.parentElement?.id || e.parentElement?.className}:`
+          + e.textContent.trim()),
+    }
+  })
+  check('there is no talk button anywhere on the screen',
+    talky.notAbilities.length === 0 && talky.squares.length === 0
+    && talky.pressable.length === 0, JSON.stringify(talky))
+}
+await touch('touchStart', [[195, 330]])
 await touch('touchEnd', [])
 await p.waitForTimeout(150)
-check('the button does nothing with nobody there',
+check('a tap with nobody there opens nothing',
   await p.evaluate(() => document.getElementById('talk').hidden))
 
-// 8. Beside a trader: the button opens the conversation.
+// 8. Beside a trader: tapping *him* opens the conversation — and the ground
+// beside him, and a square pressed beside him, do not.
 //
 // Stood next to a *named* one rather than at a coordinate somebody once saw
 // one at: the shopkeepers wander now, so a fixed spot is a check that fails
 // one run in three for a reason that has nothing to do with the pad.
-await p.evaluate(() => {
+const trader = await p.evaluate(() => {
   // Somebody who stays put: `creature.wander_distance` is nought for anyone
   // behind a counter, and a conversation with somebody who walks off ends
   // itself halfway through the check.
@@ -208,15 +240,56 @@ await p.evaluate(() => {
     .filter((n) => n.kind === 'townsfolk' && !n.wander && n.r !== 'prey')
   const near = who.find((n) => Math.hypot(n.x + 9461.6, n.y - 16.19) < 40) ?? who[0]
   window.__cam({ x: near.x - 1.2, y: near.y, zoom: 1.4 })
+  return { x: near.x, y: near.y }
 })
 await p.waitForTimeout(400)
 await p.screenshot({ path: `${SP}/pad-ready.png` })
-// A thumb landing beside the button still counts, up to the hit radius.
-await touch('touchStart', [[btn.x - L.hit * 0.9, btn.y]])
-await touch('touchEnd', [])
-await p.waitForTimeout(150)
-check('a thumb beside the button still presses it',
-  !(await p.evaluate(() => document.getElementById('talk').hidden)))
+const talkShut = () => p.evaluate(() => document.getElementById('talk').hidden)
+/** A tap on a point of the world: down and up in the same place, by a finger. */
+const tapWorld = async (x, y) => {
+  const at = await p.evaluate(([wx, wy]) => window.__screenAt(wx, wy), [x, y])
+  await touch('touchStart', [[Math.round(at[0]), Math.round(at[1])]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(150)
+  return at.map(Math.round)
+}
+// The ground first: four yards past him, up the glass, which leaves the hero
+// well inside earshot — and earshot was all the old rule asked.  Issue 143's
+// table says what empty ground does, and it is nothing.
+{
+  const at = await tapWorld(trader.x + 4, trader.y)
+  check('a tap on the ground beside a person does not open him', await talkShut(),
+    `tapped ${at.join(',')}, four yards past him`)
+}
+// Then a square, pressed off-centre the way a thumb lands, up to the hit
+// radius.  It has to ask for that square's own ability and nothing else: this
+// press used to lift as a tap as well, and beside a shopkeeper that opened him
+// — which is all this line used to watch for.
+//
+// **Off the corner's open side, to the right.**  The press used to land
+// 0.9 of a hit radius to the *left*, and once the buttons were halved that is
+// 18.9 pixels from the corner and 14.9 from the square beside it, so the pad
+// quite rightly took the neighbour.  Nobody saw, because the line was
+// watching a panel open and not which ability heard.
+{
+  const was = await p.evaluate(() => ({ heard: window.__bar().heard,
+    first: window.__pad().onPage[0] }))
+  await touch('touchStart', [[btn.x + L.hit * 0.9, btn.y]])
+  await touch('touchEnd', [])
+  await p.waitForTimeout(150)
+  const got = await p.evaluate(() => ({ heard: window.__bar().heard,
+    asked: window.__bar().asked,
+    talking: !document.getElementById('talk').hidden }))
+  check('a thumb beside the button still presses it',
+    got.heard > was.heard && got.asked === was.first && !got.talking,
+    `wanted ${was.first}: ${JSON.stringify(got)}`)
+}
+// And him.
+{
+  const at = await tapWorld(trader.x, trader.y)
+  check('tapping a person opens a conversation', !(await talkShut()),
+    `tapped him at ${at.join(',')}`)
+}
 const n = await p.evaluate(() => document.querySelectorAll('#talk li').length)
 check('the options are there', n > 0, String(n))
 
@@ -455,16 +528,105 @@ if (full.autoAt) {
 // reason it cannot be used right now.  A press and hold asks; the answer goes
 // above the finger.
 {
-  const b1 = full.slots[1]
+  // **What is painted, not that something is held.**  This asked only
+  // `held.slot === 1`, which is the pad knowing a finger is down — and that is
+  // true of a tooltip that painted nothing, or painted another ability's
+  // words, which is exactly what a turned page did once (`asked.slot + 1`).
+  // So the scene hands back the lines it actually drew, and they are held
+  // against the spellbook: the ability's own word, its cost, and its wait.
+  //
+  // On a square whose ability has a cost *and* a cooldown of its own, so both
+  // numbers the promise names are read.  On this bar that square is on the
+  // second page, so the ring is turned there by a finger and back after.
+  const book = await p.evaluate(async () => {
+    const r = await fetch('./world/spells.json')
+    return r.ok ? Object.values((await r.json()).books).flat()
+      .map((s) => ({ id: s.id, cost: s.cost, pct: s.pct ?? 0, cool: s.cool }))
+      : []
+  })
+  const start = await pad()
+  const onBar = (await p.evaluate(() => window.__bar().bar))
+    .filter((id) => id !== null && start.knows.includes(id))
+  const at = onBar.findIndex((id) => {
+    const s = book.find((r) => r.id === id)
+    return !!s && s.cost > 0 && s.cool > 0 && !s.pct
+  })
+  const page = Math.max(0, Math.floor(at / PER_PAGE))
+  const slot = at >= 0 ? at % PER_PAGE : 1
+  const turn = async (to) => {
+    for (let i = 0; i < start.pages && (await pad()).page !== to; i++) {
+      await touch('touchStart', [[start.pageAt.x, start.pageAt.y]])
+      await p.waitForTimeout(120)
+      await touch('touchEnd', [])
+      await p.waitForTimeout(200)
+    }
+  }
+  await turn(page)
+  const b1 = start.slots[slot]
   await touch('touchStart', [[b1.x, b1.y]])
   await p.waitForTimeout(700)
-  const held = await p.evaluate(() => window.__pad().held)
-  check('holding a button asks what it is', held !== null && held.slot === 1,
-    JSON.stringify(held))
+  const asked = await p.evaluate(() => {
+    const now = window.__pad()
+    return { held: now.held, told: now.told, onPage: now.onPage, page: now.page }
+  })
+  const want = asked.onPage[slot]
+  const sp = book.find((r) => r.id === want)
+  const word = abilityOf(want)?.[0] ?? null
+  const wait = sp?.cool ? `재사용 ${(sp.cool / 1000).toFixed(0)}초` : null
+  const lines = asked.told?.lines ?? []
+  check('holding a button asks what it is',
+    at >= 0 && asked.page === page && asked.held?.slot === slot
+    && asked.told?.id === want && word !== null
+    && lines[0]?.startsWith(word) === true
+    && lines[0]?.endsWith(` ${sp.cost}`) === true && lines.includes(wait),
+    `page ${page} square ${slot} is ${want} (${word}, costs ${sp?.cost}, `
+    + `${wait ?? 'no cooldown'}) — painted ${JSON.stringify(lines)}`)
   await touch('touchEnd', [])
   await p.waitForTimeout(100)
-  check('and letting go stops asking',
-    (await p.evaluate(() => window.__pad().held)) === null)
+  const after = await p.evaluate(() => window.__pad())
+  check('and letting go stops asking', after.held === null && after.told === null,
+    JSON.stringify({ held: after.held, told: after.told }))
+  await turn(0)
+}
+
+// 11c2. Each of the five squares, pressed, fires that square's ability.
+//
+// Issue 143 promised it, and the line that was claimed to keep it — *a thumb
+// beside the button still presses it* — was watching a conversation open,
+// left over from the day the corner was a talk button.  Asked beside a person
+// on purpose: that is where a press used to turn into a conversation instead.
+//
+// "Fires" is two facts and both are read.  Every press has to reach `cast`
+// with the square's own ability — refused or not, because whether there was
+// rage for it is a different question — and every one that *could* go off has
+// to have gone.  `__topUp` fills the bar and clears the global wait before
+// each press, so "could" is as wide as it gets without aiming at somebody.  At
+// least one has to have gone, or "every one that could" is a promise about
+// nothing.
+{
+  await p.evaluate((t) => window.__cam({ x: t.x - 1.2, y: t.y, zoom: 1.4 }), trader)
+  await p.waitForTimeout(500)
+  const Lq = await pad()
+  const rows = []
+  for (let i = 0; i < Lq.slots.length; i++) {
+    const want = Lq.onPage[i]
+    const could = (await p.evaluate(() => window.__topUp())).includes(want)
+    const was = await p.evaluate(() => window.__bar())
+    const s = Lq.slots[i]
+    await touch('touchStart', [[Math.round(s.x), Math.round(s.y)]])
+    await touch('touchEnd', [])
+    await p.waitForTimeout(150)
+    const got = await p.evaluate(() => ({ ...window.__bar(),
+      talking: !document.getElementById('talk').hidden }))
+    const heard = got.heard > was.heard && got.asked === want
+    const went = got.fired.n > was.fired.n && got.fired.id === want
+    rows.push({ square: i, want, could, heard, went, talking: got.talking,
+      ok: heard && (!could || went) && !got.talking })
+  }
+  check('and each of the five squares, pressed, fires its own ability',
+    rows.length === 5 && Lq.onPage.length === 5
+    && rows.every((r) => r.ok) && rows.some((r) => r.went),
+    JSON.stringify(rows))
 }
 
 // 11d. And the thumbs rest where the phone will let them.
@@ -509,6 +671,18 @@ if (full.autoAt) {
 // Three rules, and they are the ones the old prototype laid its phone screen
 // out by: the corners are the interface, the middle is the game, and the
 // bottom third is two thumbs and nothing else.
+// The chat window's shares, out of the `layout.json` `placePhone` reads them
+// from rather than typed here: the client's box over the client's screen.  The
+// check used to type 0.42 and 0.031 and never read the height, so a window at
+// the right width and the wrong depth passed it.
+const logSpec = await p.evaluate(async () => {
+  const r = await fetch('./world/layout.json')
+  if (!r.ok) return null
+  const spec = await r.json()
+  const f = spec.frames?.log
+  return f ? { w: f.w / spec.ref[0], h: f.h / spec.ref[1], x: f.x / spec.ref[0] } : null
+})
+const chats = {}
 for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   // The floor, read off `touch.ts` rather than typed here: a minimum written
   // in a document and a minimum the layout is tested at are two numbers, and
@@ -564,6 +738,22 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       me ? `${Math.round(me.w)} x ${Math.round(me.h)} at `
         + `${Math.round(me.x)},${Math.round(me.y)} — `
         + `${(me.w / me.h).toFixed(2)} : 1` : 'no frame')
+    // **And where, which is two places.**  Standing up the old game's band is
+    // left empty and the frame sits at `(6, topBand + 8)` — 41 on every phone
+    // this file lays out.  Lying down the owner decided the band is not kept
+    // (issue 229), because 41 pixels is a tenth of a 390-tall screen, so the
+    // frame is at (6, 8).  The band is worked out the way `placePhone` works
+    // it out, because 41 is true of these phones and not of a tablet.  This
+    // line did not exist, and the frame sat at (6, 41) lying down as well.
+    const at = await p.evaluate(() => {
+      const r = document.getElementById('units')?.getBoundingClientRect()
+      return r ? [Math.round(r.x), Math.round(r.y)] : null
+    })
+    const band = Math.round(54 * Math.max(0.62, Math.min(1.15, Math.min(w, h) / 760)))
+    const want = h >= w ? [6, band + 8] : [6, 8]
+    check(`${name}: and it sits under the old band standing up and at the top lying down`,
+      !!at && at[0] === want[0] && at[1] === want[1],
+      `at ${at?.join(',')}, wanted ${want.join(',')}`)
   }
 
   // A box and a disc.  The stick's ring at rest and each button, at the
@@ -596,20 +786,25 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       return r ? { x: r.x, y: r.y, w: r.width, h: r.height, b: r.bottom } : null
     })
     const stickTop = L2.home.y - L2.base
+    // Width, inset *and height*, each to the pixel the share rounds to.
     check(`${name}: the chat window is the original's shape`,
-      !!box && Math.abs(box.w / w - 0.42) < 0.03
-      && Math.abs(box.x / w - 0.031) < 0.02,
-      box ? `${Math.round(box.w)} x ${Math.round(box.h)} at `
-        + `${Math.round(box.x)},${Math.round(box.y)} — `
-        + `${(100 * box.w / w).toFixed(0)}% of the width, `
-        + `${(100 * box.x / w).toFixed(1)}% in` : 'no chat window')
+      !!box && !!logSpec && Math.abs(box.w - w * logSpec.w) <= 1.5
+      && Math.abs(box.h - h * logSpec.h) <= 1.5
+      && Math.abs(box.x - w * logSpec.x) <= 1.5,
+      box && logSpec ? `${Math.round(box.w)} x ${Math.round(box.h)} at `
+        + `${Math.round(box.x)},${Math.round(box.y)} — wanted `
+        + `${Math.round(w * logSpec.w)} x ${Math.round(h * logSpec.h)} at `
+        + `${Math.round(w * logSpec.x)} (${(100 * logSpec.w).toFixed(1)}% by `
+        + `${(100 * logSpec.h).toFixed(1)}%, ${(100 * logSpec.x).toFixed(1)}% in)`
+        : `${box ? '' : 'no chat window '}${logSpec ? '' : 'no layout.json'}`)
+    if (box) chats[name] = box
     check(`${name}: and it stops above the stick`,
       !!box && box.b <= stickTop + 1,
       box ? `bottom ${Math.round(box.b)} of a stick starting at `
         + `${Math.round(stickTop)}` : '')
   }
 
-  // **One exception, written down rather than quietly allowed.**
+  // **Two exceptions, each written down rather than quietly allowed.**
   //
   // The experience bar sits on the bottom edge, which is where the original
   // has it — `xp BOTTOM (0, 40) 1024 x 13` out of `FrameXML` — and the rule
@@ -619,31 +814,69 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   // that: a thin strip, *below* everything a thumb touches, and on the
   // physical bottom edge with nothing under it.
   //
+  // **The swing bar is the second, and it is named on its own** rather than
+  // let in on the first one's reason.  It went down with the experience bar by
+  // the owner's decision (issue 228) because the original has it down there
+  // too — `cast BOTTOM (0, 55)`, fifteen above the bar — and it is read and
+  // never pressed for the same reason; but it is a different strip with a
+  // different shape, three pixels rather than twelve and sitting on the bar
+  // rather than on the edge of the glass, so it has its own assertions.  An
+  // exception list that grows by an id with no sentence beside it is exactly
+  // the silent loosening this paragraph exists to prevent.
+  //
   // A rule loosened in silence is the same accident as a check that promised
   // less than it looked like — which this repository had again in issue 226.
-  const READ_ONLY = ['xp']
-  const sat = panels.filter((b) => !READ_ONLY.includes(b.id)
+  const READ_ONLY = {
+    xp: { why: 'how far through the level, read and never pressed', thin: 14 },
+    swing: { why: 'how far through the swing, read and never pressed', thin: 4 },
+  }
+  const sat = panels.filter((b) => !(b.id in READ_ONLY)
     && thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
-  for (const b of panels.filter((b2) => READ_ONLY.includes(b2.id))) {
-    const lowest = Math.max(...thumbs.map((t) => t[1] + t[2]))
-    check(`${name}: the strip that is read and not pressed is under the thumbs`,
-      b.h <= 14 && b.y >= lowest - 1,
-      `${b.id} ${Math.round(b.h)} px tall at ${Math.round(b.y)}, `
-      + `the lowest thumb ending at ${Math.round(lowest)}`)
-    // And it is on the *physical* bottom, not the safe one — the owner asked
-    // for no gap under it.  It used to be pinned to
-    // `env(safe-area-inset-bottom)`, and a headless browser reports that inset
-    // as nought, so the pixels alone looked flush while a real iPhone showed
-    // 34 pixels of world under the bar.  Both are read: the rule, which is the
-    // only place that difference shows from here, and the box.
-    const flush = await p.evaluate((id) => {
-      const e = document.getElementById(id)
-      return { pinned: e?.style.bottom ?? '',
-        gap: Math.round(innerHeight - (e?.getBoundingClientRect().bottom ?? 0)) }
-    }, b.id)
+  const lowest = Math.max(...thumbs.map((t) => t[1] + t[2]))
+  // Read by id rather than out of `panels`, which drops whatever is hidden: a
+  // strip that is not on the glass would skip its own assertions and look
+  // exactly like one that passed them.
+  const strips = await p.evaluate((ids) => Object.fromEntries(ids.map((id) => {
+    const e = document.getElementById(id)
+    const r = e?.getBoundingClientRect()
+    return [id, e && !e.hidden && r.width > 0
+      ? { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom,
+        pinned: e.style.bottom, gap: Math.round(innerHeight - r.bottom) }
+      : null]
+  })), Object.keys(READ_ONLY))
+  for (const [id, { why, thin }] of Object.entries(READ_ONLY)) {
+    const b = strips[id]
+    check(`${name}: the strip that is read and not pressed is under the thumbs (#${id})`,
+      !!b && b.h <= thin && b.y >= lowest - 1,
+      b ? `#${id}, ${why}: ${Math.round(b.h)} px tall at ${Math.round(b.y)}, `
+        + `the lowest thumb ending at ${Math.round(lowest)}`
+        : `#${id} is not on the glass`)
+  }
+  // And the experience bar is on the *physical* bottom, not the safe one — the
+  // owner asked for no gap under it.  It used to be pinned to
+  // `env(safe-area-inset-bottom)`, and a headless browser reports that inset
+  // as nought, so the pixels alone looked flush while a real iPhone showed 34
+  // pixels of world under the bar.  Both are read: the rule, which is the only
+  // place that difference shows from here, and the box.
+  {
+    const xp = strips.xp
     check(`${name}: and it sits on the bottom edge with no gap`,
-      flush.pinned === '0px' && flush.gap === 0,
-      `#${b.id} bottom: ${flush.pinned || '(unset)'}, ${flush.gap} px under it`)
+      !!xp && xp.pinned === '0px' && xp.gap === 0,
+      xp ? `#xp bottom: ${xp.pinned || '(unset)'}, ${xp.gap} px under it` : 'no #xp')
+  }
+  // And the swing bar directly on top of it, in the original's order bottom
+  // up — the bar, two pixels, the swing — and the full width, as the owner
+  // asked in issue 228.  Stacked off the bar rather than off the glass, so if
+  // the bar ever grows this still says whether the two touch.
+  {
+    const { xp, swing } = strips
+    check(`${name}: and the swing bar sits on the experience bar, the full width`,
+      !!xp && !!swing && swing.bottom <= xp.y + 0.5 && xp.y - swing.bottom <= 3
+      && swing.x <= 0.5 && Math.abs(swing.w - w) <= 1,
+      xp && swing ? `swing ${Math.round(swing.x)},${Math.round(swing.y)} `
+        + `${Math.round(swing.w)}x${Math.round(swing.h)}, `
+        + `${Math.round(xp.y - swing.bottom)} px above a bar at ${Math.round(xp.y)}`
+        : 'a strip is missing')
   }
   check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
     sat.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
@@ -703,6 +936,19 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
     + `${zs.floor.toFixed(3)} widest, ${zs.across.toFixed(0)} yards, `
     + `${zs.cell.toFixed(1)}px sprite)`)
   await p.screenshot({ path: `${SP}/pad-layout-${name}.png` })
+}
+// And lying down the chat window is a different box and not the same one
+// turned: **wider and lower** — lower as in less tall, the issue's own 낮다.
+// It follows from the shares above on any screen wider than it is tall, and it
+// is asserted anyway, because it is the sentence issue 230 wrote and the one a
+// reader checks by eye: the window was once the same 160 x 88 both ways round.
+for (const [up, side] of [['portrait', 'landscape'],
+  ['the floor', 'the floor, lying down']]) {
+  const a = chats[up], c = chats[side]
+  check(`${side}: lying down the chat window is wider and lower than standing up`,
+    !!a && !!c && c.w > a.w && c.h < a.h,
+    a && c ? `${Math.round(a.w)} x ${Math.round(a.h)} standing, `
+      + `${Math.round(c.w)} x ${Math.round(c.h)} lying down` : 'a size is missing')
 }
 
 // 12a2. The buttons come out of the map, and nothing that is always up takes a

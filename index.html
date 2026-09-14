@@ -869,9 +869,10 @@
         transform: translate(-50%, -50%);
         width: min(260px, calc(100vw - 32px)); font-size: var(--font-small);
       }
-      /* A pinned width is a width.  Without this the strips under the player
-         came out two pixels wider than the frame above them, which on a
-         390-pixel screen is a visible step. */
+      /* A pinned width is a width.  Without this the strips that used to sit
+         under the player came out two pixels wider than the frame above them,
+         which on a 390-pixel screen is a visible step — and along the bottom a
+         three-pixel swing bar is only three pixels if its rim is inside them. */
       body.touch #units, body.touch #log, body.touch #micro, body.touch #map,
       body.touch #track, body.touch #ui #xp, body.touch #ui #swing {
         box-sizing: border-box;

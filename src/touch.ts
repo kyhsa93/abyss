@@ -306,12 +306,13 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     const p = at(e)
     // Where the finger went down, so the lift can tell a tap from a drag.
     //
-    // **Cleared again by the two switches below**, and that is not tidiness:
-    // a press on the autocast toggle or the page turn used to lift as a *tap
-    // on the world*, so turning a page also picked a target — and picking a
-    // target opens nothing but `setBusy` runs on the frame after, which
-    // swallowed the next press outright.  Every other press either captures
-    // the pointer or is a genuine tap; these two are neither.
+    // **Cleared again by the two switches below, and by the squares**, and
+    // that is not tidiness: a press on the autocast toggle or the page turn
+    // used to lift as a *tap on the world*, so turning a page also picked a
+    // target — and picking a target opens nothing but `setBusy` runs on the
+    // frame after, which swallowed the next press outright.  The squares were
+    // the third case and this note had counted two: a square captures the
+    // pointer, and the lift turned it into a tap anyway.  See below.
     // `tap` used to be set *here* — on the way down, before anything knew
     // whether it would move — so dragging the stick while a conversation was
     // open counted as tapping the world and closed it.  A conversation that
@@ -342,6 +343,14 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     const slot = hit(p, l)
     if (slot !== null) {
       e.preventDefault()
+      // **And a square is not a tap either.**  `down` was left standing here,
+      // so a press lifted as a tap on the world as well, and beside a
+      // shopkeeper it opened him: the conversation came first, the scene
+      // skips presses while somebody is talking, and the ability never went.
+      // `padcheck`'s "a thumb beside the button still presses it" passed on
+      // exactly that, because it was written for the talk button and watched
+      // for the panel.
+      down = null
       canvas.setPointerCapture(e.pointerId)
       onButton.set(e.pointerId, slot)
       // An edge, not a held state: one press fires one action however many

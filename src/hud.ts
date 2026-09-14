@@ -1349,15 +1349,15 @@ export function hud(layout?: Layout) {
     // down the right.  The old prototype's layout branched on exactly this.
     const tall = h >= w
 
-    // Top left: who you are — and the two strips that belong to him.  They
-    // are the original's bottom-of-the-screen strips, and the bottom of this
-    // screen is a thumb.
+    // Top left: who you are.  The two strips that used to hang under him —
+    // the experience bar and the swing — are on the bottom edge, where the
+    // original has both; see below.
     // **The old game's own frame, at its own size and in its own place.**
     //
     // `icc-final`'s `theme.ts` and `hud.ts`, copied as arithmetic rather than
     // as numbers: nothing here is a pixel somebody chose, it is all a function
-    // of the glass.  At 390 across that comes out 116 x 40 at (6, 41), which
-    // is a third of the area the frame had grown to.
+    // of the glass.  At 390 across that comes out 116 x 40 at (6, 41) standing
+    // up, which is a third of the area the frame had grown to.
     //
     //   ui        = min(w, h) / 760, held between 0.62 and 1.15
     //   topBand   = 54 * ui        — 33 px at phone size
@@ -1367,8 +1367,8 @@ export function hud(layout?: Layout) {
     // **The band above it is empty on purpose.**  In the old game it held a
     // boss's name and this game has no boss — so it is not a thing to fill,
     // it is the spacing that keeps the frame where the old game put it.  The
-    // request was the old shape, size *and place*; moving it up to 8 would be
-    // two of the three.  Nothing is drawn there, and that is written down
+    // request was the old shape, size *and place*; moving it up to 8 standing
+    // up would be two of the three.  Nothing is drawn there, and that is written down
     // rather than quietly filled with something else.
     const uiK = Math.max(0.62, Math.min(1.15, Math.min(w, h) / 760))
     const topBand = Math.round(54 * uiK)
@@ -1384,8 +1384,14 @@ export function hud(layout?: Layout) {
     // with it (`k = min(1, h / 44)` there).  Left to the content it came out
     // 116 x 37, which is 3.1 and reads as a different frame.
     me.root.style.height = `${Math.round(deep)}px`
-    put(units, { left: 6, top: topBand + 8, width: col })
-    const under = topBand + 8 + units.offsetHeight + 4
+    // **Standing up, that is.**  Lying down the band is not kept, by the
+    // owner's decision on 2026-09-14 (issue 229): a phone on its side is 390
+    // tall and 41 pixels of nothing is a tenth of it — the case the comment on
+    // `tall` describes, width and no height.  The frame goes to (6, 8) and
+    // keeps its size, because `min(w, h)` does not turn with the phone.
+    const frameTop = tall ? topBand + 8 : 8
+    put(units, { left: 6, top: frameTop, width: col })
+    const under = frameTop + units.offsetHeight + 4
     // **The experience bar goes back to the bottom edge**, which is where the
     // original has it — `layout.json` reads `xp BOTTOM (0, 40) 1024 x 13`, the
     // full width of the screen — and where it was moved from because *the
@@ -1409,6 +1415,7 @@ export function hud(layout?: Layout) {
     // world 34 pixels tall under the bar standing up and 21 lying down.  The
     // bar is read and never pressed, so the indicator crossing it takes
     // nothing a thumb needs — the stick and the buttons still keep the inset.
+    const XP_TALL = 12
     loose(xpBar)
     xpBar.style.position = 'fixed'
     xpBar.style.transform = 'none'
@@ -1417,26 +1424,47 @@ export function hud(layout?: Layout) {
     xpBar.style.top = 'auto'
     xpBar.style.bottom = '0px'
     xpBar.style.width = ''
-    xpBar.style.height = '12px'
-    // The swing bar stays where it is, under the player's own frame.  The
-    // request was the experience bar and the two are not the same thing: one
-    // is how far through the level you are and the other is what is happening
-    // this second, and what is happening this second belongs beside the person
-    // it is happening to.
-    put(swingBar, { left: 8, top: under, width: col, height: 3 })
+    xpBar.style.height = `${XP_TALL}px`
+    // **And the swing bar goes down with it**, by the owner's decision on
+    // 2026-09-14 (issue 228).  For one commit it stayed under the player's
+    // frame, on the argument that what is happening this second belongs beside
+    // the person it is happening to — an argument the original does not make:
+    // `cast BOTTOM (0, 55)` sits fifteen above `xp BOTTOM (0, 40)`, both on the
+    // bottom edge, and under the frame it was a three-pixel line the old frame
+    // never had.
+    //
+    // Bottom up, then: the experience bar, two pixels, the swing — the
+    // original's order.  The room was measured rather than assumed: the band
+    // under the thumbs is nineteen pixels at all three sizes and 12 + 2 + 3 is
+    // seventeen.  If it ever needs more, what grows is the band `layoutFor`
+    // leaves under the thumbs; a readout does not go up among them.  Full width
+    // like the bar under it, and read and never pressed like it too, which is
+    // why `padcheck` 12 names it as an exception of its own.
+    put(swingBar, { left: 0, right: 0, bottom: XP_TALL + 2, height: 3 })
 
-    // Top right: where you are.  Smaller lying down, where the whole screen
-    // is 390 tall and a 150-pixel circle is most of it.
-    const dial = tall ? 98 : 78
+    // Top right: where you are, **at the old game's size and in its place.**
+    //
+    // This was `tall ? 98 : 78` — two diameters picked for two phones, the
+    // second because a 150-pixel circle is most of a screen lying down.  The
+    // old prototype had already worked out the rule both were guessing at, in
+    // `icc-final`'s `theme.ts`: a radius of `min(w, h) * 0.082` held between
+    // 30 and 62, its top on the frame's own line, ten from the right.  At phone
+    // size that is a 64-pixel circle either way round, because `min(w, h)`
+    // does not turn with the phone.
+    const mapR = Math.max(30, Math.min(62, Math.min(w, h) * 0.082))
+    const dial = Math.round(mapR * 2)
     const face = mapBox.querySelector('canvas') as HTMLElement | null
     if (face) { face.style.width = `${dial}px`; face.style.height = `${dial}px` }
     // Wider than the circle, because the plate under it carries a place name
     // and the weather: sized to the dial alone, 노스샤이어 계곡 wrapped onto
-    // two lines in a box meant for one.
-    put(mapBox, { right: 8, top: 8, width: Math.max(dial + 6, 118) })
+    // two lines in a box meant for one.  That is the one way this is not the
+    // old game's: its circle had nothing under it, so here the circle sits in
+    // the middle of a 118-pixel box and it is the box that is ten from the
+    // edge.  And the top is the frame's, so lying down it comes up to 8 with it.
+    put(mapBox, { right: 10, top: frameTop, width: Math.max(dial + 6, 118) })
     // The plates under the circle are part of the box, so whatever comes next
     // clears all of it and not just the canvas.
-    const below = 8 + mapBox.offsetHeight + 6
+    const below = frameTop + mapBox.offsetHeight + 6
 
     // What opens.  Standing up it is a block two wide against the right edge,
     // stopped short of the cluster; a column of five would have run into it,
@@ -1462,7 +1490,7 @@ export function hud(layout?: Layout) {
     // it on the far side of the glass, so a thumb that pressed the top right
     // corner opened a menu in the top left — 380 pixels away on a 640-wide
     // screen, and nothing between the two said they were one thing.
-    else put(micro, { right: 8 + mapBox.offsetWidth + 6, top: 8 })
+    else put(micro, { right: 10 + mapBox.offsetWidth + 6, top: frameTop })
     // The deck is the bar plus the menu, and on a phone the bar is the two
     // round buttons on the canvas and the menu has just left.
     deck.style.display = 'none'

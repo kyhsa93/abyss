@@ -163,8 +163,8 @@ arithmetic and not the pixels.** the tag `icc-final` derives every
 number from the glass — `ui = min(w, h) / 760` held between 0.62 and 1.15, a
 `topBand` of `54 * ui`, a frame 2.9 : 1 whose height is the smallest of half
 the screen, the width budget over the ratio, and forty, never under fourteen —
-and at phone size that comes out **116 x 40 at (6, 41)**, a third of the area
-the frame here had grown to. Copying the six numbers instead would have been
+and at phone size that comes out **116 x 40 at (6, 41)** standing up, a third
+of the area the frame here had grown to. Copying the six numbers instead would have been
 right on one phone.
 
 Three things were decided rather than transcribed. The **33-pixel band** above
@@ -176,6 +176,17 @@ for the name, and the paperdoll portrait is still two panels away in the
 character sheet. And the **ratio is set rather than left to the content**,
 which came out 116 x 37 — 3.1 : 1 reads as a different frame — so the height is
 pinned and `box-sizing: border-box` puts the rim and the padding inside it.
+
+**Lying down the band is not kept**, by the owner's decision on 2026-09-14
+(issue 229): a phone on its side is 390 tall and 41 pixels is a tenth of it,
+which is the case `placePhone` already names — width and no height. The frame
+goes to (6, 8) at the same 116 by 40, because `min(w, h)` does not turn with the
+phone. The minimap follows the frame's top line both ways round, and its size
+stopped being two diameters picked for two phones (98 standing, 78 lying): it
+is the old game's radius, `min(w, h) * 0.082` held between 30 and 62, which is
+a 64-pixel circle on every phone here. Its box stays 118 wide because the plate
+under it has to hold 노스샤이어 계곡 on one line, so it is the box and not the
+circle that sits ten from the edge.
 
 **The chat window was the portrait box turned on its side.** Its corner was
 already the original's — `log BOTTOMLEFT (32, 95) 430 x 120` — but the size was
@@ -205,6 +216,16 @@ else* carries that as a **named exception** with its own assertions (thin,
 below every thumb, and on the physical bottom edge). A rule loosened in silence
 is the same accident as a check that promised less than it looked like.
 
+**The swing bar went down with it, a day late.** For one commit it stayed under
+the frame, on the argument that what is happening this second belongs beside
+the person it is happening to; the owner decided the other way on 2026-09-14
+(issue 228), and the original agrees — `cast BOTTOM (0, 55)` is fifteen above
+`xp BOTTOM (0, 40)`. Bottom up it is the bar, two pixels, and three of swing,
+full width: seventeen of the nineteen. It is `padcheck`'s **second named
+exception**, with its own reason and its own shape — three pixels, sitting on
+the bar rather than on the edge — and not the first exception with one more id
+in its list.
+
 **It sits on the physical bottom, not the safe one**, by the owner's decision on
 2026-09-15. It was pinned to `env(safe-area-inset-bottom)` so the home indicator
 would not cross it, and on a real iPhone that left 34 pixels of world under it
@@ -212,6 +233,19 @@ standing up and 21 lying down — while every screenshot here showed it flush,
 because a headless browser reports the inset as nought. Emulated with
 `Emulation.setSafeAreaInsetsOverride` the gap is there. The indicator crossing a
 bar nobody presses costs nothing; the stick and the buttons keep the inset.
+
+**A press on a square was a tap on the world as well.** `touch.ts` remembers
+where a finger went down so the lift can tell a tap from a drag, and the
+autocast toggle and the page turn cleared that; the five squares did not. So
+beside a shopkeeper a square asked for its ability *and* opened him — and the
+conversation won, because the press loop skips everything while somebody is
+talking. A tap on open ground four yards past him opened him too, because the
+rule asked whether anybody was in earshot rather than whether you had tapped
+*him*. Two `padcheck` lines written for the talk button issue 143 removed —
+press the corner, watch the panel open — went on passing on exactly that. They
+tap the person now, and the ground beside him, and press each of the five
+squares with him standing there; and the long press is held against the words
+it actually painted rather than against a finger being down.
 
 **Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
 is the whole lesson of a round spent on it. The old branch removed every pin

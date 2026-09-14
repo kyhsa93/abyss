@@ -240,7 +240,7 @@ keeps it honest.
 | **쪽 넘김이 한 바퀴 돌아온다** | `scripts/padcheck.mjs: "and the page turn comes back round"` |
 | **한글을 쓰는 것 중 11px 아래가 없다** | `scripts/padcheck.mjs: "and nothing on the glass writes Hangul below it"` |
 | **바닥 해상도에서, 눕혀서도, 배치가 같은 약속을 지킨다** | `scripts/padcheck.mjs: "the floor, lying down"` |
-| 각 자리를 눌렀을 때 그 능력이 나간다 | `scripts/padcheck.mjs: "a thumb beside the button still presses it"` |
+| 각 자리를 눌렀을 때 그 능력이 나간다 | `scripts/padcheck.mjs: "and each of the five squares, pressed, fires its own ability"` |
 | hover 없이도 능력의 비용과 대기가 화면에 있다 | `scripts/padcheck.mjs: "holding a button asks what it is"` |
 | 세계를 탭하면 겨눠지고, 스틱·버튼을 방해하지 않는다 | `scripts/padcheck.mjs: "and a tap on something that fights back aims at it"` |
 | 스틱과 버튼이 안전영역 밖이다 | `scripts/padcheck.mjs: "the thumbs rest above whatever the phone has taken"` |
@@ -253,7 +253,7 @@ keeps it honest.
 | **가장 멀리 당긴 화면에서 사람이 곁의 글자보다 작지 않다** | `scripts/padcheck.mjs: "and a person is no smaller there than the type beside him"` |
 | 세계 캔버스가 `pixelated` 다 | — 캔버스의 CSS 를 읽는 것이 없다 |
 | 예산표에 전화기 열이 있고 넘긴 것이 없다 | — `docs/budget.md` 는 실측이지만 전화기 열이 따로 없다 |
-| **두 마리가 붙었을 때의 사망률을 전화기에서도 잰다** | — 전화기에서 싸움을 재는 것이 없다 |
+| **두 마리가 붙었을 때의 사망률을 전화기에서도 잰다** | — 싸움은 `src/sim/duel.ts` 하나라 기기를 모르고 두 마리는 `simcheck` 이 이미 잰다; 기기에 따라 달라지는 것은 누가 무엇을 겨누느냐인데, 그 손가락을 400판 돌릴 모형이 없다 |
 
 ## [처음-만드는-화면](https://github.com/kyhsa93/abyss/wiki/처음-만드는-화면)
 

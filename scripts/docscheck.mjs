@@ -62,6 +62,12 @@ const ELSEWHERE = ['src/server/']
 const REVERSED = [
   {
     when: '2026-09-14',
+    what: "the swing bar is on the bottom edge with the experience bar — issue 228, the owner's",
+    gone: ['swing bar stays where it is', 'swing bar stays under the frame'],
+    mark: 'issue 228',
+  },
+  {
+    when: '2026-09-14',
     what: "quest prose is translated and shipped — issue 190, the owner's",
     gone: ['Nothing of the prose comes out', 'not a word of the dialogue'],
     mark: 'issue 190',

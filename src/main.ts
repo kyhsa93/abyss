@@ -4349,7 +4349,9 @@ async function main() {
     // drawn on a square and asks which ability heard it, and whether there
     // was rage for it is a different question.
     asked = sp.id
+    heard++
     if (why(sp) !== null) return
+    fired = { id: sp.id, n: fired.n + 1 }
     const paid = costOf(sp, baseFor(sp))
     if (sp.power === P_HEALTH) you.hp = Math.max(1, you.hp - paid)
     else you.power -= paid
@@ -5821,6 +5823,17 @@ async function main() {
   let squares: Slot[] = []
   /** The last ability any key or square asked `cast` for. */
   let asked: number | null = null
+  /**
+   * How many times anything asked, and the last ability that actually went
+   * off.  `asked` is set before the refusal on purpose, so it cannot say
+   * whether a press *fired* — and "each square fires its own ability" is what
+   * `padcheck` promises.  Counted, because the same ability asked for twice in
+   * a row looks exactly like nobody asking.
+   */
+  let heard = 0
+  let fired = { id: 0, n: 0 }
+  /** The lines a held square last painted, and whose, for the check. */
+  let painted: { id: number; lines: string[] } | null = null
 
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase()
@@ -8902,7 +8915,8 @@ async function main() {
     // things are standing together — and two of them always are.
     else if (tapped && !you.died) {
       const at = worldAt(tapped.x, tapped.y)
-      let best: Npc | null = null, bd = 3 * 3
+      const PICK = 3 * 3
+      let best: Npc | null = null, bd = PICK
       for (const n of active) {
         if (n.dead || !n.fight) continue
         const d = (n.x - at.x) ** 2 + (n.y - at.y) ** 2
@@ -8916,8 +8930,16 @@ async function main() {
       // there is no talk button any more: the original has none either, and a
       // button that says 대화 is a button that has to be aimed at while the
       // person it is about is somewhere else on the glass.
+      //
+      // **Tapping *him*, not tapping anywhere while he is near.**  This asked
+      // only whether anybody was in earshot, so a tap on open ground four
+      // yards past a shopkeeper opened him — and so did a press on an ability
+      // square, until `touch.ts` stopped lifting those as taps.  Issue 143's
+      // table says what empty ground does: nothing.  The radius is the one the
+      // aim above uses, so a person and a wolf are hit by the same finger.
       const near = inReach()
-      if (near && (!best || !fightable(best.fight))) toggleTalk()
+      const onHim = !!near && (near.x - at.x) ** 2 + (near.y - at.y) ** 2 < PICK
+      if (onHim && (!best || !fightable(best.fight))) toggleTalk()
     }
     // Aiming, which is not a button any more — see `takeAim`.
     takeAim()
@@ -10860,6 +10882,7 @@ async function main() {
     // What a held button says.  The same words the desktop tooltip carries,
     // drawn above the finger — the whole reason the hover version had to go
     // is that a finger is where the answer would have been.
+    painted = null
     const asked = pad.held()
     if (asked) {
       // **Through the page, not past it.**  This was `asked.slot + 1`, which
@@ -10887,6 +10910,9 @@ async function main() {
           ctx.fillStyle = i === 0 ? '#c8aa6e' : '#e8e4d8'
           ctx.fillText(t, bx + wide / 2, by + 6 + i * 17)
         })
+        // Kept after it is drawn and not before, so what the check reads is
+        // what reached the glass.
+        if (want) painted = { id: want.id, lines }
       }
     }
     // The help line and a conversation share the bottom of a phone, and the
@@ -11832,6 +11858,10 @@ async function main() {
     // After the spread, because `view()` has a `held` of its own — whether a
     // finger is on the stick — and the two mean different things.
     held: pad.held(),
+    // What that held square actually painted — its lines, and whose.  Read off
+    // the drawing rather than the tooltip text, because a tooltip built right
+    // and drawn for the wrong square is the bug a turned page once was.
+    told: painted,
     // Which four of the spellbook the cluster is showing, and how many pages
     // there are.  Read off the same call the drawing uses, so a check that
     // walks every page is walking what the thumb walks.
@@ -13112,7 +13142,7 @@ async function main() {
     usable: spells.filter((sp) => why(sp) === null).map((sp) => sp.id),
     /** Which of them are stances, which the automatic hand never casts. */
     stances: spells.filter((sp) => !!sp.stance).map((sp) => sp.id),
-    asked,
+    asked, heard, fired,
   })
   /** The automatic hand, set from a check the way `Y` sets it. */
   ;(window as unknown as { __setAuto: (on: boolean) => unknown })
@@ -13491,6 +13521,19 @@ async function main() {
       cued: Object.keys(spellbook.cues ?? {}).length,
       cues: Object.values(spellbook.cues ?? {}).flat().length,
     }
+  }
+  /**
+   * The half of `__press` that is not a press: a full bar and no global wait,
+   * and which abilities could go off now.  For the check that a *finger* on a
+   * square fires it — the press has to come through the pad, so this only
+   * sets the table.  Not `__ready`, which it was called for one run: that name
+   * is the flag every check waits on before it starts, and a function is
+   * truthy, so the wait passed before the page had loaded.
+   */
+  ;(window as unknown as { __topUp: () => unknown }).__topUp = () => {
+    you.power = powerMax()
+    you.gcd = 0
+    return spells.filter((sp) => why(sp) === null).map((sp) => sp.id)
   }
   /** Press an ability by id and say what the waits look like after. */
   ;(window as unknown as { __press: (id: number) => unknown }).__press = (id) => {
