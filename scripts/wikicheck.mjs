@@ -129,7 +129,16 @@ if (!existsSync(WIKI)) {
   for (const f of readdirSync(WIKI).filter((n) => n.endsWith('.md'))) {
     let inside = false
     for (const line of readFileSync(join(WIKI, f), 'utf8').split('\n')) {
-      if (/^#{2,3} .*붙일 검사/.test(line) || /^붙일 검사/.test(line)) {
+      // Two spellings, and the second one cost twenty promises.  Four pages
+      // head this section **붙여야 할 검사** rather than 붙일 검사 — 소리,
+      // 데이터: 경제와 상점, 데이터: 좌표계와 단위, 데이터: 대화와 조건 — and
+      // this matched only the first, so their tables were invisible to the one
+      // gate whose whole job is counting promises.  It passed, saying 114 in
+      // the wiki and 114 rows here, while twenty lines were in neither number.
+      // The same shape as `padcheck`'s `#ui > *`: a check whose reach is
+      // narrower than the sentence describing it.
+      if (/^#{2,3} .*붙(일|여야 할|인) 검사/.test(line)
+        || /^붙(일|여야 할|인) 검사/.test(line)) {
         inside = true
         continue
       }
@@ -137,7 +146,11 @@ if (!existsSync(WIKI)) {
       if (!inside) continue
       if (line.trim().startsWith('|')) {
         const first = line.trim().replace(/^\||\|$/g, '').split('|')[0].trim()
-        if (first && first !== '검사' && !/^[-: ]+$/.test(first)) said.push(first)
+        // A header cell, in either of the two words the wiki heads these
+        // tables with.  Skipping only 검사 read 약속 as a promise called
+        // "약속", which is the same narrowness as the heading above.
+        if (first && first !== '검사' && first !== '약속'
+          && !/^[-: ]+$/.test(first)) said.push(first)
       } else if (/^\s*[-*] /.test(line)) said.push(line.trim().slice(2))
     }
   }

@@ -855,6 +855,54 @@ and committing the world churns blobs, and LFS moves that churn to a metered
 store rather than removing it. 200 MB is where it gets reconsidered, and that
 line is in `budgetcheck`.
 
+**Relative loudness is a statement about which event matters, and four packs
+were making it for us.** The eight sounds were copied in at whatever level
+their own game shipped them at, and measured over the loudest tenth of a second
+— which is roughly what an ear takes from a sound this short — they spanned
+**10.5 dB**. `loot` sat 5.4 dB under the set and `hurt` 5.1 dB over it, so the
+sound this game plays most often after `hit` was the quietest thing in it and
+was buried under every blow. Nobody decided that. `bake_sounds.py` levels the
+set now, with one ceiling scale over all eight rather than a limiter on each,
+because pulling one sound down on its own is levelling it against a different
+bar from the other seven. `npm run soundcheck` holds the spread inside a
+decibel, and it holds three other things that had no gate: every word in
+`SOUNDS` is actually played somewhere, every file has a word, and every place
+on the roster that is *silent* carries the argument for its silence — the
+bargain `audit.py` makes with the classifiers' defaults, one layer up.
+
+**The sounds are not a `bake.py` stage, and that is the right way round here.**
+`bake_ui.py` was the cautionary tale — a step nobody ran, so a new item word
+shipped with no icon through a full bake and a green suite. The difference is
+where the gate can run: the sound pack is not in this repository and never will
+be, but the eight wavs and the credits document are committed, so `soundcheck`
+reads what a visitor downloads and runs on every push. A check in CI beats a
+stage that only runs where the assets are.
+
+**Eight sounds is fewer than the places that want one, and the count is now
+written down.** `art/SOUND-CREDITS.md` carries the roster: fifteen places a
+sound could go, eight with a voice and **seven without**, each of the seven
+with the reason. Two of those reasons are facts about the collection rather
+than opinions — there is exactly **one footstep in all 250 files and it is
+sand**, so walking stays silent because a footstep is a cadence and a sample
+per ground, not one clip; and the UI candidates are a ninja game's menu, which
+is one decision rather than two and is held.
+
+**Music is out, and one number decides it.** The same collection ships 41
+themes and one medieval track is **1.5 MB** — against a first visit that costs
+1.57 MB altogether, and a worker that precaches what ships. A single loop very
+nearly doubles the cost of opening this game and of installing it. It goes in
+when there is more than one place to be, streamed and out of the precache, and
+not before; the line is in `budgetcheck` next to the 2 MB sound ceiling.
+
+**And the half of "does this pack fit" that a script can answer, it answered.**
+The eight come from **four** packs and two of them are a *space shooter*'s —
+`level` and `power-up`, `loot` and `gold` — while the same collection holds a
+`medieval-fantasy` pack and one called `rpg-battle-system` with 60 sounds
+between them that nothing here had opened. The other half needs ears and
+nothing in `pipeline/` can replace them: `npm run listen` writes a page that
+plays the shipped eight beside all 113 candidates, which is the same thing the
+art round did when it stood a 3D render next to LPC and believed what it saw.
+
 **A time saved against a clock that restarts is not a time.** Cooldowns were
 stored as moments on `clock`, and `clock` starts at nought on every load — so a
 character saved five minutes in came back with every ability he had used on
@@ -960,18 +1008,30 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and two lines of "we should check
-this" — and for a year nothing counted how many of them were attached. Eighty
-are; the twenty-two that are not are all waiting on a feature nobody has
-built, and `docs/promised-checks.md` says which, line by line.
+pages end in a 붙일 검사 table — a hundred and forty-three lines of "we should
+check this" — and for a year nothing counted how many of them were attached.
+A hundred and eighteen are; the rest are waiting on a feature nobody has built,
+and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
 without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 297 check labels in the harness, 52 were promised and **245 were written
+of 417 check labels in the harness, 73 were promised and **344 were written
 because something broke**.
+
+**And the gate that counts promises was not seeing four pages of them.** It
+matched a heading spelled 붙일 검사 and four pages spell it **붙여야 할 검사**
+— 소리, and the three 데이터 pages for the economy, the coordinate system and
+the conversations — so twenty promises were in neither number while the check
+reported 114 in the wiki and 114 rows here and passed. Widening it turned up
+three more on a fifth page and took the count from 114 to 137, of which 111
+were already kept by checks nobody had recorded — and the sound round then put
+six more on top, which is the 143 above. The same shape as `padcheck`'s `#ui > *`
+and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
+sentence describing it**, and the only thing that finds one is going and
+reading what it actually matches.
 
 **The same page has a second list with the same disease.** Every wiki page ends
 in 아직 답이 없는 것 — what we do not know yet — which is a good section that

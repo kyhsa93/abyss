@@ -112,11 +112,23 @@ check('and the whole deploy fits in what a Pages site may be',
     + 'where this repository would start thinking about `git lfs` again'),
   `${(carried / MB).toFixed(1)} MB on disk of 200`)
 
-// The sounds, which are eight files nobody had weighed.
+// The sounds, which were eight files nobody had weighed and are now eight
+// files somebody has listened to.
+//
+// The ceiling is where the **music** decision lives, and that decision is the
+// reason there is room to spare: the Superpowers collection ships 41 themes
+// and one medieval one is **1.5 MB**, against a first visit that costs 1.57 MB
+// altogether.  A single loop very nearly doubles what it costs to open this
+// game, and the worker precaches what it ships — so an offline install would
+// pay for it too.  Music goes in when this game has more than one place to be,
+// streamed and out of the precache, and not before.  See `art/SOUND-CREDITS.md`
+// for the eight and the wiki page 소리 for the argument.
 const heard = files.filter((f) => f.endsWith('.wav') || f.endsWith('.ogg'))
 check('and the sounds are a rounding error',
   budget('the sounds', heard.reduce((n, f) => n + statSync(f).size, 0),
-    2 * MB, 'KB', `${heard.length} files, on disk — see issue 208`),
+    2 * MB, 'KB', `${heard.length} files, on disk, mono at 22,050 Hz and `
+    + 'levelled to within a decibel of each other.  The headroom is not '
+    + 'spare: one music track from the same collection is 1.5 MB'),
   `${(heard.reduce((n, f) => n + statSync(f).size, 0) / KB).toFixed(0)} KB `
   + `over ${heard.length} files of 2,048`)
 

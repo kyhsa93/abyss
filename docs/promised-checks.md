@@ -6,7 +6,14 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **114 promises across 15 pages, 95 of them kept.**
+Counted: **143 promises across 20 pages, 118 of them kept.**
+
+It was 114 across 15 for a while, and the missing twenty-three are the more
+useful number: `wikicheck` matched a heading spelled **붙일 검사** and five
+pages do not spell it that way — four say 붙여야 할 검사 and one says 붙인 검사.
+So the gate whose whole job is counting promises was not counting a sixth of
+them, and passed while saying the two sides agreed.  Sixteen of the twenty-three
+turned out to be kept already by checks nobody had written down.
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -52,7 +59,9 @@ keeps it honest.
 | 구운 오브젝트 중 화면에 안 서는 것마다 이유가 붙어 있다 | — 세는 계수기가 없다 (#197) |
 | 낱말마다 그림 수가 모델 수의 절반 이상이다 | `scripts/viewcheck.mjs: "no word draws more pictures than the client has models"` |
 | **위키에 답이 난 질문이 남아 있지 않다** | — 152개가 그대로 남아 있다 (#192) |
-| 예산 문서의 숫자가 실측이다 | — 문서가 아직 "전부 초안"이다 (#207) |
+| 예산 문서의 숫자가 실측이다 | `scripts/budgetcheck.mjs: "and the budget document says what was just measured"` |
+| 소리 여덟 개가 서로 1 dB 안에 있다 | `scripts/soundcheck.mjs: "and no sound is louder than another"` |
+| 소리가 나야 할 자리 중 조용한 것마다 이유가 있다 | `scripts/soundcheck.mjs: "and every silent place on it carries the reason it is silent"` |
 
 ## [문과-층](https://github.com/kyhsa93/abyss/wiki/문과-층)
 
@@ -220,3 +229,55 @@ keeps it honest.
 | **이 지역의 일거리를 다 하면 평판이 한 등급을 넘는다** | `pipeline/quests.py: check_standing` |
 | 사슬을 끝까지 걸었을 때 밖으로 나가지 않는다 | `scripts/questcheck.mjs: "every link of every chain points inside this game"` |
 
+
+## [소리](https://github.com/kyhsa93/abyss/wiki/소리)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 소리 파일 합계가 예산 안이다 | `scripts/budgetcheck.mjs: "and the sounds are a rounding error"` |
+| 모든 소리에 크레딧이 있다 | `scripts/soundcheck.mjs: "has a row for every sound"` |
+| 소리를 끄고도 모든 정보가 화면에 있다 | `scripts/soundcheck.mjs: "and every row names what says the same on screen"` |
+| 동시 재생이 상한을 넘지 않는다 | — 상한이 없기 때문이다. 겹치는 소리마다 소스 노드를 새로 만들고, 여덟 개가 다 0.7초 아래이며 한 번의 교전이 초당 한 번 남짓 때린다. 셀 상한이 생기는 날 붙는다 |
+| 여덟 개가 서로 1 dB 안에 있다 | `scripts/soundcheck.mjs: "and no sound is louder than another"` |
+| 여덟 개가 전부 모노 22,050 Hz 16비트다 | `scripts/soundcheck.mjs: "and every one of them is mono"` |
+| `SOUNDS` 의 낱말마다 실제로 내는 곳이 있다 | `scripts/soundcheck.mjs: "and every word the game has is actually said somewhere"` |
+| 조용한 자리마다 조용한 이유가 적혀 있다 | `scripts/soundcheck.mjs: "and every silent place on it carries the reason it is silent"` |
+
+## [데이터-경제와-상점](https://github.com/kyhsa93/abyss/wiki/데이터-경제와-상점)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 슬라이스에서 벌 수 있는 돈 ≥ 훈련 비용 | `pipeline/items.py: "the slice pays about"` |
+| 슬라이스에서 벌 수 있는 돈 < 훈련 + 최고 장비 | `pipeline/items.py: "the slice pays about"` |
+| 모든 상인의 `item` 이 구운 아이템 안에 있다 | `pipeline/items.py: "things for sale"` |
+| 모든 훈련사의 주문이 구운 주문 안에 있다 | `pipeline/items.py: "trainers over"` |
+| `SellPrice = 0` 인 전리품의 비율 | — 떨어지는 것에 행이 있는지는 보지만(`"can fall off something here"`), 그중 못 파는 것의 **비율**은 아무도 안 센다 |
+| **채집으로 얻는 재료마다 그것을 쓰는 조리법이 있다** | `pipeline/trades.py: "materials can be gathered at a rank this game"` |
+| 조리법이 부르는 재료를 이 세계가 내놓거나 만든다 | `pipeline/trades.py: "of them asking"` |
+
+## [데이터-좌표계와-단위](https://github.com/kyhsa93/abyss/wiki/데이터-좌표계와-단위)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 알려진 좌표 → 타일 번호 표 | `pipeline/bake_terrain.py: "human start"` |
+| 타일 번호 → 좌표 → 타일 번호 왕복 | — `tile_of` 의 괄호 교훈은 주석에 있고 왕복은 아무 데서도 돌지 않는다 |
+| 이웃 타일의 높이 격자가 경계에서 일치 | `pipeline/bake_terrain.py: "of them written twice"` |
+| 월드 → 화면 → 월드 왕복 (같은 높이에서) | — 정방향은 세 줄이 못 박지만(북·서·야드), 역방향 `worldAt` 은 클릭 조준이 쓰기만 하고 왕복으로 재는 곳이 없다 |
+| 1 야드가 화면에서 항상 같은 픽셀 | `scripts/viewcheck.mjs: "and a yard is a yard either way round"` |
+
+## [데이터-대화와-조건](https://github.com/kyhsa93/abyss/wiki/데이터-대화와-조건)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 구현하지 않은 조건 타입을 만나면 **기록한다** | `pipeline/spawn_npcs.py: "conditions this game cannot answer, by kind"` |
+| 조건이 참조하는 퀘스트·아이템·주문이 슬라이스 안에 있다 | — 조건이 못 읽는 종류는 세어 출력하지만, 읽은 조건이 **가리키는 것**이 이 슬라이스에 있는지는 아무도 안 묻는다 |
+| `ElseGroup` 이 AND/OR 표로 재현된다 | — `ElseGroup` 을 아직 읽지 않는다. 좁은 마스크가 촌평이고 부정 행이 여집합이라는 두 규칙이 그 자리에 있다 |
+| 대화 선택지가 가리키는 메뉴·상점·훈련사가 존재한다 | — `directs` 는 굽고 `talk.ts` 가 읽지만, 가리키는 메뉴가 실제로 있는지는 확인하지 않는다 |
+
+## [걸을-수-있는-세계를-재는-법](https://github.com/kyhsa93/abyss/wiki/걸을-수-있는-세계를-재는-법)
+
+| 약속 | 지키는 검사 |
+| --- | --- |
+| 엄격한 잣대가 느슨한 잣대만큼의 세계를 잰다 (걸음 14만 칸·있을 수 있나 20만 칸 아래로 내려가면 실패) | `scripts/viewcheck.mjs: "the strict yardstick reaches as much world as the loose one"` |
+| **네 잣대 전부가 중요한 곳들에 대해 같은 답을 한다** — 이것이 없던 것이다 | `scripts/viewcheck.mjs: "and every yardstick agrees you can get to the places that matter"` |
+| 시작 지점에서 골드샤이어까지 **실제로 걸어서 간다** (물 붓기가 찾은 길을 칸마다, 스틱을 미는 것과 같은 `walk` 으로, `slide` 까지 걸어서) | `scripts/viewcheck.mjs: "and a man can actually walk from the start to Goldshire"` |

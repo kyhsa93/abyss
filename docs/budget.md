@@ -24,6 +24,6 @@ going red on four of them for rounds.
 * **the script a browser is handed** — gzipped; `dist` less the service worker.
 * **the world a first visit downloads** — gzipped; one world — the client's terrain plus everything that is not terrain.
 * **everything the deploy carries** — on disk, not gzipped, and every file — both worlds, all 157 sheets, every icon.  A Pages site may be a gigabyte; two hundred megabytes is where this repository would start thinking about `git lfs` again.
-* **the sounds** — 8 files, on disk — see issue 208.
+* **the sounds** — 8 files, on disk, mono at 22,050 Hz and levelled to within a decibel of each other.  The headroom is not spare: one music track from the same collection is 1.5 MB.
 * **the sheets the scene opens, decoded** — `width × height × 4`, not the file size — a transparent pixel is free in a PNG and full price in memory.  A ratchet rather than a device limit.
 * **and against the desktop ceiling** — the same pixels against the figure the budget page has always carried.
