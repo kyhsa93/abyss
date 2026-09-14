@@ -1091,9 +1091,12 @@ game reads rather than one it picks — the same as how many rows a shop shows
 at once. The store is keyed on the slot; a save from a world that has since
 been re-baked is **listed and refused rather than deleted**, because with one
 slot "throw it away" was a line in a log the player was watching and with ten
-it is three names quietly gone after a deploy. One character goes straight
-into the world, because a list of one is a click on the way to somewhere you
-were already going.
+it is three names quietly gone after a deploy. **The list is the first screen
+whenever there is anybody on it, one character included**, by the owner's
+decision on 2026-09-15: a single character used to go straight into the world,
+which saved a click and hid the only place to see who you are about to play,
+make a second, or delete the first. With nobody saved the maker comes first,
+because there is nothing to choose.
 
 **Closing the tab is logging out, so it has to cost nothing.** IndexedDB with
 every access wrapped — some browsers throw on the *access* in a private window,

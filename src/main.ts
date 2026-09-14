@@ -10701,22 +10701,19 @@ async function main() {
     }
   }
   /**
-   * And one of three screens: the list, the maker, or neither.
+   * And one of two screens: the list, or the maker when there is nobody.
    *
-   * **One character goes straight in.**  A list of one is a click somebody
-   * has to make every time to get where they were already going, and the
-   * original does not show a character-select screen to an account with one
-   * character either — it selects it.  Two or more, or one that cannot be
-   * played, and the list is the screen.
+   * **The list comes up even for one character**, by the owner's decision.
+   * It used to be skipped — a list of one is a click on the way to somewhere
+   * you were already going — and what that cost was the only place a player
+   * sees who they are about to play, can make a second, or can delete the
+   * first.  With nobody saved there is nothing to choose, so the maker is
+   * still the first screen.
    */
   intoWorld = enterWorld
-  const playable = cards.filter((c) => !c.save.world || !worldHash
-    || c.save.world === worldHash)
   if (!cards.length) {
     mySlot = 1
     drawCreate()
-  } else if (cards.length === 1 && playable.length === 1) {
-    enterWorld(playable[0]!)
   } else {
     drawPick()
   }

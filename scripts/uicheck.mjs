@@ -347,11 +347,11 @@ for (const [W, H] of SIZES) {
   await boot()
   const one = await p.evaluate(() => window.__picks())
   check('a character that was made is there when you come back',
-    one.rows.length === 1 && one.rows[0].name === '첫째' && one.mine === 1,
+    one.rows.length === 1 && one.rows[0].name === '첫째' && one.rows[0].slot === 1,
     JSON.stringify(one.rows))
-  // One is not a list.  The original selects an account's only character
-  // rather than asking which of the one you meant.
-  check('and one character does not need choosing', one.up === false,
+  // One is a list too.  It used to go straight in, and the owner asked for the
+  // screen that chooses to be the first thing a returning player sees.
+  check('and one character still opens on the list', one.up === true,
     `the list is ${one.up ? 'up' : 'not up'}`)
 
   await p.evaluate(() => window.__pickNew())
