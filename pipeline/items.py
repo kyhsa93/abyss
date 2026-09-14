@@ -54,6 +54,29 @@ TWO_HANDED = {17, 26}
 STAT_OF = {3: 'agi', 4: 'str', 5: 'int', 6: 'spi', 7: 'sta'}
 
 
+def only_some(mask):
+    """The class mask, or nought when it lets everybody in this game through.
+
+    **Three spellings of "anybody" are in the dump** — `0`, `-1` and `32767`,
+    which is all fifteen bits — and `slice.py`'s `allows` knows all three
+    because it is the reader.  A column shipped to the scene cannot afford
+    that: two rows of the same shop caught it the day this column started
+    travelling, because `2678` and `44835` are the same trade good with the
+    same picture, word and price, written `-1` and `32767`.  The shop's own
+    check compares the whole shipped row to decide whether two identical lines
+    are one thing twice, and a difference that means nothing made them two.
+
+    So the writer normalises and the reader asks one question.  "Every class"
+    is **this slice's** classes rather than the game's fifteen, which is the
+    only definition that is a fact here: a mask naming all six is a mask that
+    excludes nobody who can be standing in the shop.
+    """
+    if mask in (0, -1):
+        return 0
+    every = all(mask & (1 << (CLASS_ID[c] - 1)) for c in CLASSES)
+    return 0 if every else mask
+
+
 def wanted(base, acore, object_loots, client):
     """Every item id the slice can reach, and how it reaches it."""
     from slice import within
@@ -163,7 +186,7 @@ def wanted(base, acore, object_loots, client):
 TRAINER_TYPE = {1: 'mounts', 2: 'trades', 3: 'beasts'}
 
 
-def trainers(base, here, classes):
+def trainers(base, here, classes, here_out=None):
     """What each trainer teaches, what it costs and what it needs first.
 
     **Filtered to the classes this slice has**, which it was not.  Sixty-nine
@@ -183,6 +206,15 @@ def trainers(base, here, classes):
     if len(want) != len(classes):
         sys.exit('slice.json names a class this table has no number for: %s'
                  % ', '.join(sorted(set(classes) - set(CLASS_ID))))
+    # What a row that *teaches* actually hands over.  A paladin's shelf has a
+    # row at level 4 whose whole content is "learn these two spells", so a
+    # shelf that lists the row lists a receipt: `spells.py` follows it and
+    # writes the map, and this is the one place that has to agree.
+    grants = {}
+    book = os.path.join(here_out, 'spells.json') if here_out else None
+    if book and os.path.exists(book):
+        with open(book) as f:
+            grants = {int(k): v for k, v in json.load(f).get('grants', {}).items()}
     tid, meta, spells = {}, {}, {}
     path = os.path.join(base, 'creature_default_trainer.sql')
     col = columns(path)
@@ -204,10 +236,12 @@ def trainers(base, here, classes):
             lv = int(f[col['ReqLevel']]) or 1
             if lv > LEVELS[1]:
                 continue
-            spells.setdefault(t, []).append([
-                int(f[col['SpellId']]), int(f[col['MoneyCost']]),
-                lv, int(f[col['ReqSkillLine']]),
-                int(f[col['ReqAbility1']])])
+            sid = int(f[col['SpellId']])
+            for got in grants.get(sid, [sid]):
+                spells.setdefault(t, []).append([
+                    got, int(f[col['MoneyCost']]),
+                    lv, int(f[col['ReqSkillLine']]),
+                    int(f[col['ReqAbility1']])])
         except (ValueError, KeyError, IndexError):
             continue
     out = {}
@@ -229,7 +263,12 @@ def trainers(base, here, classes):
             key = byname.get(req, req)
             dropped[key] = dropped.get(key, 0) + 1
             continue
-        out[str(creature)] = {'of': kind, 'teaches': spells[t]}
+        # **And which class.**  `of` was the trainer's *type* and it is nought
+        # on every row that gets this far, because only type 0 does — a field
+        # computed once and never able to differ, which is the shape this
+        # repository keeps finding.  With six classes in the game the question
+        # a trainer answers is "is this one mine", and that is `Requirement`.
+        out[str(creature)] = {'of': kind, 'for': req, 'teaches': spells[t]}
     if dropped:
         print('  %d trainers left out, teaching nothing this game can learn: %s'
               % (sum(dropped.values()),
@@ -283,9 +322,17 @@ def main(acore, client, out):
         except (ValueError, KeyError, IndexError):
             skipped += 1
             continue
-        # Whether a human warrior could ever hold it.  -1 is "anybody", which
-        # is most things; a bitmask that excludes him means the row is another
-        # class's and has no business in this world's shops.
+        # Whether **anybody in this game** could ever hold it.  -1 is
+        # "anybody", which is most things; a bitmask that excludes all six of
+        # this slice's classes means the row is somebody else's and has no
+        # business in this world's shops.
+        #
+        # That is now a coarser question than it used to be, and the column
+        # has to travel because of it: with one class, "in the bake" and "for
+        # me" were the same sentence, and with six a mage's robe passes this
+        # gate and is still not a warrior's.  The mask is shipped and
+        # `src/sim/gear.ts` asks it again for the character who is actually
+        # standing there.
         if not allows(allow_c, CLASS_MASK):
             continue
         if not allows(allow_r, RACE_MASK):
@@ -334,6 +381,8 @@ def main(acore, client, out):
             # "what is that thing" is the whole point of importing it rather
             # than writing the table out again.
             WEAPON_SUBCLASS.get(sub, '') if cls == WEAPON_CLASS else '',
+            # Which classes may hold it at all, normalised — see `only_some`.
+            only_some(allow_c),
         ]
 
     # Vendor rows whose item is not in the baked set are rows nobody can buy.
@@ -342,7 +391,7 @@ def main(acore, client, out):
         if not stock[e]:
             del stock[e]
 
-    teach = trainers(base, here, CLASSES)
+    teach = trainers(base, here, CLASSES, out)
 
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'items.json')
@@ -412,12 +461,21 @@ def purse(out, doc):
             drops += (lo + hi) / 2
             for _word, chance, clo, chi, sell, *_ in items:
                 drops += (chance / 100.0) * ((clo + chi) / 2) * sell
-    # What a warrior is asked for on the way to the ceiling.
-    lessons = 0
+    # What the dearest class is asked for on the way to the ceiling.
+    #
+    # **The dearest and not the warrior's**, which is the only honest reading
+    # with six of them: the question is whether this zone can pay for the
+    # lessons of whoever is playing, and a game that funds five classes and
+    # strands the sixth fails for that one player and nobody else.  A lesson
+    # list is per trainer, so the same class's several trainers agree and the
+    # maximum over trainers is the maximum over classes.
+    lessons, dearest = 0, None
     for t in doc['trainers'].values():
         if t['of'] != 0:                      # 0 is a class trainer
             continue
-        lessons = max(lessons, sum(cost for _id, cost, *_ in t['teaches']))
+        bill = sum(cost for _id, cost, *_ in t['teaches'])
+        if bill > lessons:
+            lessons, dearest = bill, t.get('for')
     # And the best one of each slot he could wear, which is the other end.
     best = {}
     for it in doc['items'].values():
@@ -430,8 +488,8 @@ def purse(out, doc):
     earn = coin + drops
     print(f'check: the slice pays about {earn:,.0f} copper — {coin:,} from '
           f'errands and {drops:,.0f} off what dies and what is skinned — '
-          f'against {lessons:,} for every lesson and {kit:,} for the best of '
-          f'every slot')
+          f'against {lessons:,} for every lesson the dearest class '
+          f'(id {dearest}) is sold and {kit:,} for the best of every slot')
     assert earn >= lessons, (
         'the zone cannot pay for its own trainer: %d against %d'
         % (earn, lessons))
@@ -495,13 +553,24 @@ def check_lessons(doc, out):
         return
     with open(path) as f:
         book = json.load(f)
-    known = {row[0] if isinstance(row, list) else row['id']
-             for row in book.get('spells', [])}
-    taught = {row[0] for t in doc['trainers'].values() for row in t['teaches']}
-    stray = sorted(taught - known)
-    print(f'check: {len(doc["trainers"])} trainers teaching {len(taught)} '
-          f'things, {len(stray)} of them not in the spellbook')
-    assert not stray, f'a trainer sells what nobody can cast: {stray[:8]}'
+    # **Per class, and that is the point of the check now.**  Against the
+    # union of six books this would pass while a warrior trainer sold
+    # frostbolt, which is the exact bug it was written to catch — it is only a
+    # check at all if the book it compares against is the book of the class
+    # the trainer teaches.
+    by_id = {int(k): {r['id'] for r in rows_}
+             for k, rows_ in book.get('books', {}).items()}
+    taught, stray = set(), []
+    for who, t in doc['trainers'].items():
+        mine = by_id.get(t.get('for'), set())
+        for row in t['teaches']:
+            taught.add(row[0])
+            if row[0] not in mine:
+                stray.append((who, t.get('for'), row[0]))
+    print(f'check: {len(doc["trainers"])} trainers over {len(by_id)} classes '
+          f'teaching {len(taught)} things, {len(stray)} of them not in the '
+          f'book of the class that sells them')
+    assert not stray, f'a trainer sells what its class cannot cast: {stray[:8]}'
 
 
 if __name__ == '__main__':

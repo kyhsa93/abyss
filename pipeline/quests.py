@@ -632,11 +632,18 @@ def main(acore, client_root, out):
                  'a chain != %d runnable of %d offerable'
                  % (len(quests), chained, runnable, offerable))
     print('check: %d of the %d this slice can run end to end (%.0f%%), and %d '
-          'of the %d a warrior would be offered here (%.0f%%) — the %d between '
+          'of the %d somebody here would be offered (%.0f%%) — the %d between '
           'them are handed in or found outside the box'
           % (len(quests), runnable, 100 * len(quests) / runnable,
              len(quests), offerable, 100 * len(quests) / offerable,
              away + outside))
+    # And how many of them are one class's rather than everybody's.  With one
+    # class in the game the column was a filter and nothing else; with six it
+    # is a fact about a quest that has to travel, because the mask that lets a
+    # paladin's errand into the bake does not put it in a rogue's log.
+    picky = [q for q in quests if q['classes']]
+    print('  %d of them are offered to some classes and not others, so the '
+          'mask travels: %s' % (len(picky), sorted({q['classes'] for q in picky})))
     if len(quests) < runnable * 0.8:
         sys.exit('%d of %d runnable quests is under four in five — something '
                  'is eating them quietly again' % (len(quests), runnable))

@@ -20,7 +20,7 @@
  * So a hillside is a hillside because it is lit like one.
  */
 
-import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, rollMelee, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, GLANCING, HIT, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Stats, type Who } from './sim/stats.ts'
+import { armourOf, attackPower, critChance, damageAfter, dodgeChance, maxHealth, maxMana, manaPerSecond, rollMelee, BASE_MANA, CREATURE_BLOCK, CREATURE_CRIT, CREATURE_DODGE, CREATURE_PARRY_HUMANOID, CRIT, ENERGY_PER_SECOND, FIVE_SECOND_RULE, GLANCING, HIT, MAX_ENERGY, MAX_RAGE, MISS, OUTCOME_WORD, PARRY_WITH_WEAPON, type Roster, type Stats, type Who } from './sim/stats.ts'
 import { layerFor, still, ORDER, type DollMeta } from './sim/doll.ts'
 import { lightAt, skyAt, SKY_WORD, CLEAR, SNOW, STORM } from './sim/sky.ts'
 import { parries, SLOT_WORD, STAT_WORD } from './talk.ts'
@@ -41,8 +41,11 @@ import {
   mitigate, noticeAt, rageFrom, swing, xpFor, E_DAMAGE, E_TRIGGER, E_ATTACK_ME,
   A_THREAT_PCT, A_DAMAGE_PCT_DONE, A_DAMAGE_PCT_TAKEN, A_BASE_RESISTANCE_PCT,
   ARMOUR, A_ATTACK_POWER, A_PERIODIC_DAMAGE,
-  E_AURA, E_ENERGIZE, E_WEAPON_ADD,
-  ENEMY, HI, HP, LO, MAX_RAGE, MELEE, QUARRY, STANCE, SWING, setMelee,
+  A_PERIODIC_HEAL, A_MOD_STAT, A_MOD_RESISTANCE, A_ABSORB, SCHOOL_PHYSICAL,
+  E_AURA, E_ENERGIZE, E_DUMMY, E_CHARGE, E_HEAL, E_COMBO,
+  E_WEAPON_ADD, E_WEAPON_PCT, WEAPON_FLAT, costOf, POWER_WORD,
+  P_HEALTH, P_MANA, P_RAGE,
+  ENEMY, HI, HP, LO, MELEE, QUARRY, STANCE, SWING, setMelee,
   aggressive, fightable, type Fight, type Spell,
 } from './sim/fight.ts'
 
@@ -380,7 +383,7 @@ async function main() {
     ? new Uint8Array(bin, deepAt, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
 
-  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, who, shelf] = await Promise.all([
+  const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf] = await Promise.all([
     load('./art/tiles.png'),
     fetch('./art/tiles.json').then((r) => r.json() as Promise<Record<string, Piece>>),
     load('./art/hero.png'),
@@ -397,11 +400,14 @@ async function main() {
     // anything a database knows, but where a wolf stands is a row in
     // `creature` either way.  One spawn file, and it is the committed one.
     fetch('./world/npcs.json').then((r) => r.json() as Promise<Spawns>),
-    // What a warrior can do, out of the client's own `Spell.dbc` by way of
+    // What each class can do, out of the client's own `Spell.dbc` by way of
     // `pipeline/spells.py`.  Missing is fine: without it the bar is the two
     // things that need no table.
     fetch('./world/spells.json')
-      .then((r) => r.json() as Promise<{ spells: Spell[]; melee?: number
+      .then((r) => r.json() as Promise<{
+        /** One book a class, keyed on the class id the game itself uses. */
+        books: Record<string, Spell[]>
+        melee?: number
         foes?: Record<string, Spell[]>
         /**
          * The spells the player's own abilities fire.  Half of three of them
@@ -411,7 +417,7 @@ async function main() {
         linked?: Spell[]
         /** `[spell, trigger, param1, param2, chance]` — `smart_scripts`. */
         cues?: Record<string, number[][]> }>)
-      .catch(() => ({ spells: [] as Spell[], melee: undefined,
+      .catch(() => ({ books: {} as Record<string, Spell[]>, melee: undefined,
         foes: {} as Record<string, Spell[]>,
         linked: [] as Spell[],
         cues: {} as Record<string, number[][]> })),
@@ -425,7 +431,7 @@ async function main() {
     // `player_race_stats` and the client's own crit tables.  Without it there
     // are no stats at all and the hit table has nothing to stand on.
     fetch('./world/player.json')
-      .then((r) => r.json() as Promise<Who>)
+      .then((r) => r.json() as Promise<Roster>)
       .catch(() => null),
     // What can be held, bought and taught: `pipeline/items.py`.
     fetch('./world/items.json')
@@ -2820,7 +2826,30 @@ async function main() {
    * begins in — Northshire, levels one to five, which is the only stretch of
    * this game where the errands run one into the next.
    */
-  const HERO_LEVEL = who?.levels?.[0] ?? 1
+  const HERO_LEVEL = roster?.levels?.[0] ?? 1
+  /**
+   * Which class this character is, and what that makes him.
+   *
+   * The default is the warrior for one reason: he is the class this game had
+   * when there was one, and something has to stand there between the page
+   * loading and the screen that makes a character finishing.  Every number
+   * downstream of it — health, mana, what he is holding, what he may press —
+   * is looked up again by `becomeClass` the moment a class is chosen or a
+   * save brings one back, because a class is not a label on a character, it
+   * *is* the character.
+   */
+  const WARRIOR = 1
+  let who: Who | null = roster?.classes?.[String(WARRIOR)] ?? null
+  /**
+   * And the id itself, kept beside it.
+   *
+   * Separate from `me.cls` on purpose: `me` is the character the *screen*
+   * made and it does not exist until the screen is finished, while `statsAt`
+   * and `known` are called while the world is still being built.  One is the
+   * answer to "who did the player say he was" and the other to "what is being
+   * simulated right now", and they are only the same once a character exists.
+   */
+  let myClass = WARRIOR
   /**
    * What he is carrying, what he is wearing, and what he has been taught.
    *
@@ -2832,14 +2861,43 @@ async function main() {
   let held: number[] = []
   let gear: Record<string, number> = {}
   let taught: number[] = []
+  /**
+   * A blessing, a fortitude, a frost armour: one stat or the armour raised
+   * for a while.
+   *
+   * **Here and not on `you`**, for exactly the reason the three above are:
+   * `statsAt` reads it and `you` is built out of `statsAt`, so reaching into
+   * `you` from inside its own initialiser is a `ReferenceError` — and an
+   * optional chain does not save you from one, because a binding in its dead
+   * zone throws on the *read* rather than answering `undefined`.  That is the
+   * third time this file has taken this trip.
+   *
+   * One at a time, because at these levels nobody can hold two; the day
+   * somebody can, this becomes a list and `statsAt` sums it.
+   */
+  let blessed: { until: number; stat: string; amount: number } | null = null
+  /** The clock everything below measures against, in seconds. */
+  let clock = 0
   /** What he is made of at each level — `pipeline/player.py`, plus what he wears. */
   const itemOf = (id: number): Item | null => shelf.items?.[String(id)] ?? null
   const wornItems = (): Item[] =>
     Object.values(gear).map(itemOf).filter((x): x is Item => !!x)
   const statsAt = (lv: number): Stats => {
-    const base = who?.stats?.[String(Math.max(1, lv))] ?? [23, 20, 22, 20, 20, 20]
-    return withGear(base, wornItems())
+    const base = who?.stats?.[String(Math.max(1, lv))]
+      ?? [23, 20, 22, 20, 20, 20, 0]
+    const mine = withGear(base, wornItems())
+    // And whatever is blessed on to him, which is a stat by index — the
+    // client's own `EffectMiscValue`, 0 strength through 4 spirit.  Armour is
+    // not a stat and is added where armour is, in `lineFor`.
+    const up = blessing()
+    if (up && up.stat !== 'armour') {
+      const at = Number(up.stat)
+      if (at >= 0 && at < 5) mine[at] = (mine[at] ?? 0) + up.amount
+    }
+    return mine
   }
+  /** The blessing, if it has not run out.  Read from three places. */
+  const blessing = () => (blessed && blessed.until > clock) ? blessed : null
   /**
    * How far a fight can travel before it stops being one.
    *
@@ -2890,7 +2948,7 @@ async function main() {
   held = [...KIT]
   for (const id of KIT) {
     const it = itemOf(id)
-    if (!it || !canWear(it, HERO_LEVEL)) continue
+    if (!it || !canWear(it, HERO_LEVEL, myClass)) continue
     const slot = it[I_SLOT] as string
     if (!slot || gear[slot] !== undefined) continue
     const put = wear(gear, it, id)
@@ -2919,8 +2977,10 @@ async function main() {
     const weapon = heldWeapon()
     if (!who || !weapon) return row
     const s = statsAt(lv)
-    const worn = wornArmour(wornItems())
-      || (who?.kit ?? []).reduce((n, k) => n + (k[K_ARMOUR] as number), 0)
+    const up = blessing()
+    const worn = (wornArmour(wornItems())
+      || (who?.kit ?? []).reduce((n, k) => n + (k[K_ARMOUR] as number), 0))
+      + (up && up.stat === 'armour' ? up.amount : 0)
     // `Player::CalculateMinMaxDamage`: the weapon's own damage plus attack
     // power spread over its swing, which is the line the shout already used.
     // This replaces a hero statted as *a creature of his level* — the comment
@@ -2974,9 +3034,64 @@ async function main() {
     /** And when he was last hit, and how hard — see `knock`. */
     hurt: -99,
     knock: null as [number, number, number] | null,
-    rage: 0,
+    /**
+     * What is in the bar, and which bar it is.
+     *
+     * This was `rage: 0`, which is not a simplification but a class: a rogue's
+     * bar fills by itself and a mage's does not come back for five seconds
+     * after he spends any, and neither of those is rage with a different word
+     * on it.  `powerWord` is the class's own — `ChrClasses.dbc`'s
+     * `DisplayPower` through `player.json` — and `becomeClass` sets both.
+     */
+    power: 0,
+    powerWord: 'rage',
+    /**
+     * When power was last spent, for the rule that only mana has.
+     *
+     * `Player::Regenerate` (Player.cpp:1917) reads a different modifier while
+     * `IsUnderLastManaUseEffect` is true, and with no talents anywhere in this
+     * game that modifier is exactly nought — so spending mana stops it coming
+     * back for five seconds.  That, rather than the size of the bar, is what
+     * makes a caster's fight a sequence of decisions.
+     */
+    spent: -99,
+    /**
+     * What a shield will eat before health does — `SCHOOL_ABSORB`.
+     *
+     * A number rather than a list, because at these levels a character can
+     * only ever have one on him: the priest's is the only absorb in six books.
+     */
+    absorb: 0,
+    /**
+     * A rogue's combo points, and who they are on.
+     *
+     * They belong to the *target* and not to the rogue — walking away and
+     * stabbing something else does not carry them over — which is why the
+     * creature is stored beside the count.
+     */
+    combo: 0,
+    comboOn: null as Npc | null,
+    /**
+     * What he is in the middle of casting.
+     *
+     * `SpellCastTimes.dbc` was resolved and shipped and nothing read it,
+     * because a warrior's abilities are all instant — a column that is always
+     * nought looks exactly like a column that does not matter.  Five of the
+     * six classes are made of the ones that are not.
+     */
+    casting: null as { sp: Spell; began: number; until: number
+      at: Npc | null } | null,
     /** Queued by a heavier blow, spent on the next swing. */
     extra: 0,
+    /**
+     * And queued as a *share* of the next swing — `WEAPON_PERCENT_DAMAGE`.
+     *
+     * A hundred means untouched, which is why it is a percentage rather than
+     * a multiplier starting at nought: the core's loop starts the same way.
+     */
+    extraPct: 100,
+    /** A renew, ticking — the heal's mirror of a bleed. */
+    mend: null as { until: number; next: number; each: number } | null,
     /** When each thing with a cooldown is ready again. */
     cools: {} as Record<number, number>,
     /** And when the global one is — see `cast`. */
@@ -3046,8 +3161,33 @@ async function main() {
   // `E_TRIGGER` pointing at 58567, so with that column wrong it was an
   // ability whose whole content was a nought — which is exactly what this
   // filter is for, and it was quite right to keep it off the bar.
-  const CAN_DO = new Set([E_WEAPON_ADD, E_ENERGIZE, E_AURA, E_DAMAGE,
-    E_TRIGGER, E_ATTACK_ME])
+  /**
+   * `APPLY_AREA_AURA_PARTY`, which in a single-player game is an aura.
+   *
+   * A paladin's devotion aura is one of these and nothing else, so without
+   * this line the whole of what a level one paladin brings to a fight is an
+   * ability the bar refuses to show.  With one man in the party, "everyone
+   * near me" and "me" are the same set.
+   */
+  const E_AREA_AURA = 65
+  const CAN_DO = new Set([...WEAPON_FLAT, E_WEAPON_PCT, E_ENERGIZE, E_DUMMY,
+    E_AURA, E_AREA_AURA, E_DAMAGE, E_TRIGGER, E_ATTACK_ME, E_HEAL, E_COMBO])
+  /**
+   * And the auras it knows what to do with, which is the same gate one level
+   * down.
+   *
+   * Without it every `APPLY_AURA` in six books reads as runnable, so the bar
+   * fills with buttons that cost mana and do nothing — a polymorph, a fear, a
+   * stealth.  An ability is offered when **some** effect of it lands: a
+   * frostbolt whose slow is not implemented is still a frostbolt.
+   */
+  const CAN_HOLD = new Set([A_PERIODIC_DAMAGE, A_PERIODIC_HEAL, A_ATTACK_POWER,
+    A_MOD_STAT, A_MOD_RESISTANCE, A_ABSORB, A_DAMAGE_PCT_TAKEN,
+    A_DAMAGE_PCT_DONE, A_THREAT_PCT, A_BASE_RESISTANCE_PCT])
+  /** Whether this engine can carry out any part of one ability. */
+  const runnable = (sp: Spell): boolean => sp.does.some(
+    ([effect, , , aura]) => (effect === E_AURA || effect === E_AREA_AURA)
+      ? CAN_HOLD.has(aura!) : CAN_DO.has(effect!))
   // How far a swing reaches, out of `SpellRange.dbc` rather than out of a
   // comment here that said "two bodies and an arm".
   if (spellbook.melee) setMelee(spellbook.melee)
@@ -3060,9 +3200,21 @@ async function main() {
    * this now does, meant starting with nothing and finishing with nothing.
    * `spells.json` has carried the level on every row all along.
    */
-  const known = (level: number) => (spellbook.spells ?? [])
-    .filter((sp) => sp.level <= level && abilityOf(sp.id)
-      && sp.does.some((d) => CAN_DO.has(d[0]!))
+  const bookOf = (cls: number): Spell[] =>
+    spellbook.books?.[String(cls)] ?? []
+  /**
+   * One ability by id, wherever it is.
+   *
+   * The class's own book first and then the linked half — the spells the
+   * player's own abilities fire, which are all of three of them.  This was a
+   * lookup in one flat list; with six books "the spellbook" is not a thing
+   * any more, and the book that matters is the one the character has.
+   */
+  const anySpell = (id: number): Spell | undefined =>
+    bookOf(myClass).find((x) => x.id === id)
+    ?? (spellbook.linked ?? []).find((x) => x.id === id)
+  const known = (level: number) => bookOf(myClass)
+    .filter((sp) => sp.level <= level && abilityOf(sp.id) && runnable(sp)
       // Created holding it, or paid a trainer for it.  Levelling opens
       // nothing on its own in the game this reproduces — it opens the
       // *option*, and the option costs money.  Handed out free, the one
@@ -3070,6 +3222,72 @@ async function main() {
       && (sp.free || taught.includes(sp.id)))
     .sort((a, b) => a.level - b.level || a.id - b.id)
   let spells = known(HERO_LEVEL)
+  /**
+   * What a bar of his own power holds.
+   *
+   * Rage and energy are a flat hundred — `Player::SetCreatePowers` — and mana
+   * is the only one that is a curve, which is why only mana asks the stats.
+   */
+  const powerMax = (lv = you.level): number =>
+    you.powerWord === 'mana' ? maxMana(statsAt(lv))
+      : you.powerWord === 'energy' ? MAX_ENERGY : MAX_RAGE
+  /**
+   * And what a *percentage* cost is a percentage of.
+   *
+   * `GetCreateMana()`, which is the class's own `BaseMana` for the level —
+   * **not** the bar's maximum.  Charging a share of the maximum would make
+   * every spell dearer the better his hat is, which is the opposite of what
+   * intellect does.
+   */
+  const baseFor = (sp: Spell): number => {
+    const base = who?.stats?.[String(Math.max(1, you.level))] ?? []
+    if (sp.power === P_HEALTH) return maxHealth(base)
+    if (sp.power === P_MANA) return base[BASE_MANA] ?? 0
+    return MAX_RAGE
+  }
+  /** Our word for each bar, for the sentence that says there is not enough. */
+  const POWER_KOR: Record<string, string> = {
+    rage: '분노', mana: '마나', energy: '기력', health: '생명력',
+  }
+  /**
+   * Become a class, which is every number about the character at once.
+   *
+   * Called from the screen that makes one and from the save that brings one
+   * back, and it does the same work either way except for the kit: a new
+   * character is dressed out of `CharStartOutfit.dbc`, and a returning one is
+   * wearing whatever he was wearing.
+   */
+  const becomeClass = (cls: number, dress: boolean) => {
+    myClass = cls
+    who = roster?.classes?.[String(cls)] ?? who
+    you.powerWord = who?.power ?? 'rage'
+    if (dress) {
+      held = []
+      gear = {}
+      taught = []
+      for (const k of who?.kit ?? []) {
+        const id = k[K_ID] as number
+        held.push(id)
+        const it = itemOf(id)
+        if (!it || !canWear(it, you.level, myClass)) continue
+        const slot = it[I_SLOT] as string
+        if (!slot || gear[slot] !== undefined) continue
+        const put = wear(gear, it, id)
+        gear = put.gear
+        held = held.filter((x) => x !== id).concat(put.off)
+      }
+    }
+    you.line = lineFor(you.level)
+    you.max = you.line[HP]!
+    you.hp = you.max
+    // A full bar for the ones that have one by default and an empty one for
+    // rage, which is the server's own answer: a rogue logs in with a hundred
+    // energy (Player.cpp:2089 sets it on respawn) and a warrior logs in with
+    // nothing, because rage is earned.
+    you.power = you.powerWord === 'rage' ? 0 : powerMax()
+    you.combo = 0; you.comboOn = null; you.absorb = 0; you.casting = null
+    spells = known(you.level)
+  }
   /**
    * Which picture goes with what, out of `pipeline/bake_ui.py`.
    *
@@ -3186,7 +3404,17 @@ async function main() {
   /** Whether a thing can be used right now, and why not if it cannot. */
   const why = (sp: Spell): string | null => {
     if (you.died) return '쓰러져 있다'
-    if (you.rage < sp.rage) return `분노가 ${sp.rage} 필요하다`
+    if (you.casting) return '시전 중이다'
+    // What it costs, which depends on who is pressing it: the flat half is the
+    // spell's and the percentage half is a share of the caster's own base
+    // power.  `costOf` puts them together.
+    const need = costOf(sp, baseFor(sp))
+    if (sp.power === P_HEALTH) {
+      if (you.hp <= need) return '생명력이 모자라다'
+    } else if (you.power < need) {
+      const word = POWER_KOR[you.powerWord] ?? you.powerWord
+      return `${josa(word, '이', '가')} ${need} 필요하다`
+    }
     // Anything that starts a wait also has to wait; anything that does not,
     // does not — a heavier blow goes off the next swing whatever else you
     // just pressed.
@@ -3228,17 +3456,68 @@ async function main() {
   const GCD_MIN = 1000, GCD_MAX = 1500
   const gcdOf = (sp: Spell) =>
     sp.gcd ? Math.min(GCD_MAX, Math.max(GCD_MIN, sp.gcd)) : 0
+  /**
+   * Press one, which for five of the six classes is not the same as using it.
+   *
+   * `SpellCastTimes.dbc` says how long it takes to go off, and a warrior's
+   * abilities are all nought — so the column was resolved, shipped and read
+   * by nothing for as long as this game had one class.  A cast is started
+   * here and finished in `finishCast`; **the cost is taken at the start**,
+   * which is the server's order (`Spell::prepare` takes power before the cast
+   * bar runs) and the reason an interrupted cast still costs you.
+   */
   const cast = (sp: Spell) => {
     // What it was asked for, set before the refusal: a check presses the key
     // drawn on a square and asks which ability heard it, and whether there
     // was rage for it is a different question.
     asked = sp.id
     if (why(sp) !== null) return
-    you.rage -= sp.rage
+    const paid = costOf(sp, baseFor(sp))
+    if (sp.power === P_HEALTH) you.hp = Math.max(1, you.hp - paid)
+    else you.power -= paid
+    if (paid > 0 && you.powerWord === 'mana') you.spent = clock
     if (sp.gcd) you.gcd = clock + gcdOf(sp) / 1000
     play('cast', 0.95 + roll() * 0.1)
     if (sp.cool) you.cools[sp.id] = clock + sp.cool / 1000
-    const t = you.target
+    if (sp.cast > 0) {
+      you.casting = { sp, began: clock, until: clock + sp.cast / 1000,
+        at: you.target }
+      return
+    }
+    finishCast(sp, you.target)
+  }
+
+  /**
+   * Stop a cast that was under way.
+   *
+   * Moving cancels one and so does being hit — `SPELL_AURA_INTERRUPT_FLAGS`
+   * in the client and `Spell::cancel` in the core.  The power is gone either
+   * way, which is the whole cost of being interrupted.
+   */
+  const breakCast = (why_: string) => {
+    if (!you.casting) return
+    ui.log(`시전이 끊겼다. (${why_})`, 'note')
+    you.casting = null
+  }
+
+  /**
+   * Take a blow, through whatever is in the way of it.
+   *
+   * A shield is a pool of damage eaten before health is — the priest's is the
+   * only absorb in six books — and it is here rather than at the two places
+   * damage lands because "damage that reaches you" and "damage aimed at you"
+   * are different numbers the moment anything stands between them.
+   */
+  const takeHit = (hit: number): number => {
+    if (hit <= 0 || you.absorb <= 0) return hit
+    const eaten = Math.min(you.absorb, hit)
+    you.absorb -= eaten
+    if (you.absorb <= 0) ui.log('방패가 깨졌다.', 'note')
+    return hit - eaten
+  }
+
+  const finishCast = (sp: Spell, target: Npc | null) => {
+    const t = target
     // What pressing it buys in attention, out of `spell_threat`.  A heavier
     // blow is worth five over the damage it does; a thunderclap is worth
     // nearly twice its damage.  That is the rule that makes an opener an
@@ -3257,9 +3536,15 @@ async function main() {
     // is a decision rather than a free improvement.
     if (sp.stance !== undefined && you.stance !== sp.stance) {
       you.stance = sp.stance
-      you.rage = 0
+      you.power = 0
     }
-    for (const [slot, [effect, amount, die, aura, period, fires]] of sp.does.entries()) {
+    for (const [slot, [effect, base, die, aura, period, fires, misc]] of sp.does.entries()) {
+      // What a combo point adds, which is only ever a rogue's finisher:
+      // `CalculateSpellDamage` adds `EffectPointsPerComboPoint` times the
+      // points on the target.  Eviscerate is one damage and five a point, so
+      // read without this it is a five-point finisher that hits for one.
+      const perPoint = sp.combo?.[slot] ?? 0
+      const amount = base! + Math.round(perPoint * (you.comboOn === t ? you.combo : 0))
       if (effect === E_DAMAGE) {
         // Everything inside the radius, or just the target if there is none.
         // `SpellRadius.dbc` says eight yards for a thunderclap and thirty for
@@ -3287,9 +3572,66 @@ async function main() {
           }
         }
         if (at.length > 1) ui.log(`${at.length}을(를) 한꺼번에 쳤다.`, 'hit')
-      } else if (effect === E_WEAPON_ADD) you.extra += amount!
-      else if (effect === E_ENERGIZE) you.rage = Math.min(MAX_RAGE, you.rage + amount! / 10)
-      else if (effect === E_AURA && aura === A_ATTACK_POWER) {
+      } else if (WEAPON_FLAT.has(effect!)) {
+        // A swing with something added to it — `Spell::EffectWeaponDmg`,
+        // SpellEffects.cpp:3617, which three effect numbers all point at.
+        // This was 58 alone, which is the only one of the three a warrior
+        // has; 121 is a rogue's every strike and 17 is a wand.
+        you.extra += amount!
+      } else if (effect === E_WEAPON_PCT) {
+        // And the multiplier in the same loop, applied to the whole swing:
+        // Backstab is ten damage *and* a hundred and fifty per cent of the
+        // weapon, which is what makes it the opener rather than the filler.
+        you.extraPct = (you.extraPct || 100) * (amount! / 100)
+      } else if (effect === E_COMBO) {
+        // A rogue's book-keeping — `Spell::EffectAddComboPoints`.  They sit
+        // on the target, so stabbing something else starts again.
+        if (t) {
+          if (you.comboOn !== t) { you.comboOn = t; you.combo = 0 }
+          you.combo = Math.min(5, you.combo + amount!)
+        }
+      } else if (effect === E_ENERGIZE
+        || (effect === E_DUMMY
+          && sp.does.some(([e]) => e === E_CHARGE))) {
+        // Power back.  `E_ENERGIZE` is Bloodrage; the dummy is Charge, whose
+        // nine rage the core hands back in a script — and it is *only* a
+        // charge's dummy, because a rogue's finisher has one too and reading
+        // that as energy pays him a full bar for finishing.
+        //
+        // Rage and runic power are stored at ten times the bar; mana and
+        // energy are not, which is why the scale is the power's rather than a
+        // ten written here.
+        const scale = sp.power === P_RAGE ? 10 : 1
+        you.power = Math.min(powerMax(), you.power + amount! / scale)
+      } else if (effect === E_HEAL) {
+        // A heal — `Spell::EffectHeal`.  On whoever is picked, and on
+        // yourself when that is nobody, which is what a priest alone in a
+        // forest actually does.
+        const mend = between(amount!, amount! + (die ?? 0))
+        you.hp = Math.min(you.max, you.hp + mend)
+        say(hero.x, hero.y, `+${mend}`, false)
+        ui.log(`${mend} 회복했다.`, 'gain')
+      } else if (effect === E_AURA && aura === A_ABSORB) {
+        // A shield: a pool of damage eaten before health is.
+        you.absorb = Math.max(you.absorb, amount!)
+        ui.log(`${amount} 만큼을 대신 받아낸다.`, 'gain')
+      } else if (effect === E_AURA && aura === A_PERIODIC_HEAL) {
+        you.mend = { until: clock + sp.holds / 1000,
+          next: clock + (period || 3000) / 1000, each: amount! }
+      } else if ((effect === E_AURA || effect === E_AREA_AURA)
+        && (aura === A_MOD_STAT
+          || (aura === A_MOD_RESISTANCE && (misc! & SCHOOL_PHYSICAL)))) {
+        // A blessing, a fortitude, a frost armour.  All three are the same
+        // shape: a stat or a resistance raised for a while, with which one in
+        // `EffectMiscValue`.  Armour is resistance nought, which is why the
+        // devotion aura and the demon skin land here rather than in a branch
+        // of their own.
+        blessed = { until: clock + (sp.holds > 0 ? sp.holds / 1000 : 1800),
+          stat: aura === A_MOD_RESISTANCE ? 'armour' : String(misc ?? 0),
+          amount: amount! }
+        you.line = lineFor(you.level)
+        you.max = you.line[HP]!
+      } else if (effect === E_AURA && aura === A_ATTACK_POWER) {
         you.shout = { until: clock + sp.holds / 1000, ap: amount! }
       } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE && t) {
         t.bleed = { until: clock + sp.holds / 1000, next: clock + period! / 1000, each: amount! }
@@ -3310,8 +3652,7 @@ async function main() {
         // 58567 — which is `-4%` of the target's armour, five deep, for
         // thirty seconds.  All four numbers are the client's, and none of
         // them could be read while the trigger column was `EffectMiscValue`.
-        const fired = (spellbook.spells ?? []).find((x) => x.id === fires)
-          ?? (spellbook.linked ?? []).find((x) => x.id === fires)
+        const fired = anySpell(fires!)
         for (const [, take, , which] of fired?.does ?? []) {
           if (which !== A_BASE_RESISTANCE_PCT) continue
           const deep = Math.max(1, fired!.stack ?? 1)
@@ -3413,7 +3754,7 @@ async function main() {
   }
   /** Spend the experience bar as many times as it will go. */
   function levelUp() {
-    const ceiling = who?.levels?.[1] ?? (spawns.player?.length ?? 1)
+    const ceiling = roster?.levels?.[1] ?? (spawns.player?.length ?? 1)
     while (LADDER[you.level - 1] && you.xp >= LADDER[you.level - 1]!
       && you.level < ceiling) {
       you.xp -= LADDER[you.level - 1]!
@@ -3439,7 +3780,7 @@ async function main() {
       // rebuild — only something to say.  And what opened is not a new button
       // but a new *thing a trainer will sell you*, which is the shape this
       // stretch of the game actually has.
-      const offer = (spellbook.spells ?? []).filter(
+      const offer = bookOf(myClass).filter(
         (sp) => sp.level === you.level && !sp.free && abilityOf(sp.id))
       if (spells.length > had)
         ui.log(`배울 수 있는 것이 생겼다. (${spells.length - had}가지)`, 'gain')
@@ -3455,7 +3796,7 @@ async function main() {
    * nearest on the map, and failing everything, where you started.
    */
   const graveyardFor = (x: number, y: number): [number, number] => {
-    const all = who?.graveyards ?? {}
+    const all = roster?.graveyards ?? {}
     const here = areaOf(x, y)
     const mine = all[String(here)] ?? all[String(inside(here))] ?? []
     const pool = mine.length ? mine : Object.values(all).flat()
@@ -3557,7 +3898,7 @@ async function main() {
   // which is the server saying the same thing this game says at ten: there is
   // nothing left here to be rested for.
   const restCap = () =>
-    you.level >= (who?.levels?.[1] ?? 10) ? 0 : (LADDER[you.level - 1] ?? 0) * 0.75
+    you.level >= (roster?.levels?.[1] ?? 10) ? 0 : (LADDER[you.level - 1] ?? 0) * 0.75
   const restFor = (seconds: number, inInn: boolean) =>
     seconds * ((LADDER[you.level - 1] ?? 0) / 144000)
     * (inInn ? REST_IN_INN : REST_OUTSIDE)
@@ -3589,7 +3930,11 @@ async function main() {
         const [gx, gy] = graveyardFor(hero.x, hero.y)
         you.died = 0; you.target = null
         you.hp = Math.max(1, Math.round(you.max / 2))
-        you.rage = 0
+        // A bar of whatever he swings on: rage is earned and the other two
+        // are not, so standing up empty is right for one class and wrong for
+        // the rest.
+        you.power = you.powerWord === 'rage' ? 0 : powerMax()
+        you.combo = 0; you.comboOn = null; you.absorb = 0; you.casting = null
         placeHero(gx, gy)
         camX = gx; camY = gy
         ui.log('묘지에서 깨어났다.', 'note')
@@ -3697,8 +4042,10 @@ async function main() {
             const bolt = Math.max(1, Math.round(
               between(amount!, amount! + (die ?? 0)) * stanceOf().take
               * (1 - mitigate(you.line[ARMOUR]!, n.level))))
-            you.hp -= bolt
-            say(hero.x, hero.y, `-${bolt}`, false)
+            const got = takeHit(bolt)
+            you.hp -= got
+            breakCast('맞았다')
+            say(hero.x, hero.y, `-${got}`, false)
             ui.log(`${nameOf(n.kind)}의 주문에 ${bolt} 맞았다.`, 'hurt')
           } else if (effect === E_AURA && aura === A_PERIODIC_DAMAGE) {
             youBleed = { until: clock + trick.holds / 1000,
@@ -3723,14 +4070,21 @@ async function main() {
           parry: PARRY_WITH_WEAPON, block: 0, player: true },
         roll() * 10000)
       const raw = swing(n.fight, n.level, you.line[ARMOUR]!, roll())
-      const hit = Math.max(0, Math.round(
-        damageAfter(fate, raw, n.level - you.level) * stanceOf().take))
+      const hit = takeHit(Math.max(0, Math.round(
+        damageAfter(fate, raw, n.level - you.level) * stanceOf().take)))
       you.hp -= hit
       n.swung = clock
       struck(you, hit, you.max, n.x, n.y, hero.x, hero.y)
-      // Taking a blow pays too, at a third of what landing one does.
-      you.rage = Math.min(MAX_RAGE,
-        you.rage + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
+      // Taking a blow pays too, at a third of what landing one does — for
+      // the one class that is paid that way.  A rogue's energy and a mage's
+      // mana do not care what hit them.
+      if (you.powerWord === 'rage') {
+        you.power = Math.min(MAX_RAGE,
+          you.power + rageFrom(hit, you.level, you.line[SWING]! / 1000, false))
+      }
+      // And being hit stops whatever was being cast, which is the other half
+      // of what a cast time costs.
+      if (hit > 0) breakCast('맞았다')
       play(hit > 0 ? 'hurt' : 'miss', 0.9 + roll() * 0.2)
       say(hero.x, hero.y, fate === HIT ? `-${hit}` : (OUTCOME_WORD[fate] ?? ''), false)
       ui.log(fate === HIT || fate === CRIT
@@ -3757,10 +4111,47 @@ async function main() {
       }
     }
     if (you.shout && you.shout.until <= clock) you.shout = null
+    if (blessed && blessed.until <= clock) {
+      blessed = null
+      you.line = lineFor(you.level)
+      you.max = you.line[HP]!
+      you.hp = Math.min(you.hp, you.max)
+    }
+    // A renew, which is a bleed with the sign turned round.
+    if (you.mend) {
+      if (clock > you.mend.until) you.mend = null
+      else if (clock >= you.mend.next) {
+        you.mend.next = clock + 3
+        you.hp = Math.min(you.max, you.hp + you.mend.each)
+        say(hero.x, hero.y, `+${you.mend.each}`, false)
+      }
+    }
+    // A cast that was under way, finishing.
+    if (you.casting && clock >= you.casting.until) {
+      const done = you.casting
+      you.casting = null
+      finishCast(done.sp, done.at && !done.at.dead ? done.at : null)
+    }
+    // The bar filling.
+    //
+    // Three rules and they are three different games.  **Energy comes back
+    // whether you are fighting or not** (Player.cpp:1941, ten a second flat),
+    // which is why a rogue's decision is what to spend it on rather than
+    // whether he has any.  **Mana comes back unless you have spent some in
+    // the last five seconds**, which is the rule that makes a caster's fight
+    // a sequence rather than a rotation.  **Rage drains when nobody is
+    // swinging**, which is what stops you walking into a fight with a bar you
+    // filled somewhere else.
+    if (you.powerWord === 'energy') {
+      you.power = Math.min(powerMax(), you.power + ENERGY_PER_SECOND * STEP)
+    } else if (you.powerWord === 'mana') {
+      const ratio = who?.spirit?.[String(you.level)] ?? 0
+      you.power = Math.min(powerMax(), you.power + manaPerSecond(
+        you.level, statsAt(you.level), ratio,
+        clock - you.spent < FIVE_SECOND_RULE) * STEP)
+    }
     if (quiet) {
-      // Rage drains when nobody is swinging, which is what stops you walking
-      // into a fight with a full bar you filled somewhere else.
-      you.rage = Math.max(0, you.rage - 2.5 / 60)
+      if (you.powerWord === 'rage') you.power = Math.max(0, you.power - 2.5 / 60)
       you.calm += 1 / 60
       if (you.calm > 3) you.hp = Math.min(you.max, you.hp + you.max * 0.05 / 60)
     } else {
@@ -3790,12 +4181,20 @@ async function main() {
         parry: parries(foe.kind) ? CREATURE_PARRY_HUMANOID : 0 },
       roll() * 10000)
     const stance = stanceOf()
+    // The weapon, plus what an ability queued on to it — a flat amount and a
+    // share, in that order, which is the order `Spell::EffectWeaponDmg` does
+    // it in: the flat bonus goes on the weapon damage and the percentage
+    // multiplies the lot.
     const raw = Math.round(
-      (swing(you.line, foe.level, armourNow(foe), roll())
-        + shout + you.extra) * stance.deal)
+      ((swing(you.line, foe.level, armourNow(foe), roll())
+        + shout + you.extra) * (you.extraPct / 100)) * stance.deal)
     const hit = damageAfter(fate, raw, foe.level - you.level)
     you.extra = 0
-    you.rage = Math.min(MAX_RAGE, you.rage + rageFrom(hit, you.level, secs, true))
+    you.extraPct = 100
+    if (you.powerWord === 'rage') {
+      you.power = Math.min(MAX_RAGE,
+        you.power + rageFrom(hit, you.level, secs, true))
+    }
     // Attention, before the damage, because a blow that is blocked to nothing
     // still annoys whatever you hit.
     foe.threat['you'] = (foe.threat['you'] ?? 0)
@@ -3844,7 +4243,7 @@ async function main() {
   const stanceOf = (): { deal: number; take: number; threat: number } => {
     const out = { deal: 1, take: 1, threat: 1 }
     const sp = you.stance
-      ? (spellbook.spells ?? []).find((x) => x.stance === you.stance) : null
+      ? bookOf(myClass).find((x) => x.stance === you.stance) : null
     for (const [effect, amount, , aura] of sp?.does ?? []) {
       if (effect !== E_AURA) continue
       if (aura === A_DAMAGE_PCT_DONE) out.deal *= 1 + amount! / 100
@@ -4002,6 +4401,21 @@ async function main() {
   }
 
   /**
+   * How far the one targeting key reaches.
+   *
+   * `MELEE` — five yards — until five of the six classes could not use their
+   * own books: a smite is thirty yards and every ability with a reach refuses
+   * without a target, so a priest could only ever cast at something already
+   * standing on him.  Reaching exactly as far as **the longest reach he
+   * actually has** is the only answer that is not a number chosen here: a
+   * warrior's stays five (a charge is twenty-five, which is why it is the
+   * maximum and not the minimum that matters), and a priest's is thirty
+   * because a priest has a thirty-yard spell.
+   */
+  const aimRange = (): number =>
+    Math.max(MELEE, ...spells.map((sp) => sp.reach[1] ?? 0))
+
+  /**
    * The nearest thing worth swinging at, or nothing.
    *
    * Hostiles only.  One key that means "hit whatever is closest" and a village
@@ -4011,7 +4425,8 @@ async function main() {
    * take more than a keystroke.
    */
   const inSwing = (): Npc | null => {
-    let best: Npc | null = null, bd = MELEE * MELEE
+    const far = aimRange()
+    let best: Npc | null = null, bd = far * far
     for (const n of active) {
       if (!fightable(n.fight) || n.dead) continue
       const d = (n.x - hero.x) ** 2 + (n.y - hero.y) ** 2
@@ -4192,8 +4607,16 @@ async function main() {
   const HUMAN = 1
   /** A death knight starts at 55 on another map, which is not this slice. */
   const DEATH_KNIGHT = 6
-  /** Which class this game has a spellbook for — see issue 188. */
-  const PLAYABLE = new Set([1])
+  /**
+   * Which classes this game has a spellbook for.
+   *
+   * **Read from the bake and not written here.**  It was `new Set([1])` with
+   * a comment naming this issue, which is the honest shape of a list that is
+   * waiting for data — and the moment the data arrives, a list written here
+   * is the second copy that drifts.  A class a player may pick is a class
+   * `pipeline/spells.py` baked a book for.
+   */
+  const PLAYABLE = new Set(Object.keys(spellbook.books ?? {}).map(Number))
   let makeRace = HUMAN, makeSex = 0, makeClass = 1, makeName = ''
   let makeHair = 'plain', makeBeard = ''
   /**
@@ -4323,6 +4746,11 @@ async function main() {
         const born: Me = { name: makeName.trim(), race: makeRace,
           sex: makeSex, cls: makeClass, hair: makeHair, beard: makeBeard }
         me = born
+        // A class is not a label on a character, it is the character: health,
+        // mana, what he is holding and what he may press are all looked up
+        // again here.  Nothing between the page loading and this line knew
+        // which of the six it was.
+        becomeClass(born.cls, true)
         ui.setName(born.name)
         ui.setCreate(false, {} as never)
         ui.log(`${born.name}. 노스샤이어 계곡에서 시작한다.`, 'gain')
@@ -4344,7 +4772,7 @@ async function main() {
     version: SAVE_VERSION, world: worldHash, at: Date.now(),
     hero: { x: hero.x, y: hero.y, dir: hero.dir },
     you: {
-      level: you.level, xp: you.xp, hp: you.hp, rage: you.rage,
+      level: you.level, xp: you.xp, hp: you.hp, power: you.power,
       purse: you.purse, kills: you.kills,
       bag: you.bag, trades: you.trades, cools: you.cools,
       items: held, gear, taught,
@@ -4363,13 +4791,17 @@ async function main() {
     if (save.you.who) {
       const was = save.you.who
       me = { hair: 'plain', beard: '', ...was }
+      // The same call the creation screen makes, without the dressing: a
+      // returning character is wearing what he was wearing, and those rows
+      // are restored below.
+      becomeClass(me.cls, false)
       ui.setName(was.name)
     }
     you.level = Math.max(1, save.you.level)
     you.line = lineFor(you.level)
     you.max = you.line[HP]!
     you.hp = Math.min(you.max, save.you.hp || you.max)
-    you.xp = save.you.xp; you.rage = save.you.rage
+    you.xp = save.you.xp; you.power = save.you.power
     you.purse = save.you.purse; you.kills = save.you.kills
     you.bag = save.you.bag ?? {}
     you.trades = save.you.trades ?? you.trades
@@ -4774,7 +5206,7 @@ async function main() {
     let changed = false
     for (const id of [...held]) {
       const it = itemOf(id)
-      if (!it || !canWear(it, you.level)) continue
+      if (!it || !canWear(it, you.level, myClass)) continue
       const slot = it[I_SLOT] as string
       const now = gear[slot] !== undefined ? itemOf(gear[slot]!) : null
       // Better is the item level, which is the world's own one-number answer
@@ -5136,7 +5568,10 @@ async function main() {
       }
       speech.options.unshift(say2)
     }
-    for (const q of offers(log, n.entry, you.level)) {
+    // **And which class he is**, which is the other half of issue 151's
+    // filter.  The bake keeps a quest whose mask names any of this game's six
+    // classes; the log only shows one whose mask names *this* one.
+    for (const q of offers(log, n.entry, you.level, myClass)) {
       speech.options.unshift({
         label: `일거리 (${q.level}레벨)`,
         lines: [...errand(shapeOf(q)), `사례: ${payFor(q.xp, q.coin)}`],
@@ -5170,8 +5605,12 @@ async function main() {
     // for how much; the warrior's first ten levels come to 2,110 copper and
     // the zone's quests pay about 1,175, which is the gap the whole economy
     // is made of.
+    // **Only a trainer of your own class teaches you anything.**  `for` is
+    // the class out of `trainer.Requirement`; a warrior standing in front of
+    // the mage trainer gets the conversation and no lessons, which is what
+    // the original does and what the whole of issue 151's filter was about.
     const school = shelf.trainers?.[String(n.entry)]
-    if (school) {
+    if (school && (!school['for'] || school['for'] === myClass)) {
       // The ones he could take now, and only a handful: a class trainer has
       // sixty rows and a conversation is not a spreadsheet.
       const ready = school.teaches
@@ -5695,7 +6134,6 @@ async function main() {
   /** How many tiles this frame were an edge rather than a fill. */
   let edged = 0
   let last = performance.now()
-  let clock = 0
   const kindCount = new Set(npcs.map((n) => n.art)).size
   const talkers = npcs.filter((n) => n.topic).length
 
@@ -5796,6 +6234,11 @@ async function main() {
     }
     hero.was.x = hero.x; hero.was.y = hero.y
     hero.moving = mx !== 0 || my !== 0
+    // Walking cancels a cast — the client's own `SPELL_AURA_INTERRUPT_FLAGS`,
+    // and the reason a caster's fight is stand-still-and-decide rather than
+    // kite-and-press.  The power is already gone, which is what makes moving
+    // away mid-cast a real mistake rather than a free cancel.
+    if (hero.moving) breakCast('움직였다')
     if (hero.moving) {
       const len = Math.hypot(mx, my)
       // A step is a third of a yard at running speed, and a collision test
@@ -6066,8 +6509,8 @@ async function main() {
     // land an expression.
     const today = frozen ?? new Date()
     const zoneHere = areaOf(hero.x, hero.y)
-    const sky = forcedSky ?? skyAt(who?.weather?.[String(zoneHere)]
-      ?? who?.weather?.[String(inside(zoneHere))], today)
+    const sky = forcedSky ?? skyAt(roster?.weather?.[String(zoneHere)]
+      ?? roster?.weather?.[String(inside(zoneHere))], today)
     const light = lightAt(today, sky)
     ctx.fillStyle = light.ground
     ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -7375,7 +7818,9 @@ async function main() {
         return {
           key: SPELL_KEYS[i] ?? '', label: word,
           icon: iconOf(sp.id),
-          tip: `${word}  —  분노 ${sp.rage}\n${what}`
+          tip: `${word}  —  ${POWER_KOR[POWER_WORD[sp.power] ?? you.powerWord]
+            ?? ''} ${costOf(sp, baseFor(sp))}\n${what}`
+            + (sp.cast ? `\n시전 ${(sp.cast / 1000).toFixed(1)}초` : '')
             + (sp.cool ? `\n재사용 ${(sp.cool / 1000).toFixed(0)}초` : '')
             + (sp.gcd ? `\n전역 대기 ${(gcdOf(sp) / 1000).toFixed(1)}초`
               : '\n다음 공격에 실린다')
@@ -7399,7 +7844,16 @@ async function main() {
     // something go in — an empty one has no `use`.
     pressable.clear()
     for (const sq of squares) if (sq.use) pressable.set(sq.key.toLowerCase(), sq.use)
-    ui.setRage(you.rage, MAX_RAGE)
+    // The bar, and the word on it.  One class's was called rage and the
+    // readout said so in Korean; six of them means the word is the
+    // character's rather than the interface's.
+    ui.setRage(you.power, powerMax(), you.powerWord)
+    ui.setCast(you.casting
+      ? { word: abilityOf(you.casting.sp.id)?.[0] ?? '',
+          at: (clock - you.casting.began)
+            / Math.max(0.001, you.casting.until - you.casting.began) }
+      : null)
+    ui.setCombo(you.powerWord === 'energy' ? you.combo : 0)
     ui.setAuras('me', you.shout && you.shout.until > clock
       ? [{ icon: iconOf(6673), left: you.shout.until - clock,
            text: `외침  —  공격력 +${you.shout.ap}` }]
@@ -7701,7 +8155,11 @@ async function main() {
    * standing in, and what the stance is worth.
    */
   ;(window as unknown as { __you: () => unknown }).__you = () => ({
-    level: you.level, hp: you.hp, rage: Math.round(you.rage),
+    level: you.level, hp: you.hp, rage: Math.round(you.power),
+    power: Math.round(you.power), powerWord: you.powerWord,
+    powerMax: Math.round(powerMax()), combo: you.combo,
+    casting: you.casting?.sp.id ?? null,
+    cls: myClass, spells: spells.map((sp) => sp.id),
     stance: you.stance, target: you.target?.kind ?? null, ...stanceOf(),
   })
   /** The errands, and how far along they are — for the check that walks one. */
@@ -8072,9 +8530,13 @@ async function main() {
     }
   }
   /** Make one, so a check can get into the world without typing. */
-  ;(window as unknown as { __makeOne: (name: string) => unknown })
-    .__makeOne = (name) => {
+  ;(window as unknown as { __makeOne: (name: string, cls?: number) => unknown })
+    .__makeOne = (name, cls) => {
       makeName = name
+      // And which class, because a check that can only make a warrior can
+      // only ever check a warrior — which is how "every class has a
+      // spellbook" stayed true and unexamined for as long as there was one.
+      if (cls !== undefined) makeClass = cls
       drawCreate()
       const ok = document.querySelector('#create .ok') as HTMLButtonElement
       ok?.click()
@@ -8219,7 +8681,7 @@ async function main() {
     crit: who ? critChance(you.level, statsAt(you.level), who) : 0,
     dodge: who ? dodgeChance(you.level, statsAt(you.level), who) : 0,
     spells: spells.map((sp) => ({ id: sp.id, level: sp.level })),
-    ceiling: who?.levels?.[1] ?? 0,
+    ceiling: roster?.levels?.[1] ?? 0,
   })
   ;(window as unknown as {
     __swings: (against: number, n: number) => Record<string, number>
@@ -8270,7 +8732,7 @@ async function main() {
       who,
       { many, runs, policy: policy === 'rota' ? 'rota' : 'auto',
         ...(opener ? { opener: {
-          rage: opener.rage,
+          rage: opener.cost,
           adds: opener.does.find((d) => d[0] === E_WEAPON_ADD)?.[1] ?? 0,
         } } : {}) })
   }
@@ -8506,8 +8968,8 @@ async function main() {
     .__weather = (s) => { forcedSky = s; return true }
   ;(window as unknown as { __sky: () => unknown }).__sky = () => {
     const zone = areaOf(hero.x, hero.y)
-    const chances = who?.weather?.[String(zone)]
-      ?? who?.weather?.[String(inside(zone))]
+    const chances = roster?.weather?.[String(zone)]
+      ?? roster?.weather?.[String(inside(zone))]
     const day: number[] = []
     const base = new Date()
     for (let h = 0; h < 24 * 30; h++) {
@@ -8516,7 +8978,7 @@ async function main() {
     const noon = lightAt(new Date(2026, 5, 21, 12), 0)
     const night = lightAt(new Date(2026, 5, 21, 2), 0)
     return {
-      zones: Object.keys(who?.weather ?? {}).length,
+      zones: Object.keys(roster?.weather ?? {}).length,
       chances, now: skyAt(chances, base),
       wet: day.filter((s) => s > 0).length / day.length,
       // Asked twice for the same hour: it is derived, not rolled.
@@ -8582,7 +9044,7 @@ async function main() {
   }
   /** Whether the slice is over, and what the run came to. */
   ;(window as unknown as { __ending: () => unknown }).__ending = () => ({
-    level: you.level, ceiling: who?.levels?.[1] ?? 0,
+    level: you.level, ceiling: roster?.levels?.[1] ?? 0,
     finished: you.finished > 0, kills: you.kills, quests: log.done.size,
     purse: you.purse, rest: you.rest, restCap: restCap(),
   })
@@ -8697,7 +9159,7 @@ async function main() {
       inWorld: kinds.filter((e) => here.has(e)).length,
       abilities: Object.values(foes).flat().length,
       runnable: runnable.length,
-      wide: (spellbook.spells ?? []).filter((sp) => (sp.wide?.[0] ?? 0) > 0)
+      wide: bookOf(myClass).filter((sp) => (sp.wide?.[0] ?? 0) > 0)
         .map((sp) => ({ id: sp.id, wide: sp.wide[0] })),
       cued: Object.keys(spellbook.cues ?? {}).length,
       cues: Object.values(spellbook.cues ?? {}).flat().length,
@@ -8707,7 +9169,7 @@ async function main() {
   ;(window as unknown as { __press: (id: number) => unknown }).__press = (id) => {
     const sp = spells.find((x) => x.id === id)
     if (!sp) return null
-    you.rage = MAX_RAGE
+    you.power = powerMax()
     you.gcd = 0
     cast(sp)
     return {
@@ -8753,7 +9215,7 @@ async function main() {
      * the whole point of this is to press the right number.
      */
     offering: chat
-      ? offers(log, chat.npc.entry, you.level).map((q) => q.id).reverse()
+      ? offers(log, chat.npc.entry, you.level, myClass).map((q) => q.id).reverse()
       : [],
     marks: npcs.filter((n) => mark(log, n.entry, you.level))
       .map((n) => [n.entry, mark(log, n.entry, you.level)]),

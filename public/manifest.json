@@ -1,5 +1,5 @@
 {
-  "baked": "2026-09-14T00:20:45Z",
+  "baked": "2026-09-14T01:25:55Z",
   "upstream": {
     "azerothcore": "c0e6272af9a1",
     "client": "3.3.5a (12340)"
@@ -27,7 +27,12 @@
       "Human"
     ],
     "classes": [
-      "Warrior"
+      "Warrior",
+      "Paladin",
+      "Rogue",
+      "Priest",
+      "Mage",
+      "Warlock"
     ],
     "includeDungeons": false,
     "start": [
@@ -38,13 +43,13 @@
   },
   "synthesised": false,
   "files": {
-    "public/world/items.json": "05ceb1c9abd1039f",
+    "public/world/items.json": "cb61165ee2ad5792",
     "public/world/layout.json": "4510fcd476c71b08",
     "public/world/npcs.json": "43435cabd669436f",
     "public/world/objects.json": "f0417c2c696b711c",
-    "public/world/player.json": "0a1924051cf68ceb",
-    "public/world/quests.json": "5b66aaeddd726595",
-    "public/world/spells.json": "af82e3644c0950fc",
+    "public/world/player.json": "3655ca202e9aa5bb",
+    "public/world/quests.json": "7c98fbdc1cee770e",
+    "public/world/spells.json": "75f5b198f325e7fd",
     "public/world/terrain.bin": "18c59ace42d25785",
     "public/world/terrain.json": "9581733c53937196",
     "public/data/objects.json": "a23e0d05672315c6",

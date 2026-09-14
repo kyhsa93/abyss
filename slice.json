@@ -10,7 +10,7 @@
   ],
   "levels": [1, 10],
   "races": ["Human"],
-  "classes": ["Warrior"],
+  "classes": ["Warrior", "Paladin", "Rogue", "Priest", "Mage", "Warlock"],
   "includeDungeons": false,
   "start": [-8949.95, -132.493],
   "_start": "playercreateinfo for a human warrior. bake_terrain checks its own height grid against the server's figure here."

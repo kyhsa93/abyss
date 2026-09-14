@@ -284,6 +284,54 @@ for (const [W, H] of SIZES) {
   await p.close()
 }
 
+// --- six classes, each one actually played ---------------------------------
+//
+// `classcheck` asks the baked files whether every class has a book, a trainer
+// and a bar; this asks the *game*, by making one of each and looking at what
+// the character came out as.  They are different questions and the second is
+// the one issue 188 is about: "눌리는데 아무것도 못 배우는 직업이 없다" — no
+// class that can be pressed and then cannot do anything.
+//
+// One page a class, because a character is made once.
+{
+  const made = []
+  for (const cls of [1, 2, 4, 5, 8, 9]) {
+    const p = await b.newPage({ viewport: { width: 1280, height: 800 } })
+    p.on('pageerror', (e) => errs.push(String(e)))
+    await p.goto(HOST)
+    await p.waitForFunction(() => window.__makeOne !== undefined)
+    await p.waitForTimeout(400)
+    await p.evaluate((c) => window.__makeOne('가온', c), cls)
+    await p.waitForTimeout(400)
+    made.push(await p.evaluate(() => window.__you()))
+    await p.close()
+  }
+  check('every class the screen offers can be made',
+    made.length === 6 && made.every((m) => m.cls),
+    made.map((m) => `${m.cls}`).join(', '))
+  // Something to press from the first moment, which is the narrow promise.
+  const mute = made.filter((m) => m.spells.length === 0)
+  check('and every one of them has something to press at level one',
+    mute.length === 0,
+    mute.map((m) => m.cls).join(', ')
+    || made.map((m) => `${m.cls}: ${m.spells.length}`).join(', '))
+  // And a bar of its own kind, full or empty as the class's own rule says:
+  // rage is earned and the other two are not.
+  const bars = made.map((m) => `${m.cls} ${m.powerWord} ${m.power}/${m.powerMax}`)
+  check('and a bar of the kind its class swings on',
+    made.some((m) => m.powerWord === 'rage')
+    && made.some((m) => m.powerWord === 'mana')
+    && made.some((m) => m.powerWord === 'energy')
+    && made.every((m) => m.powerWord === 'rage'
+      ? m.power === 0 : m.power === m.powerMax && m.powerMax > 0),
+    bars.join(', '))
+  // And the six are not one class six times, which is the failure a check
+  // written around `me.cls` alone would miss entirely.
+  const books = new Set(made.map((m) => m.spells.join(',')))
+  check('and no two of them are the same character',
+    books.size === made.length, `${books.size} distinct books of ${made.length}`)
+}
+
 // --- the bar is the spellbook, and its letters are its keys -----------------
 //
 // Two bugs lived here at once and neither was visible from outside: the bar
@@ -335,7 +383,13 @@ for (const [W, H] of SIZES) {
   await p.evaluate(async () => {
     // Level ten, by earning it, so the abilities that need a level are held.
     window.__earn(100000)
-    const book = (await (await fetch('./world/spells.json')).json()).spells
+    // The book of the class this character actually is, which `__you` says.
+    // One flat list here would learn a mage's frostbolt on to a warrior and
+    // then assert that the bar did not grow, which is the check passing for
+    // the wrong reason.
+    const mine = window.__you().cls
+    const doc = await (await fetch('./world/spells.json')).json()
+    const book = doc.books[String(mine)] ?? []
     for (const sp of book) window.__learn(sp.id)
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
   })

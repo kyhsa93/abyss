@@ -64,10 +64,15 @@ STAGES = [
      'what stands there that is not a person'),
     ('quests', 'quests.py', True, 'public/world',
      'what they want doing'),
+    # And spells before items, for the same kind of reason.  A trainer row
+    # can be "learn these two spells" rather than an ability, so `items.py`
+    # has to know what such a row hands over before it can put the goods on
+    # the shelf — and its own check, that no trainer sells what its class
+    # cannot cast, was reading last bake's spellbook while it ran first.
+    ('spells', 'spells.py', True, 'public/world',
+     'what each class can do'),
     ('items', 'items.py', False, 'public/world',
      'what can be held, bought and taught'),
-    ('spells', 'spells.py', True, 'public/world',
-     'what a warrior can do'),
     ('layout', 'layout.py', True, 'public/world',
      "where the original puts every frame of its interface"),
     ('terrain', 'bake_terrain.py', True, 'public/data',

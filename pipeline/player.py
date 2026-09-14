@@ -26,10 +26,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from spawn_npcs import columns, rows, split, split_head, goods_of  # noqa: E402
-from slice import LEVELS, MAP  # noqa: E402
+from slice import LEVELS, MAP, CLASSES, CLASS_ID, RACES, RACE_ID  # noqa: E402
+from classes import powers_of, POWER_WORD  # noqa: E402
 
-# The one race and the one class this game has, by the ids the tables use.
-HUMAN, WARRIOR = 1, 1
+# The race this game is played as, by the id the tables use.  The class is no
+# longer a constant beside it: `slice.json` names six and every figure below
+# is per class, because that is what `player_class_stats` is.
+HUMAN = RACE_ID[RACES[0]]
 
 # `gtChanceToMeleeCrit` is one row a (class, level) pair, laid out as
 # `(class - 1) * GT_MAX_LEVEL + level - 1` — Player.cpp:5264.
@@ -51,8 +54,8 @@ def gt(base, name):
     return [out.get(i, 0.0) for i in range(max(out) + 1)] if out else []
 
 
-def outfit(client_root):
-    """What a new human warrior is holding, out of `CharStartOutfit.dbc`.
+def outfit(client_root, cls=1):
+    """What a new human of this class is holding, out of `CharStartOutfit.dbc`.
 
     The key packs race, class and gender into one field, which is why it has to
     be taken apart rather than compared: the row for a male human warrior is
@@ -68,8 +71,8 @@ def outfit(client_root):
     _m, n, fields, rsize, _sb = struct.unpack_from('<4sIIII', data, 0)
     for i in range(n):
         v = struct.unpack_from('<%di' % fields, data, 20 + i * rsize)
-        race, cls, gender = v[1] & 0xff, (v[1] >> 8) & 0xff, (v[1] >> 16) & 0xff
-        if race == HUMAN and cls == WARRIOR and gender == 0:
+        race, kind, gender = v[1] & 0xff, (v[1] >> 8) & 0xff, (v[1] >> 16) & 0xff
+        if race == HUMAN and kind == cls and gender == 0:
             return {x for x in v[2:2 + 24] if x > 0}
     return set()
 
@@ -82,14 +85,29 @@ def main(acore, client, out):
     # table because it is one everywhere — a new character is level one, and
     # the game this reproduces has no other answer.  What *was* here instead
     # was `HERO_LEVEL = 5`, chosen because the forest's wolves are five.
-    start = None
+    #
+    # **One place, not six.**  Every human class in this game is created on the
+    # same square of Northshire, and asserting that is cheaper than shipping
+    # the same three numbers six times: a start that differs by class is a
+    # fact this would rather fail on than quietly average.
+    start, places = None, {}
     for col, f in table(base, 'playercreateinfo'):
-        if int(f[col['race']]) == HUMAN and int(f[col['class']]) == WARRIOR:
-            start = [float(f[col['position_x']]), float(f[col['position_y']]),
-                     float(f[col['position_z']]), float(f[col['orientation']]),
-                     int(f[col['map']]), int(f[col['zone']])]
-    if not start or start[4] != MAP:
-        sys.exit('playercreateinfo has no human warrior on this map')
+        if int(f[col['race']]) != HUMAN:
+            continue
+        cls = int(f[col['class']])
+        places[cls] = [float(f[col['position_x']]), float(f[col['position_y']]),
+                       float(f[col['position_z']]), float(f[col['orientation']]),
+                       int(f[col['map']]), int(f[col['zone']])]
+    mine = {CLASS_ID[w] for w in CLASSES}
+    missing = sorted(mine - set(places))
+    if missing:
+        sys.exit('playercreateinfo has no human for class %s' % missing)
+    spots = {tuple(places[c][:3]) for c in mine}
+    if len(spots) != 1:
+        sys.exit('this slice\'s classes do not start together: %s' % spots)
+    start = places[sorted(mine)[0]]
+    if start[4] != MAP:
+        sys.exit('playercreateinfo starts a human off this map')
 
     race = {}
     for col, f in table(base, 'player_race_stats'):
@@ -97,21 +115,32 @@ def main(acore, client, out):
             race = {k: int(f[col[k]]) for k in
                     ('Strength', 'Agility', 'Stamina', 'Intellect', 'Spirit')}
 
+    # `{class id: {level: [str, agi, sta, int, spi, base hp, base mana]}}`.
+    #
+    # **`BaseMana` joins the row**, and it is the column that makes five of the
+    # six classes possible: it was read past for as long as this game had one
+    # class, because a warrior's is nought on every line of the table.
     stats = {}
     for col, f in table(base, 'player_class_stats'):
-        if int(f[col['Class']]) != WARRIOR:
+        cls = int(f[col['Class']])
+        if cls not in mine:
             continue
         lv = int(f[col['Level']])
         if not lo <= lv <= hi:
             continue
-        stats[lv] = [
+        stats.setdefault(cls, {})[lv] = [
             int(f[col['Strength']]) + race.get('Strength', 0),
             int(f[col['Agility']]) + race.get('Agility', 0),
             int(f[col['Stamina']]) + race.get('Stamina', 0),
             int(f[col['Intellect']]) + race.get('Intellect', 0),
             int(f[col['Spirit']]) + race.get('Spirit', 0),
             int(f[col['BaseHP']]),
+            int(f[col['BaseMana']]),
         ]
+    for cls in sorted(mine):
+        if len(stats.get(cls, {})) != hi - lo + 1:
+            sys.exit('player_class_stats has %d of %d levels for class %d'
+                     % (len(stats.get(cls, {})), hi - lo + 1, cls))
 
     ladder = {}
     for col, f in table(base, 'player_xp_for_level'):
@@ -119,8 +148,19 @@ def main(acore, client, out):
 
     crit_base = gt(base, 'gtchancetomeleecritbase_dbc')
     crit_ratio = gt(base, 'gtchancetomeleecrit_dbc')
-    ratio = {lv: crit_ratio[(WARRIOR - 1) * GT_MAX_LEVEL + lv - 1]
-             for lv in stats if (WARRIOR - 1) * GT_MAX_LEVEL + lv - 1 < len(crit_ratio)}
+    # And what a point of spirit is worth in mana a second —
+    # `Player::OCTRegenMPPerSpirit`, Player.cpp:5400, which multiplies this
+    # ratio by spirit and `Player::UpdateManaRegen` (StatSystem.cpp:950)
+    # multiplies *that* by the square root of intellect.  One row per class and
+    # level, the same shape as the critical hit table beside it.
+    mp_ratio = gt(base, 'gtregenmpperspt_dbc')
+
+    def per_class(cls):
+        at = lambda tab: {                                   # noqa: E731
+            str(lv): tab[(cls - 1) * GT_MAX_LEVEL + lv - 1]
+            for lv in stats[cls]
+            if (cls - 1) * GT_MAX_LEVEL + lv - 1 < len(tab)}
+        return at(crit_ratio), at(mp_ratio)
 
     # What he is handed on the way out of the door.  The class is our word for
     # it, the numbers are the item's own: a weapon's damage and swing, a piece
@@ -137,7 +177,11 @@ def main(acore, client, out):
     iclass, idamage = {}, {}
     ipath = os.path.join(base, 'item_template.sql')
     icol = columns(ipath)
-    wanted = outfit(client)
+    # One outfit a class, because a mage does not leave the door with a
+    # greatsword.  The starting kit was the reason the sword's numbers were
+    # right for the first time; six of them is the reason a priest's are.
+    dressed = {c: outfit(client, c) for c in sorted(mine)}
+    wanted = set().union(*dressed.values()) if dressed else set()
     for line in rows(ipath):
         f = split(line)
         try:
@@ -159,8 +203,9 @@ def main(acore, client, out):
     # behind them — so the character sheet said `입은 것 없음` while the same
     # sheet's attack line was quoting the greatsword's 2.9 second swing.  The
     # id is what lets the scene actually put the thing in his hands.
-    kit = [[e, iclass[e]] + idamage[e] for e in sorted(wanted) if e in idamage]
-    if not kit:
+    kits = {c: [[e, iclass[e]] + idamage[e] for e in sorted(v) if e in idamage]
+            for c, v in dressed.items()}
+    if not any(kits.values()):
         print('  no starting outfit: that is the client\'s table, and there '
               'is no client here', file=sys.stderr)
 
@@ -201,59 +246,118 @@ def main(acore, client, out):
              int(f[col['%s_storm_chance' % s]])]
             for s in ('spring', 'summer', 'fall', 'winter')]
 
+    # Which bar each class swings on — `ChrClasses.dbc`'s `DisplayPower`, the
+    # one fact here that is the client's rather than AzerothCore's, because
+    # `chrclasses_dbc.sql` in the dump is a schema with no rows.
+    powers = powers_of(bake_client(client)) if client else {}
+
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'player.json')
+    per = {}
+    for word in CLASSES:
+        cls = CLASS_ID[word]
+        ratio, spirit = per_class(cls)
+        power = POWER_WORD.get(powers.get(cls, 0), 'mana')
+        # Keyed on the class id, for the reason `spells.py` gives: the id is
+        # the game's number and the word is ours.
+        per[str(cls)] = {
+            # `[strength, agility, stamina, intellect, spirit, base health,
+            #   base mana]`
+            'stats': {str(k): v for k, v in sorted(stats[cls].items())},
+            # Agility to critical hit: a base per class and a ratio per level.
+            'critBase': crit_base[cls - 1] if len(crit_base) >= cls else 0.0,
+            'critRatio': ratio,
+            # What a new one is holding:
+            # `[entry, word, min, max, swing, armour, slot]`
+            'kit': kits.get(cls, []),
+            # Rage, mana or energy.
+            'power': power,
+            # And, for the ones that cast, what a point of spirit is worth a
+            # second at each level.  Shipped only where it means something:
+            # the table has a row for a warrior and the row is nought.
+            **({'spirit': spirit} if power == 'mana' else {}),
+        }
     doc = {
         'start': [round(start[0], 3), round(start[1], 3), round(start[2], 3)],
         'levels': [lo, hi],
-        # `[strength, agility, stamina, intellect, spirit, base health]`
-        'stats': {str(k): v for k, v in sorted(stats.items())},
         'xp': {str(k): v for k, v in sorted(ladder.items()) if lo <= k <= hi},
-        # Agility to critical hit: a base per class and a ratio per level.
-        'critBase': crit_base[WARRIOR - 1] if crit_base else 0.0,
-        'critRatio': {str(k): v for k, v in sorted(ratio.items())},
-        # What a new one is holding: `[entry, word, min, max, swing, armour, slot]`
-        'kit': kit,
         # Which graveyards each zone sends you to, `[x, y, z]` each.
         'graveyards': by_zone,
         # `{zone: [[rain, snow, storm] per season]}` — `game_weather`.
         'weather': sky,
+        # **Everything that differs by class, keyed on `slice.json`'s word.**
+        # It was six flat keys here when there was one class, which reads as a
+        # game whose stats are the game's rather than the character's.
+        'classes': per,
     }
     with open(path, 'w') as f:
         json.dump(doc, f)
 
     check(doc)
-    print(f'levels {lo}-{hi} -> {path}')
-    for lv in sorted(stats):
-        s = stats[lv]
-        print(f'  {lv:>2}  str {s[0]:>3} agi {s[1]:>3} sta {s[2]:>3}  '
-              f'base hp {s[5]:>4}  xp to next {ladder.get(lv, 0):>6}  '
-              f'crit/agi {ratio.get(lv, 0):.6f}')
-    print('  kit: ' + ', '.join(f'{k[0]} ({k[1]}-{k[2]}, {k[3]}ms, {k[4]} armour)'
-                                for k in kit))
+    print(f'levels {lo}-{hi}, {len(per)} classes -> {path}')
+    for word in CLASSES:
+        mine_ = per[str(CLASS_ID[word])]
+        one = mine_['stats'][str(lo)]
+        top = mine_['stats'][str(hi)]
+        health = one[5] + min(one[2], 20) + max(0, one[2] - 20) * 10
+        mana = one[6] + min(one[3], 20) + max(0, one[3] - 20) * 15 \
+            if mine_['power'] == 'mana' else 0
+        print('  %-9s %-6s  %3d health and %3d %-6s at %d, %4d and %4d at %d'
+              % (word, mine_['power'], health, mana,
+                 mine_['power'], lo,
+                 top[5] + min(top[2], 20) + max(0, top[2] - 20) * 10,
+                 (top[6] + min(top[3], 20) + max(0, top[3] - 20) * 15)
+                 if mine_['power'] == 'mana' else 0, hi))
+        print('       kit: ' + (', '.join(
+            f'{k[0]} ({k[2]}-{k[3]}, {k[4]}ms, {k[5]} armour)'
+            for k in mine_['kit']) or 'nothing — no client here'))
     print(f'  {len(yards)} graveyards on this map, '
           f'{len(by_zone)} zones know where to send you')
     print(f'  {len(sky)} zones have weather of their own')
 
 
-def check(doc):
-    """Two facts about a level one human warrior, from outside these tables.
+def bake_client(root):
+    """The client, opened the way `spells.py` opens it.
 
-    He has sixty health and he has more strength than agility.  Sixty is the
-    number every guide to this game opens with, and it is not in any column —
-    it is `BaseHP` plus the stamina curve, so it only comes out right if both
-    were read and the curve was applied.  Twenty base plus twenty-two stamina
-    gives twenty plus twenty plus twenty, which is sixty.
+    The locale patch has to come first or `DBFilesClient` is not found at all
+    — the same chain, and the one place the two scripts agree about it.
     """
-    one = doc['stats'].get('1')
-    if not one:
-        return
-    stamina = one[2]
-    health = one[5] + min(stamina, 20) + max(0, stamina - 20) * 10
-    print(f'check: a new human warrior has {health} health, '
-          f'{one[0]} strength and {one[1]} agility')
-    assert health == 60, f'a level one warrior should have 60 health, not {health}'
-    assert one[0] > one[1], 'a warrior is stronger than he is quick'
+    import bake_terrain
+    from spells import CHAIN
+    bake_terrain.CHAIN = CHAIN
+    return bake_terrain.Client(root)
+
+
+def check(doc):
+    """Facts about a new human, from outside these tables.
+
+    A warrior has sixty health and a mage has a hundred and sixty-five mana.
+    Neither is in any column: sixty is `BaseHP` plus the stamina curve and 165
+    is `BaseMana` plus the intellect curve, so they only come out right if both
+    halves were read and both curves applied.  The warrior's sixty guarded the
+    stamina curve for a year; the mage's mana is the same guard on the column
+    that was read past all that time, because a warrior's `BaseMana` is nought
+    on every line of the table and nought is what not reading it looks like.
+    """
+    for cls, one in ((1, 60), (8, 165)):
+        word = {1: 'Warrior', 8: 'Mage'}[cls]
+        got = doc['classes'].get(str(cls))
+        if not got:
+            continue
+        at = got['stats'].get('1')
+        if not at:
+            continue
+        sta, intel = at[2], at[3]
+        health = at[5] + min(sta, 20) + max(0, sta - 20) * 10
+        mana = at[6] + min(intel, 20) + max(0, intel - 20) * 15
+        have = health if cls == 1 else mana
+        what = 'health' if cls == 1 else 'mana'
+        print(f'check: a new human {word.lower()} has {have} {what}')
+        assert have == one, f'a level one {word} should have {one} {what}, not {have}'
+    war = doc['classes'].get('1')
+    if war:
+        at = war['stats']['1']
+        assert at[0] > at[1], 'a warrior is stronger than he is quick'
 
 
 if __name__ == '__main__':

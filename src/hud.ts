@@ -221,6 +221,14 @@ export function hud(layout?: Layout) {
   const rageBar = el('div', 'rage', me.root.parentElement!)
   const rageFill = el('div', 'fill', rageBar)
   const rageText = el('span', 'num', rageBar)
+  /**
+   * A rogue's combo points, as pips.
+   *
+   * In the flow under the portrait rather than pinned, which is why the phone
+   * layout does not have to know about it: `placePhone` places panels, and
+   * this is part of one.
+   */
+  const comboBox = el('div', 'combo', me.root.parentElement!)
   // The swing, as a bar. The original's cast bar is 195 by 13 sitting 55 above
   // the bottom edge — just over the action bar — and this is the same timer in
   // the same place.  It used to be a strip under the player's health, which is
@@ -228,6 +236,9 @@ export function hud(layout?: Layout) {
   const swingBar = el('div', '', ui)
   swingBar.id = 'swing'
   const swingFill = el('div', 'fill', swingBar)
+  const castText = el('span', 'num', swingBar)
+  /** What is being cast, if anything — see `setCast`. */
+  let casting: { word: string; at: number } | null = null
   // What is on you goes under you, and what is on the target goes under the
   // target.  Both were appended at the end, which put them under the
   // experience bar and made the two strips indistinguishable.
@@ -641,9 +652,48 @@ export function hud(layout?: Layout) {
       if (mapClock.textContent !== time) mapClock.textContent = time
     },
 
-    setRage(now: number, most: number) {
-      rageFill.style.width = `${Math.max(0, Math.min(1, now / most)) * 100}%`
+    /**
+     * The bar under the portrait, and which bar it is.
+     *
+     * `kind` is the class's own power — `rage`, `mana` or `energy` — and the
+     * colour comes from `FrameXML`'s own three, which `spell()` below has
+     * been reading into `--rage`, `--mana` and `--energy` all along.  Two of
+     * the three had nothing that could ever set them, because the game had
+     * one class.
+     */
+    setRage(now: number, most: number, kind = 'rage') {
+      rageFill.style.width = `${Math.max(0, Math.min(1, now / Math.max(1, most))) * 100}%`
+      rageFill.style.background = `var(--${kind})`
       rageText.textContent = `${Math.round(now)}`
+    },
+
+    /**
+     * What is being cast, in the bar the original calls the cast bar.
+     *
+     * `#swing` is pinned to `FrameXML`'s `CastingBarFrame` — `placePhone` and
+     * `place` both anchor it there — so a cast is what it was always for; the
+     * swing timer borrowed it while nothing in this game had a cast time.
+     * Casting wins while it lasts, and the swing takes the bar back after.
+     */
+    setCast(now: { word: string; at: number } | null) {
+      casting = now
+      if (!now) {
+        swingFill.style.background = ''
+        castText.textContent = ''
+        return
+      }
+      swingFill.style.width = `${Math.max(0, Math.min(1, now.at)) * 100}%`
+      swingFill.style.background = 'var(--mana)'
+      castText.textContent = now.word
+    },
+
+    /** A rogue's combo points, as up to five pips.  Nought hides the row. */
+    setCombo(n: number) {
+      if (comboBox.childElementCount !== n) {
+        comboBox.textContent = ''
+        for (let i = 0; i < n; i++) el('span', 'pip', comboBox)
+      }
+      comboBox.hidden = n === 0
     },
 
     /**
@@ -677,8 +727,9 @@ export function hud(layout?: Layout) {
       })
     },
 
-    /** How far through the swing, 0 to 1. */
+    /** How far through the swing, 0 to 1.  A cast, while there is one, wins. */
     setSwing(part: number) {
+      if (casting) return
       swingFill.style.width = `${Math.max(0, Math.min(1, part)) * 100}%`
     },
 

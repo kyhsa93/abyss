@@ -152,8 +152,6 @@ export function rageFrom(damage: number, level: number,
   return Math.min((fromDamage + fromSpeed) / 2, fromDamage * 2)
 }
 
-/** What the bar holds. */
-export const MAX_RAGE = 100
 
 /**
  * How much attention a blow buys.
@@ -187,7 +185,23 @@ export function threatFrom(damage: number, mods: number[] | undefined,
 export type Spell = {
   id: number
   level: number
-  rage: number
+  /**
+   * What it is paid for with, and how much of it.
+   *
+   * This was one field called `rage`, because the only class in the game paid
+   * for everything in rage — `powerType` was parsed by `spells.py` and thrown
+   * away, so every cost in the file was divided by ten whether or not it was
+   * stored at ten times its face value.  A rogue's forty-five energy came out
+   * as four.
+   *
+   * `pct` is the other half and it cannot be resolved in the pipeline: in this
+   * expansion a caster's cost is a **share of the caster's own base mana**, so
+   * it is a fact about the cast rather than about the spell.  `costOf` below
+   * puts the two together.
+   */
+  power: number
+  cost: number
+  pct?: number
   cool: number
   reach: [number, number]
   holds: number
@@ -224,6 +238,39 @@ export type Spell = {
   stance?: number
   /** How deep the same thing may sit on one target.  Sunder Armor's five. */
   stack?: number
+  /**
+   * What a combo point adds, per effect slot — `EffectPointsPerComboPoint`.
+   *
+   * A float in an integer column, which is why `spells.py` unpacks it the way
+   * it unpacks a radius.  Only a rogue's finishers have one, and without it
+   * Eviscerate is a five-point finisher that hits for one.
+   */
+  combo?: number[]
+}
+
+/**
+ * `POWER_*` as `Spell.dbc` spells them, and our word for each.
+ *
+ * `-2` is not in the core's `Powers` enum: it is the client's own spelling of
+ * "this costs health", which is what Bloodrage and Life Tap are.
+ */
+export const P_HEALTH = -2, P_MANA = 0, P_RAGE = 1, P_ENERGY = 3
+export const POWER_WORD: Record<number, string> = {
+  [P_HEALTH]: 'health', [P_MANA]: 'mana', [P_RAGE]: 'rage',
+  [P_ENERGY]: 'energy',
+}
+
+/**
+ * What one press costs, given who is pressing it.
+ *
+ * `Spell::CalculatePowerCost` (Spell.cpp): the flat cost plus the percentage
+ * of the caster's *base* power — which for mana is `GetCreateMana()`, the
+ * class's `BaseMana` for the level, and **not** the bar's maximum.  A mage's
+ * bar is base mana plus the intellect curve; charging a percentage of the bar
+ * would make every spell dearer the better his hat is.
+ */
+export function costOf(sp: Spell, basePower: number): number {
+  return sp.cost + Math.floor(((sp.pct ?? 0) * basePower) / 100)
 }
 
 /**
@@ -234,7 +281,40 @@ export type Spell = {
  * first effect is 2 and nothing here could run a 2.  With a radius resolved as
  * well, it is what makes the first area attack in this game work.
  */
-export const E_DAMAGE = 2, E_ENERGIZE = 3, E_AURA = 6, E_WEAPON_ADD = 58
+export const E_DAMAGE = 2, E_AURA = 6
+
+/**
+ * The four that are a swing rather than a spell — `Spell::EffectWeaponDmg`,
+ * SpellEffects.cpp:3617.
+ *
+ * The core points 17, 58 and 121 at the same function and they all do the
+ * same thing: **add a fixed amount to the damage of the weapon you are
+ * holding**.  31 is the multiplier in the same loop, applied after.  This was
+ * `E_WEAPON_ADD = 58` alone, which is the only one of the four a warrior has;
+ * 121 is Sinister Strike and Backstab, and 31 is what makes Backstab a hundred
+ * and fifty per cent of the weapon rather than ten damage.
+ */
+export const E_WEAPON_ADD = 58, E_WEAPON_NOSCHOOL = 17,
+  E_WEAPON_NORMALIZED = 121, E_WEAPON_PCT = 31
+export const WEAPON_FLAT = new Set([E_WEAPON_ADD, E_WEAPON_NOSCHOOL,
+  E_WEAPON_NORMALIZED])
+
+/**
+ * Power given back, and the two spellings of it.
+ *
+ * `E_ENERGIZE` is 30 — `Spell::EffectEnergize` — and it is Bloodrage.  What
+ * was called `E_ENERGIZE` here was **3, which is `SPELL_EFFECT_DUMMY`**, and
+ * it was right about exactly one spell: Charge's nine rage back is a dummy the
+ * core handles in a script.  A rogue made that wrong, because Eviscerate's
+ * second effect is a dummy too — read as energy it hands a rogue a hundred
+ * energy for finishing.  So a dummy is only power when the spell it sits on is
+ * a charge, and that is a shape in the row rather than a list of ids.
+ */
+export const E_ENERGIZE = 30, E_DUMMY = 3, E_CHARGE = 96
+/** A heal — `Spell::EffectHeal`, SpellEffects.cpp:82. */
+export const E_HEAL = 10
+/** And a rogue's book-keeping — `Spell::EffectAddComboPoints`. */
+export const E_COMBO = 80
 /**
  * And the two that name another spell rather than doing anything themselves.
  *
@@ -246,6 +326,28 @@ export const E_DAMAGE = 2, E_ENERGIZE = 3, E_AURA = 6, E_WEAPON_ADD = 58
 export const E_TRIGGER = 64, E_ATTACK_ME = 114
 /** And the auras. */
 export const A_PERIODIC_DAMAGE = 3, A_ATTACK_POWER = 99
+/**
+ * And the four the other five classes are made of.
+ *
+ * A renew is a periodic heal, a fortitude is `MOD_STAT` with the stat in
+ * `EffectMiscValue`, a devotion aura and a demon skin are `MOD_RESISTANCE`
+ * with armour as resistance nought, and a power word: shield is an absorb —
+ * a pool of damage that is eaten before health is.
+ */
+export const A_PERIODIC_HEAL = 8, A_MOD_STAT = 29, A_MOD_RESISTANCE = 22,
+  A_ABSORB = 69
+/**
+ * Which resistance armour is, for `A_MOD_RESISTANCE`'s `EffectMiscValue`.
+ *
+ * A **mask** rather than an index, which is worth knowing because reading it
+ * as an index makes armour resistance number one — the holy one — and every
+ * frost armour in the game stops doing anything.  Bit nought is the physical
+ * school, which is armour; a devotion aura, a frost armour and a demon skin
+ * all state exactly 1.
+ */
+export const SCHOOL_PHYSICAL = 1
+/** And which stat is which, for `A_MOD_STAT`'s — `Stats` in the core. */
+export const STAT_OF: Record<number, number> = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4 }
 /**
  * The three a stance is made of, and the one Sunder Armor is.
  *

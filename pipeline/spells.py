@@ -1,13 +1,35 @@
 #!/usr/bin/env python3
-"""What a warrior can do, out of the client's own tables.
+"""What each class can do, out of the client's own tables.
 
   python3 pipeline/spells.py [client] [azerothcore] [out]
 
 Two sources and neither of them invented.  **AzerothCore** says which abilities
-a warrior has and at what level — `trainer_spell`, where trainer 1 is the
-warrior — and the **client's `Spell.dbc`** says what each of them costs and
-does.  Between them a level 5 warrior knows four things, and every number
-attached to them is the game's.
+a class has and at what level — `trainer_spell`, joined to the class through
+`trainer.Requirement` — and the **client's `Spell.dbc`** says what each of them
+costs and does.  Between them a level 5 warrior knows four things, and every
+number attached to them is the game's.
+
+**One book a class, and the classes are `slice.json`'s.**  This was one book
+and the book was the warrior's, which is the shape `slice.py` exists to stop:
+the file said `WARRIOR_TRAINER = 1` and a second class would have been a
+second constant.  It is a join now — `pipeline/classes.py` is the four columns
+that differ between a warrior and a priest — and the id that was written down
+turns out to have been half an answer, because the warrior has trainers 1
+*and* 2.
+
+Three things a warrior does not have arrive with the other five, and all three
+are columns that were being read and thrown away:
+
+  * **what a thing costs is not rage.**  `powerType` was parsed and never
+    used, so every cost in this file was divided by ten whatever it was —
+    which is right for rage and wrong for a rogue's energy by a factor of ten.
+  * **and it is not always a number.**  In this expansion a caster's costs are
+    a *percentage of base mana*, in a column two hundred fields along, and a
+    spell whose whole cost lives there reads as free.
+  * **casting takes time.**  `SpellCastTimes.dbc` was resolved for the foes
+    and shipped for the player, where nothing read it: a warrior's abilities
+    are all instant, so a field that was always nought looked like a field
+    that did not matter.
 
 **Only integers leave this script.**  `Spell.dbc` is 49 MB of which 2.7 MB is a
 string block, and that block is Blizzard's prose — every ability name and
@@ -28,7 +50,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bake_terrain import Client  # noqa: E402
-from slice import LEVELS  # noqa: E402
+from slice import LEVELS, CLASSES, CLASS_ID, RACES, RACE_ID  # noqa: E402
+from classes import POWER_WORD, SCALE  # noqa: E402
 
 # The Korean client keeps `DBFilesClient` in its own patch archive, ahead of
 # everything the terrain reader looks in.
@@ -38,6 +61,26 @@ CHAIN = ['koKR/patch-koKR-3.MPQ', 'koKR/patch-koKR-2.MPQ', 'koKR/patch-koKR.MPQ'
 
 # 3.3.5a `Spell.dbc`, by index into its 234 fields.
 F_POWER, F_COST = 41, 42
+# And the cost that is not a number.  Wrath moved a caster's costs to a share
+# of the base mana of whoever is casting — so Smite's cost is nine, of a
+# priest's own bar, and `manaCost` beside it is nought.  Read only `manaCost`
+# and every spell a priest, mage, warlock or paladin owns is free.
+#
+# The field was found the way the global cooldown's was: the one column that
+# is a small percentage for Smite and for Fireball and nought for a heroic
+# strike, which lands it immediately after the four locale string blocks and
+# immediately before `StartRecoveryCategory` — where a 3.3.5 layout says
+# `ManaCostPercentage` is.
+#
+# It is **not** resolved to a number here, because it cannot be: a cost that
+# is a share of the caster's own bar is a fact about the cast and not about
+# the spell.  `src/sim/stats.ts` has the base mana and does the arithmetic.
+F_COST_PCT = 204
+# What a combo point is worth, which is a float in an int column — the same
+# packing `SpellRange.dbc` and `SpellRadius.dbc` use.  Eviscerate is one
+# damage and five more a point, so read as an integer it is a five-point
+# finisher that hits for one.
+F_COMBO = 119
 F_RECOVERY, F_CATEGORY_RECOVERY = 29, 30
 F_DURATION, F_RANGE, F_LEVEL = 40, 46, 39
 # The three index columns that were never resolved.  Without the first there
@@ -84,13 +127,14 @@ A_SHAPESHIFT = 36
 FORM_PASSIVE = {17: 21156, 18: 7376}
 F_MISC = 110
 
-# The warrior's trainer, and the class's own skill lines.  Trainer 1 teaches
-# Charge at level 4 and an ability that requires spell 78 at level 8, which is
-# what identifies it — no list of ids was typed in.
-WARRIOR_TRAINER = 1
-
-# Rage is stored at ten times what the bar shows.
-RAGE = 10
+#: `SPELL_EFFECT_LEARN_SPELL`, which is a trainer row that is not an ability.
+#:
+#: A paladin buys 10321 at level 4 and what he gets is two other spells — the
+#: judgement and the seal — because the thing on the shelf teaches rather than
+#: does.  Followed, because "what does this class learn by ten" is the
+#: question, and a book that lists the receipt instead of the goods answers a
+#: different one.
+E_LEARN = 36
 
 
 def dbc(client, name):
@@ -124,63 +168,64 @@ def dbc(client, name):
 # Except it is four.  Berserker Stance is `spellLevel` **30** in this client
 # and this game stops at ten, so it is out of the slice the same way a
 # Westfall quest is, and no amount of hand-writing changes that.
-WARRIOR_SKILLS = (26, 256, 257)
 LEARNED_ON_SKILL_VALUE, LEARNED_ON_SKILL_LEARN = 1, 2
 
 #: `Spell.dbc` field 4, and the one bit of it read here: a passive is not an
 #: ability, and two of the candidates are the stances' own hidden passives.
 F_ATTRIBUTES, ATTR_PASSIVE = 4, 0x40
 
-#: Given to a warrior by nobody and derivable from nothing — see above.  Each
-#: is `SkillLineAbility.dbc`'s own row for it, so the claim is checkable.
+#: Given by nobody and derivable from nothing — see above.  Keyed on the class,
+#: and each entry is `SkillLineAbility.dbc`'s own row for it, so the claim is
+#: checkable.
+#:
+#: **Only the warrior has any**, and that is a measurement rather than a hope:
+#: `main` prints, per class, every ability filed under the class's own skill
+#: lines within this slice's levels that neither a trainer sells nor the skill
+#: rules learn.  For the other five the whole of that list is talent proc
+#: spells — a stun a talent adds to a blast wave, a heal a talent adds to a
+#: renew — and a talent this game has none of is not an ability its owner is
+#: missing.
 BY_HAND = {
-    71: 'Defensive Stance — SkillLineAbility 6101, skill 257, spellLevel 10',
-    355: 'Taunt — SkillLineAbility 6114, skill 257, spellLevel 10',
-    7386: 'Sunder Armor — SkillLineAbility 6109, skill 257, spellLevel 10',
+    1: {
+        71: 'Defensive Stance — SkillLineAbility 6101, skill 257, spellLevel 10',
+        355: 'Taunt — SkillLineAbility 6114, skill 257, spellLevel 10',
+        7386: 'Sunder Armor — SkillLineAbility 6109, skill 257, spellLevel 10',
+    },
 }
 
 #: And what is named and still left out, with the number that decides it.
 TOO_HIGH = {2458: 'Berserker Stance — spellLevel 30, and this game ends at 10'}
 
 
-def given(client, base, spells, upto):
-    """Everything the class is handed, as {id: level}.
+def given(client, spells, upto, cls, skills, sla=None):
+    """Everything a class is handed, as `({id: level}, [left out])`.
 
     Two halves for two reasons, both of them above.  The derived half asks
     `SkillLineAbility.dbc` the question the core asks it and drops anything
-    passive; the named half is three ids the core would not learn either, with
-    the row that says where each came from.
-    """
-    from spawn_npcs import columns, rows, split
-    mine = set()
-    path = os.path.join(base, 'playercreateinfo_skills.sql')
-    col = columns(path)
-    for line in rows(path):
-        f = split(line)
-        try:
-            race, cls = int(f[col['raceMask']]), int(f[col['classMask']])
-        except (ValueError, KeyError, IndexError):
-            continue
-        if (not race or race & 1) and (not cls or cls & 1):
-            mine.add(int(f[col['skill']]))
-    if not set(WARRIOR_SKILLS) <= mine:
-        sys.exit('a human warrior does not start with %s — the skill lines '
-                 'moved' % (set(WARRIOR_SKILLS) - mine))
+    passive; the named half is `BY_HAND`, ids the core would not learn either,
+    with the row that says where each came from.
 
-    out = {}
-    for r in dbc(client, 'SkillLineAbility'):
-        _id, skill, sid, _race, cls = r[0], r[1], r[2], r[3], r[4]
-        if skill not in WARRIOR_SKILLS or not cls & 1:
-            continue
-        if r[9] not in (LEARNED_ON_SKILL_VALUE, LEARNED_ON_SKILL_LEARN):
+    The third return is the one that makes the second honest: **every ability
+    filed under this class's own skill lines, in range, that neither half
+    picked up**.  That list is how the warrior's three were found in the first
+    place, and leaving it uncounted is how a fourth would be missed.
+    """
+    out, spare = {}, {}
+    for r in sla:
+        _id, skill, sid, _race, mask = r[0], r[1], r[2], r[3], r[4]
+        if skill not in skills or not mask & (1 << (cls - 1)):
             continue
         sp = spells.get(sid)
         if sp is None or sp[F_ATTRIBUTES] & ATTR_PASSIVE:
             continue
         lv = sp[F_LEVEL]
-        if 1 <= lv <= upto:
+        if not 1 <= lv <= upto:
+            continue
+        if r[9] in (LEARNED_ON_SKILL_VALUE, LEARNED_ON_SKILL_LEARN):
             out[sid] = lv
-    for sid in BY_HAND:
+        else:
+            spare[sid] = lv
+    for sid in BY_HAND.get(cls, ()):
         sp = spells.get(sid)
         if sp is None:
             sys.exit(f'{sid} is not in this client')
@@ -188,42 +233,68 @@ def given(client, base, spells, upto):
             sys.exit(f'{sid} is spellLevel {sp[F_LEVEL]}, outside 1..{upto} — '
                      'move it to TOO_HIGH rather than shipping it')
         out[sid] = sp[F_LEVEL]
-    return out
+    return out, spare
 
 
-def known(base, upto):
-    """Every warrior ability a human has by `upto`, as {id: level}.
+def starts_with(base, race, cls):
+    """Which skill lines this race and class are created holding.
 
-    Two tables.  `playercreateinfo_action` is the bar a new human warrior is
+    Asked rather than asserted.  The warrior's three were written down here as
+    a tuple and checked against the table; six classes is thirty-odd lines of
+    them, and a list that has to be kept in step with a table it is read from
+    is the second copy this repository keeps deleting.
+    """
+    from classes import skills_of
+    mine = skills_of(base, race).get(cls, set())
+    if not mine:
+        sys.exit(f'a human of class {cls} starts with no skills at all — '
+                 'playercreateinfo_skills moved')
+    return mine
+
+
+def known(base, upto, cls, trainers, bar, spells, grants):
+    """Every ability of this class a human has by `upto`, as {id: level}.
+
+    Two tables.  `playercreateinfo_action` is the bar a new character is
     created holding — which is what the class starts with, and the only
     statement of it in this dump, since `playercreateinfo_spell_custom` has no
-    rows.  `trainer_spell` is everything the warrior trainer will add.
+    rows.  `trainer_spell`, for **every** trainer of the class, is everything
+    the trainers will add.
 
     The prerequisites named in a trainer row are *not* starting abilities.
     Reading them that way put Mortal Strike and Devastate on a level 1
     warrior's list — both talents, both named as a requirement by something
     else, neither taught by anybody at level 1.
+
+    A row that teaches rather than does is followed: `E_LEARN` names the
+    spells it hands over, and those are what the class ends up with.  What it
+    was is not thrown away — `grants` carries it, because `items.py` puts the
+    row on a trainer's shelf and the shelf has to offer the goods rather than
+    the receipt.
     """
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from spawn_npcs import columns, rows, split
     out, free = {}, set()
-    act = os.path.join(base, 'playercreateinfo_action.sql')
-    ac = columns(act)
-    for line in rows(act):
-        f = split(line)
-        if int(f[ac['class']]) == 1 and int(f[ac['race']]) == 1 \
-                and int(f[ac['type']]) == 0:
-            out[int(f[ac['action']])] = 1
-            free.add(int(f[ac['action']]))
+    for sid in bar:
+        out[sid] = 1
+        free.add(sid)
     path = os.path.join(base, 'trainer_spell.sql')
     col = columns(path)
     for line in rows(path):
         f = split(line)
-        if int(f[col['TrainerId']]) != WARRIOR_TRAINER:
+        if int(f[col['TrainerId']]) not in trainers:
             continue
         lv = int(f[col['ReqLevel']]) or 1
-        if lv <= upto:
-            out.setdefault(int(f[col['SpellId']]), lv)
+        if lv > upto:
+            continue
+        sid = int(f[col['SpellId']])
+        r = spells.get(sid)
+        taught = [r[F_TRIGGER + i] for i in range(3)
+                  if r and r[F_EFFECT + i] == E_LEARN and r[F_TRIGGER + i]] \
+            if r else []
+        if taught:
+            grants[sid] = taught
+        for got in (taught or [sid]):
+            out.setdefault(got, lv)
     return out, free
 
 
@@ -344,28 +415,74 @@ def main(client_root, acore, out, upto=None):
     # argument nobody outside this file could see.
     upto = upto or LEVELS[1]
     world = os.path.join(acore, 'data/sql/base/db_world')
-    want, free = known(world, upto)
-    # And what nobody sells, which is where five of these were hiding.  Given
-    # abilities are `free` in exactly the sense the starting bar is: there is
-    # no trainer row and no money.
-    handed = given(c, world, spells, upto)
-    for sid, lv in handed.items():
-        want.setdefault(sid, lv)
-        free.add(sid)
+
+    # Who this game's classes are, and the four columns that differ between
+    # them.  All four are joins rather than constants — see `classes.py`.
+    from classes import trainers_of, bars_of, powers_of
+    sla = dbc(c, 'SkillLineAbility')
+    sells = trainers_of(world)
+    bars = bars_of(world, RACE_ID[RACES[0]])
+    power_of = powers_of(c)
+    books, unlearned, grants = {}, {}, {}
+    for word in CLASSES:
+        cls = CLASS_ID[word]
+        want, free = known(world, upto, cls, set(sells.get(cls, ())),
+                           bars.get(cls, set()), spells, grants)
+        # And what nobody sells, which is where five of the warrior's were
+        # hiding.  Given abilities are `free` in exactly the sense the
+        # starting bar is: there is no trainer row and no money.
+        handed, spare = given(c, spells, upto, cls,
+                              starts_with(world, RACE_ID[RACES[0]], cls), sla)
+        for sid, lv in handed.items():
+            want.setdefault(sid, lv)
+            free.add(sid)
+        unlearned[word] = sorted(set(spare) - set(want))
+        # **Keyed on the class id and not on the word.**  `slice.json`'s words
+        # are this repository's; the id is the game's, and it is what a
+        # character carries, what a trainer's `Requirement` is and what the
+        # creation screen's buttons are.  A word key would need a word-to-id
+        # table in `src/`, which is the table `slice.py` exists to be the only
+        # copy of.
+        books[str(cls)] = build(want, free, spells, ranges, radii, casts,
+                                durations, power_of.get(cls, 0))
+
+    # The book the checks below read, and the one a warrior presses.  Every
+    # assertion in this file is a fact about a warrior's abilities, because
+    # they are what the field offsets were found against.
+    out_rows = books.get(str(CLASS_ID['Warrior']), [])
+    return finish(books, out_rows, unlearned, grants, spells, ranges, radii,
+                  durations, acore, out, upto, c)
+
+
+def build(want, free, spells, ranges, radii, casts, durations, power):
+    """One class's book, as rows.
+
+    `power` is the class's own — `ChrClasses.dbc`'s `DisplayPower` — and a
+    spell that says something else says it for itself: Bloodrage and Life Tap
+    are paid for in health by a warrior and a warlock alike.
+    """
     out_rows = []
     for sid, lv in sorted(want.items(), key=lambda kv: (kv[1], kv[0])):
         r = spells.get(sid)
         if r is None:
             continue
         lo, hi = ranges.get(r[F_RANGE], (0.0, 5.0))
+        # What it is paid for with, and what a bar of that is stored at.  Rage
+        # is kept at ten times what the bar shows and energy is not, which is
+        # the whole reason this was wrong the moment a rogue existed.
+        mine = r[F_POWER] if r[F_POWER] else power
         row = {
             'id': sid, 'level': lv,
-            'rage': r[F_COST] // RAGE,
+            'power': mine,
+            'cost': r[F_COST] // SCALE.get(POWER_WORD.get(mine, ''), 1),
+            # And the half of a cost that is a share of the caster's own bar
+            # rather than a number — see `F_COST_PCT`.
+            **({'pct': r[F_COST_PCT]} if r[F_COST_PCT] else {}),
             'cool': max(r[F_RECOVERY], r[F_CATEGORY_RECOVERY]),
             'reach': [lo, hi],
             # Whether he is created holding it.  Everything else is bought
             # from a trainer — `playercreateinfo_action` is the bar a new
-            # human warrior is made with, and it is two things.
+            # character of the class is made with.
             **({'free': 1} if sid in free else {}),
             'holds': durations.get(r[F_DURATION], 0),
             # What it makes you wait before pressing anything else.  Nought
@@ -388,6 +505,13 @@ def main(client_root, acore, out, upto=None):
             # five, which is the client's and not a choice made here.
             'stack': r[F_STACK],
         }
+        # What a combo point adds, per effect — a float packed into an int
+        # column.  Only the rogue's finishers have one, and without it
+        # Eviscerate is a five-point finisher that hits for one.
+        combo = [round(f, 1) for f in struct.unpack(
+            '<3f', struct.pack('<3i', *(r[F_COMBO + i] for i in range(3))))]
+        if any(combo):
+            row['combo'] = combo
         # What a stance is, once the form it names is followed to the passive
         # that carries its numbers.  Four fields deep and every one of them a
         # column: the stance's aura says the form, the core says which passive
@@ -405,12 +529,22 @@ def main(client_root, acore, out, upto=None):
                              p[F_MISC + i]]
                             for i in range(3) if p[F_EFFECT + i]]
         out_rows.append(row)
+    return out_rows
 
+
+def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
+           durations, acore, out, upto, c):
+    """The parts that are the world's rather than one class's, and the checks.
+
+    Split out because `main` had grown into one function that read six tables,
+    built a book and asserted eight facts; with six books to build the middle
+    of it became a loop and the two ends did not.
+    """
     # The layout, checked against a fact rather than trusted.  Spell 78 is a
     # rage ability that costs fifteen; if the offsets are off by one this comes
     # back as something else and the whole table is quietly wrong.
     check = next((r for r in out_rows if r['id'] == 78), None)
-    if not check or check['rage'] != 15:
+    if not check or check['cost'] != 15 or check['power'] != 1:
         sys.exit('Spell.dbc field offsets are wrong: 78 came back as %s' % check)
     # And the global cooldown, the same way: a heavier blow goes off the next
     # swing and starts no wait, and a shout starts a second and a half.  Read
@@ -509,7 +643,7 @@ def main(client_root, acore, out, upto=None):
     # reported rather than dropped** — a closure that quietly stops is a
     # closure that lies about being closed.
     reached, stopped = closure(
-        {r['id'] for r in out_rows}
+        {r['id'] for b in books.values() for r in b}
         | {sp['id'] for v in foes.values() for sp in v},
         spells, acore, depth=4)
 
@@ -579,7 +713,7 @@ def main(client_root, acore, out, upto=None):
                     int(f[col['apPctMod']])]
             except (ValueError, KeyError, IndexError):
                 continue
-    for row in out_rows:
+    for row in (r for b in books.values() for r in b):
         if row['id'] in threat:
             row['threat'] = threat[row['id']]
 
@@ -589,10 +723,11 @@ def main(client_root, acore, out, upto=None):
     # would ship a hundred and thirty spells nothing presses.
     linked = []
     seen = set()
-    for row in out_rows:
+    own = {r['id'] for b in books.values() for r in b}
+    for row in (r for b in books.values() for r in b):
         for e in row['does']:
             fired = e[TRIGGERS]
-            if not fired or fired in seen or any(r['id'] == fired for r in out_rows):
+            if not fired or fired in seen or fired in own:
                 continue
             r = spells.get(fired)
             if r is None:
@@ -611,10 +746,33 @@ def main(client_root, acore, out, upto=None):
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, 'spells.json')
     with open(path, 'w') as f:
-        json.dump({'spells': out_rows, 'melee': melee, 'foes': foes,
-                   'cues': cues, 'linked': linked}, f)
-    print(f'{len(out_rows)} abilities to level {upto} -> {path}'
+        # **`books` and not `spells`.**  One book was a key called `spells`
+        # and six are a map keyed on the class, and the scene picks the one
+        # the character is.  Nothing reads the old key: a second key holding
+        # the warrior's book "for compatibility" is the two-lists-that-drift
+        # mistake this repository has paid for four times.
+        json.dump({'books': books, 'melee': melee, 'foes': foes,
+                   'cues': cues, 'linked': linked, 'grants': grants}, f)
+    print(f'{sum(len(b) for b in books.values())} abilities over '
+          f'{len(books)} classes to level {upto} -> {path}'
           f'   combat range {melee} yards')
+    by_word = {str(CLASS_ID[w]): w for w in CLASSES}
+    for key, rows_ in sorted(books.items(), key=lambda kv: by_word[kv[0]]):
+        word = by_word[key]
+        by = {}
+        for r in rows_:
+            by[r['power']] = by.get(r['power'], 0) + 1
+        print('  %-9s %2d abilities, paid for in %s'
+              % (word, len(rows_),
+                 ', '.join('%s x%d' % (POWER_WORD.get(k, k), v)
+                           for k, v in sorted(by.items()))))
+        if unlearned.get(word):
+            # Every ability filed under the class's own skill lines, in range,
+            # that no trainer sells and no skill rule learns.  This is the
+            # list the warrior's three were found in; printing it is what
+            # stops a fourth being missed in silence.
+            print('       %d in range that nobody teaches: %s'
+                  % (len(unlearned[word]), unlearned[word]))
     print('  ' + (', '.join(f"{r['id']} fires {e[TRIGGERS]}" for r in out_rows
                             for e in r['does'] if e[TRIGGERS])
                   or 'nothing fires anything, which is what the wrong column '
@@ -635,9 +793,11 @@ def main(client_root, acore, out, upto=None):
         print('  effects it cannot run, by how often: '
               + ', '.join(f'{k} x{v}' for k, v in
                           sorted(unrun.items(), key=lambda kv: -kv[1])))
+    WORD = POWER_WORD
     for r in out_rows:
-        print('  %-6d level %-3d %2d rage  %5dms  reach %s  %s'
-              % (r['id'], r['level'], r['rage'], r['cool'], r['reach'], r['does']))
+        print('  %-6d level %-3d %3d %-6s %5dms  reach %s  %s'
+              % (r['id'], r['level'], r['cost'], WORD.get(r['power'], '?'),
+                 r['cool'], r['reach'], r['does']))
 
 
 if __name__ == '__main__':

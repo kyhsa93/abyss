@@ -27,7 +27,7 @@ import { AGI, INT, SPI, STA, STR, type Stats } from './stats.ts'
 export type Item = (string | number | (string | number)[][])[]
 export const I_WORD = 0, I_SLOT = 1, I_QUALITY = 2, I_ILVL = 3, I_NEED = 4,
   I_LO = 5, I_HI = 6, I_DELAY = 7, I_ARMOUR = 8, I_BUY = 9, I_SELL = 10,
-  I_BOTH_HANDS = 11, I_STATS = 12, I_ARM = 13
+  I_BOTH_HANDS = 11, I_STATS = 12, I_ARM = 13, I_CLASSES = 14
 
 /**
  * What quality looks like.
@@ -81,7 +81,19 @@ export type Shelf = {
   /** What each vendor stocks: `[item, how many at once, seconds to restock]`. */
   stock: Record<string, number[][]>
   /** What each trainer teaches: `[spell, cost, level, skill, prerequisite]`. */
-  trainers: Record<string, { of: number; teaches: number[][] }>
+  trainers: Record<string, {
+    of: number
+    /**
+     * Which class it teaches — `trainer.Requirement` for a type 0 trainer.
+     *
+     * `of` beside it is the trainer's *type*, which is nought on every row
+     * that reaches here because only type 0 does: a field computed once and
+     * never able to differ.  With six classes in the game the question a
+     * trainer answers is "is this one mine", and this is the column that says.
+     */
+    for?: number
+    teaches: number[][]
+  }>
 }
 
 /** The slots a paperdoll has a layer for, in the order they are drawn. */
@@ -97,11 +109,35 @@ const STAT_INDEX: Record<string, number> = {
 /**
  * Can he wear it?
  *
- * The class and race masks were already applied by the bake — everything here
- * is something a human warrior could hold — so what is left is the level.
+ * Three questions and the bake can only answer one of them now.  With one
+ * class in the game "in this world" and "for me" were the same sentence, so
+ * the mask was applied in `items.py` and nothing here had to ask again; with
+ * six, a mage's robe passes the bake and is still not a warrior's.  So
+ * `items.py` ships the column and this asks it for the character who is
+ * actually standing there.
+ *
+ * `cls` defaults to nought, which means "do not ask" — that is what the
+ * checks and the simulation pass, because a duel has no wardrobe.
  */
-export const canWear = (it: Item, level: number): boolean =>
+export const canWear = (it: Item, level: number, cls = 0): boolean =>
   !!it[I_SLOT] && (it[I_NEED] as number) <= level
+  && forClass(it, cls)
+
+/**
+ * Whether this class may hold it at all — `item_template.AllowableClass`.
+ *
+ * **Nought is anybody, and it is the only spelling of anybody there is**,
+ * because `items.py`'s `only_some` folds the dump's three — `0`, `-1` and all
+ * fifteen bits — into it before shipping. Reading all three here instead
+ * would work and would still be wrong: the shop's own check asks whether two
+ * rows are the same item by comparing the whole shipped row, and two ways of
+ * writing the same permission made one trade good into two.
+ */
+export const forClass = (it: Item, cls: number): boolean => {
+  if (!cls) return true
+  const mask = (it[I_CLASSES] as number) ?? 0
+  return mask === 0 || !!(mask & (1 << (cls - 1)))
+}
 
 /**
  * What is worn, added to what he is.

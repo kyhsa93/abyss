@@ -66,6 +66,80 @@ ABILITY = {
     71: ('lorc', 'shield-reflect'),        # 방어 자세
     355: ('lorc', 'screaming'),            # 도발
     7386: ('lorc', 'cracked-shield'),      # 방어구 부수기
+    # And the five other classes, in the order `slice.json` names them.  Every
+    # one of these is a picture chosen for **what the ability does** rather
+    # than for what the original draws — the original's icons are Blizzard's
+    # art and this repository does not take art.  A heal is a hand with light
+    # in it whatever the client calls it.
+    465: ('lorc', 'shield-echoes'),     # 헌신의 기운
+    10290: ('lorc', 'bordered-shield'), # 헌신의 기운 2
+    498: ('lorc', 'winged-shield'),     # 신의 보호
+    633: ('delapouite', 'hand-of-god'), # 손 얹기
+    635: ('delapouite', 'healing'),     # 성스러운 빛
+    639: ('lorc', 'shining-heart'),     # 성스러운 빛 2
+    853: ('lorc', 'hammer-drop'),       # 심판의 망치
+    1022: ('lorc', 'magic-shield'),     # 보호의 축복
+    1152: ('delapouite', 'holy-water'), # 정화
+    19740: ('lorc', 'muscle-up'),       # 힘의 축복
+    20154: ('lorc', 'sun-radiations'),  # 정의의 일격
+    20271: ('lorc', 'gavel'),           # 심판
+    21084: ('lorc', 'holy-symbol'),     # 정의의 인장
+    53: ('lorc', 'backstab'),           # 등 찌르기
+    674: ('lorc', 'daggers'),           # 쌍수 무기
+    921: ('delapouite', 'robber'),      # 소매치기
+    1752: ('lorc', 'knife-thrust'),     # 사악한 일격
+    1757: ('lorc', 'stiletto'),         # 사악한 일격 2
+    1776: ('lorc', 'sword-wound'),      # 후벼파기
+    1784: ('lorc', 'hood'),             # 은신
+    2098: ('lorc', 'cloak-dagger'),     # 절개
+    6760: ('delapouite', 'dagger-rose'), # 절개 2
+    2764: ('lorc', 'arrow-flights'),    # 던지기
+    2983: ('darkzaitzev', 'running-ninja'), # 전력 질주
+    5171: ('lorc', 'sparkling-sabre'),  # 난도질
+    5277: ('delapouite', 'invisible'),  # 회피
+    6770: ('lorc', 'sleepy'),           # 기절시키기
+    17: ('lorc', 'shield-bounces'),     # 신의 방패
+    139: ('zeromancer', 'heart-plus'),  # 소생
+    585: ('lorc', 'sunbeams'),          # 성스러운 일격
+    591: ('lorc', 'beams-aura'),        # 성스러운 일격 2
+    586: ('lorc', 'cloud-ring'),        # 소멸
+    589: ('lorc', 'evil-moon'),         # 어둠의 고통
+    594: ('lorc', 'shadow-grasp'),      # 어둠의 고통 2
+    1243: ('lorc', 'prayer'),           # 인내의 기도
+    2006: ('lorc', 'angel-wings'),      # 일으키기
+    2050: ('lorc', 'miracle-medecine'), # 하급 치유
+    2052: ('lorc', 'glowing-hands'),    # 하급 치유 2
+    2053: ('lorc', 'meditation'),       # 하급 치유 3
+    8092: ('lorc', 'brain-freeze'),     # 정신 분열
+    5019: ('lorc', 'crystal-wand'),     # 지팡이 사격
+    116: ('lorc', 'ice-bolt'),          # 얼음 화살
+    205: ('delapouite', 'ice-spell-cast'), # 얼음 화살 2
+    118: ('lorc', 'spotted-mushroom'),  # 변이
+    122: ('lorc', 'frozen-orb'),        # 서리 고리
+    133: ('lorc', 'fireball'),          # 화염구
+    143: ('delapouite', 'fire-spell-cast'), # 화염구 2
+    168: ('lorc', 'ice-shield'),        # 서리 갑옷
+    7300: ('lorc', 'snowflake-1'),      # 서리 갑옷 2
+    1459: ('delapouite', 'bolt-spell-cast'), # 비전 지능
+    2136: ('lorc', 'fire-bomb'),        # 화염 작렬
+    5143: ('lorc', 'magic-palm'),       # 비전 화살
+    5504: ('sbed', 'water-drop'),       # 물 만들기
+    587: ('delapouite', 'water-flask'), # 물 만들기 2
+    5505: ('delapouite', 'bread'),      # 음식 만들기
+    172: ('lorc', 'spiral-bloom'),      # 부패
+    348: ('carl-olsen', 'flame'),       # 제물
+    707: ('lorc', 'burning-embers'),    # 제물 2
+    686: ('lorc', 'magic-swirl'),       # 어둠의 화살
+    695: ('lorc', 'fire-ray'),          # 어둠의 화살 2
+    687: ('lorc', 'skull-shield'),      # 악마의 가죽
+    696: ('lorc', 'mineral-heart'),     # 악마의 가죽 2
+    688: ('lorc', 'imp-laugh'),         # 임프 부르기
+    702: ('delapouite', 'arm-sling'),   # 약화의 저주
+    980: ('lorc', 'poison-bottle'),     # 고통의 저주
+    1120: ('delapouite', 'soul-vessel'), # 영혼 흡수
+    1454: ('lorc', 'life-tap'),         # 생명 전환
+    5782: ('lorc', 'terror'),           # 공포
+    6201: ('lorc', 'heart-drop'),       # 생명석 만들기
 }
 
 # And one an item, by the pair `items.py` reduces 1,429 rows to: our word for
@@ -151,17 +225,26 @@ def path_of(pair):
 
 
 def check(out):
-    """Every ability in the book has its own picture, and no two share one.
+    """Every ability in every book has its own picture, and no two share one.
 
     The second half is the one that would have caught this: seven squares of a
     twelve-square bar were drawing the same sword, and a count of icons would
     have said nine files and been quite happy.
+
+    **Across the books and not within one**, which is the reading six classes
+    forced.  Two abilities that share a picture are two squares a player
+    cannot tell apart, and whether they sit on the same bar has nothing to do
+    with it — a warrior's and a rogue's are both on somebody's screen.  Three
+    ids genuinely are on more than one bar (the plain attack, the wand, and
+    the racial), and those are one ability each rather than two sharing.
     """
     book = os.path.join(os.path.dirname(out), 'world', 'spells.json')
     if not os.path.exists(book):
         return
     with open(book) as f:
-        ids = [sp['id'] for sp in json.load(f).get('spells', [])]
+        doc = json.load(f)
+    books = doc.get('books', {})
+    ids = sorted({sp['id'] for rows in books.values() for sp in rows})
     missing = [i for i in ids if i not in ABILITY]
     if missing:
         sys.exit('the spellbook has %d abilities with no picture: %s'
@@ -172,8 +255,8 @@ def check(out):
     shared = {k: v for k, v in twice.items() if len(v) > 1}
     if shared:
         sys.exit('two abilities draw the same picture: %s' % shared)
-    print(f'check: {len(ids)} abilities, {len(set(ABILITY[i] for i in ids))} '
-          f'pictures, none of them shared')
+    print(f'check: {len(ids)} abilities over {len(books)} books, '
+          f'{len(set(ABILITY[i] for i in ids))} pictures, none of them shared')
 
 
 def check_goods(out):

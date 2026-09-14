@@ -22,7 +22,7 @@
  */
 
 /** Bumped whenever the shape below changes; `migrate` walks v1 → v2 → v3. */
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 export type Save = {
   version: number
@@ -31,7 +31,17 @@ export type Save = {
   at: number
   hero: { x: number; y: number; dir: number }
   you: {
-    level: number; xp: number; hp: number; rage: number; purse: number
+    level: number; xp: number; hp: number; purse: number
+    /**
+     * What is in the bar, whichever bar the class has.
+     *
+     * This was `rage`, and the rename is the point rather than tidying: a
+     * number called rage on a rogue's save is a number somebody will one day
+     * put into a rage bar.  Which bar it is is not stored — it is the class's,
+     * out of `player.json`, and storing it would be a second copy that can
+     * disagree with the character.
+     */
+    power: number
     kills: number
     bag: Record<string, [number, number]>
     trades: Record<string, number>
@@ -159,4 +169,19 @@ const STEPS: Record<number, (s: Save) => Save> = {
            who: { name: '주인공', race: 1, sex: 0, cls: 1,
                   hair: 'plain', beard: '' } },
   }),
+  /**
+   * 2 → 3: the bar stopped being a rage bar.
+   *
+   * Every save that exists was made by a warrior, so what was in `rage` is
+   * exactly what belongs in `power` — this is a rename with a character
+   * behind it rather than a conversion.  It is a step anyway, because the
+   * field is gone and a save that keeps answering `undefined` for the bar is
+   * a character who logs in empty and cannot tell you why.
+   */
+  2: (s) => {
+    const was = s.you as unknown as { rage?: number }
+    const you = { ...s.you, power: was.rage ?? 0 }
+    delete (you as unknown as { rage?: number }).rage
+    return { ...s, version: 3, you }
+  },
 }

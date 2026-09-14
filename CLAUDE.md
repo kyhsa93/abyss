@@ -373,6 +373,32 @@ plus attack power over its swing, and critical chance is the client's own
 `gtChanceToMeleeCrit` interpolation. He was statted as *a creature of his own
 level* before this, which meant nothing he wore or trained could ever matter.
 
+**And there are six of him.** `slice.json` names the classes the same way it
+names the levels and the box, so opening the other five was a line there and a
+re-bake: `pipeline/classes.py` is the four columns that differ between a
+warrior and a priest — the trainer (`trainer.Requirement`), the starting
+skills, the starting bar, and rage against mana against energy
+(`ChrClasses.dbc`'s `DisplayPower`). Every one of them was a join waiting to
+be made rather than a feature waiting to be written; what was actually in the
+way was **three columns that were being read and thrown away**. `powerType`
+was parsed and unused, so every cost in the book was divided by ten whether or
+not it was stored at ten times its face (right for rage, wrong for a rogue's
+energy by a factor of ten). `ManaCostPercentage` was not read at all, and in
+this expansion a caster's whole cost lives there — a share of his own base
+mana — so Smite looked free. And `SpellCastTimes.dbc` was resolved, shipped
+and read by nothing, because a warrior's abilities are all instant and a
+column that is always nought looks exactly like a column that does not matter.
+
+The three bars are three different games and the core states all three:
+**energy comes back whether you are fighting or not** (ten a second flat,
+Player.cpp:1941), **mana stops coming back for five seconds the moment you
+spend any** (`IsUnderLastManaUseEffect`; with no talents anywhere in this game
+the interrupted modifier is exactly nought), and **rage drains when nobody is
+swinging**. `npm run classcheck` is the gate, and it asks the two questions
+issue 188 stated: every class a player may pick has a spellbook, and every one
+of them has a trainer of its own standing in the slice. The second had passed
+for a year without ever having been able to fail.
+
 **`src/sim/` is the rules and it runs in Node.** Eight files — the hit table,
 the stat curves, the quest ledger, the stream of chance, what an item does, the
 sky, the paperdoll's layer choice, and a whole fight — none of which knows what
@@ -423,15 +449,25 @@ charging anything more here would be inventing a rule. Which graveyard is
 what it is worth]}`, which can count eleven bits of cloth and can never hold a
 sword — so nothing could be worn, nothing changed a stat, and the fifty-eight
 paperdoll renders committed in `public/art/doll/` had nobody to call them.
-`pipeline/items.py` bakes the 1,424 rows the slice can actually reach out of
-`item_template`'s 46,096, with the columns that say whether a human warrior can
-wear a thing and what it does for him; a drop now carries its id as well as our
-word for it.
+`pipeline/items.py` bakes the 1,452 rows the slice can actually reach out of
+`item_template`'s 46,096, with the columns that say whether a human of one of
+this game's classes can wear a thing and what it does for him; a drop now
+carries its id as well as our word for it.
+
+**A filter in the bake stopped being a filter the day there were six classes.**
+With one, "in this world" and "for me" were the same sentence, so
+`AllowableClass` was applied in the bake and nothing downstream had to ask
+again — and with six, a mage's robe passes the bake and is still not a
+warrior's. So the mask travels, on the item and on the quest, and `canWear`
+and `offers` ask it about the character who is actually standing there. The
+writer normalises it first: `0`, `-1` and all fifteen bits are three spellings
+of "anybody" in the dump, and shipping all three made one trade good look like
+two different rows of the same shop.
 
 **Money is a decision, and the check says so.** The zone pays about 14,800
-copper at these levels — 1,890 from errands and the rest off what dies — against
-2,310 for every lesson a warrior trainer sells and 34,700 for the best of every
-slot. So it covers the training and it does not cover everything, which is the
+copper at these levels — 1,457 from errands and the rest off what dies — against
+2,310 for every lesson the dearest of the six classes is sold and 35,089 for
+the best of every slot. So it covers the training and it does not cover everything, which is the
 difference between an economy and a procedure, and `items.py` asserts both ends.
 **Levelling opens nothing on its own**: it opens what a trainer will sell you,
 which is the shape this stretch of the game actually has.
@@ -509,7 +545,7 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 `npm run check` needs nothing but Node — `tsc`, then `manifestcheck`,
-`bordercheck`, `simcheck` and `docscheck` — and it is the one to run while
+`bordercheck`, `simcheck`, `classcheck` and `docscheck` — and it is the one to run while
 editing. `npm run check:slow` is the six that want a built page:
 `viewcheck`, `uicheck`, `questcheck`, `padcheck` and `shotcheck` drive a
 browser, `budgetcheck` weighs `dist`, and `pwacheck` cuts the network;

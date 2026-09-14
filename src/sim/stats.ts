@@ -12,24 +12,52 @@
  * three `gt*` interpolation tables, all of them AzerothCore's own dump.
  */
 
-/** `[strength, agility, stamina, intellect, spirit, base health]`. */
+/**
+ * `[strength, agility, stamina, intellect, spirit, base health, base mana]`.
+ *
+ * `BASE_MANA` was read past for as long as this game had one class, because
+ * `player_class_stats.BaseMana` is nought on every line of the warrior's — and
+ * a column that is always nought is indistinguishable from a column nobody
+ * reads.  It is the whole of five of the six classes.
+ */
 export type Stats = number[]
-export const STR = 0, AGI = 1, STA = 2, INT = 3, SPI = 4, BASE_HP = 5
+export const STR = 0, AGI = 1, STA = 2, INT = 3, SPI = 4, BASE_HP = 5,
+  BASE_MANA = 6
 
-/** What `pipeline/player.py` writes. */
+/** One class's half of what `pipeline/player.py` writes. */
 export type Who = {
-  start: number[]
-  levels: [number, number]
   stats: Record<string, Stats>
-  xp: Record<string, number>
   critBase: number
   critRatio: Record<string, number>
-  /** `[word, min damage, max damage, swing ms, armour, slot]`. */
+  /** `[entry, word, min damage, max damage, swing ms, armour, slot]`. */
   kit: (string | number)[][]
+  /** `rage`, `mana` or `energy` — `ChrClasses.dbc`'s `DisplayPower`. */
+  power: string
+  /**
+   * What a point of spirit is worth in mana a second, per level.  Only the
+   * classes that cast have one, because the table's row for a warrior is
+   * nought and shipping it would be a number that means nothing.
+   */
+  spirit?: Record<string, number>
+}
+
+/**
+ * And the whole of it: what is the world's, and one `Who` a class.
+ *
+ * The split is the thing.  Where a man wakes up when he dies is a fact about
+ * Elwynn; how much health he has is a fact about being a warrior — and while
+ * this game had one class the two were the same eight keys in one object,
+ * which reads as a game whose stats belong to the world.
+ */
+export type Roster = {
+  start: number[]
+  levels: [number, number]
+  xp: Record<string, number>
   /** Which graveyards each zone sends a dead man to, `[x, y, z]` each. */
   graveyards?: Record<string, number[][]>
   /** `{zone: [[rain, snow, storm] per season]}` — `game_weather`. */
   weather?: Record<string, number[][]>
+  classes: Record<string, Who>
 }
 
 /**
@@ -49,6 +77,70 @@ export function healthFromStamina(stamina: number): number {
 /** `Player::UpdateMaxHealth`, StatSystem.cpp:313. */
 export const maxHealth = (s: Stats): number =>
   Math.floor(s[BASE_HP]! + healthFromStamina(s[STA]!))
+
+/**
+ * Mana from intellect — `Player::GetManaBonusFromIntellect`, StatSystem.cpp:303.
+ *
+ * The same shape as the stamina curve and different numbers: the first twenty
+ * points are worth one each and the rest are worth **fifteen**.  A level one
+ * human mage has twenty-three intellect and a hundred base, which is a hundred
+ * and sixty-five — and 165 is the figure `player.py` checks, for the same
+ * reason it checks the warrior's sixty.
+ */
+export function manaFromIntellect(intellect: number): number {
+  const base = Math.min(intellect, 20)
+  return base + (intellect - base) * 15
+}
+
+/** `Player::UpdateMaxPower`, StatSystem.cpp:330 — nought for a warrior. */
+export const maxMana = (s: Stats): number =>
+  s[BASE_MANA]! > 0
+    ? Math.floor(s[BASE_MANA]! + manaFromIntellect(s[INT]!)) : 0
+
+/**
+ * What a bar of rage or energy holds.
+ *
+ * `Player::SetCreatePowers` sets both to a flat hundred; only mana is a curve,
+ * which is why only mana has one above.
+ */
+export const MAX_RAGE = 100, MAX_ENERGY = 100
+
+/**
+ * Energy back per second — `Player::Regenerate`, Player.cpp:1941.
+ *
+ * Ten a second, flat, and the only thing that changes it at these levels is a
+ * talent.  Written out because it is a rate rather than a curve and because
+ * it is the one number that makes a rogue's bar feel different from a
+ * warrior's: energy comes back whether you are fighting or not.
+ */
+export const ENERGY_PER_SECOND = 10
+
+/**
+ * Mana back per second — `Player::UpdateManaRegen`, StatSystem.cpp:950, and
+ * `Player::OCTRegenMPPerSpirit`, Player.cpp:5400.
+ *
+ * The square root of intellect, times spirit, times the class's own ratio for
+ * the level out of `gtRegenMPPerSpt`.  Then the boost the server gives
+ * everybody under fifteen — `CONFIG_LOW_LEVEL_REGEN_BOOST`, Player.cpp:1917,
+ * `2.066 - level * 0.066` — which is not a detail here: **every level this
+ * game has is under fifteen**, so leaving it out would halve the mana of the
+ * only classes that use any.
+ *
+ * And nought while the five-second rule is running.  With no talents there is
+ * no `MOD_MANA_REGEN_INTERRUPT` aura anywhere, so the interrupted modifier the
+ * core computes is exactly zero: spending mana stops it coming back, and that
+ * — rather than the size of the bar — is what makes a caster's fight a
+ * sequence of decisions.
+ */
+export function manaPerSecond(level: number, s: Stats,
+  ratio: number, casting = false): number {
+  if (casting) return 0
+  const boost = level < 15 ? 2.066 - level * 0.066 : 1
+  return Math.sqrt(s[INT]!) * s[SPI]! * ratio * boost
+}
+
+/** How long spending mana holds the regeneration off — `Unit::IsUnderLastManaUseEffect`. */
+export const FIVE_SECOND_RULE = 5
 
 /**
  * Attack power — `Player::UpdateAttackPowerAndDamage`, StatSystem.cpp:398.

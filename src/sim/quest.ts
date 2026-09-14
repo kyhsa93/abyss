@@ -42,6 +42,16 @@ export type Errand = {
    * quests finish by walking somewhere rather than by killing or carrying.
    */
   walk?: number[][]
+  /**
+   * Which classes may be offered it — `quest_template_addon.AllowableClasses`.
+   *
+   * Nought is everybody, which is most of them; nineteen of this slice's
+   * fifty-one name a mask.  It travels now because it has to: with one class
+   * in the game the mask was a filter in the bake and there was nothing left
+   * to ask, and with six a paladin's errand passing the bake does not put it
+   * in a rogue's log.
+   */
+  classes?: number
   xp: number
   coin: number
   /**
@@ -142,11 +152,13 @@ export const holding = (b: Book, id: number) => b.held.find((h) => h.id === id)
  * be walked: a quest that follows another cannot appear until that one is in
  * the finished pile.
  */
-export function offers(b: Book, entry: number, level: number): Errand[] {
+export function offers(b: Book, entry: number, level: number,
+  cls = 0): Errand[] {
   const out: Errand[] = []
   for (const q of b.all.values()) {
     if (q.from !== entry || b.done.has(q.id) || holding(b, q.id)) continue
     if (level < q.min) continue
+    if (cls && q.classes && !(q.classes & (1 << (cls - 1)))) continue
     if (q.after && !b.done.has(q.after)) continue
     if (shut(b, q)) continue
     if (spent(b, q)) continue

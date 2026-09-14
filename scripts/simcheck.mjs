@@ -26,7 +26,17 @@ const check = (what, ok, detail = '') => {
 
 const world = (name) =>
   JSON.parse(readFileSync(`public/world/${name}.json`, 'utf8'))
-const who = world('player')
+const roster = world('player')
+/**
+ * The warrior, because a duel is a melee fight and the hit table is his.
+ *
+ * `player.json` is a roster now — one entry a class, keyed on the class id —
+ * and this file simulates the one class whose whole fight is swinging.  The
+ * five that cast are a different simulation and not this one; what would be
+ * dishonest is averaging them.
+ */
+const WARRIOR = 1
+const who = roster.classes[String(WARRIOR)]
 const spawns = world('npcs')
 const book = world('spells')
 
@@ -57,9 +67,9 @@ const creature = (level) => {
   return { level, stats: [0, 0, 0, 0, 0, 0], line }
 }
 
-const heroic = (book.spells ?? []).find((s) => s.id === 78)
+const heroic = (book.books?.[String(WARRIOR)] ?? []).find((s) => s.id === 78)
 const opener = heroic
-  ? { rage: heroic.rage, adds: heroic.does.find((d) => d[0] === 58)?.[1] ?? 0 }
+  ? { rage: heroic.cost, adds: heroic.does.find((d) => d[0] === 58)?.[1] ?? 0 }
   : undefined
 
 console.log('a fight, run without a browser\n')
