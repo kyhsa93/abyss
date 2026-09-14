@@ -456,6 +456,29 @@ check('and a good share of the forest actually carries one',
     `${drew.blended.toLocaleString()} blends laid down so far, `
     + `${drew.plates} plates and ${drew.tiles} loose tiles last frame`)
 
+  // 9b2a. And laid *across* the tile rather than a tile at a time.
+  //
+  // The check above passed for a round in which the second ground went down
+  // over each whole tile at one alpha: a road verge was a staircase of
+  // see-through squares, which is a staircase, and "a blend was drawn" was
+  // true of every one of them.  So this reads the pixels a plate actually
+  // laid.  On a tile whose neighbours disagree about a ground by a quarter or
+  // more, the four quarter points of the tile must not all carry the same
+  // share — which is what a tile at one alpha gives, and what a share blown
+  // up without smoothing gives too.
+  //
+  // A zoom nothing else asks for, so the plates are composed while it looks.
+  await p.evaluate(() => {
+    window.__splat(true)
+    window.__cam({ x: -8949, y: -132, zoom: 0.9 })
+  })
+  await p.waitForTimeout(2000)
+  const splat = await p.evaluate(() => window.__splat(false))
+  check('and a blend changes across a tile rather than a tile at a time',
+    splat.edges > 100 && splat.within >= splat.edges * 0.9,
+    `${splat.within.toLocaleString()} of ${splat.edges.toLocaleString()} tiles `
+    + 'on an edge between two grounds change inside the tile')
+
   // 9b3. And the ground is drawn a plate at a time rather than a tile at a
   // time.  The issue that asked for this quoted 68,910 stamps a frame and that
   // number is from before the grain doubling; what was actually wrong is

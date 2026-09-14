@@ -917,6 +917,36 @@ async function main() {
    */
   const PAVED_TILES = ['cobble', 'cobble2'].filter((k) => tilesMeta[k])
   /**
+   * The same pictures as families of one tone each.
+   *
+   * The two earths are a dark brown and an orange and the two cobbles a cream
+   * and a grey-teal, so choosing between them a tile at a time — which the
+   * turns and mirrors inside one family are for — is a chessboard of tones
+   * however well it is shuffled.  Which family a spot leans to is `toneAt`,
+   * and a plate blends the two the way it blends two grounds.
+   */
+  const DIRT_WAYS = [ways(['dirt']), ways(['dirt2'])].filter((l) => l.length)
+  const PAVED_WAYS = PAVED_TILES.map((k) => [k])
+  /**
+   * Which of its two families a spot leans to, nought to one.
+   *
+   * Value noise five yards across read bilinearly, the meadow's blotch again,
+   * and pushed towards its ends — so the earth is patches of one brown and
+   * patches of the other with a short fade between.  In yards and not tiles,
+   * so the patches stay where they are when the grain doubles.
+   */
+  const TONE_YARDS = 5
+  const toneAt = (wx: number, wy: number) => {
+    const u = wx / TONE_YARDS, v = wy / TONE_YARDS
+    const i = Math.floor(u), j = Math.floor(v)
+    const fx = u - i, fy = v - j
+    const n = hash(i + 313, j + 719) * (1 - fx) * (1 - fy)
+      + hash(i + 314, j + 719) * fx * (1 - fy)
+      + hash(i + 313, j + 720) * (1 - fx) * fy + hash(i + 314, j + 720) * fx * fy
+    const t = Math.max(0, Math.min(1, (n - 0.35) / 0.3))
+    return t * t * (3 - 2 * t)
+  }
+  /**
    * What a building is made of, seen from above.
    *
    * Stone for the mass and the darker cut of the same rock for the wall.  Not
@@ -8090,13 +8120,59 @@ async function main() {
    */
   const PLATE_PX = 512
   const PLATE_BUDGET = 12 * 1024 * 1024
-  const plates = new Map<string,
-    { c: HTMLCanvasElement; used: number; bytes: number; fresh: boolean; tile: number }>()
-  /** A tile's width in the last plate composed, and the world's at that zoom. */
-  const plateLaid = { tile: 0, world: 0, picture: 0 }
+  type Plate = { c: HTMLCanvasElement; used: number; bytes: number; fresh: boolean; tile: number }
+  const plates = new Map<string, Plate>()
+  /**
+   * A tile's width in the last plate composed and the world's at that zoom,
+   * and how many milliseconds of work the plate was in all.
+   */
+  const plateLaid = { tile: 0, world: 0, picture: 0, ms: 0 }
+  /**
+   * The one plate being composed, a slice at a time — see `COMPOSE_MS`.
+   */
+  let platePending: { key: string; pi: number; pj: number; ms: number;
+    run: Generator<void, Plate | null, void> } | null = null
+  /**
+   * How long composing plates may take out of one frame.
+   *
+   * A plate was composed whole in one frame, and one a frame kept sixty while
+   * a plate was a millisecond of blits.  Blended, it is a layer a ground, and
+   * laying a layer on the plate makes the canvas raster everything drawn into
+   * it — measured, 2.5 milliseconds a layer, six grounds a plate at zoom 1.2,
+   * **twenty milliseconds a plate** and thirty-two frames a second while a
+   * cold view filled.  The cost does not shrink by being moved, so it is
+   * spread instead: a plate is a generator that stops after each layer, and
+   * each frame runs it until this much of the frame is gone.  The view takes
+   * a few more frames to fill and loose tiles stand in meanwhile, as they did.
+   */
+  const COMPOSE_MS = 4
   let plateBytes = 0
   let plateKey = ''
   let platesDrawn = 0
+  /**
+   * Scratch for laying one ground over another inside a plate: the ground is
+   * drawn here, cut by its share of each spot, and laid on the plate.  Kept
+   * rather than made a plate, because a canvas a plate wide is a quarter of a
+   * million pixels to allocate.
+   */
+  const splatLayer = document.createElement('canvas')
+  const splatShare = document.createElement('canvas')
+  /**
+   * What the blends inside a plate actually came out as, read back off the
+   * layer's own pixels.  Only while a check asks — reading a plate back is a
+   * `getImageData` of a quarter of a million pixels a ground.
+   */
+  const splatProbe = { on: false, edges: 0, within: 0 }
+  /**
+   * The order a plate lays its grounds in — the same everywhere.
+   *
+   * A ground goes on at its share of what is down so far, and that is the
+   * same number on both sides of a seam only if both plates lay the grounds
+   * in the same order.  Sorted plate by plate by how much of the plate each
+   * one had, the hills came out as rectangles a plate wide with a straight
+   * line between them.
+   */
+  const LAYING = ['rock', 'ash', 'sand', 'grass', 'crop', 'road', 'paved']
   /** Thrown away when the zoom changes, because the tinted strip is. */
   /** Roof pictures cut from the tinted atlas — see `roofPattern`. */
   /**
@@ -8124,6 +8200,7 @@ async function main() {
   const forgetPlates = () => {
     plates.clear()
     plateBytes = 0
+    platePending = null
     // The roof patterns are cut from the same tinted atlas, so they go with
     // it: a pattern is a *copy*, and a copy of an atlas that no longer exists
     // is a roof drawn at the last zoom's size.
@@ -9002,7 +9079,7 @@ async function main() {
      */
     const paintGround = (g: CanvasRenderingContext2D, ti: number, tj: number,
       cx: number, cy: number, covers: ReturnType<typeof inBuilding>,
-      mode: 'all' | 'plain' | 'over',
+      mode: 'all' | 'plain' | 'over' | 'shore',
       /**
        * This tile is under a building that is drawn **as one piece**, so the
        * ground under it is ordinary ground and the roof is somebody else's
@@ -9015,7 +9092,15 @@ async function main() {
        * thirty-yard black square for exactly that reason.  So the hole still
        * has to know it is covered even when the roof is not drawn here.
        */
-      roofless = false): number => {
+      roofless = false,
+      /**
+       * For `plain`: this kind of ground's picture, whatever the paint and the
+       * slope say the tile is.  A plate lays its grounds down one at a time
+       * and lets each one's share decide where it shows — see `kindsOf`.
+       */
+      layer?: string,
+      /** And which family of its pictures, for a word that has two. */
+      family?: number): number => {
       const wx = ti * T, wy = tj * T
       // No floor here at all: the client took this square out of its own
       // ground to make the mouth of something.  Painted as the dark behind
@@ -9030,7 +9115,7 @@ async function main() {
       // on it.  A wall standing on a hole is a wall, and a floor over one is
       // a floor; either way something else is painting here.
       if (outside(wx, wy) || (openHole(wx, wy) && !covers)) {
-        if (mode === 'plain') return 0
+        if (mode === 'plain' || mode === 'shore') return 0
         const wide = px * grain
         g.fillStyle = '#0a0a0f'
         g.fillRect(Math.round(cx - wide / 2), Math.round(cy - wide / 2),
@@ -9131,25 +9216,68 @@ async function main() {
        * *two* words and how much of each, so the chain is walked twice —
        * and a second copy of a chain is a chain that drifts.
        */
+      const way = family ?? (toneAt(wx, wy) > 0.5 ? 1 : 0)
+      const pick = (fams: string[][]) => {
+        const l = fams[Math.min(way, fams.length - 1)]!
+        return l[Math.floor(h * l.length)]!
+      }
       const tileFor = (word: string) => word === 'paved' && PAVED_TILES.length > 0
-        ? PAVED_TILES[Math.floor(h * PAVED_TILES.length)]!
+        ? pick(PAVED_WAYS)
         : word === 'ash' ? ASH_TILE
         : word === 'rock' || word === 'paved' ? ROCK_TILE
           : word === 'crop' && flat ? CROP_TILE
           : word === 'road' && flat
-            ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
+            ? pick(DIRT_WAYS)
             : word === 'sand' ? SAND_TILE
               : shore ? SHORE_TILE
                 : stepAt(wx, wy, T) > CLIFF ? ROCK_TILE
                   : word === 'bloom' || (meadow && h > 0.55)
                     ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
                     : steep > BARE
-                      ? DIRT_TILES[Math.floor(h * DIRT_TILES.length)]!
+                      ? pick(DIRT_WAYS)
                       : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
+      /**
+       * The picture of one kind of ground here, with nothing left to decide
+       * but which of its turns — the plate's half of `tileFor`, whose
+       * conditions have already been paid out as shares by `kindsOf`.
+       */
+      /**
+       * Whether the client's flowers are on this tile, as a throw against the
+       * share of them it painted here.
+       *
+       * Flowers are not a ground to blend.  Laid as a layer at their share,
+       * every tile of a meadow carried the same flower picture faintly and
+       * the meadow became a lattice of ghosts one tile apart — `shotcheck`'s
+       * chessboard gauge went from 2.1 to 4.3.  A tile is flowered or it is
+       * not, the way the meadow's own blotch has always decided it.
+       */
+      const flowered = () => {
+        const second = blendAt(wx, wy)
+        const m = second ? Math.min(1, second[1]) : 0
+        const share = (ink === 'bloom' ? 1 - m : 0)
+          + (second && second[0] === 'bloom' ? m : 0)
+        // Pushed towards its ends, and that is the meadow comment's lesson
+        // again: a flower at a uniform probability is a rash.  Where the client
+        // painted mostly flowers there are flowers, where it painted a trace
+        // there are none, and only between is it a throw.
+        const t = Math.max(0, Math.min(1, (share - 0.35) / 0.3))
+        return hash(ti + 71, tj + 23) < t * t * (3 - 2 * t)
+      }
+      const pictureOf = (kind: string) => kind === 'paved'
+        ? (PAVED_TILES.length > 0 ? pick(PAVED_WAYS) : ROCK_TILE)
+        : kind === 'ash' ? ASH_TILE
+        : kind === 'rock' ? ROCK_TILE
+        : kind === 'crop' ? CROP_TILE
+        : kind === 'road' ? pick(DIRT_WAYS)
+        : kind === 'sand' ? SAND_TILE
+        : shore ? SHORE_TILE
+        : (meadow && h > 0.55) || flowered()
+          ? BLOOM_TILES[Math.floor(h * 7) % BLOOM_TILES.length]!
+        : GROUND_TILES[Math.floor(h * GROUND_TILES.length)]!
       const id = built ? (ROOF_OF[built.b.k] ?? ROOF_TILE)
         : span ? span.tile
         : water ? WATER_TILES[Math.floor(h * WATER_TILES.length)]!
-          : tileFor(ink)
+          : layer !== undefined ? pictureOf(layer) : tileFor(ink)
       // What a building's outline got painted with, tallied as it is drawn.
       //
       // The check this feeds could not be written any other way without a
@@ -9172,7 +9300,7 @@ async function main() {
       // which is why there is a jitter in the other branch — half a step of
       // noise to turn that line into a zigzag.  A plate does not need either:
       // it is a bitmap, so the light can be interpolated across it.
-      const step = mode === 'plain' ? FLAT_ROW
+      const step = mode === 'plain' || mode === 'shore' ? FLAT_ROW
         : Math.max(0, Math.min(SHADES - 1, Math.round(
           ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
           + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
@@ -9181,18 +9309,24 @@ async function main() {
       // left is whatever a plate cannot hold: water, a bridge deck, a
       // building.
       if (mode === 'over' && !built && !span && !water) return 0
-      g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-        Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
-      // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
-      // inside the grass sheet's plain border — over the same picture laid
-      // straight, so the strip it uncovers is never empty.  Only in a plate:
-      // a loose tile is gone in a few frames.
-      if (mode === 'plain' && NUDGED.has(id)) {
-        const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
-        const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
+      if (mode !== 'shore') {
         g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
-          Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
+          Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
+        // A tuft moved up to a tenth of the tile — three pixels of thirty-two,
+        // inside the grass sheet's plain border — over the same picture laid
+        // straight, so the strip it uncovers is never empty.  Only in a plate:
+        // a loose tile is gone in a few frames.
+        if (mode === 'plain' && NUDGED.has(id)) {
+          const nx = Math.round((hash(ti + 5, tj + 13) - 0.5) * wide * 0.2)
+          const ny = Math.round((hash(ti + 17, tj + 3) - 0.5) * wide * 0.2)
+          g.drawImage(ground.c, ground.at[id]!, step * px, px, px,
+            Math.round(cx - wide / 2) + nx, Math.round(cy - wide / 2) + ny, wide, wide)
+        }
       }
+      // A plate blends its grounds itself, across the tile rather than a tile
+      // at a time, so everything below is for a tile drawn loose — and, for
+      // `shore`, the one boundary a plate still takes from a piece.
+      if (mode === 'plain') return 1
       // --- and the edge, if this tile is on one ---------------------
       //
       // The tile above is the tile's *middle*.  This asks its four corners,
@@ -9225,7 +9359,7 @@ async function main() {
       // corners disagree anyway, which is the coarse grid disagreeing with
       // itself.
       let blended = false
-      if (grain === 1 && !built && !span && !water) {
+      if (mode !== 'shore' && grain === 1 && !built && !span && !water) {
         const mix = blendAt(wx, wy)
         // A nibble's worth is the floor: below one level in fifteen there
         // is nothing to see and the blit is wasted.
@@ -9252,7 +9386,7 @@ async function main() {
           paintAt(wx - half, wy - half), paintAt(wx + half, wy - half),
           paintAt(wx - half, wy + half), paintAt(wx + half, wy + half),
         ]
-        if (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3]) {
+        if (mode !== 'shore' && (q[0] !== q[1] || q[1] !== q[2] || q[2] !== q[3])) {
           // The best-ranked of the four that has a set of its own, and the
           // bits saying which corners are its.
           let top = '', rank = 99
@@ -9315,11 +9449,8 @@ async function main() {
      * Nothing else invalidates it: the ground's light is the hillside's own
      * and does not move with the hour — the sky is a wash over the top.
      */
-    const plateOf = (pi: number, pj: number, mayMake: boolean) => {
-      const key = `${pi},${pj}`
-      const had = plates.get(key)
-      if (had) { had.used = frames; return had }
-      if (!mayMake) return null
+    const composePlate = function* (pi: number, pj: number, key: string):
+      Generator<void, Plate | null, void> {
       const side = PLATE * UNIT
       const want = Math.ceil(side) ** 2 * 4
       if (side < 1 || want > PLATE_BUDGET) return null
@@ -9345,18 +9476,240 @@ async function main() {
       const ox = pi * PLATE, oy = pj * PLATE
       const tpx = UNIT
       const half = tpx / 2
-      for (let a = 0; a < PLATE; a++) {
-        for (let d = 0; d < PLATE; d++) {
-          // `screenX` falls as world y rises and `screenY` falls as world x
-          // rises — north is up the glass and west is left — so **both**
-          // indices count backwards inside a plate.  With only one of them
-          // reversed the plate lands upside down and the rows that should
-          // have been under it stay black, which is what the first screenshot
-          // showed: a band of nothing above and below a correct middle.
-          const sx = (PLATE - 1 - d) * tpx + half
-          const sy = (PLATE - 1 - a) * tpx + half
-          platedEver += paintGround(g, ox + a, oy + d, sx, sy, null, 'plain')
+      /**
+       * One ground's picture across the plate, or across the tiles `only`
+       * lets through.
+       *
+       * `screenX` falls as world y rises and `screenY` falls as world x rises
+       * — north is up the glass and west is left — so **both** indices count
+       * backwards inside a plate.  With only one of them reversed the plate
+       * lands upside down and the rows that should have been under it stay
+       * black, which is what the first screenshot showed: a band of nothing
+       * above and below a correct middle.
+       */
+      const lay = (into: CanvasRenderingContext2D, word: string | undefined,
+        family: number | undefined, mode: 'plain' | 'shore',
+        only?: (a: number, d: number) => boolean) => {
+        let n = 0
+        for (let a = 0; a < PLATE; a++) {
+          for (let d = 0; d < PLATE; d++) {
+            if (only && !only(a, d)) continue
+            n += paintGround(into, ox + a, oy + d, (PLATE - 1 - d) * tpx + half,
+              (PLATE - 1 - a) * tpx + half, null, mode, false, word, family)
+          }
         }
+        return n
+      }
+      // --- the grounds, blended across a tile and not a tile at a time -----
+      //
+      // The paint says two words a cell and the second one's share, and this
+      // used to lay the second word over the whole tile at that one alpha.
+      // That is the client's blend delivered as a mosaic: a road verge came
+      // out as a staircase of see-through squares, which is a staircase.
+      //
+      // A plate is a bitmap, so the share can be what the light already is —
+      // a gradient.  Every word here gets its share at every tile centre, a
+      // tile of margin all round so the next plate agrees at the seam, and a
+      // share is written into a small image and blown up with smoothing on.
+      // Each ground is its own pictures across the plate, cut by that image.
+      //
+      // The first is the ground with most of the plate, laid down whole.  Each
+      // one after goes on at *its share of what is down so far* — `c / (sum of
+      // the ones laid)` — which is what makes painting one over another come
+      // out as a weighted mix rather than as whichever went last.
+      const N = PLATE + 2
+      const sample = (a: number, d: number) => (PLATE - a) * N + (PLATE - d)
+      const shares = new Map<string,
+        { word: string; family: number | undefined; got: Float32Array }>()
+      const put = (word: string, family: number | undefined, k: number, v: number) => {
+        if (v <= 0) return
+        const key = `${word}|${family ?? ''}`
+        let got = shares.get(key)
+        if (!got) {
+          got = { word, family, got: new Float32Array(N * N) }
+          shares.set(key, got)
+        }
+        got.got[k] += v
+      }
+      // Earth and cobble draw from two families of different tone, so their
+      // share is split between the families by `toneAt` and the tone changes
+      // in patches with a fade instead of tile by tile.
+      const give = (kind: string, k: number, v: number, tone: number) => {
+        if (kind === 'road' || kind === 'paved') {
+          put(kind, 0, k, v * (1 - tone))
+          put(kind, 1, k, v * tone)
+        } else put(kind, undefined, k, v)
+      }
+      /**
+       * What one painted word comes to here, as shares of kinds of ground.
+       *
+       * `tileFor` decides with thresholds — steeper than `BARE` is bare earth,
+       * a step past `CLIFF` is rock, a field on a slope is not a field — and a
+       * threshold decided a tile at a time is a staircase however the paint
+       * is blended: the hills came out as squares of dirt in squares of rock.
+       * So here each threshold is a ramp a fifth of its own value wide, and
+       * what `tileFor` would have picked on either side of it is a share.  The
+       * order of the questions is `tileFor`'s: a cliff before a slope, a road
+       * or a field only once the ground is too steep to be one.
+       */
+      const kindsOf = (word: string, bare: number, cliff: number,
+        k: number, v: number, tone: number) => {
+        if (word === 'paved' || word === 'ash' || word === 'rock' || word === 'sand') {
+          give(word, k, v, tone)
+        } else if (word === 'road') {
+          give('rock', k, v * bare * cliff, tone)
+          give('road', k, v * (1 - bare * cliff), tone)
+        } else if (word === 'crop') {
+          give('crop', k, v * (1 - bare), tone)
+          give('rock', k, v * bare * cliff, tone)
+          give('road', k, v * bare * (1 - cliff), tone)
+        } else {
+          give('rock', k, v * cliff, tone)
+          give('road', k, v * (1 - cliff) * bare, tone)
+          give('grass', k, v * (1 - cliff) * (1 - bare), tone)
+        }
+      }
+      const ramp = (at: number, limit: number) => {
+        const t = Math.max(0, Math.min(1, (at - limit) / (limit * 0.2) + 0.5))
+        return t * t * (3 - 2 * t)
+      }
+      for (let a = -1; a <= PLATE; a++) {
+        for (let d = -1; d <= PLATE; d++) {
+          const wx = (ox + a) * T, wy = (oy + d) * T
+          if (outside(wx, wy) || openHole(wx, wy)) continue
+          const mix = blendAt(wx, wy)
+          const m = mix ? Math.min(1, mix[1]) : 0
+          const tone = toneAt(wx, wy)
+          const bare = ramp(slopeAt(wx, wy, T), BARE)
+          const cliff = ramp(stepAt(wx, wy, T), CLIFF)
+          kindsOf(paintAt(wx, wy), bare, cliff, sample(a, d), 1 - m, tone)
+          if (mix) kindsOf(mix[0], bare, cliff, sample(a, d), m, tone)
+        }
+      }
+      const order = [...shares.values()]
+        .sort((x, y) => LAYING.indexOf(x.word) - LAYING.indexOf(y.word)
+          || (x.family ?? 0) - (y.family ?? 0))
+      if (order.length) {
+        platedEver += lay(g, order[0]!.word, order[0]!.family, 'plain')
+      }
+      yield
+      if (order.length > 1) {
+        if (splatLayer.width !== c.width || splatLayer.height !== c.height) {
+          splatLayer.width = c.width
+          splatLayer.height = c.height
+        }
+        if (splatShare.width !== N) splatShare.width = splatShare.height = N
+        const lg = splatLayer.getContext('2d', { willReadFrequently: false })!
+        const sg = splatShare.getContext('2d')!
+        const share = sg.createImageData(N, N)
+        const sum = Float32Array.from(order[0]!.got)
+        const alpha = (a: number, d: number) => share.data[sample(a, d) * 4 + 3]!
+        // The nine centres a tile's own pixels are interpolated between.
+        const spread = (a: number, d: number) => {
+          let lo = 255, hi = 0
+          for (let da = -1; da <= 1; da++) {
+            for (let dd = -1; dd <= 1; dd++) {
+              const v = alpha(a + da, d + dd)
+              if (v < lo) lo = v
+              if (v > hi) hi = v
+            }
+          }
+          return [lo, hi] as const
+        }
+        // A tile is an edge once however many grounds meet on it.
+        const edgy = new Uint8Array(PLATE * PLATE)
+        for (let k = 1; k < order.length; k++) {
+          const { word, family, got } = order[k]!
+          let any = false
+          for (let i = 0; i < N * N; i++) {
+            sum[i] += got[i]!
+            const v = sum[i]! > 0 ? got[i]! / sum[i]! : 0
+            share.data[i * 4] = share.data[i * 4 + 1] = share.data[i * 4 + 2] = 255
+            share.data[i * 4 + 3] = Math.round(255 * v)
+            if (share.data[i * 4 + 3]) any = true
+          }
+          if (!any) continue
+          // **Only the pixels this ground reaches.**  A layer is three passes
+          // over its canvas — clear it, cut it by the share, lay it down — and
+          // a plate at zoom 1.2 is 614 pixels a side with six grounds in it:
+          // measured, that was eighteen milliseconds of a twenty millisecond
+          // plate, and the ground fell to thirty-two frames a second while a
+          // cold view filled.  Most grounds after the first are a road or a
+          // patch of the other earth, a corner of the plate, so the passes are
+          // clipped to the box of the tiles they touch.
+          const reach = new Uint8Array(PLATE * PLATE)
+          let aLo = PLATE, aHi = -1, dLo = PLATE, dHi = -1
+          for (let a = 0; a < PLATE; a++) {
+            for (let d = 0; d < PLATE; d++) {
+              if (spread(a, d)[1] === 0) continue
+              reach[a * PLATE + d] = 1
+              if (a < aLo) aLo = a
+              if (a > aHi) aHi = a
+              if (d < dLo) dLo = d
+              if (d > dHi) dHi = d
+            }
+          }
+          if (aHi < 0) continue
+          // A picture is a pixel wider than its tile, so the box is too.
+          const pad = Math.ceil(Math.max(0, px * grain - tpx) / 2) + 1
+          const bx = Math.max(0, Math.floor((PLATE - 1 - dHi) * tpx) - pad)
+          const by = Math.max(0, Math.floor((PLATE - 1 - aHi) * tpx) - pad)
+          const bw = Math.min(c.width, Math.ceil((PLATE - dLo) * tpx) + pad) - bx
+          const bh = Math.min(c.height, Math.ceil((PLATE - aLo) * tpx) + pad) - by
+          lg.globalCompositeOperation = 'source-over'
+          lg.imageSmoothingEnabled = false
+          lg.save()
+          lg.beginPath()
+          lg.rect(bx, by, bw, bh)
+          lg.clip()
+          lg.clearRect(bx, by, bw, bh)
+          lay(lg, word, family, 'plain', (a, d) => reach[a * PLATE + d] === 1)
+          sg.putImageData(share, 0, 0)
+          // Sample centres land on tile centres: pixel `u` of the share is
+          // stretched to `tpx` wide and starts a whole tile off the plate,
+          // because the image carries a tile of margin on every side.
+          lg.globalCompositeOperation = 'destination-in'
+          lg.imageSmoothingEnabled = true
+          lg.drawImage(splatShare, -tpx, -tpx, N * tpx, N * tpx)
+          lg.restore()
+          const seen = splatProbe.on
+            ? lg.getImageData(0, 0, splatLayer.width, splatLayer.height).data : null
+          for (let a = 0; a < PLATE; a++) {
+            for (let d = 0; d < PLATE; d++) {
+              const [lo, hi] = spread(a, d)
+              if (hi === lo) continue
+              if (!edgy[a * PLATE + d]) {
+                edgy[a * PLATE + d] = 1
+                edged++
+                blendedEver++
+              }
+              // Does the share actually change *inside* the tile?  The four
+              // quarter points of a tile whose neighbours disagree by a
+              // quarter or more must not all read the same — which is what a
+              // tile laid at one alpha, or a share blown up without
+              // smoothing, would give.
+              if (!seen || hi - lo < 64) continue
+              const x0 = (PLATE - 1 - d) * tpx, y0 = (PLATE - 1 - a) * tpx
+              const q = [0.25, 0.75].flatMap((u) => [0.25, 0.75].map((v) =>
+                seen[(Math.floor(y0 + v * tpx) * splatLayer.width
+                  + Math.floor(x0 + u * tpx)) * 4 + 3]!))
+              splatProbe.edges++
+              if (Math.max(...q) - Math.min(...q) >= 4) splatProbe.within++
+            }
+          }
+          g.drawImage(splatLayer, bx, by, bw, bh, bx, by, bw, bh)
+          yield
+        }
+      }
+      // And the shore, which is a boundary against the water mask rather than
+      // between two paints, so it is still a piece — on the tiles that touch
+      // water and are not in it.
+      if (WATER_TILES.length) {
+        lay(g, undefined, undefined, 'shore', (a, d) => {
+          const wx = (ox + a) * T, wy = (oy + d) * T, h2 = T / 2
+          return wetAt(wx - h2, wy - h2) || wetAt(wx + h2, wy - h2)
+            || wetAt(wx - h2, wy + h2) || wetAt(wx + h2, wy + h2)
+        })
       }
       // --- and the light, once, across the whole plate -------------------
       //
@@ -9406,13 +9759,48 @@ async function main() {
         g.drawImage(lm, -0.5 * tpx, -0.5 * tpx, (PLATE + 1) * tpx, (PLATE + 1) * tpx)
         g.imageSmoothingEnabled = false
       }
-      const made = { c, used: frames, bytes: c.width * c.height * 4, fresh: true, tile: tpx }
+      const made: Plate = { c, used: frames, bytes: c.width * c.height * 4, fresh: true, tile: tpx }
       plateLaid.tile = tpx
       plateLaid.world = TILE * zoom * grain
       plateLaid.picture = px * grain
       plateBytes += made.bytes
+      // Evicted again at the end, because a plate composed over several
+      // frames may find the budget spent by the ones that finished meanwhile.
+      while (plateBytes + made.bytes > PLATE_BUDGET && plates.size) {
+        let old = ''
+        let when = Infinity
+        for (const [k, v] of plates) if (v.used < when) { when = v.used; old = k }
+        const gone = plates.get(old)!
+        plates.delete(old)
+        plateBytes -= gone.bytes
+      }
       plates.set(key, made)
       return made
+    }
+    /**
+     * A kept plate, or a slice more of the one being composed and nothing yet.
+     */
+    const plateOf = (pi: number, pj: number, deadline: number): Plate | null => {
+      const key = `${pi},${pj}`
+      const had = plates.get(key)
+      if (had) { had.used = frames; return had }
+      if (platePending && platePending.key !== key) return null
+      if (!platePending) {
+        if (performance.now() >= deadline) return null
+        platePending = { key, pi, pj, ms: 0, run: composePlate(pi, pj, key) }
+      }
+      const job = platePending
+      do {
+        const t = performance.now()
+        const step = job.run.next()
+        job.ms += performance.now() - t
+        if (step.done) {
+          platePending = null
+          if (step.value) plateLaid.ms = job.ms
+          return step.value
+        }
+      } while (performance.now() < deadline)
+      return null
     }
     if (indoors) { drawRoom(indoors, ground, px); }
     else {
@@ -9435,14 +9823,20 @@ async function main() {
       // widest zoom, where the cache is coldest and the budget tightest.  One
       // takes twice as many frames to fill the glass and every one of them is
       // inside the refresh rate.
-      let budget = 1
+      const deadline = performance.now() + COMPOSE_MS
+      // A plate half composed for a patch of ground that has left the view is
+      // not worth finishing, and would hold up every plate behind it.
+      if (platePending && (platePending.pi < Math.floor(xLo / PLATE)
+        || platePending.pi > Math.floor(xHi / PLATE)
+        || platePending.pj < Math.floor(yLo / PLATE)
+        || platePending.pj > Math.floor(yHi / PLATE))) platePending = null
       const done = new Set<string>()
       if (usePlates) {
         for (let pi = Math.floor(xLo / PLATE); pi <= Math.floor(xHi / PLATE); pi++) {
           for (let pj = Math.floor(yLo / PLATE); pj <= Math.floor(yHi / PLATE); pj++) {
-            const plate = plateOf(pi, pj, budget > 0)
+            const plate = plateOf(pi, pj, deadline)
             if (!plate) continue
-            if (plate.fresh) { budget--; plate.fresh = false }
+            plate.fresh = false
             // The plate's top-left on the glass, which is its *largest* tile
             // index both ways round, less half a tile.
             // and its far edge the same way, so a plate is as wide on the glass
@@ -11187,6 +11581,17 @@ async function main() {
       turned: rows.filter((r) => r.plan && r.turn % 90 !== 0).length,
       rows,
     }
+  }
+  /**
+   * Whether a blend inside a plate changes across a tile, read off the pixels.
+   * `__splat(true)` starts counting from nought, `__splat(false)` stops.
+   */
+  ;(window as unknown as { __splat: (on?: boolean) => unknown }).__splat = (on) => {
+    if (on !== undefined) {
+      splatProbe.on = on
+      if (on) { splatProbe.edges = 0; splatProbe.within = 0 }
+    }
+    return { ...splatProbe }
   }
   ;(window as unknown as { __plates: () => unknown }).__plates = () => ({
     kept: plates.size, bytes: plateBytes, budget: PLATE_BUDGET,

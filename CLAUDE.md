@@ -910,6 +910,56 @@ the strip it uncovers is never empty — and the gauge reads 1.0. The bar stays
 where it was: it had been calibrated on the bug, and the answer was to make the
 ground pass it rather than to move it.
 
+**The client's blend was being delivered as a mosaic, and the check said it was
+being delivered.** #211 shipped two words a cell and the second one's share, and
+the ground pass laid the second word over each *whole tile* at that one alpha:
+a road verge came out as a staircase of see-through squares, which is a
+staircase. #212's first condition — the right half of the wiki's picture, in
+the game — was never met, and "a blend was drawn" was true of every square.
+Two more decisions were being made a tile at a time on top of it: the two
+earths and the two cobbles are a dark brown and an orange, a cream and a
+grey-teal, picked per tile by hash, so a road was a chessboard of tones; and
+the slope rules — bare earth past `BARE`, rock past `CLIFF` — were thresholds,
+so a hillside was squares of dirt in squares of rock.
+
+A plate is a bitmap, so all three went the way the light went in #213. Every
+kind of ground gets **its share at every tile centre** — the paint's two words
+and mix, each threshold turned into a ramp a fifth of its own value wide, the
+two families of a picture split by a slow value noise — a tile of margin all
+round so neighbouring plates agree, and each kind is its own pictures across
+the plate cut by its share blown up with smoothing on. The only thing still
+chosen per tile is which turn or mirror of a picture, which is what #142 needs.
+Two things about it are not arbitrary. **The grounds go on in one fixed
+order**, each at its share of what is down so far, because sorted plate by
+plate the same spot got a different weight on each side of a seam. And
+`viewcheck` reads the pixels the plate laid: on a tile whose neighbours disagree
+by a quarter, the four quarter points must not carry the same share — which is
+what a tile at one alpha gives and what a share blown up without smoothing
+gives too. 96% of them do.
+
+**It cost what it cost, so it is spread rather than paid at once.** Laying a
+layer on a plate makes the canvas raster everything drawn into it — measured,
+2.5 milliseconds a layer, six grounds a plate at zoom 1.2, twenty milliseconds
+a plate against about one before — and a cold view fell to 32 frames a second.
+Clipping each layer to the tiles it reaches bought one millisecond, because
+drawing the tiles was 0.9 of the twenty and the raster was the rest. So a plate
+is a generator that stops after each layer, and a frame runs it for four
+milliseconds: the view takes a few more frames to fill, loose tiles stand in
+meanwhile as they always did, and 1.2 reads sixty again. The measurement that
+was supposed to say the road is no longer a chessboard does not work either —
+brightness jumps across the tile grid against half a tile off it came out 1.35,
+0.80 and 0.81 before and 0.99, 0.51 and 0.78 after, because a road's own edges
+are louder than its tiles — so that half is judged by looking, and the
+screenshots are on the wiki.
+
+**Flowers are not a ground to blend.** Laid as a layer at their share, every
+tile of a meadow carried the same flower picture faintly and the meadow became
+a lattice of ghosts one tile apart — the chessboard gauge went to 4.3. A grass
+tile is flowered or it is not, thrown against the share of flowers the client
+painted there and pushed towards its ends: where it painted mostly flowers there
+are flowers, where it painted a trace there are none, because a flower at a
+uniform probability is the rash the meadow comment already warns about.
+
 **A hole in the ground is a field that was read and then used by nothing.** A
 chunk's `holes` is sixteen bits over a four-by-four grid of its own floor, and
 it is how the client makes the mouth of a mine: 674 cells of it in this slice.
@@ -1656,7 +1706,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one and the seam one: 172. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two, the phone eight, the paint one, the seam one and the blend one: 173. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.
