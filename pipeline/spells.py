@@ -662,10 +662,29 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
     #
     # Everything else is counted and left alone, the same way the effects this
     # engine cannot run are counted.
-    E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO = 0, 2, 4
+    # Which triggers this reads, and it is now four.
+    #
+    # `SMART_EVENT_RANGE` joins the three because it needs no state: *the
+    # thing you are fighting has come within so many yards*, which the scene
+    # already knows to a fraction of a yard.  The three that were left out
+    # after issue 196's census all need the interpreter to have a memory —
+    # a linked row is the line above having fired, a timed action list is a
+    # second script on a clock, a phase mask is a mode — and the census is
+    # what says none of the three buys a single fight in this slice.
+    E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO, E_RANGE = 0, 2, 4, 9
     A_CAST = 11
+    #: `SMART_ACTION_CALL_TIMED_ACTIONLIST`, which is the recursive one.
+    A_TIMED_LIST = 80
     smart = os.path.join(acore, 'data/sql/base/db_world/smart_scripts.sql')
     cues, skipped_cues = {}, {}
+    # The whole census, not just the casts.  Issue 196 asked the interpreter to
+    # **count the lines it cannot read**, which is a different question from
+    # counting the casts it skipped: most of `smart_scripts` is not a cast at
+    # all, and "how much of this creature's script do we run" is only
+    # answerable against the whole of it.
+    seen_rows = 0
+    by_action, by_event = {}, {}
+    stateful = {'link': 0, 'timed list': 0, 'phase': 0}
     if spawned and os.path.exists(smart):
         from spawn_npcs import columns as cols3, rows as lines3, split as cut3
         col3 = cols3(smart)
@@ -681,9 +700,22 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
                 act = int(f[col3['action_type']])
             except (ValueError, KeyError, IndexError):
                 continue
+            seen_rows += 1
+            by_action[act] = by_action.get(act, 0) + 1
+            by_event[event] = by_event.get(event, 0) + 1
+            # The three the wiki left open, counted where they actually are.
+            try:
+                if int(f[col3['link']]):
+                    stateful['link'] += 1
+                if int(f[col3['event_phase_mask']]):
+                    stateful['phase'] += 1
+            except (ValueError, KeyError, IndexError):
+                pass
+            if act == A_TIMED_LIST:
+                stateful['timed list'] += 1
             if act != A_CAST:
                 continue
-            if event not in (E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO):
+            if event not in (E_UPDATE_IC, E_HEALTH_PCT, E_AGGRO, E_RANGE):
                 skipped_cues[event] = skipped_cues.get(event, 0) + 1
                 continue
             try:
@@ -789,6 +821,22 @@ def finish(books, out_rows, unlearned, grants, spells, ranges, radii,
           f'{sum(len(v) for v in cues.values())} cues'
           + (f', and {sum(skipped_cues.values())} more on triggers this engine '
              f'does not have ({sorted(skipped_cues)})' if skipped_cues else ''))
+    # And how much of the script this engine reads at all, which is the number
+    # issue 196 asked for.  A creature's behaviour is 383 rows in this slice
+    # and the casts are a fifth of them; the rest is talking (Blizzard's
+    # prose), walking a path, or setting a flag for another row to read.
+    if seen_rows:
+        run = sum(len(v) for v in cues.values())
+        print(f'  smart_scripts: {seen_rows} rows touch this slice, {run} of '
+              f'them run ({100 * run / seen_rows:.0f}%)')
+        print('    by action, unread: '
+              + ', '.join(f'{k} x{v}' for k, v in
+                          sorted(by_action.items(), key=lambda kv: -kv[1])[:8]
+                          if k != A_CAST))
+        print('    the three that would need a memory: '
+              + ', '.join(f'{k} {v}' for k, v in stateful.items())
+              + ' — none of them carries a cast this slice can reach, '
+                'see the wiki page 데이터: NPC 행동')
     if unrun:
         print('  effects it cannot run, by how often: '
               + ', '.join(f'{k} x{v}' for k, v in

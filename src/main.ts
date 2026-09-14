@@ -4101,6 +4101,15 @@ async function main() {
             const share = (n.hp / n.max) * 100
             return share >= (p1 ?? 0) && share <= (p2 ?? 100)
           }
+          if (trigger === 9) {
+            // `SMART_EVENT_RANGE`: within so many yards of what it is
+            // fighting.  The fourth trigger this reads, and the only one of
+            // the four the census in issue 196 added — it is here because it
+            // needs no memory, which is exactly what the three it declined do
+            // need.
+            const d = Math.hypot(hero.x - n.x, hero.y - n.y)
+            return d >= (p1 ?? 0) && d <= (p2 ?? 100)
+          }
           return true                                      // every so often
         })
       }

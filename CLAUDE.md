@@ -359,6 +359,19 @@ it dropped and how many of each, not just a total, because a number says
 something is missing and an id says *what* — the same rule the interface keeps
 when it greys a race out and writes the reason next to it.
 
+**A creature's script is 383 rows here and fourteen per cent of it runs, which
+is the honest number.** `smart_scripts` is 52,768 rows; the four triggers this
+reads are *every so often while fighting*, *the moment it turns on you*, *when
+its health drops into a band*, and *when you come within so many yards*. The
+three the wiki left open — a linked row, a timed action list, a phase mask —
+were declined by counting rather than by taste, and the count is the argument:
+the linked rows carry five casts and **every one of the five hangs off a gossip
+selection this game does not run**, the timed lists hang off emote and waypoint
+events (they buy escort scripts, not fights), and the phase masks are twenty
+rows over six creatures of which sixteen are bookkeeping inside an escort. All
+three would make the interpreter keep a memory. `RANGE` went in for exactly
+the reason they stayed out: it needs none.
+
 **A conversation depends on who is having it, and 62% of that is the class.**
 `conditions` is where the original keeps *this line only to a rogue*: 276 of
 its rows touch this slice, 172 of them are a class mask, and it was read by
