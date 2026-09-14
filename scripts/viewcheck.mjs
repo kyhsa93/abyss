@@ -417,8 +417,18 @@ const inwall = await p.evaluate(() => {
 const gaps = await p.evaluate(() => {
   const g = window.__gaps()
   if (!g.length) return { n: 0 }
-  let refused = 0, beside = 0
+  // And the fourth account: **a mine's mouth is the one hole you may step
+  // into**, because it is the way in.  It refused a step like every other for
+  // as long as mines existed, and since the doorstep is narrower than the hole
+  // the door sat in, the player stopped two yards short of a door he could
+  // never reach — a mine that could be walked up to and never entered.
+  const holes = window.__caves()
+  const wide = holes.mouth
+  const mouth = (x, y) => holes.mines.some((m) =>
+    Math.hypot(m.mouth[0] - x, m.mouth[1] - y) <= wide)
+  let refused = 0, beside = 0, ways = 0
   for (const [x, y] of g) {
+    if (mouth(x, y)) { ways++; refused++; continue }
     // A chunk that loses all sixteen bits is ground handed to a building that
     // brings its own floor — Stormwind, here — and the server walks its own
     // creatures over it.  Drawn as a hole, not refused.  `__holeAt` still says
@@ -438,12 +448,14 @@ const gaps = await p.evaluate(() => {
     for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12]])
       if (!window.__holeAt(x + dx, y + dy)) { beside++; break }
   }
-  return { n: g.length, refused, beside }
+  return { n: g.length, refused, beside, ways }
 })
 if (gaps.n) {
   check('the mouth of a mine is a hole and not ground', gaps.refused === gaps.n,
-    `${gaps.n} cells with no floor; ${gaps.beside} have floor again within `
-    + `twelve yards, and the rest are the city standing on its own`)
+    `${gaps.refused} of ${gaps.n} cells with no floor refuse a step; `
+    + `${gaps.beside} have floor again within `
+    + `twelve yards, ${gaps.ways} are a mine's mouth and take a step on `
+    + 'purpose, and the rest are the city standing on its own')
 }
 check('and nobody is standing inside one', inwall.stuck === 0,
   `${inwall.stuck} of ${inwall.n.toLocaleString()} spawns in a wall, ${inwall.indoors} indoors`)
@@ -1574,7 +1586,143 @@ check('and each is a warren rather than a box',
 const dug1 = await p.evaluate(() => JSON.stringify(window.__caves()))
 const dug2 = await p.evaluate(() => JSON.stringify(window.__caves()))
 check('and the same world digs the same mine', dug1 === dug2)
-console.log(`      (${mines.lost} creatures under the surface belong to no mine)`)
+
+// Every number a mine is cut to is a function of something the world states,
+// and issue 210 is why: the passage width was 3.2 because 3.2 looked right.
+//
+// A passage is a place a man walks — the same definition a wall already has
+// here — so it is the client's own collision box, halved for a radius, plus
+// half a cell because the mask is sampled at its own pitch and a disc of
+// radius `r` comes back `2r - cell` across.
+check('a passage is a body wide, after the mask has sampled it',
+  Math.abs(mines.wide - (mines.body / 2 + mines.cell / 2)) < 0.001
+  && 2 * mines.wide - mines.cell >= mines.body - 0.001,
+  `${mines.wide.toFixed(2)} yd radius = ${mines.body} / 2 + ${mines.cell.toFixed(2)} / 2, `
+  + `so ${(2 * mines.wide - mines.cell).toFixed(2)} yd across once sampled`)
+// And a mouth is the client's: a `holes` bit is two by two height cells.
+check('and a mouth is the width of the hole the client took out',
+  Math.abs(mines.mouth * 2 - 8.333) < 0.01,
+  `${(mines.mouth * 2).toFixed(2)} yd across`)
+// A chamber is its creature's own leash, which is a column rather than a
+// choice — so the ones that do not move get a body's width and the ones on a
+// seven-yard rope get seven.
+check('and a chamber is the creature\'s own wander distance',
+  mines.mines.every((m) => m.wander[2] >= m.wander[0]),
+  mines.mines.map((m) => `${m.area}: ${m.wander[0]}..${m.wander[2]} yd`).join('; '))
+
+// Which warren a creature is in is a cluster and not an area, and the cut is
+// the data's own break rather than a threshold: the longest passage inside a
+// warren against the shortest gap between two.  While that ratio is large
+// every threshold in between gives the same answer and there is nothing to
+// tune; the day it nears one this rule wants replacing, not nudging.
+check('and the cut between one warren and the next is not a close call',
+  mines.apart >= 3,
+  `the gap between warrens is ${mines.apart}x the longest passage inside one, `
+  + `over ${mines.warrens} warrens`)
+
+// And everybody underground is either in a mine or counted.  It was 30 of 89
+// left over with nothing said about them, because grouping by area could not
+// see the two warrens standing in 엘윈 숲 itself.
+const under = Object.values(mines.under).reduce((n, a) => n + a.n, 0)
+const took = Object.values(mines.under).reduce((n, a) => n + a.mine, 0)
+check('and everybody under the surface is in a mine or counted out',
+  took + mines.lost === under && mines.lost < under / 4,
+  `${took} of ${under} in a mine, ${mines.lost} in warrens under the six a mine `
+  + 'wants: ' + Object.entries(mines.under).filter(([, a]) => a.mine < a.n)
+    .map(([k, a]) => `area ${k} ${a.n - a.mine}`).join(', '))
+
+// 9c2. A mine is a place, so you can walk into it and out again — and what is
+// in it is out of sight until you do.
+//
+// The cull has had the mine in it since the mine existed (*"without this the
+// whole of Ant'hill stood on the hillside above itself"*) and nothing asked
+// whether it was right in either direction.  Both halves matter: hiding a
+// warren from outside is only correct if standing in it shows it.
+let walked = null
+for (const m of mines.mines) {
+  // Somewhere outside, near the mouth, that a man can actually stand on.
+  // Taking a bearing out of the warren's middle and stepping nine yards was
+  // the first try and it lands in a hillside as often as not — a mine's mouth
+  // is in a slope by definition — and `placeHero` then slides him somewhere
+  // else entirely.  A ring, nearest first, and the spot has to hold him.
+  const out = await p.evaluate(([mx, my]) => {
+    for (const r of [7, 9, 11]) {
+      for (let a = 0; a < 16; a++) {
+        const t = (a / 16) * Math.PI * 2
+        const x = mx + Math.cos(t) * r, y = my + Math.sin(t) * r
+        if (!window.__canWalk(x, y)) continue
+        window.__put(x, y)
+        const at = window.__hero()
+        if (!window.__seam().inside && Math.hypot(at.x - x, at.y - y) < 1) {
+          return { inside: null, at }
+        }
+      }
+    }
+    return { inside: 'nowhere to stand outside it' }
+  }, m.mouth)
+  if (out.inside) continue
+  // The camera eases, and a creature is only in `__hidden` if it was on the
+  // glass: read too soon and the count is nought for the wrong reason.  This
+  // repository has lost four rounds to checks that raced the weather.
+  await p.waitForTimeout(900)
+  const before = await p.evaluate(() => window.__hidden()
+    .filter((h) => h.why === 'mine').length)
+  // Walk, rather than place: whether a man can get in is the question.
+  const keys = await p.evaluate(([mx, my]) => {
+    const dx = mx - window.__hero().x, dy = my - window.__hero().y
+    // North is +x and goes up the glass; west is +y and goes left.
+    return [dx > 0.5 ? 'w' : dx < -0.5 ? 's' : null,
+      dy > 0.5 ? 'a' : dy < -0.5 ? 'd' : null].filter(Boolean)
+  }, m.mouth)
+  for (const k of keys) await p.keyboard.down(k)
+  // Asked of the state and not of `__seam`, which *runs* the doorstep: calling
+  // it twenty times while standing in a doorway is not the same thing as
+  // walking through one, and it toggled the player in and out.  `tick` fires
+  // the seam itself once a step, which is what a walking player gets.
+  let inside = null
+  for (let i = 0; i < 30 && !inside; i++) {
+    await p.waitForTimeout(200)
+    inside = (await p.evaluate(() => window.__room())).inside
+  }
+  // Stop the moment he is in.  Walking on was the first try and it walked him
+  // straight back out: crossing the threshold *places* him a few yards along
+  // whichever bearing has floor on it, which is not the bearing he was
+  // pressing, so the keys that took him in were now pointing at the door.
+  for (const k of keys) await p.keyboard.up(k)
+  if (!inside) continue
+  await p.waitForTimeout(900)
+  const after = await p.evaluate(() => window.__hidden()
+    .filter((h) => h.why === 'mine').length)
+  const seen = await p.evaluate(() => window.__hidden()
+    .filter((h) => h.why === 'outside the room you are in').length)
+  // And out, which is a walk back to the mouth rather than the reverse of the
+  // way in: crossing put him down on whichever bearing had floor on it, so
+  // "the way we came" points wherever it likes from there.
+  const back = await p.evaluate(([mx, my]) => {
+    const dx = mx - window.__hero().x, dy = my - window.__hero().y
+    return [dx > 0.5 ? 'w' : dx < -0.5 ? 's' : null,
+      dy > 0.5 ? 'a' : dy < -0.5 ? 'd' : null].filter(Boolean)
+  }, m.mouth)
+  for (const k of back) await p.keyboard.down(k)
+  let left = 'mine'
+  for (let i = 0; i < 30 && left; i++) {
+    await p.waitForTimeout(200)
+    left = (await p.evaluate(() => window.__room())).inside
+  }
+  for (const k of back) await p.keyboard.up(k)
+  walked = { area: m.area, crew: m.crew, before, after, seen, inside, left }
+  break
+}
+check('a man can walk into a mine', !!walked && walked.inside === 'mine',
+  walked ? `area ${walked.area}, ${walked.crew} of them down it`
+    : 'no mouth could be walked into')
+check('and out of it again', !!walked && !walked.left,
+  walked ? `back outside, ${walked.left ?? 'under the sky'}` : '')
+check('and what is down there is out of sight until he does',
+  !!walked && walked.before > 0 && walked.after === 0,
+  walked ? `${walked.before} on screen and undrawn from outside, `
+    + `${walked.after} still hidden from inside, and ${walked.seen} of the `
+    + 'forest hidden from in there instead' : '')
 
 // 10l. The portrait is a portrait.
 //

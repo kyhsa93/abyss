@@ -122,6 +122,11 @@ keeps it honest.
 | 실내로 옮겨 간 55명이 하나도 사라지지 않는다 (역할별 수 보존) | `scripts/viewcheck.mjs: ", everybody left out of the scene is under a roof"` |
 | 굴 안의 크리처가 들에도 서 있지 않는다 | `scripts/viewcheck.mjs: "and nobody is standing inside one"` |
 | 같은 씨앗은 같은 굴 | `scripts/viewcheck.mjs: "and the same world digs the same mine"` |
+| 굴에 걸어 들어가고 걸어 나올 수 있다 | `scripts/viewcheck.mjs: "a man can walk into a mine"` |
+| 굴 안의 사람이 밖에서 안 보이고 안에서는 보인다 | `scripts/viewcheck.mjs: "and what is down there is out of sight until he does"` |
+| 통로 폭이 몸 하나이고, 마스크가 재고 나서도 그렇다 | `scripts/viewcheck.mjs: "a passage is a body wide, after the mask has sampled it"` |
+| 굴 하나와 다음 굴 사이의 간격이 굴 안 통로보다 훨씬 길다 | `scripts/viewcheck.mjs: "and the cut between one warren and the next is not a close call"` |
+| 땅 밑의 모두가 굴에 있거나 세어져 있다 | `scripts/viewcheck.mjs: "and everybody under the surface is in a mine or counted out"` |
 | 실내에서 저장하고 불러오면 실내다 | — 저장이 실내인지를 안 적는다 (#206) |
 | `shotcheck` 에 실내 자리 둘 (여관·수도원) | — 기준 그림 여섯 장이 전부 바깥이다 |
 

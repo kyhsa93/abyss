@@ -817,6 +817,44 @@ square with it. It skips stances, because a stance is a decision and because a
 free always-usable ability would be flipped for ever. The flag moved from
 `touch.ts` on to `you`, where a keyboard can reach it.
 
+**A mine could be walked up to and never entered, and three green checks said
+it was fine.** All three asked about the *mask* — how many mines, how much of
+the box is dug, whether the same world digs the same one — and **nobody had
+walked in**. Three things were in the way and the last is this repository's
+signature shape. The client's `holes` refuse a step everywhere, because there
+is no floor there, and a mine's mouth is one of them; the doorstep is 1.6 yards
+and the mouth is the 8.33-yard hole the client took out of the hillside, so the
+player stopped two yards short of a door he could never reach; and
+`placeHero`'s last line asks `inRoom` whether this is still the room you were
+in — **and `inRoom`'s index is built from `buildings`, while mines are dug
+afterwards**. So crossing the threshold set `indoors` and the very next line
+cleared it. Two lists that drift, again: a mine is a building everywhere except
+in the index that decides where you can walk. It asks the building's own plan
+now, which is both the fix and the better question — an index answers "whose
+room is this", and what was wanted was "is it still that one". The doorstep
+also became a **distance rather than a box**: a square of half-width `d`
+reaches `d√2` at its corners, so a player put five and a half yards inside a
+mine was still standing in a four-yard doorway and `onStep` never cleared.
+
+**And every number a mine is cut to is now a column.** The passage was 3.2 —
+a corridor six and a half yards across, which is a road — and it is
+`BODY_YARDS / 2 + cell / 2`, so a body still fits after the mask is sampled at
+its own 1.33 pitch. The chamber was 5.5 for everybody and it is the creature's
+own `creature.wander_distance`, which is too small at 5.5 for the kobolds on a
+seven-yard rope and four times too big for the thirty-odd that do not move. The
+mouth was `3.2 * 1.4` and it is `U`, half the client's own hole. **And a mine
+is a cluster, not an area**: the area grid is on a 33-yard pitch, so a mine's
+inside often has no cell of its own — area 12 is 엘윈 숲 itself and held
+nineteen creatures in two warrens with no mine at all, while area 9's one mine
+was two warrens of seven welded across a hill. A minimum spanning tree over
+everybody underground, cut where its own edge lengths break, and **the break is
+not close**: 34 yards is the longest passage inside a warren and 288 the
+shortest gap between two, a factor of eight, so every threshold between them
+gives the same answer and there is nothing to tune. `viewcheck` fails if that
+ratio ever stops being decisive, which is the day the rule wants replacing
+rather than nudging. 86 of the 89 creatures under the surface are now in a
+mine; it was 59, with 30 left over and nothing said about them.
+
 **Indoors the minimap was a map of the forest.** `paintMap` asked three
 questions a cell — wet, too steep, what the ground is painted — and all three
 are about the ground outside, with no line anywhere asking whether you are in
@@ -1014,9 +1052,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and forty-eight lines of "we should
+pages end in a 붙일 검사 table — a hundred and fifty-three lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and twenty-two are; the rest are waiting on a feature nobody has built,
+A hundred and twenty-seven are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1024,7 +1062,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 418 check labels in the harness, 75 were promised and **343 were written
+of 426 check labels in the harness, 80 were promised and **346 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1034,7 +1072,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, and the boundary round five more: 148. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, and the mines five: 153. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

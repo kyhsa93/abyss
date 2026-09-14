@@ -396,6 +396,26 @@ async function main() {
   const deep = bin.byteLength >= deepAt + cells
     ? new Uint8Array(bin, deepAt, cells) : null
   const { width: W, height: H, unit: U, x0, y0 } = meta
+  /**
+   * Half the client's own hole, which is two by two height cells — 8.33 yards
+   * across.  A mine's mouth is cut to it, and it is also how wide the doorstep
+   * of a mine is: a house's door is a door's width and a mine's is a hillside.
+   */
+  const MOUTH = U
+  /**
+   * Where the mines open, filled when they are dug.
+   *
+   * Declared up here because `openHole` needs it and `openHole` is read by the
+   * walkability test, which is written long before there are any caves.  **A
+   * mine's mouth is the way in and not a pit**: a hole in the ground stops a
+   * man everywhere else, and at a mouth it is the one thing that must not.
+   * Without this a mine could be looked at and never entered — the hole
+   * refused footing two yards out and the doorstep is one and a half, so the
+   * player stopped short of a door he could never reach.  Nothing said,
+   * because the culling that hides a kobold in a mine works off the creature's
+   * own `cave` and not off where the player is.
+   */
+  const mouths: [number, number][] = []
 
   const [tilesImg, tilesMeta, heroImg, heroMeta, npcImg, npcArt, art, spawns, spellbook, things, roster, shelf, said, craft] = await Promise.all([
     load('./art/tiles.png'),
@@ -703,6 +723,12 @@ async function main() {
    */
   const openHole = (wx: number, wy: number) => {
     if (!holeAt(wx, wy) || floored(wx, wy)) return false
+    // A mine's mouth is the exception, and it is the whole way in.  A disc,
+    // the same shape `atDoor` uses, so the ground that takes a step and the
+    // ground that opens a door are the same ground.
+    for (const [mx, my] of mouths) {
+      if (Math.hypot(mx - wx, my - wy) <= MOUTH) return false
+    }
     // A *floor*, not merely a building's box.  A mine mouth sits inside the
     // box of something that has no plan of its own, and asking "is anything
     // here at all" closed every mouth in the forest — the opposite mistake,
@@ -1930,9 +1956,9 @@ async function main() {
    * cottages, and there is no picture here for either.*
    *
    * But the server knows where its creatures stand, and that is the same
-   * structural fact the heights already lean on.  A hundred and fifty-one
-   * creatures in this slice stand six yards or more below the baked surface,
-   * and where they are is where the mine is.
+   * structural fact the heights already lean on.  **Eighty-nine creatures in
+   * this slice stand six yards or more below the baked surface**, and where
+   * they are is where the mine is.
    *
    * **The passages between them are ours, and that has to be said out loud.**
    * The server states positions, not whether the rock between two kobolds is
@@ -1940,16 +1966,53 @@ async function main() {
    * spanning tree over the cloud, widened — which means the same world is
    * always the same mine and there is nothing to store; and the readout says
    * the cave is ours the same way it says the synthesised terrain is.
+   *
+   * **Every number here used to be one somebody picked, and every one of them
+   * is a function of something the world already states.**  Issue 210 asked
+   * where the passage width came from and the honest answer was the screen.
+   *
+   *   * A **passage** is a place a man walks, which is the same definition a
+   *     wall already has here: `BODY_YARDS`, the client's own human collision
+   *     box, 2.03 yards.  Half of it is the radius and half a cell is added on
+   *     top, because the mask is sampled at its own 1.33 pitch and a disc of
+   *     radius `r` comes back at least `2r - cell` across — so `2.03` survives
+   *     the sampling rather than being pinched to one cell.  It was 3.2, and
+   *     3.2 is a corridor six and a half yards wide, which is a road.
+   *   * A **chamber** is a place a creature lives, so it is that creature's
+   *     own `creature.wander_distance` plus a passage's width.  It was 5.5 for
+   *     everybody, which is too small for the kobolds whose leash is 7 and
+   *     four times too big for the thirty-odd who do not move at all.
+   *   * A **mouth** is the client's: a `holes` bit is two by two height cells,
+   *     8.33 yards square, so its radius is `U`.  It was `3.2 * 1.4`, which is
+   *     the same number by accident and says nothing.
+   *
+   * **And a cave is a cluster, not an area.**  Grouping the deep creatures by
+   * `areaOf` was the last invented rule and the dearest: the area grid is on a
+   * 33-yard pitch and a mine's inside often has no cell of its own, so area 12
+   * — 엘윈 숲 itself — held **nineteen creatures in two warrens** and got no
+   * mine at all, while area 9's one mine is really two warrens of seven joined
+   * across the hill.  They are chained by `creature_template.detection_range`
+   * now: two creatures that can notice each other are in the same room in any
+   * sense this game has, and that is a column rather than a threshold.
    */
   const DOWN = 6
-  const CAVE_WIDE = 3.2
-  /** How far a cave reaches around a creature standing in it. */
-  const CAVE_ROOM = 5.5
-  function digCave(area: number, mouth: [number, number]) {
-    const crew = npcs.filter((n) =>
-      areaOf(n.x, n.y) === area && n.z < groundAt(n.x, n.y) - DOWN)
-    if (crew.length < 6) return null
-    const pad = CAVE_ROOM + 3
+  const CAVE_CELL = 32 / 24
+  /** A passage is a place a man walks, and still is after the mask samples it. */
+  const CAVE_WIDE = BODY_YARDS / 2 + CAVE_CELL / 2
+  /**
+   * How many creatures make a warren worth digging.
+   *
+   * Declared rather than derived, and the count of what it leaves out is in
+   * `__caves().lost` — the same bargain `audit.py` makes with a default.  Two
+   * or three creatures under a hillside is as likely to be a spawn the height
+   * grid is wrong about as a cave: the three in area 87 sit seven yards down,
+   * which is one yard past the bar for being underground at all.
+   */
+  const CREW = 6
+  /** How far a creature reaches from where it stands, chamber included. */
+  const chamberFor = (n: { wander: number }) => n.wander + CAVE_WIDE
+  function digCave(crew: Npc[], mouth: [number, number]) {
+    const pad = Math.max(...crew.map(chamberFor)) + 3
     // The mouth is part of the cave.  It has to be: the client's hole is on
     // the hillside and the nearest kobold can be eighty yards in, so a mask
     // drawn round the cloud alone left the way in outside the cave — and
@@ -1959,7 +2022,7 @@ async function main() {
     const lo = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad }
     const hi = { x: Math.max(...xs) + pad, y: Math.max(...ys) + pad }
     const cx = (lo.x + hi.x) / 2, cy = (lo.y + hi.y) / 2
-    const cell = 32 / 24
+    const cell = CAVE_CELL
     // Model space, with no turn in it: `planCell` reads lx from the world's
     // -y and ly from its x, so the plan is laid out that way and the two
     // agree by construction rather than by a fudge.
@@ -1979,8 +2042,8 @@ async function main() {
         }
       }
     }
-    for (const n of crew) dig(n.x, n.y, CAVE_ROOM)
-    dig(mouth[0], mouth[1], CAVE_WIDE * 1.4)
+    for (const n of crew) dig(n.x, n.y, chamberFor(n))
+    dig(mouth[0], mouth[1], MOUTH)
     // The adit: the tunnel from the mouth to the chamber nearest it.
     {
       let first = crew[0]!
@@ -2342,9 +2405,47 @@ async function main() {
 
   /** How near a door has to be to be the door you are standing in. */
   const DOORSTEP = 1.6
+  /**
+   * How near a door counts as standing in it.
+   *
+   * A house's is a door's width.  A mine's is the hole the client took out of
+   * the hillside, which is 8.33 yards across — asking a player to find the
+   * middle of it to within a yard and a half is asking him to find a door
+   * that is not drawn.
+   */
+  const doorstepOf = (b: (typeof buildings)[number]) =>
+    b.k === 'mine' ? MOUTH : DOORSTEP
+  /**
+   * Still inside the building you were inside — asked of *that building*
+   * rather than of the index.
+   *
+   * `inRoom` walks a grid built once from `buildings`, and **a mine is not in
+   * it**: mines are dug afterwards, out of where the server stands its
+   * creatures, and their plan lies under ground the index has already given to
+   * the hillside.  So `throughTheDoor` set `indoors` to the mine, called
+   * `step` to put the player on its floor, and `placeHero`'s last line asked
+   * the index whose room this was, got nothing, and cleared `indoors` again.
+   * A mine could be walked up to and never entered, and the three checks that
+   * existed all passed because every one of them asked about the *mask*.
+   *
+   * The doorstep counts as inside for the same reason it counts as a way in.
+   */
+  const stillInside = (b: (typeof buildings)[number], wx: number, wy: number) =>
+    (b.plan
+      ? bitAt(b.plan.bits, planCell(b.plan, b, wx, wy))
+      : inRoom(wx, wy) === b) || atDoor(b, wx, wy)
+  /**
+   * A distance and not a box, which matters once a doorstep is wide.
+   *
+   * A square of half-width `d` reaches `d * root two` at its corners, so
+   * `step` putting the player five and a half yards into a mine left him
+   * inside a four-yard doorstep — `onStep` never cleared and a man who walked
+   * in could not turn round and walk out.  At a yard and a half nobody could
+   * tell the difference; at four it is the difference between a door and a
+   * room.
+   */
   const atDoor = (b: (typeof buildings)[number], wx: number, wy: number) =>
-    b.doors.some(([dx, dy]) =>
-      Math.abs(dx - wx) < DOORSTEP && Math.abs(dy - wy) < DOORSTEP)
+    b.doors.some(([dx, dy]) => Math.hypot(dx - wx, dy - wy) < doorstepOf(b))
   /**
    * A building, from outside, with its doorways left open.
    *
@@ -2805,28 +2906,106 @@ async function main() {
   // Dug after the spawns, because the spawns are the shape.  Only areas that
   // have a cloud worth entering: six creatures under the surface is the bar,
   // and in this slice three areas clear it.
-  for (const area of new Set(npcs.map((n) => areaOf(n.x, n.y)))) {
-    // The mouth first, because it is part of the cave: the client's own hole
-    // nearest a creature standing under this area.  Nearest to *a kobold* and
+  //
+  // **A warren is a cluster and the cut is not a number anybody picked.**
+  // These were grouped by `areaOf`, and that lost two mines outright: the area
+  // grid is on a 33-yard pitch, so a mine's inside often has no cell of its
+  // own and falls through to the zone — area 12 is 엘윈 숲 itself and held
+  // nineteen creatures in two warrens.  It also welded two warrens of seven
+  // into one sprawling plan because they share a hillside.
+  //
+  // So: a minimum spanning tree over everybody underground, cut where its own
+  // edge lengths break.  **Measured, the break is not close**: the longest
+  // passage inside a warren is 34 yards and the shortest gap between two is
+  // 288, a factor of eight, so every threshold between those two gives the
+  // same six warrens and there is nothing to tune.  `__caves().apart` is that
+  // ratio, and `viewcheck` fails if it ever stops being decisive — which is
+  // the day this rule needs replacing rather than nudging.
+  const buried = npcs.filter((n) => n.z < groundAt(n.x, n.y) - DOWN)
+  const warren: number[] = buried.map(() => -1)
+  let warrens = 0
+  let apart = Infinity
+  {
+    // Prim's, keeping each edge as it is taken.
+    const seen = buried.map(() => false)
+    const best = buried.map((n) => Math.hypot(n.x - buried[0]!.x,
+      n.y - buried[0]!.y))
+    const from = buried.map(() => 0)
+    const link: [number, number, number][] = []
+    seen[0] = true
+    for (let step = 1; step < buried.length; step++) {
+      let pick = -1
+      for (let i = 0; i < buried.length; i++) {
+        if (!seen[i] && (pick < 0 || best[i]! < best[pick]!)) pick = i
+      }
+      if (pick < 0) break
+      link.push([best[pick]!, from[pick]!, pick])
+      seen[pick] = true
+      for (let i = 0; i < buried.length; i++) {
+        if (seen[i]) continue
+        const d = Math.hypot(buried[pick]!.x - buried[i]!.x,
+          buried[pick]!.y - buried[i]!.y)
+        if (d < best[i]!) { best[i] = d; from[i] = pick }
+      }
+    }
+    // Where the lengths break, by ratio rather than by difference: a cave of
+    // three chambers and a cave of thirty have different scales and a ratio
+    // does not care.
+    // Two creatures closer together than a body are standing in one chamber,
+    // not at the ends of a passage, so the shortest edges cannot be the break:
+    // without the floor the biggest ratio in this slice is 1.4 over 0.9.
+    const sorted = link.map(([d]) => d).sort((p, q) => p - q)
+    let cut = Infinity
+    apart = 1
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = sorted[i]! / Math.max(sorted[i - 1]!, BODY_YARDS)
+      if (gap > apart) { apart = gap; cut = sorted[i - 1]! }
+    }
+    // Join everything the tree holds together below the cut.
+    const owner = buried.map((_n, i) => i)
+    const root = (i: number): number => (owner[i] === i ? i : (owner[i] = root(owner[i]!)))
+    for (const [d, a, b] of link) if (d <= cut) owner[root(a)] = root(b)
+    const seenRoot = new Map<number, number>()
+    for (let i = 0; i < buried.length; i++) {
+      const r = root(i)
+      if (!seenRoot.has(r)) seenRoot.set(r, warrens++)
+      warren[i] = seenRoot.get(r)!
+    }
+  }
+  for (let g = 0; g < warrens; g++) {
+    const crew = buried.filter((_n, i) => warren[i] === g)
+    if (crew.length < CREW) continue
+    const area = areaOf(crew[0]!.x, crew[0]!.y)
+    // The mouth next, because it is part of the cave: the client's own hole
+    // nearest a creature standing in this warren.  Nearest to *a kobold* and
     // not to the middle of the cloud — Ant'hill Mine is 186 yards across, so
     // asking from its centre found no mouth at all.  Without one there is no
     // way in, and a mine you cannot enter is not worth digging.
-    const deep = npcs.filter((n) =>
-      areaOf(n.x, n.y) === area && n.z < groundAt(n.x, n.y) - DOWN)
-    if (deep.length < 6) continue
+    //
+    // **How far away a mouth may be is the warren's own size**, not a flat
+    // forty-five: a mine whose chambers span a hundred and eighty yards may
+    // have its entrance on a hillside sixty yards from the nearest kobold, and
+    // a den six yards across may not claim one eighty yards off.  The forty-
+    // five it used to be is the shape of that argument with the measurement
+    // left out — one of the three mines it dug cleared it by four yards.
+    const mx = crew.reduce((t, n) => t + n.x, 0) / crew.length
+    const my = crew.reduce((t, n) => t + n.y, 0) / crew.length
+    const reach = Math.sqrt(Math.max(...crew
+      .map((n) => (n.x - mx) ** 2 + (n.y - my) ** 2)))
     let mouth: [number, number] | null = null
-    let near = 45 * 45
+    let near = Math.max(reach, MOUTH) ** 2
     for (const [i, j] of meta.gaps ?? []) {
-      const mx = x0 - i * U, my = y0 - j * U
-      for (const n of deep) {
-        const d = (mx - n.x) ** 2 + (my - n.y) ** 2
-        if (d < near) { near = d; mouth = [mx, my] }
+      const hx = x0 - i * U, hy = y0 - j * U
+      for (const n of crew) {
+        const d = (hx - n.x) ** 2 + (hy - n.y) ** 2
+        if (d < near) { near = d; mouth = [hx, hy] }
       }
     }
     if (!mouth) continue
-    const dug = digCave(area, mouth)
+    const dug = digCave(crew, mouth)
     if (!dug) continue
     for (const n of dug.crew) n.cave = caves.length
+    mouths.push(mouth)
     caves.push({
       x: dug.x, y: dug.y, l: (dug.h * dug.cell) / 2, w: (dug.w * dug.cell) / 2,
       c: 1, s: 0, k: 'mine', area, house: 0, doors: [mouth],
@@ -2953,7 +3132,7 @@ async function main() {
     // is right for walking and wrong for every other way of moving: a
     // graveyard is not in the inn, and a teleport out of the abbey left the
     // scene drawing the abbey's floor around a hero standing in a field.
-    if (indoors && inRoom(x, y) !== indoors) { indoors = null; storey = -1 }
+    if (indoors && !stillInside(indoors, x, y)) { indoors = null; storey = -1 }
   }
 
 
@@ -7840,7 +8019,7 @@ async function main() {
    */
   function throughTheDoor() {
     const near = (b: (typeof buildings)[number]) => b.doors.find(([dx, dy]) =>
-      Math.abs(dx - hero.x) < DOORSTEP && Math.abs(dy - hero.y) < DOORSTEP)
+      Math.hypot(dx - hero.x, dy - hero.y) < doorstepOf(b))
     if (indoors) {
       const door = near(indoors)
       if (!door) { onStep = false; return }
@@ -7885,7 +8064,13 @@ async function main() {
   function step(b: (typeof buildings)[number], door: [number, number], way: number) {
     const p = b.plan
     if (!p) return
-    for (const r of [3, 4.5, 6]) {
+    // Measured from the threshold, which is not the same width for everything.
+    // A house's doorstep is a door and three yards in is a room; a mine's is
+    // the client's own hole in the hillside, 8.33 yards across, and three
+    // yards in is still standing in the doorway — so `throughTheDoor` never
+    // cleared `onStep` and a player who walked in could not walk out again.
+    const past = doorstepOf(b) - DOORSTEP
+    for (const r of [3 + past, 4.5 + past, 6 + past]) {
       for (let a = 0; a < 8; a++) {
         const t = (a / 8) * Math.PI * 2
         const x = door[0] + Math.cos(t) * r, y = door[1] + Math.sin(t) * r
@@ -9530,7 +9715,10 @@ async function main() {
   ;(window as unknown as { __caves: () => unknown }).__caves = () => ({
     mines: caves.map((c) => ({
       area: c.area, at: [Math.round(c.x), Math.round(c.y)],
-      mouth: c.doors[0]!.map(Math.round), cells: [c.plan!.w, c.plan!.h],
+      // Not rounded: a check that asks which cells are a mouth has to ask it
+      // of the same point the walkability does, and half a yard of rounding
+      // put seven cells on the wrong side of the answer.
+      mouth: c.doors[0], cells: [c.plan!.w, c.plan!.h],
       // How much of the box is actually dug, which is what says this is a
       // warren of passages and not a rectangle with kobolds in it.
       dug: (() => {
@@ -9542,7 +9730,130 @@ async function main() {
         return Math.round((100 * n) / (c.plan!.w * c.plan!.h))
       })(),
       crew: npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c).length,
+      /**
+       * The crew member nearest the mouth, which is the one a check can see
+       * from either side of the doorstep without walking the whole warren.
+       */
+      near: (() => {
+        const crew = npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c)
+        let best = crew[0]!
+        let gap = Infinity
+        for (const n of crew) {
+          const d = (n.x - c.doors[0]![0]) ** 2 + (n.y - c.doors[0]![1]) ** 2
+          if (d < gap) { gap = d; best = n }
+        }
+        return [Math.round(best.x), Math.round(best.y),
+          Math.round(Math.sqrt(gap))]
+      })(),
+      /**
+       * What the chambers and the passages were cut to, and where the numbers
+       * came from.  A constant here was a bug waiting to be found: `3.2` and
+       * `5.5` were chosen by looking at the screen.
+       */
+      wander: (() => {
+        const w = npcs.filter((n) => n.cave !== undefined && caves[n.cave] === c)
+          .map((n) => n.wander).sort((a, z) => a - z)
+        return [w[0], w[w.length >> 1], w[w.length - 1]]
+      })(),
     })),
+    /** The mouth is the client's own hole and this is how wide it is. */
+    mouth: MOUTH,
+    /**
+     * How decisive the cut between one warren and the next is.
+     *
+     * The longest passage inside a warren against the shortest gap between
+     * two.  While this is a factor of several there is nothing to tune — every
+     * threshold in between gives the same warrens — and the day it approaches
+     * one is the day clustering stops being the right rule.
+     */
+    apart: Math.round(apart * 10) / 10,
+    warrens,
+    /** A passage is a place a man walks, after the mask is sampled. */
+    wide: CAVE_WIDE,
+    body: BODY_YARDS,
+    cell: 32 / 24,
+    /**
+     * Everybody under the surface, by area, and whether a mine took them.
+     *
+     * `spread` is what separates the two reasons a creature is down here.  A
+     * mine is a **cloud**: its members are tens of yards apart and the widest
+     * is Ant'hill at 186.  A creature that is six yards under the forest on
+     * its own is not in a cave at all — it is a spawn the height grid is
+     * wrong about, and counting it as a lost miner hid that.
+     */
+    under: (() => {
+      const by: Record<string, { n: number; mine: number; spread: number;
+        deep: number; toMouth: number; reach: number; lumps: number[] }> = {}
+      const where: Record<string, [number, number, number][]> = {}
+      for (const n of npcs) {
+        const g = groundAt(n.x, n.y)
+        if (n.z >= g - DOWN) continue
+        const a = String(areaOf(n.x, n.y))
+        by[a] ??= { n: 0, mine: 0, spread: 0, deep: 0, toMouth: -1, reach: 0,
+          lumps: [] }
+        by[a]!.n++
+        if (n.cave !== undefined) by[a]!.mine++
+        ;(where[a] ??= []).push([n.x, n.y, g - n.z])
+      }
+      for (const [a, pts] of Object.entries(where)) {
+        // The median nearest neighbour, which says cloud or scatter without
+        // being moved by one outlier the way a bounding box is.
+        const near = pts.map(([x, y]) => Math.sqrt(Math.min(...pts
+          .filter((q) => q[0] !== x || q[1] !== y)
+          .map((q) => (q[0] - x) ** 2 + (q[1] - y) ** 2), Infinity)))
+          .sort((p, q) => p - q)
+        by[a]!.spread = Math.round(near[near.length >> 1] ?? 0)
+        const d = pts.map((q) => q[2]).sort((p, q) => p - q)
+        by[a]!.deep = Math.round(d[d.length >> 1]!)
+        // And how far the nearest way in is.  The bar for digging is a hole
+        // of the client's within `REACH` of somebody down here; when a cloud
+        // is refused this is the number that says whether the bar is wrong or
+        // the place really has no mouth.
+        let best = Infinity
+        for (const [i, j] of meta.gaps ?? []) {
+          const mx = x0 - i * U, my = y0 - j * U
+          for (const [px, py] of pts) {
+            const q = (mx - px) ** 2 + (my - py) ** 2
+            if (q < best) best = q
+          }
+        }
+        by[a]!.toMouth = Math.round(Math.sqrt(best))
+        // How big the cloud itself is, from its own middle.  This is what
+        // decides how far away a mouth may be: Ant'hill is 186 yards across
+        // and its entrance is on a hillside 69 yards from the nearest kobold,
+        // and a den six yards across has no business claiming one 80 away.
+        const mx = pts.reduce((t, q) => t + q[0], 0) / pts.length
+        const my = pts.reduce((t, q) => t + q[1], 0) / pts.length
+        by[a]!.reach = Math.round(Math.sqrt(Math.max(...pts
+          .map((q) => (q[0] - mx) ** 2 + (q[1] - my) ** 2))))
+        // And whether that cloud is one thing.  Single linkage, so a chain of
+        // chambers stays one cave: area 12's nineteen look like a cloud by
+        // nearest neighbour and span 1,468 yards, which is the zone and not a
+        // mine.
+        const seen = pts.map(() => -1)
+        let group = 0
+        for (let i = 0; i < pts.length; i++) {
+          if (seen[i]! >= 0) continue
+          const queue = [i]
+          seen[i] = group
+          while (queue.length) {
+            const k = queue.pop()!
+            for (let j = 0; j < pts.length; j++) {
+              if (seen[j]! >= 0) continue
+              if ((pts[k]![0] - pts[j]![0]) ** 2
+                + (pts[k]![1] - pts[j]![1]) ** 2 > 40 * 40) continue
+              seen[j] = group
+              queue.push(j)
+            }
+          }
+          group++
+        }
+        const sizes: number[] = []
+        for (let g = 0; g < group; g++) sizes.push(seen.filter((v) => v === g).length)
+        by[a]!.lumps = sizes.sort((p, q) => q - p)
+      }
+      return by
+    })(),
     /** Creatures under the surface that ended up in no mine at all. */
     lost: npcs.filter((n) => n.z < groundAt(n.x, n.y) - DOWN
       && n.cave === undefined).length,
