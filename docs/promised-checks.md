@@ -90,6 +90,8 @@ keeps it honest.
 | 보이는 청크 캐시가 예산 안이다 | `scripts/viewcheck.mjs: "and what it keeps to do that is inside its budget"` |
 | 그리는 횟수가 지금보다 적다 | `scripts/viewcheck.mjs: "and the plain ground is drawn a plate at a time, not a tile at a time"` |
 | 땅이 타일 하나씩이 아니라 판 하나씩 그려진다 | `scripts/viewcheck.mjs: "and the plain ground is drawn a plate at a time, not a tile at a time"` |
+| 음영 단계 수가 아틀라스를 키우지 않는다 | `scripts/viewcheck.mjs: "the light is multiplied over the ground, so the atlas does not grow"` |
+| 실내 바닥의 음영이 세 단 이하다 | `scripts/viewcheck.mjs: "and a room is lit flat"` |
 | **나가는 데이터에 Blizzard 텍스처가 없다** | `pipeline/bake.py: verify` |
 
 ## [세계가-비어-보인다](https://github.com/kyhsa93/abyss/wiki/세계가-비어-보인다)

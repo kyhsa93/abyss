@@ -7686,6 +7686,23 @@ async function main() {
 
   const SHADES = 21
   /**
+   * The row of the tinted strip that is not tinted, or nearest to it.
+   *
+   * A plate is composed from this one and the hillside's light is multiplied
+   * over the whole plate afterwards — so the tiles must go in unlit, or the
+   * light lands twice.  `tintedGround` skips the wash where `|sl|` is under
+   * 0.02, and this row is 0.025 out, which is a one per cent tint.
+   */
+  const FLAT_ROW = Math.round(((0 - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1))
+  /**
+   * Which rows of the tinted strip an indoor scene actually used last frame.
+   *
+   * A room is lit flat on purpose — 실내 바닥 6절 asks for three steps at most
+   * and it uses one — and this is that promise as an observation rather than
+   * as a constant somebody can read back out of the source.
+   */
+  const indoorRows = new Set<number>()
+  /**
    * How many tiles square a plate of plain ground is, and what the whole cache
    * may weigh.
    *
@@ -7855,6 +7872,7 @@ async function main() {
         // Lit flat.  A room has no hillside and no sun in it, so the shading
         // that makes a field read as ground would only make a floor read as
         // a dented one.  The middle step is the unshaded one.
+        indoorRows.add((SHADES - 1) >> 1)
         ctx.drawImage(ground.c, at, ((SHADES - 1) >> 1) * px, px, px,
           Math.round(cx - wide / 2), Math.round(cy - wide / 2), wide, wide)
         tilesDrawn++
@@ -8558,9 +8576,16 @@ async function main() {
       // jitter from the tile's own hash turns that line into a zigzag: it
       // costs nothing, it is stable frame to frame, and the hash was
       // already measured to have no periodicity in it.
-      const step = Math.max(0, Math.min(SHADES - 1, Math.round(
-        ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
-        + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
+      // **A plate takes its light flat and gets it multiplied back on
+      // afterwards, once, smoothly.**  Twenty-one steps over a hillside is a
+      // mosaic and the line between step nine and step ten is dead straight,
+      // which is why there is a jitter in the other branch — half a step of
+      // noise to turn that line into a zigzag.  A plate does not need either:
+      // it is a bitmap, so the light can be interpolated across it.
+      const step = mode === 'plain' ? FLAT_ROW
+        : Math.max(0, Math.min(SHADES - 1, Math.round(
+          ((sl - SHADE_LO) / (SHADE_HI - SHADE_LO)) * (SHADES - 1)
+          + (grain === 1 ? (hash(ti + 37, tj + 91) - 0.5) * 1.8 : 0))))
       const wide = px * grain
       // A plate already holds the plain ground under this tile, so what is
       // left is whatever a plate cannot hold: water, a bridge deck, a
@@ -8732,6 +8757,55 @@ async function main() {
           platedEver += paintGround(g, ox + a, oy + d, sx, sy, null, 'plain')
         }
       }
+      // --- and the light, once, across the whole plate -------------------
+      //
+      // The hillside's own light is the only thing in this scene that carries
+      // height — the projection is flat and a tile does not move for a slope —
+      // and it was being delivered in **twenty-one steps**, one a tile.  That
+      // is a mosaic: issue 142 measured the picture repeating exactly one tile
+      // apart, and the reason 104 tiles of meadow came out as 28 different
+      // pictures rather than three was the steps.
+      //
+      // A plate is a bitmap, so the light can be a *gradient*: one sample a
+      // tile into a small canvas, blown up with smoothing on, laid over the
+      // plate with `source-atop` so it lands on the ground and not on the
+      // holes.  The colours are the wash `tintedGround` already uses, and
+      // both ends reach alpha nought at `sl = 0` — so interpolating from lit
+      // to shaded passes through no tint at all, which is what it should do.
+      {
+        const lm = document.createElement('canvas')
+        lm.width = lm.height = PLATE + 1
+        const lg = lm.getContext('2d')!
+        // Written as pixels rather than as 289 `fillRect` calls, which is not
+        // a micro-optimisation: two plates a frame at 289 fills apiece took
+        // the ground from 60 frames to 54, and the widest zoom to 39.
+        const lit = lg.createImageData(PLATE + 1, PLATE + 1)
+        for (let a = 0; a <= PLATE; a++) {
+          for (let d = 0; d <= PLATE; d++) {
+            // The sample is a tile *corner*, half a tile off the centres the
+            // tiles are drawn on, which is what makes the upscale line up.
+            const sl = shadeAt((ox + a - 0.5) * T, (oy + d - 0.5) * T, T)
+            const at = ((PLATE - a) * (PLATE + 1) + (PLATE - d)) * 4
+            const up = sl > 0
+            lit.data[at] = up ? 255 : 8
+            lit.data[at + 1] = up ? 247 : 14
+            lit.data[at + 2] = up ? 224 : 26
+            lit.data[at + 3] = Math.round(255 * (up
+              ? (sl / SHADE_HI) * 0.34 : (sl / SHADE_LO) * 0.46))
+          }
+        }
+        lg.putImageData(lit, 0, 0)
+        // Straight over, not `source-atop`.  Atop has to read the plate's own
+        // alpha for every pixel it touches and that is a quarter of a million
+        // of them a plate: measured, it cost four frames a second at the
+        // widest zoom, which is where the budget is tightest.  What atop was
+        // for is the holes — the cells a plate leaves empty — and those are
+        // painted over by the tile pass a moment later anyway.
+        g.imageSmoothingEnabled = true
+        g.drawImage(lm, -0.5 * (c.width / PLATE), -0.5 * (c.height / PLATE),
+          c.width * ((PLATE + 1) / PLATE), c.height * ((PLATE + 1) / PLATE))
+        g.imageSmoothingEnabled = false
+      }
       const made = { c, used: frames, bytes: c.width * c.height * 4, fresh: true }
       plateBytes += made.bytes
       plates.set(key, made)
@@ -8751,7 +8825,14 @@ async function main() {
       // a hitch.  Two a frame spreads it, and the tiles a plate has not
       // reached yet are drawn the old way in the meantime, so nothing is ever
       // missing from the screen.
-      let budget = 2
+      //
+      // **One**, not two.  A plate is about a millisecond of tile blits and
+      // another of light, and two of them is four milliseconds on a frame
+      // that has sixteen — which showed up as forty frames a second at the
+      // widest zoom, where the cache is coldest and the budget tightest.  One
+      // takes twice as many frames to fill the glass and every one of them is
+      // inside the refresh rate.
+      let budget = 1
       const done = new Set<string>()
       if (usePlates) {
         for (let pi = Math.floor(xLo / PLATE); pi <= Math.floor(xHi / PLATE); pi++) {
@@ -10188,6 +10269,22 @@ async function main() {
    * The issue that asked for plates asked for this in the same breath: a cache
    * is a budget, and one that nothing weighs is a leak with a good name.
    */
+  /**
+   * How the light is delivered, and what it costs the atlas.
+   *
+   * The issue that asked for a continuous hillside asked in the same breath
+   * that making the light finer **must not grow the atlas** — and it does not,
+   * because the plain ground is composed from one flat row and the light is
+   * multiplied over the plate afterwards.  Twenty-one rows is what the tiles
+   * that are *not* in a plate still use.
+   */
+  ;(window as unknown as { __shading: () => unknown }).__shading = () => {
+    const g = tintedGround()
+    return {
+      rows: SHADES, flat: FLAT_ROW, high: g.c.height, tile: g.px,
+      indoor: [...indoorRows],
+    }
+  }
   ;(window as unknown as { __plates: () => unknown }).__plates = () => ({
     kept: plates.size, bytes: plateBytes, budget: PLATE_BUDGET,
     side: PLATE_PX, drawn: platesDrawn,

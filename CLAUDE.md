@@ -409,6 +409,38 @@ took sixty frames to fifteen — the cost had not gone, it had moved into a
 hitch. Tiles a plate has not reached yet are drawn the old way meanwhile, so
 nothing is ever missing from the screen.
 
+**The hillside's light is a gradient now, and it cost the atlas nothing.** The
+light is the only thing in this scene that carries height — the projection is
+flat and a tile does not move for a slope — and it was being delivered in
+twenty-one steps, one a tile, out of a strip with a row per step. A plate is a
+bitmap, so it is composed from the strip's **flat** row and the light is
+multiplied over the whole plate afterwards: one sample a tile corner into a
+`PLATE + 1` square image, blown up with smoothing on. The colours are the wash
+the strip already used, and **both ends reach alpha nought at `sl = 0`**, so
+interpolating from lit to shaded passes through no tint at all without anybody
+arranging it. The half-step jitter goes with the steps: it was there to turn
+the dead straight line between step nine and step ten into a zigzag, and a
+gradient has no line to break.
+
+Two costs had to be measured rather than assumed. `source-atop` reads the
+plate's own alpha for every pixel it touches and a plate is a quarter of a
+million of them: **four frames a second at the widest zoom**, where the cache
+is coldest. It is `source-over` now — what atop was for is the holes a plate
+leaves empty, and the tile pass paints those a moment later anyway. And the
+light is about a millisecond a plate, so **one plate a frame** rather than two:
+two was four milliseconds on a sixteen millisecond frame and showed up as forty
+frames a second.
+
+**And the measurement that was supposed to prove it does not work.** A
+luminance profile across a hillside, smoothed, counting distinct levels: 74
+stepped against 73 smooth. The ground's own texture is louder than the light.
+So the continuity is judged by looking — the screenshots are on the wiki — and
+what the harness holds is the half that is arithmetic: the atlas does not grow,
+and a room is still lit flat. That second one has to be asked from *inside* a
+building, with a frame between going in and asking; hung on the block that
+names the rooms it read nought rows, because that block only asks `__whereAt`
+and never walks through a door.
+
 **A cold jump costs one frame and a half**, measured: 24 to 31 ms for the worst
 frame and settled within five, and walking holds 60 with a 27 ms worst frame as
 each new plate appears. That is the number that says pre-baking the ground is
@@ -1137,9 +1169,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and fifty-eight lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and thirty-five are; the rest are waiting on a feature nobody has built,
+A hundred and thirty-seven are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1147,7 +1179,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 432 check labels in the harness, 86 were promised and **346 were written
+of 434 check labels in the harness, 88 were promised and **346 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1157,7 +1189,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four and the plates one: 158. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four and the plates three: 160. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

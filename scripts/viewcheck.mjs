@@ -475,6 +475,39 @@ check('and a good share of the forest actually carries one',
     kept.bytes <= kept.budget,
     `${(kept.bytes / 1048576).toFixed(1)} MB over ${kept.kept} plates of a `
     + `${(kept.budget / 1048576).toFixed(0)} MB budget`)
+
+  // 9b4. And the hillside's light is a gradient rather than twenty-one steps.
+  //
+  // The light is the only thing in this scene that carries height — the
+  // projection is flat and a tile does not move for a slope — and it was
+  // being delivered one step a tile out of a strip with twenty-one rows in
+  // it.  A plate is a bitmap, so it is composed from the strip's **flat** row
+  // and the light is multiplied over the whole plate afterwards, interpolated.
+  //
+  // What this asserts is the half that is arithmetic: **the atlas does not
+  // grow.**  Whether the hillside reads as a hillside is a looking job and
+  // the screenshots are in the wiki — a luminance profile across one cannot
+  // tell the two apart, measured: 74 levels stepped against 73 smooth, because
+  // the ground's own texture is louder than the light.
+  const lit = await p.evaluate(() => window.__shading())
+  check('the light is multiplied over the ground, so the atlas does not grow',
+    lit.high === lit.tile * lit.rows && lit.flat > 0 && lit.flat < lit.rows,
+    `${lit.rows} rows of ${lit.tile} px, and a plate is composed from row `
+    + `${lit.flat}, the one that is not tinted`)
+
+  // And a room is lit flat, which 실내 바닥 asks for in so many words: three
+  // steps at most.  Counted off what was actually *drawn* rather than read
+  // back out of the constant — so it has to be asked from inside one, with a
+  // frame between going in and asking.
+  const went = await p.evaluate(() => window.__enter())
+  await p.waitForTimeout(600)
+  const room = await p.evaluate(() => window.__shading())
+  check('and a room is lit flat',
+    !!went && room.indoor.length > 0 && room.indoor.length <= 3,
+    went ? `${room.indoor.length} of the strip's ${room.rows} rows used indoors`
+      : 'nothing could be walked into')
+  await p.evaluate(() => window.__put(-9055, -298))
+  await p.waitForTimeout(300)
 }
 
 // 9c. The floor the client takes out of its own ground.  `holes` is sixteen
