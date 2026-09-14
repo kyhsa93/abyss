@@ -532,6 +532,8 @@
         padding-bottom: 5px; margin-bottom: 10px;
       }
       #create .cols { display: flex; gap: 18px; align-items: flex-start; }
+      /* A box only where it has to be one — see `createPane`. */
+      #create .pane { display: contents; }
       #create .seen {
         border: 1px solid var(--gold-dark); border-radius: 3px;
         background: rgba(0,0,0,.35); padding: 6px; line-height: 0;
@@ -578,9 +580,72 @@
       #create .ok:hover:enabled, #create .dice:hover {
         background: rgba(201,168,106,.24);
       }
+      /* **Forty-four, because a finger is not a mouse.**  The sizes on this
+         screen are the client's own out of `CharacterCreate.xml` and on a
+         phone they come out 38 — all thirty-nine of them.  Forty-four is what
+         both phone platforms publish and it is the floor `padcheck` already
+         holds the game's own controls to; this screen was never asked, because
+         it happens before the game starts.  A `min-height` rather than a
+         height, so it clamps the inline number the client's value sets. */
+      body.touch #create .pick,
+      body.touch #create .ok,
+      body.touch #create .dice,
+      body.touch #create .name { min-height: 44px; }
       body.touch #create .cols { flex-direction: column; gap: 10px; }
       body.touch #create .stage { width: calc(100vw - 20px); }
       body.touch #create .races { flex-direction: row; flex-wrap: wrap; }
+      /* **The preview does not scroll away.**  It is 410 pixels of the top of
+         a 844-pixel screen and it went up with everything else, so by the time
+         you were choosing a beard you could not see what a beard did. */
+      body.touch #create .seen {
+        position: sticky; top: 0; z-index: 1; background: #14110e;
+      }
+      /* And the name and the button into the world stay on the glass, so
+         neither of them is something you have to scroll back to. */
+      body.touch #create .foot {
+        position: sticky; bottom: 0; z-index: 2;
+        /* Opaque, not the panel's own translucent fill: the buttons it is
+           meant to stay in front of were reading straight through it. */
+        background: #14110e; margin-top: 8px; padding-bottom: 2px;
+      }
+      /* The line that says what you have chosen is a hint, and on a phone it
+         was three characters wide and four lines tall beside the buttons. */
+      body.touch #create .say { flex: 1 1 0; min-width: 0; font-size: 11px; }
+      /* **Lying down, it is two columns**, which is the whole of this.
+         844 x 390 is twice the width and half the height, and a single column
+         used the new width for nothing and lost the height twice over: three
+         of thirty-nine buttons were on the glass.  The preview takes the left,
+         the choosing takes the right and scrolls on its own — which is also
+         the shape the original has, a character in the middle and the choices
+         round the edge. */
+      body.touch.lying #create .stage {
+        width: calc(100vw - 16px); max-height: calc(100vh - 16px);
+        padding: 8px 10px; overflow: hidden;
+        display: flex; flex-direction: column;
+      }
+      body.touch.lying #create .cols {
+        flex-direction: row; gap: 10px; align-items: stretch;
+        flex: 1; min-height: 0;
+      }
+      body.touch.lying #create .seen {
+        position: static; flex: 0 0 auto; align-self: flex-start;
+      }
+      /* The two groups that were siblings of the preview become one scrolling
+         pane beside it.  `display: contents` cannot be used — the pane has to
+         be a box for the scrolling to happen in. */
+      body.touch.lying #create .races,
+      body.touch.lying #create .right { max-height: none; }
+      body.touch.lying #create .pane {
+        flex: 1; min-width: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      /* A flex item shrinks by default and these are wrapped rows inside a
+         column: left to shrink, the whole race row came out nought pixels
+         tall and simply was not there.  The same trap `#create .pick` already
+         carries a note about. */
+      body.touch.lying #create .pane > * { flex: 0 0 auto; }
+      body.touch.lying #create .title { margin-bottom: 6px; }
+      body.touch.lying #create .foot { position: static; margin-top: 6px; }
 
       /* The screen that chooses one.  Its sizes are the client's — a row is
          256 by 70 and the list is 260 wide — so what is here is only what a

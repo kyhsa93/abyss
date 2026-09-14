@@ -239,8 +239,9 @@ keeps it honest.
 | **외모를 고른 대로 세계의 스프라이트가 바뀐다** | `scripts/uicheck.mjs: "and the world draws what was chosen"` |
 | 만든 캐릭터가 저장되고 목록에 나온다 | `scripts/uicheck.mjs: "a character that was made is there when you come back"` |
 | 전화기에서도 만들고 고를 수 있다 | `scripts/padcheck.mjs: "and a finger picks one and goes in"` |
-| **가로에서도 한 화면에 든다** | — 눕힌 전화기에서 39개 중 3개만 보인다 (#227) |
-| 누를 것이 전부 44픽셀 이상이다 | — 39개 전부 38픽셀이다 (#227) |
+| **가로에서도 한 화면에 든다** | `scripts/padcheck.mjs: "most of it is on the glass"` |
+| 누를 것이 전부 44픽셀 이상이다 | `scripts/padcheck.mjs: "every one of them takes a finger"` |
+| 미리보기가 어느 항목을 고르든 보인다 | `scripts/padcheck.mjs: "the preview is on the glass"` |
 
 ## [퀘스트를-원본과-대-보다](https://github.com/kyhsa93/abyss/wiki/퀘스트를-원본과-대-보다)
 

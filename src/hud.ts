@@ -421,8 +421,17 @@ export function hud(layout?: Layout) {
   const createTitle = el('div', 'title', createBox)
   const createCols = el('div', 'cols', createBox)
   const createSeen = el('div', 'seen', createCols)
-  const createRaces = el('div', 'group races', createCols)
-  const createRight = el('div', 'right', createCols)
+  /**
+   * The two groups of choices, in a box of their own.
+   *
+   * `display: contents` everywhere but a phone lying down, so the layout that
+   * was there is the layout that stays; lying down it becomes the right-hand
+   * column and the thing that scrolls, which is what puts thirty-nine buttons
+   * on a 844 x 390 screen instead of three.
+   */
+  const createPane = el('div', 'pane', createCols)
+  const createRaces = el('div', 'group races', createPane)
+  const createRight = el('div', 'right', createPane)
   const createSexes = el('div', 'group sexes', createRight)
   const createClasses = el('div', 'group classes', createRight)
   const createLooks = el('div', 'group looks', createRight)
@@ -737,63 +746,7 @@ export function hud(layout?: Layout) {
     setCreate(open: boolean, made: MakeScreen) {
       create.hidden = !open
       if (!open) return
-      createTitle.textContent = '캐릭터를 만든다'
-      // The preview is the sprite that walks out, not a second picture of it:
-      // the scene paints the same sheets into this canvas, so what you chose
-      // and what you get cannot be two different people.
-      if (made.face && made.face.parentElement !== createSeen) {
-        createSeen.textContent = ''
-        createSeen.appendChild(made.face)
-      }
-      const sz = made.size
-      const row = (into: HTMLElement, list: Choice[], now: number,
-        pick: (id: number) => void, w: number, h: number, gap: number) => {
-        into.textContent = ''
-        into.style.gap = `${gap}px`
-        for (const c of list) {
-          const b = el('button', 'pick', into) as HTMLButtonElement
-          b.style.minWidth = `${w}px`
-          b.style.height = `${h}px`
-          if (c.id === now) b.classList.add('on')
-          if (!c.can) { b.classList.add('off'); b.disabled = true }
-          el('span', 'word', b).textContent = c.word
-          if (c.why) el('span', 'why', b).textContent = c.why
-          b.onclick = () => pick(c.id)
-        }
-      }
-      createRaces.style.maxHeight = `${made.list[1]}px`
-      createRaces.style.width = `${made.list[0]}px`
-      row(createRaces, made.races, made.race, made.pickRace,
-        made.list[0] - 20, sz.race[1], made.racePitch[1])
-      row(createSexes, made.sexes, made.sex, made.pickSex,
-        sz.sex[0] * 2, sz.sex[1], made.classPitch[0])
-      row(createClasses, made.classes, made.cls, made.pickClass,
-        sz.class[0] * 2, sz.class[1], made.classPitch[0])
-      // Appearance, at the size the original gives one of its five rows —
-      // `CharacterCustomizationFrameTemplate`, 230 by 32.
-      row(createLooks, made.hairs, made.hair, made.pickHair,
-        sz.look[0] / 2, sz.look[1], made.classPitch[0])
-      row(createBeards, made.beards, made.beard, made.pickBeard,
-        sz.look[0] / 2, sz.look[1], made.classPitch[0])
-      createName.style.width = `${sz.name[0]}px`
-      createName.style.height = `${sz.name[1]}px`
-      createName.placeholder = '이름'
-      if (createName.value !== made.name) createName.value = made.name
-      createName.oninput = () => made.rename(createName.value)
-      createSay.textContent = made.say
-      createOk.textContent = '세상으로'
-      createOk.style.width = `${sz.ok[0]}px`
-      createOk.style.height = `${sz.ok[1]}px`
-      createOk.disabled = !made.ready
-      createOk.onclick = made.done
-      createDice.textContent = '아무렇게나'
-      createDice.style.width = `${sz.dice[0]}px`
-      createDice.style.height = `${sz.dice[1]}px`
-      createDice.onclick = made.dice
-      createBack.hidden = !made.back
-      createBack.textContent = '돌아가기'
-      createBack.style.width = `${sz.back[0]}px`
-      createBack.style.height = `${sz.back[1]}px`
+      drawCreate(made)
       createBack.onclick = () => made.back?.()
     },
 
@@ -1719,6 +1672,9 @@ export function hud(layout?: Layout) {
   spell()
 
   const place = () => {
+    // The screen that makes a character is drawn once and then sat on, so a
+    // phone that has only just been recognised — or turned — has to be told.
+    if (!create.hidden && lastMade) drawCreate(lastMade)
     if (document.body.classList.contains('touch')) return placePhone()
     // Off on the desktop: the frame there follows the original's own
     // `PlayerFrame TOPLEFT (-19, 4) 232 x 100`, portrait and all.
@@ -1867,6 +1823,124 @@ export function hud(layout?: Layout) {
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => place()).observe(bar)
   }
+
+  /**
+   * Draw the screen that makes a character.
+   *
+   * Lifted out of `setCreate` so that opening the folded races can draw it
+   * again: a fold that cannot redraw is a fold that opens once and stays shut.
+   */
+  let openRaces = false
+  /** The last thing drawn, so turning the phone can draw it again. */
+  let lastMade: MakeScreen | null = null
+  const drawCreate = (made: MakeScreen) => {
+    lastMade = made
+  createTitle.textContent = '캐릭터를 만든다'
+  // The preview is the sprite that walks out, not a second picture of it:
+  // the scene paints the same sheets into this canvas, so what you chose
+  // and what you get cannot be two different people.
+  if (made.face && made.face.parentElement !== createSeen) {
+    createSeen.textContent = ''
+    createSeen.appendChild(made.face)
+  }
+  const sz = made.size
+  /**
+   * How small a thing a finger may be asked to hit.
+   *
+   * The sizes in this screen are the client's own, out of
+   * `CharacterCreate.xml`, and on a phone they come out **38 pixels —
+   * all thirty-nine of them**.  Forty-four is the number both phone
+   * platforms publish and it is the same floor `padcheck` already holds
+   * the game's own controls to; this screen was never asked because it
+   * happens before the game starts.  A number the client states is not
+   * automatically a number a thumb can use.
+   */
+  /** Whether the races that cannot be picked are folded away. */
+  const row = (into: HTMLElement, list: Choice[], now: number,
+    pick: (id: number) => void, w: number, h: number, gap: number,
+    fold = false) => {
+    into.textContent = ''
+    into.style.gap = `${gap}px`
+    // **What cannot be chosen was taking the screen.**  Nine of the ten
+    // races are outside this slice and each one carries a second line
+    // saying so — 220 pixels standing up, half of the first screenful, to
+    // say nothing you can act on.  Saying *what is not here and why* is a
+    // rule this repository keeps (issue 185), and it can be kept in one
+    // line: they fold, and a tap opens them.
+    // Asked when it runs and not once at the top: this screen is drawn before
+    // `place()` has decided the page is a phone, so a snapshot taken up there
+    // is `false` and stays false until something redraws.
+    const phone = document.body.classList.contains('touch')
+    const shut = phone && fold && !openRaces
+    const shown = shut ? list.filter((c) => c.can) : list
+    for (const c of shown) {
+      const b = el('button', 'pick', into) as HTMLButtonElement
+      b.style.minWidth = `${w}px`
+      // The height is the client's own number; the floor a finger needs is a
+      // `min-height` in the stylesheet, which clamps it without a second
+      // opinion about what the client said.
+      b.style.height = `${h}px`
+      if (c.id === now) b.classList.add('on')
+      if (!c.can) { b.classList.add('off'); b.disabled = true }
+      el('span', 'word', b).textContent = c.word
+      if (c.why) el('span', 'why', b).textContent = c.why
+      b.onclick = () => pick(c.id)
+    }
+    if (phone && fold && list.length > shown.length) {
+      const more = el('button', 'pick more', into) as HTMLButtonElement
+      more.style.minWidth = `${w}px`
+      more.style.height = `${h}px`
+      el('span', 'word', more).textContent =
+        `이 상자 밖 ${list.length - shown.length}가지`
+      more.onclick = () => { openRaces = true; drawCreate(made) }
+    }
+  }
+  // The client's own list box — 220 by 220 with a scrollbar of its own — only
+  // on a screen shaped like the client's.  On a phone the races are a wrapped
+  // row, and a 220-pixel box with a scroller inside a scroller is two
+  // scrollbars fighting: lying down the list scrolled itself out from under
+  // the title.
+  if (document.body.classList.contains('touch')) {
+    createRaces.style.removeProperty('max-height')
+    createRaces.style.removeProperty('width')
+  } else {
+    createRaces.style.maxHeight = `${made.list[1]}px`
+    createRaces.style.width = `${made.list[0]}px`
+  }
+  row(createRaces, made.races, made.race, made.pickRace,
+    made.list[0] - 20, sz.race[1], made.racePitch[1], true)
+  row(createSexes, made.sexes, made.sex, made.pickSex,
+    sz.sex[0] * 2, sz.sex[1], made.classPitch[0])
+  row(createClasses, made.classes, made.cls, made.pickClass,
+    sz.class[0] * 2, sz.class[1], made.classPitch[0])
+  // Appearance, at the size the original gives one of its five rows —
+  // `CharacterCustomizationFrameTemplate`, 230 by 32.
+  row(createLooks, made.hairs, made.hair, made.pickHair,
+    sz.look[0] / 2, sz.look[1], made.classPitch[0])
+  row(createBeards, made.beards, made.beard, made.pickBeard,
+    sz.look[0] / 2, sz.look[1], made.classPitch[0])
+  createName.style.width = `${sz.name[0]}px`
+  createName.style.height = `${sz.name[1]}px`
+  createName.placeholder = '이름'
+  if (createName.value !== made.name) createName.value = made.name
+  createName.oninput = () => made.rename(createName.value)
+  createSay.textContent = made.say
+  createOk.textContent = '세상으로'
+  createOk.style.width = `${sz.ok[0]}px`
+  createOk.style.height = `${sz.ok[1]}px`
+  createOk.disabled = !made.ready
+  createOk.onclick = made.done
+  createDice.textContent = '아무렇게나'
+  createDice.style.width = `${sz.dice[0]}px`
+  createDice.style.height = `${sz.dice[1]}px`
+  createDice.onclick = made.dice
+  createBack.hidden = !made.back
+  createBack.textContent = '돌아가기'
+  createBack.style.width = `${sz.back[0]}px`
+  createBack.style.height = `${sz.back[1]}px`
+  createBack.onclick = () => made.back?.()
+  }
+
 
   return {
     ...this_,

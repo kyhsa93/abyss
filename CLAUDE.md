@@ -119,6 +119,31 @@ happy. It presses through the pointer now, and on a different row than the one
 already chosen: pressing what is already selected passes whether the press
 arrived or not.
 
+**The screen that makes a character was three buttons of thirty-nine on a
+phone lying down, and `padcheck` walked straight past it.** It runs before the
+game starts, so the file that holds every other control to a thumb had never
+seen it: all thirty-nine were 38 pixels, and a landscape screen — twice as wide
+and half as tall — used none of the new width and lost the height twice over.
+
+Three things fixed it. **Lying down it is two columns**, the preview on the
+left and the choosing on the right scrolling on its own, which is the shape the
+original has anyway: a character in the middle and the choices round the edge.
+**The nine races that cannot be picked fold to one line** — saying what is not
+here and why is a rule this repository keeps, and it can be kept in one line
+instead of half a screenful. And **forty-four is the floor**, which is not the
+client's number: these sizes are `CharacterCreate.xml`'s own and a number the
+client states is not automatically a number a thumb can use. 3 of 39 became 25
+of 31 with no scrolling.
+
+Three mistakes worth keeping. **A snapshot of `body.touch` taken while drawing
+is false**: this screen is drawn once, before `place()` has decided the page is
+a phone, so the floor had to become a class and the fold had to ask each time —
+and `place()` now redraws it. **A scroller inside a scroller**: the race list
+carried the client's own 220 by 220 box inline, which on a phone is a wrapped
+row, and the two fought. And **a wrapped row inside a column flex shrinks to
+nothing** — the whole race row simply was not there until it was told not to,
+which is the trap `#create .pick` already carried a note about.
+
 **The player's frame on a phone is the old game's, and what came over is the
 arithmetic and not the pixels.** the tag `icc-final` derives every
 number from the glass — `ui = min(w, h) / 760` held between 0.62 and 1.15, a
@@ -1231,9 +1256,9 @@ half of each. That matters more than it sounds: a save carries the hash of the
 world it was made in.
 
 **A promise is a thing that can be computed and never read too.** The wiki's
-pages end in a 붙일 검사 table — a hundred and sixty-seven lines of "we should
+pages end in a 붙일 검사 table — a hundred and sixty-eight lines of "we should
 check this" — and for a year nothing counted how many of them were attached.
-A hundred and forty-two are; the rest are waiting on a feature nobody has built,
+A hundred and forty-five are; the rest are waiting on a feature nobody has built,
 and `docs/promised-checks.md` says which, line by line.
 `npm run wikicheck` is the gate and it has two reaches, because the wiki is
 a second git repository and CI has no more of it than it has of the client:
@@ -1241,7 +1266,7 @@ without the wiki it asserts that every check the table names still **exists**,
 and with `ABYSS_WIKI` pointed at a clone it asserts that the table and the
 wiki name the same set of promises, so a new line there fails until somebody
 writes down what keeps it. The number that came out sideways is worth knowing:
-of 440 check labels in the harness, 92 were promised and **348 were written
+of 443 check labels in the harness, 95 were promised and **348 were written
 because something broke**.
 
 **And the gate that counts promises was not seeing four pages of them.** It
@@ -1251,7 +1276,7 @@ the conversations — so twenty promises were in neither number while the check
 reported 114 in the wiki and 114 rows here and passed. Widening it turned up
 three more on a fifth page and took the count from 114 to 137, of which 111
 were already kept by checks nobody had recorded — and the sound round then put
-six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone five: 167. The same shape as `padcheck`'s `#ui > *`
+six more on top, the boundary round five, the mines five, the paint four, the plates three, the aiming two and the phone six: 168. The same shape as `padcheck`'s `#ui > *`
 and `viewcheck`'s "no paperdoll": **a check whose reach is narrower than the
 sentence describing it**, and the only thing that finds one is going and
 reading what it actually matches.

@@ -49,6 +49,51 @@ const pad = () => p.evaluate(() => window.__pad())
 
 await p.goto(HOST)
 await p.waitForFunction(() => window.__ready, null, { timeout: 60000 })
+// 0. The screen that makes a character, which every check below this used to
+// step straight over.
+//
+// It is drawn before the game starts, so `padcheck` skipped it — and measured,
+// **lying down three of its thirty-nine buttons were on the glass**.  The
+// screen is twice as wide and half as tall in landscape, and a single column
+// used none of the width and lost the height twice over.
+//
+// What is asked is the two things a phone decides: can you *see* what there is
+// to choose, and can a finger *hit* it.
+for (const [name, w, h] of [['standing', 390, 844], ['lying down', 844, 390]]) {
+  await p.setViewportSize({ width: w, height: h })
+  await p.waitForTimeout(400)
+  const made = await p.evaluate(() => {
+    const all = [...document.querySelectorAll(
+      '#create .pick, #create .ok, #create .dice, #create .name')]
+      // A control with no box is a control nobody can miss: the way back is
+      // hidden on the first screen because there is nowhere to go back to.
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 })
+    const on = all.filter((e) => {
+      const r = e.getBoundingClientRect()
+      return r.top >= -1 && r.bottom <= innerHeight + 1
+    })
+    const small = all.filter((e) => e.getBoundingClientRect().height < 44)
+    const seen = document.querySelector('#create .seen')?.getBoundingClientRect()
+    return { all: all.length, on: on.length, small: small.length,
+      seen: !!seen && seen.top >= -1 && seen.bottom <= innerHeight + 1 }
+  })
+  check(`making a character ${name}: most of it is on the glass`,
+    made.all > 0 && made.on >= made.all * 0.7,
+    `${made.on} of ${made.all} without scrolling`)
+  // Forty-four is what both phone platforms publish, and it is the floor this
+  // file already holds the game's own controls to.  The numbers on this screen
+  // are the client's own and come out at 38 — a number the client states is
+  // not automatically a number a thumb can use.
+  check(`making a character ${name}: every one of them takes a finger`,
+    made.small === 0, `${made.all - made.small} of ${made.all} at 44 px or more`)
+  // And what you are choosing *for* stays where you can see it.  It is 410
+  // pixels of a 844-pixel screen and it used to scroll away, so by the time
+  // you were choosing a beard you could not see what a beard did.
+  check(`making a character ${name}: the preview is on the glass`, made.seen)
+}
+await p.setViewportSize({ width: 390, height: 844 })
+await p.waitForTimeout(300)
+
 // A character first.  The game opens on the screen that makes one now, and
 // that screen covers the glass on purpose — so every check below it would be
 // driving a stick nobody can reach.
