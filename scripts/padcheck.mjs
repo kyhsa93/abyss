@@ -616,8 +616,8 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
   // above says the bottom third is two thumbs and nothing else.  It is
   // allowed because it is **reading and not pressing**: nobody taps it, so it
   // does not take a thumb's place.  What is checked instead is that it stays
-  // that: a thin strip, *below* everything a thumb touches, and inside the
-  // safe area rather than under the home indicator.
+  // that: a thin strip, *below* everything a thumb touches, and on the
+  // physical bottom edge with nothing under it.
   //
   // A rule loosened in silence is the same accident as a check that promised
   // less than it looked like — which this repository had again in issue 226.
@@ -630,16 +630,20 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       b.h <= 14 && b.y >= lowest - 1,
       `${b.id} ${Math.round(b.h)} px tall at ${Math.round(b.y)}, `
       + `the lowest thumb ending at ${Math.round(lowest)}`)
-    // And it is pinned to the *safe* bottom rather than the physical one.
-    // `viewport-fit=cover` puts the physical bottom inside the home
-    // indicator's band on a modern phone, and a headless browser reports that
-    // inset as nought — so this reads the rule rather than the pixels, which
-    // is the only place the difference is visible from here.
-    const pinned = await p.evaluate((id) =>
-      document.getElementById(id)?.style.bottom ?? '', b.id)
-    check(`${name}: and it is pinned above the home indicator`,
-      pinned.includes('safe-area-inset-bottom'),
-      `#${b.id} bottom: ${pinned || '(unset)'}`)
+    // And it is on the *physical* bottom, not the safe one — the owner asked
+    // for no gap under it.  It used to be pinned to
+    // `env(safe-area-inset-bottom)`, and a headless browser reports that inset
+    // as nought, so the pixels alone looked flush while a real iPhone showed
+    // 34 pixels of world under the bar.  Both are read: the rule, which is the
+    // only place that difference shows from here, and the box.
+    const flush = await p.evaluate((id) => {
+      const e = document.getElementById(id)
+      return { pinned: e?.style.bottom ?? '',
+        gap: Math.round(innerHeight - (e?.getBoundingClientRect().bottom ?? 0)) }
+    }, b.id)
+    check(`${name}: and it sits on the bottom edge with no gap`,
+      flush.pinned === '0px' && flush.gap === 0,
+      `#${b.id} bottom: ${flush.pinned || '(unset)'}, ${flush.gap} px under it`)
   }
   check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
     sat.map((b) => `${b.id} ${Math.round(b.x)},${Math.round(b.y)} ` +
@@ -767,6 +771,35 @@ await p.waitForTimeout(250)
   await p.touchscreen.tap(mapAt[0], mapAt[1])
   await p.waitForTimeout(250)
   check('and pressing it again puts them away', !(await onGlass()))
+
+  // **And lying down they come out beside the map, not across the glass
+  // from it.**  The row used to start at the player's frame in the top left,
+  // so the corner you pressed and the menu you got were the width of the
+  // screen apart.  Asked at the landscape floor and at a common phone, and
+  // the menu must still clear the player's frame at both.
+  for (const [lw, lh] of [[MIN_SCREEN.height, MIN_SCREEN.width], [844, 390]]) {
+    await p.setViewportSize({ width: lw, height: lh })
+    await p.waitForTimeout(300)
+    const at = await p.evaluate(() => {
+      const r = document.getElementById('map').getBoundingClientRect()
+      return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]
+    })
+    await p.touchscreen.tap(at[0], at[1])
+    await p.waitForTimeout(300)
+    const side = await p.evaluate(() => {
+      const box = (id) => document.getElementById(id).getBoundingClientRect()
+      const m = box('micro'), map = box('map'), me = box('units')
+      return { shown: m.width > 0, gap: Math.round(map.left - m.right),
+        top: Math.round(m.top - map.top), clear: Math.round(m.left - me.right) }
+    })
+    check(`${lw}x${lh}: lying down the menu opens beside the map`,
+      side.shown && side.gap >= 0 && side.gap <= 12 && Math.abs(side.top) <= 2
+      && side.clear > 0, JSON.stringify(side))
+    await p.touchscreen.tap(at[0], at[1])
+    await p.waitForTimeout(250)
+  }
+  await p.setViewportSize({ width: 390, height: 844 })
+  await p.waitForTimeout(300)
 
   // And what is left standing is a readout.  Not a list of ids — a rule: the
   // things that are always up are the ones that *say* something, and a thing

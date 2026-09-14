@@ -240,7 +240,7 @@ keeps it honest.
 | 세계를 탭하면 겨눠지고, 스틱·버튼을 방해하지 않는다 | `scripts/padcheck.mjs: "and a tap on something that fights back aims at it"` |
 | 스틱과 버튼이 안전영역 밖이다 | `scripts/padcheck.mjs: "the thumbs rest above whatever the phone has taken"` |
 | 경험치바가 엄지와 안 겹치고 아래 변에 붙어 있다 | `scripts/padcheck.mjs: "the strip that is read and not pressed is under the thumbs"` |
-| 경험치바가 홈 인디케이터 위에 꽂혀 있다 | `scripts/padcheck.mjs: "and it is pinned above the home indicator"` |
+| 경험치바가 화면 맨 아래에 여백 없이 붙어 있다 | `scripts/padcheck.mjs: "and it sits on the bottom edge with no gap"` |
 | 채팅창이 원작의 모서리·비율이다 | `scripts/padcheck.mjs: "the chat window is the original's shape"` |
 | 채팅창이 스틱 위에서 멈춘다 | `scripts/padcheck.mjs: "and it stops above the stick"` |
 | **줌의 천장이 유도된 수다** | `scripts/viewcheck.mjs: "the zoom floor is the opening framing over the camera slider"` |

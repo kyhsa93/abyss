@@ -202,10 +202,16 @@ three sizes this game lays out for, and the bar is twelve. It is also the one
 thing down there **nobody presses** — reading, not pressing — so it does not
 take a thumb's place. `padcheck`'s *the bottom third is two thumbs and nothing
 else* carries that as a **named exception** with its own assertions (thin,
-below every thumb, and pinned to `env(safe-area-inset-bottom)` rather than the
-physical bottom, which `viewport-fit=cover` puts inside the home indicator's
-band). A rule loosened in silence is the same accident as a check that promised
-less than it looked like.
+below every thumb, and on the physical bottom edge). A rule loosened in silence
+is the same accident as a check that promised less than it looked like.
+
+**It sits on the physical bottom, not the safe one**, by the owner's decision on
+2026-09-15. It was pinned to `env(safe-area-inset-bottom)` so the home indicator
+would not cross it, and on a real iPhone that left 34 pixels of world under it
+standing up and 21 lying down — while every screenshot here showed it flush,
+because a headless browser reports the inset as nought. Emulated with
+`Emulation.setSafeAreaInsetsOverride` the gap is there. The indicator crossing a
+bar nobody presses costs nothing; the stick and the buttons keep the inset.
 
 **Where a panel goes on a phone is `placePhone`, not the stylesheet**, and that
 is the whole lesson of a round spent on it. The old branch removed every pin

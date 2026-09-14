@@ -1403,16 +1403,19 @@ export function hud(layout?: Layout) {
     // loosened in silence is the same accident as a check that promised less
     // than it looked like.
     //
-    // Above the home indicator and not under it: `viewport-fit=cover` means
-    // the physical bottom is inside that band on a modern phone, and
-    // `env(safe-area-inset-bottom)` is where the safe bottom actually is.
+    // **On the physical bottom edge, with nothing under it**, by the owner's
+    // decision.  It used to stop at `env(safe-area-inset-bottom)` so the home
+    // indicator would not sit on it, which on a real iPhone left a band of
+    // world 34 pixels tall under the bar standing up and 21 lying down.  The
+    // bar is read and never pressed, so the indicator crossing it takes
+    // nothing a thumb needs — the stick and the buttons still keep the inset.
     loose(xpBar)
     xpBar.style.position = 'fixed'
     xpBar.style.transform = 'none'
     xpBar.style.left = '0px'
     xpBar.style.right = '0px'
     xpBar.style.top = 'auto'
-    xpBar.style.bottom = 'env(safe-area-inset-bottom, 0px)'
+    xpBar.style.bottom = '0px'
     xpBar.style.width = ''
     xpBar.style.height = '12px'
     // The swing bar stays where it is, under the player's own frame.  The
@@ -1454,7 +1457,12 @@ export function hud(layout?: Layout) {
     // Under the map it comes out of, and only while it is open.
     micro.hidden = !microOpen
     if (tall) put(micro, { right: 8, top: below, width: 116 })
-    else put(micro, { left: col + 20, top: 8 })
+    // Lying down, a row along the top edge **beside the map it comes out
+    // of**.  It used to start at the player's frame, twenty pixels right of
+    // it on the far side of the glass, so a thumb that pressed the top right
+    // corner opened a menu in the top left — 380 pixels away on a 640-wide
+    // screen, and nothing between the two said they were one thing.
+    else put(micro, { right: 8 + mapBox.offsetWidth + 6, top: 8 })
     // The deck is the bar plus the menu, and on a phone the bar is the two
     // round buttons on the canvas and the menu has just left.
     deck.style.display = 'none'
