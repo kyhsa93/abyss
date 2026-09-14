@@ -5040,6 +5040,30 @@ async function main() {
    */
   const PHONE_SLOTS = 5
   const pad = touchpad(canvas, PHONE_SLOTS)
+
+  /**
+   * How many pages of abilities the cluster has, and which four are on this one.
+   *
+   * **Five buttons was never the problem; five buttons and no way past them
+   * was.**  A level ten warrior who has bought everything a trainer sells
+   * knows sixteen abilities and could press three of them — issue 140 closed
+   * "you cannot choose what to hit on a phone" and left "you cannot choose
+   * what to hit it *with*" standing.
+   *
+   * The corner stays the attack, because it is the easiest place on a phone
+   * to reach and it is the one thing you always want.  The other four turn.
+   *
+   * One function for both halves, and that matters: the drawing loop and the
+   * press loop each need this list, and a bar drawn from one index and fired
+   * from another is what puts the wrong spell under the right picture.
+   */
+  const phonePages = () =>
+    Math.max(1, Math.ceil(spells.length / (PHONE_SLOTS - 1)))
+  const onPhonePage = () => {
+    const per = PHONE_SLOTS - 1
+    const from = Math.min(pad.page, phonePages() - 1) * per
+    return spells.slice(from, from + per)
+  }
   // The original's own frame places, read out of its `FrameXML` by
   // `pipeline/layout.py`.  Missing is fine: without it the stylesheet's
   // positions stand, which is what there was before there was a source.
@@ -7457,7 +7481,7 @@ async function main() {
       if (pad.asking) continue
       if (slot === 0) you.target = you.target ?? inSwing()
       else {
-        const sp = spells[slot - 1]
+        const sp = onPhonePage()[slot - 1]
         if (sp) cast(sp)
       }
     }
@@ -8514,7 +8538,7 @@ async function main() {
     pad.draw(ctx, [
       { label: '공격', icon: art.chrome['attack'],
         ready: you.target !== null || inSwing() !== null },
-      ...spells.slice(0, PHONE_SLOTS - 1).map((sp) => ({
+      ...onPhonePage().map((sp) => ({
         label: abilityOf(sp.id)?.[0] ?? '', icon: iconOf(sp.id),
         ready: why(sp) === null,
         // The shutter the desktop bar has, for whichever wait is longer.
@@ -8522,14 +8546,19 @@ async function main() {
           sp.cool ? Math.max(0, ((you.cools[sp.id] ?? 0) - clock) / (sp.cool / 1000)) : 0,
           sp.gcd ? Math.max(0, (you.gcd - clock) / (gcdOf(sp) / 1000)) : 0),
       })),
-    ])
+    ], phonePages())
 
     // What a held button says.  The same words the desktop tooltip carries,
     // drawn above the finger — the whole reason the hover version had to go
     // is that a finger is where the answer would have been.
     const asked = pad.held()
     if (asked) {
-      const sq = squares[asked.slot === 0 ? 0 : asked.slot + 1]
+      // **Through the page, not past it.**  This was `asked.slot + 1`, which
+      // was right while the cluster could only ever show the first four
+      // abilities: turn a page and the finger asks about one spell and is
+      // answered about another.  The id is the join, so the two cannot drift.
+      const want = asked.slot === 0 ? null : onPhonePage()[asked.slot - 1]
+      const sq = want ? squares.find((x) => x.id === want.id) : squares[0]
       const lines = (sq?.tip ?? '').split('\n').filter(Boolean)
       if (lines.length) {
         ctx.font = `12px ${getComputedStyle(document.documentElement)
@@ -8851,7 +8880,7 @@ async function main() {
         const stop = why(sp)
         const ready = you.cools[sp.id] ?? 0
         return {
-          key: SPELL_KEYS[i] ?? '', label: word,
+          key: SPELL_KEYS[i] ?? '', label: word, id: sp.id,
           icon: iconOf(sp.id),
           tip: `${word}  —  ${POWER_KOR[POWER_WORD[sp.power] ?? you.powerWord]
             ?? ''} ${costOf(sp, baseFor(sp))}\n${what}`
@@ -9135,6 +9164,12 @@ async function main() {
     // After the spread, because `view()` has a `held` of its own — whether a
     // finger is on the stick — and the two mean different things.
     held: pad.held(),
+    // Which four of the spellbook the cluster is showing, and how many pages
+    // there are.  Read off the same call the drawing uses, so a check that
+    // walks every page is walking what the thumb walks.
+    page: pad.page, pages: pad.pages,
+    onPage: onPhonePage().map((sp) => sp.id),
+    knows: spells.map((sp) => sp.id),
   })
 
   /** Where each kind's head is, in pixels over its feet — see `headOf`. */
@@ -9876,6 +9911,20 @@ async function main() {
    * a finger on the stick does, so what it exercises is the real walk with
    * the real `footing` under it and not a teleport wearing its clothes.
    */
+  /**
+   * A world point in the glass's own pixels — `worldAt` turned round.
+   *
+   * For the check that a tap on something aims at it: a check that works out
+   * where a creature is on screen with its own arithmetic is a check that
+   * agrees with itself, so the inverse is written beside the thing it
+   * inverts and both are read from here.
+   */
+  ;(window as unknown as { __screenAt: (x: number, y: number) => number[] })
+    .__screenAt = (x, y) => {
+      const s2 = k()
+      return [canvas.width / 2 - (y - camY) * s2,
+        canvas.height / 2 - (x - camX) * s2]
+    }
   ;(window as unknown as { __aim: (x: number | null, y?: number) => unknown })
     .__aim = (x, y) => {
       if (x === null) { want.x = 0; want.y = 0; return null }

@@ -733,6 +733,32 @@ they belong to are ones nobody can hold a standing with at all
 `Faction.dbc` has a Korean column and this game does not read it: the eight
 rank words and the five side words are in `talk.ts`, ours, keyed on the number.
 
+**Five buttons was never the problem; five buttons and no way past them was.**
+The phone's cluster keeps its five — the corner is the attack, because it is
+the easiest place on a phone to reach and it is the one thing you always want
+— and the other four turn pages. A ring beside the autocast toggle says `1/4`
+and wraps, so a character who knows sixteen abilities has every one of them
+under a thumb in at most three presses. `MIN_SCREEN` in `touch.ts` is the one
+floor: **360 x 640**, which is what `padcheck` already laid the screen out at,
+smaller than both the numbers two documents had been proposing, and a desktop
+is never smaller than a phone. **Landscape is supported**, not tolerated: the
+layout has a branch for it and the harness holds it to the same promises at
+the floor, lying down.
+
+**The type floor is 11 and it is about Hangul, not about tokens.** The client's
+own ladder with a phone one rung up puts it there, which is clear of the 9 the
+wiki measured Hangul falling back to a substitute face below. The check reads
+every element that actually draws text — hidden panels included, because a
+shop that is shut is still a shop you open — and exempts anything with no
+Hangul in it, because that is the reason the floor exists: `0 / 400` on a bar
+has none.
+
+**A check that names what it leaves out can still be missing what it meant to
+keep.** `padcheck`'s "nothing is drawn on a thumb" carried a paragraph about
+the conversation panel being the one that had to be in it, and its selector
+was `#ui > *` — and `#talk` is a child of `body`. Widening it turned up a
+landscape screen that printed every conversation on top of the log.
+
 **A constant with a source in the comment and no check behind it is a
 comment.** `npm run corecheck` goes and reads the server's own line back and
 fails when the copy here has drifted from it — the `derive_body` /

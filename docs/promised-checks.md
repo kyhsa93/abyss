@@ -6,7 +6,7 @@ are actually in the harness?  Nothing counted, which is this repository's own
 recurring shape, the one it has already paid for three times: **a thing
 computed and never read, a thing promised and never attached.**
 
-Counted: **103 promises across 14 pages, 81 of them kept.**
+Counted: **106 promises across 14 pages, 85 of them kept.**
 
 `npm run wikicheck` is the gate, and it is deliberately two checks with
 different reaches:
@@ -170,10 +170,13 @@ keeps it honest.
 
 | 약속 | 지키는 검사 |
 | --- | --- |
-| 엄지 버튼 자리의 수 = 전화기가 쓸 수 있는 능력의 수 | `scripts/padcheck.mjs: "the thumb can reach the abilities"` |
+| **주문서의 모든 능력이 엄지 밑에 온다** | `scripts/padcheck.mjs: "and every ability in the spellbook comes under a thumb"` |
+| **쪽 넘김이 한 바퀴 돌아온다** | `scripts/padcheck.mjs: "and the page turn comes back round"` |
+| **한글을 쓰는 것 중 11px 아래가 없다** | `scripts/padcheck.mjs: "and nothing on the glass writes Hangul below it"` |
+| **바닥 해상도에서, 눕혀서도, 배치가 같은 약속을 지킨다** | `scripts/padcheck.mjs: "the floor, lying down"` |
 | 각 자리를 눌렀을 때 그 능력이 나간다 | `scripts/padcheck.mjs: "a thumb beside the button still presses it"` |
 | hover 없이도 능력의 비용과 대기가 화면에 있다 | `scripts/padcheck.mjs: "holding a button asks what it is"` |
-| 세계를 탭하면 겨눠지고, 스틱·버튼을 방해하지 않는다 | — 세계를 탭해도 안 겨눠진다 (#203) |
+| 세계를 탭하면 겨눠지고, 스틱·버튼을 방해하지 않는다 | `scripts/padcheck.mjs: "and a tap on something that fights back aims at it"` |
 | 스틱과 버튼이 안전영역 밖이다 | `scripts/padcheck.mjs: "the thumbs rest above whatever the phone has taken"` |
 | 세계 캔버스가 `pixelated` 다 | — 캔버스의 CSS 를 읽는 것이 없다 |
 | 예산표에 전화기 열이 있고 넘긴 것이 없다 | — 예산 문서에 실측이 없다 (#207) |

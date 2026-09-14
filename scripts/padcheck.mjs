@@ -14,6 +14,7 @@
  */
 import { mkdirSync } from 'node:fs'
 import { chromium, devices } from 'playwright'
+import { MIN_SCREEN } from '../src/touch.ts'
 
 const SP = process.argv[2] ?? 'shots'
 mkdirSync(SP, { recursive: true })
@@ -251,6 +252,67 @@ await p.waitForTimeout(150)
 check('a tap on the world ends the conversation',
   await p.evaluate(() => document.getElementById('talk').hidden))
 
+// 10b. And a tap on something that will fight back aims at it.
+//
+// The other half of the same gesture, and the half nobody had checked: this
+// page promised *"세계를 탭하면 겨눠지고"* and the harness only ever watched
+// the conversation close.  There is no talk button and there is no target
+// button either — the world is the button.
+{
+  // `__foe` walks the hero up to the nearest thing that will fight back, which
+  // is the same call the fight checks use — one way to find a quarry rather
+  // than a second one here that could find a different kind of thing.
+  //
+  // Two calls and a wait between them, because the camera eases: asking where
+  // something is on the glass in the same breath as walking up to it answers
+  // for the screen you were looking at before.  And **then it has to still be
+  // alive** — the first version of this walked up to a one-health rabbit,
+  // waited for the camera, and tapped a corpse.
+  let shot = null
+  for (let tries = 0; tries < 4 && !shot; tries++) {
+    const foe = await p.evaluate(() => window.__foe())
+    if (!foe) break
+    await p.waitForTimeout(700)
+    shot = await p.evaluate((f) => {
+      const me = window.__hero()
+      const here = window.__all().find((n) =>
+        Math.hypot(n.x - f.x, n.y - f.y) < 0.2)
+      if (!here || here.dead) return null
+      void me
+      // The world point rides along with the screen point, because what is
+      // watched afterwards is the creature and not the pixel.
+      return { kind: here.kind,
+        at: [...window.__screenAt(here.x, here.y), here.x, here.y] }
+    }, foe)
+  }
+  // Loudly when there is nobody to tap, rather than quietly skipped: a check
+  // that does not run looks exactly like a check that passed.
+  if (!shot || !shot.at) {
+    check('and a tap on something that fights back aims at it', false,
+      `nothing to tap: ${JSON.stringify(shot)}`)
+  } else {
+    await touch('touchStart', [[Math.round(shot.at[0]), Math.round(shot.at[1])]])
+    await touch('touchEnd', [])
+    // Watched rather than waited for, and **either outcome counts**: a level
+    // ten character one-shots a chicken, so waiting a quarter of a second and
+    // then asking what the target is answers "nothing" about a fight that
+    // started and finished.  A corpse that was alive when it was tapped is
+    // proof the tap aimed at it.
+    let got = null
+    for (let i = 0; i < 12 && !got; i++) {
+      const now = await p.evaluate((f) => ({
+        target: window.__you().target,
+        gone: !!window.__all().find((n) =>
+          Math.hypot(n.x - f.x, n.y - f.y) < 0.2)?.dead,
+      }), { x: shot.at[2], y: shot.at[3] })
+      if (now.target !== null || now.gone) got = now
+      else await p.waitForTimeout(60)
+    }
+    check('and a tap on something that fights back aims at it',
+      got !== null, `tapped a ${shot.kind} — ${JSON.stringify(got)}`)
+  }
+}
+
 // 11. Landscape: the controls follow the corners.
 await p.setViewportSize({ width: 844, height: 390 })
 await p.waitForTimeout(300)
@@ -282,6 +344,37 @@ const full = await pad()
 const armed = await p.evaluate(() => window.__bar().spells.length)
 check('the thumb can reach the abilities', full.slots.length === 5,
   `${full.slots.length} buttons for ${armed} abilities`)
+
+// And **all** of them, which is issue 203.  Five buttons was never the
+// problem; five buttons and no way past them was.  The corner stays the
+// attack and the other four turn, so a character with sixteen abilities is
+// four pages deep.
+{
+  const seen = new Set()
+  const start = await p.evaluate(() => window.__pad())
+  for (const id of start.onPage) seen.add(id)
+  const ring = await p.evaluate(() => window.__pad().pageAt)
+  const walked = [start.page]
+  for (let i = 0; i < start.pages; i++) {
+    await touch('touchStart', [[ring.x, ring.y]])
+    await p.waitForTimeout(120)
+    await touch('touchEnd', [])
+    await p.waitForTimeout(200)
+    const now = await p.evaluate(() => window.__pad())
+    walked.push(now.page)
+    for (const id of now.onPage) seen.add(id)
+  }
+  const missed = start.knows.filter((id) => !seen.has(id))
+  check('and every ability in the spellbook comes under a thumb',
+    missed.length === 0 && start.pages > 1,
+    `${seen.size} of ${start.knows.length} over ${start.pages} pages`
+    + (missed.length ? `, missing ${missed.join(', ')}` : ''))
+  // Wrapping, so going back one is one press rather than all of them minus
+  // one — and so the ring cannot dead-end on the last page.
+  check('and the page turn comes back round',
+    walked.at(-1) === 0 && walked.length === start.pages + 1,
+    `pages walked: ${walked.join(' -> ')}`)
+}
 // And the autocast toggle, which the old prototype had and this one lost.
 check('and there is an autocast toggle above them',
   full.autoAt && full.autoAt.y < Math.min(...full.slots.map((s) => s.y)),
@@ -352,12 +445,25 @@ check('and there is an autocast toggle above them',
 // out by: the corners are the interface, the middle is the game, and the
 // bottom third is two thumbs and nothing else.
 for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
-  ['small', 360, 640]]) {
+  // The floor, read off `touch.ts` rather than typed here: a minimum written
+  // in a document and a minimum the layout is tested at are two numbers, and
+  // two numbers drift — which is exactly how 1024 x 640 and 390 x 664 came to
+  // disagree.  Issue 203.
+  ['the floor', MIN_SCREEN.width, MIN_SCREEN.height],
+  ['the floor, lying down', MIN_SCREEN.height, MIN_SCREEN.width]]) {
   await p.setViewportSize({ width: w, height: h })
   await p.waitForTimeout(250)
   const L2 = await pad()
+  // **`#talk` is in this list by name because it is not inside `#ui`.**
+  //
+  // The note below says the conversation panel is the one that had to be in
+  // this check — and the selector never reached it: `#talk` is a child of
+  // `body`, beside `#hud` and `#help`, so `#ui > *` walked straight past it
+  // and the exclusion list underneath was excusing something that was never
+  // there.  A check that names what it leaves out can still be missing what
+  // it meant to keep.
   const panels = await p.evaluate(() =>
-    [...document.querySelectorAll('#ui > *, #hud, #help')]
+    [...document.querySelectorAll('#ui > *, #hud, #help, #talk')]
       .filter((e) => !e.hidden && e.getBoundingClientRect().width > 0)
       .map((e) => {
         const r = e.getBoundingClientRect()
@@ -384,6 +490,10 @@ for (const [name, w, h] of [['portrait', 390, 844], ['landscape', 844, 390],
       Math.max(b.y, Math.min(cy, b.y + b.h)) - cy) < r
   const thumbs = [[L2.home.x, L2.home.y, L2.base],
     [L2.autoAt.x, L2.autoAt.y, L2.autoR * 1.3],
+    // And the page turn, which arrived with issue 203.  A control added to
+    // this cluster and not added to this list is a control the check has
+    // never heard of.
+    [L2.pageAt.x, L2.pageAt.y, L2.pageR * 1.3],
     ...L2.slots.map((sl) => [sl.x, sl.y, L2.hit])]
   const sat = panels.filter((b) => thumbs.some((t) => onDisc(b, t[0], t[1], t[2])))
   check(`${name}: nothing is drawn on a thumb`, sat.length === 0,
@@ -494,6 +604,47 @@ await p.waitForTimeout(300)
     Math.min(...type.sizes) >= 11,
     `smallest ${Math.min(...type.sizes)}px, and the wiki measured the fallback `
     + 'starting below 9')
+  // And the floor applies to **what is on the screen**, not to four tokens.
+  //
+  // Issue 203 went looking for "9px Hangul in the reading panel" and found it
+  // one panel over: `body.touch #hud` was a flat nine, keys in Korean and all,
+  // and the ladder above it said nothing about that because the panel does not
+  // use a token.  So the check reads every element that actually draws text
+  // and asks the question the floor exists to answer.
+  //
+  // **Digits are exempt and that is the reason, not an excuse**: the floor is
+  // where *Hangul* falls back to a substitute face, and `0 / 400` on a bar has
+  // no Hangul in it.
+  const HANGUL = /[\uac00-\ud7a3]/
+  //
+  // Hidden panels are walked too, and deliberately: a shop that is shut is
+  // still a shop you open, and the panel this found was one nothing had
+  // looked at because it is off until somebody presses a key.
+  const small = await p.evaluate((floor) => {
+    const out = []
+    const walk = (e) => {
+      const own = [...e.childNodes]
+        .some((n) => n.nodeType === 3 && n.textContent.trim())
+      const px = parseFloat(getComputedStyle(e).fontSize)
+      if (own && px < floor) {
+        out.push({ id: e.id || e.className || e.tagName, px,
+          text: (e.textContent || '').trim().slice(0, 24) })
+      }
+      for (const c of e.children) walk(c)
+    }
+    for (const id of ['ui', 'hud', 'help']) {
+      const e = document.getElementById(id)
+      if (e) walk(e)
+    }
+    return out
+  }, 11)
+  const hangul = small.filter((r) => HANGUL.test(r.text))
+  check('and nothing on the glass writes Hangul below it',
+    hangul.length === 0,
+    hangul.length
+      ? hangul.slice(0, 3).map((r) => `${r.id} ${r.px}px "${r.text}"`).join(', ')
+      : `${small.length} smaller than ${11}px and not one of them Hangul`
+        + (small.length ? ` (${small.map((r) => r.id).join(', ')})` : ''))
 }
 
 // 13. A keyboard puts it all away again.

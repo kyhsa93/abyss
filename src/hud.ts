@@ -58,6 +58,16 @@ export type Slot = {
   cooling: number
   /** Greyed out when there is nothing to use it on. */
   live: boolean
+  /**
+   * The ability behind it, where there is one.
+   *
+   * The phone's cluster shows four of the spellbook at a time and turns
+   * pages, so "which square is this button" stopped being arithmetic on the
+   * slot index the day it could turn.  The id is the join between the two
+   * bars; without it the finger asks about one spell and is answered about
+   * another.
+   */
+  id?: number
 }
 
 const ICONS = './art/ui/'
@@ -1276,12 +1286,26 @@ export function hud(layout?: Layout) {
     const panelW = tall ? Math.min(300, Math.round(w * 0.62))
       : Math.min(360, Math.round(w * 0.4))
     const panelH = Math.max(80, floor - below - 10)
+    // **Clear of the log, which lying down is in the way.**
+    //
+    // Standing up there is a screen's worth of height between the two and the
+    // conversation stops well above the log.  Lying down there is not: the
+    // log sits at 130 and the panel started at 134, so every conversation on
+    // a phone held sideways was printed on top of it.  Nobody had seen it
+    // because the check that says two panels may not share a place was
+    // looking at `#ui > *` and the conversation panel is a child of `body`.
+    //
+    // Landscape has width where it has no height, so the panel steps right
+    // past the log's column rather than the log moving out of the corner it
+    // was given — and it still stops short of the thumbs, which is what the
+    // width above is for.
+    const clearOfLog = tall ? 8 : 8 + logBox.offsetWidth + 8
     for (const node of [sheet, document.getElementById('talk')]) {
       if (!node) continue
       // Tall enough for what is in it and no taller, stopped at the thumbs.
       // A fixed height here is a panel with a hand's width of nothing under
       // two lines of speech.
-      put(node, { left: 8, top: below, width: panelW })
+      put(node, { left: clearOfLog, top: below, width: panelW })
       node.style.maxHeight = `${panelH}px`
       node.style.overflowY = 'auto'
     }

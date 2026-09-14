@@ -38,6 +38,8 @@ export type Layout = {
    * above rather than among them.
    */
   autoAt: Push; autoR: number
+  /** Where the page turn sits, above the corner button. */
+  pageAt: Push; pageR: number
 }
 
 /**
@@ -49,8 +51,17 @@ export type Layout = {
  */
 const DEADZONE = 0.24
 
-/** Five, as before.  One action is one slot; the shape is there for the rest. */
+/**
+ * Five, as before.  One action is one slot; the shape is there for the rest.
+ *
+ * The corner is always the attack, so **four of the five turn**: a character
+ * with sixteen abilities is four pages deep and every one of them is under a
+ * thumb in at most three presses of the page ring.  Five buttons was never
+ * the problem — five buttons *and no way past them* was, which is issue 203.
+ */
 const MAX_SLOTS = 5
+export const FIXED_SLOTS = 1
+export const PER_PAGE = MAX_SLOTS - FIXED_SLOTS
 
 /**
  * How much of each edge the phone itself has taken.
@@ -81,6 +92,24 @@ function safeArea() {
   probe.remove()
   return inset
 }
+
+/**
+ * The smallest screen this game is laid out for.
+ *
+ * Two documents said two things — the interface page proposed 1024 x 640 for a
+ * desktop and the phone page worked to 390 x 664 — and 640 is under 664, so
+ * the pair could not both be a floor.  Neither was measured.
+ *
+ * This is, and it is the one the harness already holds the layout to:
+ * `padcheck` lays the screen out at 360 x 640 and asserts that nothing the
+ * interface draws sits on a thumb.  360 x 640 is a real phone rather than a
+ * round number, it is smaller than both proposals, and a desktop is never
+ * smaller than a phone — so one number retires both.  Issue 203.
+ *
+ * Exported because the check reads it: a floor written down in a document and
+ * a floor the layout is tested at are two numbers, and two numbers drift.
+ */
+export const MIN_SCREEN = { width: 360, height: 640 }
 
 export function layoutFor(w: number, h: number): Layout {
   const safe = safeArea()
@@ -114,6 +143,11 @@ export function layoutFor(w: number, h: number): Layout {
     ],
     autoAt: { x: btnX - gap, y: bottom - row * 2 - 4 },
     autoR: btnR * 0.82,
+    // Beside the autocast toggle and over the corner, which is the column a
+    // thumb is already in.  Same size, because they are the same kind of
+    // thing: two little switches that change what the five below do.
+    pageAt: { x: btnX, y: bottom - row * 2 - 4 },
+    pageR: btnR * 0.82,
   }
 }
 
@@ -196,6 +230,17 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
   let tap: Push | null = null
   /** Whether the player has asked to keep swinging — see `autoAt`. */
   let auto = false
+  /**
+   * Which page of abilities the four turning slots are showing.
+   *
+   * Held here rather than in `main.ts` because it is a property of the *pad*:
+   * a keyboard has sixteen squares and never turns a page, and the scene
+   * should not have to know which of its two interfaces is on screen.  How
+   * many pages there are is whatever the caller hands `draw`, so the number
+   * follows the spellbook without anybody telling it.
+   */
+  let page = 0
+  let pages = 1
 
   function layout(): Layout {
     return layoutFor(canvas.width, canvas.height)
@@ -243,6 +288,13 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     if (e.pointerType === 'touch') on = true
     const p = at(e)
     // Where the finger went down, so the lift can tell a tap from a drag.
+    //
+    // **Cleared again by the two switches below**, and that is not tidiness:
+    // a press on the autocast toggle or the page turn used to lift as a *tap
+    // on the world*, so turning a page also picked a target — and picking a
+    // target opens nothing but `setBusy` runs on the frame after, which
+    // swallowed the next press outright.  Every other press either captures
+    // the pointer or is a genuine tap; these two are neither.
     // `tap` used to be set *here* — on the way down, before anything knew
     // whether it would move — so dragging the stick while a conversation was
     // open counted as tapping the world and closed it.  A conversation that
@@ -256,7 +308,18 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
     // it, and the hit radius of the buttons below reaches up here.
     if (Math.hypot(p.x - l.autoAt.x, p.y - l.autoAt.y) <= l.autoR * 1.3) {
       e.preventDefault()
+      down = null
       auto = !auto
+      return
+    }
+    // And the page turn beside it, on the same rule and checked before the
+    // buttons for the same reason.  It wraps, because a phone control that
+    // dead-ends makes you press it three times to go back one.
+    if (pages > 1
+      && Math.hypot(p.x - l.pageAt.x, p.y - l.pageAt.y) <= l.pageR * 1.3) {
+      e.preventDefault()
+      down = null
+      page = (page + 1) % pages
       return
     }
     const slot = hit(p, l)
@@ -401,6 +464,18 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
 
     /** Whether autocast is on, which the scene reads every frame. */
     get auto() { return auto },
+    /**
+     * Which page of abilities the four turning slots are showing, and how
+     * many there are.
+     *
+     * Read by the scene twice — once to pick what to draw on the buttons and
+     * once to work out what a press meant — and **those two have to be the
+     * same number**, which is why it is one field here rather than one in
+     * each.  A bar drawn from one index and fired from another is the shape
+     * that puts the wrong spell under the right picture.
+     */
+    get page() { return page },
+    get pages() { return pages },
 
     /** A tap and where it landed, consumed by the reading. */
     takeTap(): Push | null {
@@ -423,7 +498,14 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       release()
     },
 
-    draw(ctx: CanvasRenderingContext2D, bar: Slot[]) {
+    draw(ctx: CanvasRenderingContext2D, bar: Slot[], howMany = 1) {
+      // **How many pages there are is taken before the guard.**  Behind it the
+      // count went stale whenever the pad was not drawing — a conversation, a
+      // keyboard — so a character who learned two abilities mid-conversation
+      // came back to a cluster that still thought it had one page, and the
+      // count only caught up on the frame after it was next needed.
+      pages = Math.max(1, howMany)
+      if (page >= pages) page = 0
       if (!on || busy) return
       const l = layout()
       // The toggle, above the cluster.
@@ -435,6 +517,16 @@ export function touchpad(canvas: HTMLCanvasElement, count: number) {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('자동', l.autoAt.x, l.autoAt.y + 1)
+      // The page turn, drawn only when there is one.  A character with four
+      // abilities has one page and no ring — a control that does nothing is
+      // a control that costs a thumb's worth of glass for nothing.
+      if (pages > 1) {
+        ring(ctx, l.pageAt.x, l.pageAt.y, l.pageR,
+          'rgba(12,14,20,.62)', 'rgba(201,168,106,.8)', 2)
+        ctx.fillStyle = '#e8e4d8'
+        ctx.font = `bold ${Math.round(l.pageR * 0.62)}px ${face}`
+        ctx.fillText(`${page + 1}/${pages}`, l.pageAt.x, l.pageAt.y + 1)
+      }
 
       const w = where()
       const dx = w.kx - w.ox, dy = w.ky - w.oy

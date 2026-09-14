@@ -718,7 +718,14 @@
         portrait is a quarter of the width, and a conversation option is a
         20-pixel line of text where a finger needs forty.
       */
-      body.touch #hud { font-size: 9px; padding: 6px 8px; }
+      /* The readout was nine, and nine is under the floor.
+         The phone's type is the client's own ladder one rung up and its
+         bottom rung is eleven — which is where the wiki measured Hangul
+         starting to fall back to a substitute face.  This panel carries
+         Korean keys (`대상`, `분노`) like everything else, so "it is only a
+         developer's readout" does not buy it an exemption: it is on the
+         screen and it is read.  Issue 203. */
+      body.touch #hud { font-size: var(--font-tiny); padding: 6px 8px; }
       /* A phone's bottom row is two thumbs, so the bar is not there — the
          touch buttons are the action bar, and they already are. */
       body.touch #bar { display: none; }
